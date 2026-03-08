@@ -36,5 +36,11 @@ pubspec.lock
 coverage/
 .test_runner/
 
+# Claude Code
+CLAUDE.md
+.claude/
+**/CLAUDE.md
+**/.claude/
+
 # Old app directory
 app_old/
