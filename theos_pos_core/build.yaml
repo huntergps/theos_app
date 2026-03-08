@@ -1,0 +1,62 @@
+targets:
+  $default:
+    builders:
+      # Enable Drift for database generation
+      drift_dev:drift_dev:
+        enabled: true
+        options:
+          generate_connect_constructor: false
+          scoped_dart_components: true
+        generate_for:
+          include:
+            - lib/src/database/database.dart
+            - lib/src/database/tables/*.dart
+      # Enable Freezed for model classes
+      freezed:
+        generate_for:
+          include:
+            - lib/**/*.dart
+      # Enable JSON serializable
+      json_serializable:
+        generate_for:
+          include:
+            - lib/**/*.dart
+      # Enable OdooModel manager generator — only for migrated models
+      odoo_sdk|odoo_model:
+        enabled: true
+        generate_for:
+          include:
+            - lib/src/models/config/currency.model.dart
+            - lib/src/models/shared/res_country.model.dart
+            - lib/src/models/shared/res_country_state.model.dart
+            - lib/src/models/shared/res_lang.model.dart
+            - lib/src/models/payment_terms/payment_term.model.dart
+            - lib/src/models/warehouses/warehouse.model.dart
+            - lib/src/models/taxes/fiscal_position.model.dart
+            - lib/src/models/prices/pricelist.model.dart
+            - lib/src/models/banks/bank.model.dart
+            - lib/src/models/company/company.model.dart
+            - lib/src/models/taxes/tax.model.dart
+            - lib/src/models/sales/sales_team.model.dart
+            - lib/src/models/shared/resource_calendar.model.dart
+            - lib/src/models/users/user.model.dart
+            - lib/src/models/clients/client.model.dart
+            - lib/src/models/products/product_uom.model.dart
+            # --- Batch 2: Remaining models ---
+            - lib/src/models/products/product.model.dart
+            - lib/src/models/products/product_category.model.dart
+            - lib/src/models/products/uom.model.dart
+            - lib/src/models/activities/mail_activity.model.dart
+            - lib/src/models/sales/withhold_line.model.dart
+            - lib/src/models/advances/advance.model.dart
+            - lib/src/models/collection/collection_config.model.dart
+            - lib/src/models/collection/collection_session_cash.model.dart
+            - lib/src/models/collection/collection_session_deposit.model.dart
+            - lib/src/models/collection/cash_out.model.dart
+            - lib/src/models/collection/account_payment.model.dart
+            - lib/src/models/invoices/account_move.model.dart
+            - lib/src/models/invoices/account_move_line.model.dart
+            - lib/src/models/sales/payment_line.model.dart
+            - lib/src/models/sales/sale_order.model.dart
+            - lib/src/models/sales/sale_order_line.model.dart
+            - lib/src/models/collection/collection_session.model.dart

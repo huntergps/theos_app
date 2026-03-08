@@ -1,0 +1,24 @@
+targets:
+  $default:
+    builders:
+      # Disable self-applying to odoo_sdk itself
+      odoo_sdk|odoo_model:
+        enabled: false
+
+builders:
+  # OdooModel manager generator
+  odoo_model:
+    import: "package:odoo_sdk/src/generators/odoo_model_generator.dart"
+    builder_factories: ["odooModelBuilder"]
+    build_extensions: {".dart": [".odoo.g.part"]}
+    auto_apply: dependents
+    build_to: cache
+    applies_builders: ["source_gen|combining_builder"]
+
+  # Drift table generator
+  drift_table_builder:
+    import: "package:odoo_sdk/src/generators/drift_table_generator.dart"
+    builder_factories: ["driftTableBuilder"]
+    build_extensions: {".dart": [".drift.g.dart"]}
+    auto_apply: none
+    build_to: source

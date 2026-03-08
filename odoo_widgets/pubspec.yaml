@@ -1,0 +1,19 @@
+name: odoo_widgets
+description: Reactive form widgets for Odoo Flutter apps with Fluent UI - state management agnostic
+version: 0.1.0
+publish_to: none
+
+environment:
+  sdk: ^3.10.0
+  flutter: ">=3.10.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+  fluent_ui: ^4.13.0
+  intl: ^0.20.0
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^5.0.0

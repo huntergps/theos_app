@@ -1,0 +1,38 @@
+name: flutter_qweb
+description: >
+  A Flutter implementation of Odoo's QWeb template engine for PDF report generation.
+  Parse QWeb XML templates and render them to PDF with data context.
+version: 0.1.0
+homepage: https://github.com/anthropics/flutter_qweb
+repository: https://github.com/anthropics/flutter_qweb
+issue_tracker: https://github.com/anthropics/flutter_qweb/issues
+
+environment:
+  sdk: ">=3.0.0 <4.0.0"
+  flutter: ">=3.10.0"
+
+topics:
+  - pdf
+  - qweb
+  - odoo
+  - reports
+  - templates
+
+dependencies:
+  flutter:
+    sdk: flutter
+  open_file: ^3.3.2
+  path_provider: ^2.1.3
+  # PDF generation
+  pdf: ^3.11.0
+  printing: ^5.12.0
+  # XML parsing
+  xml: ^6.5.0
+
+dev_dependencies:
+  flutter_lints: ^6.0.0
+  flutter_test:
+    sdk: flutter
+  test: ^1.26.3
+
+flutter:

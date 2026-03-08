@@ -1,0 +1,47 @@
+name: odoo_sdk
+description: >
+  Offline-first Flutter SDK for Odoo 19.0+ JSON-2 API.
+  Multi-context data orchestration, model management, code generation,
+  bidirectional sync, WebSocket events, and Drift-reactive streams.
+version: 1.0.0
+publish_to: none
+
+environment:
+  sdk: ^3.10.0
+
+dependencies:
+  # Networking
+  dio: ^5.4.0
+  dio_cookie_manager: ^3.1.1
+  cookie_jar: ^4.0.8
+
+  # Type Safety
+  freezed_annotation: ^3.0.0
+  json_annotation: ^4.9.0
+
+  # Database
+  drift: ^2.20.3
+
+  # Crypto
+  crypto: ^3.0.3
+
+  # Utils
+  uuid: ^4.5.2
+  intl: ^0.20.0
+  path: ^1.9.0
+  meta: ^1.11.0
+  collection: ^1.18.0
+
+  # WebSocket
+  web_socket_channel: ^3.0.1
+
+dev_dependencies:
+  build_runner: ^2.10.5
+  source_gen: ^4.2.0
+  freezed: ^3.0.0
+  json_serializable: ^6.8.0
+  drift_dev: ^2.20.3
+  test: ^1.26.3
+  mocktail: ^1.0.4
+  http_mock_adapter: ^0.6.1
+  analyzer: ^10.0.0

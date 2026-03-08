@@ -1,0 +1,31 @@
+targets:
+  $default:
+    builders:
+      # Enable Drift for database generation
+      drift_dev:drift_dev:
+        enabled: true
+        options:
+          generate_connect_constructor: false
+          scoped_dart_components: true
+        generate_for:
+          include:
+            - lib/core/database/database.dart
+            - lib/core/database/tables/*.dart
+      # Enable Freezed for state classes
+      freezed:
+        generate_for:
+          include:
+            - lib/**/*.dart
+      # Enable Riverpod generator
+      riverpod_generator:
+        generate_for:
+          include:
+            - lib/**/*.dart
+      # Enable JSON serializable
+      json_serializable:
+        generate_for:
+          include:
+            - lib/**/*.dart
+      # Disable odoo_sdk builders due to compatibility issues
+      odoo_sdk|*:
+        enabled: false
