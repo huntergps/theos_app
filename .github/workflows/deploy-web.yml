@@ -24,9 +24,21 @@ jobs:
         with:
           channel: stable
 
-      - name: Install dependencies
+      - name: Install dependencies (all packages)
+        run: |
+          cd odoo_sdk && dart pub get && cd ..
+          cd flutter_qweb && flutter pub get && cd ..
+          cd odoo_widgets && flutter pub get && cd ..
+          cd theos_pos_core && flutter pub get && cd ..
+          cd theos_pos && flutter pub get && cd ..
+
+      - name: Generate code (theos_pos_core)
+        working-directory: theos_pos_core
+        run: dart run build_runner build --delete-conflicting-outputs
+
+      - name: Generate code (theos_pos)
         working-directory: theos_pos
-        run: flutter pub get
+        run: dart run build_runner build --delete-conflicting-outputs
 
       - name: Build web
         working-directory: theos_pos
