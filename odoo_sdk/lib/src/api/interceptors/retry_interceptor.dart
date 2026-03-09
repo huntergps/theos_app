@@ -5,7 +5,6 @@
 library;
 
 import 'dart:async';
-import 'dart:io';
 import 'dart:math';
 
 import 'package:dio/dio.dart';
@@ -177,10 +176,6 @@ class RetryInterceptor extends Interceptor {
     switch (err.type) {
       case DioExceptionType.connectionError:
       case DioExceptionType.unknown:
-        // Check for specific socket/connection exceptions
-        final error = err.error;
-        if (error is SocketException) return true;
-        if (error is HttpException) return true;
         // Check error message for connection-related keywords
         final message = err.message?.toLowerCase() ?? '';
         return message.contains('connection') ||

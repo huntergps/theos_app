@@ -1,15 +1,12 @@
-import 'dart:convert' show base64;
-import 'dart:io' show HttpClient;
-
-import 'package:crypto/crypto.dart' show sha256;
 import 'package:dio/dio.dart';
-import 'package:dio/io.dart';
-import 'package:dio_cookie_manager/dio_cookie_manager.dart';
-import 'package:cookie_jar/cookie_jar.dart';
 
 import '../interceptors/auth_interceptor.dart';
 import '../interceptors/retry_interceptor.dart';
 import '../interceptors/compression_interceptor.dart';
+
+import 'native_helpers.dart'
+    if (dart.library.html) 'web_helpers.dart'
+    as platform_helpers;
 
 /// SEC-04: Exception thrown when insecure connection is attempted.
 class InsecureConnectionException implements Exception {
@@ -247,12 +244,12 @@ class OdooClientConfig {
 /// - Generic POST/GET operations
 class OdooHttpClient {
   final Dio _dio;
-  final CookieJar _cookieJar;
+  final Object _cookieJar;
   OdooClientConfig _config;
 
   OdooHttpClient({required OdooClientConfig config})
     : _config = config,
-      _cookieJar = CookieJar(),
+      _cookieJar = platform_helpers.createCookieJar(),
       _dio = Dio() {
     _initialize();
   }
@@ -268,7 +265,7 @@ class OdooHttpClient {
 
     // Add cookie manager only on native platforms
     if (!_config.isWeb) {
-      _dio.interceptors.add(CookieManager(_cookieJar));
+      platform_helpers.addCookieManager(_dio, _cookieJar);
     }
 
     // SEC-02: Add auth interceptor for token refresh if handler provided
@@ -322,31 +319,11 @@ class OdooHttpClient {
 
   /// SEC-05: Configure certificate pinning on the Dio HTTP adapter.
   void _configureCertificatePinning(CertificatePinningConfig pinConfig) {
-    // Only available on native platforms (dart:io)
-    final adapter = _dio.httpClientAdapter;
-    if (adapter is IOHttpClientAdapter) {
-      adapter.createHttpClient = () {
-        final client = HttpClient();
-        client.badCertificateCallback = (cert, host, port) {
-          if (pinConfig.sha256Pins.isEmpty) return true;
-
-          // Compute SHA-256 of the DER-encoded certificate
-          final certBytes = cert.der;
-          final digest = sha256.convert(certBytes);
-          final certPin = base64.encode(digest.bytes);
-
-          final pinMatches = pinConfig.sha256Pins.contains(certPin);
-
-          if (pinMatches) return true;
-
-          // Optionally allow system-trusted certs
-          if (pinConfig.allowSystemCertificates) return false; // Let system validate
-
-          return false; // Reject — pin mismatch
-        };
-        return client;
-      };
-    }
+    platform_helpers.configureCertificatePinning(
+      _dio,
+      pinConfig.sha256Pins.toList(),
+      pinConfig.allowSystemCertificates,
+    );
   }
 
   /// Update client configuration
@@ -358,8 +335,8 @@ class OdooHttpClient {
   /// Current configuration
   OdooClientConfig get config => _config;
 
-  /// Cookie jar for session management
-  CookieJar get cookieJar => _cookieJar;
+  /// Cookie jar for session management (Object on web, CookieJar on native)
+  Object get cookieJar => _cookieJar;
 
   /// Whether the client has valid credentials
   bool get isConfigured => _config.apiKey.isNotEmpty;
@@ -419,8 +396,8 @@ class OdooHttpClient {
     }
   }
 
-  /// Load cookies for a given URL
-  Future<List<Cookie>> loadCookies(Uri uri) async {
-    return _cookieJar.loadForRequest(uri);
+  /// Load cookies for a given URL (returns Cookie list on native, empty on web)
+  Future<List<dynamic>> loadCookies(Uri uri) async {
+    return platform_helpers.loadCookies(_cookieJar, uri);
   }
 }

@@ -5,9 +5,12 @@
 library;
 
 import 'dart:convert';
-import 'dart:io';
 
 import 'package:dio/dio.dart';
+
+import 'gzip_native.dart'
+    if (dart.library.html) 'gzip_web.dart'
+    as gzip_impl;
 
 /// Configuration for request compression.
 class CompressionConfig {
@@ -194,7 +197,7 @@ class CompressionInterceptor extends Interceptor {
 
     // Compress the payload
     try {
-      final compressedBytes = gzip.encode(originalBytes);
+      final compressedBytes = gzip_impl.gzipEncode(originalBytes);
       final compressedSize = compressedBytes.length;
 
       // Only use compression if it actually reduces size

@@ -5,7 +5,8 @@
 library;
 
 import 'dart:async';
-import 'dart:io';
+
+import 'package:dio/dio.dart';
 
 import 'server_connectivity_service.dart';
 
@@ -24,6 +25,7 @@ class PollingConnectivityMonitor implements NetworkConnectivityMonitor {
   bool _lastKnownState = true;
   Timer? _timer;
   final _controller = StreamController<bool>.broadcast();
+  final _dio = Dio();
 
   PollingConnectivityMonitor({
     this.checkUrl = 'https://clients3.google.com/generate_204',
@@ -34,26 +36,23 @@ class PollingConnectivityMonitor implements NetworkConnectivityMonitor {
   @override
   Future<bool> checkConnectivity() async {
     try {
-      final uri = Uri.parse(checkUrl);
-      final client = HttpClient()..connectionTimeout = timeout;
-      try {
-        final request = await client.headUrl(uri).timeout(timeout);
-        final response = await request.close().timeout(timeout);
-        // Drain body to free resources
-        await response.drain<void>();
-        final connected = response.statusCode >= 200 && response.statusCode < 400;
-        _emitIfChanged(connected);
-        return connected;
-      } finally {
-        client.close(force: true);
-      }
-    } on SocketException {
+      final response = await _dio.head<void>(
+        checkUrl,
+        options: Options(
+          sendTimeout: timeout,
+          receiveTimeout: timeout,
+        ),
+      );
+      final connected =
+          response.statusCode != null &&
+          response.statusCode! >= 200 &&
+          response.statusCode! < 400;
+      _emitIfChanged(connected);
+      return connected;
+    } on DioException {
       _emitIfChanged(false);
       return false;
     } on TimeoutException {
-      _emitIfChanged(false);
-      return false;
-    } on HttpException {
       _emitIfChanged(false);
       return false;
     } catch (_) {
@@ -81,6 +80,7 @@ class PollingConnectivityMonitor implements NetworkConnectivityMonitor {
   void dispose() {
     stop();
     _controller.close();
+    _dio.close();
   }
 
   void _emitIfChanged(bool connected) {
