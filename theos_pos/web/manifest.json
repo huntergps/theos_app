@@ -1,11 +1,11 @@
 {
-    "name": "theos_pos",
-    "short_name": "theos_pos",
+    "name": "Orbi ERP",
+    "short_name": "Orbi ERP",
     "start_url": ".",
     "display": "standalone",
     "background_color": "#0A0A0A",
     "theme_color": "#0A0A0A",
-    "description": "A new Flutter project.",
+    "description": "Orbi ERP - Sistema de punto de venta",
     "orientation": "portrait-primary",
     "prefer_related_applications": false,
     "icons": [

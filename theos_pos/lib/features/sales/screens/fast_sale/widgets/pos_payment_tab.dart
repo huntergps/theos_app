@@ -489,8 +489,8 @@ class _POSPaymentTabState extends ConsumerState<POSPaymentTab> {
 
     return Expander(
       initiallyExpanded: false,
-      headerBackgroundColor: WidgetStateProperty.all(
-        Colors.orange.withValues(alpha: 0.08),
+      headerBackgroundColor: WidgetStateColor.resolveWith(
+        (_) => Colors.orange.withValues(alpha: 0.08),
       ),
       header: Row(
         children: [

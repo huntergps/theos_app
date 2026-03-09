@@ -339,17 +339,14 @@ class _MainScreenState extends ConsumerState<MainScreen> with WindowListener {
     }
 
     return NavigationView(
-      appBar: NavigationAppBar(
-        automaticallyImplyLeading: false,
-        title: const DragToMoveArea(
-          child: Align(
-            alignment: AlignmentDirectional.centerStart,
-            child: Text('TheosPos'),
-          ),
-        ),
-        actions: Row(
-          mainAxisAlignment: MainAxisAlignment.end,
+      titleBar: DragToMoveArea(
+        child: Row(
           children: [
+            const Padding(
+              padding: EdgeInsets.symmetric(horizontal: 12.0),
+              child: Text('Orbi ERP'),
+            ),
+            const Spacer(),
             // Offline Mode Indicator
             Consumer(
               builder: (context, ref, child) {
@@ -519,7 +516,7 @@ class _MainScreenState extends ConsumerState<MainScreen> with WindowListener {
               message: 'Cambiar Tema',
               child: IconButton(
                 icon: Icon(
-                  FluentTheme.of(context).brightness.isDark
+                  FluentTheme.of(context).brightness == Brightness.dark
                       ? FluentIcons.sunny
                       : FluentIcons.clear_night,
                   size: 20,

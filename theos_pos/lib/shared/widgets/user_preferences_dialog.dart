@@ -1196,19 +1196,22 @@ class _UserPreferencesDialogState extends ConsumerState<UserPreferencesDialog> {
                     label: 'Notificación',
                     child: _notificationTypes.isEmpty
                         ? const Text('Cargando opciones...')
-                        : Wrap(
-                            spacing: 12,
-                            runSpacing: 8,
-                            children: _notificationTypes.map((type) {
-                              final code = type[0] as String;
-                              final name = type[1] as String;
-                              return RadioButton(
-                                checked: _notificationType == code,
-                                onChanged: (v) =>
-                                    setState(() => _notificationType = code),
-                                content: Text(name),
-                              );
-                            }).toList(),
+                        : RadioGroup<String>(
+                            groupValue: _notificationType ?? '',
+                            onChanged: (v) =>
+                                setState(() => _notificationType = v),
+                            child: Wrap(
+                              spacing: 12,
+                              runSpacing: 8,
+                              children: _notificationTypes.map((type) {
+                                final code = type[0] as String;
+                                final name = type[1] as String;
+                                return RadioButton<String>(
+                                  value: code,
+                                  content: Text(name),
+                                );
+                              }).toList(),
+                            ),
                           ),
                   ),
                 ],

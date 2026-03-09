@@ -193,7 +193,7 @@ class MyApp extends ConsumerWidget {
 
     return FluentApp.router(
       debugShowCheckedModeBanner: false,
-      title: 'TheosPos',
+      title: 'Orbi ERP',
       themeMode: config.themeMode,
       color: config.accentColor,
       darkTheme: _buildThemeWithTypography(Brightness.dark, config),

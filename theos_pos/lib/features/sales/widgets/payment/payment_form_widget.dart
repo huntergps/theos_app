@@ -385,37 +385,30 @@ class _PaymentFormWidgetState extends ConsumerState<PaymentFormWidget> {
         // Card type selector
         InfoLabel(
           label: 'Tipo de tarjeta',
-          child: Row(
-            children: [
-              Expanded(
-                child: RadioButton(
-                  checked: _cardType == CardType.debit,
-                  onChanged: (v) {
-                    if (v) {
-                      setState(() {
-                        _cardType = CardType.debit;
-                        _selectedCardDeadline = null;
-                      });
-                    }
-                  },
-                  content: const Text('Débito'),
+          child: RadioGroup<CardType>(
+            groupValue: _cardType,
+            onChanged: (v) {
+              setState(() {
+                _cardType = v;
+                _selectedCardDeadline = null;
+              });
+            },
+            child: Row(
+              children: [
+                Expanded(
+                  child: RadioButton<CardType>(
+                    value: CardType.debit,
+                    content: const Text('Débito'),
+                  ),
                 ),
-              ),
-              Expanded(
-                child: RadioButton(
-                  checked: _cardType == CardType.credit,
-                  onChanged: (v) {
-                    if (v) {
-                      setState(() {
-                        _cardType = CardType.credit;
-                        _selectedCardDeadline = null;
-                      });
-                    }
-                  },
-                  content: const Text('Crédito'),
+                Expanded(
+                  child: RadioButton<CardType>(
+                    value: CardType.credit,
+                    content: const Text('Crédito'),
+                  ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
         ),
 

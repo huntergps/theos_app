@@ -294,7 +294,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> with WindowListener {
                       padding: const EdgeInsets.symmetric(horizontal: 8.0),
                       child: IconButton(
                         icon: Icon(
-                          FluentTheme.of(context).brightness.isDark
+                          FluentTheme.of(context).brightness == Brightness.dark
                               ? FluentIcons.sunny
                               : FluentIcons.clear_night,
                         ),

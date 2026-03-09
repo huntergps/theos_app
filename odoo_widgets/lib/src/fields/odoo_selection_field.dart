@@ -199,30 +199,36 @@ class OdooSelectionField<T> extends OdooFieldBase<T> {
               ],
             ),
           ),
-        ...options.map((option) {
-          return Padding(
-            padding: const EdgeInsets.only(bottom: 4),
-            child: RadioButton(
-              checked: effectiveValue == option.value,
-              onChanged: config.isEnabled && !option.isDisabled
-                  ? (_) => onChanged?.call(option.value)
-                  : null,
-              content: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  if (option.icon != null) ...[
-                    Icon(option.icon, size: 14, color: option.color),
-                    const SizedBox(width: 4),
-                  ],
-                  Text(
-                    option.label,
-                    style: TextStyle(color: option.color),
+        RadioGroup<T?>(
+          groupValue: effectiveValue,
+          onChanged: (v) {
+            if (config.isEnabled && v != null) onChanged?.call(v);
+          },
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: options.map((option) {
+              return Padding(
+                padding: const EdgeInsets.only(bottom: 4),
+                child: RadioButton<T?>(
+                  value: option.value,
+                  content: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      if (option.icon != null) ...[
+                        Icon(option.icon, size: 14, color: option.color),
+                        const SizedBox(width: 4),
+                      ],
+                      Text(
+                        option.label,
+                        style: TextStyle(color: option.color),
+                      ),
+                    ],
                   ),
-                ],
-              ),
-            ),
-          );
-        }),
+                ),
+              );
+            }).toList(),
+          ),
+        ),
       ],
     );
   }
