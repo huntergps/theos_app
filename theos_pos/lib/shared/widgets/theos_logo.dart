@@ -44,7 +44,8 @@ class _TheosLogoState extends State<TheosLogo>
   Widget build(BuildContext context) {
     final brightness = FluentTheme.of(context).brightness;
     final isDark = brightness == Brightness.dark;
-    final color = widget.color ??
+    final color =
+        widget.color ??
         (isDark ? const Color(0xFFE0E0E0) : const Color(0xFF2D2D2D));
 
     final svg = SvgPicture.asset(
@@ -93,8 +94,8 @@ class TheosLogoName extends StatelessWidget {
 
     final brightness = FluentTheme.of(context).brightness;
     final isDark = brightness == Brightness.dark;
-    final resolvedColor = color ??
-        (isDark ? const Color(0xFFE0E0E0) : const Color(0xFF2D2D2D));
+    final resolvedColor =
+        color ?? (isDark ? const Color(0xFFE0E0E0) : const Color(0xFF2D2D2D));
 
     return SvgPicture.asset(
       'assets/images/logo_nombre.svg',
@@ -104,18 +105,55 @@ class TheosLogoName extends StatelessWidget {
   }
 }
 
-/// Logo PNG full-color (sin tinteo). Ideal para splash screens.
-class TheosLogoImage extends StatelessWidget {
-  const TheosLogoImage({super.key, this.height = 200});
+/// "ORBI ERP" con 2 colores dinámicos del tema.
+///
+/// Carga `nombre.svg` como string y reemplaza los placeholders
+/// `#0A0A01` (ORBI) y `#0B0B02` (ERP) con los colores reales.
+class TheosNameSvg extends StatelessWidget {
+  const TheosNameSvg({
+    super.key,
+    this.height = 36,
+    this.orbiColor,
+    this.erpColor,
+  });
 
   final double height;
 
+  /// Color para "ORBI". Default: color del texto del tema.
+  final Color? orbiColor;
+
+  /// Color para "ERP". Default: accentColor del tema.
+  final Color? erpColor;
+
+  String _colorToHex(Color c) {
+    final r = (c.r * 255).round().toRadixString(16).padLeft(2, '0');
+    final g = (c.g * 255).round().toRadixString(16).padLeft(2, '0');
+    final b = (c.b * 255).round().toRadixString(16).padLeft(2, '0');
+    return '#$r$g$b';
+  }
+
   @override
   Widget build(BuildContext context) {
-    return Image.asset(
-      'assets/images/logo.png',
-      height: height,
-      fit: BoxFit.contain,
+    final theme = FluentTheme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    final resolvedOrbi =
+        orbiColor ??
+        (isDark ? const Color(0xFFE0E0E0) : const Color(0xFF2D2D2D));
+    final resolvedErp = erpColor ?? theme.accentColor;
+
+    return FutureBuilder<String>(
+      future: DefaultAssetBundle.of(
+        context,
+      ).loadString('assets/images/nombre.svg'),
+      builder: (context, snapshot) {
+        if (!snapshot.hasData) {
+          return SizedBox(height: height);
+        }
+        final svg = snapshot.data!
+            .replaceAll('#0A0A01', _colorToHex(resolvedOrbi))
+            .replaceAll('#0B0B02', _colorToHex(resolvedErp));
+        return SvgPicture.string(svg, height: height);
+      },
     );
   }
 }
