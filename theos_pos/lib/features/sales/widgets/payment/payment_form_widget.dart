@@ -388,6 +388,7 @@ class _PaymentFormWidgetState extends ConsumerState<PaymentFormWidget> {
           child: RadioGroup<CardType>(
             groupValue: _cardType,
             onChanged: (v) {
+              if (v == null) return;
               setState(() {
                 _cardType = v;
                 _selectedCardDeadline = null;
