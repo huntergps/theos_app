@@ -1,4 +1,3 @@
-import 'dart:io';
 import 'package:flutter/foundation.dart';
 
 import 'package:fluent_ui/fluent_ui.dart';
@@ -8,8 +7,12 @@ import 'package:path_provider/path_provider.dart';
 
 import '../../../core/constants/app_constants.dart';
 import '../../../core/database/database_helper.dart';
+import '../../../core/database/database_helper_file_ops.dart'
+    if (dart.library.html) '../../../core/database/database_helper_file_ops_stub.dart'
+    as file_ops;
 import '../../../core/database/repositories/repository_providers.dart';
 import '../../../shared/providers/offline_queue_provider.dart';
+import '../../../shared/utils/platform_process.dart' as platform_process;
 import '../providers/sync_provider.dart';
 import '../widgets/offline_mode_section.dart';
 import '../widgets/stock_changes_section.dart';
@@ -145,12 +148,12 @@ class _SyncScreenState extends ConsumerState<SyncScreen> {
   }
 
   Future<void> _openDatabaseFolder() async {
-    if (!kIsWeb && _databasePath != null && Platform.isMacOS) {
+    if (!kIsWeb && _databasePath != null && defaultTargetPlatform == TargetPlatform.macOS) {
       final directory = _databasePath!.substring(
         0,
         _databasePath!.lastIndexOf('/'),
       );
-      await Process.run('open', [directory]);
+      await platform_process.openDirectory(directory);
     }
   }
 
@@ -290,24 +293,11 @@ class _SyncScreenState extends ConsumerState<SyncScreen> {
 
       // Delete files
       if (_databasePath != null) {
-        final file = File(_databasePath!);
-        if (await file.exists()) {
-          await file.delete();
-        }
-
+        await file_ops.deleteFileAt(_databasePath!);
         // Try to delete journal files too
-        final journalFile = File('$_databasePath-journal');
-        if (await journalFile.exists()) {
-          await journalFile.delete();
-        }
-        final shmFile = File('$_databasePath-shm');
-        if (await shmFile.exists()) {
-          await shmFile.delete();
-        }
-        final walFile = File('$_databasePath-wal');
-        if (await walFile.exists()) {
-          await walFile.delete();
-        }
+        await file_ops.deleteFileAt('$_databasePath-journal');
+        await file_ops.deleteFileAt('$_databasePath-shm');
+        await file_ops.deleteFileAt('$_databasePath-wal');
       }
 
       // Re-initialize database and providers
@@ -701,7 +691,7 @@ class _DatabasePathDisplay extends StatelessWidget {
               ),
             ),
             if (!kIsWeb &&
-                (Platform.isMacOS || Platform.isWindows || Platform.isLinux))
+                (defaultTargetPlatform == TargetPlatform.macOS || defaultTargetPlatform == TargetPlatform.windows || defaultTargetPlatform == TargetPlatform.linux))
               Tooltip(
                 message: 'Abrir carpeta',
                 child: IconButton(

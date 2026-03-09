@@ -4,12 +4,8 @@
 /// with file system lock persistence for desktop platforms.
 library;
 
-import 'dart:convert';
-import 'dart:io';
-
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:path_provider/path_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 // Import package with alias to avoid ServerConfig conflict
@@ -19,114 +15,13 @@ import '../logger_service.dart';
 import 'device_service.dart';
 import '../../../features/authentication/services/server_service.dart';
 
+// Conditional import for file system lock
+import 'file_system_lock_stub.dart'
+    if (dart.library.io) 'file_system_lock_native.dart' as lock_impl;
+
 // Re-export package types for external use (except ServerConfig)
 export 'package:odoo_sdk/odoo_sdk.dart'
     show ServerLockPersistence;
-
-// ============================================================================
-// FILE SYSTEM LOCK PERSISTENCE (Desktop platforms)
-// ============================================================================
-
-/// File system based lock persistence for desktop platforms
-class FileSystemLockPersistence implements pkg.ServerLockPersistence {
-  static const _lockFilePrefix = 'theos_pos_lock_';
-
-  @override
-  bool get isSupported => !kIsWeb;
-
-  Future<Directory> _getLockDirectory() async {
-    final appDir = await getApplicationSupportDirectory();
-    final lockDir = Directory('${appDir.path}/locks');
-    if (!await lockDir.exists()) {
-      await lockDir.create(recursive: true);
-    }
-    return lockDir;
-  }
-
-  File _getLockFile(Directory dir, String identifier) {
-    return File('${dir.path}/$_lockFilePrefix$identifier.lock');
-  }
-
-  @override
-  Future<bool> lockExists(String identifier) async {
-    if (!isSupported) return false;
-    final dir = await _getLockDirectory();
-    final file = _getLockFile(dir, identifier);
-    return file.exists();
-  }
-
-  @override
-  Future<Map<String, dynamic>?> readLock(String identifier) async {
-    if (!isSupported) return null;
-    try {
-      final dir = await _getLockDirectory();
-      final file = _getLockFile(dir, identifier);
-      if (await file.exists()) {
-        final content = await file.readAsString();
-        return jsonDecode(content) as Map<String, dynamic>;
-      }
-    } catch (e) {
-      logger.d('[FileSystemLock]', 'Error reading lock: $e');
-    }
-    return null;
-  }
-
-  @override
-  Future<void> writeLock(String identifier, Map<String, dynamic> data) async {
-    if (!isSupported) return;
-    try {
-      final dir = await _getLockDirectory();
-      final file = _getLockFile(dir, identifier);
-      await file.writeAsString(jsonEncode(data));
-    } catch (e) {
-      logger.e('[FileSystemLock]', 'Error writing lock: $e');
-    }
-  }
-
-  @override
-  Future<void> deleteLock(String identifier) async {
-    if (!isSupported) return;
-    try {
-      final dir = await _getLockDirectory();
-      final file = _getLockFile(dir, identifier);
-      if (await file.exists()) {
-        await file.delete();
-      }
-    } catch (e) {
-      logger.d('[FileSystemLock]', 'Error deleting lock: $e');
-    }
-  }
-
-  @override
-  Future<List<Map<String, dynamic>>> listLocks() async {
-    if (!isSupported) return [];
-    final locks = <Map<String, dynamic>>[];
-    try {
-      final lockDir = await _getLockDirectory();
-      if (!await lockDir.exists()) return [];
-
-      await for (final file in lockDir.list()) {
-        if (file is File && file.path.endsWith('.lock')) {
-          try {
-            final content = await file.readAsString();
-            final data = jsonDecode(content) as Map<String, dynamic>;
-            // Add identifier for cleanup
-            final filename = file.path.split('/').last;
-            data['_identifier'] = filename
-                .replaceFirst(_lockFilePrefix, '')
-                .replaceFirst('.lock', '');
-            locks.add(data);
-          } catch (_) {
-            // Skip invalid lock files
-          }
-        }
-      }
-    } catch (e) {
-      logger.d('[FileSystemLock]', 'Error listing locks: $e');
-    }
-    return locks;
-  }
-}
 
 // ============================================================================
 // APP SERVER DATABASE SERVICE
@@ -149,7 +44,7 @@ class AppServerDatabaseService {
       _deviceService,
       lockPersistence: kIsWeb
           ? pkg.NoOpServerLockPersistence()
-          : FileSystemLockPersistence(),
+          : lock_impl.FileSystemLockPersistence(),
     );
   }
 
@@ -176,15 +71,15 @@ class AppServerDatabaseService {
 
     // Additional check: verify process is still running (macOS/Linux)
     try {
-      final lockData = await (FileSystemLockPersistence()).readLock(
+      final lockData = await (lock_impl.FileSystemLockPersistence()).readLock(
         _service.generateServerIdentifier(_toPackageConfig(server)),
       );
 
       if (lockData != null) {
         final pid = lockData['pid'] as int?;
-        if (pid != null && (Platform.isMacOS || Platform.isLinux)) {
-          final result = await Process.run('kill', ['-0', pid.toString()]);
-          if (result.exitCode != 0) {
+        if (pid != null) {
+          final running = await lock_impl.isProcessRunning(pid);
+          if (!running) {
             // Process not running, release the stale lock
             logger.d('[ServerDbService]', 'Process $pid not running, removing lock');
             await _service.releaseLock(_toPackageConfig(server));

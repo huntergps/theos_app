@@ -1,12 +1,10 @@
 import 'dart:convert';
-import 'dart:io';
 import 'package:fluent_ui/fluent_ui.dart';
 import 'package:syncfusion_flutter_datagrid/datagrid.dart';
 import 'package:syncfusion_flutter_core/theme.dart';
 import 'package:syncfusion_flutter_datagrid_export/export.dart';
-import 'package:path_provider/path_provider.dart';
-import 'package:share_plus/share_plus.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import '../../utils/web_download.dart' as web_download;
 
 import 'theos_data_grid_source.dart';
 
@@ -66,13 +64,7 @@ class TheosDataGrid extends StatefulWidget {
     final List<int> bytes = workbook.saveAsStream();
     workbook.dispose();
 
-    final directory = await getApplicationDocumentsDirectory();
-    final path = '${directory.path}/$fileName.xlsx';
-    final file = File(path);
-    await file.writeAsBytes(bytes, flush: true);
-
-    // Share/Open the file
-    await SharePlus.instance.share(ShareParams(files: [XFile(path)], text: 'Exported Excel File'));
+    await web_download.shareFile(bytes, '$fileName.xlsx', text: 'Exported Excel File');
   }
 
   /// Helper to create a standard header label

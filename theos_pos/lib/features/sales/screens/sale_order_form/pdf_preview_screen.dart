@@ -5,15 +5,18 @@
 library;
 
 import 'dart:typed_data';
-import 'dart:io';
 import 'package:fluent_ui/fluent_ui.dart';
-import 'package:open_file/open_file.dart';
-import 'package:share_plus/share_plus.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:printing/printing.dart';
 import 'package:syncfusion_flutter_pdfviewer/pdfviewer.dart';
-import 'package:path_provider/path_provider.dart';
 
 import '../../../../core/services/logger_service.dart';
 import '../../../../shared/widgets/dialogs/copyable_info_bar.dart';
+
+// Conditional imports for native file operations
+import 'pdf_preview_native.dart'
+    if (dart.library.html) 'pdf_preview_web.dart'
+    as platform_pdf;
 
 /// Screen for previewing PDF documents (used as tab content)
 class PdfPreviewScreen extends StatefulWidget {
@@ -193,7 +196,7 @@ class _PdfPreviewScreenState extends State<PdfPreviewScreen>
       _currentPage = 1;
       _currentPageGroup = 0;
     });
-    
+
     // Si hay más de 4 páginas, ajustar zoom para que quepan aproximadamente 4 páginas
     if (_totalPages > 4) {
       // Zoom aproximado para que quepan 4 páginas verticalmente
@@ -210,18 +213,21 @@ class _PdfPreviewScreenState extends State<PdfPreviewScreen>
   Future<void> _handlePrint() async {
     setState(() => _isLoading = true);
     try {
-      // Save PDF to temp file and open with system viewer (Preview.app on macOS)
-      // User can then print with Cmd+P
-      final tempDir = await getTemporaryDirectory();
-      final file = File('${tempDir.path}/${widget.filename}');
-      await file.writeAsBytes(widget.pdfBytes);
-
-      logger.d('[PdfPreview]', 'Opening PDF for print: ${file.path}');
-      final result = await OpenFile.open(file.path);
-      logger.d('[PdfPreview]', 'OpenFile result: ${result.type}');
-
-      if (result.type != ResultType.done && mounted) {
-        _showError('No se pudo abrir el PDF: ${result.message}');
+      if (kIsWeb) {
+        // On web, use Printing package which handles browser print dialog
+        await Printing.layoutPdf(
+          onLayout: (format) async => widget.pdfBytes,
+          name: widget.filename,
+        );
+      } else {
+        // On native, open with system viewer for printing
+        final error = await platform_pdf.openPdfForPrint(
+          widget.pdfBytes,
+          widget.filename,
+        );
+        if (error != null && mounted) {
+          _showError(error);
+        }
       }
     } catch (e) {
       logger.e('[PdfPreview]', 'Error opening PDF: $e');
@@ -238,16 +244,7 @@ class _PdfPreviewScreenState extends State<PdfPreviewScreen>
   Future<void> _handleShare() async {
     setState(() => _isLoading = true);
     try {
-      // Save PDF to temp file for sharing
-      final tempDir = await getTemporaryDirectory();
-      final file = File('${tempDir.path}/${widget.filename}');
-      await file.writeAsBytes(widget.pdfBytes);
-
-      // ignore: deprecated_member_use
-      await Share.shareXFiles(
-        [XFile(file.path)],
-        subject: widget.title,
-      );
+      await platform_pdf.sharePdf(widget.pdfBytes, widget.filename);
     } catch (e) {
       if (mounted) {
         _showError('Error al compartir: $e');

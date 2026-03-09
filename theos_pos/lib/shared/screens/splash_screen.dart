@@ -1,10 +1,9 @@
-import 'dart:io' show Platform;
-
 import 'package:fluent_ui/fluent_ui.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:odoo_sdk/odoo_sdk.dart' show OdooAuthenticationException, OdooAccessDeniedException;
+import 'package:odoo_sdk/odoo_sdk.dart'
+    show OdooAuthenticationException, OdooAccessDeniedException;
 import '../widgets/theos_logo.dart';
 import 'package:window_manager/window_manager.dart';
 import '../../core/services/odoo_service.dart';
@@ -40,7 +39,7 @@ class _SplashScreenState extends ConsumerState<SplashScreen> {
       logger.d('[SPLASH] 🎨 Primer frame renderizado');
       // window_manager only works on desktop platforms (Windows, macOS, Linux)
       if (!kIsWeb &&
-          (Platform.isWindows || Platform.isMacOS || Platform.isLinux)) {
+          (defaultTargetPlatform == TargetPlatform.windows || defaultTargetPlatform == TargetPlatform.macOS || defaultTargetPlatform == TargetPlatform.linux)) {
         logger.d('[SPLASH] 👁️  Mostrando ventana (desktop)...');
         await windowManager.show();
         await windowManager.focus();
@@ -440,12 +439,9 @@ class _SplashScreenState extends ConsumerState<SplashScreen> {
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  TheosLogo(
-                    size: 150,
-                    animate: true,
-                  ),
+                  TheosLogo(size: 150, animate: true),
                   const SizedBox(height: 16),
-                  TheosLogoName(height: 40),
+                  TheosNameSvg(height: 40),
                   const SizedBox(height: 20),
                   const ProgressBar(),
                 ],

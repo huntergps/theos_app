@@ -1,8 +1,12 @@
 import 'dart:convert';
-import 'dart:io';
 import 'package:drift/drift.dart' as drift;
 import 'package:drift_flutter/drift_flutter.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:path_provider/path_provider.dart';
+
+import 'database_helper_file_ops.dart'
+    if (dart.library.html) 'database_helper_file_ops_stub.dart'
+    as file_ops;
 import 'package:theos_pos_core/theos_pos_core.dart' show AppDatabase, IOdooDatabase, ProductProductData, OfflineQueueCompanion, SyncAuditLogCompanion, SyncAuditLogData;
 import 'package:odoo_sdk/odoo_sdk.dart';
 
@@ -253,25 +257,23 @@ class DatabaseHelper extends IOdooDatabase {
 
   /// Information about a database file
   static Future<List<DatabaseFileInfo>> listDatabaseFiles() async {
+    if (kIsWeb) return [];
+
     final results = <DatabaseFileInfo>[];
 
     try {
-      final dbDir = await getApplicationDocumentsDirectory();
-      final files = dbDir.listSync().whereType<File>().where(
-        (f) => f.path.endsWith('.db') || f.path.endsWith('.sqlite'),
-      );
+      final rawFiles = await file_ops.listDbFiles();
 
-      for (final file in files) {
-        final stat = await file.stat();
+      for (final raw in rawFiles) {
         results.add(
           DatabaseFileInfo(
-            path: file.path,
-            name: file.path.split('/').last,
-            sizeBytes: stat.size,
-            lastModified: stat.modified,
+            path: raw['path'] as String,
+            name: raw['name'] as String,
+            sizeBytes: raw['sizeBytes'] as int,
+            lastModified: raw['lastModified'] as DateTime,
             isCurrent:
                 _currentDatabaseName != null &&
-                file.path.contains(_currentDatabaseName!),
+                (raw['path'] as String).contains(_currentDatabaseName!),
           ),
         );
       }
@@ -320,9 +322,8 @@ class DatabaseHelper extends IOdooDatabase {
 
       for (final dbInfo in toDelete) {
         try {
-          final file = File(dbInfo.path);
-          if (await file.exists()) {
-            await file.delete();
+          final deleted = await file_ops.deleteFileAt(dbInfo.path);
+          if (deleted) {
             deletedCount++;
             bytesFreed += dbInfo.sizeBytes;
             logger.d(
@@ -357,6 +358,8 @@ class DatabaseHelper extends IOdooDatabase {
 
   /// Delete a specific database file by name
   static Future<bool> deleteDatabase(String databaseName) async {
+    if (kIsWeb) return false;
+
     if (databaseName == _currentDatabaseName) {
       logger.e(
         '[DatabaseHelper] Cannot delete current database: $databaseName',
@@ -365,17 +368,13 @@ class DatabaseHelper extends IOdooDatabase {
     }
 
     try {
-      final dbDir = await getApplicationDocumentsDirectory();
-      final file = File('${dbDir.path}/$databaseName');
-
-      if (await file.exists()) {
-        await file.delete();
+      final deleted = await file_ops.deleteDbFile(databaseName);
+      if (deleted) {
         logger.d('[DatabaseHelper] 🗑️ Deleted database: $databaseName');
-        return true;
       } else {
         logger.w('[DatabaseHelper] Database not found: $databaseName');
-        return false;
       }
+      return deleted;
     } catch (e) {
       logger.e('[DatabaseHelper] Error deleting database $databaseName: $e');
       return false;

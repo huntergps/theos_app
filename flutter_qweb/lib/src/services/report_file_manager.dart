@@ -5,14 +5,16 @@
 /// from template management, line preprocessing, and report generation orchestration.
 library;
 
-import 'dart:io';
 import 'dart:typed_data';
 
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/services.dart' show rootBundle;
-import 'package:open_file/open_file.dart';
-import 'package:path_provider/path_provider.dart';
 import 'package:printing/printing.dart';
 import 'package:pdf/widgets.dart' as pw;
+
+import 'report_file_native.dart'
+    if (dart.library.html) 'report_file_web.dart'
+    as platform_file;
 
 import '../models/render_options.dart';
 
@@ -95,14 +97,9 @@ class ReportFileManager {
     return options;
   }
 
-  /// Save PDF bytes to a temp file and open with system viewer.
+  /// Save PDF bytes and open — on web triggers a download, on native opens with system viewer.
   Future<bool> saveAndOpen(Uint8List pdfBytes, String filename) async {
-    final tempDir = await getTemporaryDirectory();
-    final file = File('${tempDir.path}/$filename');
-    await file.writeAsBytes(pdfBytes);
-
-    final result = await OpenFile.open(file.path);
-    return result.type == ResultType.done;
+    return platform_file.saveAndOpen(pdfBytes, filename);
   }
 
   /// Print PDF bytes using system print dialog.
