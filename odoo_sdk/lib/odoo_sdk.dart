@@ -27,6 +27,7 @@ library;
 
 export 'src/api/odoo_client.dart';
 export 'src/api/odoo_exception.dart';
+export 'src/api/odoo_version.dart';
 export 'src/api/odoo_response_parser.dart';
 export 'src/api/multi_tenant_manager.dart';
 export 'src/api/client/odoo_http_client.dart';

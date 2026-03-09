@@ -349,6 +349,9 @@ class UserSyncRepository {
     SyncProgressCallback? onProgress,
     DateTime? sinceDate,
   }) async {
+    // res.bank was removed in Odoo 19.2
+    if (odooClient != null && !odooClient!.version.hasBankModel) return 0;
+
     final result = await _syncRepo.syncModel(
       SyncConfigBuilder.create(
         model: _bankManager.odooModel,

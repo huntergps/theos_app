@@ -16,6 +16,7 @@ import '../../core/services/platform/server_connectivity_service.dart';
 import '../../features/sync/services/connectivity_sync_orchestrator.dart';
 import '../providers/report_provider.dart';
 import '../widgets/server_status_widget.dart';
+import '../widgets/theos_logo.dart';
 import '../../core/theme/spacing.dart';
 import '../providers/user_provider.dart';
 import '../providers/im_status_provider.dart';
@@ -557,13 +558,7 @@ class _MainScreenState extends ConsumerState<MainScreen> with WindowListener {
       pane: NavigationPane(
         header: Padding(
           padding: EdgeInsets.only(left: spacing.sm),
-          child: Image.asset(
-            'assets/icon/theospos_menu.png',
-            height: 32,
-            fit: BoxFit.contain,
-            color:
-                FluentTheme.of(context).typography.body?.color ?? Colors.black,
-          ),
+          child: TheosLogoName(height: 32),
         ),
         selected: _calculateSelectedIndex(context, navItems, footerItems),
         onChanged: (index) {

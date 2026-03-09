@@ -2,6 +2,7 @@ import 'package:dio/dio.dart' show CancelToken;
 
 import 'client/odoo_http_client.dart';
 import 'client/odoo_crud_api.dart';
+import 'odoo_version.dart';
 import 'session/odoo_session_manager.dart';
 import 'auth/odoo_auth_strategy.dart';
 
@@ -150,6 +151,7 @@ class OdooClient {
   final OdooHttpClient _httpClient;
   final OdooCrudApi _crudApi;
   final OdooSessionManager _sessionManager;
+  OdooVersion _version = OdooVersion.unknown;
 
   OdooClient._({
     required OdooHttpClient httpClient,
@@ -183,6 +185,32 @@ class OdooClient {
 
   /// Session management (authentication, web session)
   OdooSessionManager get session => _sessionManager;
+
+  /// The detected Odoo server version. Call [fetchVersion] first.
+  OdooVersion get version => _version;
+
+  /// Detect the Odoo server version by reading the base module version.
+  /// Returns the detected version and caches it.
+  Future<OdooVersion> fetchVersion() async {
+    try {
+      final result = await searchRead(
+        model: 'ir.module.module',
+        fields: ['latest_version'],
+        domain: [
+          ['name', '=', 'base']
+        ],
+        limit: 1,
+      );
+      if (result.isNotEmpty) {
+        final versionStr =
+            result.first['latest_version']?.toString() ?? '';
+        _version = OdooVersion.parse(versionStr);
+      }
+    } catch (_) {
+      // If we can't detect, leave as unknown
+    }
+    return _version;
+  }
 
   /// Current configuration
   OdooClientConfig get config => _httpClient.config;

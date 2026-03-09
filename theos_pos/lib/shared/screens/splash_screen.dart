@@ -5,6 +5,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:odoo_sdk/odoo_sdk.dart' show OdooAuthenticationException, OdooAccessDeniedException;
+import '../widgets/theos_logo.dart';
 import 'package:window_manager/window_manager.dart';
 import '../../core/services/odoo_service.dart';
 import '../../features/authentication/services/server_service.dart';
@@ -439,13 +440,12 @@ class _SplashScreenState extends ConsumerState<SplashScreen> {
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Image.asset(
-                    'assets/icon/theospos_grande.png',
-                    height: 200,
-                    color:
-                        FluentTheme.of(context).typography.titleLarge?.color ??
-                        Colors.black,
+                  TheosLogo(
+                    size: 150,
+                    animate: true,
                   ),
+                  const SizedBox(height: 16),
+                  TheosLogoName(height: 40),
                   const SizedBox(height: 20),
                   const ProgressBar(),
                 ],

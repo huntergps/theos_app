@@ -254,9 +254,11 @@ class BankRepository {
         .get();
   }
 
-  /// Sync banks from Odoo
+  /// Sync banks from Odoo (res.bank was removed in Odoo 19.2)
   Future<int> syncBanks({int limit = 100}) async {
     if (_odooClient == null) return 0;
+    // res.bank doesn't exist in Odoo 19.2+
+    if (!_odooClient.version.hasBankModel) return 0;
 
     try {
       final banks = await _odooClient.searchRead(

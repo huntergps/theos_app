@@ -20,6 +20,7 @@ import '../../../../core/theme/spacing.dart';
 import '../../../../shared/widgets/form/form_fields.dart';
 import '../../../../core/services/logger_service.dart';
 import '../../../../shared/widgets/dialogs/copyable_info_bar.dart';
+import '../../../../shared/widgets/theos_logo.dart';
 import '../../../../shared/providers/user_provider.dart';
 import 'package:odoo_sdk/odoo_sdk.dart' show OdooAuthenticationException, OdooAccessDeniedException;
 import 'package:theos_pos_core/theos_pos_core.dart' show userManager, UserManagerBusiness;
@@ -197,10 +198,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> with WindowListener {
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
                           // Logo area
-                          Image.asset(
-                            'assets/icon/theospos_grande.png',
-                            height: 150,
-                          ),
+                          TheosLogoImage(height: 150),
                           spacing.vertical.xl,
                           // Form area
                           Container(
@@ -231,10 +229,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> with WindowListener {
                         child: Column(
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
-                            Image.asset(
-                              'assets/icon/theospos_grande.png',
-                              height: 300,
-                            ),
+                            TheosLogoImage(height: 300),
                           ],
                         ),
                       ),

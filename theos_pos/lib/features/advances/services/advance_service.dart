@@ -1,3 +1,5 @@
+import 'package:odoo_sdk/odoo_sdk.dart' show OdooNotFoundException;
+
 import '../../../features/banks/repositories/bank_repository.dart';
 import '../../../core/services/odoo_service.dart';
 import 'package:theos_pos_core/theos_pos_core.dart';
@@ -536,7 +538,8 @@ class AdvanceService {
   // BANCOS Y TARJETAS (igual que PaymentService)
   // ============================================================
 
-  /// Obtiene los bancos disponibles
+  /// Obtiene los bancos disponibles.
+  /// In Odoo 19.2+, res.bank was removed — returns empty list.
   Future<List<AvailableBank>> getBanks() async {
     try {
       final banks = await _odoo.call(
@@ -556,6 +559,10 @@ class AdvanceService {
       return banks
           .map((b) => AvailableBank.fromOdoo(b as Map<String, dynamic>))
           .toList();
+    } on OdooNotFoundException {
+      // Odoo 19.2+: res.bank model doesn't exist
+      logger.i('[AdvanceService]', 'res.bank not available (Odoo 19.2+)');
+      return [];
     } catch (e, st) {
       logger.e('[AdvanceService]', 'Error getting banks', e, st);
       return [];

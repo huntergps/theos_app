@@ -77,6 +77,15 @@ class AppInitializer {
     );
     logger.d('[AppInitializer] ✅ OdooClient created');
 
+    // Detect Odoo server version for compatibility (19.1 vs 19.2)
+    logger.d('[AppInitializer] 🔍 Detecting Odoo server version...');
+    try {
+      final version = await odooClient.fetchVersion();
+      logger.i('[AppInitializer]', '✅ Odoo version detected: $version');
+    } catch (e) {
+      logger.w('[AppInitializer]', '⚠️ Could not detect Odoo version: $e');
+    }
+
     // Generate server-specific database name for multi-server support
     logger.d('[AppInitializer] 📝 Step 3: Generating database name...');
     final serverConfig = ServerConfig(

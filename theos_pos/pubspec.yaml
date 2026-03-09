@@ -122,7 +122,7 @@ flutter:
   uses-material-design: true
 
   assets:
-    - assets/icon/
+    - assets/images/
     - assets/fonts/
 
   # To add assets to your application, add an assets section, like this:
@@ -158,18 +158,21 @@ flutter:
 # ... final del archivo pubspec.yaml ...
 
 flutter_launcher_icons:
-  android: "ic_launcher" # Nombre estándar para Android
+  android: true
   ios: true
-  image_path: "assets/icon/icono_maestro.png" # LA RUTA A TU IMAGEN ORIGINAL
-  min_sdk_android: 21 # Recomendado para iconos adaptativos modernos
+  image_path: "assets/images/launcher_icon.png"
+  adaptive_icon_background: "#0A0A0A"
+  adaptive_icon_foreground: "assets/images/launcher_icon_fg.png"
+  min_sdk_android: 21
   web:
     generate: true
-    image_path: "assets/icon/icono_maestro.png"
-    background_color: "#000000" # Color de fondo para la splash screen web si aplica
-  windows:
-    generate: true
-    image_path: "assets/icon/icono_maestro.png"
+    image_path: "assets/images/launcher_icon.png"
+    background_color: "#0A0A0A"
+    theme_color: "#0A0A0A"
   macos:
     generate: true
-    image_path: "assets/icon/icono_maestro.png"
+    image_path: "assets/images/launcher_icon.png"
+  windows:
+    generate: true
+    image_path: "assets/images/launcher_icon.png"
   # Linux requiere configuración extra a veces, pero esto suele bastar para empezar
