@@ -22,8 +22,10 @@ import '../../../../core/services/logger_service.dart';
 import '../../../../shared/widgets/dialogs/copyable_info_bar.dart';
 import '../../../../shared/widgets/theos_logo.dart';
 import '../../../../shared/providers/user_provider.dart';
-import 'package:odoo_sdk/odoo_sdk.dart' show OdooAuthenticationException, OdooAccessDeniedException;
-import 'package:theos_pos_core/theos_pos_core.dart' show userManager, UserManagerBusiness;
+import 'package:odoo_sdk/odoo_sdk.dart'
+    show OdooAuthenticationException, OdooAccessDeniedException;
+import 'package:theos_pos_core/theos_pos_core.dart'
+    show userManager, UserManagerBusiness;
 
 class LoginScreen extends ConsumerStatefulWidget {
   const LoginScreen({super.key});
@@ -198,7 +200,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> with WindowListener {
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
                           // Logo area
-                          TheosLogoImage(height: 150),
+                          TheosLogoName(height: 150, color: Colors.white),
                           spacing.vertical.xl,
                           // Form area
                           Container(
@@ -228,9 +230,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> with WindowListener {
                         color: AppColors.loginBackground,
                         child: Column(
                           mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            TheosLogoImage(height: 300),
-                          ],
+                          children: [TheosLogoName(height: 300, color: Colors.white)],
                         ),
                       ),
                     ),
@@ -815,7 +815,9 @@ class _LoginScreenState extends ConsumerState<LoginScreen> with WindowListener {
               try {
                 final catalogRepo = ref.read(catalogSyncRepositoryProvider);
                 if (catalogRepo != null) {
-                  logger.d('[LOGIN] 🔄 Syncing all users for offline support...');
+                  logger.d(
+                    '[LOGIN] 🔄 Syncing all users for offline support...',
+                  );
                   await catalogRepo.syncUsers();
                   logger.d('[LOGIN] ✅ All users synced');
 
@@ -825,18 +827,22 @@ class _LoginScreenState extends ConsumerState<LoginScreen> with WindowListener {
                 }
               } catch (e) {
                 // Non-blocking: sync failure shouldn't prevent login
-                logger.d('[LOGIN] ⚠️ Failed to sync users/groups (will use cached): $e');
+                logger.d(
+                  '[LOGIN] ⚠️ Failed to sync users/groups (will use cached): $e',
+                );
               }
 
               // Store credential for offline login
               try {
                 logger.d('[LOGIN] 💾 Storing credential for offline login...');
-                await ref.read(serverServiceProvider.notifier).storeCredential(
-                  serverUrl: url,
-                  database: db,
-                  apiKey: apiKey,
-                  userId: user.id,
-                );
+                await ref
+                    .read(serverServiceProvider.notifier)
+                    .storeCredential(
+                      serverUrl: url,
+                      database: db,
+                      apiKey: apiKey,
+                      userId: user.id,
+                    );
                 logger.d('[LOGIN] ✅ Credential stored for user ${user.id}');
               } catch (e) {
                 logger.d('[LOGIN] ⚠️ Failed to store credential: $e');
@@ -921,7 +927,11 @@ class _LoginScreenState extends ConsumerState<LoginScreen> with WindowListener {
   /// Offline login requires:
   /// 1. A stored credential matching the server, database, and API key
   /// 2. The user exists in the local database
-  Future<bool> _attemptOfflineLogin(String url, String db, String apiKey) async {
+  Future<bool> _attemptOfflineLogin(
+    String url,
+    String db,
+    String apiKey,
+  ) async {
     try {
       final serverService = ref.read(serverServiceProvider.notifier);
 
@@ -938,7 +948,9 @@ class _LoginScreenState extends ConsumerState<LoginScreen> with WindowListener {
         return false;
       }
 
-      logger.d('[LOGIN] ✅ Found stored credential for user ID: ${credential.userId}');
+      logger.d(
+        '[LOGIN] ✅ Found stored credential for user ID: ${credential.userId}',
+      );
       logger.d('[LOGIN]    Last login: ${credential.lastLoginAt}');
 
       // 2. Initialize the database for this server
@@ -956,7 +968,9 @@ class _LoginScreenState extends ConsumerState<LoginScreen> with WindowListener {
       // 3. Check if the user exists in local database
       final localUser = await userManager.getUser(credential.userId);
       if (localUser == null) {
-        logger.d('[LOGIN] 🔴 User ${credential.userId} not found in local database');
+        logger.d(
+          '[LOGIN] 🔴 User ${credential.userId} not found in local database',
+        );
         return false;
       }
 
@@ -969,7 +983,11 @@ class _LoginScreenState extends ConsumerState<LoginScreen> with WindowListener {
   }
 
   /// Complete the offline login process
-  Future<void> _completeOfflineLogin(String url, String db, String apiKey) async {
+  Future<void> _completeOfflineLogin(
+    String url,
+    String db,
+    String apiKey,
+  ) async {
     try {
       logger.d('[LOGIN] 🔌 Completing offline login...');
 
@@ -1005,17 +1023,23 @@ class _LoginScreenState extends ConsumerState<LoginScreen> with WindowListener {
       // Load the specific user from local database by ID
       final localUser = await userManager.getUser(credential.userId);
       if (localUser != null) {
-        logger.d('[LOGIN] 👤 Loading user ${credential.userId} from local database: ${localUser.name}');
+        logger.d(
+          '[LOGIN] 👤 Loading user ${credential.userId} from local database: ${localUser.name}',
+        );
 
         // Mark this user as current in the database
         await userManager.upsertUser(localUser, isCurrent: true);
 
         // Set user in provider with offline flag
-        await ref.read(userProvider.notifier).setUser(localUser, isOffline: true);
+        await ref
+            .read(userProvider.notifier)
+            .setUser(localUser, isOffline: true);
 
         logger.d('[LOGIN] ✅ User loaded in offline mode');
       } else {
-        throw Exception('User ${credential.userId} not found in local database');
+        throw Exception(
+          'User ${credential.userId} not found in local database',
+        );
       }
 
       // Set current session
@@ -1030,7 +1054,8 @@ class _LoginScreenState extends ConsumerState<LoginScreen> with WindowListener {
         CopyableInfoBar.showWarning(
           context,
           title: 'Modo Offline',
-          message: 'Iniciando sesión sin conexión. Algunas funciones pueden no estar disponibles.',
+          message:
+              'Iniciando sesión sin conexión. Algunas funciones pueden no estar disponibles.',
         );
 
         logger.d('[LOGIN] 🚀 Navigating to home screen (offline mode)...');
