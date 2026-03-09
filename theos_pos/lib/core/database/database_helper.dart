@@ -71,7 +71,13 @@ class DatabaseHelper extends IOdooDatabase {
       logger.i('[DatabaseHelper]', 'Initializing Drift database: $databaseName');
 
       logger.d('[DatabaseHelper]', 'Step 1: Creating QueryExecutor...');
-      final executor = driftDatabase(name: databaseName);
+      final executor = driftDatabase(
+        name: databaseName,
+        web: DriftWebOptions(
+          sqlite3Wasm: Uri.parse('sqlite3.wasm'),
+          driftWorker: Uri.parse('drift_worker.dart.js'),
+        ),
+      );
       logger.d('[DatabaseHelper]', 'QueryExecutor created');
 
       logger.d('[DatabaseHelper]', 'Step 2: Creating AppDatabase instance...');
