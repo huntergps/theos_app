@@ -6,6 +6,7 @@ library;
 
 import 'dart:async';
 import 'package:connectivity_plus/connectivity_plus.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:odoo_sdk/odoo_sdk.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -168,8 +169,11 @@ final serverHealthServiceProvider = Provider<ServerHealthService>((ref) {
     // Persistence
     persistence: _SharedPrefsHealthPersistence(),
 
-    // Network monitoring
-    networkMonitor: _ConnectivityPlusMonitor(),
+    // Network monitoring: use polling on web (connectivity_plus has known
+    // issues in web release builds), connectivity_plus on native.
+    networkMonitor: kIsWeb
+        ? PollingConnectivityMonitor()
+        : _ConnectivityPlusMonitor(),
   );
 
   // Initialize asynchronously

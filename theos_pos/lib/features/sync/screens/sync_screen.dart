@@ -118,6 +118,13 @@ class _SyncScreenState extends ConsumerState<SyncScreen> {
   }
 
   Future<void> _loadDatabasePath() async {
+    if (kIsWeb) {
+      if (mounted) {
+        setState(() => _databasePath = 'Web/Memory Database');
+      }
+      return;
+    }
+
     try {
       final directory = await getApplicationDocumentsDirectory();
       // Use the actual database name from DatabaseHelper
@@ -129,10 +136,9 @@ class _SyncScreenState extends ConsumerState<SyncScreen> {
         });
       }
     } catch (e) {
-      // On web or if path_provider fails, use a placeholder
       if (mounted) {
         setState(() {
-          _databasePath = 'Web/Memory Database';
+          _databasePath = 'Unknown';
         });
       }
     }
