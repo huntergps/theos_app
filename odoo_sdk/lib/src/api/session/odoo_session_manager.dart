@@ -59,7 +59,7 @@ class OdooSessionManager {
         headers: {
           'Content-Type': 'application/json',
           'Authorization': 'bearer ${config.apiKey}',
-          'X-Odoo-Database': config.database!,
+          if (!config.isWeb) 'X-Odoo-Database': config.database!,
         },
       );
 
@@ -100,7 +100,7 @@ class OdooSessionManager {
         headers: {
           'Content-Type': 'application/json',
           'Authorization': 'bearer ${config.apiKey}',
-          'X-Odoo-Database': config.database!,
+          if (!config.isWeb) 'X-Odoo-Database': config.database!,
         },
       );
 
@@ -269,7 +269,7 @@ class OdooSessionManager {
         'Content-Type': 'application/json',
         'Authorization': 'bearer ${config.apiKey}',
         if (config.database != null && config.database!.isNotEmpty)
-          'X-Odoo-Database': config.database!,
+          if (!config.isWeb) 'X-Odoo-Database': config.database!,
       },
     );
 

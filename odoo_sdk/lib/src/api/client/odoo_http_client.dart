@@ -308,7 +308,12 @@ class OdooHttpClient {
       ..headers = {
         'Content-Type': 'application/json',
         'Authorization': 'bearer ${_config.apiKey}',
-        if (_config.database != null && _config.database!.isNotEmpty)
+        // On web, X-Odoo-Database triggers CORS preflight that standard Odoo
+        // doesn't allow. Omit the header on web — Odoo's monodb detection or
+        // a CORS module on the server handles it. On native, always send it.
+        if (!_config.isWeb &&
+            _config.database != null &&
+            _config.database!.isNotEmpty)
           'X-Odoo-Database': _config.database!,
       }
       ..sendTimeout = _config.sendTimeout
