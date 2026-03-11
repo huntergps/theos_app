@@ -92,9 +92,6 @@ class _SaleOrdersScreenState extends ConsumerState<SaleOrdersScreen> {
     await grid.exportToExcel(
       'ordenes_venta_${DateFormat('yyyyMMdd_HHmm').format(DateTime.now())}',
     );
-    await grid.exportToExcel(
-      'ordenes_venta_${DateFormat('yyyyMMdd_HHmm').format(DateTime.now())}',
-    );
   }
 
   @override

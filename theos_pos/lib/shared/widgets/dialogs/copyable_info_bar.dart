@@ -25,13 +25,16 @@ class CopyableInfoBar {
     required String title,
     required String message,
     int durationSeconds = 5,
+    Duration? duration,
+    Widget? action,
   }) {
     _show(
       context,
       title: title,
       message: message,
       severity: InfoBarSeverity.warning,
-      durationSeconds: durationSeconds,
+      durationSeconds: duration != null ? duration.inSeconds : durationSeconds,
+      action: action,
     );
   }
 
@@ -73,6 +76,7 @@ class CopyableInfoBar {
     required String message,
     required InfoBarSeverity severity,
     required int durationSeconds,
+    Widget? action,
   }) {
     displayInfoBar(
       context,
@@ -117,6 +121,7 @@ class CopyableInfoBar {
             message,
             style: const TextStyle(fontSize: 13),
           ),
+          action: action,
           severity: severity,
           isLong: message.length > 100,
         );

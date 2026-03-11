@@ -110,7 +110,7 @@ class FormTextField extends StatelessWidget {
 ///   max: 100,
 /// )
 /// ```
-class FormNumberField extends StatelessWidget {
+class FormNumberField extends StatefulWidget {
   final String label;
   final double? value;
   final ValueChanged<double?>? onChanged;
@@ -135,41 +135,84 @@ class FormNumberField extends StatelessWidget {
   });
 
   @override
-  Widget build(BuildContext context) {
-    final formatter = NumberFormat.decimalPatternDigits(
-      locale: 'es',
-      decimalDigits: decimals,
-    );
+  State<FormNumberField> createState() => _FormNumberFieldState();
+}
 
+class _FormNumberFieldState extends State<FormNumberField> {
+  late TextEditingController _controller;
+  late NumberFormat _formatter;
+
+  @override
+  void initState() {
+    super.initState();
+    _formatter = NumberFormat.decimalPatternDigits(
+      locale: 'es',
+      decimalDigits: widget.decimals,
+    );
+    _controller = TextEditingController(
+      text: widget.value != null ? _formatter.format(widget.value!) : '',
+    );
+  }
+
+  @override
+  void didUpdateWidget(FormNumberField oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.value != widget.value) {
+      final newText =
+          widget.value != null ? _formatter.format(widget.value!) : '';
+      if (_controller.text != newText) {
+        _controller.text = newText;
+      }
+    }
+    if (oldWidget.decimals != widget.decimals) {
+      _formatter = NumberFormat.decimalPatternDigits(
+        locale: 'es',
+        decimalDigits: widget.decimals,
+      );
+    }
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
     return InfoLabel(
-      label: isRequired ? '$label *' : label,
-      child: showButtons
+      label: widget.isRequired ? '${widget.label} *' : widget.label,
+      child: widget.showButtons
           ? NumberBox<double>(
-              value: value,
-              onChanged: onChanged,
-              placeholder: placeholder,
+              value: widget.value,
+              onChanged: widget.onChanged,
+              placeholder: widget.placeholder,
               smallChange: 1,
-              min: min,
-              max: max,
+              min: widget.min,
+              max: widget.max,
               mode: SpinButtonPlacementMode.inline,
             )
           : TextBox(
-              controller: TextEditingController(
-                text: value != null ? formatter.format(value!) : '',
+              controller: _controller,
+              placeholder: widget.placeholder,
+              keyboardType: TextInputType.numberWithOptions(
+                decimal: widget.decimals > 0,
               ),
-              placeholder: placeholder,
-              keyboardType: TextInputType.numberWithOptions(decimal: decimals > 0),
               onChanged: (text) {
                 if (text.isEmpty) {
-                  onChanged?.call(null);
+                  widget.onChanged?.call(null);
                   return;
                 }
                 final parsed = double.tryParse(text.replaceAll(',', '.'));
                 if (parsed != null) {
                   var clamped = parsed;
-                  if (min != null && clamped < min!) clamped = min!;
-                  if (max != null && clamped > max!) clamped = max!;
-                  onChanged?.call(clamped);
+                  if (widget.min != null && clamped < widget.min!) {
+                    clamped = widget.min!;
+                  }
+                  if (widget.max != null && clamped > widget.max!) {
+                    clamped = widget.max!;
+                  }
+                  widget.onChanged?.call(clamped);
                 }
               },
             ),
@@ -188,7 +231,7 @@ class FormNumberField extends StatelessWidget {
 ///   currencySymbol: '\$',
 /// )
 /// ```
-class FormMoneyField extends StatelessWidget {
+class FormMoneyField extends StatefulWidget {
   final String label;
   final double? value;
   final ValueChanged<double?>? onChanged;
@@ -209,39 +252,77 @@ class FormMoneyField extends StatelessWidget {
   });
 
   @override
-  Widget build(BuildContext context) {
-    final formatter = NumberFormat.currency(
+  State<FormMoneyField> createState() => _FormMoneyFieldState();
+}
+
+class _FormMoneyFieldState extends State<FormMoneyField> {
+  late TextEditingController _controller;
+  late NumberFormat _formatter;
+
+  @override
+  void initState() {
+    super.initState();
+    _formatter = NumberFormat.currency(
       locale: 'es',
       symbol: '',
-      decimalDigits: decimals,
+      decimalDigits: widget.decimals,
     );
+    _controller = TextEditingController(
+      text: widget.value != null ? _formatter.format(widget.value!) : '',
+    );
+  }
 
+  @override
+  void didUpdateWidget(FormMoneyField oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.value != widget.value) {
+      final newText =
+          widget.value != null ? _formatter.format(widget.value!) : '';
+      if (_controller.text != newText) {
+        _controller.text = newText;
+      }
+    }
+    if (oldWidget.decimals != widget.decimals) {
+      _formatter = NumberFormat.currency(
+        locale: 'es',
+        symbol: '',
+        decimalDigits: widget.decimals,
+      );
+    }
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
     return InfoLabel(
-      label: isRequired ? '$label *' : label,
+      label: widget.isRequired ? '${widget.label} *' : widget.label,
       child: TextBox(
-        controller: TextEditingController(
-          text: value != null ? formatter.format(value!) : '',
-        ),
+        controller: _controller,
         placeholder: '0.00',
         keyboardType: const TextInputType.numberWithOptions(decimal: true),
-        readOnly: readOnly,
+        readOnly: widget.readOnly,
         prefix: Padding(
           padding: const EdgeInsets.only(left: 10),
-          child: Text(currencySymbol),
+          child: Text(widget.currencySymbol),
         ),
-        onChanged: readOnly
+        onChanged: widget.readOnly
             ? null
             : (text) {
                 if (text.isEmpty) {
-                  onChanged?.call(null);
+                  widget.onChanged?.call(null);
                   return;
                 }
                 final cleaned = text
-                    .replaceAll(currencySymbol, '')
+                    .replaceAll(widget.currencySymbol, '')
                     .replaceAll(' ', '')
                     .replaceAll(',', '.');
                 final parsed = double.tryParse(cleaned);
-                onChanged?.call(parsed);
+                widget.onChanged?.call(parsed);
               },
       ),
     );
@@ -258,7 +339,7 @@ class FormMoneyField extends StatelessWidget {
 ///   onChanged: (v) => setState(() => _discount = v ?? 0),
 /// )
 /// ```
-class FormPercentField extends StatelessWidget {
+class FormPercentField extends StatefulWidget {
   final String label;
   final double? value;
   final ValueChanged<double?>? onChanged;
@@ -279,13 +360,47 @@ class FormPercentField extends StatelessWidget {
   });
 
   @override
+  State<FormPercentField> createState() => _FormPercentFieldState();
+}
+
+class _FormPercentFieldState extends State<FormPercentField> {
+  late TextEditingController _controller;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = TextEditingController(
+      text: widget.value != null
+          ? widget.value!.toStringAsFixed(widget.decimals)
+          : '',
+    );
+  }
+
+  @override
+  void didUpdateWidget(FormPercentField oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.value != widget.value) {
+      final newText = widget.value != null
+          ? widget.value!.toStringAsFixed(widget.decimals)
+          : '';
+      if (_controller.text != newText) {
+        _controller.text = newText;
+      }
+    }
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
     return InfoLabel(
-      label: isRequired ? '$label *' : label,
+      label: widget.isRequired ? '${widget.label} *' : widget.label,
       child: TextBox(
-        controller: TextEditingController(
-          text: value != null ? value!.toStringAsFixed(decimals) : '',
-        ),
+        controller: _controller,
         placeholder: '0.00',
         keyboardType: const TextInputType.numberWithOptions(decimal: true),
         suffix: const Padding(
@@ -294,15 +409,19 @@ class FormPercentField extends StatelessWidget {
         ),
         onChanged: (text) {
           if (text.isEmpty) {
-            onChanged?.call(null);
+            widget.onChanged?.call(null);
             return;
           }
           final parsed = double.tryParse(text.replaceAll(',', '.'));
           if (parsed != null) {
             var clamped = parsed;
-            if (min != null && clamped < min!) clamped = min!;
-            if (max != null && clamped > max!) clamped = max!;
-            onChanged?.call(clamped);
+            if (widget.min != null && clamped < widget.min!) {
+              clamped = widget.min!;
+            }
+            if (widget.max != null && clamped > widget.max!) {
+              clamped = widget.max!;
+            }
+            widget.onChanged?.call(clamped);
           }
         },
       ),

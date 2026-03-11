@@ -22,7 +22,6 @@ import '../providers/user_provider.dart';
 import '../providers/im_status_provider.dart';
 import '../providers/notification_provider.dart';
 import '../models/im_status.dart';
-import '../widgets/dialogs/copyable_info_bar.dart';
 import '../widgets/user_preferences_dialog.dart';
 import '../providers/menu_provider.dart';
 import '../../features/sync/widgets/sync_status_badge.dart';
@@ -356,7 +355,7 @@ class _MainScreenState extends ConsumerState<MainScreen> with WindowListener {
                 return Padding(
                   padding: EdgeInsets.only(right: spacing.sm),
                   child: Tooltip(
-                    message: 'Modo Offline - Sin conexión al servidor',
+                    message: 'Sin internet — Sus ventas están seguras y se enviarán cuando vuelva la conexión',
                     child: Container(
                       padding: const EdgeInsets.symmetric(
                         horizontal: 8,
@@ -377,7 +376,7 @@ class _MainScreenState extends ConsumerState<MainScreen> with WindowListener {
                           ),
                           const SizedBox(width: 4),
                           Text(
-                            'OFFLINE',
+                            'Sin internet',
                             style: TextStyle(
                               fontSize: 11,
                               fontWeight: FontWeight.bold,
@@ -402,62 +401,6 @@ class _MainScreenState extends ConsumerState<MainScreen> with WindowListener {
               ),
             ),
 
-            // Messaging / Inbox
-            Consumer(
-              builder: (context, ref, child) {
-                final counters = ref.watch(notificationCounterProvider);
-                final inboxCount =
-                    counters.inboxCounter + counters.channelsUnreadCounter;
-
-                return Tooltip(
-                  message: 'Mensajes',
-                  child: IconButton(
-                    icon: Stack(
-                      clipBehavior: Clip.none,
-                      children: [
-                        const Icon(FluentIcons.mail, size: 20),
-                        if (inboxCount > 0)
-                          Positioned(
-                            top: -4,
-                            right: -4,
-                            child: Container(
-                              padding: const EdgeInsets.all(2),
-                              decoration: BoxDecoration(
-                                color: Colors.blue,
-                                shape: BoxShape.circle,
-                              ),
-                              constraints: const BoxConstraints(
-                                minWidth: 14,
-                                minHeight: 14,
-                              ),
-                              child: Text(
-                                inboxCount > 99 ? '99+' : '$inboxCount',
-                                style: const TextStyle(
-                                  color: Colors.white,
-                                  fontSize: 9,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                                textAlign: TextAlign.center,
-                              ),
-                            ),
-                          ),
-                      ],
-                    ),
-                    // Future feature: full mail.message messaging integration
-                    onPressed: () {
-                      CopyableInfoBar.showInfo(
-                        context,
-                        title: 'Mensajería',
-                        message:
-                            'La mensajería no está disponible aún. Esta función se implementará en una versión futura.',
-                      );
-                    },
-                  ),
-                );
-              },
-            ),
-            spacing.horizontal.sm,
-
             // Activities
             Consumer(
               builder: (context, ref, child) {
@@ -465,37 +408,51 @@ class _MainScreenState extends ConsumerState<MainScreen> with WindowListener {
                 final activityCount = counters.activityCounter;
 
                 return Tooltip(
-                  message: 'Actividades',
+                  message: 'Actividades pendientes',
                   child: IconButton(
-                    icon: Stack(
-                      clipBehavior: Clip.none,
+                    icon: Row(
+                      mainAxisSize: MainAxisSize.min,
                       children: [
-                        const Icon(FluentIcons.clock, size: 20),
-                        if (activityCount > 0)
-                          Positioned(
-                            top: -4,
-                            right: -4,
-                            child: Container(
-                              padding: const EdgeInsets.all(2),
-                              decoration: BoxDecoration(
-                                color: Colors.red,
-                                shape: BoxShape.circle,
-                              ),
-                              constraints: const BoxConstraints(
-                                minWidth: 14,
-                                minHeight: 14,
-                              ),
-                              child: Text(
-                                activityCount > 99 ? '99+' : '$activityCount',
-                                style: const TextStyle(
-                                  color: Colors.white,
-                                  fontSize: 9,
-                                  fontWeight: FontWeight.bold,
+                        Stack(
+                          clipBehavior: Clip.none,
+                          children: [
+                            const Icon(FluentIcons.clock, size: 20),
+                            if (activityCount > 0)
+                              Positioned(
+                                top: -4,
+                                right: -4,
+                                child: Container(
+                                  padding: const EdgeInsets.all(2),
+                                  decoration: BoxDecoration(
+                                    color: Colors.red,
+                                    shape: BoxShape.circle,
+                                  ),
+                                  constraints: const BoxConstraints(
+                                    minWidth: 14,
+                                    minHeight: 14,
+                                  ),
+                                  child: Text(
+                                    activityCount > 99
+                                        ? '99+'
+                                        : '$activityCount',
+                                    style: const TextStyle(
+                                      color: Colors.white,
+                                      fontSize: 9,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                    textAlign: TextAlign.center,
+                                  ),
                                 ),
-                                textAlign: TextAlign.center,
                               ),
-                            ),
+                          ],
+                        ),
+                        if (screenWidth >= ScreenBreakpoints.tabletMaxWidth) ...[
+                          const SizedBox(width: 4),
+                          const Text(
+                            'Actividades',
+                            style: TextStyle(fontSize: 11),
                           ),
+                        ],
                       ],
                     ),
                     onPressed: () {
@@ -511,15 +468,29 @@ class _MainScreenState extends ConsumerState<MainScreen> with WindowListener {
             const ServerStatusWidget(showLatency: true),
             spacing.horizontal.sm,
 
-            // Theme Toggle (Existing)
+            // Theme Toggle
             Tooltip(
               message: 'Cambiar Tema',
               child: IconButton(
-                icon: Icon(
-                  FluentTheme.of(context).brightness == Brightness.dark
-                      ? FluentIcons.sunny
-                      : FluentIcons.clear_night,
-                  size: 20,
+                icon: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(
+                      FluentTheme.of(context).brightness == Brightness.dark
+                          ? FluentIcons.sunny
+                          : FluentIcons.clear_night,
+                      size: 20,
+                    ),
+                    if (screenWidth >= ScreenBreakpoints.tabletMaxWidth) ...[
+                      const SizedBox(width: 4),
+                      Text(
+                        FluentTheme.of(context).brightness == Brightness.dark
+                            ? 'Claro'
+                            : 'Oscuro',
+                        style: const TextStyle(fontSize: 11),
+                      ),
+                    ],
+                  ],
                 ),
                 onPressed: () {
                   final currentMode = ref.read(configServiceProvider).themeMode;
@@ -535,7 +506,7 @@ class _MainScreenState extends ConsumerState<MainScreen> with WindowListener {
             spacing.horizontal.md,
 
             // User Profile
-            UserProfileBar(spacing: spacing, ref: ref),
+            UserProfileBar(spacing: spacing),
 
             if (!kIsWeb &&
                 (defaultTargetPlatform == TargetPlatform.windows ||
@@ -570,14 +541,14 @@ class _MainScreenState extends ConsumerState<MainScreen> with WindowListener {
   }
 }
 
-class UserProfileBar extends StatelessWidget {
-  const UserProfileBar({super.key, required this.spacing, required this.ref});
+class UserProfileBar extends ConsumerWidget {
+  const UserProfileBar({super.key, required this.spacing});
 
   final ThemedSpacing spacing;
-  final WidgetRef ref;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final user = ref.watch(userProvider);
     return Padding(
       padding: EdgeInsets.only(right: spacing.ms),
       child: Row(
@@ -589,11 +560,11 @@ class UserProfileBar extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.end,
               children: [
                 Text(
-                  ref.watch(userProvider)?.companyName ?? 'Cargando...',
+                  user?.companyName ?? 'Cargando...',
                   style: const TextStyle(fontWeight: FontWeight.w600),
                 ),
                 Text(
-                  ref.watch(userProvider)?.name ?? '',
+                  user?.name ?? '',
                   style: const TextStyle(
                     fontSize: 12,
                     fontWeight: FontWeight.w300,
@@ -603,21 +574,79 @@ class UserProfileBar extends StatelessWidget {
             ),
             SizedBox(width: spacing.sm),
           ],
-          _UserAvatarMenu(user: ref.watch(userProvider)),
+          _UserAvatarMenu(user: user),
         ],
       ),
     );
   }
 }
 
-class HomeScreen extends StatelessWidget {
+class HomeScreen extends ConsumerWidget {
   const HomeScreen({super.key});
 
   @override
-  Widget build(BuildContext context) {
-    return ScaffoldPage(
-      header: const PageHeader(title: Text('Bienvenido a TheosPos')),
-      content: const Center(child: Text('Selecciona una opción del menú')),
+  Widget build(BuildContext context, WidgetRef ref) {
+    final theme = FluentTheme.of(context);
+    final user = ref.watch(userProvider);
+    final spacing = ref.watch(themedSpacingProvider);
+
+    return ScaffoldPage.scrollable(
+      header: PageHeader(
+        title: Text(
+          'Hola, ${user?.name ?? 'Usuario'}',
+        ),
+      ),
+      children: [
+        // Quick action: Start selling
+        Center(
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 600),
+            child: Column(
+              children: [
+                spacing.vertical.lg,
+                Icon(
+                  FluentIcons.shopping_cart,
+                  size: 64,
+                  color: theme.accentColor,
+                ),
+                spacing.vertical.md,
+                Text(
+                  'Listo para vender',
+                  style: theme.typography.subtitle,
+                ),
+                spacing.vertical.sm,
+                Text(
+                  'Selecciona una opción del menú o empieza una venta rápida',
+                  style: theme.typography.body?.copyWith(
+                    color: theme.inactiveColor,
+                  ),
+                  textAlign: TextAlign.center,
+                ),
+                spacing.vertical.lg,
+                SizedBox(
+                  width: 280,
+                  height: 48,
+                  child: FilledButton(
+                    onPressed: () => context.go('/fast-sale'),
+                    child: const Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(FluentIcons.shopping_cart, size: 20),
+                        SizedBox(width: 8),
+                        Text(
+                          'Empezar a Vender',
+                          style: TextStyle(fontSize: 16),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+                spacing.vertical.xl,
+              ],
+            ),
+          ),
+        ),
+      ],
     );
   }
 }

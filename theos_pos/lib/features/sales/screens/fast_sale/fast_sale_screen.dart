@@ -151,7 +151,11 @@ class _FastSaleScreenState extends ConsumerState<FastSaleScreen> {
       case POSShortcutAction.deleteLine:
         final activeTab = ref.read(fastSaleProvider).activeTab;
         if (activeTab != null && activeTab.selectedLineIndex >= 0) {
+          final deletedLine = activeTab.lines[activeTab.selectedLineIndex];
           notifier.deleteLine(activeTab.selectedLineIndex);
+          _showUndoDeleteInfoBar(
+            deletedLine.productName ?? deletedLine.name,
+          );
         }
         return KeyEventResult.handled;
 
@@ -159,6 +163,23 @@ class _FastSaleScreenState extends ConsumerState<FastSaleScreen> {
         // Confirm is context-dependent and handled elsewhere
         return KeyEventResult.ignored;
     }
+  }
+
+  /// Show an InfoBar with undo option after deleting a line
+  void _showUndoDeleteInfoBar(String productName) {
+    if (!mounted) return;
+    CopyableInfoBar.showWarning(
+      context,
+      title: 'Línea eliminada',
+      message: productName,
+      duration: const Duration(seconds: 5),
+      action: HyperlinkButton(
+        child: const Text('Deshacer'),
+        onPressed: () {
+          ref.read(fastSaleProvider.notifier).undoDeleteLine();
+        },
+      ),
+    );
   }
 
   @override

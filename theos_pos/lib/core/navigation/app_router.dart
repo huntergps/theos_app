@@ -1,3 +1,4 @@
+import 'package:fluent_ui/fluent_ui.dart';
 import 'package:go_router/go_router.dart';
 
 // Critical path - eager (no defer)
@@ -74,6 +75,21 @@ class AppRouter {
     return GoRouter(initialLocation: initialPath, routes: _routes);
   }
 
+  /// Helper to wrap a widget in a fade transition page
+  static CustomTransitionPage<void> _fadePage({
+    required GoRouterState state,
+    required Widget child,
+  }) {
+    return CustomTransitionPage<void>(
+      key: state.pageKey,
+      child: child,
+      transitionsBuilder: (context, animation, secondaryAnimation, child) {
+        return FadeTransition(opacity: animation, child: child);
+      },
+      transitionDuration: const Duration(milliseconds: 200),
+    );
+  }
+
   /// Route definitions
   static final List<RouteBase> _routes = [
     GoRoute(path: splash, builder: (context, state) => const SplashScreen()),
@@ -81,47 +97,66 @@ class AppRouter {
     ShellRoute(
       builder: (context, state, child) => MainScreen(child: child),
       routes: [
-        GoRoute(path: home, builder: (context, state) => const HomeScreen()),
+        GoRoute(
+          path: home,
+          pageBuilder: (context, state) =>
+              _fadePage(state: state, child: const HomeScreen()),
+        ),
         GoRoute(
           path: collection,
-          builder: (context, state) => DeferredScreen(
-            loader: collection_dashboard.loadLibrary,
-            builder: () => collection_dashboard.CollectionDashboardScreen(),
+          pageBuilder: (context, state) => _fadePage(
+            state: state,
+            child: DeferredScreen(
+              loader: collection_dashboard.loadLibrary,
+              builder: () => collection_dashboard.CollectionDashboardScreen(),
+            ),
           ),
         ),
         GoRoute(
           path: collectionSession,
-          builder: (context, state) {
+          pageBuilder: (context, state) {
             final id = int.tryParse(state.pathParameters['id'] ?? '') ?? 0;
-            return DeferredScreen(
-              loader: collection_session.loadLibrary,
-              builder: () =>
-                  collection_session.CollectionSessionScreen(sessionId: id),
+            return _fadePage(
+              state: state,
+              child: DeferredScreen(
+                loader: collection_session.loadLibrary,
+                builder: () =>
+                    collection_session.CollectionSessionScreen(sessionId: id),
+              ),
             );
           },
         ),
         GoRoute(
           path: activities,
-          builder: (context, state) => DeferredScreen(
-            loader: activities_screen.loadLibrary,
-            builder: () => activities_screen.ActivitiesScreen(),
+          pageBuilder: (context, state) => _fadePage(
+            state: state,
+            child: DeferredScreen(
+              loader: activities_screen.loadLibrary,
+              builder: () => activities_screen.ActivitiesScreen(),
+            ),
           ),
         ),
         // Sales module con sistema de pestañas como Odoo 19.0
         // Todas las sub-rutas redirigen al contenedor con pestañas
         GoRoute(
           path: sales,
-          builder: (context, state) => DeferredScreen(
-            loader: sales_tabbed.loadLibrary,
-            builder: () => sales_tabbed.SalesTabbedScreen(),
+          pageBuilder: (context, state) => _fadePage(
+            state: state,
+            child: DeferredScreen(
+              loader: sales_tabbed.loadLibrary,
+              builder: () => sales_tabbed.SalesTabbedScreen(),
+            ),
           ),
         ),
         // Fast Sale POS Route
         GoRoute(
           path: fastSale,
-          builder: (context, state) => DeferredScreen(
-            loader: fast_sale.loadLibrary,
-            builder: () => fast_sale.FastSaleScreen(),
+          pageBuilder: (context, state) => _fadePage(
+            state: state,
+            child: DeferredScreen(
+              loader: fast_sale.loadLibrary,
+              builder: () => fast_sale.FastSaleScreen(),
+            ),
           ),
         ),
         // Mantener rutas por compatibilidad pero redirigen a /sales
@@ -130,44 +165,62 @@ class AppRouter {
         GoRoute(path: salesEdit, redirect: (context, state) => sales),
         GoRoute(
           path: settings,
-          builder: (context, state) => DeferredScreen(
-            loader: settings_screen.loadLibrary,
-            builder: () => settings_screen.SettingsScreen(),
+          pageBuilder: (context, state) => _fadePage(
+            state: state,
+            child: DeferredScreen(
+              loader: settings_screen.loadLibrary,
+              builder: () => settings_screen.SettingsScreen(),
+            ),
           ),
         ),
         GoRoute(
           path: sync,
-          builder: (context, state) => DeferredScreen(
-            loader: sync_screen.loadLibrary,
-            builder: () => sync_screen.SyncScreen(),
+          pageBuilder: (context, state) => _fadePage(
+            state: state,
+            child: DeferredScreen(
+              loader: sync_screen.loadLibrary,
+              builder: () => sync_screen.SyncScreen(),
+            ),
           ),
         ),
         GoRoute(
           path: offlineSync,
-          builder: (context, state) => DeferredScreen(
-            loader: offline_sync.loadLibrary,
-            builder: () => offline_sync.OfflineSyncManagementScreen(),
+          pageBuilder: (context, state) => _fadePage(
+            state: state,
+            child: DeferredScreen(
+              loader: offline_sync.loadLibrary,
+              builder: () => offline_sync.OfflineSyncManagementScreen(),
+            ),
           ),
         ),
         GoRoute(
           path: websocketDebug,
-          builder: (context, state) => DeferredScreen(
-            loader: ws_debug.loadLibrary,
-            builder: () => ws_debug.WebSocketDebugScreen(),
+          pageBuilder: (context, state) => _fadePage(
+            state: state,
+            child: DeferredScreen(
+              loader: ws_debug.loadLibrary,
+              builder: () => ws_debug.WebSocketDebugScreen(),
+            ),
           ),
         ),
         GoRoute(
           path: conflicts,
-          builder: (context, state) => DeferredScreen(
-            loader: conflicts_screen.loadLibrary,
-            builder: () => conflicts_screen.ConflictResolutionScreen(),
+          pageBuilder: (context, state) => _fadePage(
+            state: state,
+            child: DeferredScreen(
+              loader: conflicts_screen.loadLibrary,
+              builder: () => conflicts_screen.ConflictResolutionScreen(),
+            ),
           ),
         ),
         GoRoute(
           path: deadLetterQueue,
-          builder: (context, state) => DeferredScreen(
-            loader: dead_letter.loadLibrary,
-            builder: () => dead_letter.DeadLetterQueueScreen(),
+          pageBuilder: (context, state) => _fadePage(
+            state: state,
+            child: DeferredScreen(
+              loader: dead_letter.loadLibrary,
+              builder: () => dead_letter.DeadLetterQueueScreen(),
+            ),
           ),
         ),
       ],

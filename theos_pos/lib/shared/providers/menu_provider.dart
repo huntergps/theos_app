@@ -117,6 +117,7 @@ const allMenuItems = [
     icon: FluentIcons.sync,
     title: 'Sincronización',
     isFooterItem: true,
+    requiredGroups: adminGroups,
   ),
 
   MenuItemDefinition(
@@ -124,6 +125,7 @@ const allMenuItems = [
     icon: FluentIcons.cloud_upload,
     title: 'Cola Offline',
     isFooterItem: true,
+    requiredGroups: adminGroups,
   ),
 
   MenuItemDefinition(
@@ -131,6 +133,7 @@ const allMenuItems = [
     icon: FluentIcons.error,
     title: 'Conflictos',
     isFooterItem: true,
+    requiredGroups: adminGroups,
   ),
 
   MenuItemDefinition(
@@ -138,6 +141,7 @@ const allMenuItems = [
     icon: FluentIcons.plug_connected,
     title: 'WebSocket Debug',
     isFooterItem: true,
+    requiredGroups: adminGroups,
   ),
 
   MenuItemDefinition(

@@ -41,6 +41,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> with WindowListener {
   ServerConfig? _selectedServer;
   bool _isLoading = false;
   bool _showPassword = false;
+  String _loadingStage = '';
   Timer? _saveDebounceTimer;
   bool _isMaximized = false;
 
@@ -377,9 +378,9 @@ class _LoginScreenState extends ConsumerState<LoginScreen> with WindowListener {
           ],
 
           FormTextField(
-            label: 'Clave API',
+            label: 'Clave de acceso',
             controller: _apiKeyController,
-            placeholder: 'Ingresa tu Clave API',
+            placeholder: 'Ingresa tu clave de acceso',
             obscureText: !_showPassword,
             prefix: Padding(
               padding: EdgeInsets.only(left: spacing.sm),
@@ -401,8 +402,30 @@ class _LoginScreenState extends ConsumerState<LoginScreen> with WindowListener {
               child: Padding(
                 padding: spacing.symmetric.vSm(),
                 child: _isLoading
-                    ? const ProgressRing(activeColor: Colors.white)
-                    : const Text('Conectar'),
+                    ? Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          const SizedBox(
+                            width: 16,
+                            height: 16,
+                            child: ProgressRing(
+                              activeColor: Colors.white,
+                              strokeWidth: 2,
+                            ),
+                          ),
+                          if (_loadingStage.isNotEmpty) ...[
+                            const SizedBox(width: 8),
+                            Flexible(
+                              child: Text(
+                                _loadingStage,
+                                style: const TextStyle(fontSize: 12),
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
+                          ],
+                        ],
+                      )
+                    : const Text('Entrar'),
               ),
             ),
           ),
@@ -485,12 +508,44 @@ class _LoginScreenState extends ConsumerState<LoginScreen> with WindowListener {
                                         FluentIcons.delete,
                                         color: Colors.red,
                                       ),
-                                      onPressed: () {
-                                        ref
-                                            .read(
-                                              serverServiceProvider.notifier,
-                                            )
-                                            .removeServer(server);
+                                      onPressed: () async {
+                                        final confirmed =
+                                            await showDialog<bool>(
+                                          context: context,
+                                          builder: (_) => ContentDialog(
+                                            title: const Text(
+                                              'Eliminar servidor',
+                                            ),
+                                            content: Text(
+                                              '¿Está seguro de que desea eliminar el servidor "${server.name}"? Esta acción no se puede deshacer.',
+                                            ),
+                                            actions: [
+                                              Button(
+                                                child: const Text('Cancelar'),
+                                                onPressed: () =>
+                                                    Navigator.pop(context, false),
+                                              ),
+                                              FilledButton(
+                                                style: ButtonStyle(
+                                                  backgroundColor:
+                                                      WidgetStatePropertyAll(
+                                                    Colors.red,
+                                                  ),
+                                                ),
+                                                child: const Text('Eliminar'),
+                                                onPressed: () =>
+                                                    Navigator.pop(context, true),
+                                              ),
+                                            ],
+                                          ),
+                                        );
+                                        if (confirmed == true) {
+                                          ref
+                                              .read(
+                                                serverServiceProvider.notifier,
+                                              )
+                                              .removeServer(server);
+                                        }
                                       },
                                     ),
                                   ],
@@ -607,6 +662,10 @@ class _LoginScreenState extends ConsumerState<LoginScreen> with WindowListener {
     );
   }
 
+  void _setStage(String stage) {
+    if (mounted) setState(() => _loadingStage = stage);
+  }
+
   Future<void> _login() async {
     if (_formKey.currentState?.validate() != true) {
       logger.d('[LOGIN] ⚠️ Formulario inválido');
@@ -628,6 +687,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> with WindowListener {
 
     setState(() {
       _isLoading = true;
+      _loadingStage = 'Conectando...';
     });
 
     final url = _selectedServer!.url;
@@ -642,6 +702,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> with WindowListener {
       bool isOfflineLogin = false;
 
       try {
+        _setStage('Verificando credenciales...');
         success = await odoo.testConnection();
       } on OdooAuthenticationException {
         // HTTP 401 — API key is invalid/expired. Do NOT fall through to offline login.
@@ -711,6 +772,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> with WindowListener {
         authEventService.reset();
 
         // Initialize app dependencies with force re-init for fresh credentials
+        _setStage('Inicializando datos...');
         logger.d('[LOGIN] 🔧 Initializing AppInitializer...');
         final initResult = await AppInitializer.initialize(
           baseUrl: url,
@@ -722,6 +784,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> with WindowListener {
         logger.d('[LOGIN] ✅ AppInitializer completed');
 
         // Set repository providers first so they're available for further queries
+        _setStage('Preparando repositorios...');
         logger.d('[LOGIN] 📦 Initializing repository providers...');
         ref.read(odooClientProvider.notifier).set(initResult.odooClient);
         ref
@@ -734,6 +797,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> with WindowListener {
         String? imStatusAccessToken;
 
         try {
+          _setStage('Cargando datos de usuario...');
           logger.d('[LOGIN] 📄 Getting session_info to extract partner_id...');
           final sessionInfo = await initResult.odooClient.getSessionInfo();
 
@@ -815,12 +879,14 @@ class _LoginScreenState extends ConsumerState<LoginScreen> with WindowListener {
               try {
                 final catalogRepo = ref.read(catalogSyncRepositoryProvider);
                 if (catalogRepo != null) {
+                  _setStage('Sincronizando usuarios...');
                   logger.d(
                     '[LOGIN] 🔄 Syncing all users for offline support...',
                   );
                   await catalogRepo.syncUsers();
                   logger.d('[LOGIN] ✅ All users synced');
 
+                  _setStage('Sincronizando permisos...');
                   logger.d('[LOGIN] 🔄 Syncing all groups...');
                   await catalogRepo.syncGroups();
                   logger.d('[LOGIN] ✅ All groups synced');
@@ -890,6 +956,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> with WindowListener {
         logger.d('[LOGIN] ✅ Session saved with partner_id');
 
         if (mounted) {
+          _setStage('¡Listo!');
           logger.d('[LOGIN] 🚀 Navigating to home screen...');
           context.go('/');
           logger.d('[LOGIN] ✅ Navigation completed');

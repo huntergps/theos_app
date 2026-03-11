@@ -243,6 +243,10 @@ abstract class FastSaleState with _$FastSaleState {
 /// - [FastSaleNotifierWebSocket] - WebSocket updates, state management, conflict resolution
 @Riverpod(keepAlive: true)
 class FastSaleNotifier extends _$FastSaleNotifier {
+  /// Last deleted line for undo support (used by FastSaleNotifierLines extension)
+  SaleOrderLine? lastDeletedLine;
+  int? lastDeletedLineIndex;
+
   @override
   FastSaleState build() {
     // Listen to cache changes and sync open orders

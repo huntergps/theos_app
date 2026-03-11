@@ -426,59 +426,62 @@ class _CollectionSessionScreenState
 
   /// Construye el TabView con todas las tabs
   Widget _buildTabView(CollectionSession session) {
+    // Calcular altura basada en el tamaño de pantalla (menos header, info card, etc.)
+    final screenHeight = MediaQuery.of(context).size.height;
+    final tabViewHeight = (screenHeight - 280).clamp(400.0, double.infinity);
     return SizedBox(
-      height: 800,
-      child: TabView(
-        currentIndex: _selectedTab,
-        onChanged: (index) => setState(() => _selectedTab = index),
-        tabs: [
-          Tab(
-            text: const Text('Resumen de Cierre'),
-            icon: const Icon(FluentIcons.calculator_multiply),
-            body: ResumenCierreTab(session: session),
+      height: tabViewHeight,
+          child: TabView(
+            currentIndex: _selectedTab,
+            onChanged: (index) => setState(() => _selectedTab = index),
+            tabs: [
+              Tab(
+                text: const Text('Resumen de Cierre'),
+                icon: const Icon(FluentIcons.calculator_multiply),
+                body: ResumenCierreTab(session: session),
+              ),
+              Tab(
+                text: const Text('Conteo Manual'),
+                icon: const Icon(FluentIcons.edit),
+                body: ConteoManualTab(session: session),
+              ),
+              Tab(
+                text: Text('Retiros (${session.cashOutCount})'),
+                icon: const Icon(FluentIcons.money),
+                body: CashOutsTab(sessionId: widget.sessionId),
+              ),
+              Tab(
+                text: Text('Depositos (${session.depositCount})'),
+                icon: const Icon(FluentIcons.bank),
+                body: DepositsTab(sessionId: widget.sessionId),
+              ),
+              Tab(
+                text: Text('Cheques (${session.chequeRecibidoCount})'),
+                icon: const Icon(FluentIcons.page),
+                body: ChequesTab(session: session),
+              ),
+              Tab(
+                text: Text('Anticipos (${session.advanceCount})'),
+                icon: const Icon(FluentIcons.money),
+                body: AdvancesTab(session: session),
+              ),
+              Tab(
+                text: Text('Cobros (${session.paymentCount})'),
+                icon: const Icon(FluentIcons.payment_card),
+                body: PaymentsTab(session: session),
+              ),
+              Tab(
+                text: const Text('Documentos'),
+                icon: const Icon(FluentIcons.document_set),
+                body: DocumentosTab(session: session),
+              ),
+              Tab(
+                text: const Text('Notas'),
+                icon: const Icon(FluentIcons.quick_note),
+                body: NotasTab(session: session),
+              ),
+            ],
           ),
-          Tab(
-            text: const Text('Conteo Manual'),
-            icon: const Icon(FluentIcons.edit),
-            body: ConteoManualTab(session: session),
-          ),
-          Tab(
-            text: Text('Retiros (${session.cashOutCount})'),
-            icon: const Icon(FluentIcons.money),
-            body: CashOutsTab(sessionId: widget.sessionId),
-          ),
-          Tab(
-            text: Text('Depositos (${session.depositCount})'),
-            icon: const Icon(FluentIcons.bank),
-            body: DepositsTab(sessionId: widget.sessionId),
-          ),
-          Tab(
-            text: Text('Cheques (${session.chequeRecibidoCount})'),
-            icon: const Icon(FluentIcons.page),
-            body: ChequesTab(session: session),
-          ),
-          Tab(
-            text: Text('Anticipos (${session.advanceCount})'),
-            icon: const Icon(FluentIcons.money),
-            body: AdvancesTab(session: session),
-          ),
-          Tab(
-            text: Text('Cobros (${session.paymentCount})'),
-            icon: const Icon(FluentIcons.payment_card),
-            body: PaymentsTab(session: session),
-          ),
-          Tab(
-            text: const Text('Documentos'),
-            icon: const Icon(FluentIcons.document_set),
-            body: DocumentosTab(session: session),
-          ),
-          Tab(
-            text: const Text('Notas'),
-            icon: const Icon(FluentIcons.quick_note),
-            body: NotasTab(session: session),
-          ),
-        ],
-      ),
     );
   }
 

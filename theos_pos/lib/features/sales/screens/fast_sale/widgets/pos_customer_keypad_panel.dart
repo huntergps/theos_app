@@ -506,7 +506,7 @@ class _SearchInputFieldState extends ConsumerState<_SearchInputField> {
 
     switch (inputMode) {
       case KeypadInputMode.search:
-        placeholder = 'Código o 3+código o 5%+código...';
+        placeholder = 'Buscar producto por código o nombre';
         icon = FluentIcons.search;
         break;
       case KeypadInputMode.quantity:

@@ -496,9 +496,10 @@ extension FastSaleNotifierLines on FastSaleNotifier {
     _updateActiveTab(updatedTab);
   }
 
-  /// Delete a specific line
+  /// Delete a specific line (with undo support)
   ///
   /// Returns early if order is not editable.
+  /// Call [undoDeleteLine] to restore the last deleted line.
   void deleteLine(int lineIndex) {
     // Block if order is not editable
     if (!_ensureCanModify('deleteLine')) return;
@@ -506,6 +507,10 @@ extension FastSaleNotifierLines on FastSaleNotifier {
     final activeTab = state.activeTab;
     if (activeTab == null) return;
     if (lineIndex < 0 || lineIndex >= activeTab.lines.length) return;
+
+    // Store deleted line for undo (fields on FastSaleNotifier class)
+    lastDeletedLine = activeTab.lines[lineIndex];
+    lastDeletedLineIndex = lineIndex;
 
     final newLines = List<SaleOrderLine>.from(activeTab.lines)
       ..removeAt(lineIndex);
@@ -525,6 +530,33 @@ extension FastSaleNotifierLines on FastSaleNotifier {
     );
 
     _updateActiveTab(updatedTab);
+  }
+
+  /// Whether an undo is available for the last deleted line
+  bool get canUndoDeleteLine => lastDeletedLine != null;
+
+  /// Undo the last line deletion, restoring the line at its original position
+  void undoDeleteLine() {
+    final activeTab = state.activeTab;
+    if (activeTab == null || lastDeletedLine == null) return;
+
+    final insertIndex = (lastDeletedLineIndex ?? activeTab.lines.length)
+        .clamp(0, activeTab.lines.length);
+
+    final newLines = List<SaleOrderLine>.from(activeTab.lines)
+      ..insert(insertIndex, lastDeletedLine!);
+
+    final updatedTab = activeTab.copyWith(
+      lines: newLines,
+      hasChanges: true,
+      selectedLineIndex: insertIndex,
+    );
+
+    _updateActiveTab(updatedTab);
+
+    // Clear undo state
+    lastDeletedLine = null;
+    lastDeletedLineIndex = null;
   }
 
   /// Increment quantity of a specific line by 1 (or step for decimals)

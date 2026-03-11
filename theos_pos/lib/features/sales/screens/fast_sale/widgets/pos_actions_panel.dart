@@ -152,7 +152,7 @@ class POSActionsPanel extends ConsumerWidget {
       if (hasPartner)
         _ActionItem(
           icon: FluentIcons.sync,
-          label: 'Sync Datos',
+          label: 'Actualizar Datos',
           color: Colors.blue,
           onTap: () => _handleSyncData(context, ref, activeTab),
         ),
