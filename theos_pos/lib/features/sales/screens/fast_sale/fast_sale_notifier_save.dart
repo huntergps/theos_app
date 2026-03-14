@@ -44,39 +44,12 @@ extension FastSaleNotifierSave on FastSaleNotifier {
       );
       logger.d('[FastSale]', 'Order header saved: $orderId');
 
-      // Queue order for sync if it's a new order (negative ID)
-      if (orderId < 0) {
-        final offlineQueue = ref.read(offlineQueueDataSourceProvider);
-        if (offlineQueue != null) {
-          await offlineQueue.queueOperation(
-            model: 'sale.order',
-            method: 'create',
-            recordId: orderId,
-            values: {
-              'partner_id': order.partnerId,
-              if (order.warehouseId != null) 'warehouse_id': order.warehouseId,
-              if (order.pricelistId != null) 'pricelist_id': order.pricelistId,
-              if (order.paymentTermId != null)
-                'payment_term_id': order.paymentTermId,
-              // Campos de consumidor final
-              if (order.isFinalConsumer) 'is_final_consumer': true,
-              if (order.endCustomerName != null &&
-                  order.endCustomerName!.isNotEmpty)
-                'end_customer_name': order.endCustomerName,
-              if (order.endCustomerPhone != null &&
-                  order.endCustomerPhone!.isNotEmpty)
-                'end_customer_phone': order.endCustomerPhone,
-              if (order.endCustomerEmail != null &&
-                  order.endCustomerEmail!.isNotEmpty)
-                'end_customer_email': order.endCustomerEmail,
-              // Referidor
-              if (order.referrerId != null) 'referrer_id': order.referrerId,
-              '_uuid': order.orderUuid ?? '',
-            },
-          );
-          logger.i('[FastSale]', 'Order $orderId queued for sync');
-        }
-      }
+      // NOTE: Do NOT queue a 'create sale.order' to the OfflineQueue here.
+      // The local Drift upsert above is sufficient for offline-first persistence.
+      // The order will be created in Odoo when the user explicitly confirms
+      // via OrderConfirmationService._syncLocalOrder(). Queuing here would cause
+      // a duplicate order in Odoo because both the queue AND _syncLocalOrder
+      // would independently create the same order.
 
       // Save lines using upsert to avoid duplicates
       // NOTE: Lines with id < 0 are already saved to DB by _saveLineToDatabase when
