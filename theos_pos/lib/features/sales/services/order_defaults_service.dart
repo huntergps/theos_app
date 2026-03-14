@@ -90,7 +90,15 @@ class OrderDefaultsService {
 
     if (company == null) {
       logger.w(_tag, 'No company found in local database');
-      return await _getConsumidorFinalFallback();
+      final fallback = await _getConsumidorFinalFallback();
+      return OrderDefaults(
+        partnerId: fallback.partnerId,
+        partnerName: fallback.partnerName,
+        partnerVat: fallback.partnerVat,
+        userId: currentUser?.id,
+        userName: currentUser?.name,
+        companyId: currentUser?.companyId,
+      );
     }
 
     // Start with company/user defaults

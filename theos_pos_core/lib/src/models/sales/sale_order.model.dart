@@ -60,11 +60,11 @@ abstract class SaleOrder with _$SaleOrder {
     // Cliente y direcciones
     @OdooMany2One('res.partner', odooName: 'partner_id') int? partnerId,
     @OdooMany2OneName(sourceField: 'partner_id') String? partnerName,
-    @OdooString(odooName: 'partner_vat') String? partnerVat,
-    @OdooString(odooName: 'partner_street') String? partnerStreet,
-    @OdooString(odooName: 'partner_phone') String? partnerPhone,
-    @OdooString(odooName: 'partner_email') String? partnerEmail,
-    @OdooString(odooName: 'partner_avatar') String? partnerAvatar,
+    @OdooLocalOnly() String? partnerVat,
+    @OdooLocalOnly() String? partnerStreet,
+    @OdooLocalOnly() String? partnerPhone,
+    @OdooLocalOnly() String? partnerEmail,
+    @OdooLocalOnly() String? partnerAvatar,
     @OdooMany2One('res.partner', odooName: 'partner_invoice_id') int? partnerInvoiceId,
     @OdooMany2OneName(sourceField: 'partner_invoice_id') String? partnerInvoiceAddress,
     @OdooMany2One('res.partner', odooName: 'partner_shipping_id') int? partnerShippingId,
@@ -88,7 +88,7 @@ abstract class SaleOrder with _$SaleOrder {
     @OdooMany2One('product.pricelist', odooName: 'pricelist_id') int? pricelistId,
     @OdooMany2OneName(sourceField: 'pricelist_id') String? pricelistName,
     @OdooMany2One('res.currency', odooName: 'currency_id') int? currencyId,
-    @OdooString(odooName: 'currency_symbol') String? currencySymbol,
+    @OdooLocalOnly() String? currencySymbol,
     @OdooFloat(odooName: 'currency_rate') @Default(1.0) double currencyRate,
 
     // Condiciones comerciales
@@ -170,7 +170,7 @@ abstract class SaleOrder with _$SaleOrder {
 
     // Additional Amounts
     @OdooFloat(odooName: 'amount_cash') @Default(0.0) double amountCash,
-    @OdooFloat(odooName: 'amount_unpaid') @Default(0.0) double amountUnpaid,
+    @OdooLocalOnly() @Default(0.0) double amountUnpaid,
     @OdooFloat(odooName: 'total_cost_amount') @Default(0.0) double totalCostAmount,
     @OdooFloat(odooName: 'margin') @Default(0.0) double margin,
     @OdooFloat(odooName: 'margin_percent') @Default(0.0) double marginPercent,

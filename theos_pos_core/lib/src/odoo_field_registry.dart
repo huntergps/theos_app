@@ -54,16 +54,21 @@ class OdooFieldDef {
   /// Whether this field is requested in search_read API calls
   final bool syncViaApi;
 
+  /// Override for Drift column name when it differs from dartName.
+  /// Used when the Drift column follows camelCase(odooName) instead of dartName.
+  final String? driftName;
+
   const OdooFieldDef({
     required this.odooName,
     required this.dartName,
     required this.type,
     this.syncViaWebSocket = true,
     this.syncViaApi = true,
+    this.driftName,
   });
 
-  /// SQL column name derived from dartName (camelCase → snake_case)
-  String get columnName => _camelToSnake(dartName);
+  /// SQL column name: uses driftName if set, otherwise derived from dartName
+  String get columnName => _camelToSnake(driftName ?? dartName);
 
   static String _camelToSnake(String input) {
     return input
@@ -213,7 +218,7 @@ const _saleOrderFields = <OdooFieldDef>[
   OdooFieldDef(odooName: 'is_expired', dartName: 'isExpired', type: OdooFieldType.boolean, syncViaWebSocket: false),
   // Discount
   OdooFieldDef(odooName: 'total_discount_amount', dartName: 'totalDiscountAmount', type: OdooFieldType.double_, syncViaWebSocket: false),
-  OdooFieldDef(odooName: 'total_amount_undiscounted', dartName: 'amountUntaxedUndiscounted', type: OdooFieldType.double_, syncViaWebSocket: false),
+  OdooFieldDef(odooName: 'total_amount_undiscounted', dartName: 'amountUntaxedUndiscounted', driftName: 'totalAmountUndiscounted', type: OdooFieldType.double_, syncViaWebSocket: false),
   // End customer (pedir module)
   OdooFieldDef(odooName: 'is_final_consumer', dartName: 'isFinalConsumer', type: OdooFieldType.boolean, syncViaWebSocket: false),
   OdooFieldDef(odooName: 'end_customer_name', dartName: 'endCustomerName', type: OdooFieldType.string, syncViaWebSocket: false),
@@ -270,7 +275,7 @@ const _partnerFields = <OdooFieldDef>[
   OdooFieldDef(odooName: 'parent_name', dartName: 'parentName', type: OdooFieldType.string, syncViaApi: false),
   OdooFieldDef(odooName: 'commercial_partner_id', dartName: 'commercialPartnerId', type: OdooFieldType.many2one, syncViaWebSocket: false),
   // Pricing / Payment defaults
-  OdooFieldDef(odooName: 'property_product_pricelist', dartName: 'propertyProductPricelistId', type: OdooFieldType.many2one),
+  OdooFieldDef(odooName: 'property_product_pricelist', dartName: 'propertyProductPricelistId', driftName: 'propertyProductPricelist', type: OdooFieldType.many2one),
   OdooFieldDef(odooName: 'property_payment_term_id', dartName: 'propertyPaymentTermId', type: OdooFieldType.many2one),
   // Language
   OdooFieldDef(odooName: 'lang', dartName: 'lang', type: OdooFieldType.selection),
@@ -282,7 +287,7 @@ const _partnerFields = <OdooFieldDef>[
   OdooFieldDef(odooName: 'total_overdue', dartName: 'totalOverdue', type: OdooFieldType.double_),
   OdooFieldDef(odooName: 'allow_over_credit', dartName: 'allowOverCredit', type: OdooFieldType.boolean),
   OdooFieldDef(odooName: 'use_partner_credit_limit', dartName: 'usePartnerCreditLimit', type: OdooFieldType.boolean),
-  OdooFieldDef(odooName: 'unpaid_invoices_count', dartName: 'overdueInvoicesCount', type: OdooFieldType.integer),
+  OdooFieldDef(odooName: 'unpaid_invoices_count', dartName: 'overdueInvoicesCount', driftName: 'unpaidInvoicesCount', type: OdooFieldType.integer),
   OdooFieldDef(odooName: 'oldest_overdue_days', dartName: 'oldestOverdueDays', type: OdooFieldType.integer, syncViaWebSocket: false),
   OdooFieldDef(odooName: 'dias_max_factura_posterior', dartName: 'diasMaxFacturaPosterior', type: OdooFieldType.integer, syncViaWebSocket: false),
   // Sync
@@ -369,8 +374,8 @@ const _companyFields = <OdooFieldDef>[
   OdooFieldDef(odooName: 'sale_discount_product_id', dartName: 'saleDiscountProductId', type: OdooFieldType.many2one, syncViaApi: false),
   OdooFieldDef(odooName: 'default_pricelist_id', dartName: 'defaultPricelistId', type: OdooFieldType.many2one, syncViaApi: false),
   OdooFieldDef(odooName: 'default_payment_term_id', dartName: 'defaultPaymentTermId', type: OdooFieldType.many2one, syncViaApi: false),
-  OdooFieldDef(odooName: 'default_partner_id', dartName: 'defaultPartnerId', type: OdooFieldType.many2one, syncViaApi: false),
-  OdooFieldDef(odooName: 'default_warehouse_id', dartName: 'defaultWarehouseId', type: OdooFieldType.many2one, syncViaApi: false),
+  OdooFieldDef(odooName: 'default_partner_id', dartName: 'defaultPartnerId', driftName: 'partnerId', type: OdooFieldType.many2one, syncViaApi: false),
+  OdooFieldDef(odooName: 'default_warehouse_id', dartName: 'defaultWarehouseId', driftName: 'warehouseId', type: OdooFieldType.many2one, syncViaApi: false),
   // Document layout
   OdooFieldDef(odooName: 'l10n_ec_comercial_name', dartName: 'l10nEcComercialName', type: OdooFieldType.string),
   OdooFieldDef(odooName: 'report_footer', dartName: 'reportFooter', type: OdooFieldType.string),
@@ -423,7 +428,7 @@ const _userFields = <OdooFieldDef>[
   // User group memberships are fetched via syncUserGroups() / has_group().
   // Manager-only fields
   OdooFieldDef(odooName: 'signature', dartName: 'signature', type: OdooFieldType.string, syncViaWebSocket: false),
-  OdooFieldDef(odooName: 'property_warehouse_id', dartName: 'warehouseId', type: OdooFieldType.many2one, syncViaWebSocket: false),
+  OdooFieldDef(odooName: 'property_warehouse_id', dartName: 'warehouseId', driftName: 'propertyWarehouseId', type: OdooFieldType.many2one, syncViaWebSocket: false),
   OdooFieldDef(odooName: 'avatar_128', dartName: 'avatar128', type: OdooFieldType.string, syncViaWebSocket: false),
   OdooFieldDef(odooName: 'notification_type', dartName: 'notificationType', type: OdooFieldType.selection, syncViaWebSocket: false),
   // Sync

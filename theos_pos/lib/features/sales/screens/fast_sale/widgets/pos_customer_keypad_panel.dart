@@ -44,6 +44,11 @@ class POSCustomerKeypadPanel extends ConsumerWidget {
       color: theme.scaffoldBackgroundColor,
       child: Column(
         children: [
+          // Scrollable top section (config + customer + credit)
+          Expanded(
+            child: SingleChildScrollView(
+              child: Column(
+                children: [
           // 1. Order configuration card (pricelist, warehouse, etc.)
           const Padding(
             padding: EdgeInsets.all(Spacing.sm),
@@ -142,11 +147,12 @@ class POSCustomerKeypadPanel extends ConsumerWidget {
             ),
             if (isExpanded) const SizedBox(height: Spacing.sm),
           ],
+                ],
+              ),
+            ),
+          ),
 
-          // Spacer
-          const Spacer(),
-
-          // Search/input field
+          // Search/input field (fixed at bottom)
           Container(
             padding: const EdgeInsets.symmetric(horizontal: Spacing.sm),
             child: _SearchInputField(),
