@@ -187,7 +187,7 @@ extension SaleOrderLineManagerBusiness on SaleOrderLineManager {
             priceTotal: drift.Value(priceTotal),
             qtyDelivered: drift.Value(qtyDelivered),
             qtyInvoiced: drift.Value(qtyInvoiced),
-            orderState: drift.Value(orderState),
+            state: drift.Value(orderState),
             isSynced: const drift.Value(true), // From Odoo, so it's synced
             writeDate: drift.Value(writeDate),
           ),
@@ -210,7 +210,7 @@ extension SaleOrderLineManagerBusiness on SaleOrderLineManager {
               priceTotal: drift.Value(priceTotal),
               qtyDelivered: drift.Value(qtyDelivered),
               qtyInvoiced: drift.Value(qtyInvoiced),
-              orderState: drift.Value(orderState),
+              state: drift.Value(orderState),
               isSynced: const drift.Value(true),
               writeDate: drift.Value(writeDate),
             ),
