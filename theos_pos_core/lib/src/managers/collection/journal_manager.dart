@@ -154,9 +154,8 @@ class PaymentMethodLineManager {
         'journal_id',
         'payment_method_id',
         'name',
-        // Related fields from payment_method_id
-        'payment_method_id.code',
-        'payment_method_id.payment_type',
+        'code',
+        'payment_type',
         'write_date',
       ];
 

@@ -43,7 +43,8 @@ abstract class Tax with _$Tax {
     @OdooInteger() @Default(1) int sequence,
     @OdooMany2One('res.company', odooName: 'company_id') int? companyId,
     @OdooMany2OneName(sourceField: 'company_id') String? companyName,
-    @OdooString(odooName: 'tax_group_id') String? taxGroup,
+    @OdooMany2One('account.tax.group', odooName: 'tax_group_id') int? taxGroupId,
+    @OdooMany2OneName(sourceField: 'tax_group_id') String? taxGroupName,
     @OdooString(odooName: 'tax_group_l10n_ec_type') String? taxGroupL10nEcType,
     @OdooDateTime(odooName: 'write_date', writable: false) DateTime? writeDate,
   }) = _Tax;

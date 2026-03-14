@@ -45,13 +45,13 @@ class SaleOrder extends Table {
   TextColumn get clientOrderRef => text().nullable()();
   IntColumn get fiscalPositionId => integer().nullable()();
   TextColumn get fiscalPositionName => text().nullable()();
-  BoolColumn get requireSignature => boolean().nullable()();
-  BoolColumn get requirePayment => boolean().nullable()();
+  BoolColumn get requireSignature => boolean().withDefault(const Constant(false))();
+  BoolColumn get requirePayment => boolean().withDefault(const Constant(false))();
   TextColumn get signedBy => text().nullable()();
   DateTimeColumn get signedOn => dateTime().nullable()();
   TextColumn get commitmentDate => text().nullable()();
   DateTimeColumn get expectedDate => dateTime().nullable()();
-  BoolColumn get isExpired => boolean().nullable()();
+  BoolColumn get isExpired => boolean().withDefault(const Constant(false))();
   TextColumn get showUpdatePricelist => text().nullable()();
   IntColumn get analyticAccountId => integer().nullable()();
   TextColumn get analyticAccountName => text().nullable()();
@@ -103,7 +103,7 @@ class SaleOrder extends Table {
 
   // Discounts (l10n_ec_sale_discount)
   RealColumn get totalDiscountAmount => real().withDefault(const Constant(0.0))();
-  RealColumn get amountUntaxedUndiscounted => real().withDefault(const Constant(0.0))();
+  RealColumn get totalAmountUndiscounted => real().withDefault(const Constant(0.0))();
 
   // Final Consumer (l10n_ec_sale_base)
   BoolColumn get isFinalConsumer => boolean().withDefault(const Constant(false))();

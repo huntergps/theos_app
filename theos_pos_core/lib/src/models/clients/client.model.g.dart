@@ -186,7 +186,7 @@ class ClientManager extends OdooModelManager<Client>
   Client fromDrift(dynamic row) {
     return Client(
       id: row.odooId as int,
-      uuid: row.uuid as String?,
+      uuid: row.partnerUuid as String?,
       isSynced: row.isSynced as bool? ?? false,
       name: row.name as String,
       displayName: row.displayName as String?,
@@ -209,7 +209,7 @@ class ClientManager extends OdooModelManager<Client>
       parentId: row.parentId as int?,
       parentName: row.parentName as String?,
       commercialPartnerName: row.commercialPartnerName as String?,
-      propertyProductPricelistId: row.propertyProductPricelistId as int?,
+      propertyProductPricelistId: row.propertyProductPricelist as int?,
       propertyProductPricelistName: row.propertyProductPricelistName as String?,
       propertyPaymentTermId: row.propertyPaymentTermId as int?,
       propertyPaymentTermName: row.propertyPaymentTermName as String?,
@@ -221,7 +221,7 @@ class ClientManager extends OdooModelManager<Client>
       allowOverCredit: row.allowOverCredit as bool,
       usePartnerCreditLimit: row.usePartnerCreditLimit as bool,
       totalOverdue: row.totalOverdue as double?,
-      overdueInvoicesCount: row.overdueInvoicesCount as int?,
+      overdueInvoicesCount: row.unpaidInvoicesCount as int?,
       oldestOverdueDays: row.oldestOverdueDays as int?,
       diasMaxFacturaPosterior: row.diasMaxFacturaPosterior as int?,
       tipoCliente: row.tipoCliente as String?,
@@ -408,7 +408,7 @@ class ClientManager extends OdooModelManager<Client>
       'partner_longitude': driftVar<double>(record.partnerLongitude),
       'can_use_custom_payments': Variable<bool>(record.canUseCustomPayments),
       'write_date': driftVar<DateTime>(record.writeDate),
-      'uuid': driftVar<String>(record.uuid),
+      'partner_uuid': driftVar<String>(record.uuid),
       'is_synced': Variable<bool>(record.isSynced),
       'credit_last_sync_date': driftVar<DateTime>(record.creditLastSyncDate),
     });
@@ -688,7 +688,7 @@ class ClientManager extends OdooModelManager<Client>
       case 'odooId':
         return (obj as dynamic).odooId;
       case 'uuid':
-        return (obj as dynamic).uuid;
+        return (obj as dynamic).partnerUuid;
       case 'isSynced':
         return (obj as dynamic).isSynced;
       case 'name':
@@ -734,7 +734,7 @@ class ClientManager extends OdooModelManager<Client>
       case 'commercialPartnerName':
         return (obj as dynamic).commercialPartnerName;
       case 'propertyProductPricelistId':
-        return (obj as dynamic).propertyProductPricelistId;
+        return (obj as dynamic).propertyProductPricelist;
       case 'propertyProductPricelistName':
         return (obj as dynamic).propertyProductPricelistName;
       case 'propertyPaymentTermId':
@@ -758,7 +758,7 @@ class ClientManager extends OdooModelManager<Client>
       case 'totalOverdue':
         return (obj as dynamic).totalOverdue;
       case 'overdueInvoicesCount':
-        return (obj as dynamic).overdueInvoicesCount;
+        return (obj as dynamic).unpaidInvoicesCount;
       case 'oldestOverdueDays':
         return (obj as dynamic).oldestOverdueDays;
       case 'diasMaxFacturaPosterior':

@@ -612,7 +612,7 @@ class SaleOrderManager extends OdooModelManager<SaleOrder>
       locked: row.locked as bool,
       isExpired: row.isExpired as bool,
       totalDiscountAmount: row.totalDiscountAmount as double,
-      amountUntaxedUndiscounted: row.amountUntaxedUndiscounted as double,
+      amountUntaxedUndiscounted: row.totalAmountUndiscounted as double,
       isFinalConsumer: row.isFinalConsumer as bool,
       endCustomerName: row.endCustomerName as String?,
       endCustomerPhone: row.endCustomerPhone as String?,
@@ -1450,7 +1450,7 @@ class SaleOrderManager extends OdooModelManager<SaleOrder>
       case 'totalDiscountAmount':
         return (obj as dynamic).totalDiscountAmount;
       case 'amountUntaxedUndiscounted':
-        return (obj as dynamic).amountUntaxedUndiscounted;
+        return (obj as dynamic).totalAmountUndiscounted;
       case 'isFinalConsumer':
         return (obj as dynamic).isFinalConsumer;
       case 'endCustomerName':

@@ -56,7 +56,7 @@ class BankManager extends OdooModelManager<Bank>
       id: row.odooId as int,
       name: row.name as String,
       bic: row.bic as String?,
-      countryId: row.countryId as int?,
+      countryId: row.country as int?,
       active: row.active as bool,
       writeDate: row.writeDate as DateTime?,
     );
@@ -230,7 +230,7 @@ class BankManager extends OdooModelManager<Bank>
       case 'bic':
         return (obj as dynamic).bic;
       case 'countryId':
-        return (obj as dynamic).countryId;
+        return (obj as dynamic).country;
       case 'active':
         return (obj as dynamic).active;
       case 'writeDate':

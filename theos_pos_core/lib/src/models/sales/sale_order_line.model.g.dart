@@ -268,7 +268,7 @@ class SaleOrderLineManager extends OdooModelManager<SaleOrderLine>
       isDownpayment: row.isDownpayment as bool,
       productId: row.productId as int?,
       productName: row.productName as String?,
-      productCode: row.productCode as String?,
+      productCode: row.productDefaultCode as String?,
       productTemplateId: row.productTemplateId as int?,
       productTemplateName: row.productTemplateName as String?,
       productType: row.productType as String?,
@@ -284,7 +284,7 @@ class SaleOrderLineManager extends OdooModelManager<SaleOrderLine>
       priceSubtotal: row.priceSubtotal as double,
       priceTax: row.priceTax as double,
       priceTotal: row.priceTotal as double,
-      priceReduce: row.priceReduce as double,
+      priceReduce: row.priceReduceTaxexcl as double,
       taxIds: row.taxIds as String?,
       taxNames: row.taxNames as String?,
       qtyDelivered: row.qtyDelivered as double,
@@ -295,7 +295,7 @@ class SaleOrderLineManager extends OdooModelManager<SaleOrderLine>
         (e) => e.code == (row.invoiceStatus as String?),
         orElse: () => LineInvoiceStatus.values.first,
       ),
-      orderState: row.orderState as String?,
+      orderState: row.state as String?,
       collapsePrices: row.collapsePrices as bool,
       collapseComposition: row.collapseComposition as bool,
       isOptional: row.isOptional as bool,
@@ -678,7 +678,7 @@ class SaleOrderLineManager extends OdooModelManager<SaleOrderLine>
       case 'productName':
         return (obj as dynamic).productName;
       case 'productCode':
-        return (obj as dynamic).productCode;
+        return (obj as dynamic).productDefaultCode;
       case 'productTemplateId':
         return (obj as dynamic).productTemplateId;
       case 'productTemplateName':
@@ -710,7 +710,7 @@ class SaleOrderLineManager extends OdooModelManager<SaleOrderLine>
       case 'priceTotal':
         return (obj as dynamic).priceTotal;
       case 'priceReduce':
-        return (obj as dynamic).priceReduce;
+        return (obj as dynamic).priceReduceTaxexcl;
       case 'taxIds':
         return (obj as dynamic).taxIds;
       case 'taxNames':
@@ -726,7 +726,7 @@ class SaleOrderLineManager extends OdooModelManager<SaleOrderLine>
       case 'invoiceStatus':
         return (obj as dynamic).invoiceStatus;
       case 'orderState':
-        return (obj as dynamic).orderState;
+        return (obj as dynamic).state;
       case 'collapsePrices':
         return (obj as dynamic).collapsePrices;
       case 'collapseComposition':

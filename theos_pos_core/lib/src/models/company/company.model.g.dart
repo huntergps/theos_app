@@ -390,9 +390,9 @@ class CompanyManager extends OdooModelManager<Company>
       prepaymentPercent: row.prepaymentPercent as double,
       saleDiscountProductId: row.saleDiscountProductId as int?,
       saleDiscountProductName: row.saleDiscountProductName as String?,
-      defaultPartnerId: row.defaultPartnerId as int?,
+      defaultPartnerId: row.partnerId as int?,
       defaultPartnerName: row.defaultPartnerName as String?,
-      defaultWarehouseId: row.defaultWarehouseId as int?,
+      defaultWarehouseId: row.warehouseId as int?,
       defaultWarehouseName: row.defaultWarehouseName as String?,
       defaultPricelistId: row.defaultPricelistId as int?,
       defaultPricelistName: row.defaultPricelistName as String?,
@@ -982,11 +982,11 @@ class CompanyManager extends OdooModelManager<Company>
       case 'saleDiscountProductName':
         return (obj as dynamic).saleDiscountProductName;
       case 'defaultPartnerId':
-        return (obj as dynamic).defaultPartnerId;
+        return (obj as dynamic).partnerId;
       case 'defaultPartnerName':
         return (obj as dynamic).defaultPartnerName;
       case 'defaultWarehouseId':
-        return (obj as dynamic).defaultWarehouseId;
+        return (obj as dynamic).warehouseId;
       case 'defaultWarehouseName':
         return (obj as dynamic).defaultWarehouseName;
       case 'defaultPricelistId':

@@ -32,9 +32,6 @@ class UserManager extends OdooModelManager<User>
     'property_warehouse_id',
     'avatar_128',
     'notification_type',
-    'work_email',
-    'work_phone',
-    'mobile_phone',
     'write_date',
     'out_of_office_from',
     'out_of_office_to',
@@ -73,9 +70,6 @@ class UserManager extends OdooModelManager<User>
       warehouseName: extractMany2oneName(data['property_warehouse_id']),
       avatar128: parseOdooString(data['avatar_128']),
       notificationType: parseOdooString(data['notification_type']),
-      workEmail: parseOdooString(data['work_email']),
-      workPhone: parseOdooString(data['work_phone']),
-      mobilePhone: parseOdooString(data['mobile_phone']),
       groupIds: const [],
       permissions: const [],
       isCurrentUser: false,
@@ -118,9 +112,6 @@ class UserManager extends OdooModelManager<User>
       'property_warehouse_id': record.warehouseId,
       'avatar_128': record.avatar128,
       'notification_type': record.notificationType,
-      'work_email': record.workEmail,
-      'work_phone': record.workPhone,
-      'mobile_phone': record.mobilePhone,
       'write_date': formatOdooDateTime(record.writeDate),
       'out_of_office_from': formatOdooDateTime(record.outOfOfficeFrom),
       'out_of_office_to': formatOdooDateTime(record.outOfOfficeTo),
@@ -156,7 +147,7 @@ class UserManager extends OdooModelManager<User>
       partnerName: row.partnerName as String?,
       companyId: row.companyId as int?,
       companyName: row.companyName as String?,
-      warehouseId: row.warehouseId as int?,
+      warehouseId: row.propertyWarehouseId as int?,
       warehouseName: row.warehouseName as String?,
       avatar128: row.avatar128 as String?,
       notificationType: row.notificationType as String?,
@@ -224,9 +215,6 @@ class UserManager extends OdooModelManager<User>
     'property_warehouse_id': 'warehouseId',
     'avatar_128': 'avatar128',
     'notification_type': 'notificationType',
-    'work_email': 'workEmail',
-    'work_phone': 'workPhone',
-    'mobile_phone': 'mobilePhone',
     'write_date': 'writeDate',
     'out_of_office_from': 'outOfOfficeFrom',
     'out_of_office_to': 'outOfOfficeTo',
@@ -298,9 +286,6 @@ class UserManager extends OdooModelManager<User>
       'property_warehouse_id_name': driftVar<String>(record.warehouseName),
       'avatar_128': driftVar<String>(record.avatar128),
       'notification_type': driftVar<String>(record.notificationType),
-      'work_email': driftVar<String>(record.workEmail),
-      'work_phone': driftVar<String>(record.workPhone),
-      'mobile_phone': driftVar<String>(record.mobilePhone),
       'write_date': driftVar<DateTime>(record.writeDate),
       'out_of_office_from': driftVar<DateTime>(record.outOfOfficeFrom),
       'out_of_office_to': driftVar<DateTime>(record.outOfOfficeTo),
@@ -327,6 +312,9 @@ class UserManager extends OdooModelManager<User>
       'private_phone': driftVar<String>(record.privatePhone),
       'emergency_contact': driftVar<String>(record.emergencyContact),
       'emergency_phone': driftVar<String>(record.emergencyPhone),
+      'work_email': driftVar<String>(record.workEmail),
+      'work_phone': driftVar<String>(record.workPhone),
+      'mobile_phone': driftVar<String>(record.mobilePhone),
       'is_current_user': Variable<bool>(record.isCurrentUser),
     });
   }
@@ -344,9 +332,6 @@ class UserManager extends OdooModelManager<User>
     'warehouseId',
     'avatar128',
     'notificationType',
-    'workEmail',
-    'workPhone',
-    'mobilePhone',
     'writeDate',
     'outOfOfficeFrom',
     'outOfOfficeTo',
@@ -551,6 +536,9 @@ class UserManager extends OdooModelManager<User>
     var updated = fromOdoo(current);
     // Preserve local-only fields from original record
     updated = updated.copyWith(
+      workEmail: record.workEmail,
+      workPhone: record.workPhone,
+      mobilePhone: record.mobilePhone,
       groupIds: record.groupIds,
       permissions: record.permissions,
       isCurrentUser: record.isCurrentUser,
@@ -584,7 +572,7 @@ class UserManager extends OdooModelManager<User>
       case 'companyName':
         return (obj as dynamic).companyName;
       case 'warehouseId':
-        return (obj as dynamic).warehouseId;
+        return (obj as dynamic).propertyWarehouseId;
       case 'warehouseName':
         return (obj as dynamic).warehouseName;
       case 'avatar128':
@@ -721,9 +709,6 @@ class UserManager extends OdooModelManager<User>
     'warehouseId',
     'avatar128',
     'notificationType',
-    'workEmail',
-    'workPhone',
-    'mobilePhone',
     'writeDate',
     'outOfOfficeFrom',
     'outOfOfficeTo',

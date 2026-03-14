@@ -606,7 +606,7 @@ class SaleOrderSyncRepository extends BaseSyncRepository {
       amountInvoiced: Value((o['amount_invoiced'] as num?)?.toDouble() ?? 0.0),
       // Discount fields from l10n_ec_sale_discount
       totalDiscountAmount: Value((o['total_discount_amount'] as num?)?.toDouble() ?? 0.0),
-      amountUntaxedUndiscounted: Value((o['total_amount_undiscounted'] as num?)?.toDouble() ?? 0.0),
+      totalAmountUndiscounted: Value((o['total_amount_undiscounted'] as num?)?.toDouble() ?? 0.0),
       invoiceStatus: Value(o['invoice_status'] as String? ?? 'no'),
       invoiceCount: Value(o['invoice_count'] as int? ?? 0),
       note: Value(o['note'] is String ? o['note'] : null),
@@ -684,7 +684,7 @@ class SaleOrderSyncRepository extends BaseSyncRepository {
           sequence: Value(line['sequence'] as int? ?? 10),
           productId: Value(extractId(line['product_id'])),
           productName: Value(extractName(line['product_id'])),
-          productCode: Value(line['product_default_code'] as String?),
+          productDefaultCode: Value(line['product_default_code'] as String?),
           productUomQty: Value((line['product_uom_qty'] as num?)?.toDouble() ?? 0.0),
           productUomId: Value(extractId(line['product_uom_id'])),
           productUomName: Value(extractName(line['product_uom_id'])),

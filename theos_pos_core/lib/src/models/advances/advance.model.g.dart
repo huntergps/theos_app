@@ -681,8 +681,8 @@ class AdvanceLineManager extends OdooModelManager<AdvanceLine>
       advanceMethodLineId: row.advanceMethodLineId as int?,
       advanceMethodName: row.advanceMethodName as String?,
       amount: row.amount as double,
-      documentNumber: row.documentNumber as String?,
-      documentDate: row.documentDate as DateTime?,
+      documentNumber: row.nroDocument as String?,
+      documentDate: row.dateDocument as DateTime?,
       partnerBankId: row.partnerBankId as int?,
       partnerBankName: row.partnerBankName as String?,
       checkDueDate: row.checkDueDate as DateTime?,
@@ -928,9 +928,9 @@ class AdvanceLineManager extends OdooModelManager<AdvanceLine>
       case 'amount':
         return (obj as dynamic).amount;
       case 'documentNumber':
-        return (obj as dynamic).documentNumber;
+        return (obj as dynamic).nroDocument;
       case 'documentDate':
-        return (obj as dynamic).documentDate;
+        return (obj as dynamic).dateDocument;
       case 'partnerBankId':
         return (obj as dynamic).partnerBankId;
       case 'partnerBankName':

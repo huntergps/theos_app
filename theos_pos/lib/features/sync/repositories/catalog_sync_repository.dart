@@ -821,6 +821,16 @@ class CatalogSyncRepository {
         return (await _appDb.select(_appDb.resGroups).get()).length;
       case 'ir.ui.view':
         return _qwebTemplateSync.getLocalTemplateCount();
+      case 'account.credit.card.brand':
+        return (await _appDb.select(_appDb.accountCreditCardBrand).get()).length;
+      case 'account.credit.card.deadline':
+        return (await _appDb.select(_appDb.accountCreditCardDeadline).get()).length;
+      case 'account.card.lote':
+        return (await _appDb.select(_appDb.accountCardLote).get()).length;
+      case 'res.bank':
+        return (await _appDb.select(_appDb.resBank).get()).length;
+      case 'l10n_ec.cash.out.type':
+        return (await _appDb.select(_appDb.cashOutType).get()).length;
       default:
         logger.w('[CatalogSync] Unknown model for count: $modelName');
         return 0;
@@ -1730,7 +1740,7 @@ class CatalogSyncRepository {
         method: 'search_read',
         kwargs: {
           'domain': domain,
-          'fields': ['id', 'name', 'meses', 'percentage', 'active'],
+          'fields': ['id', 'name', 'meses', 'active'],
           'limit': batchSize,
           'order': 'name asc',
         },
@@ -1745,7 +1755,6 @@ class CatalogSyncRepository {
           odooId: Value(odooId),
           name: Value(d['name'] as String? ?? ''),
           deadlineDays: Value(d['meses'] as int? ?? 0),
-          percentage: Value((d['percentage'] as num?)?.toDouble() ?? 0.0),
           active: Value(d['active'] as bool? ?? true),
           writeDate: Value(DateTime.now()),
         );

@@ -127,7 +127,7 @@ class ProductManager extends OdooModelManager<Product>
     return Product(
       id: row.odooId as int,
       name: row.name as String,
-      displayNameOdoo: row.displayNameOdoo as String?,
+      displayNameOdoo: row.displayName as String?,
       defaultCode: row.defaultCode as String?,
       barcode: row.barcode as String?,
       type: ProductType.values.firstWhere(
@@ -477,7 +477,7 @@ class ProductManager extends OdooModelManager<Product>
       case 'name':
         return (obj as dynamic).name;
       case 'displayNameOdoo':
-        return (obj as dynamic).displayNameOdoo;
+        return (obj as dynamic).displayName;
       case 'defaultCode':
         return (obj as dynamic).defaultCode;
       case 'barcode':

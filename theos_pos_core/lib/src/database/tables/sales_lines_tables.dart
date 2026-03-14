@@ -19,7 +19,7 @@ class SaleOrderLine extends Table {
   // Product
   IntColumn get productId => integer().nullable()();
   TextColumn get productName => text().nullable()();
-  TextColumn get productCode => text().nullable()(); // default_code from Odoo
+  TextColumn get productDefaultCode => text().nullable()(); // default_code from Odoo
   IntColumn get productTemplateId => integer().nullable()();
   TextColumn get productTemplateName => text().nullable()();
   TextColumn get productType =>

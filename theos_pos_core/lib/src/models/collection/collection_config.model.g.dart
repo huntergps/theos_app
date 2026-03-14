@@ -217,7 +217,7 @@ class CollectionConfigManager extends OdooModelManager<CollectionConfig>
       numberOfOpenedSession: row.numberOfOpenedSession as int,
       lastSessionClosingDate: row.lastSessionClosingDate as DateTime?,
       lastSessionClosingCash: row.lastSessionClosingCash as double,
-      currentSessionUserName: row.currentSessionUserName as String?,
+      currentSessionUserName: row.collectionSessionUsername as String?,
       currentSessionStateDisplay: row.currentSessionStateDisplay as String?,
       numberOfRescueSession: row.numberOfRescueSession as int,
     );
@@ -552,7 +552,7 @@ class CollectionConfigManager extends OdooModelManager<CollectionConfig>
       case 'lastSessionClosingCash':
         return (obj as dynamic).lastSessionClosingCash;
       case 'currentSessionUserName':
-        return (obj as dynamic).currentSessionUserName;
+        return (obj as dynamic).collectionSessionUsername;
       case 'currentSessionStateDisplay':
         return (obj as dynamic).currentSessionStateDisplay;
       case 'numberOfRescueSession':

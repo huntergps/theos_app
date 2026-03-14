@@ -154,7 +154,7 @@ class ProductSyncRepository {
           'include_base_amount',
           'sequence',
           'company_id',
-          'tax_group_l10n_ec_type',
+          'tax_group_id',
           'write_date',
         ],
         domain: [
@@ -183,7 +183,6 @@ class ProductSyncRepository {
           'id',
           'name',
           'factor',
-          'rounding',
           'active',
           'write_date',
         ],
@@ -373,7 +372,7 @@ class ProductSyncRepository {
         // UoM (products reference them)
         SyncConfigBuilder.create(
           model: 'uom.uom',
-          fields: ['id', 'name', 'factor', 'rounding', 'active', 'write_date'],
+          fields: ['id', 'name', 'factor', 'active', 'write_date'],
           domain: [
             ['active', '=', true]
           ],
@@ -397,8 +396,8 @@ class ProductSyncRepository {
             'include_base_amount',
             'sequence',
             'company_id',
-            'tax_group_l10n_ec_type',
-            'write_date',
+            'tax_group_id',
+              'write_date',
           ],
           domain: [
             ['active', '=', true]

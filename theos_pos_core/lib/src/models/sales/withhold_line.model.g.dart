@@ -149,9 +149,9 @@ class WithholdLineManager extends OdooModelManager<WithholdLine>
         (e) => e.code == (row.withholdType as String?),
         orElse: () => WithholdType.values.first,
       ),
-      taxSupportCode: (row.taxSupportCode as String?) != null
+      taxSupportCode: (row.taxsupportCode as String?) != null
           ? TaxSupportCode.values.firstWhere(
-              (e) => e.code == (row.taxSupportCode as String?),
+              (e) => e.code == (row.taxsupportCode as String?),
               orElse: () => TaxSupportCode.values.first,
             )
           : null,
@@ -362,7 +362,7 @@ class WithholdLineManager extends OdooModelManager<WithholdLine>
       case 'withholdType':
         return (obj as dynamic).withholdType;
       case 'taxSupportCode':
-        return (obj as dynamic).taxSupportCode;
+        return (obj as dynamic).taxsupportCode;
       case 'base':
         return (obj as dynamic).base;
       case 'amount':

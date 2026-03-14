@@ -598,10 +598,17 @@ class OdooLocalOnly extends OdooField {
   /// The Drift column type to use.
   final String? driftType;
 
+  /// Override the Drift column accessor name when it differs from the Dart field name.
+  ///
+  /// Example: `@OdooLocalOnly(driftName: 'partnerUuid')` when the Drift table
+  /// column is `partnerUuid` but the model field is `uuid`.
+  final String? driftName;
+
   const OdooLocalOnly({
     super.defaultValue,
     super.label,
     this.driftType,
+    this.driftName,
   }) : super(
           required: false,
           writable: false,

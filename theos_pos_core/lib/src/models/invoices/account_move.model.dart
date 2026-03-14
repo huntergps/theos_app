@@ -122,7 +122,7 @@ abstract class AccountMove with _$AccountMove {
     // ============ Partner ============
     @OdooMany2One('res.partner', odooName: 'partner_id') int? partnerId,
     @OdooMany2OneName(sourceField: 'partner_id') String? partnerName,
-    @OdooString(odooName: 'partner_vat') String? partnerVat,
+    @OdooLocalOnly() String? partnerVat,
     @OdooLocalOnly() String? partnerStreet,
     @OdooLocalOnly() String? partnerCity,
     @OdooLocalOnly() String? partnerPhone,

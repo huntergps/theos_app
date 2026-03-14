@@ -71,9 +71,9 @@ extension UomManagerBusiness on UomManager {
           UomUomCompanion.insert(
             odooId: odooId,
             name: name,
-            categoryId: categoryId ?? 1,
+            categoryId: drift.Value(categoryId),
             categoryName: drift.Value(categoryName),
-            uomType: uomType,
+            uomType: drift.Value(uomType),
             factor: drift.Value(factor),
             factorInv: drift.Value(factorInv),
             rounding: drift.Value(rounding),

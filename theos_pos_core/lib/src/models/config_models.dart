@@ -32,6 +32,9 @@ export 'payment_terms/payment_term.model.dart';
 // Activities
 export 'activities/mail_activity.model.dart';
 
+// Config (Currency, Decimal Precision)
+export 'config/currency.model.dart';
+
 // Shared
 export 'shared/res_country.model.dart';
 export 'shared/res_country_state.model.dart';

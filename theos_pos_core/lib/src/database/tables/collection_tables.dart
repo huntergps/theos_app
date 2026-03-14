@@ -25,7 +25,7 @@ class CollectionConfig extends Table {
   IntColumn get numberOfOpenedSession => integer().withDefault(const Constant(0))();
   DateTimeColumn get lastSessionClosingDate => dateTime().nullable()();
   RealColumn get lastSessionClosingCash => real().withDefault(const Constant(0.0))();
-  TextColumn get currentSessionUserName => text().nullable()();
+  TextColumn get collectionSessionUsername => text().nullable()();
   TextColumn get currentSessionStateDisplay => text().nullable()();
   IntColumn get numberOfRescueSession => integer().withDefault(const Constant(0))();
   TextColumn get state => text().withDefault(const Constant('active'))();

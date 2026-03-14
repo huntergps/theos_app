@@ -404,6 +404,8 @@ class OdooModelGenerator extends GeneratorForAnnotation<OdooModel> {
       }
 
       if (typeName == 'OdooLocalOnly') {
+        final reader = ConstantReader(annotation.computeConstantValue());
+        final explicitDriftName = reader.peek('driftName')?.stringValue;
         return _FieldInfo(
           dartName: name,
           odooName: name,
@@ -412,6 +414,7 @@ class OdooModelGenerator extends GeneratorForAnnotation<OdooModel> {
           isRequired: false,
           isWritable: false,
           isReadable: false,
+          driftName: explicitDriftName,
         );
       }
     }
@@ -862,7 +865,7 @@ class OdooModelGenerator extends GeneratorForAnnotation<OdooModel> {
     }
     // Add local-only fields stored in Drift
     for (final field in fields.where((f) => f.isLocalOnly)) {
-      final driftColumn = _toSnakeCase(field.dartName);
+      final driftColumn = _toSnakeCase(field.driftAccessorName);
       final dn2 = field.dartName;
       final typeName = field.dartType?.getDisplayString() ?? 'dynamic';
       if (field.isEnumType) {
@@ -1142,9 +1145,11 @@ class OdooModelGenerator extends GeneratorForAnnotation<OdooModel> {
     buffer.writeln('  dynamic accessProperty(dynamic obj, String name) {');
     buffer.writeln('    switch (name) {');
     for (final field in fields) {
-      // Use the Drift column name convention (camelCase)
-      final accessName = field.fieldType == _OdooFieldType.id ? 'odooId' : field.dartName;
-      buffer.writeln("      case '$accessName': return (obj as dynamic).$accessName;");
+      // Case key uses the name passed as parameter (Dart field name or 'odooId')
+      final caseName = field.fieldType == _OdooFieldType.id ? 'odooId' : field.dartName;
+      // Accessor uses the Drift column name (may differ from Dart field name)
+      final driftAccessor = field.fieldType == _OdooFieldType.id ? 'odooId' : field.driftAccessorName;
+      buffer.writeln("      case '$caseName': return (obj as dynamic).$driftAccessor;");
     }
     // Also add standard local fields that might not be in the model fields list
     final knownNames = fields.map((f) => f.fieldType == _OdooFieldType.id ? 'odooId' : f.dartName).toSet();
@@ -1347,10 +1352,11 @@ class OdooModelGenerator extends GeneratorForAnnotation<OdooModel> {
 
     for (final field in fields) {
       final dartName = field.dartName;
-      // Drift column accessor uses camelCase matching the Dart property name
+      // Drift column accessor: uses driftAccessorName which resolves
+      // explicit driftName > camelCase(odooName) > dartName
       // For the 'id' field annotated with @OdooId, the Drift column is 'odooId'
       final driftAccessor =
-          field.fieldType == _OdooFieldType.id ? 'odooId' : dartName;
+          field.fieldType == _OdooFieldType.id ? 'odooId' : field.driftAccessorName;
 
       String conversion;
 
@@ -1833,6 +1839,9 @@ class _FieldInfo {
   // For related fields
   final String? relatedPath;
 
+  // Override for Drift column accessor name (when it differs from dartName)
+  final String? driftName;
+
   _FieldInfo({
     required this.dartName,
     required this.odooName,
@@ -1847,7 +1856,33 @@ class _FieldInfo {
     this.depends,
     this.precompute = true,
     this.relatedPath,
+    this.driftName,
   });
+
+  /// The Drift column accessor name to use in fromDrift/accessProperty.
+  ///
+  /// Priority: explicit driftName > camelCase(odooName) if different from dartName > dartName
+  /// Exception: Many2OneName uses dartName (odooName is sourceField, not column name)
+  /// Exception: localOnly uses dartName unless driftName is explicit
+  String get driftAccessorName {
+    if (driftName != null) return driftName!;
+    // Many2OneName: odooName is the sourceField (e.g. 'country_id'), not the column name
+    // The Drift column matches dartName (e.g. 'countryName')
+    if (fieldType == _OdooFieldType.many2oneName) return dartName;
+    // LocalOnly: odooName defaults to dartName, no Odoo mapping to derive from
+    if (fieldType == _OdooFieldType.localOnly) return dartName;
+    // For regular Odoo fields, the Drift column matches camelCase(odooName)
+    final camelOdoo = _snakeToCamel(odooName);
+    if (camelOdoo != dartName && fieldType != _OdooFieldType.id) {
+      return camelOdoo;
+    }
+    return dartName;
+  }
+
+  static String _snakeToCamel(String snake) {
+    final parts = snake.split('_');
+    return parts.first + parts.skip(1).map((p) => p.isEmpty ? '' : '${p[0].toUpperCase()}${p.substring(1)}').join();
+  }
 
   /// Whether the Dart type is non-nullable (e.g., `String` vs `String?`).
   ///

@@ -14,7 +14,7 @@ T _$identity<T>(T value) => value;
 /// @nodoc
 mixin _$Tax {
 
-@OdooId() int get id;@OdooString() String get name;@OdooString() String? get description;@OdooSelection(odooName: 'type_tax_use') TaxTypeUse get typeTaxUse;@OdooSelection(odooName: 'amount_type') TaxAmountType get amountType;@OdooFloat() double get amount;@OdooBoolean() bool get active;@OdooBoolean(odooName: 'price_include') bool get priceInclude;@OdooBoolean(odooName: 'include_base_amount') bool get includeBaseAmount;@OdooInteger() int get sequence;@OdooMany2One('res.company', odooName: 'company_id') int? get companyId;@OdooMany2OneName(sourceField: 'company_id') String? get companyName;@OdooString(odooName: 'tax_group_id') String? get taxGroup;@OdooString(odooName: 'tax_group_l10n_ec_type') String? get taxGroupL10nEcType;@OdooDateTime(odooName: 'write_date', writable: false) DateTime? get writeDate;
+@OdooId() int get id;@OdooString() String get name;@OdooString() String? get description;@OdooSelection(odooName: 'type_tax_use') TaxTypeUse get typeTaxUse;@OdooSelection(odooName: 'amount_type') TaxAmountType get amountType;@OdooFloat() double get amount;@OdooBoolean() bool get active;@OdooBoolean(odooName: 'price_include') bool get priceInclude;@OdooBoolean(odooName: 'include_base_amount') bool get includeBaseAmount;@OdooInteger() int get sequence;@OdooMany2One('res.company', odooName: 'company_id') int? get companyId;@OdooMany2OneName(sourceField: 'company_id') String? get companyName;@OdooMany2One('account.tax.group', odooName: 'tax_group_id') int? get taxGroupId;@OdooMany2OneName(sourceField: 'tax_group_id') String? get taxGroupName;@OdooString(odooName: 'tax_group_l10n_ec_type') String? get taxGroupL10nEcType;@OdooDateTime(odooName: 'write_date', writable: false) DateTime? get writeDate;
 /// Create a copy of Tax
 /// with the given fields replaced by the non-null parameter values.
 @JsonKey(includeFromJson: false, includeToJson: false)
@@ -25,16 +25,16 @@ $TaxCopyWith<Tax> get copyWith => _$TaxCopyWithImpl<Tax>(this as Tax, _$identity
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is Tax&&(identical(other.id, id) || other.id == id)&&(identical(other.name, name) || other.name == name)&&(identical(other.description, description) || other.description == description)&&(identical(other.typeTaxUse, typeTaxUse) || other.typeTaxUse == typeTaxUse)&&(identical(other.amountType, amountType) || other.amountType == amountType)&&(identical(other.amount, amount) || other.amount == amount)&&(identical(other.active, active) || other.active == active)&&(identical(other.priceInclude, priceInclude) || other.priceInclude == priceInclude)&&(identical(other.includeBaseAmount, includeBaseAmount) || other.includeBaseAmount == includeBaseAmount)&&(identical(other.sequence, sequence) || other.sequence == sequence)&&(identical(other.companyId, companyId) || other.companyId == companyId)&&(identical(other.companyName, companyName) || other.companyName == companyName)&&(identical(other.taxGroup, taxGroup) || other.taxGroup == taxGroup)&&(identical(other.taxGroupL10nEcType, taxGroupL10nEcType) || other.taxGroupL10nEcType == taxGroupL10nEcType)&&(identical(other.writeDate, writeDate) || other.writeDate == writeDate));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is Tax&&(identical(other.id, id) || other.id == id)&&(identical(other.name, name) || other.name == name)&&(identical(other.description, description) || other.description == description)&&(identical(other.typeTaxUse, typeTaxUse) || other.typeTaxUse == typeTaxUse)&&(identical(other.amountType, amountType) || other.amountType == amountType)&&(identical(other.amount, amount) || other.amount == amount)&&(identical(other.active, active) || other.active == active)&&(identical(other.priceInclude, priceInclude) || other.priceInclude == priceInclude)&&(identical(other.includeBaseAmount, includeBaseAmount) || other.includeBaseAmount == includeBaseAmount)&&(identical(other.sequence, sequence) || other.sequence == sequence)&&(identical(other.companyId, companyId) || other.companyId == companyId)&&(identical(other.companyName, companyName) || other.companyName == companyName)&&(identical(other.taxGroupId, taxGroupId) || other.taxGroupId == taxGroupId)&&(identical(other.taxGroupName, taxGroupName) || other.taxGroupName == taxGroupName)&&(identical(other.taxGroupL10nEcType, taxGroupL10nEcType) || other.taxGroupL10nEcType == taxGroupL10nEcType)&&(identical(other.writeDate, writeDate) || other.writeDate == writeDate));
 }
 
 
 @override
-int get hashCode => Object.hash(runtimeType,id,name,description,typeTaxUse,amountType,amount,active,priceInclude,includeBaseAmount,sequence,companyId,companyName,taxGroup,taxGroupL10nEcType,writeDate);
+int get hashCode => Object.hash(runtimeType,id,name,description,typeTaxUse,amountType,amount,active,priceInclude,includeBaseAmount,sequence,companyId,companyName,taxGroupId,taxGroupName,taxGroupL10nEcType,writeDate);
 
 @override
 String toString() {
-  return 'Tax(id: $id, name: $name, description: $description, typeTaxUse: $typeTaxUse, amountType: $amountType, amount: $amount, active: $active, priceInclude: $priceInclude, includeBaseAmount: $includeBaseAmount, sequence: $sequence, companyId: $companyId, companyName: $companyName, taxGroup: $taxGroup, taxGroupL10nEcType: $taxGroupL10nEcType, writeDate: $writeDate)';
+  return 'Tax(id: $id, name: $name, description: $description, typeTaxUse: $typeTaxUse, amountType: $amountType, amount: $amount, active: $active, priceInclude: $priceInclude, includeBaseAmount: $includeBaseAmount, sequence: $sequence, companyId: $companyId, companyName: $companyName, taxGroupId: $taxGroupId, taxGroupName: $taxGroupName, taxGroupL10nEcType: $taxGroupL10nEcType, writeDate: $writeDate)';
 }
 
 
@@ -45,7 +45,7 @@ abstract mixin class $TaxCopyWith<$Res>  {
   factory $TaxCopyWith(Tax value, $Res Function(Tax) _then) = _$TaxCopyWithImpl;
 @useResult
 $Res call({
-@OdooId() int id,@OdooString() String name,@OdooString() String? description,@OdooSelection(odooName: 'type_tax_use') TaxTypeUse typeTaxUse,@OdooSelection(odooName: 'amount_type') TaxAmountType amountType,@OdooFloat() double amount,@OdooBoolean() bool active,@OdooBoolean(odooName: 'price_include') bool priceInclude,@OdooBoolean(odooName: 'include_base_amount') bool includeBaseAmount,@OdooInteger() int sequence,@OdooMany2One('res.company', odooName: 'company_id') int? companyId,@OdooMany2OneName(sourceField: 'company_id') String? companyName,@OdooString(odooName: 'tax_group_id') String? taxGroup,@OdooString(odooName: 'tax_group_l10n_ec_type') String? taxGroupL10nEcType,@OdooDateTime(odooName: 'write_date', writable: false) DateTime? writeDate
+@OdooId() int id,@OdooString() String name,@OdooString() String? description,@OdooSelection(odooName: 'type_tax_use') TaxTypeUse typeTaxUse,@OdooSelection(odooName: 'amount_type') TaxAmountType amountType,@OdooFloat() double amount,@OdooBoolean() bool active,@OdooBoolean(odooName: 'price_include') bool priceInclude,@OdooBoolean(odooName: 'include_base_amount') bool includeBaseAmount,@OdooInteger() int sequence,@OdooMany2One('res.company', odooName: 'company_id') int? companyId,@OdooMany2OneName(sourceField: 'company_id') String? companyName,@OdooMany2One('account.tax.group', odooName: 'tax_group_id') int? taxGroupId,@OdooMany2OneName(sourceField: 'tax_group_id') String? taxGroupName,@OdooString(odooName: 'tax_group_l10n_ec_type') String? taxGroupL10nEcType,@OdooDateTime(odooName: 'write_date', writable: false) DateTime? writeDate
 });
 
 
@@ -62,7 +62,7 @@ class _$TaxCopyWithImpl<$Res>
 
 /// Create a copy of Tax
 /// with the given fields replaced by the non-null parameter values.
-@pragma('vm:prefer-inline') @override $Res call({Object? id = null,Object? name = null,Object? description = freezed,Object? typeTaxUse = null,Object? amountType = null,Object? amount = null,Object? active = null,Object? priceInclude = null,Object? includeBaseAmount = null,Object? sequence = null,Object? companyId = freezed,Object? companyName = freezed,Object? taxGroup = freezed,Object? taxGroupL10nEcType = freezed,Object? writeDate = freezed,}) {
+@pragma('vm:prefer-inline') @override $Res call({Object? id = null,Object? name = null,Object? description = freezed,Object? typeTaxUse = null,Object? amountType = null,Object? amount = null,Object? active = null,Object? priceInclude = null,Object? includeBaseAmount = null,Object? sequence = null,Object? companyId = freezed,Object? companyName = freezed,Object? taxGroupId = freezed,Object? taxGroupName = freezed,Object? taxGroupL10nEcType = freezed,Object? writeDate = freezed,}) {
   return _then(_self.copyWith(
 id: null == id ? _self.id : id // ignore: cast_nullable_to_non_nullable
 as int,name: null == name ? _self.name : name // ignore: cast_nullable_to_non_nullable
@@ -76,7 +76,8 @@ as bool,includeBaseAmount: null == includeBaseAmount ? _self.includeBaseAmount :
 as bool,sequence: null == sequence ? _self.sequence : sequence // ignore: cast_nullable_to_non_nullable
 as int,companyId: freezed == companyId ? _self.companyId : companyId // ignore: cast_nullable_to_non_nullable
 as int?,companyName: freezed == companyName ? _self.companyName : companyName // ignore: cast_nullable_to_non_nullable
-as String?,taxGroup: freezed == taxGroup ? _self.taxGroup : taxGroup // ignore: cast_nullable_to_non_nullable
+as String?,taxGroupId: freezed == taxGroupId ? _self.taxGroupId : taxGroupId // ignore: cast_nullable_to_non_nullable
+as int?,taxGroupName: freezed == taxGroupName ? _self.taxGroupName : taxGroupName // ignore: cast_nullable_to_non_nullable
 as String?,taxGroupL10nEcType: freezed == taxGroupL10nEcType ? _self.taxGroupL10nEcType : taxGroupL10nEcType // ignore: cast_nullable_to_non_nullable
 as String?,writeDate: freezed == writeDate ? _self.writeDate : writeDate // ignore: cast_nullable_to_non_nullable
 as DateTime?,
@@ -164,10 +165,10 @@ return $default(_that);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function(@OdooId()  int id, @OdooString()  String name, @OdooString()  String? description, @OdooSelection(odooName: 'type_tax_use')  TaxTypeUse typeTaxUse, @OdooSelection(odooName: 'amount_type')  TaxAmountType amountType, @OdooFloat()  double amount, @OdooBoolean()  bool active, @OdooBoolean(odooName: 'price_include')  bool priceInclude, @OdooBoolean(odooName: 'include_base_amount')  bool includeBaseAmount, @OdooInteger()  int sequence, @OdooMany2One('res.company', odooName: 'company_id')  int? companyId, @OdooMany2OneName(sourceField: 'company_id')  String? companyName, @OdooString(odooName: 'tax_group_id')  String? taxGroup, @OdooString(odooName: 'tax_group_l10n_ec_type')  String? taxGroupL10nEcType, @OdooDateTime(odooName: 'write_date', writable: false)  DateTime? writeDate)?  $default,{required TResult orElse(),}) {final _that = this;
+@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function(@OdooId()  int id, @OdooString()  String name, @OdooString()  String? description, @OdooSelection(odooName: 'type_tax_use')  TaxTypeUse typeTaxUse, @OdooSelection(odooName: 'amount_type')  TaxAmountType amountType, @OdooFloat()  double amount, @OdooBoolean()  bool active, @OdooBoolean(odooName: 'price_include')  bool priceInclude, @OdooBoolean(odooName: 'include_base_amount')  bool includeBaseAmount, @OdooInteger()  int sequence, @OdooMany2One('res.company', odooName: 'company_id')  int? companyId, @OdooMany2OneName(sourceField: 'company_id')  String? companyName, @OdooMany2One('account.tax.group', odooName: 'tax_group_id')  int? taxGroupId, @OdooMany2OneName(sourceField: 'tax_group_id')  String? taxGroupName, @OdooString(odooName: 'tax_group_l10n_ec_type')  String? taxGroupL10nEcType, @OdooDateTime(odooName: 'write_date', writable: false)  DateTime? writeDate)?  $default,{required TResult orElse(),}) {final _that = this;
 switch (_that) {
 case _Tax() when $default != null:
-return $default(_that.id,_that.name,_that.description,_that.typeTaxUse,_that.amountType,_that.amount,_that.active,_that.priceInclude,_that.includeBaseAmount,_that.sequence,_that.companyId,_that.companyName,_that.taxGroup,_that.taxGroupL10nEcType,_that.writeDate);case _:
+return $default(_that.id,_that.name,_that.description,_that.typeTaxUse,_that.amountType,_that.amount,_that.active,_that.priceInclude,_that.includeBaseAmount,_that.sequence,_that.companyId,_that.companyName,_that.taxGroupId,_that.taxGroupName,_that.taxGroupL10nEcType,_that.writeDate);case _:
   return orElse();
 
 }
@@ -185,10 +186,10 @@ return $default(_that.id,_that.name,_that.description,_that.typeTaxUse,_that.amo
 /// }
 /// ```
 
-@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function(@OdooId()  int id, @OdooString()  String name, @OdooString()  String? description, @OdooSelection(odooName: 'type_tax_use')  TaxTypeUse typeTaxUse, @OdooSelection(odooName: 'amount_type')  TaxAmountType amountType, @OdooFloat()  double amount, @OdooBoolean()  bool active, @OdooBoolean(odooName: 'price_include')  bool priceInclude, @OdooBoolean(odooName: 'include_base_amount')  bool includeBaseAmount, @OdooInteger()  int sequence, @OdooMany2One('res.company', odooName: 'company_id')  int? companyId, @OdooMany2OneName(sourceField: 'company_id')  String? companyName, @OdooString(odooName: 'tax_group_id')  String? taxGroup, @OdooString(odooName: 'tax_group_l10n_ec_type')  String? taxGroupL10nEcType, @OdooDateTime(odooName: 'write_date', writable: false)  DateTime? writeDate)  $default,) {final _that = this;
+@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function(@OdooId()  int id, @OdooString()  String name, @OdooString()  String? description, @OdooSelection(odooName: 'type_tax_use')  TaxTypeUse typeTaxUse, @OdooSelection(odooName: 'amount_type')  TaxAmountType amountType, @OdooFloat()  double amount, @OdooBoolean()  bool active, @OdooBoolean(odooName: 'price_include')  bool priceInclude, @OdooBoolean(odooName: 'include_base_amount')  bool includeBaseAmount, @OdooInteger()  int sequence, @OdooMany2One('res.company', odooName: 'company_id')  int? companyId, @OdooMany2OneName(sourceField: 'company_id')  String? companyName, @OdooMany2One('account.tax.group', odooName: 'tax_group_id')  int? taxGroupId, @OdooMany2OneName(sourceField: 'tax_group_id')  String? taxGroupName, @OdooString(odooName: 'tax_group_l10n_ec_type')  String? taxGroupL10nEcType, @OdooDateTime(odooName: 'write_date', writable: false)  DateTime? writeDate)  $default,) {final _that = this;
 switch (_that) {
 case _Tax():
-return $default(_that.id,_that.name,_that.description,_that.typeTaxUse,_that.amountType,_that.amount,_that.active,_that.priceInclude,_that.includeBaseAmount,_that.sequence,_that.companyId,_that.companyName,_that.taxGroup,_that.taxGroupL10nEcType,_that.writeDate);case _:
+return $default(_that.id,_that.name,_that.description,_that.typeTaxUse,_that.amountType,_that.amount,_that.active,_that.priceInclude,_that.includeBaseAmount,_that.sequence,_that.companyId,_that.companyName,_that.taxGroupId,_that.taxGroupName,_that.taxGroupL10nEcType,_that.writeDate);case _:
   throw StateError('Unexpected subclass');
 
 }
@@ -205,10 +206,10 @@ return $default(_that.id,_that.name,_that.description,_that.typeTaxUse,_that.amo
 /// }
 /// ```
 
-@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function(@OdooId()  int id, @OdooString()  String name, @OdooString()  String? description, @OdooSelection(odooName: 'type_tax_use')  TaxTypeUse typeTaxUse, @OdooSelection(odooName: 'amount_type')  TaxAmountType amountType, @OdooFloat()  double amount, @OdooBoolean()  bool active, @OdooBoolean(odooName: 'price_include')  bool priceInclude, @OdooBoolean(odooName: 'include_base_amount')  bool includeBaseAmount, @OdooInteger()  int sequence, @OdooMany2One('res.company', odooName: 'company_id')  int? companyId, @OdooMany2OneName(sourceField: 'company_id')  String? companyName, @OdooString(odooName: 'tax_group_id')  String? taxGroup, @OdooString(odooName: 'tax_group_l10n_ec_type')  String? taxGroupL10nEcType, @OdooDateTime(odooName: 'write_date', writable: false)  DateTime? writeDate)?  $default,) {final _that = this;
+@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function(@OdooId()  int id, @OdooString()  String name, @OdooString()  String? description, @OdooSelection(odooName: 'type_tax_use')  TaxTypeUse typeTaxUse, @OdooSelection(odooName: 'amount_type')  TaxAmountType amountType, @OdooFloat()  double amount, @OdooBoolean()  bool active, @OdooBoolean(odooName: 'price_include')  bool priceInclude, @OdooBoolean(odooName: 'include_base_amount')  bool includeBaseAmount, @OdooInteger()  int sequence, @OdooMany2One('res.company', odooName: 'company_id')  int? companyId, @OdooMany2OneName(sourceField: 'company_id')  String? companyName, @OdooMany2One('account.tax.group', odooName: 'tax_group_id')  int? taxGroupId, @OdooMany2OneName(sourceField: 'tax_group_id')  String? taxGroupName, @OdooString(odooName: 'tax_group_l10n_ec_type')  String? taxGroupL10nEcType, @OdooDateTime(odooName: 'write_date', writable: false)  DateTime? writeDate)?  $default,) {final _that = this;
 switch (_that) {
 case _Tax() when $default != null:
-return $default(_that.id,_that.name,_that.description,_that.typeTaxUse,_that.amountType,_that.amount,_that.active,_that.priceInclude,_that.includeBaseAmount,_that.sequence,_that.companyId,_that.companyName,_that.taxGroup,_that.taxGroupL10nEcType,_that.writeDate);case _:
+return $default(_that.id,_that.name,_that.description,_that.typeTaxUse,_that.amountType,_that.amount,_that.active,_that.priceInclude,_that.includeBaseAmount,_that.sequence,_that.companyId,_that.companyName,_that.taxGroupId,_that.taxGroupName,_that.taxGroupL10nEcType,_that.writeDate);case _:
   return null;
 
 }
@@ -220,7 +221,7 @@ return $default(_that.id,_that.name,_that.description,_that.typeTaxUse,_that.amo
 
 
 class _Tax extends Tax {
-  const _Tax({@OdooId() required this.id, @OdooString() required this.name, @OdooString() this.description, @OdooSelection(odooName: 'type_tax_use') this.typeTaxUse = TaxTypeUse.sale, @OdooSelection(odooName: 'amount_type') this.amountType = TaxAmountType.percent, @OdooFloat() this.amount = 0.0, @OdooBoolean() this.active = true, @OdooBoolean(odooName: 'price_include') this.priceInclude = false, @OdooBoolean(odooName: 'include_base_amount') this.includeBaseAmount = false, @OdooInteger() this.sequence = 1, @OdooMany2One('res.company', odooName: 'company_id') this.companyId, @OdooMany2OneName(sourceField: 'company_id') this.companyName, @OdooString(odooName: 'tax_group_id') this.taxGroup, @OdooString(odooName: 'tax_group_l10n_ec_type') this.taxGroupL10nEcType, @OdooDateTime(odooName: 'write_date', writable: false) this.writeDate}): super._();
+  const _Tax({@OdooId() required this.id, @OdooString() required this.name, @OdooString() this.description, @OdooSelection(odooName: 'type_tax_use') this.typeTaxUse = TaxTypeUse.sale, @OdooSelection(odooName: 'amount_type') this.amountType = TaxAmountType.percent, @OdooFloat() this.amount = 0.0, @OdooBoolean() this.active = true, @OdooBoolean(odooName: 'price_include') this.priceInclude = false, @OdooBoolean(odooName: 'include_base_amount') this.includeBaseAmount = false, @OdooInteger() this.sequence = 1, @OdooMany2One('res.company', odooName: 'company_id') this.companyId, @OdooMany2OneName(sourceField: 'company_id') this.companyName, @OdooMany2One('account.tax.group', odooName: 'tax_group_id') this.taxGroupId, @OdooMany2OneName(sourceField: 'tax_group_id') this.taxGroupName, @OdooString(odooName: 'tax_group_l10n_ec_type') this.taxGroupL10nEcType, @OdooDateTime(odooName: 'write_date', writable: false) this.writeDate}): super._();
   
 
 @override@OdooId() final  int id;
@@ -235,7 +236,8 @@ class _Tax extends Tax {
 @override@JsonKey()@OdooInteger() final  int sequence;
 @override@OdooMany2One('res.company', odooName: 'company_id') final  int? companyId;
 @override@OdooMany2OneName(sourceField: 'company_id') final  String? companyName;
-@override@OdooString(odooName: 'tax_group_id') final  String? taxGroup;
+@override@OdooMany2One('account.tax.group', odooName: 'tax_group_id') final  int? taxGroupId;
+@override@OdooMany2OneName(sourceField: 'tax_group_id') final  String? taxGroupName;
 @override@OdooString(odooName: 'tax_group_l10n_ec_type') final  String? taxGroupL10nEcType;
 @override@OdooDateTime(odooName: 'write_date', writable: false) final  DateTime? writeDate;
 
@@ -249,16 +251,16 @@ _$TaxCopyWith<_Tax> get copyWith => __$TaxCopyWithImpl<_Tax>(this, _$identity);
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _Tax&&(identical(other.id, id) || other.id == id)&&(identical(other.name, name) || other.name == name)&&(identical(other.description, description) || other.description == description)&&(identical(other.typeTaxUse, typeTaxUse) || other.typeTaxUse == typeTaxUse)&&(identical(other.amountType, amountType) || other.amountType == amountType)&&(identical(other.amount, amount) || other.amount == amount)&&(identical(other.active, active) || other.active == active)&&(identical(other.priceInclude, priceInclude) || other.priceInclude == priceInclude)&&(identical(other.includeBaseAmount, includeBaseAmount) || other.includeBaseAmount == includeBaseAmount)&&(identical(other.sequence, sequence) || other.sequence == sequence)&&(identical(other.companyId, companyId) || other.companyId == companyId)&&(identical(other.companyName, companyName) || other.companyName == companyName)&&(identical(other.taxGroup, taxGroup) || other.taxGroup == taxGroup)&&(identical(other.taxGroupL10nEcType, taxGroupL10nEcType) || other.taxGroupL10nEcType == taxGroupL10nEcType)&&(identical(other.writeDate, writeDate) || other.writeDate == writeDate));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is _Tax&&(identical(other.id, id) || other.id == id)&&(identical(other.name, name) || other.name == name)&&(identical(other.description, description) || other.description == description)&&(identical(other.typeTaxUse, typeTaxUse) || other.typeTaxUse == typeTaxUse)&&(identical(other.amountType, amountType) || other.amountType == amountType)&&(identical(other.amount, amount) || other.amount == amount)&&(identical(other.active, active) || other.active == active)&&(identical(other.priceInclude, priceInclude) || other.priceInclude == priceInclude)&&(identical(other.includeBaseAmount, includeBaseAmount) || other.includeBaseAmount == includeBaseAmount)&&(identical(other.sequence, sequence) || other.sequence == sequence)&&(identical(other.companyId, companyId) || other.companyId == companyId)&&(identical(other.companyName, companyName) || other.companyName == companyName)&&(identical(other.taxGroupId, taxGroupId) || other.taxGroupId == taxGroupId)&&(identical(other.taxGroupName, taxGroupName) || other.taxGroupName == taxGroupName)&&(identical(other.taxGroupL10nEcType, taxGroupL10nEcType) || other.taxGroupL10nEcType == taxGroupL10nEcType)&&(identical(other.writeDate, writeDate) || other.writeDate == writeDate));
 }
 
 
 @override
-int get hashCode => Object.hash(runtimeType,id,name,description,typeTaxUse,amountType,amount,active,priceInclude,includeBaseAmount,sequence,companyId,companyName,taxGroup,taxGroupL10nEcType,writeDate);
+int get hashCode => Object.hash(runtimeType,id,name,description,typeTaxUse,amountType,amount,active,priceInclude,includeBaseAmount,sequence,companyId,companyName,taxGroupId,taxGroupName,taxGroupL10nEcType,writeDate);
 
 @override
 String toString() {
-  return 'Tax(id: $id, name: $name, description: $description, typeTaxUse: $typeTaxUse, amountType: $amountType, amount: $amount, active: $active, priceInclude: $priceInclude, includeBaseAmount: $includeBaseAmount, sequence: $sequence, companyId: $companyId, companyName: $companyName, taxGroup: $taxGroup, taxGroupL10nEcType: $taxGroupL10nEcType, writeDate: $writeDate)';
+  return 'Tax(id: $id, name: $name, description: $description, typeTaxUse: $typeTaxUse, amountType: $amountType, amount: $amount, active: $active, priceInclude: $priceInclude, includeBaseAmount: $includeBaseAmount, sequence: $sequence, companyId: $companyId, companyName: $companyName, taxGroupId: $taxGroupId, taxGroupName: $taxGroupName, taxGroupL10nEcType: $taxGroupL10nEcType, writeDate: $writeDate)';
 }
 
 
@@ -269,7 +271,7 @@ abstract mixin class _$TaxCopyWith<$Res> implements $TaxCopyWith<$Res> {
   factory _$TaxCopyWith(_Tax value, $Res Function(_Tax) _then) = __$TaxCopyWithImpl;
 @override @useResult
 $Res call({
-@OdooId() int id,@OdooString() String name,@OdooString() String? description,@OdooSelection(odooName: 'type_tax_use') TaxTypeUse typeTaxUse,@OdooSelection(odooName: 'amount_type') TaxAmountType amountType,@OdooFloat() double amount,@OdooBoolean() bool active,@OdooBoolean(odooName: 'price_include') bool priceInclude,@OdooBoolean(odooName: 'include_base_amount') bool includeBaseAmount,@OdooInteger() int sequence,@OdooMany2One('res.company', odooName: 'company_id') int? companyId,@OdooMany2OneName(sourceField: 'company_id') String? companyName,@OdooString(odooName: 'tax_group_id') String? taxGroup,@OdooString(odooName: 'tax_group_l10n_ec_type') String? taxGroupL10nEcType,@OdooDateTime(odooName: 'write_date', writable: false) DateTime? writeDate
+@OdooId() int id,@OdooString() String name,@OdooString() String? description,@OdooSelection(odooName: 'type_tax_use') TaxTypeUse typeTaxUse,@OdooSelection(odooName: 'amount_type') TaxAmountType amountType,@OdooFloat() double amount,@OdooBoolean() bool active,@OdooBoolean(odooName: 'price_include') bool priceInclude,@OdooBoolean(odooName: 'include_base_amount') bool includeBaseAmount,@OdooInteger() int sequence,@OdooMany2One('res.company', odooName: 'company_id') int? companyId,@OdooMany2OneName(sourceField: 'company_id') String? companyName,@OdooMany2One('account.tax.group', odooName: 'tax_group_id') int? taxGroupId,@OdooMany2OneName(sourceField: 'tax_group_id') String? taxGroupName,@OdooString(odooName: 'tax_group_l10n_ec_type') String? taxGroupL10nEcType,@OdooDateTime(odooName: 'write_date', writable: false) DateTime? writeDate
 });
 
 
@@ -286,7 +288,7 @@ class __$TaxCopyWithImpl<$Res>
 
 /// Create a copy of Tax
 /// with the given fields replaced by the non-null parameter values.
-@override @pragma('vm:prefer-inline') $Res call({Object? id = null,Object? name = null,Object? description = freezed,Object? typeTaxUse = null,Object? amountType = null,Object? amount = null,Object? active = null,Object? priceInclude = null,Object? includeBaseAmount = null,Object? sequence = null,Object? companyId = freezed,Object? companyName = freezed,Object? taxGroup = freezed,Object? taxGroupL10nEcType = freezed,Object? writeDate = freezed,}) {
+@override @pragma('vm:prefer-inline') $Res call({Object? id = null,Object? name = null,Object? description = freezed,Object? typeTaxUse = null,Object? amountType = null,Object? amount = null,Object? active = null,Object? priceInclude = null,Object? includeBaseAmount = null,Object? sequence = null,Object? companyId = freezed,Object? companyName = freezed,Object? taxGroupId = freezed,Object? taxGroupName = freezed,Object? taxGroupL10nEcType = freezed,Object? writeDate = freezed,}) {
   return _then(_Tax(
 id: null == id ? _self.id : id // ignore: cast_nullable_to_non_nullable
 as int,name: null == name ? _self.name : name // ignore: cast_nullable_to_non_nullable
@@ -300,7 +302,8 @@ as bool,includeBaseAmount: null == includeBaseAmount ? _self.includeBaseAmount :
 as bool,sequence: null == sequence ? _self.sequence : sequence // ignore: cast_nullable_to_non_nullable
 as int,companyId: freezed == companyId ? _self.companyId : companyId // ignore: cast_nullable_to_non_nullable
 as int?,companyName: freezed == companyName ? _self.companyName : companyName // ignore: cast_nullable_to_non_nullable
-as String?,taxGroup: freezed == taxGroup ? _self.taxGroup : taxGroup // ignore: cast_nullable_to_non_nullable
+as String?,taxGroupId: freezed == taxGroupId ? _self.taxGroupId : taxGroupId // ignore: cast_nullable_to_non_nullable
+as int?,taxGroupName: freezed == taxGroupName ? _self.taxGroupName : taxGroupName // ignore: cast_nullable_to_non_nullable
 as String?,taxGroupL10nEcType: freezed == taxGroupL10nEcType ? _self.taxGroupL10nEcType : taxGroupL10nEcType // ignore: cast_nullable_to_non_nullable
 as String?,writeDate: freezed == writeDate ? _self.writeDate : writeDate // ignore: cast_nullable_to_non_nullable
 as DateTime?,

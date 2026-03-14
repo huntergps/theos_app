@@ -17,7 +17,7 @@ class ResUsers extends Table {
   TextColumn get partnerName => text().nullable()();
   IntColumn get companyId => integer().nullable()();
   TextColumn get companyName => text().nullable()();
-  IntColumn get warehouseId => integer().nullable()();
+  IntColumn get propertyWarehouseId => integer().nullable()();
   TextColumn get warehouseName => text().nullable()();
   TextColumn get avatar128 => text().nullable()();
   TextColumn get notificationType => text().nullable()();

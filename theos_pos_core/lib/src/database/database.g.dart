@@ -976,12 +976,11 @@ class $ResUsersTable extends ResUsers with TableInfo<$ResUsersTable, ResUser> {
     type: DriftSqlType.string,
     requiredDuringInsert: false,
   );
-  static const VerificationMeta _warehouseIdMeta = const VerificationMeta(
-    'warehouseId',
-  );
+  static const VerificationMeta _propertyWarehouseIdMeta =
+      const VerificationMeta('propertyWarehouseId');
   @override
-  late final GeneratedColumn<int> warehouseId = GeneratedColumn<int>(
-    'warehouse_id',
+  late final GeneratedColumn<int> propertyWarehouseId = GeneratedColumn<int>(
+    'property_warehouse_id',
     aliasedName,
     true,
     type: DriftSqlType.int,
@@ -1345,7 +1344,7 @@ class $ResUsersTable extends ResUsers with TableInfo<$ResUsersTable, ResUser> {
     partnerName,
     companyId,
     companyName,
-    warehouseId,
+    propertyWarehouseId,
     warehouseName,
     avatar128,
     notificationType,
@@ -1468,12 +1467,12 @@ class $ResUsersTable extends ResUsers with TableInfo<$ResUsersTable, ResUser> {
         ),
       );
     }
-    if (data.containsKey('warehouse_id')) {
+    if (data.containsKey('property_warehouse_id')) {
       context.handle(
-        _warehouseIdMeta,
-        warehouseId.isAcceptableOrUnknown(
-          data['warehouse_id']!,
-          _warehouseIdMeta,
+        _propertyWarehouseIdMeta,
+        propertyWarehouseId.isAcceptableOrUnknown(
+          data['property_warehouse_id']!,
+          _propertyWarehouseIdMeta,
         ),
       );
     }
@@ -1792,9 +1791,9 @@ class $ResUsersTable extends ResUsers with TableInfo<$ResUsersTable, ResUser> {
         DriftSqlType.string,
         data['${effectivePrefix}company_name'],
       ),
-      warehouseId: attachedDatabase.typeMapping.read(
+      propertyWarehouseId: attachedDatabase.typeMapping.read(
         DriftSqlType.int,
-        data['${effectivePrefix}warehouse_id'],
+        data['${effectivePrefix}property_warehouse_id'],
       ),
       warehouseName: attachedDatabase.typeMapping.read(
         DriftSqlType.string,
@@ -1942,7 +1941,7 @@ class ResUser extends DataClass implements Insertable<ResUser> {
   final String? partnerName;
   final int? companyId;
   final String? companyName;
-  final int? warehouseId;
+  final int? propertyWarehouseId;
   final String? warehouseName;
   final String? avatar128;
   final String? notificationType;
@@ -1987,7 +1986,7 @@ class ResUser extends DataClass implements Insertable<ResUser> {
     this.partnerName,
     this.companyId,
     this.companyName,
-    this.warehouseId,
+    this.propertyWarehouseId,
     this.warehouseName,
     this.avatar128,
     this.notificationType,
@@ -2051,8 +2050,8 @@ class ResUser extends DataClass implements Insertable<ResUser> {
     if (!nullToAbsent || companyName != null) {
       map['company_name'] = Variable<String>(companyName);
     }
-    if (!nullToAbsent || warehouseId != null) {
-      map['warehouse_id'] = Variable<int>(warehouseId);
+    if (!nullToAbsent || propertyWarehouseId != null) {
+      map['property_warehouse_id'] = Variable<int>(propertyWarehouseId);
     }
     if (!nullToAbsent || warehouseName != null) {
       map['warehouse_name'] = Variable<String>(warehouseName);
@@ -2176,9 +2175,9 @@ class ResUser extends DataClass implements Insertable<ResUser> {
       companyName: companyName == null && nullToAbsent
           ? const Value.absent()
           : Value(companyName),
-      warehouseId: warehouseId == null && nullToAbsent
+      propertyWarehouseId: propertyWarehouseId == null && nullToAbsent
           ? const Value.absent()
-          : Value(warehouseId),
+          : Value(propertyWarehouseId),
       warehouseName: warehouseName == null && nullToAbsent
           ? const Value.absent()
           : Value(warehouseName),
@@ -2289,7 +2288,9 @@ class ResUser extends DataClass implements Insertable<ResUser> {
       partnerName: serializer.fromJson<String?>(json['partnerName']),
       companyId: serializer.fromJson<int?>(json['companyId']),
       companyName: serializer.fromJson<String?>(json['companyName']),
-      warehouseId: serializer.fromJson<int?>(json['warehouseId']),
+      propertyWarehouseId: serializer.fromJson<int?>(
+        json['propertyWarehouseId'],
+      ),
       warehouseName: serializer.fromJson<String?>(json['warehouseName']),
       avatar128: serializer.fromJson<String?>(json['avatar128']),
       notificationType: serializer.fromJson<String?>(json['notificationType']),
@@ -2347,7 +2348,7 @@ class ResUser extends DataClass implements Insertable<ResUser> {
       'partnerName': serializer.toJson<String?>(partnerName),
       'companyId': serializer.toJson<int?>(companyId),
       'companyName': serializer.toJson<String?>(companyName),
-      'warehouseId': serializer.toJson<int?>(warehouseId),
+      'propertyWarehouseId': serializer.toJson<int?>(propertyWarehouseId),
       'warehouseName': serializer.toJson<String?>(warehouseName),
       'avatar128': serializer.toJson<String?>(avatar128),
       'notificationType': serializer.toJson<String?>(notificationType),
@@ -2397,7 +2398,7 @@ class ResUser extends DataClass implements Insertable<ResUser> {
     Value<String?> partnerName = const Value.absent(),
     Value<int?> companyId = const Value.absent(),
     Value<String?> companyName = const Value.absent(),
-    Value<int?> warehouseId = const Value.absent(),
+    Value<int?> propertyWarehouseId = const Value.absent(),
     Value<String?> warehouseName = const Value.absent(),
     Value<String?> avatar128 = const Value.absent(),
     Value<String?> notificationType = const Value.absent(),
@@ -2442,7 +2443,9 @@ class ResUser extends DataClass implements Insertable<ResUser> {
     partnerName: partnerName.present ? partnerName.value : this.partnerName,
     companyId: companyId.present ? companyId.value : this.companyId,
     companyName: companyName.present ? companyName.value : this.companyName,
-    warehouseId: warehouseId.present ? warehouseId.value : this.warehouseId,
+    propertyWarehouseId: propertyWarehouseId.present
+        ? propertyWarehouseId.value
+        : this.propertyWarehouseId,
     warehouseName: warehouseName.present
         ? warehouseName.value
         : this.warehouseName,
@@ -2529,9 +2532,9 @@ class ResUser extends DataClass implements Insertable<ResUser> {
       companyName: data.companyName.present
           ? data.companyName.value
           : this.companyName,
-      warehouseId: data.warehouseId.present
-          ? data.warehouseId.value
-          : this.warehouseId,
+      propertyWarehouseId: data.propertyWarehouseId.present
+          ? data.propertyWarehouseId.value
+          : this.propertyWarehouseId,
       warehouseName: data.warehouseName.present
           ? data.warehouseName.value
           : this.warehouseName,
@@ -2631,7 +2634,7 @@ class ResUser extends DataClass implements Insertable<ResUser> {
           ..write('partnerName: $partnerName, ')
           ..write('companyId: $companyId, ')
           ..write('companyName: $companyName, ')
-          ..write('warehouseId: $warehouseId, ')
+          ..write('propertyWarehouseId: $propertyWarehouseId, ')
           ..write('warehouseName: $warehouseName, ')
           ..write('avatar128: $avatar128, ')
           ..write('notificationType: $notificationType, ')
@@ -2681,7 +2684,7 @@ class ResUser extends DataClass implements Insertable<ResUser> {
     partnerName,
     companyId,
     companyName,
-    warehouseId,
+    propertyWarehouseId,
     warehouseName,
     avatar128,
     notificationType,
@@ -2730,7 +2733,7 @@ class ResUser extends DataClass implements Insertable<ResUser> {
           other.partnerName == this.partnerName &&
           other.companyId == this.companyId &&
           other.companyName == this.companyName &&
-          other.warehouseId == this.warehouseId &&
+          other.propertyWarehouseId == this.propertyWarehouseId &&
           other.warehouseName == this.warehouseName &&
           other.avatar128 == this.avatar128 &&
           other.notificationType == this.notificationType &&
@@ -2777,7 +2780,7 @@ class ResUsersCompanion extends UpdateCompanion<ResUser> {
   final Value<String?> partnerName;
   final Value<int?> companyId;
   final Value<String?> companyName;
-  final Value<int?> warehouseId;
+  final Value<int?> propertyWarehouseId;
   final Value<String?> warehouseName;
   final Value<String?> avatar128;
   final Value<String?> notificationType;
@@ -2822,7 +2825,7 @@ class ResUsersCompanion extends UpdateCompanion<ResUser> {
     this.partnerName = const Value.absent(),
     this.companyId = const Value.absent(),
     this.companyName = const Value.absent(),
-    this.warehouseId = const Value.absent(),
+    this.propertyWarehouseId = const Value.absent(),
     this.warehouseName = const Value.absent(),
     this.avatar128 = const Value.absent(),
     this.notificationType = const Value.absent(),
@@ -2868,7 +2871,7 @@ class ResUsersCompanion extends UpdateCompanion<ResUser> {
     this.partnerName = const Value.absent(),
     this.companyId = const Value.absent(),
     this.companyName = const Value.absent(),
-    this.warehouseId = const Value.absent(),
+    this.propertyWarehouseId = const Value.absent(),
     this.warehouseName = const Value.absent(),
     this.avatar128 = const Value.absent(),
     this.notificationType = const Value.absent(),
@@ -2916,7 +2919,7 @@ class ResUsersCompanion extends UpdateCompanion<ResUser> {
     Expression<String>? partnerName,
     Expression<int>? companyId,
     Expression<String>? companyName,
-    Expression<int>? warehouseId,
+    Expression<int>? propertyWarehouseId,
     Expression<String>? warehouseName,
     Expression<String>? avatar128,
     Expression<String>? notificationType,
@@ -2962,7 +2965,8 @@ class ResUsersCompanion extends UpdateCompanion<ResUser> {
       if (partnerName != null) 'partner_name': partnerName,
       if (companyId != null) 'company_id': companyId,
       if (companyName != null) 'company_name': companyName,
-      if (warehouseId != null) 'warehouse_id': warehouseId,
+      if (propertyWarehouseId != null)
+        'property_warehouse_id': propertyWarehouseId,
       if (warehouseName != null) 'warehouse_name': warehouseName,
       if (avatar128 != null) 'avatar128': avatar128,
       if (notificationType != null) 'notification_type': notificationType,
@@ -3015,7 +3019,7 @@ class ResUsersCompanion extends UpdateCompanion<ResUser> {
     Value<String?>? partnerName,
     Value<int?>? companyId,
     Value<String?>? companyName,
-    Value<int?>? warehouseId,
+    Value<int?>? propertyWarehouseId,
     Value<String?>? warehouseName,
     Value<String?>? avatar128,
     Value<String?>? notificationType,
@@ -3061,7 +3065,7 @@ class ResUsersCompanion extends UpdateCompanion<ResUser> {
       partnerName: partnerName ?? this.partnerName,
       companyId: companyId ?? this.companyId,
       companyName: companyName ?? this.companyName,
-      warehouseId: warehouseId ?? this.warehouseId,
+      propertyWarehouseId: propertyWarehouseId ?? this.propertyWarehouseId,
       warehouseName: warehouseName ?? this.warehouseName,
       avatar128: avatar128 ?? this.avatar128,
       notificationType: notificationType ?? this.notificationType,
@@ -3136,8 +3140,8 @@ class ResUsersCompanion extends UpdateCompanion<ResUser> {
     if (companyName.present) {
       map['company_name'] = Variable<String>(companyName.value);
     }
-    if (warehouseId.present) {
-      map['warehouse_id'] = Variable<int>(warehouseId.value);
+    if (propertyWarehouseId.present) {
+      map['property_warehouse_id'] = Variable<int>(propertyWarehouseId.value);
     }
     if (warehouseName.present) {
       map['warehouse_name'] = Variable<String>(warehouseName.value);
@@ -3254,7 +3258,7 @@ class ResUsersCompanion extends UpdateCompanion<ResUser> {
           ..write('partnerName: $partnerName, ')
           ..write('companyId: $companyId, ')
           ..write('companyName: $companyName, ')
-          ..write('warehouseId: $warehouseId, ')
+          ..write('propertyWarehouseId: $propertyWarehouseId, ')
           ..write('warehouseName: $warehouseName, ')
           ..write('avatar128: $avatar128, ')
           ..write('notificationType: $notificationType, ')
@@ -4205,12 +4209,12 @@ class $ResPartnerTable extends ResPartner
         type: DriftSqlType.string,
         requiredDuringInsert: false,
       );
-  static const VerificationMeta _propertyProductPricelistIdMeta =
-      const VerificationMeta('propertyProductPricelistId');
+  static const VerificationMeta _propertyProductPricelistMeta =
+      const VerificationMeta('propertyProductPricelist');
   @override
-  late final GeneratedColumn<int> propertyProductPricelistId =
+  late final GeneratedColumn<int> propertyProductPricelist =
       GeneratedColumn<int>(
-        'property_product_pricelist_id',
+        'property_product_pricelist',
         aliasedName,
         true,
         type: DriftSqlType.int,
@@ -4344,11 +4348,11 @@ class $ResPartnerTable extends ResPartner
         ),
         defaultValue: const Constant(false),
       );
-  static const VerificationMeta _overdueInvoicesCountMeta =
-      const VerificationMeta('overdueInvoicesCount');
+  static const VerificationMeta _unpaidInvoicesCountMeta =
+      const VerificationMeta('unpaidInvoicesCount');
   @override
-  late final GeneratedColumn<int> overdueInvoicesCount = GeneratedColumn<int>(
-    'overdue_invoices_count',
+  late final GeneratedColumn<int> unpaidInvoicesCount = GeneratedColumn<int>(
+    'unpaid_invoices_count',
     aliasedName,
     false,
     type: DriftSqlType.int,
@@ -4359,15 +4363,14 @@ class $ResPartnerTable extends ResPartner
     'oldestOverdueDays',
   );
   @override
-  late final GeneratedColumn<double> oldestOverdueDays =
-      GeneratedColumn<double>(
-        'oldest_overdue_days',
-        aliasedName,
-        false,
-        type: DriftSqlType.double,
-        requiredDuringInsert: false,
-        defaultValue: const Constant(0),
-      );
+  late final GeneratedColumn<int> oldestOverdueDays = GeneratedColumn<int>(
+    'oldest_overdue_days',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(0),
+  );
   static const VerificationMeta _diasMaxFacturaPosteriorMeta =
       const VerificationMeta('diasMaxFacturaPosterior');
   @override
@@ -4638,7 +4641,7 @@ class $ResPartnerTable extends ResPartner
     parentName,
     commercialPartnerId,
     commercialPartnerName,
-    propertyProductPricelistId,
+    propertyProductPricelist,
     propertyProductPricelistName,
     propertyPaymentTermId,
     propertyPaymentTermName,
@@ -4650,7 +4653,7 @@ class $ResPartnerTable extends ResPartner
     totalOverdue,
     allowOverCredit,
     usePartnerCreditLimit,
-    overdueInvoicesCount,
+    unpaidInvoicesCount,
     oldestOverdueDays,
     diasMaxFacturaPosterior,
     tipoCliente,
@@ -4842,12 +4845,12 @@ class $ResPartnerTable extends ResPartner
         ),
       );
     }
-    if (data.containsKey('property_product_pricelist_id')) {
+    if (data.containsKey('property_product_pricelist')) {
       context.handle(
-        _propertyProductPricelistIdMeta,
-        propertyProductPricelistId.isAcceptableOrUnknown(
-          data['property_product_pricelist_id']!,
-          _propertyProductPricelistIdMeta,
+        _propertyProductPricelistMeta,
+        propertyProductPricelist.isAcceptableOrUnknown(
+          data['property_product_pricelist']!,
+          _propertyProductPricelistMeta,
         ),
       );
     }
@@ -4941,12 +4944,12 @@ class $ResPartnerTable extends ResPartner
         ),
       );
     }
-    if (data.containsKey('overdue_invoices_count')) {
+    if (data.containsKey('unpaid_invoices_count')) {
       context.handle(
-        _overdueInvoicesCountMeta,
-        overdueInvoicesCount.isAcceptableOrUnknown(
-          data['overdue_invoices_count']!,
-          _overdueInvoicesCountMeta,
+        _unpaidInvoicesCountMeta,
+        unpaidInvoicesCount.isAcceptableOrUnknown(
+          data['unpaid_invoices_count']!,
+          _unpaidInvoicesCountMeta,
         ),
       );
     }
@@ -5232,9 +5235,9 @@ class $ResPartnerTable extends ResPartner
         DriftSqlType.string,
         data['${effectivePrefix}commercial_partner_name'],
       ),
-      propertyProductPricelistId: attachedDatabase.typeMapping.read(
+      propertyProductPricelist: attachedDatabase.typeMapping.read(
         DriftSqlType.int,
-        data['${effectivePrefix}property_product_pricelist_id'],
+        data['${effectivePrefix}property_product_pricelist'],
       ),
       propertyProductPricelistName: attachedDatabase.typeMapping.read(
         DriftSqlType.string,
@@ -5280,12 +5283,12 @@ class $ResPartnerTable extends ResPartner
         DriftSqlType.bool,
         data['${effectivePrefix}use_partner_credit_limit'],
       )!,
-      overdueInvoicesCount: attachedDatabase.typeMapping.read(
+      unpaidInvoicesCount: attachedDatabase.typeMapping.read(
         DriftSqlType.int,
-        data['${effectivePrefix}overdue_invoices_count'],
+        data['${effectivePrefix}unpaid_invoices_count'],
       )!,
       oldestOverdueDays: attachedDatabase.typeMapping.read(
-        DriftSqlType.double,
+        DriftSqlType.int,
         data['${effectivePrefix}oldest_overdue_days'],
       )!,
       diasMaxFacturaPosterior: attachedDatabase.typeMapping.read(
@@ -5402,7 +5405,7 @@ class ResPartnerData extends DataClass implements Insertable<ResPartnerData> {
   final String? parentName;
   final int? commercialPartnerId;
   final String? commercialPartnerName;
-  final int? propertyProductPricelistId;
+  final int? propertyProductPricelist;
   final String? propertyProductPricelistName;
   final int? propertyPaymentTermId;
   final String? propertyPaymentTermName;
@@ -5414,8 +5417,8 @@ class ResPartnerData extends DataClass implements Insertable<ResPartnerData> {
   final double totalOverdue;
   final bool allowOverCredit;
   final bool usePartnerCreditLimit;
-  final int overdueInvoicesCount;
-  final double oldestOverdueDays;
+  final int unpaidInvoicesCount;
+  final int oldestOverdueDays;
   final int? diasMaxFacturaPosterior;
   final String? tipoCliente;
   final String? canalCliente;
@@ -5461,7 +5464,7 @@ class ResPartnerData extends DataClass implements Insertable<ResPartnerData> {
     this.parentName,
     this.commercialPartnerId,
     this.commercialPartnerName,
-    this.propertyProductPricelistId,
+    this.propertyProductPricelist,
     this.propertyProductPricelistName,
     this.propertyPaymentTermId,
     this.propertyPaymentTermName,
@@ -5473,7 +5476,7 @@ class ResPartnerData extends DataClass implements Insertable<ResPartnerData> {
     required this.totalOverdue,
     required this.allowOverCredit,
     required this.usePartnerCreditLimit,
-    required this.overdueInvoicesCount,
+    required this.unpaidInvoicesCount,
     required this.oldestOverdueDays,
     this.diasMaxFacturaPosterior,
     this.tipoCliente,
@@ -5561,9 +5564,9 @@ class ResPartnerData extends DataClass implements Insertable<ResPartnerData> {
     if (!nullToAbsent || commercialPartnerName != null) {
       map['commercial_partner_name'] = Variable<String>(commercialPartnerName);
     }
-    if (!nullToAbsent || propertyProductPricelistId != null) {
-      map['property_product_pricelist_id'] = Variable<int>(
-        propertyProductPricelistId,
+    if (!nullToAbsent || propertyProductPricelist != null) {
+      map['property_product_pricelist'] = Variable<int>(
+        propertyProductPricelist,
       );
     }
     if (!nullToAbsent || propertyProductPricelistName != null) {
@@ -5591,8 +5594,8 @@ class ResPartnerData extends DataClass implements Insertable<ResPartnerData> {
     map['total_overdue'] = Variable<double>(totalOverdue);
     map['allow_over_credit'] = Variable<bool>(allowOverCredit);
     map['use_partner_credit_limit'] = Variable<bool>(usePartnerCreditLimit);
-    map['overdue_invoices_count'] = Variable<int>(overdueInvoicesCount);
-    map['oldest_overdue_days'] = Variable<double>(oldestOverdueDays);
+    map['unpaid_invoices_count'] = Variable<int>(unpaidInvoicesCount);
+    map['oldest_overdue_days'] = Variable<int>(oldestOverdueDays);
     if (!nullToAbsent || diasMaxFacturaPosterior != null) {
       map['dias_max_factura_posterior'] = Variable<int>(
         diasMaxFacturaPosterior,
@@ -5702,10 +5705,9 @@ class ResPartnerData extends DataClass implements Insertable<ResPartnerData> {
       commercialPartnerName: commercialPartnerName == null && nullToAbsent
           ? const Value.absent()
           : Value(commercialPartnerName),
-      propertyProductPricelistId:
-          propertyProductPricelistId == null && nullToAbsent
+      propertyProductPricelist: propertyProductPricelist == null && nullToAbsent
           ? const Value.absent()
-          : Value(propertyProductPricelistId),
+          : Value(propertyProductPricelist),
       propertyProductPricelistName:
           propertyProductPricelistName == null && nullToAbsent
           ? const Value.absent()
@@ -5726,7 +5728,7 @@ class ResPartnerData extends DataClass implements Insertable<ResPartnerData> {
       totalOverdue: Value(totalOverdue),
       allowOverCredit: Value(allowOverCredit),
       usePartnerCreditLimit: Value(usePartnerCreditLimit),
-      overdueInvoicesCount: Value(overdueInvoicesCount),
+      unpaidInvoicesCount: Value(unpaidInvoicesCount),
       oldestOverdueDays: Value(oldestOverdueDays),
       diasMaxFacturaPosterior: diasMaxFacturaPosterior == null && nullToAbsent
           ? const Value.absent()
@@ -5811,8 +5813,8 @@ class ResPartnerData extends DataClass implements Insertable<ResPartnerData> {
       commercialPartnerName: serializer.fromJson<String?>(
         json['commercialPartnerName'],
       ),
-      propertyProductPricelistId: serializer.fromJson<int?>(
-        json['propertyProductPricelistId'],
+      propertyProductPricelist: serializer.fromJson<int?>(
+        json['propertyProductPricelist'],
       ),
       propertyProductPricelistName: serializer.fromJson<String?>(
         json['propertyProductPricelistName'],
@@ -5833,10 +5835,10 @@ class ResPartnerData extends DataClass implements Insertable<ResPartnerData> {
       usePartnerCreditLimit: serializer.fromJson<bool>(
         json['usePartnerCreditLimit'],
       ),
-      overdueInvoicesCount: serializer.fromJson<int>(
-        json['overdueInvoicesCount'],
+      unpaidInvoicesCount: serializer.fromJson<int>(
+        json['unpaidInvoicesCount'],
       ),
-      oldestOverdueDays: serializer.fromJson<double>(json['oldestOverdueDays']),
+      oldestOverdueDays: serializer.fromJson<int>(json['oldestOverdueDays']),
       diasMaxFacturaPosterior: serializer.fromJson<int?>(
         json['diasMaxFacturaPosterior'],
       ),
@@ -5899,8 +5901,8 @@ class ResPartnerData extends DataClass implements Insertable<ResPartnerData> {
       'commercialPartnerName': serializer.toJson<String?>(
         commercialPartnerName,
       ),
-      'propertyProductPricelistId': serializer.toJson<int?>(
-        propertyProductPricelistId,
+      'propertyProductPricelist': serializer.toJson<int?>(
+        propertyProductPricelist,
       ),
       'propertyProductPricelistName': serializer.toJson<String?>(
         propertyProductPricelistName,
@@ -5917,8 +5919,8 @@ class ResPartnerData extends DataClass implements Insertable<ResPartnerData> {
       'totalOverdue': serializer.toJson<double>(totalOverdue),
       'allowOverCredit': serializer.toJson<bool>(allowOverCredit),
       'usePartnerCreditLimit': serializer.toJson<bool>(usePartnerCreditLimit),
-      'overdueInvoicesCount': serializer.toJson<int>(overdueInvoicesCount),
-      'oldestOverdueDays': serializer.toJson<double>(oldestOverdueDays),
+      'unpaidInvoicesCount': serializer.toJson<int>(unpaidInvoicesCount),
+      'oldestOverdueDays': serializer.toJson<int>(oldestOverdueDays),
       'diasMaxFacturaPosterior': serializer.toJson<int?>(
         diasMaxFacturaPosterior,
       ),
@@ -5973,7 +5975,7 @@ class ResPartnerData extends DataClass implements Insertable<ResPartnerData> {
     Value<String?> parentName = const Value.absent(),
     Value<int?> commercialPartnerId = const Value.absent(),
     Value<String?> commercialPartnerName = const Value.absent(),
-    Value<int?> propertyProductPricelistId = const Value.absent(),
+    Value<int?> propertyProductPricelist = const Value.absent(),
     Value<String?> propertyProductPricelistName = const Value.absent(),
     Value<int?> propertyPaymentTermId = const Value.absent(),
     Value<String?> propertyPaymentTermName = const Value.absent(),
@@ -5985,8 +5987,8 @@ class ResPartnerData extends DataClass implements Insertable<ResPartnerData> {
     double? totalOverdue,
     bool? allowOverCredit,
     bool? usePartnerCreditLimit,
-    int? overdueInvoicesCount,
-    double? oldestOverdueDays,
+    int? unpaidInvoicesCount,
+    int? oldestOverdueDays,
     Value<int?> diasMaxFacturaPosterior = const Value.absent(),
     Value<String?> tipoCliente = const Value.absent(),
     Value<String?> canalCliente = const Value.absent(),
@@ -6036,9 +6038,9 @@ class ResPartnerData extends DataClass implements Insertable<ResPartnerData> {
     commercialPartnerName: commercialPartnerName.present
         ? commercialPartnerName.value
         : this.commercialPartnerName,
-    propertyProductPricelistId: propertyProductPricelistId.present
-        ? propertyProductPricelistId.value
-        : this.propertyProductPricelistId,
+    propertyProductPricelist: propertyProductPricelist.present
+        ? propertyProductPricelist.value
+        : this.propertyProductPricelist,
     propertyProductPricelistName: propertyProductPricelistName.present
         ? propertyProductPricelistName.value
         : this.propertyProductPricelistName,
@@ -6056,7 +6058,7 @@ class ResPartnerData extends DataClass implements Insertable<ResPartnerData> {
     totalOverdue: totalOverdue ?? this.totalOverdue,
     allowOverCredit: allowOverCredit ?? this.allowOverCredit,
     usePartnerCreditLimit: usePartnerCreditLimit ?? this.usePartnerCreditLimit,
-    overdueInvoicesCount: overdueInvoicesCount ?? this.overdueInvoicesCount,
+    unpaidInvoicesCount: unpaidInvoicesCount ?? this.unpaidInvoicesCount,
     oldestOverdueDays: oldestOverdueDays ?? this.oldestOverdueDays,
     diasMaxFacturaPosterior: diasMaxFacturaPosterior.present
         ? diasMaxFacturaPosterior.value
@@ -6132,9 +6134,9 @@ class ResPartnerData extends DataClass implements Insertable<ResPartnerData> {
       commercialPartnerName: data.commercialPartnerName.present
           ? data.commercialPartnerName.value
           : this.commercialPartnerName,
-      propertyProductPricelistId: data.propertyProductPricelistId.present
-          ? data.propertyProductPricelistId.value
-          : this.propertyProductPricelistId,
+      propertyProductPricelist: data.propertyProductPricelist.present
+          ? data.propertyProductPricelist.value
+          : this.propertyProductPricelist,
       propertyProductPricelistName: data.propertyProductPricelistName.present
           ? data.propertyProductPricelistName.value
           : this.propertyProductPricelistName,
@@ -6162,9 +6164,9 @@ class ResPartnerData extends DataClass implements Insertable<ResPartnerData> {
       usePartnerCreditLimit: data.usePartnerCreditLimit.present
           ? data.usePartnerCreditLimit.value
           : this.usePartnerCreditLimit,
-      overdueInvoicesCount: data.overdueInvoicesCount.present
-          ? data.overdueInvoicesCount.value
-          : this.overdueInvoicesCount,
+      unpaidInvoicesCount: data.unpaidInvoicesCount.present
+          ? data.unpaidInvoicesCount.value
+          : this.unpaidInvoicesCount,
       oldestOverdueDays: data.oldestOverdueDays.present
           ? data.oldestOverdueDays.value
           : this.oldestOverdueDays,
@@ -6252,7 +6254,7 @@ class ResPartnerData extends DataClass implements Insertable<ResPartnerData> {
           ..write('parentName: $parentName, ')
           ..write('commercialPartnerId: $commercialPartnerId, ')
           ..write('commercialPartnerName: $commercialPartnerName, ')
-          ..write('propertyProductPricelistId: $propertyProductPricelistId, ')
+          ..write('propertyProductPricelist: $propertyProductPricelist, ')
           ..write(
             'propertyProductPricelistName: $propertyProductPricelistName, ',
           )
@@ -6266,7 +6268,7 @@ class ResPartnerData extends DataClass implements Insertable<ResPartnerData> {
           ..write('totalOverdue: $totalOverdue, ')
           ..write('allowOverCredit: $allowOverCredit, ')
           ..write('usePartnerCreditLimit: $usePartnerCreditLimit, ')
-          ..write('overdueInvoicesCount: $overdueInvoicesCount, ')
+          ..write('unpaidInvoicesCount: $unpaidInvoicesCount, ')
           ..write('oldestOverdueDays: $oldestOverdueDays, ')
           ..write('diasMaxFacturaPosterior: $diasMaxFacturaPosterior, ')
           ..write('tipoCliente: $tipoCliente, ')
@@ -6318,7 +6320,7 @@ class ResPartnerData extends DataClass implements Insertable<ResPartnerData> {
     parentName,
     commercialPartnerId,
     commercialPartnerName,
-    propertyProductPricelistId,
+    propertyProductPricelist,
     propertyProductPricelistName,
     propertyPaymentTermId,
     propertyPaymentTermName,
@@ -6330,7 +6332,7 @@ class ResPartnerData extends DataClass implements Insertable<ResPartnerData> {
     totalOverdue,
     allowOverCredit,
     usePartnerCreditLimit,
-    overdueInvoicesCount,
+    unpaidInvoicesCount,
     oldestOverdueDays,
     diasMaxFacturaPosterior,
     tipoCliente,
@@ -6381,7 +6383,7 @@ class ResPartnerData extends DataClass implements Insertable<ResPartnerData> {
           other.parentName == this.parentName &&
           other.commercialPartnerId == this.commercialPartnerId &&
           other.commercialPartnerName == this.commercialPartnerName &&
-          other.propertyProductPricelistId == this.propertyProductPricelistId &&
+          other.propertyProductPricelist == this.propertyProductPricelist &&
           other.propertyProductPricelistName ==
               this.propertyProductPricelistName &&
           other.propertyPaymentTermId == this.propertyPaymentTermId &&
@@ -6394,7 +6396,7 @@ class ResPartnerData extends DataClass implements Insertable<ResPartnerData> {
           other.totalOverdue == this.totalOverdue &&
           other.allowOverCredit == this.allowOverCredit &&
           other.usePartnerCreditLimit == this.usePartnerCreditLimit &&
-          other.overdueInvoicesCount == this.overdueInvoicesCount &&
+          other.unpaidInvoicesCount == this.unpaidInvoicesCount &&
           other.oldestOverdueDays == this.oldestOverdueDays &&
           other.diasMaxFacturaPosterior == this.diasMaxFacturaPosterior &&
           other.tipoCliente == this.tipoCliente &&
@@ -6444,7 +6446,7 @@ class ResPartnerCompanion extends UpdateCompanion<ResPartnerData> {
   final Value<String?> parentName;
   final Value<int?> commercialPartnerId;
   final Value<String?> commercialPartnerName;
-  final Value<int?> propertyProductPricelistId;
+  final Value<int?> propertyProductPricelist;
   final Value<String?> propertyProductPricelistName;
   final Value<int?> propertyPaymentTermId;
   final Value<String?> propertyPaymentTermName;
@@ -6456,8 +6458,8 @@ class ResPartnerCompanion extends UpdateCompanion<ResPartnerData> {
   final Value<double> totalOverdue;
   final Value<bool> allowOverCredit;
   final Value<bool> usePartnerCreditLimit;
-  final Value<int> overdueInvoicesCount;
-  final Value<double> oldestOverdueDays;
+  final Value<int> unpaidInvoicesCount;
+  final Value<int> oldestOverdueDays;
   final Value<int?> diasMaxFacturaPosterior;
   final Value<String?> tipoCliente;
   final Value<String?> canalCliente;
@@ -6503,7 +6505,7 @@ class ResPartnerCompanion extends UpdateCompanion<ResPartnerData> {
     this.parentName = const Value.absent(),
     this.commercialPartnerId = const Value.absent(),
     this.commercialPartnerName = const Value.absent(),
-    this.propertyProductPricelistId = const Value.absent(),
+    this.propertyProductPricelist = const Value.absent(),
     this.propertyProductPricelistName = const Value.absent(),
     this.propertyPaymentTermId = const Value.absent(),
     this.propertyPaymentTermName = const Value.absent(),
@@ -6515,7 +6517,7 @@ class ResPartnerCompanion extends UpdateCompanion<ResPartnerData> {
     this.totalOverdue = const Value.absent(),
     this.allowOverCredit = const Value.absent(),
     this.usePartnerCreditLimit = const Value.absent(),
-    this.overdueInvoicesCount = const Value.absent(),
+    this.unpaidInvoicesCount = const Value.absent(),
     this.oldestOverdueDays = const Value.absent(),
     this.diasMaxFacturaPosterior = const Value.absent(),
     this.tipoCliente = const Value.absent(),
@@ -6563,7 +6565,7 @@ class ResPartnerCompanion extends UpdateCompanion<ResPartnerData> {
     this.parentName = const Value.absent(),
     this.commercialPartnerId = const Value.absent(),
     this.commercialPartnerName = const Value.absent(),
-    this.propertyProductPricelistId = const Value.absent(),
+    this.propertyProductPricelist = const Value.absent(),
     this.propertyProductPricelistName = const Value.absent(),
     this.propertyPaymentTermId = const Value.absent(),
     this.propertyPaymentTermName = const Value.absent(),
@@ -6575,7 +6577,7 @@ class ResPartnerCompanion extends UpdateCompanion<ResPartnerData> {
     this.totalOverdue = const Value.absent(),
     this.allowOverCredit = const Value.absent(),
     this.usePartnerCreditLimit = const Value.absent(),
-    this.overdueInvoicesCount = const Value.absent(),
+    this.unpaidInvoicesCount = const Value.absent(),
     this.oldestOverdueDays = const Value.absent(),
     this.diasMaxFacturaPosterior = const Value.absent(),
     this.tipoCliente = const Value.absent(),
@@ -6624,7 +6626,7 @@ class ResPartnerCompanion extends UpdateCompanion<ResPartnerData> {
     Expression<String>? parentName,
     Expression<int>? commercialPartnerId,
     Expression<String>? commercialPartnerName,
-    Expression<int>? propertyProductPricelistId,
+    Expression<int>? propertyProductPricelist,
     Expression<String>? propertyProductPricelistName,
     Expression<int>? propertyPaymentTermId,
     Expression<String>? propertyPaymentTermName,
@@ -6636,8 +6638,8 @@ class ResPartnerCompanion extends UpdateCompanion<ResPartnerData> {
     Expression<double>? totalOverdue,
     Expression<bool>? allowOverCredit,
     Expression<bool>? usePartnerCreditLimit,
-    Expression<int>? overdueInvoicesCount,
-    Expression<double>? oldestOverdueDays,
+    Expression<int>? unpaidInvoicesCount,
+    Expression<int>? oldestOverdueDays,
     Expression<int>? diasMaxFacturaPosterior,
     Expression<String>? tipoCliente,
     Expression<String>? canalCliente,
@@ -6686,8 +6688,8 @@ class ResPartnerCompanion extends UpdateCompanion<ResPartnerData> {
         'commercial_partner_id': commercialPartnerId,
       if (commercialPartnerName != null)
         'commercial_partner_name': commercialPartnerName,
-      if (propertyProductPricelistId != null)
-        'property_product_pricelist_id': propertyProductPricelistId,
+      if (propertyProductPricelist != null)
+        'property_product_pricelist': propertyProductPricelist,
       if (propertyProductPricelistName != null)
         'property_product_pricelist_name': propertyProductPricelistName,
       if (propertyPaymentTermId != null)
@@ -6703,8 +6705,8 @@ class ResPartnerCompanion extends UpdateCompanion<ResPartnerData> {
       if (allowOverCredit != null) 'allow_over_credit': allowOverCredit,
       if (usePartnerCreditLimit != null)
         'use_partner_credit_limit': usePartnerCreditLimit,
-      if (overdueInvoicesCount != null)
-        'overdue_invoices_count': overdueInvoicesCount,
+      if (unpaidInvoicesCount != null)
+        'unpaid_invoices_count': unpaidInvoicesCount,
       if (oldestOverdueDays != null) 'oldest_overdue_days': oldestOverdueDays,
       if (diasMaxFacturaPosterior != null)
         'dias_max_factura_posterior': diasMaxFacturaPosterior,
@@ -6759,7 +6761,7 @@ class ResPartnerCompanion extends UpdateCompanion<ResPartnerData> {
     Value<String?>? parentName,
     Value<int?>? commercialPartnerId,
     Value<String?>? commercialPartnerName,
-    Value<int?>? propertyProductPricelistId,
+    Value<int?>? propertyProductPricelist,
     Value<String?>? propertyProductPricelistName,
     Value<int?>? propertyPaymentTermId,
     Value<String?>? propertyPaymentTermName,
@@ -6771,8 +6773,8 @@ class ResPartnerCompanion extends UpdateCompanion<ResPartnerData> {
     Value<double>? totalOverdue,
     Value<bool>? allowOverCredit,
     Value<bool>? usePartnerCreditLimit,
-    Value<int>? overdueInvoicesCount,
-    Value<double>? oldestOverdueDays,
+    Value<int>? unpaidInvoicesCount,
+    Value<int>? oldestOverdueDays,
     Value<int?>? diasMaxFacturaPosterior,
     Value<String?>? tipoCliente,
     Value<String?>? canalCliente,
@@ -6820,8 +6822,8 @@ class ResPartnerCompanion extends UpdateCompanion<ResPartnerData> {
       commercialPartnerId: commercialPartnerId ?? this.commercialPartnerId,
       commercialPartnerName:
           commercialPartnerName ?? this.commercialPartnerName,
-      propertyProductPricelistId:
-          propertyProductPricelistId ?? this.propertyProductPricelistId,
+      propertyProductPricelist:
+          propertyProductPricelist ?? this.propertyProductPricelist,
       propertyProductPricelistName:
           propertyProductPricelistName ?? this.propertyProductPricelistName,
       propertyPaymentTermId:
@@ -6837,7 +6839,7 @@ class ResPartnerCompanion extends UpdateCompanion<ResPartnerData> {
       allowOverCredit: allowOverCredit ?? this.allowOverCredit,
       usePartnerCreditLimit:
           usePartnerCreditLimit ?? this.usePartnerCreditLimit,
-      overdueInvoicesCount: overdueInvoicesCount ?? this.overdueInvoicesCount,
+      unpaidInvoicesCount: unpaidInvoicesCount ?? this.unpaidInvoicesCount,
       oldestOverdueDays: oldestOverdueDays ?? this.oldestOverdueDays,
       diasMaxFacturaPosterior:
           diasMaxFacturaPosterior ?? this.diasMaxFacturaPosterior,
@@ -6942,9 +6944,9 @@ class ResPartnerCompanion extends UpdateCompanion<ResPartnerData> {
         commercialPartnerName.value,
       );
     }
-    if (propertyProductPricelistId.present) {
-      map['property_product_pricelist_id'] = Variable<int>(
-        propertyProductPricelistId.value,
+    if (propertyProductPricelist.present) {
+      map['property_product_pricelist'] = Variable<int>(
+        propertyProductPricelist.value,
       );
     }
     if (propertyProductPricelistName.present) {
@@ -6988,11 +6990,11 @@ class ResPartnerCompanion extends UpdateCompanion<ResPartnerData> {
         usePartnerCreditLimit.value,
       );
     }
-    if (overdueInvoicesCount.present) {
-      map['overdue_invoices_count'] = Variable<int>(overdueInvoicesCount.value);
+    if (unpaidInvoicesCount.present) {
+      map['unpaid_invoices_count'] = Variable<int>(unpaidInvoicesCount.value);
     }
     if (oldestOverdueDays.present) {
-      map['oldest_overdue_days'] = Variable<double>(oldestOverdueDays.value);
+      map['oldest_overdue_days'] = Variable<int>(oldestOverdueDays.value);
     }
     if (diasMaxFacturaPosterior.present) {
       map['dias_max_factura_posterior'] = Variable<int>(
@@ -7094,7 +7096,7 @@ class ResPartnerCompanion extends UpdateCompanion<ResPartnerData> {
           ..write('parentName: $parentName, ')
           ..write('commercialPartnerId: $commercialPartnerId, ')
           ..write('commercialPartnerName: $commercialPartnerName, ')
-          ..write('propertyProductPricelistId: $propertyProductPricelistId, ')
+          ..write('propertyProductPricelist: $propertyProductPricelist, ')
           ..write(
             'propertyProductPricelistName: $propertyProductPricelistName, ',
           )
@@ -7108,7 +7110,7 @@ class ResPartnerCompanion extends UpdateCompanion<ResPartnerData> {
           ..write('totalOverdue: $totalOverdue, ')
           ..write('allowOverCredit: $allowOverCredit, ')
           ..write('usePartnerCreditLimit: $usePartnerCreditLimit, ')
-          ..write('overdueInvoicesCount: $overdueInvoicesCount, ')
+          ..write('unpaidInvoicesCount: $unpaidInvoicesCount, ')
           ..write('oldestOverdueDays: $oldestOverdueDays, ')
           ..write('diasMaxFacturaPosterior: $diasMaxFacturaPosterior, ')
           ..write('tipoCliente: $tipoCliente, ')
@@ -8419,12 +8421,12 @@ class $ResBankTable extends ResBank with TableInfo<$ResBankTable, ResBankData> {
     type: DriftSqlType.string,
     requiredDuringInsert: false,
   );
-  static const VerificationMeta _countryIdMeta = const VerificationMeta(
-    'countryId',
+  static const VerificationMeta _countryMeta = const VerificationMeta(
+    'country',
   );
   @override
-  late final GeneratedColumn<int> countryId = GeneratedColumn<int>(
-    'country_id',
+  late final GeneratedColumn<int> country = GeneratedColumn<int>(
+    'country',
     aliasedName,
     true,
     type: DriftSqlType.int,
@@ -8471,7 +8473,7 @@ class $ResBankTable extends ResBank with TableInfo<$ResBankTable, ResBankData> {
     odooId,
     name,
     bic,
-    countryId,
+    country,
     countryName,
     active,
     writeDate,
@@ -8513,10 +8515,10 @@ class $ResBankTable extends ResBank with TableInfo<$ResBankTable, ResBankData> {
         bic.isAcceptableOrUnknown(data['bic']!, _bicMeta),
       );
     }
-    if (data.containsKey('country_id')) {
+    if (data.containsKey('country')) {
       context.handle(
-        _countryIdMeta,
-        countryId.isAcceptableOrUnknown(data['country_id']!, _countryIdMeta),
+        _countryMeta,
+        country.isAcceptableOrUnknown(data['country']!, _countryMeta),
       );
     }
     if (data.containsKey('country_name')) {
@@ -8565,9 +8567,9 @@ class $ResBankTable extends ResBank with TableInfo<$ResBankTable, ResBankData> {
         DriftSqlType.string,
         data['${effectivePrefix}bic'],
       ),
-      countryId: attachedDatabase.typeMapping.read(
+      country: attachedDatabase.typeMapping.read(
         DriftSqlType.int,
-        data['${effectivePrefix}country_id'],
+        data['${effectivePrefix}country'],
       ),
       countryName: attachedDatabase.typeMapping.read(
         DriftSqlType.string,
@@ -8595,7 +8597,7 @@ class ResBankData extends DataClass implements Insertable<ResBankData> {
   final int odooId;
   final String name;
   final String? bic;
-  final int? countryId;
+  final int? country;
   final String? countryName;
   final bool active;
   final DateTime? writeDate;
@@ -8604,7 +8606,7 @@ class ResBankData extends DataClass implements Insertable<ResBankData> {
     required this.odooId,
     required this.name,
     this.bic,
-    this.countryId,
+    this.country,
     this.countryName,
     required this.active,
     this.writeDate,
@@ -8618,8 +8620,8 @@ class ResBankData extends DataClass implements Insertable<ResBankData> {
     if (!nullToAbsent || bic != null) {
       map['bic'] = Variable<String>(bic);
     }
-    if (!nullToAbsent || countryId != null) {
-      map['country_id'] = Variable<int>(countryId);
+    if (!nullToAbsent || country != null) {
+      map['country'] = Variable<int>(country);
     }
     if (!nullToAbsent || countryName != null) {
       map['country_name'] = Variable<String>(countryName);
@@ -8637,9 +8639,9 @@ class ResBankData extends DataClass implements Insertable<ResBankData> {
       odooId: Value(odooId),
       name: Value(name),
       bic: bic == null && nullToAbsent ? const Value.absent() : Value(bic),
-      countryId: countryId == null && nullToAbsent
+      country: country == null && nullToAbsent
           ? const Value.absent()
-          : Value(countryId),
+          : Value(country),
       countryName: countryName == null && nullToAbsent
           ? const Value.absent()
           : Value(countryName),
@@ -8660,7 +8662,7 @@ class ResBankData extends DataClass implements Insertable<ResBankData> {
       odooId: serializer.fromJson<int>(json['odooId']),
       name: serializer.fromJson<String>(json['name']),
       bic: serializer.fromJson<String?>(json['bic']),
-      countryId: serializer.fromJson<int?>(json['countryId']),
+      country: serializer.fromJson<int?>(json['country']),
       countryName: serializer.fromJson<String?>(json['countryName']),
       active: serializer.fromJson<bool>(json['active']),
       writeDate: serializer.fromJson<DateTime?>(json['writeDate']),
@@ -8674,7 +8676,7 @@ class ResBankData extends DataClass implements Insertable<ResBankData> {
       'odooId': serializer.toJson<int>(odooId),
       'name': serializer.toJson<String>(name),
       'bic': serializer.toJson<String?>(bic),
-      'countryId': serializer.toJson<int?>(countryId),
+      'country': serializer.toJson<int?>(country),
       'countryName': serializer.toJson<String?>(countryName),
       'active': serializer.toJson<bool>(active),
       'writeDate': serializer.toJson<DateTime?>(writeDate),
@@ -8686,7 +8688,7 @@ class ResBankData extends DataClass implements Insertable<ResBankData> {
     int? odooId,
     String? name,
     Value<String?> bic = const Value.absent(),
-    Value<int?> countryId = const Value.absent(),
+    Value<int?> country = const Value.absent(),
     Value<String?> countryName = const Value.absent(),
     bool? active,
     Value<DateTime?> writeDate = const Value.absent(),
@@ -8695,7 +8697,7 @@ class ResBankData extends DataClass implements Insertable<ResBankData> {
     odooId: odooId ?? this.odooId,
     name: name ?? this.name,
     bic: bic.present ? bic.value : this.bic,
-    countryId: countryId.present ? countryId.value : this.countryId,
+    country: country.present ? country.value : this.country,
     countryName: countryName.present ? countryName.value : this.countryName,
     active: active ?? this.active,
     writeDate: writeDate.present ? writeDate.value : this.writeDate,
@@ -8706,7 +8708,7 @@ class ResBankData extends DataClass implements Insertable<ResBankData> {
       odooId: data.odooId.present ? data.odooId.value : this.odooId,
       name: data.name.present ? data.name.value : this.name,
       bic: data.bic.present ? data.bic.value : this.bic,
-      countryId: data.countryId.present ? data.countryId.value : this.countryId,
+      country: data.country.present ? data.country.value : this.country,
       countryName: data.countryName.present
           ? data.countryName.value
           : this.countryName,
@@ -8722,7 +8724,7 @@ class ResBankData extends DataClass implements Insertable<ResBankData> {
           ..write('odooId: $odooId, ')
           ..write('name: $name, ')
           ..write('bic: $bic, ')
-          ..write('countryId: $countryId, ')
+          ..write('country: $country, ')
           ..write('countryName: $countryName, ')
           ..write('active: $active, ')
           ..write('writeDate: $writeDate')
@@ -8736,7 +8738,7 @@ class ResBankData extends DataClass implements Insertable<ResBankData> {
     odooId,
     name,
     bic,
-    countryId,
+    country,
     countryName,
     active,
     writeDate,
@@ -8749,7 +8751,7 @@ class ResBankData extends DataClass implements Insertable<ResBankData> {
           other.odooId == this.odooId &&
           other.name == this.name &&
           other.bic == this.bic &&
-          other.countryId == this.countryId &&
+          other.country == this.country &&
           other.countryName == this.countryName &&
           other.active == this.active &&
           other.writeDate == this.writeDate);
@@ -8760,7 +8762,7 @@ class ResBankCompanion extends UpdateCompanion<ResBankData> {
   final Value<int> odooId;
   final Value<String> name;
   final Value<String?> bic;
-  final Value<int?> countryId;
+  final Value<int?> country;
   final Value<String?> countryName;
   final Value<bool> active;
   final Value<DateTime?> writeDate;
@@ -8769,7 +8771,7 @@ class ResBankCompanion extends UpdateCompanion<ResBankData> {
     this.odooId = const Value.absent(),
     this.name = const Value.absent(),
     this.bic = const Value.absent(),
-    this.countryId = const Value.absent(),
+    this.country = const Value.absent(),
     this.countryName = const Value.absent(),
     this.active = const Value.absent(),
     this.writeDate = const Value.absent(),
@@ -8779,7 +8781,7 @@ class ResBankCompanion extends UpdateCompanion<ResBankData> {
     required int odooId,
     required String name,
     this.bic = const Value.absent(),
-    this.countryId = const Value.absent(),
+    this.country = const Value.absent(),
     this.countryName = const Value.absent(),
     this.active = const Value.absent(),
     this.writeDate = const Value.absent(),
@@ -8790,7 +8792,7 @@ class ResBankCompanion extends UpdateCompanion<ResBankData> {
     Expression<int>? odooId,
     Expression<String>? name,
     Expression<String>? bic,
-    Expression<int>? countryId,
+    Expression<int>? country,
     Expression<String>? countryName,
     Expression<bool>? active,
     Expression<DateTime>? writeDate,
@@ -8800,7 +8802,7 @@ class ResBankCompanion extends UpdateCompanion<ResBankData> {
       if (odooId != null) 'odoo_id': odooId,
       if (name != null) 'name': name,
       if (bic != null) 'bic': bic,
-      if (countryId != null) 'country_id': countryId,
+      if (country != null) 'country': country,
       if (countryName != null) 'country_name': countryName,
       if (active != null) 'active': active,
       if (writeDate != null) 'write_date': writeDate,
@@ -8812,7 +8814,7 @@ class ResBankCompanion extends UpdateCompanion<ResBankData> {
     Value<int>? odooId,
     Value<String>? name,
     Value<String?>? bic,
-    Value<int?>? countryId,
+    Value<int?>? country,
     Value<String?>? countryName,
     Value<bool>? active,
     Value<DateTime?>? writeDate,
@@ -8822,7 +8824,7 @@ class ResBankCompanion extends UpdateCompanion<ResBankData> {
       odooId: odooId ?? this.odooId,
       name: name ?? this.name,
       bic: bic ?? this.bic,
-      countryId: countryId ?? this.countryId,
+      country: country ?? this.country,
       countryName: countryName ?? this.countryName,
       active: active ?? this.active,
       writeDate: writeDate ?? this.writeDate,
@@ -8844,8 +8846,8 @@ class ResBankCompanion extends UpdateCompanion<ResBankData> {
     if (bic.present) {
       map['bic'] = Variable<String>(bic.value);
     }
-    if (countryId.present) {
-      map['country_id'] = Variable<int>(countryId.value);
+    if (country.present) {
+      map['country'] = Variable<int>(country.value);
     }
     if (countryName.present) {
       map['country_name'] = Variable<String>(countryName.value);
@@ -8866,7 +8868,7 @@ class ResBankCompanion extends UpdateCompanion<ResBankData> {
           ..write('odooId: $odooId, ')
           ..write('name: $name, ')
           ..write('bic: $bic, ')
-          ..write('countryId: $countryId, ')
+          ..write('country: $country, ')
           ..write('countryName: $countryName, ')
           ..write('active: $active, ')
           ..write('writeDate: $writeDate')
@@ -10334,12 +10336,12 @@ class $ResCompanyTableTable extends ResCompanyTable
     ),
     defaultValue: const Constant(false),
   );
-  static const VerificationMeta _defaultPartnerIdMeta = const VerificationMeta(
-    'defaultPartnerId',
+  static const VerificationMeta _partnerIdMeta = const VerificationMeta(
+    'partnerId',
   );
   @override
-  late final GeneratedColumn<int> defaultPartnerId = GeneratedColumn<int>(
-    'default_partner_id',
+  late final GeneratedColumn<int> partnerId = GeneratedColumn<int>(
+    'partner_id',
     aliasedName,
     true,
     type: DriftSqlType.int,
@@ -10356,11 +10358,12 @@ class $ResCompanyTableTable extends ResCompanyTable
         type: DriftSqlType.string,
         requiredDuringInsert: false,
       );
-  static const VerificationMeta _defaultWarehouseIdMeta =
-      const VerificationMeta('defaultWarehouseId');
+  static const VerificationMeta _warehouseIdMeta = const VerificationMeta(
+    'warehouseId',
+  );
   @override
-  late final GeneratedColumn<int> defaultWarehouseId = GeneratedColumn<int>(
-    'default_warehouse_id',
+  late final GeneratedColumn<int> warehouseId = GeneratedColumn<int>(
+    'warehouse_id',
     aliasedName,
     true,
     type: DriftSqlType.int,
@@ -10485,9 +10488,9 @@ class $ResCompanyTableTable extends ResCompanyTable
     reservationLocationId,
     reservationLocationName,
     reserveFromQuotation,
-    defaultPartnerId,
+    partnerId,
     defaultPartnerName,
-    defaultWarehouseId,
+    warehouseId,
     defaultWarehouseName,
     defaultPricelistId,
     defaultPricelistName,
@@ -10925,13 +10928,10 @@ class $ResCompanyTableTable extends ResCompanyTable
         ),
       );
     }
-    if (data.containsKey('default_partner_id')) {
+    if (data.containsKey('partner_id')) {
       context.handle(
-        _defaultPartnerIdMeta,
-        defaultPartnerId.isAcceptableOrUnknown(
-          data['default_partner_id']!,
-          _defaultPartnerIdMeta,
-        ),
+        _partnerIdMeta,
+        partnerId.isAcceptableOrUnknown(data['partner_id']!, _partnerIdMeta),
       );
     }
     if (data.containsKey('default_partner_name')) {
@@ -10943,12 +10943,12 @@ class $ResCompanyTableTable extends ResCompanyTable
         ),
       );
     }
-    if (data.containsKey('default_warehouse_id')) {
+    if (data.containsKey('warehouse_id')) {
       context.handle(
-        _defaultWarehouseIdMeta,
-        defaultWarehouseId.isAcceptableOrUnknown(
-          data['default_warehouse_id']!,
-          _defaultWarehouseIdMeta,
+        _warehouseIdMeta,
+        warehouseId.isAcceptableOrUnknown(
+          data['warehouse_id']!,
+          _warehouseIdMeta,
         ),
       );
     }
@@ -11224,17 +11224,17 @@ class $ResCompanyTableTable extends ResCompanyTable
         DriftSqlType.bool,
         data['${effectivePrefix}reserve_from_quotation'],
       )!,
-      defaultPartnerId: attachedDatabase.typeMapping.read(
+      partnerId: attachedDatabase.typeMapping.read(
         DriftSqlType.int,
-        data['${effectivePrefix}default_partner_id'],
+        data['${effectivePrefix}partner_id'],
       ),
       defaultPartnerName: attachedDatabase.typeMapping.read(
         DriftSqlType.string,
         data['${effectivePrefix}default_partner_name'],
       ),
-      defaultWarehouseId: attachedDatabase.typeMapping.read(
+      warehouseId: attachedDatabase.typeMapping.read(
         DriftSqlType.int,
-        data['${effectivePrefix}default_warehouse_id'],
+        data['${effectivePrefix}warehouse_id'],
       ),
       defaultWarehouseName: attachedDatabase.typeMapping.read(
         DriftSqlType.string,
@@ -11324,9 +11324,9 @@ class ResCompanyTableData extends DataClass
   final int? reservationLocationId;
   final String? reservationLocationName;
   final bool reserveFromQuotation;
-  final int? defaultPartnerId;
+  final int? partnerId;
   final String? defaultPartnerName;
-  final int? defaultWarehouseId;
+  final int? warehouseId;
   final String? defaultWarehouseName;
   final int? defaultPricelistId;
   final String? defaultPricelistName;
@@ -11387,9 +11387,9 @@ class ResCompanyTableData extends DataClass
     this.reservationLocationId,
     this.reservationLocationName,
     required this.reserveFromQuotation,
-    this.defaultPartnerId,
+    this.partnerId,
     this.defaultPartnerName,
-    this.defaultWarehouseId,
+    this.warehouseId,
     this.defaultWarehouseName,
     this.defaultPricelistId,
     this.defaultPricelistName,
@@ -11537,14 +11537,14 @@ class ResCompanyTableData extends DataClass
       );
     }
     map['reserve_from_quotation'] = Variable<bool>(reserveFromQuotation);
-    if (!nullToAbsent || defaultPartnerId != null) {
-      map['default_partner_id'] = Variable<int>(defaultPartnerId);
+    if (!nullToAbsent || partnerId != null) {
+      map['partner_id'] = Variable<int>(partnerId);
     }
     if (!nullToAbsent || defaultPartnerName != null) {
       map['default_partner_name'] = Variable<String>(defaultPartnerName);
     }
-    if (!nullToAbsent || defaultWarehouseId != null) {
-      map['default_warehouse_id'] = Variable<int>(defaultWarehouseId);
+    if (!nullToAbsent || warehouseId != null) {
+      map['warehouse_id'] = Variable<int>(warehouseId);
     }
     if (!nullToAbsent || defaultWarehouseName != null) {
       map['default_warehouse_name'] = Variable<String>(defaultWarehouseName);
@@ -11683,15 +11683,15 @@ class ResCompanyTableData extends DataClass
           ? const Value.absent()
           : Value(reservationLocationName),
       reserveFromQuotation: Value(reserveFromQuotation),
-      defaultPartnerId: defaultPartnerId == null && nullToAbsent
+      partnerId: partnerId == null && nullToAbsent
           ? const Value.absent()
-          : Value(defaultPartnerId),
+          : Value(partnerId),
       defaultPartnerName: defaultPartnerName == null && nullToAbsent
           ? const Value.absent()
           : Value(defaultPartnerName),
-      defaultWarehouseId: defaultWarehouseId == null && nullToAbsent
+      warehouseId: warehouseId == null && nullToAbsent
           ? const Value.absent()
-          : Value(defaultWarehouseId),
+          : Value(warehouseId),
       defaultWarehouseName: defaultWarehouseName == null && nullToAbsent
           ? const Value.absent()
           : Value(defaultWarehouseName),
@@ -11820,11 +11820,11 @@ class ResCompanyTableData extends DataClass
       reserveFromQuotation: serializer.fromJson<bool>(
         json['reserveFromQuotation'],
       ),
-      defaultPartnerId: serializer.fromJson<int?>(json['defaultPartnerId']),
+      partnerId: serializer.fromJson<int?>(json['partnerId']),
       defaultPartnerName: serializer.fromJson<String?>(
         json['defaultPartnerName'],
       ),
-      defaultWarehouseId: serializer.fromJson<int?>(json['defaultWarehouseId']),
+      warehouseId: serializer.fromJson<int?>(json['warehouseId']),
       defaultWarehouseName: serializer.fromJson<String?>(
         json['defaultWarehouseName'],
       ),
@@ -11914,9 +11914,9 @@ class ResCompanyTableData extends DataClass
         reservationLocationName,
       ),
       'reserveFromQuotation': serializer.toJson<bool>(reserveFromQuotation),
-      'defaultPartnerId': serializer.toJson<int?>(defaultPartnerId),
+      'partnerId': serializer.toJson<int?>(partnerId),
       'defaultPartnerName': serializer.toJson<String?>(defaultPartnerName),
-      'defaultWarehouseId': serializer.toJson<int?>(defaultWarehouseId),
+      'warehouseId': serializer.toJson<int?>(warehouseId),
       'defaultWarehouseName': serializer.toJson<String?>(defaultWarehouseName),
       'defaultPricelistId': serializer.toJson<int?>(defaultPricelistId),
       'defaultPricelistName': serializer.toJson<String?>(defaultPricelistName),
@@ -11982,9 +11982,9 @@ class ResCompanyTableData extends DataClass
     Value<int?> reservationLocationId = const Value.absent(),
     Value<String?> reservationLocationName = const Value.absent(),
     bool? reserveFromQuotation,
-    Value<int?> defaultPartnerId = const Value.absent(),
+    Value<int?> partnerId = const Value.absent(),
     Value<String?> defaultPartnerName = const Value.absent(),
-    Value<int?> defaultWarehouseId = const Value.absent(),
+    Value<int?> warehouseId = const Value.absent(),
     Value<String?> defaultWarehouseName = const Value.absent(),
     Value<int?> defaultPricelistId = const Value.absent(),
     Value<String?> defaultPricelistName = const Value.absent(),
@@ -12076,15 +12076,11 @@ class ResCompanyTableData extends DataClass
         ? reservationLocationName.value
         : this.reservationLocationName,
     reserveFromQuotation: reserveFromQuotation ?? this.reserveFromQuotation,
-    defaultPartnerId: defaultPartnerId.present
-        ? defaultPartnerId.value
-        : this.defaultPartnerId,
+    partnerId: partnerId.present ? partnerId.value : this.partnerId,
     defaultPartnerName: defaultPartnerName.present
         ? defaultPartnerName.value
         : this.defaultPartnerName,
-    defaultWarehouseId: defaultWarehouseId.present
-        ? defaultWarehouseId.value
-        : this.defaultWarehouseId,
+    warehouseId: warehouseId.present ? warehouseId.value : this.warehouseId,
     defaultWarehouseName: defaultWarehouseName.present
         ? defaultWarehouseName.value
         : this.defaultWarehouseName,
@@ -12228,15 +12224,13 @@ class ResCompanyTableData extends DataClass
       reserveFromQuotation: data.reserveFromQuotation.present
           ? data.reserveFromQuotation.value
           : this.reserveFromQuotation,
-      defaultPartnerId: data.defaultPartnerId.present
-          ? data.defaultPartnerId.value
-          : this.defaultPartnerId,
+      partnerId: data.partnerId.present ? data.partnerId.value : this.partnerId,
       defaultPartnerName: data.defaultPartnerName.present
           ? data.defaultPartnerName.value
           : this.defaultPartnerName,
-      defaultWarehouseId: data.defaultWarehouseId.present
-          ? data.defaultWarehouseId.value
-          : this.defaultWarehouseId,
+      warehouseId: data.warehouseId.present
+          ? data.warehouseId.value
+          : this.warehouseId,
       defaultWarehouseName: data.defaultWarehouseName.present
           ? data.defaultWarehouseName.value
           : this.defaultWarehouseName,
@@ -12316,9 +12310,9 @@ class ResCompanyTableData extends DataClass
           ..write('reservationLocationId: $reservationLocationId, ')
           ..write('reservationLocationName: $reservationLocationName, ')
           ..write('reserveFromQuotation: $reserveFromQuotation, ')
-          ..write('defaultPartnerId: $defaultPartnerId, ')
+          ..write('partnerId: $partnerId, ')
           ..write('defaultPartnerName: $defaultPartnerName, ')
-          ..write('defaultWarehouseId: $defaultWarehouseId, ')
+          ..write('warehouseId: $warehouseId, ')
           ..write('defaultWarehouseName: $defaultWarehouseName, ')
           ..write('defaultPricelistId: $defaultPricelistId, ')
           ..write('defaultPricelistName: $defaultPricelistName, ')
@@ -12384,9 +12378,9 @@ class ResCompanyTableData extends DataClass
     reservationLocationId,
     reservationLocationName,
     reserveFromQuotation,
-    defaultPartnerId,
+    partnerId,
     defaultPartnerName,
-    defaultWarehouseId,
+    warehouseId,
     defaultWarehouseName,
     defaultPricelistId,
     defaultPricelistName,
@@ -12454,9 +12448,9 @@ class ResCompanyTableData extends DataClass
           other.reservationLocationId == this.reservationLocationId &&
           other.reservationLocationName == this.reservationLocationName &&
           other.reserveFromQuotation == this.reserveFromQuotation &&
-          other.defaultPartnerId == this.defaultPartnerId &&
+          other.partnerId == this.partnerId &&
           other.defaultPartnerName == this.defaultPartnerName &&
-          other.defaultWarehouseId == this.defaultWarehouseId &&
+          other.warehouseId == this.warehouseId &&
           other.defaultWarehouseName == this.defaultWarehouseName &&
           other.defaultPricelistId == this.defaultPricelistId &&
           other.defaultPricelistName == this.defaultPricelistName &&
@@ -12519,9 +12513,9 @@ class ResCompanyTableCompanion extends UpdateCompanion<ResCompanyTableData> {
   final Value<int?> reservationLocationId;
   final Value<String?> reservationLocationName;
   final Value<bool> reserveFromQuotation;
-  final Value<int?> defaultPartnerId;
+  final Value<int?> partnerId;
   final Value<String?> defaultPartnerName;
-  final Value<int?> defaultWarehouseId;
+  final Value<int?> warehouseId;
   final Value<String?> defaultWarehouseName;
   final Value<int?> defaultPricelistId;
   final Value<String?> defaultPricelistName;
@@ -12582,9 +12576,9 @@ class ResCompanyTableCompanion extends UpdateCompanion<ResCompanyTableData> {
     this.reservationLocationId = const Value.absent(),
     this.reservationLocationName = const Value.absent(),
     this.reserveFromQuotation = const Value.absent(),
-    this.defaultPartnerId = const Value.absent(),
+    this.partnerId = const Value.absent(),
     this.defaultPartnerName = const Value.absent(),
-    this.defaultWarehouseId = const Value.absent(),
+    this.warehouseId = const Value.absent(),
     this.defaultWarehouseName = const Value.absent(),
     this.defaultPricelistId = const Value.absent(),
     this.defaultPricelistName = const Value.absent(),
@@ -12646,9 +12640,9 @@ class ResCompanyTableCompanion extends UpdateCompanion<ResCompanyTableData> {
     this.reservationLocationId = const Value.absent(),
     this.reservationLocationName = const Value.absent(),
     this.reserveFromQuotation = const Value.absent(),
-    this.defaultPartnerId = const Value.absent(),
+    this.partnerId = const Value.absent(),
     this.defaultPartnerName = const Value.absent(),
-    this.defaultWarehouseId = const Value.absent(),
+    this.warehouseId = const Value.absent(),
     this.defaultWarehouseName = const Value.absent(),
     this.defaultPricelistId = const Value.absent(),
     this.defaultPricelistName = const Value.absent(),
@@ -12711,9 +12705,9 @@ class ResCompanyTableCompanion extends UpdateCompanion<ResCompanyTableData> {
     Expression<int>? reservationLocationId,
     Expression<String>? reservationLocationName,
     Expression<bool>? reserveFromQuotation,
-    Expression<int>? defaultPartnerId,
+    Expression<int>? partnerId,
     Expression<String>? defaultPartnerName,
-    Expression<int>? defaultWarehouseId,
+    Expression<int>? warehouseId,
     Expression<String>? defaultWarehouseName,
     Expression<int>? defaultPricelistId,
     Expression<String>? defaultPricelistName,
@@ -12798,11 +12792,10 @@ class ResCompanyTableCompanion extends UpdateCompanion<ResCompanyTableData> {
         'reservation_location_name': reservationLocationName,
       if (reserveFromQuotation != null)
         'reserve_from_quotation': reserveFromQuotation,
-      if (defaultPartnerId != null) 'default_partner_id': defaultPartnerId,
+      if (partnerId != null) 'partner_id': partnerId,
       if (defaultPartnerName != null)
         'default_partner_name': defaultPartnerName,
-      if (defaultWarehouseId != null)
-        'default_warehouse_id': defaultWarehouseId,
+      if (warehouseId != null) 'warehouse_id': warehouseId,
       if (defaultWarehouseName != null)
         'default_warehouse_name': defaultWarehouseName,
       if (defaultPricelistId != null)
@@ -12871,9 +12864,9 @@ class ResCompanyTableCompanion extends UpdateCompanion<ResCompanyTableData> {
     Value<int?>? reservationLocationId,
     Value<String?>? reservationLocationName,
     Value<bool>? reserveFromQuotation,
-    Value<int?>? defaultPartnerId,
+    Value<int?>? partnerId,
     Value<String?>? defaultPartnerName,
-    Value<int?>? defaultWarehouseId,
+    Value<int?>? warehouseId,
     Value<String?>? defaultWarehouseName,
     Value<int?>? defaultPricelistId,
     Value<String?>? defaultPricelistName,
@@ -12954,9 +12947,9 @@ class ResCompanyTableCompanion extends UpdateCompanion<ResCompanyTableData> {
       reservationLocationName:
           reservationLocationName ?? this.reservationLocationName,
       reserveFromQuotation: reserveFromQuotation ?? this.reserveFromQuotation,
-      defaultPartnerId: defaultPartnerId ?? this.defaultPartnerId,
+      partnerId: partnerId ?? this.partnerId,
       defaultPartnerName: defaultPartnerName ?? this.defaultPartnerName,
-      defaultWarehouseId: defaultWarehouseId ?? this.defaultWarehouseId,
+      warehouseId: warehouseId ?? this.warehouseId,
       defaultWarehouseName: defaultWarehouseName ?? this.defaultWarehouseName,
       defaultPricelistId: defaultPricelistId ?? this.defaultPricelistId,
       defaultPricelistName: defaultPricelistName ?? this.defaultPricelistName,
@@ -13173,14 +13166,14 @@ class ResCompanyTableCompanion extends UpdateCompanion<ResCompanyTableData> {
         reserveFromQuotation.value,
       );
     }
-    if (defaultPartnerId.present) {
-      map['default_partner_id'] = Variable<int>(defaultPartnerId.value);
+    if (partnerId.present) {
+      map['partner_id'] = Variable<int>(partnerId.value);
     }
     if (defaultPartnerName.present) {
       map['default_partner_name'] = Variable<String>(defaultPartnerName.value);
     }
-    if (defaultWarehouseId.present) {
-      map['default_warehouse_id'] = Variable<int>(defaultWarehouseId.value);
+    if (warehouseId.present) {
+      map['warehouse_id'] = Variable<int>(warehouseId.value);
     }
     if (defaultWarehouseName.present) {
       map['default_warehouse_name'] = Variable<String>(
@@ -13271,9 +13264,9 @@ class ResCompanyTableCompanion extends UpdateCompanion<ResCompanyTableData> {
           ..write('reservationLocationId: $reservationLocationId, ')
           ..write('reservationLocationName: $reservationLocationName, ')
           ..write('reserveFromQuotation: $reserveFromQuotation, ')
-          ..write('defaultPartnerId: $defaultPartnerId, ')
+          ..write('partnerId: $partnerId, ')
           ..write('defaultPartnerName: $defaultPartnerName, ')
-          ..write('defaultWarehouseId: $defaultWarehouseId, ')
+          ..write('warehouseId: $warehouseId, ')
           ..write('defaultWarehouseName: $defaultWarehouseName, ')
           ..write('defaultPricelistId: $defaultPricelistId, ')
           ..write('defaultPricelistName: $defaultPricelistName, ')
@@ -18379,12 +18372,12 @@ class $CollectionConfigTable extends CollectionConfig
         requiredDuringInsert: false,
         defaultValue: const Constant(0.0),
       );
-  static const VerificationMeta _currentSessionUserNameMeta =
-      const VerificationMeta('currentSessionUserName');
+  static const VerificationMeta _collectionSessionUsernameMeta =
+      const VerificationMeta('collectionSessionUsername');
   @override
-  late final GeneratedColumn<String> currentSessionUserName =
+  late final GeneratedColumn<String> collectionSessionUsername =
       GeneratedColumn<String>(
-        'current_session_user_name',
+        'collection_session_username',
         aliasedName,
         true,
         type: DriftSqlType.string,
@@ -18471,7 +18464,7 @@ class $CollectionConfigTable extends CollectionConfig
     numberOfOpenedSession,
     lastSessionClosingDate,
     lastSessionClosingCash,
-    currentSessionUserName,
+    collectionSessionUsername,
     currentSessionStateDisplay,
     numberOfRescueSession,
     state,
@@ -18676,12 +18669,12 @@ class $CollectionConfigTable extends CollectionConfig
         ),
       );
     }
-    if (data.containsKey('current_session_user_name')) {
+    if (data.containsKey('collection_session_username')) {
       context.handle(
-        _currentSessionUserNameMeta,
-        currentSessionUserName.isAcceptableOrUnknown(
-          data['current_session_user_name']!,
-          _currentSessionUserNameMeta,
+        _collectionSessionUsernameMeta,
+        collectionSessionUsername.isAcceptableOrUnknown(
+          data['collection_session_username']!,
+          _collectionSessionUsernameMeta,
         ),
       );
     }
@@ -18822,9 +18815,9 @@ class $CollectionConfigTable extends CollectionConfig
         DriftSqlType.double,
         data['${effectivePrefix}last_session_closing_cash'],
       )!,
-      currentSessionUserName: attachedDatabase.typeMapping.read(
+      collectionSessionUsername: attachedDatabase.typeMapping.read(
         DriftSqlType.string,
-        data['${effectivePrefix}current_session_user_name'],
+        data['${effectivePrefix}collection_session_username'],
       ),
       currentSessionStateDisplay: attachedDatabase.typeMapping.read(
         DriftSqlType.string,
@@ -18880,7 +18873,7 @@ class CollectionConfigData extends DataClass
   final int numberOfOpenedSession;
   final DateTime? lastSessionClosingDate;
   final double lastSessionClosingCash;
-  final String? currentSessionUserName;
+  final String? collectionSessionUsername;
   final String? currentSessionStateDisplay;
   final int numberOfRescueSession;
   final String state;
@@ -18910,7 +18903,7 @@ class CollectionConfigData extends DataClass
     required this.numberOfOpenedSession,
     this.lastSessionClosingDate,
     required this.lastSessionClosingCash,
-    this.currentSessionUserName,
+    this.collectionSessionUsername,
     this.currentSessionStateDisplay,
     required this.numberOfRescueSession,
     required this.state,
@@ -18977,9 +18970,9 @@ class CollectionConfigData extends DataClass
       );
     }
     map['last_session_closing_cash'] = Variable<double>(lastSessionClosingCash);
-    if (!nullToAbsent || currentSessionUserName != null) {
-      map['current_session_user_name'] = Variable<String>(
-        currentSessionUserName,
+    if (!nullToAbsent || collectionSessionUsername != null) {
+      map['collection_session_username'] = Variable<String>(
+        collectionSessionUsername,
       );
     }
     if (!nullToAbsent || currentSessionStateDisplay != null) {
@@ -19049,9 +19042,10 @@ class CollectionConfigData extends DataClass
           ? const Value.absent()
           : Value(lastSessionClosingDate),
       lastSessionClosingCash: Value(lastSessionClosingCash),
-      currentSessionUserName: currentSessionUserName == null && nullToAbsent
+      collectionSessionUsername:
+          collectionSessionUsername == null && nullToAbsent
           ? const Value.absent()
-          : Value(currentSessionUserName),
+          : Value(collectionSessionUsername),
       currentSessionStateDisplay:
           currentSessionStateDisplay == null && nullToAbsent
           ? const Value.absent()
@@ -19112,8 +19106,8 @@ class CollectionConfigData extends DataClass
       lastSessionClosingCash: serializer.fromJson<double>(
         json['lastSessionClosingCash'],
       ),
-      currentSessionUserName: serializer.fromJson<String?>(
-        json['currentSessionUserName'],
+      collectionSessionUsername: serializer.fromJson<String?>(
+        json['collectionSessionUsername'],
       ),
       currentSessionStateDisplay: serializer.fromJson<String?>(
         json['currentSessionStateDisplay'],
@@ -19159,8 +19153,8 @@ class CollectionConfigData extends DataClass
       'lastSessionClosingCash': serializer.toJson<double>(
         lastSessionClosingCash,
       ),
-      'currentSessionUserName': serializer.toJson<String?>(
-        currentSessionUserName,
+      'collectionSessionUsername': serializer.toJson<String?>(
+        collectionSessionUsername,
       ),
       'currentSessionStateDisplay': serializer.toJson<String?>(
         currentSessionStateDisplay,
@@ -19196,7 +19190,7 @@ class CollectionConfigData extends DataClass
     int? numberOfOpenedSession,
     Value<DateTime?> lastSessionClosingDate = const Value.absent(),
     double? lastSessionClosingCash,
-    Value<String?> currentSessionUserName = const Value.absent(),
+    Value<String?> collectionSessionUsername = const Value.absent(),
     Value<String?> currentSessionStateDisplay = const Value.absent(),
     int? numberOfRescueSession,
     String? state,
@@ -19243,9 +19237,9 @@ class CollectionConfigData extends DataClass
         : this.lastSessionClosingDate,
     lastSessionClosingCash:
         lastSessionClosingCash ?? this.lastSessionClosingCash,
-    currentSessionUserName: currentSessionUserName.present
-        ? currentSessionUserName.value
-        : this.currentSessionUserName,
+    collectionSessionUsername: collectionSessionUsername.present
+        ? collectionSessionUsername.value
+        : this.collectionSessionUsername,
     currentSessionStateDisplay: currentSessionStateDisplay.present
         ? currentSessionStateDisplay.value
         : this.currentSessionStateDisplay,
@@ -19311,9 +19305,9 @@ class CollectionConfigData extends DataClass
       lastSessionClosingCash: data.lastSessionClosingCash.present
           ? data.lastSessionClosingCash.value
           : this.lastSessionClosingCash,
-      currentSessionUserName: data.currentSessionUserName.present
-          ? data.currentSessionUserName.value
-          : this.currentSessionUserName,
+      collectionSessionUsername: data.collectionSessionUsername.present
+          ? data.collectionSessionUsername.value
+          : this.collectionSessionUsername,
       currentSessionStateDisplay: data.currentSessionStateDisplay.present
           ? data.currentSessionStateDisplay.value
           : this.currentSessionStateDisplay,
@@ -19352,7 +19346,7 @@ class CollectionConfigData extends DataClass
           ..write('numberOfOpenedSession: $numberOfOpenedSession, ')
           ..write('lastSessionClosingDate: $lastSessionClosingDate, ')
           ..write('lastSessionClosingCash: $lastSessionClosingCash, ')
-          ..write('currentSessionUserName: $currentSessionUserName, ')
+          ..write('collectionSessionUsername: $collectionSessionUsername, ')
           ..write('currentSessionStateDisplay: $currentSessionStateDisplay, ')
           ..write('numberOfRescueSession: $numberOfRescueSession, ')
           ..write('state: $state, ')
@@ -19387,7 +19381,7 @@ class CollectionConfigData extends DataClass
     numberOfOpenedSession,
     lastSessionClosingDate,
     lastSessionClosingCash,
-    currentSessionUserName,
+    collectionSessionUsername,
     currentSessionStateDisplay,
     numberOfRescueSession,
     state,
@@ -19421,7 +19415,7 @@ class CollectionConfigData extends DataClass
           other.numberOfOpenedSession == this.numberOfOpenedSession &&
           other.lastSessionClosingDate == this.lastSessionClosingDate &&
           other.lastSessionClosingCash == this.lastSessionClosingCash &&
-          other.currentSessionUserName == this.currentSessionUserName &&
+          other.collectionSessionUsername == this.collectionSessionUsername &&
           other.currentSessionStateDisplay == this.currentSessionStateDisplay &&
           other.numberOfRescueSession == this.numberOfRescueSession &&
           other.state == this.state &&
@@ -19453,7 +19447,7 @@ class CollectionConfigCompanion extends UpdateCompanion<CollectionConfigData> {
   final Value<int> numberOfOpenedSession;
   final Value<DateTime?> lastSessionClosingDate;
   final Value<double> lastSessionClosingCash;
-  final Value<String?> currentSessionUserName;
+  final Value<String?> collectionSessionUsername;
   final Value<String?> currentSessionStateDisplay;
   final Value<int> numberOfRescueSession;
   final Value<String> state;
@@ -19483,7 +19477,7 @@ class CollectionConfigCompanion extends UpdateCompanion<CollectionConfigData> {
     this.numberOfOpenedSession = const Value.absent(),
     this.lastSessionClosingDate = const Value.absent(),
     this.lastSessionClosingCash = const Value.absent(),
-    this.currentSessionUserName = const Value.absent(),
+    this.collectionSessionUsername = const Value.absent(),
     this.currentSessionStateDisplay = const Value.absent(),
     this.numberOfRescueSession = const Value.absent(),
     this.state = const Value.absent(),
@@ -19514,7 +19508,7 @@ class CollectionConfigCompanion extends UpdateCompanion<CollectionConfigData> {
     this.numberOfOpenedSession = const Value.absent(),
     this.lastSessionClosingDate = const Value.absent(),
     this.lastSessionClosingCash = const Value.absent(),
-    this.currentSessionUserName = const Value.absent(),
+    this.collectionSessionUsername = const Value.absent(),
     this.currentSessionStateDisplay = const Value.absent(),
     this.numberOfRescueSession = const Value.absent(),
     this.state = const Value.absent(),
@@ -19547,7 +19541,7 @@ class CollectionConfigCompanion extends UpdateCompanion<CollectionConfigData> {
     Expression<int>? numberOfOpenedSession,
     Expression<DateTime>? lastSessionClosingDate,
     Expression<double>? lastSessionClosingCash,
-    Expression<String>? currentSessionUserName,
+    Expression<String>? collectionSessionUsername,
     Expression<String>? currentSessionStateDisplay,
     Expression<int>? numberOfRescueSession,
     Expression<String>? state,
@@ -19586,8 +19580,8 @@ class CollectionConfigCompanion extends UpdateCompanion<CollectionConfigData> {
         'last_session_closing_date': lastSessionClosingDate,
       if (lastSessionClosingCash != null)
         'last_session_closing_cash': lastSessionClosingCash,
-      if (currentSessionUserName != null)
-        'current_session_user_name': currentSessionUserName,
+      if (collectionSessionUsername != null)
+        'collection_session_username': collectionSessionUsername,
       if (currentSessionStateDisplay != null)
         'current_session_state_display': currentSessionStateDisplay,
       if (numberOfRescueSession != null)
@@ -19622,7 +19616,7 @@ class CollectionConfigCompanion extends UpdateCompanion<CollectionConfigData> {
     Value<int>? numberOfOpenedSession,
     Value<DateTime?>? lastSessionClosingDate,
     Value<double>? lastSessionClosingCash,
-    Value<String?>? currentSessionUserName,
+    Value<String?>? collectionSessionUsername,
     Value<String?>? currentSessionStateDisplay,
     Value<int>? numberOfRescueSession,
     Value<String>? state,
@@ -19657,8 +19651,8 @@ class CollectionConfigCompanion extends UpdateCompanion<CollectionConfigData> {
           lastSessionClosingDate ?? this.lastSessionClosingDate,
       lastSessionClosingCash:
           lastSessionClosingCash ?? this.lastSessionClosingCash,
-      currentSessionUserName:
-          currentSessionUserName ?? this.currentSessionUserName,
+      collectionSessionUsername:
+          collectionSessionUsername ?? this.collectionSessionUsername,
       currentSessionStateDisplay:
           currentSessionStateDisplay ?? this.currentSessionStateDisplay,
       numberOfRescueSession:
@@ -19755,9 +19749,9 @@ class CollectionConfigCompanion extends UpdateCompanion<CollectionConfigData> {
         lastSessionClosingCash.value,
       );
     }
-    if (currentSessionUserName.present) {
-      map['current_session_user_name'] = Variable<String>(
-        currentSessionUserName.value,
+    if (collectionSessionUsername.present) {
+      map['collection_session_username'] = Variable<String>(
+        collectionSessionUsername.value,
       );
     }
     if (currentSessionStateDisplay.present) {
@@ -19808,7 +19802,7 @@ class CollectionConfigCompanion extends UpdateCompanion<CollectionConfigData> {
           ..write('numberOfOpenedSession: $numberOfOpenedSession, ')
           ..write('lastSessionClosingDate: $lastSessionClosingDate, ')
           ..write('lastSessionClosingCash: $lastSessionClosingCash, ')
-          ..write('currentSessionUserName: $currentSessionUserName, ')
+          ..write('collectionSessionUsername: $collectionSessionUsername, ')
           ..write('currentSessionStateDisplay: $currentSessionStateDisplay, ')
           ..write('numberOfRescueSession: $numberOfRescueSession, ')
           ..write('state: $state, ')
@@ -34021,12 +34015,13 @@ class $SaleOrderTable extends SaleOrder
   late final GeneratedColumn<bool> requireSignature = GeneratedColumn<bool>(
     'require_signature',
     aliasedName,
-    true,
+    false,
     type: DriftSqlType.bool,
     requiredDuringInsert: false,
     defaultConstraints: GeneratedColumn.constraintIsAlways(
       'CHECK ("require_signature" IN (0, 1))',
     ),
+    defaultValue: const Constant(false),
   );
   static const VerificationMeta _requirePaymentMeta = const VerificationMeta(
     'requirePayment',
@@ -34035,12 +34030,13 @@ class $SaleOrderTable extends SaleOrder
   late final GeneratedColumn<bool> requirePayment = GeneratedColumn<bool>(
     'require_payment',
     aliasedName,
-    true,
+    false,
     type: DriftSqlType.bool,
     requiredDuringInsert: false,
     defaultConstraints: GeneratedColumn.constraintIsAlways(
       'CHECK ("require_payment" IN (0, 1))',
     ),
+    defaultValue: const Constant(false),
   );
   static const VerificationMeta _signedByMeta = const VerificationMeta(
     'signedBy',
@@ -34093,12 +34089,13 @@ class $SaleOrderTable extends SaleOrder
   late final GeneratedColumn<bool> isExpired = GeneratedColumn<bool>(
     'is_expired',
     aliasedName,
-    true,
+    false,
     type: DriftSqlType.bool,
     requiredDuringInsert: false,
     defaultConstraints: GeneratedColumn.constraintIsAlways(
       'CHECK ("is_expired" IN (0, 1))',
     ),
+    defaultValue: const Constant(false),
   );
   static const VerificationMeta _showUpdatePricelistMeta =
       const VerificationMeta('showUpdatePricelist');
@@ -34521,12 +34518,12 @@ class $SaleOrderTable extends SaleOrder
         requiredDuringInsert: false,
         defaultValue: const Constant(0.0),
       );
-  static const VerificationMeta _amountUntaxedUndiscountedMeta =
-      const VerificationMeta('amountUntaxedUndiscounted');
+  static const VerificationMeta _totalAmountUndiscountedMeta =
+      const VerificationMeta('totalAmountUndiscounted');
   @override
-  late final GeneratedColumn<double> amountUntaxedUndiscounted =
+  late final GeneratedColumn<double> totalAmountUndiscounted =
       GeneratedColumn<double>(
-        'amount_untaxed_undiscounted',
+        'total_amount_undiscounted',
         aliasedName,
         false,
         type: DriftSqlType.double,
@@ -35126,7 +35123,7 @@ class $SaleOrderTable extends SaleOrder
     prepaymentPercent,
     locked,
     totalDiscountAmount,
-    amountUntaxedUndiscounted,
+    totalAmountUndiscounted,
     isFinalConsumer,
     endCustomerName,
     endCustomerPhone,
@@ -35852,12 +35849,12 @@ class $SaleOrderTable extends SaleOrder
         ),
       );
     }
-    if (data.containsKey('amount_untaxed_undiscounted')) {
+    if (data.containsKey('total_amount_undiscounted')) {
       context.handle(
-        _amountUntaxedUndiscountedMeta,
-        amountUntaxedUndiscounted.isAcceptableOrUnknown(
-          data['amount_untaxed_undiscounted']!,
-          _amountUntaxedUndiscountedMeta,
+        _totalAmountUndiscountedMeta,
+        totalAmountUndiscounted.isAcceptableOrUnknown(
+          data['total_amount_undiscounted']!,
+          _totalAmountUndiscountedMeta,
         ),
       );
     }
@@ -36378,11 +36375,11 @@ class $SaleOrderTable extends SaleOrder
       requireSignature: attachedDatabase.typeMapping.read(
         DriftSqlType.bool,
         data['${effectivePrefix}require_signature'],
-      ),
+      )!,
       requirePayment: attachedDatabase.typeMapping.read(
         DriftSqlType.bool,
         data['${effectivePrefix}require_payment'],
-      ),
+      )!,
       signedBy: attachedDatabase.typeMapping.read(
         DriftSqlType.string,
         data['${effectivePrefix}signed_by'],
@@ -36402,7 +36399,7 @@ class $SaleOrderTable extends SaleOrder
       isExpired: attachedDatabase.typeMapping.read(
         DriftSqlType.bool,
         data['${effectivePrefix}is_expired'],
-      ),
+      )!,
       showUpdatePricelist: attachedDatabase.typeMapping.read(
         DriftSqlType.string,
         data['${effectivePrefix}show_update_pricelist'],
@@ -36551,9 +36548,9 @@ class $SaleOrderTable extends SaleOrder
         DriftSqlType.double,
         data['${effectivePrefix}total_discount_amount'],
       )!,
-      amountUntaxedUndiscounted: attachedDatabase.typeMapping.read(
+      totalAmountUndiscounted: attachedDatabase.typeMapping.read(
         DriftSqlType.double,
-        data['${effectivePrefix}amount_untaxed_undiscounted'],
+        data['${effectivePrefix}total_amount_undiscounted'],
       )!,
       isFinalConsumer: attachedDatabase.typeMapping.read(
         DriftSqlType.bool,
@@ -36773,13 +36770,13 @@ class SaleOrderData extends DataClass implements Insertable<SaleOrderData> {
   final String? clientOrderRef;
   final int? fiscalPositionId;
   final String? fiscalPositionName;
-  final bool? requireSignature;
-  final bool? requirePayment;
+  final bool requireSignature;
+  final bool requirePayment;
   final String? signedBy;
   final DateTime? signedOn;
   final String? commitmentDate;
   final DateTime? expectedDate;
-  final bool? isExpired;
+  final bool isExpired;
   final String? showUpdatePricelist;
   final int? analyticAccountId;
   final String? analyticAccountName;
@@ -36817,7 +36814,7 @@ class SaleOrderData extends DataClass implements Insertable<SaleOrderData> {
   final double prepaymentPercent;
   final bool locked;
   final double totalDiscountAmount;
-  final double amountUntaxedUndiscounted;
+  final double totalAmountUndiscounted;
   final bool isFinalConsumer;
   final String? endCustomerName;
   final String? endCustomerPhone;
@@ -36901,13 +36898,13 @@ class SaleOrderData extends DataClass implements Insertable<SaleOrderData> {
     this.clientOrderRef,
     this.fiscalPositionId,
     this.fiscalPositionName,
-    this.requireSignature,
-    this.requirePayment,
+    required this.requireSignature,
+    required this.requirePayment,
     this.signedBy,
     this.signedOn,
     this.commitmentDate,
     this.expectedDate,
-    this.isExpired,
+    required this.isExpired,
     this.showUpdatePricelist,
     this.analyticAccountId,
     this.analyticAccountName,
@@ -36945,7 +36942,7 @@ class SaleOrderData extends DataClass implements Insertable<SaleOrderData> {
     required this.prepaymentPercent,
     required this.locked,
     required this.totalDiscountAmount,
-    required this.amountUntaxedUndiscounted,
+    required this.totalAmountUndiscounted,
     required this.isFinalConsumer,
     this.endCustomerName,
     this.endCustomerPhone,
@@ -37106,12 +37103,8 @@ class SaleOrderData extends DataClass implements Insertable<SaleOrderData> {
     if (!nullToAbsent || fiscalPositionName != null) {
       map['fiscal_position_name'] = Variable<String>(fiscalPositionName);
     }
-    if (!nullToAbsent || requireSignature != null) {
-      map['require_signature'] = Variable<bool>(requireSignature);
-    }
-    if (!nullToAbsent || requirePayment != null) {
-      map['require_payment'] = Variable<bool>(requirePayment);
-    }
+    map['require_signature'] = Variable<bool>(requireSignature);
+    map['require_payment'] = Variable<bool>(requirePayment);
     if (!nullToAbsent || signedBy != null) {
       map['signed_by'] = Variable<String>(signedBy);
     }
@@ -37124,9 +37117,7 @@ class SaleOrderData extends DataClass implements Insertable<SaleOrderData> {
     if (!nullToAbsent || expectedDate != null) {
       map['expected_date'] = Variable<DateTime>(expectedDate);
     }
-    if (!nullToAbsent || isExpired != null) {
-      map['is_expired'] = Variable<bool>(isExpired);
-    }
+    map['is_expired'] = Variable<bool>(isExpired);
     if (!nullToAbsent || showUpdatePricelist != null) {
       map['show_update_pricelist'] = Variable<String>(showUpdatePricelist);
     }
@@ -37222,8 +37213,8 @@ class SaleOrderData extends DataClass implements Insertable<SaleOrderData> {
     map['prepayment_percent'] = Variable<double>(prepaymentPercent);
     map['locked'] = Variable<bool>(locked);
     map['total_discount_amount'] = Variable<double>(totalDiscountAmount);
-    map['amount_untaxed_undiscounted'] = Variable<double>(
-      amountUntaxedUndiscounted,
+    map['total_amount_undiscounted'] = Variable<double>(
+      totalAmountUndiscounted,
     );
     map['is_final_consumer'] = Variable<bool>(isFinalConsumer);
     if (!nullToAbsent || endCustomerName != null) {
@@ -37436,12 +37427,8 @@ class SaleOrderData extends DataClass implements Insertable<SaleOrderData> {
       fiscalPositionName: fiscalPositionName == null && nullToAbsent
           ? const Value.absent()
           : Value(fiscalPositionName),
-      requireSignature: requireSignature == null && nullToAbsent
-          ? const Value.absent()
-          : Value(requireSignature),
-      requirePayment: requirePayment == null && nullToAbsent
-          ? const Value.absent()
-          : Value(requirePayment),
+      requireSignature: Value(requireSignature),
+      requirePayment: Value(requirePayment),
       signedBy: signedBy == null && nullToAbsent
           ? const Value.absent()
           : Value(signedBy),
@@ -37454,9 +37441,7 @@ class SaleOrderData extends DataClass implements Insertable<SaleOrderData> {
       expectedDate: expectedDate == null && nullToAbsent
           ? const Value.absent()
           : Value(expectedDate),
-      isExpired: isExpired == null && nullToAbsent
-          ? const Value.absent()
-          : Value(isExpired),
+      isExpired: Value(isExpired),
       showUpdatePricelist: showUpdatePricelist == null && nullToAbsent
           ? const Value.absent()
           : Value(showUpdatePricelist),
@@ -37550,7 +37535,7 @@ class SaleOrderData extends DataClass implements Insertable<SaleOrderData> {
       prepaymentPercent: Value(prepaymentPercent),
       locked: Value(locked),
       totalDiscountAmount: Value(totalDiscountAmount),
-      amountUntaxedUndiscounted: Value(amountUntaxedUndiscounted),
+      totalAmountUndiscounted: Value(totalAmountUndiscounted),
       isFinalConsumer: Value(isFinalConsumer),
       endCustomerName: endCustomerName == null && nullToAbsent
           ? const Value.absent()
@@ -37694,13 +37679,13 @@ class SaleOrderData extends DataClass implements Insertable<SaleOrderData> {
       fiscalPositionName: serializer.fromJson<String?>(
         json['fiscalPositionName'],
       ),
-      requireSignature: serializer.fromJson<bool?>(json['requireSignature']),
-      requirePayment: serializer.fromJson<bool?>(json['requirePayment']),
+      requireSignature: serializer.fromJson<bool>(json['requireSignature']),
+      requirePayment: serializer.fromJson<bool>(json['requirePayment']),
       signedBy: serializer.fromJson<String?>(json['signedBy']),
       signedOn: serializer.fromJson<DateTime?>(json['signedOn']),
       commitmentDate: serializer.fromJson<String?>(json['commitmentDate']),
       expectedDate: serializer.fromJson<DateTime?>(json['expectedDate']),
-      isExpired: serializer.fromJson<bool?>(json['isExpired']),
+      isExpired: serializer.fromJson<bool>(json['isExpired']),
       showUpdatePricelist: serializer.fromJson<String?>(
         json['showUpdatePricelist'],
       ),
@@ -37758,8 +37743,8 @@ class SaleOrderData extends DataClass implements Insertable<SaleOrderData> {
       totalDiscountAmount: serializer.fromJson<double>(
         json['totalDiscountAmount'],
       ),
-      amountUntaxedUndiscounted: serializer.fromJson<double>(
-        json['amountUntaxedUndiscounted'],
+      totalAmountUndiscounted: serializer.fromJson<double>(
+        json['totalAmountUndiscounted'],
       ),
       isFinalConsumer: serializer.fromJson<bool>(json['isFinalConsumer']),
       endCustomerName: serializer.fromJson<String?>(json['endCustomerName']),
@@ -37855,13 +37840,13 @@ class SaleOrderData extends DataClass implements Insertable<SaleOrderData> {
       'clientOrderRef': serializer.toJson<String?>(clientOrderRef),
       'fiscalPositionId': serializer.toJson<int?>(fiscalPositionId),
       'fiscalPositionName': serializer.toJson<String?>(fiscalPositionName),
-      'requireSignature': serializer.toJson<bool?>(requireSignature),
-      'requirePayment': serializer.toJson<bool?>(requirePayment),
+      'requireSignature': serializer.toJson<bool>(requireSignature),
+      'requirePayment': serializer.toJson<bool>(requirePayment),
       'signedBy': serializer.toJson<String?>(signedBy),
       'signedOn': serializer.toJson<DateTime?>(signedOn),
       'commitmentDate': serializer.toJson<String?>(commitmentDate),
       'expectedDate': serializer.toJson<DateTime?>(expectedDate),
-      'isExpired': serializer.toJson<bool?>(isExpired),
+      'isExpired': serializer.toJson<bool>(isExpired),
       'showUpdatePricelist': serializer.toJson<String?>(showUpdatePricelist),
       'analyticAccountId': serializer.toJson<int?>(analyticAccountId),
       'analyticAccountName': serializer.toJson<String?>(analyticAccountName),
@@ -37905,8 +37890,8 @@ class SaleOrderData extends DataClass implements Insertable<SaleOrderData> {
       'prepaymentPercent': serializer.toJson<double>(prepaymentPercent),
       'locked': serializer.toJson<bool>(locked),
       'totalDiscountAmount': serializer.toJson<double>(totalDiscountAmount),
-      'amountUntaxedUndiscounted': serializer.toJson<double>(
-        amountUntaxedUndiscounted,
+      'totalAmountUndiscounted': serializer.toJson<double>(
+        totalAmountUndiscounted,
       ),
       'isFinalConsumer': serializer.toJson<bool>(isFinalConsumer),
       'endCustomerName': serializer.toJson<String?>(endCustomerName),
@@ -37998,13 +37983,13 @@ class SaleOrderData extends DataClass implements Insertable<SaleOrderData> {
     Value<String?> clientOrderRef = const Value.absent(),
     Value<int?> fiscalPositionId = const Value.absent(),
     Value<String?> fiscalPositionName = const Value.absent(),
-    Value<bool?> requireSignature = const Value.absent(),
-    Value<bool?> requirePayment = const Value.absent(),
+    bool? requireSignature,
+    bool? requirePayment,
     Value<String?> signedBy = const Value.absent(),
     Value<DateTime?> signedOn = const Value.absent(),
     Value<String?> commitmentDate = const Value.absent(),
     Value<DateTime?> expectedDate = const Value.absent(),
-    Value<bool?> isExpired = const Value.absent(),
+    bool? isExpired,
     Value<String?> showUpdatePricelist = const Value.absent(),
     Value<int?> analyticAccountId = const Value.absent(),
     Value<String?> analyticAccountName = const Value.absent(),
@@ -38042,7 +38027,7 @@ class SaleOrderData extends DataClass implements Insertable<SaleOrderData> {
     double? prepaymentPercent,
     bool? locked,
     double? totalDiscountAmount,
-    double? amountUntaxedUndiscounted,
+    double? totalAmountUndiscounted,
     bool? isFinalConsumer,
     Value<String?> endCustomerName = const Value.absent(),
     Value<String?> endCustomerPhone = const Value.absent(),
@@ -38158,19 +38143,15 @@ class SaleOrderData extends DataClass implements Insertable<SaleOrderData> {
     fiscalPositionName: fiscalPositionName.present
         ? fiscalPositionName.value
         : this.fiscalPositionName,
-    requireSignature: requireSignature.present
-        ? requireSignature.value
-        : this.requireSignature,
-    requirePayment: requirePayment.present
-        ? requirePayment.value
-        : this.requirePayment,
+    requireSignature: requireSignature ?? this.requireSignature,
+    requirePayment: requirePayment ?? this.requirePayment,
     signedBy: signedBy.present ? signedBy.value : this.signedBy,
     signedOn: signedOn.present ? signedOn.value : this.signedOn,
     commitmentDate: commitmentDate.present
         ? commitmentDate.value
         : this.commitmentDate,
     expectedDate: expectedDate.present ? expectedDate.value : this.expectedDate,
-    isExpired: isExpired.present ? isExpired.value : this.isExpired,
+    isExpired: isExpired ?? this.isExpired,
     showUpdatePricelist: showUpdatePricelist.present
         ? showUpdatePricelist.value
         : this.showUpdatePricelist,
@@ -38242,8 +38223,8 @@ class SaleOrderData extends DataClass implements Insertable<SaleOrderData> {
     prepaymentPercent: prepaymentPercent ?? this.prepaymentPercent,
     locked: locked ?? this.locked,
     totalDiscountAmount: totalDiscountAmount ?? this.totalDiscountAmount,
-    amountUntaxedUndiscounted:
-        amountUntaxedUndiscounted ?? this.amountUntaxedUndiscounted,
+    totalAmountUndiscounted:
+        totalAmountUndiscounted ?? this.totalAmountUndiscounted,
     isFinalConsumer: isFinalConsumer ?? this.isFinalConsumer,
     endCustomerName: endCustomerName.present
         ? endCustomerName.value
@@ -38517,9 +38498,9 @@ class SaleOrderData extends DataClass implements Insertable<SaleOrderData> {
       totalDiscountAmount: data.totalDiscountAmount.present
           ? data.totalDiscountAmount.value
           : this.totalDiscountAmount,
-      amountUntaxedUndiscounted: data.amountUntaxedUndiscounted.present
-          ? data.amountUntaxedUndiscounted.value
-          : this.amountUntaxedUndiscounted,
+      totalAmountUndiscounted: data.totalAmountUndiscounted.present
+          ? data.totalAmountUndiscounted.value
+          : this.totalAmountUndiscounted,
       isFinalConsumer: data.isFinalConsumer.present
           ? data.isFinalConsumer.value
           : this.isFinalConsumer,
@@ -38720,7 +38701,7 @@ class SaleOrderData extends DataClass implements Insertable<SaleOrderData> {
           ..write('prepaymentPercent: $prepaymentPercent, ')
           ..write('locked: $locked, ')
           ..write('totalDiscountAmount: $totalDiscountAmount, ')
-          ..write('amountUntaxedUndiscounted: $amountUntaxedUndiscounted, ')
+          ..write('totalAmountUndiscounted: $totalAmountUndiscounted, ')
           ..write('isFinalConsumer: $isFinalConsumer, ')
           ..write('endCustomerName: $endCustomerName, ')
           ..write('endCustomerPhone: $endCustomerPhone, ')
@@ -38853,7 +38834,7 @@ class SaleOrderData extends DataClass implements Insertable<SaleOrderData> {
     prepaymentPercent,
     locked,
     totalDiscountAmount,
-    amountUntaxedUndiscounted,
+    totalAmountUndiscounted,
     isFinalConsumer,
     endCustomerName,
     endCustomerPhone,
@@ -38985,7 +38966,7 @@ class SaleOrderData extends DataClass implements Insertable<SaleOrderData> {
           other.prepaymentPercent == this.prepaymentPercent &&
           other.locked == this.locked &&
           other.totalDiscountAmount == this.totalDiscountAmount &&
-          other.amountUntaxedUndiscounted == this.amountUntaxedUndiscounted &&
+          other.totalAmountUndiscounted == this.totalAmountUndiscounted &&
           other.isFinalConsumer == this.isFinalConsumer &&
           other.endCustomerName == this.endCustomerName &&
           other.endCustomerPhone == this.endCustomerPhone &&
@@ -39072,13 +39053,13 @@ class SaleOrderCompanion extends UpdateCompanion<SaleOrderData> {
   final Value<String?> clientOrderRef;
   final Value<int?> fiscalPositionId;
   final Value<String?> fiscalPositionName;
-  final Value<bool?> requireSignature;
-  final Value<bool?> requirePayment;
+  final Value<bool> requireSignature;
+  final Value<bool> requirePayment;
   final Value<String?> signedBy;
   final Value<DateTime?> signedOn;
   final Value<String?> commitmentDate;
   final Value<DateTime?> expectedDate;
-  final Value<bool?> isExpired;
+  final Value<bool> isExpired;
   final Value<String?> showUpdatePricelist;
   final Value<int?> analyticAccountId;
   final Value<String?> analyticAccountName;
@@ -39116,7 +39097,7 @@ class SaleOrderCompanion extends UpdateCompanion<SaleOrderData> {
   final Value<double> prepaymentPercent;
   final Value<bool> locked;
   final Value<double> totalDiscountAmount;
-  final Value<double> amountUntaxedUndiscounted;
+  final Value<double> totalAmountUndiscounted;
   final Value<bool> isFinalConsumer;
   final Value<String?> endCustomerName;
   final Value<String?> endCustomerPhone;
@@ -39244,7 +39225,7 @@ class SaleOrderCompanion extends UpdateCompanion<SaleOrderData> {
     this.prepaymentPercent = const Value.absent(),
     this.locked = const Value.absent(),
     this.totalDiscountAmount = const Value.absent(),
-    this.amountUntaxedUndiscounted = const Value.absent(),
+    this.totalAmountUndiscounted = const Value.absent(),
     this.isFinalConsumer = const Value.absent(),
     this.endCustomerName = const Value.absent(),
     this.endCustomerPhone = const Value.absent(),
@@ -39373,7 +39354,7 @@ class SaleOrderCompanion extends UpdateCompanion<SaleOrderData> {
     this.prepaymentPercent = const Value.absent(),
     this.locked = const Value.absent(),
     this.totalDiscountAmount = const Value.absent(),
-    this.amountUntaxedUndiscounted = const Value.absent(),
+    this.totalAmountUndiscounted = const Value.absent(),
     this.isFinalConsumer = const Value.absent(),
     this.endCustomerName = const Value.absent(),
     this.endCustomerPhone = const Value.absent(),
@@ -39503,7 +39484,7 @@ class SaleOrderCompanion extends UpdateCompanion<SaleOrderData> {
     Expression<double>? prepaymentPercent,
     Expression<bool>? locked,
     Expression<double>? totalDiscountAmount,
-    Expression<double>? amountUntaxedUndiscounted,
+    Expression<double>? totalAmountUndiscounted,
     Expression<bool>? isFinalConsumer,
     Expression<String>? endCustomerName,
     Expression<String>? endCustomerPhone,
@@ -39645,8 +39626,8 @@ class SaleOrderCompanion extends UpdateCompanion<SaleOrderData> {
       if (locked != null) 'locked': locked,
       if (totalDiscountAmount != null)
         'total_discount_amount': totalDiscountAmount,
-      if (amountUntaxedUndiscounted != null)
-        'amount_untaxed_undiscounted': amountUntaxedUndiscounted,
+      if (totalAmountUndiscounted != null)
+        'total_amount_undiscounted': totalAmountUndiscounted,
       if (isFinalConsumer != null) 'is_final_consumer': isFinalConsumer,
       if (endCustomerName != null) 'end_customer_name': endCustomerName,
       if (endCustomerPhone != null) 'end_customer_phone': endCustomerPhone,
@@ -39737,13 +39718,13 @@ class SaleOrderCompanion extends UpdateCompanion<SaleOrderData> {
     Value<String?>? clientOrderRef,
     Value<int?>? fiscalPositionId,
     Value<String?>? fiscalPositionName,
-    Value<bool?>? requireSignature,
-    Value<bool?>? requirePayment,
+    Value<bool>? requireSignature,
+    Value<bool>? requirePayment,
     Value<String?>? signedBy,
     Value<DateTime?>? signedOn,
     Value<String?>? commitmentDate,
     Value<DateTime?>? expectedDate,
-    Value<bool?>? isExpired,
+    Value<bool>? isExpired,
     Value<String?>? showUpdatePricelist,
     Value<int?>? analyticAccountId,
     Value<String?>? analyticAccountName,
@@ -39781,7 +39762,7 @@ class SaleOrderCompanion extends UpdateCompanion<SaleOrderData> {
     Value<double>? prepaymentPercent,
     Value<bool>? locked,
     Value<double>? totalDiscountAmount,
-    Value<double>? amountUntaxedUndiscounted,
+    Value<double>? totalAmountUndiscounted,
     Value<bool>? isFinalConsumer,
     Value<String?>? endCustomerName,
     Value<String?>? endCustomerPhone,
@@ -39913,8 +39894,8 @@ class SaleOrderCompanion extends UpdateCompanion<SaleOrderData> {
       prepaymentPercent: prepaymentPercent ?? this.prepaymentPercent,
       locked: locked ?? this.locked,
       totalDiscountAmount: totalDiscountAmount ?? this.totalDiscountAmount,
-      amountUntaxedUndiscounted:
-          amountUntaxedUndiscounted ?? this.amountUntaxedUndiscounted,
+      totalAmountUndiscounted:
+          totalAmountUndiscounted ?? this.totalAmountUndiscounted,
       isFinalConsumer: isFinalConsumer ?? this.isFinalConsumer,
       endCustomerName: endCustomerName ?? this.endCustomerName,
       endCustomerPhone: endCustomerPhone ?? this.endCustomerPhone,
@@ -40233,9 +40214,9 @@ class SaleOrderCompanion extends UpdateCompanion<SaleOrderData> {
         totalDiscountAmount.value,
       );
     }
-    if (amountUntaxedUndiscounted.present) {
-      map['amount_untaxed_undiscounted'] = Variable<double>(
-        amountUntaxedUndiscounted.value,
+    if (totalAmountUndiscounted.present) {
+      map['total_amount_undiscounted'] = Variable<double>(
+        totalAmountUndiscounted.value,
       );
     }
     if (isFinalConsumer.present) {
@@ -40458,7 +40439,7 @@ class SaleOrderCompanion extends UpdateCompanion<SaleOrderData> {
           ..write('prepaymentPercent: $prepaymentPercent, ')
           ..write('locked: $locked, ')
           ..write('totalDiscountAmount: $totalDiscountAmount, ')
-          ..write('amountUntaxedUndiscounted: $amountUntaxedUndiscounted, ')
+          ..write('totalAmountUndiscounted: $totalAmountUndiscounted, ')
           ..write('isFinalConsumer: $isFinalConsumer, ')
           ..write('endCustomerName: $endCustomerName, ')
           ..write('endCustomerPhone: $endCustomerPhone, ')
@@ -40619,17 +40600,17 @@ class $SaleOrderLineTable extends SaleOrderLine
     type: DriftSqlType.string,
     requiredDuringInsert: false,
   );
-  static const VerificationMeta _productCodeMeta = const VerificationMeta(
-    'productCode',
-  );
+  static const VerificationMeta _productDefaultCodeMeta =
+      const VerificationMeta('productDefaultCode');
   @override
-  late final GeneratedColumn<String> productCode = GeneratedColumn<String>(
-    'product_code',
-    aliasedName,
-    true,
-    type: DriftSqlType.string,
-    requiredDuringInsert: false,
-  );
+  late final GeneratedColumn<String> productDefaultCode =
+      GeneratedColumn<String>(
+        'product_default_code',
+        aliasedName,
+        true,
+        type: DriftSqlType.string,
+        requiredDuringInsert: false,
+      );
   static const VerificationMeta _productTemplateIdMeta = const VerificationMeta(
     'productTemplateId',
   );
@@ -41122,7 +41103,7 @@ class $SaleOrderLineTable extends SaleOrderLine
     isDownpayment,
     productId,
     productName,
-    productCode,
+    productDefaultCode,
     productTemplateId,
     productTemplateName,
     productType,
@@ -41239,12 +41220,12 @@ class $SaleOrderLineTable extends SaleOrderLine
         ),
       );
     }
-    if (data.containsKey('product_code')) {
+    if (data.containsKey('product_default_code')) {
       context.handle(
-        _productCodeMeta,
-        productCode.isAcceptableOrUnknown(
-          data['product_code']!,
-          _productCodeMeta,
+        _productDefaultCodeMeta,
+        productDefaultCode.isAcceptableOrUnknown(
+          data['product_default_code']!,
+          _productDefaultCodeMeta,
         ),
       );
     }
@@ -41616,9 +41597,9 @@ class $SaleOrderLineTable extends SaleOrderLine
         DriftSqlType.string,
         data['${effectivePrefix}product_name'],
       ),
-      productCode: attachedDatabase.typeMapping.read(
+      productDefaultCode: attachedDatabase.typeMapping.read(
         DriftSqlType.string,
-        data['${effectivePrefix}product_code'],
+        data['${effectivePrefix}product_default_code'],
       ),
       productTemplateId: attachedDatabase.typeMapping.read(
         DriftSqlType.int,
@@ -41804,7 +41785,7 @@ class SaleOrderLineData extends DataClass
   final bool isDownpayment;
   final int? productId;
   final String? productName;
-  final String? productCode;
+  final String? productDefaultCode;
   final int? productTemplateId;
   final String? productTemplateName;
   final String? productType;
@@ -41856,7 +41837,7 @@ class SaleOrderLineData extends DataClass
     required this.isDownpayment,
     this.productId,
     this.productName,
-    this.productCode,
+    this.productDefaultCode,
     this.productTemplateId,
     this.productTemplateName,
     this.productType,
@@ -41919,8 +41900,8 @@ class SaleOrderLineData extends DataClass
     if (!nullToAbsent || productName != null) {
       map['product_name'] = Variable<String>(productName);
     }
-    if (!nullToAbsent || productCode != null) {
-      map['product_code'] = Variable<String>(productCode);
+    if (!nullToAbsent || productDefaultCode != null) {
+      map['product_default_code'] = Variable<String>(productDefaultCode);
     }
     if (!nullToAbsent || productTemplateId != null) {
       map['product_template_id'] = Variable<int>(productTemplateId);
@@ -42015,9 +41996,9 @@ class SaleOrderLineData extends DataClass
       productName: productName == null && nullToAbsent
           ? const Value.absent()
           : Value(productName),
-      productCode: productCode == null && nullToAbsent
+      productDefaultCode: productDefaultCode == null && nullToAbsent
           ? const Value.absent()
-          : Value(productCode),
+          : Value(productDefaultCode),
       productTemplateId: productTemplateId == null && nullToAbsent
           ? const Value.absent()
           : Value(productTemplateId),
@@ -42107,7 +42088,9 @@ class SaleOrderLineData extends DataClass
       isDownpayment: serializer.fromJson<bool>(json['isDownpayment']),
       productId: serializer.fromJson<int?>(json['productId']),
       productName: serializer.fromJson<String?>(json['productName']),
-      productCode: serializer.fromJson<String?>(json['productCode']),
+      productDefaultCode: serializer.fromJson<String?>(
+        json['productDefaultCode'],
+      ),
       productTemplateId: serializer.fromJson<int?>(json['productTemplateId']),
       productTemplateName: serializer.fromJson<String?>(
         json['productTemplateName'],
@@ -42172,7 +42155,7 @@ class SaleOrderLineData extends DataClass
       'isDownpayment': serializer.toJson<bool>(isDownpayment),
       'productId': serializer.toJson<int?>(productId),
       'productName': serializer.toJson<String?>(productName),
-      'productCode': serializer.toJson<String?>(productCode),
+      'productDefaultCode': serializer.toJson<String?>(productDefaultCode),
       'productTemplateId': serializer.toJson<int?>(productTemplateId),
       'productTemplateName': serializer.toJson<String?>(productTemplateName),
       'productType': serializer.toJson<String?>(productType),
@@ -42227,7 +42210,7 @@ class SaleOrderLineData extends DataClass
     bool? isDownpayment,
     Value<int?> productId = const Value.absent(),
     Value<String?> productName = const Value.absent(),
-    Value<String?> productCode = const Value.absent(),
+    Value<String?> productDefaultCode = const Value.absent(),
     Value<int?> productTemplateId = const Value.absent(),
     Value<String?> productTemplateName = const Value.absent(),
     Value<String?> productType = const Value.absent(),
@@ -42279,7 +42262,9 @@ class SaleOrderLineData extends DataClass
     isDownpayment: isDownpayment ?? this.isDownpayment,
     productId: productId.present ? productId.value : this.productId,
     productName: productName.present ? productName.value : this.productName,
-    productCode: productCode.present ? productCode.value : this.productCode,
+    productDefaultCode: productDefaultCode.present
+        ? productDefaultCode.value
+        : this.productDefaultCode,
     productTemplateId: productTemplateId.present
         ? productTemplateId.value
         : this.productTemplateId,
@@ -42349,9 +42334,9 @@ class SaleOrderLineData extends DataClass
       productName: data.productName.present
           ? data.productName.value
           : this.productName,
-      productCode: data.productCode.present
-          ? data.productCode.value
-          : this.productCode,
+      productDefaultCode: data.productDefaultCode.present
+          ? data.productDefaultCode.value
+          : this.productDefaultCode,
       productTemplateId: data.productTemplateId.present
           ? data.productTemplateId.value
           : this.productTemplateId,
@@ -42464,7 +42449,7 @@ class SaleOrderLineData extends DataClass
           ..write('isDownpayment: $isDownpayment, ')
           ..write('productId: $productId, ')
           ..write('productName: $productName, ')
-          ..write('productCode: $productCode, ')
+          ..write('productDefaultCode: $productDefaultCode, ')
           ..write('productTemplateId: $productTemplateId, ')
           ..write('productTemplateName: $productTemplateName, ')
           ..write('productType: $productType, ')
@@ -42521,7 +42506,7 @@ class SaleOrderLineData extends DataClass
     isDownpayment,
     productId,
     productName,
-    productCode,
+    productDefaultCode,
     productTemplateId,
     productTemplateName,
     productType,
@@ -42577,7 +42562,7 @@ class SaleOrderLineData extends DataClass
           other.isDownpayment == this.isDownpayment &&
           other.productId == this.productId &&
           other.productName == this.productName &&
-          other.productCode == this.productCode &&
+          other.productDefaultCode == this.productDefaultCode &&
           other.productTemplateId == this.productTemplateId &&
           other.productTemplateName == this.productTemplateName &&
           other.productType == this.productType &&
@@ -42631,7 +42616,7 @@ class SaleOrderLineCompanion extends UpdateCompanion<SaleOrderLineData> {
   final Value<bool> isDownpayment;
   final Value<int?> productId;
   final Value<String?> productName;
-  final Value<String?> productCode;
+  final Value<String?> productDefaultCode;
   final Value<int?> productTemplateId;
   final Value<String?> productTemplateName;
   final Value<String?> productType;
@@ -42683,7 +42668,7 @@ class SaleOrderLineCompanion extends UpdateCompanion<SaleOrderLineData> {
     this.isDownpayment = const Value.absent(),
     this.productId = const Value.absent(),
     this.productName = const Value.absent(),
-    this.productCode = const Value.absent(),
+    this.productDefaultCode = const Value.absent(),
     this.productTemplateId = const Value.absent(),
     this.productTemplateName = const Value.absent(),
     this.productType = const Value.absent(),
@@ -42736,7 +42721,7 @@ class SaleOrderLineCompanion extends UpdateCompanion<SaleOrderLineData> {
     this.isDownpayment = const Value.absent(),
     this.productId = const Value.absent(),
     this.productName = const Value.absent(),
-    this.productCode = const Value.absent(),
+    this.productDefaultCode = const Value.absent(),
     this.productTemplateId = const Value.absent(),
     this.productTemplateName = const Value.absent(),
     this.productType = const Value.absent(),
@@ -42790,7 +42775,7 @@ class SaleOrderLineCompanion extends UpdateCompanion<SaleOrderLineData> {
     Expression<bool>? isDownpayment,
     Expression<int>? productId,
     Expression<String>? productName,
-    Expression<String>? productCode,
+    Expression<String>? productDefaultCode,
     Expression<int>? productTemplateId,
     Expression<String>? productTemplateName,
     Expression<String>? productType,
@@ -42843,7 +42828,8 @@ class SaleOrderLineCompanion extends UpdateCompanion<SaleOrderLineData> {
       if (isDownpayment != null) 'is_downpayment': isDownpayment,
       if (productId != null) 'product_id': productId,
       if (productName != null) 'product_name': productName,
-      if (productCode != null) 'product_code': productCode,
+      if (productDefaultCode != null)
+        'product_default_code': productDefaultCode,
       if (productTemplateId != null) 'product_template_id': productTemplateId,
       if (productTemplateName != null)
         'product_template_name': productTemplateName,
@@ -42901,7 +42887,7 @@ class SaleOrderLineCompanion extends UpdateCompanion<SaleOrderLineData> {
     Value<bool>? isDownpayment,
     Value<int?>? productId,
     Value<String?>? productName,
-    Value<String?>? productCode,
+    Value<String?>? productDefaultCode,
     Value<int?>? productTemplateId,
     Value<String?>? productTemplateName,
     Value<String?>? productType,
@@ -42954,7 +42940,7 @@ class SaleOrderLineCompanion extends UpdateCompanion<SaleOrderLineData> {
       isDownpayment: isDownpayment ?? this.isDownpayment,
       productId: productId ?? this.productId,
       productName: productName ?? this.productName,
-      productCode: productCode ?? this.productCode,
+      productDefaultCode: productDefaultCode ?? this.productDefaultCode,
       productTemplateId: productTemplateId ?? this.productTemplateId,
       productTemplateName: productTemplateName ?? this.productTemplateName,
       productType: productType ?? this.productType,
@@ -43029,8 +43015,8 @@ class SaleOrderLineCompanion extends UpdateCompanion<SaleOrderLineData> {
     if (productName.present) {
       map['product_name'] = Variable<String>(productName.value);
     }
-    if (productCode.present) {
-      map['product_code'] = Variable<String>(productCode.value);
+    if (productDefaultCode.present) {
+      map['product_default_code'] = Variable<String>(productDefaultCode.value);
     }
     if (productTemplateId.present) {
       map['product_template_id'] = Variable<int>(productTemplateId.value);
@@ -43172,7 +43158,7 @@ class SaleOrderLineCompanion extends UpdateCompanion<SaleOrderLineData> {
           ..write('isDownpayment: $isDownpayment, ')
           ..write('productId: $productId, ')
           ..write('productName: $productName, ')
-          ..write('productCode: $productCode, ')
+          ..write('productDefaultCode: $productDefaultCode, ')
           ..write('productTemplateId: $productTemplateId, ')
           ..write('productTemplateName: $productTemplateName, ')
           ..write('productType: $productType, ')
@@ -49562,6 +49548,39 @@ class $AccountTaxTable extends AccountTax
     type: DriftSqlType.string,
     requiredDuringInsert: false,
   );
+  static const VerificationMeta _taxGroupIdMeta = const VerificationMeta(
+    'taxGroupId',
+  );
+  @override
+  late final GeneratedColumn<int> taxGroupId = GeneratedColumn<int>(
+    'tax_group_id',
+    aliasedName,
+    true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _taxGroupIdNameMeta = const VerificationMeta(
+    'taxGroupIdName',
+  );
+  @override
+  late final GeneratedColumn<String> taxGroupIdName = GeneratedColumn<String>(
+    'tax_group_id_name',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _taxGroupL10nEcTypeMeta =
+      const VerificationMeta('taxGroupL10nEcType');
+  @override
+  late final GeneratedColumn<String> taxGroupL10nEcType =
+      GeneratedColumn<String>(
+        'tax_group_l10n_ec_type',
+        aliasedName,
+        true,
+        type: DriftSqlType.string,
+        requiredDuringInsert: false,
+      );
   static const VerificationMeta _writeDateMeta = const VerificationMeta(
     'writeDate',
   );
@@ -49588,6 +49607,9 @@ class $AccountTaxTable extends AccountTax
     sequence,
     companyId,
     companyName,
+    taxGroupId,
+    taxGroupIdName,
+    taxGroupL10nEcType,
     writeDate,
   ];
   @override
@@ -49696,6 +49718,33 @@ class $AccountTaxTable extends AccountTax
         ),
       );
     }
+    if (data.containsKey('tax_group_id')) {
+      context.handle(
+        _taxGroupIdMeta,
+        taxGroupId.isAcceptableOrUnknown(
+          data['tax_group_id']!,
+          _taxGroupIdMeta,
+        ),
+      );
+    }
+    if (data.containsKey('tax_group_id_name')) {
+      context.handle(
+        _taxGroupIdNameMeta,
+        taxGroupIdName.isAcceptableOrUnknown(
+          data['tax_group_id_name']!,
+          _taxGroupIdNameMeta,
+        ),
+      );
+    }
+    if (data.containsKey('tax_group_l10n_ec_type')) {
+      context.handle(
+        _taxGroupL10nEcTypeMeta,
+        taxGroupL10nEcType.isAcceptableOrUnknown(
+          data['tax_group_l10n_ec_type']!,
+          _taxGroupL10nEcTypeMeta,
+        ),
+      );
+    }
     if (data.containsKey('write_date')) {
       context.handle(
         _writeDateMeta,
@@ -49763,6 +49812,18 @@ class $AccountTaxTable extends AccountTax
         DriftSqlType.string,
         data['${effectivePrefix}company_name'],
       ),
+      taxGroupId: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}tax_group_id'],
+      ),
+      taxGroupIdName: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}tax_group_id_name'],
+      ),
+      taxGroupL10nEcType: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}tax_group_l10n_ec_type'],
+      ),
       writeDate: attachedDatabase.typeMapping.read(
         DriftSqlType.dateTime,
         data['${effectivePrefix}write_date'],
@@ -49790,6 +49851,9 @@ class AccountTaxData extends DataClass implements Insertable<AccountTaxData> {
   final int sequence;
   final int? companyId;
   final String? companyName;
+  final int? taxGroupId;
+  final String? taxGroupIdName;
+  final String? taxGroupL10nEcType;
   final DateTime? writeDate;
   const AccountTaxData({
     required this.id,
@@ -49805,6 +49869,9 @@ class AccountTaxData extends DataClass implements Insertable<AccountTaxData> {
     required this.sequence,
     this.companyId,
     this.companyName,
+    this.taxGroupId,
+    this.taxGroupIdName,
+    this.taxGroupL10nEcType,
     this.writeDate,
   });
   @override
@@ -49828,6 +49895,15 @@ class AccountTaxData extends DataClass implements Insertable<AccountTaxData> {
     }
     if (!nullToAbsent || companyName != null) {
       map['company_name'] = Variable<String>(companyName);
+    }
+    if (!nullToAbsent || taxGroupId != null) {
+      map['tax_group_id'] = Variable<int>(taxGroupId);
+    }
+    if (!nullToAbsent || taxGroupIdName != null) {
+      map['tax_group_id_name'] = Variable<String>(taxGroupIdName);
+    }
+    if (!nullToAbsent || taxGroupL10nEcType != null) {
+      map['tax_group_l10n_ec_type'] = Variable<String>(taxGroupL10nEcType);
     }
     if (!nullToAbsent || writeDate != null) {
       map['write_date'] = Variable<DateTime>(writeDate);
@@ -49856,6 +49932,15 @@ class AccountTaxData extends DataClass implements Insertable<AccountTaxData> {
       companyName: companyName == null && nullToAbsent
           ? const Value.absent()
           : Value(companyName),
+      taxGroupId: taxGroupId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(taxGroupId),
+      taxGroupIdName: taxGroupIdName == null && nullToAbsent
+          ? const Value.absent()
+          : Value(taxGroupIdName),
+      taxGroupL10nEcType: taxGroupL10nEcType == null && nullToAbsent
+          ? const Value.absent()
+          : Value(taxGroupL10nEcType),
       writeDate: writeDate == null && nullToAbsent
           ? const Value.absent()
           : Value(writeDate),
@@ -49881,6 +49966,11 @@ class AccountTaxData extends DataClass implements Insertable<AccountTaxData> {
       sequence: serializer.fromJson<int>(json['sequence']),
       companyId: serializer.fromJson<int?>(json['companyId']),
       companyName: serializer.fromJson<String?>(json['companyName']),
+      taxGroupId: serializer.fromJson<int?>(json['taxGroupId']),
+      taxGroupIdName: serializer.fromJson<String?>(json['taxGroupIdName']),
+      taxGroupL10nEcType: serializer.fromJson<String?>(
+        json['taxGroupL10nEcType'],
+      ),
       writeDate: serializer.fromJson<DateTime?>(json['writeDate']),
     );
   }
@@ -49901,6 +49991,9 @@ class AccountTaxData extends DataClass implements Insertable<AccountTaxData> {
       'sequence': serializer.toJson<int>(sequence),
       'companyId': serializer.toJson<int?>(companyId),
       'companyName': serializer.toJson<String?>(companyName),
+      'taxGroupId': serializer.toJson<int?>(taxGroupId),
+      'taxGroupIdName': serializer.toJson<String?>(taxGroupIdName),
+      'taxGroupL10nEcType': serializer.toJson<String?>(taxGroupL10nEcType),
       'writeDate': serializer.toJson<DateTime?>(writeDate),
     };
   }
@@ -49919,6 +50012,9 @@ class AccountTaxData extends DataClass implements Insertable<AccountTaxData> {
     int? sequence,
     Value<int?> companyId = const Value.absent(),
     Value<String?> companyName = const Value.absent(),
+    Value<int?> taxGroupId = const Value.absent(),
+    Value<String?> taxGroupIdName = const Value.absent(),
+    Value<String?> taxGroupL10nEcType = const Value.absent(),
     Value<DateTime?> writeDate = const Value.absent(),
   }) => AccountTaxData(
     id: id ?? this.id,
@@ -49934,6 +50030,13 @@ class AccountTaxData extends DataClass implements Insertable<AccountTaxData> {
     sequence: sequence ?? this.sequence,
     companyId: companyId.present ? companyId.value : this.companyId,
     companyName: companyName.present ? companyName.value : this.companyName,
+    taxGroupId: taxGroupId.present ? taxGroupId.value : this.taxGroupId,
+    taxGroupIdName: taxGroupIdName.present
+        ? taxGroupIdName.value
+        : this.taxGroupIdName,
+    taxGroupL10nEcType: taxGroupL10nEcType.present
+        ? taxGroupL10nEcType.value
+        : this.taxGroupL10nEcType,
     writeDate: writeDate.present ? writeDate.value : this.writeDate,
   );
   AccountTaxData copyWithCompanion(AccountTaxCompanion data) {
@@ -49963,6 +50066,15 @@ class AccountTaxData extends DataClass implements Insertable<AccountTaxData> {
       companyName: data.companyName.present
           ? data.companyName.value
           : this.companyName,
+      taxGroupId: data.taxGroupId.present
+          ? data.taxGroupId.value
+          : this.taxGroupId,
+      taxGroupIdName: data.taxGroupIdName.present
+          ? data.taxGroupIdName.value
+          : this.taxGroupIdName,
+      taxGroupL10nEcType: data.taxGroupL10nEcType.present
+          ? data.taxGroupL10nEcType.value
+          : this.taxGroupL10nEcType,
       writeDate: data.writeDate.present ? data.writeDate.value : this.writeDate,
     );
   }
@@ -49983,6 +50095,9 @@ class AccountTaxData extends DataClass implements Insertable<AccountTaxData> {
           ..write('sequence: $sequence, ')
           ..write('companyId: $companyId, ')
           ..write('companyName: $companyName, ')
+          ..write('taxGroupId: $taxGroupId, ')
+          ..write('taxGroupIdName: $taxGroupIdName, ')
+          ..write('taxGroupL10nEcType: $taxGroupL10nEcType, ')
           ..write('writeDate: $writeDate')
           ..write(')'))
         .toString();
@@ -50003,6 +50118,9 @@ class AccountTaxData extends DataClass implements Insertable<AccountTaxData> {
     sequence,
     companyId,
     companyName,
+    taxGroupId,
+    taxGroupIdName,
+    taxGroupL10nEcType,
     writeDate,
   );
   @override
@@ -50022,6 +50140,9 @@ class AccountTaxData extends DataClass implements Insertable<AccountTaxData> {
           other.sequence == this.sequence &&
           other.companyId == this.companyId &&
           other.companyName == this.companyName &&
+          other.taxGroupId == this.taxGroupId &&
+          other.taxGroupIdName == this.taxGroupIdName &&
+          other.taxGroupL10nEcType == this.taxGroupL10nEcType &&
           other.writeDate == this.writeDate);
 }
 
@@ -50039,6 +50160,9 @@ class AccountTaxCompanion extends UpdateCompanion<AccountTaxData> {
   final Value<int> sequence;
   final Value<int?> companyId;
   final Value<String?> companyName;
+  final Value<int?> taxGroupId;
+  final Value<String?> taxGroupIdName;
+  final Value<String?> taxGroupL10nEcType;
   final Value<DateTime?> writeDate;
   const AccountTaxCompanion({
     this.id = const Value.absent(),
@@ -50054,6 +50178,9 @@ class AccountTaxCompanion extends UpdateCompanion<AccountTaxData> {
     this.sequence = const Value.absent(),
     this.companyId = const Value.absent(),
     this.companyName = const Value.absent(),
+    this.taxGroupId = const Value.absent(),
+    this.taxGroupIdName = const Value.absent(),
+    this.taxGroupL10nEcType = const Value.absent(),
     this.writeDate = const Value.absent(),
   });
   AccountTaxCompanion.insert({
@@ -50070,6 +50197,9 @@ class AccountTaxCompanion extends UpdateCompanion<AccountTaxData> {
     this.sequence = const Value.absent(),
     this.companyId = const Value.absent(),
     this.companyName = const Value.absent(),
+    this.taxGroupId = const Value.absent(),
+    this.taxGroupIdName = const Value.absent(),
+    this.taxGroupL10nEcType = const Value.absent(),
     this.writeDate = const Value.absent(),
   }) : odooId = Value(odooId),
        name = Value(name);
@@ -50087,6 +50217,9 @@ class AccountTaxCompanion extends UpdateCompanion<AccountTaxData> {
     Expression<int>? sequence,
     Expression<int>? companyId,
     Expression<String>? companyName,
+    Expression<int>? taxGroupId,
+    Expression<String>? taxGroupIdName,
+    Expression<String>? taxGroupL10nEcType,
     Expression<DateTime>? writeDate,
   }) {
     return RawValuesInsertable({
@@ -50103,6 +50236,10 @@ class AccountTaxCompanion extends UpdateCompanion<AccountTaxData> {
       if (sequence != null) 'sequence': sequence,
       if (companyId != null) 'company_id': companyId,
       if (companyName != null) 'company_name': companyName,
+      if (taxGroupId != null) 'tax_group_id': taxGroupId,
+      if (taxGroupIdName != null) 'tax_group_id_name': taxGroupIdName,
+      if (taxGroupL10nEcType != null)
+        'tax_group_l10n_ec_type': taxGroupL10nEcType,
       if (writeDate != null) 'write_date': writeDate,
     });
   }
@@ -50121,6 +50258,9 @@ class AccountTaxCompanion extends UpdateCompanion<AccountTaxData> {
     Value<int>? sequence,
     Value<int?>? companyId,
     Value<String?>? companyName,
+    Value<int?>? taxGroupId,
+    Value<String?>? taxGroupIdName,
+    Value<String?>? taxGroupL10nEcType,
     Value<DateTime?>? writeDate,
   }) {
     return AccountTaxCompanion(
@@ -50137,6 +50277,9 @@ class AccountTaxCompanion extends UpdateCompanion<AccountTaxData> {
       sequence: sequence ?? this.sequence,
       companyId: companyId ?? this.companyId,
       companyName: companyName ?? this.companyName,
+      taxGroupId: taxGroupId ?? this.taxGroupId,
+      taxGroupIdName: taxGroupIdName ?? this.taxGroupIdName,
+      taxGroupL10nEcType: taxGroupL10nEcType ?? this.taxGroupL10nEcType,
       writeDate: writeDate ?? this.writeDate,
     );
   }
@@ -50183,6 +50326,17 @@ class AccountTaxCompanion extends UpdateCompanion<AccountTaxData> {
     if (companyName.present) {
       map['company_name'] = Variable<String>(companyName.value);
     }
+    if (taxGroupId.present) {
+      map['tax_group_id'] = Variable<int>(taxGroupId.value);
+    }
+    if (taxGroupIdName.present) {
+      map['tax_group_id_name'] = Variable<String>(taxGroupIdName.value);
+    }
+    if (taxGroupL10nEcType.present) {
+      map['tax_group_l10n_ec_type'] = Variable<String>(
+        taxGroupL10nEcType.value,
+      );
+    }
     if (writeDate.present) {
       map['write_date'] = Variable<DateTime>(writeDate.value);
     }
@@ -50205,6 +50359,9 @@ class AccountTaxCompanion extends UpdateCompanion<AccountTaxData> {
           ..write('sequence: $sequence, ')
           ..write('companyId: $companyId, ')
           ..write('companyName: $companyName, ')
+          ..write('taxGroupId: $taxGroupId, ')
+          ..write('taxGroupIdName: $taxGroupIdName, ')
+          ..write('taxGroupL10nEcType: $taxGroupL10nEcType, ')
           ..write('writeDate: $writeDate')
           ..write(')'))
         .toString();
@@ -50255,9 +50412,9 @@ class $UomUomTable extends UomUom with TableInfo<$UomUomTable, UomUomData> {
   late final GeneratedColumn<int> categoryId = GeneratedColumn<int>(
     'category_id',
     aliasedName,
-    false,
+    true,
     type: DriftSqlType.int,
-    requiredDuringInsert: true,
+    requiredDuringInsert: false,
   );
   static const VerificationMeta _categoryNameMeta = const VerificationMeta(
     'categoryName',
@@ -50277,9 +50434,9 @@ class $UomUomTable extends UomUom with TableInfo<$UomUomTable, UomUomData> {
   late final GeneratedColumn<String> uomType = GeneratedColumn<String>(
     'uom_type',
     aliasedName,
-    false,
+    true,
     type: DriftSqlType.string,
-    requiredDuringInsert: true,
+    requiredDuringInsert: false,
   );
   static const VerificationMeta _factorMeta = const VerificationMeta('factor');
   @override
@@ -50402,8 +50559,6 @@ class $UomUomTable extends UomUom with TableInfo<$UomUomTable, UomUomData> {
         _categoryIdMeta,
         categoryId.isAcceptableOrUnknown(data['category_id']!, _categoryIdMeta),
       );
-    } else if (isInserting) {
-      context.missing(_categoryIdMeta);
     }
     if (data.containsKey('category_name')) {
       context.handle(
@@ -50419,8 +50574,6 @@ class $UomUomTable extends UomUom with TableInfo<$UomUomTable, UomUomData> {
         _uomTypeMeta,
         uomType.isAcceptableOrUnknown(data['uom_type']!, _uomTypeMeta),
       );
-    } else if (isInserting) {
-      context.missing(_uomTypeMeta);
     }
     if (data.containsKey('factor')) {
       context.handle(
@@ -50482,7 +50635,7 @@ class $UomUomTable extends UomUom with TableInfo<$UomUomTable, UomUomData> {
       categoryId: attachedDatabase.typeMapping.read(
         DriftSqlType.int,
         data['${effectivePrefix}category_id'],
-      )!,
+      ),
       categoryName: attachedDatabase.typeMapping.read(
         DriftSqlType.string,
         data['${effectivePrefix}category_name'],
@@ -50490,7 +50643,7 @@ class $UomUomTable extends UomUom with TableInfo<$UomUomTable, UomUomData> {
       uomType: attachedDatabase.typeMapping.read(
         DriftSqlType.string,
         data['${effectivePrefix}uom_type'],
-      )!,
+      ),
       factor: attachedDatabase.typeMapping.read(
         DriftSqlType.double,
         data['${effectivePrefix}factor'],
@@ -50528,9 +50681,9 @@ class UomUomData extends DataClass implements Insertable<UomUomData> {
   final int id;
   final int odooId;
   final String name;
-  final int categoryId;
+  final int? categoryId;
   final String? categoryName;
-  final String uomType;
+  final String? uomType;
   final double factor;
   final double factorInv;
   final double rounding;
@@ -50541,9 +50694,9 @@ class UomUomData extends DataClass implements Insertable<UomUomData> {
     required this.id,
     required this.odooId,
     required this.name,
-    required this.categoryId,
+    this.categoryId,
     this.categoryName,
-    required this.uomType,
+    this.uomType,
     required this.factor,
     required this.factorInv,
     required this.rounding,
@@ -50557,11 +50710,15 @@ class UomUomData extends DataClass implements Insertable<UomUomData> {
     map['id'] = Variable<int>(id);
     map['odoo_id'] = Variable<int>(odooId);
     map['name'] = Variable<String>(name);
-    map['category_id'] = Variable<int>(categoryId);
+    if (!nullToAbsent || categoryId != null) {
+      map['category_id'] = Variable<int>(categoryId);
+    }
     if (!nullToAbsent || categoryName != null) {
       map['category_name'] = Variable<String>(categoryName);
     }
-    map['uom_type'] = Variable<String>(uomType);
+    if (!nullToAbsent || uomType != null) {
+      map['uom_type'] = Variable<String>(uomType);
+    }
     map['factor'] = Variable<double>(factor);
     map['factor_inv'] = Variable<double>(factorInv);
     map['rounding'] = Variable<double>(rounding);
@@ -50578,11 +50735,15 @@ class UomUomData extends DataClass implements Insertable<UomUomData> {
       id: Value(id),
       odooId: Value(odooId),
       name: Value(name),
-      categoryId: Value(categoryId),
+      categoryId: categoryId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(categoryId),
       categoryName: categoryName == null && nullToAbsent
           ? const Value.absent()
           : Value(categoryName),
-      uomType: Value(uomType),
+      uomType: uomType == null && nullToAbsent
+          ? const Value.absent()
+          : Value(uomType),
       factor: Value(factor),
       factorInv: Value(factorInv),
       rounding: Value(rounding),
@@ -50603,9 +50764,9 @@ class UomUomData extends DataClass implements Insertable<UomUomData> {
       id: serializer.fromJson<int>(json['id']),
       odooId: serializer.fromJson<int>(json['odooId']),
       name: serializer.fromJson<String>(json['name']),
-      categoryId: serializer.fromJson<int>(json['categoryId']),
+      categoryId: serializer.fromJson<int?>(json['categoryId']),
       categoryName: serializer.fromJson<String?>(json['categoryName']),
-      uomType: serializer.fromJson<String>(json['uomType']),
+      uomType: serializer.fromJson<String?>(json['uomType']),
       factor: serializer.fromJson<double>(json['factor']),
       factorInv: serializer.fromJson<double>(json['factorInv']),
       rounding: serializer.fromJson<double>(json['rounding']),
@@ -50621,9 +50782,9 @@ class UomUomData extends DataClass implements Insertable<UomUomData> {
       'id': serializer.toJson<int>(id),
       'odooId': serializer.toJson<int>(odooId),
       'name': serializer.toJson<String>(name),
-      'categoryId': serializer.toJson<int>(categoryId),
+      'categoryId': serializer.toJson<int?>(categoryId),
       'categoryName': serializer.toJson<String?>(categoryName),
-      'uomType': serializer.toJson<String>(uomType),
+      'uomType': serializer.toJson<String?>(uomType),
       'factor': serializer.toJson<double>(factor),
       'factorInv': serializer.toJson<double>(factorInv),
       'rounding': serializer.toJson<double>(rounding),
@@ -50637,9 +50798,9 @@ class UomUomData extends DataClass implements Insertable<UomUomData> {
     int? id,
     int? odooId,
     String? name,
-    int? categoryId,
+    Value<int?> categoryId = const Value.absent(),
     Value<String?> categoryName = const Value.absent(),
-    String? uomType,
+    Value<String?> uomType = const Value.absent(),
     double? factor,
     double? factorInv,
     double? rounding,
@@ -50650,9 +50811,9 @@ class UomUomData extends DataClass implements Insertable<UomUomData> {
     id: id ?? this.id,
     odooId: odooId ?? this.odooId,
     name: name ?? this.name,
-    categoryId: categoryId ?? this.categoryId,
+    categoryId: categoryId.present ? categoryId.value : this.categoryId,
     categoryName: categoryName.present ? categoryName.value : this.categoryName,
-    uomType: uomType ?? this.uomType,
+    uomType: uomType.present ? uomType.value : this.uomType,
     factor: factor ?? this.factor,
     factorInv: factorInv ?? this.factorInv,
     rounding: rounding ?? this.rounding,
@@ -50737,9 +50898,9 @@ class UomUomCompanion extends UpdateCompanion<UomUomData> {
   final Value<int> id;
   final Value<int> odooId;
   final Value<String> name;
-  final Value<int> categoryId;
+  final Value<int?> categoryId;
   final Value<String?> categoryName;
-  final Value<String> uomType;
+  final Value<String?> uomType;
   final Value<double> factor;
   final Value<double> factorInv;
   final Value<double> rounding;
@@ -50764,9 +50925,9 @@ class UomUomCompanion extends UpdateCompanion<UomUomData> {
     this.id = const Value.absent(),
     required int odooId,
     required String name,
-    required int categoryId,
+    this.categoryId = const Value.absent(),
     this.categoryName = const Value.absent(),
-    required String uomType,
+    this.uomType = const Value.absent(),
     this.factor = const Value.absent(),
     this.factorInv = const Value.absent(),
     this.rounding = const Value.absent(),
@@ -50774,9 +50935,7 @@ class UomUomCompanion extends UpdateCompanion<UomUomData> {
     this.sequence = const Value.absent(),
     this.writeDate = const Value.absent(),
   }) : odooId = Value(odooId),
-       name = Value(name),
-       categoryId = Value(categoryId),
-       uomType = Value(uomType);
+       name = Value(name);
   static Insertable<UomUomData> custom({
     Expression<int>? id,
     Expression<int>? odooId,
@@ -50811,9 +50970,9 @@ class UomUomCompanion extends UpdateCompanion<UomUomData> {
     Value<int>? id,
     Value<int>? odooId,
     Value<String>? name,
-    Value<int>? categoryId,
+    Value<int?>? categoryId,
     Value<String?>? categoryName,
-    Value<String>? uomType,
+    Value<String?>? uomType,
     Value<double>? factor,
     Value<double>? factorInv,
     Value<double>? rounding,
@@ -71183,7 +71342,7 @@ typedef $$ResUsersTableCreateCompanionBuilder =
       Value<String?> partnerName,
       Value<int?> companyId,
       Value<String?> companyName,
-      Value<int?> warehouseId,
+      Value<int?> propertyWarehouseId,
       Value<String?> warehouseName,
       Value<String?> avatar128,
       Value<String?> notificationType,
@@ -71230,7 +71389,7 @@ typedef $$ResUsersTableUpdateCompanionBuilder =
       Value<String?> partnerName,
       Value<int?> companyId,
       Value<String?> companyName,
-      Value<int?> warehouseId,
+      Value<int?> propertyWarehouseId,
       Value<String?> warehouseName,
       Value<String?> avatar128,
       Value<String?> notificationType,
@@ -71333,8 +71492,8 @@ class $$ResUsersTableFilterComposer
     builder: (column) => ColumnFilters(column),
   );
 
-  ColumnFilters<int> get warehouseId => $composableBuilder(
-    column: $table.warehouseId,
+  ColumnFilters<int> get propertyWarehouseId => $composableBuilder(
+    column: $table.propertyWarehouseId,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -71563,8 +71722,8 @@ class $$ResUsersTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
-  ColumnOrderings<int> get warehouseId => $composableBuilder(
-    column: $table.warehouseId,
+  ColumnOrderings<int> get propertyWarehouseId => $composableBuilder(
+    column: $table.propertyWarehouseId,
     builder: (column) => ColumnOrderings(column),
   );
 
@@ -71773,8 +71932,8 @@ class $$ResUsersTableAnnotationComposer
     builder: (column) => column,
   );
 
-  GeneratedColumn<int> get warehouseId => $composableBuilder(
-    column: $table.warehouseId,
+  GeneratedColumn<int> get propertyWarehouseId => $composableBuilder(
+    column: $table.propertyWarehouseId,
     builder: (column) => column,
   );
 
@@ -71962,7 +72121,7 @@ class $$ResUsersTableTableManager
                 Value<String?> partnerName = const Value.absent(),
                 Value<int?> companyId = const Value.absent(),
                 Value<String?> companyName = const Value.absent(),
-                Value<int?> warehouseId = const Value.absent(),
+                Value<int?> propertyWarehouseId = const Value.absent(),
                 Value<String?> warehouseName = const Value.absent(),
                 Value<String?> avatar128 = const Value.absent(),
                 Value<String?> notificationType = const Value.absent(),
@@ -72007,7 +72166,7 @@ class $$ResUsersTableTableManager
                 partnerName: partnerName,
                 companyId: companyId,
                 companyName: companyName,
-                warehouseId: warehouseId,
+                propertyWarehouseId: propertyWarehouseId,
                 warehouseName: warehouseName,
                 avatar128: avatar128,
                 notificationType: notificationType,
@@ -72054,7 +72213,7 @@ class $$ResUsersTableTableManager
                 Value<String?> partnerName = const Value.absent(),
                 Value<int?> companyId = const Value.absent(),
                 Value<String?> companyName = const Value.absent(),
-                Value<int?> warehouseId = const Value.absent(),
+                Value<int?> propertyWarehouseId = const Value.absent(),
                 Value<String?> warehouseName = const Value.absent(),
                 Value<String?> avatar128 = const Value.absent(),
                 Value<String?> notificationType = const Value.absent(),
@@ -72099,7 +72258,7 @@ class $$ResUsersTableTableManager
                 partnerName: partnerName,
                 companyId: companyId,
                 companyName: companyName,
-                warehouseId: warehouseId,
+                propertyWarehouseId: propertyWarehouseId,
                 warehouseName: warehouseName,
                 avatar128: avatar128,
                 notificationType: notificationType,
@@ -72488,7 +72647,7 @@ typedef $$ResPartnerTableCreateCompanionBuilder =
       Value<String?> parentName,
       Value<int?> commercialPartnerId,
       Value<String?> commercialPartnerName,
-      Value<int?> propertyProductPricelistId,
+      Value<int?> propertyProductPricelist,
       Value<String?> propertyProductPricelistName,
       Value<int?> propertyPaymentTermId,
       Value<String?> propertyPaymentTermName,
@@ -72500,8 +72659,8 @@ typedef $$ResPartnerTableCreateCompanionBuilder =
       Value<double> totalOverdue,
       Value<bool> allowOverCredit,
       Value<bool> usePartnerCreditLimit,
-      Value<int> overdueInvoicesCount,
-      Value<double> oldestOverdueDays,
+      Value<int> unpaidInvoicesCount,
+      Value<int> oldestOverdueDays,
       Value<int?> diasMaxFacturaPosterior,
       Value<String?> tipoCliente,
       Value<String?> canalCliente,
@@ -72549,7 +72708,7 @@ typedef $$ResPartnerTableUpdateCompanionBuilder =
       Value<String?> parentName,
       Value<int?> commercialPartnerId,
       Value<String?> commercialPartnerName,
-      Value<int?> propertyProductPricelistId,
+      Value<int?> propertyProductPricelist,
       Value<String?> propertyProductPricelistName,
       Value<int?> propertyPaymentTermId,
       Value<String?> propertyPaymentTermName,
@@ -72561,8 +72720,8 @@ typedef $$ResPartnerTableUpdateCompanionBuilder =
       Value<double> totalOverdue,
       Value<bool> allowOverCredit,
       Value<bool> usePartnerCreditLimit,
-      Value<int> overdueInvoicesCount,
-      Value<double> oldestOverdueDays,
+      Value<int> unpaidInvoicesCount,
+      Value<int> oldestOverdueDays,
       Value<int?> diasMaxFacturaPosterior,
       Value<String?> tipoCliente,
       Value<String?> canalCliente,
@@ -72714,8 +72873,8 @@ class $$ResPartnerTableFilterComposer
     builder: (column) => ColumnFilters(column),
   );
 
-  ColumnFilters<int> get propertyProductPricelistId => $composableBuilder(
-    column: $table.propertyProductPricelistId,
+  ColumnFilters<int> get propertyProductPricelist => $composableBuilder(
+    column: $table.propertyProductPricelist,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -72774,12 +72933,12 @@ class $$ResPartnerTableFilterComposer
     builder: (column) => ColumnFilters(column),
   );
 
-  ColumnFilters<int> get overdueInvoicesCount => $composableBuilder(
-    column: $table.overdueInvoicesCount,
+  ColumnFilters<int> get unpaidInvoicesCount => $composableBuilder(
+    column: $table.unpaidInvoicesCount,
     builder: (column) => ColumnFilters(column),
   );
 
-  ColumnFilters<double> get oldestOverdueDays => $composableBuilder(
+  ColumnFilters<int> get oldestOverdueDays => $composableBuilder(
     column: $table.oldestOverdueDays,
     builder: (column) => ColumnFilters(column),
   );
@@ -73014,8 +73173,8 @@ class $$ResPartnerTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
-  ColumnOrderings<int> get propertyProductPricelistId => $composableBuilder(
-    column: $table.propertyProductPricelistId,
+  ColumnOrderings<int> get propertyProductPricelist => $composableBuilder(
+    column: $table.propertyProductPricelist,
     builder: (column) => ColumnOrderings(column),
   );
 
@@ -73075,12 +73234,12 @@ class $$ResPartnerTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
-  ColumnOrderings<int> get overdueInvoicesCount => $composableBuilder(
-    column: $table.overdueInvoicesCount,
+  ColumnOrderings<int> get unpaidInvoicesCount => $composableBuilder(
+    column: $table.unpaidInvoicesCount,
     builder: (column) => ColumnOrderings(column),
   );
 
-  ColumnOrderings<double> get oldestOverdueDays => $composableBuilder(
+  ColumnOrderings<int> get oldestOverdueDays => $composableBuilder(
     column: $table.oldestOverdueDays,
     builder: (column) => ColumnOrderings(column),
   );
@@ -73277,8 +73436,8 @@ class $$ResPartnerTableAnnotationComposer
     builder: (column) => column,
   );
 
-  GeneratedColumn<int> get propertyProductPricelistId => $composableBuilder(
-    column: $table.propertyProductPricelistId,
+  GeneratedColumn<int> get propertyProductPricelist => $composableBuilder(
+    column: $table.propertyProductPricelist,
     builder: (column) => column,
   );
 
@@ -73332,12 +73491,12 @@ class $$ResPartnerTableAnnotationComposer
     builder: (column) => column,
   );
 
-  GeneratedColumn<int> get overdueInvoicesCount => $composableBuilder(
-    column: $table.overdueInvoicesCount,
+  GeneratedColumn<int> get unpaidInvoicesCount => $composableBuilder(
+    column: $table.unpaidInvoicesCount,
     builder: (column) => column,
   );
 
-  GeneratedColumn<double> get oldestOverdueDays => $composableBuilder(
+  GeneratedColumn<int> get oldestOverdueDays => $composableBuilder(
     column: $table.oldestOverdueDays,
     builder: (column) => column,
   );
@@ -73492,7 +73651,7 @@ class $$ResPartnerTableTableManager
                 Value<String?> parentName = const Value.absent(),
                 Value<int?> commercialPartnerId = const Value.absent(),
                 Value<String?> commercialPartnerName = const Value.absent(),
-                Value<int?> propertyProductPricelistId = const Value.absent(),
+                Value<int?> propertyProductPricelist = const Value.absent(),
                 Value<String?> propertyProductPricelistName =
                     const Value.absent(),
                 Value<int?> propertyPaymentTermId = const Value.absent(),
@@ -73505,8 +73664,8 @@ class $$ResPartnerTableTableManager
                 Value<double> totalOverdue = const Value.absent(),
                 Value<bool> allowOverCredit = const Value.absent(),
                 Value<bool> usePartnerCreditLimit = const Value.absent(),
-                Value<int> overdueInvoicesCount = const Value.absent(),
-                Value<double> oldestOverdueDays = const Value.absent(),
+                Value<int> unpaidInvoicesCount = const Value.absent(),
+                Value<int> oldestOverdueDays = const Value.absent(),
                 Value<int?> diasMaxFacturaPosterior = const Value.absent(),
                 Value<String?> tipoCliente = const Value.absent(),
                 Value<String?> canalCliente = const Value.absent(),
@@ -73552,7 +73711,7 @@ class $$ResPartnerTableTableManager
                 parentName: parentName,
                 commercialPartnerId: commercialPartnerId,
                 commercialPartnerName: commercialPartnerName,
-                propertyProductPricelistId: propertyProductPricelistId,
+                propertyProductPricelist: propertyProductPricelist,
                 propertyProductPricelistName: propertyProductPricelistName,
                 propertyPaymentTermId: propertyPaymentTermId,
                 propertyPaymentTermName: propertyPaymentTermName,
@@ -73564,7 +73723,7 @@ class $$ResPartnerTableTableManager
                 totalOverdue: totalOverdue,
                 allowOverCredit: allowOverCredit,
                 usePartnerCreditLimit: usePartnerCreditLimit,
-                overdueInvoicesCount: overdueInvoicesCount,
+                unpaidInvoicesCount: unpaidInvoicesCount,
                 oldestOverdueDays: oldestOverdueDays,
                 diasMaxFacturaPosterior: diasMaxFacturaPosterior,
                 tipoCliente: tipoCliente,
@@ -73613,7 +73772,7 @@ class $$ResPartnerTableTableManager
                 Value<String?> parentName = const Value.absent(),
                 Value<int?> commercialPartnerId = const Value.absent(),
                 Value<String?> commercialPartnerName = const Value.absent(),
-                Value<int?> propertyProductPricelistId = const Value.absent(),
+                Value<int?> propertyProductPricelist = const Value.absent(),
                 Value<String?> propertyProductPricelistName =
                     const Value.absent(),
                 Value<int?> propertyPaymentTermId = const Value.absent(),
@@ -73626,8 +73785,8 @@ class $$ResPartnerTableTableManager
                 Value<double> totalOverdue = const Value.absent(),
                 Value<bool> allowOverCredit = const Value.absent(),
                 Value<bool> usePartnerCreditLimit = const Value.absent(),
-                Value<int> overdueInvoicesCount = const Value.absent(),
-                Value<double> oldestOverdueDays = const Value.absent(),
+                Value<int> unpaidInvoicesCount = const Value.absent(),
+                Value<int> oldestOverdueDays = const Value.absent(),
                 Value<int?> diasMaxFacturaPosterior = const Value.absent(),
                 Value<String?> tipoCliente = const Value.absent(),
                 Value<String?> canalCliente = const Value.absent(),
@@ -73673,7 +73832,7 @@ class $$ResPartnerTableTableManager
                 parentName: parentName,
                 commercialPartnerId: commercialPartnerId,
                 commercialPartnerName: commercialPartnerName,
-                propertyProductPricelistId: propertyProductPricelistId,
+                propertyProductPricelist: propertyProductPricelist,
                 propertyProductPricelistName: propertyProductPricelistName,
                 propertyPaymentTermId: propertyPaymentTermId,
                 propertyPaymentTermName: propertyPaymentTermName,
@@ -73685,7 +73844,7 @@ class $$ResPartnerTableTableManager
                 totalOverdue: totalOverdue,
                 allowOverCredit: allowOverCredit,
                 usePartnerCreditLimit: usePartnerCreditLimit,
-                overdueInvoicesCount: overdueInvoicesCount,
+                unpaidInvoicesCount: unpaidInvoicesCount,
                 oldestOverdueDays: oldestOverdueDays,
                 diasMaxFacturaPosterior: diasMaxFacturaPosterior,
                 tipoCliente: tipoCliente,
@@ -74408,7 +74567,7 @@ typedef $$ResBankTableCreateCompanionBuilder =
       required int odooId,
       required String name,
       Value<String?> bic,
-      Value<int?> countryId,
+      Value<int?> country,
       Value<String?> countryName,
       Value<bool> active,
       Value<DateTime?> writeDate,
@@ -74419,7 +74578,7 @@ typedef $$ResBankTableUpdateCompanionBuilder =
       Value<int> odooId,
       Value<String> name,
       Value<String?> bic,
-      Value<int?> countryId,
+      Value<int?> country,
       Value<String?> countryName,
       Value<bool> active,
       Value<DateTime?> writeDate,
@@ -74454,8 +74613,8 @@ class $$ResBankTableFilterComposer
     builder: (column) => ColumnFilters(column),
   );
 
-  ColumnFilters<int> get countryId => $composableBuilder(
-    column: $table.countryId,
+  ColumnFilters<int> get country => $composableBuilder(
+    column: $table.country,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -74504,8 +74663,8 @@ class $$ResBankTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
-  ColumnOrderings<int> get countryId => $composableBuilder(
-    column: $table.countryId,
+  ColumnOrderings<int> get country => $composableBuilder(
+    column: $table.country,
     builder: (column) => ColumnOrderings(column),
   );
 
@@ -74546,8 +74705,8 @@ class $$ResBankTableAnnotationComposer
   GeneratedColumn<String> get bic =>
       $composableBuilder(column: $table.bic, builder: (column) => column);
 
-  GeneratedColumn<int> get countryId =>
-      $composableBuilder(column: $table.countryId, builder: (column) => column);
+  GeneratedColumn<int> get country =>
+      $composableBuilder(column: $table.country, builder: (column) => column);
 
   GeneratedColumn<String> get countryName => $composableBuilder(
     column: $table.countryName,
@@ -74596,7 +74755,7 @@ class $$ResBankTableTableManager
                 Value<int> odooId = const Value.absent(),
                 Value<String> name = const Value.absent(),
                 Value<String?> bic = const Value.absent(),
-                Value<int?> countryId = const Value.absent(),
+                Value<int?> country = const Value.absent(),
                 Value<String?> countryName = const Value.absent(),
                 Value<bool> active = const Value.absent(),
                 Value<DateTime?> writeDate = const Value.absent(),
@@ -74605,7 +74764,7 @@ class $$ResBankTableTableManager
                 odooId: odooId,
                 name: name,
                 bic: bic,
-                countryId: countryId,
+                country: country,
                 countryName: countryName,
                 active: active,
                 writeDate: writeDate,
@@ -74616,7 +74775,7 @@ class $$ResBankTableTableManager
                 required int odooId,
                 required String name,
                 Value<String?> bic = const Value.absent(),
-                Value<int?> countryId = const Value.absent(),
+                Value<int?> country = const Value.absent(),
                 Value<String?> countryName = const Value.absent(),
                 Value<bool> active = const Value.absent(),
                 Value<DateTime?> writeDate = const Value.absent(),
@@ -74625,7 +74784,7 @@ class $$ResBankTableTableManager
                 odooId: odooId,
                 name: name,
                 bic: bic,
-                countryId: countryId,
+                country: country,
                 countryName: countryName,
                 active: active,
                 writeDate: writeDate,
@@ -75105,9 +75264,9 @@ typedef $$ResCompanyTableTableCreateCompanionBuilder =
       Value<int?> reservationLocationId,
       Value<String?> reservationLocationName,
       Value<bool> reserveFromQuotation,
-      Value<int?> defaultPartnerId,
+      Value<int?> partnerId,
       Value<String?> defaultPartnerName,
-      Value<int?> defaultWarehouseId,
+      Value<int?> warehouseId,
       Value<String?> defaultWarehouseName,
       Value<int?> defaultPricelistId,
       Value<String?> defaultPricelistName,
@@ -75170,9 +75329,9 @@ typedef $$ResCompanyTableTableUpdateCompanionBuilder =
       Value<int?> reservationLocationId,
       Value<String?> reservationLocationName,
       Value<bool> reserveFromQuotation,
-      Value<int?> defaultPartnerId,
+      Value<int?> partnerId,
       Value<String?> defaultPartnerName,
-      Value<int?> defaultWarehouseId,
+      Value<int?> warehouseId,
       Value<String?> defaultWarehouseName,
       Value<int?> defaultPricelistId,
       Value<String?> defaultPricelistName,
@@ -75455,8 +75614,8 @@ class $$ResCompanyTableTableFilterComposer
     builder: (column) => ColumnFilters(column),
   );
 
-  ColumnFilters<int> get defaultPartnerId => $composableBuilder(
-    column: $table.defaultPartnerId,
+  ColumnFilters<int> get partnerId => $composableBuilder(
+    column: $table.partnerId,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -75465,8 +75624,8 @@ class $$ResCompanyTableTableFilterComposer
     builder: (column) => ColumnFilters(column),
   );
 
-  ColumnFilters<int> get defaultWarehouseId => $composableBuilder(
-    column: $table.defaultWarehouseId,
+  ColumnFilters<int> get warehouseId => $composableBuilder(
+    column: $table.warehouseId,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -75776,8 +75935,8 @@ class $$ResCompanyTableTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
-  ColumnOrderings<int> get defaultPartnerId => $composableBuilder(
-    column: $table.defaultPartnerId,
+  ColumnOrderings<int> get partnerId => $composableBuilder(
+    column: $table.partnerId,
     builder: (column) => ColumnOrderings(column),
   );
 
@@ -75786,8 +75945,8 @@ class $$ResCompanyTableTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
-  ColumnOrderings<int> get defaultWarehouseId => $composableBuilder(
-    column: $table.defaultWarehouseId,
+  ColumnOrderings<int> get warehouseId => $composableBuilder(
+    column: $table.warehouseId,
     builder: (column) => ColumnOrderings(column),
   );
 
@@ -76061,18 +76220,16 @@ class $$ResCompanyTableTableAnnotationComposer
     builder: (column) => column,
   );
 
-  GeneratedColumn<int> get defaultPartnerId => $composableBuilder(
-    column: $table.defaultPartnerId,
-    builder: (column) => column,
-  );
+  GeneratedColumn<int> get partnerId =>
+      $composableBuilder(column: $table.partnerId, builder: (column) => column);
 
   GeneratedColumn<String> get defaultPartnerName => $composableBuilder(
     column: $table.defaultPartnerName,
     builder: (column) => column,
   );
 
-  GeneratedColumn<int> get defaultWarehouseId => $composableBuilder(
-    column: $table.defaultWarehouseId,
+  GeneratedColumn<int> get warehouseId => $composableBuilder(
+    column: $table.warehouseId,
     builder: (column) => column,
   );
 
@@ -76198,9 +76355,9 @@ class $$ResCompanyTableTableTableManager
                 Value<int?> reservationLocationId = const Value.absent(),
                 Value<String?> reservationLocationName = const Value.absent(),
                 Value<bool> reserveFromQuotation = const Value.absent(),
-                Value<int?> defaultPartnerId = const Value.absent(),
+                Value<int?> partnerId = const Value.absent(),
                 Value<String?> defaultPartnerName = const Value.absent(),
-                Value<int?> defaultWarehouseId = const Value.absent(),
+                Value<int?> warehouseId = const Value.absent(),
                 Value<String?> defaultWarehouseName = const Value.absent(),
                 Value<int?> defaultPricelistId = const Value.absent(),
                 Value<String?> defaultPricelistName = const Value.absent(),
@@ -76261,9 +76418,9 @@ class $$ResCompanyTableTableTableManager
                 reservationLocationId: reservationLocationId,
                 reservationLocationName: reservationLocationName,
                 reserveFromQuotation: reserveFromQuotation,
-                defaultPartnerId: defaultPartnerId,
+                partnerId: partnerId,
                 defaultPartnerName: defaultPartnerName,
-                defaultWarehouseId: defaultWarehouseId,
+                warehouseId: warehouseId,
                 defaultWarehouseName: defaultWarehouseName,
                 defaultPricelistId: defaultPricelistId,
                 defaultPricelistName: defaultPricelistName,
@@ -76329,9 +76486,9 @@ class $$ResCompanyTableTableTableManager
                 Value<int?> reservationLocationId = const Value.absent(),
                 Value<String?> reservationLocationName = const Value.absent(),
                 Value<bool> reserveFromQuotation = const Value.absent(),
-                Value<int?> defaultPartnerId = const Value.absent(),
+                Value<int?> partnerId = const Value.absent(),
                 Value<String?> defaultPartnerName = const Value.absent(),
-                Value<int?> defaultWarehouseId = const Value.absent(),
+                Value<int?> warehouseId = const Value.absent(),
                 Value<String?> defaultWarehouseName = const Value.absent(),
                 Value<int?> defaultPricelistId = const Value.absent(),
                 Value<String?> defaultPricelistName = const Value.absent(),
@@ -76392,9 +76549,9 @@ class $$ResCompanyTableTableTableManager
                 reservationLocationId: reservationLocationId,
                 reservationLocationName: reservationLocationName,
                 reserveFromQuotation: reserveFromQuotation,
-                defaultPartnerId: defaultPartnerId,
+                partnerId: partnerId,
                 defaultPartnerName: defaultPartnerName,
-                defaultWarehouseId: defaultWarehouseId,
+                warehouseId: warehouseId,
                 defaultWarehouseName: defaultWarehouseName,
                 defaultPricelistId: defaultPricelistId,
                 defaultPricelistName: defaultPricelistName,
@@ -78837,7 +78994,7 @@ typedef $$CollectionConfigTableCreateCompanionBuilder =
       Value<int> numberOfOpenedSession,
       Value<DateTime?> lastSessionClosingDate,
       Value<double> lastSessionClosingCash,
-      Value<String?> currentSessionUserName,
+      Value<String?> collectionSessionUsername,
       Value<String?> currentSessionStateDisplay,
       Value<int> numberOfRescueSession,
       Value<String> state,
@@ -78869,7 +79026,7 @@ typedef $$CollectionConfigTableUpdateCompanionBuilder =
       Value<int> numberOfOpenedSession,
       Value<DateTime?> lastSessionClosingDate,
       Value<double> lastSessionClosingCash,
-      Value<String?> currentSessionUserName,
+      Value<String?> collectionSessionUsername,
       Value<String?> currentSessionStateDisplay,
       Value<int> numberOfRescueSession,
       Value<String> state,
@@ -79001,8 +79158,8 @@ class $$CollectionConfigTableFilterComposer
     builder: (column) => ColumnFilters(column),
   );
 
-  ColumnFilters<String> get currentSessionUserName => $composableBuilder(
-    column: $table.currentSessionUserName,
+  ColumnFilters<String> get collectionSessionUsername => $composableBuilder(
+    column: $table.collectionSessionUsername,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -79156,8 +79313,8 @@ class $$CollectionConfigTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
-  ColumnOrderings<String> get currentSessionUserName => $composableBuilder(
-    column: $table.currentSessionUserName,
+  ColumnOrderings<String> get collectionSessionUsername => $composableBuilder(
+    column: $table.collectionSessionUsername,
     builder: (column) => ColumnOrderings(column),
   );
 
@@ -79297,8 +79454,8 @@ class $$CollectionConfigTableAnnotationComposer
     builder: (column) => column,
   );
 
-  GeneratedColumn<String> get currentSessionUserName => $composableBuilder(
-    column: $table.currentSessionUserName,
+  GeneratedColumn<String> get collectionSessionUsername => $composableBuilder(
+    column: $table.collectionSessionUsername,
     builder: (column) => column,
   );
 
@@ -79382,7 +79539,7 @@ class $$CollectionConfigTableTableManager
                 Value<int> numberOfOpenedSession = const Value.absent(),
                 Value<DateTime?> lastSessionClosingDate = const Value.absent(),
                 Value<double> lastSessionClosingCash = const Value.absent(),
-                Value<String?> currentSessionUserName = const Value.absent(),
+                Value<String?> collectionSessionUsername = const Value.absent(),
                 Value<String?> currentSessionStateDisplay =
                     const Value.absent(),
                 Value<int> numberOfRescueSession = const Value.absent(),
@@ -79413,7 +79570,7 @@ class $$CollectionConfigTableTableManager
                 numberOfOpenedSession: numberOfOpenedSession,
                 lastSessionClosingDate: lastSessionClosingDate,
                 lastSessionClosingCash: lastSessionClosingCash,
-                currentSessionUserName: currentSessionUserName,
+                collectionSessionUsername: collectionSessionUsername,
                 currentSessionStateDisplay: currentSessionStateDisplay,
                 numberOfRescueSession: numberOfRescueSession,
                 state: state,
@@ -79445,7 +79602,7 @@ class $$CollectionConfigTableTableManager
                 Value<int> numberOfOpenedSession = const Value.absent(),
                 Value<DateTime?> lastSessionClosingDate = const Value.absent(),
                 Value<double> lastSessionClosingCash = const Value.absent(),
-                Value<String?> currentSessionUserName = const Value.absent(),
+                Value<String?> collectionSessionUsername = const Value.absent(),
                 Value<String?> currentSessionStateDisplay =
                     const Value.absent(),
                 Value<int> numberOfRescueSession = const Value.absent(),
@@ -79476,7 +79633,7 @@ class $$CollectionConfigTableTableManager
                 numberOfOpenedSession: numberOfOpenedSession,
                 lastSessionClosingDate: lastSessionClosingDate,
                 lastSessionClosingCash: lastSessionClosingCash,
-                currentSessionUserName: currentSessionUserName,
+                collectionSessionUsername: collectionSessionUsername,
                 currentSessionStateDisplay: currentSessionStateDisplay,
                 numberOfRescueSession: numberOfRescueSession,
                 state: state,
@@ -85398,13 +85555,13 @@ typedef $$SaleOrderTableCreateCompanionBuilder =
       Value<String?> clientOrderRef,
       Value<int?> fiscalPositionId,
       Value<String?> fiscalPositionName,
-      Value<bool?> requireSignature,
-      Value<bool?> requirePayment,
+      Value<bool> requireSignature,
+      Value<bool> requirePayment,
       Value<String?> signedBy,
       Value<DateTime?> signedOn,
       Value<String?> commitmentDate,
       Value<DateTime?> expectedDate,
-      Value<bool?> isExpired,
+      Value<bool> isExpired,
       Value<String?> showUpdatePricelist,
       Value<int?> analyticAccountId,
       Value<String?> analyticAccountName,
@@ -85442,7 +85599,7 @@ typedef $$SaleOrderTableCreateCompanionBuilder =
       Value<double> prepaymentPercent,
       Value<bool> locked,
       Value<double> totalDiscountAmount,
-      Value<double> amountUntaxedUndiscounted,
+      Value<double> totalAmountUndiscounted,
       Value<bool> isFinalConsumer,
       Value<String?> endCustomerName,
       Value<String?> endCustomerPhone,
@@ -85528,13 +85685,13 @@ typedef $$SaleOrderTableUpdateCompanionBuilder =
       Value<String?> clientOrderRef,
       Value<int?> fiscalPositionId,
       Value<String?> fiscalPositionName,
-      Value<bool?> requireSignature,
-      Value<bool?> requirePayment,
+      Value<bool> requireSignature,
+      Value<bool> requirePayment,
       Value<String?> signedBy,
       Value<DateTime?> signedOn,
       Value<String?> commitmentDate,
       Value<DateTime?> expectedDate,
-      Value<bool?> isExpired,
+      Value<bool> isExpired,
       Value<String?> showUpdatePricelist,
       Value<int?> analyticAccountId,
       Value<String?> analyticAccountName,
@@ -85572,7 +85729,7 @@ typedef $$SaleOrderTableUpdateCompanionBuilder =
       Value<double> prepaymentPercent,
       Value<bool> locked,
       Value<double> totalDiscountAmount,
-      Value<double> amountUntaxedUndiscounted,
+      Value<double> totalAmountUndiscounted,
       Value<bool> isFinalConsumer,
       Value<String?> endCustomerName,
       Value<String?> endCustomerPhone,
@@ -86046,8 +86203,8 @@ class $$SaleOrderTableFilterComposer
     builder: (column) => ColumnFilters(column),
   );
 
-  ColumnFilters<double> get amountUntaxedUndiscounted => $composableBuilder(
-    column: $table.amountUntaxedUndiscounted,
+  ColumnFilters<double> get totalAmountUndiscounted => $composableBuilder(
+    column: $table.totalAmountUndiscounted,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -86691,8 +86848,8 @@ class $$SaleOrderTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
-  ColumnOrderings<double> get amountUntaxedUndiscounted => $composableBuilder(
-    column: $table.amountUntaxedUndiscounted,
+  ColumnOrderings<double> get totalAmountUndiscounted => $composableBuilder(
+    column: $table.totalAmountUndiscounted,
     builder: (column) => ColumnOrderings(column),
   );
 
@@ -87290,8 +87447,8 @@ class $$SaleOrderTableAnnotationComposer
     builder: (column) => column,
   );
 
-  GeneratedColumn<double> get amountUntaxedUndiscounted => $composableBuilder(
-    column: $table.amountUntaxedUndiscounted,
+  GeneratedColumn<double> get totalAmountUndiscounted => $composableBuilder(
+    column: $table.totalAmountUndiscounted,
     builder: (column) => column,
   );
 
@@ -87561,13 +87718,13 @@ class $$SaleOrderTableTableManager
                 Value<String?> clientOrderRef = const Value.absent(),
                 Value<int?> fiscalPositionId = const Value.absent(),
                 Value<String?> fiscalPositionName = const Value.absent(),
-                Value<bool?> requireSignature = const Value.absent(),
-                Value<bool?> requirePayment = const Value.absent(),
+                Value<bool> requireSignature = const Value.absent(),
+                Value<bool> requirePayment = const Value.absent(),
                 Value<String?> signedBy = const Value.absent(),
                 Value<DateTime?> signedOn = const Value.absent(),
                 Value<String?> commitmentDate = const Value.absent(),
                 Value<DateTime?> expectedDate = const Value.absent(),
-                Value<bool?> isExpired = const Value.absent(),
+                Value<bool> isExpired = const Value.absent(),
                 Value<String?> showUpdatePricelist = const Value.absent(),
                 Value<int?> analyticAccountId = const Value.absent(),
                 Value<String?> analyticAccountName = const Value.absent(),
@@ -87605,7 +87762,7 @@ class $$SaleOrderTableTableManager
                 Value<double> prepaymentPercent = const Value.absent(),
                 Value<bool> locked = const Value.absent(),
                 Value<double> totalDiscountAmount = const Value.absent(),
-                Value<double> amountUntaxedUndiscounted = const Value.absent(),
+                Value<double> totalAmountUndiscounted = const Value.absent(),
                 Value<bool> isFinalConsumer = const Value.absent(),
                 Value<String?> endCustomerName = const Value.absent(),
                 Value<String?> endCustomerPhone = const Value.absent(),
@@ -87733,7 +87890,7 @@ class $$SaleOrderTableTableManager
                 prepaymentPercent: prepaymentPercent,
                 locked: locked,
                 totalDiscountAmount: totalDiscountAmount,
-                amountUntaxedUndiscounted: amountUntaxedUndiscounted,
+                totalAmountUndiscounted: totalAmountUndiscounted,
                 isFinalConsumer: isFinalConsumer,
                 endCustomerName: endCustomerName,
                 endCustomerPhone: endCustomerPhone,
@@ -87819,13 +87976,13 @@ class $$SaleOrderTableTableManager
                 Value<String?> clientOrderRef = const Value.absent(),
                 Value<int?> fiscalPositionId = const Value.absent(),
                 Value<String?> fiscalPositionName = const Value.absent(),
-                Value<bool?> requireSignature = const Value.absent(),
-                Value<bool?> requirePayment = const Value.absent(),
+                Value<bool> requireSignature = const Value.absent(),
+                Value<bool> requirePayment = const Value.absent(),
                 Value<String?> signedBy = const Value.absent(),
                 Value<DateTime?> signedOn = const Value.absent(),
                 Value<String?> commitmentDate = const Value.absent(),
                 Value<DateTime?> expectedDate = const Value.absent(),
-                Value<bool?> isExpired = const Value.absent(),
+                Value<bool> isExpired = const Value.absent(),
                 Value<String?> showUpdatePricelist = const Value.absent(),
                 Value<int?> analyticAccountId = const Value.absent(),
                 Value<String?> analyticAccountName = const Value.absent(),
@@ -87863,7 +88020,7 @@ class $$SaleOrderTableTableManager
                 Value<double> prepaymentPercent = const Value.absent(),
                 Value<bool> locked = const Value.absent(),
                 Value<double> totalDiscountAmount = const Value.absent(),
-                Value<double> amountUntaxedUndiscounted = const Value.absent(),
+                Value<double> totalAmountUndiscounted = const Value.absent(),
                 Value<bool> isFinalConsumer = const Value.absent(),
                 Value<String?> endCustomerName = const Value.absent(),
                 Value<String?> endCustomerPhone = const Value.absent(),
@@ -87991,7 +88148,7 @@ class $$SaleOrderTableTableManager
                 prepaymentPercent: prepaymentPercent,
                 locked: locked,
                 totalDiscountAmount: totalDiscountAmount,
-                amountUntaxedUndiscounted: amountUntaxedUndiscounted,
+                totalAmountUndiscounted: totalAmountUndiscounted,
                 isFinalConsumer: isFinalConsumer,
                 endCustomerName: endCustomerName,
                 endCustomerPhone: endCustomerPhone,
@@ -88071,7 +88228,7 @@ typedef $$SaleOrderLineTableCreateCompanionBuilder =
       Value<bool> isDownpayment,
       Value<int?> productId,
       Value<String?> productName,
-      Value<String?> productCode,
+      Value<String?> productDefaultCode,
       Value<int?> productTemplateId,
       Value<String?> productTemplateName,
       Value<String?> productType,
@@ -88125,7 +88282,7 @@ typedef $$SaleOrderLineTableUpdateCompanionBuilder =
       Value<bool> isDownpayment,
       Value<int?> productId,
       Value<String?> productName,
-      Value<String?> productCode,
+      Value<String?> productDefaultCode,
       Value<int?> productTemplateId,
       Value<String?> productTemplateName,
       Value<String?> productType,
@@ -88223,8 +88380,8 @@ class $$SaleOrderLineTableFilterComposer
     builder: (column) => ColumnFilters(column),
   );
 
-  ColumnFilters<String> get productCode => $composableBuilder(
-    column: $table.productCode,
+  ColumnFilters<String> get productDefaultCode => $composableBuilder(
+    column: $table.productDefaultCode,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -88488,8 +88645,8 @@ class $$SaleOrderLineTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
-  ColumnOrderings<String> get productCode => $composableBuilder(
-    column: $table.productCode,
+  ColumnOrderings<String> get productDefaultCode => $composableBuilder(
+    column: $table.productDefaultCode,
     builder: (column) => ColumnOrderings(column),
   );
 
@@ -88741,8 +88898,8 @@ class $$SaleOrderLineTableAnnotationComposer
     builder: (column) => column,
   );
 
-  GeneratedColumn<String> get productCode => $composableBuilder(
-    column: $table.productCode,
+  GeneratedColumn<String> get productDefaultCode => $composableBuilder(
+    column: $table.productDefaultCode,
     builder: (column) => column,
   );
 
@@ -88970,7 +89127,7 @@ class $$SaleOrderLineTableTableManager
                 Value<bool> isDownpayment = const Value.absent(),
                 Value<int?> productId = const Value.absent(),
                 Value<String?> productName = const Value.absent(),
-                Value<String?> productCode = const Value.absent(),
+                Value<String?> productDefaultCode = const Value.absent(),
                 Value<int?> productTemplateId = const Value.absent(),
                 Value<String?> productTemplateName = const Value.absent(),
                 Value<String?> productType = const Value.absent(),
@@ -89022,7 +89179,7 @@ class $$SaleOrderLineTableTableManager
                 isDownpayment: isDownpayment,
                 productId: productId,
                 productName: productName,
-                productCode: productCode,
+                productDefaultCode: productDefaultCode,
                 productTemplateId: productTemplateId,
                 productTemplateName: productTemplateName,
                 productType: productType,
@@ -89076,7 +89233,7 @@ class $$SaleOrderLineTableTableManager
                 Value<bool> isDownpayment = const Value.absent(),
                 Value<int?> productId = const Value.absent(),
                 Value<String?> productName = const Value.absent(),
-                Value<String?> productCode = const Value.absent(),
+                Value<String?> productDefaultCode = const Value.absent(),
                 Value<int?> productTemplateId = const Value.absent(),
                 Value<String?> productTemplateName = const Value.absent(),
                 Value<String?> productType = const Value.absent(),
@@ -89128,7 +89285,7 @@ class $$SaleOrderLineTableTableManager
                 isDownpayment: isDownpayment,
                 productId: productId,
                 productName: productName,
-                productCode: productCode,
+                productDefaultCode: productDefaultCode,
                 productTemplateId: productTemplateId,
                 productTemplateName: productTemplateName,
                 productType: productType,
@@ -91886,6 +92043,9 @@ typedef $$AccountTaxTableCreateCompanionBuilder =
       Value<int> sequence,
       Value<int?> companyId,
       Value<String?> companyName,
+      Value<int?> taxGroupId,
+      Value<String?> taxGroupIdName,
+      Value<String?> taxGroupL10nEcType,
       Value<DateTime?> writeDate,
     });
 typedef $$AccountTaxTableUpdateCompanionBuilder =
@@ -91903,6 +92063,9 @@ typedef $$AccountTaxTableUpdateCompanionBuilder =
       Value<int> sequence,
       Value<int?> companyId,
       Value<String?> companyName,
+      Value<int?> taxGroupId,
+      Value<String?> taxGroupIdName,
+      Value<String?> taxGroupL10nEcType,
       Value<DateTime?> writeDate,
     });
 
@@ -91977,6 +92140,21 @@ class $$AccountTaxTableFilterComposer
 
   ColumnFilters<String> get companyName => $composableBuilder(
     column: $table.companyName,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get taxGroupId => $composableBuilder(
+    column: $table.taxGroupId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get taxGroupIdName => $composableBuilder(
+    column: $table.taxGroupIdName,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get taxGroupL10nEcType => $composableBuilder(
+    column: $table.taxGroupL10nEcType,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -92060,6 +92238,21 @@ class $$AccountTaxTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<int> get taxGroupId => $composableBuilder(
+    column: $table.taxGroupId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get taxGroupIdName => $composableBuilder(
+    column: $table.taxGroupIdName,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get taxGroupL10nEcType => $composableBuilder(
+    column: $table.taxGroupL10nEcType,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<DateTime> get writeDate => $composableBuilder(
     column: $table.writeDate,
     builder: (column) => ColumnOrderings(column),
@@ -92126,6 +92319,21 @@ class $$AccountTaxTableAnnotationComposer
     builder: (column) => column,
   );
 
+  GeneratedColumn<int> get taxGroupId => $composableBuilder(
+    column: $table.taxGroupId,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get taxGroupIdName => $composableBuilder(
+    column: $table.taxGroupIdName,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get taxGroupL10nEcType => $composableBuilder(
+    column: $table.taxGroupL10nEcType,
+    builder: (column) => column,
+  );
+
   GeneratedColumn<DateTime> get writeDate =>
       $composableBuilder(column: $table.writeDate, builder: (column) => column);
 }
@@ -92174,6 +92382,9 @@ class $$AccountTaxTableTableManager
                 Value<int> sequence = const Value.absent(),
                 Value<int?> companyId = const Value.absent(),
                 Value<String?> companyName = const Value.absent(),
+                Value<int?> taxGroupId = const Value.absent(),
+                Value<String?> taxGroupIdName = const Value.absent(),
+                Value<String?> taxGroupL10nEcType = const Value.absent(),
                 Value<DateTime?> writeDate = const Value.absent(),
               }) => AccountTaxCompanion(
                 id: id,
@@ -92189,6 +92400,9 @@ class $$AccountTaxTableTableManager
                 sequence: sequence,
                 companyId: companyId,
                 companyName: companyName,
+                taxGroupId: taxGroupId,
+                taxGroupIdName: taxGroupIdName,
+                taxGroupL10nEcType: taxGroupL10nEcType,
                 writeDate: writeDate,
               ),
           createCompanionCallback:
@@ -92206,6 +92420,9 @@ class $$AccountTaxTableTableManager
                 Value<int> sequence = const Value.absent(),
                 Value<int?> companyId = const Value.absent(),
                 Value<String?> companyName = const Value.absent(),
+                Value<int?> taxGroupId = const Value.absent(),
+                Value<String?> taxGroupIdName = const Value.absent(),
+                Value<String?> taxGroupL10nEcType = const Value.absent(),
                 Value<DateTime?> writeDate = const Value.absent(),
               }) => AccountTaxCompanion.insert(
                 id: id,
@@ -92221,6 +92438,9 @@ class $$AccountTaxTableTableManager
                 sequence: sequence,
                 companyId: companyId,
                 companyName: companyName,
+                taxGroupId: taxGroupId,
+                taxGroupIdName: taxGroupIdName,
+                taxGroupL10nEcType: taxGroupL10nEcType,
                 writeDate: writeDate,
               ),
           withReferenceMapper: (p0) => p0
@@ -92253,9 +92473,9 @@ typedef $$UomUomTableCreateCompanionBuilder =
       Value<int> id,
       required int odooId,
       required String name,
-      required int categoryId,
+      Value<int?> categoryId,
       Value<String?> categoryName,
-      required String uomType,
+      Value<String?> uomType,
       Value<double> factor,
       Value<double> factorInv,
       Value<double> rounding,
@@ -92268,9 +92488,9 @@ typedef $$UomUomTableUpdateCompanionBuilder =
       Value<int> id,
       Value<int> odooId,
       Value<String> name,
-      Value<int> categoryId,
+      Value<int?> categoryId,
       Value<String?> categoryName,
-      Value<String> uomType,
+      Value<String?> uomType,
       Value<double> factor,
       Value<double> factorInv,
       Value<double> rounding,
@@ -92500,9 +92720,9 @@ class $$UomUomTableTableManager
                 Value<int> id = const Value.absent(),
                 Value<int> odooId = const Value.absent(),
                 Value<String> name = const Value.absent(),
-                Value<int> categoryId = const Value.absent(),
+                Value<int?> categoryId = const Value.absent(),
                 Value<String?> categoryName = const Value.absent(),
-                Value<String> uomType = const Value.absent(),
+                Value<String?> uomType = const Value.absent(),
                 Value<double> factor = const Value.absent(),
                 Value<double> factorInv = const Value.absent(),
                 Value<double> rounding = const Value.absent(),
@@ -92528,9 +92748,9 @@ class $$UomUomTableTableManager
                 Value<int> id = const Value.absent(),
                 required int odooId,
                 required String name,
-                required int categoryId,
+                Value<int?> categoryId = const Value.absent(),
                 Value<String?> categoryName = const Value.absent(),
-                required String uomType,
+                Value<String?> uomType = const Value.absent(),
                 Value<double> factor = const Value.absent(),
                 Value<double> factorInv = const Value.absent(),
                 Value<double> rounding = const Value.absent(),

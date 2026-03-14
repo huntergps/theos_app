@@ -547,6 +547,7 @@ class RelatedRecordResolver {
         'include_base_amount',
         'sequence',
         'company_id',
+        'tax_group_id',
         'write_date',
       ],
     );
@@ -564,7 +565,7 @@ class RelatedRecordResolver {
       domain: [
         ['id', 'in', ids],
       ],
-      fields: ['id', 'name', 'factor', 'rounding', 'active', 'write_date'],
+      fields: ['id', 'name', 'factor', 'active', 'write_date'],
     );
 
     for (final u in data) {
@@ -805,7 +806,7 @@ class RelatedRecordResolver {
       parentId: Value(_extractId(p['parent_id'])),
       parentName: Value(_extractName(p['parent_id'])),
       commercialPartnerName: Value(commercialPartnerName),
-      propertyProductPricelistId: Value(
+      propertyProductPricelist: Value(
         _extractId(p['property_product_pricelist']),
       ),
       propertyProductPricelistName: Value(
@@ -849,6 +850,9 @@ class RelatedRecordResolver {
       sequence: Value(t['sequence'] as int? ?? 1),
       companyId: Value(_extractId(t['company_id'])),
       companyName: Value(_extractName(t['company_id'])),
+      taxGroupId: Value(_extractId(t['tax_group_id'])),
+      taxGroupIdName: Value(_extractName(t['tax_group_id'])),
+      taxGroupL10nEcType: Value(t['tax_group_l10n_ec_type'] is String ? t['tax_group_l10n_ec_type'] : null),
       writeDate: Value(_parseDateTime(t['write_date'])),
     );
 
@@ -871,8 +875,10 @@ class RelatedRecordResolver {
     final companion = UomUomCompanion(
       odooId: Value(odooId),
       name: Value(u['name'] as String? ?? ''),
+      categoryId: Value(1), // Default category (not available in Odoo 19.2)
+      uomType: Value('reference'), // Default type (not available in Odoo 19.2)
       factor: Value((u['factor'] as num?)?.toDouble() ?? 1.0),
-      rounding: Value((u['rounding'] as num?)?.toDouble() ?? 0.01),
+      rounding: Value(0.01), // Default rounding (not available in Odoo 19.2)
       active: Value(u['active'] as bool? ?? true),
       writeDate: Value(_parseDateTime(u['write_date'])),
     );

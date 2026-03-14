@@ -168,151 +168,28 @@ class AppDatabase extends _$AppDatabase {
   }
 
   @override
-  int get schemaVersion => 53;
+  int get schemaVersion => 2;
 
   @override
   MigrationStrategy get migration {
     return MigrationStrategy(
       onCreate: (Migrator m) async {
-        print('[Database] 🆕 onCreate: Creando todas las tablas (schema v$schemaVersion)...');
-        logger.i('[Database]', '🆕 onCreate: Creando todas las tablas (schema v$schemaVersion)...');
+        logger.i('[Database]', 'Creating all tables (schema v$schemaVersion)...');
         await m.createAll();
-        print('[Database] ✅ Todas las tablas creadas correctamente');
-        logger.i('[Database]', '✅ Todas las tablas creadas correctamente');
+        logger.i('[Database]', 'All tables created successfully');
       },
       onUpgrade: (Migrator m, int from, int to) async {
-        print('[Database] ⬆️ onUpgrade: Migrando de v$from a v$to...');
-        logger.i('[Database]', '⬆️ onUpgrade: Migrando de v$from a v$to...');
-        print('[Database] Total de migraciones a ejecutar: ${to - from}');
-        logger.d('[Database] Total de migraciones a ejecutar: ${to - from}');
-
-        // Migration v48 -> v49: Add HR fields to res_users
-        if (from < 49) {
-          logger.d('[Database] 📦 Adding HR fields to res_users (v49)...');
-          await customStatement('ALTER TABLE res_users ADD COLUMN out_of_office_from INTEGER;');
-          await customStatement('ALTER TABLE res_users ADD COLUMN out_of_office_to INTEGER;');
-          await customStatement('ALTER TABLE res_users ADD COLUMN out_of_office_message TEXT;');
-          await customStatement('ALTER TABLE res_users ADD COLUMN calendar_default_privacy TEXT;');
-          await customStatement('ALTER TABLE res_users ADD COLUMN work_location_id INTEGER;');
-          await customStatement('ALTER TABLE res_users ADD COLUMN work_location_name TEXT;');
-          await customStatement('ALTER TABLE res_users ADD COLUMN resource_calendar_id INTEGER;');
-          await customStatement('ALTER TABLE res_users ADD COLUMN resource_calendar_name TEXT;');
-          await customStatement('ALTER TABLE res_users ADD COLUMN pin TEXT;');
-          await customStatement('ALTER TABLE res_users ADD COLUMN private_street TEXT;');
-          await customStatement('ALTER TABLE res_users ADD COLUMN private_street2 TEXT;');
-          await customStatement('ALTER TABLE res_users ADD COLUMN private_city TEXT;');
-          await customStatement('ALTER TABLE res_users ADD COLUMN private_zip TEXT;');
-          await customStatement('ALTER TABLE res_users ADD COLUMN private_state_id INTEGER;');
-          await customStatement('ALTER TABLE res_users ADD COLUMN private_state_name TEXT;');
-          await customStatement('ALTER TABLE res_users ADD COLUMN private_country_id INTEGER;');
-          await customStatement('ALTER TABLE res_users ADD COLUMN private_country_name TEXT;');
-          await customStatement('ALTER TABLE res_users ADD COLUMN private_email TEXT;');
-          await customStatement('ALTER TABLE res_users ADD COLUMN private_phone TEXT;');
-          await customStatement('ALTER TABLE res_users ADD COLUMN emergency_contact TEXT;');
-          await customStatement('ALTER TABLE res_users ADD COLUMN emergency_phone TEXT;');
-          logger.d('[Database] ✅ HR fields added to res_users');
+        // Alpha: no users with existing data — drop and recreate
+        logger.i('[Database]', 'Upgrading v$from → v$to: recreating all tables...');
+        final tables = allTables.toList().reversed;
+        for (final table in tables) {
+          await m.deleteTable(table.actualTableName);
         }
-
-        // Migration v49 -> v50: Add sales default columns to res_company_table
-        if (from < 50) {
-          logger.d('[Database] 📦 Adding sales default columns to res_company_table (v50)...');
-          await customStatement('ALTER TABLE res_company_table ADD COLUMN default_partner_id INTEGER;');
-          await customStatement('ALTER TABLE res_company_table ADD COLUMN default_partner_name TEXT;');
-          await customStatement('ALTER TABLE res_company_table ADD COLUMN default_warehouse_id INTEGER;');
-          await customStatement('ALTER TABLE res_company_table ADD COLUMN default_warehouse_name TEXT;');
-          await customStatement('ALTER TABLE res_company_table ADD COLUMN default_pricelist_id INTEGER;');
-          await customStatement('ALTER TABLE res_company_table ADD COLUMN default_pricelist_name TEXT;');
-          await customStatement('ALTER TABLE res_company_table ADD COLUMN default_payment_term_id INTEGER;');
-          await customStatement('ALTER TABLE res_company_table ADD COLUMN default_payment_term_name TEXT;');
-          logger.d('[Database] ✅ Sales default columns added to res_company_table');
-        }
-
-        // Migration v50 -> v51: Add unique index on stock_by_warehouse (product_id, warehouse_id)
-        if (from < 51) {
-          logger.i('[Database]', '📦 v51: Adding unique index on stock_by_warehouse...');
-
-          // Count rows before deletion
-          logger.d('[Database] Contando filas en stock_by_warehouse...');
-          final countResult = await customSelect('SELECT COUNT(*) as total FROM stock_by_warehouse').get();
-          final totalRows = countResult.first.data['total'] as int;
-          logger.d('[Database] Total de filas en stock_by_warehouse: $totalRows');
-
-          // First delete duplicates if any exist (keep the latest one)
-          logger.d('[Database] Eliminando duplicados (puede tardar si hay muchos)...');
-          await customStatement('''
-            DELETE FROM stock_by_warehouse
-            WHERE id NOT IN (
-              SELECT MAX(id)
-              FROM stock_by_warehouse
-              GROUP BY product_id, warehouse_id
-            )
-          ''');
-          logger.d('[Database] ✅ Duplicados eliminados');
-
-          // Count rows after deletion
-          final afterCountResult = await customSelect('SELECT COUNT(*) as total FROM stock_by_warehouse').get();
-          final rowsAfter = afterCountResult.first.data['total'] as int;
-          logger.d('[Database] Filas después de eliminar duplicados: $rowsAfter (eliminados: ${totalRows - rowsAfter})');
-
-          // Create unique index
-          logger.d('[Database] Creando índice único (puede tardar si hay muchas filas)...');
-          await customStatement('''
-            CREATE UNIQUE INDEX IF NOT EXISTS idx_stock_by_warehouse_unique
-            ON stock_by_warehouse(product_id, warehouse_id)
-          ''');
-          logger.i('[Database]', '✅ v51: Índice único creado en stock_by_warehouse');
-        }
-
-        // Migration v51 -> v52: Unify sync tables with odoo_offline_core
-        if (from < 52) {
-          logger.i('[Database]', '📦 v52: Unifying sync tables with odoo_offline_core...');
-
-          // 1. OfflineQueue: Add missing columns from core
-          await customStatement(
-              "ALTER TABLE offline_queue ADD COLUMN status TEXT DEFAULT 'pending'");
-          await customStatement(
-              'ALTER TABLE offline_queue ADD COLUMN max_retries INTEGER DEFAULT 3');
-          await customStatement(
-              'ALTER TABLE offline_queue ADD COLUMN requires_network INTEGER DEFAULT 1');
-
-          // 2. SyncAuditLog: Fill nulls in columns that core expects NOT NULL
-          await customStatement(
-              "UPDATE sync_audit_log SET method = operation WHERE method IS NULL");
-          await customStatement(
-              "UPDATE sync_audit_log SET result = COALESCE(result, status, 'success') WHERE result IS NULL");
-          await customStatement(
-              'UPDATE sync_audit_log SET synced_at = COALESCE(synced_at, timestamp) WHERE synced_at IS NULL');
-          await customStatement(
-              'UPDATE sync_audit_log SET created_offline_at = COALESCE(created_offline_at, synced_at, timestamp) WHERE created_offline_at IS NULL');
-          await customStatement(
-              'UPDATE sync_audit_log SET gap_seconds = COALESCE(gap_seconds, 0) WHERE gap_seconds IS NULL');
-
-          // 3. RelatedRecordCache: Fix nulls and add unique index
-          await customStatement(
-              "UPDATE related_record_cache SET name = '' WHERE name IS NULL");
-          await customStatement('''
-            CREATE UNIQUE INDEX IF NOT EXISTS idx_related_record_cache_model_odoo_id
-            ON related_record_cache(model, odoo_id)
-          ''');
-
-          logger.i('[Database]', '✅ v52: Sync tables unified');
-        }
-
-        // Migration v52 -> v53: Add work contact fields to res_users
-        if (from < 53) {
-          logger.i('[Database]', '📦 v53: Adding work contact fields to res_users...');
-          await customStatement('ALTER TABLE res_users ADD COLUMN work_email TEXT;');
-          await customStatement('ALTER TABLE res_users ADD COLUMN work_phone TEXT;');
-          await customStatement('ALTER TABLE res_users ADD COLUMN mobile_phone TEXT;');
-          logger.i('[Database]', '✅ v53: Work contact fields added to res_users');
-        }
-
-        logger.i('[Database]', '✅ Migración de v$from a v$to COMPLETADA');
+        await m.createAll();
+        logger.i('[Database]', 'All tables recreated');
       },
       beforeOpen: (details) async {
-        // Enable WAL mode for better concurrent read/write performance
         await customStatement('PRAGMA journal_mode=WAL');
-        // Wait up to 10 seconds for a lock to release instead of failing immediately
         await customStatement('PRAGMA busy_timeout=10000');
       },
     );

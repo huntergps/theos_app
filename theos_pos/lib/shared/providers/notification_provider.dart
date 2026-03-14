@@ -1129,7 +1129,7 @@ class NotificationCounterNotifier extends Notifier<NotificationCounter> {
           allowOverCredit: Value(allowOverCredit),
           usePartnerCreditLimit: Value(usePartnerCreditLimit),
           totalOverdue: Value(totalOverdue ?? 0.0),
-          overdueInvoicesCount: Value(overdueInvoicesCount),
+          unpaidInvoicesCount: Value(overdueInvoicesCount),
           creditAvailable: Value(creditAvailable),
           creditUsagePercentage: Value(creditUsagePercentage),
           creditExceeded: Value(creditExceeded),
@@ -2077,8 +2077,10 @@ class NotificationCounterNotifier extends Notifier<NotificationCounter> {
 
     try {
       // Extract values from payload
+      // NOTE: category_id, uom_type, factor_inv, rounding were removed in Odoo 19.2
+      // Use safe defaults when absent to support both Odoo 19.1 and 19.2
       final name = values['name'] as String? ?? '';
-      final categoryId = values['category_id'] as int?;
+      final categoryId = values['category_id'] as int? ?? 1;
       final categoryName = values['category_name'] as String?;
       final factor = (values['factor'] as num?)?.toDouble() ?? 1.0;
       final factorInv = (values['factor_inv'] as num?)?.toDouble() ?? 1.0;

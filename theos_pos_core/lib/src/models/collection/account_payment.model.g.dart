@@ -256,7 +256,7 @@ class AccountPaymentManager extends OdooModelManager<AccountPayment>
       paymentUuid: row.paymentUuid as String?,
       isSynced: row.isSynced as bool? ?? false,
       collectionSessionId: row.collectionSessionId as int?,
-      invoiceId: row.invoiceId as int?,
+      invoiceId: row.reconciledInvoiceIds as int?,
       partnerId: row.partnerId as int?,
       partnerName: row.partnerName as String?,
       journalId: row.journalId as int?,
@@ -676,7 +676,7 @@ class AccountPaymentManager extends OdooModelManager<AccountPayment>
       case 'collectionSessionId':
         return (obj as dynamic).collectionSessionId;
       case 'invoiceId':
-        return (obj as dynamic).invoiceId;
+        return (obj as dynamic).reconciledInvoiceIds;
       case 'partnerId':
         return (obj as dynamic).partnerId;
       case 'partnerName':

@@ -13,6 +13,7 @@ import '../../../../core/services/app_initializer.dart';
 import '../../../../core/services/auth_event_service.dart';
 import '../../../../core/database/repositories/repository_providers.dart';
 import '../../../../core/database/database_helper.dart';
+import '../../../../core/managers/manager_providers.dart';
 import '../../../../core/services/platform/device_service.dart';
 import '../../../../core/services/platform/server_database_service.dart'
     show AppServerDatabaseService;
@@ -792,6 +793,12 @@ class _LoginScreenState extends ConsumerState<LoginScreen> with WindowListener {
             .set(initResult.databaseHelper);
         logger.d('[LOGIN] ✅ Repository providers initialized');
 
+        // Initialize model managers with the database (required for userManager, etc.)
+        _setStage('Inicializando managers...');
+        logger.d('[LOGIN] 🔧 Initializing model managers...');
+        initializeModelManagers();
+        logger.d('[LOGIN] ✅ Model managers initialized');
+
         // Get partner_id from session_info for WebSocket
         int? partnerId;
         String? imStatusAccessToken;
@@ -1086,6 +1093,11 @@ class _LoginScreenState extends ConsumerState<LoginScreen> with WindowListener {
       // Initialize database helper provider
       logger.d('[LOGIN] 📦 Setting database helper provider...');
       ref.read(databaseHelperProvider.notifier).set(DatabaseHelper.instance);
+
+      // Initialize model managers with the database (required for userManager, etc.)
+      logger.d('[LOGIN] 🔧 Initializing model managers (offline)...');
+      initializeModelManagers();
+      logger.d('[LOGIN] ✅ Model managers initialized');
 
       // Load the specific user from local database by ID
       final localUser = await userManager.getUser(credential.userId);

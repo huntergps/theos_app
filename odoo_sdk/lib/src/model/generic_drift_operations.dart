@@ -112,9 +112,7 @@ mixin GenericDriftOperations<T> on OdooModelManager<T> {
 
   @override
   Future<int> countLocal({List<dynamic>? domain}) async {
-    final tbl = table;
-    final odooIdColumn = (tbl as dynamic).odooId as drift.GeneratedColumn<int>;
-    var query = database.selectOnly(tbl)..addColumns([odooIdColumn]);
+    var query = database.select(table);
 
     if (domain != null) {
       query = applyDomainFilters(query, domain);

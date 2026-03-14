@@ -192,7 +192,7 @@ abstract class Client with _$Client {
   const factory Client({
     // ============ Identifiers ============
     @OdooId() required int id,
-    @OdooLocalOnly() String? uuid,
+    @OdooLocalOnly(driftName: 'partnerUuid') String? uuid,
     @OdooLocalOnly() @Default(true) bool isSynced,
 
     // ============ Basic Data ============

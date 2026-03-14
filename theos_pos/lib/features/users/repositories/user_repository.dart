@@ -199,9 +199,9 @@ class UserRepository extends BaseRepository
               'property_payment_term_id': p.propertyPaymentTermId != null
                   ? [p.propertyPaymentTermId, p.propertyPaymentTermName ?? '']
                   : false,
-              'property_product_pricelist': p.propertyProductPricelistId != null
+              'property_product_pricelist': p.propertyProductPricelist != null
                   ? [
-                      p.propertyProductPricelistId,
+                      p.propertyProductPricelist,
                       p.propertyProductPricelistName ?? '',
                     ]
                   : false,

@@ -174,8 +174,8 @@ class CashOutManager extends OdooModelManager<CashOut>
       moveId: row.moveId as int?,
       amount: row.amount as double,
       note: row.note as String?,
-      typeCode: row.typeCode as String,
-      typeId: row.typeId as int?,
+      typeCode: row.cashOutType as String,
+      typeId: row.cashOutTypeId as int?,
       typeName: row.typeName as String?,
     );
   }
@@ -455,9 +455,9 @@ class CashOutManager extends OdooModelManager<CashOut>
       case 'note':
         return (obj as dynamic).note;
       case 'typeCode':
-        return (obj as dynamic).typeCode;
+        return (obj as dynamic).cashOutType;
       case 'typeId':
-        return (obj as dynamic).typeId;
+        return (obj as dynamic).cashOutTypeId;
       case 'typeName':
         return (obj as dynamic).typeName;
       case 'writeDate':

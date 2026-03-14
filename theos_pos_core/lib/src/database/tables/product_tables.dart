@@ -30,6 +30,9 @@ class AccountTax extends Table {
   IntColumn get sequence => integer().withDefault(const Constant(1))();
   IntColumn get companyId => integer().nullable()();
   TextColumn get companyName => text().nullable()();
+  IntColumn get taxGroupId => integer().nullable()();
+  TextColumn get taxGroupIdName => text().nullable()();
+  TextColumn get taxGroupL10nEcType => text().nullable()();
   DateTimeColumn get writeDate => dateTime().nullable()();
 }
 
@@ -38,9 +41,9 @@ class UomUom extends Table {
   IntColumn get id => integer().autoIncrement()();
   IntColumn get odooId => integer().unique()();
   TextColumn get name => text()();
-  IntColumn get categoryId => integer()();
+  IntColumn get categoryId => integer().nullable()();
   TextColumn get categoryName => text().nullable()();
-  TextColumn get uomType => text()(); // reference, smaller, bigger
+  TextColumn get uomType => text().nullable()(); // reference, smaller, bigger
   RealColumn get factor => real().withDefault(const Constant(1.0))();
   RealColumn get factorInv => real().withDefault(const Constant(1.0))();
   RealColumn get rounding => real().withDefault(const Constant(0.01))();

@@ -366,7 +366,7 @@ class PaymentLineManager extends OdooModelManager<PaymentLine>
           : PaymentLineType.values.first,
       date: row.date as DateTime,
       amount: row.amount as double,
-      reference: row.reference as String?,
+      reference: row.paymentReference as String?,
       orderId: row.orderId as int?,
       state: row.state as String,
       journalId: row.journalId as int?,
@@ -390,7 +390,7 @@ class PaymentLineManager extends OdooModelManager<PaymentLine>
       cardDeadlineName: row.cardDeadlineName as String?,
       loteId: row.loteId as int?,
       loteName: row.loteName as String?,
-      voucherDate: row.voucherDate as DateTime?,
+      voucherDate: row.bankReferenceDate as DateTime?,
       partnerBankId: row.partnerBankId as int?,
       partnerBankName: row.partnerBankName as String?,
       effectiveDate: row.effectiveDate as DateTime?,
@@ -737,7 +737,7 @@ class PaymentLineManager extends OdooModelManager<PaymentLine>
       case 'amount':
         return (obj as dynamic).amount;
       case 'reference':
-        return (obj as dynamic).reference;
+        return (obj as dynamic).paymentReference;
       case 'orderId':
         return (obj as dynamic).orderId;
       case 'state':
@@ -775,7 +775,7 @@ class PaymentLineManager extends OdooModelManager<PaymentLine>
       case 'loteName':
         return (obj as dynamic).loteName;
       case 'voucherDate':
-        return (obj as dynamic).voucherDate;
+        return (obj as dynamic).bankReferenceDate;
       case 'partnerBankId':
         return (obj as dynamic).partnerBankId;
       case 'partnerBankName':

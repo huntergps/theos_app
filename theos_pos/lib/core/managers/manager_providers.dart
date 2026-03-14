@@ -43,8 +43,17 @@ import 'package:theos_pos_core/theos_pos_core.dart'
         advanceManager,
         mailActivityManager,
         uomManager,
-        productUomManager;
-import 'package:theos_pos_core/theos_pos_core.dart' show AppDatabase;
+        productUomManager,
+        bankManager,
+        partnerBankManager,
+        salesTeamManager,
+        fiscalPositionManager,
+        productCategoryManager,
+        withholdLineManager,
+        paymentLineManager,
+        cardLoteManager,
+        advanceLineManager;
+import 'package:theos_pos_core/theos_pos_core.dart' show AppDatabase, currencyManager, decimalPrecisionManager;
 
 import '../database/database_helper.dart';
 
@@ -156,6 +165,17 @@ List<OdooModelManager> _getAllManagers() {
     mailActivityManager,
     uomManager,
     productUomManager,
+    currencyManager,
+    decimalPrecisionManager,
+    bankManager,
+    partnerBankManager,
+    salesTeamManager,
+    fiscalPositionManager,
+    productCategoryManager,
+    withholdLineManager,
+    paymentLineManager,
+    cardLoteManager,
+    advanceLineManager,
   ];
 }
 

@@ -6,7 +6,7 @@ class ResBank extends Table {
   IntColumn get odooId => integer().unique()();
   TextColumn get name => text()();
   TextColumn get bic => text().nullable()(); // Bank Identifier Code (SWIFT)
-  IntColumn get countryId => integer().nullable()();
+  IntColumn get country => integer().nullable()();
   TextColumn get countryName => text().nullable()();
   BoolColumn get active => boolean().withDefault(const Constant(true))();
   DateTimeColumn get writeDate => dateTime().nullable()();
@@ -101,9 +101,9 @@ class ResCompanyTable extends Table {
   BoolColumn get reserveFromQuotation => boolean().withDefault(const Constant(false))();
 
   // Sales defaults
-  IntColumn get defaultPartnerId => integer().nullable()();
+  IntColumn get partnerId => integer().nullable()();
   TextColumn get defaultPartnerName => text().nullable()();
-  IntColumn get defaultWarehouseId => integer().nullable()();
+  IntColumn get warehouseId => integer().nullable()();
   TextColumn get defaultWarehouseName => text().nullable()();
   IntColumn get defaultPricelistId => integer().nullable()();
   TextColumn get defaultPricelistName => text().nullable()();

@@ -81,7 +81,7 @@ class PartnerRecordHandler extends ModelRecordHandler {
       parentId: Value(odoo.extractMany2oneId(data['parent_id'])),
       parentName: Value(odoo.extractMany2oneName(data['parent_id'])),
       commercialPartnerName: Value(commercialPartnerName),
-      propertyProductPricelistId: Value(
+      propertyProductPricelist: Value(
         odoo.extractMany2oneId(data['property_product_pricelist']),
       ),
       propertyProductPricelistName: Value(

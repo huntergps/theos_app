@@ -29,7 +29,7 @@ class ResPartner extends Table {
   TextColumn get parentName => text().nullable()();
   IntColumn get commercialPartnerId => integer().nullable()();
   TextColumn get commercialPartnerName => text().nullable()();
-  IntColumn get propertyProductPricelistId => integer().nullable()();
+  IntColumn get propertyProductPricelist => integer().nullable()();
   TextColumn get propertyProductPricelistName => text().nullable()();
   IntColumn get propertyPaymentTermId => integer().nullable()();
   TextColumn get propertyPaymentTermName => text().nullable()();
@@ -45,8 +45,8 @@ class ResPartner extends Table {
   BoolColumn get usePartnerCreditLimit => boolean().withDefault(const Constant(false))();
 
   // Overdue Debt Fields
-  IntColumn get overdueInvoicesCount => integer().withDefault(const Constant(0))();
-  RealColumn get oldestOverdueDays => real().withDefault(const Constant(0))();
+  IntColumn get unpaidInvoicesCount => integer().withDefault(const Constant(0))();
+  IntColumn get oldestOverdueDays => integer().withDefault(const Constant(0))();
 
   // Ecuador-specific fields
   IntColumn get diasMaxFacturaPosterior => integer().nullable()();

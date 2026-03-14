@@ -57,7 +57,8 @@ class TaxManager extends OdooModelManager<Tax>
       sequence: parseOdooInt(data['sequence']) ?? 0,
       companyId: extractMany2oneId(data['company_id']),
       companyName: extractMany2oneName(data['company_id']),
-      taxGroup: parseOdooString(data['tax_group_id']),
+      taxGroupId: extractMany2oneId(data['tax_group_id']),
+      taxGroupName: extractMany2oneName(data['tax_group_id']),
       taxGroupL10nEcType: parseOdooString(data['tax_group_l10n_ec_type']),
       writeDate: parseOdooDateTime(data['write_date']),
     );
@@ -76,7 +77,7 @@ class TaxManager extends OdooModelManager<Tax>
       'include_base_amount': record.includeBaseAmount,
       'sequence': record.sequence,
       'company_id': record.companyId,
-      'tax_group_id': record.taxGroup,
+      'tax_group_id': record.taxGroupId,
       'tax_group_l10n_ec_type': record.taxGroupL10nEcType,
     };
   }
@@ -102,7 +103,8 @@ class TaxManager extends OdooModelManager<Tax>
       sequence: row.sequence as int,
       companyId: row.companyId as int?,
       companyName: row.companyName as String?,
-      taxGroup: row.taxGroup as String?,
+      taxGroupId: row.taxGroupId as int?,
+      taxGroupName: row.taxGroupIdName as String?,
       taxGroupL10nEcType: row.taxGroupL10nEcType as String?,
       writeDate: row.writeDate as DateTime?,
     );
@@ -142,7 +144,7 @@ class TaxManager extends OdooModelManager<Tax>
     'include_base_amount': 'includeBaseAmount',
     'sequence': 'sequence',
     'company_id': 'companyId',
-    'tax_group_id': 'taxGroup',
+    'tax_group_id': 'taxGroupId',
     'tax_group_l10n_ec_type': 'taxGroupL10nEcType',
     'write_date': 'writeDate',
   };
@@ -195,7 +197,8 @@ class TaxManager extends OdooModelManager<Tax>
       'sequence': Variable<int>(record.sequence),
       'company_id': driftVar<int>(record.companyId),
       'company_id_name': driftVar<String>(record.companyName),
-      'tax_group_id': driftVar<String>(record.taxGroup),
+      'tax_group_id': driftVar<int>(record.taxGroupId),
+      'tax_group_id_name': driftVar<String>(record.taxGroupName),
       'tax_group_l10n_ec_type': driftVar<String>(record.taxGroupL10nEcType),
       'write_date': driftVar<DateTime>(record.writeDate),
     });
@@ -213,7 +216,7 @@ class TaxManager extends OdooModelManager<Tax>
     'includeBaseAmount',
     'sequence',
     'companyId',
-    'taxGroup',
+    'taxGroupId',
     'taxGroupL10nEcType',
   ];
 
@@ -234,7 +237,8 @@ class TaxManager extends OdooModelManager<Tax>
     'sequence': 'Sequence',
     'companyId': 'Company Id',
     'companyName': 'Company Name',
-    'taxGroup': 'Tax Group',
+    'taxGroupId': 'Tax Group Id',
+    'taxGroupName': 'Tax Group Name',
     'taxGroupL10nEcType': 'Tax Group L10n Ec Type',
     'writeDate': 'Write Date',
   };
@@ -295,8 +299,10 @@ class TaxManager extends OdooModelManager<Tax>
         return record.companyId;
       case 'companyName':
         return record.companyName;
-      case 'taxGroup':
-        return record.taxGroup;
+      case 'taxGroupId':
+        return record.taxGroupId;
+      case 'taxGroupName':
+        return record.taxGroupName;
       case 'taxGroupL10nEcType':
         return record.taxGroupL10nEcType;
       case 'writeDate':
@@ -342,8 +348,10 @@ class TaxManager extends OdooModelManager<Tax>
         return (obj as dynamic).companyId;
       case 'companyName':
         return (obj as dynamic).companyName;
-      case 'taxGroup':
-        return (obj as dynamic).taxGroup;
+      case 'taxGroupId':
+        return (obj as dynamic).taxGroupId;
+      case 'taxGroupName':
+        return (obj as dynamic).taxGroupName;
       case 'taxGroupL10nEcType':
         return (obj as dynamic).taxGroupL10nEcType;
       case 'writeDate':
@@ -376,7 +384,8 @@ class TaxManager extends OdooModelManager<Tax>
     'sequence',
     'companyId',
     'companyName',
-    'taxGroup',
+    'taxGroupId',
+    'taxGroupName',
     'taxGroupL10nEcType',
     'writeDate',
   ];
@@ -393,7 +402,7 @@ class TaxManager extends OdooModelManager<Tax>
     'includeBaseAmount',
     'sequence',
     'companyId',
-    'taxGroup',
+    'taxGroupId',
     'taxGroupL10nEcType',
   ];
 }
