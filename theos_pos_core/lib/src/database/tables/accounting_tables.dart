@@ -28,7 +28,17 @@ class AccountMove extends Table {
   RealColumn get amountResidual => real().withDefault(const Constant(0.0))();
   TextColumn get paymentState => text().withDefault(const Constant('not_paid'))();
 
+  // Partner contact fields (denormalized for offline display)
+  TextColumn get partnerStreet => text().nullable()();
+  TextColumn get partnerCity => text().nullable()();
+  TextColumn get partnerPhone => text().nullable()();
+  TextColumn get partnerEmail => text().nullable()();
+
+  // Currency display
+  TextColumn get currencySymbol => text().nullable()();
+
   // Ecuador localization fields
+  DateTimeColumn get l10nEcAuthorizationDate => dateTime().nullable()();
   TextColumn get l10nEcAuthorizationNumber => text().nullable()();
   TextColumn get l10nLatamDocumentNumber => text().nullable()();
   IntColumn get l10nLatamDocumentTypeId => integer().nullable()();

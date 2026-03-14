@@ -32,6 +32,15 @@ class $DecimalPrecisionTable extends DecimalPrecision
     requiredDuringInsert: true,
     defaultConstraints: GeneratedColumn.constraintIsAlways('UNIQUE'),
   );
+  static const VerificationMeta _uuidMeta = const VerificationMeta('uuid');
+  @override
+  late final GeneratedColumn<String> uuid = GeneratedColumn<String>(
+    'uuid',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
   static const VerificationMeta _nameMeta = const VerificationMeta('name');
   @override
   late final GeneratedColumn<String> name = GeneratedColumn<String>(
@@ -62,7 +71,14 @@ class $DecimalPrecisionTable extends DecimalPrecision
     requiredDuringInsert: false,
   );
   @override
-  List<GeneratedColumn> get $columns => [id, odooId, name, digits, writeDate];
+  List<GeneratedColumn> get $columns => [
+    id,
+    odooId,
+    uuid,
+    name,
+    digits,
+    writeDate,
+  ];
   @override
   String get aliasedName => _alias ?? actualTableName;
   @override
@@ -85,6 +101,12 @@ class $DecimalPrecisionTable extends DecimalPrecision
       );
     } else if (isInserting) {
       context.missing(_odooIdMeta);
+    }
+    if (data.containsKey('uuid')) {
+      context.handle(
+        _uuidMeta,
+        uuid.isAcceptableOrUnknown(data['uuid']!, _uuidMeta),
+      );
     }
     if (data.containsKey('name')) {
       context.handle(
@@ -125,6 +147,10 @@ class $DecimalPrecisionTable extends DecimalPrecision
         DriftSqlType.int,
         data['${effectivePrefix}odoo_id'],
       )!,
+      uuid: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}uuid'],
+      ),
       name: attachedDatabase.typeMapping.read(
         DriftSqlType.string,
         data['${effectivePrefix}name'],
@@ -150,12 +176,14 @@ class DecimalPrecisionData extends DataClass
     implements Insertable<DecimalPrecisionData> {
   final int id;
   final int odooId;
+  final String? uuid;
   final String name;
   final int digits;
   final DateTime? writeDate;
   const DecimalPrecisionData({
     required this.id,
     required this.odooId,
+    this.uuid,
     required this.name,
     required this.digits,
     this.writeDate,
@@ -165,6 +193,9 @@ class DecimalPrecisionData extends DataClass
     final map = <String, Expression>{};
     map['id'] = Variable<int>(id);
     map['odoo_id'] = Variable<int>(odooId);
+    if (!nullToAbsent || uuid != null) {
+      map['uuid'] = Variable<String>(uuid);
+    }
     map['name'] = Variable<String>(name);
     map['digits'] = Variable<int>(digits);
     if (!nullToAbsent || writeDate != null) {
@@ -177,6 +208,7 @@ class DecimalPrecisionData extends DataClass
     return DecimalPrecisionCompanion(
       id: Value(id),
       odooId: Value(odooId),
+      uuid: uuid == null && nullToAbsent ? const Value.absent() : Value(uuid),
       name: Value(name),
       digits: Value(digits),
       writeDate: writeDate == null && nullToAbsent
@@ -193,6 +225,7 @@ class DecimalPrecisionData extends DataClass
     return DecimalPrecisionData(
       id: serializer.fromJson<int>(json['id']),
       odooId: serializer.fromJson<int>(json['odooId']),
+      uuid: serializer.fromJson<String?>(json['uuid']),
       name: serializer.fromJson<String>(json['name']),
       digits: serializer.fromJson<int>(json['digits']),
       writeDate: serializer.fromJson<DateTime?>(json['writeDate']),
@@ -204,6 +237,7 @@ class DecimalPrecisionData extends DataClass
     return <String, dynamic>{
       'id': serializer.toJson<int>(id),
       'odooId': serializer.toJson<int>(odooId),
+      'uuid': serializer.toJson<String?>(uuid),
       'name': serializer.toJson<String>(name),
       'digits': serializer.toJson<int>(digits),
       'writeDate': serializer.toJson<DateTime?>(writeDate),
@@ -213,12 +247,14 @@ class DecimalPrecisionData extends DataClass
   DecimalPrecisionData copyWith({
     int? id,
     int? odooId,
+    Value<String?> uuid = const Value.absent(),
     String? name,
     int? digits,
     Value<DateTime?> writeDate = const Value.absent(),
   }) => DecimalPrecisionData(
     id: id ?? this.id,
     odooId: odooId ?? this.odooId,
+    uuid: uuid.present ? uuid.value : this.uuid,
     name: name ?? this.name,
     digits: digits ?? this.digits,
     writeDate: writeDate.present ? writeDate.value : this.writeDate,
@@ -227,6 +263,7 @@ class DecimalPrecisionData extends DataClass
     return DecimalPrecisionData(
       id: data.id.present ? data.id.value : this.id,
       odooId: data.odooId.present ? data.odooId.value : this.odooId,
+      uuid: data.uuid.present ? data.uuid.value : this.uuid,
       name: data.name.present ? data.name.value : this.name,
       digits: data.digits.present ? data.digits.value : this.digits,
       writeDate: data.writeDate.present ? data.writeDate.value : this.writeDate,
@@ -238,6 +275,7 @@ class DecimalPrecisionData extends DataClass
     return (StringBuffer('DecimalPrecisionData(')
           ..write('id: $id, ')
           ..write('odooId: $odooId, ')
+          ..write('uuid: $uuid, ')
           ..write('name: $name, ')
           ..write('digits: $digits, ')
           ..write('writeDate: $writeDate')
@@ -246,13 +284,14 @@ class DecimalPrecisionData extends DataClass
   }
 
   @override
-  int get hashCode => Object.hash(id, odooId, name, digits, writeDate);
+  int get hashCode => Object.hash(id, odooId, uuid, name, digits, writeDate);
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
       (other is DecimalPrecisionData &&
           other.id == this.id &&
           other.odooId == this.odooId &&
+          other.uuid == this.uuid &&
           other.name == this.name &&
           other.digits == this.digits &&
           other.writeDate == this.writeDate);
@@ -261,12 +300,14 @@ class DecimalPrecisionData extends DataClass
 class DecimalPrecisionCompanion extends UpdateCompanion<DecimalPrecisionData> {
   final Value<int> id;
   final Value<int> odooId;
+  final Value<String?> uuid;
   final Value<String> name;
   final Value<int> digits;
   final Value<DateTime?> writeDate;
   const DecimalPrecisionCompanion({
     this.id = const Value.absent(),
     this.odooId = const Value.absent(),
+    this.uuid = const Value.absent(),
     this.name = const Value.absent(),
     this.digits = const Value.absent(),
     this.writeDate = const Value.absent(),
@@ -274,6 +315,7 @@ class DecimalPrecisionCompanion extends UpdateCompanion<DecimalPrecisionData> {
   DecimalPrecisionCompanion.insert({
     this.id = const Value.absent(),
     required int odooId,
+    this.uuid = const Value.absent(),
     required String name,
     required int digits,
     this.writeDate = const Value.absent(),
@@ -283,6 +325,7 @@ class DecimalPrecisionCompanion extends UpdateCompanion<DecimalPrecisionData> {
   static Insertable<DecimalPrecisionData> custom({
     Expression<int>? id,
     Expression<int>? odooId,
+    Expression<String>? uuid,
     Expression<String>? name,
     Expression<int>? digits,
     Expression<DateTime>? writeDate,
@@ -290,6 +333,7 @@ class DecimalPrecisionCompanion extends UpdateCompanion<DecimalPrecisionData> {
     return RawValuesInsertable({
       if (id != null) 'id': id,
       if (odooId != null) 'odoo_id': odooId,
+      if (uuid != null) 'uuid': uuid,
       if (name != null) 'name': name,
       if (digits != null) 'digits': digits,
       if (writeDate != null) 'write_date': writeDate,
@@ -299,6 +343,7 @@ class DecimalPrecisionCompanion extends UpdateCompanion<DecimalPrecisionData> {
   DecimalPrecisionCompanion copyWith({
     Value<int>? id,
     Value<int>? odooId,
+    Value<String?>? uuid,
     Value<String>? name,
     Value<int>? digits,
     Value<DateTime?>? writeDate,
@@ -306,6 +351,7 @@ class DecimalPrecisionCompanion extends UpdateCompanion<DecimalPrecisionData> {
     return DecimalPrecisionCompanion(
       id: id ?? this.id,
       odooId: odooId ?? this.odooId,
+      uuid: uuid ?? this.uuid,
       name: name ?? this.name,
       digits: digits ?? this.digits,
       writeDate: writeDate ?? this.writeDate,
@@ -320,6 +366,9 @@ class DecimalPrecisionCompanion extends UpdateCompanion<DecimalPrecisionData> {
     }
     if (odooId.present) {
       map['odoo_id'] = Variable<int>(odooId.value);
+    }
+    if (uuid.present) {
+      map['uuid'] = Variable<String>(uuid.value);
     }
     if (name.present) {
       map['name'] = Variable<String>(name.value);
@@ -338,6 +387,7 @@ class DecimalPrecisionCompanion extends UpdateCompanion<DecimalPrecisionData> {
     return (StringBuffer('DecimalPrecisionCompanion(')
           ..write('id: $id, ')
           ..write('odooId: $odooId, ')
+          ..write('uuid: $uuid, ')
           ..write('name: $name, ')
           ..write('digits: $digits, ')
           ..write('writeDate: $writeDate')
@@ -374,6 +424,15 @@ class $ResCurrencyTable extends ResCurrency
     type: DriftSqlType.int,
     requiredDuringInsert: true,
     defaultConstraints: GeneratedColumn.constraintIsAlways('UNIQUE'),
+  );
+  static const VerificationMeta _uuidMeta = const VerificationMeta('uuid');
+  @override
+  late final GeneratedColumn<String> uuid = GeneratedColumn<String>(
+    'uuid',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
   );
   static const VerificationMeta _nameMeta = const VerificationMeta('name');
   @override
@@ -443,6 +502,7 @@ class $ResCurrencyTable extends ResCurrency
   List<GeneratedColumn> get $columns => [
     id,
     odooId,
+    uuid,
     name,
     symbol,
     rounding,
@@ -472,6 +532,12 @@ class $ResCurrencyTable extends ResCurrency
       );
     } else if (isInserting) {
       context.missing(_odooIdMeta);
+    }
+    if (data.containsKey('uuid')) {
+      context.handle(
+        _uuidMeta,
+        uuid.isAcceptableOrUnknown(data['uuid']!, _uuidMeta),
+      );
     }
     if (data.containsKey('name')) {
       context.handle(
@@ -537,6 +603,10 @@ class $ResCurrencyTable extends ResCurrency
         DriftSqlType.int,
         data['${effectivePrefix}odoo_id'],
       )!,
+      uuid: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}uuid'],
+      ),
       name: attachedDatabase.typeMapping.read(
         DriftSqlType.string,
         data['${effectivePrefix}name'],
@@ -573,6 +643,7 @@ class $ResCurrencyTable extends ResCurrency
 class ResCurrencyData extends DataClass implements Insertable<ResCurrencyData> {
   final int id;
   final int odooId;
+  final String? uuid;
   final String name;
   final String symbol;
   final double rounding;
@@ -582,6 +653,7 @@ class ResCurrencyData extends DataClass implements Insertable<ResCurrencyData> {
   const ResCurrencyData({
     required this.id,
     required this.odooId,
+    this.uuid,
     required this.name,
     required this.symbol,
     required this.rounding,
@@ -594,6 +666,9 @@ class ResCurrencyData extends DataClass implements Insertable<ResCurrencyData> {
     final map = <String, Expression>{};
     map['id'] = Variable<int>(id);
     map['odoo_id'] = Variable<int>(odooId);
+    if (!nullToAbsent || uuid != null) {
+      map['uuid'] = Variable<String>(uuid);
+    }
     map['name'] = Variable<String>(name);
     map['symbol'] = Variable<String>(symbol);
     map['rounding'] = Variable<double>(rounding);
@@ -609,6 +684,7 @@ class ResCurrencyData extends DataClass implements Insertable<ResCurrencyData> {
     return ResCurrencyCompanion(
       id: Value(id),
       odooId: Value(odooId),
+      uuid: uuid == null && nullToAbsent ? const Value.absent() : Value(uuid),
       name: Value(name),
       symbol: Value(symbol),
       rounding: Value(rounding),
@@ -628,6 +704,7 @@ class ResCurrencyData extends DataClass implements Insertable<ResCurrencyData> {
     return ResCurrencyData(
       id: serializer.fromJson<int>(json['id']),
       odooId: serializer.fromJson<int>(json['odooId']),
+      uuid: serializer.fromJson<String?>(json['uuid']),
       name: serializer.fromJson<String>(json['name']),
       symbol: serializer.fromJson<String>(json['symbol']),
       rounding: serializer.fromJson<double>(json['rounding']),
@@ -642,6 +719,7 @@ class ResCurrencyData extends DataClass implements Insertable<ResCurrencyData> {
     return <String, dynamic>{
       'id': serializer.toJson<int>(id),
       'odooId': serializer.toJson<int>(odooId),
+      'uuid': serializer.toJson<String?>(uuid),
       'name': serializer.toJson<String>(name),
       'symbol': serializer.toJson<String>(symbol),
       'rounding': serializer.toJson<double>(rounding),
@@ -654,6 +732,7 @@ class ResCurrencyData extends DataClass implements Insertable<ResCurrencyData> {
   ResCurrencyData copyWith({
     int? id,
     int? odooId,
+    Value<String?> uuid = const Value.absent(),
     String? name,
     String? symbol,
     double? rounding,
@@ -663,6 +742,7 @@ class ResCurrencyData extends DataClass implements Insertable<ResCurrencyData> {
   }) => ResCurrencyData(
     id: id ?? this.id,
     odooId: odooId ?? this.odooId,
+    uuid: uuid.present ? uuid.value : this.uuid,
     name: name ?? this.name,
     symbol: symbol ?? this.symbol,
     rounding: rounding ?? this.rounding,
@@ -674,6 +754,7 @@ class ResCurrencyData extends DataClass implements Insertable<ResCurrencyData> {
     return ResCurrencyData(
       id: data.id.present ? data.id.value : this.id,
       odooId: data.odooId.present ? data.odooId.value : this.odooId,
+      uuid: data.uuid.present ? data.uuid.value : this.uuid,
       name: data.name.present ? data.name.value : this.name,
       symbol: data.symbol.present ? data.symbol.value : this.symbol,
       rounding: data.rounding.present ? data.rounding.value : this.rounding,
@@ -690,6 +771,7 @@ class ResCurrencyData extends DataClass implements Insertable<ResCurrencyData> {
     return (StringBuffer('ResCurrencyData(')
           ..write('id: $id, ')
           ..write('odooId: $odooId, ')
+          ..write('uuid: $uuid, ')
           ..write('name: $name, ')
           ..write('symbol: $symbol, ')
           ..write('rounding: $rounding, ')
@@ -704,6 +786,7 @@ class ResCurrencyData extends DataClass implements Insertable<ResCurrencyData> {
   int get hashCode => Object.hash(
     id,
     odooId,
+    uuid,
     name,
     symbol,
     rounding,
@@ -717,6 +800,7 @@ class ResCurrencyData extends DataClass implements Insertable<ResCurrencyData> {
       (other is ResCurrencyData &&
           other.id == this.id &&
           other.odooId == this.odooId &&
+          other.uuid == this.uuid &&
           other.name == this.name &&
           other.symbol == this.symbol &&
           other.rounding == this.rounding &&
@@ -728,6 +812,7 @@ class ResCurrencyData extends DataClass implements Insertable<ResCurrencyData> {
 class ResCurrencyCompanion extends UpdateCompanion<ResCurrencyData> {
   final Value<int> id;
   final Value<int> odooId;
+  final Value<String?> uuid;
   final Value<String> name;
   final Value<String> symbol;
   final Value<double> rounding;
@@ -737,6 +822,7 @@ class ResCurrencyCompanion extends UpdateCompanion<ResCurrencyData> {
   const ResCurrencyCompanion({
     this.id = const Value.absent(),
     this.odooId = const Value.absent(),
+    this.uuid = const Value.absent(),
     this.name = const Value.absent(),
     this.symbol = const Value.absent(),
     this.rounding = const Value.absent(),
@@ -747,6 +833,7 @@ class ResCurrencyCompanion extends UpdateCompanion<ResCurrencyData> {
   ResCurrencyCompanion.insert({
     this.id = const Value.absent(),
     required int odooId,
+    this.uuid = const Value.absent(),
     required String name,
     required String symbol,
     required double rounding,
@@ -761,6 +848,7 @@ class ResCurrencyCompanion extends UpdateCompanion<ResCurrencyData> {
   static Insertable<ResCurrencyData> custom({
     Expression<int>? id,
     Expression<int>? odooId,
+    Expression<String>? uuid,
     Expression<String>? name,
     Expression<String>? symbol,
     Expression<double>? rounding,
@@ -771,6 +859,7 @@ class ResCurrencyCompanion extends UpdateCompanion<ResCurrencyData> {
     return RawValuesInsertable({
       if (id != null) 'id': id,
       if (odooId != null) 'odoo_id': odooId,
+      if (uuid != null) 'uuid': uuid,
       if (name != null) 'name': name,
       if (symbol != null) 'symbol': symbol,
       if (rounding != null) 'rounding': rounding,
@@ -783,6 +872,7 @@ class ResCurrencyCompanion extends UpdateCompanion<ResCurrencyData> {
   ResCurrencyCompanion copyWith({
     Value<int>? id,
     Value<int>? odooId,
+    Value<String?>? uuid,
     Value<String>? name,
     Value<String>? symbol,
     Value<double>? rounding,
@@ -793,6 +883,7 @@ class ResCurrencyCompanion extends UpdateCompanion<ResCurrencyData> {
     return ResCurrencyCompanion(
       id: id ?? this.id,
       odooId: odooId ?? this.odooId,
+      uuid: uuid ?? this.uuid,
       name: name ?? this.name,
       symbol: symbol ?? this.symbol,
       rounding: rounding ?? this.rounding,
@@ -810,6 +901,9 @@ class ResCurrencyCompanion extends UpdateCompanion<ResCurrencyData> {
     }
     if (odooId.present) {
       map['odoo_id'] = Variable<int>(odooId.value);
+    }
+    if (uuid.present) {
+      map['uuid'] = Variable<String>(uuid.value);
     }
     if (name.present) {
       map['name'] = Variable<String>(name.value);
@@ -837,6 +931,7 @@ class ResCurrencyCompanion extends UpdateCompanion<ResCurrencyData> {
     return (StringBuffer('ResCurrencyCompanion(')
           ..write('id: $id, ')
           ..write('odooId: $odooId, ')
+          ..write('uuid: $uuid, ')
           ..write('name: $name, ')
           ..write('symbol: $symbol, ')
           ..write('rounding: $rounding, ')
@@ -20277,6 +20372,609 @@ class $CollectionSessionTable extends CollectionSession
         requiredDuringInsert: false,
         defaultValue: const Constant(0.0),
       );
+  static const VerificationMeta _advanceChecksOnDayTotalMeta =
+      const VerificationMeta('advanceChecksOnDayTotal');
+  @override
+  late final GeneratedColumn<double> advanceChecksOnDayTotal =
+      GeneratedColumn<double>(
+        'advance_checks_on_day_total',
+        aliasedName,
+        false,
+        type: DriftSqlType.double,
+        requiredDuringInsert: false,
+        defaultValue: const Constant(0.0),
+      );
+  static const VerificationMeta _advanceChecksPostdatedTotalMeta =
+      const VerificationMeta('advanceChecksPostdatedTotal');
+  @override
+  late final GeneratedColumn<double> advanceChecksPostdatedTotal =
+      GeneratedColumn<double>(
+        'advance_checks_postdated_total',
+        aliasedName,
+        false,
+        type: DriftSqlType.double,
+        requiredDuringInsert: false,
+        defaultValue: const Constant(0.0),
+      );
+  static const VerificationMeta _totalChecksOnDayMeta = const VerificationMeta(
+    'totalChecksOnDay',
+  );
+  @override
+  late final GeneratedColumn<double> totalChecksOnDay = GeneratedColumn<double>(
+    'total_checks_on_day',
+    aliasedName,
+    false,
+    type: DriftSqlType.double,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(0.0),
+  );
+  static const VerificationMeta _totalChecksPostdatedMeta =
+      const VerificationMeta('totalChecksPostdated');
+  @override
+  late final GeneratedColumn<double> totalChecksPostdated =
+      GeneratedColumn<double>(
+        'total_checks_postdated',
+        aliasedName,
+        false,
+        type: DriftSqlType.double,
+        requiredDuringInsert: false,
+        defaultValue: const Constant(0.0),
+      );
+  static const VerificationMeta _totalCashAdvanceAmountMeta =
+      const VerificationMeta('totalCashAdvanceAmount');
+  @override
+  late final GeneratedColumn<double> totalCashAdvanceAmount =
+      GeneratedColumn<double>(
+        'total_cash_advance_amount',
+        aliasedName,
+        false,
+        type: DriftSqlType.double,
+        requiredDuringInsert: false,
+        defaultValue: const Constant(0.0),
+      );
+  static const VerificationMeta _systemDepositsCashTotalMeta =
+      const VerificationMeta('systemDepositsCashTotal');
+  @override
+  late final GeneratedColumn<double> systemDepositsCashTotal =
+      GeneratedColumn<double>(
+        'system_deposits_cash_total',
+        aliasedName,
+        false,
+        type: DriftSqlType.double,
+        requiredDuringInsert: false,
+        defaultValue: const Constant(0.0),
+      );
+  static const VerificationMeta _manualDepositsCashTotalMeta =
+      const VerificationMeta('manualDepositsCashTotal');
+  @override
+  late final GeneratedColumn<double> manualDepositsCashTotal =
+      GeneratedColumn<double>(
+        'manual_deposits_cash_total',
+        aliasedName,
+        false,
+        type: DriftSqlType.double,
+        requiredDuringInsert: false,
+        defaultValue: const Constant(0.0),
+      );
+  static const VerificationMeta _diffDepositsCashTotalMeta =
+      const VerificationMeta('diffDepositsCashTotal');
+  @override
+  late final GeneratedColumn<double> diffDepositsCashTotal =
+      GeneratedColumn<double>(
+        'diff_deposits_cash_total',
+        aliasedName,
+        false,
+        type: DriftSqlType.double,
+        requiredDuringInsert: false,
+        defaultValue: const Constant(0.0),
+      );
+  static const VerificationMeta _systemDepositsChecksTotalMeta =
+      const VerificationMeta('systemDepositsChecksTotal');
+  @override
+  late final GeneratedColumn<double> systemDepositsChecksTotal =
+      GeneratedColumn<double>(
+        'system_deposits_checks_total',
+        aliasedName,
+        false,
+        type: DriftSqlType.double,
+        requiredDuringInsert: false,
+        defaultValue: const Constant(0.0),
+      );
+  static const VerificationMeta _manualDepositsChecksTotalMeta =
+      const VerificationMeta('manualDepositsChecksTotal');
+  @override
+  late final GeneratedColumn<double> manualDepositsChecksTotal =
+      GeneratedColumn<double>(
+        'manual_deposits_checks_total',
+        aliasedName,
+        false,
+        type: DriftSqlType.double,
+        requiredDuringInsert: false,
+        defaultValue: const Constant(0.0),
+      );
+  static const VerificationMeta _diffDepositsChecksTotalMeta =
+      const VerificationMeta('diffDepositsChecksTotal');
+  @override
+  late final GeneratedColumn<double> diffDepositsChecksTotal =
+      GeneratedColumn<double>(
+        'diff_deposits_checks_total',
+        aliasedName,
+        false,
+        type: DriftSqlType.double,
+        requiredDuringInsert: false,
+        defaultValue: const Constant(0.0),
+      );
+  static const VerificationMeta _totalCashInvoicesAmountMeta =
+      const VerificationMeta('totalCashInvoicesAmount');
+  @override
+  late final GeneratedColumn<double> totalCashInvoicesAmount =
+      GeneratedColumn<double>(
+        'total_cash_invoices_amount',
+        aliasedName,
+        false,
+        type: DriftSqlType.double,
+        requiredDuringInsert: false,
+        defaultValue: const Constant(0.0),
+      );
+  static const VerificationMeta _totalCashCollectedAmountMeta =
+      const VerificationMeta('totalCashCollectedAmount');
+  @override
+  late final GeneratedColumn<double> totalCashCollectedAmount =
+      GeneratedColumn<double>(
+        'total_cash_collected_amount',
+        aliasedName,
+        false,
+        type: DriftSqlType.double,
+        requiredDuringInsert: false,
+        defaultValue: const Constant(0.0),
+      );
+  static const VerificationMeta _totalCashPendingAmountMeta =
+      const VerificationMeta('totalCashPendingAmount');
+  @override
+  late final GeneratedColumn<double> totalCashPendingAmount =
+      GeneratedColumn<double>(
+        'total_cash_pending_amount',
+        aliasedName,
+        false,
+        type: DriftSqlType.double,
+        requiredDuringInsert: false,
+        defaultValue: const Constant(0.0),
+      );
+  static const VerificationMeta _totalCreditOrdersAmountMeta =
+      const VerificationMeta('totalCreditOrdersAmount');
+  @override
+  late final GeneratedColumn<double> totalCreditOrdersAmount =
+      GeneratedColumn<double>(
+        'total_credit_orders_amount',
+        aliasedName,
+        false,
+        type: DriftSqlType.double,
+        requiredDuringInsert: false,
+        defaultValue: const Constant(0.0),
+      );
+  static const VerificationMeta _totalCreditInvoicesAmountMeta =
+      const VerificationMeta('totalCreditInvoicesAmount');
+  @override
+  late final GeneratedColumn<double> totalCreditInvoicesAmount =
+      GeneratedColumn<double>(
+        'total_credit_invoices_amount',
+        aliasedName,
+        false,
+        type: DriftSqlType.double,
+        requiredDuringInsert: false,
+        defaultValue: const Constant(0.0),
+      );
+  static const VerificationMeta _creditSalesDifferenceMeta =
+      const VerificationMeta('creditSalesDifference');
+  @override
+  late final GeneratedColumn<double> creditSalesDifference =
+      GeneratedColumn<double>(
+        'credit_sales_difference',
+        aliasedName,
+        false,
+        type: DriftSqlType.double,
+        requiredDuringInsert: false,
+        defaultValue: const Constant(0.0),
+      );
+  static const VerificationMeta _systemChecksOnDayMeta = const VerificationMeta(
+    'systemChecksOnDay',
+  );
+  @override
+  late final GeneratedColumn<double> systemChecksOnDay =
+      GeneratedColumn<double>(
+        'system_checks_on_day',
+        aliasedName,
+        false,
+        type: DriftSqlType.double,
+        requiredDuringInsert: false,
+        defaultValue: const Constant(0.0),
+      );
+  static const VerificationMeta _systemChecksPostdatedMeta =
+      const VerificationMeta('systemChecksPostdated');
+  @override
+  late final GeneratedColumn<double> systemChecksPostdated =
+      GeneratedColumn<double>(
+        'system_checks_postdated',
+        aliasedName,
+        false,
+        type: DriftSqlType.double,
+        requiredDuringInsert: false,
+        defaultValue: const Constant(0.0),
+      );
+  static const VerificationMeta _systemCardsTotalMeta = const VerificationMeta(
+    'systemCardsTotal',
+  );
+  @override
+  late final GeneratedColumn<double> systemCardsTotal = GeneratedColumn<double>(
+    'system_cards_total',
+    aliasedName,
+    false,
+    type: DriftSqlType.double,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(0.0),
+  );
+  static const VerificationMeta _systemTransfersTotalMeta =
+      const VerificationMeta('systemTransfersTotal');
+  @override
+  late final GeneratedColumn<double> systemTransfersTotal =
+      GeneratedColumn<double>(
+        'system_transfers_total',
+        aliasedName,
+        false,
+        type: DriftSqlType.double,
+        requiredDuringInsert: false,
+        defaultValue: const Constant(0.0),
+      );
+  static const VerificationMeta _systemAdvancesTotalMeta =
+      const VerificationMeta('systemAdvancesTotal');
+  @override
+  late final GeneratedColumn<double> systemAdvancesTotal =
+      GeneratedColumn<double>(
+        'system_advances_total',
+        aliasedName,
+        false,
+        type: DriftSqlType.double,
+        requiredDuringInsert: false,
+        defaultValue: const Constant(0.0),
+      );
+  static const VerificationMeta _systemCreditNotesTotalMeta =
+      const VerificationMeta('systemCreditNotesTotal');
+  @override
+  late final GeneratedColumn<double> systemCreditNotesTotal =
+      GeneratedColumn<double>(
+        'system_credit_notes_total',
+        aliasedName,
+        false,
+        type: DriftSqlType.double,
+        requiredDuringInsert: false,
+        defaultValue: const Constant(0.0),
+      );
+  static const VerificationMeta _manualChecksOnDayMeta = const VerificationMeta(
+    'manualChecksOnDay',
+  );
+  @override
+  late final GeneratedColumn<double> manualChecksOnDay =
+      GeneratedColumn<double>(
+        'manual_checks_on_day',
+        aliasedName,
+        false,
+        type: DriftSqlType.double,
+        requiredDuringInsert: false,
+        defaultValue: const Constant(0.0),
+      );
+  static const VerificationMeta _manualChecksPostdatedMeta =
+      const VerificationMeta('manualChecksPostdated');
+  @override
+  late final GeneratedColumn<double> manualChecksPostdated =
+      GeneratedColumn<double>(
+        'manual_checks_postdated',
+        aliasedName,
+        false,
+        type: DriftSqlType.double,
+        requiredDuringInsert: false,
+        defaultValue: const Constant(0.0),
+      );
+  static const VerificationMeta _manualCardsTotalMeta = const VerificationMeta(
+    'manualCardsTotal',
+  );
+  @override
+  late final GeneratedColumn<double> manualCardsTotal = GeneratedColumn<double>(
+    'manual_cards_total',
+    aliasedName,
+    false,
+    type: DriftSqlType.double,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(0.0),
+  );
+  static const VerificationMeta _manualTransfersTotalMeta =
+      const VerificationMeta('manualTransfersTotal');
+  @override
+  late final GeneratedColumn<double> manualTransfersTotal =
+      GeneratedColumn<double>(
+        'manual_transfers_total',
+        aliasedName,
+        false,
+        type: DriftSqlType.double,
+        requiredDuringInsert: false,
+        defaultValue: const Constant(0.0),
+      );
+  static const VerificationMeta _manualAdvancesTotalMeta =
+      const VerificationMeta('manualAdvancesTotal');
+  @override
+  late final GeneratedColumn<double> manualAdvancesTotal =
+      GeneratedColumn<double>(
+        'manual_advances_total',
+        aliasedName,
+        false,
+        type: DriftSqlType.double,
+        requiredDuringInsert: false,
+        defaultValue: const Constant(0.0),
+      );
+  static const VerificationMeta _manualCreditNotesTotalMeta =
+      const VerificationMeta('manualCreditNotesTotal');
+  @override
+  late final GeneratedColumn<double> manualCreditNotesTotal =
+      GeneratedColumn<double>(
+        'manual_credit_notes_total',
+        aliasedName,
+        false,
+        type: DriftSqlType.double,
+        requiredDuringInsert: false,
+        defaultValue: const Constant(0.0),
+      );
+  static const VerificationMeta _manualWithholdsTotalMeta =
+      const VerificationMeta('manualWithholdsTotal');
+  @override
+  late final GeneratedColumn<double> manualWithholdsTotal =
+      GeneratedColumn<double>(
+        'manual_withholds_total',
+        aliasedName,
+        false,
+        type: DriftSqlType.double,
+        requiredDuringInsert: false,
+        defaultValue: const Constant(0.0),
+      );
+  static const VerificationMeta _diffChecksOnDayMeta = const VerificationMeta(
+    'diffChecksOnDay',
+  );
+  @override
+  late final GeneratedColumn<double> diffChecksOnDay = GeneratedColumn<double>(
+    'diff_checks_on_day',
+    aliasedName,
+    false,
+    type: DriftSqlType.double,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(0.0),
+  );
+  static const VerificationMeta _diffChecksPostdatedMeta =
+      const VerificationMeta('diffChecksPostdated');
+  @override
+  late final GeneratedColumn<double> diffChecksPostdated =
+      GeneratedColumn<double>(
+        'diff_checks_postdated',
+        aliasedName,
+        false,
+        type: DriftSqlType.double,
+        requiredDuringInsert: false,
+        defaultValue: const Constant(0.0),
+      );
+  static const VerificationMeta _diffCardsTotalMeta = const VerificationMeta(
+    'diffCardsTotal',
+  );
+  @override
+  late final GeneratedColumn<double> diffCardsTotal = GeneratedColumn<double>(
+    'diff_cards_total',
+    aliasedName,
+    false,
+    type: DriftSqlType.double,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(0.0),
+  );
+  static const VerificationMeta _diffTransfersTotalMeta =
+      const VerificationMeta('diffTransfersTotal');
+  @override
+  late final GeneratedColumn<double> diffTransfersTotal =
+      GeneratedColumn<double>(
+        'diff_transfers_total',
+        aliasedName,
+        false,
+        type: DriftSqlType.double,
+        requiredDuringInsert: false,
+        defaultValue: const Constant(0.0),
+      );
+  static const VerificationMeta _diffAdvancesTotalMeta = const VerificationMeta(
+    'diffAdvancesTotal',
+  );
+  @override
+  late final GeneratedColumn<double> diffAdvancesTotal =
+      GeneratedColumn<double>(
+        'diff_advances_total',
+        aliasedName,
+        false,
+        type: DriftSqlType.double,
+        requiredDuringInsert: false,
+        defaultValue: const Constant(0.0),
+      );
+  static const VerificationMeta _diffCreditNotesTotalMeta =
+      const VerificationMeta('diffCreditNotesTotal');
+  @override
+  late final GeneratedColumn<double> diffCreditNotesTotal =
+      GeneratedColumn<double>(
+        'diff_credit_notes_total',
+        aliasedName,
+        false,
+        type: DriftSqlType.double,
+        requiredDuringInsert: false,
+        defaultValue: const Constant(0.0),
+      );
+  static const VerificationMeta _diffWithholdsTotalMeta =
+      const VerificationMeta('diffWithholdsTotal');
+  @override
+  late final GeneratedColumn<double> diffWithholdsTotal =
+      GeneratedColumn<double>(
+        'diff_withholds_total',
+        aliasedName,
+        false,
+        type: DriftSqlType.double,
+        requiredDuringInsert: false,
+        defaultValue: const Constant(0.0),
+      );
+  static const VerificationMeta _summarySystemTotalMeta =
+      const VerificationMeta('summarySystemTotal');
+  @override
+  late final GeneratedColumn<double> summarySystemTotal =
+      GeneratedColumn<double>(
+        'summary_system_total',
+        aliasedName,
+        false,
+        type: DriftSqlType.double,
+        requiredDuringInsert: false,
+        defaultValue: const Constant(0.0),
+      );
+  static const VerificationMeta _summaryManualTotalMeta =
+      const VerificationMeta('summaryManualTotal');
+  @override
+  late final GeneratedColumn<double> summaryManualTotal =
+      GeneratedColumn<double>(
+        'summary_manual_total',
+        aliasedName,
+        false,
+        type: DriftSqlType.double,
+        requiredDuringInsert: false,
+        defaultValue: const Constant(0.0),
+      );
+  static const VerificationMeta _summaryDiffTotalMeta = const VerificationMeta(
+    'summaryDiffTotal',
+  );
+  @override
+  late final GeneratedColumn<double> summaryDiffTotal = GeneratedColumn<double>(
+    'summary_diff_total',
+    aliasedName,
+    false,
+    type: DriftSqlType.double,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(0.0),
+  );
+  static const VerificationMeta _factDepositsCashMeta = const VerificationMeta(
+    'factDepositsCash',
+  );
+  @override
+  late final GeneratedColumn<double> factDepositsCash = GeneratedColumn<double>(
+    'fact_deposits_cash',
+    aliasedName,
+    false,
+    type: DriftSqlType.double,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(0.0),
+  );
+  static const VerificationMeta _factDepositsChecksMeta =
+      const VerificationMeta('factDepositsChecks');
+  @override
+  late final GeneratedColumn<double> factDepositsChecks =
+      GeneratedColumn<double>(
+        'fact_deposits_checks',
+        aliasedName,
+        false,
+        type: DriftSqlType.double,
+        requiredDuringInsert: false,
+        defaultValue: const Constant(0.0),
+      );
+  static const VerificationMeta _carteraDepositsCashMeta =
+      const VerificationMeta('carteraDepositsCash');
+  @override
+  late final GeneratedColumn<double> carteraDepositsCash =
+      GeneratedColumn<double>(
+        'cartera_deposits_cash',
+        aliasedName,
+        false,
+        type: DriftSqlType.double,
+        requiredDuringInsert: false,
+        defaultValue: const Constant(0.0),
+      );
+  static const VerificationMeta _carteraDepositsChecksMeta =
+      const VerificationMeta('carteraDepositsChecks');
+  @override
+  late final GeneratedColumn<double> carteraDepositsChecks =
+      GeneratedColumn<double>(
+        'cartera_deposits_checks',
+        aliasedName,
+        false,
+        type: DriftSqlType.double,
+        requiredDuringInsert: false,
+        defaultValue: const Constant(0.0),
+      );
+  static const VerificationMeta _anticipoDepositsCashMeta =
+      const VerificationMeta('anticipoDepositsCash');
+  @override
+  late final GeneratedColumn<double> anticipoDepositsCash =
+      GeneratedColumn<double>(
+        'anticipo_deposits_cash',
+        aliasedName,
+        false,
+        type: DriftSqlType.double,
+        requiredDuringInsert: false,
+        defaultValue: const Constant(0.0),
+      );
+  static const VerificationMeta _anticipoDepositsChecksMeta =
+      const VerificationMeta('anticipoDepositsChecks');
+  @override
+  late final GeneratedColumn<double> anticipoDepositsChecks =
+      GeneratedColumn<double>(
+        'anticipo_deposits_checks',
+        aliasedName,
+        false,
+        type: DriftSqlType.double,
+        requiredDuringInsert: false,
+        defaultValue: const Constant(0.0),
+      );
+  static const VerificationMeta _factAdvancesUsedMeta = const VerificationMeta(
+    'factAdvancesUsed',
+  );
+  @override
+  late final GeneratedColumn<double> factAdvancesUsed = GeneratedColumn<double>(
+    'fact_advances_used',
+    aliasedName,
+    false,
+    type: DriftSqlType.double,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(0.0),
+  );
+  static const VerificationMeta _carteraAdvancesUsedMeta =
+      const VerificationMeta('carteraAdvancesUsed');
+  @override
+  late final GeneratedColumn<double> carteraAdvancesUsed =
+      GeneratedColumn<double>(
+        'cartera_advances_used',
+        aliasedName,
+        false,
+        type: DriftSqlType.double,
+        requiredDuringInsert: false,
+        defaultValue: const Constant(0.0),
+      );
+  static const VerificationMeta _summaryAdvancesUsedTotalMeta =
+      const VerificationMeta('summaryAdvancesUsedTotal');
+  @override
+  late final GeneratedColumn<double> summaryAdvancesUsedTotal =
+      GeneratedColumn<double>(
+        'summary_advances_used_total',
+        aliasedName,
+        false,
+        type: DriftSqlType.double,
+        requiredDuringInsert: false,
+        defaultValue: const Constant(0.0),
+      );
+  static const VerificationMeta _factTotalWithNcWithholdsMeta =
+      const VerificationMeta('factTotalWithNcWithholds');
+  @override
+  late final GeneratedColumn<double> factTotalWithNcWithholds =
+      GeneratedColumn<double>(
+        'fact_total_with_nc_withholds',
+        aliasedName,
+        false,
+        type: DriftSqlType.double,
+        requiredDuringInsert: false,
+        defaultValue: const Constant(0.0),
+      );
   static const VerificationMeta _totalCashMeta = const VerificationMeta(
     'totalCash',
   );
@@ -20737,6 +21435,56 @@ class $CollectionSessionTable extends CollectionSession
     cashOutOtherTotal,
     checksOnDayTotal,
     checksPostdatedTotal,
+    advanceChecksOnDayTotal,
+    advanceChecksPostdatedTotal,
+    totalChecksOnDay,
+    totalChecksPostdated,
+    totalCashAdvanceAmount,
+    systemDepositsCashTotal,
+    manualDepositsCashTotal,
+    diffDepositsCashTotal,
+    systemDepositsChecksTotal,
+    manualDepositsChecksTotal,
+    diffDepositsChecksTotal,
+    totalCashInvoicesAmount,
+    totalCashCollectedAmount,
+    totalCashPendingAmount,
+    totalCreditOrdersAmount,
+    totalCreditInvoicesAmount,
+    creditSalesDifference,
+    systemChecksOnDay,
+    systemChecksPostdated,
+    systemCardsTotal,
+    systemTransfersTotal,
+    systemAdvancesTotal,
+    systemCreditNotesTotal,
+    manualChecksOnDay,
+    manualChecksPostdated,
+    manualCardsTotal,
+    manualTransfersTotal,
+    manualAdvancesTotal,
+    manualCreditNotesTotal,
+    manualWithholdsTotal,
+    diffChecksOnDay,
+    diffChecksPostdated,
+    diffCardsTotal,
+    diffTransfersTotal,
+    diffAdvancesTotal,
+    diffCreditNotesTotal,
+    diffWithholdsTotal,
+    summarySystemTotal,
+    summaryManualTotal,
+    summaryDiffTotal,
+    factDepositsCash,
+    factDepositsChecks,
+    carteraDepositsCash,
+    carteraDepositsChecks,
+    anticipoDepositsCash,
+    anticipoDepositsChecks,
+    factAdvancesUsed,
+    carteraAdvancesUsed,
+    summaryAdvancesUsedTotal,
+    factTotalWithNcWithholds,
     totalCash,
     totalCards,
     totalTransfers,
@@ -21116,6 +21864,456 @@ class $CollectionSessionTable extends CollectionSession
         checksPostdatedTotal.isAcceptableOrUnknown(
           data['checks_postdated_total']!,
           _checksPostdatedTotalMeta,
+        ),
+      );
+    }
+    if (data.containsKey('advance_checks_on_day_total')) {
+      context.handle(
+        _advanceChecksOnDayTotalMeta,
+        advanceChecksOnDayTotal.isAcceptableOrUnknown(
+          data['advance_checks_on_day_total']!,
+          _advanceChecksOnDayTotalMeta,
+        ),
+      );
+    }
+    if (data.containsKey('advance_checks_postdated_total')) {
+      context.handle(
+        _advanceChecksPostdatedTotalMeta,
+        advanceChecksPostdatedTotal.isAcceptableOrUnknown(
+          data['advance_checks_postdated_total']!,
+          _advanceChecksPostdatedTotalMeta,
+        ),
+      );
+    }
+    if (data.containsKey('total_checks_on_day')) {
+      context.handle(
+        _totalChecksOnDayMeta,
+        totalChecksOnDay.isAcceptableOrUnknown(
+          data['total_checks_on_day']!,
+          _totalChecksOnDayMeta,
+        ),
+      );
+    }
+    if (data.containsKey('total_checks_postdated')) {
+      context.handle(
+        _totalChecksPostdatedMeta,
+        totalChecksPostdated.isAcceptableOrUnknown(
+          data['total_checks_postdated']!,
+          _totalChecksPostdatedMeta,
+        ),
+      );
+    }
+    if (data.containsKey('total_cash_advance_amount')) {
+      context.handle(
+        _totalCashAdvanceAmountMeta,
+        totalCashAdvanceAmount.isAcceptableOrUnknown(
+          data['total_cash_advance_amount']!,
+          _totalCashAdvanceAmountMeta,
+        ),
+      );
+    }
+    if (data.containsKey('system_deposits_cash_total')) {
+      context.handle(
+        _systemDepositsCashTotalMeta,
+        systemDepositsCashTotal.isAcceptableOrUnknown(
+          data['system_deposits_cash_total']!,
+          _systemDepositsCashTotalMeta,
+        ),
+      );
+    }
+    if (data.containsKey('manual_deposits_cash_total')) {
+      context.handle(
+        _manualDepositsCashTotalMeta,
+        manualDepositsCashTotal.isAcceptableOrUnknown(
+          data['manual_deposits_cash_total']!,
+          _manualDepositsCashTotalMeta,
+        ),
+      );
+    }
+    if (data.containsKey('diff_deposits_cash_total')) {
+      context.handle(
+        _diffDepositsCashTotalMeta,
+        diffDepositsCashTotal.isAcceptableOrUnknown(
+          data['diff_deposits_cash_total']!,
+          _diffDepositsCashTotalMeta,
+        ),
+      );
+    }
+    if (data.containsKey('system_deposits_checks_total')) {
+      context.handle(
+        _systemDepositsChecksTotalMeta,
+        systemDepositsChecksTotal.isAcceptableOrUnknown(
+          data['system_deposits_checks_total']!,
+          _systemDepositsChecksTotalMeta,
+        ),
+      );
+    }
+    if (data.containsKey('manual_deposits_checks_total')) {
+      context.handle(
+        _manualDepositsChecksTotalMeta,
+        manualDepositsChecksTotal.isAcceptableOrUnknown(
+          data['manual_deposits_checks_total']!,
+          _manualDepositsChecksTotalMeta,
+        ),
+      );
+    }
+    if (data.containsKey('diff_deposits_checks_total')) {
+      context.handle(
+        _diffDepositsChecksTotalMeta,
+        diffDepositsChecksTotal.isAcceptableOrUnknown(
+          data['diff_deposits_checks_total']!,
+          _diffDepositsChecksTotalMeta,
+        ),
+      );
+    }
+    if (data.containsKey('total_cash_invoices_amount')) {
+      context.handle(
+        _totalCashInvoicesAmountMeta,
+        totalCashInvoicesAmount.isAcceptableOrUnknown(
+          data['total_cash_invoices_amount']!,
+          _totalCashInvoicesAmountMeta,
+        ),
+      );
+    }
+    if (data.containsKey('total_cash_collected_amount')) {
+      context.handle(
+        _totalCashCollectedAmountMeta,
+        totalCashCollectedAmount.isAcceptableOrUnknown(
+          data['total_cash_collected_amount']!,
+          _totalCashCollectedAmountMeta,
+        ),
+      );
+    }
+    if (data.containsKey('total_cash_pending_amount')) {
+      context.handle(
+        _totalCashPendingAmountMeta,
+        totalCashPendingAmount.isAcceptableOrUnknown(
+          data['total_cash_pending_amount']!,
+          _totalCashPendingAmountMeta,
+        ),
+      );
+    }
+    if (data.containsKey('total_credit_orders_amount')) {
+      context.handle(
+        _totalCreditOrdersAmountMeta,
+        totalCreditOrdersAmount.isAcceptableOrUnknown(
+          data['total_credit_orders_amount']!,
+          _totalCreditOrdersAmountMeta,
+        ),
+      );
+    }
+    if (data.containsKey('total_credit_invoices_amount')) {
+      context.handle(
+        _totalCreditInvoicesAmountMeta,
+        totalCreditInvoicesAmount.isAcceptableOrUnknown(
+          data['total_credit_invoices_amount']!,
+          _totalCreditInvoicesAmountMeta,
+        ),
+      );
+    }
+    if (data.containsKey('credit_sales_difference')) {
+      context.handle(
+        _creditSalesDifferenceMeta,
+        creditSalesDifference.isAcceptableOrUnknown(
+          data['credit_sales_difference']!,
+          _creditSalesDifferenceMeta,
+        ),
+      );
+    }
+    if (data.containsKey('system_checks_on_day')) {
+      context.handle(
+        _systemChecksOnDayMeta,
+        systemChecksOnDay.isAcceptableOrUnknown(
+          data['system_checks_on_day']!,
+          _systemChecksOnDayMeta,
+        ),
+      );
+    }
+    if (data.containsKey('system_checks_postdated')) {
+      context.handle(
+        _systemChecksPostdatedMeta,
+        systemChecksPostdated.isAcceptableOrUnknown(
+          data['system_checks_postdated']!,
+          _systemChecksPostdatedMeta,
+        ),
+      );
+    }
+    if (data.containsKey('system_cards_total')) {
+      context.handle(
+        _systemCardsTotalMeta,
+        systemCardsTotal.isAcceptableOrUnknown(
+          data['system_cards_total']!,
+          _systemCardsTotalMeta,
+        ),
+      );
+    }
+    if (data.containsKey('system_transfers_total')) {
+      context.handle(
+        _systemTransfersTotalMeta,
+        systemTransfersTotal.isAcceptableOrUnknown(
+          data['system_transfers_total']!,
+          _systemTransfersTotalMeta,
+        ),
+      );
+    }
+    if (data.containsKey('system_advances_total')) {
+      context.handle(
+        _systemAdvancesTotalMeta,
+        systemAdvancesTotal.isAcceptableOrUnknown(
+          data['system_advances_total']!,
+          _systemAdvancesTotalMeta,
+        ),
+      );
+    }
+    if (data.containsKey('system_credit_notes_total')) {
+      context.handle(
+        _systemCreditNotesTotalMeta,
+        systemCreditNotesTotal.isAcceptableOrUnknown(
+          data['system_credit_notes_total']!,
+          _systemCreditNotesTotalMeta,
+        ),
+      );
+    }
+    if (data.containsKey('manual_checks_on_day')) {
+      context.handle(
+        _manualChecksOnDayMeta,
+        manualChecksOnDay.isAcceptableOrUnknown(
+          data['manual_checks_on_day']!,
+          _manualChecksOnDayMeta,
+        ),
+      );
+    }
+    if (data.containsKey('manual_checks_postdated')) {
+      context.handle(
+        _manualChecksPostdatedMeta,
+        manualChecksPostdated.isAcceptableOrUnknown(
+          data['manual_checks_postdated']!,
+          _manualChecksPostdatedMeta,
+        ),
+      );
+    }
+    if (data.containsKey('manual_cards_total')) {
+      context.handle(
+        _manualCardsTotalMeta,
+        manualCardsTotal.isAcceptableOrUnknown(
+          data['manual_cards_total']!,
+          _manualCardsTotalMeta,
+        ),
+      );
+    }
+    if (data.containsKey('manual_transfers_total')) {
+      context.handle(
+        _manualTransfersTotalMeta,
+        manualTransfersTotal.isAcceptableOrUnknown(
+          data['manual_transfers_total']!,
+          _manualTransfersTotalMeta,
+        ),
+      );
+    }
+    if (data.containsKey('manual_advances_total')) {
+      context.handle(
+        _manualAdvancesTotalMeta,
+        manualAdvancesTotal.isAcceptableOrUnknown(
+          data['manual_advances_total']!,
+          _manualAdvancesTotalMeta,
+        ),
+      );
+    }
+    if (data.containsKey('manual_credit_notes_total')) {
+      context.handle(
+        _manualCreditNotesTotalMeta,
+        manualCreditNotesTotal.isAcceptableOrUnknown(
+          data['manual_credit_notes_total']!,
+          _manualCreditNotesTotalMeta,
+        ),
+      );
+    }
+    if (data.containsKey('manual_withholds_total')) {
+      context.handle(
+        _manualWithholdsTotalMeta,
+        manualWithholdsTotal.isAcceptableOrUnknown(
+          data['manual_withholds_total']!,
+          _manualWithholdsTotalMeta,
+        ),
+      );
+    }
+    if (data.containsKey('diff_checks_on_day')) {
+      context.handle(
+        _diffChecksOnDayMeta,
+        diffChecksOnDay.isAcceptableOrUnknown(
+          data['diff_checks_on_day']!,
+          _diffChecksOnDayMeta,
+        ),
+      );
+    }
+    if (data.containsKey('diff_checks_postdated')) {
+      context.handle(
+        _diffChecksPostdatedMeta,
+        diffChecksPostdated.isAcceptableOrUnknown(
+          data['diff_checks_postdated']!,
+          _diffChecksPostdatedMeta,
+        ),
+      );
+    }
+    if (data.containsKey('diff_cards_total')) {
+      context.handle(
+        _diffCardsTotalMeta,
+        diffCardsTotal.isAcceptableOrUnknown(
+          data['diff_cards_total']!,
+          _diffCardsTotalMeta,
+        ),
+      );
+    }
+    if (data.containsKey('diff_transfers_total')) {
+      context.handle(
+        _diffTransfersTotalMeta,
+        diffTransfersTotal.isAcceptableOrUnknown(
+          data['diff_transfers_total']!,
+          _diffTransfersTotalMeta,
+        ),
+      );
+    }
+    if (data.containsKey('diff_advances_total')) {
+      context.handle(
+        _diffAdvancesTotalMeta,
+        diffAdvancesTotal.isAcceptableOrUnknown(
+          data['diff_advances_total']!,
+          _diffAdvancesTotalMeta,
+        ),
+      );
+    }
+    if (data.containsKey('diff_credit_notes_total')) {
+      context.handle(
+        _diffCreditNotesTotalMeta,
+        diffCreditNotesTotal.isAcceptableOrUnknown(
+          data['diff_credit_notes_total']!,
+          _diffCreditNotesTotalMeta,
+        ),
+      );
+    }
+    if (data.containsKey('diff_withholds_total')) {
+      context.handle(
+        _diffWithholdsTotalMeta,
+        diffWithholdsTotal.isAcceptableOrUnknown(
+          data['diff_withholds_total']!,
+          _diffWithholdsTotalMeta,
+        ),
+      );
+    }
+    if (data.containsKey('summary_system_total')) {
+      context.handle(
+        _summarySystemTotalMeta,
+        summarySystemTotal.isAcceptableOrUnknown(
+          data['summary_system_total']!,
+          _summarySystemTotalMeta,
+        ),
+      );
+    }
+    if (data.containsKey('summary_manual_total')) {
+      context.handle(
+        _summaryManualTotalMeta,
+        summaryManualTotal.isAcceptableOrUnknown(
+          data['summary_manual_total']!,
+          _summaryManualTotalMeta,
+        ),
+      );
+    }
+    if (data.containsKey('summary_diff_total')) {
+      context.handle(
+        _summaryDiffTotalMeta,
+        summaryDiffTotal.isAcceptableOrUnknown(
+          data['summary_diff_total']!,
+          _summaryDiffTotalMeta,
+        ),
+      );
+    }
+    if (data.containsKey('fact_deposits_cash')) {
+      context.handle(
+        _factDepositsCashMeta,
+        factDepositsCash.isAcceptableOrUnknown(
+          data['fact_deposits_cash']!,
+          _factDepositsCashMeta,
+        ),
+      );
+    }
+    if (data.containsKey('fact_deposits_checks')) {
+      context.handle(
+        _factDepositsChecksMeta,
+        factDepositsChecks.isAcceptableOrUnknown(
+          data['fact_deposits_checks']!,
+          _factDepositsChecksMeta,
+        ),
+      );
+    }
+    if (data.containsKey('cartera_deposits_cash')) {
+      context.handle(
+        _carteraDepositsCashMeta,
+        carteraDepositsCash.isAcceptableOrUnknown(
+          data['cartera_deposits_cash']!,
+          _carteraDepositsCashMeta,
+        ),
+      );
+    }
+    if (data.containsKey('cartera_deposits_checks')) {
+      context.handle(
+        _carteraDepositsChecksMeta,
+        carteraDepositsChecks.isAcceptableOrUnknown(
+          data['cartera_deposits_checks']!,
+          _carteraDepositsChecksMeta,
+        ),
+      );
+    }
+    if (data.containsKey('anticipo_deposits_cash')) {
+      context.handle(
+        _anticipoDepositsCashMeta,
+        anticipoDepositsCash.isAcceptableOrUnknown(
+          data['anticipo_deposits_cash']!,
+          _anticipoDepositsCashMeta,
+        ),
+      );
+    }
+    if (data.containsKey('anticipo_deposits_checks')) {
+      context.handle(
+        _anticipoDepositsChecksMeta,
+        anticipoDepositsChecks.isAcceptableOrUnknown(
+          data['anticipo_deposits_checks']!,
+          _anticipoDepositsChecksMeta,
+        ),
+      );
+    }
+    if (data.containsKey('fact_advances_used')) {
+      context.handle(
+        _factAdvancesUsedMeta,
+        factAdvancesUsed.isAcceptableOrUnknown(
+          data['fact_advances_used']!,
+          _factAdvancesUsedMeta,
+        ),
+      );
+    }
+    if (data.containsKey('cartera_advances_used')) {
+      context.handle(
+        _carteraAdvancesUsedMeta,
+        carteraAdvancesUsed.isAcceptableOrUnknown(
+          data['cartera_advances_used']!,
+          _carteraAdvancesUsedMeta,
+        ),
+      );
+    }
+    if (data.containsKey('summary_advances_used_total')) {
+      context.handle(
+        _summaryAdvancesUsedTotalMeta,
+        summaryAdvancesUsedTotal.isAcceptableOrUnknown(
+          data['summary_advances_used_total']!,
+          _summaryAdvancesUsedTotalMeta,
+        ),
+      );
+    }
+    if (data.containsKey('fact_total_with_nc_withholds')) {
+      context.handle(
+        _factTotalWithNcWithholdsMeta,
+        factTotalWithNcWithholds.isAcceptableOrUnknown(
+          data['fact_total_with_nc_withholds']!,
+          _factTotalWithNcWithholdsMeta,
         ),
       );
     }
@@ -21582,6 +22780,206 @@ class $CollectionSessionTable extends CollectionSession
         DriftSqlType.double,
         data['${effectivePrefix}checks_postdated_total'],
       )!,
+      advanceChecksOnDayTotal: attachedDatabase.typeMapping.read(
+        DriftSqlType.double,
+        data['${effectivePrefix}advance_checks_on_day_total'],
+      )!,
+      advanceChecksPostdatedTotal: attachedDatabase.typeMapping.read(
+        DriftSqlType.double,
+        data['${effectivePrefix}advance_checks_postdated_total'],
+      )!,
+      totalChecksOnDay: attachedDatabase.typeMapping.read(
+        DriftSqlType.double,
+        data['${effectivePrefix}total_checks_on_day'],
+      )!,
+      totalChecksPostdated: attachedDatabase.typeMapping.read(
+        DriftSqlType.double,
+        data['${effectivePrefix}total_checks_postdated'],
+      )!,
+      totalCashAdvanceAmount: attachedDatabase.typeMapping.read(
+        DriftSqlType.double,
+        data['${effectivePrefix}total_cash_advance_amount'],
+      )!,
+      systemDepositsCashTotal: attachedDatabase.typeMapping.read(
+        DriftSqlType.double,
+        data['${effectivePrefix}system_deposits_cash_total'],
+      )!,
+      manualDepositsCashTotal: attachedDatabase.typeMapping.read(
+        DriftSqlType.double,
+        data['${effectivePrefix}manual_deposits_cash_total'],
+      )!,
+      diffDepositsCashTotal: attachedDatabase.typeMapping.read(
+        DriftSqlType.double,
+        data['${effectivePrefix}diff_deposits_cash_total'],
+      )!,
+      systemDepositsChecksTotal: attachedDatabase.typeMapping.read(
+        DriftSqlType.double,
+        data['${effectivePrefix}system_deposits_checks_total'],
+      )!,
+      manualDepositsChecksTotal: attachedDatabase.typeMapping.read(
+        DriftSqlType.double,
+        data['${effectivePrefix}manual_deposits_checks_total'],
+      )!,
+      diffDepositsChecksTotal: attachedDatabase.typeMapping.read(
+        DriftSqlType.double,
+        data['${effectivePrefix}diff_deposits_checks_total'],
+      )!,
+      totalCashInvoicesAmount: attachedDatabase.typeMapping.read(
+        DriftSqlType.double,
+        data['${effectivePrefix}total_cash_invoices_amount'],
+      )!,
+      totalCashCollectedAmount: attachedDatabase.typeMapping.read(
+        DriftSqlType.double,
+        data['${effectivePrefix}total_cash_collected_amount'],
+      )!,
+      totalCashPendingAmount: attachedDatabase.typeMapping.read(
+        DriftSqlType.double,
+        data['${effectivePrefix}total_cash_pending_amount'],
+      )!,
+      totalCreditOrdersAmount: attachedDatabase.typeMapping.read(
+        DriftSqlType.double,
+        data['${effectivePrefix}total_credit_orders_amount'],
+      )!,
+      totalCreditInvoicesAmount: attachedDatabase.typeMapping.read(
+        DriftSqlType.double,
+        data['${effectivePrefix}total_credit_invoices_amount'],
+      )!,
+      creditSalesDifference: attachedDatabase.typeMapping.read(
+        DriftSqlType.double,
+        data['${effectivePrefix}credit_sales_difference'],
+      )!,
+      systemChecksOnDay: attachedDatabase.typeMapping.read(
+        DriftSqlType.double,
+        data['${effectivePrefix}system_checks_on_day'],
+      )!,
+      systemChecksPostdated: attachedDatabase.typeMapping.read(
+        DriftSqlType.double,
+        data['${effectivePrefix}system_checks_postdated'],
+      )!,
+      systemCardsTotal: attachedDatabase.typeMapping.read(
+        DriftSqlType.double,
+        data['${effectivePrefix}system_cards_total'],
+      )!,
+      systemTransfersTotal: attachedDatabase.typeMapping.read(
+        DriftSqlType.double,
+        data['${effectivePrefix}system_transfers_total'],
+      )!,
+      systemAdvancesTotal: attachedDatabase.typeMapping.read(
+        DriftSqlType.double,
+        data['${effectivePrefix}system_advances_total'],
+      )!,
+      systemCreditNotesTotal: attachedDatabase.typeMapping.read(
+        DriftSqlType.double,
+        data['${effectivePrefix}system_credit_notes_total'],
+      )!,
+      manualChecksOnDay: attachedDatabase.typeMapping.read(
+        DriftSqlType.double,
+        data['${effectivePrefix}manual_checks_on_day'],
+      )!,
+      manualChecksPostdated: attachedDatabase.typeMapping.read(
+        DriftSqlType.double,
+        data['${effectivePrefix}manual_checks_postdated'],
+      )!,
+      manualCardsTotal: attachedDatabase.typeMapping.read(
+        DriftSqlType.double,
+        data['${effectivePrefix}manual_cards_total'],
+      )!,
+      manualTransfersTotal: attachedDatabase.typeMapping.read(
+        DriftSqlType.double,
+        data['${effectivePrefix}manual_transfers_total'],
+      )!,
+      manualAdvancesTotal: attachedDatabase.typeMapping.read(
+        DriftSqlType.double,
+        data['${effectivePrefix}manual_advances_total'],
+      )!,
+      manualCreditNotesTotal: attachedDatabase.typeMapping.read(
+        DriftSqlType.double,
+        data['${effectivePrefix}manual_credit_notes_total'],
+      )!,
+      manualWithholdsTotal: attachedDatabase.typeMapping.read(
+        DriftSqlType.double,
+        data['${effectivePrefix}manual_withholds_total'],
+      )!,
+      diffChecksOnDay: attachedDatabase.typeMapping.read(
+        DriftSqlType.double,
+        data['${effectivePrefix}diff_checks_on_day'],
+      )!,
+      diffChecksPostdated: attachedDatabase.typeMapping.read(
+        DriftSqlType.double,
+        data['${effectivePrefix}diff_checks_postdated'],
+      )!,
+      diffCardsTotal: attachedDatabase.typeMapping.read(
+        DriftSqlType.double,
+        data['${effectivePrefix}diff_cards_total'],
+      )!,
+      diffTransfersTotal: attachedDatabase.typeMapping.read(
+        DriftSqlType.double,
+        data['${effectivePrefix}diff_transfers_total'],
+      )!,
+      diffAdvancesTotal: attachedDatabase.typeMapping.read(
+        DriftSqlType.double,
+        data['${effectivePrefix}diff_advances_total'],
+      )!,
+      diffCreditNotesTotal: attachedDatabase.typeMapping.read(
+        DriftSqlType.double,
+        data['${effectivePrefix}diff_credit_notes_total'],
+      )!,
+      diffWithholdsTotal: attachedDatabase.typeMapping.read(
+        DriftSqlType.double,
+        data['${effectivePrefix}diff_withholds_total'],
+      )!,
+      summarySystemTotal: attachedDatabase.typeMapping.read(
+        DriftSqlType.double,
+        data['${effectivePrefix}summary_system_total'],
+      )!,
+      summaryManualTotal: attachedDatabase.typeMapping.read(
+        DriftSqlType.double,
+        data['${effectivePrefix}summary_manual_total'],
+      )!,
+      summaryDiffTotal: attachedDatabase.typeMapping.read(
+        DriftSqlType.double,
+        data['${effectivePrefix}summary_diff_total'],
+      )!,
+      factDepositsCash: attachedDatabase.typeMapping.read(
+        DriftSqlType.double,
+        data['${effectivePrefix}fact_deposits_cash'],
+      )!,
+      factDepositsChecks: attachedDatabase.typeMapping.read(
+        DriftSqlType.double,
+        data['${effectivePrefix}fact_deposits_checks'],
+      )!,
+      carteraDepositsCash: attachedDatabase.typeMapping.read(
+        DriftSqlType.double,
+        data['${effectivePrefix}cartera_deposits_cash'],
+      )!,
+      carteraDepositsChecks: attachedDatabase.typeMapping.read(
+        DriftSqlType.double,
+        data['${effectivePrefix}cartera_deposits_checks'],
+      )!,
+      anticipoDepositsCash: attachedDatabase.typeMapping.read(
+        DriftSqlType.double,
+        data['${effectivePrefix}anticipo_deposits_cash'],
+      )!,
+      anticipoDepositsChecks: attachedDatabase.typeMapping.read(
+        DriftSqlType.double,
+        data['${effectivePrefix}anticipo_deposits_checks'],
+      )!,
+      factAdvancesUsed: attachedDatabase.typeMapping.read(
+        DriftSqlType.double,
+        data['${effectivePrefix}fact_advances_used'],
+      )!,
+      carteraAdvancesUsed: attachedDatabase.typeMapping.read(
+        DriftSqlType.double,
+        data['${effectivePrefix}cartera_advances_used'],
+      )!,
+      summaryAdvancesUsedTotal: attachedDatabase.typeMapping.read(
+        DriftSqlType.double,
+        data['${effectivePrefix}summary_advances_used_total'],
+      )!,
+      factTotalWithNcWithholds: attachedDatabase.typeMapping.read(
+        DriftSqlType.double,
+        data['${effectivePrefix}fact_total_with_nc_withholds'],
+      )!,
       totalCash: attachedDatabase.typeMapping.read(
         DriftSqlType.double,
         data['${effectivePrefix}total_cash'],
@@ -21773,6 +23171,56 @@ class CollectionSessionData extends DataClass
   final double cashOutOtherTotal;
   final double checksOnDayTotal;
   final double checksPostdatedTotal;
+  final double advanceChecksOnDayTotal;
+  final double advanceChecksPostdatedTotal;
+  final double totalChecksOnDay;
+  final double totalChecksPostdated;
+  final double totalCashAdvanceAmount;
+  final double systemDepositsCashTotal;
+  final double manualDepositsCashTotal;
+  final double diffDepositsCashTotal;
+  final double systemDepositsChecksTotal;
+  final double manualDepositsChecksTotal;
+  final double diffDepositsChecksTotal;
+  final double totalCashInvoicesAmount;
+  final double totalCashCollectedAmount;
+  final double totalCashPendingAmount;
+  final double totalCreditOrdersAmount;
+  final double totalCreditInvoicesAmount;
+  final double creditSalesDifference;
+  final double systemChecksOnDay;
+  final double systemChecksPostdated;
+  final double systemCardsTotal;
+  final double systemTransfersTotal;
+  final double systemAdvancesTotal;
+  final double systemCreditNotesTotal;
+  final double manualChecksOnDay;
+  final double manualChecksPostdated;
+  final double manualCardsTotal;
+  final double manualTransfersTotal;
+  final double manualAdvancesTotal;
+  final double manualCreditNotesTotal;
+  final double manualWithholdsTotal;
+  final double diffChecksOnDay;
+  final double diffChecksPostdated;
+  final double diffCardsTotal;
+  final double diffTransfersTotal;
+  final double diffAdvancesTotal;
+  final double diffCreditNotesTotal;
+  final double diffWithholdsTotal;
+  final double summarySystemTotal;
+  final double summaryManualTotal;
+  final double summaryDiffTotal;
+  final double factDepositsCash;
+  final double factDepositsChecks;
+  final double carteraDepositsCash;
+  final double carteraDepositsChecks;
+  final double anticipoDepositsCash;
+  final double anticipoDepositsChecks;
+  final double factAdvancesUsed;
+  final double carteraAdvancesUsed;
+  final double summaryAdvancesUsedTotal;
+  final double factTotalWithNcWithholds;
   final double totalCash;
   final double totalCards;
   final double totalTransfers;
@@ -21849,6 +23297,56 @@ class CollectionSessionData extends DataClass
     required this.cashOutOtherTotal,
     required this.checksOnDayTotal,
     required this.checksPostdatedTotal,
+    required this.advanceChecksOnDayTotal,
+    required this.advanceChecksPostdatedTotal,
+    required this.totalChecksOnDay,
+    required this.totalChecksPostdated,
+    required this.totalCashAdvanceAmount,
+    required this.systemDepositsCashTotal,
+    required this.manualDepositsCashTotal,
+    required this.diffDepositsCashTotal,
+    required this.systemDepositsChecksTotal,
+    required this.manualDepositsChecksTotal,
+    required this.diffDepositsChecksTotal,
+    required this.totalCashInvoicesAmount,
+    required this.totalCashCollectedAmount,
+    required this.totalCashPendingAmount,
+    required this.totalCreditOrdersAmount,
+    required this.totalCreditInvoicesAmount,
+    required this.creditSalesDifference,
+    required this.systemChecksOnDay,
+    required this.systemChecksPostdated,
+    required this.systemCardsTotal,
+    required this.systemTransfersTotal,
+    required this.systemAdvancesTotal,
+    required this.systemCreditNotesTotal,
+    required this.manualChecksOnDay,
+    required this.manualChecksPostdated,
+    required this.manualCardsTotal,
+    required this.manualTransfersTotal,
+    required this.manualAdvancesTotal,
+    required this.manualCreditNotesTotal,
+    required this.manualWithholdsTotal,
+    required this.diffChecksOnDay,
+    required this.diffChecksPostdated,
+    required this.diffCardsTotal,
+    required this.diffTransfersTotal,
+    required this.diffAdvancesTotal,
+    required this.diffCreditNotesTotal,
+    required this.diffWithholdsTotal,
+    required this.summarySystemTotal,
+    required this.summaryManualTotal,
+    required this.summaryDiffTotal,
+    required this.factDepositsCash,
+    required this.factDepositsChecks,
+    required this.carteraDepositsCash,
+    required this.carteraDepositsChecks,
+    required this.anticipoDepositsCash,
+    required this.anticipoDepositsChecks,
+    required this.factAdvancesUsed,
+    required this.carteraAdvancesUsed,
+    required this.summaryAdvancesUsedTotal,
+    required this.factTotalWithNcWithholds,
     required this.totalCash,
     required this.totalCards,
     required this.totalTransfers,
@@ -21946,6 +23444,82 @@ class CollectionSessionData extends DataClass
     map['cash_out_other_total'] = Variable<double>(cashOutOtherTotal);
     map['checks_on_day_total'] = Variable<double>(checksOnDayTotal);
     map['checks_postdated_total'] = Variable<double>(checksPostdatedTotal);
+    map['advance_checks_on_day_total'] = Variable<double>(
+      advanceChecksOnDayTotal,
+    );
+    map['advance_checks_postdated_total'] = Variable<double>(
+      advanceChecksPostdatedTotal,
+    );
+    map['total_checks_on_day'] = Variable<double>(totalChecksOnDay);
+    map['total_checks_postdated'] = Variable<double>(totalChecksPostdated);
+    map['total_cash_advance_amount'] = Variable<double>(totalCashAdvanceAmount);
+    map['system_deposits_cash_total'] = Variable<double>(
+      systemDepositsCashTotal,
+    );
+    map['manual_deposits_cash_total'] = Variable<double>(
+      manualDepositsCashTotal,
+    );
+    map['diff_deposits_cash_total'] = Variable<double>(diffDepositsCashTotal);
+    map['system_deposits_checks_total'] = Variable<double>(
+      systemDepositsChecksTotal,
+    );
+    map['manual_deposits_checks_total'] = Variable<double>(
+      manualDepositsChecksTotal,
+    );
+    map['diff_deposits_checks_total'] = Variable<double>(
+      diffDepositsChecksTotal,
+    );
+    map['total_cash_invoices_amount'] = Variable<double>(
+      totalCashInvoicesAmount,
+    );
+    map['total_cash_collected_amount'] = Variable<double>(
+      totalCashCollectedAmount,
+    );
+    map['total_cash_pending_amount'] = Variable<double>(totalCashPendingAmount);
+    map['total_credit_orders_amount'] = Variable<double>(
+      totalCreditOrdersAmount,
+    );
+    map['total_credit_invoices_amount'] = Variable<double>(
+      totalCreditInvoicesAmount,
+    );
+    map['credit_sales_difference'] = Variable<double>(creditSalesDifference);
+    map['system_checks_on_day'] = Variable<double>(systemChecksOnDay);
+    map['system_checks_postdated'] = Variable<double>(systemChecksPostdated);
+    map['system_cards_total'] = Variable<double>(systemCardsTotal);
+    map['system_transfers_total'] = Variable<double>(systemTransfersTotal);
+    map['system_advances_total'] = Variable<double>(systemAdvancesTotal);
+    map['system_credit_notes_total'] = Variable<double>(systemCreditNotesTotal);
+    map['manual_checks_on_day'] = Variable<double>(manualChecksOnDay);
+    map['manual_checks_postdated'] = Variable<double>(manualChecksPostdated);
+    map['manual_cards_total'] = Variable<double>(manualCardsTotal);
+    map['manual_transfers_total'] = Variable<double>(manualTransfersTotal);
+    map['manual_advances_total'] = Variable<double>(manualAdvancesTotal);
+    map['manual_credit_notes_total'] = Variable<double>(manualCreditNotesTotal);
+    map['manual_withholds_total'] = Variable<double>(manualWithholdsTotal);
+    map['diff_checks_on_day'] = Variable<double>(diffChecksOnDay);
+    map['diff_checks_postdated'] = Variable<double>(diffChecksPostdated);
+    map['diff_cards_total'] = Variable<double>(diffCardsTotal);
+    map['diff_transfers_total'] = Variable<double>(diffTransfersTotal);
+    map['diff_advances_total'] = Variable<double>(diffAdvancesTotal);
+    map['diff_credit_notes_total'] = Variable<double>(diffCreditNotesTotal);
+    map['diff_withholds_total'] = Variable<double>(diffWithholdsTotal);
+    map['summary_system_total'] = Variable<double>(summarySystemTotal);
+    map['summary_manual_total'] = Variable<double>(summaryManualTotal);
+    map['summary_diff_total'] = Variable<double>(summaryDiffTotal);
+    map['fact_deposits_cash'] = Variable<double>(factDepositsCash);
+    map['fact_deposits_checks'] = Variable<double>(factDepositsChecks);
+    map['cartera_deposits_cash'] = Variable<double>(carteraDepositsCash);
+    map['cartera_deposits_checks'] = Variable<double>(carteraDepositsChecks);
+    map['anticipo_deposits_cash'] = Variable<double>(anticipoDepositsCash);
+    map['anticipo_deposits_checks'] = Variable<double>(anticipoDepositsChecks);
+    map['fact_advances_used'] = Variable<double>(factAdvancesUsed);
+    map['cartera_advances_used'] = Variable<double>(carteraAdvancesUsed);
+    map['summary_advances_used_total'] = Variable<double>(
+      summaryAdvancesUsedTotal,
+    );
+    map['fact_total_with_nc_withholds'] = Variable<double>(
+      factTotalWithNcWithholds,
+    );
     map['total_cash'] = Variable<double>(totalCash);
     map['total_cards'] = Variable<double>(totalCards);
     map['total_transfers'] = Variable<double>(totalTransfers);
@@ -22060,6 +23634,56 @@ class CollectionSessionData extends DataClass
       cashOutOtherTotal: Value(cashOutOtherTotal),
       checksOnDayTotal: Value(checksOnDayTotal),
       checksPostdatedTotal: Value(checksPostdatedTotal),
+      advanceChecksOnDayTotal: Value(advanceChecksOnDayTotal),
+      advanceChecksPostdatedTotal: Value(advanceChecksPostdatedTotal),
+      totalChecksOnDay: Value(totalChecksOnDay),
+      totalChecksPostdated: Value(totalChecksPostdated),
+      totalCashAdvanceAmount: Value(totalCashAdvanceAmount),
+      systemDepositsCashTotal: Value(systemDepositsCashTotal),
+      manualDepositsCashTotal: Value(manualDepositsCashTotal),
+      diffDepositsCashTotal: Value(diffDepositsCashTotal),
+      systemDepositsChecksTotal: Value(systemDepositsChecksTotal),
+      manualDepositsChecksTotal: Value(manualDepositsChecksTotal),
+      diffDepositsChecksTotal: Value(diffDepositsChecksTotal),
+      totalCashInvoicesAmount: Value(totalCashInvoicesAmount),
+      totalCashCollectedAmount: Value(totalCashCollectedAmount),
+      totalCashPendingAmount: Value(totalCashPendingAmount),
+      totalCreditOrdersAmount: Value(totalCreditOrdersAmount),
+      totalCreditInvoicesAmount: Value(totalCreditInvoicesAmount),
+      creditSalesDifference: Value(creditSalesDifference),
+      systemChecksOnDay: Value(systemChecksOnDay),
+      systemChecksPostdated: Value(systemChecksPostdated),
+      systemCardsTotal: Value(systemCardsTotal),
+      systemTransfersTotal: Value(systemTransfersTotal),
+      systemAdvancesTotal: Value(systemAdvancesTotal),
+      systemCreditNotesTotal: Value(systemCreditNotesTotal),
+      manualChecksOnDay: Value(manualChecksOnDay),
+      manualChecksPostdated: Value(manualChecksPostdated),
+      manualCardsTotal: Value(manualCardsTotal),
+      manualTransfersTotal: Value(manualTransfersTotal),
+      manualAdvancesTotal: Value(manualAdvancesTotal),
+      manualCreditNotesTotal: Value(manualCreditNotesTotal),
+      manualWithholdsTotal: Value(manualWithholdsTotal),
+      diffChecksOnDay: Value(diffChecksOnDay),
+      diffChecksPostdated: Value(diffChecksPostdated),
+      diffCardsTotal: Value(diffCardsTotal),
+      diffTransfersTotal: Value(diffTransfersTotal),
+      diffAdvancesTotal: Value(diffAdvancesTotal),
+      diffCreditNotesTotal: Value(diffCreditNotesTotal),
+      diffWithholdsTotal: Value(diffWithholdsTotal),
+      summarySystemTotal: Value(summarySystemTotal),
+      summaryManualTotal: Value(summaryManualTotal),
+      summaryDiffTotal: Value(summaryDiffTotal),
+      factDepositsCash: Value(factDepositsCash),
+      factDepositsChecks: Value(factDepositsChecks),
+      carteraDepositsCash: Value(carteraDepositsCash),
+      carteraDepositsChecks: Value(carteraDepositsChecks),
+      anticipoDepositsCash: Value(anticipoDepositsCash),
+      anticipoDepositsChecks: Value(anticipoDepositsChecks),
+      factAdvancesUsed: Value(factAdvancesUsed),
+      carteraAdvancesUsed: Value(carteraAdvancesUsed),
+      summaryAdvancesUsedTotal: Value(summaryAdvancesUsedTotal),
+      factTotalWithNcWithholds: Value(factTotalWithNcWithholds),
       totalCash: Value(totalCash),
       totalCards: Value(totalCards),
       totalTransfers: Value(totalTransfers),
@@ -22190,6 +23814,134 @@ class CollectionSessionData extends DataClass
       checksPostdatedTotal: serializer.fromJson<double>(
         json['checksPostdatedTotal'],
       ),
+      advanceChecksOnDayTotal: serializer.fromJson<double>(
+        json['advanceChecksOnDayTotal'],
+      ),
+      advanceChecksPostdatedTotal: serializer.fromJson<double>(
+        json['advanceChecksPostdatedTotal'],
+      ),
+      totalChecksOnDay: serializer.fromJson<double>(json['totalChecksOnDay']),
+      totalChecksPostdated: serializer.fromJson<double>(
+        json['totalChecksPostdated'],
+      ),
+      totalCashAdvanceAmount: serializer.fromJson<double>(
+        json['totalCashAdvanceAmount'],
+      ),
+      systemDepositsCashTotal: serializer.fromJson<double>(
+        json['systemDepositsCashTotal'],
+      ),
+      manualDepositsCashTotal: serializer.fromJson<double>(
+        json['manualDepositsCashTotal'],
+      ),
+      diffDepositsCashTotal: serializer.fromJson<double>(
+        json['diffDepositsCashTotal'],
+      ),
+      systemDepositsChecksTotal: serializer.fromJson<double>(
+        json['systemDepositsChecksTotal'],
+      ),
+      manualDepositsChecksTotal: serializer.fromJson<double>(
+        json['manualDepositsChecksTotal'],
+      ),
+      diffDepositsChecksTotal: serializer.fromJson<double>(
+        json['diffDepositsChecksTotal'],
+      ),
+      totalCashInvoicesAmount: serializer.fromJson<double>(
+        json['totalCashInvoicesAmount'],
+      ),
+      totalCashCollectedAmount: serializer.fromJson<double>(
+        json['totalCashCollectedAmount'],
+      ),
+      totalCashPendingAmount: serializer.fromJson<double>(
+        json['totalCashPendingAmount'],
+      ),
+      totalCreditOrdersAmount: serializer.fromJson<double>(
+        json['totalCreditOrdersAmount'],
+      ),
+      totalCreditInvoicesAmount: serializer.fromJson<double>(
+        json['totalCreditInvoicesAmount'],
+      ),
+      creditSalesDifference: serializer.fromJson<double>(
+        json['creditSalesDifference'],
+      ),
+      systemChecksOnDay: serializer.fromJson<double>(json['systemChecksOnDay']),
+      systemChecksPostdated: serializer.fromJson<double>(
+        json['systemChecksPostdated'],
+      ),
+      systemCardsTotal: serializer.fromJson<double>(json['systemCardsTotal']),
+      systemTransfersTotal: serializer.fromJson<double>(
+        json['systemTransfersTotal'],
+      ),
+      systemAdvancesTotal: serializer.fromJson<double>(
+        json['systemAdvancesTotal'],
+      ),
+      systemCreditNotesTotal: serializer.fromJson<double>(
+        json['systemCreditNotesTotal'],
+      ),
+      manualChecksOnDay: serializer.fromJson<double>(json['manualChecksOnDay']),
+      manualChecksPostdated: serializer.fromJson<double>(
+        json['manualChecksPostdated'],
+      ),
+      manualCardsTotal: serializer.fromJson<double>(json['manualCardsTotal']),
+      manualTransfersTotal: serializer.fromJson<double>(
+        json['manualTransfersTotal'],
+      ),
+      manualAdvancesTotal: serializer.fromJson<double>(
+        json['manualAdvancesTotal'],
+      ),
+      manualCreditNotesTotal: serializer.fromJson<double>(
+        json['manualCreditNotesTotal'],
+      ),
+      manualWithholdsTotal: serializer.fromJson<double>(
+        json['manualWithholdsTotal'],
+      ),
+      diffChecksOnDay: serializer.fromJson<double>(json['diffChecksOnDay']),
+      diffChecksPostdated: serializer.fromJson<double>(
+        json['diffChecksPostdated'],
+      ),
+      diffCardsTotal: serializer.fromJson<double>(json['diffCardsTotal']),
+      diffTransfersTotal: serializer.fromJson<double>(
+        json['diffTransfersTotal'],
+      ),
+      diffAdvancesTotal: serializer.fromJson<double>(json['diffAdvancesTotal']),
+      diffCreditNotesTotal: serializer.fromJson<double>(
+        json['diffCreditNotesTotal'],
+      ),
+      diffWithholdsTotal: serializer.fromJson<double>(
+        json['diffWithholdsTotal'],
+      ),
+      summarySystemTotal: serializer.fromJson<double>(
+        json['summarySystemTotal'],
+      ),
+      summaryManualTotal: serializer.fromJson<double>(
+        json['summaryManualTotal'],
+      ),
+      summaryDiffTotal: serializer.fromJson<double>(json['summaryDiffTotal']),
+      factDepositsCash: serializer.fromJson<double>(json['factDepositsCash']),
+      factDepositsChecks: serializer.fromJson<double>(
+        json['factDepositsChecks'],
+      ),
+      carteraDepositsCash: serializer.fromJson<double>(
+        json['carteraDepositsCash'],
+      ),
+      carteraDepositsChecks: serializer.fromJson<double>(
+        json['carteraDepositsChecks'],
+      ),
+      anticipoDepositsCash: serializer.fromJson<double>(
+        json['anticipoDepositsCash'],
+      ),
+      anticipoDepositsChecks: serializer.fromJson<double>(
+        json['anticipoDepositsChecks'],
+      ),
+      factAdvancesUsed: serializer.fromJson<double>(json['factAdvancesUsed']),
+      carteraAdvancesUsed: serializer.fromJson<double>(
+        json['carteraAdvancesUsed'],
+      ),
+      summaryAdvancesUsedTotal: serializer.fromJson<double>(
+        json['summaryAdvancesUsedTotal'],
+      ),
+      factTotalWithNcWithholds: serializer.fromJson<double>(
+        json['factTotalWithNcWithholds'],
+      ),
       totalCash: serializer.fromJson<double>(json['totalCash']),
       totalCards: serializer.fromJson<double>(json['totalCards']),
       totalTransfers: serializer.fromJson<double>(json['totalTransfers']),
@@ -22283,6 +24035,92 @@ class CollectionSessionData extends DataClass
       'cashOutOtherTotal': serializer.toJson<double>(cashOutOtherTotal),
       'checksOnDayTotal': serializer.toJson<double>(checksOnDayTotal),
       'checksPostdatedTotal': serializer.toJson<double>(checksPostdatedTotal),
+      'advanceChecksOnDayTotal': serializer.toJson<double>(
+        advanceChecksOnDayTotal,
+      ),
+      'advanceChecksPostdatedTotal': serializer.toJson<double>(
+        advanceChecksPostdatedTotal,
+      ),
+      'totalChecksOnDay': serializer.toJson<double>(totalChecksOnDay),
+      'totalChecksPostdated': serializer.toJson<double>(totalChecksPostdated),
+      'totalCashAdvanceAmount': serializer.toJson<double>(
+        totalCashAdvanceAmount,
+      ),
+      'systemDepositsCashTotal': serializer.toJson<double>(
+        systemDepositsCashTotal,
+      ),
+      'manualDepositsCashTotal': serializer.toJson<double>(
+        manualDepositsCashTotal,
+      ),
+      'diffDepositsCashTotal': serializer.toJson<double>(diffDepositsCashTotal),
+      'systemDepositsChecksTotal': serializer.toJson<double>(
+        systemDepositsChecksTotal,
+      ),
+      'manualDepositsChecksTotal': serializer.toJson<double>(
+        manualDepositsChecksTotal,
+      ),
+      'diffDepositsChecksTotal': serializer.toJson<double>(
+        diffDepositsChecksTotal,
+      ),
+      'totalCashInvoicesAmount': serializer.toJson<double>(
+        totalCashInvoicesAmount,
+      ),
+      'totalCashCollectedAmount': serializer.toJson<double>(
+        totalCashCollectedAmount,
+      ),
+      'totalCashPendingAmount': serializer.toJson<double>(
+        totalCashPendingAmount,
+      ),
+      'totalCreditOrdersAmount': serializer.toJson<double>(
+        totalCreditOrdersAmount,
+      ),
+      'totalCreditInvoicesAmount': serializer.toJson<double>(
+        totalCreditInvoicesAmount,
+      ),
+      'creditSalesDifference': serializer.toJson<double>(creditSalesDifference),
+      'systemChecksOnDay': serializer.toJson<double>(systemChecksOnDay),
+      'systemChecksPostdated': serializer.toJson<double>(systemChecksPostdated),
+      'systemCardsTotal': serializer.toJson<double>(systemCardsTotal),
+      'systemTransfersTotal': serializer.toJson<double>(systemTransfersTotal),
+      'systemAdvancesTotal': serializer.toJson<double>(systemAdvancesTotal),
+      'systemCreditNotesTotal': serializer.toJson<double>(
+        systemCreditNotesTotal,
+      ),
+      'manualChecksOnDay': serializer.toJson<double>(manualChecksOnDay),
+      'manualChecksPostdated': serializer.toJson<double>(manualChecksPostdated),
+      'manualCardsTotal': serializer.toJson<double>(manualCardsTotal),
+      'manualTransfersTotal': serializer.toJson<double>(manualTransfersTotal),
+      'manualAdvancesTotal': serializer.toJson<double>(manualAdvancesTotal),
+      'manualCreditNotesTotal': serializer.toJson<double>(
+        manualCreditNotesTotal,
+      ),
+      'manualWithholdsTotal': serializer.toJson<double>(manualWithholdsTotal),
+      'diffChecksOnDay': serializer.toJson<double>(diffChecksOnDay),
+      'diffChecksPostdated': serializer.toJson<double>(diffChecksPostdated),
+      'diffCardsTotal': serializer.toJson<double>(diffCardsTotal),
+      'diffTransfersTotal': serializer.toJson<double>(diffTransfersTotal),
+      'diffAdvancesTotal': serializer.toJson<double>(diffAdvancesTotal),
+      'diffCreditNotesTotal': serializer.toJson<double>(diffCreditNotesTotal),
+      'diffWithholdsTotal': serializer.toJson<double>(diffWithholdsTotal),
+      'summarySystemTotal': serializer.toJson<double>(summarySystemTotal),
+      'summaryManualTotal': serializer.toJson<double>(summaryManualTotal),
+      'summaryDiffTotal': serializer.toJson<double>(summaryDiffTotal),
+      'factDepositsCash': serializer.toJson<double>(factDepositsCash),
+      'factDepositsChecks': serializer.toJson<double>(factDepositsChecks),
+      'carteraDepositsCash': serializer.toJson<double>(carteraDepositsCash),
+      'carteraDepositsChecks': serializer.toJson<double>(carteraDepositsChecks),
+      'anticipoDepositsCash': serializer.toJson<double>(anticipoDepositsCash),
+      'anticipoDepositsChecks': serializer.toJson<double>(
+        anticipoDepositsChecks,
+      ),
+      'factAdvancesUsed': serializer.toJson<double>(factAdvancesUsed),
+      'carteraAdvancesUsed': serializer.toJson<double>(carteraAdvancesUsed),
+      'summaryAdvancesUsedTotal': serializer.toJson<double>(
+        summaryAdvancesUsedTotal,
+      ),
+      'factTotalWithNcWithholds': serializer.toJson<double>(
+        factTotalWithNcWithholds,
+      ),
       'totalCash': serializer.toJson<double>(totalCash),
       'totalCards': serializer.toJson<double>(totalCards),
       'totalTransfers': serializer.toJson<double>(totalTransfers),
@@ -22364,6 +24202,56 @@ class CollectionSessionData extends DataClass
     double? cashOutOtherTotal,
     double? checksOnDayTotal,
     double? checksPostdatedTotal,
+    double? advanceChecksOnDayTotal,
+    double? advanceChecksPostdatedTotal,
+    double? totalChecksOnDay,
+    double? totalChecksPostdated,
+    double? totalCashAdvanceAmount,
+    double? systemDepositsCashTotal,
+    double? manualDepositsCashTotal,
+    double? diffDepositsCashTotal,
+    double? systemDepositsChecksTotal,
+    double? manualDepositsChecksTotal,
+    double? diffDepositsChecksTotal,
+    double? totalCashInvoicesAmount,
+    double? totalCashCollectedAmount,
+    double? totalCashPendingAmount,
+    double? totalCreditOrdersAmount,
+    double? totalCreditInvoicesAmount,
+    double? creditSalesDifference,
+    double? systemChecksOnDay,
+    double? systemChecksPostdated,
+    double? systemCardsTotal,
+    double? systemTransfersTotal,
+    double? systemAdvancesTotal,
+    double? systemCreditNotesTotal,
+    double? manualChecksOnDay,
+    double? manualChecksPostdated,
+    double? manualCardsTotal,
+    double? manualTransfersTotal,
+    double? manualAdvancesTotal,
+    double? manualCreditNotesTotal,
+    double? manualWithholdsTotal,
+    double? diffChecksOnDay,
+    double? diffChecksPostdated,
+    double? diffCardsTotal,
+    double? diffTransfersTotal,
+    double? diffAdvancesTotal,
+    double? diffCreditNotesTotal,
+    double? diffWithholdsTotal,
+    double? summarySystemTotal,
+    double? summaryManualTotal,
+    double? summaryDiffTotal,
+    double? factDepositsCash,
+    double? factDepositsChecks,
+    double? carteraDepositsCash,
+    double? carteraDepositsChecks,
+    double? anticipoDepositsCash,
+    double? anticipoDepositsChecks,
+    double? factAdvancesUsed,
+    double? carteraAdvancesUsed,
+    double? summaryAdvancesUsedTotal,
+    double? factTotalWithNcWithholds,
     double? totalCash,
     double? totalCards,
     double? totalTransfers,
@@ -22450,6 +24338,74 @@ class CollectionSessionData extends DataClass
     cashOutOtherTotal: cashOutOtherTotal ?? this.cashOutOtherTotal,
     checksOnDayTotal: checksOnDayTotal ?? this.checksOnDayTotal,
     checksPostdatedTotal: checksPostdatedTotal ?? this.checksPostdatedTotal,
+    advanceChecksOnDayTotal:
+        advanceChecksOnDayTotal ?? this.advanceChecksOnDayTotal,
+    advanceChecksPostdatedTotal:
+        advanceChecksPostdatedTotal ?? this.advanceChecksPostdatedTotal,
+    totalChecksOnDay: totalChecksOnDay ?? this.totalChecksOnDay,
+    totalChecksPostdated: totalChecksPostdated ?? this.totalChecksPostdated,
+    totalCashAdvanceAmount:
+        totalCashAdvanceAmount ?? this.totalCashAdvanceAmount,
+    systemDepositsCashTotal:
+        systemDepositsCashTotal ?? this.systemDepositsCashTotal,
+    manualDepositsCashTotal:
+        manualDepositsCashTotal ?? this.manualDepositsCashTotal,
+    diffDepositsCashTotal: diffDepositsCashTotal ?? this.diffDepositsCashTotal,
+    systemDepositsChecksTotal:
+        systemDepositsChecksTotal ?? this.systemDepositsChecksTotal,
+    manualDepositsChecksTotal:
+        manualDepositsChecksTotal ?? this.manualDepositsChecksTotal,
+    diffDepositsChecksTotal:
+        diffDepositsChecksTotal ?? this.diffDepositsChecksTotal,
+    totalCashInvoicesAmount:
+        totalCashInvoicesAmount ?? this.totalCashInvoicesAmount,
+    totalCashCollectedAmount:
+        totalCashCollectedAmount ?? this.totalCashCollectedAmount,
+    totalCashPendingAmount:
+        totalCashPendingAmount ?? this.totalCashPendingAmount,
+    totalCreditOrdersAmount:
+        totalCreditOrdersAmount ?? this.totalCreditOrdersAmount,
+    totalCreditInvoicesAmount:
+        totalCreditInvoicesAmount ?? this.totalCreditInvoicesAmount,
+    creditSalesDifference: creditSalesDifference ?? this.creditSalesDifference,
+    systemChecksOnDay: systemChecksOnDay ?? this.systemChecksOnDay,
+    systemChecksPostdated: systemChecksPostdated ?? this.systemChecksPostdated,
+    systemCardsTotal: systemCardsTotal ?? this.systemCardsTotal,
+    systemTransfersTotal: systemTransfersTotal ?? this.systemTransfersTotal,
+    systemAdvancesTotal: systemAdvancesTotal ?? this.systemAdvancesTotal,
+    systemCreditNotesTotal:
+        systemCreditNotesTotal ?? this.systemCreditNotesTotal,
+    manualChecksOnDay: manualChecksOnDay ?? this.manualChecksOnDay,
+    manualChecksPostdated: manualChecksPostdated ?? this.manualChecksPostdated,
+    manualCardsTotal: manualCardsTotal ?? this.manualCardsTotal,
+    manualTransfersTotal: manualTransfersTotal ?? this.manualTransfersTotal,
+    manualAdvancesTotal: manualAdvancesTotal ?? this.manualAdvancesTotal,
+    manualCreditNotesTotal:
+        manualCreditNotesTotal ?? this.manualCreditNotesTotal,
+    manualWithholdsTotal: manualWithholdsTotal ?? this.manualWithholdsTotal,
+    diffChecksOnDay: diffChecksOnDay ?? this.diffChecksOnDay,
+    diffChecksPostdated: diffChecksPostdated ?? this.diffChecksPostdated,
+    diffCardsTotal: diffCardsTotal ?? this.diffCardsTotal,
+    diffTransfersTotal: diffTransfersTotal ?? this.diffTransfersTotal,
+    diffAdvancesTotal: diffAdvancesTotal ?? this.diffAdvancesTotal,
+    diffCreditNotesTotal: diffCreditNotesTotal ?? this.diffCreditNotesTotal,
+    diffWithholdsTotal: diffWithholdsTotal ?? this.diffWithholdsTotal,
+    summarySystemTotal: summarySystemTotal ?? this.summarySystemTotal,
+    summaryManualTotal: summaryManualTotal ?? this.summaryManualTotal,
+    summaryDiffTotal: summaryDiffTotal ?? this.summaryDiffTotal,
+    factDepositsCash: factDepositsCash ?? this.factDepositsCash,
+    factDepositsChecks: factDepositsChecks ?? this.factDepositsChecks,
+    carteraDepositsCash: carteraDepositsCash ?? this.carteraDepositsCash,
+    carteraDepositsChecks: carteraDepositsChecks ?? this.carteraDepositsChecks,
+    anticipoDepositsCash: anticipoDepositsCash ?? this.anticipoDepositsCash,
+    anticipoDepositsChecks:
+        anticipoDepositsChecks ?? this.anticipoDepositsChecks,
+    factAdvancesUsed: factAdvancesUsed ?? this.factAdvancesUsed,
+    carteraAdvancesUsed: carteraAdvancesUsed ?? this.carteraAdvancesUsed,
+    summaryAdvancesUsedTotal:
+        summaryAdvancesUsedTotal ?? this.summaryAdvancesUsedTotal,
+    factTotalWithNcWithholds:
+        factTotalWithNcWithholds ?? this.factTotalWithNcWithholds,
     totalCash: totalCash ?? this.totalCash,
     totalCards: totalCards ?? this.totalCards,
     totalTransfers: totalTransfers ?? this.totalTransfers,
@@ -22596,6 +24552,156 @@ class CollectionSessionData extends DataClass
       checksPostdatedTotal: data.checksPostdatedTotal.present
           ? data.checksPostdatedTotal.value
           : this.checksPostdatedTotal,
+      advanceChecksOnDayTotal: data.advanceChecksOnDayTotal.present
+          ? data.advanceChecksOnDayTotal.value
+          : this.advanceChecksOnDayTotal,
+      advanceChecksPostdatedTotal: data.advanceChecksPostdatedTotal.present
+          ? data.advanceChecksPostdatedTotal.value
+          : this.advanceChecksPostdatedTotal,
+      totalChecksOnDay: data.totalChecksOnDay.present
+          ? data.totalChecksOnDay.value
+          : this.totalChecksOnDay,
+      totalChecksPostdated: data.totalChecksPostdated.present
+          ? data.totalChecksPostdated.value
+          : this.totalChecksPostdated,
+      totalCashAdvanceAmount: data.totalCashAdvanceAmount.present
+          ? data.totalCashAdvanceAmount.value
+          : this.totalCashAdvanceAmount,
+      systemDepositsCashTotal: data.systemDepositsCashTotal.present
+          ? data.systemDepositsCashTotal.value
+          : this.systemDepositsCashTotal,
+      manualDepositsCashTotal: data.manualDepositsCashTotal.present
+          ? data.manualDepositsCashTotal.value
+          : this.manualDepositsCashTotal,
+      diffDepositsCashTotal: data.diffDepositsCashTotal.present
+          ? data.diffDepositsCashTotal.value
+          : this.diffDepositsCashTotal,
+      systemDepositsChecksTotal: data.systemDepositsChecksTotal.present
+          ? data.systemDepositsChecksTotal.value
+          : this.systemDepositsChecksTotal,
+      manualDepositsChecksTotal: data.manualDepositsChecksTotal.present
+          ? data.manualDepositsChecksTotal.value
+          : this.manualDepositsChecksTotal,
+      diffDepositsChecksTotal: data.diffDepositsChecksTotal.present
+          ? data.diffDepositsChecksTotal.value
+          : this.diffDepositsChecksTotal,
+      totalCashInvoicesAmount: data.totalCashInvoicesAmount.present
+          ? data.totalCashInvoicesAmount.value
+          : this.totalCashInvoicesAmount,
+      totalCashCollectedAmount: data.totalCashCollectedAmount.present
+          ? data.totalCashCollectedAmount.value
+          : this.totalCashCollectedAmount,
+      totalCashPendingAmount: data.totalCashPendingAmount.present
+          ? data.totalCashPendingAmount.value
+          : this.totalCashPendingAmount,
+      totalCreditOrdersAmount: data.totalCreditOrdersAmount.present
+          ? data.totalCreditOrdersAmount.value
+          : this.totalCreditOrdersAmount,
+      totalCreditInvoicesAmount: data.totalCreditInvoicesAmount.present
+          ? data.totalCreditInvoicesAmount.value
+          : this.totalCreditInvoicesAmount,
+      creditSalesDifference: data.creditSalesDifference.present
+          ? data.creditSalesDifference.value
+          : this.creditSalesDifference,
+      systemChecksOnDay: data.systemChecksOnDay.present
+          ? data.systemChecksOnDay.value
+          : this.systemChecksOnDay,
+      systemChecksPostdated: data.systemChecksPostdated.present
+          ? data.systemChecksPostdated.value
+          : this.systemChecksPostdated,
+      systemCardsTotal: data.systemCardsTotal.present
+          ? data.systemCardsTotal.value
+          : this.systemCardsTotal,
+      systemTransfersTotal: data.systemTransfersTotal.present
+          ? data.systemTransfersTotal.value
+          : this.systemTransfersTotal,
+      systemAdvancesTotal: data.systemAdvancesTotal.present
+          ? data.systemAdvancesTotal.value
+          : this.systemAdvancesTotal,
+      systemCreditNotesTotal: data.systemCreditNotesTotal.present
+          ? data.systemCreditNotesTotal.value
+          : this.systemCreditNotesTotal,
+      manualChecksOnDay: data.manualChecksOnDay.present
+          ? data.manualChecksOnDay.value
+          : this.manualChecksOnDay,
+      manualChecksPostdated: data.manualChecksPostdated.present
+          ? data.manualChecksPostdated.value
+          : this.manualChecksPostdated,
+      manualCardsTotal: data.manualCardsTotal.present
+          ? data.manualCardsTotal.value
+          : this.manualCardsTotal,
+      manualTransfersTotal: data.manualTransfersTotal.present
+          ? data.manualTransfersTotal.value
+          : this.manualTransfersTotal,
+      manualAdvancesTotal: data.manualAdvancesTotal.present
+          ? data.manualAdvancesTotal.value
+          : this.manualAdvancesTotal,
+      manualCreditNotesTotal: data.manualCreditNotesTotal.present
+          ? data.manualCreditNotesTotal.value
+          : this.manualCreditNotesTotal,
+      manualWithholdsTotal: data.manualWithholdsTotal.present
+          ? data.manualWithholdsTotal.value
+          : this.manualWithholdsTotal,
+      diffChecksOnDay: data.diffChecksOnDay.present
+          ? data.diffChecksOnDay.value
+          : this.diffChecksOnDay,
+      diffChecksPostdated: data.diffChecksPostdated.present
+          ? data.diffChecksPostdated.value
+          : this.diffChecksPostdated,
+      diffCardsTotal: data.diffCardsTotal.present
+          ? data.diffCardsTotal.value
+          : this.diffCardsTotal,
+      diffTransfersTotal: data.diffTransfersTotal.present
+          ? data.diffTransfersTotal.value
+          : this.diffTransfersTotal,
+      diffAdvancesTotal: data.diffAdvancesTotal.present
+          ? data.diffAdvancesTotal.value
+          : this.diffAdvancesTotal,
+      diffCreditNotesTotal: data.diffCreditNotesTotal.present
+          ? data.diffCreditNotesTotal.value
+          : this.diffCreditNotesTotal,
+      diffWithholdsTotal: data.diffWithholdsTotal.present
+          ? data.diffWithholdsTotal.value
+          : this.diffWithholdsTotal,
+      summarySystemTotal: data.summarySystemTotal.present
+          ? data.summarySystemTotal.value
+          : this.summarySystemTotal,
+      summaryManualTotal: data.summaryManualTotal.present
+          ? data.summaryManualTotal.value
+          : this.summaryManualTotal,
+      summaryDiffTotal: data.summaryDiffTotal.present
+          ? data.summaryDiffTotal.value
+          : this.summaryDiffTotal,
+      factDepositsCash: data.factDepositsCash.present
+          ? data.factDepositsCash.value
+          : this.factDepositsCash,
+      factDepositsChecks: data.factDepositsChecks.present
+          ? data.factDepositsChecks.value
+          : this.factDepositsChecks,
+      carteraDepositsCash: data.carteraDepositsCash.present
+          ? data.carteraDepositsCash.value
+          : this.carteraDepositsCash,
+      carteraDepositsChecks: data.carteraDepositsChecks.present
+          ? data.carteraDepositsChecks.value
+          : this.carteraDepositsChecks,
+      anticipoDepositsCash: data.anticipoDepositsCash.present
+          ? data.anticipoDepositsCash.value
+          : this.anticipoDepositsCash,
+      anticipoDepositsChecks: data.anticipoDepositsChecks.present
+          ? data.anticipoDepositsChecks.value
+          : this.anticipoDepositsChecks,
+      factAdvancesUsed: data.factAdvancesUsed.present
+          ? data.factAdvancesUsed.value
+          : this.factAdvancesUsed,
+      carteraAdvancesUsed: data.carteraAdvancesUsed.present
+          ? data.carteraAdvancesUsed.value
+          : this.carteraAdvancesUsed,
+      summaryAdvancesUsedTotal: data.summaryAdvancesUsedTotal.present
+          ? data.summaryAdvancesUsedTotal.value
+          : this.summaryAdvancesUsedTotal,
+      factTotalWithNcWithholds: data.factTotalWithNcWithholds.present
+          ? data.factTotalWithNcWithholds.value
+          : this.factTotalWithNcWithholds,
       totalCash: data.totalCash.present ? data.totalCash.value : this.totalCash,
       totalCards: data.totalCards.present
           ? data.totalCards.value
@@ -22735,6 +24841,56 @@ class CollectionSessionData extends DataClass
           ..write('cashOutOtherTotal: $cashOutOtherTotal, ')
           ..write('checksOnDayTotal: $checksOnDayTotal, ')
           ..write('checksPostdatedTotal: $checksPostdatedTotal, ')
+          ..write('advanceChecksOnDayTotal: $advanceChecksOnDayTotal, ')
+          ..write('advanceChecksPostdatedTotal: $advanceChecksPostdatedTotal, ')
+          ..write('totalChecksOnDay: $totalChecksOnDay, ')
+          ..write('totalChecksPostdated: $totalChecksPostdated, ')
+          ..write('totalCashAdvanceAmount: $totalCashAdvanceAmount, ')
+          ..write('systemDepositsCashTotal: $systemDepositsCashTotal, ')
+          ..write('manualDepositsCashTotal: $manualDepositsCashTotal, ')
+          ..write('diffDepositsCashTotal: $diffDepositsCashTotal, ')
+          ..write('systemDepositsChecksTotal: $systemDepositsChecksTotal, ')
+          ..write('manualDepositsChecksTotal: $manualDepositsChecksTotal, ')
+          ..write('diffDepositsChecksTotal: $diffDepositsChecksTotal, ')
+          ..write('totalCashInvoicesAmount: $totalCashInvoicesAmount, ')
+          ..write('totalCashCollectedAmount: $totalCashCollectedAmount, ')
+          ..write('totalCashPendingAmount: $totalCashPendingAmount, ')
+          ..write('totalCreditOrdersAmount: $totalCreditOrdersAmount, ')
+          ..write('totalCreditInvoicesAmount: $totalCreditInvoicesAmount, ')
+          ..write('creditSalesDifference: $creditSalesDifference, ')
+          ..write('systemChecksOnDay: $systemChecksOnDay, ')
+          ..write('systemChecksPostdated: $systemChecksPostdated, ')
+          ..write('systemCardsTotal: $systemCardsTotal, ')
+          ..write('systemTransfersTotal: $systemTransfersTotal, ')
+          ..write('systemAdvancesTotal: $systemAdvancesTotal, ')
+          ..write('systemCreditNotesTotal: $systemCreditNotesTotal, ')
+          ..write('manualChecksOnDay: $manualChecksOnDay, ')
+          ..write('manualChecksPostdated: $manualChecksPostdated, ')
+          ..write('manualCardsTotal: $manualCardsTotal, ')
+          ..write('manualTransfersTotal: $manualTransfersTotal, ')
+          ..write('manualAdvancesTotal: $manualAdvancesTotal, ')
+          ..write('manualCreditNotesTotal: $manualCreditNotesTotal, ')
+          ..write('manualWithholdsTotal: $manualWithholdsTotal, ')
+          ..write('diffChecksOnDay: $diffChecksOnDay, ')
+          ..write('diffChecksPostdated: $diffChecksPostdated, ')
+          ..write('diffCardsTotal: $diffCardsTotal, ')
+          ..write('diffTransfersTotal: $diffTransfersTotal, ')
+          ..write('diffAdvancesTotal: $diffAdvancesTotal, ')
+          ..write('diffCreditNotesTotal: $diffCreditNotesTotal, ')
+          ..write('diffWithholdsTotal: $diffWithholdsTotal, ')
+          ..write('summarySystemTotal: $summarySystemTotal, ')
+          ..write('summaryManualTotal: $summaryManualTotal, ')
+          ..write('summaryDiffTotal: $summaryDiffTotal, ')
+          ..write('factDepositsCash: $factDepositsCash, ')
+          ..write('factDepositsChecks: $factDepositsChecks, ')
+          ..write('carteraDepositsCash: $carteraDepositsCash, ')
+          ..write('carteraDepositsChecks: $carteraDepositsChecks, ')
+          ..write('anticipoDepositsCash: $anticipoDepositsCash, ')
+          ..write('anticipoDepositsChecks: $anticipoDepositsChecks, ')
+          ..write('factAdvancesUsed: $factAdvancesUsed, ')
+          ..write('carteraAdvancesUsed: $carteraAdvancesUsed, ')
+          ..write('summaryAdvancesUsedTotal: $summaryAdvancesUsedTotal, ')
+          ..write('factTotalWithNcWithholds: $factTotalWithNcWithholds, ')
           ..write('totalCash: $totalCash, ')
           ..write('totalCards: $totalCards, ')
           ..write('totalTransfers: $totalTransfers, ')
@@ -22816,6 +24972,56 @@ class CollectionSessionData extends DataClass
     cashOutOtherTotal,
     checksOnDayTotal,
     checksPostdatedTotal,
+    advanceChecksOnDayTotal,
+    advanceChecksPostdatedTotal,
+    totalChecksOnDay,
+    totalChecksPostdated,
+    totalCashAdvanceAmount,
+    systemDepositsCashTotal,
+    manualDepositsCashTotal,
+    diffDepositsCashTotal,
+    systemDepositsChecksTotal,
+    manualDepositsChecksTotal,
+    diffDepositsChecksTotal,
+    totalCashInvoicesAmount,
+    totalCashCollectedAmount,
+    totalCashPendingAmount,
+    totalCreditOrdersAmount,
+    totalCreditInvoicesAmount,
+    creditSalesDifference,
+    systemChecksOnDay,
+    systemChecksPostdated,
+    systemCardsTotal,
+    systemTransfersTotal,
+    systemAdvancesTotal,
+    systemCreditNotesTotal,
+    manualChecksOnDay,
+    manualChecksPostdated,
+    manualCardsTotal,
+    manualTransfersTotal,
+    manualAdvancesTotal,
+    manualCreditNotesTotal,
+    manualWithholdsTotal,
+    diffChecksOnDay,
+    diffChecksPostdated,
+    diffCardsTotal,
+    diffTransfersTotal,
+    diffAdvancesTotal,
+    diffCreditNotesTotal,
+    diffWithholdsTotal,
+    summarySystemTotal,
+    summaryManualTotal,
+    summaryDiffTotal,
+    factDepositsCash,
+    factDepositsChecks,
+    carteraDepositsCash,
+    carteraDepositsChecks,
+    anticipoDepositsCash,
+    anticipoDepositsChecks,
+    factAdvancesUsed,
+    carteraAdvancesUsed,
+    summaryAdvancesUsedTotal,
+    factTotalWithNcWithholds,
     totalCash,
     totalCards,
     totalTransfers,
@@ -22896,6 +25102,57 @@ class CollectionSessionData extends DataClass
           other.cashOutOtherTotal == this.cashOutOtherTotal &&
           other.checksOnDayTotal == this.checksOnDayTotal &&
           other.checksPostdatedTotal == this.checksPostdatedTotal &&
+          other.advanceChecksOnDayTotal == this.advanceChecksOnDayTotal &&
+          other.advanceChecksPostdatedTotal ==
+              this.advanceChecksPostdatedTotal &&
+          other.totalChecksOnDay == this.totalChecksOnDay &&
+          other.totalChecksPostdated == this.totalChecksPostdated &&
+          other.totalCashAdvanceAmount == this.totalCashAdvanceAmount &&
+          other.systemDepositsCashTotal == this.systemDepositsCashTotal &&
+          other.manualDepositsCashTotal == this.manualDepositsCashTotal &&
+          other.diffDepositsCashTotal == this.diffDepositsCashTotal &&
+          other.systemDepositsChecksTotal == this.systemDepositsChecksTotal &&
+          other.manualDepositsChecksTotal == this.manualDepositsChecksTotal &&
+          other.diffDepositsChecksTotal == this.diffDepositsChecksTotal &&
+          other.totalCashInvoicesAmount == this.totalCashInvoicesAmount &&
+          other.totalCashCollectedAmount == this.totalCashCollectedAmount &&
+          other.totalCashPendingAmount == this.totalCashPendingAmount &&
+          other.totalCreditOrdersAmount == this.totalCreditOrdersAmount &&
+          other.totalCreditInvoicesAmount == this.totalCreditInvoicesAmount &&
+          other.creditSalesDifference == this.creditSalesDifference &&
+          other.systemChecksOnDay == this.systemChecksOnDay &&
+          other.systemChecksPostdated == this.systemChecksPostdated &&
+          other.systemCardsTotal == this.systemCardsTotal &&
+          other.systemTransfersTotal == this.systemTransfersTotal &&
+          other.systemAdvancesTotal == this.systemAdvancesTotal &&
+          other.systemCreditNotesTotal == this.systemCreditNotesTotal &&
+          other.manualChecksOnDay == this.manualChecksOnDay &&
+          other.manualChecksPostdated == this.manualChecksPostdated &&
+          other.manualCardsTotal == this.manualCardsTotal &&
+          other.manualTransfersTotal == this.manualTransfersTotal &&
+          other.manualAdvancesTotal == this.manualAdvancesTotal &&
+          other.manualCreditNotesTotal == this.manualCreditNotesTotal &&
+          other.manualWithholdsTotal == this.manualWithholdsTotal &&
+          other.diffChecksOnDay == this.diffChecksOnDay &&
+          other.diffChecksPostdated == this.diffChecksPostdated &&
+          other.diffCardsTotal == this.diffCardsTotal &&
+          other.diffTransfersTotal == this.diffTransfersTotal &&
+          other.diffAdvancesTotal == this.diffAdvancesTotal &&
+          other.diffCreditNotesTotal == this.diffCreditNotesTotal &&
+          other.diffWithholdsTotal == this.diffWithholdsTotal &&
+          other.summarySystemTotal == this.summarySystemTotal &&
+          other.summaryManualTotal == this.summaryManualTotal &&
+          other.summaryDiffTotal == this.summaryDiffTotal &&
+          other.factDepositsCash == this.factDepositsCash &&
+          other.factDepositsChecks == this.factDepositsChecks &&
+          other.carteraDepositsCash == this.carteraDepositsCash &&
+          other.carteraDepositsChecks == this.carteraDepositsChecks &&
+          other.anticipoDepositsCash == this.anticipoDepositsCash &&
+          other.anticipoDepositsChecks == this.anticipoDepositsChecks &&
+          other.factAdvancesUsed == this.factAdvancesUsed &&
+          other.carteraAdvancesUsed == this.carteraAdvancesUsed &&
+          other.summaryAdvancesUsedTotal == this.summaryAdvancesUsedTotal &&
+          other.factTotalWithNcWithholds == this.factTotalWithNcWithholds &&
           other.totalCash == this.totalCash &&
           other.totalCards == this.totalCards &&
           other.totalTransfers == this.totalTransfers &&
@@ -22975,6 +25232,56 @@ class CollectionSessionCompanion
   final Value<double> cashOutOtherTotal;
   final Value<double> checksOnDayTotal;
   final Value<double> checksPostdatedTotal;
+  final Value<double> advanceChecksOnDayTotal;
+  final Value<double> advanceChecksPostdatedTotal;
+  final Value<double> totalChecksOnDay;
+  final Value<double> totalChecksPostdated;
+  final Value<double> totalCashAdvanceAmount;
+  final Value<double> systemDepositsCashTotal;
+  final Value<double> manualDepositsCashTotal;
+  final Value<double> diffDepositsCashTotal;
+  final Value<double> systemDepositsChecksTotal;
+  final Value<double> manualDepositsChecksTotal;
+  final Value<double> diffDepositsChecksTotal;
+  final Value<double> totalCashInvoicesAmount;
+  final Value<double> totalCashCollectedAmount;
+  final Value<double> totalCashPendingAmount;
+  final Value<double> totalCreditOrdersAmount;
+  final Value<double> totalCreditInvoicesAmount;
+  final Value<double> creditSalesDifference;
+  final Value<double> systemChecksOnDay;
+  final Value<double> systemChecksPostdated;
+  final Value<double> systemCardsTotal;
+  final Value<double> systemTransfersTotal;
+  final Value<double> systemAdvancesTotal;
+  final Value<double> systemCreditNotesTotal;
+  final Value<double> manualChecksOnDay;
+  final Value<double> manualChecksPostdated;
+  final Value<double> manualCardsTotal;
+  final Value<double> manualTransfersTotal;
+  final Value<double> manualAdvancesTotal;
+  final Value<double> manualCreditNotesTotal;
+  final Value<double> manualWithholdsTotal;
+  final Value<double> diffChecksOnDay;
+  final Value<double> diffChecksPostdated;
+  final Value<double> diffCardsTotal;
+  final Value<double> diffTransfersTotal;
+  final Value<double> diffAdvancesTotal;
+  final Value<double> diffCreditNotesTotal;
+  final Value<double> diffWithholdsTotal;
+  final Value<double> summarySystemTotal;
+  final Value<double> summaryManualTotal;
+  final Value<double> summaryDiffTotal;
+  final Value<double> factDepositsCash;
+  final Value<double> factDepositsChecks;
+  final Value<double> carteraDepositsCash;
+  final Value<double> carteraDepositsChecks;
+  final Value<double> anticipoDepositsCash;
+  final Value<double> anticipoDepositsChecks;
+  final Value<double> factAdvancesUsed;
+  final Value<double> carteraAdvancesUsed;
+  final Value<double> summaryAdvancesUsedTotal;
+  final Value<double> factTotalWithNcWithholds;
   final Value<double> totalCash;
   final Value<double> totalCards;
   final Value<double> totalTransfers;
@@ -23051,6 +25358,56 @@ class CollectionSessionCompanion
     this.cashOutOtherTotal = const Value.absent(),
     this.checksOnDayTotal = const Value.absent(),
     this.checksPostdatedTotal = const Value.absent(),
+    this.advanceChecksOnDayTotal = const Value.absent(),
+    this.advanceChecksPostdatedTotal = const Value.absent(),
+    this.totalChecksOnDay = const Value.absent(),
+    this.totalChecksPostdated = const Value.absent(),
+    this.totalCashAdvanceAmount = const Value.absent(),
+    this.systemDepositsCashTotal = const Value.absent(),
+    this.manualDepositsCashTotal = const Value.absent(),
+    this.diffDepositsCashTotal = const Value.absent(),
+    this.systemDepositsChecksTotal = const Value.absent(),
+    this.manualDepositsChecksTotal = const Value.absent(),
+    this.diffDepositsChecksTotal = const Value.absent(),
+    this.totalCashInvoicesAmount = const Value.absent(),
+    this.totalCashCollectedAmount = const Value.absent(),
+    this.totalCashPendingAmount = const Value.absent(),
+    this.totalCreditOrdersAmount = const Value.absent(),
+    this.totalCreditInvoicesAmount = const Value.absent(),
+    this.creditSalesDifference = const Value.absent(),
+    this.systemChecksOnDay = const Value.absent(),
+    this.systemChecksPostdated = const Value.absent(),
+    this.systemCardsTotal = const Value.absent(),
+    this.systemTransfersTotal = const Value.absent(),
+    this.systemAdvancesTotal = const Value.absent(),
+    this.systemCreditNotesTotal = const Value.absent(),
+    this.manualChecksOnDay = const Value.absent(),
+    this.manualChecksPostdated = const Value.absent(),
+    this.manualCardsTotal = const Value.absent(),
+    this.manualTransfersTotal = const Value.absent(),
+    this.manualAdvancesTotal = const Value.absent(),
+    this.manualCreditNotesTotal = const Value.absent(),
+    this.manualWithholdsTotal = const Value.absent(),
+    this.diffChecksOnDay = const Value.absent(),
+    this.diffChecksPostdated = const Value.absent(),
+    this.diffCardsTotal = const Value.absent(),
+    this.diffTransfersTotal = const Value.absent(),
+    this.diffAdvancesTotal = const Value.absent(),
+    this.diffCreditNotesTotal = const Value.absent(),
+    this.diffWithholdsTotal = const Value.absent(),
+    this.summarySystemTotal = const Value.absent(),
+    this.summaryManualTotal = const Value.absent(),
+    this.summaryDiffTotal = const Value.absent(),
+    this.factDepositsCash = const Value.absent(),
+    this.factDepositsChecks = const Value.absent(),
+    this.carteraDepositsCash = const Value.absent(),
+    this.carteraDepositsChecks = const Value.absent(),
+    this.anticipoDepositsCash = const Value.absent(),
+    this.anticipoDepositsChecks = const Value.absent(),
+    this.factAdvancesUsed = const Value.absent(),
+    this.carteraAdvancesUsed = const Value.absent(),
+    this.summaryAdvancesUsedTotal = const Value.absent(),
+    this.factTotalWithNcWithholds = const Value.absent(),
     this.totalCash = const Value.absent(),
     this.totalCards = const Value.absent(),
     this.totalTransfers = const Value.absent(),
@@ -23128,6 +25485,56 @@ class CollectionSessionCompanion
     this.cashOutOtherTotal = const Value.absent(),
     this.checksOnDayTotal = const Value.absent(),
     this.checksPostdatedTotal = const Value.absent(),
+    this.advanceChecksOnDayTotal = const Value.absent(),
+    this.advanceChecksPostdatedTotal = const Value.absent(),
+    this.totalChecksOnDay = const Value.absent(),
+    this.totalChecksPostdated = const Value.absent(),
+    this.totalCashAdvanceAmount = const Value.absent(),
+    this.systemDepositsCashTotal = const Value.absent(),
+    this.manualDepositsCashTotal = const Value.absent(),
+    this.diffDepositsCashTotal = const Value.absent(),
+    this.systemDepositsChecksTotal = const Value.absent(),
+    this.manualDepositsChecksTotal = const Value.absent(),
+    this.diffDepositsChecksTotal = const Value.absent(),
+    this.totalCashInvoicesAmount = const Value.absent(),
+    this.totalCashCollectedAmount = const Value.absent(),
+    this.totalCashPendingAmount = const Value.absent(),
+    this.totalCreditOrdersAmount = const Value.absent(),
+    this.totalCreditInvoicesAmount = const Value.absent(),
+    this.creditSalesDifference = const Value.absent(),
+    this.systemChecksOnDay = const Value.absent(),
+    this.systemChecksPostdated = const Value.absent(),
+    this.systemCardsTotal = const Value.absent(),
+    this.systemTransfersTotal = const Value.absent(),
+    this.systemAdvancesTotal = const Value.absent(),
+    this.systemCreditNotesTotal = const Value.absent(),
+    this.manualChecksOnDay = const Value.absent(),
+    this.manualChecksPostdated = const Value.absent(),
+    this.manualCardsTotal = const Value.absent(),
+    this.manualTransfersTotal = const Value.absent(),
+    this.manualAdvancesTotal = const Value.absent(),
+    this.manualCreditNotesTotal = const Value.absent(),
+    this.manualWithholdsTotal = const Value.absent(),
+    this.diffChecksOnDay = const Value.absent(),
+    this.diffChecksPostdated = const Value.absent(),
+    this.diffCardsTotal = const Value.absent(),
+    this.diffTransfersTotal = const Value.absent(),
+    this.diffAdvancesTotal = const Value.absent(),
+    this.diffCreditNotesTotal = const Value.absent(),
+    this.diffWithholdsTotal = const Value.absent(),
+    this.summarySystemTotal = const Value.absent(),
+    this.summaryManualTotal = const Value.absent(),
+    this.summaryDiffTotal = const Value.absent(),
+    this.factDepositsCash = const Value.absent(),
+    this.factDepositsChecks = const Value.absent(),
+    this.carteraDepositsCash = const Value.absent(),
+    this.carteraDepositsChecks = const Value.absent(),
+    this.anticipoDepositsCash = const Value.absent(),
+    this.anticipoDepositsChecks = const Value.absent(),
+    this.factAdvancesUsed = const Value.absent(),
+    this.carteraAdvancesUsed = const Value.absent(),
+    this.summaryAdvancesUsedTotal = const Value.absent(),
+    this.factTotalWithNcWithholds = const Value.absent(),
     this.totalCash = const Value.absent(),
     this.totalCards = const Value.absent(),
     this.totalTransfers = const Value.absent(),
@@ -23212,6 +25619,56 @@ class CollectionSessionCompanion
     Expression<double>? cashOutOtherTotal,
     Expression<double>? checksOnDayTotal,
     Expression<double>? checksPostdatedTotal,
+    Expression<double>? advanceChecksOnDayTotal,
+    Expression<double>? advanceChecksPostdatedTotal,
+    Expression<double>? totalChecksOnDay,
+    Expression<double>? totalChecksPostdated,
+    Expression<double>? totalCashAdvanceAmount,
+    Expression<double>? systemDepositsCashTotal,
+    Expression<double>? manualDepositsCashTotal,
+    Expression<double>? diffDepositsCashTotal,
+    Expression<double>? systemDepositsChecksTotal,
+    Expression<double>? manualDepositsChecksTotal,
+    Expression<double>? diffDepositsChecksTotal,
+    Expression<double>? totalCashInvoicesAmount,
+    Expression<double>? totalCashCollectedAmount,
+    Expression<double>? totalCashPendingAmount,
+    Expression<double>? totalCreditOrdersAmount,
+    Expression<double>? totalCreditInvoicesAmount,
+    Expression<double>? creditSalesDifference,
+    Expression<double>? systemChecksOnDay,
+    Expression<double>? systemChecksPostdated,
+    Expression<double>? systemCardsTotal,
+    Expression<double>? systemTransfersTotal,
+    Expression<double>? systemAdvancesTotal,
+    Expression<double>? systemCreditNotesTotal,
+    Expression<double>? manualChecksOnDay,
+    Expression<double>? manualChecksPostdated,
+    Expression<double>? manualCardsTotal,
+    Expression<double>? manualTransfersTotal,
+    Expression<double>? manualAdvancesTotal,
+    Expression<double>? manualCreditNotesTotal,
+    Expression<double>? manualWithholdsTotal,
+    Expression<double>? diffChecksOnDay,
+    Expression<double>? diffChecksPostdated,
+    Expression<double>? diffCardsTotal,
+    Expression<double>? diffTransfersTotal,
+    Expression<double>? diffAdvancesTotal,
+    Expression<double>? diffCreditNotesTotal,
+    Expression<double>? diffWithholdsTotal,
+    Expression<double>? summarySystemTotal,
+    Expression<double>? summaryManualTotal,
+    Expression<double>? summaryDiffTotal,
+    Expression<double>? factDepositsCash,
+    Expression<double>? factDepositsChecks,
+    Expression<double>? carteraDepositsCash,
+    Expression<double>? carteraDepositsChecks,
+    Expression<double>? anticipoDepositsCash,
+    Expression<double>? anticipoDepositsChecks,
+    Expression<double>? factAdvancesUsed,
+    Expression<double>? carteraAdvancesUsed,
+    Expression<double>? summaryAdvancesUsedTotal,
+    Expression<double>? factTotalWithNcWithholds,
     Expression<double>? totalCash,
     Expression<double>? totalCards,
     Expression<double>? totalTransfers,
@@ -23303,6 +25760,95 @@ class CollectionSessionCompanion
       if (checksOnDayTotal != null) 'checks_on_day_total': checksOnDayTotal,
       if (checksPostdatedTotal != null)
         'checks_postdated_total': checksPostdatedTotal,
+      if (advanceChecksOnDayTotal != null)
+        'advance_checks_on_day_total': advanceChecksOnDayTotal,
+      if (advanceChecksPostdatedTotal != null)
+        'advance_checks_postdated_total': advanceChecksPostdatedTotal,
+      if (totalChecksOnDay != null) 'total_checks_on_day': totalChecksOnDay,
+      if (totalChecksPostdated != null)
+        'total_checks_postdated': totalChecksPostdated,
+      if (totalCashAdvanceAmount != null)
+        'total_cash_advance_amount': totalCashAdvanceAmount,
+      if (systemDepositsCashTotal != null)
+        'system_deposits_cash_total': systemDepositsCashTotal,
+      if (manualDepositsCashTotal != null)
+        'manual_deposits_cash_total': manualDepositsCashTotal,
+      if (diffDepositsCashTotal != null)
+        'diff_deposits_cash_total': diffDepositsCashTotal,
+      if (systemDepositsChecksTotal != null)
+        'system_deposits_checks_total': systemDepositsChecksTotal,
+      if (manualDepositsChecksTotal != null)
+        'manual_deposits_checks_total': manualDepositsChecksTotal,
+      if (diffDepositsChecksTotal != null)
+        'diff_deposits_checks_total': diffDepositsChecksTotal,
+      if (totalCashInvoicesAmount != null)
+        'total_cash_invoices_amount': totalCashInvoicesAmount,
+      if (totalCashCollectedAmount != null)
+        'total_cash_collected_amount': totalCashCollectedAmount,
+      if (totalCashPendingAmount != null)
+        'total_cash_pending_amount': totalCashPendingAmount,
+      if (totalCreditOrdersAmount != null)
+        'total_credit_orders_amount': totalCreditOrdersAmount,
+      if (totalCreditInvoicesAmount != null)
+        'total_credit_invoices_amount': totalCreditInvoicesAmount,
+      if (creditSalesDifference != null)
+        'credit_sales_difference': creditSalesDifference,
+      if (systemChecksOnDay != null) 'system_checks_on_day': systemChecksOnDay,
+      if (systemChecksPostdated != null)
+        'system_checks_postdated': systemChecksPostdated,
+      if (systemCardsTotal != null) 'system_cards_total': systemCardsTotal,
+      if (systemTransfersTotal != null)
+        'system_transfers_total': systemTransfersTotal,
+      if (systemAdvancesTotal != null)
+        'system_advances_total': systemAdvancesTotal,
+      if (systemCreditNotesTotal != null)
+        'system_credit_notes_total': systemCreditNotesTotal,
+      if (manualChecksOnDay != null) 'manual_checks_on_day': manualChecksOnDay,
+      if (manualChecksPostdated != null)
+        'manual_checks_postdated': manualChecksPostdated,
+      if (manualCardsTotal != null) 'manual_cards_total': manualCardsTotal,
+      if (manualTransfersTotal != null)
+        'manual_transfers_total': manualTransfersTotal,
+      if (manualAdvancesTotal != null)
+        'manual_advances_total': manualAdvancesTotal,
+      if (manualCreditNotesTotal != null)
+        'manual_credit_notes_total': manualCreditNotesTotal,
+      if (manualWithholdsTotal != null)
+        'manual_withholds_total': manualWithholdsTotal,
+      if (diffChecksOnDay != null) 'diff_checks_on_day': diffChecksOnDay,
+      if (diffChecksPostdated != null)
+        'diff_checks_postdated': diffChecksPostdated,
+      if (diffCardsTotal != null) 'diff_cards_total': diffCardsTotal,
+      if (diffTransfersTotal != null)
+        'diff_transfers_total': diffTransfersTotal,
+      if (diffAdvancesTotal != null) 'diff_advances_total': diffAdvancesTotal,
+      if (diffCreditNotesTotal != null)
+        'diff_credit_notes_total': diffCreditNotesTotal,
+      if (diffWithholdsTotal != null)
+        'diff_withholds_total': diffWithholdsTotal,
+      if (summarySystemTotal != null)
+        'summary_system_total': summarySystemTotal,
+      if (summaryManualTotal != null)
+        'summary_manual_total': summaryManualTotal,
+      if (summaryDiffTotal != null) 'summary_diff_total': summaryDiffTotal,
+      if (factDepositsCash != null) 'fact_deposits_cash': factDepositsCash,
+      if (factDepositsChecks != null)
+        'fact_deposits_checks': factDepositsChecks,
+      if (carteraDepositsCash != null)
+        'cartera_deposits_cash': carteraDepositsCash,
+      if (carteraDepositsChecks != null)
+        'cartera_deposits_checks': carteraDepositsChecks,
+      if (anticipoDepositsCash != null)
+        'anticipo_deposits_cash': anticipoDepositsCash,
+      if (anticipoDepositsChecks != null)
+        'anticipo_deposits_checks': anticipoDepositsChecks,
+      if (factAdvancesUsed != null) 'fact_advances_used': factAdvancesUsed,
+      if (carteraAdvancesUsed != null)
+        'cartera_advances_used': carteraAdvancesUsed,
+      if (summaryAdvancesUsedTotal != null)
+        'summary_advances_used_total': summaryAdvancesUsedTotal,
+      if (factTotalWithNcWithholds != null)
+        'fact_total_with_nc_withholds': factTotalWithNcWithholds,
       if (totalCash != null) 'total_cash': totalCash,
       if (totalCards != null) 'total_cards': totalCards,
       if (totalTransfers != null) 'total_transfers': totalTransfers,
@@ -23384,6 +25930,56 @@ class CollectionSessionCompanion
     Value<double>? cashOutOtherTotal,
     Value<double>? checksOnDayTotal,
     Value<double>? checksPostdatedTotal,
+    Value<double>? advanceChecksOnDayTotal,
+    Value<double>? advanceChecksPostdatedTotal,
+    Value<double>? totalChecksOnDay,
+    Value<double>? totalChecksPostdated,
+    Value<double>? totalCashAdvanceAmount,
+    Value<double>? systemDepositsCashTotal,
+    Value<double>? manualDepositsCashTotal,
+    Value<double>? diffDepositsCashTotal,
+    Value<double>? systemDepositsChecksTotal,
+    Value<double>? manualDepositsChecksTotal,
+    Value<double>? diffDepositsChecksTotal,
+    Value<double>? totalCashInvoicesAmount,
+    Value<double>? totalCashCollectedAmount,
+    Value<double>? totalCashPendingAmount,
+    Value<double>? totalCreditOrdersAmount,
+    Value<double>? totalCreditInvoicesAmount,
+    Value<double>? creditSalesDifference,
+    Value<double>? systemChecksOnDay,
+    Value<double>? systemChecksPostdated,
+    Value<double>? systemCardsTotal,
+    Value<double>? systemTransfersTotal,
+    Value<double>? systemAdvancesTotal,
+    Value<double>? systemCreditNotesTotal,
+    Value<double>? manualChecksOnDay,
+    Value<double>? manualChecksPostdated,
+    Value<double>? manualCardsTotal,
+    Value<double>? manualTransfersTotal,
+    Value<double>? manualAdvancesTotal,
+    Value<double>? manualCreditNotesTotal,
+    Value<double>? manualWithholdsTotal,
+    Value<double>? diffChecksOnDay,
+    Value<double>? diffChecksPostdated,
+    Value<double>? diffCardsTotal,
+    Value<double>? diffTransfersTotal,
+    Value<double>? diffAdvancesTotal,
+    Value<double>? diffCreditNotesTotal,
+    Value<double>? diffWithholdsTotal,
+    Value<double>? summarySystemTotal,
+    Value<double>? summaryManualTotal,
+    Value<double>? summaryDiffTotal,
+    Value<double>? factDepositsCash,
+    Value<double>? factDepositsChecks,
+    Value<double>? carteraDepositsCash,
+    Value<double>? carteraDepositsChecks,
+    Value<double>? anticipoDepositsCash,
+    Value<double>? anticipoDepositsChecks,
+    Value<double>? factAdvancesUsed,
+    Value<double>? carteraAdvancesUsed,
+    Value<double>? summaryAdvancesUsedTotal,
+    Value<double>? factTotalWithNcWithholds,
     Value<double>? totalCash,
     Value<double>? totalCards,
     Value<double>? totalTransfers,
@@ -23465,6 +26061,79 @@ class CollectionSessionCompanion
       cashOutOtherTotal: cashOutOtherTotal ?? this.cashOutOtherTotal,
       checksOnDayTotal: checksOnDayTotal ?? this.checksOnDayTotal,
       checksPostdatedTotal: checksPostdatedTotal ?? this.checksPostdatedTotal,
+      advanceChecksOnDayTotal:
+          advanceChecksOnDayTotal ?? this.advanceChecksOnDayTotal,
+      advanceChecksPostdatedTotal:
+          advanceChecksPostdatedTotal ?? this.advanceChecksPostdatedTotal,
+      totalChecksOnDay: totalChecksOnDay ?? this.totalChecksOnDay,
+      totalChecksPostdated: totalChecksPostdated ?? this.totalChecksPostdated,
+      totalCashAdvanceAmount:
+          totalCashAdvanceAmount ?? this.totalCashAdvanceAmount,
+      systemDepositsCashTotal:
+          systemDepositsCashTotal ?? this.systemDepositsCashTotal,
+      manualDepositsCashTotal:
+          manualDepositsCashTotal ?? this.manualDepositsCashTotal,
+      diffDepositsCashTotal:
+          diffDepositsCashTotal ?? this.diffDepositsCashTotal,
+      systemDepositsChecksTotal:
+          systemDepositsChecksTotal ?? this.systemDepositsChecksTotal,
+      manualDepositsChecksTotal:
+          manualDepositsChecksTotal ?? this.manualDepositsChecksTotal,
+      diffDepositsChecksTotal:
+          diffDepositsChecksTotal ?? this.diffDepositsChecksTotal,
+      totalCashInvoicesAmount:
+          totalCashInvoicesAmount ?? this.totalCashInvoicesAmount,
+      totalCashCollectedAmount:
+          totalCashCollectedAmount ?? this.totalCashCollectedAmount,
+      totalCashPendingAmount:
+          totalCashPendingAmount ?? this.totalCashPendingAmount,
+      totalCreditOrdersAmount:
+          totalCreditOrdersAmount ?? this.totalCreditOrdersAmount,
+      totalCreditInvoicesAmount:
+          totalCreditInvoicesAmount ?? this.totalCreditInvoicesAmount,
+      creditSalesDifference:
+          creditSalesDifference ?? this.creditSalesDifference,
+      systemChecksOnDay: systemChecksOnDay ?? this.systemChecksOnDay,
+      systemChecksPostdated:
+          systemChecksPostdated ?? this.systemChecksPostdated,
+      systemCardsTotal: systemCardsTotal ?? this.systemCardsTotal,
+      systemTransfersTotal: systemTransfersTotal ?? this.systemTransfersTotal,
+      systemAdvancesTotal: systemAdvancesTotal ?? this.systemAdvancesTotal,
+      systemCreditNotesTotal:
+          systemCreditNotesTotal ?? this.systemCreditNotesTotal,
+      manualChecksOnDay: manualChecksOnDay ?? this.manualChecksOnDay,
+      manualChecksPostdated:
+          manualChecksPostdated ?? this.manualChecksPostdated,
+      manualCardsTotal: manualCardsTotal ?? this.manualCardsTotal,
+      manualTransfersTotal: manualTransfersTotal ?? this.manualTransfersTotal,
+      manualAdvancesTotal: manualAdvancesTotal ?? this.manualAdvancesTotal,
+      manualCreditNotesTotal:
+          manualCreditNotesTotal ?? this.manualCreditNotesTotal,
+      manualWithholdsTotal: manualWithholdsTotal ?? this.manualWithholdsTotal,
+      diffChecksOnDay: diffChecksOnDay ?? this.diffChecksOnDay,
+      diffChecksPostdated: diffChecksPostdated ?? this.diffChecksPostdated,
+      diffCardsTotal: diffCardsTotal ?? this.diffCardsTotal,
+      diffTransfersTotal: diffTransfersTotal ?? this.diffTransfersTotal,
+      diffAdvancesTotal: diffAdvancesTotal ?? this.diffAdvancesTotal,
+      diffCreditNotesTotal: diffCreditNotesTotal ?? this.diffCreditNotesTotal,
+      diffWithholdsTotal: diffWithholdsTotal ?? this.diffWithholdsTotal,
+      summarySystemTotal: summarySystemTotal ?? this.summarySystemTotal,
+      summaryManualTotal: summaryManualTotal ?? this.summaryManualTotal,
+      summaryDiffTotal: summaryDiffTotal ?? this.summaryDiffTotal,
+      factDepositsCash: factDepositsCash ?? this.factDepositsCash,
+      factDepositsChecks: factDepositsChecks ?? this.factDepositsChecks,
+      carteraDepositsCash: carteraDepositsCash ?? this.carteraDepositsCash,
+      carteraDepositsChecks:
+          carteraDepositsChecks ?? this.carteraDepositsChecks,
+      anticipoDepositsCash: anticipoDepositsCash ?? this.anticipoDepositsCash,
+      anticipoDepositsChecks:
+          anticipoDepositsChecks ?? this.anticipoDepositsChecks,
+      factAdvancesUsed: factAdvancesUsed ?? this.factAdvancesUsed,
+      carteraAdvancesUsed: carteraAdvancesUsed ?? this.carteraAdvancesUsed,
+      summaryAdvancesUsedTotal:
+          summaryAdvancesUsedTotal ?? this.summaryAdvancesUsedTotal,
+      factTotalWithNcWithholds:
+          factTotalWithNcWithholds ?? this.factTotalWithNcWithholds,
       totalCash: totalCash ?? this.totalCash,
       totalCards: totalCards ?? this.totalCards,
       totalTransfers: totalTransfers ?? this.totalTransfers,
@@ -23647,6 +26316,224 @@ class CollectionSessionCompanion
         checksPostdatedTotal.value,
       );
     }
+    if (advanceChecksOnDayTotal.present) {
+      map['advance_checks_on_day_total'] = Variable<double>(
+        advanceChecksOnDayTotal.value,
+      );
+    }
+    if (advanceChecksPostdatedTotal.present) {
+      map['advance_checks_postdated_total'] = Variable<double>(
+        advanceChecksPostdatedTotal.value,
+      );
+    }
+    if (totalChecksOnDay.present) {
+      map['total_checks_on_day'] = Variable<double>(totalChecksOnDay.value);
+    }
+    if (totalChecksPostdated.present) {
+      map['total_checks_postdated'] = Variable<double>(
+        totalChecksPostdated.value,
+      );
+    }
+    if (totalCashAdvanceAmount.present) {
+      map['total_cash_advance_amount'] = Variable<double>(
+        totalCashAdvanceAmount.value,
+      );
+    }
+    if (systemDepositsCashTotal.present) {
+      map['system_deposits_cash_total'] = Variable<double>(
+        systemDepositsCashTotal.value,
+      );
+    }
+    if (manualDepositsCashTotal.present) {
+      map['manual_deposits_cash_total'] = Variable<double>(
+        manualDepositsCashTotal.value,
+      );
+    }
+    if (diffDepositsCashTotal.present) {
+      map['diff_deposits_cash_total'] = Variable<double>(
+        diffDepositsCashTotal.value,
+      );
+    }
+    if (systemDepositsChecksTotal.present) {
+      map['system_deposits_checks_total'] = Variable<double>(
+        systemDepositsChecksTotal.value,
+      );
+    }
+    if (manualDepositsChecksTotal.present) {
+      map['manual_deposits_checks_total'] = Variable<double>(
+        manualDepositsChecksTotal.value,
+      );
+    }
+    if (diffDepositsChecksTotal.present) {
+      map['diff_deposits_checks_total'] = Variable<double>(
+        diffDepositsChecksTotal.value,
+      );
+    }
+    if (totalCashInvoicesAmount.present) {
+      map['total_cash_invoices_amount'] = Variable<double>(
+        totalCashInvoicesAmount.value,
+      );
+    }
+    if (totalCashCollectedAmount.present) {
+      map['total_cash_collected_amount'] = Variable<double>(
+        totalCashCollectedAmount.value,
+      );
+    }
+    if (totalCashPendingAmount.present) {
+      map['total_cash_pending_amount'] = Variable<double>(
+        totalCashPendingAmount.value,
+      );
+    }
+    if (totalCreditOrdersAmount.present) {
+      map['total_credit_orders_amount'] = Variable<double>(
+        totalCreditOrdersAmount.value,
+      );
+    }
+    if (totalCreditInvoicesAmount.present) {
+      map['total_credit_invoices_amount'] = Variable<double>(
+        totalCreditInvoicesAmount.value,
+      );
+    }
+    if (creditSalesDifference.present) {
+      map['credit_sales_difference'] = Variable<double>(
+        creditSalesDifference.value,
+      );
+    }
+    if (systemChecksOnDay.present) {
+      map['system_checks_on_day'] = Variable<double>(systemChecksOnDay.value);
+    }
+    if (systemChecksPostdated.present) {
+      map['system_checks_postdated'] = Variable<double>(
+        systemChecksPostdated.value,
+      );
+    }
+    if (systemCardsTotal.present) {
+      map['system_cards_total'] = Variable<double>(systemCardsTotal.value);
+    }
+    if (systemTransfersTotal.present) {
+      map['system_transfers_total'] = Variable<double>(
+        systemTransfersTotal.value,
+      );
+    }
+    if (systemAdvancesTotal.present) {
+      map['system_advances_total'] = Variable<double>(
+        systemAdvancesTotal.value,
+      );
+    }
+    if (systemCreditNotesTotal.present) {
+      map['system_credit_notes_total'] = Variable<double>(
+        systemCreditNotesTotal.value,
+      );
+    }
+    if (manualChecksOnDay.present) {
+      map['manual_checks_on_day'] = Variable<double>(manualChecksOnDay.value);
+    }
+    if (manualChecksPostdated.present) {
+      map['manual_checks_postdated'] = Variable<double>(
+        manualChecksPostdated.value,
+      );
+    }
+    if (manualCardsTotal.present) {
+      map['manual_cards_total'] = Variable<double>(manualCardsTotal.value);
+    }
+    if (manualTransfersTotal.present) {
+      map['manual_transfers_total'] = Variable<double>(
+        manualTransfersTotal.value,
+      );
+    }
+    if (manualAdvancesTotal.present) {
+      map['manual_advances_total'] = Variable<double>(
+        manualAdvancesTotal.value,
+      );
+    }
+    if (manualCreditNotesTotal.present) {
+      map['manual_credit_notes_total'] = Variable<double>(
+        manualCreditNotesTotal.value,
+      );
+    }
+    if (manualWithholdsTotal.present) {
+      map['manual_withholds_total'] = Variable<double>(
+        manualWithholdsTotal.value,
+      );
+    }
+    if (diffChecksOnDay.present) {
+      map['diff_checks_on_day'] = Variable<double>(diffChecksOnDay.value);
+    }
+    if (diffChecksPostdated.present) {
+      map['diff_checks_postdated'] = Variable<double>(
+        diffChecksPostdated.value,
+      );
+    }
+    if (diffCardsTotal.present) {
+      map['diff_cards_total'] = Variable<double>(diffCardsTotal.value);
+    }
+    if (diffTransfersTotal.present) {
+      map['diff_transfers_total'] = Variable<double>(diffTransfersTotal.value);
+    }
+    if (diffAdvancesTotal.present) {
+      map['diff_advances_total'] = Variable<double>(diffAdvancesTotal.value);
+    }
+    if (diffCreditNotesTotal.present) {
+      map['diff_credit_notes_total'] = Variable<double>(
+        diffCreditNotesTotal.value,
+      );
+    }
+    if (diffWithholdsTotal.present) {
+      map['diff_withholds_total'] = Variable<double>(diffWithholdsTotal.value);
+    }
+    if (summarySystemTotal.present) {
+      map['summary_system_total'] = Variable<double>(summarySystemTotal.value);
+    }
+    if (summaryManualTotal.present) {
+      map['summary_manual_total'] = Variable<double>(summaryManualTotal.value);
+    }
+    if (summaryDiffTotal.present) {
+      map['summary_diff_total'] = Variable<double>(summaryDiffTotal.value);
+    }
+    if (factDepositsCash.present) {
+      map['fact_deposits_cash'] = Variable<double>(factDepositsCash.value);
+    }
+    if (factDepositsChecks.present) {
+      map['fact_deposits_checks'] = Variable<double>(factDepositsChecks.value);
+    }
+    if (carteraDepositsCash.present) {
+      map['cartera_deposits_cash'] = Variable<double>(
+        carteraDepositsCash.value,
+      );
+    }
+    if (carteraDepositsChecks.present) {
+      map['cartera_deposits_checks'] = Variable<double>(
+        carteraDepositsChecks.value,
+      );
+    }
+    if (anticipoDepositsCash.present) {
+      map['anticipo_deposits_cash'] = Variable<double>(
+        anticipoDepositsCash.value,
+      );
+    }
+    if (anticipoDepositsChecks.present) {
+      map['anticipo_deposits_checks'] = Variable<double>(
+        anticipoDepositsChecks.value,
+      );
+    }
+    if (factAdvancesUsed.present) {
+      map['fact_advances_used'] = Variable<double>(factAdvancesUsed.value);
+    }
+    if (carteraAdvancesUsed.present) {
+      map['cartera_advances_used'] = Variable<double>(
+        carteraAdvancesUsed.value,
+      );
+    }
+    if (summaryAdvancesUsedTotal.present) {
+      map['summary_advances_used_total'] = Variable<double>(
+        summaryAdvancesUsedTotal.value,
+      );
+    }
+    if (factTotalWithNcWithholds.present) {
+      map['fact_total_with_nc_withholds'] = Variable<double>(
+        factTotalWithNcWithholds.value,
+      );
+    }
     if (totalCash.present) {
       map['total_cash'] = Variable<double>(totalCash.value);
     }
@@ -23800,6 +26687,56 @@ class CollectionSessionCompanion
           ..write('cashOutOtherTotal: $cashOutOtherTotal, ')
           ..write('checksOnDayTotal: $checksOnDayTotal, ')
           ..write('checksPostdatedTotal: $checksPostdatedTotal, ')
+          ..write('advanceChecksOnDayTotal: $advanceChecksOnDayTotal, ')
+          ..write('advanceChecksPostdatedTotal: $advanceChecksPostdatedTotal, ')
+          ..write('totalChecksOnDay: $totalChecksOnDay, ')
+          ..write('totalChecksPostdated: $totalChecksPostdated, ')
+          ..write('totalCashAdvanceAmount: $totalCashAdvanceAmount, ')
+          ..write('systemDepositsCashTotal: $systemDepositsCashTotal, ')
+          ..write('manualDepositsCashTotal: $manualDepositsCashTotal, ')
+          ..write('diffDepositsCashTotal: $diffDepositsCashTotal, ')
+          ..write('systemDepositsChecksTotal: $systemDepositsChecksTotal, ')
+          ..write('manualDepositsChecksTotal: $manualDepositsChecksTotal, ')
+          ..write('diffDepositsChecksTotal: $diffDepositsChecksTotal, ')
+          ..write('totalCashInvoicesAmount: $totalCashInvoicesAmount, ')
+          ..write('totalCashCollectedAmount: $totalCashCollectedAmount, ')
+          ..write('totalCashPendingAmount: $totalCashPendingAmount, ')
+          ..write('totalCreditOrdersAmount: $totalCreditOrdersAmount, ')
+          ..write('totalCreditInvoicesAmount: $totalCreditInvoicesAmount, ')
+          ..write('creditSalesDifference: $creditSalesDifference, ')
+          ..write('systemChecksOnDay: $systemChecksOnDay, ')
+          ..write('systemChecksPostdated: $systemChecksPostdated, ')
+          ..write('systemCardsTotal: $systemCardsTotal, ')
+          ..write('systemTransfersTotal: $systemTransfersTotal, ')
+          ..write('systemAdvancesTotal: $systemAdvancesTotal, ')
+          ..write('systemCreditNotesTotal: $systemCreditNotesTotal, ')
+          ..write('manualChecksOnDay: $manualChecksOnDay, ')
+          ..write('manualChecksPostdated: $manualChecksPostdated, ')
+          ..write('manualCardsTotal: $manualCardsTotal, ')
+          ..write('manualTransfersTotal: $manualTransfersTotal, ')
+          ..write('manualAdvancesTotal: $manualAdvancesTotal, ')
+          ..write('manualCreditNotesTotal: $manualCreditNotesTotal, ')
+          ..write('manualWithholdsTotal: $manualWithholdsTotal, ')
+          ..write('diffChecksOnDay: $diffChecksOnDay, ')
+          ..write('diffChecksPostdated: $diffChecksPostdated, ')
+          ..write('diffCardsTotal: $diffCardsTotal, ')
+          ..write('diffTransfersTotal: $diffTransfersTotal, ')
+          ..write('diffAdvancesTotal: $diffAdvancesTotal, ')
+          ..write('diffCreditNotesTotal: $diffCreditNotesTotal, ')
+          ..write('diffWithholdsTotal: $diffWithholdsTotal, ')
+          ..write('summarySystemTotal: $summarySystemTotal, ')
+          ..write('summaryManualTotal: $summaryManualTotal, ')
+          ..write('summaryDiffTotal: $summaryDiffTotal, ')
+          ..write('factDepositsCash: $factDepositsCash, ')
+          ..write('factDepositsChecks: $factDepositsChecks, ')
+          ..write('carteraDepositsCash: $carteraDepositsCash, ')
+          ..write('carteraDepositsChecks: $carteraDepositsChecks, ')
+          ..write('anticipoDepositsCash: $anticipoDepositsCash, ')
+          ..write('anticipoDepositsChecks: $anticipoDepositsChecks, ')
+          ..write('factAdvancesUsed: $factAdvancesUsed, ')
+          ..write('carteraAdvancesUsed: $carteraAdvancesUsed, ')
+          ..write('summaryAdvancesUsedTotal: $summaryAdvancesUsedTotal, ')
+          ..write('factTotalWithNcWithholds: $factTotalWithNcWithholds, ')
           ..write('totalCash: $totalCash, ')
           ..write('totalCards: $totalCards, ')
           ..write('totalTransfers: $totalTransfers, ')
@@ -24077,6 +27014,32 @@ class $CollectionSessionCashTable extends CollectionSessionCash
     type: DriftSqlType.string,
     requiredDuringInsert: false,
   );
+  static const VerificationMeta _isSyncedMeta = const VerificationMeta(
+    'isSynced',
+  );
+  @override
+  late final GeneratedColumn<bool> isSynced = GeneratedColumn<bool>(
+    'is_synced',
+    aliasedName,
+    false,
+    type: DriftSqlType.bool,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'CHECK ("is_synced" IN (0, 1))',
+    ),
+    defaultValue: const Constant(false),
+  );
+  static const VerificationMeta _lastSyncDateMeta = const VerificationMeta(
+    'lastSyncDate',
+  );
+  @override
+  late final GeneratedColumn<DateTime> lastSyncDate = GeneratedColumn<DateTime>(
+    'last_sync_date',
+    aliasedName,
+    true,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: false,
+  );
   static const VerificationMeta _writeDateMeta = const VerificationMeta(
     'writeDate',
   );
@@ -24111,6 +27074,8 @@ class $CollectionSessionCashTable extends CollectionSessionCash
     coins5,
     coins1Cent,
     notes,
+    isSynced,
+    lastSyncDate,
     writeDate,
   ];
   @override
@@ -24260,6 +27225,21 @@ class $CollectionSessionCashTable extends CollectionSessionCash
         notes.isAcceptableOrUnknown(data['notes']!, _notesMeta),
       );
     }
+    if (data.containsKey('is_synced')) {
+      context.handle(
+        _isSyncedMeta,
+        isSynced.isAcceptableOrUnknown(data['is_synced']!, _isSyncedMeta),
+      );
+    }
+    if (data.containsKey('last_sync_date')) {
+      context.handle(
+        _lastSyncDateMeta,
+        lastSyncDate.isAcceptableOrUnknown(
+          data['last_sync_date']!,
+          _lastSyncDateMeta,
+        ),
+      );
+    }
     if (data.containsKey('write_date')) {
       context.handle(
         _writeDateMeta,
@@ -24362,6 +27342,14 @@ class $CollectionSessionCashTable extends CollectionSessionCash
         DriftSqlType.string,
         data['${effectivePrefix}notes'],
       ),
+      isSynced: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}is_synced'],
+      )!,
+      lastSyncDate: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}last_sync_date'],
+      ),
       writeDate: attachedDatabase.typeMapping.read(
         DriftSqlType.dateTime,
         data['${effectivePrefix}write_date'],
@@ -24398,6 +27386,8 @@ class CollectionSessionCashData extends DataClass
   final int coins5;
   final int coins1Cent;
   final String? notes;
+  final bool isSynced;
+  final DateTime? lastSyncDate;
   final DateTime? writeDate;
   const CollectionSessionCashData({
     required this.id,
@@ -24421,6 +27411,8 @@ class CollectionSessionCashData extends DataClass
     required this.coins5,
     required this.coins1Cent,
     this.notes,
+    required this.isSynced,
+    this.lastSyncDate,
     this.writeDate,
   });
   @override
@@ -24452,6 +27444,10 @@ class CollectionSessionCashData extends DataClass
     map['coins1_cent'] = Variable<int>(coins1Cent);
     if (!nullToAbsent || notes != null) {
       map['notes'] = Variable<String>(notes);
+    }
+    map['is_synced'] = Variable<bool>(isSynced);
+    if (!nullToAbsent || lastSyncDate != null) {
+      map['last_sync_date'] = Variable<DateTime>(lastSyncDate);
     }
     if (!nullToAbsent || writeDate != null) {
       map['write_date'] = Variable<DateTime>(writeDate);
@@ -24488,6 +27484,10 @@ class CollectionSessionCashData extends DataClass
       notes: notes == null && nullToAbsent
           ? const Value.absent()
           : Value(notes),
+      isSynced: Value(isSynced),
+      lastSyncDate: lastSyncDate == null && nullToAbsent
+          ? const Value.absent()
+          : Value(lastSyncDate),
       writeDate: writeDate == null && nullToAbsent
           ? const Value.absent()
           : Value(writeDate),
@@ -24523,6 +27523,8 @@ class CollectionSessionCashData extends DataClass
       coins5: serializer.fromJson<int>(json['coins5']),
       coins1Cent: serializer.fromJson<int>(json['coins1Cent']),
       notes: serializer.fromJson<String?>(json['notes']),
+      isSynced: serializer.fromJson<bool>(json['isSynced']),
+      lastSyncDate: serializer.fromJson<DateTime?>(json['lastSyncDate']),
       writeDate: serializer.fromJson<DateTime?>(json['writeDate']),
     );
   }
@@ -24551,6 +27553,8 @@ class CollectionSessionCashData extends DataClass
       'coins5': serializer.toJson<int>(coins5),
       'coins1Cent': serializer.toJson<int>(coins1Cent),
       'notes': serializer.toJson<String?>(notes),
+      'isSynced': serializer.toJson<bool>(isSynced),
+      'lastSyncDate': serializer.toJson<DateTime?>(lastSyncDate),
       'writeDate': serializer.toJson<DateTime?>(writeDate),
     };
   }
@@ -24577,6 +27581,8 @@ class CollectionSessionCashData extends DataClass
     int? coins5,
     int? coins1Cent,
     Value<String?> notes = const Value.absent(),
+    bool? isSynced,
+    Value<DateTime?> lastSyncDate = const Value.absent(),
     Value<DateTime?> writeDate = const Value.absent(),
   }) => CollectionSessionCashData(
     id: id ?? this.id,
@@ -24600,6 +27606,8 @@ class CollectionSessionCashData extends DataClass
     coins5: coins5 ?? this.coins5,
     coins1Cent: coins1Cent ?? this.coins1Cent,
     notes: notes.present ? notes.value : this.notes,
+    isSynced: isSynced ?? this.isSynced,
+    lastSyncDate: lastSyncDate.present ? lastSyncDate.value : this.lastSyncDate,
     writeDate: writeDate.present ? writeDate.value : this.writeDate,
   );
   CollectionSessionCashData copyWithCompanion(
@@ -24633,6 +27641,10 @@ class CollectionSessionCashData extends DataClass
           ? data.coins1Cent.value
           : this.coins1Cent,
       notes: data.notes.present ? data.notes.value : this.notes,
+      isSynced: data.isSynced.present ? data.isSynced.value : this.isSynced,
+      lastSyncDate: data.lastSyncDate.present
+          ? data.lastSyncDate.value
+          : this.lastSyncDate,
       writeDate: data.writeDate.present ? data.writeDate.value : this.writeDate,
     );
   }
@@ -24661,6 +27673,8 @@ class CollectionSessionCashData extends DataClass
           ..write('coins5: $coins5, ')
           ..write('coins1Cent: $coins1Cent, ')
           ..write('notes: $notes, ')
+          ..write('isSynced: $isSynced, ')
+          ..write('lastSyncDate: $lastSyncDate, ')
           ..write('writeDate: $writeDate')
           ..write(')'))
         .toString();
@@ -24689,6 +27703,8 @@ class CollectionSessionCashData extends DataClass
     coins5,
     coins1Cent,
     notes,
+    isSynced,
+    lastSyncDate,
     writeDate,
   ]);
   @override
@@ -24716,6 +27732,8 @@ class CollectionSessionCashData extends DataClass
           other.coins5 == this.coins5 &&
           other.coins1Cent == this.coins1Cent &&
           other.notes == this.notes &&
+          other.isSynced == this.isSynced &&
+          other.lastSyncDate == this.lastSyncDate &&
           other.writeDate == this.writeDate);
 }
 
@@ -24742,6 +27760,8 @@ class CollectionSessionCashCompanion
   final Value<int> coins5;
   final Value<int> coins1Cent;
   final Value<String?> notes;
+  final Value<bool> isSynced;
+  final Value<DateTime?> lastSyncDate;
   final Value<DateTime?> writeDate;
   const CollectionSessionCashCompanion({
     this.id = const Value.absent(),
@@ -24765,6 +27785,8 @@ class CollectionSessionCashCompanion
     this.coins5 = const Value.absent(),
     this.coins1Cent = const Value.absent(),
     this.notes = const Value.absent(),
+    this.isSynced = const Value.absent(),
+    this.lastSyncDate = const Value.absent(),
     this.writeDate = const Value.absent(),
   });
   CollectionSessionCashCompanion.insert({
@@ -24789,6 +27811,8 @@ class CollectionSessionCashCompanion
     this.coins5 = const Value.absent(),
     this.coins1Cent = const Value.absent(),
     this.notes = const Value.absent(),
+    this.isSynced = const Value.absent(),
+    this.lastSyncDate = const Value.absent(),
     this.writeDate = const Value.absent(),
   }) : odooId = Value(odooId),
        sessionId = Value(sessionId),
@@ -24815,6 +27839,8 @@ class CollectionSessionCashCompanion
     Expression<int>? coins5,
     Expression<int>? coins1Cent,
     Expression<String>? notes,
+    Expression<bool>? isSynced,
+    Expression<DateTime>? lastSyncDate,
     Expression<DateTime>? writeDate,
   }) {
     return RawValuesInsertable({
@@ -24840,6 +27866,8 @@ class CollectionSessionCashCompanion
       if (coins5 != null) 'coins5': coins5,
       if (coins1Cent != null) 'coins1_cent': coins1Cent,
       if (notes != null) 'notes': notes,
+      if (isSynced != null) 'is_synced': isSynced,
+      if (lastSyncDate != null) 'last_sync_date': lastSyncDate,
       if (writeDate != null) 'write_date': writeDate,
     });
   }
@@ -24866,6 +27894,8 @@ class CollectionSessionCashCompanion
     Value<int>? coins5,
     Value<int>? coins1Cent,
     Value<String?>? notes,
+    Value<bool>? isSynced,
+    Value<DateTime?>? lastSyncDate,
     Value<DateTime?>? writeDate,
   }) {
     return CollectionSessionCashCompanion(
@@ -24890,6 +27920,8 @@ class CollectionSessionCashCompanion
       coins5: coins5 ?? this.coins5,
       coins1Cent: coins1Cent ?? this.coins1Cent,
       notes: notes ?? this.notes,
+      isSynced: isSynced ?? this.isSynced,
+      lastSyncDate: lastSyncDate ?? this.lastSyncDate,
       writeDate: writeDate ?? this.writeDate,
     );
   }
@@ -24960,6 +27992,12 @@ class CollectionSessionCashCompanion
     if (notes.present) {
       map['notes'] = Variable<String>(notes.value);
     }
+    if (isSynced.present) {
+      map['is_synced'] = Variable<bool>(isSynced.value);
+    }
+    if (lastSyncDate.present) {
+      map['last_sync_date'] = Variable<DateTime>(lastSyncDate.value);
+    }
     if (writeDate.present) {
       map['write_date'] = Variable<DateTime>(writeDate.value);
     }
@@ -24990,6 +28028,8 @@ class CollectionSessionCashCompanion
           ..write('coins5: $coins5, ')
           ..write('coins1Cent: $coins1Cent, ')
           ..write('notes: $notes, ')
+          ..write('isSynced: $isSynced, ')
+          ..write('lastSyncDate: $lastSyncDate, ')
           ..write('writeDate: $writeDate')
           ..write(')'))
         .toString();
@@ -25029,6 +28069,15 @@ class $CollectionSessionDepositTable extends CollectionSessionDeposit
     requiredDuringInsert: false,
     defaultConstraints: GeneratedColumn.constraintIsAlways('UNIQUE'),
   );
+  static const VerificationMeta _uuidMeta = const VerificationMeta('uuid');
+  @override
+  late final GeneratedColumn<String> uuid = GeneratedColumn<String>(
+    'uuid',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
   static const VerificationMeta _sessionIdMeta = const VerificationMeta(
     'sessionId',
   );
@@ -25049,6 +28098,15 @@ class $CollectionSessionDepositTable extends CollectionSessionDeposit
     false,
     type: DriftSqlType.int,
     requiredDuringInsert: true,
+  );
+  static const VerificationMeta _nameMeta = const VerificationMeta('name');
+  @override
+  late final GeneratedColumn<String> name = GeneratedColumn<String>(
+    'name',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
   );
   static const VerificationMeta _depositTypeMeta = const VerificationMeta(
     'depositType',
@@ -25100,21 +28158,32 @@ class $CollectionSessionDepositTable extends CollectionSessionDeposit
     type: DriftSqlType.string,
     requiredDuringInsert: false,
   );
-  static const VerificationMeta _bankIdMeta = const VerificationMeta('bankId');
+  static const VerificationMeta _sessionUuidMeta = const VerificationMeta(
+    'sessionUuid',
+  );
   @override
-  late final GeneratedColumn<int> bankId = GeneratedColumn<int>(
-    'bank_id',
+  late final GeneratedColumn<String> sessionUuid = GeneratedColumn<String>(
+    'session_uuid',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _userIdMeta = const VerificationMeta('userId');
+  @override
+  late final GeneratedColumn<int> userId = GeneratedColumn<int>(
+    'user_id',
     aliasedName,
     true,
     type: DriftSqlType.int,
     requiredDuringInsert: false,
   );
-  static const VerificationMeta _bankNameMeta = const VerificationMeta(
-    'bankName',
+  static const VerificationMeta _userNameMeta = const VerificationMeta(
+    'userName',
   );
   @override
-  late final GeneratedColumn<String> bankName = GeneratedColumn<String>(
-    'bank_name',
+  late final GeneratedColumn<String> userName = GeneratedColumn<String>(
+    'user_name',
     aliasedName,
     true,
     type: DriftSqlType.string,
@@ -25140,6 +28209,96 @@ class $CollectionSessionDepositTable extends CollectionSessionDeposit
     type: DriftSqlType.dateTime,
     requiredDuringInsert: false,
   );
+  static const VerificationMeta _accountingDateMeta = const VerificationMeta(
+    'accountingDate',
+  );
+  @override
+  late final GeneratedColumn<DateTime> accountingDate =
+      GeneratedColumn<DateTime>(
+        'accounting_date',
+        aliasedName,
+        true,
+        type: DriftSqlType.dateTime,
+        requiredDuringInsert: false,
+      );
+  static const VerificationMeta _cashAmountMeta = const VerificationMeta(
+    'cashAmount',
+  );
+  @override
+  late final GeneratedColumn<double> cashAmount = GeneratedColumn<double>(
+    'cash_amount',
+    aliasedName,
+    false,
+    type: DriftSqlType.double,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(0.0),
+  );
+  static const VerificationMeta _checkAmountMeta = const VerificationMeta(
+    'checkAmount',
+  );
+  @override
+  late final GeneratedColumn<double> checkAmount = GeneratedColumn<double>(
+    'check_amount',
+    aliasedName,
+    false,
+    type: DriftSqlType.double,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(0.0),
+  );
+  static const VerificationMeta _checkCountMeta = const VerificationMeta(
+    'checkCount',
+  );
+  @override
+  late final GeneratedColumn<int> checkCount = GeneratedColumn<int>(
+    'check_count',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(0),
+  );
+  static const VerificationMeta _bankJournalIdMeta = const VerificationMeta(
+    'bankJournalId',
+  );
+  @override
+  late final GeneratedColumn<int> bankJournalId = GeneratedColumn<int>(
+    'bank_journal_id',
+    aliasedName,
+    true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _bankJournalNameMeta = const VerificationMeta(
+    'bankJournalName',
+  );
+  @override
+  late final GeneratedColumn<String> bankJournalName = GeneratedColumn<String>(
+    'bank_journal_name',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _bankIdMeta = const VerificationMeta('bankId');
+  @override
+  late final GeneratedColumn<int> bankId = GeneratedColumn<int>(
+    'bank_id',
+    aliasedName,
+    true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _bankNameMeta = const VerificationMeta(
+    'bankName',
+  );
+  @override
+  late final GeneratedColumn<String> bankName = GeneratedColumn<String>(
+    'bank_name',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
   static const VerificationMeta _stateMeta = const VerificationMeta('state');
   @override
   late final GeneratedColumn<String> state = GeneratedColumn<String>(
@@ -25149,6 +28308,58 @@ class $CollectionSessionDepositTable extends CollectionSessionDeposit
     type: DriftSqlType.string,
     requiredDuringInsert: false,
     defaultValue: const Constant('draft'),
+  );
+  static const VerificationMeta _depositSlipNumberMeta = const VerificationMeta(
+    'depositSlipNumber',
+  );
+  @override
+  late final GeneratedColumn<String> depositSlipNumber =
+      GeneratedColumn<String>(
+        'deposit_slip_number',
+        aliasedName,
+        true,
+        type: DriftSqlType.string,
+        requiredDuringInsert: false,
+      );
+  static const VerificationMeta _bankReferenceMeta = const VerificationMeta(
+    'bankReference',
+  );
+  @override
+  late final GeneratedColumn<String> bankReference = GeneratedColumn<String>(
+    'bank_reference',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _moveIdMeta = const VerificationMeta('moveId');
+  @override
+  late final GeneratedColumn<int> moveId = GeneratedColumn<int>(
+    'move_id',
+    aliasedName,
+    true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _depositorNameMeta = const VerificationMeta(
+    'depositorName',
+  );
+  @override
+  late final GeneratedColumn<String> depositorName = GeneratedColumn<String>(
+    'depositor_name',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _notesMeta = const VerificationMeta('notes');
+  @override
+  late final GeneratedColumn<String> notes = GeneratedColumn<String>(
+    'notes',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
   );
   static const VerificationMeta _isSyncedMeta = const VerificationMeta(
     'isSynced',
@@ -25191,18 +28402,34 @@ class $CollectionSessionDepositTable extends CollectionSessionDeposit
   List<GeneratedColumn> get $columns => [
     id,
     odooId,
+    uuid,
     sessionId,
     collectionSessionId,
+    name,
     depositType,
     type,
     amount,
     reference,
     number,
-    bankId,
-    bankName,
+    sessionUuid,
+    userId,
+    userName,
     depositDate,
     date,
+    accountingDate,
+    cashAmount,
+    checkAmount,
+    checkCount,
+    bankJournalId,
+    bankJournalName,
+    bankId,
+    bankName,
     state,
+    depositSlipNumber,
+    bankReference,
+    moveId,
+    depositorName,
+    notes,
     isSynced,
     lastSyncDate,
     writeDate,
@@ -25228,6 +28455,12 @@ class $CollectionSessionDepositTable extends CollectionSessionDeposit
         odooId.isAcceptableOrUnknown(data['odoo_id']!, _odooIdMeta),
       );
     }
+    if (data.containsKey('uuid')) {
+      context.handle(
+        _uuidMeta,
+        uuid.isAcceptableOrUnknown(data['uuid']!, _uuidMeta),
+      );
+    }
     if (data.containsKey('session_id')) {
       context.handle(
         _sessionIdMeta,
@@ -25246,6 +28479,12 @@ class $CollectionSessionDepositTable extends CollectionSessionDeposit
       );
     } else if (isInserting) {
       context.missing(_collectionSessionIdMeta);
+    }
+    if (data.containsKey('name')) {
+      context.handle(
+        _nameMeta,
+        name.isAcceptableOrUnknown(data['name']!, _nameMeta),
+      );
     }
     if (data.containsKey('deposit_type')) {
       context.handle(
@@ -25282,16 +28521,25 @@ class $CollectionSessionDepositTable extends CollectionSessionDeposit
         number.isAcceptableOrUnknown(data['number']!, _numberMeta),
       );
     }
-    if (data.containsKey('bank_id')) {
+    if (data.containsKey('session_uuid')) {
       context.handle(
-        _bankIdMeta,
-        bankId.isAcceptableOrUnknown(data['bank_id']!, _bankIdMeta),
+        _sessionUuidMeta,
+        sessionUuid.isAcceptableOrUnknown(
+          data['session_uuid']!,
+          _sessionUuidMeta,
+        ),
       );
     }
-    if (data.containsKey('bank_name')) {
+    if (data.containsKey('user_id')) {
       context.handle(
-        _bankNameMeta,
-        bankName.isAcceptableOrUnknown(data['bank_name']!, _bankNameMeta),
+        _userIdMeta,
+        userId.isAcceptableOrUnknown(data['user_id']!, _userIdMeta),
+      );
+    }
+    if (data.containsKey('user_name')) {
+      context.handle(
+        _userNameMeta,
+        userName.isAcceptableOrUnknown(data['user_name']!, _userNameMeta),
       );
     }
     if (data.containsKey('deposit_date')) {
@@ -25311,10 +28559,109 @@ class $CollectionSessionDepositTable extends CollectionSessionDeposit
         date.isAcceptableOrUnknown(data['date']!, _dateMeta),
       );
     }
+    if (data.containsKey('accounting_date')) {
+      context.handle(
+        _accountingDateMeta,
+        accountingDate.isAcceptableOrUnknown(
+          data['accounting_date']!,
+          _accountingDateMeta,
+        ),
+      );
+    }
+    if (data.containsKey('cash_amount')) {
+      context.handle(
+        _cashAmountMeta,
+        cashAmount.isAcceptableOrUnknown(data['cash_amount']!, _cashAmountMeta),
+      );
+    }
+    if (data.containsKey('check_amount')) {
+      context.handle(
+        _checkAmountMeta,
+        checkAmount.isAcceptableOrUnknown(
+          data['check_amount']!,
+          _checkAmountMeta,
+        ),
+      );
+    }
+    if (data.containsKey('check_count')) {
+      context.handle(
+        _checkCountMeta,
+        checkCount.isAcceptableOrUnknown(data['check_count']!, _checkCountMeta),
+      );
+    }
+    if (data.containsKey('bank_journal_id')) {
+      context.handle(
+        _bankJournalIdMeta,
+        bankJournalId.isAcceptableOrUnknown(
+          data['bank_journal_id']!,
+          _bankJournalIdMeta,
+        ),
+      );
+    }
+    if (data.containsKey('bank_journal_name')) {
+      context.handle(
+        _bankJournalNameMeta,
+        bankJournalName.isAcceptableOrUnknown(
+          data['bank_journal_name']!,
+          _bankJournalNameMeta,
+        ),
+      );
+    }
+    if (data.containsKey('bank_id')) {
+      context.handle(
+        _bankIdMeta,
+        bankId.isAcceptableOrUnknown(data['bank_id']!, _bankIdMeta),
+      );
+    }
+    if (data.containsKey('bank_name')) {
+      context.handle(
+        _bankNameMeta,
+        bankName.isAcceptableOrUnknown(data['bank_name']!, _bankNameMeta),
+      );
+    }
     if (data.containsKey('state')) {
       context.handle(
         _stateMeta,
         state.isAcceptableOrUnknown(data['state']!, _stateMeta),
+      );
+    }
+    if (data.containsKey('deposit_slip_number')) {
+      context.handle(
+        _depositSlipNumberMeta,
+        depositSlipNumber.isAcceptableOrUnknown(
+          data['deposit_slip_number']!,
+          _depositSlipNumberMeta,
+        ),
+      );
+    }
+    if (data.containsKey('bank_reference')) {
+      context.handle(
+        _bankReferenceMeta,
+        bankReference.isAcceptableOrUnknown(
+          data['bank_reference']!,
+          _bankReferenceMeta,
+        ),
+      );
+    }
+    if (data.containsKey('move_id')) {
+      context.handle(
+        _moveIdMeta,
+        moveId.isAcceptableOrUnknown(data['move_id']!, _moveIdMeta),
+      );
+    }
+    if (data.containsKey('depositor_name')) {
+      context.handle(
+        _depositorNameMeta,
+        depositorName.isAcceptableOrUnknown(
+          data['depositor_name']!,
+          _depositorNameMeta,
+        ),
+      );
+    }
+    if (data.containsKey('notes')) {
+      context.handle(
+        _notesMeta,
+        notes.isAcceptableOrUnknown(data['notes']!, _notesMeta),
       );
     }
     if (data.containsKey('is_synced')) {
@@ -25358,6 +28705,10 @@ class $CollectionSessionDepositTable extends CollectionSessionDeposit
         DriftSqlType.int,
         data['${effectivePrefix}odoo_id'],
       ),
+      uuid: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}uuid'],
+      ),
       sessionId: attachedDatabase.typeMapping.read(
         DriftSqlType.int,
         data['${effectivePrefix}session_id'],
@@ -25366,6 +28717,10 @@ class $CollectionSessionDepositTable extends CollectionSessionDeposit
         DriftSqlType.int,
         data['${effectivePrefix}collection_session_id'],
       )!,
+      name: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}name'],
+      ),
       depositType: attachedDatabase.typeMapping.read(
         DriftSqlType.string,
         data['${effectivePrefix}deposit_type'],
@@ -25386,13 +28741,17 @@ class $CollectionSessionDepositTable extends CollectionSessionDeposit
         DriftSqlType.string,
         data['${effectivePrefix}number'],
       ),
-      bankId: attachedDatabase.typeMapping.read(
-        DriftSqlType.int,
-        data['${effectivePrefix}bank_id'],
-      ),
-      bankName: attachedDatabase.typeMapping.read(
+      sessionUuid: attachedDatabase.typeMapping.read(
         DriftSqlType.string,
-        data['${effectivePrefix}bank_name'],
+        data['${effectivePrefix}session_uuid'],
+      ),
+      userId: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}user_id'],
+      ),
+      userName: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}user_name'],
       ),
       depositDate: attachedDatabase.typeMapping.read(
         DriftSqlType.dateTime,
@@ -25402,10 +28761,62 @@ class $CollectionSessionDepositTable extends CollectionSessionDeposit
         DriftSqlType.dateTime,
         data['${effectivePrefix}date'],
       ),
+      accountingDate: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}accounting_date'],
+      ),
+      cashAmount: attachedDatabase.typeMapping.read(
+        DriftSqlType.double,
+        data['${effectivePrefix}cash_amount'],
+      )!,
+      checkAmount: attachedDatabase.typeMapping.read(
+        DriftSqlType.double,
+        data['${effectivePrefix}check_amount'],
+      )!,
+      checkCount: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}check_count'],
+      )!,
+      bankJournalId: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}bank_journal_id'],
+      ),
+      bankJournalName: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}bank_journal_name'],
+      ),
+      bankId: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}bank_id'],
+      ),
+      bankName: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}bank_name'],
+      ),
       state: attachedDatabase.typeMapping.read(
         DriftSqlType.string,
         data['${effectivePrefix}state'],
       )!,
+      depositSlipNumber: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}deposit_slip_number'],
+      ),
+      bankReference: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}bank_reference'],
+      ),
+      moveId: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}move_id'],
+      ),
+      depositorName: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}depositor_name'],
+      ),
+      notes: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}notes'],
+      ),
       isSynced: attachedDatabase.typeMapping.read(
         DriftSqlType.bool,
         data['${effectivePrefix}is_synced'],
@@ -25431,36 +28842,68 @@ class CollectionSessionDepositData extends DataClass
     implements Insertable<CollectionSessionDepositData> {
   final int id;
   final int? odooId;
+  final String? uuid;
   final int sessionId;
   final int collectionSessionId;
+  final String? name;
   final String depositType;
   final String? type;
   final double amount;
   final String? reference;
   final String? number;
-  final int? bankId;
-  final String? bankName;
+  final String? sessionUuid;
+  final int? userId;
+  final String? userName;
   final DateTime depositDate;
   final DateTime? date;
+  final DateTime? accountingDate;
+  final double cashAmount;
+  final double checkAmount;
+  final int checkCount;
+  final int? bankJournalId;
+  final String? bankJournalName;
+  final int? bankId;
+  final String? bankName;
   final String state;
+  final String? depositSlipNumber;
+  final String? bankReference;
+  final int? moveId;
+  final String? depositorName;
+  final String? notes;
   final bool isSynced;
   final DateTime? lastSyncDate;
   final DateTime? writeDate;
   const CollectionSessionDepositData({
     required this.id,
     this.odooId,
+    this.uuid,
     required this.sessionId,
     required this.collectionSessionId,
+    this.name,
     required this.depositType,
     this.type,
     required this.amount,
     this.reference,
     this.number,
-    this.bankId,
-    this.bankName,
+    this.sessionUuid,
+    this.userId,
+    this.userName,
     required this.depositDate,
     this.date,
+    this.accountingDate,
+    required this.cashAmount,
+    required this.checkAmount,
+    required this.checkCount,
+    this.bankJournalId,
+    this.bankJournalName,
+    this.bankId,
+    this.bankName,
     required this.state,
+    this.depositSlipNumber,
+    this.bankReference,
+    this.moveId,
+    this.depositorName,
+    this.notes,
     required this.isSynced,
     this.lastSyncDate,
     this.writeDate,
@@ -25472,8 +28915,14 @@ class CollectionSessionDepositData extends DataClass
     if (!nullToAbsent || odooId != null) {
       map['odoo_id'] = Variable<int>(odooId);
     }
+    if (!nullToAbsent || uuid != null) {
+      map['uuid'] = Variable<String>(uuid);
+    }
     map['session_id'] = Variable<int>(sessionId);
     map['collection_session_id'] = Variable<int>(collectionSessionId);
+    if (!nullToAbsent || name != null) {
+      map['name'] = Variable<String>(name);
+    }
     map['deposit_type'] = Variable<String>(depositType);
     if (!nullToAbsent || type != null) {
       map['type'] = Variable<String>(type);
@@ -25485,17 +28934,53 @@ class CollectionSessionDepositData extends DataClass
     if (!nullToAbsent || number != null) {
       map['number'] = Variable<String>(number);
     }
+    if (!nullToAbsent || sessionUuid != null) {
+      map['session_uuid'] = Variable<String>(sessionUuid);
+    }
+    if (!nullToAbsent || userId != null) {
+      map['user_id'] = Variable<int>(userId);
+    }
+    if (!nullToAbsent || userName != null) {
+      map['user_name'] = Variable<String>(userName);
+    }
+    map['deposit_date'] = Variable<DateTime>(depositDate);
+    if (!nullToAbsent || date != null) {
+      map['date'] = Variable<DateTime>(date);
+    }
+    if (!nullToAbsent || accountingDate != null) {
+      map['accounting_date'] = Variable<DateTime>(accountingDate);
+    }
+    map['cash_amount'] = Variable<double>(cashAmount);
+    map['check_amount'] = Variable<double>(checkAmount);
+    map['check_count'] = Variable<int>(checkCount);
+    if (!nullToAbsent || bankJournalId != null) {
+      map['bank_journal_id'] = Variable<int>(bankJournalId);
+    }
+    if (!nullToAbsent || bankJournalName != null) {
+      map['bank_journal_name'] = Variable<String>(bankJournalName);
+    }
     if (!nullToAbsent || bankId != null) {
       map['bank_id'] = Variable<int>(bankId);
     }
     if (!nullToAbsent || bankName != null) {
       map['bank_name'] = Variable<String>(bankName);
     }
-    map['deposit_date'] = Variable<DateTime>(depositDate);
-    if (!nullToAbsent || date != null) {
-      map['date'] = Variable<DateTime>(date);
-    }
     map['state'] = Variable<String>(state);
+    if (!nullToAbsent || depositSlipNumber != null) {
+      map['deposit_slip_number'] = Variable<String>(depositSlipNumber);
+    }
+    if (!nullToAbsent || bankReference != null) {
+      map['bank_reference'] = Variable<String>(bankReference);
+    }
+    if (!nullToAbsent || moveId != null) {
+      map['move_id'] = Variable<int>(moveId);
+    }
+    if (!nullToAbsent || depositorName != null) {
+      map['depositor_name'] = Variable<String>(depositorName);
+    }
+    if (!nullToAbsent || notes != null) {
+      map['notes'] = Variable<String>(notes);
+    }
     map['is_synced'] = Variable<bool>(isSynced);
     if (!nullToAbsent || lastSyncDate != null) {
       map['last_sync_date'] = Variable<DateTime>(lastSyncDate);
@@ -25512,8 +28997,10 @@ class CollectionSessionDepositData extends DataClass
       odooId: odooId == null && nullToAbsent
           ? const Value.absent()
           : Value(odooId),
+      uuid: uuid == null && nullToAbsent ? const Value.absent() : Value(uuid),
       sessionId: Value(sessionId),
       collectionSessionId: Value(collectionSessionId),
+      name: name == null && nullToAbsent ? const Value.absent() : Value(name),
       depositType: Value(depositType),
       type: type == null && nullToAbsent ? const Value.absent() : Value(type),
       amount: Value(amount),
@@ -25523,15 +29010,51 @@ class CollectionSessionDepositData extends DataClass
       number: number == null && nullToAbsent
           ? const Value.absent()
           : Value(number),
+      sessionUuid: sessionUuid == null && nullToAbsent
+          ? const Value.absent()
+          : Value(sessionUuid),
+      userId: userId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(userId),
+      userName: userName == null && nullToAbsent
+          ? const Value.absent()
+          : Value(userName),
+      depositDate: Value(depositDate),
+      date: date == null && nullToAbsent ? const Value.absent() : Value(date),
+      accountingDate: accountingDate == null && nullToAbsent
+          ? const Value.absent()
+          : Value(accountingDate),
+      cashAmount: Value(cashAmount),
+      checkAmount: Value(checkAmount),
+      checkCount: Value(checkCount),
+      bankJournalId: bankJournalId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(bankJournalId),
+      bankJournalName: bankJournalName == null && nullToAbsent
+          ? const Value.absent()
+          : Value(bankJournalName),
       bankId: bankId == null && nullToAbsent
           ? const Value.absent()
           : Value(bankId),
       bankName: bankName == null && nullToAbsent
           ? const Value.absent()
           : Value(bankName),
-      depositDate: Value(depositDate),
-      date: date == null && nullToAbsent ? const Value.absent() : Value(date),
       state: Value(state),
+      depositSlipNumber: depositSlipNumber == null && nullToAbsent
+          ? const Value.absent()
+          : Value(depositSlipNumber),
+      bankReference: bankReference == null && nullToAbsent
+          ? const Value.absent()
+          : Value(bankReference),
+      moveId: moveId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(moveId),
+      depositorName: depositorName == null && nullToAbsent
+          ? const Value.absent()
+          : Value(depositorName),
+      notes: notes == null && nullToAbsent
+          ? const Value.absent()
+          : Value(notes),
       isSynced: Value(isSynced),
       lastSyncDate: lastSyncDate == null && nullToAbsent
           ? const Value.absent()
@@ -25550,20 +29073,38 @@ class CollectionSessionDepositData extends DataClass
     return CollectionSessionDepositData(
       id: serializer.fromJson<int>(json['id']),
       odooId: serializer.fromJson<int?>(json['odooId']),
+      uuid: serializer.fromJson<String?>(json['uuid']),
       sessionId: serializer.fromJson<int>(json['sessionId']),
       collectionSessionId: serializer.fromJson<int>(
         json['collectionSessionId'],
       ),
+      name: serializer.fromJson<String?>(json['name']),
       depositType: serializer.fromJson<String>(json['depositType']),
       type: serializer.fromJson<String?>(json['type']),
       amount: serializer.fromJson<double>(json['amount']),
       reference: serializer.fromJson<String?>(json['reference']),
       number: serializer.fromJson<String?>(json['number']),
-      bankId: serializer.fromJson<int?>(json['bankId']),
-      bankName: serializer.fromJson<String?>(json['bankName']),
+      sessionUuid: serializer.fromJson<String?>(json['sessionUuid']),
+      userId: serializer.fromJson<int?>(json['userId']),
+      userName: serializer.fromJson<String?>(json['userName']),
       depositDate: serializer.fromJson<DateTime>(json['depositDate']),
       date: serializer.fromJson<DateTime?>(json['date']),
+      accountingDate: serializer.fromJson<DateTime?>(json['accountingDate']),
+      cashAmount: serializer.fromJson<double>(json['cashAmount']),
+      checkAmount: serializer.fromJson<double>(json['checkAmount']),
+      checkCount: serializer.fromJson<int>(json['checkCount']),
+      bankJournalId: serializer.fromJson<int?>(json['bankJournalId']),
+      bankJournalName: serializer.fromJson<String?>(json['bankJournalName']),
+      bankId: serializer.fromJson<int?>(json['bankId']),
+      bankName: serializer.fromJson<String?>(json['bankName']),
       state: serializer.fromJson<String>(json['state']),
+      depositSlipNumber: serializer.fromJson<String?>(
+        json['depositSlipNumber'],
+      ),
+      bankReference: serializer.fromJson<String?>(json['bankReference']),
+      moveId: serializer.fromJson<int?>(json['moveId']),
+      depositorName: serializer.fromJson<String?>(json['depositorName']),
+      notes: serializer.fromJson<String?>(json['notes']),
       isSynced: serializer.fromJson<bool>(json['isSynced']),
       lastSyncDate: serializer.fromJson<DateTime?>(json['lastSyncDate']),
       writeDate: serializer.fromJson<DateTime?>(json['writeDate']),
@@ -25575,18 +29116,34 @@ class CollectionSessionDepositData extends DataClass
     return <String, dynamic>{
       'id': serializer.toJson<int>(id),
       'odooId': serializer.toJson<int?>(odooId),
+      'uuid': serializer.toJson<String?>(uuid),
       'sessionId': serializer.toJson<int>(sessionId),
       'collectionSessionId': serializer.toJson<int>(collectionSessionId),
+      'name': serializer.toJson<String?>(name),
       'depositType': serializer.toJson<String>(depositType),
       'type': serializer.toJson<String?>(type),
       'amount': serializer.toJson<double>(amount),
       'reference': serializer.toJson<String?>(reference),
       'number': serializer.toJson<String?>(number),
-      'bankId': serializer.toJson<int?>(bankId),
-      'bankName': serializer.toJson<String?>(bankName),
+      'sessionUuid': serializer.toJson<String?>(sessionUuid),
+      'userId': serializer.toJson<int?>(userId),
+      'userName': serializer.toJson<String?>(userName),
       'depositDate': serializer.toJson<DateTime>(depositDate),
       'date': serializer.toJson<DateTime?>(date),
+      'accountingDate': serializer.toJson<DateTime?>(accountingDate),
+      'cashAmount': serializer.toJson<double>(cashAmount),
+      'checkAmount': serializer.toJson<double>(checkAmount),
+      'checkCount': serializer.toJson<int>(checkCount),
+      'bankJournalId': serializer.toJson<int?>(bankJournalId),
+      'bankJournalName': serializer.toJson<String?>(bankJournalName),
+      'bankId': serializer.toJson<int?>(bankId),
+      'bankName': serializer.toJson<String?>(bankName),
       'state': serializer.toJson<String>(state),
+      'depositSlipNumber': serializer.toJson<String?>(depositSlipNumber),
+      'bankReference': serializer.toJson<String?>(bankReference),
+      'moveId': serializer.toJson<int?>(moveId),
+      'depositorName': serializer.toJson<String?>(depositorName),
+      'notes': serializer.toJson<String?>(notes),
       'isSynced': serializer.toJson<bool>(isSynced),
       'lastSyncDate': serializer.toJson<DateTime?>(lastSyncDate),
       'writeDate': serializer.toJson<DateTime?>(writeDate),
@@ -25596,36 +29153,80 @@ class CollectionSessionDepositData extends DataClass
   CollectionSessionDepositData copyWith({
     int? id,
     Value<int?> odooId = const Value.absent(),
+    Value<String?> uuid = const Value.absent(),
     int? sessionId,
     int? collectionSessionId,
+    Value<String?> name = const Value.absent(),
     String? depositType,
     Value<String?> type = const Value.absent(),
     double? amount,
     Value<String?> reference = const Value.absent(),
     Value<String?> number = const Value.absent(),
-    Value<int?> bankId = const Value.absent(),
-    Value<String?> bankName = const Value.absent(),
+    Value<String?> sessionUuid = const Value.absent(),
+    Value<int?> userId = const Value.absent(),
+    Value<String?> userName = const Value.absent(),
     DateTime? depositDate,
     Value<DateTime?> date = const Value.absent(),
+    Value<DateTime?> accountingDate = const Value.absent(),
+    double? cashAmount,
+    double? checkAmount,
+    int? checkCount,
+    Value<int?> bankJournalId = const Value.absent(),
+    Value<String?> bankJournalName = const Value.absent(),
+    Value<int?> bankId = const Value.absent(),
+    Value<String?> bankName = const Value.absent(),
     String? state,
+    Value<String?> depositSlipNumber = const Value.absent(),
+    Value<String?> bankReference = const Value.absent(),
+    Value<int?> moveId = const Value.absent(),
+    Value<String?> depositorName = const Value.absent(),
+    Value<String?> notes = const Value.absent(),
     bool? isSynced,
     Value<DateTime?> lastSyncDate = const Value.absent(),
     Value<DateTime?> writeDate = const Value.absent(),
   }) => CollectionSessionDepositData(
     id: id ?? this.id,
     odooId: odooId.present ? odooId.value : this.odooId,
+    uuid: uuid.present ? uuid.value : this.uuid,
     sessionId: sessionId ?? this.sessionId,
     collectionSessionId: collectionSessionId ?? this.collectionSessionId,
+    name: name.present ? name.value : this.name,
     depositType: depositType ?? this.depositType,
     type: type.present ? type.value : this.type,
     amount: amount ?? this.amount,
     reference: reference.present ? reference.value : this.reference,
     number: number.present ? number.value : this.number,
-    bankId: bankId.present ? bankId.value : this.bankId,
-    bankName: bankName.present ? bankName.value : this.bankName,
+    sessionUuid: sessionUuid.present ? sessionUuid.value : this.sessionUuid,
+    userId: userId.present ? userId.value : this.userId,
+    userName: userName.present ? userName.value : this.userName,
     depositDate: depositDate ?? this.depositDate,
     date: date.present ? date.value : this.date,
+    accountingDate: accountingDate.present
+        ? accountingDate.value
+        : this.accountingDate,
+    cashAmount: cashAmount ?? this.cashAmount,
+    checkAmount: checkAmount ?? this.checkAmount,
+    checkCount: checkCount ?? this.checkCount,
+    bankJournalId: bankJournalId.present
+        ? bankJournalId.value
+        : this.bankJournalId,
+    bankJournalName: bankJournalName.present
+        ? bankJournalName.value
+        : this.bankJournalName,
+    bankId: bankId.present ? bankId.value : this.bankId,
+    bankName: bankName.present ? bankName.value : this.bankName,
     state: state ?? this.state,
+    depositSlipNumber: depositSlipNumber.present
+        ? depositSlipNumber.value
+        : this.depositSlipNumber,
+    bankReference: bankReference.present
+        ? bankReference.value
+        : this.bankReference,
+    moveId: moveId.present ? moveId.value : this.moveId,
+    depositorName: depositorName.present
+        ? depositorName.value
+        : this.depositorName,
+    notes: notes.present ? notes.value : this.notes,
     isSynced: isSynced ?? this.isSynced,
     lastSyncDate: lastSyncDate.present ? lastSyncDate.value : this.lastSyncDate,
     writeDate: writeDate.present ? writeDate.value : this.writeDate,
@@ -25636,10 +29237,12 @@ class CollectionSessionDepositData extends DataClass
     return CollectionSessionDepositData(
       id: data.id.present ? data.id.value : this.id,
       odooId: data.odooId.present ? data.odooId.value : this.odooId,
+      uuid: data.uuid.present ? data.uuid.value : this.uuid,
       sessionId: data.sessionId.present ? data.sessionId.value : this.sessionId,
       collectionSessionId: data.collectionSessionId.present
           ? data.collectionSessionId.value
           : this.collectionSessionId,
+      name: data.name.present ? data.name.value : this.name,
       depositType: data.depositType.present
           ? data.depositType.value
           : this.depositType,
@@ -25647,13 +29250,47 @@ class CollectionSessionDepositData extends DataClass
       amount: data.amount.present ? data.amount.value : this.amount,
       reference: data.reference.present ? data.reference.value : this.reference,
       number: data.number.present ? data.number.value : this.number,
-      bankId: data.bankId.present ? data.bankId.value : this.bankId,
-      bankName: data.bankName.present ? data.bankName.value : this.bankName,
+      sessionUuid: data.sessionUuid.present
+          ? data.sessionUuid.value
+          : this.sessionUuid,
+      userId: data.userId.present ? data.userId.value : this.userId,
+      userName: data.userName.present ? data.userName.value : this.userName,
       depositDate: data.depositDate.present
           ? data.depositDate.value
           : this.depositDate,
       date: data.date.present ? data.date.value : this.date,
+      accountingDate: data.accountingDate.present
+          ? data.accountingDate.value
+          : this.accountingDate,
+      cashAmount: data.cashAmount.present
+          ? data.cashAmount.value
+          : this.cashAmount,
+      checkAmount: data.checkAmount.present
+          ? data.checkAmount.value
+          : this.checkAmount,
+      checkCount: data.checkCount.present
+          ? data.checkCount.value
+          : this.checkCount,
+      bankJournalId: data.bankJournalId.present
+          ? data.bankJournalId.value
+          : this.bankJournalId,
+      bankJournalName: data.bankJournalName.present
+          ? data.bankJournalName.value
+          : this.bankJournalName,
+      bankId: data.bankId.present ? data.bankId.value : this.bankId,
+      bankName: data.bankName.present ? data.bankName.value : this.bankName,
       state: data.state.present ? data.state.value : this.state,
+      depositSlipNumber: data.depositSlipNumber.present
+          ? data.depositSlipNumber.value
+          : this.depositSlipNumber,
+      bankReference: data.bankReference.present
+          ? data.bankReference.value
+          : this.bankReference,
+      moveId: data.moveId.present ? data.moveId.value : this.moveId,
+      depositorName: data.depositorName.present
+          ? data.depositorName.value
+          : this.depositorName,
+      notes: data.notes.present ? data.notes.value : this.notes,
       isSynced: data.isSynced.present ? data.isSynced.value : this.isSynced,
       lastSyncDate: data.lastSyncDate.present
           ? data.lastSyncDate.value
@@ -25667,18 +29304,34 @@ class CollectionSessionDepositData extends DataClass
     return (StringBuffer('CollectionSessionDepositData(')
           ..write('id: $id, ')
           ..write('odooId: $odooId, ')
+          ..write('uuid: $uuid, ')
           ..write('sessionId: $sessionId, ')
           ..write('collectionSessionId: $collectionSessionId, ')
+          ..write('name: $name, ')
           ..write('depositType: $depositType, ')
           ..write('type: $type, ')
           ..write('amount: $amount, ')
           ..write('reference: $reference, ')
           ..write('number: $number, ')
-          ..write('bankId: $bankId, ')
-          ..write('bankName: $bankName, ')
+          ..write('sessionUuid: $sessionUuid, ')
+          ..write('userId: $userId, ')
+          ..write('userName: $userName, ')
           ..write('depositDate: $depositDate, ')
           ..write('date: $date, ')
+          ..write('accountingDate: $accountingDate, ')
+          ..write('cashAmount: $cashAmount, ')
+          ..write('checkAmount: $checkAmount, ')
+          ..write('checkCount: $checkCount, ')
+          ..write('bankJournalId: $bankJournalId, ')
+          ..write('bankJournalName: $bankJournalName, ')
+          ..write('bankId: $bankId, ')
+          ..write('bankName: $bankName, ')
           ..write('state: $state, ')
+          ..write('depositSlipNumber: $depositSlipNumber, ')
+          ..write('bankReference: $bankReference, ')
+          ..write('moveId: $moveId, ')
+          ..write('depositorName: $depositorName, ')
+          ..write('notes: $notes, ')
           ..write('isSynced: $isSynced, ')
           ..write('lastSyncDate: $lastSyncDate, ')
           ..write('writeDate: $writeDate')
@@ -25687,43 +29340,75 @@ class CollectionSessionDepositData extends DataClass
   }
 
   @override
-  int get hashCode => Object.hash(
+  int get hashCode => Object.hashAll([
     id,
     odooId,
+    uuid,
     sessionId,
     collectionSessionId,
+    name,
     depositType,
     type,
     amount,
     reference,
     number,
-    bankId,
-    bankName,
+    sessionUuid,
+    userId,
+    userName,
     depositDate,
     date,
+    accountingDate,
+    cashAmount,
+    checkAmount,
+    checkCount,
+    bankJournalId,
+    bankJournalName,
+    bankId,
+    bankName,
     state,
+    depositSlipNumber,
+    bankReference,
+    moveId,
+    depositorName,
+    notes,
     isSynced,
     lastSyncDate,
     writeDate,
-  );
+  ]);
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
       (other is CollectionSessionDepositData &&
           other.id == this.id &&
           other.odooId == this.odooId &&
+          other.uuid == this.uuid &&
           other.sessionId == this.sessionId &&
           other.collectionSessionId == this.collectionSessionId &&
+          other.name == this.name &&
           other.depositType == this.depositType &&
           other.type == this.type &&
           other.amount == this.amount &&
           other.reference == this.reference &&
           other.number == this.number &&
-          other.bankId == this.bankId &&
-          other.bankName == this.bankName &&
+          other.sessionUuid == this.sessionUuid &&
+          other.userId == this.userId &&
+          other.userName == this.userName &&
           other.depositDate == this.depositDate &&
           other.date == this.date &&
+          other.accountingDate == this.accountingDate &&
+          other.cashAmount == this.cashAmount &&
+          other.checkAmount == this.checkAmount &&
+          other.checkCount == this.checkCount &&
+          other.bankJournalId == this.bankJournalId &&
+          other.bankJournalName == this.bankJournalName &&
+          other.bankId == this.bankId &&
+          other.bankName == this.bankName &&
           other.state == this.state &&
+          other.depositSlipNumber == this.depositSlipNumber &&
+          other.bankReference == this.bankReference &&
+          other.moveId == this.moveId &&
+          other.depositorName == this.depositorName &&
+          other.notes == this.notes &&
           other.isSynced == this.isSynced &&
           other.lastSyncDate == this.lastSyncDate &&
           other.writeDate == this.writeDate);
@@ -25733,36 +29418,68 @@ class CollectionSessionDepositCompanion
     extends UpdateCompanion<CollectionSessionDepositData> {
   final Value<int> id;
   final Value<int?> odooId;
+  final Value<String?> uuid;
   final Value<int> sessionId;
   final Value<int> collectionSessionId;
+  final Value<String?> name;
   final Value<String> depositType;
   final Value<String?> type;
   final Value<double> amount;
   final Value<String?> reference;
   final Value<String?> number;
-  final Value<int?> bankId;
-  final Value<String?> bankName;
+  final Value<String?> sessionUuid;
+  final Value<int?> userId;
+  final Value<String?> userName;
   final Value<DateTime> depositDate;
   final Value<DateTime?> date;
+  final Value<DateTime?> accountingDate;
+  final Value<double> cashAmount;
+  final Value<double> checkAmount;
+  final Value<int> checkCount;
+  final Value<int?> bankJournalId;
+  final Value<String?> bankJournalName;
+  final Value<int?> bankId;
+  final Value<String?> bankName;
   final Value<String> state;
+  final Value<String?> depositSlipNumber;
+  final Value<String?> bankReference;
+  final Value<int?> moveId;
+  final Value<String?> depositorName;
+  final Value<String?> notes;
   final Value<bool> isSynced;
   final Value<DateTime?> lastSyncDate;
   final Value<DateTime?> writeDate;
   const CollectionSessionDepositCompanion({
     this.id = const Value.absent(),
     this.odooId = const Value.absent(),
+    this.uuid = const Value.absent(),
     this.sessionId = const Value.absent(),
     this.collectionSessionId = const Value.absent(),
+    this.name = const Value.absent(),
     this.depositType = const Value.absent(),
     this.type = const Value.absent(),
     this.amount = const Value.absent(),
     this.reference = const Value.absent(),
     this.number = const Value.absent(),
-    this.bankId = const Value.absent(),
-    this.bankName = const Value.absent(),
+    this.sessionUuid = const Value.absent(),
+    this.userId = const Value.absent(),
+    this.userName = const Value.absent(),
     this.depositDate = const Value.absent(),
     this.date = const Value.absent(),
+    this.accountingDate = const Value.absent(),
+    this.cashAmount = const Value.absent(),
+    this.checkAmount = const Value.absent(),
+    this.checkCount = const Value.absent(),
+    this.bankJournalId = const Value.absent(),
+    this.bankJournalName = const Value.absent(),
+    this.bankId = const Value.absent(),
+    this.bankName = const Value.absent(),
     this.state = const Value.absent(),
+    this.depositSlipNumber = const Value.absent(),
+    this.bankReference = const Value.absent(),
+    this.moveId = const Value.absent(),
+    this.depositorName = const Value.absent(),
+    this.notes = const Value.absent(),
     this.isSynced = const Value.absent(),
     this.lastSyncDate = const Value.absent(),
     this.writeDate = const Value.absent(),
@@ -25770,18 +29487,34 @@ class CollectionSessionDepositCompanion
   CollectionSessionDepositCompanion.insert({
     this.id = const Value.absent(),
     this.odooId = const Value.absent(),
+    this.uuid = const Value.absent(),
     required int sessionId,
     required int collectionSessionId,
+    this.name = const Value.absent(),
     required String depositType,
     this.type = const Value.absent(),
     this.amount = const Value.absent(),
     this.reference = const Value.absent(),
     this.number = const Value.absent(),
-    this.bankId = const Value.absent(),
-    this.bankName = const Value.absent(),
+    this.sessionUuid = const Value.absent(),
+    this.userId = const Value.absent(),
+    this.userName = const Value.absent(),
     required DateTime depositDate,
     this.date = const Value.absent(),
+    this.accountingDate = const Value.absent(),
+    this.cashAmount = const Value.absent(),
+    this.checkAmount = const Value.absent(),
+    this.checkCount = const Value.absent(),
+    this.bankJournalId = const Value.absent(),
+    this.bankJournalName = const Value.absent(),
+    this.bankId = const Value.absent(),
+    this.bankName = const Value.absent(),
     this.state = const Value.absent(),
+    this.depositSlipNumber = const Value.absent(),
+    this.bankReference = const Value.absent(),
+    this.moveId = const Value.absent(),
+    this.depositorName = const Value.absent(),
+    this.notes = const Value.absent(),
     this.isSynced = const Value.absent(),
     this.lastSyncDate = const Value.absent(),
     this.writeDate = const Value.absent(),
@@ -25792,18 +29525,34 @@ class CollectionSessionDepositCompanion
   static Insertable<CollectionSessionDepositData> custom({
     Expression<int>? id,
     Expression<int>? odooId,
+    Expression<String>? uuid,
     Expression<int>? sessionId,
     Expression<int>? collectionSessionId,
+    Expression<String>? name,
     Expression<String>? depositType,
     Expression<String>? type,
     Expression<double>? amount,
     Expression<String>? reference,
     Expression<String>? number,
-    Expression<int>? bankId,
-    Expression<String>? bankName,
+    Expression<String>? sessionUuid,
+    Expression<int>? userId,
+    Expression<String>? userName,
     Expression<DateTime>? depositDate,
     Expression<DateTime>? date,
+    Expression<DateTime>? accountingDate,
+    Expression<double>? cashAmount,
+    Expression<double>? checkAmount,
+    Expression<int>? checkCount,
+    Expression<int>? bankJournalId,
+    Expression<String>? bankJournalName,
+    Expression<int>? bankId,
+    Expression<String>? bankName,
     Expression<String>? state,
+    Expression<String>? depositSlipNumber,
+    Expression<String>? bankReference,
+    Expression<int>? moveId,
+    Expression<String>? depositorName,
+    Expression<String>? notes,
     Expression<bool>? isSynced,
     Expression<DateTime>? lastSyncDate,
     Expression<DateTime>? writeDate,
@@ -25811,19 +29560,35 @@ class CollectionSessionDepositCompanion
     return RawValuesInsertable({
       if (id != null) 'id': id,
       if (odooId != null) 'odoo_id': odooId,
+      if (uuid != null) 'uuid': uuid,
       if (sessionId != null) 'session_id': sessionId,
       if (collectionSessionId != null)
         'collection_session_id': collectionSessionId,
+      if (name != null) 'name': name,
       if (depositType != null) 'deposit_type': depositType,
       if (type != null) 'type': type,
       if (amount != null) 'amount': amount,
       if (reference != null) 'reference': reference,
       if (number != null) 'number': number,
-      if (bankId != null) 'bank_id': bankId,
-      if (bankName != null) 'bank_name': bankName,
+      if (sessionUuid != null) 'session_uuid': sessionUuid,
+      if (userId != null) 'user_id': userId,
+      if (userName != null) 'user_name': userName,
       if (depositDate != null) 'deposit_date': depositDate,
       if (date != null) 'date': date,
+      if (accountingDate != null) 'accounting_date': accountingDate,
+      if (cashAmount != null) 'cash_amount': cashAmount,
+      if (checkAmount != null) 'check_amount': checkAmount,
+      if (checkCount != null) 'check_count': checkCount,
+      if (bankJournalId != null) 'bank_journal_id': bankJournalId,
+      if (bankJournalName != null) 'bank_journal_name': bankJournalName,
+      if (bankId != null) 'bank_id': bankId,
+      if (bankName != null) 'bank_name': bankName,
       if (state != null) 'state': state,
+      if (depositSlipNumber != null) 'deposit_slip_number': depositSlipNumber,
+      if (bankReference != null) 'bank_reference': bankReference,
+      if (moveId != null) 'move_id': moveId,
+      if (depositorName != null) 'depositor_name': depositorName,
+      if (notes != null) 'notes': notes,
       if (isSynced != null) 'is_synced': isSynced,
       if (lastSyncDate != null) 'last_sync_date': lastSyncDate,
       if (writeDate != null) 'write_date': writeDate,
@@ -25833,18 +29598,34 @@ class CollectionSessionDepositCompanion
   CollectionSessionDepositCompanion copyWith({
     Value<int>? id,
     Value<int?>? odooId,
+    Value<String?>? uuid,
     Value<int>? sessionId,
     Value<int>? collectionSessionId,
+    Value<String?>? name,
     Value<String>? depositType,
     Value<String?>? type,
     Value<double>? amount,
     Value<String?>? reference,
     Value<String?>? number,
-    Value<int?>? bankId,
-    Value<String?>? bankName,
+    Value<String?>? sessionUuid,
+    Value<int?>? userId,
+    Value<String?>? userName,
     Value<DateTime>? depositDate,
     Value<DateTime?>? date,
+    Value<DateTime?>? accountingDate,
+    Value<double>? cashAmount,
+    Value<double>? checkAmount,
+    Value<int>? checkCount,
+    Value<int?>? bankJournalId,
+    Value<String?>? bankJournalName,
+    Value<int?>? bankId,
+    Value<String?>? bankName,
     Value<String>? state,
+    Value<String?>? depositSlipNumber,
+    Value<String?>? bankReference,
+    Value<int?>? moveId,
+    Value<String?>? depositorName,
+    Value<String?>? notes,
     Value<bool>? isSynced,
     Value<DateTime?>? lastSyncDate,
     Value<DateTime?>? writeDate,
@@ -25852,18 +29633,34 @@ class CollectionSessionDepositCompanion
     return CollectionSessionDepositCompanion(
       id: id ?? this.id,
       odooId: odooId ?? this.odooId,
+      uuid: uuid ?? this.uuid,
       sessionId: sessionId ?? this.sessionId,
       collectionSessionId: collectionSessionId ?? this.collectionSessionId,
+      name: name ?? this.name,
       depositType: depositType ?? this.depositType,
       type: type ?? this.type,
       amount: amount ?? this.amount,
       reference: reference ?? this.reference,
       number: number ?? this.number,
-      bankId: bankId ?? this.bankId,
-      bankName: bankName ?? this.bankName,
+      sessionUuid: sessionUuid ?? this.sessionUuid,
+      userId: userId ?? this.userId,
+      userName: userName ?? this.userName,
       depositDate: depositDate ?? this.depositDate,
       date: date ?? this.date,
+      accountingDate: accountingDate ?? this.accountingDate,
+      cashAmount: cashAmount ?? this.cashAmount,
+      checkAmount: checkAmount ?? this.checkAmount,
+      checkCount: checkCount ?? this.checkCount,
+      bankJournalId: bankJournalId ?? this.bankJournalId,
+      bankJournalName: bankJournalName ?? this.bankJournalName,
+      bankId: bankId ?? this.bankId,
+      bankName: bankName ?? this.bankName,
       state: state ?? this.state,
+      depositSlipNumber: depositSlipNumber ?? this.depositSlipNumber,
+      bankReference: bankReference ?? this.bankReference,
+      moveId: moveId ?? this.moveId,
+      depositorName: depositorName ?? this.depositorName,
+      notes: notes ?? this.notes,
       isSynced: isSynced ?? this.isSynced,
       lastSyncDate: lastSyncDate ?? this.lastSyncDate,
       writeDate: writeDate ?? this.writeDate,
@@ -25879,11 +29676,17 @@ class CollectionSessionDepositCompanion
     if (odooId.present) {
       map['odoo_id'] = Variable<int>(odooId.value);
     }
+    if (uuid.present) {
+      map['uuid'] = Variable<String>(uuid.value);
+    }
     if (sessionId.present) {
       map['session_id'] = Variable<int>(sessionId.value);
     }
     if (collectionSessionId.present) {
       map['collection_session_id'] = Variable<int>(collectionSessionId.value);
+    }
+    if (name.present) {
+      map['name'] = Variable<String>(name.value);
     }
     if (depositType.present) {
       map['deposit_type'] = Variable<String>(depositType.value);
@@ -25900,11 +29703,14 @@ class CollectionSessionDepositCompanion
     if (number.present) {
       map['number'] = Variable<String>(number.value);
     }
-    if (bankId.present) {
-      map['bank_id'] = Variable<int>(bankId.value);
+    if (sessionUuid.present) {
+      map['session_uuid'] = Variable<String>(sessionUuid.value);
     }
-    if (bankName.present) {
-      map['bank_name'] = Variable<String>(bankName.value);
+    if (userId.present) {
+      map['user_id'] = Variable<int>(userId.value);
+    }
+    if (userName.present) {
+      map['user_name'] = Variable<String>(userName.value);
     }
     if (depositDate.present) {
       map['deposit_date'] = Variable<DateTime>(depositDate.value);
@@ -25912,8 +29718,47 @@ class CollectionSessionDepositCompanion
     if (date.present) {
       map['date'] = Variable<DateTime>(date.value);
     }
+    if (accountingDate.present) {
+      map['accounting_date'] = Variable<DateTime>(accountingDate.value);
+    }
+    if (cashAmount.present) {
+      map['cash_amount'] = Variable<double>(cashAmount.value);
+    }
+    if (checkAmount.present) {
+      map['check_amount'] = Variable<double>(checkAmount.value);
+    }
+    if (checkCount.present) {
+      map['check_count'] = Variable<int>(checkCount.value);
+    }
+    if (bankJournalId.present) {
+      map['bank_journal_id'] = Variable<int>(bankJournalId.value);
+    }
+    if (bankJournalName.present) {
+      map['bank_journal_name'] = Variable<String>(bankJournalName.value);
+    }
+    if (bankId.present) {
+      map['bank_id'] = Variable<int>(bankId.value);
+    }
+    if (bankName.present) {
+      map['bank_name'] = Variable<String>(bankName.value);
+    }
     if (state.present) {
       map['state'] = Variable<String>(state.value);
+    }
+    if (depositSlipNumber.present) {
+      map['deposit_slip_number'] = Variable<String>(depositSlipNumber.value);
+    }
+    if (bankReference.present) {
+      map['bank_reference'] = Variable<String>(bankReference.value);
+    }
+    if (moveId.present) {
+      map['move_id'] = Variable<int>(moveId.value);
+    }
+    if (depositorName.present) {
+      map['depositor_name'] = Variable<String>(depositorName.value);
+    }
+    if (notes.present) {
+      map['notes'] = Variable<String>(notes.value);
     }
     if (isSynced.present) {
       map['is_synced'] = Variable<bool>(isSynced.value);
@@ -25932,18 +29777,34 @@ class CollectionSessionDepositCompanion
     return (StringBuffer('CollectionSessionDepositCompanion(')
           ..write('id: $id, ')
           ..write('odooId: $odooId, ')
+          ..write('uuid: $uuid, ')
           ..write('sessionId: $sessionId, ')
           ..write('collectionSessionId: $collectionSessionId, ')
+          ..write('name: $name, ')
           ..write('depositType: $depositType, ')
           ..write('type: $type, ')
           ..write('amount: $amount, ')
           ..write('reference: $reference, ')
           ..write('number: $number, ')
-          ..write('bankId: $bankId, ')
-          ..write('bankName: $bankName, ')
+          ..write('sessionUuid: $sessionUuid, ')
+          ..write('userId: $userId, ')
+          ..write('userName: $userName, ')
           ..write('depositDate: $depositDate, ')
           ..write('date: $date, ')
+          ..write('accountingDate: $accountingDate, ')
+          ..write('cashAmount: $cashAmount, ')
+          ..write('checkAmount: $checkAmount, ')
+          ..write('checkCount: $checkCount, ')
+          ..write('bankJournalId: $bankJournalId, ')
+          ..write('bankJournalName: $bankJournalName, ')
+          ..write('bankId: $bankId, ')
+          ..write('bankName: $bankName, ')
           ..write('state: $state, ')
+          ..write('depositSlipNumber: $depositSlipNumber, ')
+          ..write('bankReference: $bankReference, ')
+          ..write('moveId: $moveId, ')
+          ..write('depositorName: $depositorName, ')
+          ..write('notes: $notes, ')
           ..write('isSynced: $isSynced, ')
           ..write('lastSyncDate: $lastSyncDate, ')
           ..write('writeDate: $writeDate')
@@ -26019,6 +29880,74 @@ class $CashOutTable extends CashOut with TableInfo<$CashOutTable, CashOutData> {
     aliasedName,
     true,
     type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _cashFlowMeta = const VerificationMeta(
+    'cashFlow',
+  );
+  @override
+  late final GeneratedColumn<String> cashFlow = GeneratedColumn<String>(
+    'cash_flow',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant('out'),
+  );
+  static const VerificationMeta _journalIdMeta = const VerificationMeta(
+    'journalId',
+  );
+  @override
+  late final GeneratedColumn<int> journalId = GeneratedColumn<int>(
+    'journal_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(0),
+  );
+  static const VerificationMeta _journalNameMeta = const VerificationMeta(
+    'journalName',
+  );
+  @override
+  late final GeneratedColumn<String> journalName = GeneratedColumn<String>(
+    'journal_name',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _partnerIdMeta = const VerificationMeta(
+    'partnerId',
+  );
+  @override
+  late final GeneratedColumn<int> partnerId = GeneratedColumn<int>(
+    'partner_id',
+    aliasedName,
+    true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _partnerNameMeta = const VerificationMeta(
+    'partnerName',
+  );
+  @override
+  late final GeneratedColumn<String> partnerName = GeneratedColumn<String>(
+    'partner_name',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _accountIdManualMeta = const VerificationMeta(
+    'accountIdManual',
+  );
+  @override
+  late final GeneratedColumn<int> accountIdManual = GeneratedColumn<int>(
+    'account_id_manual',
+    aliasedName,
+    true,
+    type: DriftSqlType.int,
     requiredDuringInsert: false,
   );
   static const VerificationMeta _amountMeta = const VerificationMeta('amount');
@@ -26111,6 +30040,37 @@ class $CashOutTable extends CashOut with TableInfo<$CashOutTable, CashOutData> {
     type: DriftSqlType.dateTime,
     requiredDuringInsert: false,
   );
+  static const VerificationMeta _moveIdMeta = const VerificationMeta('moveId');
+  @override
+  late final GeneratedColumn<int> moveId = GeneratedColumn<int>(
+    'move_id',
+    aliasedName,
+    true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _cashOutTypeIdMeta = const VerificationMeta(
+    'cashOutTypeId',
+  );
+  @override
+  late final GeneratedColumn<int> cashOutTypeId = GeneratedColumn<int>(
+    'cash_out_type_id',
+    aliasedName,
+    true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _typeNameMeta = const VerificationMeta(
+    'typeName',
+  );
+  @override
+  late final GeneratedColumn<String> typeName = GeneratedColumn<String>(
+    'type_name',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
   static const VerificationMeta _stateMeta = const VerificationMeta('state');
   @override
   late final GeneratedColumn<String> state = GeneratedColumn<String>(
@@ -26166,6 +30126,12 @@ class $CashOutTable extends CashOut with TableInfo<$CashOutTable, CashOutData> {
     collectionSessionId,
     cashOutType,
     type,
+    cashFlow,
+    journalId,
+    journalName,
+    partnerId,
+    partnerName,
+    accountIdManual,
     amount,
     description,
     name,
@@ -26175,6 +30141,9 @@ class $CashOutTable extends CashOut with TableInfo<$CashOutTable, CashOutData> {
     approvedById,
     approvedByName,
     approvedAt,
+    moveId,
+    cashOutTypeId,
+    typeName,
     state,
     isSynced,
     lastSyncDate,
@@ -26235,6 +30204,51 @@ class $CashOutTable extends CashOut with TableInfo<$CashOutTable, CashOutData> {
       context.handle(
         _typeMeta,
         type.isAcceptableOrUnknown(data['type']!, _typeMeta),
+      );
+    }
+    if (data.containsKey('cash_flow')) {
+      context.handle(
+        _cashFlowMeta,
+        cashFlow.isAcceptableOrUnknown(data['cash_flow']!, _cashFlowMeta),
+      );
+    }
+    if (data.containsKey('journal_id')) {
+      context.handle(
+        _journalIdMeta,
+        journalId.isAcceptableOrUnknown(data['journal_id']!, _journalIdMeta),
+      );
+    }
+    if (data.containsKey('journal_name')) {
+      context.handle(
+        _journalNameMeta,
+        journalName.isAcceptableOrUnknown(
+          data['journal_name']!,
+          _journalNameMeta,
+        ),
+      );
+    }
+    if (data.containsKey('partner_id')) {
+      context.handle(
+        _partnerIdMeta,
+        partnerId.isAcceptableOrUnknown(data['partner_id']!, _partnerIdMeta),
+      );
+    }
+    if (data.containsKey('partner_name')) {
+      context.handle(
+        _partnerNameMeta,
+        partnerName.isAcceptableOrUnknown(
+          data['partner_name']!,
+          _partnerNameMeta,
+        ),
+      );
+    }
+    if (data.containsKey('account_id_manual')) {
+      context.handle(
+        _accountIdManualMeta,
+        accountIdManual.isAcceptableOrUnknown(
+          data['account_id_manual']!,
+          _accountIdManualMeta,
+        ),
       );
     }
     if (data.containsKey('amount')) {
@@ -26300,6 +30314,27 @@ class $CashOutTable extends CashOut with TableInfo<$CashOutTable, CashOutData> {
         approvedAt.isAcceptableOrUnknown(data['approved_at']!, _approvedAtMeta),
       );
     }
+    if (data.containsKey('move_id')) {
+      context.handle(
+        _moveIdMeta,
+        moveId.isAcceptableOrUnknown(data['move_id']!, _moveIdMeta),
+      );
+    }
+    if (data.containsKey('cash_out_type_id')) {
+      context.handle(
+        _cashOutTypeIdMeta,
+        cashOutTypeId.isAcceptableOrUnknown(
+          data['cash_out_type_id']!,
+          _cashOutTypeIdMeta,
+        ),
+      );
+    }
+    if (data.containsKey('type_name')) {
+      context.handle(
+        _typeNameMeta,
+        typeName.isAcceptableOrUnknown(data['type_name']!, _typeNameMeta),
+      );
+    }
     if (data.containsKey('state')) {
       context.handle(
         _stateMeta,
@@ -26360,6 +30395,30 @@ class $CashOutTable extends CashOut with TableInfo<$CashOutTable, CashOutData> {
         DriftSqlType.string,
         data['${effectivePrefix}type'],
       ),
+      cashFlow: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}cash_flow'],
+      )!,
+      journalId: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}journal_id'],
+      )!,
+      journalName: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}journal_name'],
+      ),
+      partnerId: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}partner_id'],
+      ),
+      partnerName: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}partner_name'],
+      ),
+      accountIdManual: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}account_id_manual'],
+      ),
       amount: attachedDatabase.typeMapping.read(
         DriftSqlType.double,
         data['${effectivePrefix}amount'],
@@ -26396,6 +30455,18 @@ class $CashOutTable extends CashOut with TableInfo<$CashOutTable, CashOutData> {
         DriftSqlType.dateTime,
         data['${effectivePrefix}approved_at'],
       ),
+      moveId: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}move_id'],
+      ),
+      cashOutTypeId: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}cash_out_type_id'],
+      ),
+      typeName: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}type_name'],
+      ),
       state: attachedDatabase.typeMapping.read(
         DriftSqlType.string,
         data['${effectivePrefix}state'],
@@ -26428,6 +30499,12 @@ class CashOutData extends DataClass implements Insertable<CashOutData> {
   final int collectionSessionId;
   final String cashOutType;
   final String? type;
+  final String cashFlow;
+  final int journalId;
+  final String? journalName;
+  final int? partnerId;
+  final String? partnerName;
+  final int? accountIdManual;
   final double amount;
   final String? description;
   final String? name;
@@ -26437,6 +30514,9 @@ class CashOutData extends DataClass implements Insertable<CashOutData> {
   final int? approvedById;
   final String? approvedByName;
   final DateTime? approvedAt;
+  final int? moveId;
+  final int? cashOutTypeId;
+  final String? typeName;
   final String state;
   final bool isSynced;
   final DateTime? lastSyncDate;
@@ -26448,6 +30528,12 @@ class CashOutData extends DataClass implements Insertable<CashOutData> {
     required this.collectionSessionId,
     required this.cashOutType,
     this.type,
+    required this.cashFlow,
+    required this.journalId,
+    this.journalName,
+    this.partnerId,
+    this.partnerName,
+    this.accountIdManual,
     required this.amount,
     this.description,
     this.name,
@@ -26457,6 +30543,9 @@ class CashOutData extends DataClass implements Insertable<CashOutData> {
     this.approvedById,
     this.approvedByName,
     this.approvedAt,
+    this.moveId,
+    this.cashOutTypeId,
+    this.typeName,
     required this.state,
     required this.isSynced,
     this.lastSyncDate,
@@ -26474,6 +30563,20 @@ class CashOutData extends DataClass implements Insertable<CashOutData> {
     map['cash_out_type'] = Variable<String>(cashOutType);
     if (!nullToAbsent || type != null) {
       map['type'] = Variable<String>(type);
+    }
+    map['cash_flow'] = Variable<String>(cashFlow);
+    map['journal_id'] = Variable<int>(journalId);
+    if (!nullToAbsent || journalName != null) {
+      map['journal_name'] = Variable<String>(journalName);
+    }
+    if (!nullToAbsent || partnerId != null) {
+      map['partner_id'] = Variable<int>(partnerId);
+    }
+    if (!nullToAbsent || partnerName != null) {
+      map['partner_name'] = Variable<String>(partnerName);
+    }
+    if (!nullToAbsent || accountIdManual != null) {
+      map['account_id_manual'] = Variable<int>(accountIdManual);
     }
     map['amount'] = Variable<double>(amount);
     if (!nullToAbsent || description != null) {
@@ -26500,6 +30603,15 @@ class CashOutData extends DataClass implements Insertable<CashOutData> {
     if (!nullToAbsent || approvedAt != null) {
       map['approved_at'] = Variable<DateTime>(approvedAt);
     }
+    if (!nullToAbsent || moveId != null) {
+      map['move_id'] = Variable<int>(moveId);
+    }
+    if (!nullToAbsent || cashOutTypeId != null) {
+      map['cash_out_type_id'] = Variable<int>(cashOutTypeId);
+    }
+    if (!nullToAbsent || typeName != null) {
+      map['type_name'] = Variable<String>(typeName);
+    }
     map['state'] = Variable<String>(state);
     map['is_synced'] = Variable<bool>(isSynced);
     if (!nullToAbsent || lastSyncDate != null) {
@@ -26521,6 +30633,20 @@ class CashOutData extends DataClass implements Insertable<CashOutData> {
       collectionSessionId: Value(collectionSessionId),
       cashOutType: Value(cashOutType),
       type: type == null && nullToAbsent ? const Value.absent() : Value(type),
+      cashFlow: Value(cashFlow),
+      journalId: Value(journalId),
+      journalName: journalName == null && nullToAbsent
+          ? const Value.absent()
+          : Value(journalName),
+      partnerId: partnerId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(partnerId),
+      partnerName: partnerName == null && nullToAbsent
+          ? const Value.absent()
+          : Value(partnerName),
+      accountIdManual: accountIdManual == null && nullToAbsent
+          ? const Value.absent()
+          : Value(accountIdManual),
       amount: Value(amount),
       description: description == null && nullToAbsent
           ? const Value.absent()
@@ -26538,6 +30664,15 @@ class CashOutData extends DataClass implements Insertable<CashOutData> {
       approvedAt: approvedAt == null && nullToAbsent
           ? const Value.absent()
           : Value(approvedAt),
+      moveId: moveId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(moveId),
+      cashOutTypeId: cashOutTypeId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(cashOutTypeId),
+      typeName: typeName == null && nullToAbsent
+          ? const Value.absent()
+          : Value(typeName),
       state: Value(state),
       isSynced: Value(isSynced),
       lastSyncDate: lastSyncDate == null && nullToAbsent
@@ -26563,6 +30698,12 @@ class CashOutData extends DataClass implements Insertable<CashOutData> {
       ),
       cashOutType: serializer.fromJson<String>(json['cashOutType']),
       type: serializer.fromJson<String?>(json['type']),
+      cashFlow: serializer.fromJson<String>(json['cashFlow']),
+      journalId: serializer.fromJson<int>(json['journalId']),
+      journalName: serializer.fromJson<String?>(json['journalName']),
+      partnerId: serializer.fromJson<int?>(json['partnerId']),
+      partnerName: serializer.fromJson<String?>(json['partnerName']),
+      accountIdManual: serializer.fromJson<int?>(json['accountIdManual']),
       amount: serializer.fromJson<double>(json['amount']),
       description: serializer.fromJson<String?>(json['description']),
       name: serializer.fromJson<String?>(json['name']),
@@ -26572,6 +30713,9 @@ class CashOutData extends DataClass implements Insertable<CashOutData> {
       approvedById: serializer.fromJson<int?>(json['approvedById']),
       approvedByName: serializer.fromJson<String?>(json['approvedByName']),
       approvedAt: serializer.fromJson<DateTime?>(json['approvedAt']),
+      moveId: serializer.fromJson<int?>(json['moveId']),
+      cashOutTypeId: serializer.fromJson<int?>(json['cashOutTypeId']),
+      typeName: serializer.fromJson<String?>(json['typeName']),
       state: serializer.fromJson<String>(json['state']),
       isSynced: serializer.fromJson<bool>(json['isSynced']),
       lastSyncDate: serializer.fromJson<DateTime?>(json['lastSyncDate']),
@@ -26588,6 +30732,12 @@ class CashOutData extends DataClass implements Insertable<CashOutData> {
       'collectionSessionId': serializer.toJson<int>(collectionSessionId),
       'cashOutType': serializer.toJson<String>(cashOutType),
       'type': serializer.toJson<String?>(type),
+      'cashFlow': serializer.toJson<String>(cashFlow),
+      'journalId': serializer.toJson<int>(journalId),
+      'journalName': serializer.toJson<String?>(journalName),
+      'partnerId': serializer.toJson<int?>(partnerId),
+      'partnerName': serializer.toJson<String?>(partnerName),
+      'accountIdManual': serializer.toJson<int?>(accountIdManual),
       'amount': serializer.toJson<double>(amount),
       'description': serializer.toJson<String?>(description),
       'name': serializer.toJson<String?>(name),
@@ -26597,6 +30747,9 @@ class CashOutData extends DataClass implements Insertable<CashOutData> {
       'approvedById': serializer.toJson<int?>(approvedById),
       'approvedByName': serializer.toJson<String?>(approvedByName),
       'approvedAt': serializer.toJson<DateTime?>(approvedAt),
+      'moveId': serializer.toJson<int?>(moveId),
+      'cashOutTypeId': serializer.toJson<int?>(cashOutTypeId),
+      'typeName': serializer.toJson<String?>(typeName),
       'state': serializer.toJson<String>(state),
       'isSynced': serializer.toJson<bool>(isSynced),
       'lastSyncDate': serializer.toJson<DateTime?>(lastSyncDate),
@@ -26611,6 +30764,12 @@ class CashOutData extends DataClass implements Insertable<CashOutData> {
     int? collectionSessionId,
     String? cashOutType,
     Value<String?> type = const Value.absent(),
+    String? cashFlow,
+    int? journalId,
+    Value<String?> journalName = const Value.absent(),
+    Value<int?> partnerId = const Value.absent(),
+    Value<String?> partnerName = const Value.absent(),
+    Value<int?> accountIdManual = const Value.absent(),
     double? amount,
     Value<String?> description = const Value.absent(),
     Value<String?> name = const Value.absent(),
@@ -26620,6 +30779,9 @@ class CashOutData extends DataClass implements Insertable<CashOutData> {
     Value<int?> approvedById = const Value.absent(),
     Value<String?> approvedByName = const Value.absent(),
     Value<DateTime?> approvedAt = const Value.absent(),
+    Value<int?> moveId = const Value.absent(),
+    Value<int?> cashOutTypeId = const Value.absent(),
+    Value<String?> typeName = const Value.absent(),
     String? state,
     bool? isSynced,
     Value<DateTime?> lastSyncDate = const Value.absent(),
@@ -26631,6 +30793,14 @@ class CashOutData extends DataClass implements Insertable<CashOutData> {
     collectionSessionId: collectionSessionId ?? this.collectionSessionId,
     cashOutType: cashOutType ?? this.cashOutType,
     type: type.present ? type.value : this.type,
+    cashFlow: cashFlow ?? this.cashFlow,
+    journalId: journalId ?? this.journalId,
+    journalName: journalName.present ? journalName.value : this.journalName,
+    partnerId: partnerId.present ? partnerId.value : this.partnerId,
+    partnerName: partnerName.present ? partnerName.value : this.partnerName,
+    accountIdManual: accountIdManual.present
+        ? accountIdManual.value
+        : this.accountIdManual,
     amount: amount ?? this.amount,
     description: description.present ? description.value : this.description,
     name: name.present ? name.value : this.name,
@@ -26642,6 +30812,11 @@ class CashOutData extends DataClass implements Insertable<CashOutData> {
         ? approvedByName.value
         : this.approvedByName,
     approvedAt: approvedAt.present ? approvedAt.value : this.approvedAt,
+    moveId: moveId.present ? moveId.value : this.moveId,
+    cashOutTypeId: cashOutTypeId.present
+        ? cashOutTypeId.value
+        : this.cashOutTypeId,
+    typeName: typeName.present ? typeName.value : this.typeName,
     state: state ?? this.state,
     isSynced: isSynced ?? this.isSynced,
     lastSyncDate: lastSyncDate.present ? lastSyncDate.value : this.lastSyncDate,
@@ -26659,6 +30834,18 @@ class CashOutData extends DataClass implements Insertable<CashOutData> {
           ? data.cashOutType.value
           : this.cashOutType,
       type: data.type.present ? data.type.value : this.type,
+      cashFlow: data.cashFlow.present ? data.cashFlow.value : this.cashFlow,
+      journalId: data.journalId.present ? data.journalId.value : this.journalId,
+      journalName: data.journalName.present
+          ? data.journalName.value
+          : this.journalName,
+      partnerId: data.partnerId.present ? data.partnerId.value : this.partnerId,
+      partnerName: data.partnerName.present
+          ? data.partnerName.value
+          : this.partnerName,
+      accountIdManual: data.accountIdManual.present
+          ? data.accountIdManual.value
+          : this.accountIdManual,
       amount: data.amount.present ? data.amount.value : this.amount,
       description: data.description.present
           ? data.description.value
@@ -26676,6 +30863,11 @@ class CashOutData extends DataClass implements Insertable<CashOutData> {
       approvedAt: data.approvedAt.present
           ? data.approvedAt.value
           : this.approvedAt,
+      moveId: data.moveId.present ? data.moveId.value : this.moveId,
+      cashOutTypeId: data.cashOutTypeId.present
+          ? data.cashOutTypeId.value
+          : this.cashOutTypeId,
+      typeName: data.typeName.present ? data.typeName.value : this.typeName,
       state: data.state.present ? data.state.value : this.state,
       isSynced: data.isSynced.present ? data.isSynced.value : this.isSynced,
       lastSyncDate: data.lastSyncDate.present
@@ -26694,6 +30886,12 @@ class CashOutData extends DataClass implements Insertable<CashOutData> {
           ..write('collectionSessionId: $collectionSessionId, ')
           ..write('cashOutType: $cashOutType, ')
           ..write('type: $type, ')
+          ..write('cashFlow: $cashFlow, ')
+          ..write('journalId: $journalId, ')
+          ..write('journalName: $journalName, ')
+          ..write('partnerId: $partnerId, ')
+          ..write('partnerName: $partnerName, ')
+          ..write('accountIdManual: $accountIdManual, ')
           ..write('amount: $amount, ')
           ..write('description: $description, ')
           ..write('name: $name, ')
@@ -26703,6 +30901,9 @@ class CashOutData extends DataClass implements Insertable<CashOutData> {
           ..write('approvedById: $approvedById, ')
           ..write('approvedByName: $approvedByName, ')
           ..write('approvedAt: $approvedAt, ')
+          ..write('moveId: $moveId, ')
+          ..write('cashOutTypeId: $cashOutTypeId, ')
+          ..write('typeName: $typeName, ')
           ..write('state: $state, ')
           ..write('isSynced: $isSynced, ')
           ..write('lastSyncDate: $lastSyncDate, ')
@@ -26712,13 +30913,19 @@ class CashOutData extends DataClass implements Insertable<CashOutData> {
   }
 
   @override
-  int get hashCode => Object.hash(
+  int get hashCode => Object.hashAll([
     id,
     odooId,
     sessionId,
     collectionSessionId,
     cashOutType,
     type,
+    cashFlow,
+    journalId,
+    journalName,
+    partnerId,
+    partnerName,
+    accountIdManual,
     amount,
     description,
     name,
@@ -26728,11 +30935,14 @@ class CashOutData extends DataClass implements Insertable<CashOutData> {
     approvedById,
     approvedByName,
     approvedAt,
+    moveId,
+    cashOutTypeId,
+    typeName,
     state,
     isSynced,
     lastSyncDate,
     writeDate,
-  );
+  ]);
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
@@ -26743,6 +30953,12 @@ class CashOutData extends DataClass implements Insertable<CashOutData> {
           other.collectionSessionId == this.collectionSessionId &&
           other.cashOutType == this.cashOutType &&
           other.type == this.type &&
+          other.cashFlow == this.cashFlow &&
+          other.journalId == this.journalId &&
+          other.journalName == this.journalName &&
+          other.partnerId == this.partnerId &&
+          other.partnerName == this.partnerName &&
+          other.accountIdManual == this.accountIdManual &&
           other.amount == this.amount &&
           other.description == this.description &&
           other.name == this.name &&
@@ -26752,6 +30968,9 @@ class CashOutData extends DataClass implements Insertable<CashOutData> {
           other.approvedById == this.approvedById &&
           other.approvedByName == this.approvedByName &&
           other.approvedAt == this.approvedAt &&
+          other.moveId == this.moveId &&
+          other.cashOutTypeId == this.cashOutTypeId &&
+          other.typeName == this.typeName &&
           other.state == this.state &&
           other.isSynced == this.isSynced &&
           other.lastSyncDate == this.lastSyncDate &&
@@ -26765,6 +30984,12 @@ class CashOutCompanion extends UpdateCompanion<CashOutData> {
   final Value<int> collectionSessionId;
   final Value<String> cashOutType;
   final Value<String?> type;
+  final Value<String> cashFlow;
+  final Value<int> journalId;
+  final Value<String?> journalName;
+  final Value<int?> partnerId;
+  final Value<String?> partnerName;
+  final Value<int?> accountIdManual;
   final Value<double> amount;
   final Value<String?> description;
   final Value<String?> name;
@@ -26774,6 +30999,9 @@ class CashOutCompanion extends UpdateCompanion<CashOutData> {
   final Value<int?> approvedById;
   final Value<String?> approvedByName;
   final Value<DateTime?> approvedAt;
+  final Value<int?> moveId;
+  final Value<int?> cashOutTypeId;
+  final Value<String?> typeName;
   final Value<String> state;
   final Value<bool> isSynced;
   final Value<DateTime?> lastSyncDate;
@@ -26785,6 +31013,12 @@ class CashOutCompanion extends UpdateCompanion<CashOutData> {
     this.collectionSessionId = const Value.absent(),
     this.cashOutType = const Value.absent(),
     this.type = const Value.absent(),
+    this.cashFlow = const Value.absent(),
+    this.journalId = const Value.absent(),
+    this.journalName = const Value.absent(),
+    this.partnerId = const Value.absent(),
+    this.partnerName = const Value.absent(),
+    this.accountIdManual = const Value.absent(),
     this.amount = const Value.absent(),
     this.description = const Value.absent(),
     this.name = const Value.absent(),
@@ -26794,6 +31028,9 @@ class CashOutCompanion extends UpdateCompanion<CashOutData> {
     this.approvedById = const Value.absent(),
     this.approvedByName = const Value.absent(),
     this.approvedAt = const Value.absent(),
+    this.moveId = const Value.absent(),
+    this.cashOutTypeId = const Value.absent(),
+    this.typeName = const Value.absent(),
     this.state = const Value.absent(),
     this.isSynced = const Value.absent(),
     this.lastSyncDate = const Value.absent(),
@@ -26806,6 +31043,12 @@ class CashOutCompanion extends UpdateCompanion<CashOutData> {
     required int collectionSessionId,
     required String cashOutType,
     this.type = const Value.absent(),
+    this.cashFlow = const Value.absent(),
+    this.journalId = const Value.absent(),
+    this.journalName = const Value.absent(),
+    this.partnerId = const Value.absent(),
+    this.partnerName = const Value.absent(),
+    this.accountIdManual = const Value.absent(),
     this.amount = const Value.absent(),
     this.description = const Value.absent(),
     this.name = const Value.absent(),
@@ -26815,6 +31058,9 @@ class CashOutCompanion extends UpdateCompanion<CashOutData> {
     this.approvedById = const Value.absent(),
     this.approvedByName = const Value.absent(),
     this.approvedAt = const Value.absent(),
+    this.moveId = const Value.absent(),
+    this.cashOutTypeId = const Value.absent(),
+    this.typeName = const Value.absent(),
     this.state = const Value.absent(),
     this.isSynced = const Value.absent(),
     this.lastSyncDate = const Value.absent(),
@@ -26829,6 +31075,12 @@ class CashOutCompanion extends UpdateCompanion<CashOutData> {
     Expression<int>? collectionSessionId,
     Expression<String>? cashOutType,
     Expression<String>? type,
+    Expression<String>? cashFlow,
+    Expression<int>? journalId,
+    Expression<String>? journalName,
+    Expression<int>? partnerId,
+    Expression<String>? partnerName,
+    Expression<int>? accountIdManual,
     Expression<double>? amount,
     Expression<String>? description,
     Expression<String>? name,
@@ -26838,6 +31090,9 @@ class CashOutCompanion extends UpdateCompanion<CashOutData> {
     Expression<int>? approvedById,
     Expression<String>? approvedByName,
     Expression<DateTime>? approvedAt,
+    Expression<int>? moveId,
+    Expression<int>? cashOutTypeId,
+    Expression<String>? typeName,
     Expression<String>? state,
     Expression<bool>? isSynced,
     Expression<DateTime>? lastSyncDate,
@@ -26851,6 +31106,12 @@ class CashOutCompanion extends UpdateCompanion<CashOutData> {
         'collection_session_id': collectionSessionId,
       if (cashOutType != null) 'cash_out_type': cashOutType,
       if (type != null) 'type': type,
+      if (cashFlow != null) 'cash_flow': cashFlow,
+      if (journalId != null) 'journal_id': journalId,
+      if (journalName != null) 'journal_name': journalName,
+      if (partnerId != null) 'partner_id': partnerId,
+      if (partnerName != null) 'partner_name': partnerName,
+      if (accountIdManual != null) 'account_id_manual': accountIdManual,
       if (amount != null) 'amount': amount,
       if (description != null) 'description': description,
       if (name != null) 'name': name,
@@ -26860,6 +31121,9 @@ class CashOutCompanion extends UpdateCompanion<CashOutData> {
       if (approvedById != null) 'approved_by_id': approvedById,
       if (approvedByName != null) 'approved_by_name': approvedByName,
       if (approvedAt != null) 'approved_at': approvedAt,
+      if (moveId != null) 'move_id': moveId,
+      if (cashOutTypeId != null) 'cash_out_type_id': cashOutTypeId,
+      if (typeName != null) 'type_name': typeName,
       if (state != null) 'state': state,
       if (isSynced != null) 'is_synced': isSynced,
       if (lastSyncDate != null) 'last_sync_date': lastSyncDate,
@@ -26874,6 +31138,12 @@ class CashOutCompanion extends UpdateCompanion<CashOutData> {
     Value<int>? collectionSessionId,
     Value<String>? cashOutType,
     Value<String?>? type,
+    Value<String>? cashFlow,
+    Value<int>? journalId,
+    Value<String?>? journalName,
+    Value<int?>? partnerId,
+    Value<String?>? partnerName,
+    Value<int?>? accountIdManual,
     Value<double>? amount,
     Value<String?>? description,
     Value<String?>? name,
@@ -26883,6 +31153,9 @@ class CashOutCompanion extends UpdateCompanion<CashOutData> {
     Value<int?>? approvedById,
     Value<String?>? approvedByName,
     Value<DateTime?>? approvedAt,
+    Value<int?>? moveId,
+    Value<int?>? cashOutTypeId,
+    Value<String?>? typeName,
     Value<String>? state,
     Value<bool>? isSynced,
     Value<DateTime?>? lastSyncDate,
@@ -26895,6 +31168,12 @@ class CashOutCompanion extends UpdateCompanion<CashOutData> {
       collectionSessionId: collectionSessionId ?? this.collectionSessionId,
       cashOutType: cashOutType ?? this.cashOutType,
       type: type ?? this.type,
+      cashFlow: cashFlow ?? this.cashFlow,
+      journalId: journalId ?? this.journalId,
+      journalName: journalName ?? this.journalName,
+      partnerId: partnerId ?? this.partnerId,
+      partnerName: partnerName ?? this.partnerName,
+      accountIdManual: accountIdManual ?? this.accountIdManual,
       amount: amount ?? this.amount,
       description: description ?? this.description,
       name: name ?? this.name,
@@ -26904,6 +31183,9 @@ class CashOutCompanion extends UpdateCompanion<CashOutData> {
       approvedById: approvedById ?? this.approvedById,
       approvedByName: approvedByName ?? this.approvedByName,
       approvedAt: approvedAt ?? this.approvedAt,
+      moveId: moveId ?? this.moveId,
+      cashOutTypeId: cashOutTypeId ?? this.cashOutTypeId,
+      typeName: typeName ?? this.typeName,
       state: state ?? this.state,
       isSynced: isSynced ?? this.isSynced,
       lastSyncDate: lastSyncDate ?? this.lastSyncDate,
@@ -26932,6 +31214,24 @@ class CashOutCompanion extends UpdateCompanion<CashOutData> {
     if (type.present) {
       map['type'] = Variable<String>(type.value);
     }
+    if (cashFlow.present) {
+      map['cash_flow'] = Variable<String>(cashFlow.value);
+    }
+    if (journalId.present) {
+      map['journal_id'] = Variable<int>(journalId.value);
+    }
+    if (journalName.present) {
+      map['journal_name'] = Variable<String>(journalName.value);
+    }
+    if (partnerId.present) {
+      map['partner_id'] = Variable<int>(partnerId.value);
+    }
+    if (partnerName.present) {
+      map['partner_name'] = Variable<String>(partnerName.value);
+    }
+    if (accountIdManual.present) {
+      map['account_id_manual'] = Variable<int>(accountIdManual.value);
+    }
     if (amount.present) {
       map['amount'] = Variable<double>(amount.value);
     }
@@ -26959,6 +31259,15 @@ class CashOutCompanion extends UpdateCompanion<CashOutData> {
     if (approvedAt.present) {
       map['approved_at'] = Variable<DateTime>(approvedAt.value);
     }
+    if (moveId.present) {
+      map['move_id'] = Variable<int>(moveId.value);
+    }
+    if (cashOutTypeId.present) {
+      map['cash_out_type_id'] = Variable<int>(cashOutTypeId.value);
+    }
+    if (typeName.present) {
+      map['type_name'] = Variable<String>(typeName.value);
+    }
     if (state.present) {
       map['state'] = Variable<String>(state.value);
     }
@@ -26983,6 +31292,12 @@ class CashOutCompanion extends UpdateCompanion<CashOutData> {
           ..write('collectionSessionId: $collectionSessionId, ')
           ..write('cashOutType: $cashOutType, ')
           ..write('type: $type, ')
+          ..write('cashFlow: $cashFlow, ')
+          ..write('journalId: $journalId, ')
+          ..write('journalName: $journalName, ')
+          ..write('partnerId: $partnerId, ')
+          ..write('partnerName: $partnerName, ')
+          ..write('accountIdManual: $accountIdManual, ')
           ..write('amount: $amount, ')
           ..write('description: $description, ')
           ..write('name: $name, ')
@@ -26992,6 +31307,9 @@ class CashOutCompanion extends UpdateCompanion<CashOutData> {
           ..write('approvedById: $approvedById, ')
           ..write('approvedByName: $approvedByName, ')
           ..write('approvedAt: $approvedAt, ')
+          ..write('moveId: $moveId, ')
+          ..write('cashOutTypeId: $cashOutTypeId, ')
+          ..write('typeName: $typeName, ')
           ..write('state: $state, ')
           ..write('isSynced: $isSynced, ')
           ..write('lastSyncDate: $lastSyncDate, ')
@@ -27058,6 +31376,16 @@ class $AccountPaymentTable extends AccountPayment
   @override
   late final GeneratedColumn<int> invoiceId = GeneratedColumn<int>(
     'invoice_id',
+    aliasedName,
+    true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _reconciledInvoiceIdsMeta =
+      const VerificationMeta('reconciledInvoiceIds');
+  @override
+  late final GeneratedColumn<int> reconciledInvoiceIds = GeneratedColumn<int>(
+    'reconciled_invoice_ids',
     aliasedName,
     true,
     type: DriftSqlType.int,
@@ -27501,6 +31829,7 @@ class $AccountPaymentTable extends AccountPayment
     paymentUuid,
     collectionSessionId,
     invoiceId,
+    reconciledInvoiceIds,
     partnerId,
     partnerName,
     journalId,
@@ -27585,6 +31914,15 @@ class $AccountPaymentTable extends AccountPayment
       context.handle(
         _invoiceIdMeta,
         invoiceId.isAcceptableOrUnknown(data['invoice_id']!, _invoiceIdMeta),
+      );
+    }
+    if (data.containsKey('reconciled_invoice_ids')) {
+      context.handle(
+        _reconciledInvoiceIdsMeta,
+        reconciledInvoiceIds.isAcceptableOrUnknown(
+          data['reconciled_invoice_ids']!,
+          _reconciledInvoiceIdsMeta,
+        ),
       );
     }
     if (data.containsKey('partner_id')) {
@@ -27910,6 +32248,10 @@ class $AccountPaymentTable extends AccountPayment
         DriftSqlType.int,
         data['${effectivePrefix}invoice_id'],
       ),
+      reconciledInvoiceIds: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}reconciled_invoice_ids'],
+      ),
       partnerId: attachedDatabase.typeMapping.read(
         DriftSqlType.int,
         data['${effectivePrefix}partner_id'],
@@ -28078,6 +32420,7 @@ class AccountPaymentData extends DataClass
   final String paymentUuid;
   final int? collectionSessionId;
   final int? invoiceId;
+  final int? reconciledInvoiceIds;
   final int? partnerId;
   final String? partnerName;
   final int? journalId;
@@ -28122,6 +32465,7 @@ class AccountPaymentData extends DataClass
     required this.paymentUuid,
     this.collectionSessionId,
     this.invoiceId,
+    this.reconciledInvoiceIds,
     this.partnerId,
     this.partnerName,
     this.journalId,
@@ -28174,6 +32518,9 @@ class AccountPaymentData extends DataClass
     }
     if (!nullToAbsent || invoiceId != null) {
       map['invoice_id'] = Variable<int>(invoiceId);
+    }
+    if (!nullToAbsent || reconciledInvoiceIds != null) {
+      map['reconciled_invoice_ids'] = Variable<int>(reconciledInvoiceIds);
     }
     if (!nullToAbsent || partnerId != null) {
       map['partner_id'] = Variable<int>(partnerId);
@@ -28287,6 +32634,9 @@ class AccountPaymentData extends DataClass
       invoiceId: invoiceId == null && nullToAbsent
           ? const Value.absent()
           : Value(invoiceId),
+      reconciledInvoiceIds: reconciledInvoiceIds == null && nullToAbsent
+          ? const Value.absent()
+          : Value(reconciledInvoiceIds),
       partnerId: partnerId == null && nullToAbsent
           ? const Value.absent()
           : Value(partnerId),
@@ -28393,6 +32743,9 @@ class AccountPaymentData extends DataClass
         json['collectionSessionId'],
       ),
       invoiceId: serializer.fromJson<int?>(json['invoiceId']),
+      reconciledInvoiceIds: serializer.fromJson<int?>(
+        json['reconciledInvoiceIds'],
+      ),
       partnerId: serializer.fromJson<int?>(json['partnerId']),
       partnerName: serializer.fromJson<String?>(json['partnerName']),
       journalId: serializer.fromJson<int?>(json['journalId']),
@@ -28456,6 +32809,7 @@ class AccountPaymentData extends DataClass
       'paymentUuid': serializer.toJson<String>(paymentUuid),
       'collectionSessionId': serializer.toJson<int?>(collectionSessionId),
       'invoiceId': serializer.toJson<int?>(invoiceId),
+      'reconciledInvoiceIds': serializer.toJson<int?>(reconciledInvoiceIds),
       'partnerId': serializer.toJson<int?>(partnerId),
       'partnerName': serializer.toJson<String?>(partnerName),
       'journalId': serializer.toJson<int?>(journalId),
@@ -28507,6 +32861,7 @@ class AccountPaymentData extends DataClass
     String? paymentUuid,
     Value<int?> collectionSessionId = const Value.absent(),
     Value<int?> invoiceId = const Value.absent(),
+    Value<int?> reconciledInvoiceIds = const Value.absent(),
     Value<int?> partnerId = const Value.absent(),
     Value<String?> partnerName = const Value.absent(),
     Value<int?> journalId = const Value.absent(),
@@ -28553,6 +32908,9 @@ class AccountPaymentData extends DataClass
         ? collectionSessionId.value
         : this.collectionSessionId,
     invoiceId: invoiceId.present ? invoiceId.value : this.invoiceId,
+    reconciledInvoiceIds: reconciledInvoiceIds.present
+        ? reconciledInvoiceIds.value
+        : this.reconciledInvoiceIds,
     partnerId: partnerId.present ? partnerId.value : this.partnerId,
     partnerName: partnerName.present ? partnerName.value : this.partnerName,
     journalId: journalId.present ? journalId.value : this.journalId,
@@ -28625,6 +32983,9 @@ class AccountPaymentData extends DataClass
           ? data.collectionSessionId.value
           : this.collectionSessionId,
       invoiceId: data.invoiceId.present ? data.invoiceId.value : this.invoiceId,
+      reconciledInvoiceIds: data.reconciledInvoiceIds.present
+          ? data.reconciledInvoiceIds.value
+          : this.reconciledInvoiceIds,
       partnerId: data.partnerId.present ? data.partnerId.value : this.partnerId,
       partnerName: data.partnerName.present
           ? data.partnerName.value
@@ -28718,6 +33079,7 @@ class AccountPaymentData extends DataClass
           ..write('paymentUuid: $paymentUuid, ')
           ..write('collectionSessionId: $collectionSessionId, ')
           ..write('invoiceId: $invoiceId, ')
+          ..write('reconciledInvoiceIds: $reconciledInvoiceIds, ')
           ..write('partnerId: $partnerId, ')
           ..write('partnerName: $partnerName, ')
           ..write('journalId: $journalId, ')
@@ -28767,6 +33129,7 @@ class AccountPaymentData extends DataClass
     paymentUuid,
     collectionSessionId,
     invoiceId,
+    reconciledInvoiceIds,
     partnerId,
     partnerName,
     journalId,
@@ -28815,6 +33178,7 @@ class AccountPaymentData extends DataClass
           other.paymentUuid == this.paymentUuid &&
           other.collectionSessionId == this.collectionSessionId &&
           other.invoiceId == this.invoiceId &&
+          other.reconciledInvoiceIds == this.reconciledInvoiceIds &&
           other.partnerId == this.partnerId &&
           other.partnerName == this.partnerName &&
           other.journalId == this.journalId &&
@@ -28861,6 +33225,7 @@ class AccountPaymentCompanion extends UpdateCompanion<AccountPaymentData> {
   final Value<String> paymentUuid;
   final Value<int?> collectionSessionId;
   final Value<int?> invoiceId;
+  final Value<int?> reconciledInvoiceIds;
   final Value<int?> partnerId;
   final Value<String?> partnerName;
   final Value<int?> journalId;
@@ -28905,6 +33270,7 @@ class AccountPaymentCompanion extends UpdateCompanion<AccountPaymentData> {
     this.paymentUuid = const Value.absent(),
     this.collectionSessionId = const Value.absent(),
     this.invoiceId = const Value.absent(),
+    this.reconciledInvoiceIds = const Value.absent(),
     this.partnerId = const Value.absent(),
     this.partnerName = const Value.absent(),
     this.journalId = const Value.absent(),
@@ -28950,6 +33316,7 @@ class AccountPaymentCompanion extends UpdateCompanion<AccountPaymentData> {
     required String paymentUuid,
     this.collectionSessionId = const Value.absent(),
     this.invoiceId = const Value.absent(),
+    this.reconciledInvoiceIds = const Value.absent(),
     this.partnerId = const Value.absent(),
     this.partnerName = const Value.absent(),
     this.journalId = const Value.absent(),
@@ -28995,6 +33362,7 @@ class AccountPaymentCompanion extends UpdateCompanion<AccountPaymentData> {
     Expression<String>? paymentUuid,
     Expression<int>? collectionSessionId,
     Expression<int>? invoiceId,
+    Expression<int>? reconciledInvoiceIds,
     Expression<int>? partnerId,
     Expression<String>? partnerName,
     Expression<int>? journalId,
@@ -29041,6 +33409,8 @@ class AccountPaymentCompanion extends UpdateCompanion<AccountPaymentData> {
       if (collectionSessionId != null)
         'collection_session_id': collectionSessionId,
       if (invoiceId != null) 'invoice_id': invoiceId,
+      if (reconciledInvoiceIds != null)
+        'reconciled_invoice_ids': reconciledInvoiceIds,
       if (partnerId != null) 'partner_id': partnerId,
       if (partnerName != null) 'partner_name': partnerName,
       if (journalId != null) 'journal_id': journalId,
@@ -29092,6 +33462,7 @@ class AccountPaymentCompanion extends UpdateCompanion<AccountPaymentData> {
     Value<String>? paymentUuid,
     Value<int?>? collectionSessionId,
     Value<int?>? invoiceId,
+    Value<int?>? reconciledInvoiceIds,
     Value<int?>? partnerId,
     Value<String?>? partnerName,
     Value<int?>? journalId,
@@ -29137,6 +33508,7 @@ class AccountPaymentCompanion extends UpdateCompanion<AccountPaymentData> {
       paymentUuid: paymentUuid ?? this.paymentUuid,
       collectionSessionId: collectionSessionId ?? this.collectionSessionId,
       invoiceId: invoiceId ?? this.invoiceId,
+      reconciledInvoiceIds: reconciledInvoiceIds ?? this.reconciledInvoiceIds,
       partnerId: partnerId ?? this.partnerId,
       partnerName: partnerName ?? this.partnerName,
       journalId: journalId ?? this.journalId,
@@ -29197,6 +33569,9 @@ class AccountPaymentCompanion extends UpdateCompanion<AccountPaymentData> {
     }
     if (invoiceId.present) {
       map['invoice_id'] = Variable<int>(invoiceId.value);
+    }
+    if (reconciledInvoiceIds.present) {
+      map['reconciled_invoice_ids'] = Variable<int>(reconciledInvoiceIds.value);
     }
     if (partnerId.present) {
       map['partner_id'] = Variable<int>(partnerId.value);
@@ -29327,6 +33702,7 @@ class AccountPaymentCompanion extends UpdateCompanion<AccountPaymentData> {
           ..write('paymentUuid: $paymentUuid, ')
           ..write('collectionSessionId: $collectionSessionId, ')
           ..write('invoiceId: $invoiceId, ')
+          ..write('reconciledInvoiceIds: $reconciledInvoiceIds, ')
           ..write('partnerId: $partnerId, ')
           ..write('partnerName: $partnerName, ')
           ..write('journalId: $journalId, ')
@@ -29651,6 +34027,72 @@ class $AccountMoveTable extends AccountMove
     requiredDuringInsert: false,
     defaultValue: const Constant('not_paid'),
   );
+  static const VerificationMeta _partnerStreetMeta = const VerificationMeta(
+    'partnerStreet',
+  );
+  @override
+  late final GeneratedColumn<String> partnerStreet = GeneratedColumn<String>(
+    'partner_street',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _partnerCityMeta = const VerificationMeta(
+    'partnerCity',
+  );
+  @override
+  late final GeneratedColumn<String> partnerCity = GeneratedColumn<String>(
+    'partner_city',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _partnerPhoneMeta = const VerificationMeta(
+    'partnerPhone',
+  );
+  @override
+  late final GeneratedColumn<String> partnerPhone = GeneratedColumn<String>(
+    'partner_phone',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _partnerEmailMeta = const VerificationMeta(
+    'partnerEmail',
+  );
+  @override
+  late final GeneratedColumn<String> partnerEmail = GeneratedColumn<String>(
+    'partner_email',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _currencySymbolMeta = const VerificationMeta(
+    'currencySymbol',
+  );
+  @override
+  late final GeneratedColumn<String> currencySymbol = GeneratedColumn<String>(
+    'currency_symbol',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _l10nEcAuthorizationDateMeta =
+      const VerificationMeta('l10nEcAuthorizationDate');
+  @override
+  late final GeneratedColumn<DateTime> l10nEcAuthorizationDate =
+      GeneratedColumn<DateTime>(
+        'l10n_ec_authorization_date',
+        aliasedName,
+        true,
+        type: DriftSqlType.dateTime,
+        requiredDuringInsert: false,
+      );
   static const VerificationMeta _l10nEcAuthorizationNumberMeta =
       const VerificationMeta('l10nEcAuthorizationNumber');
   @override
@@ -29770,6 +34212,12 @@ class $AccountMoveTable extends AccountMove
     amountTotal,
     amountResidual,
     paymentState,
+    partnerStreet,
+    partnerCity,
+    partnerPhone,
+    partnerEmail,
+    currencySymbol,
+    l10nEcAuthorizationDate,
     l10nEcAuthorizationNumber,
     l10nLatamDocumentNumber,
     l10nLatamDocumentTypeId,
@@ -29978,6 +34426,60 @@ class $AccountMoveTable extends AccountMove
         ),
       );
     }
+    if (data.containsKey('partner_street')) {
+      context.handle(
+        _partnerStreetMeta,
+        partnerStreet.isAcceptableOrUnknown(
+          data['partner_street']!,
+          _partnerStreetMeta,
+        ),
+      );
+    }
+    if (data.containsKey('partner_city')) {
+      context.handle(
+        _partnerCityMeta,
+        partnerCity.isAcceptableOrUnknown(
+          data['partner_city']!,
+          _partnerCityMeta,
+        ),
+      );
+    }
+    if (data.containsKey('partner_phone')) {
+      context.handle(
+        _partnerPhoneMeta,
+        partnerPhone.isAcceptableOrUnknown(
+          data['partner_phone']!,
+          _partnerPhoneMeta,
+        ),
+      );
+    }
+    if (data.containsKey('partner_email')) {
+      context.handle(
+        _partnerEmailMeta,
+        partnerEmail.isAcceptableOrUnknown(
+          data['partner_email']!,
+          _partnerEmailMeta,
+        ),
+      );
+    }
+    if (data.containsKey('currency_symbol')) {
+      context.handle(
+        _currencySymbolMeta,
+        currencySymbol.isAcceptableOrUnknown(
+          data['currency_symbol']!,
+          _currencySymbolMeta,
+        ),
+      );
+    }
+    if (data.containsKey('l10n_ec_authorization_date')) {
+      context.handle(
+        _l10nEcAuthorizationDateMeta,
+        l10nEcAuthorizationDate.isAcceptableOrUnknown(
+          data['l10n_ec_authorization_date']!,
+          _l10nEcAuthorizationDateMeta,
+        ),
+      );
+    }
     if (data.containsKey('l10n_ec_authorization_number')) {
       context.handle(
         _l10nEcAuthorizationNumberMeta,
@@ -30153,6 +34655,30 @@ class $AccountMoveTable extends AccountMove
         DriftSqlType.string,
         data['${effectivePrefix}payment_state'],
       )!,
+      partnerStreet: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}partner_street'],
+      ),
+      partnerCity: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}partner_city'],
+      ),
+      partnerPhone: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}partner_phone'],
+      ),
+      partnerEmail: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}partner_email'],
+      ),
+      currencySymbol: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}currency_symbol'],
+      ),
+      l10nEcAuthorizationDate: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}l10n_ec_authorization_date'],
+      ),
       l10nEcAuthorizationNumber: attachedDatabase.typeMapping.read(
         DriftSqlType.string,
         data['${effectivePrefix}l10n_ec_authorization_number'],
@@ -30220,6 +34746,12 @@ class AccountMoveData extends DataClass implements Insertable<AccountMoveData> {
   final double amountTotal;
   final double amountResidual;
   final String paymentState;
+  final String? partnerStreet;
+  final String? partnerCity;
+  final String? partnerPhone;
+  final String? partnerEmail;
+  final String? currencySymbol;
+  final DateTime? l10nEcAuthorizationDate;
   final String? l10nEcAuthorizationNumber;
   final String? l10nLatamDocumentNumber;
   final int? l10nLatamDocumentTypeId;
@@ -30254,6 +34786,12 @@ class AccountMoveData extends DataClass implements Insertable<AccountMoveData> {
     required this.amountTotal,
     required this.amountResidual,
     required this.paymentState,
+    this.partnerStreet,
+    this.partnerCity,
+    this.partnerPhone,
+    this.partnerEmail,
+    this.currencySymbol,
+    this.l10nEcAuthorizationDate,
     this.l10nEcAuthorizationNumber,
     this.l10nLatamDocumentNumber,
     this.l10nLatamDocumentTypeId,
@@ -30323,6 +34861,26 @@ class AccountMoveData extends DataClass implements Insertable<AccountMoveData> {
     map['amount_total'] = Variable<double>(amountTotal);
     map['amount_residual'] = Variable<double>(amountResidual);
     map['payment_state'] = Variable<String>(paymentState);
+    if (!nullToAbsent || partnerStreet != null) {
+      map['partner_street'] = Variable<String>(partnerStreet);
+    }
+    if (!nullToAbsent || partnerCity != null) {
+      map['partner_city'] = Variable<String>(partnerCity);
+    }
+    if (!nullToAbsent || partnerPhone != null) {
+      map['partner_phone'] = Variable<String>(partnerPhone);
+    }
+    if (!nullToAbsent || partnerEmail != null) {
+      map['partner_email'] = Variable<String>(partnerEmail);
+    }
+    if (!nullToAbsent || currencySymbol != null) {
+      map['currency_symbol'] = Variable<String>(currencySymbol);
+    }
+    if (!nullToAbsent || l10nEcAuthorizationDate != null) {
+      map['l10n_ec_authorization_date'] = Variable<DateTime>(
+        l10nEcAuthorizationDate,
+      );
+    }
     if (!nullToAbsent || l10nEcAuthorizationNumber != null) {
       map['l10n_ec_authorization_number'] = Variable<String>(
         l10nEcAuthorizationNumber,
@@ -30409,6 +34967,24 @@ class AccountMoveData extends DataClass implements Insertable<AccountMoveData> {
       amountTotal: Value(amountTotal),
       amountResidual: Value(amountResidual),
       paymentState: Value(paymentState),
+      partnerStreet: partnerStreet == null && nullToAbsent
+          ? const Value.absent()
+          : Value(partnerStreet),
+      partnerCity: partnerCity == null && nullToAbsent
+          ? const Value.absent()
+          : Value(partnerCity),
+      partnerPhone: partnerPhone == null && nullToAbsent
+          ? const Value.absent()
+          : Value(partnerPhone),
+      partnerEmail: partnerEmail == null && nullToAbsent
+          ? const Value.absent()
+          : Value(partnerEmail),
+      currencySymbol: currencySymbol == null && nullToAbsent
+          ? const Value.absent()
+          : Value(currencySymbol),
+      l10nEcAuthorizationDate: l10nEcAuthorizationDate == null && nullToAbsent
+          ? const Value.absent()
+          : Value(l10nEcAuthorizationDate),
       l10nEcAuthorizationNumber:
           l10nEcAuthorizationNumber == null && nullToAbsent
           ? const Value.absent()
@@ -30467,6 +35043,14 @@ class AccountMoveData extends DataClass implements Insertable<AccountMoveData> {
       amountTotal: serializer.fromJson<double>(json['amountTotal']),
       amountResidual: serializer.fromJson<double>(json['amountResidual']),
       paymentState: serializer.fromJson<String>(json['paymentState']),
+      partnerStreet: serializer.fromJson<String?>(json['partnerStreet']),
+      partnerCity: serializer.fromJson<String?>(json['partnerCity']),
+      partnerPhone: serializer.fromJson<String?>(json['partnerPhone']),
+      partnerEmail: serializer.fromJson<String?>(json['partnerEmail']),
+      currencySymbol: serializer.fromJson<String?>(json['currencySymbol']),
+      l10nEcAuthorizationDate: serializer.fromJson<DateTime?>(
+        json['l10nEcAuthorizationDate'],
+      ),
       l10nEcAuthorizationNumber: serializer.fromJson<String?>(
         json['l10nEcAuthorizationNumber'],
       ),
@@ -30516,6 +35100,14 @@ class AccountMoveData extends DataClass implements Insertable<AccountMoveData> {
       'amountTotal': serializer.toJson<double>(amountTotal),
       'amountResidual': serializer.toJson<double>(amountResidual),
       'paymentState': serializer.toJson<String>(paymentState),
+      'partnerStreet': serializer.toJson<String?>(partnerStreet),
+      'partnerCity': serializer.toJson<String?>(partnerCity),
+      'partnerPhone': serializer.toJson<String?>(partnerPhone),
+      'partnerEmail': serializer.toJson<String?>(partnerEmail),
+      'currencySymbol': serializer.toJson<String?>(currencySymbol),
+      'l10nEcAuthorizationDate': serializer.toJson<DateTime?>(
+        l10nEcAuthorizationDate,
+      ),
       'l10nEcAuthorizationNumber': serializer.toJson<String?>(
         l10nEcAuthorizationNumber,
       ),
@@ -30561,6 +35153,12 @@ class AccountMoveData extends DataClass implements Insertable<AccountMoveData> {
     double? amountTotal,
     double? amountResidual,
     String? paymentState,
+    Value<String?> partnerStreet = const Value.absent(),
+    Value<String?> partnerCity = const Value.absent(),
+    Value<String?> partnerPhone = const Value.absent(),
+    Value<String?> partnerEmail = const Value.absent(),
+    Value<String?> currencySymbol = const Value.absent(),
+    Value<DateTime?> l10nEcAuthorizationDate = const Value.absent(),
     Value<String?> l10nEcAuthorizationNumber = const Value.absent(),
     Value<String?> l10nLatamDocumentNumber = const Value.absent(),
     Value<int?> l10nLatamDocumentTypeId = const Value.absent(),
@@ -30599,6 +35197,18 @@ class AccountMoveData extends DataClass implements Insertable<AccountMoveData> {
     amountTotal: amountTotal ?? this.amountTotal,
     amountResidual: amountResidual ?? this.amountResidual,
     paymentState: paymentState ?? this.paymentState,
+    partnerStreet: partnerStreet.present
+        ? partnerStreet.value
+        : this.partnerStreet,
+    partnerCity: partnerCity.present ? partnerCity.value : this.partnerCity,
+    partnerPhone: partnerPhone.present ? partnerPhone.value : this.partnerPhone,
+    partnerEmail: partnerEmail.present ? partnerEmail.value : this.partnerEmail,
+    currencySymbol: currencySymbol.present
+        ? currencySymbol.value
+        : this.currencySymbol,
+    l10nEcAuthorizationDate: l10nEcAuthorizationDate.present
+        ? l10nEcAuthorizationDate.value
+        : this.l10nEcAuthorizationDate,
     l10nEcAuthorizationNumber: l10nEcAuthorizationNumber.present
         ? l10nEcAuthorizationNumber.value
         : this.l10nEcAuthorizationNumber,
@@ -30673,6 +35283,24 @@ class AccountMoveData extends DataClass implements Insertable<AccountMoveData> {
       paymentState: data.paymentState.present
           ? data.paymentState.value
           : this.paymentState,
+      partnerStreet: data.partnerStreet.present
+          ? data.partnerStreet.value
+          : this.partnerStreet,
+      partnerCity: data.partnerCity.present
+          ? data.partnerCity.value
+          : this.partnerCity,
+      partnerPhone: data.partnerPhone.present
+          ? data.partnerPhone.value
+          : this.partnerPhone,
+      partnerEmail: data.partnerEmail.present
+          ? data.partnerEmail.value
+          : this.partnerEmail,
+      currencySymbol: data.currencySymbol.present
+          ? data.currencySymbol.value
+          : this.currencySymbol,
+      l10nEcAuthorizationDate: data.l10nEcAuthorizationDate.present
+          ? data.l10nEcAuthorizationDate.value
+          : this.l10nEcAuthorizationDate,
       l10nEcAuthorizationNumber: data.l10nEcAuthorizationNumber.present
           ? data.l10nEcAuthorizationNumber.value
           : this.l10nEcAuthorizationNumber,
@@ -30724,6 +35352,12 @@ class AccountMoveData extends DataClass implements Insertable<AccountMoveData> {
           ..write('amountTotal: $amountTotal, ')
           ..write('amountResidual: $amountResidual, ')
           ..write('paymentState: $paymentState, ')
+          ..write('partnerStreet: $partnerStreet, ')
+          ..write('partnerCity: $partnerCity, ')
+          ..write('partnerPhone: $partnerPhone, ')
+          ..write('partnerEmail: $partnerEmail, ')
+          ..write('currencySymbol: $currencySymbol, ')
+          ..write('l10nEcAuthorizationDate: $l10nEcAuthorizationDate, ')
           ..write('l10nEcAuthorizationNumber: $l10nEcAuthorizationNumber, ')
           ..write('l10nLatamDocumentNumber: $l10nLatamDocumentNumber, ')
           ..write('l10nLatamDocumentTypeId: $l10nLatamDocumentTypeId, ')
@@ -30763,6 +35397,12 @@ class AccountMoveData extends DataClass implements Insertable<AccountMoveData> {
     amountTotal,
     amountResidual,
     paymentState,
+    partnerStreet,
+    partnerCity,
+    partnerPhone,
+    partnerEmail,
+    currencySymbol,
+    l10nEcAuthorizationDate,
     l10nEcAuthorizationNumber,
     l10nLatamDocumentNumber,
     l10nLatamDocumentTypeId,
@@ -30801,6 +35441,12 @@ class AccountMoveData extends DataClass implements Insertable<AccountMoveData> {
           other.amountTotal == this.amountTotal &&
           other.amountResidual == this.amountResidual &&
           other.paymentState == this.paymentState &&
+          other.partnerStreet == this.partnerStreet &&
+          other.partnerCity == this.partnerCity &&
+          other.partnerPhone == this.partnerPhone &&
+          other.partnerEmail == this.partnerEmail &&
+          other.currencySymbol == this.currencySymbol &&
+          other.l10nEcAuthorizationDate == this.l10nEcAuthorizationDate &&
           other.l10nEcAuthorizationNumber == this.l10nEcAuthorizationNumber &&
           other.l10nLatamDocumentNumber == this.l10nLatamDocumentNumber &&
           other.l10nLatamDocumentTypeId == this.l10nLatamDocumentTypeId &&
@@ -30837,6 +35483,12 @@ class AccountMoveCompanion extends UpdateCompanion<AccountMoveData> {
   final Value<double> amountTotal;
   final Value<double> amountResidual;
   final Value<String> paymentState;
+  final Value<String?> partnerStreet;
+  final Value<String?> partnerCity;
+  final Value<String?> partnerPhone;
+  final Value<String?> partnerEmail;
+  final Value<String?> currencySymbol;
+  final Value<DateTime?> l10nEcAuthorizationDate;
   final Value<String?> l10nEcAuthorizationNumber;
   final Value<String?> l10nLatamDocumentNumber;
   final Value<int?> l10nLatamDocumentTypeId;
@@ -30871,6 +35523,12 @@ class AccountMoveCompanion extends UpdateCompanion<AccountMoveData> {
     this.amountTotal = const Value.absent(),
     this.amountResidual = const Value.absent(),
     this.paymentState = const Value.absent(),
+    this.partnerStreet = const Value.absent(),
+    this.partnerCity = const Value.absent(),
+    this.partnerPhone = const Value.absent(),
+    this.partnerEmail = const Value.absent(),
+    this.currencySymbol = const Value.absent(),
+    this.l10nEcAuthorizationDate = const Value.absent(),
     this.l10nEcAuthorizationNumber = const Value.absent(),
     this.l10nLatamDocumentNumber = const Value.absent(),
     this.l10nLatamDocumentTypeId = const Value.absent(),
@@ -30906,6 +35564,12 @@ class AccountMoveCompanion extends UpdateCompanion<AccountMoveData> {
     this.amountTotal = const Value.absent(),
     this.amountResidual = const Value.absent(),
     this.paymentState = const Value.absent(),
+    this.partnerStreet = const Value.absent(),
+    this.partnerCity = const Value.absent(),
+    this.partnerPhone = const Value.absent(),
+    this.partnerEmail = const Value.absent(),
+    this.currencySymbol = const Value.absent(),
+    this.l10nEcAuthorizationDate = const Value.absent(),
     this.l10nEcAuthorizationNumber = const Value.absent(),
     this.l10nLatamDocumentNumber = const Value.absent(),
     this.l10nLatamDocumentTypeId = const Value.absent(),
@@ -30942,6 +35606,12 @@ class AccountMoveCompanion extends UpdateCompanion<AccountMoveData> {
     Expression<double>? amountTotal,
     Expression<double>? amountResidual,
     Expression<String>? paymentState,
+    Expression<String>? partnerStreet,
+    Expression<String>? partnerCity,
+    Expression<String>? partnerPhone,
+    Expression<String>? partnerEmail,
+    Expression<String>? currencySymbol,
+    Expression<DateTime>? l10nEcAuthorizationDate,
     Expression<String>? l10nEcAuthorizationNumber,
     Expression<String>? l10nLatamDocumentNumber,
     Expression<int>? l10nLatamDocumentTypeId,
@@ -30977,6 +35647,13 @@ class AccountMoveCompanion extends UpdateCompanion<AccountMoveData> {
       if (amountTotal != null) 'amount_total': amountTotal,
       if (amountResidual != null) 'amount_residual': amountResidual,
       if (paymentState != null) 'payment_state': paymentState,
+      if (partnerStreet != null) 'partner_street': partnerStreet,
+      if (partnerCity != null) 'partner_city': partnerCity,
+      if (partnerPhone != null) 'partner_phone': partnerPhone,
+      if (partnerEmail != null) 'partner_email': partnerEmail,
+      if (currencySymbol != null) 'currency_symbol': currencySymbol,
+      if (l10nEcAuthorizationDate != null)
+        'l10n_ec_authorization_date': l10nEcAuthorizationDate,
       if (l10nEcAuthorizationNumber != null)
         'l10n_ec_authorization_number': l10nEcAuthorizationNumber,
       if (l10nLatamDocumentNumber != null)
@@ -31019,6 +35696,12 @@ class AccountMoveCompanion extends UpdateCompanion<AccountMoveData> {
     Value<double>? amountTotal,
     Value<double>? amountResidual,
     Value<String>? paymentState,
+    Value<String?>? partnerStreet,
+    Value<String?>? partnerCity,
+    Value<String?>? partnerPhone,
+    Value<String?>? partnerEmail,
+    Value<String?>? currencySymbol,
+    Value<DateTime?>? l10nEcAuthorizationDate,
     Value<String?>? l10nEcAuthorizationNumber,
     Value<String?>? l10nLatamDocumentNumber,
     Value<int?>? l10nLatamDocumentTypeId,
@@ -31054,6 +35737,13 @@ class AccountMoveCompanion extends UpdateCompanion<AccountMoveData> {
       amountTotal: amountTotal ?? this.amountTotal,
       amountResidual: amountResidual ?? this.amountResidual,
       paymentState: paymentState ?? this.paymentState,
+      partnerStreet: partnerStreet ?? this.partnerStreet,
+      partnerCity: partnerCity ?? this.partnerCity,
+      partnerPhone: partnerPhone ?? this.partnerPhone,
+      partnerEmail: partnerEmail ?? this.partnerEmail,
+      currencySymbol: currencySymbol ?? this.currencySymbol,
+      l10nEcAuthorizationDate:
+          l10nEcAuthorizationDate ?? this.l10nEcAuthorizationDate,
       l10nEcAuthorizationNumber:
           l10nEcAuthorizationNumber ?? this.l10nEcAuthorizationNumber,
       l10nLatamDocumentNumber:
@@ -31147,6 +35837,26 @@ class AccountMoveCompanion extends UpdateCompanion<AccountMoveData> {
     if (paymentState.present) {
       map['payment_state'] = Variable<String>(paymentState.value);
     }
+    if (partnerStreet.present) {
+      map['partner_street'] = Variable<String>(partnerStreet.value);
+    }
+    if (partnerCity.present) {
+      map['partner_city'] = Variable<String>(partnerCity.value);
+    }
+    if (partnerPhone.present) {
+      map['partner_phone'] = Variable<String>(partnerPhone.value);
+    }
+    if (partnerEmail.present) {
+      map['partner_email'] = Variable<String>(partnerEmail.value);
+    }
+    if (currencySymbol.present) {
+      map['currency_symbol'] = Variable<String>(currencySymbol.value);
+    }
+    if (l10nEcAuthorizationDate.present) {
+      map['l10n_ec_authorization_date'] = Variable<DateTime>(
+        l10nEcAuthorizationDate.value,
+      );
+    }
     if (l10nEcAuthorizationNumber.present) {
       map['l10n_ec_authorization_number'] = Variable<String>(
         l10nEcAuthorizationNumber.value,
@@ -31212,6 +35922,12 @@ class AccountMoveCompanion extends UpdateCompanion<AccountMoveData> {
           ..write('amountTotal: $amountTotal, ')
           ..write('amountResidual: $amountResidual, ')
           ..write('paymentState: $paymentState, ')
+          ..write('partnerStreet: $partnerStreet, ')
+          ..write('partnerCity: $partnerCity, ')
+          ..write('partnerPhone: $partnerPhone, ')
+          ..write('partnerEmail: $partnerEmail, ')
+          ..write('currencySymbol: $currencySymbol, ')
+          ..write('l10nEcAuthorizationDate: $l10nEcAuthorizationDate, ')
           ..write('l10nEcAuthorizationNumber: $l10nEcAuthorizationNumber, ')
           ..write('l10nLatamDocumentNumber: $l10nLatamDocumentNumber, ')
           ..write('l10nLatamDocumentTypeId: $l10nLatamDocumentTypeId, ')
@@ -34064,13 +38780,14 @@ class $SaleOrderTable extends SaleOrder
     'commitmentDate',
   );
   @override
-  late final GeneratedColumn<String> commitmentDate = GeneratedColumn<String>(
-    'commitment_date',
-    aliasedName,
-    true,
-    type: DriftSqlType.string,
-    requiredDuringInsert: false,
-  );
+  late final GeneratedColumn<DateTime> commitmentDate =
+      GeneratedColumn<DateTime>(
+        'commitment_date',
+        aliasedName,
+        true,
+        type: DriftSqlType.dateTime,
+        requiredDuringInsert: false,
+      );
   static const VerificationMeta _expectedDateMeta = const VerificationMeta(
     'expectedDate',
   );
@@ -36389,7 +41106,7 @@ class $SaleOrderTable extends SaleOrder
         data['${effectivePrefix}signed_on'],
       ),
       commitmentDate: attachedDatabase.typeMapping.read(
-        DriftSqlType.string,
+        DriftSqlType.dateTime,
         data['${effectivePrefix}commitment_date'],
       ),
       expectedDate: attachedDatabase.typeMapping.read(
@@ -36774,7 +41491,7 @@ class SaleOrderData extends DataClass implements Insertable<SaleOrderData> {
   final bool requirePayment;
   final String? signedBy;
   final DateTime? signedOn;
-  final String? commitmentDate;
+  final DateTime? commitmentDate;
   final DateTime? expectedDate;
   final bool isExpired;
   final String? showUpdatePricelist;
@@ -37112,7 +41829,7 @@ class SaleOrderData extends DataClass implements Insertable<SaleOrderData> {
       map['signed_on'] = Variable<DateTime>(signedOn);
     }
     if (!nullToAbsent || commitmentDate != null) {
-      map['commitment_date'] = Variable<String>(commitmentDate);
+      map['commitment_date'] = Variable<DateTime>(commitmentDate);
     }
     if (!nullToAbsent || expectedDate != null) {
       map['expected_date'] = Variable<DateTime>(expectedDate);
@@ -37683,7 +42400,7 @@ class SaleOrderData extends DataClass implements Insertable<SaleOrderData> {
       requirePayment: serializer.fromJson<bool>(json['requirePayment']),
       signedBy: serializer.fromJson<String?>(json['signedBy']),
       signedOn: serializer.fromJson<DateTime?>(json['signedOn']),
-      commitmentDate: serializer.fromJson<String?>(json['commitmentDate']),
+      commitmentDate: serializer.fromJson<DateTime?>(json['commitmentDate']),
       expectedDate: serializer.fromJson<DateTime?>(json['expectedDate']),
       isExpired: serializer.fromJson<bool>(json['isExpired']),
       showUpdatePricelist: serializer.fromJson<String?>(
@@ -37844,7 +42561,7 @@ class SaleOrderData extends DataClass implements Insertable<SaleOrderData> {
       'requirePayment': serializer.toJson<bool>(requirePayment),
       'signedBy': serializer.toJson<String?>(signedBy),
       'signedOn': serializer.toJson<DateTime?>(signedOn),
-      'commitmentDate': serializer.toJson<String?>(commitmentDate),
+      'commitmentDate': serializer.toJson<DateTime?>(commitmentDate),
       'expectedDate': serializer.toJson<DateTime?>(expectedDate),
       'isExpired': serializer.toJson<bool>(isExpired),
       'showUpdatePricelist': serializer.toJson<String?>(showUpdatePricelist),
@@ -37987,7 +42704,7 @@ class SaleOrderData extends DataClass implements Insertable<SaleOrderData> {
     bool? requirePayment,
     Value<String?> signedBy = const Value.absent(),
     Value<DateTime?> signedOn = const Value.absent(),
-    Value<String?> commitmentDate = const Value.absent(),
+    Value<DateTime?> commitmentDate = const Value.absent(),
     Value<DateTime?> expectedDate = const Value.absent(),
     bool? isExpired,
     Value<String?> showUpdatePricelist = const Value.absent(),
@@ -39057,7 +43774,7 @@ class SaleOrderCompanion extends UpdateCompanion<SaleOrderData> {
   final Value<bool> requirePayment;
   final Value<String?> signedBy;
   final Value<DateTime?> signedOn;
-  final Value<String?> commitmentDate;
+  final Value<DateTime?> commitmentDate;
   final Value<DateTime?> expectedDate;
   final Value<bool> isExpired;
   final Value<String?> showUpdatePricelist;
@@ -39444,7 +44161,7 @@ class SaleOrderCompanion extends UpdateCompanion<SaleOrderData> {
     Expression<bool>? requirePayment,
     Expression<String>? signedBy,
     Expression<DateTime>? signedOn,
-    Expression<String>? commitmentDate,
+    Expression<DateTime>? commitmentDate,
     Expression<DateTime>? expectedDate,
     Expression<bool>? isExpired,
     Expression<String>? showUpdatePricelist,
@@ -39722,7 +44439,7 @@ class SaleOrderCompanion extends UpdateCompanion<SaleOrderData> {
     Value<bool>? requirePayment,
     Value<String?>? signedBy,
     Value<DateTime?>? signedOn,
-    Value<String?>? commitmentDate,
+    Value<DateTime?>? commitmentDate,
     Value<DateTime?>? expectedDate,
     Value<bool>? isExpired,
     Value<String?>? showUpdatePricelist,
@@ -40081,7 +44798,7 @@ class SaleOrderCompanion extends UpdateCompanion<SaleOrderData> {
       map['signed_on'] = Variable<DateTime>(signedOn.value);
     }
     if (commitmentDate.present) {
-      map['commitment_date'] = Variable<String>(commitmentDate.value);
+      map['commitment_date'] = Variable<DateTime>(commitmentDate.value);
     }
     if (expectedDate.present) {
       map['expected_date'] = Variable<DateTime>(expectedDate.value);
@@ -40781,18 +45498,18 @@ class $SaleOrderLineTable extends SaleOrderLine
     requiredDuringInsert: false,
     defaultValue: const Constant(0.0),
   );
-  static const VerificationMeta _priceReduceMeta = const VerificationMeta(
-    'priceReduce',
-  );
+  static const VerificationMeta _priceReduceTaxexclMeta =
+      const VerificationMeta('priceReduceTaxexcl');
   @override
-  late final GeneratedColumn<double> priceReduce = GeneratedColumn<double>(
-    'price_reduce',
-    aliasedName,
-    false,
-    type: DriftSqlType.double,
-    requiredDuringInsert: false,
-    defaultValue: const Constant(0.0),
-  );
+  late final GeneratedColumn<double> priceReduceTaxexcl =
+      GeneratedColumn<double>(
+        'price_reduce_taxexcl',
+        aliasedName,
+        false,
+        type: DriftSqlType.double,
+        requiredDuringInsert: false,
+        defaultValue: const Constant(0.0),
+      );
   static const VerificationMeta _taxIdsMeta = const VerificationMeta('taxIds');
   @override
   late final GeneratedColumn<String> taxIds = GeneratedColumn<String>(
@@ -40862,12 +45579,10 @@ class $SaleOrderLineTable extends SaleOrderLine
     requiredDuringInsert: false,
     defaultValue: const Constant('no'),
   );
-  static const VerificationMeta _orderStateMeta = const VerificationMeta(
-    'orderState',
-  );
+  static const VerificationMeta _stateMeta = const VerificationMeta('state');
   @override
-  late final GeneratedColumn<String> orderState = GeneratedColumn<String>(
-    'order_state',
+  late final GeneratedColumn<String> state = GeneratedColumn<String>(
+    'state',
     aliasedName,
     true,
     type: DriftSqlType.string,
@@ -41119,14 +45834,14 @@ class $SaleOrderLineTable extends SaleOrderLine
     priceSubtotal,
     priceTax,
     priceTotal,
-    priceReduce,
+    priceReduceTaxexcl,
     taxIds,
     qtyDelivered,
     customerLead,
     qtyInvoiced,
     qtyToInvoice,
     invoiceStatus,
-    orderState,
+    state,
     collapsePrices,
     collapseComposition,
     isOptional,
@@ -41345,12 +46060,12 @@ class $SaleOrderLineTable extends SaleOrderLine
         priceTotal.isAcceptableOrUnknown(data['price_total']!, _priceTotalMeta),
       );
     }
-    if (data.containsKey('price_reduce')) {
+    if (data.containsKey('price_reduce_taxexcl')) {
       context.handle(
-        _priceReduceMeta,
-        priceReduce.isAcceptableOrUnknown(
-          data['price_reduce']!,
-          _priceReduceMeta,
+        _priceReduceTaxexclMeta,
+        priceReduceTaxexcl.isAcceptableOrUnknown(
+          data['price_reduce_taxexcl']!,
+          _priceReduceTaxexclMeta,
         ),
       );
     }
@@ -41405,10 +46120,10 @@ class $SaleOrderLineTable extends SaleOrderLine
         ),
       );
     }
-    if (data.containsKey('order_state')) {
+    if (data.containsKey('state')) {
       context.handle(
-        _orderStateMeta,
-        orderState.isAcceptableOrUnknown(data['order_state']!, _orderStateMeta),
+        _stateMeta,
+        state.isAcceptableOrUnknown(data['state']!, _stateMeta),
       );
     }
     if (data.containsKey('collapse_prices')) {
@@ -41661,9 +46376,9 @@ class $SaleOrderLineTable extends SaleOrderLine
         DriftSqlType.double,
         data['${effectivePrefix}price_total'],
       )!,
-      priceReduce: attachedDatabase.typeMapping.read(
+      priceReduceTaxexcl: attachedDatabase.typeMapping.read(
         DriftSqlType.double,
-        data['${effectivePrefix}price_reduce'],
+        data['${effectivePrefix}price_reduce_taxexcl'],
       )!,
       taxIds: attachedDatabase.typeMapping.read(
         DriftSqlType.string,
@@ -41689,9 +46404,9 @@ class $SaleOrderLineTable extends SaleOrderLine
         DriftSqlType.string,
         data['${effectivePrefix}invoice_status'],
       )!,
-      orderState: attachedDatabase.typeMapping.read(
+      state: attachedDatabase.typeMapping.read(
         DriftSqlType.string,
-        data['${effectivePrefix}order_state'],
+        data['${effectivePrefix}state'],
       ),
       collapsePrices: attachedDatabase.typeMapping.read(
         DriftSqlType.bool,
@@ -41801,14 +46516,14 @@ class SaleOrderLineData extends DataClass
   final double priceSubtotal;
   final double priceTax;
   final double priceTotal;
-  final double priceReduce;
+  final double priceReduceTaxexcl;
   final String? taxIds;
   final double qtyDelivered;
   final double customerLead;
   final double qtyInvoiced;
   final double qtyToInvoice;
   final String invoiceStatus;
-  final String? orderState;
+  final String? state;
   final bool collapsePrices;
   final bool collapseComposition;
   final bool isOptional;
@@ -41853,14 +46568,14 @@ class SaleOrderLineData extends DataClass
     required this.priceSubtotal,
     required this.priceTax,
     required this.priceTotal,
-    required this.priceReduce,
+    required this.priceReduceTaxexcl,
     this.taxIds,
     required this.qtyDelivered,
     required this.customerLead,
     required this.qtyInvoiced,
     required this.qtyToInvoice,
     required this.invoiceStatus,
-    this.orderState,
+    this.state,
     required this.collapsePrices,
     required this.collapseComposition,
     required this.isOptional,
@@ -41932,7 +46647,7 @@ class SaleOrderLineData extends DataClass
     map['price_subtotal'] = Variable<double>(priceSubtotal);
     map['price_tax'] = Variable<double>(priceTax);
     map['price_total'] = Variable<double>(priceTotal);
-    map['price_reduce'] = Variable<double>(priceReduce);
+    map['price_reduce_taxexcl'] = Variable<double>(priceReduceTaxexcl);
     if (!nullToAbsent || taxIds != null) {
       map['tax_ids'] = Variable<String>(taxIds);
     }
@@ -41941,8 +46656,8 @@ class SaleOrderLineData extends DataClass
     map['qty_invoiced'] = Variable<double>(qtyInvoiced);
     map['qty_to_invoice'] = Variable<double>(qtyToInvoice);
     map['invoice_status'] = Variable<String>(invoiceStatus);
-    if (!nullToAbsent || orderState != null) {
-      map['order_state'] = Variable<String>(orderState);
+    if (!nullToAbsent || state != null) {
+      map['state'] = Variable<String>(state);
     }
     map['collapse_prices'] = Variable<bool>(collapsePrices);
     map['collapse_composition'] = Variable<bool>(collapseComposition);
@@ -42028,7 +46743,7 @@ class SaleOrderLineData extends DataClass
       priceSubtotal: Value(priceSubtotal),
       priceTax: Value(priceTax),
       priceTotal: Value(priceTotal),
-      priceReduce: Value(priceReduce),
+      priceReduceTaxexcl: Value(priceReduceTaxexcl),
       taxIds: taxIds == null && nullToAbsent
           ? const Value.absent()
           : Value(taxIds),
@@ -42037,9 +46752,9 @@ class SaleOrderLineData extends DataClass
       qtyInvoiced: Value(qtyInvoiced),
       qtyToInvoice: Value(qtyToInvoice),
       invoiceStatus: Value(invoiceStatus),
-      orderState: orderState == null && nullToAbsent
+      state: state == null && nullToAbsent
           ? const Value.absent()
-          : Value(orderState),
+          : Value(state),
       collapsePrices: Value(collapsePrices),
       collapseComposition: Value(collapseComposition),
       isOptional: Value(isOptional),
@@ -42108,14 +46823,16 @@ class SaleOrderLineData extends DataClass
       priceSubtotal: serializer.fromJson<double>(json['priceSubtotal']),
       priceTax: serializer.fromJson<double>(json['priceTax']),
       priceTotal: serializer.fromJson<double>(json['priceTotal']),
-      priceReduce: serializer.fromJson<double>(json['priceReduce']),
+      priceReduceTaxexcl: serializer.fromJson<double>(
+        json['priceReduceTaxexcl'],
+      ),
       taxIds: serializer.fromJson<String?>(json['taxIds']),
       qtyDelivered: serializer.fromJson<double>(json['qtyDelivered']),
       customerLead: serializer.fromJson<double>(json['customerLead']),
       qtyInvoiced: serializer.fromJson<double>(json['qtyInvoiced']),
       qtyToInvoice: serializer.fromJson<double>(json['qtyToInvoice']),
       invoiceStatus: serializer.fromJson<String>(json['invoiceStatus']),
-      orderState: serializer.fromJson<String?>(json['orderState']),
+      state: serializer.fromJson<String?>(json['state']),
       collapsePrices: serializer.fromJson<bool>(json['collapsePrices']),
       collapseComposition: serializer.fromJson<bool>(
         json['collapseComposition'],
@@ -42171,14 +46888,14 @@ class SaleOrderLineData extends DataClass
       'priceSubtotal': serializer.toJson<double>(priceSubtotal),
       'priceTax': serializer.toJson<double>(priceTax),
       'priceTotal': serializer.toJson<double>(priceTotal),
-      'priceReduce': serializer.toJson<double>(priceReduce),
+      'priceReduceTaxexcl': serializer.toJson<double>(priceReduceTaxexcl),
       'taxIds': serializer.toJson<String?>(taxIds),
       'qtyDelivered': serializer.toJson<double>(qtyDelivered),
       'customerLead': serializer.toJson<double>(customerLead),
       'qtyInvoiced': serializer.toJson<double>(qtyInvoiced),
       'qtyToInvoice': serializer.toJson<double>(qtyToInvoice),
       'invoiceStatus': serializer.toJson<String>(invoiceStatus),
-      'orderState': serializer.toJson<String?>(orderState),
+      'state': serializer.toJson<String?>(state),
       'collapsePrices': serializer.toJson<bool>(collapsePrices),
       'collapseComposition': serializer.toJson<bool>(collapseComposition),
       'isOptional': serializer.toJson<bool>(isOptional),
@@ -42226,14 +46943,14 @@ class SaleOrderLineData extends DataClass
     double? priceSubtotal,
     double? priceTax,
     double? priceTotal,
-    double? priceReduce,
+    double? priceReduceTaxexcl,
     Value<String?> taxIds = const Value.absent(),
     double? qtyDelivered,
     double? customerLead,
     double? qtyInvoiced,
     double? qtyToInvoice,
     String? invoiceStatus,
-    Value<String?> orderState = const Value.absent(),
+    Value<String?> state = const Value.absent(),
     bool? collapsePrices,
     bool? collapseComposition,
     bool? isOptional,
@@ -42286,14 +47003,14 @@ class SaleOrderLineData extends DataClass
     priceSubtotal: priceSubtotal ?? this.priceSubtotal,
     priceTax: priceTax ?? this.priceTax,
     priceTotal: priceTotal ?? this.priceTotal,
-    priceReduce: priceReduce ?? this.priceReduce,
+    priceReduceTaxexcl: priceReduceTaxexcl ?? this.priceReduceTaxexcl,
     taxIds: taxIds.present ? taxIds.value : this.taxIds,
     qtyDelivered: qtyDelivered ?? this.qtyDelivered,
     customerLead: customerLead ?? this.customerLead,
     qtyInvoiced: qtyInvoiced ?? this.qtyInvoiced,
     qtyToInvoice: qtyToInvoice ?? this.qtyToInvoice,
     invoiceStatus: invoiceStatus ?? this.invoiceStatus,
-    orderState: orderState.present ? orderState.value : this.orderState,
+    state: state.present ? state.value : this.state,
     collapsePrices: collapsePrices ?? this.collapsePrices,
     collapseComposition: collapseComposition ?? this.collapseComposition,
     isOptional: isOptional ?? this.isOptional,
@@ -42370,9 +47087,9 @@ class SaleOrderLineData extends DataClass
       priceTotal: data.priceTotal.present
           ? data.priceTotal.value
           : this.priceTotal,
-      priceReduce: data.priceReduce.present
-          ? data.priceReduce.value
-          : this.priceReduce,
+      priceReduceTaxexcl: data.priceReduceTaxexcl.present
+          ? data.priceReduceTaxexcl.value
+          : this.priceReduceTaxexcl,
       taxIds: data.taxIds.present ? data.taxIds.value : this.taxIds,
       qtyDelivered: data.qtyDelivered.present
           ? data.qtyDelivered.value
@@ -42389,9 +47106,7 @@ class SaleOrderLineData extends DataClass
       invoiceStatus: data.invoiceStatus.present
           ? data.invoiceStatus.value
           : this.invoiceStatus,
-      orderState: data.orderState.present
-          ? data.orderState.value
-          : this.orderState,
+      state: data.state.present ? data.state.value : this.state,
       collapsePrices: data.collapsePrices.present
           ? data.collapsePrices.value
           : this.collapsePrices,
@@ -42465,14 +47180,14 @@ class SaleOrderLineData extends DataClass
           ..write('priceSubtotal: $priceSubtotal, ')
           ..write('priceTax: $priceTax, ')
           ..write('priceTotal: $priceTotal, ')
-          ..write('priceReduce: $priceReduce, ')
+          ..write('priceReduceTaxexcl: $priceReduceTaxexcl, ')
           ..write('taxIds: $taxIds, ')
           ..write('qtyDelivered: $qtyDelivered, ')
           ..write('customerLead: $customerLead, ')
           ..write('qtyInvoiced: $qtyInvoiced, ')
           ..write('qtyToInvoice: $qtyToInvoice, ')
           ..write('invoiceStatus: $invoiceStatus, ')
-          ..write('orderState: $orderState, ')
+          ..write('state: $state, ')
           ..write('collapsePrices: $collapsePrices, ')
           ..write('collapseComposition: $collapseComposition, ')
           ..write('isOptional: $isOptional, ')
@@ -42522,14 +47237,14 @@ class SaleOrderLineData extends DataClass
     priceSubtotal,
     priceTax,
     priceTotal,
-    priceReduce,
+    priceReduceTaxexcl,
     taxIds,
     qtyDelivered,
     customerLead,
     qtyInvoiced,
     qtyToInvoice,
     invoiceStatus,
-    orderState,
+    state,
     collapsePrices,
     collapseComposition,
     isOptional,
@@ -42578,14 +47293,14 @@ class SaleOrderLineData extends DataClass
           other.priceSubtotal == this.priceSubtotal &&
           other.priceTax == this.priceTax &&
           other.priceTotal == this.priceTotal &&
-          other.priceReduce == this.priceReduce &&
+          other.priceReduceTaxexcl == this.priceReduceTaxexcl &&
           other.taxIds == this.taxIds &&
           other.qtyDelivered == this.qtyDelivered &&
           other.customerLead == this.customerLead &&
           other.qtyInvoiced == this.qtyInvoiced &&
           other.qtyToInvoice == this.qtyToInvoice &&
           other.invoiceStatus == this.invoiceStatus &&
-          other.orderState == this.orderState &&
+          other.state == this.state &&
           other.collapsePrices == this.collapsePrices &&
           other.collapseComposition == this.collapseComposition &&
           other.isOptional == this.isOptional &&
@@ -42632,14 +47347,14 @@ class SaleOrderLineCompanion extends UpdateCompanion<SaleOrderLineData> {
   final Value<double> priceSubtotal;
   final Value<double> priceTax;
   final Value<double> priceTotal;
-  final Value<double> priceReduce;
+  final Value<double> priceReduceTaxexcl;
   final Value<String?> taxIds;
   final Value<double> qtyDelivered;
   final Value<double> customerLead;
   final Value<double> qtyInvoiced;
   final Value<double> qtyToInvoice;
   final Value<String> invoiceStatus;
-  final Value<String?> orderState;
+  final Value<String?> state;
   final Value<bool> collapsePrices;
   final Value<bool> collapseComposition;
   final Value<bool> isOptional;
@@ -42684,14 +47399,14 @@ class SaleOrderLineCompanion extends UpdateCompanion<SaleOrderLineData> {
     this.priceSubtotal = const Value.absent(),
     this.priceTax = const Value.absent(),
     this.priceTotal = const Value.absent(),
-    this.priceReduce = const Value.absent(),
+    this.priceReduceTaxexcl = const Value.absent(),
     this.taxIds = const Value.absent(),
     this.qtyDelivered = const Value.absent(),
     this.customerLead = const Value.absent(),
     this.qtyInvoiced = const Value.absent(),
     this.qtyToInvoice = const Value.absent(),
     this.invoiceStatus = const Value.absent(),
-    this.orderState = const Value.absent(),
+    this.state = const Value.absent(),
     this.collapsePrices = const Value.absent(),
     this.collapseComposition = const Value.absent(),
     this.isOptional = const Value.absent(),
@@ -42737,14 +47452,14 @@ class SaleOrderLineCompanion extends UpdateCompanion<SaleOrderLineData> {
     this.priceSubtotal = const Value.absent(),
     this.priceTax = const Value.absent(),
     this.priceTotal = const Value.absent(),
-    this.priceReduce = const Value.absent(),
+    this.priceReduceTaxexcl = const Value.absent(),
     this.taxIds = const Value.absent(),
     this.qtyDelivered = const Value.absent(),
     this.customerLead = const Value.absent(),
     this.qtyInvoiced = const Value.absent(),
     this.qtyToInvoice = const Value.absent(),
     this.invoiceStatus = const Value.absent(),
-    this.orderState = const Value.absent(),
+    this.state = const Value.absent(),
     this.collapsePrices = const Value.absent(),
     this.collapseComposition = const Value.absent(),
     this.isOptional = const Value.absent(),
@@ -42791,14 +47506,14 @@ class SaleOrderLineCompanion extends UpdateCompanion<SaleOrderLineData> {
     Expression<double>? priceSubtotal,
     Expression<double>? priceTax,
     Expression<double>? priceTotal,
-    Expression<double>? priceReduce,
+    Expression<double>? priceReduceTaxexcl,
     Expression<String>? taxIds,
     Expression<double>? qtyDelivered,
     Expression<double>? customerLead,
     Expression<double>? qtyInvoiced,
     Expression<double>? qtyToInvoice,
     Expression<String>? invoiceStatus,
-    Expression<String>? orderState,
+    Expression<String>? state,
     Expression<bool>? collapsePrices,
     Expression<bool>? collapseComposition,
     Expression<bool>? isOptional,
@@ -42846,14 +47561,15 @@ class SaleOrderLineCompanion extends UpdateCompanion<SaleOrderLineData> {
       if (priceSubtotal != null) 'price_subtotal': priceSubtotal,
       if (priceTax != null) 'price_tax': priceTax,
       if (priceTotal != null) 'price_total': priceTotal,
-      if (priceReduce != null) 'price_reduce': priceReduce,
+      if (priceReduceTaxexcl != null)
+        'price_reduce_taxexcl': priceReduceTaxexcl,
       if (taxIds != null) 'tax_ids': taxIds,
       if (qtyDelivered != null) 'qty_delivered': qtyDelivered,
       if (customerLead != null) 'customer_lead': customerLead,
       if (qtyInvoiced != null) 'qty_invoiced': qtyInvoiced,
       if (qtyToInvoice != null) 'qty_to_invoice': qtyToInvoice,
       if (invoiceStatus != null) 'invoice_status': invoiceStatus,
-      if (orderState != null) 'order_state': orderState,
+      if (state != null) 'state': state,
       if (collapsePrices != null) 'collapse_prices': collapsePrices,
       if (collapseComposition != null)
         'collapse_composition': collapseComposition,
@@ -42903,14 +47619,14 @@ class SaleOrderLineCompanion extends UpdateCompanion<SaleOrderLineData> {
     Value<double>? priceSubtotal,
     Value<double>? priceTax,
     Value<double>? priceTotal,
-    Value<double>? priceReduce,
+    Value<double>? priceReduceTaxexcl,
     Value<String?>? taxIds,
     Value<double>? qtyDelivered,
     Value<double>? customerLead,
     Value<double>? qtyInvoiced,
     Value<double>? qtyToInvoice,
     Value<String>? invoiceStatus,
-    Value<String?>? orderState,
+    Value<String?>? state,
     Value<bool>? collapsePrices,
     Value<bool>? collapseComposition,
     Value<bool>? isOptional,
@@ -42956,14 +47672,14 @@ class SaleOrderLineCompanion extends UpdateCompanion<SaleOrderLineData> {
       priceSubtotal: priceSubtotal ?? this.priceSubtotal,
       priceTax: priceTax ?? this.priceTax,
       priceTotal: priceTotal ?? this.priceTotal,
-      priceReduce: priceReduce ?? this.priceReduce,
+      priceReduceTaxexcl: priceReduceTaxexcl ?? this.priceReduceTaxexcl,
       taxIds: taxIds ?? this.taxIds,
       qtyDelivered: qtyDelivered ?? this.qtyDelivered,
       customerLead: customerLead ?? this.customerLead,
       qtyInvoiced: qtyInvoiced ?? this.qtyInvoiced,
       qtyToInvoice: qtyToInvoice ?? this.qtyToInvoice,
       invoiceStatus: invoiceStatus ?? this.invoiceStatus,
-      orderState: orderState ?? this.orderState,
+      state: state ?? this.state,
       collapsePrices: collapsePrices ?? this.collapsePrices,
       collapseComposition: collapseComposition ?? this.collapseComposition,
       isOptional: isOptional ?? this.isOptional,
@@ -43065,8 +47781,8 @@ class SaleOrderLineCompanion extends UpdateCompanion<SaleOrderLineData> {
     if (priceTotal.present) {
       map['price_total'] = Variable<double>(priceTotal.value);
     }
-    if (priceReduce.present) {
-      map['price_reduce'] = Variable<double>(priceReduce.value);
+    if (priceReduceTaxexcl.present) {
+      map['price_reduce_taxexcl'] = Variable<double>(priceReduceTaxexcl.value);
     }
     if (taxIds.present) {
       map['tax_ids'] = Variable<String>(taxIds.value);
@@ -43086,8 +47802,8 @@ class SaleOrderLineCompanion extends UpdateCompanion<SaleOrderLineData> {
     if (invoiceStatus.present) {
       map['invoice_status'] = Variable<String>(invoiceStatus.value);
     }
-    if (orderState.present) {
-      map['order_state'] = Variable<String>(orderState.value);
+    if (state.present) {
+      map['state'] = Variable<String>(state.value);
     }
     if (collapsePrices.present) {
       map['collapse_prices'] = Variable<bool>(collapsePrices.value);
@@ -43174,14 +47890,14 @@ class SaleOrderLineCompanion extends UpdateCompanion<SaleOrderLineData> {
           ..write('priceSubtotal: $priceSubtotal, ')
           ..write('priceTax: $priceTax, ')
           ..write('priceTotal: $priceTotal, ')
-          ..write('priceReduce: $priceReduce, ')
+          ..write('priceReduceTaxexcl: $priceReduceTaxexcl, ')
           ..write('taxIds: $taxIds, ')
           ..write('qtyDelivered: $qtyDelivered, ')
           ..write('customerLead: $customerLead, ')
           ..write('qtyInvoiced: $qtyInvoiced, ')
           ..write('qtyToInvoice: $qtyToInvoice, ')
           ..write('invoiceStatus: $invoiceStatus, ')
-          ..write('orderState: $orderState, ')
+          ..write('state: $state, ')
           ..write('collapsePrices: $collapsePrices, ')
           ..write('collapseComposition: $collapseComposition, ')
           ..write('isOptional: $isOptional, ')
@@ -44291,6 +49007,24 @@ class $SaleOrderPaymentLineTable extends SaleOrderPaymentLine
     requiredDuringInsert: false,
     defaultConstraints: GeneratedColumn.constraintIsAlways('UNIQUE'),
   );
+  static const VerificationMeta _uuidMeta = const VerificationMeta('uuid');
+  @override
+  late final GeneratedColumn<String> uuid = GeneratedColumn<String>(
+    'uuid',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _typeMeta = const VerificationMeta('type');
+  @override
+  late final GeneratedColumn<String> type = GeneratedColumn<String>(
+    'type',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
   static const VerificationMeta _orderIdMeta = const VerificationMeta(
     'orderId',
   );
@@ -44628,6 +49362,30 @@ class $SaleOrderPaymentLineTable extends SaleOrderPaymentLine
         type: DriftSqlType.dateTime,
         requiredDuringInsert: false,
       );
+  static const VerificationMeta _advanceAvailableMeta = const VerificationMeta(
+    'advanceAvailable',
+  );
+  @override
+  late final GeneratedColumn<double> advanceAvailable = GeneratedColumn<double>(
+    'advance_available',
+    aliasedName,
+    false,
+    type: DriftSqlType.double,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(0.0),
+  );
+  static const VerificationMeta _creditNoteAvailableMeta =
+      const VerificationMeta('creditNoteAvailable');
+  @override
+  late final GeneratedColumn<double> creditNoteAvailable =
+      GeneratedColumn<double>(
+        'credit_note_available',
+        aliasedName,
+        false,
+        type: DriftSqlType.double,
+        requiredDuringInsert: false,
+        defaultValue: const Constant(0.0),
+      );
   static const VerificationMeta _isSyncedMeta = const VerificationMeta(
     'isSynced',
   );
@@ -44670,6 +49428,8 @@ class $SaleOrderPaymentLineTable extends SaleOrderPaymentLine
     id,
     odooId,
     lineUuid,
+    uuid,
+    type,
     orderId,
     paymentType,
     journalId,
@@ -44701,6 +49461,8 @@ class $SaleOrderPaymentLineTable extends SaleOrderPaymentLine
     partnerBankName,
     effectiveDate,
     bankReferenceDate,
+    advanceAvailable,
+    creditNoteAvailable,
     isSynced,
     lastSyncDate,
     writeDate,
@@ -44730,6 +49492,18 @@ class $SaleOrderPaymentLineTable extends SaleOrderPaymentLine
       context.handle(
         _lineUuidMeta,
         lineUuid.isAcceptableOrUnknown(data['line_uuid']!, _lineUuidMeta),
+      );
+    }
+    if (data.containsKey('uuid')) {
+      context.handle(
+        _uuidMeta,
+        uuid.isAcceptableOrUnknown(data['uuid']!, _uuidMeta),
+      );
+    }
+    if (data.containsKey('type')) {
+      context.handle(
+        _typeMeta,
+        type.isAcceptableOrUnknown(data['type']!, _typeMeta),
       );
     }
     if (data.containsKey('order_id')) {
@@ -44977,6 +49751,24 @@ class $SaleOrderPaymentLineTable extends SaleOrderPaymentLine
         ),
       );
     }
+    if (data.containsKey('advance_available')) {
+      context.handle(
+        _advanceAvailableMeta,
+        advanceAvailable.isAcceptableOrUnknown(
+          data['advance_available']!,
+          _advanceAvailableMeta,
+        ),
+      );
+    }
+    if (data.containsKey('credit_note_available')) {
+      context.handle(
+        _creditNoteAvailableMeta,
+        creditNoteAvailable.isAcceptableOrUnknown(
+          data['credit_note_available']!,
+          _creditNoteAvailableMeta,
+        ),
+      );
+    }
     if (data.containsKey('is_synced')) {
       context.handle(
         _isSyncedMeta,
@@ -45021,6 +49813,14 @@ class $SaleOrderPaymentLineTable extends SaleOrderPaymentLine
       lineUuid: attachedDatabase.typeMapping.read(
         DriftSqlType.string,
         data['${effectivePrefix}line_uuid'],
+      ),
+      uuid: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}uuid'],
+      ),
+      type: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}type'],
       ),
       orderId: attachedDatabase.typeMapping.read(
         DriftSqlType.int,
@@ -45146,6 +49946,14 @@ class $SaleOrderPaymentLineTable extends SaleOrderPaymentLine
         DriftSqlType.dateTime,
         data['${effectivePrefix}bank_reference_date'],
       ),
+      advanceAvailable: attachedDatabase.typeMapping.read(
+        DriftSqlType.double,
+        data['${effectivePrefix}advance_available'],
+      )!,
+      creditNoteAvailable: attachedDatabase.typeMapping.read(
+        DriftSqlType.double,
+        data['${effectivePrefix}credit_note_available'],
+      )!,
       isSynced: attachedDatabase.typeMapping.read(
         DriftSqlType.bool,
         data['${effectivePrefix}is_synced'],
@@ -45172,6 +49980,8 @@ class SaleOrderPaymentLineData extends DataClass
   final int id;
   final int? odooId;
   final String? lineUuid;
+  final String? uuid;
+  final String? type;
   final int orderId;
   final String paymentType;
   final int? journalId;
@@ -45203,6 +50013,8 @@ class SaleOrderPaymentLineData extends DataClass
   final String? partnerBankName;
   final DateTime? effectiveDate;
   final DateTime? bankReferenceDate;
+  final double advanceAvailable;
+  final double creditNoteAvailable;
   final bool isSynced;
   final DateTime? lastSyncDate;
   final DateTime? writeDate;
@@ -45210,6 +50022,8 @@ class SaleOrderPaymentLineData extends DataClass
     required this.id,
     this.odooId,
     this.lineUuid,
+    this.uuid,
+    this.type,
     required this.orderId,
     required this.paymentType,
     this.journalId,
@@ -45241,6 +50055,8 @@ class SaleOrderPaymentLineData extends DataClass
     this.partnerBankName,
     this.effectiveDate,
     this.bankReferenceDate,
+    required this.advanceAvailable,
+    required this.creditNoteAvailable,
     required this.isSynced,
     this.lastSyncDate,
     this.writeDate,
@@ -45254,6 +50070,12 @@ class SaleOrderPaymentLineData extends DataClass
     }
     if (!nullToAbsent || lineUuid != null) {
       map['line_uuid'] = Variable<String>(lineUuid);
+    }
+    if (!nullToAbsent || uuid != null) {
+      map['uuid'] = Variable<String>(uuid);
+    }
+    if (!nullToAbsent || type != null) {
+      map['type'] = Variable<String>(type);
     }
     map['order_id'] = Variable<int>(orderId);
     map['payment_type'] = Variable<String>(paymentType);
@@ -45340,6 +50162,8 @@ class SaleOrderPaymentLineData extends DataClass
     if (!nullToAbsent || bankReferenceDate != null) {
       map['bank_reference_date'] = Variable<DateTime>(bankReferenceDate);
     }
+    map['advance_available'] = Variable<double>(advanceAvailable);
+    map['credit_note_available'] = Variable<double>(creditNoteAvailable);
     map['is_synced'] = Variable<bool>(isSynced);
     if (!nullToAbsent || lastSyncDate != null) {
       map['last_sync_date'] = Variable<DateTime>(lastSyncDate);
@@ -45359,6 +50183,8 @@ class SaleOrderPaymentLineData extends DataClass
       lineUuid: lineUuid == null && nullToAbsent
           ? const Value.absent()
           : Value(lineUuid),
+      uuid: uuid == null && nullToAbsent ? const Value.absent() : Value(uuid),
+      type: type == null && nullToAbsent ? const Value.absent() : Value(type),
       orderId: Value(orderId),
       paymentType: Value(paymentType),
       journalId: journalId == null && nullToAbsent
@@ -45442,6 +50268,8 @@ class SaleOrderPaymentLineData extends DataClass
       bankReferenceDate: bankReferenceDate == null && nullToAbsent
           ? const Value.absent()
           : Value(bankReferenceDate),
+      advanceAvailable: Value(advanceAvailable),
+      creditNoteAvailable: Value(creditNoteAvailable),
       isSynced: Value(isSynced),
       lastSyncDate: lastSyncDate == null && nullToAbsent
           ? const Value.absent()
@@ -45461,6 +50289,8 @@ class SaleOrderPaymentLineData extends DataClass
       id: serializer.fromJson<int>(json['id']),
       odooId: serializer.fromJson<int?>(json['odooId']),
       lineUuid: serializer.fromJson<String?>(json['lineUuid']),
+      uuid: serializer.fromJson<String?>(json['uuid']),
+      type: serializer.fromJson<String?>(json['type']),
       orderId: serializer.fromJson<int>(json['orderId']),
       paymentType: serializer.fromJson<String>(json['paymentType']),
       journalId: serializer.fromJson<int?>(json['journalId']),
@@ -45500,6 +50330,10 @@ class SaleOrderPaymentLineData extends DataClass
       bankReferenceDate: serializer.fromJson<DateTime?>(
         json['bankReferenceDate'],
       ),
+      advanceAvailable: serializer.fromJson<double>(json['advanceAvailable']),
+      creditNoteAvailable: serializer.fromJson<double>(
+        json['creditNoteAvailable'],
+      ),
       isSynced: serializer.fromJson<bool>(json['isSynced']),
       lastSyncDate: serializer.fromJson<DateTime?>(json['lastSyncDate']),
       writeDate: serializer.fromJson<DateTime?>(json['writeDate']),
@@ -45512,6 +50346,8 @@ class SaleOrderPaymentLineData extends DataClass
       'id': serializer.toJson<int>(id),
       'odooId': serializer.toJson<int?>(odooId),
       'lineUuid': serializer.toJson<String?>(lineUuid),
+      'uuid': serializer.toJson<String?>(uuid),
+      'type': serializer.toJson<String?>(type),
       'orderId': serializer.toJson<int>(orderId),
       'paymentType': serializer.toJson<String>(paymentType),
       'journalId': serializer.toJson<int?>(journalId),
@@ -45543,6 +50379,8 @@ class SaleOrderPaymentLineData extends DataClass
       'partnerBankName': serializer.toJson<String?>(partnerBankName),
       'effectiveDate': serializer.toJson<DateTime?>(effectiveDate),
       'bankReferenceDate': serializer.toJson<DateTime?>(bankReferenceDate),
+      'advanceAvailable': serializer.toJson<double>(advanceAvailable),
+      'creditNoteAvailable': serializer.toJson<double>(creditNoteAvailable),
       'isSynced': serializer.toJson<bool>(isSynced),
       'lastSyncDate': serializer.toJson<DateTime?>(lastSyncDate),
       'writeDate': serializer.toJson<DateTime?>(writeDate),
@@ -45553,6 +50391,8 @@ class SaleOrderPaymentLineData extends DataClass
     int? id,
     Value<int?> odooId = const Value.absent(),
     Value<String?> lineUuid = const Value.absent(),
+    Value<String?> uuid = const Value.absent(),
+    Value<String?> type = const Value.absent(),
     int? orderId,
     String? paymentType,
     Value<int?> journalId = const Value.absent(),
@@ -45584,6 +50424,8 @@ class SaleOrderPaymentLineData extends DataClass
     Value<String?> partnerBankName = const Value.absent(),
     Value<DateTime?> effectiveDate = const Value.absent(),
     Value<DateTime?> bankReferenceDate = const Value.absent(),
+    double? advanceAvailable,
+    double? creditNoteAvailable,
     bool? isSynced,
     Value<DateTime?> lastSyncDate = const Value.absent(),
     Value<DateTime?> writeDate = const Value.absent(),
@@ -45591,6 +50433,8 @@ class SaleOrderPaymentLineData extends DataClass
     id: id ?? this.id,
     odooId: odooId.present ? odooId.value : this.odooId,
     lineUuid: lineUuid.present ? lineUuid.value : this.lineUuid,
+    uuid: uuid.present ? uuid.value : this.uuid,
+    type: type.present ? type.value : this.type,
     orderId: orderId ?? this.orderId,
     paymentType: paymentType ?? this.paymentType,
     journalId: journalId.present ? journalId.value : this.journalId,
@@ -45648,6 +50492,8 @@ class SaleOrderPaymentLineData extends DataClass
     bankReferenceDate: bankReferenceDate.present
         ? bankReferenceDate.value
         : this.bankReferenceDate,
+    advanceAvailable: advanceAvailable ?? this.advanceAvailable,
+    creditNoteAvailable: creditNoteAvailable ?? this.creditNoteAvailable,
     isSynced: isSynced ?? this.isSynced,
     lastSyncDate: lastSyncDate.present ? lastSyncDate.value : this.lastSyncDate,
     writeDate: writeDate.present ? writeDate.value : this.writeDate,
@@ -45659,6 +50505,8 @@ class SaleOrderPaymentLineData extends DataClass
       id: data.id.present ? data.id.value : this.id,
       odooId: data.odooId.present ? data.odooId.value : this.odooId,
       lineUuid: data.lineUuid.present ? data.lineUuid.value : this.lineUuid,
+      uuid: data.uuid.present ? data.uuid.value : this.uuid,
+      type: data.type.present ? data.type.value : this.type,
       orderId: data.orderId.present ? data.orderId.value : this.orderId,
       paymentType: data.paymentType.present
           ? data.paymentType.value
@@ -45728,6 +50576,12 @@ class SaleOrderPaymentLineData extends DataClass
       bankReferenceDate: data.bankReferenceDate.present
           ? data.bankReferenceDate.value
           : this.bankReferenceDate,
+      advanceAvailable: data.advanceAvailable.present
+          ? data.advanceAvailable.value
+          : this.advanceAvailable,
+      creditNoteAvailable: data.creditNoteAvailable.present
+          ? data.creditNoteAvailable.value
+          : this.creditNoteAvailable,
       isSynced: data.isSynced.present ? data.isSynced.value : this.isSynced,
       lastSyncDate: data.lastSyncDate.present
           ? data.lastSyncDate.value
@@ -45742,6 +50596,8 @@ class SaleOrderPaymentLineData extends DataClass
           ..write('id: $id, ')
           ..write('odooId: $odooId, ')
           ..write('lineUuid: $lineUuid, ')
+          ..write('uuid: $uuid, ')
+          ..write('type: $type, ')
           ..write('orderId: $orderId, ')
           ..write('paymentType: $paymentType, ')
           ..write('journalId: $journalId, ')
@@ -45773,6 +50629,8 @@ class SaleOrderPaymentLineData extends DataClass
           ..write('partnerBankName: $partnerBankName, ')
           ..write('effectiveDate: $effectiveDate, ')
           ..write('bankReferenceDate: $bankReferenceDate, ')
+          ..write('advanceAvailable: $advanceAvailable, ')
+          ..write('creditNoteAvailable: $creditNoteAvailable, ')
           ..write('isSynced: $isSynced, ')
           ..write('lastSyncDate: $lastSyncDate, ')
           ..write('writeDate: $writeDate')
@@ -45785,6 +50643,8 @@ class SaleOrderPaymentLineData extends DataClass
     id,
     odooId,
     lineUuid,
+    uuid,
+    type,
     orderId,
     paymentType,
     journalId,
@@ -45816,6 +50676,8 @@ class SaleOrderPaymentLineData extends DataClass
     partnerBankName,
     effectiveDate,
     bankReferenceDate,
+    advanceAvailable,
+    creditNoteAvailable,
     isSynced,
     lastSyncDate,
     writeDate,
@@ -45827,6 +50689,8 @@ class SaleOrderPaymentLineData extends DataClass
           other.id == this.id &&
           other.odooId == this.odooId &&
           other.lineUuid == this.lineUuid &&
+          other.uuid == this.uuid &&
+          other.type == this.type &&
           other.orderId == this.orderId &&
           other.paymentType == this.paymentType &&
           other.journalId == this.journalId &&
@@ -45858,6 +50722,8 @@ class SaleOrderPaymentLineData extends DataClass
           other.partnerBankName == this.partnerBankName &&
           other.effectiveDate == this.effectiveDate &&
           other.bankReferenceDate == this.bankReferenceDate &&
+          other.advanceAvailable == this.advanceAvailable &&
+          other.creditNoteAvailable == this.creditNoteAvailable &&
           other.isSynced == this.isSynced &&
           other.lastSyncDate == this.lastSyncDate &&
           other.writeDate == this.writeDate);
@@ -45868,6 +50734,8 @@ class SaleOrderPaymentLineCompanion
   final Value<int> id;
   final Value<int?> odooId;
   final Value<String?> lineUuid;
+  final Value<String?> uuid;
+  final Value<String?> type;
   final Value<int> orderId;
   final Value<String> paymentType;
   final Value<int?> journalId;
@@ -45899,6 +50767,8 @@ class SaleOrderPaymentLineCompanion
   final Value<String?> partnerBankName;
   final Value<DateTime?> effectiveDate;
   final Value<DateTime?> bankReferenceDate;
+  final Value<double> advanceAvailable;
+  final Value<double> creditNoteAvailable;
   final Value<bool> isSynced;
   final Value<DateTime?> lastSyncDate;
   final Value<DateTime?> writeDate;
@@ -45906,6 +50776,8 @@ class SaleOrderPaymentLineCompanion
     this.id = const Value.absent(),
     this.odooId = const Value.absent(),
     this.lineUuid = const Value.absent(),
+    this.uuid = const Value.absent(),
+    this.type = const Value.absent(),
     this.orderId = const Value.absent(),
     this.paymentType = const Value.absent(),
     this.journalId = const Value.absent(),
@@ -45937,6 +50809,8 @@ class SaleOrderPaymentLineCompanion
     this.partnerBankName = const Value.absent(),
     this.effectiveDate = const Value.absent(),
     this.bankReferenceDate = const Value.absent(),
+    this.advanceAvailable = const Value.absent(),
+    this.creditNoteAvailable = const Value.absent(),
     this.isSynced = const Value.absent(),
     this.lastSyncDate = const Value.absent(),
     this.writeDate = const Value.absent(),
@@ -45945,6 +50819,8 @@ class SaleOrderPaymentLineCompanion
     this.id = const Value.absent(),
     this.odooId = const Value.absent(),
     this.lineUuid = const Value.absent(),
+    this.uuid = const Value.absent(),
+    this.type = const Value.absent(),
     required int orderId,
     this.paymentType = const Value.absent(),
     this.journalId = const Value.absent(),
@@ -45976,6 +50852,8 @@ class SaleOrderPaymentLineCompanion
     this.partnerBankName = const Value.absent(),
     this.effectiveDate = const Value.absent(),
     this.bankReferenceDate = const Value.absent(),
+    this.advanceAvailable = const Value.absent(),
+    this.creditNoteAvailable = const Value.absent(),
     this.isSynced = const Value.absent(),
     this.lastSyncDate = const Value.absent(),
     this.writeDate = const Value.absent(),
@@ -45984,6 +50862,8 @@ class SaleOrderPaymentLineCompanion
     Expression<int>? id,
     Expression<int>? odooId,
     Expression<String>? lineUuid,
+    Expression<String>? uuid,
+    Expression<String>? type,
     Expression<int>? orderId,
     Expression<String>? paymentType,
     Expression<int>? journalId,
@@ -46015,6 +50895,8 @@ class SaleOrderPaymentLineCompanion
     Expression<String>? partnerBankName,
     Expression<DateTime>? effectiveDate,
     Expression<DateTime>? bankReferenceDate,
+    Expression<double>? advanceAvailable,
+    Expression<double>? creditNoteAvailable,
     Expression<bool>? isSynced,
     Expression<DateTime>? lastSyncDate,
     Expression<DateTime>? writeDate,
@@ -46023,6 +50905,8 @@ class SaleOrderPaymentLineCompanion
       if (id != null) 'id': id,
       if (odooId != null) 'odoo_id': odooId,
       if (lineUuid != null) 'line_uuid': lineUuid,
+      if (uuid != null) 'uuid': uuid,
+      if (type != null) 'type': type,
       if (orderId != null) 'order_id': orderId,
       if (paymentType != null) 'payment_type': paymentType,
       if (journalId != null) 'journal_id': journalId,
@@ -46055,6 +50939,9 @@ class SaleOrderPaymentLineCompanion
       if (partnerBankName != null) 'partner_bank_name': partnerBankName,
       if (effectiveDate != null) 'effective_date': effectiveDate,
       if (bankReferenceDate != null) 'bank_reference_date': bankReferenceDate,
+      if (advanceAvailable != null) 'advance_available': advanceAvailable,
+      if (creditNoteAvailable != null)
+        'credit_note_available': creditNoteAvailable,
       if (isSynced != null) 'is_synced': isSynced,
       if (lastSyncDate != null) 'last_sync_date': lastSyncDate,
       if (writeDate != null) 'write_date': writeDate,
@@ -46065,6 +50952,8 @@ class SaleOrderPaymentLineCompanion
     Value<int>? id,
     Value<int?>? odooId,
     Value<String?>? lineUuid,
+    Value<String?>? uuid,
+    Value<String?>? type,
     Value<int>? orderId,
     Value<String>? paymentType,
     Value<int?>? journalId,
@@ -46096,6 +50985,8 @@ class SaleOrderPaymentLineCompanion
     Value<String?>? partnerBankName,
     Value<DateTime?>? effectiveDate,
     Value<DateTime?>? bankReferenceDate,
+    Value<double>? advanceAvailable,
+    Value<double>? creditNoteAvailable,
     Value<bool>? isSynced,
     Value<DateTime?>? lastSyncDate,
     Value<DateTime?>? writeDate,
@@ -46104,6 +50995,8 @@ class SaleOrderPaymentLineCompanion
       id: id ?? this.id,
       odooId: odooId ?? this.odooId,
       lineUuid: lineUuid ?? this.lineUuid,
+      uuid: uuid ?? this.uuid,
+      type: type ?? this.type,
       orderId: orderId ?? this.orderId,
       paymentType: paymentType ?? this.paymentType,
       journalId: journalId ?? this.journalId,
@@ -46135,6 +51028,8 @@ class SaleOrderPaymentLineCompanion
       partnerBankName: partnerBankName ?? this.partnerBankName,
       effectiveDate: effectiveDate ?? this.effectiveDate,
       bankReferenceDate: bankReferenceDate ?? this.bankReferenceDate,
+      advanceAvailable: advanceAvailable ?? this.advanceAvailable,
+      creditNoteAvailable: creditNoteAvailable ?? this.creditNoteAvailable,
       isSynced: isSynced ?? this.isSynced,
       lastSyncDate: lastSyncDate ?? this.lastSyncDate,
       writeDate: writeDate ?? this.writeDate,
@@ -46152,6 +51047,12 @@ class SaleOrderPaymentLineCompanion
     }
     if (lineUuid.present) {
       map['line_uuid'] = Variable<String>(lineUuid.value);
+    }
+    if (uuid.present) {
+      map['uuid'] = Variable<String>(uuid.value);
+    }
+    if (type.present) {
+      map['type'] = Variable<String>(type.value);
     }
     if (orderId.present) {
       map['order_id'] = Variable<int>(orderId.value);
@@ -46246,6 +51147,14 @@ class SaleOrderPaymentLineCompanion
     if (bankReferenceDate.present) {
       map['bank_reference_date'] = Variable<DateTime>(bankReferenceDate.value);
     }
+    if (advanceAvailable.present) {
+      map['advance_available'] = Variable<double>(advanceAvailable.value);
+    }
+    if (creditNoteAvailable.present) {
+      map['credit_note_available'] = Variable<double>(
+        creditNoteAvailable.value,
+      );
+    }
     if (isSynced.present) {
       map['is_synced'] = Variable<bool>(isSynced.value);
     }
@@ -46264,6 +51173,8 @@ class SaleOrderPaymentLineCompanion
           ..write('id: $id, ')
           ..write('odooId: $odooId, ')
           ..write('lineUuid: $lineUuid, ')
+          ..write('uuid: $uuid, ')
+          ..write('type: $type, ')
           ..write('orderId: $orderId, ')
           ..write('paymentType: $paymentType, ')
           ..write('journalId: $journalId, ')
@@ -46295,6 +51206,8 @@ class SaleOrderPaymentLineCompanion
           ..write('partnerBankName: $partnerBankName, ')
           ..write('effectiveDate: $effectiveDate, ')
           ..write('bankReferenceDate: $bankReferenceDate, ')
+          ..write('advanceAvailable: $advanceAvailable, ')
+          ..write('creditNoteAvailable: $creditNoteAvailable, ')
           ..write('isSynced: $isSynced, ')
           ..write('lastSyncDate: $lastSyncDate, ')
           ..write('writeDate: $writeDate')
@@ -59430,6 +64343,28 @@ class $AccountCardLoteTable extends AccountCardLote
     requiredDuringInsert: true,
     defaultConstraints: GeneratedColumn.constraintIsAlways('UNIQUE'),
   );
+  static const VerificationMeta _localIdMeta = const VerificationMeta(
+    'localId',
+  );
+  @override
+  late final GeneratedColumn<int> localId = GeneratedColumn<int>(
+    'local_id',
+    aliasedName,
+    true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _loteUuidMeta = const VerificationMeta(
+    'loteUuid',
+  );
+  @override
+  late final GeneratedColumn<String> loteUuid = GeneratedColumn<String>(
+    'lote_uuid',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
   static const VerificationMeta _nameMeta = const VerificationMeta('name');
   @override
   late final GeneratedColumn<String> name = GeneratedColumn<String>(
@@ -59444,9 +64379,9 @@ class $AccountCardLoteTable extends AccountCardLote
   late final GeneratedColumn<String> code = GeneratedColumn<String>(
     'code',
     aliasedName,
-    false,
+    true,
     type: DriftSqlType.string,
-    requiredDuringInsert: true,
+    requiredDuringInsert: false,
   );
   static const VerificationMeta _journalIdMeta = const VerificationMeta(
     'journalId',
@@ -59470,6 +64405,87 @@ class $AccountCardLoteTable extends AccountCardLote
     type: DriftSqlType.string,
     requiredDuringInsert: false,
   );
+  static const VerificationMeta _stateMeta = const VerificationMeta('state');
+  @override
+  late final GeneratedColumn<String> state = GeneratedColumn<String>(
+    'state',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant('open'),
+  );
+  static const VerificationMeta _dateMeta = const VerificationMeta('date');
+  @override
+  late final GeneratedColumn<DateTime> date = GeneratedColumn<DateTime>(
+    'date',
+    aliasedName,
+    true,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _numeroLoteMeta = const VerificationMeta(
+    'numeroLote',
+  );
+  @override
+  late final GeneratedColumn<String> numeroLote = GeneratedColumn<String>(
+    'numero_lote',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _amountTotalMeta = const VerificationMeta(
+    'amountTotal',
+  );
+  @override
+  late final GeneratedColumn<double> amountTotal = GeneratedColumn<double>(
+    'amount_total',
+    aliasedName,
+    false,
+    type: DriftSqlType.double,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(0.0),
+  );
+  static const VerificationMeta _amountBalanceMeta = const VerificationMeta(
+    'amountBalance',
+  );
+  @override
+  late final GeneratedColumn<double> amountBalance = GeneratedColumn<double>(
+    'amount_balance',
+    aliasedName,
+    false,
+    type: DriftSqlType.double,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(0.0),
+  );
+  static const VerificationMeta _paymentCountMeta = const VerificationMeta(
+    'paymentCount',
+  );
+  @override
+  late final GeneratedColumn<int> paymentCount = GeneratedColumn<int>(
+    'payment_count',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(0),
+  );
+  static const VerificationMeta _isPosLoteMeta = const VerificationMeta(
+    'isPosLote',
+  );
+  @override
+  late final GeneratedColumn<bool> isPosLote = GeneratedColumn<bool>(
+    'is_pos_lote',
+    aliasedName,
+    false,
+    type: DriftSqlType.bool,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'CHECK ("is_pos_lote" IN (0, 1))',
+    ),
+    defaultValue: const Constant(false),
+  );
   static const VerificationMeta _dateFromMeta = const VerificationMeta(
     'dateFrom',
   );
@@ -59477,18 +64493,18 @@ class $AccountCardLoteTable extends AccountCardLote
   late final GeneratedColumn<DateTime> dateFrom = GeneratedColumn<DateTime>(
     'date_from',
     aliasedName,
-    false,
+    true,
     type: DriftSqlType.dateTime,
-    requiredDuringInsert: true,
+    requiredDuringInsert: false,
   );
   static const VerificationMeta _dateToMeta = const VerificationMeta('dateTo');
   @override
   late final GeneratedColumn<DateTime> dateTo = GeneratedColumn<DateTime>(
     'date_to',
     aliasedName,
-    false,
+    true,
     type: DriftSqlType.dateTime,
-    requiredDuringInsert: true,
+    requiredDuringInsert: false,
   );
   static const VerificationMeta _totalAmountMeta = const VerificationMeta(
     'totalAmount',
@@ -59513,16 +64529,6 @@ class $AccountCardLoteTable extends AccountCardLote
     type: DriftSqlType.int,
     requiredDuringInsert: false,
     defaultValue: const Constant(0),
-  );
-  static const VerificationMeta _stateMeta = const VerificationMeta('state');
-  @override
-  late final GeneratedColumn<String> state = GeneratedColumn<String>(
-    'state',
-    aliasedName,
-    false,
-    type: DriftSqlType.string,
-    requiredDuringInsert: false,
-    defaultValue: const Constant('draft'),
   );
   static const VerificationMeta _activeMeta = const VerificationMeta('active');
   @override
@@ -59552,15 +64558,23 @@ class $AccountCardLoteTable extends AccountCardLote
   List<GeneratedColumn> get $columns => [
     id,
     odooId,
+    localId,
+    loteUuid,
     name,
     code,
     journalId,
     journalName,
+    state,
+    date,
+    numeroLote,
+    amountTotal,
+    amountBalance,
+    paymentCount,
+    isPosLote,
     dateFrom,
     dateTo,
     totalAmount,
     transactionCount,
-    state,
     active,
     writeDate,
   ];
@@ -59587,6 +64601,18 @@ class $AccountCardLoteTable extends AccountCardLote
     } else if (isInserting) {
       context.missing(_odooIdMeta);
     }
+    if (data.containsKey('local_id')) {
+      context.handle(
+        _localIdMeta,
+        localId.isAcceptableOrUnknown(data['local_id']!, _localIdMeta),
+      );
+    }
+    if (data.containsKey('lote_uuid')) {
+      context.handle(
+        _loteUuidMeta,
+        loteUuid.isAcceptableOrUnknown(data['lote_uuid']!, _loteUuidMeta),
+      );
+    }
     if (data.containsKey('name')) {
       context.handle(
         _nameMeta,
@@ -59600,8 +64626,6 @@ class $AccountCardLoteTable extends AccountCardLote
         _codeMeta,
         code.isAcceptableOrUnknown(data['code']!, _codeMeta),
       );
-    } else if (isInserting) {
-      context.missing(_codeMeta);
     }
     if (data.containsKey('journal_id')) {
       context.handle(
@@ -59620,21 +64644,68 @@ class $AccountCardLoteTable extends AccountCardLote
         ),
       );
     }
+    if (data.containsKey('state')) {
+      context.handle(
+        _stateMeta,
+        state.isAcceptableOrUnknown(data['state']!, _stateMeta),
+      );
+    }
+    if (data.containsKey('date')) {
+      context.handle(
+        _dateMeta,
+        date.isAcceptableOrUnknown(data['date']!, _dateMeta),
+      );
+    }
+    if (data.containsKey('numero_lote')) {
+      context.handle(
+        _numeroLoteMeta,
+        numeroLote.isAcceptableOrUnknown(data['numero_lote']!, _numeroLoteMeta),
+      );
+    }
+    if (data.containsKey('amount_total')) {
+      context.handle(
+        _amountTotalMeta,
+        amountTotal.isAcceptableOrUnknown(
+          data['amount_total']!,
+          _amountTotalMeta,
+        ),
+      );
+    }
+    if (data.containsKey('amount_balance')) {
+      context.handle(
+        _amountBalanceMeta,
+        amountBalance.isAcceptableOrUnknown(
+          data['amount_balance']!,
+          _amountBalanceMeta,
+        ),
+      );
+    }
+    if (data.containsKey('payment_count')) {
+      context.handle(
+        _paymentCountMeta,
+        paymentCount.isAcceptableOrUnknown(
+          data['payment_count']!,
+          _paymentCountMeta,
+        ),
+      );
+    }
+    if (data.containsKey('is_pos_lote')) {
+      context.handle(
+        _isPosLoteMeta,
+        isPosLote.isAcceptableOrUnknown(data['is_pos_lote']!, _isPosLoteMeta),
+      );
+    }
     if (data.containsKey('date_from')) {
       context.handle(
         _dateFromMeta,
         dateFrom.isAcceptableOrUnknown(data['date_from']!, _dateFromMeta),
       );
-    } else if (isInserting) {
-      context.missing(_dateFromMeta);
     }
     if (data.containsKey('date_to')) {
       context.handle(
         _dateToMeta,
         dateTo.isAcceptableOrUnknown(data['date_to']!, _dateToMeta),
       );
-    } else if (isInserting) {
-      context.missing(_dateToMeta);
     }
     if (data.containsKey('total_amount')) {
       context.handle(
@@ -59652,12 +64723,6 @@ class $AccountCardLoteTable extends AccountCardLote
           data['transaction_count']!,
           _transactionCountMeta,
         ),
-      );
-    }
-    if (data.containsKey('state')) {
-      context.handle(
-        _stateMeta,
-        state.isAcceptableOrUnknown(data['state']!, _stateMeta),
       );
     }
     if (data.containsKey('active')) {
@@ -59689,6 +64754,14 @@ class $AccountCardLoteTable extends AccountCardLote
         DriftSqlType.int,
         data['${effectivePrefix}odoo_id'],
       )!,
+      localId: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}local_id'],
+      ),
+      loteUuid: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}lote_uuid'],
+      ),
       name: attachedDatabase.typeMapping.read(
         DriftSqlType.string,
         data['${effectivePrefix}name'],
@@ -59696,7 +64769,7 @@ class $AccountCardLoteTable extends AccountCardLote
       code: attachedDatabase.typeMapping.read(
         DriftSqlType.string,
         data['${effectivePrefix}code'],
-      )!,
+      ),
       journalId: attachedDatabase.typeMapping.read(
         DriftSqlType.int,
         data['${effectivePrefix}journal_id'],
@@ -59705,14 +64778,42 @@ class $AccountCardLoteTable extends AccountCardLote
         DriftSqlType.string,
         data['${effectivePrefix}journal_name'],
       ),
+      state: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}state'],
+      )!,
+      date: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}date'],
+      ),
+      numeroLote: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}numero_lote'],
+      ),
+      amountTotal: attachedDatabase.typeMapping.read(
+        DriftSqlType.double,
+        data['${effectivePrefix}amount_total'],
+      )!,
+      amountBalance: attachedDatabase.typeMapping.read(
+        DriftSqlType.double,
+        data['${effectivePrefix}amount_balance'],
+      )!,
+      paymentCount: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}payment_count'],
+      )!,
+      isPosLote: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}is_pos_lote'],
+      )!,
       dateFrom: attachedDatabase.typeMapping.read(
         DriftSqlType.dateTime,
         data['${effectivePrefix}date_from'],
-      )!,
+      ),
       dateTo: attachedDatabase.typeMapping.read(
         DriftSqlType.dateTime,
         data['${effectivePrefix}date_to'],
-      )!,
+      ),
       totalAmount: attachedDatabase.typeMapping.read(
         DriftSqlType.double,
         data['${effectivePrefix}total_amount'],
@@ -59720,10 +64821,6 @@ class $AccountCardLoteTable extends AccountCardLote
       transactionCount: attachedDatabase.typeMapping.read(
         DriftSqlType.int,
         data['${effectivePrefix}transaction_count'],
-      )!,
-      state: attachedDatabase.typeMapping.read(
-        DriftSqlType.string,
-        data['${effectivePrefix}state'],
       )!,
       active: attachedDatabase.typeMapping.read(
         DriftSqlType.bool,
@@ -59746,29 +64843,45 @@ class AccountCardLoteData extends DataClass
     implements Insertable<AccountCardLoteData> {
   final int id;
   final int odooId;
+  final int? localId;
+  final String? loteUuid;
   final String name;
-  final String code;
+  final String? code;
   final int journalId;
   final String? journalName;
-  final DateTime dateFrom;
-  final DateTime dateTo;
+  final String state;
+  final DateTime? date;
+  final String? numeroLote;
+  final double amountTotal;
+  final double amountBalance;
+  final int paymentCount;
+  final bool isPosLote;
+  final DateTime? dateFrom;
+  final DateTime? dateTo;
   final double totalAmount;
   final int transactionCount;
-  final String state;
   final bool active;
   final DateTime? writeDate;
   const AccountCardLoteData({
     required this.id,
     required this.odooId,
+    this.localId,
+    this.loteUuid,
     required this.name,
-    required this.code,
+    this.code,
     required this.journalId,
     this.journalName,
-    required this.dateFrom,
-    required this.dateTo,
+    required this.state,
+    this.date,
+    this.numeroLote,
+    required this.amountTotal,
+    required this.amountBalance,
+    required this.paymentCount,
+    required this.isPosLote,
+    this.dateFrom,
+    this.dateTo,
     required this.totalAmount,
     required this.transactionCount,
-    required this.state,
     required this.active,
     this.writeDate,
   });
@@ -59777,17 +64890,39 @@ class AccountCardLoteData extends DataClass
     final map = <String, Expression>{};
     map['id'] = Variable<int>(id);
     map['odoo_id'] = Variable<int>(odooId);
+    if (!nullToAbsent || localId != null) {
+      map['local_id'] = Variable<int>(localId);
+    }
+    if (!nullToAbsent || loteUuid != null) {
+      map['lote_uuid'] = Variable<String>(loteUuid);
+    }
     map['name'] = Variable<String>(name);
-    map['code'] = Variable<String>(code);
+    if (!nullToAbsent || code != null) {
+      map['code'] = Variable<String>(code);
+    }
     map['journal_id'] = Variable<int>(journalId);
     if (!nullToAbsent || journalName != null) {
       map['journal_name'] = Variable<String>(journalName);
     }
-    map['date_from'] = Variable<DateTime>(dateFrom);
-    map['date_to'] = Variable<DateTime>(dateTo);
+    map['state'] = Variable<String>(state);
+    if (!nullToAbsent || date != null) {
+      map['date'] = Variable<DateTime>(date);
+    }
+    if (!nullToAbsent || numeroLote != null) {
+      map['numero_lote'] = Variable<String>(numeroLote);
+    }
+    map['amount_total'] = Variable<double>(amountTotal);
+    map['amount_balance'] = Variable<double>(amountBalance);
+    map['payment_count'] = Variable<int>(paymentCount);
+    map['is_pos_lote'] = Variable<bool>(isPosLote);
+    if (!nullToAbsent || dateFrom != null) {
+      map['date_from'] = Variable<DateTime>(dateFrom);
+    }
+    if (!nullToAbsent || dateTo != null) {
+      map['date_to'] = Variable<DateTime>(dateTo);
+    }
     map['total_amount'] = Variable<double>(totalAmount);
     map['transaction_count'] = Variable<int>(transactionCount);
-    map['state'] = Variable<String>(state);
     map['active'] = Variable<bool>(active);
     if (!nullToAbsent || writeDate != null) {
       map['write_date'] = Variable<DateTime>(writeDate);
@@ -59799,17 +64934,35 @@ class AccountCardLoteData extends DataClass
     return AccountCardLoteCompanion(
       id: Value(id),
       odooId: Value(odooId),
+      localId: localId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(localId),
+      loteUuid: loteUuid == null && nullToAbsent
+          ? const Value.absent()
+          : Value(loteUuid),
       name: Value(name),
-      code: Value(code),
+      code: code == null && nullToAbsent ? const Value.absent() : Value(code),
       journalId: Value(journalId),
       journalName: journalName == null && nullToAbsent
           ? const Value.absent()
           : Value(journalName),
-      dateFrom: Value(dateFrom),
-      dateTo: Value(dateTo),
+      state: Value(state),
+      date: date == null && nullToAbsent ? const Value.absent() : Value(date),
+      numeroLote: numeroLote == null && nullToAbsent
+          ? const Value.absent()
+          : Value(numeroLote),
+      amountTotal: Value(amountTotal),
+      amountBalance: Value(amountBalance),
+      paymentCount: Value(paymentCount),
+      isPosLote: Value(isPosLote),
+      dateFrom: dateFrom == null && nullToAbsent
+          ? const Value.absent()
+          : Value(dateFrom),
+      dateTo: dateTo == null && nullToAbsent
+          ? const Value.absent()
+          : Value(dateTo),
       totalAmount: Value(totalAmount),
       transactionCount: Value(transactionCount),
-      state: Value(state),
       active: Value(active),
       writeDate: writeDate == null && nullToAbsent
           ? const Value.absent()
@@ -59825,15 +64978,23 @@ class AccountCardLoteData extends DataClass
     return AccountCardLoteData(
       id: serializer.fromJson<int>(json['id']),
       odooId: serializer.fromJson<int>(json['odooId']),
+      localId: serializer.fromJson<int?>(json['localId']),
+      loteUuid: serializer.fromJson<String?>(json['loteUuid']),
       name: serializer.fromJson<String>(json['name']),
-      code: serializer.fromJson<String>(json['code']),
+      code: serializer.fromJson<String?>(json['code']),
       journalId: serializer.fromJson<int>(json['journalId']),
       journalName: serializer.fromJson<String?>(json['journalName']),
-      dateFrom: serializer.fromJson<DateTime>(json['dateFrom']),
-      dateTo: serializer.fromJson<DateTime>(json['dateTo']),
+      state: serializer.fromJson<String>(json['state']),
+      date: serializer.fromJson<DateTime?>(json['date']),
+      numeroLote: serializer.fromJson<String?>(json['numeroLote']),
+      amountTotal: serializer.fromJson<double>(json['amountTotal']),
+      amountBalance: serializer.fromJson<double>(json['amountBalance']),
+      paymentCount: serializer.fromJson<int>(json['paymentCount']),
+      isPosLote: serializer.fromJson<bool>(json['isPosLote']),
+      dateFrom: serializer.fromJson<DateTime?>(json['dateFrom']),
+      dateTo: serializer.fromJson<DateTime?>(json['dateTo']),
       totalAmount: serializer.fromJson<double>(json['totalAmount']),
       transactionCount: serializer.fromJson<int>(json['transactionCount']),
-      state: serializer.fromJson<String>(json['state']),
       active: serializer.fromJson<bool>(json['active']),
       writeDate: serializer.fromJson<DateTime?>(json['writeDate']),
     );
@@ -59844,15 +65005,23 @@ class AccountCardLoteData extends DataClass
     return <String, dynamic>{
       'id': serializer.toJson<int>(id),
       'odooId': serializer.toJson<int>(odooId),
+      'localId': serializer.toJson<int?>(localId),
+      'loteUuid': serializer.toJson<String?>(loteUuid),
       'name': serializer.toJson<String>(name),
-      'code': serializer.toJson<String>(code),
+      'code': serializer.toJson<String?>(code),
       'journalId': serializer.toJson<int>(journalId),
       'journalName': serializer.toJson<String?>(journalName),
-      'dateFrom': serializer.toJson<DateTime>(dateFrom),
-      'dateTo': serializer.toJson<DateTime>(dateTo),
+      'state': serializer.toJson<String>(state),
+      'date': serializer.toJson<DateTime?>(date),
+      'numeroLote': serializer.toJson<String?>(numeroLote),
+      'amountTotal': serializer.toJson<double>(amountTotal),
+      'amountBalance': serializer.toJson<double>(amountBalance),
+      'paymentCount': serializer.toJson<int>(paymentCount),
+      'isPosLote': serializer.toJson<bool>(isPosLote),
+      'dateFrom': serializer.toJson<DateTime?>(dateFrom),
+      'dateTo': serializer.toJson<DateTime?>(dateTo),
       'totalAmount': serializer.toJson<double>(totalAmount),
       'transactionCount': serializer.toJson<int>(transactionCount),
-      'state': serializer.toJson<String>(state),
       'active': serializer.toJson<bool>(active),
       'writeDate': serializer.toJson<DateTime?>(writeDate),
     };
@@ -59861,29 +65030,45 @@ class AccountCardLoteData extends DataClass
   AccountCardLoteData copyWith({
     int? id,
     int? odooId,
+    Value<int?> localId = const Value.absent(),
+    Value<String?> loteUuid = const Value.absent(),
     String? name,
-    String? code,
+    Value<String?> code = const Value.absent(),
     int? journalId,
     Value<String?> journalName = const Value.absent(),
-    DateTime? dateFrom,
-    DateTime? dateTo,
+    String? state,
+    Value<DateTime?> date = const Value.absent(),
+    Value<String?> numeroLote = const Value.absent(),
+    double? amountTotal,
+    double? amountBalance,
+    int? paymentCount,
+    bool? isPosLote,
+    Value<DateTime?> dateFrom = const Value.absent(),
+    Value<DateTime?> dateTo = const Value.absent(),
     double? totalAmount,
     int? transactionCount,
-    String? state,
     bool? active,
     Value<DateTime?> writeDate = const Value.absent(),
   }) => AccountCardLoteData(
     id: id ?? this.id,
     odooId: odooId ?? this.odooId,
+    localId: localId.present ? localId.value : this.localId,
+    loteUuid: loteUuid.present ? loteUuid.value : this.loteUuid,
     name: name ?? this.name,
-    code: code ?? this.code,
+    code: code.present ? code.value : this.code,
     journalId: journalId ?? this.journalId,
     journalName: journalName.present ? journalName.value : this.journalName,
-    dateFrom: dateFrom ?? this.dateFrom,
-    dateTo: dateTo ?? this.dateTo,
+    state: state ?? this.state,
+    date: date.present ? date.value : this.date,
+    numeroLote: numeroLote.present ? numeroLote.value : this.numeroLote,
+    amountTotal: amountTotal ?? this.amountTotal,
+    amountBalance: amountBalance ?? this.amountBalance,
+    paymentCount: paymentCount ?? this.paymentCount,
+    isPosLote: isPosLote ?? this.isPosLote,
+    dateFrom: dateFrom.present ? dateFrom.value : this.dateFrom,
+    dateTo: dateTo.present ? dateTo.value : this.dateTo,
     totalAmount: totalAmount ?? this.totalAmount,
     transactionCount: transactionCount ?? this.transactionCount,
-    state: state ?? this.state,
     active: active ?? this.active,
     writeDate: writeDate.present ? writeDate.value : this.writeDate,
   );
@@ -59891,12 +65076,29 @@ class AccountCardLoteData extends DataClass
     return AccountCardLoteData(
       id: data.id.present ? data.id.value : this.id,
       odooId: data.odooId.present ? data.odooId.value : this.odooId,
+      localId: data.localId.present ? data.localId.value : this.localId,
+      loteUuid: data.loteUuid.present ? data.loteUuid.value : this.loteUuid,
       name: data.name.present ? data.name.value : this.name,
       code: data.code.present ? data.code.value : this.code,
       journalId: data.journalId.present ? data.journalId.value : this.journalId,
       journalName: data.journalName.present
           ? data.journalName.value
           : this.journalName,
+      state: data.state.present ? data.state.value : this.state,
+      date: data.date.present ? data.date.value : this.date,
+      numeroLote: data.numeroLote.present
+          ? data.numeroLote.value
+          : this.numeroLote,
+      amountTotal: data.amountTotal.present
+          ? data.amountTotal.value
+          : this.amountTotal,
+      amountBalance: data.amountBalance.present
+          ? data.amountBalance.value
+          : this.amountBalance,
+      paymentCount: data.paymentCount.present
+          ? data.paymentCount.value
+          : this.paymentCount,
+      isPosLote: data.isPosLote.present ? data.isPosLote.value : this.isPosLote,
       dateFrom: data.dateFrom.present ? data.dateFrom.value : this.dateFrom,
       dateTo: data.dateTo.present ? data.dateTo.value : this.dateTo,
       totalAmount: data.totalAmount.present
@@ -59905,7 +65107,6 @@ class AccountCardLoteData extends DataClass
       transactionCount: data.transactionCount.present
           ? data.transactionCount.value
           : this.transactionCount,
-      state: data.state.present ? data.state.value : this.state,
       active: data.active.present ? data.active.value : this.active,
       writeDate: data.writeDate.present ? data.writeDate.value : this.writeDate,
     );
@@ -59916,15 +65117,23 @@ class AccountCardLoteData extends DataClass
     return (StringBuffer('AccountCardLoteData(')
           ..write('id: $id, ')
           ..write('odooId: $odooId, ')
+          ..write('localId: $localId, ')
+          ..write('loteUuid: $loteUuid, ')
           ..write('name: $name, ')
           ..write('code: $code, ')
           ..write('journalId: $journalId, ')
           ..write('journalName: $journalName, ')
+          ..write('state: $state, ')
+          ..write('date: $date, ')
+          ..write('numeroLote: $numeroLote, ')
+          ..write('amountTotal: $amountTotal, ')
+          ..write('amountBalance: $amountBalance, ')
+          ..write('paymentCount: $paymentCount, ')
+          ..write('isPosLote: $isPosLote, ')
           ..write('dateFrom: $dateFrom, ')
           ..write('dateTo: $dateTo, ')
           ..write('totalAmount: $totalAmount, ')
           ..write('transactionCount: $transactionCount, ')
-          ..write('state: $state, ')
           ..write('active: $active, ')
           ..write('writeDate: $writeDate')
           ..write(')'))
@@ -59932,36 +65141,52 @@ class AccountCardLoteData extends DataClass
   }
 
   @override
-  int get hashCode => Object.hash(
+  int get hashCode => Object.hashAll([
     id,
     odooId,
+    localId,
+    loteUuid,
     name,
     code,
     journalId,
     journalName,
+    state,
+    date,
+    numeroLote,
+    amountTotal,
+    amountBalance,
+    paymentCount,
+    isPosLote,
     dateFrom,
     dateTo,
     totalAmount,
     transactionCount,
-    state,
     active,
     writeDate,
-  );
+  ]);
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
       (other is AccountCardLoteData &&
           other.id == this.id &&
           other.odooId == this.odooId &&
+          other.localId == this.localId &&
+          other.loteUuid == this.loteUuid &&
           other.name == this.name &&
           other.code == this.code &&
           other.journalId == this.journalId &&
           other.journalName == this.journalName &&
+          other.state == this.state &&
+          other.date == this.date &&
+          other.numeroLote == this.numeroLote &&
+          other.amountTotal == this.amountTotal &&
+          other.amountBalance == this.amountBalance &&
+          other.paymentCount == this.paymentCount &&
+          other.isPosLote == this.isPosLote &&
           other.dateFrom == this.dateFrom &&
           other.dateTo == this.dateTo &&
           other.totalAmount == this.totalAmount &&
           other.transactionCount == this.transactionCount &&
-          other.state == this.state &&
           other.active == this.active &&
           other.writeDate == this.writeDate);
 }
@@ -59969,79 +65194,116 @@ class AccountCardLoteData extends DataClass
 class AccountCardLoteCompanion extends UpdateCompanion<AccountCardLoteData> {
   final Value<int> id;
   final Value<int> odooId;
+  final Value<int?> localId;
+  final Value<String?> loteUuid;
   final Value<String> name;
-  final Value<String> code;
+  final Value<String?> code;
   final Value<int> journalId;
   final Value<String?> journalName;
-  final Value<DateTime> dateFrom;
-  final Value<DateTime> dateTo;
+  final Value<String> state;
+  final Value<DateTime?> date;
+  final Value<String?> numeroLote;
+  final Value<double> amountTotal;
+  final Value<double> amountBalance;
+  final Value<int> paymentCount;
+  final Value<bool> isPosLote;
+  final Value<DateTime?> dateFrom;
+  final Value<DateTime?> dateTo;
   final Value<double> totalAmount;
   final Value<int> transactionCount;
-  final Value<String> state;
   final Value<bool> active;
   final Value<DateTime?> writeDate;
   const AccountCardLoteCompanion({
     this.id = const Value.absent(),
     this.odooId = const Value.absent(),
+    this.localId = const Value.absent(),
+    this.loteUuid = const Value.absent(),
     this.name = const Value.absent(),
     this.code = const Value.absent(),
     this.journalId = const Value.absent(),
     this.journalName = const Value.absent(),
+    this.state = const Value.absent(),
+    this.date = const Value.absent(),
+    this.numeroLote = const Value.absent(),
+    this.amountTotal = const Value.absent(),
+    this.amountBalance = const Value.absent(),
+    this.paymentCount = const Value.absent(),
+    this.isPosLote = const Value.absent(),
     this.dateFrom = const Value.absent(),
     this.dateTo = const Value.absent(),
     this.totalAmount = const Value.absent(),
     this.transactionCount = const Value.absent(),
-    this.state = const Value.absent(),
     this.active = const Value.absent(),
     this.writeDate = const Value.absent(),
   });
   AccountCardLoteCompanion.insert({
     this.id = const Value.absent(),
     required int odooId,
+    this.localId = const Value.absent(),
+    this.loteUuid = const Value.absent(),
     required String name,
-    required String code,
+    this.code = const Value.absent(),
     required int journalId,
     this.journalName = const Value.absent(),
-    required DateTime dateFrom,
-    required DateTime dateTo,
+    this.state = const Value.absent(),
+    this.date = const Value.absent(),
+    this.numeroLote = const Value.absent(),
+    this.amountTotal = const Value.absent(),
+    this.amountBalance = const Value.absent(),
+    this.paymentCount = const Value.absent(),
+    this.isPosLote = const Value.absent(),
+    this.dateFrom = const Value.absent(),
+    this.dateTo = const Value.absent(),
     this.totalAmount = const Value.absent(),
     this.transactionCount = const Value.absent(),
-    this.state = const Value.absent(),
     this.active = const Value.absent(),
     this.writeDate = const Value.absent(),
   }) : odooId = Value(odooId),
        name = Value(name),
-       code = Value(code),
-       journalId = Value(journalId),
-       dateFrom = Value(dateFrom),
-       dateTo = Value(dateTo);
+       journalId = Value(journalId);
   static Insertable<AccountCardLoteData> custom({
     Expression<int>? id,
     Expression<int>? odooId,
+    Expression<int>? localId,
+    Expression<String>? loteUuid,
     Expression<String>? name,
     Expression<String>? code,
     Expression<int>? journalId,
     Expression<String>? journalName,
+    Expression<String>? state,
+    Expression<DateTime>? date,
+    Expression<String>? numeroLote,
+    Expression<double>? amountTotal,
+    Expression<double>? amountBalance,
+    Expression<int>? paymentCount,
+    Expression<bool>? isPosLote,
     Expression<DateTime>? dateFrom,
     Expression<DateTime>? dateTo,
     Expression<double>? totalAmount,
     Expression<int>? transactionCount,
-    Expression<String>? state,
     Expression<bool>? active,
     Expression<DateTime>? writeDate,
   }) {
     return RawValuesInsertable({
       if (id != null) 'id': id,
       if (odooId != null) 'odoo_id': odooId,
+      if (localId != null) 'local_id': localId,
+      if (loteUuid != null) 'lote_uuid': loteUuid,
       if (name != null) 'name': name,
       if (code != null) 'code': code,
       if (journalId != null) 'journal_id': journalId,
       if (journalName != null) 'journal_name': journalName,
+      if (state != null) 'state': state,
+      if (date != null) 'date': date,
+      if (numeroLote != null) 'numero_lote': numeroLote,
+      if (amountTotal != null) 'amount_total': amountTotal,
+      if (amountBalance != null) 'amount_balance': amountBalance,
+      if (paymentCount != null) 'payment_count': paymentCount,
+      if (isPosLote != null) 'is_pos_lote': isPosLote,
       if (dateFrom != null) 'date_from': dateFrom,
       if (dateTo != null) 'date_to': dateTo,
       if (totalAmount != null) 'total_amount': totalAmount,
       if (transactionCount != null) 'transaction_count': transactionCount,
-      if (state != null) 'state': state,
       if (active != null) 'active': active,
       if (writeDate != null) 'write_date': writeDate,
     });
@@ -60050,30 +65312,46 @@ class AccountCardLoteCompanion extends UpdateCompanion<AccountCardLoteData> {
   AccountCardLoteCompanion copyWith({
     Value<int>? id,
     Value<int>? odooId,
+    Value<int?>? localId,
+    Value<String?>? loteUuid,
     Value<String>? name,
-    Value<String>? code,
+    Value<String?>? code,
     Value<int>? journalId,
     Value<String?>? journalName,
-    Value<DateTime>? dateFrom,
-    Value<DateTime>? dateTo,
+    Value<String>? state,
+    Value<DateTime?>? date,
+    Value<String?>? numeroLote,
+    Value<double>? amountTotal,
+    Value<double>? amountBalance,
+    Value<int>? paymentCount,
+    Value<bool>? isPosLote,
+    Value<DateTime?>? dateFrom,
+    Value<DateTime?>? dateTo,
     Value<double>? totalAmount,
     Value<int>? transactionCount,
-    Value<String>? state,
     Value<bool>? active,
     Value<DateTime?>? writeDate,
   }) {
     return AccountCardLoteCompanion(
       id: id ?? this.id,
       odooId: odooId ?? this.odooId,
+      localId: localId ?? this.localId,
+      loteUuid: loteUuid ?? this.loteUuid,
       name: name ?? this.name,
       code: code ?? this.code,
       journalId: journalId ?? this.journalId,
       journalName: journalName ?? this.journalName,
+      state: state ?? this.state,
+      date: date ?? this.date,
+      numeroLote: numeroLote ?? this.numeroLote,
+      amountTotal: amountTotal ?? this.amountTotal,
+      amountBalance: amountBalance ?? this.amountBalance,
+      paymentCount: paymentCount ?? this.paymentCount,
+      isPosLote: isPosLote ?? this.isPosLote,
       dateFrom: dateFrom ?? this.dateFrom,
       dateTo: dateTo ?? this.dateTo,
       totalAmount: totalAmount ?? this.totalAmount,
       transactionCount: transactionCount ?? this.transactionCount,
-      state: state ?? this.state,
       active: active ?? this.active,
       writeDate: writeDate ?? this.writeDate,
     );
@@ -60088,6 +65366,12 @@ class AccountCardLoteCompanion extends UpdateCompanion<AccountCardLoteData> {
     if (odooId.present) {
       map['odoo_id'] = Variable<int>(odooId.value);
     }
+    if (localId.present) {
+      map['local_id'] = Variable<int>(localId.value);
+    }
+    if (loteUuid.present) {
+      map['lote_uuid'] = Variable<String>(loteUuid.value);
+    }
     if (name.present) {
       map['name'] = Variable<String>(name.value);
     }
@@ -60100,6 +65384,27 @@ class AccountCardLoteCompanion extends UpdateCompanion<AccountCardLoteData> {
     if (journalName.present) {
       map['journal_name'] = Variable<String>(journalName.value);
     }
+    if (state.present) {
+      map['state'] = Variable<String>(state.value);
+    }
+    if (date.present) {
+      map['date'] = Variable<DateTime>(date.value);
+    }
+    if (numeroLote.present) {
+      map['numero_lote'] = Variable<String>(numeroLote.value);
+    }
+    if (amountTotal.present) {
+      map['amount_total'] = Variable<double>(amountTotal.value);
+    }
+    if (amountBalance.present) {
+      map['amount_balance'] = Variable<double>(amountBalance.value);
+    }
+    if (paymentCount.present) {
+      map['payment_count'] = Variable<int>(paymentCount.value);
+    }
+    if (isPosLote.present) {
+      map['is_pos_lote'] = Variable<bool>(isPosLote.value);
+    }
     if (dateFrom.present) {
       map['date_from'] = Variable<DateTime>(dateFrom.value);
     }
@@ -60111,9 +65416,6 @@ class AccountCardLoteCompanion extends UpdateCompanion<AccountCardLoteData> {
     }
     if (transactionCount.present) {
       map['transaction_count'] = Variable<int>(transactionCount.value);
-    }
-    if (state.present) {
-      map['state'] = Variable<String>(state.value);
     }
     if (active.present) {
       map['active'] = Variable<bool>(active.value);
@@ -60129,15 +65431,23 @@ class AccountCardLoteCompanion extends UpdateCompanion<AccountCardLoteData> {
     return (StringBuffer('AccountCardLoteCompanion(')
           ..write('id: $id, ')
           ..write('odooId: $odooId, ')
+          ..write('localId: $localId, ')
+          ..write('loteUuid: $loteUuid, ')
           ..write('name: $name, ')
           ..write('code: $code, ')
           ..write('journalId: $journalId, ')
           ..write('journalName: $journalName, ')
+          ..write('state: $state, ')
+          ..write('date: $date, ')
+          ..write('numeroLote: $numeroLote, ')
+          ..write('amountTotal: $amountTotal, ')
+          ..write('amountBalance: $amountBalance, ')
+          ..write('paymentCount: $paymentCount, ')
+          ..write('isPosLote: $isPosLote, ')
           ..write('dateFrom: $dateFrom, ')
           ..write('dateTo: $dateTo, ')
           ..write('totalAmount: $totalAmount, ')
           ..write('transactionCount: $transactionCount, ')
-          ..write('state: $state, ')
           ..write('active: $active, ')
           ..write('writeDate: $writeDate')
           ..write(')'))
@@ -61059,6 +66369,29 @@ class $AccountAdvanceTable extends AccountAdvance
     requiredDuringInsert: false,
     defaultValue: const Constant(0.0),
   );
+  static const VerificationMeta _usagePercentageMeta = const VerificationMeta(
+    'usagePercentage',
+  );
+  @override
+  late final GeneratedColumn<double> usagePercentage = GeneratedColumn<double>(
+    'usage_percentage',
+    aliasedName,
+    false,
+    type: DriftSqlType.double,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(0.0),
+  );
+  static const VerificationMeta _daysToExpireMeta = const VerificationMeta(
+    'daysToExpire',
+  );
+  @override
+  late final GeneratedColumn<int> daysToExpire = GeneratedColumn<int>(
+    'days_to_expire',
+    aliasedName,
+    true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+  );
   static const VerificationMeta _isExpiredMeta = const VerificationMeta(
     'isExpired',
   );
@@ -61073,6 +66406,17 @@ class $AccountAdvanceTable extends AccountAdvance
       'CHECK ("is_expired" IN (0, 1))',
     ),
     defaultValue: const Constant(false),
+  );
+  static const VerificationMeta _advanceUuidMeta = const VerificationMeta(
+    'advanceUuid',
+  );
+  @override
+  late final GeneratedColumn<String> advanceUuid = GeneratedColumn<String>(
+    'advance_uuid',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
   );
   static const VerificationMeta _collectionSessionIdMeta =
       const VerificationMeta('collectionSessionId');
@@ -61139,7 +66483,10 @@ class $AccountAdvanceTable extends AccountAdvance
     amountUsed,
     amountAvailable,
     amountReturned,
+    usagePercentage,
+    daysToExpire,
     isExpired,
+    advanceUuid,
     collectionSessionId,
     collectionConfigId,
     saleOrderId,
@@ -61315,10 +66662,37 @@ class $AccountAdvanceTable extends AccountAdvance
         ),
       );
     }
+    if (data.containsKey('usage_percentage')) {
+      context.handle(
+        _usagePercentageMeta,
+        usagePercentage.isAcceptableOrUnknown(
+          data['usage_percentage']!,
+          _usagePercentageMeta,
+        ),
+      );
+    }
+    if (data.containsKey('days_to_expire')) {
+      context.handle(
+        _daysToExpireMeta,
+        daysToExpire.isAcceptableOrUnknown(
+          data['days_to_expire']!,
+          _daysToExpireMeta,
+        ),
+      );
+    }
     if (data.containsKey('is_expired')) {
       context.handle(
         _isExpiredMeta,
         isExpired.isAcceptableOrUnknown(data['is_expired']!, _isExpiredMeta),
+      );
+    }
+    if (data.containsKey('advance_uuid')) {
+      context.handle(
+        _advanceUuidMeta,
+        advanceUuid.isAcceptableOrUnknown(
+          data['advance_uuid']!,
+          _advanceUuidMeta,
+        ),
       );
     }
     if (data.containsKey('collection_session_id')) {
@@ -61447,10 +66821,22 @@ class $AccountAdvanceTable extends AccountAdvance
         DriftSqlType.double,
         data['${effectivePrefix}amount_returned'],
       )!,
+      usagePercentage: attachedDatabase.typeMapping.read(
+        DriftSqlType.double,
+        data['${effectivePrefix}usage_percentage'],
+      )!,
+      daysToExpire: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}days_to_expire'],
+      ),
       isExpired: attachedDatabase.typeMapping.read(
         DriftSqlType.bool,
         data['${effectivePrefix}is_expired'],
       )!,
+      advanceUuid: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}advance_uuid'],
+      ),
       collectionSessionId: attachedDatabase.typeMapping.read(
         DriftSqlType.int,
         data['${effectivePrefix}collection_session_id'],
@@ -61499,7 +66885,10 @@ class AccountAdvanceData extends DataClass
   final double amountUsed;
   final double amountAvailable;
   final double amountReturned;
+  final double usagePercentage;
+  final int? daysToExpire;
   final bool isExpired;
+  final String? advanceUuid;
   final int? collectionSessionId;
   final int? collectionConfigId;
   final int? saleOrderId;
@@ -61526,7 +66915,10 @@ class AccountAdvanceData extends DataClass
     required this.amountUsed,
     required this.amountAvailable,
     required this.amountReturned,
+    required this.usagePercentage,
+    this.daysToExpire,
     required this.isExpired,
+    this.advanceUuid,
     this.collectionSessionId,
     this.collectionConfigId,
     this.saleOrderId,
@@ -61572,7 +66964,14 @@ class AccountAdvanceData extends DataClass
     map['amount_used'] = Variable<double>(amountUsed);
     map['amount_available'] = Variable<double>(amountAvailable);
     map['amount_returned'] = Variable<double>(amountReturned);
+    map['usage_percentage'] = Variable<double>(usagePercentage);
+    if (!nullToAbsent || daysToExpire != null) {
+      map['days_to_expire'] = Variable<int>(daysToExpire);
+    }
     map['is_expired'] = Variable<bool>(isExpired);
+    if (!nullToAbsent || advanceUuid != null) {
+      map['advance_uuid'] = Variable<String>(advanceUuid);
+    }
     if (!nullToAbsent || collectionSessionId != null) {
       map['collection_session_id'] = Variable<int>(collectionSessionId);
     }
@@ -61627,7 +67026,14 @@ class AccountAdvanceData extends DataClass
       amountUsed: Value(amountUsed),
       amountAvailable: Value(amountAvailable),
       amountReturned: Value(amountReturned),
+      usagePercentage: Value(usagePercentage),
+      daysToExpire: daysToExpire == null && nullToAbsent
+          ? const Value.absent()
+          : Value(daysToExpire),
       isExpired: Value(isExpired),
+      advanceUuid: advanceUuid == null && nullToAbsent
+          ? const Value.absent()
+          : Value(advanceUuid),
       collectionSessionId: collectionSessionId == null && nullToAbsent
           ? const Value.absent()
           : Value(collectionSessionId),
@@ -61670,7 +67076,10 @@ class AccountAdvanceData extends DataClass
       amountUsed: serializer.fromJson<double>(json['amountUsed']),
       amountAvailable: serializer.fromJson<double>(json['amountAvailable']),
       amountReturned: serializer.fromJson<double>(json['amountReturned']),
+      usagePercentage: serializer.fromJson<double>(json['usagePercentage']),
+      daysToExpire: serializer.fromJson<int?>(json['daysToExpire']),
       isExpired: serializer.fromJson<bool>(json['isExpired']),
+      advanceUuid: serializer.fromJson<String?>(json['advanceUuid']),
       collectionSessionId: serializer.fromJson<int?>(
         json['collectionSessionId'],
       ),
@@ -61704,7 +67113,10 @@ class AccountAdvanceData extends DataClass
       'amountUsed': serializer.toJson<double>(amountUsed),
       'amountAvailable': serializer.toJson<double>(amountAvailable),
       'amountReturned': serializer.toJson<double>(amountReturned),
+      'usagePercentage': serializer.toJson<double>(usagePercentage),
+      'daysToExpire': serializer.toJson<int?>(daysToExpire),
       'isExpired': serializer.toJson<bool>(isExpired),
+      'advanceUuid': serializer.toJson<String?>(advanceUuid),
       'collectionSessionId': serializer.toJson<int?>(collectionSessionId),
       'collectionConfigId': serializer.toJson<int?>(collectionConfigId),
       'saleOrderId': serializer.toJson<int?>(saleOrderId),
@@ -61734,7 +67146,10 @@ class AccountAdvanceData extends DataClass
     double? amountUsed,
     double? amountAvailable,
     double? amountReturned,
+    double? usagePercentage,
+    Value<int?> daysToExpire = const Value.absent(),
     bool? isExpired,
+    Value<String?> advanceUuid = const Value.absent(),
     Value<int?> collectionSessionId = const Value.absent(),
     Value<int?> collectionConfigId = const Value.absent(),
     Value<int?> saleOrderId = const Value.absent(),
@@ -61763,7 +67178,10 @@ class AccountAdvanceData extends DataClass
     amountUsed: amountUsed ?? this.amountUsed,
     amountAvailable: amountAvailable ?? this.amountAvailable,
     amountReturned: amountReturned ?? this.amountReturned,
+    usagePercentage: usagePercentage ?? this.usagePercentage,
+    daysToExpire: daysToExpire.present ? daysToExpire.value : this.daysToExpire,
     isExpired: isExpired ?? this.isExpired,
+    advanceUuid: advanceUuid.present ? advanceUuid.value : this.advanceUuid,
     collectionSessionId: collectionSessionId.present
         ? collectionSessionId.value
         : this.collectionSessionId,
@@ -61816,7 +67234,16 @@ class AccountAdvanceData extends DataClass
       amountReturned: data.amountReturned.present
           ? data.amountReturned.value
           : this.amountReturned,
+      usagePercentage: data.usagePercentage.present
+          ? data.usagePercentage.value
+          : this.usagePercentage,
+      daysToExpire: data.daysToExpire.present
+          ? data.daysToExpire.value
+          : this.daysToExpire,
       isExpired: data.isExpired.present ? data.isExpired.value : this.isExpired,
+      advanceUuid: data.advanceUuid.present
+          ? data.advanceUuid.value
+          : this.advanceUuid,
       collectionSessionId: data.collectionSessionId.present
           ? data.collectionSessionId.value
           : this.collectionSessionId,
@@ -61854,7 +67281,10 @@ class AccountAdvanceData extends DataClass
           ..write('amountUsed: $amountUsed, ')
           ..write('amountAvailable: $amountAvailable, ')
           ..write('amountReturned: $amountReturned, ')
+          ..write('usagePercentage: $usagePercentage, ')
+          ..write('daysToExpire: $daysToExpire, ')
           ..write('isExpired: $isExpired, ')
+          ..write('advanceUuid: $advanceUuid, ')
           ..write('collectionSessionId: $collectionSessionId, ')
           ..write('collectionConfigId: $collectionConfigId, ')
           ..write('saleOrderId: $saleOrderId, ')
@@ -61886,7 +67316,10 @@ class AccountAdvanceData extends DataClass
     amountUsed,
     amountAvailable,
     amountReturned,
+    usagePercentage,
+    daysToExpire,
     isExpired,
+    advanceUuid,
     collectionSessionId,
     collectionConfigId,
     saleOrderId,
@@ -61917,7 +67350,10 @@ class AccountAdvanceData extends DataClass
           other.amountUsed == this.amountUsed &&
           other.amountAvailable == this.amountAvailable &&
           other.amountReturned == this.amountReturned &&
+          other.usagePercentage == this.usagePercentage &&
+          other.daysToExpire == this.daysToExpire &&
           other.isExpired == this.isExpired &&
+          other.advanceUuid == this.advanceUuid &&
           other.collectionSessionId == this.collectionSessionId &&
           other.collectionConfigId == this.collectionConfigId &&
           other.saleOrderId == this.saleOrderId &&
@@ -61946,7 +67382,10 @@ class AccountAdvanceCompanion extends UpdateCompanion<AccountAdvanceData> {
   final Value<double> amountUsed;
   final Value<double> amountAvailable;
   final Value<double> amountReturned;
+  final Value<double> usagePercentage;
+  final Value<int?> daysToExpire;
   final Value<bool> isExpired;
+  final Value<String?> advanceUuid;
   final Value<int?> collectionSessionId;
   final Value<int?> collectionConfigId;
   final Value<int?> saleOrderId;
@@ -61973,7 +67412,10 @@ class AccountAdvanceCompanion extends UpdateCompanion<AccountAdvanceData> {
     this.amountUsed = const Value.absent(),
     this.amountAvailable = const Value.absent(),
     this.amountReturned = const Value.absent(),
+    this.usagePercentage = const Value.absent(),
+    this.daysToExpire = const Value.absent(),
     this.isExpired = const Value.absent(),
+    this.advanceUuid = const Value.absent(),
     this.collectionSessionId = const Value.absent(),
     this.collectionConfigId = const Value.absent(),
     this.saleOrderId = const Value.absent(),
@@ -62001,7 +67443,10 @@ class AccountAdvanceCompanion extends UpdateCompanion<AccountAdvanceData> {
     this.amountUsed = const Value.absent(),
     this.amountAvailable = const Value.absent(),
     this.amountReturned = const Value.absent(),
+    this.usagePercentage = const Value.absent(),
+    this.daysToExpire = const Value.absent(),
     this.isExpired = const Value.absent(),
+    this.advanceUuid = const Value.absent(),
     this.collectionSessionId = const Value.absent(),
     this.collectionConfigId = const Value.absent(),
     this.saleOrderId = const Value.absent(),
@@ -62035,7 +67480,10 @@ class AccountAdvanceCompanion extends UpdateCompanion<AccountAdvanceData> {
     Expression<double>? amountUsed,
     Expression<double>? amountAvailable,
     Expression<double>? amountReturned,
+    Expression<double>? usagePercentage,
+    Expression<int>? daysToExpire,
     Expression<bool>? isExpired,
+    Expression<String>? advanceUuid,
     Expression<int>? collectionSessionId,
     Expression<int>? collectionConfigId,
     Expression<int>? saleOrderId,
@@ -62063,7 +67511,10 @@ class AccountAdvanceCompanion extends UpdateCompanion<AccountAdvanceData> {
       if (amountUsed != null) 'amount_used': amountUsed,
       if (amountAvailable != null) 'amount_available': amountAvailable,
       if (amountReturned != null) 'amount_returned': amountReturned,
+      if (usagePercentage != null) 'usage_percentage': usagePercentage,
+      if (daysToExpire != null) 'days_to_expire': daysToExpire,
       if (isExpired != null) 'is_expired': isExpired,
+      if (advanceUuid != null) 'advance_uuid': advanceUuid,
       if (collectionSessionId != null)
         'collection_session_id': collectionSessionId,
       if (collectionConfigId != null)
@@ -62095,7 +67546,10 @@ class AccountAdvanceCompanion extends UpdateCompanion<AccountAdvanceData> {
     Value<double>? amountUsed,
     Value<double>? amountAvailable,
     Value<double>? amountReturned,
+    Value<double>? usagePercentage,
+    Value<int?>? daysToExpire,
     Value<bool>? isExpired,
+    Value<String?>? advanceUuid,
     Value<int?>? collectionSessionId,
     Value<int?>? collectionConfigId,
     Value<int?>? saleOrderId,
@@ -62123,7 +67577,10 @@ class AccountAdvanceCompanion extends UpdateCompanion<AccountAdvanceData> {
       amountUsed: amountUsed ?? this.amountUsed,
       amountAvailable: amountAvailable ?? this.amountAvailable,
       amountReturned: amountReturned ?? this.amountReturned,
+      usagePercentage: usagePercentage ?? this.usagePercentage,
+      daysToExpire: daysToExpire ?? this.daysToExpire,
       isExpired: isExpired ?? this.isExpired,
+      advanceUuid: advanceUuid ?? this.advanceUuid,
       collectionSessionId: collectionSessionId ?? this.collectionSessionId,
       collectionConfigId: collectionConfigId ?? this.collectionConfigId,
       saleOrderId: saleOrderId ?? this.saleOrderId,
@@ -62197,8 +67654,17 @@ class AccountAdvanceCompanion extends UpdateCompanion<AccountAdvanceData> {
     if (amountReturned.present) {
       map['amount_returned'] = Variable<double>(amountReturned.value);
     }
+    if (usagePercentage.present) {
+      map['usage_percentage'] = Variable<double>(usagePercentage.value);
+    }
+    if (daysToExpire.present) {
+      map['days_to_expire'] = Variable<int>(daysToExpire.value);
+    }
     if (isExpired.present) {
       map['is_expired'] = Variable<bool>(isExpired.value);
+    }
+    if (advanceUuid.present) {
+      map['advance_uuid'] = Variable<String>(advanceUuid.value);
     }
     if (collectionSessionId.present) {
       map['collection_session_id'] = Variable<int>(collectionSessionId.value);
@@ -62239,10 +67705,1139 @@ class AccountAdvanceCompanion extends UpdateCompanion<AccountAdvanceData> {
           ..write('amountUsed: $amountUsed, ')
           ..write('amountAvailable: $amountAvailable, ')
           ..write('amountReturned: $amountReturned, ')
+          ..write('usagePercentage: $usagePercentage, ')
+          ..write('daysToExpire: $daysToExpire, ')
           ..write('isExpired: $isExpired, ')
+          ..write('advanceUuid: $advanceUuid, ')
           ..write('collectionSessionId: $collectionSessionId, ')
           ..write('collectionConfigId: $collectionConfigId, ')
           ..write('saleOrderId: $saleOrderId, ')
+          ..write('writeDate: $writeDate')
+          ..write(')'))
+        .toString();
+  }
+}
+
+class $AdvanceLinesTableTable extends AdvanceLinesTable
+    with TableInfo<$AdvanceLinesTableTable, AdvanceLinesTableData> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $AdvanceLinesTableTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<int> id = GeneratedColumn<int>(
+    'id',
+    aliasedName,
+    false,
+    hasAutoIncrement: true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'PRIMARY KEY AUTOINCREMENT',
+    ),
+  );
+  static const VerificationMeta _odooIdMeta = const VerificationMeta('odooId');
+  @override
+  late final GeneratedColumn<int> odooId = GeneratedColumn<int>(
+    'odoo_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+    defaultConstraints: GeneratedColumn.constraintIsAlways('UNIQUE'),
+  );
+  static const VerificationMeta _lineUuidMeta = const VerificationMeta(
+    'lineUuid',
+  );
+  @override
+  late final GeneratedColumn<String> lineUuid = GeneratedColumn<String>(
+    'line_uuid',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _journalIdMeta = const VerificationMeta(
+    'journalId',
+  );
+  @override
+  late final GeneratedColumn<int> journalId = GeneratedColumn<int>(
+    'journal_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _journalNameMeta = const VerificationMeta(
+    'journalName',
+  );
+  @override
+  late final GeneratedColumn<String> journalName = GeneratedColumn<String>(
+    'journal_name',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _journalTypeMeta = const VerificationMeta(
+    'journalType',
+  );
+  @override
+  late final GeneratedColumn<String> journalType = GeneratedColumn<String>(
+    'journal_type',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _advanceMethodLineIdMeta =
+      const VerificationMeta('advanceMethodLineId');
+  @override
+  late final GeneratedColumn<int> advanceMethodLineId = GeneratedColumn<int>(
+    'advance_method_line_id',
+    aliasedName,
+    true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _advanceMethodNameMeta = const VerificationMeta(
+    'advanceMethodName',
+  );
+  @override
+  late final GeneratedColumn<String> advanceMethodName =
+      GeneratedColumn<String>(
+        'advance_method_name',
+        aliasedName,
+        true,
+        type: DriftSqlType.string,
+        requiredDuringInsert: false,
+      );
+  static const VerificationMeta _amountMeta = const VerificationMeta('amount');
+  @override
+  late final GeneratedColumn<double> amount = GeneratedColumn<double>(
+    'amount',
+    aliasedName,
+    false,
+    type: DriftSqlType.double,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(0.0),
+  );
+  static const VerificationMeta _nroDocumentMeta = const VerificationMeta(
+    'nroDocument',
+  );
+  @override
+  late final GeneratedColumn<String> nroDocument = GeneratedColumn<String>(
+    'nro_document',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _dateDocumentMeta = const VerificationMeta(
+    'dateDocument',
+  );
+  @override
+  late final GeneratedColumn<DateTime> dateDocument = GeneratedColumn<DateTime>(
+    'date_document',
+    aliasedName,
+    true,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _partnerBankIdMeta = const VerificationMeta(
+    'partnerBankId',
+  );
+  @override
+  late final GeneratedColumn<int> partnerBankId = GeneratedColumn<int>(
+    'partner_bank_id',
+    aliasedName,
+    true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _partnerBankNameMeta = const VerificationMeta(
+    'partnerBankName',
+  );
+  @override
+  late final GeneratedColumn<String> partnerBankName = GeneratedColumn<String>(
+    'partner_bank_name',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _checkDueDateMeta = const VerificationMeta(
+    'checkDueDate',
+  );
+  @override
+  late final GeneratedColumn<DateTime> checkDueDate = GeneratedColumn<DateTime>(
+    'check_due_date',
+    aliasedName,
+    true,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _cardBrandIdMeta = const VerificationMeta(
+    'cardBrandId',
+  );
+  @override
+  late final GeneratedColumn<int> cardBrandId = GeneratedColumn<int>(
+    'card_brand_id',
+    aliasedName,
+    true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _cardBrandNameMeta = const VerificationMeta(
+    'cardBrandName',
+  );
+  @override
+  late final GeneratedColumn<String> cardBrandName = GeneratedColumn<String>(
+    'card_brand_name',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _cardDeadlineIdMeta = const VerificationMeta(
+    'cardDeadlineId',
+  );
+  @override
+  late final GeneratedColumn<int> cardDeadlineId = GeneratedColumn<int>(
+    'card_deadline_id',
+    aliasedName,
+    true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _cardDeadlineNameMeta = const VerificationMeta(
+    'cardDeadlineName',
+  );
+  @override
+  late final GeneratedColumn<String> cardDeadlineName = GeneratedColumn<String>(
+    'card_deadline_name',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _writeDateMeta = const VerificationMeta(
+    'writeDate',
+  );
+  @override
+  late final GeneratedColumn<DateTime> writeDate = GeneratedColumn<DateTime>(
+    'write_date',
+    aliasedName,
+    true,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: false,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    id,
+    odooId,
+    lineUuid,
+    journalId,
+    journalName,
+    journalType,
+    advanceMethodLineId,
+    advanceMethodName,
+    amount,
+    nroDocument,
+    dateDocument,
+    partnerBankId,
+    partnerBankName,
+    checkDueDate,
+    cardBrandId,
+    cardBrandName,
+    cardDeadlineId,
+    cardDeadlineName,
+    writeDate,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'advance_lines';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<AdvanceLinesTableData> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    }
+    if (data.containsKey('odoo_id')) {
+      context.handle(
+        _odooIdMeta,
+        odooId.isAcceptableOrUnknown(data['odoo_id']!, _odooIdMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_odooIdMeta);
+    }
+    if (data.containsKey('line_uuid')) {
+      context.handle(
+        _lineUuidMeta,
+        lineUuid.isAcceptableOrUnknown(data['line_uuid']!, _lineUuidMeta),
+      );
+    }
+    if (data.containsKey('journal_id')) {
+      context.handle(
+        _journalIdMeta,
+        journalId.isAcceptableOrUnknown(data['journal_id']!, _journalIdMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_journalIdMeta);
+    }
+    if (data.containsKey('journal_name')) {
+      context.handle(
+        _journalNameMeta,
+        journalName.isAcceptableOrUnknown(
+          data['journal_name']!,
+          _journalNameMeta,
+        ),
+      );
+    }
+    if (data.containsKey('journal_type')) {
+      context.handle(
+        _journalTypeMeta,
+        journalType.isAcceptableOrUnknown(
+          data['journal_type']!,
+          _journalTypeMeta,
+        ),
+      );
+    }
+    if (data.containsKey('advance_method_line_id')) {
+      context.handle(
+        _advanceMethodLineIdMeta,
+        advanceMethodLineId.isAcceptableOrUnknown(
+          data['advance_method_line_id']!,
+          _advanceMethodLineIdMeta,
+        ),
+      );
+    }
+    if (data.containsKey('advance_method_name')) {
+      context.handle(
+        _advanceMethodNameMeta,
+        advanceMethodName.isAcceptableOrUnknown(
+          data['advance_method_name']!,
+          _advanceMethodNameMeta,
+        ),
+      );
+    }
+    if (data.containsKey('amount')) {
+      context.handle(
+        _amountMeta,
+        amount.isAcceptableOrUnknown(data['amount']!, _amountMeta),
+      );
+    }
+    if (data.containsKey('nro_document')) {
+      context.handle(
+        _nroDocumentMeta,
+        nroDocument.isAcceptableOrUnknown(
+          data['nro_document']!,
+          _nroDocumentMeta,
+        ),
+      );
+    }
+    if (data.containsKey('date_document')) {
+      context.handle(
+        _dateDocumentMeta,
+        dateDocument.isAcceptableOrUnknown(
+          data['date_document']!,
+          _dateDocumentMeta,
+        ),
+      );
+    }
+    if (data.containsKey('partner_bank_id')) {
+      context.handle(
+        _partnerBankIdMeta,
+        partnerBankId.isAcceptableOrUnknown(
+          data['partner_bank_id']!,
+          _partnerBankIdMeta,
+        ),
+      );
+    }
+    if (data.containsKey('partner_bank_name')) {
+      context.handle(
+        _partnerBankNameMeta,
+        partnerBankName.isAcceptableOrUnknown(
+          data['partner_bank_name']!,
+          _partnerBankNameMeta,
+        ),
+      );
+    }
+    if (data.containsKey('check_due_date')) {
+      context.handle(
+        _checkDueDateMeta,
+        checkDueDate.isAcceptableOrUnknown(
+          data['check_due_date']!,
+          _checkDueDateMeta,
+        ),
+      );
+    }
+    if (data.containsKey('card_brand_id')) {
+      context.handle(
+        _cardBrandIdMeta,
+        cardBrandId.isAcceptableOrUnknown(
+          data['card_brand_id']!,
+          _cardBrandIdMeta,
+        ),
+      );
+    }
+    if (data.containsKey('card_brand_name')) {
+      context.handle(
+        _cardBrandNameMeta,
+        cardBrandName.isAcceptableOrUnknown(
+          data['card_brand_name']!,
+          _cardBrandNameMeta,
+        ),
+      );
+    }
+    if (data.containsKey('card_deadline_id')) {
+      context.handle(
+        _cardDeadlineIdMeta,
+        cardDeadlineId.isAcceptableOrUnknown(
+          data['card_deadline_id']!,
+          _cardDeadlineIdMeta,
+        ),
+      );
+    }
+    if (data.containsKey('card_deadline_name')) {
+      context.handle(
+        _cardDeadlineNameMeta,
+        cardDeadlineName.isAcceptableOrUnknown(
+          data['card_deadline_name']!,
+          _cardDeadlineNameMeta,
+        ),
+      );
+    }
+    if (data.containsKey('write_date')) {
+      context.handle(
+        _writeDateMeta,
+        writeDate.isAcceptableOrUnknown(data['write_date']!, _writeDateMeta),
+      );
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  AdvanceLinesTableData map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return AdvanceLinesTableData(
+      id: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}id'],
+      )!,
+      odooId: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}odoo_id'],
+      )!,
+      lineUuid: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}line_uuid'],
+      ),
+      journalId: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}journal_id'],
+      )!,
+      journalName: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}journal_name'],
+      ),
+      journalType: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}journal_type'],
+      ),
+      advanceMethodLineId: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}advance_method_line_id'],
+      ),
+      advanceMethodName: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}advance_method_name'],
+      ),
+      amount: attachedDatabase.typeMapping.read(
+        DriftSqlType.double,
+        data['${effectivePrefix}amount'],
+      )!,
+      nroDocument: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}nro_document'],
+      ),
+      dateDocument: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}date_document'],
+      ),
+      partnerBankId: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}partner_bank_id'],
+      ),
+      partnerBankName: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}partner_bank_name'],
+      ),
+      checkDueDate: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}check_due_date'],
+      ),
+      cardBrandId: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}card_brand_id'],
+      ),
+      cardBrandName: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}card_brand_name'],
+      ),
+      cardDeadlineId: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}card_deadline_id'],
+      ),
+      cardDeadlineName: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}card_deadline_name'],
+      ),
+      writeDate: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}write_date'],
+      ),
+    );
+  }
+
+  @override
+  $AdvanceLinesTableTable createAlias(String alias) {
+    return $AdvanceLinesTableTable(attachedDatabase, alias);
+  }
+}
+
+class AdvanceLinesTableData extends DataClass
+    implements Insertable<AdvanceLinesTableData> {
+  final int id;
+  final int odooId;
+  final String? lineUuid;
+  final int journalId;
+  final String? journalName;
+  final String? journalType;
+  final int? advanceMethodLineId;
+  final String? advanceMethodName;
+  final double amount;
+  final String? nroDocument;
+  final DateTime? dateDocument;
+  final int? partnerBankId;
+  final String? partnerBankName;
+  final DateTime? checkDueDate;
+  final int? cardBrandId;
+  final String? cardBrandName;
+  final int? cardDeadlineId;
+  final String? cardDeadlineName;
+  final DateTime? writeDate;
+  const AdvanceLinesTableData({
+    required this.id,
+    required this.odooId,
+    this.lineUuid,
+    required this.journalId,
+    this.journalName,
+    this.journalType,
+    this.advanceMethodLineId,
+    this.advanceMethodName,
+    required this.amount,
+    this.nroDocument,
+    this.dateDocument,
+    this.partnerBankId,
+    this.partnerBankName,
+    this.checkDueDate,
+    this.cardBrandId,
+    this.cardBrandName,
+    this.cardDeadlineId,
+    this.cardDeadlineName,
+    this.writeDate,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<int>(id);
+    map['odoo_id'] = Variable<int>(odooId);
+    if (!nullToAbsent || lineUuid != null) {
+      map['line_uuid'] = Variable<String>(lineUuid);
+    }
+    map['journal_id'] = Variable<int>(journalId);
+    if (!nullToAbsent || journalName != null) {
+      map['journal_name'] = Variable<String>(journalName);
+    }
+    if (!nullToAbsent || journalType != null) {
+      map['journal_type'] = Variable<String>(journalType);
+    }
+    if (!nullToAbsent || advanceMethodLineId != null) {
+      map['advance_method_line_id'] = Variable<int>(advanceMethodLineId);
+    }
+    if (!nullToAbsent || advanceMethodName != null) {
+      map['advance_method_name'] = Variable<String>(advanceMethodName);
+    }
+    map['amount'] = Variable<double>(amount);
+    if (!nullToAbsent || nroDocument != null) {
+      map['nro_document'] = Variable<String>(nroDocument);
+    }
+    if (!nullToAbsent || dateDocument != null) {
+      map['date_document'] = Variable<DateTime>(dateDocument);
+    }
+    if (!nullToAbsent || partnerBankId != null) {
+      map['partner_bank_id'] = Variable<int>(partnerBankId);
+    }
+    if (!nullToAbsent || partnerBankName != null) {
+      map['partner_bank_name'] = Variable<String>(partnerBankName);
+    }
+    if (!nullToAbsent || checkDueDate != null) {
+      map['check_due_date'] = Variable<DateTime>(checkDueDate);
+    }
+    if (!nullToAbsent || cardBrandId != null) {
+      map['card_brand_id'] = Variable<int>(cardBrandId);
+    }
+    if (!nullToAbsent || cardBrandName != null) {
+      map['card_brand_name'] = Variable<String>(cardBrandName);
+    }
+    if (!nullToAbsent || cardDeadlineId != null) {
+      map['card_deadline_id'] = Variable<int>(cardDeadlineId);
+    }
+    if (!nullToAbsent || cardDeadlineName != null) {
+      map['card_deadline_name'] = Variable<String>(cardDeadlineName);
+    }
+    if (!nullToAbsent || writeDate != null) {
+      map['write_date'] = Variable<DateTime>(writeDate);
+    }
+    return map;
+  }
+
+  AdvanceLinesTableCompanion toCompanion(bool nullToAbsent) {
+    return AdvanceLinesTableCompanion(
+      id: Value(id),
+      odooId: Value(odooId),
+      lineUuid: lineUuid == null && nullToAbsent
+          ? const Value.absent()
+          : Value(lineUuid),
+      journalId: Value(journalId),
+      journalName: journalName == null && nullToAbsent
+          ? const Value.absent()
+          : Value(journalName),
+      journalType: journalType == null && nullToAbsent
+          ? const Value.absent()
+          : Value(journalType),
+      advanceMethodLineId: advanceMethodLineId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(advanceMethodLineId),
+      advanceMethodName: advanceMethodName == null && nullToAbsent
+          ? const Value.absent()
+          : Value(advanceMethodName),
+      amount: Value(amount),
+      nroDocument: nroDocument == null && nullToAbsent
+          ? const Value.absent()
+          : Value(nroDocument),
+      dateDocument: dateDocument == null && nullToAbsent
+          ? const Value.absent()
+          : Value(dateDocument),
+      partnerBankId: partnerBankId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(partnerBankId),
+      partnerBankName: partnerBankName == null && nullToAbsent
+          ? const Value.absent()
+          : Value(partnerBankName),
+      checkDueDate: checkDueDate == null && nullToAbsent
+          ? const Value.absent()
+          : Value(checkDueDate),
+      cardBrandId: cardBrandId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(cardBrandId),
+      cardBrandName: cardBrandName == null && nullToAbsent
+          ? const Value.absent()
+          : Value(cardBrandName),
+      cardDeadlineId: cardDeadlineId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(cardDeadlineId),
+      cardDeadlineName: cardDeadlineName == null && nullToAbsent
+          ? const Value.absent()
+          : Value(cardDeadlineName),
+      writeDate: writeDate == null && nullToAbsent
+          ? const Value.absent()
+          : Value(writeDate),
+    );
+  }
+
+  factory AdvanceLinesTableData.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return AdvanceLinesTableData(
+      id: serializer.fromJson<int>(json['id']),
+      odooId: serializer.fromJson<int>(json['odooId']),
+      lineUuid: serializer.fromJson<String?>(json['lineUuid']),
+      journalId: serializer.fromJson<int>(json['journalId']),
+      journalName: serializer.fromJson<String?>(json['journalName']),
+      journalType: serializer.fromJson<String?>(json['journalType']),
+      advanceMethodLineId: serializer.fromJson<int?>(
+        json['advanceMethodLineId'],
+      ),
+      advanceMethodName: serializer.fromJson<String?>(
+        json['advanceMethodName'],
+      ),
+      amount: serializer.fromJson<double>(json['amount']),
+      nroDocument: serializer.fromJson<String?>(json['nroDocument']),
+      dateDocument: serializer.fromJson<DateTime?>(json['dateDocument']),
+      partnerBankId: serializer.fromJson<int?>(json['partnerBankId']),
+      partnerBankName: serializer.fromJson<String?>(json['partnerBankName']),
+      checkDueDate: serializer.fromJson<DateTime?>(json['checkDueDate']),
+      cardBrandId: serializer.fromJson<int?>(json['cardBrandId']),
+      cardBrandName: serializer.fromJson<String?>(json['cardBrandName']),
+      cardDeadlineId: serializer.fromJson<int?>(json['cardDeadlineId']),
+      cardDeadlineName: serializer.fromJson<String?>(json['cardDeadlineName']),
+      writeDate: serializer.fromJson<DateTime?>(json['writeDate']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<int>(id),
+      'odooId': serializer.toJson<int>(odooId),
+      'lineUuid': serializer.toJson<String?>(lineUuid),
+      'journalId': serializer.toJson<int>(journalId),
+      'journalName': serializer.toJson<String?>(journalName),
+      'journalType': serializer.toJson<String?>(journalType),
+      'advanceMethodLineId': serializer.toJson<int?>(advanceMethodLineId),
+      'advanceMethodName': serializer.toJson<String?>(advanceMethodName),
+      'amount': serializer.toJson<double>(amount),
+      'nroDocument': serializer.toJson<String?>(nroDocument),
+      'dateDocument': serializer.toJson<DateTime?>(dateDocument),
+      'partnerBankId': serializer.toJson<int?>(partnerBankId),
+      'partnerBankName': serializer.toJson<String?>(partnerBankName),
+      'checkDueDate': serializer.toJson<DateTime?>(checkDueDate),
+      'cardBrandId': serializer.toJson<int?>(cardBrandId),
+      'cardBrandName': serializer.toJson<String?>(cardBrandName),
+      'cardDeadlineId': serializer.toJson<int?>(cardDeadlineId),
+      'cardDeadlineName': serializer.toJson<String?>(cardDeadlineName),
+      'writeDate': serializer.toJson<DateTime?>(writeDate),
+    };
+  }
+
+  AdvanceLinesTableData copyWith({
+    int? id,
+    int? odooId,
+    Value<String?> lineUuid = const Value.absent(),
+    int? journalId,
+    Value<String?> journalName = const Value.absent(),
+    Value<String?> journalType = const Value.absent(),
+    Value<int?> advanceMethodLineId = const Value.absent(),
+    Value<String?> advanceMethodName = const Value.absent(),
+    double? amount,
+    Value<String?> nroDocument = const Value.absent(),
+    Value<DateTime?> dateDocument = const Value.absent(),
+    Value<int?> partnerBankId = const Value.absent(),
+    Value<String?> partnerBankName = const Value.absent(),
+    Value<DateTime?> checkDueDate = const Value.absent(),
+    Value<int?> cardBrandId = const Value.absent(),
+    Value<String?> cardBrandName = const Value.absent(),
+    Value<int?> cardDeadlineId = const Value.absent(),
+    Value<String?> cardDeadlineName = const Value.absent(),
+    Value<DateTime?> writeDate = const Value.absent(),
+  }) => AdvanceLinesTableData(
+    id: id ?? this.id,
+    odooId: odooId ?? this.odooId,
+    lineUuid: lineUuid.present ? lineUuid.value : this.lineUuid,
+    journalId: journalId ?? this.journalId,
+    journalName: journalName.present ? journalName.value : this.journalName,
+    journalType: journalType.present ? journalType.value : this.journalType,
+    advanceMethodLineId: advanceMethodLineId.present
+        ? advanceMethodLineId.value
+        : this.advanceMethodLineId,
+    advanceMethodName: advanceMethodName.present
+        ? advanceMethodName.value
+        : this.advanceMethodName,
+    amount: amount ?? this.amount,
+    nroDocument: nroDocument.present ? nroDocument.value : this.nroDocument,
+    dateDocument: dateDocument.present ? dateDocument.value : this.dateDocument,
+    partnerBankId: partnerBankId.present
+        ? partnerBankId.value
+        : this.partnerBankId,
+    partnerBankName: partnerBankName.present
+        ? partnerBankName.value
+        : this.partnerBankName,
+    checkDueDate: checkDueDate.present ? checkDueDate.value : this.checkDueDate,
+    cardBrandId: cardBrandId.present ? cardBrandId.value : this.cardBrandId,
+    cardBrandName: cardBrandName.present
+        ? cardBrandName.value
+        : this.cardBrandName,
+    cardDeadlineId: cardDeadlineId.present
+        ? cardDeadlineId.value
+        : this.cardDeadlineId,
+    cardDeadlineName: cardDeadlineName.present
+        ? cardDeadlineName.value
+        : this.cardDeadlineName,
+    writeDate: writeDate.present ? writeDate.value : this.writeDate,
+  );
+  AdvanceLinesTableData copyWithCompanion(AdvanceLinesTableCompanion data) {
+    return AdvanceLinesTableData(
+      id: data.id.present ? data.id.value : this.id,
+      odooId: data.odooId.present ? data.odooId.value : this.odooId,
+      lineUuid: data.lineUuid.present ? data.lineUuid.value : this.lineUuid,
+      journalId: data.journalId.present ? data.journalId.value : this.journalId,
+      journalName: data.journalName.present
+          ? data.journalName.value
+          : this.journalName,
+      journalType: data.journalType.present
+          ? data.journalType.value
+          : this.journalType,
+      advanceMethodLineId: data.advanceMethodLineId.present
+          ? data.advanceMethodLineId.value
+          : this.advanceMethodLineId,
+      advanceMethodName: data.advanceMethodName.present
+          ? data.advanceMethodName.value
+          : this.advanceMethodName,
+      amount: data.amount.present ? data.amount.value : this.amount,
+      nroDocument: data.nroDocument.present
+          ? data.nroDocument.value
+          : this.nroDocument,
+      dateDocument: data.dateDocument.present
+          ? data.dateDocument.value
+          : this.dateDocument,
+      partnerBankId: data.partnerBankId.present
+          ? data.partnerBankId.value
+          : this.partnerBankId,
+      partnerBankName: data.partnerBankName.present
+          ? data.partnerBankName.value
+          : this.partnerBankName,
+      checkDueDate: data.checkDueDate.present
+          ? data.checkDueDate.value
+          : this.checkDueDate,
+      cardBrandId: data.cardBrandId.present
+          ? data.cardBrandId.value
+          : this.cardBrandId,
+      cardBrandName: data.cardBrandName.present
+          ? data.cardBrandName.value
+          : this.cardBrandName,
+      cardDeadlineId: data.cardDeadlineId.present
+          ? data.cardDeadlineId.value
+          : this.cardDeadlineId,
+      cardDeadlineName: data.cardDeadlineName.present
+          ? data.cardDeadlineName.value
+          : this.cardDeadlineName,
+      writeDate: data.writeDate.present ? data.writeDate.value : this.writeDate,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('AdvanceLinesTableData(')
+          ..write('id: $id, ')
+          ..write('odooId: $odooId, ')
+          ..write('lineUuid: $lineUuid, ')
+          ..write('journalId: $journalId, ')
+          ..write('journalName: $journalName, ')
+          ..write('journalType: $journalType, ')
+          ..write('advanceMethodLineId: $advanceMethodLineId, ')
+          ..write('advanceMethodName: $advanceMethodName, ')
+          ..write('amount: $amount, ')
+          ..write('nroDocument: $nroDocument, ')
+          ..write('dateDocument: $dateDocument, ')
+          ..write('partnerBankId: $partnerBankId, ')
+          ..write('partnerBankName: $partnerBankName, ')
+          ..write('checkDueDate: $checkDueDate, ')
+          ..write('cardBrandId: $cardBrandId, ')
+          ..write('cardBrandName: $cardBrandName, ')
+          ..write('cardDeadlineId: $cardDeadlineId, ')
+          ..write('cardDeadlineName: $cardDeadlineName, ')
+          ..write('writeDate: $writeDate')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(
+    id,
+    odooId,
+    lineUuid,
+    journalId,
+    journalName,
+    journalType,
+    advanceMethodLineId,
+    advanceMethodName,
+    amount,
+    nroDocument,
+    dateDocument,
+    partnerBankId,
+    partnerBankName,
+    checkDueDate,
+    cardBrandId,
+    cardBrandName,
+    cardDeadlineId,
+    cardDeadlineName,
+    writeDate,
+  );
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is AdvanceLinesTableData &&
+          other.id == this.id &&
+          other.odooId == this.odooId &&
+          other.lineUuid == this.lineUuid &&
+          other.journalId == this.journalId &&
+          other.journalName == this.journalName &&
+          other.journalType == this.journalType &&
+          other.advanceMethodLineId == this.advanceMethodLineId &&
+          other.advanceMethodName == this.advanceMethodName &&
+          other.amount == this.amount &&
+          other.nroDocument == this.nroDocument &&
+          other.dateDocument == this.dateDocument &&
+          other.partnerBankId == this.partnerBankId &&
+          other.partnerBankName == this.partnerBankName &&
+          other.checkDueDate == this.checkDueDate &&
+          other.cardBrandId == this.cardBrandId &&
+          other.cardBrandName == this.cardBrandName &&
+          other.cardDeadlineId == this.cardDeadlineId &&
+          other.cardDeadlineName == this.cardDeadlineName &&
+          other.writeDate == this.writeDate);
+}
+
+class AdvanceLinesTableCompanion
+    extends UpdateCompanion<AdvanceLinesTableData> {
+  final Value<int> id;
+  final Value<int> odooId;
+  final Value<String?> lineUuid;
+  final Value<int> journalId;
+  final Value<String?> journalName;
+  final Value<String?> journalType;
+  final Value<int?> advanceMethodLineId;
+  final Value<String?> advanceMethodName;
+  final Value<double> amount;
+  final Value<String?> nroDocument;
+  final Value<DateTime?> dateDocument;
+  final Value<int?> partnerBankId;
+  final Value<String?> partnerBankName;
+  final Value<DateTime?> checkDueDate;
+  final Value<int?> cardBrandId;
+  final Value<String?> cardBrandName;
+  final Value<int?> cardDeadlineId;
+  final Value<String?> cardDeadlineName;
+  final Value<DateTime?> writeDate;
+  const AdvanceLinesTableCompanion({
+    this.id = const Value.absent(),
+    this.odooId = const Value.absent(),
+    this.lineUuid = const Value.absent(),
+    this.journalId = const Value.absent(),
+    this.journalName = const Value.absent(),
+    this.journalType = const Value.absent(),
+    this.advanceMethodLineId = const Value.absent(),
+    this.advanceMethodName = const Value.absent(),
+    this.amount = const Value.absent(),
+    this.nroDocument = const Value.absent(),
+    this.dateDocument = const Value.absent(),
+    this.partnerBankId = const Value.absent(),
+    this.partnerBankName = const Value.absent(),
+    this.checkDueDate = const Value.absent(),
+    this.cardBrandId = const Value.absent(),
+    this.cardBrandName = const Value.absent(),
+    this.cardDeadlineId = const Value.absent(),
+    this.cardDeadlineName = const Value.absent(),
+    this.writeDate = const Value.absent(),
+  });
+  AdvanceLinesTableCompanion.insert({
+    this.id = const Value.absent(),
+    required int odooId,
+    this.lineUuid = const Value.absent(),
+    required int journalId,
+    this.journalName = const Value.absent(),
+    this.journalType = const Value.absent(),
+    this.advanceMethodLineId = const Value.absent(),
+    this.advanceMethodName = const Value.absent(),
+    this.amount = const Value.absent(),
+    this.nroDocument = const Value.absent(),
+    this.dateDocument = const Value.absent(),
+    this.partnerBankId = const Value.absent(),
+    this.partnerBankName = const Value.absent(),
+    this.checkDueDate = const Value.absent(),
+    this.cardBrandId = const Value.absent(),
+    this.cardBrandName = const Value.absent(),
+    this.cardDeadlineId = const Value.absent(),
+    this.cardDeadlineName = const Value.absent(),
+    this.writeDate = const Value.absent(),
+  }) : odooId = Value(odooId),
+       journalId = Value(journalId);
+  static Insertable<AdvanceLinesTableData> custom({
+    Expression<int>? id,
+    Expression<int>? odooId,
+    Expression<String>? lineUuid,
+    Expression<int>? journalId,
+    Expression<String>? journalName,
+    Expression<String>? journalType,
+    Expression<int>? advanceMethodLineId,
+    Expression<String>? advanceMethodName,
+    Expression<double>? amount,
+    Expression<String>? nroDocument,
+    Expression<DateTime>? dateDocument,
+    Expression<int>? partnerBankId,
+    Expression<String>? partnerBankName,
+    Expression<DateTime>? checkDueDate,
+    Expression<int>? cardBrandId,
+    Expression<String>? cardBrandName,
+    Expression<int>? cardDeadlineId,
+    Expression<String>? cardDeadlineName,
+    Expression<DateTime>? writeDate,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (odooId != null) 'odoo_id': odooId,
+      if (lineUuid != null) 'line_uuid': lineUuid,
+      if (journalId != null) 'journal_id': journalId,
+      if (journalName != null) 'journal_name': journalName,
+      if (journalType != null) 'journal_type': journalType,
+      if (advanceMethodLineId != null)
+        'advance_method_line_id': advanceMethodLineId,
+      if (advanceMethodName != null) 'advance_method_name': advanceMethodName,
+      if (amount != null) 'amount': amount,
+      if (nroDocument != null) 'nro_document': nroDocument,
+      if (dateDocument != null) 'date_document': dateDocument,
+      if (partnerBankId != null) 'partner_bank_id': partnerBankId,
+      if (partnerBankName != null) 'partner_bank_name': partnerBankName,
+      if (checkDueDate != null) 'check_due_date': checkDueDate,
+      if (cardBrandId != null) 'card_brand_id': cardBrandId,
+      if (cardBrandName != null) 'card_brand_name': cardBrandName,
+      if (cardDeadlineId != null) 'card_deadline_id': cardDeadlineId,
+      if (cardDeadlineName != null) 'card_deadline_name': cardDeadlineName,
+      if (writeDate != null) 'write_date': writeDate,
+    });
+  }
+
+  AdvanceLinesTableCompanion copyWith({
+    Value<int>? id,
+    Value<int>? odooId,
+    Value<String?>? lineUuid,
+    Value<int>? journalId,
+    Value<String?>? journalName,
+    Value<String?>? journalType,
+    Value<int?>? advanceMethodLineId,
+    Value<String?>? advanceMethodName,
+    Value<double>? amount,
+    Value<String?>? nroDocument,
+    Value<DateTime?>? dateDocument,
+    Value<int?>? partnerBankId,
+    Value<String?>? partnerBankName,
+    Value<DateTime?>? checkDueDate,
+    Value<int?>? cardBrandId,
+    Value<String?>? cardBrandName,
+    Value<int?>? cardDeadlineId,
+    Value<String?>? cardDeadlineName,
+    Value<DateTime?>? writeDate,
+  }) {
+    return AdvanceLinesTableCompanion(
+      id: id ?? this.id,
+      odooId: odooId ?? this.odooId,
+      lineUuid: lineUuid ?? this.lineUuid,
+      journalId: journalId ?? this.journalId,
+      journalName: journalName ?? this.journalName,
+      journalType: journalType ?? this.journalType,
+      advanceMethodLineId: advanceMethodLineId ?? this.advanceMethodLineId,
+      advanceMethodName: advanceMethodName ?? this.advanceMethodName,
+      amount: amount ?? this.amount,
+      nroDocument: nroDocument ?? this.nroDocument,
+      dateDocument: dateDocument ?? this.dateDocument,
+      partnerBankId: partnerBankId ?? this.partnerBankId,
+      partnerBankName: partnerBankName ?? this.partnerBankName,
+      checkDueDate: checkDueDate ?? this.checkDueDate,
+      cardBrandId: cardBrandId ?? this.cardBrandId,
+      cardBrandName: cardBrandName ?? this.cardBrandName,
+      cardDeadlineId: cardDeadlineId ?? this.cardDeadlineId,
+      cardDeadlineName: cardDeadlineName ?? this.cardDeadlineName,
+      writeDate: writeDate ?? this.writeDate,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<int>(id.value);
+    }
+    if (odooId.present) {
+      map['odoo_id'] = Variable<int>(odooId.value);
+    }
+    if (lineUuid.present) {
+      map['line_uuid'] = Variable<String>(lineUuid.value);
+    }
+    if (journalId.present) {
+      map['journal_id'] = Variable<int>(journalId.value);
+    }
+    if (journalName.present) {
+      map['journal_name'] = Variable<String>(journalName.value);
+    }
+    if (journalType.present) {
+      map['journal_type'] = Variable<String>(journalType.value);
+    }
+    if (advanceMethodLineId.present) {
+      map['advance_method_line_id'] = Variable<int>(advanceMethodLineId.value);
+    }
+    if (advanceMethodName.present) {
+      map['advance_method_name'] = Variable<String>(advanceMethodName.value);
+    }
+    if (amount.present) {
+      map['amount'] = Variable<double>(amount.value);
+    }
+    if (nroDocument.present) {
+      map['nro_document'] = Variable<String>(nroDocument.value);
+    }
+    if (dateDocument.present) {
+      map['date_document'] = Variable<DateTime>(dateDocument.value);
+    }
+    if (partnerBankId.present) {
+      map['partner_bank_id'] = Variable<int>(partnerBankId.value);
+    }
+    if (partnerBankName.present) {
+      map['partner_bank_name'] = Variable<String>(partnerBankName.value);
+    }
+    if (checkDueDate.present) {
+      map['check_due_date'] = Variable<DateTime>(checkDueDate.value);
+    }
+    if (cardBrandId.present) {
+      map['card_brand_id'] = Variable<int>(cardBrandId.value);
+    }
+    if (cardBrandName.present) {
+      map['card_brand_name'] = Variable<String>(cardBrandName.value);
+    }
+    if (cardDeadlineId.present) {
+      map['card_deadline_id'] = Variable<int>(cardDeadlineId.value);
+    }
+    if (cardDeadlineName.present) {
+      map['card_deadline_name'] = Variable<String>(cardDeadlineName.value);
+    }
+    if (writeDate.present) {
+      map['write_date'] = Variable<DateTime>(writeDate.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('AdvanceLinesTableCompanion(')
+          ..write('id: $id, ')
+          ..write('odooId: $odooId, ')
+          ..write('lineUuid: $lineUuid, ')
+          ..write('journalId: $journalId, ')
+          ..write('journalName: $journalName, ')
+          ..write('journalType: $journalType, ')
+          ..write('advanceMethodLineId: $advanceMethodLineId, ')
+          ..write('advanceMethodName: $advanceMethodName, ')
+          ..write('amount: $amount, ')
+          ..write('nroDocument: $nroDocument, ')
+          ..write('dateDocument: $dateDocument, ')
+          ..write('partnerBankId: $partnerBankId, ')
+          ..write('partnerBankName: $partnerBankName, ')
+          ..write('checkDueDate: $checkDueDate, ')
+          ..write('cardBrandId: $cardBrandId, ')
+          ..write('cardBrandName: $cardBrandName, ')
+          ..write('cardDeadlineId: $cardDeadlineId, ')
+          ..write('cardDeadlineName: $cardDeadlineName, ')
           ..write('writeDate: $writeDate')
           ..write(')'))
         .toString();
@@ -70786,6 +77381,8 @@ abstract class _$AppDatabase extends GeneratedDatabase {
   late final $AccountPaymentMethodLineTable accountPaymentMethodLine =
       $AccountPaymentMethodLineTable(this);
   late final $AccountAdvanceTable accountAdvance = $AccountAdvanceTable(this);
+  late final $AdvanceLinesTableTable advanceLinesTable =
+      $AdvanceLinesTableTable(this);
   late final $AccountCreditNoteTable accountCreditNote =
       $AccountCreditNoteTable(this);
   late final $OfflineInvoiceTable offlineInvoice = $OfflineInvoiceTable(this);
@@ -70858,6 +77455,7 @@ abstract class _$AppDatabase extends GeneratedDatabase {
     accountCardLote,
     accountPaymentMethodLine,
     accountAdvance,
+    advanceLinesTable,
     accountCreditNote,
     offlineInvoice,
     cashOutType,
@@ -70875,6 +77473,7 @@ typedef $$DecimalPrecisionTableCreateCompanionBuilder =
     DecimalPrecisionCompanion Function({
       Value<int> id,
       required int odooId,
+      Value<String?> uuid,
       required String name,
       required int digits,
       Value<DateTime?> writeDate,
@@ -70883,6 +77482,7 @@ typedef $$DecimalPrecisionTableUpdateCompanionBuilder =
     DecimalPrecisionCompanion Function({
       Value<int> id,
       Value<int> odooId,
+      Value<String?> uuid,
       Value<String> name,
       Value<int> digits,
       Value<DateTime?> writeDate,
@@ -70904,6 +77504,11 @@ class $$DecimalPrecisionTableFilterComposer
 
   ColumnFilters<int> get odooId => $composableBuilder(
     column: $table.odooId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get uuid => $composableBuilder(
+    column: $table.uuid,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -70942,6 +77547,11 @@ class $$DecimalPrecisionTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<String> get uuid => $composableBuilder(
+    column: $table.uuid,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<String> get name => $composableBuilder(
     column: $table.name,
     builder: (column) => ColumnOrderings(column),
@@ -70972,6 +77582,9 @@ class $$DecimalPrecisionTableAnnotationComposer
 
   GeneratedColumn<int> get odooId =>
       $composableBuilder(column: $table.odooId, builder: (column) => column);
+
+  GeneratedColumn<String> get uuid =>
+      $composableBuilder(column: $table.uuid, builder: (column) => column);
 
   GeneratedColumn<String> get name =>
       $composableBuilder(column: $table.name, builder: (column) => column);
@@ -71022,12 +77635,14 @@ class $$DecimalPrecisionTableTableManager
               ({
                 Value<int> id = const Value.absent(),
                 Value<int> odooId = const Value.absent(),
+                Value<String?> uuid = const Value.absent(),
                 Value<String> name = const Value.absent(),
                 Value<int> digits = const Value.absent(),
                 Value<DateTime?> writeDate = const Value.absent(),
               }) => DecimalPrecisionCompanion(
                 id: id,
                 odooId: odooId,
+                uuid: uuid,
                 name: name,
                 digits: digits,
                 writeDate: writeDate,
@@ -71036,12 +77651,14 @@ class $$DecimalPrecisionTableTableManager
               ({
                 Value<int> id = const Value.absent(),
                 required int odooId,
+                Value<String?> uuid = const Value.absent(),
                 required String name,
                 required int digits,
                 Value<DateTime?> writeDate = const Value.absent(),
               }) => DecimalPrecisionCompanion.insert(
                 id: id,
                 odooId: odooId,
+                uuid: uuid,
                 name: name,
                 digits: digits,
                 writeDate: writeDate,
@@ -71079,6 +77696,7 @@ typedef $$ResCurrencyTableCreateCompanionBuilder =
     ResCurrencyCompanion Function({
       Value<int> id,
       required int odooId,
+      Value<String?> uuid,
       required String name,
       required String symbol,
       required double rounding,
@@ -71090,6 +77708,7 @@ typedef $$ResCurrencyTableUpdateCompanionBuilder =
     ResCurrencyCompanion Function({
       Value<int> id,
       Value<int> odooId,
+      Value<String?> uuid,
       Value<String> name,
       Value<String> symbol,
       Value<double> rounding,
@@ -71114,6 +77733,11 @@ class $$ResCurrencyTableFilterComposer
 
   ColumnFilters<int> get odooId => $composableBuilder(
     column: $table.odooId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get uuid => $composableBuilder(
+    column: $table.uuid,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -71167,6 +77791,11 @@ class $$ResCurrencyTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<String> get uuid => $composableBuilder(
+    column: $table.uuid,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<String> get name => $composableBuilder(
     column: $table.name,
     builder: (column) => ColumnOrderings(column),
@@ -71212,6 +77841,9 @@ class $$ResCurrencyTableAnnotationComposer
 
   GeneratedColumn<int> get odooId =>
       $composableBuilder(column: $table.odooId, builder: (column) => column);
+
+  GeneratedColumn<String> get uuid =>
+      $composableBuilder(column: $table.uuid, builder: (column) => column);
 
   GeneratedColumn<String> get name =>
       $composableBuilder(column: $table.name, builder: (column) => column);
@@ -71267,6 +77899,7 @@ class $$ResCurrencyTableTableManager
               ({
                 Value<int> id = const Value.absent(),
                 Value<int> odooId = const Value.absent(),
+                Value<String?> uuid = const Value.absent(),
                 Value<String> name = const Value.absent(),
                 Value<String> symbol = const Value.absent(),
                 Value<double> rounding = const Value.absent(),
@@ -71276,6 +77909,7 @@ class $$ResCurrencyTableTableManager
               }) => ResCurrencyCompanion(
                 id: id,
                 odooId: odooId,
+                uuid: uuid,
                 name: name,
                 symbol: symbol,
                 rounding: rounding,
@@ -71287,6 +77921,7 @@ class $$ResCurrencyTableTableManager
               ({
                 Value<int> id = const Value.absent(),
                 required int odooId,
+                Value<String?> uuid = const Value.absent(),
                 required String name,
                 required String symbol,
                 required double rounding,
@@ -71296,6 +77931,7 @@ class $$ResCurrencyTableTableManager
               }) => ResCurrencyCompanion.insert(
                 id: id,
                 odooId: odooId,
+                uuid: uuid,
                 name: name,
                 symbol: symbol,
                 rounding: rounding,
@@ -79711,6 +86347,56 @@ typedef $$CollectionSessionTableCreateCompanionBuilder =
       Value<double> cashOutOtherTotal,
       Value<double> checksOnDayTotal,
       Value<double> checksPostdatedTotal,
+      Value<double> advanceChecksOnDayTotal,
+      Value<double> advanceChecksPostdatedTotal,
+      Value<double> totalChecksOnDay,
+      Value<double> totalChecksPostdated,
+      Value<double> totalCashAdvanceAmount,
+      Value<double> systemDepositsCashTotal,
+      Value<double> manualDepositsCashTotal,
+      Value<double> diffDepositsCashTotal,
+      Value<double> systemDepositsChecksTotal,
+      Value<double> manualDepositsChecksTotal,
+      Value<double> diffDepositsChecksTotal,
+      Value<double> totalCashInvoicesAmount,
+      Value<double> totalCashCollectedAmount,
+      Value<double> totalCashPendingAmount,
+      Value<double> totalCreditOrdersAmount,
+      Value<double> totalCreditInvoicesAmount,
+      Value<double> creditSalesDifference,
+      Value<double> systemChecksOnDay,
+      Value<double> systemChecksPostdated,
+      Value<double> systemCardsTotal,
+      Value<double> systemTransfersTotal,
+      Value<double> systemAdvancesTotal,
+      Value<double> systemCreditNotesTotal,
+      Value<double> manualChecksOnDay,
+      Value<double> manualChecksPostdated,
+      Value<double> manualCardsTotal,
+      Value<double> manualTransfersTotal,
+      Value<double> manualAdvancesTotal,
+      Value<double> manualCreditNotesTotal,
+      Value<double> manualWithholdsTotal,
+      Value<double> diffChecksOnDay,
+      Value<double> diffChecksPostdated,
+      Value<double> diffCardsTotal,
+      Value<double> diffTransfersTotal,
+      Value<double> diffAdvancesTotal,
+      Value<double> diffCreditNotesTotal,
+      Value<double> diffWithholdsTotal,
+      Value<double> summarySystemTotal,
+      Value<double> summaryManualTotal,
+      Value<double> summaryDiffTotal,
+      Value<double> factDepositsCash,
+      Value<double> factDepositsChecks,
+      Value<double> carteraDepositsCash,
+      Value<double> carteraDepositsChecks,
+      Value<double> anticipoDepositsCash,
+      Value<double> anticipoDepositsChecks,
+      Value<double> factAdvancesUsed,
+      Value<double> carteraAdvancesUsed,
+      Value<double> summaryAdvancesUsedTotal,
+      Value<double> factTotalWithNcWithholds,
       Value<double> totalCash,
       Value<double> totalCards,
       Value<double> totalTransfers,
@@ -79789,6 +86475,56 @@ typedef $$CollectionSessionTableUpdateCompanionBuilder =
       Value<double> cashOutOtherTotal,
       Value<double> checksOnDayTotal,
       Value<double> checksPostdatedTotal,
+      Value<double> advanceChecksOnDayTotal,
+      Value<double> advanceChecksPostdatedTotal,
+      Value<double> totalChecksOnDay,
+      Value<double> totalChecksPostdated,
+      Value<double> totalCashAdvanceAmount,
+      Value<double> systemDepositsCashTotal,
+      Value<double> manualDepositsCashTotal,
+      Value<double> diffDepositsCashTotal,
+      Value<double> systemDepositsChecksTotal,
+      Value<double> manualDepositsChecksTotal,
+      Value<double> diffDepositsChecksTotal,
+      Value<double> totalCashInvoicesAmount,
+      Value<double> totalCashCollectedAmount,
+      Value<double> totalCashPendingAmount,
+      Value<double> totalCreditOrdersAmount,
+      Value<double> totalCreditInvoicesAmount,
+      Value<double> creditSalesDifference,
+      Value<double> systemChecksOnDay,
+      Value<double> systemChecksPostdated,
+      Value<double> systemCardsTotal,
+      Value<double> systemTransfersTotal,
+      Value<double> systemAdvancesTotal,
+      Value<double> systemCreditNotesTotal,
+      Value<double> manualChecksOnDay,
+      Value<double> manualChecksPostdated,
+      Value<double> manualCardsTotal,
+      Value<double> manualTransfersTotal,
+      Value<double> manualAdvancesTotal,
+      Value<double> manualCreditNotesTotal,
+      Value<double> manualWithholdsTotal,
+      Value<double> diffChecksOnDay,
+      Value<double> diffChecksPostdated,
+      Value<double> diffCardsTotal,
+      Value<double> diffTransfersTotal,
+      Value<double> diffAdvancesTotal,
+      Value<double> diffCreditNotesTotal,
+      Value<double> diffWithholdsTotal,
+      Value<double> summarySystemTotal,
+      Value<double> summaryManualTotal,
+      Value<double> summaryDiffTotal,
+      Value<double> factDepositsCash,
+      Value<double> factDepositsChecks,
+      Value<double> carteraDepositsCash,
+      Value<double> carteraDepositsChecks,
+      Value<double> anticipoDepositsCash,
+      Value<double> anticipoDepositsChecks,
+      Value<double> factAdvancesUsed,
+      Value<double> carteraAdvancesUsed,
+      Value<double> summaryAdvancesUsedTotal,
+      Value<double> factTotalWithNcWithholds,
       Value<double> totalCash,
       Value<double> totalCards,
       Value<double> totalTransfers,
@@ -80032,6 +86768,256 @@ class $$CollectionSessionTableFilterComposer
 
   ColumnFilters<double> get checksPostdatedTotal => $composableBuilder(
     column: $table.checksPostdatedTotal,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<double> get advanceChecksOnDayTotal => $composableBuilder(
+    column: $table.advanceChecksOnDayTotal,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<double> get advanceChecksPostdatedTotal => $composableBuilder(
+    column: $table.advanceChecksPostdatedTotal,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<double> get totalChecksOnDay => $composableBuilder(
+    column: $table.totalChecksOnDay,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<double> get totalChecksPostdated => $composableBuilder(
+    column: $table.totalChecksPostdated,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<double> get totalCashAdvanceAmount => $composableBuilder(
+    column: $table.totalCashAdvanceAmount,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<double> get systemDepositsCashTotal => $composableBuilder(
+    column: $table.systemDepositsCashTotal,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<double> get manualDepositsCashTotal => $composableBuilder(
+    column: $table.manualDepositsCashTotal,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<double> get diffDepositsCashTotal => $composableBuilder(
+    column: $table.diffDepositsCashTotal,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<double> get systemDepositsChecksTotal => $composableBuilder(
+    column: $table.systemDepositsChecksTotal,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<double> get manualDepositsChecksTotal => $composableBuilder(
+    column: $table.manualDepositsChecksTotal,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<double> get diffDepositsChecksTotal => $composableBuilder(
+    column: $table.diffDepositsChecksTotal,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<double> get totalCashInvoicesAmount => $composableBuilder(
+    column: $table.totalCashInvoicesAmount,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<double> get totalCashCollectedAmount => $composableBuilder(
+    column: $table.totalCashCollectedAmount,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<double> get totalCashPendingAmount => $composableBuilder(
+    column: $table.totalCashPendingAmount,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<double> get totalCreditOrdersAmount => $composableBuilder(
+    column: $table.totalCreditOrdersAmount,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<double> get totalCreditInvoicesAmount => $composableBuilder(
+    column: $table.totalCreditInvoicesAmount,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<double> get creditSalesDifference => $composableBuilder(
+    column: $table.creditSalesDifference,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<double> get systemChecksOnDay => $composableBuilder(
+    column: $table.systemChecksOnDay,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<double> get systemChecksPostdated => $composableBuilder(
+    column: $table.systemChecksPostdated,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<double> get systemCardsTotal => $composableBuilder(
+    column: $table.systemCardsTotal,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<double> get systemTransfersTotal => $composableBuilder(
+    column: $table.systemTransfersTotal,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<double> get systemAdvancesTotal => $composableBuilder(
+    column: $table.systemAdvancesTotal,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<double> get systemCreditNotesTotal => $composableBuilder(
+    column: $table.systemCreditNotesTotal,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<double> get manualChecksOnDay => $composableBuilder(
+    column: $table.manualChecksOnDay,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<double> get manualChecksPostdated => $composableBuilder(
+    column: $table.manualChecksPostdated,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<double> get manualCardsTotal => $composableBuilder(
+    column: $table.manualCardsTotal,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<double> get manualTransfersTotal => $composableBuilder(
+    column: $table.manualTransfersTotal,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<double> get manualAdvancesTotal => $composableBuilder(
+    column: $table.manualAdvancesTotal,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<double> get manualCreditNotesTotal => $composableBuilder(
+    column: $table.manualCreditNotesTotal,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<double> get manualWithholdsTotal => $composableBuilder(
+    column: $table.manualWithholdsTotal,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<double> get diffChecksOnDay => $composableBuilder(
+    column: $table.diffChecksOnDay,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<double> get diffChecksPostdated => $composableBuilder(
+    column: $table.diffChecksPostdated,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<double> get diffCardsTotal => $composableBuilder(
+    column: $table.diffCardsTotal,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<double> get diffTransfersTotal => $composableBuilder(
+    column: $table.diffTransfersTotal,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<double> get diffAdvancesTotal => $composableBuilder(
+    column: $table.diffAdvancesTotal,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<double> get diffCreditNotesTotal => $composableBuilder(
+    column: $table.diffCreditNotesTotal,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<double> get diffWithholdsTotal => $composableBuilder(
+    column: $table.diffWithholdsTotal,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<double> get summarySystemTotal => $composableBuilder(
+    column: $table.summarySystemTotal,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<double> get summaryManualTotal => $composableBuilder(
+    column: $table.summaryManualTotal,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<double> get summaryDiffTotal => $composableBuilder(
+    column: $table.summaryDiffTotal,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<double> get factDepositsCash => $composableBuilder(
+    column: $table.factDepositsCash,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<double> get factDepositsChecks => $composableBuilder(
+    column: $table.factDepositsChecks,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<double> get carteraDepositsCash => $composableBuilder(
+    column: $table.carteraDepositsCash,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<double> get carteraDepositsChecks => $composableBuilder(
+    column: $table.carteraDepositsChecks,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<double> get anticipoDepositsCash => $composableBuilder(
+    column: $table.anticipoDepositsCash,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<double> get anticipoDepositsChecks => $composableBuilder(
+    column: $table.anticipoDepositsChecks,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<double> get factAdvancesUsed => $composableBuilder(
+    column: $table.factAdvancesUsed,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<double> get carteraAdvancesUsed => $composableBuilder(
+    column: $table.carteraAdvancesUsed,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<double> get summaryAdvancesUsedTotal => $composableBuilder(
+    column: $table.summaryAdvancesUsedTotal,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<double> get factTotalWithNcWithholds => $composableBuilder(
+    column: $table.factTotalWithNcWithholds,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -80420,6 +87406,256 @@ class $$CollectionSessionTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<double> get advanceChecksOnDayTotal => $composableBuilder(
+    column: $table.advanceChecksOnDayTotal,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<double> get advanceChecksPostdatedTotal => $composableBuilder(
+    column: $table.advanceChecksPostdatedTotal,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<double> get totalChecksOnDay => $composableBuilder(
+    column: $table.totalChecksOnDay,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<double> get totalChecksPostdated => $composableBuilder(
+    column: $table.totalChecksPostdated,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<double> get totalCashAdvanceAmount => $composableBuilder(
+    column: $table.totalCashAdvanceAmount,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<double> get systemDepositsCashTotal => $composableBuilder(
+    column: $table.systemDepositsCashTotal,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<double> get manualDepositsCashTotal => $composableBuilder(
+    column: $table.manualDepositsCashTotal,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<double> get diffDepositsCashTotal => $composableBuilder(
+    column: $table.diffDepositsCashTotal,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<double> get systemDepositsChecksTotal => $composableBuilder(
+    column: $table.systemDepositsChecksTotal,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<double> get manualDepositsChecksTotal => $composableBuilder(
+    column: $table.manualDepositsChecksTotal,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<double> get diffDepositsChecksTotal => $composableBuilder(
+    column: $table.diffDepositsChecksTotal,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<double> get totalCashInvoicesAmount => $composableBuilder(
+    column: $table.totalCashInvoicesAmount,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<double> get totalCashCollectedAmount => $composableBuilder(
+    column: $table.totalCashCollectedAmount,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<double> get totalCashPendingAmount => $composableBuilder(
+    column: $table.totalCashPendingAmount,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<double> get totalCreditOrdersAmount => $composableBuilder(
+    column: $table.totalCreditOrdersAmount,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<double> get totalCreditInvoicesAmount => $composableBuilder(
+    column: $table.totalCreditInvoicesAmount,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<double> get creditSalesDifference => $composableBuilder(
+    column: $table.creditSalesDifference,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<double> get systemChecksOnDay => $composableBuilder(
+    column: $table.systemChecksOnDay,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<double> get systemChecksPostdated => $composableBuilder(
+    column: $table.systemChecksPostdated,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<double> get systemCardsTotal => $composableBuilder(
+    column: $table.systemCardsTotal,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<double> get systemTransfersTotal => $composableBuilder(
+    column: $table.systemTransfersTotal,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<double> get systemAdvancesTotal => $composableBuilder(
+    column: $table.systemAdvancesTotal,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<double> get systemCreditNotesTotal => $composableBuilder(
+    column: $table.systemCreditNotesTotal,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<double> get manualChecksOnDay => $composableBuilder(
+    column: $table.manualChecksOnDay,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<double> get manualChecksPostdated => $composableBuilder(
+    column: $table.manualChecksPostdated,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<double> get manualCardsTotal => $composableBuilder(
+    column: $table.manualCardsTotal,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<double> get manualTransfersTotal => $composableBuilder(
+    column: $table.manualTransfersTotal,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<double> get manualAdvancesTotal => $composableBuilder(
+    column: $table.manualAdvancesTotal,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<double> get manualCreditNotesTotal => $composableBuilder(
+    column: $table.manualCreditNotesTotal,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<double> get manualWithholdsTotal => $composableBuilder(
+    column: $table.manualWithholdsTotal,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<double> get diffChecksOnDay => $composableBuilder(
+    column: $table.diffChecksOnDay,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<double> get diffChecksPostdated => $composableBuilder(
+    column: $table.diffChecksPostdated,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<double> get diffCardsTotal => $composableBuilder(
+    column: $table.diffCardsTotal,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<double> get diffTransfersTotal => $composableBuilder(
+    column: $table.diffTransfersTotal,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<double> get diffAdvancesTotal => $composableBuilder(
+    column: $table.diffAdvancesTotal,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<double> get diffCreditNotesTotal => $composableBuilder(
+    column: $table.diffCreditNotesTotal,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<double> get diffWithholdsTotal => $composableBuilder(
+    column: $table.diffWithholdsTotal,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<double> get summarySystemTotal => $composableBuilder(
+    column: $table.summarySystemTotal,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<double> get summaryManualTotal => $composableBuilder(
+    column: $table.summaryManualTotal,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<double> get summaryDiffTotal => $composableBuilder(
+    column: $table.summaryDiffTotal,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<double> get factDepositsCash => $composableBuilder(
+    column: $table.factDepositsCash,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<double> get factDepositsChecks => $composableBuilder(
+    column: $table.factDepositsChecks,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<double> get carteraDepositsCash => $composableBuilder(
+    column: $table.carteraDepositsCash,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<double> get carteraDepositsChecks => $composableBuilder(
+    column: $table.carteraDepositsChecks,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<double> get anticipoDepositsCash => $composableBuilder(
+    column: $table.anticipoDepositsCash,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<double> get anticipoDepositsChecks => $composableBuilder(
+    column: $table.anticipoDepositsChecks,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<double> get factAdvancesUsed => $composableBuilder(
+    column: $table.factAdvancesUsed,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<double> get carteraAdvancesUsed => $composableBuilder(
+    column: $table.carteraAdvancesUsed,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<double> get summaryAdvancesUsedTotal => $composableBuilder(
+    column: $table.summaryAdvancesUsedTotal,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<double> get factTotalWithNcWithholds => $composableBuilder(
+    column: $table.factTotalWithNcWithholds,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<double> get totalCash => $composableBuilder(
     column: $table.totalCash,
     builder: (column) => ColumnOrderings(column),
@@ -80785,6 +88021,256 @@ class $$CollectionSessionTableAnnotationComposer
     builder: (column) => column,
   );
 
+  GeneratedColumn<double> get advanceChecksOnDayTotal => $composableBuilder(
+    column: $table.advanceChecksOnDayTotal,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<double> get advanceChecksPostdatedTotal => $composableBuilder(
+    column: $table.advanceChecksPostdatedTotal,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<double> get totalChecksOnDay => $composableBuilder(
+    column: $table.totalChecksOnDay,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<double> get totalChecksPostdated => $composableBuilder(
+    column: $table.totalChecksPostdated,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<double> get totalCashAdvanceAmount => $composableBuilder(
+    column: $table.totalCashAdvanceAmount,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<double> get systemDepositsCashTotal => $composableBuilder(
+    column: $table.systemDepositsCashTotal,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<double> get manualDepositsCashTotal => $composableBuilder(
+    column: $table.manualDepositsCashTotal,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<double> get diffDepositsCashTotal => $composableBuilder(
+    column: $table.diffDepositsCashTotal,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<double> get systemDepositsChecksTotal => $composableBuilder(
+    column: $table.systemDepositsChecksTotal,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<double> get manualDepositsChecksTotal => $composableBuilder(
+    column: $table.manualDepositsChecksTotal,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<double> get diffDepositsChecksTotal => $composableBuilder(
+    column: $table.diffDepositsChecksTotal,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<double> get totalCashInvoicesAmount => $composableBuilder(
+    column: $table.totalCashInvoicesAmount,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<double> get totalCashCollectedAmount => $composableBuilder(
+    column: $table.totalCashCollectedAmount,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<double> get totalCashPendingAmount => $composableBuilder(
+    column: $table.totalCashPendingAmount,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<double> get totalCreditOrdersAmount => $composableBuilder(
+    column: $table.totalCreditOrdersAmount,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<double> get totalCreditInvoicesAmount => $composableBuilder(
+    column: $table.totalCreditInvoicesAmount,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<double> get creditSalesDifference => $composableBuilder(
+    column: $table.creditSalesDifference,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<double> get systemChecksOnDay => $composableBuilder(
+    column: $table.systemChecksOnDay,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<double> get systemChecksPostdated => $composableBuilder(
+    column: $table.systemChecksPostdated,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<double> get systemCardsTotal => $composableBuilder(
+    column: $table.systemCardsTotal,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<double> get systemTransfersTotal => $composableBuilder(
+    column: $table.systemTransfersTotal,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<double> get systemAdvancesTotal => $composableBuilder(
+    column: $table.systemAdvancesTotal,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<double> get systemCreditNotesTotal => $composableBuilder(
+    column: $table.systemCreditNotesTotal,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<double> get manualChecksOnDay => $composableBuilder(
+    column: $table.manualChecksOnDay,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<double> get manualChecksPostdated => $composableBuilder(
+    column: $table.manualChecksPostdated,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<double> get manualCardsTotal => $composableBuilder(
+    column: $table.manualCardsTotal,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<double> get manualTransfersTotal => $composableBuilder(
+    column: $table.manualTransfersTotal,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<double> get manualAdvancesTotal => $composableBuilder(
+    column: $table.manualAdvancesTotal,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<double> get manualCreditNotesTotal => $composableBuilder(
+    column: $table.manualCreditNotesTotal,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<double> get manualWithholdsTotal => $composableBuilder(
+    column: $table.manualWithholdsTotal,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<double> get diffChecksOnDay => $composableBuilder(
+    column: $table.diffChecksOnDay,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<double> get diffChecksPostdated => $composableBuilder(
+    column: $table.diffChecksPostdated,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<double> get diffCardsTotal => $composableBuilder(
+    column: $table.diffCardsTotal,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<double> get diffTransfersTotal => $composableBuilder(
+    column: $table.diffTransfersTotal,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<double> get diffAdvancesTotal => $composableBuilder(
+    column: $table.diffAdvancesTotal,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<double> get diffCreditNotesTotal => $composableBuilder(
+    column: $table.diffCreditNotesTotal,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<double> get diffWithholdsTotal => $composableBuilder(
+    column: $table.diffWithholdsTotal,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<double> get summarySystemTotal => $composableBuilder(
+    column: $table.summarySystemTotal,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<double> get summaryManualTotal => $composableBuilder(
+    column: $table.summaryManualTotal,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<double> get summaryDiffTotal => $composableBuilder(
+    column: $table.summaryDiffTotal,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<double> get factDepositsCash => $composableBuilder(
+    column: $table.factDepositsCash,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<double> get factDepositsChecks => $composableBuilder(
+    column: $table.factDepositsChecks,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<double> get carteraDepositsCash => $composableBuilder(
+    column: $table.carteraDepositsCash,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<double> get carteraDepositsChecks => $composableBuilder(
+    column: $table.carteraDepositsChecks,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<double> get anticipoDepositsCash => $composableBuilder(
+    column: $table.anticipoDepositsCash,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<double> get anticipoDepositsChecks => $composableBuilder(
+    column: $table.anticipoDepositsChecks,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<double> get factAdvancesUsed => $composableBuilder(
+    column: $table.factAdvancesUsed,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<double> get carteraAdvancesUsed => $composableBuilder(
+    column: $table.carteraAdvancesUsed,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<double> get summaryAdvancesUsedTotal => $composableBuilder(
+    column: $table.summaryAdvancesUsedTotal,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<double> get factTotalWithNcWithholds => $composableBuilder(
+    column: $table.factTotalWithNcWithholds,
+    builder: (column) => column,
+  );
+
   GeneratedColumn<double> get totalCash =>
       $composableBuilder(column: $table.totalCash, builder: (column) => column);
 
@@ -81029,6 +88515,57 @@ class $$CollectionSessionTableTableManager
                 Value<double> cashOutOtherTotal = const Value.absent(),
                 Value<double> checksOnDayTotal = const Value.absent(),
                 Value<double> checksPostdatedTotal = const Value.absent(),
+                Value<double> advanceChecksOnDayTotal = const Value.absent(),
+                Value<double> advanceChecksPostdatedTotal =
+                    const Value.absent(),
+                Value<double> totalChecksOnDay = const Value.absent(),
+                Value<double> totalChecksPostdated = const Value.absent(),
+                Value<double> totalCashAdvanceAmount = const Value.absent(),
+                Value<double> systemDepositsCashTotal = const Value.absent(),
+                Value<double> manualDepositsCashTotal = const Value.absent(),
+                Value<double> diffDepositsCashTotal = const Value.absent(),
+                Value<double> systemDepositsChecksTotal = const Value.absent(),
+                Value<double> manualDepositsChecksTotal = const Value.absent(),
+                Value<double> diffDepositsChecksTotal = const Value.absent(),
+                Value<double> totalCashInvoicesAmount = const Value.absent(),
+                Value<double> totalCashCollectedAmount = const Value.absent(),
+                Value<double> totalCashPendingAmount = const Value.absent(),
+                Value<double> totalCreditOrdersAmount = const Value.absent(),
+                Value<double> totalCreditInvoicesAmount = const Value.absent(),
+                Value<double> creditSalesDifference = const Value.absent(),
+                Value<double> systemChecksOnDay = const Value.absent(),
+                Value<double> systemChecksPostdated = const Value.absent(),
+                Value<double> systemCardsTotal = const Value.absent(),
+                Value<double> systemTransfersTotal = const Value.absent(),
+                Value<double> systemAdvancesTotal = const Value.absent(),
+                Value<double> systemCreditNotesTotal = const Value.absent(),
+                Value<double> manualChecksOnDay = const Value.absent(),
+                Value<double> manualChecksPostdated = const Value.absent(),
+                Value<double> manualCardsTotal = const Value.absent(),
+                Value<double> manualTransfersTotal = const Value.absent(),
+                Value<double> manualAdvancesTotal = const Value.absent(),
+                Value<double> manualCreditNotesTotal = const Value.absent(),
+                Value<double> manualWithholdsTotal = const Value.absent(),
+                Value<double> diffChecksOnDay = const Value.absent(),
+                Value<double> diffChecksPostdated = const Value.absent(),
+                Value<double> diffCardsTotal = const Value.absent(),
+                Value<double> diffTransfersTotal = const Value.absent(),
+                Value<double> diffAdvancesTotal = const Value.absent(),
+                Value<double> diffCreditNotesTotal = const Value.absent(),
+                Value<double> diffWithholdsTotal = const Value.absent(),
+                Value<double> summarySystemTotal = const Value.absent(),
+                Value<double> summaryManualTotal = const Value.absent(),
+                Value<double> summaryDiffTotal = const Value.absent(),
+                Value<double> factDepositsCash = const Value.absent(),
+                Value<double> factDepositsChecks = const Value.absent(),
+                Value<double> carteraDepositsCash = const Value.absent(),
+                Value<double> carteraDepositsChecks = const Value.absent(),
+                Value<double> anticipoDepositsCash = const Value.absent(),
+                Value<double> anticipoDepositsChecks = const Value.absent(),
+                Value<double> factAdvancesUsed = const Value.absent(),
+                Value<double> carteraAdvancesUsed = const Value.absent(),
+                Value<double> summaryAdvancesUsedTotal = const Value.absent(),
+                Value<double> factTotalWithNcWithholds = const Value.absent(),
                 Value<double> totalCash = const Value.absent(),
                 Value<double> totalCards = const Value.absent(),
                 Value<double> totalTransfers = const Value.absent(),
@@ -81106,6 +88643,56 @@ class $$CollectionSessionTableTableManager
                 cashOutOtherTotal: cashOutOtherTotal,
                 checksOnDayTotal: checksOnDayTotal,
                 checksPostdatedTotal: checksPostdatedTotal,
+                advanceChecksOnDayTotal: advanceChecksOnDayTotal,
+                advanceChecksPostdatedTotal: advanceChecksPostdatedTotal,
+                totalChecksOnDay: totalChecksOnDay,
+                totalChecksPostdated: totalChecksPostdated,
+                totalCashAdvanceAmount: totalCashAdvanceAmount,
+                systemDepositsCashTotal: systemDepositsCashTotal,
+                manualDepositsCashTotal: manualDepositsCashTotal,
+                diffDepositsCashTotal: diffDepositsCashTotal,
+                systemDepositsChecksTotal: systemDepositsChecksTotal,
+                manualDepositsChecksTotal: manualDepositsChecksTotal,
+                diffDepositsChecksTotal: diffDepositsChecksTotal,
+                totalCashInvoicesAmount: totalCashInvoicesAmount,
+                totalCashCollectedAmount: totalCashCollectedAmount,
+                totalCashPendingAmount: totalCashPendingAmount,
+                totalCreditOrdersAmount: totalCreditOrdersAmount,
+                totalCreditInvoicesAmount: totalCreditInvoicesAmount,
+                creditSalesDifference: creditSalesDifference,
+                systemChecksOnDay: systemChecksOnDay,
+                systemChecksPostdated: systemChecksPostdated,
+                systemCardsTotal: systemCardsTotal,
+                systemTransfersTotal: systemTransfersTotal,
+                systemAdvancesTotal: systemAdvancesTotal,
+                systemCreditNotesTotal: systemCreditNotesTotal,
+                manualChecksOnDay: manualChecksOnDay,
+                manualChecksPostdated: manualChecksPostdated,
+                manualCardsTotal: manualCardsTotal,
+                manualTransfersTotal: manualTransfersTotal,
+                manualAdvancesTotal: manualAdvancesTotal,
+                manualCreditNotesTotal: manualCreditNotesTotal,
+                manualWithholdsTotal: manualWithholdsTotal,
+                diffChecksOnDay: diffChecksOnDay,
+                diffChecksPostdated: diffChecksPostdated,
+                diffCardsTotal: diffCardsTotal,
+                diffTransfersTotal: diffTransfersTotal,
+                diffAdvancesTotal: diffAdvancesTotal,
+                diffCreditNotesTotal: diffCreditNotesTotal,
+                diffWithholdsTotal: diffWithholdsTotal,
+                summarySystemTotal: summarySystemTotal,
+                summaryManualTotal: summaryManualTotal,
+                summaryDiffTotal: summaryDiffTotal,
+                factDepositsCash: factDepositsCash,
+                factDepositsChecks: factDepositsChecks,
+                carteraDepositsCash: carteraDepositsCash,
+                carteraDepositsChecks: carteraDepositsChecks,
+                anticipoDepositsCash: anticipoDepositsCash,
+                anticipoDepositsChecks: anticipoDepositsChecks,
+                factAdvancesUsed: factAdvancesUsed,
+                carteraAdvancesUsed: carteraAdvancesUsed,
+                summaryAdvancesUsedTotal: summaryAdvancesUsedTotal,
+                factTotalWithNcWithholds: factTotalWithNcWithholds,
                 totalCash: totalCash,
                 totalCards: totalCards,
                 totalTransfers: totalTransfers,
@@ -81184,6 +88771,57 @@ class $$CollectionSessionTableTableManager
                 Value<double> cashOutOtherTotal = const Value.absent(),
                 Value<double> checksOnDayTotal = const Value.absent(),
                 Value<double> checksPostdatedTotal = const Value.absent(),
+                Value<double> advanceChecksOnDayTotal = const Value.absent(),
+                Value<double> advanceChecksPostdatedTotal =
+                    const Value.absent(),
+                Value<double> totalChecksOnDay = const Value.absent(),
+                Value<double> totalChecksPostdated = const Value.absent(),
+                Value<double> totalCashAdvanceAmount = const Value.absent(),
+                Value<double> systemDepositsCashTotal = const Value.absent(),
+                Value<double> manualDepositsCashTotal = const Value.absent(),
+                Value<double> diffDepositsCashTotal = const Value.absent(),
+                Value<double> systemDepositsChecksTotal = const Value.absent(),
+                Value<double> manualDepositsChecksTotal = const Value.absent(),
+                Value<double> diffDepositsChecksTotal = const Value.absent(),
+                Value<double> totalCashInvoicesAmount = const Value.absent(),
+                Value<double> totalCashCollectedAmount = const Value.absent(),
+                Value<double> totalCashPendingAmount = const Value.absent(),
+                Value<double> totalCreditOrdersAmount = const Value.absent(),
+                Value<double> totalCreditInvoicesAmount = const Value.absent(),
+                Value<double> creditSalesDifference = const Value.absent(),
+                Value<double> systemChecksOnDay = const Value.absent(),
+                Value<double> systemChecksPostdated = const Value.absent(),
+                Value<double> systemCardsTotal = const Value.absent(),
+                Value<double> systemTransfersTotal = const Value.absent(),
+                Value<double> systemAdvancesTotal = const Value.absent(),
+                Value<double> systemCreditNotesTotal = const Value.absent(),
+                Value<double> manualChecksOnDay = const Value.absent(),
+                Value<double> manualChecksPostdated = const Value.absent(),
+                Value<double> manualCardsTotal = const Value.absent(),
+                Value<double> manualTransfersTotal = const Value.absent(),
+                Value<double> manualAdvancesTotal = const Value.absent(),
+                Value<double> manualCreditNotesTotal = const Value.absent(),
+                Value<double> manualWithholdsTotal = const Value.absent(),
+                Value<double> diffChecksOnDay = const Value.absent(),
+                Value<double> diffChecksPostdated = const Value.absent(),
+                Value<double> diffCardsTotal = const Value.absent(),
+                Value<double> diffTransfersTotal = const Value.absent(),
+                Value<double> diffAdvancesTotal = const Value.absent(),
+                Value<double> diffCreditNotesTotal = const Value.absent(),
+                Value<double> diffWithholdsTotal = const Value.absent(),
+                Value<double> summarySystemTotal = const Value.absent(),
+                Value<double> summaryManualTotal = const Value.absent(),
+                Value<double> summaryDiffTotal = const Value.absent(),
+                Value<double> factDepositsCash = const Value.absent(),
+                Value<double> factDepositsChecks = const Value.absent(),
+                Value<double> carteraDepositsCash = const Value.absent(),
+                Value<double> carteraDepositsChecks = const Value.absent(),
+                Value<double> anticipoDepositsCash = const Value.absent(),
+                Value<double> anticipoDepositsChecks = const Value.absent(),
+                Value<double> factAdvancesUsed = const Value.absent(),
+                Value<double> carteraAdvancesUsed = const Value.absent(),
+                Value<double> summaryAdvancesUsedTotal = const Value.absent(),
+                Value<double> factTotalWithNcWithholds = const Value.absent(),
                 Value<double> totalCash = const Value.absent(),
                 Value<double> totalCards = const Value.absent(),
                 Value<double> totalTransfers = const Value.absent(),
@@ -81261,6 +88899,56 @@ class $$CollectionSessionTableTableManager
                 cashOutOtherTotal: cashOutOtherTotal,
                 checksOnDayTotal: checksOnDayTotal,
                 checksPostdatedTotal: checksPostdatedTotal,
+                advanceChecksOnDayTotal: advanceChecksOnDayTotal,
+                advanceChecksPostdatedTotal: advanceChecksPostdatedTotal,
+                totalChecksOnDay: totalChecksOnDay,
+                totalChecksPostdated: totalChecksPostdated,
+                totalCashAdvanceAmount: totalCashAdvanceAmount,
+                systemDepositsCashTotal: systemDepositsCashTotal,
+                manualDepositsCashTotal: manualDepositsCashTotal,
+                diffDepositsCashTotal: diffDepositsCashTotal,
+                systemDepositsChecksTotal: systemDepositsChecksTotal,
+                manualDepositsChecksTotal: manualDepositsChecksTotal,
+                diffDepositsChecksTotal: diffDepositsChecksTotal,
+                totalCashInvoicesAmount: totalCashInvoicesAmount,
+                totalCashCollectedAmount: totalCashCollectedAmount,
+                totalCashPendingAmount: totalCashPendingAmount,
+                totalCreditOrdersAmount: totalCreditOrdersAmount,
+                totalCreditInvoicesAmount: totalCreditInvoicesAmount,
+                creditSalesDifference: creditSalesDifference,
+                systemChecksOnDay: systemChecksOnDay,
+                systemChecksPostdated: systemChecksPostdated,
+                systemCardsTotal: systemCardsTotal,
+                systemTransfersTotal: systemTransfersTotal,
+                systemAdvancesTotal: systemAdvancesTotal,
+                systemCreditNotesTotal: systemCreditNotesTotal,
+                manualChecksOnDay: manualChecksOnDay,
+                manualChecksPostdated: manualChecksPostdated,
+                manualCardsTotal: manualCardsTotal,
+                manualTransfersTotal: manualTransfersTotal,
+                manualAdvancesTotal: manualAdvancesTotal,
+                manualCreditNotesTotal: manualCreditNotesTotal,
+                manualWithholdsTotal: manualWithholdsTotal,
+                diffChecksOnDay: diffChecksOnDay,
+                diffChecksPostdated: diffChecksPostdated,
+                diffCardsTotal: diffCardsTotal,
+                diffTransfersTotal: diffTransfersTotal,
+                diffAdvancesTotal: diffAdvancesTotal,
+                diffCreditNotesTotal: diffCreditNotesTotal,
+                diffWithholdsTotal: diffWithholdsTotal,
+                summarySystemTotal: summarySystemTotal,
+                summaryManualTotal: summaryManualTotal,
+                summaryDiffTotal: summaryDiffTotal,
+                factDepositsCash: factDepositsCash,
+                factDepositsChecks: factDepositsChecks,
+                carteraDepositsCash: carteraDepositsCash,
+                carteraDepositsChecks: carteraDepositsChecks,
+                anticipoDepositsCash: anticipoDepositsCash,
+                anticipoDepositsChecks: anticipoDepositsChecks,
+                factAdvancesUsed: factAdvancesUsed,
+                carteraAdvancesUsed: carteraAdvancesUsed,
+                summaryAdvancesUsedTotal: summaryAdvancesUsedTotal,
+                factTotalWithNcWithholds: factTotalWithNcWithholds,
                 totalCash: totalCash,
                 totalCards: totalCards,
                 totalTransfers: totalTransfers,
@@ -81349,6 +89037,8 @@ typedef $$CollectionSessionCashTableCreateCompanionBuilder =
       Value<int> coins5,
       Value<int> coins1Cent,
       Value<String?> notes,
+      Value<bool> isSynced,
+      Value<DateTime?> lastSyncDate,
       Value<DateTime?> writeDate,
     });
 typedef $$CollectionSessionCashTableUpdateCompanionBuilder =
@@ -81374,6 +89064,8 @@ typedef $$CollectionSessionCashTableUpdateCompanionBuilder =
       Value<int> coins5,
       Value<int> coins1Cent,
       Value<String?> notes,
+      Value<bool> isSynced,
+      Value<DateTime?> lastSyncDate,
       Value<DateTime?> writeDate,
     });
 
@@ -81488,6 +89180,16 @@ class $$CollectionSessionCashTableFilterComposer
 
   ColumnFilters<String> get notes => $composableBuilder(
     column: $table.notes,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<bool> get isSynced => $composableBuilder(
+    column: $table.isSynced,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get lastSyncDate => $composableBuilder(
+    column: $table.lastSyncDate,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -81611,6 +89313,16 @@ class $$CollectionSessionCashTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<bool> get isSynced => $composableBuilder(
+    column: $table.isSynced,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get lastSyncDate => $composableBuilder(
+    column: $table.lastSyncDate,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<DateTime> get writeDate => $composableBuilder(
     column: $table.writeDate,
     builder: (column) => ColumnOrderings(column),
@@ -81695,6 +89407,14 @@ class $$CollectionSessionCashTableAnnotationComposer
   GeneratedColumn<String> get notes =>
       $composableBuilder(column: $table.notes, builder: (column) => column);
 
+  GeneratedColumn<bool> get isSynced =>
+      $composableBuilder(column: $table.isSynced, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get lastSyncDate => $composableBuilder(
+    column: $table.lastSyncDate,
+    builder: (column) => column,
+  );
+
   GeneratedColumn<DateTime> get writeDate =>
       $composableBuilder(column: $table.writeDate, builder: (column) => column);
 }
@@ -81766,6 +89486,8 @@ class $$CollectionSessionCashTableTableManager
                 Value<int> coins5 = const Value.absent(),
                 Value<int> coins1Cent = const Value.absent(),
                 Value<String?> notes = const Value.absent(),
+                Value<bool> isSynced = const Value.absent(),
+                Value<DateTime?> lastSyncDate = const Value.absent(),
                 Value<DateTime?> writeDate = const Value.absent(),
               }) => CollectionSessionCashCompanion(
                 id: id,
@@ -81789,6 +89511,8 @@ class $$CollectionSessionCashTableTableManager
                 coins5: coins5,
                 coins1Cent: coins1Cent,
                 notes: notes,
+                isSynced: isSynced,
+                lastSyncDate: lastSyncDate,
                 writeDate: writeDate,
               ),
           createCompanionCallback:
@@ -81814,6 +89538,8 @@ class $$CollectionSessionCashTableTableManager
                 Value<int> coins5 = const Value.absent(),
                 Value<int> coins1Cent = const Value.absent(),
                 Value<String?> notes = const Value.absent(),
+                Value<bool> isSynced = const Value.absent(),
+                Value<DateTime?> lastSyncDate = const Value.absent(),
                 Value<DateTime?> writeDate = const Value.absent(),
               }) => CollectionSessionCashCompanion.insert(
                 id: id,
@@ -81837,6 +89563,8 @@ class $$CollectionSessionCashTableTableManager
                 coins5: coins5,
                 coins1Cent: coins1Cent,
                 notes: notes,
+                isSynced: isSynced,
+                lastSyncDate: lastSyncDate,
                 writeDate: writeDate,
               ),
           withReferenceMapper: (p0) => p0
@@ -81872,18 +89600,34 @@ typedef $$CollectionSessionDepositTableCreateCompanionBuilder =
     CollectionSessionDepositCompanion Function({
       Value<int> id,
       Value<int?> odooId,
+      Value<String?> uuid,
       required int sessionId,
       required int collectionSessionId,
+      Value<String?> name,
       required String depositType,
       Value<String?> type,
       Value<double> amount,
       Value<String?> reference,
       Value<String?> number,
-      Value<int?> bankId,
-      Value<String?> bankName,
+      Value<String?> sessionUuid,
+      Value<int?> userId,
+      Value<String?> userName,
       required DateTime depositDate,
       Value<DateTime?> date,
+      Value<DateTime?> accountingDate,
+      Value<double> cashAmount,
+      Value<double> checkAmount,
+      Value<int> checkCount,
+      Value<int?> bankJournalId,
+      Value<String?> bankJournalName,
+      Value<int?> bankId,
+      Value<String?> bankName,
       Value<String> state,
+      Value<String?> depositSlipNumber,
+      Value<String?> bankReference,
+      Value<int?> moveId,
+      Value<String?> depositorName,
+      Value<String?> notes,
       Value<bool> isSynced,
       Value<DateTime?> lastSyncDate,
       Value<DateTime?> writeDate,
@@ -81892,18 +89636,34 @@ typedef $$CollectionSessionDepositTableUpdateCompanionBuilder =
     CollectionSessionDepositCompanion Function({
       Value<int> id,
       Value<int?> odooId,
+      Value<String?> uuid,
       Value<int> sessionId,
       Value<int> collectionSessionId,
+      Value<String?> name,
       Value<String> depositType,
       Value<String?> type,
       Value<double> amount,
       Value<String?> reference,
       Value<String?> number,
-      Value<int?> bankId,
-      Value<String?> bankName,
+      Value<String?> sessionUuid,
+      Value<int?> userId,
+      Value<String?> userName,
       Value<DateTime> depositDate,
       Value<DateTime?> date,
+      Value<DateTime?> accountingDate,
+      Value<double> cashAmount,
+      Value<double> checkAmount,
+      Value<int> checkCount,
+      Value<int?> bankJournalId,
+      Value<String?> bankJournalName,
+      Value<int?> bankId,
+      Value<String?> bankName,
       Value<String> state,
+      Value<String?> depositSlipNumber,
+      Value<String?> bankReference,
+      Value<int?> moveId,
+      Value<String?> depositorName,
+      Value<String?> notes,
       Value<bool> isSynced,
       Value<DateTime?> lastSyncDate,
       Value<DateTime?> writeDate,
@@ -81928,6 +89688,11 @@ class $$CollectionSessionDepositTableFilterComposer
     builder: (column) => ColumnFilters(column),
   );
 
+  ColumnFilters<String> get uuid => $composableBuilder(
+    column: $table.uuid,
+    builder: (column) => ColumnFilters(column),
+  );
+
   ColumnFilters<int> get sessionId => $composableBuilder(
     column: $table.sessionId,
     builder: (column) => ColumnFilters(column),
@@ -81935,6 +89700,11 @@ class $$CollectionSessionDepositTableFilterComposer
 
   ColumnFilters<int> get collectionSessionId => $composableBuilder(
     column: $table.collectionSessionId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get name => $composableBuilder(
+    column: $table.name,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -81963,13 +89733,18 @@ class $$CollectionSessionDepositTableFilterComposer
     builder: (column) => ColumnFilters(column),
   );
 
-  ColumnFilters<int> get bankId => $composableBuilder(
-    column: $table.bankId,
+  ColumnFilters<String> get sessionUuid => $composableBuilder(
+    column: $table.sessionUuid,
     builder: (column) => ColumnFilters(column),
   );
 
-  ColumnFilters<String> get bankName => $composableBuilder(
-    column: $table.bankName,
+  ColumnFilters<int> get userId => $composableBuilder(
+    column: $table.userId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get userName => $composableBuilder(
+    column: $table.userName,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -81983,8 +89758,73 @@ class $$CollectionSessionDepositTableFilterComposer
     builder: (column) => ColumnFilters(column),
   );
 
+  ColumnFilters<DateTime> get accountingDate => $composableBuilder(
+    column: $table.accountingDate,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<double> get cashAmount => $composableBuilder(
+    column: $table.cashAmount,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<double> get checkAmount => $composableBuilder(
+    column: $table.checkAmount,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get checkCount => $composableBuilder(
+    column: $table.checkCount,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get bankJournalId => $composableBuilder(
+    column: $table.bankJournalId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get bankJournalName => $composableBuilder(
+    column: $table.bankJournalName,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get bankId => $composableBuilder(
+    column: $table.bankId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get bankName => $composableBuilder(
+    column: $table.bankName,
+    builder: (column) => ColumnFilters(column),
+  );
+
   ColumnFilters<String> get state => $composableBuilder(
     column: $table.state,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get depositSlipNumber => $composableBuilder(
+    column: $table.depositSlipNumber,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get bankReference => $composableBuilder(
+    column: $table.bankReference,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get moveId => $composableBuilder(
+    column: $table.moveId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get depositorName => $composableBuilder(
+    column: $table.depositorName,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get notes => $composableBuilder(
+    column: $table.notes,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -82023,6 +89863,11 @@ class $$CollectionSessionDepositTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<String> get uuid => $composableBuilder(
+    column: $table.uuid,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<int> get sessionId => $composableBuilder(
     column: $table.sessionId,
     builder: (column) => ColumnOrderings(column),
@@ -82030,6 +89875,11 @@ class $$CollectionSessionDepositTableOrderingComposer
 
   ColumnOrderings<int> get collectionSessionId => $composableBuilder(
     column: $table.collectionSessionId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get name => $composableBuilder(
+    column: $table.name,
     builder: (column) => ColumnOrderings(column),
   );
 
@@ -82058,13 +89908,18 @@ class $$CollectionSessionDepositTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
-  ColumnOrderings<int> get bankId => $composableBuilder(
-    column: $table.bankId,
+  ColumnOrderings<String> get sessionUuid => $composableBuilder(
+    column: $table.sessionUuid,
     builder: (column) => ColumnOrderings(column),
   );
 
-  ColumnOrderings<String> get bankName => $composableBuilder(
-    column: $table.bankName,
+  ColumnOrderings<int> get userId => $composableBuilder(
+    column: $table.userId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get userName => $composableBuilder(
+    column: $table.userName,
     builder: (column) => ColumnOrderings(column),
   );
 
@@ -82078,8 +89933,73 @@ class $$CollectionSessionDepositTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<DateTime> get accountingDate => $composableBuilder(
+    column: $table.accountingDate,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<double> get cashAmount => $composableBuilder(
+    column: $table.cashAmount,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<double> get checkAmount => $composableBuilder(
+    column: $table.checkAmount,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get checkCount => $composableBuilder(
+    column: $table.checkCount,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get bankJournalId => $composableBuilder(
+    column: $table.bankJournalId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get bankJournalName => $composableBuilder(
+    column: $table.bankJournalName,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get bankId => $composableBuilder(
+    column: $table.bankId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get bankName => $composableBuilder(
+    column: $table.bankName,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<String> get state => $composableBuilder(
     column: $table.state,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get depositSlipNumber => $composableBuilder(
+    column: $table.depositSlipNumber,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get bankReference => $composableBuilder(
+    column: $table.bankReference,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get moveId => $composableBuilder(
+    column: $table.moveId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get depositorName => $composableBuilder(
+    column: $table.depositorName,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get notes => $composableBuilder(
+    column: $table.notes,
     builder: (column) => ColumnOrderings(column),
   );
 
@@ -82114,6 +90034,9 @@ class $$CollectionSessionDepositTableAnnotationComposer
   GeneratedColumn<int> get odooId =>
       $composableBuilder(column: $table.odooId, builder: (column) => column);
 
+  GeneratedColumn<String> get uuid =>
+      $composableBuilder(column: $table.uuid, builder: (column) => column);
+
   GeneratedColumn<int> get sessionId =>
       $composableBuilder(column: $table.sessionId, builder: (column) => column);
 
@@ -82121,6 +90044,9 @@ class $$CollectionSessionDepositTableAnnotationComposer
     column: $table.collectionSessionId,
     builder: (column) => column,
   );
+
+  GeneratedColumn<String> get name =>
+      $composableBuilder(column: $table.name, builder: (column) => column);
 
   GeneratedColumn<String> get depositType => $composableBuilder(
     column: $table.depositType,
@@ -82139,11 +90065,16 @@ class $$CollectionSessionDepositTableAnnotationComposer
   GeneratedColumn<String> get number =>
       $composableBuilder(column: $table.number, builder: (column) => column);
 
-  GeneratedColumn<int> get bankId =>
-      $composableBuilder(column: $table.bankId, builder: (column) => column);
+  GeneratedColumn<String> get sessionUuid => $composableBuilder(
+    column: $table.sessionUuid,
+    builder: (column) => column,
+  );
 
-  GeneratedColumn<String> get bankName =>
-      $composableBuilder(column: $table.bankName, builder: (column) => column);
+  GeneratedColumn<int> get userId =>
+      $composableBuilder(column: $table.userId, builder: (column) => column);
+
+  GeneratedColumn<String> get userName =>
+      $composableBuilder(column: $table.userName, builder: (column) => column);
 
   GeneratedColumn<DateTime> get depositDate => $composableBuilder(
     column: $table.depositDate,
@@ -82153,8 +90084,65 @@ class $$CollectionSessionDepositTableAnnotationComposer
   GeneratedColumn<DateTime> get date =>
       $composableBuilder(column: $table.date, builder: (column) => column);
 
+  GeneratedColumn<DateTime> get accountingDate => $composableBuilder(
+    column: $table.accountingDate,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<double> get cashAmount => $composableBuilder(
+    column: $table.cashAmount,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<double> get checkAmount => $composableBuilder(
+    column: $table.checkAmount,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get checkCount => $composableBuilder(
+    column: $table.checkCount,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get bankJournalId => $composableBuilder(
+    column: $table.bankJournalId,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get bankJournalName => $composableBuilder(
+    column: $table.bankJournalName,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get bankId =>
+      $composableBuilder(column: $table.bankId, builder: (column) => column);
+
+  GeneratedColumn<String> get bankName =>
+      $composableBuilder(column: $table.bankName, builder: (column) => column);
+
   GeneratedColumn<String> get state =>
       $composableBuilder(column: $table.state, builder: (column) => column);
+
+  GeneratedColumn<String> get depositSlipNumber => $composableBuilder(
+    column: $table.depositSlipNumber,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get bankReference => $composableBuilder(
+    column: $table.bankReference,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get moveId =>
+      $composableBuilder(column: $table.moveId, builder: (column) => column);
+
+  GeneratedColumn<String> get depositorName => $composableBuilder(
+    column: $table.depositorName,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get notes =>
+      $composableBuilder(column: $table.notes, builder: (column) => column);
 
   GeneratedColumn<bool> get isSynced =>
       $composableBuilder(column: $table.isSynced, builder: (column) => column);
@@ -82216,36 +90204,68 @@ class $$CollectionSessionDepositTableTableManager
               ({
                 Value<int> id = const Value.absent(),
                 Value<int?> odooId = const Value.absent(),
+                Value<String?> uuid = const Value.absent(),
                 Value<int> sessionId = const Value.absent(),
                 Value<int> collectionSessionId = const Value.absent(),
+                Value<String?> name = const Value.absent(),
                 Value<String> depositType = const Value.absent(),
                 Value<String?> type = const Value.absent(),
                 Value<double> amount = const Value.absent(),
                 Value<String?> reference = const Value.absent(),
                 Value<String?> number = const Value.absent(),
-                Value<int?> bankId = const Value.absent(),
-                Value<String?> bankName = const Value.absent(),
+                Value<String?> sessionUuid = const Value.absent(),
+                Value<int?> userId = const Value.absent(),
+                Value<String?> userName = const Value.absent(),
                 Value<DateTime> depositDate = const Value.absent(),
                 Value<DateTime?> date = const Value.absent(),
+                Value<DateTime?> accountingDate = const Value.absent(),
+                Value<double> cashAmount = const Value.absent(),
+                Value<double> checkAmount = const Value.absent(),
+                Value<int> checkCount = const Value.absent(),
+                Value<int?> bankJournalId = const Value.absent(),
+                Value<String?> bankJournalName = const Value.absent(),
+                Value<int?> bankId = const Value.absent(),
+                Value<String?> bankName = const Value.absent(),
                 Value<String> state = const Value.absent(),
+                Value<String?> depositSlipNumber = const Value.absent(),
+                Value<String?> bankReference = const Value.absent(),
+                Value<int?> moveId = const Value.absent(),
+                Value<String?> depositorName = const Value.absent(),
+                Value<String?> notes = const Value.absent(),
                 Value<bool> isSynced = const Value.absent(),
                 Value<DateTime?> lastSyncDate = const Value.absent(),
                 Value<DateTime?> writeDate = const Value.absent(),
               }) => CollectionSessionDepositCompanion(
                 id: id,
                 odooId: odooId,
+                uuid: uuid,
                 sessionId: sessionId,
                 collectionSessionId: collectionSessionId,
+                name: name,
                 depositType: depositType,
                 type: type,
                 amount: amount,
                 reference: reference,
                 number: number,
-                bankId: bankId,
-                bankName: bankName,
+                sessionUuid: sessionUuid,
+                userId: userId,
+                userName: userName,
                 depositDate: depositDate,
                 date: date,
+                accountingDate: accountingDate,
+                cashAmount: cashAmount,
+                checkAmount: checkAmount,
+                checkCount: checkCount,
+                bankJournalId: bankJournalId,
+                bankJournalName: bankJournalName,
+                bankId: bankId,
+                bankName: bankName,
                 state: state,
+                depositSlipNumber: depositSlipNumber,
+                bankReference: bankReference,
+                moveId: moveId,
+                depositorName: depositorName,
+                notes: notes,
                 isSynced: isSynced,
                 lastSyncDate: lastSyncDate,
                 writeDate: writeDate,
@@ -82254,36 +90274,68 @@ class $$CollectionSessionDepositTableTableManager
               ({
                 Value<int> id = const Value.absent(),
                 Value<int?> odooId = const Value.absent(),
+                Value<String?> uuid = const Value.absent(),
                 required int sessionId,
                 required int collectionSessionId,
+                Value<String?> name = const Value.absent(),
                 required String depositType,
                 Value<String?> type = const Value.absent(),
                 Value<double> amount = const Value.absent(),
                 Value<String?> reference = const Value.absent(),
                 Value<String?> number = const Value.absent(),
-                Value<int?> bankId = const Value.absent(),
-                Value<String?> bankName = const Value.absent(),
+                Value<String?> sessionUuid = const Value.absent(),
+                Value<int?> userId = const Value.absent(),
+                Value<String?> userName = const Value.absent(),
                 required DateTime depositDate,
                 Value<DateTime?> date = const Value.absent(),
+                Value<DateTime?> accountingDate = const Value.absent(),
+                Value<double> cashAmount = const Value.absent(),
+                Value<double> checkAmount = const Value.absent(),
+                Value<int> checkCount = const Value.absent(),
+                Value<int?> bankJournalId = const Value.absent(),
+                Value<String?> bankJournalName = const Value.absent(),
+                Value<int?> bankId = const Value.absent(),
+                Value<String?> bankName = const Value.absent(),
                 Value<String> state = const Value.absent(),
+                Value<String?> depositSlipNumber = const Value.absent(),
+                Value<String?> bankReference = const Value.absent(),
+                Value<int?> moveId = const Value.absent(),
+                Value<String?> depositorName = const Value.absent(),
+                Value<String?> notes = const Value.absent(),
                 Value<bool> isSynced = const Value.absent(),
                 Value<DateTime?> lastSyncDate = const Value.absent(),
                 Value<DateTime?> writeDate = const Value.absent(),
               }) => CollectionSessionDepositCompanion.insert(
                 id: id,
                 odooId: odooId,
+                uuid: uuid,
                 sessionId: sessionId,
                 collectionSessionId: collectionSessionId,
+                name: name,
                 depositType: depositType,
                 type: type,
                 amount: amount,
                 reference: reference,
                 number: number,
-                bankId: bankId,
-                bankName: bankName,
+                sessionUuid: sessionUuid,
+                userId: userId,
+                userName: userName,
                 depositDate: depositDate,
                 date: date,
+                accountingDate: accountingDate,
+                cashAmount: cashAmount,
+                checkAmount: checkAmount,
+                checkCount: checkCount,
+                bankJournalId: bankJournalId,
+                bankJournalName: bankJournalName,
+                bankId: bankId,
+                bankName: bankName,
                 state: state,
+                depositSlipNumber: depositSlipNumber,
+                bankReference: bankReference,
+                moveId: moveId,
+                depositorName: depositorName,
+                notes: notes,
                 isSynced: isSynced,
                 lastSyncDate: lastSyncDate,
                 writeDate: writeDate,
@@ -82325,6 +90377,12 @@ typedef $$CashOutTableCreateCompanionBuilder =
       required int collectionSessionId,
       required String cashOutType,
       Value<String?> type,
+      Value<String> cashFlow,
+      Value<int> journalId,
+      Value<String?> journalName,
+      Value<int?> partnerId,
+      Value<String?> partnerName,
+      Value<int?> accountIdManual,
       Value<double> amount,
       Value<String?> description,
       Value<String?> name,
@@ -82334,6 +90392,9 @@ typedef $$CashOutTableCreateCompanionBuilder =
       Value<int?> approvedById,
       Value<String?> approvedByName,
       Value<DateTime?> approvedAt,
+      Value<int?> moveId,
+      Value<int?> cashOutTypeId,
+      Value<String?> typeName,
       Value<String> state,
       Value<bool> isSynced,
       Value<DateTime?> lastSyncDate,
@@ -82347,6 +90408,12 @@ typedef $$CashOutTableUpdateCompanionBuilder =
       Value<int> collectionSessionId,
       Value<String> cashOutType,
       Value<String?> type,
+      Value<String> cashFlow,
+      Value<int> journalId,
+      Value<String?> journalName,
+      Value<int?> partnerId,
+      Value<String?> partnerName,
+      Value<int?> accountIdManual,
       Value<double> amount,
       Value<String?> description,
       Value<String?> name,
@@ -82356,6 +90423,9 @@ typedef $$CashOutTableUpdateCompanionBuilder =
       Value<int?> approvedById,
       Value<String?> approvedByName,
       Value<DateTime?> approvedAt,
+      Value<int?> moveId,
+      Value<int?> cashOutTypeId,
+      Value<String?> typeName,
       Value<String> state,
       Value<bool> isSynced,
       Value<DateTime?> lastSyncDate,
@@ -82401,6 +90471,36 @@ class $$CashOutTableFilterComposer
     builder: (column) => ColumnFilters(column),
   );
 
+  ColumnFilters<String> get cashFlow => $composableBuilder(
+    column: $table.cashFlow,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get journalId => $composableBuilder(
+    column: $table.journalId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get journalName => $composableBuilder(
+    column: $table.journalName,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get partnerId => $composableBuilder(
+    column: $table.partnerId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get partnerName => $composableBuilder(
+    column: $table.partnerName,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get accountIdManual => $composableBuilder(
+    column: $table.accountIdManual,
+    builder: (column) => ColumnFilters(column),
+  );
+
   ColumnFilters<double> get amount => $composableBuilder(
     column: $table.amount,
     builder: (column) => ColumnFilters(column),
@@ -82443,6 +90543,21 @@ class $$CashOutTableFilterComposer
 
   ColumnFilters<DateTime> get approvedAt => $composableBuilder(
     column: $table.approvedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get moveId => $composableBuilder(
+    column: $table.moveId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get cashOutTypeId => $composableBuilder(
+    column: $table.cashOutTypeId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get typeName => $composableBuilder(
+    column: $table.typeName,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -82506,6 +90621,36 @@ class $$CashOutTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<String> get cashFlow => $composableBuilder(
+    column: $table.cashFlow,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get journalId => $composableBuilder(
+    column: $table.journalId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get journalName => $composableBuilder(
+    column: $table.journalName,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get partnerId => $composableBuilder(
+    column: $table.partnerId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get partnerName => $composableBuilder(
+    column: $table.partnerName,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get accountIdManual => $composableBuilder(
+    column: $table.accountIdManual,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<double> get amount => $composableBuilder(
     column: $table.amount,
     builder: (column) => ColumnOrderings(column),
@@ -82548,6 +90693,21 @@ class $$CashOutTableOrderingComposer
 
   ColumnOrderings<DateTime> get approvedAt => $composableBuilder(
     column: $table.approvedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get moveId => $composableBuilder(
+    column: $table.moveId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get cashOutTypeId => $composableBuilder(
+    column: $table.cashOutTypeId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get typeName => $composableBuilder(
+    column: $table.typeName,
     builder: (column) => ColumnOrderings(column),
   );
 
@@ -82603,6 +90763,30 @@ class $$CashOutTableAnnotationComposer
   GeneratedColumn<String> get type =>
       $composableBuilder(column: $table.type, builder: (column) => column);
 
+  GeneratedColumn<String> get cashFlow =>
+      $composableBuilder(column: $table.cashFlow, builder: (column) => column);
+
+  GeneratedColumn<int> get journalId =>
+      $composableBuilder(column: $table.journalId, builder: (column) => column);
+
+  GeneratedColumn<String> get journalName => $composableBuilder(
+    column: $table.journalName,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get partnerId =>
+      $composableBuilder(column: $table.partnerId, builder: (column) => column);
+
+  GeneratedColumn<String> get partnerName => $composableBuilder(
+    column: $table.partnerName,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get accountIdManual => $composableBuilder(
+    column: $table.accountIdManual,
+    builder: (column) => column,
+  );
+
   GeneratedColumn<double> get amount =>
       $composableBuilder(column: $table.amount, builder: (column) => column);
 
@@ -82637,6 +90821,17 @@ class $$CashOutTableAnnotationComposer
     column: $table.approvedAt,
     builder: (column) => column,
   );
+
+  GeneratedColumn<int> get moveId =>
+      $composableBuilder(column: $table.moveId, builder: (column) => column);
+
+  GeneratedColumn<int> get cashOutTypeId => $composableBuilder(
+    column: $table.cashOutTypeId,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get typeName =>
+      $composableBuilder(column: $table.typeName, builder: (column) => column);
 
   GeneratedColumn<String> get state =>
       $composableBuilder(column: $table.state, builder: (column) => column);
@@ -82690,6 +90885,12 @@ class $$CashOutTableTableManager
                 Value<int> collectionSessionId = const Value.absent(),
                 Value<String> cashOutType = const Value.absent(),
                 Value<String?> type = const Value.absent(),
+                Value<String> cashFlow = const Value.absent(),
+                Value<int> journalId = const Value.absent(),
+                Value<String?> journalName = const Value.absent(),
+                Value<int?> partnerId = const Value.absent(),
+                Value<String?> partnerName = const Value.absent(),
+                Value<int?> accountIdManual = const Value.absent(),
                 Value<double> amount = const Value.absent(),
                 Value<String?> description = const Value.absent(),
                 Value<String?> name = const Value.absent(),
@@ -82699,6 +90900,9 @@ class $$CashOutTableTableManager
                 Value<int?> approvedById = const Value.absent(),
                 Value<String?> approvedByName = const Value.absent(),
                 Value<DateTime?> approvedAt = const Value.absent(),
+                Value<int?> moveId = const Value.absent(),
+                Value<int?> cashOutTypeId = const Value.absent(),
+                Value<String?> typeName = const Value.absent(),
                 Value<String> state = const Value.absent(),
                 Value<bool> isSynced = const Value.absent(),
                 Value<DateTime?> lastSyncDate = const Value.absent(),
@@ -82710,6 +90914,12 @@ class $$CashOutTableTableManager
                 collectionSessionId: collectionSessionId,
                 cashOutType: cashOutType,
                 type: type,
+                cashFlow: cashFlow,
+                journalId: journalId,
+                journalName: journalName,
+                partnerId: partnerId,
+                partnerName: partnerName,
+                accountIdManual: accountIdManual,
                 amount: amount,
                 description: description,
                 name: name,
@@ -82719,6 +90929,9 @@ class $$CashOutTableTableManager
                 approvedById: approvedById,
                 approvedByName: approvedByName,
                 approvedAt: approvedAt,
+                moveId: moveId,
+                cashOutTypeId: cashOutTypeId,
+                typeName: typeName,
                 state: state,
                 isSynced: isSynced,
                 lastSyncDate: lastSyncDate,
@@ -82732,6 +90945,12 @@ class $$CashOutTableTableManager
                 required int collectionSessionId,
                 required String cashOutType,
                 Value<String?> type = const Value.absent(),
+                Value<String> cashFlow = const Value.absent(),
+                Value<int> journalId = const Value.absent(),
+                Value<String?> journalName = const Value.absent(),
+                Value<int?> partnerId = const Value.absent(),
+                Value<String?> partnerName = const Value.absent(),
+                Value<int?> accountIdManual = const Value.absent(),
                 Value<double> amount = const Value.absent(),
                 Value<String?> description = const Value.absent(),
                 Value<String?> name = const Value.absent(),
@@ -82741,6 +90960,9 @@ class $$CashOutTableTableManager
                 Value<int?> approvedById = const Value.absent(),
                 Value<String?> approvedByName = const Value.absent(),
                 Value<DateTime?> approvedAt = const Value.absent(),
+                Value<int?> moveId = const Value.absent(),
+                Value<int?> cashOutTypeId = const Value.absent(),
+                Value<String?> typeName = const Value.absent(),
                 Value<String> state = const Value.absent(),
                 Value<bool> isSynced = const Value.absent(),
                 Value<DateTime?> lastSyncDate = const Value.absent(),
@@ -82752,6 +90974,12 @@ class $$CashOutTableTableManager
                 collectionSessionId: collectionSessionId,
                 cashOutType: cashOutType,
                 type: type,
+                cashFlow: cashFlow,
+                journalId: journalId,
+                journalName: journalName,
+                partnerId: partnerId,
+                partnerName: partnerName,
+                accountIdManual: accountIdManual,
                 amount: amount,
                 description: description,
                 name: name,
@@ -82761,6 +90989,9 @@ class $$CashOutTableTableManager
                 approvedById: approvedById,
                 approvedByName: approvedByName,
                 approvedAt: approvedAt,
+                moveId: moveId,
+                cashOutTypeId: cashOutTypeId,
+                typeName: typeName,
                 state: state,
                 isSynced: isSynced,
                 lastSyncDate: lastSyncDate,
@@ -82795,6 +91026,7 @@ typedef $$AccountPaymentTableCreateCompanionBuilder =
       required String paymentUuid,
       Value<int?> collectionSessionId,
       Value<int?> invoiceId,
+      Value<int?> reconciledInvoiceIds,
       Value<int?> partnerId,
       Value<String?> partnerName,
       Value<int?> journalId,
@@ -82841,6 +91073,7 @@ typedef $$AccountPaymentTableUpdateCompanionBuilder =
       Value<String> paymentUuid,
       Value<int?> collectionSessionId,
       Value<int?> invoiceId,
+      Value<int?> reconciledInvoiceIds,
       Value<int?> partnerId,
       Value<String?> partnerName,
       Value<int?> journalId,
@@ -82912,6 +91145,11 @@ class $$AccountPaymentTableFilterComposer
 
   ColumnFilters<int> get invoiceId => $composableBuilder(
     column: $table.invoiceId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get reconciledInvoiceIds => $composableBuilder(
+    column: $table.reconciledInvoiceIds,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -83140,6 +91378,11 @@ class $$AccountPaymentTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<int> get reconciledInvoiceIds => $composableBuilder(
+    column: $table.reconciledInvoiceIds,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<int> get partnerId => $composableBuilder(
     column: $table.partnerId,
     builder: (column) => ColumnOrderings(column),
@@ -83359,6 +91602,11 @@ class $$AccountPaymentTableAnnotationComposer
   GeneratedColumn<int> get invoiceId =>
       $composableBuilder(column: $table.invoiceId, builder: (column) => column);
 
+  GeneratedColumn<int> get reconciledInvoiceIds => $composableBuilder(
+    column: $table.reconciledInvoiceIds,
+    builder: (column) => column,
+  );
+
   GeneratedColumn<int> get partnerId =>
       $composableBuilder(column: $table.partnerId, builder: (column) => column);
 
@@ -83560,6 +91808,7 @@ class $$AccountPaymentTableTableManager
                 Value<String> paymentUuid = const Value.absent(),
                 Value<int?> collectionSessionId = const Value.absent(),
                 Value<int?> invoiceId = const Value.absent(),
+                Value<int?> reconciledInvoiceIds = const Value.absent(),
                 Value<int?> partnerId = const Value.absent(),
                 Value<String?> partnerName = const Value.absent(),
                 Value<int?> journalId = const Value.absent(),
@@ -83604,6 +91853,7 @@ class $$AccountPaymentTableTableManager
                 paymentUuid: paymentUuid,
                 collectionSessionId: collectionSessionId,
                 invoiceId: invoiceId,
+                reconciledInvoiceIds: reconciledInvoiceIds,
                 partnerId: partnerId,
                 partnerName: partnerName,
                 journalId: journalId,
@@ -83650,6 +91900,7 @@ class $$AccountPaymentTableTableManager
                 required String paymentUuid,
                 Value<int?> collectionSessionId = const Value.absent(),
                 Value<int?> invoiceId = const Value.absent(),
+                Value<int?> reconciledInvoiceIds = const Value.absent(),
                 Value<int?> partnerId = const Value.absent(),
                 Value<String?> partnerName = const Value.absent(),
                 Value<int?> journalId = const Value.absent(),
@@ -83694,6 +91945,7 @@ class $$AccountPaymentTableTableManager
                 paymentUuid: paymentUuid,
                 collectionSessionId: collectionSessionId,
                 invoiceId: invoiceId,
+                reconciledInvoiceIds: reconciledInvoiceIds,
                 partnerId: partnerId,
                 partnerName: partnerName,
                 journalId: journalId,
@@ -83785,6 +92037,12 @@ typedef $$AccountMoveTableCreateCompanionBuilder =
       Value<double> amountTotal,
       Value<double> amountResidual,
       Value<String> paymentState,
+      Value<String?> partnerStreet,
+      Value<String?> partnerCity,
+      Value<String?> partnerPhone,
+      Value<String?> partnerEmail,
+      Value<String?> currencySymbol,
+      Value<DateTime?> l10nEcAuthorizationDate,
       Value<String?> l10nEcAuthorizationNumber,
       Value<String?> l10nLatamDocumentNumber,
       Value<int?> l10nLatamDocumentTypeId,
@@ -83821,6 +92079,12 @@ typedef $$AccountMoveTableUpdateCompanionBuilder =
       Value<double> amountTotal,
       Value<double> amountResidual,
       Value<String> paymentState,
+      Value<String?> partnerStreet,
+      Value<String?> partnerCity,
+      Value<String?> partnerPhone,
+      Value<String?> partnerEmail,
+      Value<String?> currencySymbol,
+      Value<DateTime?> l10nEcAuthorizationDate,
       Value<String?> l10nEcAuthorizationNumber,
       Value<String?> l10nLatamDocumentNumber,
       Value<int?> l10nLatamDocumentTypeId,
@@ -83962,6 +92226,36 @@ class $$AccountMoveTableFilterComposer
 
   ColumnFilters<String> get paymentState => $composableBuilder(
     column: $table.paymentState,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get partnerStreet => $composableBuilder(
+    column: $table.partnerStreet,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get partnerCity => $composableBuilder(
+    column: $table.partnerCity,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get partnerPhone => $composableBuilder(
+    column: $table.partnerPhone,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get partnerEmail => $composableBuilder(
+    column: $table.partnerEmail,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get currencySymbol => $composableBuilder(
+    column: $table.currencySymbol,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get l10nEcAuthorizationDate => $composableBuilder(
+    column: $table.l10nEcAuthorizationDate,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -84140,6 +92434,36 @@ class $$AccountMoveTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<String> get partnerStreet => $composableBuilder(
+    column: $table.partnerStreet,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get partnerCity => $composableBuilder(
+    column: $table.partnerCity,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get partnerPhone => $composableBuilder(
+    column: $table.partnerPhone,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get partnerEmail => $composableBuilder(
+    column: $table.partnerEmail,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get currencySymbol => $composableBuilder(
+    column: $table.currencySymbol,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get l10nEcAuthorizationDate => $composableBuilder(
+    column: $table.l10nEcAuthorizationDate,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<String> get l10nEcAuthorizationNumber => $composableBuilder(
     column: $table.l10nEcAuthorizationNumber,
     builder: (column) => ColumnOrderings(column),
@@ -84293,6 +92617,36 @@ class $$AccountMoveTableAnnotationComposer
     builder: (column) => column,
   );
 
+  GeneratedColumn<String> get partnerStreet => $composableBuilder(
+    column: $table.partnerStreet,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get partnerCity => $composableBuilder(
+    column: $table.partnerCity,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get partnerPhone => $composableBuilder(
+    column: $table.partnerPhone,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get partnerEmail => $composableBuilder(
+    column: $table.partnerEmail,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get currencySymbol => $composableBuilder(
+    column: $table.currencySymbol,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<DateTime> get l10nEcAuthorizationDate => $composableBuilder(
+    column: $table.l10nEcAuthorizationDate,
+    builder: (column) => column,
+  );
+
   GeneratedColumn<String> get l10nEcAuthorizationNumber => $composableBuilder(
     column: $table.l10nEcAuthorizationNumber,
     builder: (column) => column,
@@ -84386,6 +92740,12 @@ class $$AccountMoveTableTableManager
                 Value<double> amountTotal = const Value.absent(),
                 Value<double> amountResidual = const Value.absent(),
                 Value<String> paymentState = const Value.absent(),
+                Value<String?> partnerStreet = const Value.absent(),
+                Value<String?> partnerCity = const Value.absent(),
+                Value<String?> partnerPhone = const Value.absent(),
+                Value<String?> partnerEmail = const Value.absent(),
+                Value<String?> currencySymbol = const Value.absent(),
+                Value<DateTime?> l10nEcAuthorizationDate = const Value.absent(),
                 Value<String?> l10nEcAuthorizationNumber = const Value.absent(),
                 Value<String?> l10nLatamDocumentNumber = const Value.absent(),
                 Value<int?> l10nLatamDocumentTypeId = const Value.absent(),
@@ -84420,6 +92780,12 @@ class $$AccountMoveTableTableManager
                 amountTotal: amountTotal,
                 amountResidual: amountResidual,
                 paymentState: paymentState,
+                partnerStreet: partnerStreet,
+                partnerCity: partnerCity,
+                partnerPhone: partnerPhone,
+                partnerEmail: partnerEmail,
+                currencySymbol: currencySymbol,
+                l10nEcAuthorizationDate: l10nEcAuthorizationDate,
                 l10nEcAuthorizationNumber: l10nEcAuthorizationNumber,
                 l10nLatamDocumentNumber: l10nLatamDocumentNumber,
                 l10nLatamDocumentTypeId: l10nLatamDocumentTypeId,
@@ -84456,6 +92822,12 @@ class $$AccountMoveTableTableManager
                 Value<double> amountTotal = const Value.absent(),
                 Value<double> amountResidual = const Value.absent(),
                 Value<String> paymentState = const Value.absent(),
+                Value<String?> partnerStreet = const Value.absent(),
+                Value<String?> partnerCity = const Value.absent(),
+                Value<String?> partnerPhone = const Value.absent(),
+                Value<String?> partnerEmail = const Value.absent(),
+                Value<String?> currencySymbol = const Value.absent(),
+                Value<DateTime?> l10nEcAuthorizationDate = const Value.absent(),
                 Value<String?> l10nEcAuthorizationNumber = const Value.absent(),
                 Value<String?> l10nLatamDocumentNumber = const Value.absent(),
                 Value<int?> l10nLatamDocumentTypeId = const Value.absent(),
@@ -84490,6 +92862,12 @@ class $$AccountMoveTableTableManager
                 amountTotal: amountTotal,
                 amountResidual: amountResidual,
                 paymentState: paymentState,
+                partnerStreet: partnerStreet,
+                partnerCity: partnerCity,
+                partnerPhone: partnerPhone,
+                partnerEmail: partnerEmail,
+                currencySymbol: currencySymbol,
+                l10nEcAuthorizationDate: l10nEcAuthorizationDate,
                 l10nEcAuthorizationNumber: l10nEcAuthorizationNumber,
                 l10nLatamDocumentNumber: l10nLatamDocumentNumber,
                 l10nLatamDocumentTypeId: l10nLatamDocumentTypeId,
@@ -85559,7 +93937,7 @@ typedef $$SaleOrderTableCreateCompanionBuilder =
       Value<bool> requirePayment,
       Value<String?> signedBy,
       Value<DateTime?> signedOn,
-      Value<String?> commitmentDate,
+      Value<DateTime?> commitmentDate,
       Value<DateTime?> expectedDate,
       Value<bool> isExpired,
       Value<String?> showUpdatePricelist,
@@ -85689,7 +94067,7 @@ typedef $$SaleOrderTableUpdateCompanionBuilder =
       Value<bool> requirePayment,
       Value<String?> signedBy,
       Value<DateTime?> signedOn,
-      Value<String?> commitmentDate,
+      Value<DateTime?> commitmentDate,
       Value<DateTime?> expectedDate,
       Value<bool> isExpired,
       Value<String?> showUpdatePricelist,
@@ -86003,7 +94381,7 @@ class $$SaleOrderTableFilterComposer
     builder: (column) => ColumnFilters(column),
   );
 
-  ColumnFilters<String> get commitmentDate => $composableBuilder(
+  ColumnFilters<DateTime> get commitmentDate => $composableBuilder(
     column: $table.commitmentDate,
     builder: (column) => ColumnFilters(column),
   );
@@ -86648,7 +95026,7 @@ class $$SaleOrderTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
-  ColumnOrderings<String> get commitmentDate => $composableBuilder(
+  ColumnOrderings<DateTime> get commitmentDate => $composableBuilder(
     column: $table.commitmentDate,
     builder: (column) => ColumnOrderings(column),
   );
@@ -87261,7 +95639,7 @@ class $$SaleOrderTableAnnotationComposer
   GeneratedColumn<DateTime> get signedOn =>
       $composableBuilder(column: $table.signedOn, builder: (column) => column);
 
-  GeneratedColumn<String> get commitmentDate => $composableBuilder(
+  GeneratedColumn<DateTime> get commitmentDate => $composableBuilder(
     column: $table.commitmentDate,
     builder: (column) => column,
   );
@@ -87722,7 +96100,7 @@ class $$SaleOrderTableTableManager
                 Value<bool> requirePayment = const Value.absent(),
                 Value<String?> signedBy = const Value.absent(),
                 Value<DateTime?> signedOn = const Value.absent(),
-                Value<String?> commitmentDate = const Value.absent(),
+                Value<DateTime?> commitmentDate = const Value.absent(),
                 Value<DateTime?> expectedDate = const Value.absent(),
                 Value<bool> isExpired = const Value.absent(),
                 Value<String?> showUpdatePricelist = const Value.absent(),
@@ -87980,7 +96358,7 @@ class $$SaleOrderTableTableManager
                 Value<bool> requirePayment = const Value.absent(),
                 Value<String?> signedBy = const Value.absent(),
                 Value<DateTime?> signedOn = const Value.absent(),
-                Value<String?> commitmentDate = const Value.absent(),
+                Value<DateTime?> commitmentDate = const Value.absent(),
                 Value<DateTime?> expectedDate = const Value.absent(),
                 Value<bool> isExpired = const Value.absent(),
                 Value<String?> showUpdatePricelist = const Value.absent(),
@@ -88244,14 +96622,14 @@ typedef $$SaleOrderLineTableCreateCompanionBuilder =
       Value<double> priceSubtotal,
       Value<double> priceTax,
       Value<double> priceTotal,
-      Value<double> priceReduce,
+      Value<double> priceReduceTaxexcl,
       Value<String?> taxIds,
       Value<double> qtyDelivered,
       Value<double> customerLead,
       Value<double> qtyInvoiced,
       Value<double> qtyToInvoice,
       Value<String> invoiceStatus,
-      Value<String?> orderState,
+      Value<String?> state,
       Value<bool> collapsePrices,
       Value<bool> collapseComposition,
       Value<bool> isOptional,
@@ -88298,14 +96676,14 @@ typedef $$SaleOrderLineTableUpdateCompanionBuilder =
       Value<double> priceSubtotal,
       Value<double> priceTax,
       Value<double> priceTotal,
-      Value<double> priceReduce,
+      Value<double> priceReduceTaxexcl,
       Value<String?> taxIds,
       Value<double> qtyDelivered,
       Value<double> customerLead,
       Value<double> qtyInvoiced,
       Value<double> qtyToInvoice,
       Value<String> invoiceStatus,
-      Value<String?> orderState,
+      Value<String?> state,
       Value<bool> collapsePrices,
       Value<bool> collapseComposition,
       Value<bool> isOptional,
@@ -88460,8 +96838,8 @@ class $$SaleOrderLineTableFilterComposer
     builder: (column) => ColumnFilters(column),
   );
 
-  ColumnFilters<double> get priceReduce => $composableBuilder(
-    column: $table.priceReduce,
+  ColumnFilters<double> get priceReduceTaxexcl => $composableBuilder(
+    column: $table.priceReduceTaxexcl,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -88495,8 +96873,8 @@ class $$SaleOrderLineTableFilterComposer
     builder: (column) => ColumnFilters(column),
   );
 
-  ColumnFilters<String> get orderState => $composableBuilder(
-    column: $table.orderState,
+  ColumnFilters<String> get state => $composableBuilder(
+    column: $table.state,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -88725,8 +97103,8 @@ class $$SaleOrderLineTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
-  ColumnOrderings<double> get priceReduce => $composableBuilder(
-    column: $table.priceReduce,
+  ColumnOrderings<double> get priceReduceTaxexcl => $composableBuilder(
+    column: $table.priceReduceTaxexcl,
     builder: (column) => ColumnOrderings(column),
   );
 
@@ -88760,8 +97138,8 @@ class $$SaleOrderLineTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
-  ColumnOrderings<String> get orderState => $composableBuilder(
-    column: $table.orderState,
+  ColumnOrderings<String> get state => $composableBuilder(
+    column: $table.state,
     builder: (column) => ColumnOrderings(column),
   );
 
@@ -88966,8 +97344,8 @@ class $$SaleOrderLineTableAnnotationComposer
     builder: (column) => column,
   );
 
-  GeneratedColumn<double> get priceReduce => $composableBuilder(
-    column: $table.priceReduce,
+  GeneratedColumn<double> get priceReduceTaxexcl => $composableBuilder(
+    column: $table.priceReduceTaxexcl,
     builder: (column) => column,
   );
 
@@ -88999,10 +97377,8 @@ class $$SaleOrderLineTableAnnotationComposer
     builder: (column) => column,
   );
 
-  GeneratedColumn<String> get orderState => $composableBuilder(
-    column: $table.orderState,
-    builder: (column) => column,
-  );
+  GeneratedColumn<String> get state =>
+      $composableBuilder(column: $table.state, builder: (column) => column);
 
   GeneratedColumn<bool> get collapsePrices => $composableBuilder(
     column: $table.collapsePrices,
@@ -89143,14 +97519,14 @@ class $$SaleOrderLineTableTableManager
                 Value<double> priceSubtotal = const Value.absent(),
                 Value<double> priceTax = const Value.absent(),
                 Value<double> priceTotal = const Value.absent(),
-                Value<double> priceReduce = const Value.absent(),
+                Value<double> priceReduceTaxexcl = const Value.absent(),
                 Value<String?> taxIds = const Value.absent(),
                 Value<double> qtyDelivered = const Value.absent(),
                 Value<double> customerLead = const Value.absent(),
                 Value<double> qtyInvoiced = const Value.absent(),
                 Value<double> qtyToInvoice = const Value.absent(),
                 Value<String> invoiceStatus = const Value.absent(),
-                Value<String?> orderState = const Value.absent(),
+                Value<String?> state = const Value.absent(),
                 Value<bool> collapsePrices = const Value.absent(),
                 Value<bool> collapseComposition = const Value.absent(),
                 Value<bool> isOptional = const Value.absent(),
@@ -89195,14 +97571,14 @@ class $$SaleOrderLineTableTableManager
                 priceSubtotal: priceSubtotal,
                 priceTax: priceTax,
                 priceTotal: priceTotal,
-                priceReduce: priceReduce,
+                priceReduceTaxexcl: priceReduceTaxexcl,
                 taxIds: taxIds,
                 qtyDelivered: qtyDelivered,
                 customerLead: customerLead,
                 qtyInvoiced: qtyInvoiced,
                 qtyToInvoice: qtyToInvoice,
                 invoiceStatus: invoiceStatus,
-                orderState: orderState,
+                state: state,
                 collapsePrices: collapsePrices,
                 collapseComposition: collapseComposition,
                 isOptional: isOptional,
@@ -89249,14 +97625,14 @@ class $$SaleOrderLineTableTableManager
                 Value<double> priceSubtotal = const Value.absent(),
                 Value<double> priceTax = const Value.absent(),
                 Value<double> priceTotal = const Value.absent(),
-                Value<double> priceReduce = const Value.absent(),
+                Value<double> priceReduceTaxexcl = const Value.absent(),
                 Value<String?> taxIds = const Value.absent(),
                 Value<double> qtyDelivered = const Value.absent(),
                 Value<double> customerLead = const Value.absent(),
                 Value<double> qtyInvoiced = const Value.absent(),
                 Value<double> qtyToInvoice = const Value.absent(),
                 Value<String> invoiceStatus = const Value.absent(),
-                Value<String?> orderState = const Value.absent(),
+                Value<String?> state = const Value.absent(),
                 Value<bool> collapsePrices = const Value.absent(),
                 Value<bool> collapseComposition = const Value.absent(),
                 Value<bool> isOptional = const Value.absent(),
@@ -89301,14 +97677,14 @@ class $$SaleOrderLineTableTableManager
                 priceSubtotal: priceSubtotal,
                 priceTax: priceTax,
                 priceTotal: priceTotal,
-                priceReduce: priceReduce,
+                priceReduceTaxexcl: priceReduceTaxexcl,
                 taxIds: taxIds,
                 qtyDelivered: qtyDelivered,
                 customerLead: customerLead,
                 qtyInvoiced: qtyInvoiced,
                 qtyToInvoice: qtyToInvoice,
                 invoiceStatus: invoiceStatus,
-                orderState: orderState,
+                state: state,
                 collapsePrices: collapsePrices,
                 collapseComposition: collapseComposition,
                 isOptional: isOptional,
@@ -89849,6 +98225,8 @@ typedef $$SaleOrderPaymentLineTableCreateCompanionBuilder =
       Value<int> id,
       Value<int?> odooId,
       Value<String?> lineUuid,
+      Value<String?> uuid,
+      Value<String?> type,
       required int orderId,
       Value<String> paymentType,
       Value<int?> journalId,
@@ -89880,6 +98258,8 @@ typedef $$SaleOrderPaymentLineTableCreateCompanionBuilder =
       Value<String?> partnerBankName,
       Value<DateTime?> effectiveDate,
       Value<DateTime?> bankReferenceDate,
+      Value<double> advanceAvailable,
+      Value<double> creditNoteAvailable,
       Value<bool> isSynced,
       Value<DateTime?> lastSyncDate,
       Value<DateTime?> writeDate,
@@ -89889,6 +98269,8 @@ typedef $$SaleOrderPaymentLineTableUpdateCompanionBuilder =
       Value<int> id,
       Value<int?> odooId,
       Value<String?> lineUuid,
+      Value<String?> uuid,
+      Value<String?> type,
       Value<int> orderId,
       Value<String> paymentType,
       Value<int?> journalId,
@@ -89920,6 +98302,8 @@ typedef $$SaleOrderPaymentLineTableUpdateCompanionBuilder =
       Value<String?> partnerBankName,
       Value<DateTime?> effectiveDate,
       Value<DateTime?> bankReferenceDate,
+      Value<double> advanceAvailable,
+      Value<double> creditNoteAvailable,
       Value<bool> isSynced,
       Value<DateTime?> lastSyncDate,
       Value<DateTime?> writeDate,
@@ -89946,6 +98330,16 @@ class $$SaleOrderPaymentLineTableFilterComposer
 
   ColumnFilters<String> get lineUuid => $composableBuilder(
     column: $table.lineUuid,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get uuid => $composableBuilder(
+    column: $table.uuid,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get type => $composableBuilder(
+    column: $table.type,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -90104,6 +98498,16 @@ class $$SaleOrderPaymentLineTableFilterComposer
     builder: (column) => ColumnFilters(column),
   );
 
+  ColumnFilters<double> get advanceAvailable => $composableBuilder(
+    column: $table.advanceAvailable,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<double> get creditNoteAvailable => $composableBuilder(
+    column: $table.creditNoteAvailable,
+    builder: (column) => ColumnFilters(column),
+  );
+
   ColumnFilters<bool> get isSynced => $composableBuilder(
     column: $table.isSynced,
     builder: (column) => ColumnFilters(column),
@@ -90141,6 +98545,16 @@ class $$SaleOrderPaymentLineTableOrderingComposer
 
   ColumnOrderings<String> get lineUuid => $composableBuilder(
     column: $table.lineUuid,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get uuid => $composableBuilder(
+    column: $table.uuid,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get type => $composableBuilder(
+    column: $table.type,
     builder: (column) => ColumnOrderings(column),
   );
 
@@ -90299,6 +98713,16 @@ class $$SaleOrderPaymentLineTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<double> get advanceAvailable => $composableBuilder(
+    column: $table.advanceAvailable,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<double> get creditNoteAvailable => $composableBuilder(
+    column: $table.creditNoteAvailable,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<bool> get isSynced => $composableBuilder(
     column: $table.isSynced,
     builder: (column) => ColumnOrderings(column),
@@ -90332,6 +98756,12 @@ class $$SaleOrderPaymentLineTableAnnotationComposer
 
   GeneratedColumn<String> get lineUuid =>
       $composableBuilder(column: $table.lineUuid, builder: (column) => column);
+
+  GeneratedColumn<String> get uuid =>
+      $composableBuilder(column: $table.uuid, builder: (column) => column);
+
+  GeneratedColumn<String> get type =>
+      $composableBuilder(column: $table.type, builder: (column) => column);
 
   GeneratedColumn<int> get orderId =>
       $composableBuilder(column: $table.orderId, builder: (column) => column);
@@ -90464,6 +98894,16 @@ class $$SaleOrderPaymentLineTableAnnotationComposer
     builder: (column) => column,
   );
 
+  GeneratedColumn<double> get advanceAvailable => $composableBuilder(
+    column: $table.advanceAvailable,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<double> get creditNoteAvailable => $composableBuilder(
+    column: $table.creditNoteAvailable,
+    builder: (column) => column,
+  );
+
   GeneratedColumn<bool> get isSynced =>
       $composableBuilder(column: $table.isSynced, builder: (column) => column);
 
@@ -90522,6 +98962,8 @@ class $$SaleOrderPaymentLineTableTableManager
                 Value<int> id = const Value.absent(),
                 Value<int?> odooId = const Value.absent(),
                 Value<String?> lineUuid = const Value.absent(),
+                Value<String?> uuid = const Value.absent(),
+                Value<String?> type = const Value.absent(),
                 Value<int> orderId = const Value.absent(),
                 Value<String> paymentType = const Value.absent(),
                 Value<int?> journalId = const Value.absent(),
@@ -90553,6 +98995,8 @@ class $$SaleOrderPaymentLineTableTableManager
                 Value<String?> partnerBankName = const Value.absent(),
                 Value<DateTime?> effectiveDate = const Value.absent(),
                 Value<DateTime?> bankReferenceDate = const Value.absent(),
+                Value<double> advanceAvailable = const Value.absent(),
+                Value<double> creditNoteAvailable = const Value.absent(),
                 Value<bool> isSynced = const Value.absent(),
                 Value<DateTime?> lastSyncDate = const Value.absent(),
                 Value<DateTime?> writeDate = const Value.absent(),
@@ -90560,6 +99004,8 @@ class $$SaleOrderPaymentLineTableTableManager
                 id: id,
                 odooId: odooId,
                 lineUuid: lineUuid,
+                uuid: uuid,
+                type: type,
                 orderId: orderId,
                 paymentType: paymentType,
                 journalId: journalId,
@@ -90591,6 +99037,8 @@ class $$SaleOrderPaymentLineTableTableManager
                 partnerBankName: partnerBankName,
                 effectiveDate: effectiveDate,
                 bankReferenceDate: bankReferenceDate,
+                advanceAvailable: advanceAvailable,
+                creditNoteAvailable: creditNoteAvailable,
                 isSynced: isSynced,
                 lastSyncDate: lastSyncDate,
                 writeDate: writeDate,
@@ -90600,6 +99048,8 @@ class $$SaleOrderPaymentLineTableTableManager
                 Value<int> id = const Value.absent(),
                 Value<int?> odooId = const Value.absent(),
                 Value<String?> lineUuid = const Value.absent(),
+                Value<String?> uuid = const Value.absent(),
+                Value<String?> type = const Value.absent(),
                 required int orderId,
                 Value<String> paymentType = const Value.absent(),
                 Value<int?> journalId = const Value.absent(),
@@ -90631,6 +99081,8 @@ class $$SaleOrderPaymentLineTableTableManager
                 Value<String?> partnerBankName = const Value.absent(),
                 Value<DateTime?> effectiveDate = const Value.absent(),
                 Value<DateTime?> bankReferenceDate = const Value.absent(),
+                Value<double> advanceAvailable = const Value.absent(),
+                Value<double> creditNoteAvailable = const Value.absent(),
                 Value<bool> isSynced = const Value.absent(),
                 Value<DateTime?> lastSyncDate = const Value.absent(),
                 Value<DateTime?> writeDate = const Value.absent(),
@@ -90638,6 +99090,8 @@ class $$SaleOrderPaymentLineTableTableManager
                 id: id,
                 odooId: odooId,
                 lineUuid: lineUuid,
+                uuid: uuid,
+                type: type,
                 orderId: orderId,
                 paymentType: paymentType,
                 journalId: journalId,
@@ -90669,6 +99123,8 @@ class $$SaleOrderPaymentLineTableTableManager
                 partnerBankName: partnerBankName,
                 effectiveDate: effectiveDate,
                 bankReferenceDate: bankReferenceDate,
+                advanceAvailable: advanceAvailable,
+                creditNoteAvailable: creditNoteAvailable,
                 isSynced: isSynced,
                 lastSyncDate: lastSyncDate,
                 writeDate: writeDate,
@@ -96783,15 +105239,23 @@ typedef $$AccountCardLoteTableCreateCompanionBuilder =
     AccountCardLoteCompanion Function({
       Value<int> id,
       required int odooId,
+      Value<int?> localId,
+      Value<String?> loteUuid,
       required String name,
-      required String code,
+      Value<String?> code,
       required int journalId,
       Value<String?> journalName,
-      required DateTime dateFrom,
-      required DateTime dateTo,
+      Value<String> state,
+      Value<DateTime?> date,
+      Value<String?> numeroLote,
+      Value<double> amountTotal,
+      Value<double> amountBalance,
+      Value<int> paymentCount,
+      Value<bool> isPosLote,
+      Value<DateTime?> dateFrom,
+      Value<DateTime?> dateTo,
       Value<double> totalAmount,
       Value<int> transactionCount,
-      Value<String> state,
       Value<bool> active,
       Value<DateTime?> writeDate,
     });
@@ -96799,15 +105263,23 @@ typedef $$AccountCardLoteTableUpdateCompanionBuilder =
     AccountCardLoteCompanion Function({
       Value<int> id,
       Value<int> odooId,
+      Value<int?> localId,
+      Value<String?> loteUuid,
       Value<String> name,
-      Value<String> code,
+      Value<String?> code,
       Value<int> journalId,
       Value<String?> journalName,
-      Value<DateTime> dateFrom,
-      Value<DateTime> dateTo,
+      Value<String> state,
+      Value<DateTime?> date,
+      Value<String?> numeroLote,
+      Value<double> amountTotal,
+      Value<double> amountBalance,
+      Value<int> paymentCount,
+      Value<bool> isPosLote,
+      Value<DateTime?> dateFrom,
+      Value<DateTime?> dateTo,
       Value<double> totalAmount,
       Value<int> transactionCount,
-      Value<String> state,
       Value<bool> active,
       Value<DateTime?> writeDate,
     });
@@ -96831,6 +105303,16 @@ class $$AccountCardLoteTableFilterComposer
     builder: (column) => ColumnFilters(column),
   );
 
+  ColumnFilters<int> get localId => $composableBuilder(
+    column: $table.localId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get loteUuid => $composableBuilder(
+    column: $table.loteUuid,
+    builder: (column) => ColumnFilters(column),
+  );
+
   ColumnFilters<String> get name => $composableBuilder(
     column: $table.name,
     builder: (column) => ColumnFilters(column),
@@ -96851,6 +105333,41 @@ class $$AccountCardLoteTableFilterComposer
     builder: (column) => ColumnFilters(column),
   );
 
+  ColumnFilters<String> get state => $composableBuilder(
+    column: $table.state,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get date => $composableBuilder(
+    column: $table.date,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get numeroLote => $composableBuilder(
+    column: $table.numeroLote,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<double> get amountTotal => $composableBuilder(
+    column: $table.amountTotal,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<double> get amountBalance => $composableBuilder(
+    column: $table.amountBalance,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get paymentCount => $composableBuilder(
+    column: $table.paymentCount,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<bool> get isPosLote => $composableBuilder(
+    column: $table.isPosLote,
+    builder: (column) => ColumnFilters(column),
+  );
+
   ColumnFilters<DateTime> get dateFrom => $composableBuilder(
     column: $table.dateFrom,
     builder: (column) => ColumnFilters(column),
@@ -96868,11 +105385,6 @@ class $$AccountCardLoteTableFilterComposer
 
   ColumnFilters<int> get transactionCount => $composableBuilder(
     column: $table.transactionCount,
-    builder: (column) => ColumnFilters(column),
-  );
-
-  ColumnFilters<String> get state => $composableBuilder(
-    column: $table.state,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -96906,6 +105418,16 @@ class $$AccountCardLoteTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<int> get localId => $composableBuilder(
+    column: $table.localId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get loteUuid => $composableBuilder(
+    column: $table.loteUuid,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<String> get name => $composableBuilder(
     column: $table.name,
     builder: (column) => ColumnOrderings(column),
@@ -96926,6 +105448,41 @@ class $$AccountCardLoteTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<String> get state => $composableBuilder(
+    column: $table.state,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get date => $composableBuilder(
+    column: $table.date,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get numeroLote => $composableBuilder(
+    column: $table.numeroLote,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<double> get amountTotal => $composableBuilder(
+    column: $table.amountTotal,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<double> get amountBalance => $composableBuilder(
+    column: $table.amountBalance,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get paymentCount => $composableBuilder(
+    column: $table.paymentCount,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<bool> get isPosLote => $composableBuilder(
+    column: $table.isPosLote,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<DateTime> get dateFrom => $composableBuilder(
     column: $table.dateFrom,
     builder: (column) => ColumnOrderings(column),
@@ -96943,11 +105500,6 @@ class $$AccountCardLoteTableOrderingComposer
 
   ColumnOrderings<int> get transactionCount => $composableBuilder(
     column: $table.transactionCount,
-    builder: (column) => ColumnOrderings(column),
-  );
-
-  ColumnOrderings<String> get state => $composableBuilder(
-    column: $table.state,
     builder: (column) => ColumnOrderings(column),
   );
 
@@ -96977,6 +105529,12 @@ class $$AccountCardLoteTableAnnotationComposer
   GeneratedColumn<int> get odooId =>
       $composableBuilder(column: $table.odooId, builder: (column) => column);
 
+  GeneratedColumn<int> get localId =>
+      $composableBuilder(column: $table.localId, builder: (column) => column);
+
+  GeneratedColumn<String> get loteUuid =>
+      $composableBuilder(column: $table.loteUuid, builder: (column) => column);
+
   GeneratedColumn<String> get name =>
       $composableBuilder(column: $table.name, builder: (column) => column);
 
@@ -96990,6 +105548,35 @@ class $$AccountCardLoteTableAnnotationComposer
     column: $table.journalName,
     builder: (column) => column,
   );
+
+  GeneratedColumn<String> get state =>
+      $composableBuilder(column: $table.state, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get date =>
+      $composableBuilder(column: $table.date, builder: (column) => column);
+
+  GeneratedColumn<String> get numeroLote => $composableBuilder(
+    column: $table.numeroLote,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<double> get amountTotal => $composableBuilder(
+    column: $table.amountTotal,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<double> get amountBalance => $composableBuilder(
+    column: $table.amountBalance,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get paymentCount => $composableBuilder(
+    column: $table.paymentCount,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<bool> get isPosLote =>
+      $composableBuilder(column: $table.isPosLote, builder: (column) => column);
 
   GeneratedColumn<DateTime> get dateFrom =>
       $composableBuilder(column: $table.dateFrom, builder: (column) => column);
@@ -97006,9 +105593,6 @@ class $$AccountCardLoteTableAnnotationComposer
     column: $table.transactionCount,
     builder: (column) => column,
   );
-
-  GeneratedColumn<String> get state =>
-      $composableBuilder(column: $table.state, builder: (column) => column);
 
   GeneratedColumn<bool> get active =>
       $composableBuilder(column: $table.active, builder: (column) => column);
@@ -97056,29 +105640,45 @@ class $$AccountCardLoteTableTableManager
               ({
                 Value<int> id = const Value.absent(),
                 Value<int> odooId = const Value.absent(),
+                Value<int?> localId = const Value.absent(),
+                Value<String?> loteUuid = const Value.absent(),
                 Value<String> name = const Value.absent(),
-                Value<String> code = const Value.absent(),
+                Value<String?> code = const Value.absent(),
                 Value<int> journalId = const Value.absent(),
                 Value<String?> journalName = const Value.absent(),
-                Value<DateTime> dateFrom = const Value.absent(),
-                Value<DateTime> dateTo = const Value.absent(),
+                Value<String> state = const Value.absent(),
+                Value<DateTime?> date = const Value.absent(),
+                Value<String?> numeroLote = const Value.absent(),
+                Value<double> amountTotal = const Value.absent(),
+                Value<double> amountBalance = const Value.absent(),
+                Value<int> paymentCount = const Value.absent(),
+                Value<bool> isPosLote = const Value.absent(),
+                Value<DateTime?> dateFrom = const Value.absent(),
+                Value<DateTime?> dateTo = const Value.absent(),
                 Value<double> totalAmount = const Value.absent(),
                 Value<int> transactionCount = const Value.absent(),
-                Value<String> state = const Value.absent(),
                 Value<bool> active = const Value.absent(),
                 Value<DateTime?> writeDate = const Value.absent(),
               }) => AccountCardLoteCompanion(
                 id: id,
                 odooId: odooId,
+                localId: localId,
+                loteUuid: loteUuid,
                 name: name,
                 code: code,
                 journalId: journalId,
                 journalName: journalName,
+                state: state,
+                date: date,
+                numeroLote: numeroLote,
+                amountTotal: amountTotal,
+                amountBalance: amountBalance,
+                paymentCount: paymentCount,
+                isPosLote: isPosLote,
                 dateFrom: dateFrom,
                 dateTo: dateTo,
                 totalAmount: totalAmount,
                 transactionCount: transactionCount,
-                state: state,
                 active: active,
                 writeDate: writeDate,
               ),
@@ -97086,29 +105686,45 @@ class $$AccountCardLoteTableTableManager
               ({
                 Value<int> id = const Value.absent(),
                 required int odooId,
+                Value<int?> localId = const Value.absent(),
+                Value<String?> loteUuid = const Value.absent(),
                 required String name,
-                required String code,
+                Value<String?> code = const Value.absent(),
                 required int journalId,
                 Value<String?> journalName = const Value.absent(),
-                required DateTime dateFrom,
-                required DateTime dateTo,
+                Value<String> state = const Value.absent(),
+                Value<DateTime?> date = const Value.absent(),
+                Value<String?> numeroLote = const Value.absent(),
+                Value<double> amountTotal = const Value.absent(),
+                Value<double> amountBalance = const Value.absent(),
+                Value<int> paymentCount = const Value.absent(),
+                Value<bool> isPosLote = const Value.absent(),
+                Value<DateTime?> dateFrom = const Value.absent(),
+                Value<DateTime?> dateTo = const Value.absent(),
                 Value<double> totalAmount = const Value.absent(),
                 Value<int> transactionCount = const Value.absent(),
-                Value<String> state = const Value.absent(),
                 Value<bool> active = const Value.absent(),
                 Value<DateTime?> writeDate = const Value.absent(),
               }) => AccountCardLoteCompanion.insert(
                 id: id,
                 odooId: odooId,
+                localId: localId,
+                loteUuid: loteUuid,
                 name: name,
                 code: code,
                 journalId: journalId,
                 journalName: journalName,
+                state: state,
+                date: date,
+                numeroLote: numeroLote,
+                amountTotal: amountTotal,
+                amountBalance: amountBalance,
+                paymentCount: paymentCount,
+                isPosLote: isPosLote,
                 dateFrom: dateFrom,
                 dateTo: dateTo,
                 totalAmount: totalAmount,
                 transactionCount: transactionCount,
-                state: state,
                 active: active,
                 writeDate: writeDate,
               ),
@@ -97499,7 +106115,10 @@ typedef $$AccountAdvanceTableCreateCompanionBuilder =
       Value<double> amountUsed,
       Value<double> amountAvailable,
       Value<double> amountReturned,
+      Value<double> usagePercentage,
+      Value<int?> daysToExpire,
       Value<bool> isExpired,
+      Value<String?> advanceUuid,
       Value<int?> collectionSessionId,
       Value<int?> collectionConfigId,
       Value<int?> saleOrderId,
@@ -97528,7 +106147,10 @@ typedef $$AccountAdvanceTableUpdateCompanionBuilder =
       Value<double> amountUsed,
       Value<double> amountAvailable,
       Value<double> amountReturned,
+      Value<double> usagePercentage,
+      Value<int?> daysToExpire,
       Value<bool> isExpired,
+      Value<String?> advanceUuid,
       Value<int?> collectionSessionId,
       Value<int?> collectionConfigId,
       Value<int?> saleOrderId,
@@ -97649,8 +106271,23 @@ class $$AccountAdvanceTableFilterComposer
     builder: (column) => ColumnFilters(column),
   );
 
+  ColumnFilters<double> get usagePercentage => $composableBuilder(
+    column: $table.usagePercentage,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get daysToExpire => $composableBuilder(
+    column: $table.daysToExpire,
+    builder: (column) => ColumnFilters(column),
+  );
+
   ColumnFilters<bool> get isExpired => $composableBuilder(
     column: $table.isExpired,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get advanceUuid => $composableBuilder(
+    column: $table.advanceUuid,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -97789,8 +106426,23 @@ class $$AccountAdvanceTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<double> get usagePercentage => $composableBuilder(
+    column: $table.usagePercentage,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get daysToExpire => $composableBuilder(
+    column: $table.daysToExpire,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<bool> get isExpired => $composableBuilder(
     column: $table.isExpired,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get advanceUuid => $composableBuilder(
+    column: $table.advanceUuid,
     builder: (column) => ColumnOrderings(column),
   );
 
@@ -97907,8 +106559,23 @@ class $$AccountAdvanceTableAnnotationComposer
     builder: (column) => column,
   );
 
+  GeneratedColumn<double> get usagePercentage => $composableBuilder(
+    column: $table.usagePercentage,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get daysToExpire => $composableBuilder(
+    column: $table.daysToExpire,
+    builder: (column) => column,
+  );
+
   GeneratedColumn<bool> get isExpired =>
       $composableBuilder(column: $table.isExpired, builder: (column) => column);
+
+  GeneratedColumn<String> get advanceUuid => $composableBuilder(
+    column: $table.advanceUuid,
+    builder: (column) => column,
+  );
 
   GeneratedColumn<int> get collectionSessionId => $composableBuilder(
     column: $table.collectionSessionId,
@@ -97987,7 +106654,10 @@ class $$AccountAdvanceTableTableManager
                 Value<double> amountUsed = const Value.absent(),
                 Value<double> amountAvailable = const Value.absent(),
                 Value<double> amountReturned = const Value.absent(),
+                Value<double> usagePercentage = const Value.absent(),
+                Value<int?> daysToExpire = const Value.absent(),
                 Value<bool> isExpired = const Value.absent(),
+                Value<String?> advanceUuid = const Value.absent(),
                 Value<int?> collectionSessionId = const Value.absent(),
                 Value<int?> collectionConfigId = const Value.absent(),
                 Value<int?> saleOrderId = const Value.absent(),
@@ -98014,7 +106684,10 @@ class $$AccountAdvanceTableTableManager
                 amountUsed: amountUsed,
                 amountAvailable: amountAvailable,
                 amountReturned: amountReturned,
+                usagePercentage: usagePercentage,
+                daysToExpire: daysToExpire,
                 isExpired: isExpired,
+                advanceUuid: advanceUuid,
                 collectionSessionId: collectionSessionId,
                 collectionConfigId: collectionConfigId,
                 saleOrderId: saleOrderId,
@@ -98043,7 +106716,10 @@ class $$AccountAdvanceTableTableManager
                 Value<double> amountUsed = const Value.absent(),
                 Value<double> amountAvailable = const Value.absent(),
                 Value<double> amountReturned = const Value.absent(),
+                Value<double> usagePercentage = const Value.absent(),
+                Value<int?> daysToExpire = const Value.absent(),
                 Value<bool> isExpired = const Value.absent(),
+                Value<String?> advanceUuid = const Value.absent(),
                 Value<int?> collectionSessionId = const Value.absent(),
                 Value<int?> collectionConfigId = const Value.absent(),
                 Value<int?> saleOrderId = const Value.absent(),
@@ -98070,7 +106746,10 @@ class $$AccountAdvanceTableTableManager
                 amountUsed: amountUsed,
                 amountAvailable: amountAvailable,
                 amountReturned: amountReturned,
+                usagePercentage: usagePercentage,
+                daysToExpire: daysToExpire,
                 isExpired: isExpired,
+                advanceUuid: advanceUuid,
                 collectionSessionId: collectionSessionId,
                 collectionConfigId: collectionConfigId,
                 saleOrderId: saleOrderId,
@@ -98099,6 +106778,505 @@ typedef $$AccountAdvanceTableProcessedTableManager =
         BaseReferences<_$AppDatabase, $AccountAdvanceTable, AccountAdvanceData>,
       ),
       AccountAdvanceData,
+      PrefetchHooks Function()
+    >;
+typedef $$AdvanceLinesTableTableCreateCompanionBuilder =
+    AdvanceLinesTableCompanion Function({
+      Value<int> id,
+      required int odooId,
+      Value<String?> lineUuid,
+      required int journalId,
+      Value<String?> journalName,
+      Value<String?> journalType,
+      Value<int?> advanceMethodLineId,
+      Value<String?> advanceMethodName,
+      Value<double> amount,
+      Value<String?> nroDocument,
+      Value<DateTime?> dateDocument,
+      Value<int?> partnerBankId,
+      Value<String?> partnerBankName,
+      Value<DateTime?> checkDueDate,
+      Value<int?> cardBrandId,
+      Value<String?> cardBrandName,
+      Value<int?> cardDeadlineId,
+      Value<String?> cardDeadlineName,
+      Value<DateTime?> writeDate,
+    });
+typedef $$AdvanceLinesTableTableUpdateCompanionBuilder =
+    AdvanceLinesTableCompanion Function({
+      Value<int> id,
+      Value<int> odooId,
+      Value<String?> lineUuid,
+      Value<int> journalId,
+      Value<String?> journalName,
+      Value<String?> journalType,
+      Value<int?> advanceMethodLineId,
+      Value<String?> advanceMethodName,
+      Value<double> amount,
+      Value<String?> nroDocument,
+      Value<DateTime?> dateDocument,
+      Value<int?> partnerBankId,
+      Value<String?> partnerBankName,
+      Value<DateTime?> checkDueDate,
+      Value<int?> cardBrandId,
+      Value<String?> cardBrandName,
+      Value<int?> cardDeadlineId,
+      Value<String?> cardDeadlineName,
+      Value<DateTime?> writeDate,
+    });
+
+class $$AdvanceLinesTableTableFilterComposer
+    extends Composer<_$AppDatabase, $AdvanceLinesTableTable> {
+  $$AdvanceLinesTableTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<int> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get odooId => $composableBuilder(
+    column: $table.odooId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get lineUuid => $composableBuilder(
+    column: $table.lineUuid,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get journalId => $composableBuilder(
+    column: $table.journalId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get journalName => $composableBuilder(
+    column: $table.journalName,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get journalType => $composableBuilder(
+    column: $table.journalType,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get advanceMethodLineId => $composableBuilder(
+    column: $table.advanceMethodLineId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get advanceMethodName => $composableBuilder(
+    column: $table.advanceMethodName,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<double> get amount => $composableBuilder(
+    column: $table.amount,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get nroDocument => $composableBuilder(
+    column: $table.nroDocument,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get dateDocument => $composableBuilder(
+    column: $table.dateDocument,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get partnerBankId => $composableBuilder(
+    column: $table.partnerBankId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get partnerBankName => $composableBuilder(
+    column: $table.partnerBankName,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get checkDueDate => $composableBuilder(
+    column: $table.checkDueDate,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get cardBrandId => $composableBuilder(
+    column: $table.cardBrandId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get cardBrandName => $composableBuilder(
+    column: $table.cardBrandName,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get cardDeadlineId => $composableBuilder(
+    column: $table.cardDeadlineId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get cardDeadlineName => $composableBuilder(
+    column: $table.cardDeadlineName,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get writeDate => $composableBuilder(
+    column: $table.writeDate,
+    builder: (column) => ColumnFilters(column),
+  );
+}
+
+class $$AdvanceLinesTableTableOrderingComposer
+    extends Composer<_$AppDatabase, $AdvanceLinesTableTable> {
+  $$AdvanceLinesTableTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<int> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get odooId => $composableBuilder(
+    column: $table.odooId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get lineUuid => $composableBuilder(
+    column: $table.lineUuid,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get journalId => $composableBuilder(
+    column: $table.journalId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get journalName => $composableBuilder(
+    column: $table.journalName,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get journalType => $composableBuilder(
+    column: $table.journalType,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get advanceMethodLineId => $composableBuilder(
+    column: $table.advanceMethodLineId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get advanceMethodName => $composableBuilder(
+    column: $table.advanceMethodName,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<double> get amount => $composableBuilder(
+    column: $table.amount,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get nroDocument => $composableBuilder(
+    column: $table.nroDocument,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get dateDocument => $composableBuilder(
+    column: $table.dateDocument,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get partnerBankId => $composableBuilder(
+    column: $table.partnerBankId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get partnerBankName => $composableBuilder(
+    column: $table.partnerBankName,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get checkDueDate => $composableBuilder(
+    column: $table.checkDueDate,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get cardBrandId => $composableBuilder(
+    column: $table.cardBrandId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get cardBrandName => $composableBuilder(
+    column: $table.cardBrandName,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get cardDeadlineId => $composableBuilder(
+    column: $table.cardDeadlineId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get cardDeadlineName => $composableBuilder(
+    column: $table.cardDeadlineName,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get writeDate => $composableBuilder(
+    column: $table.writeDate,
+    builder: (column) => ColumnOrderings(column),
+  );
+}
+
+class $$AdvanceLinesTableTableAnnotationComposer
+    extends Composer<_$AppDatabase, $AdvanceLinesTableTable> {
+  $$AdvanceLinesTableTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<int> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<int> get odooId =>
+      $composableBuilder(column: $table.odooId, builder: (column) => column);
+
+  GeneratedColumn<String> get lineUuid =>
+      $composableBuilder(column: $table.lineUuid, builder: (column) => column);
+
+  GeneratedColumn<int> get journalId =>
+      $composableBuilder(column: $table.journalId, builder: (column) => column);
+
+  GeneratedColumn<String> get journalName => $composableBuilder(
+    column: $table.journalName,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get journalType => $composableBuilder(
+    column: $table.journalType,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get advanceMethodLineId => $composableBuilder(
+    column: $table.advanceMethodLineId,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get advanceMethodName => $composableBuilder(
+    column: $table.advanceMethodName,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<double> get amount =>
+      $composableBuilder(column: $table.amount, builder: (column) => column);
+
+  GeneratedColumn<String> get nroDocument => $composableBuilder(
+    column: $table.nroDocument,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<DateTime> get dateDocument => $composableBuilder(
+    column: $table.dateDocument,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get partnerBankId => $composableBuilder(
+    column: $table.partnerBankId,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get partnerBankName => $composableBuilder(
+    column: $table.partnerBankName,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<DateTime> get checkDueDate => $composableBuilder(
+    column: $table.checkDueDate,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get cardBrandId => $composableBuilder(
+    column: $table.cardBrandId,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get cardBrandName => $composableBuilder(
+    column: $table.cardBrandName,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get cardDeadlineId => $composableBuilder(
+    column: $table.cardDeadlineId,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get cardDeadlineName => $composableBuilder(
+    column: $table.cardDeadlineName,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<DateTime> get writeDate =>
+      $composableBuilder(column: $table.writeDate, builder: (column) => column);
+}
+
+class $$AdvanceLinesTableTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $AdvanceLinesTableTable,
+          AdvanceLinesTableData,
+          $$AdvanceLinesTableTableFilterComposer,
+          $$AdvanceLinesTableTableOrderingComposer,
+          $$AdvanceLinesTableTableAnnotationComposer,
+          $$AdvanceLinesTableTableCreateCompanionBuilder,
+          $$AdvanceLinesTableTableUpdateCompanionBuilder,
+          (
+            AdvanceLinesTableData,
+            BaseReferences<
+              _$AppDatabase,
+              $AdvanceLinesTableTable,
+              AdvanceLinesTableData
+            >,
+          ),
+          AdvanceLinesTableData,
+          PrefetchHooks Function()
+        > {
+  $$AdvanceLinesTableTableTableManager(
+    _$AppDatabase db,
+    $AdvanceLinesTableTable table,
+  ) : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$AdvanceLinesTableTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$AdvanceLinesTableTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$AdvanceLinesTableTableAnnotationComposer(
+                $db: db,
+                $table: table,
+              ),
+          updateCompanionCallback:
+              ({
+                Value<int> id = const Value.absent(),
+                Value<int> odooId = const Value.absent(),
+                Value<String?> lineUuid = const Value.absent(),
+                Value<int> journalId = const Value.absent(),
+                Value<String?> journalName = const Value.absent(),
+                Value<String?> journalType = const Value.absent(),
+                Value<int?> advanceMethodLineId = const Value.absent(),
+                Value<String?> advanceMethodName = const Value.absent(),
+                Value<double> amount = const Value.absent(),
+                Value<String?> nroDocument = const Value.absent(),
+                Value<DateTime?> dateDocument = const Value.absent(),
+                Value<int?> partnerBankId = const Value.absent(),
+                Value<String?> partnerBankName = const Value.absent(),
+                Value<DateTime?> checkDueDate = const Value.absent(),
+                Value<int?> cardBrandId = const Value.absent(),
+                Value<String?> cardBrandName = const Value.absent(),
+                Value<int?> cardDeadlineId = const Value.absent(),
+                Value<String?> cardDeadlineName = const Value.absent(),
+                Value<DateTime?> writeDate = const Value.absent(),
+              }) => AdvanceLinesTableCompanion(
+                id: id,
+                odooId: odooId,
+                lineUuid: lineUuid,
+                journalId: journalId,
+                journalName: journalName,
+                journalType: journalType,
+                advanceMethodLineId: advanceMethodLineId,
+                advanceMethodName: advanceMethodName,
+                amount: amount,
+                nroDocument: nroDocument,
+                dateDocument: dateDocument,
+                partnerBankId: partnerBankId,
+                partnerBankName: partnerBankName,
+                checkDueDate: checkDueDate,
+                cardBrandId: cardBrandId,
+                cardBrandName: cardBrandName,
+                cardDeadlineId: cardDeadlineId,
+                cardDeadlineName: cardDeadlineName,
+                writeDate: writeDate,
+              ),
+          createCompanionCallback:
+              ({
+                Value<int> id = const Value.absent(),
+                required int odooId,
+                Value<String?> lineUuid = const Value.absent(),
+                required int journalId,
+                Value<String?> journalName = const Value.absent(),
+                Value<String?> journalType = const Value.absent(),
+                Value<int?> advanceMethodLineId = const Value.absent(),
+                Value<String?> advanceMethodName = const Value.absent(),
+                Value<double> amount = const Value.absent(),
+                Value<String?> nroDocument = const Value.absent(),
+                Value<DateTime?> dateDocument = const Value.absent(),
+                Value<int?> partnerBankId = const Value.absent(),
+                Value<String?> partnerBankName = const Value.absent(),
+                Value<DateTime?> checkDueDate = const Value.absent(),
+                Value<int?> cardBrandId = const Value.absent(),
+                Value<String?> cardBrandName = const Value.absent(),
+                Value<int?> cardDeadlineId = const Value.absent(),
+                Value<String?> cardDeadlineName = const Value.absent(),
+                Value<DateTime?> writeDate = const Value.absent(),
+              }) => AdvanceLinesTableCompanion.insert(
+                id: id,
+                odooId: odooId,
+                lineUuid: lineUuid,
+                journalId: journalId,
+                journalName: journalName,
+                journalType: journalType,
+                advanceMethodLineId: advanceMethodLineId,
+                advanceMethodName: advanceMethodName,
+                amount: amount,
+                nroDocument: nroDocument,
+                dateDocument: dateDocument,
+                partnerBankId: partnerBankId,
+                partnerBankName: partnerBankName,
+                checkDueDate: checkDueDate,
+                cardBrandId: cardBrandId,
+                cardBrandName: cardBrandName,
+                cardDeadlineId: cardDeadlineId,
+                cardDeadlineName: cardDeadlineName,
+                writeDate: writeDate,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .toList(),
+          prefetchHooksCallback: null,
+        ),
+      );
+}
+
+typedef $$AdvanceLinesTableTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $AdvanceLinesTableTable,
+      AdvanceLinesTableData,
+      $$AdvanceLinesTableTableFilterComposer,
+      $$AdvanceLinesTableTableOrderingComposer,
+      $$AdvanceLinesTableTableAnnotationComposer,
+      $$AdvanceLinesTableTableCreateCompanionBuilder,
+      $$AdvanceLinesTableTableUpdateCompanionBuilder,
+      (
+        AdvanceLinesTableData,
+        BaseReferences<
+          _$AppDatabase,
+          $AdvanceLinesTableTable,
+          AdvanceLinesTableData
+        >,
+      ),
+      AdvanceLinesTableData,
       PrefetchHooks Function()
     >;
 typedef $$AccountCreditNoteTableCreateCompanionBuilder =
@@ -102182,6 +111360,8 @@ class $AppDatabaseManager {
       );
   $$AccountAdvanceTableTableManager get accountAdvance =>
       $$AccountAdvanceTableTableManager(_db, _db.accountAdvance);
+  $$AdvanceLinesTableTableTableManager get advanceLinesTable =>
+      $$AdvanceLinesTableTableTableManager(_db, _db.advanceLinesTable);
   $$AccountCreditNoteTableTableManager get accountCreditNote =>
       $$AccountCreditNoteTableTableManager(_db, _db.accountCreditNote);
   $$OfflineInvoiceTableTableManager get offlineInvoice =>

@@ -44,6 +44,7 @@ class MailActivityTable extends Table {
 class DecimalPrecision extends Table {
   IntColumn get id => integer().autoIncrement()();
   IntColumn get odooId => integer().unique()();
+  TextColumn get uuid => text().nullable()(); // UUID local para sync
   TextColumn get name => text()(); // 'Product Price', 'Discount', etc.
   IntColumn get digits => integer()(); // Número de decimales
   DateTimeColumn get writeDate => dateTime().nullable()();

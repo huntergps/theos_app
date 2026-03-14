@@ -121,6 +121,7 @@ part 'database.g.dart';
   AccountCardLote,
   AccountPaymentMethodLine,
   AccountAdvance,
+  AdvanceLinesTable,
   AccountCreditNote,
   OfflineInvoice,
   // Cash out types

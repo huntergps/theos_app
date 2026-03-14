@@ -4,6 +4,7 @@ import 'package:drift/drift.dart';
 class ResCurrency extends Table {
   IntColumn get id => integer().autoIncrement()();
   IntColumn get odooId => integer().unique()();
+  TextColumn get uuid => text().nullable()(); // UUID local para sync
   TextColumn get name => text()(); // 'USD'
   TextColumn get symbol => text()(); // '$'
   RealColumn get rounding => real()(); // 0.01

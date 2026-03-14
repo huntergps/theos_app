@@ -946,10 +946,10 @@ class PaymentService {
         AccountCardLoteCompanion.insert(
           odooId: 0, // Sin odooId todavía
           name: loteName,
-          code: '', // Se actualizará cuando se sincronice con Odoo
+          code: const Value(''), // Se actualizará cuando se sincronice con Odoo
           journalId: journalId,
-          dateFrom: today,
-          dateTo: today.add(const Duration(days: 1)),
+          dateFrom: Value(today),
+          dateTo: Value(today.add(const Duration(days: 1))),
           state: const Value('open'),
         ),
       );

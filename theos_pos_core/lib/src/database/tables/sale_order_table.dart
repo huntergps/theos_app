@@ -49,7 +49,7 @@ class SaleOrder extends Table {
   BoolColumn get requirePayment => boolean().withDefault(const Constant(false))();
   TextColumn get signedBy => text().nullable()();
   DateTimeColumn get signedOn => dateTime().nullable()();
-  TextColumn get commitmentDate => text().nullable()();
+  DateTimeColumn get commitmentDate => dateTime().nullable()();
   DateTimeColumn get expectedDate => dateTime().nullable()();
   BoolColumn get isExpired => boolean().withDefault(const Constant(false))();
   TextColumn get showUpdatePricelist => text().nullable()();

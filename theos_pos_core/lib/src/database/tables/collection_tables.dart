@@ -75,6 +75,75 @@ class CollectionSession extends Table {
   RealColumn get cashOutOtherTotal => real().withDefault(const Constant(0.0))();
   RealColumn get checksOnDayTotal => real().withDefault(const Constant(0.0))();
   RealColumn get checksPostdatedTotal => real().withDefault(const Constant(0.0))();
+  RealColumn get advanceChecksOnDayTotal => real().withDefault(const Constant(0.0))();
+  RealColumn get advanceChecksPostdatedTotal => real().withDefault(const Constant(0.0))();
+  RealColumn get totalChecksOnDay => real().withDefault(const Constant(0.0))();
+  RealColumn get totalChecksPostdated => real().withDefault(const Constant(0.0))();
+  RealColumn get totalCashAdvanceAmount => real().withDefault(const Constant(0.0))();
+
+  // Deposits breakdown
+  RealColumn get systemDepositsCashTotal => real().withDefault(const Constant(0.0))();
+  RealColumn get manualDepositsCashTotal => real().withDefault(const Constant(0.0))();
+  RealColumn get diffDepositsCashTotal => real().withDefault(const Constant(0.0))();
+  RealColumn get systemDepositsChecksTotal => real().withDefault(const Constant(0.0))();
+  RealColumn get manualDepositsChecksTotal => real().withDefault(const Constant(0.0))();
+  RealColumn get diffDepositsChecksTotal => real().withDefault(const Constant(0.0))();
+
+  // Cash and credit totals
+  RealColumn get totalCashInvoicesAmount => real().withDefault(const Constant(0.0))();
+  RealColumn get totalCashCollectedAmount => real().withDefault(const Constant(0.0))();
+  RealColumn get totalCashPendingAmount => real().withDefault(const Constant(0.0))();
+  RealColumn get totalCreditOrdersAmount => real().withDefault(const Constant(0.0))();
+  RealColumn get totalCreditInvoicesAmount => real().withDefault(const Constant(0.0))();
+  RealColumn get creditSalesDifference => real().withDefault(const Constant(0.0))();
+
+  // System totals by payment method
+  RealColumn get systemChecksOnDay => real().withDefault(const Constant(0.0))();
+  RealColumn get systemChecksPostdated => real().withDefault(const Constant(0.0))();
+  RealColumn get systemCardsTotal => real().withDefault(const Constant(0.0))();
+  RealColumn get systemTransfersTotal => real().withDefault(const Constant(0.0))();
+  RealColumn get systemAdvancesTotal => real().withDefault(const Constant(0.0))();
+  RealColumn get systemCreditNotesTotal => real().withDefault(const Constant(0.0))();
+
+  // Manual totals by payment method
+  RealColumn get manualChecksOnDay => real().withDefault(const Constant(0.0))();
+  RealColumn get manualChecksPostdated => real().withDefault(const Constant(0.0))();
+  RealColumn get manualCardsTotal => real().withDefault(const Constant(0.0))();
+  RealColumn get manualTransfersTotal => real().withDefault(const Constant(0.0))();
+  RealColumn get manualAdvancesTotal => real().withDefault(const Constant(0.0))();
+  RealColumn get manualCreditNotesTotal => real().withDefault(const Constant(0.0))();
+  RealColumn get manualWithholdsTotal => real().withDefault(const Constant(0.0))();
+
+  // Difference totals by payment method
+  RealColumn get diffChecksOnDay => real().withDefault(const Constant(0.0))();
+  RealColumn get diffChecksPostdated => real().withDefault(const Constant(0.0))();
+  RealColumn get diffCardsTotal => real().withDefault(const Constant(0.0))();
+  RealColumn get diffTransfersTotal => real().withDefault(const Constant(0.0))();
+  RealColumn get diffAdvancesTotal => real().withDefault(const Constant(0.0))();
+  RealColumn get diffCreditNotesTotal => real().withDefault(const Constant(0.0))();
+  RealColumn get diffWithholdsTotal => real().withDefault(const Constant(0.0))();
+
+  // Summary totals
+  RealColumn get summarySystemTotal => real().withDefault(const Constant(0.0))();
+  RealColumn get summaryManualTotal => real().withDefault(const Constant(0.0))();
+  RealColumn get summaryDiffTotal => real().withDefault(const Constant(0.0))();
+
+  // Deposit breakdowns by category
+  RealColumn get factDepositsCash => real().withDefault(const Constant(0.0))();
+  RealColumn get factDepositsChecks => real().withDefault(const Constant(0.0))();
+  RealColumn get carteraDepositsCash => real().withDefault(const Constant(0.0))();
+  RealColumn get carteraDepositsChecks => real().withDefault(const Constant(0.0))();
+  RealColumn get anticipoDepositsCash => real().withDefault(const Constant(0.0))();
+  RealColumn get anticipoDepositsChecks => real().withDefault(const Constant(0.0))();
+
+  // Advances used
+  RealColumn get factAdvancesUsed => real().withDefault(const Constant(0.0))();
+  RealColumn get carteraAdvancesUsed => real().withDefault(const Constant(0.0))();
+  RealColumn get summaryAdvancesUsedTotal => real().withDefault(const Constant(0.0))();
+
+  // Fact total with NC and withholds
+  RealColumn get factTotalWithNcWithholds => real().withDefault(const Constant(0.0))();
+
   RealColumn get totalCash => real().withDefault(const Constant(0.0))();
   RealColumn get totalCards => real().withDefault(const Constant(0.0))();
   RealColumn get totalTransfers => real().withDefault(const Constant(0.0))();
@@ -143,6 +212,8 @@ class CollectionSessionCash extends Table {
   IntColumn get coins5 => integer().withDefault(const Constant(0))();
   IntColumn get coins1Cent => integer().withDefault(const Constant(0))();
   TextColumn get notes => text().nullable()();
+  BoolColumn get isSynced => boolean().withDefault(const Constant(false))();
+  DateTimeColumn get lastSyncDate => dateTime().nullable()();
   DateTimeColumn get writeDate => dateTime().nullable()();
 }
 
@@ -150,18 +221,34 @@ class CollectionSessionCash extends Table {
 class CollectionSessionDeposit extends Table {
   IntColumn get id => integer().autoIncrement()();
   IntColumn get odooId => integer().unique().nullable()();
+  TextColumn get uuid => text().nullable()();
   IntColumn get sessionId => integer()();
   IntColumn get collectionSessionId => integer()(); // Alias for sessionId
+  TextColumn get name => text().nullable()();
   TextColumn get depositType => text()(); // bank, cash, check
   TextColumn get type => text().nullable()(); // Alias for depositType
   RealColumn get amount => real().withDefault(const Constant(0.0))();
   TextColumn get reference => text().nullable()();
   TextColumn get number => text().nullable()(); // Alias for reference
-  IntColumn get bankId => integer().nullable()();
-  TextColumn get bankName => text().nullable()();
+  TextColumn get sessionUuid => text().nullable()();
+  IntColumn get userId => integer().nullable()();
+  TextColumn get userName => text().nullable()();
   DateTimeColumn get depositDate => dateTime()();
   DateTimeColumn get date => dateTime().nullable()(); // Alias for depositDate
+  DateTimeColumn get accountingDate => dateTime().nullable()();
+  RealColumn get cashAmount => real().withDefault(const Constant(0.0))();
+  RealColumn get checkAmount => real().withDefault(const Constant(0.0))();
+  IntColumn get checkCount => integer().withDefault(const Constant(0))();
+  IntColumn get bankJournalId => integer().nullable()();
+  TextColumn get bankJournalName => text().nullable()();
+  IntColumn get bankId => integer().nullable()();
+  TextColumn get bankName => text().nullable()();
   TextColumn get state => text().withDefault(const Constant('draft'))();
+  TextColumn get depositSlipNumber => text().nullable()();
+  TextColumn get bankReference => text().nullable()();
+  IntColumn get moveId => integer().nullable()();
+  TextColumn get depositorName => text().nullable()();
+  TextColumn get notes => text().nullable()();
   BoolColumn get isSynced => boolean().withDefault(const Constant(false))();
   DateTimeColumn get lastSyncDate => dateTime().nullable()();
   DateTimeColumn get writeDate => dateTime().nullable()();
@@ -175,6 +262,12 @@ class CashOut extends Table {
   IntColumn get collectionSessionId => integer()(); // Alias for sessionId (backwards compatibility)
   TextColumn get cashOutType => text()(); // security, invoice, refund, withhold, other
   TextColumn get type => text().nullable()(); // Alias for cashOutType
+  TextColumn get cashFlow => text().withDefault(const Constant('out'))(); // out, in
+  IntColumn get journalId => integer().withDefault(const Constant(0))();
+  TextColumn get journalName => text().nullable()();
+  IntColumn get partnerId => integer().nullable()();
+  TextColumn get partnerName => text().nullable()();
+  IntColumn get accountIdManual => integer().nullable()();
   RealColumn get amount => real().withDefault(const Constant(0.0))();
   TextColumn get description => text().nullable()();
   TextColumn get name => text().nullable()(); // Alias for description
@@ -184,6 +277,9 @@ class CashOut extends Table {
   IntColumn get approvedById => integer().nullable()();
   TextColumn get approvedByName => text().nullable()();
   DateTimeColumn get approvedAt => dateTime().nullable()();
+  IntColumn get moveId => integer().nullable()();
+  IntColumn get cashOutTypeId => integer().nullable()();
+  TextColumn get typeName => text().nullable()();
   TextColumn get state => text().withDefault(const Constant('draft'))();
   BoolColumn get isSynced => boolean().withDefault(const Constant(false))();
   DateTimeColumn get lastSyncDate => dateTime().nullable()();

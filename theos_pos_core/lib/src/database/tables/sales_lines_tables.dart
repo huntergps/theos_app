@@ -43,7 +43,7 @@ class SaleOrderLine extends Table {
   RealColumn get priceSubtotal => real().withDefault(const Constant(0.0))();
   RealColumn get priceTax => real().withDefault(const Constant(0.0))();
   RealColumn get priceTotal => real().withDefault(const Constant(0.0))();
-  RealColumn get priceReduce => real().withDefault(const Constant(0.0))();
+  RealColumn get priceReduceTaxexcl => real().withDefault(const Constant(0.0))();
 
   // Taxes (JSON array of IDs)
   TextColumn get taxIds => text().nullable()();
@@ -58,7 +58,7 @@ class SaleOrderLine extends Table {
   TextColumn get invoiceStatus => text().withDefault(const Constant('no'))();
 
   // Order state (related)
-  TextColumn get orderState => text().nullable()();
+  TextColumn get state => text().nullable()();
 
   // Section settings (Odoo 19)
   BoolColumn get collapsePrices => boolean().withDefault(const Constant(false))();
@@ -138,6 +138,10 @@ class SaleOrderPaymentLine extends Table {
   IntColumn get odooId => integer().unique().nullable()();
   TextColumn get lineUuid => text().unique().nullable()(); // Local UUID for offline sync
 
+  // Local identifiers
+  TextColumn get uuid => text().nullable()();
+  TextColumn get type => text().nullable()(); // cash, card, transfer, check, advance, credit_note
+
   // References
   IntColumn get orderId => integer()(); // FK to SaleOrder.odooId
   TextColumn get paymentType => text().withDefault(const Constant('inbound'))(); // inbound, outbound
@@ -178,6 +182,10 @@ class SaleOrderPaymentLine extends Table {
   TextColumn get partnerBankName => text().nullable()();
   DateTimeColumn get effectiveDate => dateTime().nullable()();
   DateTimeColumn get bankReferenceDate => dateTime().nullable()();
+
+  // Advance/Credit note availability
+  RealColumn get advanceAvailable => real().withDefault(const Constant(0.0))();
+  RealColumn get creditNoteAvailable => real().withDefault(const Constant(0.0))();
 
   // Sync Status
   BoolColumn get isSynced => boolean().withDefault(const Constant(false))();

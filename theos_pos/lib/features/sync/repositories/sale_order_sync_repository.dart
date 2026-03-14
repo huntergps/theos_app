@@ -563,7 +563,7 @@ class SaleOrderSyncRepository extends BaseSyncRepository {
       state: Value(o['state'] as String? ?? 'draft'),
       dateOrder: Value(parseDateTime(o['date_order'])),
       validityDate: Value(parseDateTime(o['validity_date'])),
-      commitmentDate: Value(parseDateTime(o['commitment_date'])?.toIso8601String()),
+      commitmentDate: Value(parseDateTime(o['commitment_date'])),
       expectedDate: Value(parseDateTime(o['expected_date'])),
       partnerId: Value(partnerId),
       partnerName: Value(extractName(o['partner_id'])),
@@ -698,7 +698,7 @@ class SaleOrderSyncRepository extends BaseSyncRepository {
           qtyDelivered: Value((line['qty_delivered'] as num?)?.toDouble() ?? 0.0),
           qtyInvoiced: Value((line['qty_invoiced'] as num?)?.toDouble() ?? 0.0),
           displayType: Value(line['display_type'] is String ? line['display_type'] : ''),
-          orderState: Value(line['state'] as String? ?? 'draft'),
+          state: Value(line['state'] as String? ?? 'draft'),
           writeDate: Value(parseDateTime(line['write_date'])),
           isSynced: const Value(true),
         );

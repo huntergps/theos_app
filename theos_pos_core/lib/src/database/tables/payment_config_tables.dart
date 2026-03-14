@@ -25,15 +25,24 @@ class AccountCreditCardDeadline extends Table {
 class AccountCardLote extends Table {
   IntColumn get id => integer().autoIncrement()();
   IntColumn get odooId => integer().unique()();
+  IntColumn get localId => integer().nullable()();
+  TextColumn get loteUuid => text().nullable()();
   TextColumn get name => text()();
-  TextColumn get code => text()();
+  TextColumn get code => text().nullable()();
   IntColumn get journalId => integer()();
   TextColumn get journalName => text().nullable()();
-  DateTimeColumn get dateFrom => dateTime()();
-  DateTimeColumn get dateTo => dateTime()();
+  TextColumn get state => text().withDefault(const Constant('open'))();
+  DateTimeColumn get date => dateTime().nullable()();
+  TextColumn get numeroLote => text().nullable()();
+  RealColumn get amountTotal => real().withDefault(const Constant(0.0))();
+  RealColumn get amountBalance => real().withDefault(const Constant(0.0))();
+  IntColumn get paymentCount => integer().withDefault(const Constant(0))();
+  BoolColumn get isPosLote => boolean().withDefault(const Constant(false))();
+  // Legacy fields (kept for backward compatibility)
+  DateTimeColumn get dateFrom => dateTime().nullable()();
+  DateTimeColumn get dateTo => dateTime().nullable()();
   RealColumn get totalAmount => real().withDefault(const Constant(0.0))();
   IntColumn get transactionCount => integer().withDefault(const Constant(0))();
-  TextColumn get state => text().withDefault(const Constant('draft'))();
   BoolColumn get active => boolean().withDefault(const Constant(true))();
   DateTimeColumn get writeDate => dateTime().nullable()();
 }
@@ -84,7 +93,11 @@ class AccountAdvance extends Table {
       real().withDefault(const Constant(0.0))(); // Monto disponible
   RealColumn get amountReturned =>
       real().withDefault(const Constant(0.0))(); // Monto devuelto
+  RealColumn get usagePercentage =>
+      real().withDefault(const Constant(0.0))(); // Porcentaje de uso
+  IntColumn get daysToExpire => integer().nullable()(); // Días para expirar
   BoolColumn get isExpired => boolean().withDefault(const Constant(false))();
+  TextColumn get advanceUuid => text().nullable()(); // UUID local para sync
   // Collection session reference
   IntColumn get collectionSessionId => integer().nullable()();
   IntColumn get collectionConfigId => integer().nullable()();
@@ -120,6 +133,7 @@ class AccountPayment extends Table {
   // Relations
   IntColumn get collectionSessionId => integer().nullable()();
   IntColumn get invoiceId => integer().nullable()();
+  IntColumn get reconciledInvoiceIds => integer().nullable()();
   IntColumn get partnerId => integer().nullable()();
   TextColumn get partnerName => text().nullable()();
   IntColumn get journalId => integer().nullable()();
@@ -179,5 +193,33 @@ class AccountPayment extends Table {
   // Sync Status
   BoolColumn get isSynced => boolean().withDefault(const Constant(false))();
   DateTimeColumn get lastSyncDate => dateTime().nullable()();
+  DateTimeColumn get writeDate => dateTime().nullable()();
+}
+
+/// AdvanceLines - Líneas de anticipo (métodos de pago del anticipo)
+///
+/// Named `AdvanceLinesTable` to avoid conflict with the Freezed `AdvanceLine`
+/// model class (Drift strips trailing 's' from table names to generate data classes).
+class AdvanceLinesTable extends Table {
+  @override
+  String get tableName => 'advance_lines';
+  IntColumn get id => integer().autoIncrement()();
+  IntColumn get odooId => integer().unique()();
+  TextColumn get lineUuid => text().nullable()(); // UUID local para sync
+  IntColumn get journalId => integer()();
+  TextColumn get journalName => text().nullable()();
+  TextColumn get journalType => text().nullable()();
+  IntColumn get advanceMethodLineId => integer().nullable()();
+  TextColumn get advanceMethodName => text().nullable()();
+  RealColumn get amount => real().withDefault(const Constant(0.0))();
+  TextColumn get nroDocument => text().nullable()();
+  DateTimeColumn get dateDocument => dateTime().nullable()();
+  IntColumn get partnerBankId => integer().nullable()();
+  TextColumn get partnerBankName => text().nullable()();
+  DateTimeColumn get checkDueDate => dateTime().nullable()();
+  IntColumn get cardBrandId => integer().nullable()();
+  TextColumn get cardBrandName => text().nullable()();
+  IntColumn get cardDeadlineId => integer().nullable()();
+  TextColumn get cardDeadlineName => text().nullable()();
   DateTimeColumn get writeDate => dateTime().nullable()();
 }

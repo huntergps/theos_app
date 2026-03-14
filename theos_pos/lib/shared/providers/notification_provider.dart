@@ -2303,9 +2303,9 @@ class NotificationCounterNotifier extends Notifier<NotificationCounter> {
           AccountCardLoteCompanion.insert(
             odooId: loteId,
             name: name,
-            code: numeroLote ?? '',
-            dateFrom: date,
-            dateTo: date, // Using same date for both
+            code: Value(numeroLote ?? ''),
+            dateFrom: Value(date),
+            dateTo: Value(date), // Using same date for both
             journalId: journalId,
             journalName: Value(journalName),
             state: Value(state),

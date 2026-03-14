@@ -60,9 +60,9 @@ void main() {
             UomUomCompanion.insert(
               odooId: odooId,
               name: name,
-              categoryId: categoryId,
+              categoryId: Value(categoryId),
               factor: Value(factor),
-              uomType: uomType,
+              uomType: Value(uomType),
               rounding: Value(rounding),
               active: Value(active),
             ),
@@ -182,8 +182,8 @@ void main() {
             UomUomCompanion.insert(
               odooId: 1,
               name: 'Unidades',
-              categoryId: 1,
-              uomType: 'reference',
+              categoryId: const Value(1),
+              uomType: const Value('reference'),
             ),
           );
       // Insert product category
@@ -484,8 +484,8 @@ void main() {
             UomUomCompanion.insert(
               odooId: 1,
               name: 'Unidades',
-              categoryId: 1,
-              uomType: 'reference',
+              categoryId: const Value(1),
+              uomType: const Value('reference'),
             ),
           );
       // Insert product
@@ -798,8 +798,8 @@ void main() {
             UomUomCompanion.insert(
               odooId: 1,
               name: 'Unidades',
-              categoryId: 1,
-              uomType: 'reference',
+              categoryId: const Value(1),
+              uomType: const Value('reference'),
             ),
           );
     }
