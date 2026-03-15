@@ -311,6 +311,22 @@ class POSActionsPanel extends ConsumerWidget {
 
 
 
+  /// Safely pop the navigator, deferring if it is locked during a transition.
+  void _safePop(BuildContext context) {
+    if (!context.mounted) return;
+    try {
+      Navigator.of(context).pop();
+    } catch (_) {
+      // Navigator was locked (e.g. during a route transition).
+      // Defer the pop to the next frame when the navigator is idle.
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (context.mounted) {
+          Navigator.of(context).pop();
+        }
+      });
+    }
+  }
+
   /// Handle sync order action
   Future<void> _handleSyncOrder(
     BuildContext context,
@@ -408,8 +424,8 @@ class POSActionsPanel extends ConsumerWidget {
       // Reload the active tab order
       await ref.read(fastSaleProvider.notifier).reloadActiveOrder();
 
-      // Close dialog
-      if (context.mounted) Navigator.of(context).pop();
+      // Close dialog safely (navigator may be locked during transition)
+      _safePop(context);
 
       if (!context.mounted) return;
       CopyableInfoBar.showSuccess(
@@ -420,8 +436,8 @@ class POSActionsPanel extends ConsumerWidget {
             : 'Orden sincronizada correctamente',
       );
     } catch (e) {
-      // Close dialog
-      if (context.mounted) Navigator.of(context).pop();
+      // Close dialog safely (navigator may be locked during transition)
+      _safePop(context);
 
       logger.e('[POSActions]', 'Sync error: $e');
 
@@ -1197,7 +1213,7 @@ class POSActionsPanel extends ConsumerWidget {
       await salesRepo.cancel(order.id);
 
       // Close dialog first
-      if (context.mounted) Navigator.of(context).pop();
+      _safePop(context);
 
       // Then show success and reload
       if (!context.mounted) return;
@@ -1211,7 +1227,7 @@ class POSActionsPanel extends ConsumerWidget {
       await ref.read(fastSaleProvider.notifier).reloadActiveOrder();
     } catch (e) {
       // Close dialog first
-      if (context.mounted) Navigator.of(context).pop();
+      _safePop(context);
 
       if (!context.mounted) return;
       CopyableInfoBar.showError(
@@ -1383,7 +1399,7 @@ class POSActionsPanel extends ConsumerWidget {
       );
 
       // Close dialog first
-      if (context.mounted) Navigator.of(context).pop();
+      _safePop(context);
 
       if (!context.mounted) return;
 
@@ -1404,7 +1420,7 @@ class POSActionsPanel extends ConsumerWidget {
       }
     } catch (e) {
       // Close dialog first
-      if (context.mounted) Navigator.of(context).pop();
+      _safePop(context);
 
       if (!context.mounted) return;
 
