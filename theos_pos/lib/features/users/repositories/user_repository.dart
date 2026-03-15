@@ -66,8 +66,15 @@ class UserRepository extends BaseRepository
     return await userManager.getCurrentUser();
   }
 
-  /// Update user in Odoo and local cache
+  /// Update user in Odoo and local cache — OFFLINE-FIRST
+  ///
+  /// Pattern: Local DB first → Odoo (async) → refresh from Odoo → Local DB
+  /// If Odoo fails, the local change persists and the operation is queued.
   Future<bool> updateUser(int userId, Map<String, dynamic> values) async {
+    // 1. Save to local DB FIRST (optimistic update)
+    await _updateLocalUser(userId, values);
+
+    // 2. Try Odoo sync
     try {
       final success = await odooClient!.write(
         model: 'res.users',
@@ -76,6 +83,7 @@ class UserRepository extends BaseRepository
       );
 
       if (success) {
+        // 3. Re-read from Odoo to get computed/related fields
         final users = await odooClient!.read(
           model: 'res.users',
           ids: [userId],
@@ -87,8 +95,9 @@ class UserRepository extends BaseRepository
       }
       return success;
     } catch (e) {
+      // Local update already persisted — queue for later sync
       await queueOfflineOperation('res.users', 'write', userId, values);
-      return false;
+      return true; // Local update succeeded
     }
   }
 
@@ -121,8 +130,15 @@ class UserRepository extends BaseRepository
     return cached;
   }
 
-  /// Update partner
+  /// Update partner — OFFLINE-FIRST
+  ///
+  /// Pattern: Local DB first → Odoo (async) → refresh from Odoo → Local DB
+  /// If Odoo fails, the local change persists and the operation is queued.
   Future<bool> updatePartner(int partnerId, Map<String, dynamic> values) async {
+    // 1. Save to local DB FIRST (optimistic update)
+    await _updateLocalPartner(partnerId, values);
+
+    // 2. Try Odoo sync
     try {
       final success = await odooClient!.write(
         model: 'res.partner',
@@ -131,6 +147,7 @@ class UserRepository extends BaseRepository
       );
 
       if (success) {
+        // 3. Re-read from Odoo to get computed/related fields
         final partners = await odooClient!.read(
           model: 'res.partner',
           ids: [partnerId],
@@ -142,8 +159,9 @@ class UserRepository extends BaseRepository
       }
       return success;
     } catch (e) {
+      // Local update already persisted — queue for later sync
       await queueOfflineOperation('res.partner', 'write', partnerId, values);
-      return false;
+      return true; // Local update succeeded
     }
   }
 
@@ -513,5 +531,97 @@ class UserRepository extends BaseRepository
       logger.w('[UserRepo] Error fetching group XML IDs from Odoo: $e');
       return [];
     }
+  }
+
+  // ============ LOCAL UPDATE HELPERS ============
+
+  /// Apply a partial update to the local res_users Drift table.
+  ///
+  /// Maps Odoo field names (snake_case) to Drift companion fields.
+  /// Only the fields present in [values] are updated; others remain unchanged.
+  Future<void> _updateLocalUser(int userId, Map<String, dynamic> values) async {
+    final appDb = _appDb;
+    await (appDb.update(appDb.resUsers)
+          ..where((t) => t.odooId.equals(userId)))
+        .write(ResUsersCompanion(
+      name: values.containsKey('name')
+          ? Value(values['name'] as String)
+          : const Value.absent(),
+      email: values.containsKey('email')
+          ? Value(values['email'] as String?)
+          : const Value.absent(),
+      lang: values.containsKey('lang')
+          ? Value(values['lang'] as String?)
+          : const Value.absent(),
+      tz: values.containsKey('tz')
+          ? Value(values['tz'] as String?)
+          : const Value.absent(),
+      signature: values.containsKey('signature')
+          ? Value(values['signature'] as String?)
+          : const Value.absent(),
+      notificationType: values.containsKey('notification_type')
+          ? Value(values['notification_type'] as String?)
+          : const Value.absent(),
+      workPhone: values.containsKey('work_phone')
+          ? Value(values['work_phone'] as String?)
+          : const Value.absent(),
+      mobilePhone: values.containsKey('mobile_phone')
+          ? Value(values['mobile_phone'] as String?)
+          : const Value.absent(),
+      workEmail: values.containsKey('work_email')
+          ? Value(values['work_email'] as String?)
+          : const Value.absent(),
+      outOfOfficeMessage: values.containsKey('out_of_office_message')
+          ? Value(values['out_of_office_message'] as String?)
+          : const Value.absent(),
+      calendarDefaultPrivacy: values.containsKey('calendar_default_privacy')
+          ? Value(values['calendar_default_privacy'] as String?)
+          : const Value.absent(),
+    ));
+  }
+
+  /// Apply a partial update to the local res_partner Drift table.
+  ///
+  /// Maps Odoo field names (snake_case) to Drift companion fields.
+  /// Only the fields present in [values] are updated; others remain unchanged.
+  Future<void> _updateLocalPartner(int partnerId, Map<String, dynamic> values) async {
+    final appDb = _appDb;
+    await (appDb.update(appDb.resPartner)
+          ..where((t) => t.odooId.equals(partnerId)))
+        .write(ResPartnerCompanion(
+      name: values.containsKey('name')
+          ? Value(values['name'] as String)
+          : const Value.absent(),
+      email: values.containsKey('email')
+          ? Value(values['email'] as String?)
+          : const Value.absent(),
+      phone: values.containsKey('phone')
+          ? Value(values['phone'] as String?)
+          : const Value.absent(),
+      mobile: values.containsKey('mobile')
+          ? Value(values['mobile'] as String?)
+          : const Value.absent(),
+      street: values.containsKey('street')
+          ? Value(values['street'] as String?)
+          : const Value.absent(),
+      street2: values.containsKey('street2')
+          ? Value(values['street2'] as String?)
+          : const Value.absent(),
+      city: values.containsKey('city')
+          ? Value(values['city'] as String?)
+          : const Value.absent(),
+      zip: values.containsKey('zip')
+          ? Value(values['zip'] as String?)
+          : const Value.absent(),
+      vat: values.containsKey('vat')
+          ? Value(values['vat'] as String?)
+          : const Value.absent(),
+      lang: values.containsKey('lang')
+          ? Value(values['lang'] as String?)
+          : const Value.absent(),
+      comment: values.containsKey('comment')
+          ? Value(values['comment'] as String?)
+          : const Value.absent(),
+    ));
   }
 }

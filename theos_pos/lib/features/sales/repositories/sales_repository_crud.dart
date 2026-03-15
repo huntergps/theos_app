@@ -12,13 +12,31 @@ extension SalesRepositoryCrud on SalesRepository {
     bool isFinalConsumer = false,
     String? endCustomerName,
   }) async {
-    // Try online creation first
+    // 1. ALWAYS save locally first so the UI has something to show immediately
+    final tempId = await _createOffline(
+      partnerId: partnerId,
+      warehouseId: warehouseId,
+      userId: userId,
+      userName: userName,
+      pricelistId: pricelistId,
+      paymentTermId: paymentTermId,
+      isFinalConsumer: isFinalConsumer,
+      endCustomerName: endCustomerName,
+    );
+
+    if (tempId == null) return null;
+
+    // 2. If online, try to sync to Odoo in the background
     if (_odooClient != null) {
       try {
         // Build values map with required fields
         final values = <String, dynamic>{
           'partner_id': partnerId,
         };
+
+        if (warehouseId != null) values['warehouse_id'] = warehouseId;
+        if (pricelistId != null) values['pricelist_id'] = pricelistId;
+        if (paymentTermId != null) values['payment_term_id'] = paymentTermId;
 
         // Add Final Consumer fields if applicable
         // This is required for Ecuador when partner VAT is 9999999999999
@@ -29,37 +47,41 @@ extension SalesRepositoryCrud on SalesRepository {
           }
         }
 
-        final orderId = await _odooClient.create(
+        final remoteId = await _odooClient.create(
           model: 'sale.order',
           values: values,
         );
 
-        if (orderId != null) {
-          // Fetch the created order to get all computed fields
-          await getById(orderId, forceRefresh: true);
-        }
+        if (remoteId != null) {
+          // Remove the offline queue entry since Odoo succeeded
+          if (_offlineQueue != null) {
+            await _offlineQueue.removeOperationsForRecord('sale.order', tempId);
+          }
 
-        return orderId;
+          // Update local record: replace temp ID with remote ID
+          await _orderManager.updateSaleOrderRemoteId(tempId, remoteId);
+
+          // Fetch full order from Odoo to get all computed fields
+          await getById(remoteId, forceRefresh: true);
+
+          logger.i(
+            '[SalesRepository]',
+            'Order created and synced: local $tempId -> remote $remoteId',
+          );
+          return remoteId;
+        }
       } catch (e) {
         logger.w(
           '[SalesRepository]',
-          'Online create failed, falling back to offline: $e',
+          'Online sync after local create failed, order $tempId queued for later: $e',
         );
-        // Fall through to offline creation
+        // Local record + offline queue entry already exist from _createOffline,
+        // so no additional action needed — sync will retry later.
       }
     }
 
-    // Offline creation
-    return await _createOffline(
-      partnerId: partnerId,
-      warehouseId: warehouseId,
-      userId: userId,
-      userName: userName,
-      pricelistId: pricelistId,
-      paymentTermId: paymentTermId,
-      isFinalConsumer: isFinalConsumer,
-      endCustomerName: endCustomerName,
-    );
+    // Return the local temp ID — offline queue will sync it later
+    return tempId;
   }
 
   Future<int?> _createOffline({

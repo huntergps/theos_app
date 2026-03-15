@@ -142,28 +142,21 @@ class ClientRepository extends BaseRepository with OfflineSupport<DatabaseHelper
     );
   }
 
-  /// Legacy direct update (throws if offline)
+  /// Legacy direct update — now delegates to [updateField] for offline-first support.
+  ///
+  /// Previously threw [OfflineException] when offline. Now saves locally first
+  /// and queues for Odoo sync, matching the offline-first pattern.
+  @Deprecated('Use updateField() instead — same signature, full offline support')
   Future<bool> updateFieldDirect({
     required int clientId,
     required String field,
     required dynamic value,
   }) async {
-    if (!isOnline) {
-      throw OfflineException();
-    }
-
-    final success = await odooClient!.write(
-      model: 'res.partner',
-      ids: [clientId],
-      values: {field: value},
+    return updateField(
+      clientId: clientId,
+      field: field,
+      value: value,
     );
-
-    if (success) {
-      // Update local database
-      await _updateLocalField(clientId, field, value);
-    }
-
-    return success;
   }
 
   // ============ HELPER OPERATIONS ============
