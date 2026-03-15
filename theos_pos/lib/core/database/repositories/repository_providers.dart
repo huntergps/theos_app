@@ -269,7 +269,6 @@ CatalogSyncRepository? catalogSyncRepository(Ref ref) {
     db: dbHelper,
     odooClient: odooClient,
     productRepository: productRepository,
-    appDb: ref.watch(appDatabaseProvider),
   );
 }
 

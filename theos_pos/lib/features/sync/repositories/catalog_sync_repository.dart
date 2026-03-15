@@ -30,8 +30,12 @@ export 'sync_models.dart';
 class CatalogSyncRepository {
   final OdooClient? odooClient;
   final DatabaseHelper db;
-  final AppDatabase _appDb;
   final ProductRepository? _productRepository;
+
+  /// Always access the CURRENT database via DatabaseHelper to avoid
+  /// stale references after server switch ("connection was closed" bug).
+  // ignore: deprecated_member_use_from_same_package
+  AppDatabase get _appDb => DatabaseHelper.db;
 
   // Delegate repositories (lazy initialized)
   late final ProductSyncRepository _productSync;
@@ -48,35 +52,28 @@ class CatalogSyncRepository {
     required this.db,
     this.odooClient,
     ProductRepository? productRepository,
-    AppDatabase? appDb,
-  })  : _productRepository = productRepository,
-        _appDb = appDb ?? _resolveAppDb() {
+    AppDatabase? appDb, // kept for API compatibility but ignored
+  })  : _productRepository = productRepository {
     // Initialize delegate repositories
+    // Sub-repos that take AppDatabase also use DatabaseHelper.db internally
     _productSync = ProductSyncRepository(db: _appDb, odooClient: odooClient);
     _partnerSync = PartnerSyncRepository(db: _appDb, odooClient: odooClient);
     _saleOrderSync = SaleOrderSyncRepository(
       db: db,
-      appDb: _appDb,
       odooClient: odooClient,
       productRepository: _productRepository,
     );
     _userSync = UserSyncRepository(
       db: db,
       odooClient: odooClient,
-      appDb: _appDb,
     );
     _qwebTemplateSync = QwebTemplateSyncRepository(
       db: db,
       odooClient: odooClient,
-      appDb: _appDb,
     );
     // Centralized bank repository (odooClient is optional - works offline)
     _bankRepo = BankRepository(db: _appDb, odooClient: odooClient);
   }
-
-  /// Fallback resolver for AppDatabase when not explicitly provided
-  // ignore: deprecated_member_use_from_same_package
-  static AppDatabase _resolveAppDb() => DatabaseHelper.db;
 
   bool get isOnline => odooClient != null;
 

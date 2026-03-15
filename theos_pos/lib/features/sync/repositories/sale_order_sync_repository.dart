@@ -22,7 +22,6 @@ class SaleOrderSyncRepository extends BaseSyncRepository {
 
   SaleOrderSyncRepository({
     required super.db,
-    required super.appDb,
     super.odooClient,
     ProductRepository? productRepository,
   })  : _productRepository = productRepository;

@@ -40,48 +40,37 @@ class UserSyncRepository {
   final DatabaseHelper db;
   final GenericSyncRepository _syncRepo;
 
-  // Managers
+  // Managers — global singletons (don't capture DB)
   final UserManager _userManager = userManager;
   final WarehouseManager _warehouseManager = warehouseManager;
   final SalesTeamManager _teamManager = salesTeamManager;
   final FiscalPositionManager _fiscalPositionManager = fiscalPositionManager;
-  late final FiscalPositionTaxManager _fiscalPositionTaxManager;
   final CurrencyManager _currencyManager = currencyManager;
   final DecimalPrecisionManager _decimalPrecisionManager = decimalPrecisionManager;
-  late final JournalManager _journalManager;
-  late final PaymentMethodLineManager _paymentMethodLineManager;
   final BankManager _bankManager = bankManager;
   final PartnerBankManager _partnerBankManager = partnerBankManager;
-  late final AdvanceManager _advanceManager;
-  late final CreditNoteManager _creditNoteManager;
-  late final CollectionConfigManager _collectionConfigManager;
-  late final CountryManager _countryManager;
-  late final CountryStateManager _countryStateManager;
-  late final LanguageManager _languageManager;
 
-  final AppDatabase appDb;
+  // Managers that need the current DB — created on demand via getters
+  // to avoid stale references after server switch.
+  FiscalPositionTaxManager get _fiscalPositionTaxManager => FiscalPositionTaxManager(_currentDb);
+  JournalManager get _journalManager => JournalManager(_currentDb);
+  PaymentMethodLineManager get _paymentMethodLineManager => PaymentMethodLineManager(_currentDb);
+  AdvanceManager get _advanceManager => advanceManager;
+  CreditNoteManager get _creditNoteManager => CreditNoteManager(_currentDb);
+  CollectionConfigManager get _collectionConfigManager => collectionConfigManager;
+  CountryManager get _countryManager => CountryManager(_currentDb);
+  CountryStateManager get _countryStateManager => CountryStateManager(_currentDb);
+  LanguageManager get _languageManager => LanguageManager(_currentDb);
+
+  /// Always access the CURRENT database via DatabaseHelper to avoid
+  /// stale references after server switch ("connection was closed" bug).
+  // ignore: deprecated_member_use_from_same_package
+  AppDatabase get _currentDb => DatabaseHelper.db;
 
   UserSyncRepository({
     required this.db,
     this.odooClient,
-    required this.appDb,
-  })  : _syncRepo = GenericSyncRepository(odooClient: odooClient) {
-    // _userManager initialized as final field using global singleton
-    // _warehouseManager initialized as final field using global singleton
-    // _teamManager initialized as final field using global singleton
-    // _fiscalPositionManager initialized as final field using global singleton
-    _fiscalPositionTaxManager = FiscalPositionTaxManager(appDb);
-    // _currencyManager and _decimalPrecisionManager are initialized as final fields using global singletons
-    _journalManager = JournalManager(appDb);
-    _paymentMethodLineManager = PaymentMethodLineManager(appDb);
-    // _bankManager and _partnerBankManager initialized as final fields using global singletons
-    _advanceManager = advanceManager;
-    _creditNoteManager = CreditNoteManager(appDb);
-    _collectionConfigManager = collectionConfigManager;
-    _countryManager = CountryManager(appDb);
-    _countryStateManager = CountryStateManager(appDb);
-    _languageManager = LanguageManager(appDb);
-  }
+  })  : _syncRepo = GenericSyncRepository(odooClient: odooClient);
 
   bool get isOnline => odooClient != null;
 
@@ -242,7 +231,7 @@ class UserSyncRepository {
   Future<List<AccountFiscalPositionTaxData>> getFiscalPositionTaxMappings(
     int positionId,
   ) async {
-    return (appDb.select(appDb.accountFiscalPositionTax)
+    return (_currentDb.select(_currentDb.accountFiscalPositionTax)
           ..where((t) => t.positionId.equals(positionId)))
         .get();
   }
@@ -488,7 +477,7 @@ class UserSyncRepository {
 
     try {
       // Get current user's company from local database
-      final currentUser = await (appDb.select(appDb.resUsers)
+      final currentUser = await (_currentDb.select(_currentDb.resUsers)
             ..where((t) => t.isCurrentUser.equals(true)))
           .getSingleOrNull();
 
@@ -672,7 +661,7 @@ class UserSyncRepository {
             writeDate: Value(odoo.parseOdooDateTime(g['write_date'])),
           );
 
-          await _upsert(appDb.resGroups, odooId, companion);
+          await _upsert(_currentDb.resGroups, odooId, companion);
           syncedCount++;
 
           if (syncedCount % 20 == 0) {
@@ -782,16 +771,16 @@ class UserSyncRepository {
     Insertable<D> companion,
   ) async {
     // First try to find existing record
-    final existing = await (appDb.select(table)
+    final existing = await (_currentDb.select(table)
           ..where((t) => (t as dynamic).odooId.equals(odooId)))
         .getSingleOrNull();
 
     if (existing != null) {
-      await (appDb.update(table)
+      await (_currentDb.update(table)
             ..where((t) => (t as dynamic).odooId.equals(odooId)))
           .write(companion);
     } else {
-      await appDb.into(table).insert(companion);
+      await _currentDb.into(table).insert(companion);
     }
   }
 

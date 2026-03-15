@@ -6,8 +6,6 @@ library;
 
 import 'package:flutter_qweb/flutter_qweb.dart';
 import 'package:odoo_sdk/odoo_sdk.dart';
-import 'package:theos_pos_core/theos_pos_core.dart' show AppDatabase;
-
 import '../../../core/database/database_helper.dart';
 import '../../reports/repositories/qweb_template_repository.dart';
 
@@ -15,14 +13,17 @@ import '../../reports/repositories/qweb_template_repository.dart';
 class QwebTemplateSyncRepository {
   final OdooClient? odooClient;
   final DatabaseHelper db;
-  final QwebTemplateRepository _templateRepo;
   bool _cancelRequested = false;
+
+  /// Access template repo with current DB to avoid stale references
+  /// after server switch ("connection was closed" bug).
+  // ignore: deprecated_member_use_from_same_package
+  QwebTemplateRepository get _templateRepo => QwebTemplateRepository(DatabaseHelper.db);
 
   QwebTemplateSyncRepository({
     required this.db,
     this.odooClient,
-    required AppDatabase appDb,
-  }) : _templateRepo = QwebTemplateRepository(appDb);
+  });
 
   bool get isOnline => odooClient != null;
 
