@@ -377,6 +377,62 @@ extension FastSaleNotifierLines on FastSaleNotifier {
     }
   }
 
+  /// Delete a line from the local database and sync the deletion to Odoo.
+  ///
+  /// After local deletion, recalculates order totals and fires a background
+  /// sync to Odoo (fire-and-forget, same pattern as [_saveLineToDatabase]):
+  /// - Lines with id > 0: calls `salesRepo.deleteLine()` which handles
+  ///   local delete + Odoo unlink (or queues if offline).
+  /// - Lines with id < 0: deletes locally only (never existed in Odoo).
+  Future<void> _deleteLineFromDatabase(
+    SaleOrderLine deletedLine,
+    List<SaleOrderLine> remainingLines,
+  ) async {
+    try {
+      final activeTab = state.activeTab;
+      if (activeTab == null) return;
+
+      // Recalculate and save order totals with the remaining lines
+      if (activeTab.order != null) {
+        final orderWithTotals = _recalculateOrderTotals(
+          activeTab.order!,
+          remainingLines,
+        );
+        await saleOrderManager.upsertLocal(orderWithTotals);
+
+        // Update the order in state with new totals
+        final updatedTab = state.activeTab?.copyWith(order: orderWithTotals);
+        if (updatedTab != null) {
+          _updateActiveTab(updatedTab);
+        }
+      }
+
+      // Delete from local DB + sync to Odoo via repository
+      final salesRepo = ref.read(salesRepositoryProvider);
+      if (salesRepo != null) {
+        // salesRepo.deleteLine handles:
+        // - Local DB delete
+        // - Odoo unlink if id > 0 and online
+        // - Queue for later if offline
+        await salesRepo.deleteLine(deletedLine.id);
+      } else {
+        // Fallback: at least delete locally if no repo available
+        await saleOrderLineManager.deleteLocal(deletedLine.id);
+      }
+
+      logger.d(
+        '[FastSale]',
+        'Line deleted from database: id=${deletedLine.id}, product=${deletedLine.productName}',
+      );
+
+      // Invalidate providers so other screens reload from database
+      ref.invalidate(saleOrderFormProvider);
+      ref.invalidate(saleOrderWithLinesProvider(activeTab.orderId));
+    } catch (e) {
+      logger.e('[FastSale]', 'Error deleting line from database', e);
+    }
+  }
+
   /// Refresh a line in state after sync assigns a remote ID.
   ///
   /// Reads the line back from DB by UUID and updates the in-memory state
@@ -558,22 +614,18 @@ extension FastSaleNotifierLines on FastSaleNotifier {
     final activeTab = state.activeTab;
     if (activeTab == null || activeTab.selectedLineIndex < 0) return;
 
-    final newLines = List<SaleOrderLine>.from(activeTab.lines)
-      ..removeAt(activeTab.selectedLineIndex);
-
-    final updatedTab = activeTab.copyWith(
-      lines: newLines,
-      hasChanges: true,
-      selectedLineIndex: -1,
-    );
-
-    _updateActiveTab(updatedTab);
+    deleteLine(activeTab.selectedLineIndex);
   }
 
   /// Delete a specific line (with undo support)
   ///
   /// Returns early if order is not editable.
   /// Call [undoDeleteLine] to restore the last deleted line.
+  ///
+  /// Persists the deletion to local DB and fires a background sync to Odoo:
+  /// - Lines with id > 0 (exist in Odoo): local delete + Odoo unlink
+  /// - Lines with id < 0 (local-only): local delete only
+  /// - If offline: deletion is queued for later sync
   void deleteLine(int lineIndex) {
     // Block if order is not editable
     if (!_ensureCanModify('deleteLine')) return;
@@ -583,7 +635,8 @@ extension FastSaleNotifierLines on FastSaleNotifier {
     if (lineIndex < 0 || lineIndex >= activeTab.lines.length) return;
 
     // Store deleted line for undo (fields on FastSaleNotifier class)
-    lastDeletedLine = activeTab.lines[lineIndex];
+    final deletedLine = activeTab.lines[lineIndex];
+    lastDeletedLine = deletedLine;
     lastDeletedLineIndex = lineIndex;
 
     final newLines = List<SaleOrderLine>.from(activeTab.lines)
@@ -601,29 +654,38 @@ extension FastSaleNotifierLines on FastSaleNotifier {
       lines: newLines,
       hasChanges: true,
       selectedLineIndex: newSelectedIndex,
+      linesVersion: activeTab.linesVersion + 1,
     );
 
     _updateActiveTab(updatedTab);
+
+    // Persist deletion to local DB + sync to Odoo (fire-and-forget)
+    _deleteLineFromDatabase(deletedLine, newLines);
   }
 
   /// Whether an undo is available for the last deleted line
   bool get canUndoDeleteLine => lastDeletedLine != null;
 
-  /// Undo the last line deletion, restoring the line at its original position
+  /// Undo the last line deletion, restoring the line at its original position.
+  ///
+  /// Since [deleteLine] now persists the deletion to the database, undo must
+  /// re-save the restored line via [_saveLineToDatabase] to keep DB in sync.
   void undoDeleteLine() {
     final activeTab = state.activeTab;
     if (activeTab == null || lastDeletedLine == null) return;
 
+    final restoredLine = lastDeletedLine!;
     final insertIndex = (lastDeletedLineIndex ?? activeTab.lines.length)
         .clamp(0, activeTab.lines.length);
 
     final newLines = List<SaleOrderLine>.from(activeTab.lines)
-      ..insert(insertIndex, lastDeletedLine!);
+      ..insert(insertIndex, restoredLine);
 
     final updatedTab = activeTab.copyWith(
       lines: newLines,
       hasChanges: true,
       selectedLineIndex: insertIndex,
+      linesVersion: activeTab.linesVersion + 1,
     );
 
     _updateActiveTab(updatedTab);
@@ -631,6 +693,9 @@ extension FastSaleNotifierLines on FastSaleNotifier {
     // Clear undo state
     lastDeletedLine = null;
     lastDeletedLineIndex = null;
+
+    // Re-save the restored line to database (fire-and-forget)
+    _saveLineToDatabase(restoredLine);
   }
 
   /// Increment quantity of a specific line by 1 (or step for decimals)
