@@ -61,8 +61,17 @@ class DatabaseHelper extends IOdooDatabase {
     // If switching to a different database, close the current one
     if (_database != null && _currentDatabaseName != databaseName) {
       logger.d('[DatabaseHelper]', 'Switching database from $_currentDatabaseName to $databaseName');
-      await _database!.close();
-      logger.d('[DatabaseHelper]', 'Previous database closed');
+      try {
+        await _database!.close().timeout(
+          const Duration(seconds: 5),
+          onTimeout: () {
+            logger.w('[DatabaseHelper]', 'Database close timed out after 5s, forcing release');
+          },
+        );
+        logger.d('[DatabaseHelper]', 'Previous database closed');
+      } catch (e) {
+        logger.w('[DatabaseHelper]', 'Error closing previous database: $e');
+      }
       _database = null;
       _currentDatabaseName = null;
     }

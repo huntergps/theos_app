@@ -561,9 +561,16 @@ void main() {
     });
 
     group('sanitize - phone number redaction', () {
-      test('redacts US phone format', () {
+      test('does NOT redact bare numbers like port 8069', () {
+        final result = ErrorSanitizer.sanitize('localhost:8069');
+        expect(result, 'localhost:8069');
+      });
+
+      test('does NOT redact US phone without country code', () {
+        // Without international prefix, we intentionally skip to avoid
+        // matching port numbers and other numeric identifiers
         final result = ErrorSanitizer.sanitize('Call 555-123-4567');
-        expect(result, 'Call [REDACTED]');
+        expect(result, 'Call 555-123-4567');
       });
 
       test('redacts international phone format', () {
@@ -571,9 +578,14 @@ void main() {
         expect(result, 'Phone: [REDACTED]');
       });
 
-      test('redacts phone with spaces', () {
+      test('redacts Ecuador phone format', () {
+        final result = ErrorSanitizer.sanitize('Tel: +593 99 123 4567');
+        expect(result, 'Tel: [REDACTED]');
+      });
+
+      test('does NOT redact phone without plus prefix', () {
         final result = ErrorSanitizer.sanitize('Number: 555 123 4567');
-        expect(result, 'Number: [REDACTED]');
+        expect(result, 'Number: 555 123 4567');
       });
     });
 

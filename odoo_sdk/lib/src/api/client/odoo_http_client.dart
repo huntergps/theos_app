@@ -316,6 +316,7 @@ class OdooHttpClient {
             _config.database!.isNotEmpty)
           'X-Odoo-Database': _config.database!,
       }
+      ..connectTimeout = const Duration(seconds: 15)
       ..sendTimeout = _config.sendTimeout
       ..receiveTimeout = _config.receiveTimeout
       ..followRedirects = true

@@ -247,8 +247,8 @@ class ErrorSanitizer {
   static final _redactPatterns = [
     // Email addresses
     RegExp(r'\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b'),
-    // Phone numbers (various formats)
-    RegExp(r'\+?\d{1,3}[-.\s]?\(?\d{1,4}\)?[-.\s]?\d{1,4}[-.\s]?\d{1,9}'),
+    // Phone numbers: require international prefix (+NN) to avoid matching port numbers
+    RegExp(r'\+\d{1,3}[-.\s]?\(?\d{1,4}\)?[-.\s]?\d{3,4}[-.\s]?\d{3,9}'),
     // Credit card numbers (basic pattern)
     RegExp(r'\b\d{4}[-\s]?\d{4}[-\s]?\d{4}[-\s]?\d{4}\b'),
     // SSN-like patterns
