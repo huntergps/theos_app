@@ -27,6 +27,9 @@ import '../../core/database/repositories/repository_providers.dart';
 import '../../features/products/providers/product_providers.dart';
 import '../../features/sales/screens/fast_sale/fast_sale_providers.dart';
 import '../../features/sales/providers/order_cache_provider.dart';
+import '../../features/sales/providers/sale_order_form_notifier.dart';
+import '../../features/sync/providers/sync_provider.dart';
+import '../../core/database/providers.dart';
 import '../models/im_status.dart';
 import '../widgets/user_preferences_dialog.dart';
 import '../providers/menu_provider.dart';
@@ -138,6 +141,12 @@ class _MainScreenState extends ConsumerState<MainScreen> with WindowListener {
     ref.invalidate(fastSaleProvider);
     ref.invalidate(orderCacheProvider);
     ref.invalidate(imStatusProvider);
+
+    // Invalidate sync, session, and form state
+    ref.invalidate(syncProvider);
+    ref.invalidate(currentSessionProvider);
+    ref.invalidate(saleOrderFormProvider);
+    SyncNotifier.resetSyncFlag();
   }
 
   @override

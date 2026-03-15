@@ -135,6 +135,9 @@ class SyncNotifier extends _$SyncNotifier {
   /// which would reset the state and cancel the ongoing sync.
   static bool _isSyncRunning = false;
 
+  /// Reset the static sync flag (call on logout/server switch)
+  static void resetSyncFlag() => _isSyncRunning = false;
+
   /// List of all sync items
   /// IMPORTANT: Products is synced LAST because it has 13,000+ records
   /// and would block all other sync items during initial splash screen sync

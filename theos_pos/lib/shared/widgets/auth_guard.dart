@@ -22,6 +22,9 @@ import '../providers/im_status_provider.dart';
 import '../providers/notification_provider.dart';
 import '../providers/server_info_provider.dart';
 import '../providers/user_provider.dart';
+import '../../features/sales/providers/sale_order_form_notifier.dart';
+import '../../features/sync/providers/sync_provider.dart';
+import '../../core/database/providers.dart';
 import 'dialogs/copyable_info_bar.dart';
 
 /// Guards the app against expired/revoked authentication.
@@ -90,6 +93,12 @@ class _AuthGuardState extends ConsumerState<AuthGuard> {
       ref.invalidate(fastSaleProvider);
       ref.invalidate(orderCacheProvider);
       ref.invalidate(imStatusProvider);
+
+      // Invalidate sync, session, and form state
+      ref.invalidate(syncProvider);
+      ref.invalidate(currentSessionProvider);
+      ref.invalidate(saleOrderFormProvider);
+      SyncNotifier.resetSyncFlag();
     } catch (e) {
       logger.e('[AuthGuard] Error during session teardown: $e');
     }
