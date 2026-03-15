@@ -432,13 +432,13 @@ class NotificationCounterNotifier extends Notifier<NotificationCounter> {
         );
         _handleUserUpdated(userId, payload);
       }
-    } else if (type == 'company_updated' && payload != null) {
+    } else if ((type == 'company_updated' || type == 'company_config_updated') && payload != null) {
       // Company updated - sync company and update denormalized names
       final action = payload['action'] as String?;
       final companyId = payload['company_id'] as int?;
       if (companyId != null) {
         logger.d(
-          '[NotificationProvider] 🏢 Company $action notification: $companyId',
+          '[NotificationProvider] 🏢 Company $action notification ($type): $companyId',
         );
         _handleCompanyUpdated(companyId, payload);
       }

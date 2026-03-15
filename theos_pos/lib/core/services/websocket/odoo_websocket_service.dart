@@ -398,6 +398,8 @@ class AppOdooWebSocketService {
       '$database.session_cash_updated',
       // Product category channel
       '$database.product_category_updated',
+      // Stock channel
+      '$database.stock_quant_updated',
     ];
 
     // Subscribe to presence/activity channels if partnerId available
