@@ -799,6 +799,11 @@ class _LoginScreenState extends ConsumerState<LoginScreen> with WindowListener {
         initializeModelManagers();
         logger.d('[LOGIN] ✅ Model managers initialized');
 
+        // Invalidate repository providers that capture appDb reference
+        // (prevents stale DB connection after server switch)
+        ref.invalidate(catalogSyncRepositoryProvider);
+        logger.d('[LOGIN] ✅ Repository providers invalidated for new DB');
+
         // Get partner_id from session_info for WebSocket
         int? partnerId;
         String? imStatusAccessToken;
@@ -1097,6 +1102,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> with WindowListener {
       // Initialize model managers with the database (required for userManager, etc.)
       logger.d('[LOGIN] 🔧 Initializing model managers (offline)...');
       initializeModelManagers();
+      ref.invalidate(catalogSyncRepositoryProvider);
       logger.d('[LOGIN] ✅ Model managers initialized');
 
       // Load the specific user from local database by ID

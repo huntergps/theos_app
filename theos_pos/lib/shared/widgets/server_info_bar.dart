@@ -64,7 +64,7 @@ class _ServerInfoBarState extends ConsumerState<ServerInfoBar> {
 
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
       decoration: BoxDecoration(
         color: bgColor,
         border: Border(
@@ -133,12 +133,12 @@ class _InfoSegment extends StatelessWidget {
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
-        Icon(icon, size: 10, color: textColor),
-        const SizedBox(width: 4),
+        Icon(icon, size: 14, color: textColor),
+        const SizedBox(width: 5),
         Text(
           text,
           style: TextStyle(
-            fontSize: 11,
+            fontSize: 13,
             color: textColor,
             fontWeight: FontWeight.w400,
           ),
