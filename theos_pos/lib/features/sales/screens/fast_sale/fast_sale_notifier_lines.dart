@@ -931,7 +931,7 @@ extension FastSaleNotifierLines on FastSaleNotifier {
   ///
   /// This allows overriding the product name with a custom description
   /// The productName field keeps the original product name for reference
-  void updateLineDescription(int lineIndex, String description) {
+  Future<void> updateLineDescription(int lineIndex, String description) async {
     final activeTab = state.activeTab;
     if (activeTab == null) return;
     if (lineIndex < 0 || lineIndex >= activeTab.lines.length) return;
@@ -946,6 +946,9 @@ extension FastSaleNotifierLines on FastSaleNotifier {
 
     _updateActiveTab(updatedTab);
     logger.d('[FastSale]', 'Line description updated: $description');
+
+    // Persist to local DB + fire-and-forget sync to Odoo
+    await _saveLineToDatabase(updatedLine);
   }
 
   /// Set exact quantity for a specific line

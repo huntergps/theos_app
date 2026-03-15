@@ -333,7 +333,7 @@ extension FastSaleNotifierCustomer on FastSaleNotifier {
   // ============================================================
 
   /// Update end customer name for final consumer orders
-  void updateEndCustomerName(String name) {
+  Future<void> updateEndCustomerName(String name) async {
     final activeTab = state.activeTab;
     final order = activeTab?.order;
     if (activeTab == null || order == null) return;
@@ -346,10 +346,13 @@ extension FastSaleNotifierCustomer on FastSaleNotifier {
     _updateActiveTab(updatedTab);
 
     logger.d('[FastSale]', 'Updated end customer name: $name');
+
+    // Persist to local DB + fire-and-forget sync to Odoo
+    await saveActiveOrder();
   }
 
   /// Update end customer phone for final consumer orders
-  void updateEndCustomerPhone(String phone) {
+  Future<void> updateEndCustomerPhone(String phone) async {
     final activeTab = state.activeTab;
     final order = activeTab?.order;
     if (activeTab == null || order == null) return;
@@ -362,10 +365,13 @@ extension FastSaleNotifierCustomer on FastSaleNotifier {
     _updateActiveTab(updatedTab);
 
     logger.d('[FastSale]', 'Updated end customer phone: $phone');
+
+    // Persist to local DB + fire-and-forget sync to Odoo
+    await saveActiveOrder();
   }
 
   /// Update end customer email for final consumer orders
-  void updateEndCustomerEmail(String email) {
+  Future<void> updateEndCustomerEmail(String email) async {
     final activeTab = state.activeTab;
     final order = activeTab?.order;
     if (activeTab == null || order == null) return;
@@ -378,10 +384,13 @@ extension FastSaleNotifierCustomer on FastSaleNotifier {
     _updateActiveTab(updatedTab);
 
     logger.d('[FastSale]', 'Updated end customer email: $email');
+
+    // Persist to local DB + fire-and-forget sync to Odoo
+    await saveActiveOrder();
   }
 
   /// Set the referrer for the active order
-  void setReferrer({required int referrerId, required String referrerName}) {
+  Future<void> setReferrer({required int referrerId, required String referrerName}) async {
     final activeTab = state.activeTab;
     final order = activeTab?.order;
     if (activeTab == null || order == null) return;
@@ -397,5 +406,8 @@ extension FastSaleNotifierCustomer on FastSaleNotifier {
     _updateActiveTab(updatedTab);
 
     logger.d('[FastSale]', 'Set referrer: $referrerName (ID: $referrerId)');
+
+    // Persist to local DB + fire-and-forget sync to Odoo
+    await saveActiveOrder();
   }
 }

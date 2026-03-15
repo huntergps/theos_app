@@ -44,6 +44,46 @@ extension FastSaleNotifierSave on FastSaleNotifier {
       );
       logger.d('[FastSale]', 'Order header saved: $orderId');
 
+      // Fire-and-forget: sync header fields to Odoo for existing orders
+      if (orderId > 0) {
+        final headerVals = <String, dynamic>{
+          if (order.partnerId != null) 'partner_id': order.partnerId,
+          if (order.pricelistId != null) 'pricelist_id': order.pricelistId,
+          if (order.paymentTermId != null)
+            'payment_term_id': order.paymentTermId,
+          if (order.warehouseId != null) 'warehouse_id': order.warehouseId,
+          if (order.userId != null) 'user_id': order.userId,
+          if (order.teamId != null) 'team_id': order.teamId,
+          if (order.fiscalPositionId != null)
+            'fiscal_position_id': order.fiscalPositionId,
+          if (order.dateOrder != null)
+            'date_order': order.dateOrder!.toIso8601String(),
+          if (order.note != null) 'note': order.note,
+          if (order.clientOrderRef != null)
+            'client_order_ref': order.clientOrderRef,
+          'is_final_consumer': order.isFinalConsumer,
+          if (order.endCustomerName != null &&
+              order.endCustomerName!.isNotEmpty)
+            'end_customer_name': order.endCustomerName,
+          if (order.endCustomerPhone != null &&
+              order.endCustomerPhone!.isNotEmpty)
+            'end_customer_phone': order.endCustomerPhone,
+          if (order.endCustomerEmail != null &&
+              order.endCustomerEmail!.isNotEmpty)
+            'end_customer_email': order.endCustomerEmail,
+          if (order.referrerId != null) 'referrer_id': order.referrerId,
+        };
+
+        if (headerVals.isNotEmpty) {
+          salesRepo.update(orderId, headerVals).then((_) {
+            logger.d('[FastSale]', 'Header synced to Odoo for order $orderId');
+          }).catchError((e) {
+            logger.w('[FastSale]',
+                'Background header sync failed (will retry later): $e');
+          });
+        }
+      }
+
       // Queue order for sync if it's a new order (negative ID)
       // This ensures offline-first: the queue will sync the order to Odoo
       // when connectivity is available. The confirmation service checks
