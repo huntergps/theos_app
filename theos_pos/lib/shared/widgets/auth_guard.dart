@@ -7,9 +7,15 @@ import 'package:theos_pos_core/theos_pos_core.dart'
     show userManager, UserManagerBusiness;
 
 import '../../core/database/repositories/base_repository.dart';
+import '../../core/managers/model_registry_integration.dart';
 import '../../core/services/auth_event_service.dart';
 import '../../core/services/logger_service.dart';
+import '../../core/services/platform/server_connectivity_service.dart';
+import '../../core/services/websocket/odoo_websocket_service.dart';
 import '../../features/authentication/services/server_service.dart';
+import '../../features/sync/services/connectivity_sync_orchestrator.dart';
+import '../providers/notification_provider.dart';
+import '../providers/server_info_provider.dart';
 import '../providers/user_provider.dart';
 import 'dialogs/copyable_info_bar.dart';
 
@@ -62,6 +68,19 @@ class _AuthGuardState extends ConsumerState<AuthGuard> {
     }
 
     logger.w('[AuthGuard] Session expired detected, performing logout...');
+
+    // Tear down background services BEFORE clearing session
+    // (stops WebSocket, health polling, sync orchestrator from talking to old server)
+    try {
+      ref.read(odooWebSocketServiceProvider).disconnect();
+      ref.invalidate(serverHealthServiceProvider);
+      ref.invalidate(serverInfoProvider);
+      ref.invalidate(notificationCounterProvider);
+      ref.invalidate(connectivitySyncOrchestratorProvider);
+      ref.invalidate(modelRegistryIntegrationProvider);
+    } catch (e) {
+      logger.e('[AuthGuard] Error during session teardown: $e');
+    }
 
     // Perform logout cleanup (same as MainScreen logout)
     try {

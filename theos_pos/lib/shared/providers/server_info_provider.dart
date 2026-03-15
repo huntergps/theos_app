@@ -127,9 +127,10 @@ class ServerInfoNotifier extends Notifier<ServerInfo> {
 
   /// Sync server time by calling a lightweight Odoo method.
   ///
-  /// Makes a fast call to confirm connectivity and uses the round-trip
-  /// midpoint as the sync reference. The display clock runs locally
-  /// and resets its offset on each sync.
+  /// Uses `res.users.search_count` (always accessible with API key) to
+  /// confirm the server is reachable, and captures the round-trip midpoint
+  /// as the sync reference. The display clock runs locally and resets its
+  /// offset on each sync.
   Future<void> _syncServerTime() async {
     final odooClient = ref.read(odooClientProvider);
     if (odooClient == null) return;
@@ -137,9 +138,9 @@ class ServerInfoNotifier extends Notifier<ServerInfo> {
     try {
       final localBefore = DateTime.now().toUtc();
 
-      // Lightweight call — just confirms server is reachable
+      // Lightweight call — res.users is always accessible with API key auth
       await odooClient.call(
-        model: 'ir.module.module',
+        model: 'res.users',
         method: 'search_count',
         kwargs: {'domain': []},
       );
@@ -160,8 +161,9 @@ class ServerInfoNotifier extends Notifier<ServerInfo> {
             : 'Odoo ${odooClient.version}',
       );
     } catch (e) {
-      // Sync failed — keep last known state
-      logger.d('[ServerInfo] Time sync failed: $e');
+      // Sync failed — keep last known state. This is non-critical;
+      // the timer will retry on the next interval.
+      logger.d('[ServerInfo] Time sync failed (non-critical): $e');
     }
   }
 }

@@ -22,6 +22,7 @@ import '../../core/theme/spacing.dart';
 import '../providers/user_provider.dart';
 import '../providers/im_status_provider.dart';
 import '../providers/notification_provider.dart';
+import '../providers/server_info_provider.dart';
 import '../models/im_status.dart';
 import '../widgets/user_preferences_dialog.dart';
 import '../providers/menu_provider.dart';
@@ -109,6 +110,23 @@ class _MainScreenState extends ConsumerState<MainScreen> with WindowListener {
     } else {
       logger.d('[MainScreen] ⚠️ No session available, WebSocket not connected');
     }
+  }
+
+  /// Tear down all background services that hold references to the current
+  /// server/database. Must be called BEFORE clearing user/session state so
+  /// that WebSocket, health polling, sync orchestrator, etc. stop talking to
+  /// the old server.
+  void _teardownSession() {
+    // 1. Disconnect WebSocket (stops auto-reconnect to old server)
+    ref.read(odooWebSocketServiceProvider).disconnect();
+
+    // 2. Invalidate all background-service providers so they are recreated
+    //    with fresh state on next login.
+    ref.invalidate(serverHealthServiceProvider);
+    ref.invalidate(serverInfoProvider);
+    ref.invalidate(notificationCounterProvider);
+    ref.invalidate(connectivitySyncOrchestratorProvider);
+    ref.invalidate(modelRegistryIntegrationProvider);
   }
 
   @override
@@ -278,6 +296,9 @@ class _MainScreenState extends ConsumerState<MainScreen> with WindowListener {
           title: Text(item.title),
           onTap: () async {
             final navigator = GoRouter.of(context);
+
+            // Tear down background services BEFORE clearing session
+            _teardownSession();
 
             // Clear user state in provider
             ref.read(userProvider.notifier).clearUser();
