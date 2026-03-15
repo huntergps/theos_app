@@ -209,6 +209,121 @@ extension SalesRepositoryLines on SalesRepository {
     return true; // Local success
   }
 
+  /// Sync a single line to Odoo (remote only, no local DB changes).
+  ///
+  /// Called by FastSale notifier after local upsert is already done.
+  /// - If `line.id < 0` (new line) and `orderId > 0` (order exists in Odoo):
+  ///   creates the line in Odoo and updates local record with remote ID.
+  /// - If `line.id > 0` (existing line): writes changes to Odoo.
+  /// - If offline or sync fails, queues the operation for later.
+  ///
+  /// This method is fire-and-forget — it never throws.
+  Future<void> syncLineToOdoo(SaleOrderLine line) async {
+    final orderId = line.orderId;
+    if (orderId <= 0) return; // Order not in Odoo yet
+
+    final lineUuid = line.lineUuid;
+    if (lineUuid == null || lineUuid.isEmpty) {
+      logger.w('[SalesRepository]', 'syncLineToOdoo: line has no UUID, skipping');
+      return;
+    }
+
+    try {
+      if (line.id < 0) {
+        // === CREATE: new local line → Odoo ===
+        if (isOnline) {
+          try {
+            final remoteId = await _odooClient!.create(
+              model: 'sale.order.line',
+              values: {
+                'order_id': orderId,
+                'product_id': line.productId,
+                'name': line.name,
+                'product_uom_qty': line.productUomQty,
+                'price_unit': line.priceUnit,
+                'discount': line.discount,
+                if (line.productUomId != null) 'product_uom_id': line.productUomId,
+                'x_uuid': lineUuid,
+              },
+            );
+
+            if (remoteId != null) {
+              await _updateLineRemoteIdByUuid(lineUuid, remoteId);
+              logger.i(
+                '[SalesRepository] syncLineToOdoo: created remote $remoteId for UUID $lineUuid',
+              );
+              return;
+            }
+          } catch (e) {
+            logger.w('[SalesRepository] syncLineToOdoo: create failed, queuing: $e');
+          }
+        }
+
+        // Queue create for later
+        if (_offlineQueue != null) {
+          await _offlineQueue.queueOperation(
+            model: 'sale.order.line',
+            method: 'create',
+            values: {
+              'uuid': lineUuid,
+              'local_id': line.id,
+              'order_id': orderId,
+              'product_id': line.productId,
+              'name': line.name,
+              'product_uom_qty': line.productUomQty,
+              'price_unit': line.priceUnit,
+              'discount': line.discount,
+              if (line.productUomId != null) 'product_uom_id': line.productUomId,
+            },
+            parentOrderId: orderId,
+          );
+          logger.i('[SalesRepository] syncLineToOdoo: create queued for UUID=$lineUuid');
+        }
+      } else {
+        // === UPDATE: existing line → Odoo ===
+        final odooValues = <String, dynamic>{
+          'product_uom_qty': line.productUomQty,
+          'price_unit': line.priceUnit,
+          'discount': line.discount,
+          'name': line.name,
+          if (line.productUomId != null) 'product_uom_id': line.productUomId,
+        };
+
+        if (isOnline) {
+          try {
+            final success = await _odooClient!.write(
+              model: 'sale.order.line',
+              ids: [line.id],
+              values: odooValues,
+            );
+            if (success) {
+              await _lineManager.upsertLocal(line.copyWith(isSynced: true));
+              logger.i('[SalesRepository] syncLineToOdoo: updated remote ${line.id}');
+              return;
+            }
+          } catch (e) {
+            logger.w('[SalesRepository] syncLineToOdoo: update failed, queuing: $e');
+          }
+        }
+
+        // Queue update for later
+        if (_offlineQueue != null) {
+          await _offlineQueue.queueOperation(
+            model: 'sale.order.line',
+            method: 'write',
+            recordId: line.id,
+            values: {'uuid': lineUuid, ...odooValues},
+            baseWriteDate: line.writeDate,
+            parentOrderId: orderId,
+          );
+          logger.i('[SalesRepository] syncLineToOdoo: update queued for ID=${line.id}');
+        }
+      }
+    } catch (e, st) {
+      logger.e('[SalesRepository]', 'syncLineToOdoo unexpected error: $e', e, st);
+    }
+  }
+
   /// Delete line - OFFLINE-FIRST
   ///
   /// Deletes locally, then syncs or queues deletion for remote.

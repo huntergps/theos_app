@@ -319,7 +319,12 @@ extension FastSaleNotifierLines on FastSaleNotifier {
     await _saveLineToDatabase(newLine);
   }
 
-  /// Save a single line to the database and update order totals
+  /// Save a single line to the database and update order totals.
+  ///
+  /// After local persistence, fires off a background sync to Odoo:
+  /// - New lines (id < 0) on orders that exist in Odoo (orderId > 0) are created remotely.
+  /// - Existing lines (id > 0) are updated remotely.
+  /// - If offline or sync fails, the operation is queued for later.
   Future<void> _saveLineToDatabase(SaleOrderLine line) async {
     try {
       final activeTab = state.activeTab;
@@ -339,7 +344,7 @@ extension FastSaleNotifierLines on FastSaleNotifier {
         _updateActiveTab(updatedTab);
       }
 
-      // Then save the line
+      // Then save the line locally
       await saleOrderLineManager.upsertLocal(line);
 
       logger.d('[FastSale]', 'Line saved to database: ${line.productName}');
@@ -348,8 +353,77 @@ extension FastSaleNotifierLines on FastSaleNotifier {
       // This ensures changes from POS are visible everywhere in the app
       ref.invalidate(saleOrderFormProvider);
       ref.invalidate(saleOrderWithLinesProvider(activeTab.orderId));
+
+      // Fire-and-forget: sync line to Odoo in background
+      // Only for orders that exist in Odoo (orderId > 0)
+      if (activeTab.orderId > 0) {
+        final salesRepo = ref.read(salesRepositoryProvider);
+        if (salesRepo != null) {
+          // Ensure line has orderId set for the sync
+          final lineWithOrderId = line.orderId == activeTab.orderId
+              ? line
+              : line.copyWith(orderId: activeTab.orderId);
+
+          salesRepo.syncLineToOdoo(lineWithOrderId).then((_) {
+            // After successful sync, refresh state if line got a remote ID
+            _refreshLineAfterSync(lineWithOrderId.lineUuid);
+          }).catchError((e) {
+            logger.w('[FastSale]', 'Background sync failed (will retry later): $e');
+          });
+        }
+      }
     } catch (e) {
       logger.e('[FastSale]', 'Error saving line to database', e);
+    }
+  }
+
+  /// Refresh a line in state after sync assigns a remote ID.
+  ///
+  /// Reads the line back from DB by UUID and updates the in-memory state
+  /// so the UI reflects the real Odoo ID instead of the negative local ID.
+  Future<void> _refreshLineAfterSync(String? lineUuid) async {
+    if (lineUuid == null || lineUuid.isEmpty) return;
+
+    try {
+      final activeTab = state.activeTab;
+      if (activeTab == null) return;
+
+      // Find the line in current state by UUID
+      final lineIndex = activeTab.lines.indexWhere(
+        (l) => l.lineUuid == lineUuid,
+      );
+      if (lineIndex < 0) return;
+
+      final currentLine = activeTab.lines[lineIndex];
+
+      // Only refresh if the line still has a negative (local) ID
+      if (currentLine.id >= 0) return;
+
+      // Read updated line from DB by UUID (may have remote ID now)
+      final results = await saleOrderLineManager.searchLocal(
+        domain: [['line_uuid', '=', lineUuid]],
+        limit: 1,
+      );
+      final updatedLine = results.isNotEmpty ? results.first : null;
+      if (updatedLine == null || updatedLine.id == currentLine.id) return;
+
+      // Update in-memory state with the synced line
+      final newLines = List<SaleOrderLine>.from(activeTab.lines);
+      newLines[lineIndex] = updatedLine;
+
+      final updatedTab = activeTab.copyWith(
+        lines: newLines,
+        linesVersion: activeTab.linesVersion + 1,
+      );
+      _updateActiveTab(updatedTab);
+
+      logger.d(
+        '[FastSale]',
+        'Line refreshed after sync: ${currentLine.id} -> ${updatedLine.id}',
+      );
+    } catch (e) {
+      // Non-critical: line will get its remote ID on next full refresh
+      logger.d('[FastSale]', 'Could not refresh line after sync: $e');
     }
   }
 
