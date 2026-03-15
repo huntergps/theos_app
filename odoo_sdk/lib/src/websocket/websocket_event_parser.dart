@@ -104,10 +104,8 @@ class WebSocketEventParser {
     switch (type) {
       case 'bus.bus/im_status_updated':
         _handlePresenceUpdate(payload, onEvent: onEvent);
-        return;
       case 'company_config_updated':
         _handleCompanyConfigUpdate(payload, onEvent: onEvent);
-        return;
     }
 
     // Look up in registry for model-based notification types
@@ -126,6 +124,11 @@ class WebSocketEventParser {
         }
       }
     }
+
+    // Always emit a raw notification event so consumers that listen for
+    // OdooRawNotificationEvent receive ALL notifications regardless of
+    // whether a typed handler or registry mapping exists.
+    onEvent(OdooRawNotificationEvent(type: type, payload: payload));
   }
 
   OdooRecordAction _parseActionFromType(String type) {
