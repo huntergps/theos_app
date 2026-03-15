@@ -10,7 +10,8 @@ import '../../core/database/providers.dart'
         activitiesProvider,
         collectionConfigsProvider,
         currentSessionProvider,
-        sessionByIdProvider;
+        sessionByIdProvider,
+        taxCalculatorProvider;
 import '../../core/database/repositories/repository_providers.dart';
 import '../../core/services/websocket/odoo_websocket_service.dart';
 import '../../core/services/logger_service.dart';
@@ -42,7 +43,13 @@ import 'package:theos_pos_core/theos_pos_core.dart'
          AccountJournalCompanion,
          AccountPaymentMethodLineCompanion,
          AccountAdvanceCompanion,
-         AccountCreditNoteCompanion;
+         AccountCreditNoteCompanion,
+         AccountMoveCompanion,
+         AccountTaxCompanion,
+         CashOutCompanion,
+         CollectionSessionDepositCompanion,
+         CollectionSessionCashCompanion,
+         ProductCategoryCompanion;
 import '../../features/sales/screens/fast_sale/widgets/pos_payment_tab.dart'
     show posWithholdLinesByOrderProvider, posPaymentLinesByOrderProvider, posAvailableJournalsProvider,
     posCardBrandsByJournalProvider, posCardDeadlinesProvider;
@@ -321,11 +328,14 @@ class NotificationCounterNotifier extends Notifier<NotificationCounter> {
       final sessionId = payload['collection_session_id'] as int?;
       _handleCollectionUpdate(sessionId: sessionId);
     } else if (type == 'session_updated' && payload != null) {
-      // Collection session updated - refresh configs to update dashboard
-      logger.d(
-        '[NotificationProvider] 🔄 Session updated notification received',
-      );
+      // Collection session updated - refresh configs and session state
+      // Handles state transitions: open -> closing_control -> closed
       final sessionId = payload['collection_session_id'] as int?;
+      final sessionState = payload['state'] as String?;
+      logger.d(
+        '[NotificationProvider] 🔄 Session updated notification: '
+        'sessionId=$sessionId, state=$sessionState',
+      );
       _handleCollectionUpdate(sessionId: sessionId);
     } else if (type == 'config_updated' && payload != null) {
       // Collection config updated - refresh configs to update dashboard
@@ -565,6 +575,72 @@ class NotificationCounterNotifier extends Notifier<NotificationCounter> {
           '[NotificationProvider] 📄 CreditNote $action: moveId=$moveId',
         );
         _handleCreditNoteUpdated(moveId, action, payload);
+      }
+    }
+    // Invoice (account.move) sync
+    else if (type == 'invoice_updated' && payload != null) {
+      final action = payload['action'] as String?;
+      final moveId = payload['move_id'] as int?;
+      if (moveId != null) {
+        logger.d(
+          '[NotificationProvider] 🧾 Invoice $action: moveId=$moveId',
+        );
+        _handleInvoiceUpdated(moveId, action, payload);
+      }
+    }
+    // Tax (account.tax) sync
+    else if (type == 'tax_updated' && payload != null) {
+      final action = payload['action'] as String?;
+      final taxId = payload['tax_id'] as int?;
+      if (taxId != null) {
+        logger.d(
+          '[NotificationProvider] 🏷️ Tax $action: taxId=$taxId',
+        );
+        _handleTaxUpdated(taxId, action, payload);
+      }
+    }
+    // Cash out sync
+    else if (type == 'cash_out_updated' && payload != null) {
+      final action = payload['action'] as String?;
+      final cashOutId = payload['cash_out_id'] as int?;
+      if (cashOutId != null) {
+        logger.d(
+          '[NotificationProvider] 💸 CashOut $action: cashOutId=$cashOutId',
+        );
+        _handleCashOutUpdated(cashOutId, action, payload);
+      }
+    }
+    // Deposit sync
+    else if (type == 'deposit_updated' && payload != null) {
+      final action = payload['action'] as String?;
+      final depositId = payload['deposit_id'] as int?;
+      if (depositId != null) {
+        logger.d(
+          '[NotificationProvider] 🏦 Deposit $action: depositId=$depositId',
+        );
+        _handleDepositUpdated(depositId, action, payload);
+      }
+    }
+    // Session cash sync
+    else if (type == 'session_cash_updated' && payload != null) {
+      final action = payload['action'] as String?;
+      final cashId = payload['cash_id'] as int?;
+      if (cashId != null) {
+        logger.d(
+          '[NotificationProvider] 💵 SessionCash $action: cashId=$cashId',
+        );
+        _handleSessionCashUpdated(cashId, action, payload);
+      }
+    }
+    // Product category sync
+    else if (type == 'product_category_updated' && payload != null) {
+      final action = payload['action'] as String?;
+      final categoryId = payload['category_id'] as int?;
+      if (categoryId != null) {
+        logger.d(
+          '[NotificationProvider] 📁 ProductCategory $action: categoryId=$categoryId',
+        );
+        _handleProductCategoryUpdated(categoryId, action, payload);
       }
     } else {
       // Unknown notification type - log for debugging
@@ -2690,6 +2766,646 @@ class NotificationCounterNotifier extends Notifier<NotificationCounter> {
       logger.d('[NotificationProvider] ✅ CreditNote $moveId upserted: $name (residual: $amountResidual)');
     } catch (e) {
       logger.e('[NotificationProvider] Error handling credit note update: $e');
+    }
+  }
+
+  // ============================================================
+  // INVOICE (account.move) - WebSocket Sync Handler
+  // ============================================================
+
+  /// Handle invoice update notification from Odoo WebSocket
+  /// Updates invoice (account.move) in local database
+  Future<void> _handleInvoiceUpdated(
+    int moveId,
+    String? action,
+    Map<String, dynamic> payload,
+  ) async {
+    try {
+      final db = _db;
+      final values = payload['values'] as Map<String, dynamic>?;
+
+      if (action == 'deleted') {
+        // Delete invoice from local DB
+        await (db.delete(db.accountMove)
+              ..where((t) => t.odooId.equals(moveId)))
+            .go();
+        logger.d('[NotificationProvider] 🗑️ Invoice $moveId deleted locally');
+        return;
+      }
+
+      if (values == null) return;
+
+      // Extract values from payload
+      final name = values['name'] as String?;
+      final ref = values['ref'] as String?;
+      final invoiceOrigin = values['invoice_origin'] as String?;
+      final saleOrderId = values['sale_order_id'] is List
+          ? (values['sale_order_id'] as List).first as int?
+          : values['sale_order_id'] as int?;
+      final moveType = values['move_type'] as String? ?? 'out_invoice';
+      final state = values['state'] as String? ?? 'draft';
+      final partnerId = values['partner_id'] is List
+          ? (values['partner_id'] as List).first as int?
+          : values['partner_id'] as int?;
+      final partnerName = values['partner_id'] is List && (values['partner_id'] as List).length > 1
+          ? (values['partner_id'] as List)[1] as String?
+          : values['partner_name'] as String?;
+      final partnerVat = values['partner_vat'] as String?;
+      final journalId = values['journal_id'] is List
+          ? (values['journal_id'] as List).first as int?
+          : values['journal_id'] as int?;
+      final journalName = values['journal_id'] is List && (values['journal_id'] as List).length > 1
+          ? (values['journal_id'] as List)[1] as String?
+          : values['journal_name'] as String?;
+      final companyId = values['company_id'] is List
+          ? (values['company_id'] as List).first as int?
+          : values['company_id'] as int?;
+      final companyName = values['company_id'] is List && (values['company_id'] as List).length > 1
+          ? (values['company_id'] as List)[1] as String?
+          : values['company_name'] as String?;
+      final currencyId = values['currency_id'] is List
+          ? (values['currency_id'] as List).first as int?
+          : values['currency_id'] as int?;
+      final currencyName = values['currency_id'] is List && (values['currency_id'] as List).length > 1
+          ? (values['currency_id'] as List)[1] as String?
+          : values['currency_name'] as String?;
+      final amountUntaxed = (values['amount_untaxed'] as num?)?.toDouble() ?? 0.0;
+      final amountTax = (values['amount_tax'] as num?)?.toDouble() ?? 0.0;
+      final amountTotal = (values['amount_total'] as num?)?.toDouble() ?? 0.0;
+      final amountResidual = (values['amount_residual'] as num?)?.toDouble() ?? 0.0;
+      final paymentState = values['payment_state'] as String? ?? 'not_paid';
+
+      // Partner contact fields
+      final partnerStreet = values['partner_street'] as String?;
+      final partnerCity = values['partner_city'] as String?;
+      final partnerPhone = values['partner_phone'] as String?;
+      final partnerEmail = values['partner_email'] as String?;
+      final currencySymbol = values['currency_symbol'] as String?;
+
+      // Ecuador localization fields
+      final l10nEcAuthorizationDateStr = values['l10n_ec_authorization_date'] as String?;
+      final l10nEcAuthorizationDate = l10nEcAuthorizationDateStr != null
+          ? DateTime.tryParse(l10nEcAuthorizationDateStr) : null;
+      final l10nEcAuthorizationNumber = values['l10n_ec_authorization_number'] as String?;
+      final l10nLatamDocumentNumber = values['l10n_latam_document_number'] as String?;
+      final l10nLatamDocumentTypeId = values['l10n_latam_document_type_id'] is List
+          ? (values['l10n_latam_document_type_id'] as List).first as int?
+          : values['l10n_latam_document_type_id'] as int?;
+      final l10nLatamDocumentTypeName = values['l10n_latam_document_type_id'] is List &&
+              (values['l10n_latam_document_type_id'] as List).length > 1
+          ? (values['l10n_latam_document_type_id'] as List)[1] as String?
+          : values['l10n_latam_document_type_name'] as String?;
+      final l10nEcSriPaymentName = values['l10n_ec_sri_payment_name'] as String?;
+
+      // Parse dates
+      DateTime? date;
+      if (values['date'] is String) {
+        date = DateTime.tryParse(values['date'] as String);
+      }
+      DateTime? invoiceDate;
+      if (values['invoice_date'] is String) {
+        invoiceDate = DateTime.tryParse(values['invoice_date'] as String);
+      }
+      DateTime? invoiceDateDue;
+      if (values['invoice_date_due'] is String) {
+        invoiceDateDue = DateTime.tryParse(values['invoice_date_due'] as String);
+      }
+
+      final companion = AccountMoveCompanion.insert(
+        odooId: moveId,
+        moveType: moveType,
+        name: Value(name),
+        ref: Value(ref),
+        invoiceOrigin: Value(invoiceOrigin),
+        saleOrderId: Value(saleOrderId),
+        state: Value(state),
+        date: Value(date),
+        invoiceDate: Value(invoiceDate),
+        invoiceDateDue: Value(invoiceDateDue),
+        partnerId: Value(partnerId),
+        partnerName: Value(partnerName),
+        partnerVat: Value(partnerVat),
+        journalId: Value(journalId),
+        journalName: Value(journalName),
+        companyId: Value(companyId),
+        companyName: Value(companyName),
+        currencyId: Value(currencyId),
+        currencyName: Value(currencyName),
+        amountUntaxed: Value(amountUntaxed),
+        amountTax: Value(amountTax),
+        amountTotal: Value(amountTotal),
+        amountResidual: Value(amountResidual),
+        paymentState: Value(paymentState),
+        partnerStreet: Value(partnerStreet),
+        partnerCity: Value(partnerCity),
+        partnerPhone: Value(partnerPhone),
+        partnerEmail: Value(partnerEmail),
+        currencySymbol: Value(currencySymbol),
+        l10nEcAuthorizationDate: Value(l10nEcAuthorizationDate),
+        l10nEcAuthorizationNumber: Value(l10nEcAuthorizationNumber),
+        l10nLatamDocumentNumber: Value(l10nLatamDocumentNumber),
+        l10nLatamDocumentTypeId: Value(l10nLatamDocumentTypeId),
+        l10nLatamDocumentTypeName: Value(l10nLatamDocumentTypeName),
+        l10nEcSriPaymentName: Value(l10nEcSriPaymentName),
+        isSynced: const Value(true),
+        lastSyncDate: Value(DateTime.now()),
+        writeDate: Value(DateTime.now()),
+      );
+      await db.into(db.accountMove).insert(
+        companion,
+        onConflict: DoUpdate(
+          (old) => companion,
+          target: [db.accountMove.odooId],
+        ),
+      );
+
+      logger.d(
+        '[NotificationProvider] ✅ Invoice $moveId upserted: $name '
+        '(type=$moveType, state=$state, total=$amountTotal)',
+      );
+    } catch (e) {
+      logger.e('[NotificationProvider] Error handling invoice update: $e');
+    }
+  }
+
+  // ============================================================
+  // TAX (account.tax) - WebSocket Sync Handler
+  // ============================================================
+
+  /// Handle tax update notification from Odoo WebSocket
+  /// Updates tax in local database and invalidates tax calculator
+  Future<void> _handleTaxUpdated(
+    int taxId,
+    String? action,
+    Map<String, dynamic> payload,
+  ) async {
+    try {
+      final db = _db;
+      final values = payload['values'] as Map<String, dynamic>?;
+
+      if (action == 'deleted') {
+        // Delete tax from local DB
+        await (db.delete(db.accountTax)
+              ..where((t) => t.odooId.equals(taxId)))
+            .go();
+        logger.d('[NotificationProvider] 🗑️ Tax $taxId deleted locally');
+        // Invalidate tax calculator so prices recalculate
+        ref.invalidate(taxCalculatorProvider);
+        return;
+      }
+
+      if (values == null) return;
+
+      // Extract values from payload
+      final name = values['name'] as String? ?? '';
+      final description = values['description'] as String?;
+      final typeTaxUse = values['type_tax_use'] as String? ?? 'sale';
+      final amountType = values['amount_type'] as String? ?? 'percent';
+      final amount = (values['amount'] as num?)?.toDouble() ?? 0.0;
+      final active = values['active'] as bool? ?? true;
+      final priceInclude = values['price_include'] as bool? ?? false;
+      final includeBaseAmount = values['include_base_amount'] as bool? ?? false;
+      final sequence = values['sequence'] as int? ?? 1;
+      final companyId = values['company_id'] is List
+          ? (values['company_id'] as List).first as int?
+          : values['company_id'] as int?;
+      final companyName = values['company_id'] is List && (values['company_id'] as List).length > 1
+          ? (values['company_id'] as List)[1] as String?
+          : values['company_name'] as String?;
+      final taxGroupId = values['tax_group_id'] is List
+          ? (values['tax_group_id'] as List).first as int?
+          : values['tax_group_id'] as int?;
+      final taxGroupIdName = values['tax_group_id'] is List && (values['tax_group_id'] as List).length > 1
+          ? (values['tax_group_id'] as List)[1] as String?
+          : values['tax_group_name'] as String?;
+      final taxGroupL10nEcType = values['tax_group_l10n_ec_type'] as String?;
+
+      final companion = AccountTaxCompanion.insert(
+        odooId: taxId,
+        name: name,
+        description: Value(description),
+        typeTaxUse: Value(typeTaxUse),
+        amountType: Value(amountType),
+        amount: Value(amount),
+        active: Value(active),
+        priceInclude: Value(priceInclude),
+        includeBaseAmount: Value(includeBaseAmount),
+        sequence: Value(sequence),
+        companyId: Value(companyId),
+        companyName: Value(companyName),
+        taxGroupId: Value(taxGroupId),
+        taxGroupIdName: Value(taxGroupIdName),
+        taxGroupL10nEcType: Value(taxGroupL10nEcType),
+        writeDate: Value(DateTime.now()),
+      );
+      await db.into(db.accountTax).insert(
+        companion,
+        onConflict: DoUpdate(
+          (old) => companion,
+          target: [db.accountTax.odooId],
+        ),
+      );
+
+      // Invalidate tax calculator so prices recalculate with new tax data
+      ref.invalidate(taxCalculatorProvider);
+
+      logger.d(
+        '[NotificationProvider] ✅ Tax $taxId upserted: $name '
+        '($amountType: $amount%, priceInclude=$priceInclude)',
+      );
+    } catch (e) {
+      logger.e('[NotificationProvider] Error handling tax update: $e');
+    }
+  }
+
+  // ============================================================
+  // CASH OUT - WebSocket Sync Handler
+  // ============================================================
+
+  /// Handle cash out update notification from Odoo WebSocket
+  /// Updates cash out in local database
+  Future<void> _handleCashOutUpdated(
+    int cashOutId,
+    String? action,
+    Map<String, dynamic> payload,
+  ) async {
+    try {
+      final db = _db;
+      final values = payload['values'] as Map<String, dynamic>?;
+
+      if (action == 'deleted') {
+        // Delete cash out from local DB
+        await (db.delete(db.cashOut)
+              ..where((t) => t.odooId.equals(cashOutId)))
+            .go();
+        logger.d('[NotificationProvider] 🗑️ CashOut $cashOutId deleted locally');
+        return;
+      }
+
+      if (values == null) return;
+
+      // Extract values from payload
+      final sessionId = values['session_id'] is List
+          ? (values['session_id'] as List).first as int
+          : values['session_id'] as int? ?? 0;
+      final cashOutType = values['cash_out_type'] as String? ?? 'other';
+      final cashFlow = values['cash_flow'] as String? ?? 'out';
+      final journalId = values['journal_id'] is List
+          ? (values['journal_id'] as List).first as int? ?? 0
+          : values['journal_id'] as int? ?? 0;
+      final journalName = values['journal_id'] is List && (values['journal_id'] as List).length > 1
+          ? (values['journal_id'] as List)[1] as String?
+          : values['journal_name'] as String?;
+      final partnerId = values['partner_id'] is List
+          ? (values['partner_id'] as List).first as int?
+          : values['partner_id'] as int?;
+      final partnerName = values['partner_id'] is List && (values['partner_id'] as List).length > 1
+          ? (values['partner_id'] as List)[1] as String?
+          : values['partner_name'] as String?;
+      final amount = (values['amount'] as num?)?.toDouble() ?? 0.0;
+      final description = values['description'] as String?;
+      final name = values['name'] as String?;
+      final note = values['note'] as String?;
+      final uuid = values['uuid'] as String?;
+      final state = values['state'] as String? ?? 'draft';
+      final cashOutTypeId = values['cash_out_type_id'] is List
+          ? (values['cash_out_type_id'] as List).first as int?
+          : values['cash_out_type_id'] as int?;
+      final typeName = values['cash_out_type_id'] is List && (values['cash_out_type_id'] as List).length > 1
+          ? (values['cash_out_type_id'] as List)[1] as String?
+          : values['type_name'] as String?;
+      final moveId = values['move_id'] is List
+          ? (values['move_id'] as List).first as int?
+          : values['move_id'] as int?;
+      final approvedById = values['approved_by_id'] is List
+          ? (values['approved_by_id'] as List).first as int?
+          : values['approved_by_id'] as int?;
+      final approvedByName = values['approved_by_id'] is List && (values['approved_by_id'] as List).length > 1
+          ? (values['approved_by_id'] as List)[1] as String?
+          : values['approved_by_name'] as String?;
+
+      // Parse dates
+      DateTime? date;
+      if (values['date'] is String) {
+        date = DateTime.tryParse(values['date'] as String);
+      }
+      DateTime? approvedAt;
+      if (values['approved_at'] is String) {
+        approvedAt = DateTime.tryParse(values['approved_at'] as String);
+      }
+
+      final companion = CashOutCompanion.insert(
+        odooId: Value(cashOutId),
+        sessionId: sessionId,
+        collectionSessionId: sessionId,
+        cashOutType: cashOutType,
+        type: Value(cashOutType),
+        cashFlow: Value(cashFlow),
+        journalId: Value(journalId),
+        journalName: Value(journalName),
+        partnerId: Value(partnerId),
+        partnerName: Value(partnerName),
+        amount: Value(amount),
+        description: Value(description),
+        name: Value(name),
+        note: Value(note),
+        date: Value(date),
+        uuid: Value(uuid),
+        approvedById: Value(approvedById),
+        approvedByName: Value(approvedByName),
+        approvedAt: Value(approvedAt),
+        moveId: Value(moveId),
+        cashOutTypeId: Value(cashOutTypeId),
+        typeName: Value(typeName),
+        state: Value(state),
+        isSynced: const Value(true),
+        lastSyncDate: Value(DateTime.now()),
+        writeDate: Value(DateTime.now()),
+      );
+      await db.into(db.cashOut).insert(
+        companion,
+        onConflict: DoUpdate(
+          (old) => companion,
+          target: [db.cashOut.odooId],
+        ),
+      );
+
+      logger.d('[NotificationProvider] ✅ CashOut $cashOutId upserted: $name (amount=$amount, state=$state)');
+    } catch (e) {
+      logger.e('[NotificationProvider] Error handling cash out update: $e');
+    }
+  }
+
+  // ============================================================
+  // DEPOSIT - WebSocket Sync Handler
+  // ============================================================
+
+  /// Handle deposit update notification from Odoo WebSocket
+  /// Updates deposit in local database
+  Future<void> _handleDepositUpdated(
+    int depositId,
+    String? action,
+    Map<String, dynamic> payload,
+  ) async {
+    try {
+      final db = _db;
+      final values = payload['values'] as Map<String, dynamic>?;
+
+      if (action == 'deleted') {
+        // Delete deposit from local DB
+        await (db.delete(db.collectionSessionDeposit)
+              ..where((t) => t.odooId.equals(depositId)))
+            .go();
+        logger.d('[NotificationProvider] 🗑️ Deposit $depositId deleted locally');
+        return;
+      }
+
+      if (values == null) return;
+
+      // Extract values from payload
+      final sessionId = values['session_id'] is List
+          ? (values['session_id'] as List).first as int
+          : values['session_id'] as int? ?? 0;
+      final depositName = values['name'] as String?;
+      final depositType = values['deposit_type'] as String? ?? 'bank';
+      final amount = (values['amount'] as num?)?.toDouble() ?? 0.0;
+      final reference = values['reference'] as String?;
+      final sessionUuid = values['session_uuid'] as String?;
+      final userId = values['user_id'] is List
+          ? (values['user_id'] as List).first as int?
+          : values['user_id'] as int?;
+      final userName = values['user_id'] is List && (values['user_id'] as List).length > 1
+          ? (values['user_id'] as List)[1] as String?
+          : values['user_name'] as String?;
+      final cashAmount = (values['cash_amount'] as num?)?.toDouble() ?? 0.0;
+      final checkAmount = (values['check_amount'] as num?)?.toDouble() ?? 0.0;
+      final checkCount = values['check_count'] as int? ?? 0;
+      final bankJournalId = values['bank_journal_id'] is List
+          ? (values['bank_journal_id'] as List).first as int?
+          : values['bank_journal_id'] as int?;
+      final bankJournalName = values['bank_journal_id'] is List && (values['bank_journal_id'] as List).length > 1
+          ? (values['bank_journal_id'] as List)[1] as String?
+          : values['bank_journal_name'] as String?;
+      final bankId = values['bank_id'] is List
+          ? (values['bank_id'] as List).first as int?
+          : values['bank_id'] as int?;
+      final bankName = values['bank_id'] is List && (values['bank_id'] as List).length > 1
+          ? (values['bank_id'] as List)[1] as String?
+          : values['bank_name'] as String?;
+      final state = values['state'] as String? ?? 'draft';
+      final depositSlipNumber = values['deposit_slip_number'] as String?;
+      final bankReference = values['bank_reference'] as String?;
+      final depositMoveId = values['move_id'] is List
+          ? (values['move_id'] as List).first as int?
+          : values['move_id'] as int?;
+      final depositorName = values['depositor_name'] as String?;
+      final notes = values['notes'] as String?;
+      final depositUuid = values['uuid'] as String?;
+
+      // Parse dates
+      DateTime depositDate = DateTime.now();
+      if (values['deposit_date'] is String) {
+        depositDate = DateTime.tryParse(values['deposit_date'] as String) ?? DateTime.now();
+      } else if (values['date'] is String) {
+        depositDate = DateTime.tryParse(values['date'] as String) ?? DateTime.now();
+      }
+      DateTime? accountingDate;
+      if (values['accounting_date'] is String) {
+        accountingDate = DateTime.tryParse(values['accounting_date'] as String);
+      }
+
+      final companion = CollectionSessionDepositCompanion.insert(
+        odooId: Value(depositId),
+        uuid: Value(depositUuid),
+        sessionId: sessionId,
+        collectionSessionId: sessionId,
+        name: Value(depositName),
+        depositType: depositType,
+        type: Value(depositType),
+        amount: Value(amount),
+        reference: Value(reference),
+        number: Value(reference),
+        sessionUuid: Value(sessionUuid),
+        userId: Value(userId),
+        userName: Value(userName),
+        depositDate: depositDate,
+        date: Value(depositDate),
+        accountingDate: Value(accountingDate),
+        cashAmount: Value(cashAmount),
+        checkAmount: Value(checkAmount),
+        checkCount: Value(checkCount),
+        bankJournalId: Value(bankJournalId),
+        bankJournalName: Value(bankJournalName),
+        bankId: Value(bankId),
+        bankName: Value(bankName),
+        state: Value(state),
+        depositSlipNumber: Value(depositSlipNumber),
+        bankReference: Value(bankReference),
+        moveId: Value(depositMoveId),
+        depositorName: Value(depositorName),
+        notes: Value(notes),
+        isSynced: const Value(true),
+        lastSyncDate: Value(DateTime.now()),
+        writeDate: Value(DateTime.now()),
+      );
+      await db.into(db.collectionSessionDeposit).insert(
+        companion,
+        onConflict: DoUpdate(
+          (old) => companion,
+          target: [db.collectionSessionDeposit.odooId],
+        ),
+      );
+
+      logger.d('[NotificationProvider] ✅ Deposit $depositId upserted: $depositName (amount=$amount, state=$state)');
+    } catch (e) {
+      logger.e('[NotificationProvider] Error handling deposit update: $e');
+    }
+  }
+
+  // ============================================================
+  // SESSION CASH - WebSocket Sync Handler
+  // ============================================================
+
+  /// Handle session cash update notification from Odoo WebSocket
+  /// Updates session cash record in local database
+  Future<void> _handleSessionCashUpdated(
+    int cashId,
+    String? action,
+    Map<String, dynamic> payload,
+  ) async {
+    try {
+      final db = _db;
+      final values = payload['values'] as Map<String, dynamic>?;
+
+      if (action == 'deleted') {
+        // Delete session cash from local DB
+        await (db.delete(db.collectionSessionCash)
+              ..where((t) => t.odooId.equals(cashId)))
+            .go();
+        logger.d('[NotificationProvider] 🗑️ SessionCash $cashId deleted locally');
+        return;
+      }
+
+      if (values == null) return;
+
+      // Extract values from payload
+      final sessionId = values['session_id'] is List
+          ? (values['session_id'] as List).first as int
+          : values['session_id'] as int? ?? 0;
+      final denomination = values['denomination'] as String?;
+      final cashType = values['cash_type'] as String?;
+      final count = values['count'] as int? ?? 0;
+      final amount = (values['amount'] as num?)?.toDouble() ?? 0.0;
+
+      // Individual denomination fields (legacy)
+      final bills100 = values['bills_100'] as int? ?? 0;
+      final bills50 = values['bills_50'] as int? ?? 0;
+      final bills20 = values['bills_20'] as int? ?? 0;
+      final bills10 = values['bills_10'] as int? ?? 0;
+      final bills5 = values['bills_5'] as int? ?? 0;
+      final bills1 = values['bills_1'] as int? ?? 0;
+      final coins1 = values['coins_1'] as int? ?? 0;
+      final coins50 = values['coins_50'] as int? ?? 0;
+      final coins25 = values['coins_25'] as int? ?? 0;
+      final coins10 = values['coins_10'] as int? ?? 0;
+      final coins5 = values['coins_5'] as int? ?? 0;
+      final coins1Cent = values['coins_1_cent'] as int? ?? 0;
+      final notes = values['notes'] as String?;
+
+      final companion = CollectionSessionCashCompanion.insert(
+        odooId: cashId,
+        sessionId: sessionId,
+        collectionSessionId: sessionId,
+        denomination: Value(denomination),
+        cashType: Value(cashType),
+        count: Value(count),
+        amount: Value(amount),
+        bills100: Value(bills100),
+        bills50: Value(bills50),
+        bills20: Value(bills20),
+        bills10: Value(bills10),
+        bills5: Value(bills5),
+        bills1: Value(bills1),
+        coins1: Value(coins1),
+        coins50: Value(coins50),
+        coins25: Value(coins25),
+        coins10: Value(coins10),
+        coins5: Value(coins5),
+        coins1Cent: Value(coins1Cent),
+        notes: Value(notes),
+        isSynced: const Value(true),
+        lastSyncDate: Value(DateTime.now()),
+        writeDate: Value(DateTime.now()),
+      );
+      await db.into(db.collectionSessionCash).insert(
+        companion,
+        onConflict: DoUpdate(
+          (old) => companion,
+          target: [db.collectionSessionCash.odooId],
+        ),
+      );
+
+      logger.d('[NotificationProvider] ✅ SessionCash $cashId upserted: type=$cashType, amount=$amount');
+    } catch (e) {
+      logger.e('[NotificationProvider] Error handling session cash update: $e');
+    }
+  }
+
+  // ============================================================
+  // PRODUCT CATEGORY - WebSocket Sync Handler
+  // ============================================================
+
+  /// Handle product category update notification from Odoo WebSocket
+  /// Updates product category in local database
+  Future<void> _handleProductCategoryUpdated(
+    int categoryId,
+    String? action,
+    Map<String, dynamic> payload,
+  ) async {
+    try {
+      final db = _db;
+      final values = payload['values'] as Map<String, dynamic>?;
+
+      if (action == 'deleted') {
+        // Delete product category from local DB
+        await (db.delete(db.productCategory)
+              ..where((t) => t.odooId.equals(categoryId)))
+            .go();
+        logger.d('[NotificationProvider] 🗑️ ProductCategory $categoryId deleted locally');
+        return;
+      }
+
+      if (values == null) return;
+
+      // Extract values from payload
+      final name = values['name'] as String? ?? '';
+      final completeName = values['complete_name'] as String?;
+      final parentId = values['parent_id'] is List
+          ? (values['parent_id'] as List).first as int?
+          : values['parent_id'] as int?;
+      final parentName = values['parent_id'] is List && (values['parent_id'] as List).length > 1
+          ? (values['parent_id'] as List)[1] as String?
+          : values['parent_name'] as String?;
+
+      final companion = ProductCategoryCompanion.insert(
+        odooId: categoryId,
+        name: name,
+        completeName: Value(completeName),
+        parentId: Value(parentId),
+        parentName: Value(parentName),
+        writeDate: Value(DateTime.now()),
+      );
+      await db.into(db.productCategory).insert(
+        companion,
+        onConflict: DoUpdate(
+          (old) => companion,
+          target: [db.productCategory.odooId],
+        ),
+      );
+
+      logger.d('[NotificationProvider] ✅ ProductCategory $categoryId upserted: $name');
+    } catch (e) {
+      logger.e('[NotificationProvider] Error handling product category update: $e');
     }
   }
 }

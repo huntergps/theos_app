@@ -389,6 +389,15 @@ class AppOdooWebSocketService {
       '$database.payment_method_line_updated',
       '$database.advance_updated',
       '$database.credit_note_updated',
+      // Invoice & tax channels
+      '$database.invoice_updated',
+      '$database.tax_updated',
+      // Collection cash/deposit channels
+      '$database.cash_out_updated',
+      '$database.deposit_updated',
+      '$database.session_cash_updated',
+      // Product category channel
+      '$database.product_category_updated',
     ];
 
     // Subscribe to presence/activity channels if partnerId available
