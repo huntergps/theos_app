@@ -15,6 +15,7 @@ import '../../core/services/websocket/odoo_websocket_service.dart';
 import '../../core/services/platform/server_connectivity_service.dart';
 import '../../features/sync/services/connectivity_sync_orchestrator.dart';
 import '../providers/report_provider.dart';
+import '../widgets/server_info_bar.dart';
 import '../widgets/server_status_widget.dart';
 import '../widgets/theos_logo.dart';
 import '../../core/theme/spacing.dart';
@@ -337,7 +338,9 @@ class _MainScreenState extends ConsumerState<MainScreen> with WindowListener {
       displayMode = PaneDisplayMode.auto;
     }
 
-    return NavigationView(
+    return Column(
+      children: [
+      Expanded(child: NavigationView(
       titleBar: DragToMoveArea(
         child: Row(
           children: [
@@ -537,6 +540,9 @@ class _MainScreenState extends ConsumerState<MainScreen> with WindowListener {
         footerItems: footerItems,
       ),
       paneBodyBuilder: (item, body) => widget.child,
+    )),
+      const ServerInfoBar(),
+      ],
     );
   }
 }
