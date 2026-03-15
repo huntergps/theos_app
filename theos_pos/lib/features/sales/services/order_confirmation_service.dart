@@ -1,4 +1,5 @@
 import 'package:theos_pos_core/theos_pos_core.dart';
+import '../../../core/database/datasources/datasources.dart';
 import '../repositories/sales_repository.dart';
 import 'order_validation_types.dart';
 import 'credit_validation_ui_service.dart';
@@ -95,14 +96,17 @@ class OrderConfirmationService {
   final SalesRepository? _salesRepo;
   final SaleOrderLogicEngine _logicEngine;
   final CreditValidationUIService? _creditValidationService;
+  final OfflineQueueDataSource? _offlineQueue;
 
   OrderConfirmationService({
     required SalesRepository? salesRepo,
     required SaleOrderLogicEngine logicEngine,
     required CreditValidationUIService? creditValidationService,
+    OfflineQueueDataSource? offlineQueue,
   })  : _salesRepo = salesRepo,
         _logicEngine = logicEngine,
-        _creditValidationService = creditValidationService;
+        _creditValidationService = creditValidationService,
+        _offlineQueue = offlineQueue;
 
   /// Confirm a sale order with full validation
   ///
@@ -410,6 +414,25 @@ class OrderConfirmationService {
           success: false,
           error: 'El nombre del consumidor final es obligatorio',
         );
+      }
+
+      // Check if the offline queue already synced this order.
+      // If the queue processed the create, the local record would have been
+      // updated with a positive Odoo ID. Since we're here with a negative ID,
+      // the queue hasn't processed it yet. Remove the pending create operation
+      // to avoid duplication — we'll create directly now for immediate confirmation.
+      if (_offlineQueue != null) {
+        final removedCount = await _offlineQueue.removeOperationsForRecord(
+          'sale.order',
+          order.id,
+        );
+        if (removedCount > 0) {
+          logger.i(
+            _tag,
+            'Removed $removedCount pending queue operations for order ${order.id} '
+            '(confirmation will create directly)',
+          );
+        }
       }
 
       // Create order in Odoo with all required fields

@@ -163,6 +163,7 @@ final orderConfirmationServiceProvider = Provider<OrderConfirmationService>(
     salesRepo: ref.watch(salesRepositoryProvider),
     logicEngine: ref.watch(saleOrderLogicEngineProvider),
     creditValidationService: ref.watch(creditValidationUIServiceProvider),
+    offlineQueue: ref.watch(offlineQueueDataSourceProvider),
   ),
 );
 
