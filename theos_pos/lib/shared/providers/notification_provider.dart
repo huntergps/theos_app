@@ -1462,7 +1462,7 @@ class NotificationCounterNotifier extends Notifier<NotificationCounter> {
 
       final lineId = payload['id'] as int;
       final orderId = payload['order_id'] as int;
-      final lineUuid = payload['x_uuid'] as String?;
+      final lineUuid = payload['x_uuid'] is String ? payload['x_uuid'] as String : null;
 
       // Check if this line was created by our app (has matching UUID)
       // If so, we already have it locally - just update with remote ID
@@ -1919,7 +1919,7 @@ class NotificationCounterNotifier extends Notifier<NotificationCounter> {
     try {
       final lineId = payload['id'] as int;
       final orderId = payload['order_id'] as int;
-      final lineUuid = payload['x_uuid'] as String?;
+      final lineUuid = payload['x_uuid'] is String ? payload['x_uuid'] as String : null;
       final sequence = payload['sequence'] as int? ?? 10;
       final productId = payload['product_id'] as int?;
       final productName = payload['product_name'] as String?;
@@ -2002,7 +2002,7 @@ class NotificationCounterNotifier extends Notifier<NotificationCounter> {
     // Extract data from WebSocket payload (matches Odoo's _get_notification_data)
     final lineId = payload['id'] as int;
     final orderId = payload['order_id'] as int;
-    final lineUuid = payload['x_uuid'] as String?;
+    final lineUuid = payload['x_uuid'] is String ? payload['x_uuid'] as String : null;
     final sequence = payload['sequence'] as int? ?? 10;
     final productId = payload['product_id'] as int?;
     final productName = payload['product_name'] as String?;
