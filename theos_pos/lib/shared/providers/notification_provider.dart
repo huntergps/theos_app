@@ -166,6 +166,16 @@ class NotificationCounterNotifier extends Notifier<NotificationCounter> {
 
   /// Process offline queue when connection is restored
   Future<void> _processOfflineQueue() async {
+    // Guard: skip if database is not initialized or was closed (server switch)
+    try {
+      final db = DatabaseHelper.db;
+      // ignore: unnecessary_null_comparison
+      if (db == null) return;
+    } catch (_) {
+      logger.d('[NotificationProvider]', 'DB not ready, skipping queue processing');
+      return;
+    }
+
     try {
       final syncService = ref.read(offlineSyncServiceProvider);
       if (syncService == null) {
@@ -190,10 +200,11 @@ class NotificationCounterNotifier extends Notifier<NotificationCounter> {
 
       }
     } catch (e) {
-      logger.e(
-        '[NotificationProvider]',
-        '❌ Error processing offline queue: $e',
-      );
+      if (e.toString().contains('connection was closed')) {
+        logger.d('[NotificationProvider]', 'DB connection closed (server switch), skipping');
+      } else {
+        logger.e('[NotificationProvider]', '❌ Error processing offline queue: $e');
+      }
     }
   }
 
