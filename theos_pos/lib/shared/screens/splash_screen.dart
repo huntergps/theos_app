@@ -29,6 +29,14 @@ class SplashScreen extends ConsumerStatefulWidget {
 }
 
 class _SplashScreenState extends ConsumerState<SplashScreen> {
+  String _statusMessage = '';
+
+  void _setStatus(String message) {
+    if (mounted) {
+      setState(() => _statusMessage = message);
+    }
+  }
+
   @override
   void initState() {
     super.initState();
@@ -67,6 +75,7 @@ class _SplashScreenState extends ConsumerState<SplashScreen> {
       return;
     }
 
+    _setStatus('Cargando configuración...');
     logger.d('[SPLASH] 🔍 Cargando último servidor...');
     final serverService = ref.read(serverServiceProvider.notifier);
     final lastServer = await serverService.loadLastServer();
@@ -74,6 +83,7 @@ class _SplashScreenState extends ConsumerState<SplashScreen> {
     if (!mounted) return;
 
     if (lastServer != null && lastServer.apiKey != null) {
+      _setStatus('Conectando a ${lastServer.url}...');
       logger.d('[SPLASH] ✅ Servidor encontrado: ${lastServer.url}');
       final odoo = ref.read(odooServiceProvider);
       odoo.setCredentials(
@@ -84,6 +94,7 @@ class _SplashScreenState extends ConsumerState<SplashScreen> {
       logger.d('[SPLASH] 🔐 Credenciales configuradas');
 
       // OFFLINE-FIRST: Always initialize app dependencies regardless of connection
+      _setStatus('Inicializando base de datos...');
       logger.d('[SPLASH] 🗄️ Inicializando AppInitializer (offline-first)...');
       final authEventService = ref.read(authEventServiceProvider);
       final initResult = await AppInitializer.initialize(
@@ -103,6 +114,7 @@ class _SplashScreenState extends ConsumerState<SplashScreen> {
       logger.d('[SPLASH] ✅ Repository providers initialized');
 
       // Initialize ModelManagers with ModelRegistry
+      _setStatus('Inicializando servicios...');
       logger.d('[SPLASH] 🔧 Initializing ModelManagers...');
       initializeModelManagers();
       logger.d('[SPLASH] ✅ ModelManagers initialized and registered');
@@ -126,6 +138,7 @@ class _SplashScreenState extends ConsumerState<SplashScreen> {
 
       // OFFLINE-FIRST: Initialize Report Templates from Database
       // This ensures we can print offline immediately after startup
+      _setStatus('Cargando plantillas de reportes...');
       logger.d('[SPLASH] 📄 Loading cached report templates...');
       final reportService = ref.read(reportServiceProvider);
       final templateRepo = ref.read(qwebTemplateRepositoryProvider);
@@ -148,6 +161,7 @@ class _SplashScreenState extends ConsumerState<SplashScreen> {
       String? imStatusAccessToken;
 
       try {
+        _setStatus('Verificando conexión con Odoo...');
         logger.d('[SPLASH] 🌐 Probando conexión con Odoo...');
         isOnline = await odoo.testConnection();
         if (isOnline) {
@@ -177,6 +191,7 @@ class _SplashScreenState extends ConsumerState<SplashScreen> {
 
           // IMPORTANT: Load current user FIRST (before sync) to avoid database contention
           // This ensures is_current_user flag is properly set
+          _setStatus('Cargando usuario actual...');
           logger.d(
             '[SPLASH] 👤 Cargando usuario actual (antes de sincronización)...',
           );
@@ -201,6 +216,7 @@ class _SplashScreenState extends ConsumerState<SplashScreen> {
 
                   // If no local permissions, sync from Odoo
                   if (permissions.isEmpty) {
+                    _setStatus('Sincronizando permisos de usuario...');
                     logger.d(
                       '[SPLASH] ⚠️ Sin permisos locales, sincronizando desde Odoo...',
                     );
@@ -277,6 +293,7 @@ class _SplashScreenState extends ConsumerState<SplashScreen> {
 
           // Sync master catalogs in background using SyncNotifier (only if online)
           // This ensures the sync progress is visible in SyncScreen
+          _setStatus('Sincronizando catálogos...');
           logger.d(
             '[SPLASH] 📦 Iniciando sincronización de catálogos via SyncNotifier...',
           );
@@ -367,6 +384,7 @@ class _SplashScreenState extends ConsumerState<SplashScreen> {
             logger.d('[SPLASH] ⚠️ Error obteniendo session_info: $e');
           }
         } else {
+          _setStatus('Sin conexión - modo offline');
           logger.d('[SPLASH] ⚠️ Sin conexión a Odoo - modo offline');
         }
       } on OdooAuthenticationException catch (e) {
@@ -404,6 +422,7 @@ class _SplashScreenState extends ConsumerState<SplashScreen> {
       );
 
       // OFFLINE-FIRST: Always navigate to home if we have credentials
+      _setStatus('Cargando punto de venta...');
       logger.d(
         '[SPLASH] 🚀 Navegando a home (${isOnline ? "online" : "offline"})...',
       );
@@ -444,6 +463,18 @@ class _SplashScreenState extends ConsumerState<SplashScreen> {
                   TheosNameSvg(height: 40),
                   const SizedBox(height: 20),
                   const ProgressBar(),
+                  const SizedBox(height: 16),
+                  AnimatedSwitcher(
+                    duration: const Duration(milliseconds: 300),
+                    child: Text(
+                      _statusMessage,
+                      key: ValueKey(_statusMessage),
+                      style: FluentTheme.of(context).typography.caption?.copyWith(
+                        color: FluentTheme.of(context).inactiveColor,
+                      ),
+                      textAlign: TextAlign.center,
+                    ),
+                  ),
                 ],
               ),
             ),
