@@ -23,6 +23,10 @@ import '../providers/user_provider.dart';
 import '../providers/im_status_provider.dart';
 import '../providers/notification_provider.dart';
 import '../providers/server_info_provider.dart';
+import '../../core/database/repositories/repository_providers.dart';
+import '../../features/products/providers/product_providers.dart';
+import '../../features/sales/screens/fast_sale/fast_sale_providers.dart';
+import '../../features/sales/providers/order_cache_provider.dart';
 import '../models/im_status.dart';
 import '../widgets/user_preferences_dialog.dart';
 import '../providers/menu_provider.dart';
@@ -127,6 +131,13 @@ class _MainScreenState extends ConsumerState<MainScreen> with WindowListener {
     ref.invalidate(notificationCounterProvider);
     ref.invalidate(connectivitySyncOrchestratorProvider);
     ref.invalidate(modelRegistryIntegrationProvider);
+
+    // Invalidate data-layer providers that cache DB/server-specific state
+    ref.invalidate(offlineSyncServiceProvider);
+    ref.invalidate(catalogServiceProvider);
+    ref.invalidate(fastSaleProvider);
+    ref.invalidate(orderCacheProvider);
+    ref.invalidate(imStatusProvider);
   }
 
   @override

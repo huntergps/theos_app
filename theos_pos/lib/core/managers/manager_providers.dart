@@ -56,13 +56,20 @@ import 'package:theos_pos_core/theos_pos_core.dart'
 import 'package:theos_pos_core/theos_pos_core.dart' show AppDatabase, currencyManager, decimalPrecisionManager;
 
 import '../database/database_helper.dart';
+import '../database/repositories/repository_providers.dart';
 
 // ═══════════════════════════════════════════════════════════════════════════
 // Database Provider
 // ═══════════════════════════════════════════════════════════════════════════
 
-/// Provider for the app database
+/// Provider for the app database.
+///
+/// Watches [databaseHelperProvider] so that when the database is re-created
+/// (e.g. after a server switch on login), this provider — and all downstream
+/// providers that depend on it — automatically rebuild with the new DB.
 final appDatabaseProvider = Provider<AppDatabase>((ref) {
+  // Watch databaseHelperProvider to trigger rebuild when DB changes
+  ref.watch(databaseHelperProvider);
   // ignore: deprecated_member_use_from_same_package
   return DatabaseHelper.db;
 });

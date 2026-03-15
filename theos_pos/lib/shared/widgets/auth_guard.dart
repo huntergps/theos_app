@@ -7,6 +7,7 @@ import 'package:theos_pos_core/theos_pos_core.dart'
     show userManager, UserManagerBusiness;
 
 import '../../core/database/repositories/base_repository.dart';
+import '../../core/database/repositories/repository_providers.dart';
 import '../../core/managers/model_registry_integration.dart';
 import '../../core/services/auth_event_service.dart';
 import '../../core/services/logger_service.dart';
@@ -14,6 +15,10 @@ import '../../core/services/platform/server_connectivity_service.dart';
 import '../../core/services/websocket/odoo_websocket_service.dart';
 import '../../features/authentication/services/server_service.dart';
 import '../../features/sync/services/connectivity_sync_orchestrator.dart';
+import '../../features/products/providers/product_providers.dart';
+import '../../features/sales/screens/fast_sale/fast_sale_providers.dart';
+import '../../features/sales/providers/order_cache_provider.dart';
+import '../providers/im_status_provider.dart';
 import '../providers/notification_provider.dart';
 import '../providers/server_info_provider.dart';
 import '../providers/user_provider.dart';
@@ -78,6 +83,13 @@ class _AuthGuardState extends ConsumerState<AuthGuard> {
       ref.invalidate(notificationCounterProvider);
       ref.invalidate(connectivitySyncOrchestratorProvider);
       ref.invalidate(modelRegistryIntegrationProvider);
+
+      // Invalidate data-layer providers that cache DB/server-specific state
+      ref.invalidate(offlineSyncServiceProvider);
+      ref.invalidate(catalogServiceProvider);
+      ref.invalidate(fastSaleProvider);
+      ref.invalidate(orderCacheProvider);
+      ref.invalidate(imStatusProvider);
     } catch (e) {
       logger.e('[AuthGuard] Error during session teardown: $e');
     }
