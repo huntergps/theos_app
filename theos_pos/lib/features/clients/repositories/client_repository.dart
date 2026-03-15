@@ -364,23 +364,20 @@ class ClientRepository extends BaseRepository with OfflineSupport<DatabaseHelper
     'can_use_custom_payments',
   ];
 
-  /// Update a single field of a partner
+  /// Update a single field of a partner - OFFLINE-FIRST
+  ///
+  /// Delegates to [updateField] which saves locally first, then syncs
+  /// to Odoo or queues for later if offline.
   Future<bool> updatePartnerField({
     required int partnerId,
     required String field,
     required dynamic value,
   }) async {
-    try {
-      if (odooClient == null) return false;
-      await odooClient!.write(model: 'res.partner', ids: [partnerId], values: {field: value});
-
-      // Update local database if needed
-      // This is a simplified version - you may want to refresh the partner from Odoo
-      return true;
-    } catch (e) {
-      logger.e('[ClientRepository]', 'Error updating partner field $field', e);
-      return false;
-    }
+    return updateField(
+      clientId: partnerId,
+      field: field,
+      value: value,
+    );
   }
 
   /// Search partners - offline-first

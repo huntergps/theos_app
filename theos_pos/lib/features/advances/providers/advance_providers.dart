@@ -8,6 +8,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../features/banks/repositories/bank_repository.dart';
 import '../../../core/services/odoo_service.dart';
+import '../../../core/database/repositories/repository_providers.dart';
 import '../services/advance_service.dart';
 
 /// Provider for AdvanceService.
@@ -26,5 +27,6 @@ final advanceServiceProvider = Provider<AdvanceService>((ref) {
   return AdvanceService(
     ref.watch(odooServiceProvider),
     bankRepo,
+    ref.watch(offlineQueueDataSourceProvider),
   );
 });

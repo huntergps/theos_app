@@ -632,10 +632,27 @@ class CollectionRepository extends BaseRepository with OfflineSupport {
       throw Exception('collection_session_id is required but was null');
     }
 
-    // If offline, save locally only
+    // If offline, save locally and queue for later sync
     if (!isOnline) {
-      await _sessionCashManager.upsertSessionCash(cash);
-      throw Exception('Cannot sync cash - offline');
+      final unsyncedCash = cash.copyWith(isSynced: false);
+      await _sessionCashManager.upsertSessionCash(unsyncedCash);
+
+      if (_offlineQueue != null) {
+        final queueValues = collectionSessionCashManager.toOdoo(cash);
+        queueValues.remove('id');
+        await _offlineQueue.queueOperation(
+          model: 'collection.session.cash',
+          method: cash.id > 0 ? 'write' : 'create',
+          recordId: cash.id > 0 ? cash.id : null,
+          values: queueValues,
+        );
+        logger.i(
+          '[CollectionRepository] Offline: queued session cash for later sync '
+          '(session=${cash.collectionSessionId}, type=${cash.cashType})',
+        );
+      }
+
+      return unsyncedCash;
     }
 
     try {
@@ -692,8 +709,27 @@ class CollectionRepository extends BaseRepository with OfflineSupport {
         return syncedCash;
       }
     } catch (e) {
-      await _sessionCashManager.upsertSessionCash(cash);
-      rethrow;
+      // Save locally with isSynced=false
+      final unsyncedCash = cash.copyWith(isSynced: false);
+      await _sessionCashManager.upsertSessionCash(unsyncedCash);
+
+      // Queue the operation for later sync instead of rethrowing
+      if (_offlineQueue != null) {
+        final queueValues = collectionSessionCashManager.toOdoo(cash);
+        queueValues.remove('id');
+        await _offlineQueue.queueOperation(
+          model: 'collection.session.cash',
+          method: cash.id > 0 ? 'write' : 'create',
+          recordId: cash.id > 0 ? cash.id : null,
+          values: queueValues,
+        );
+        logger.i(
+          '[CollectionRepository] Queued session cash for later sync '
+          '(session=${cash.collectionSessionId}, type=${cash.cashType})',
+        );
+      }
+
+      return unsyncedCash;
     }
   }
 
@@ -992,6 +1028,9 @@ class CollectionRepository extends BaseRepository with OfflineSupport {
   }
 
   /// Create a new deposit for a collection session
+  ///
+  /// OFFLINE-FIRST: Saves locally first, then attempts direct Odoo sync.
+  /// If online sync fails, queues the operation for later processing.
   Future<Either<Failure, CollectionSessionDeposit>> createDeposit(
     CollectionSessionDeposit deposit,
   ) async {
@@ -1001,12 +1040,58 @@ class CollectionRepository extends BaseRepository with OfflineSupport {
           ? deposit
           : deposit.copyWith(uuid: const Uuid().v4());
 
-      // Save locally
+      // Save locally first (offline-first)
       await _sessionDepositManager.upsertDeposit(depositWithUuid);
 
-      // Queue for sync if online queue is available
-      if (_offlineQueue != null && isOnline) {
-        await _queueDepositSync(depositWithUuid);
+      // Try direct Odoo sync if online, queue on failure
+      if (_offlineQueue != null) {
+        if (isOnline && odooClient != null) {
+          try {
+            final odooId = await odooClient!.create(
+              model: 'collection.session.deposit',
+              values: {
+                'collection_session_id': depositWithUuid.collectionSessionId,
+                'session_uuid': depositWithUuid.sessionUuid,
+                'deposit_date': depositWithUuid.depositDate?.toIso8601String(),
+                'accounting_date': depositWithUuid.accountingDate?.toIso8601String(),
+                'amount': depositWithUuid.amount,
+                'deposit_type': depositWithUuid.depositType.name,
+                'cash_amount': depositWithUuid.cashAmount,
+                'check_amount': depositWithUuid.checkAmount,
+                'check_count': depositWithUuid.checkCount,
+                'bank_journal_id': depositWithUuid.bankJournalId,
+                'bank_id': depositWithUuid.bankId,
+                'deposit_slip_number': depositWithUuid.depositSlipNumber,
+                'bank_reference': depositWithUuid.bankReference,
+                'depositor_name': depositWithUuid.depositorName,
+                'notes': depositWithUuid.notes,
+                'user_id': depositWithUuid.userId,
+                'uuid': depositWithUuid.uuid,
+              },
+            );
+
+            // Update local record with Odoo ID and mark as synced
+            final synced = depositWithUuid.copyWith(
+              id: odooId ?? depositWithUuid.id,
+              isSynced: true,
+              lastSyncDate: DateTime.now(),
+            );
+            await _sessionDepositManager.upsertDeposit(synced);
+
+            logger.d('[CollectionRepository]', 'Deposit created in Odoo: id=$odooId');
+            return Right(synced);
+          } catch (e) {
+            // Direct sync failed — fall back to queue
+            logger.w(
+              '[CollectionRepository]',
+              'Direct deposit create failed, queuing: $e',
+            );
+            await _queueDepositSync(depositWithUuid);
+          }
+        } else {
+          // Offline — queue for later sync
+          await _queueDepositSync(depositWithUuid);
+        }
       }
 
       return Right(depositWithUuid);
@@ -1017,6 +1102,9 @@ class CollectionRepository extends BaseRepository with OfflineSupport {
   }
 
   /// Update an existing deposit
+  ///
+  /// OFFLINE-FIRST: Saves locally first, then attempts direct Odoo sync.
+  /// If online sync fails, queues the operation for later processing.
   Future<Either<Failure, CollectionSessionDeposit>> updateDeposit(
     CollectionSessionDeposit deposit,
   ) async {
@@ -1024,12 +1112,58 @@ class CollectionRepository extends BaseRepository with OfflineSupport {
       // Mark as not synced since it was modified
       final updatedDeposit = deposit.copyWith(isSynced: false);
 
-      // Save locally
+      // Save locally first (offline-first)
       await _sessionDepositManager.upsertDeposit(updatedDeposit);
 
-      // Queue for sync if online queue is available
-      if (_offlineQueue != null && isOnline) {
-        await _queueDepositSync(updatedDeposit);
+      // Try direct Odoo sync if online, queue on failure
+      if (_offlineQueue != null) {
+        if (isOnline && odooClient != null && updatedDeposit.id > 0) {
+          try {
+            await odooClient!.write(
+              model: 'collection.session.deposit',
+              ids: [updatedDeposit.id],
+              values: {
+                'collection_session_id': updatedDeposit.collectionSessionId,
+                'session_uuid': updatedDeposit.sessionUuid,
+                'deposit_date': updatedDeposit.depositDate?.toIso8601String(),
+                'accounting_date': updatedDeposit.accountingDate?.toIso8601String(),
+                'amount': updatedDeposit.amount,
+                'deposit_type': updatedDeposit.depositType.name,
+                'cash_amount': updatedDeposit.cashAmount,
+                'check_amount': updatedDeposit.checkAmount,
+                'check_count': updatedDeposit.checkCount,
+                'bank_journal_id': updatedDeposit.bankJournalId,
+                'bank_id': updatedDeposit.bankId,
+                'deposit_slip_number': updatedDeposit.depositSlipNumber,
+                'bank_reference': updatedDeposit.bankReference,
+                'depositor_name': updatedDeposit.depositorName,
+                'notes': updatedDeposit.notes,
+                'user_id': updatedDeposit.userId,
+                'uuid': updatedDeposit.uuid,
+              },
+            );
+
+            // Mark as synced after successful write
+            final synced = updatedDeposit.copyWith(
+              isSynced: true,
+              lastSyncDate: DateTime.now(),
+            );
+            await _sessionDepositManager.upsertDeposit(synced);
+
+            logger.d('[CollectionRepository]', 'Deposit updated in Odoo: id=${synced.id}');
+            return Right(synced);
+          } catch (e) {
+            // Direct sync failed — fall back to queue
+            logger.w(
+              '[CollectionRepository]',
+              'Direct deposit update failed, queuing: $e',
+            );
+            await _queueDepositSync(updatedDeposit);
+          }
+        } else {
+          // Offline or new record — queue for later sync
+          await _queueDepositSync(updatedDeposit);
+        }
       }
 
       return Right(updatedDeposit);
@@ -1040,10 +1174,52 @@ class CollectionRepository extends BaseRepository with OfflineSupport {
   }
 
   /// Queue deposit for sync with backend
+  ///
+  /// For new deposits (id <= 0 or no Odoo ID): queues a `create` operation.
+  /// For existing deposits (id > 0): queues a `write` operation.
   Future<void> _queueDepositSync(CollectionSessionDeposit deposit) async {
-    // This would queue the deposit for background sync
-    // Implementation depends on offline queue strategy
-    logger.d('[CollectionRepository]', 'Deposit queued for sync: ${deposit.id}');
+    if (_offlineQueue == null) return;
+
+    final isNew = deposit.id <= 0;
+    final method = isNew ? 'create' : 'write';
+
+    final values = <String, dynamic>{
+      'uuid': deposit.uuid,
+      'collection_session_id': deposit.collectionSessionId,
+      'session_uuid': deposit.sessionUuid,
+      'deposit_date': deposit.depositDate?.toIso8601String(),
+      'accounting_date': deposit.accountingDate?.toIso8601String(),
+      'amount': deposit.amount,
+      'deposit_type': deposit.depositType.name,
+      'cash_amount': deposit.cashAmount,
+      'check_amount': deposit.checkAmount,
+      'check_count': deposit.checkCount,
+      'bank_journal_id': deposit.bankJournalId,
+      'bank_id': deposit.bankId,
+      'state': deposit.state,
+      'deposit_slip_number': deposit.depositSlipNumber,
+      'bank_reference': deposit.bankReference,
+      'depositor_name': deposit.depositorName,
+      'notes': deposit.notes,
+      'user_id': deposit.userId,
+    };
+
+    if (isNew) {
+      values['local_id'] = deposit.id;
+    }
+
+    await _offlineQueue.queueOperation(
+      model: 'collection.session.deposit',
+      method: method,
+      recordId: isNew ? null : deposit.id,
+      values: values,
+      priority: OfflinePriority.high,
+    );
+
+    logger.d(
+      '[CollectionRepository]',
+      'Deposit queued for sync ($method): id=${deposit.id}, uuid=${deposit.uuid}',
+    );
   }
 
   // ============ Local Database Access (for UI screens) ============

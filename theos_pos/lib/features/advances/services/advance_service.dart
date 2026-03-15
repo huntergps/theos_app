@@ -13,15 +13,19 @@ import 'package:theos_pos_core/theos_pos_core.dart';
 /// - Obtener diarios y métodos de pago disponibles
 ///
 /// Sigue el patrón offline-first:
-/// 1. Buscar en BD local
-/// 2. Si no hay o está desactualizado, traer de Odoo
-/// 3. Guardar en BD local
-/// 4. Volver a leer desde BD local
+/// 1. Guardar en BD local (con ID negativo si es nuevo)
+/// 2. Intentar sincronizar con Odoo
+/// 3. Si falla, encolar en OfflineQueue para sync posterior
+/// 4. Si tiene éxito, actualizar BD local con datos reales
 class AdvanceService {
   final OdooService _odoo;
   final BankRepository _bankRepo;
+  final OfflineQueueDataSource? _offlineQueue;
 
-  AdvanceService(this._odoo, this._bankRepo);
+  AdvanceService(this._odoo, this._bankRepo, this._offlineQueue);
+
+  /// Generate a temporary negative ID for offline-created records
+  int _generateTempId() => -(DateTime.now().millisecondsSinceEpoch % 1000000000);
 
   /// Get the current user's company_id, defaulting to 1 if unavailable
   Future<int> _getUserCompanyId() async {
@@ -305,10 +309,13 @@ class AdvanceService {
   // CREAR ANTICIPOS
   // ============================================================
 
-  /// Crea un nuevo anticipo
+  /// Crea un nuevo anticipo (offline-first)
   ///
-  /// El anticipo se crea en estado borrador. Debe llamarse [postAdvance]
-  /// para publicarlo y generar los asientos contables.
+  /// 1. Valida los datos
+  /// 2. Guarda localmente con ID negativo temporal
+  /// 3. Intenta crear en Odoo
+  /// 4. Si Odoo OK: actualiza registro local con ID real
+  /// 5. Si Odoo falla: encola operación para sync posterior
   Future<AdvanceResult> createAdvance(Advance advance) async {
     try {
       // Validaciones
@@ -334,27 +341,57 @@ class AdvanceService {
         );
       }
 
-      // Crear anticipo
-      final advanceId = await _odoo.call(
-        model: 'account.advance',
-        method: 'create',
-        kwargs: {
-          'vals_list': [advanceManager.toOdoo(advance)],
-        },
+      // 1. Save locally with a temporary negative ID
+      final tempId = _generateTempId();
+      final localAdvance = advance.copyWith(
+        id: tempId,
+        amount: totalLines,
+        amountAvailable: totalLines,
       );
+      await advanceManager.upsertLocal(localAdvance);
+      logger.d('[AdvanceService]', 'Saved advance locally with tempId=$tempId');
 
-      if (advanceId == null) {
-        throw Exception('Failed to create advance');
+      // 2. Try to create in Odoo
+      final odooValues = advanceManager.toOdoo(advance);
+      try {
+        final advanceId = await _odoo.call(
+          model: 'account.advance',
+          method: 'create',
+          kwargs: {
+            'vals_list': [odooValues],
+          },
+        );
+
+        if (advanceId == null) {
+          throw Exception('Failed to create advance — null response');
+        }
+
+        final id = advanceId is List ? advanceId[0] as int : advanceId as int;
+
+        // 3. Odoo OK — update local record with real ID
+        await advanceManager.deleteLocal(tempId);
+        final syncedAdvance = localAdvance.copyWith(id: id);
+        await advanceManager.upsertLocal(syncedAdvance);
+
+        logger.i('[AdvanceService]', 'Created advance $id (synced)');
+        return AdvanceResult(success: true, advanceId: id);
+      } catch (e) {
+        // 4. Odoo failed — queue for later sync
+        logger.w('[AdvanceService]', 'Odoo unreachable, queuing advance create (tempId=$tempId): $e');
+        await _offlineQueue?.queueOperation(
+          model: 'account.advance',
+          method: 'create',
+          recordId: tempId,
+          values: odooValues,
+          priority: OfflinePriority.high,
+        );
+
+        return AdvanceResult(
+          success: true,
+          advanceId: tempId,
+          errorMessage: 'Guardado localmente. Se sincronizará cuando haya conexión.',
+        );
       }
-
-      final id = advanceId is List ? advanceId[0] as int : advanceId as int;
-
-      logger.i('[AdvanceService]', 'Created advance $id');
-
-      return AdvanceResult(
-        success: true,
-        advanceId: id,
-      );
     } catch (e, st) {
       logger.e('[AdvanceService]', 'Error creating advance', e, st);
       return AdvanceResult(
@@ -364,17 +401,46 @@ class AdvanceService {
     }
   }
 
-  /// Crea y publica un anticipo en un solo paso
+  /// Crea y publica un anticipo en un solo paso (offline-first)
+  ///
+  /// Si offline: crea localmente y encola tanto el create como el post.
+  /// Si online: crea y publica en Odoo, luego sincroniza a local.
   Future<AdvanceResult> createAndPostAdvance(Advance advance) async {
     try {
-      // Primero crear
+      // Primero crear (offline-first)
       final createResult = await createAdvance(advance);
       if (!createResult.success || createResult.advanceId == null) {
         return createResult;
       }
 
-      // Luego publicar
-      return await postAdvance(createResult.advanceId!);
+      // Si el ID es negativo, la creación fue offline.
+      // Encolar el post para que se ejecute después del create.
+      final advanceId = createResult.advanceId!;
+      if (advanceId < 0) {
+        await _offlineQueue?.queueOperation(
+          model: 'account.advance',
+          method: 'action_post',
+          recordId: advanceId,
+          values: {'ids': [advanceId]},
+          priority: OfflinePriority.high,
+        );
+        // Update local state optimistically
+        final local = await advanceManager.readLocal(advanceId);
+        if (local != null) {
+          await advanceManager.upsertLocal(
+            local.copyWith(state: AdvanceState.posted),
+          );
+        }
+        return AdvanceResult(
+          success: true,
+          advanceId: advanceId,
+          amount: advance.lines.fold<double>(0.0, (sum, l) => sum + l.amount),
+          errorMessage: 'Guardado localmente. Se sincronizará cuando haya conexión.',
+        );
+      }
+
+      // Online — publicar normalmente
+      return await postAdvance(advanceId);
     } catch (e, st) {
       logger.e('[AdvanceService]', 'Error creating and posting advance', e, st);
       return AdvanceResult(
@@ -384,28 +450,59 @@ class AdvanceService {
     }
   }
 
-  /// Publica un anticipo
+  /// Publica un anticipo (offline-first)
   ///
-  /// Genera los asientos contables y cambia el estado a 'posted'.
+  /// 1. Actualiza estado local a 'posted' optimistamente
+  /// 2. Intenta llamar a Odoo action_post
+  /// 3. Si falla, encola para sync posterior
   Future<AdvanceResult> postAdvance(int advanceId) async {
     try {
-      await _odoo.call(
-        model: 'account.advance',
-        method: 'action_post',
-        kwargs: {'ids': [advanceId]},
-      );
+      // 1. Optimistic local state update
+      final localAdvance = await advanceManager.readLocal(advanceId);
+      if (localAdvance != null) {
+        await advanceManager.upsertLocal(
+          localAdvance.copyWith(state: AdvanceState.posted),
+        );
+      }
 
-      // Obtener datos actualizados
-      final advance = await getAdvance(advanceId);
+      // 2. Try Odoo
+      try {
+        await _odoo.call(
+          model: 'account.advance',
+          method: 'action_post',
+          kwargs: {'ids': [advanceId]},
+        );
 
-      logger.i('[AdvanceService]', 'Posted advance $advanceId: ${advance?.name}');
+        // Refresh from Odoo to get server-generated fields (name, etc.)
+        final advance = await getAdvance(advanceId);
 
-      return AdvanceResult(
-        success: true,
-        advanceId: advanceId,
-        advanceName: advance?.name,
-        amount: advance?.amount,
-      );
+        logger.i('[AdvanceService]', 'Posted advance $advanceId: ${advance?.name}');
+
+        return AdvanceResult(
+          success: true,
+          advanceId: advanceId,
+          advanceName: advance?.name,
+          amount: advance?.amount,
+        );
+      } catch (e) {
+        // 3. Odoo failed — queue for later
+        logger.w('[AdvanceService]', 'Odoo unreachable, queuing action_post for advance $advanceId: $e');
+        await _offlineQueue?.queueOperation(
+          model: 'account.advance',
+          method: 'action_post',
+          recordId: advanceId,
+          values: {'ids': [advanceId]},
+          priority: OfflinePriority.high,
+        );
+
+        return AdvanceResult(
+          success: true,
+          advanceId: advanceId,
+          advanceName: localAdvance?.name,
+          amount: localAdvance?.amount,
+          errorMessage: 'Publicado localmente. Se sincronizará cuando haya conexión.',
+        );
+      }
     } catch (e, st) {
       logger.e('[AdvanceService]', 'Error posting advance $advanceId', e, st);
       return AdvanceResult(
@@ -416,40 +513,95 @@ class AdvanceService {
     }
   }
 
-  /// Devuelve el saldo disponible de un anticipo al cliente
+  /// Devuelve el saldo disponible de un anticipo al cliente (offline-first)
   ///
-  /// Llama a la acción `action_return` en Odoo que genera el movimiento
-  /// contable de devolución y actualiza el saldo del anticipo.
+  /// 1. Actualiza estado local optimistamente
+  /// 2. Intenta llamar a Odoo action_return
+  /// 3. Si falla, encola para sync posterior
   Future<bool> returnAdvance(int advanceId) async {
     try {
-      await _odoo.call(
-        model: 'account.advance',
-        method: 'action_return',
-        kwargs: {'ids': [advanceId]},
-      );
+      // 1. Optimistic local state update
+      final localAdvance = await advanceManager.readLocal(advanceId);
+      if (localAdvance != null) {
+        await advanceManager.upsertLocal(
+          localAdvance.copyWith(
+            amountReturned: localAdvance.amountAvailable,
+            amountAvailable: 0,
+          ),
+        );
+      }
 
-      // Refresh local cache with updated data
-      await _fetchAndCacheAdvance(advanceId);
+      // 2. Try Odoo
+      try {
+        await _odoo.call(
+          model: 'account.advance',
+          method: 'action_return',
+          kwargs: {'ids': [advanceId]},
+        );
 
-      logger.i('[AdvanceService]', 'Returned advance $advanceId');
-      return true;
+        // Refresh local cache with server data
+        await _fetchAndCacheAdvance(advanceId);
+
+        logger.i('[AdvanceService]', 'Returned advance $advanceId');
+        return true;
+      } catch (e) {
+        // 3. Odoo failed — queue for later
+        logger.w('[AdvanceService]', 'Odoo unreachable, queuing action_return for advance $advanceId: $e');
+        await _offlineQueue?.queueOperation(
+          model: 'account.advance',
+          method: 'action_return',
+          recordId: advanceId,
+          values: {'ids': [advanceId]},
+          priority: OfflinePriority.high,
+        );
+        return true;
+      }
     } catch (e, st) {
       logger.e('[AdvanceService]', 'Error returning advance $advanceId', e, st);
       rethrow;
     }
   }
 
-  /// Cancela un anticipo
+  /// Cancela un anticipo (offline-first)
+  ///
+  /// 1. Actualiza estado local a 'canceled' optimistamente
+  /// 2. Intenta llamar a Odoo action_cancel
+  /// 3. Si falla, encola para sync posterior
   Future<bool> cancelAdvance(int advanceId) async {
     try {
-      await _odoo.call(
-        model: 'account.advance',
-        method: 'action_cancel',
-        kwargs: {'ids': [advanceId]},
-      );
+      // 1. Optimistic local state update
+      final localAdvance = await advanceManager.readLocal(advanceId);
+      if (localAdvance != null) {
+        await advanceManager.upsertLocal(
+          localAdvance.copyWith(state: AdvanceState.canceled),
+        );
+      }
 
-      logger.i('[AdvanceService]', 'Cancelled advance $advanceId');
-      return true;
+      // 2. Try Odoo
+      try {
+        await _odoo.call(
+          model: 'account.advance',
+          method: 'action_cancel',
+          kwargs: {'ids': [advanceId]},
+        );
+
+        // Refresh from Odoo
+        await _fetchAndCacheAdvance(advanceId);
+
+        logger.i('[AdvanceService]', 'Cancelled advance $advanceId');
+        return true;
+      } catch (e) {
+        // 3. Odoo failed — queue for later
+        logger.w('[AdvanceService]', 'Odoo unreachable, queuing action_cancel for advance $advanceId: $e');
+        await _offlineQueue?.queueOperation(
+          model: 'account.advance',
+          method: 'action_cancel',
+          recordId: advanceId,
+          values: {'ids': [advanceId]},
+          priority: OfflinePriority.normal,
+        );
+        return true;
+      }
     } catch (e, st) {
       logger.e('[AdvanceService]', 'Error cancelling advance $advanceId', e, st);
       return false;

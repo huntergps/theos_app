@@ -5,6 +5,7 @@ import 'package:theos_pos_core/theos_pos_core.dart'
 import '../../../core/services/logger_service.dart';
 import '../../../core/services/odoo_service.dart';
 import '../../../shared/utils/formatting_utils.dart';
+import '../repositories/sales_repository.dart';
 
 /// Result of withhold authorization validation
 class WithholdAuthorizationValidation {
@@ -26,8 +27,10 @@ class WithholdAuthorizationValidation {
 /// Servicio para gestionar retenciones en órdenes de venta
 class WithholdService {
   final OdooService _odoo;
+  final SalesRepository? _salesRepo;
 
-  WithholdService(this._odoo);
+  WithholdService(this._odoo, {SalesRepository? salesRepo})
+      : _salesRepo = salesRepo;
 
   /// Get the current user's company_id, defaulting to 1 if unavailable
   Future<int> _getUserCompanyId() async {
@@ -294,42 +297,32 @@ class WithholdService {
     }
   }
 
-  /// Guarda las líneas de retención en una orden de venta
+  /// Guarda las líneas de retención en una orden de venta - OFFLINE-FIRST
   ///
-  /// Elimina las líneas existentes y crea las nuevas
+  /// Delegates to [SalesRepository] which handles local persistence,
+  /// Odoo sync, and offline queue automatically.
+  ///
+  /// Eliminates existing lines and creates new ones using the repository's
+  /// offline-first `deleteAllWithholdLinesForOrder` and `createWithholdLine`.
   Future<bool> saveWithholdLines(int saleOrderId, List<WithholdLine> lines) async {
+    if (_salesRepo == null) {
+      logger.e('[WithholdService]', 'SalesRepository not available - cannot save withhold lines');
+      return false;
+    }
+
     try {
-      // Primero eliminar las líneas existentes
-      final existingLines = await _odoo.call(
-        model: 'sale.order.withhold.line',
-        method: 'search_read',
-        kwargs: {
-          'domain': [['sale_id', '=', saleOrderId]],
-          'fields': ['id'],
-        },
-      );
+      // 1. Delete all existing withhold lines (offline-first via repository)
+      await _salesRepo.deleteAllWithholdLinesForOrder(saleOrderId);
 
-      if (existingLines is List && existingLines.isNotEmpty) {
-        final existingIds = existingLines.map((l) => (l as Map<String, dynamic>)['id'] as int).toList();
-        await _odoo.call(
-          model: 'sale.order.withhold.line',
-          method: 'unlink',
-          kwargs: {'ids': existingIds},
-        );
-      }
+      // 2. Create each new line (offline-first via repository)
+      for (final line in lines) {
+        final vals = withholdLineManager.toOdoo(line);
+        vals['sale_id'] = saleOrderId;
 
-      // Crear las nuevas líneas
-      if (lines.isNotEmpty) {
-        for (final line in lines) {
-          final vals = withholdLineManager.toOdoo(line);
-          vals['sale_id'] = saleOrderId;
+        // Map tax name for withhold type detection in the repository
+        vals['tax_name'] = line.taxName;
 
-          await _odoo.call(
-            model: 'sale.order.withhold.line',
-            method: 'create',
-            kwargs: {'vals_list': [vals]},
-          );
-        }
+        await _salesRepo.createWithholdLine(saleOrderId, vals);
       }
 
       logger.d('[WithholdService] Saved ${lines.length} withhold lines for order $saleOrderId');

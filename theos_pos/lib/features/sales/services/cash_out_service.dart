@@ -12,13 +12,21 @@ import '../../../shared/utils/formatting_utils.dart';
 /// - Validar saldo disponible en caja
 ///
 /// Sigue el patrón offline-first:
-/// 1. Buscar en BD local
-/// 2. Si no hay o está desactualizado, traer de Odoo
-/// 3. Guardar en BD local
+/// 1. Guardar en BD local (ID negativo para registros nuevos)
+/// 2. Intentar sincronizar con Odoo
+/// 3. Si falla (offline), encolar en OfflineQueue
 /// 4. Volver a leer desde BD local
 class CashOutService {
   final OdooService _odoo;
   final CashOutManager _cashOutManager;
+  final OfflineQueueDataSource? _offlineQueue;
+  final AppDatabase _db;
+
+  /// Whether Odoo is reachable (client configured)
+  bool get _isOnline => _odoo.client != null;
+
+  /// Generate a negative local ID for offline records
+  int _generateLocalId() => -(DateTime.now().microsecondsSinceEpoch % 1000000000);
 
   /// Get the current user's company_id, defaulting to 1 if unavailable
   Future<int> _getUserCompanyId() async {
@@ -36,7 +44,7 @@ class CashOutService {
     }
   }
 
-  CashOutService(this._odoo, this._cashOutManager);
+  CashOutService(this._odoo, this._cashOutManager, this._offlineQueue, this._db);
 
   // ============================================================
   // TIPOS DE RETIRO
@@ -277,13 +285,16 @@ class CashOutService {
   // CREAR RETIROS
   // ============================================================
 
-  /// Crea un nuevo retiro de dinero
+  /// Crea un nuevo retiro de dinero (offline-first)
   ///
-  /// El retiro se crea en estado borrador. Debe llamarse [confirmCashOut]
-  /// para confirmarlo y generar los asientos contables.
+  /// 1. Valida datos localmente
+  /// 2. Guarda en BD local con ID negativo
+  /// 3. Intenta crear en Odoo
+  /// 4. Si tiene éxito: actualiza ID local con el remoto
+  /// 5. Si falla (offline): encola en OfflineQueue
   Future<CashOutResult> createCashOut(CashOut cashOut) async {
     try {
-      // Validaciones
+      // Validaciones locales
       if (cashOut.amount <= 0) {
         return CashOutResult(
           success: false,
@@ -291,38 +302,89 @@ class CashOutService {
         );
       }
 
-      // Validar saldo disponible si hay sesión
-      if (cashOut.collectionSessionId != null) {
-        final availableCash = await getAvailableCash(cashOut.collectionSessionId!);
-        if (availableCash < cashOut.amount) {
-          return CashOutResult(
-            success: false,
-            errorMessage: 'Saldo insuficiente en caja. Disponible: ${availableCash.toCurrency()}',
-          );
+      // Validar saldo disponible si hay sesión (best-effort, skip if offline)
+      if (cashOut.collectionSessionId != null && _isOnline) {
+        try {
+          final availableCash = await getAvailableCash(cashOut.collectionSessionId!);
+          if (availableCash < cashOut.amount) {
+            return CashOutResult(
+              success: false,
+              errorMessage: 'Saldo insuficiente en caja. Disponible: ${availableCash.toCurrency()}',
+            );
+          }
+        } catch (_) {
+          // Offline — skip balance check, proceed with local save
         }
       }
 
-      // Crear retiro
-      final cashOutId = await _odoo.call(
-        model: 'l10n_ec.cash.out',
-        method: 'create',
-        kwargs: {
-          'vals_list': [cashOutManager.toOdoo(cashOut)],
-        },
+      // 1. Save locally with negative ID
+      final localId = _generateLocalId();
+      final localCashOut = cashOut.copyWith(
+        id: localId,
+        isSynced: false,
       );
+      await _cashOutManager.upsertCashOut(localCashOut);
 
-      if (cashOutId == null) {
-        throw Exception('Failed to create cash out');
+      logger.i('[CashOutService]', 'Saved cash out locally with id=$localId');
+
+      // 2. Try to create in Odoo
+      try {
+        final odooValues = cashOutManager.toOdoo(localCashOut);
+        // Remove local-only fields before sending to Odoo
+        odooValues.remove('id');
+        odooValues.remove('is_synced');
+        odooValues.remove('last_sync_date');
+
+        final cashOutId = await _odoo.call(
+          model: 'l10n_ec.cash.out',
+          method: 'create',
+          kwargs: {
+            'vals_list': [odooValues],
+          },
+        );
+
+        if (cashOutId == null) {
+          throw Exception('Odoo returned null for cash out create');
+        }
+
+        final remoteId = cashOutId is List ? cashOutId[0] as int : cashOutId as int;
+
+        // 3. Update local record with remote ID
+        // Delete the local negative-ID record and insert with remote ID
+        await (_db.delete(_db.cashOut)
+              ..where((t) => t.odooId.equals(localId)))
+            .go();
+
+        final syncedCashOut = localCashOut.copyWith(
+          id: remoteId,
+          isSynced: true,
+          lastSyncDate: DateTime.now(),
+        );
+        await _cashOutManager.upsertFromOdoo(syncedCashOut);
+
+        logger.i('[CashOutService]', 'Created cash out in Odoo: $remoteId (was local $localId)');
+
+        return CashOutResult(
+          success: true,
+          cashOutId: remoteId,
+        );
+      } catch (e) {
+        // 4. Offline or error — queue for later sync
+        logger.w('[CashOutService]', 'Odoo create failed, queuing offline: $e');
+
+        await _offlineQueue?.queueOperation(
+          model: 'l10n_ec.cash.out',
+          method: 'create',
+          recordId: localId,
+          values: cashOutManager.toOdoo(localCashOut),
+          priority: OfflinePriority.high,
+        );
+
+        return CashOutResult(
+          success: true,
+          cashOutId: localId,
+        );
       }
-
-      final id = cashOutId is List ? cashOutId[0] as int : cashOutId as int;
-
-      logger.i('[CashOutService]', 'Created cash out $id');
-
-      return CashOutResult(
-        success: true,
-        cashOutId: id,
-      );
     } catch (e, st) {
       logger.e('[CashOutService]', 'Error creating cash out', e, st);
       return CashOutResult(
@@ -352,29 +414,59 @@ class CashOutService {
     }
   }
 
-  /// Confirma un retiro de dinero
+  /// Confirma un retiro de dinero (offline-first)
   ///
-  /// Genera los asientos contables y cambia el estado a 'posted'.
-  /// Para retiros de seguridad, también crea el depósito correspondiente.
+  /// 1. Actualiza estado local a 'posted'
+  /// 2. Intenta confirmar en Odoo
+  /// 3. Si falla (offline): encola en OfflineQueue
   Future<CashOutResult> confirmCashOut(int cashOutId) async {
     try {
-      await _odoo.call(
-        model: 'l10n_ec.cash.out',
-        method: 'action_confirm',
-        kwargs: {'ids': [cashOutId]},
-      );
+      // 1. Update local state to 'posted'
+      final existing = await _cashOutManager.getByOdooId(cashOutId);
+      if (existing != null) {
+        final updated = existing.copyWith(state: CashOutState.posted);
+        await _cashOutManager.upsertCashOut(updated);
+      }
 
-      // Obtener datos actualizados
-      final cashOut = await getCashOut(cashOutId);
+      // 2. Try to confirm in Odoo
+      try {
+        await _odoo.call(
+          model: 'l10n_ec.cash.out',
+          method: 'action_confirm',
+          kwargs: {'ids': [cashOutId]},
+        );
 
-      logger.i('[CashOutService]', 'Confirmed cash out $cashOutId: ${cashOut?.name}');
+        // Refresh from Odoo to get server-generated fields (name, move_id, etc.)
+        await _fetchAndCacheCashOut(cashOutId);
+        final cashOut = await _cashOutManager.getByOdooId(cashOutId);
 
-      return CashOutResult(
-        success: true,
-        cashOutId: cashOutId,
-        cashOutName: cashOut?.name,
-        amount: cashOut?.amount,
-      );
+        logger.i('[CashOutService]', 'Confirmed cash out $cashOutId: ${cashOut?.name}');
+
+        return CashOutResult(
+          success: true,
+          cashOutId: cashOutId,
+          cashOutName: cashOut?.name,
+          amount: cashOut?.amount,
+        );
+      } catch (e) {
+        // 3. Offline — queue for later sync
+        logger.w('[CashOutService]', 'Odoo confirm failed, queuing offline: $e');
+
+        await _offlineQueue?.queueOperation(
+          model: 'l10n_ec.cash.out',
+          method: 'action_confirm',
+          recordId: cashOutId,
+          values: {'ids': [cashOutId]},
+          priority: OfflinePriority.high,
+        );
+
+        return CashOutResult(
+          success: true,
+          cashOutId: cashOutId,
+          cashOutName: existing?.name,
+          amount: existing?.amount,
+        );
+      }
     } catch (e, st) {
       logger.e('[CashOutService]', 'Error confirming cash out $cashOutId', e, st);
       return CashOutResult(
@@ -385,16 +477,45 @@ class CashOutService {
     }
   }
 
-  /// Cancela un retiro de dinero
+  /// Cancela un retiro de dinero (offline-first)
+  ///
+  /// 1. Actualiza estado local a 'cancelled'
+  /// 2. Intenta cancelar en Odoo
+  /// 3. Si falla (offline): encola en OfflineQueue
   Future<bool> cancelCashOut(int cashOutId) async {
     try {
-      await _odoo.call(
-        model: 'l10n_ec.cash.out',
-        method: 'action_cancel',
-        kwargs: {'ids': [cashOutId]},
-      );
+      // 1. Update local state to 'cancelled'
+      final existing = await _cashOutManager.getByOdooId(cashOutId);
+      if (existing != null) {
+        final updated = existing.copyWith(state: CashOutState.cancelled);
+        await _cashOutManager.upsertCashOut(updated);
+      }
 
-      logger.i('[CashOutService]', 'Cancelled cash out $cashOutId');
+      // 2. Try to cancel in Odoo
+      try {
+        await _odoo.call(
+          model: 'l10n_ec.cash.out',
+          method: 'action_cancel',
+          kwargs: {'ids': [cashOutId]},
+        );
+
+        // Refresh from Odoo
+        await _fetchAndCacheCashOut(cashOutId);
+
+        logger.i('[CashOutService]', 'Cancelled cash out $cashOutId');
+      } catch (e) {
+        // 3. Offline — queue for later sync
+        logger.w('[CashOutService]', 'Odoo cancel failed, queuing offline: $e');
+
+        await _offlineQueue?.queueOperation(
+          model: 'l10n_ec.cash.out',
+          method: 'action_cancel',
+          recordId: cashOutId,
+          values: {'ids': [cashOutId]},
+          priority: OfflinePriority.normal,
+        );
+      }
+
       return true;
     } catch (e, st) {
       logger.e('[CashOutService]', 'Error cancelling cash out $cashOutId', e, st);

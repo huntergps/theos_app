@@ -44,6 +44,8 @@ final cashOutServiceProvider = Provider((ref) {
   return CashOutService(
     ref.watch(odooServiceProvider),
     ref.watch(cashOutManagerProvider),
+    ref.watch(offlineQueueDataSourceProvider),
+    ref.watch(appDatabaseProvider),
   );
 });
 
@@ -52,7 +54,10 @@ final cashOutServiceProvider = Provider((ref) {
 // =============================================================================
 
 final withholdServiceProvider = Provider((ref) {
-  return WithholdService(ref.watch(odooServiceProvider));
+  return WithholdService(
+    ref.watch(odooServiceProvider),
+    salesRepo: ref.watch(salesRepositoryProvider),
+  );
 });
 
 // =============================================================================
