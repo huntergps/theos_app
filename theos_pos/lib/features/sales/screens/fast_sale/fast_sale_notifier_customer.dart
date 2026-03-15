@@ -332,8 +332,11 @@ extension FastSaleNotifierCustomer on FastSaleNotifier {
   // END CUSTOMER FIELDS (Consumidor Final)
   // ============================================================
 
-  /// Update end customer name for final consumer orders
-  Future<void> updateEndCustomerName(String name) async {
+  /// Update end customer name for final consumer orders.
+  ///
+  /// Updates in-memory state immediately for UI responsiveness,
+  /// but debounces the DB persist to avoid excessive writes on every keystroke.
+  void updateEndCustomerName(String name) {
     final activeTab = state.activeTab;
     final order = activeTab?.order;
     if (activeTab == null || order == null) return;
@@ -345,14 +348,17 @@ extension FastSaleNotifierCustomer on FastSaleNotifier {
     );
     _updateActiveTab(updatedTab);
 
-    logger.d('[FastSale]', 'Updated end customer name: $name');
+    logger.d('[FastSale]', 'Updated end customer name (in-memory): $name');
 
-    // Persist to local DB + fire-and-forget sync to Odoo
-    await saveActiveOrder();
+    // Debounce: persist to DB only after user stops typing
+    _debounceSaveEndCustomer();
   }
 
-  /// Update end customer phone for final consumer orders
-  Future<void> updateEndCustomerPhone(String phone) async {
+  /// Update end customer phone for final consumer orders.
+  ///
+  /// Updates in-memory state immediately for UI responsiveness,
+  /// but debounces the DB persist to avoid excessive writes on every keystroke.
+  void updateEndCustomerPhone(String phone) {
     final activeTab = state.activeTab;
     final order = activeTab?.order;
     if (activeTab == null || order == null) return;
@@ -364,14 +370,17 @@ extension FastSaleNotifierCustomer on FastSaleNotifier {
     );
     _updateActiveTab(updatedTab);
 
-    logger.d('[FastSale]', 'Updated end customer phone: $phone');
+    logger.d('[FastSale]', 'Updated end customer phone (in-memory): $phone');
 
-    // Persist to local DB + fire-and-forget sync to Odoo
-    await saveActiveOrder();
+    // Debounce: persist to DB only after user stops typing
+    _debounceSaveEndCustomer();
   }
 
-  /// Update end customer email for final consumer orders
-  Future<void> updateEndCustomerEmail(String email) async {
+  /// Update end customer email for final consumer orders.
+  ///
+  /// Updates in-memory state immediately for UI responsiveness,
+  /// but debounces the DB persist to avoid excessive writes on every keystroke.
+  void updateEndCustomerEmail(String email) {
     final activeTab = state.activeTab;
     final order = activeTab?.order;
     if (activeTab == null || order == null) return;
@@ -383,10 +392,22 @@ extension FastSaleNotifierCustomer on FastSaleNotifier {
     );
     _updateActiveTab(updatedTab);
 
-    logger.d('[FastSale]', 'Updated end customer email: $email');
+    logger.d('[FastSale]', 'Updated end customer email (in-memory): $email');
 
-    // Persist to local DB + fire-and-forget sync to Odoo
-    await saveActiveOrder();
+    // Debounce: persist to DB only after user stops typing
+    _debounceSaveEndCustomer();
+  }
+
+  /// Debounce helper: resets the timer on each call, only saves after 500ms idle.
+  void _debounceSaveEndCustomer() {
+    _endCustomerDebounceTimer?.cancel();
+    _endCustomerDebounceTimer = Timer(
+      const Duration(milliseconds: 500),
+      () async {
+        logger.d('[FastSale]', 'Debounce fired: saving end customer fields');
+        await saveActiveOrder();
+      },
+    );
   }
 
   /// Set the referrer for the active order

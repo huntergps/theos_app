@@ -125,6 +125,12 @@ extension FastSaleNotifierSave on FastSaleNotifier {
               },
             );
             logger.i('[FastSale]', 'Order $orderId queued for sync');
+
+            // Trigger queue processing after a short delay if online.
+            // The orchestrator only processes on connectivity *changes*
+            // (offline -> online), so items queued while already online
+            // would never be processed without this trigger.
+            _scheduleQueueProcessing();
           } else {
             // Update existing create operation with latest values
             await offlineQueue.updatePendingCreateValues(orderId, {
@@ -226,5 +232,30 @@ extension FastSaleNotifierSave on FastSaleNotifier {
       state = state.copyWith(error: 'Error al guardar: $e');
       return false;
     }
+  }
+
+  /// Schedule offline queue processing after a short delay.
+  ///
+  /// This ensures that items queued while the app is already online
+  /// get processed promptly, without waiting for a connectivity change event.
+  void _scheduleQueueProcessing() {
+    Timer(const Duration(seconds: 2), () async {
+      try {
+        final syncService = ref.read(offlineSyncServiceProvider);
+        if (syncService == null || !syncService.canSync) {
+          logger.d('[FastSale]', 'Queue processing skipped: no sync service or offline');
+          return;
+        }
+        if (syncService.isSyncing) {
+          logger.d('[FastSale]', 'Queue processing skipped: already syncing');
+          return;
+        }
+        logger.d('[FastSale]', 'Triggering queue processing after new queue entry');
+        final result = await syncService.processQueue();
+        logger.i('[FastSale]', 'Queue processing result: ${result.synced} synced, ${result.failed} failed');
+      } catch (e) {
+        logger.w('[FastSale]', 'Queue processing failed (will retry later): $e');
+      }
+    });
   }
 }

@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:freezed_annotation/freezed_annotation.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
@@ -246,6 +247,10 @@ class FastSaleNotifier extends _$FastSaleNotifier {
   /// Last deleted line for undo support (used by FastSaleNotifierLines extension)
   SaleOrderLine? lastDeletedLine;
   int? lastDeletedLineIndex;
+
+  /// Debounce timer for end customer text fields (name, phone, email).
+  /// Prevents excessive DB writes and queue updates on every keystroke.
+  Timer? _endCustomerDebounceTimer;
 
   @override
   FastSaleState build() {
