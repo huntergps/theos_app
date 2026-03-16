@@ -6,6 +6,7 @@ import 'package:uuid/uuid.dart';
 
 import '../../../features/banks/repositories/bank_repository.dart';
 import '../../../core/services/odoo_service.dart';
+import '../../../shared/utils/error_utils.dart';
 import '../../../shared/utils/formatting_utils.dart';
 import 'package:theos_pos_core/theos_pos_core.dart' hide DatabaseHelper;
 import 'order_validation_types.dart';
@@ -1576,7 +1577,7 @@ class PaymentService {
       logger.e('[PaymentService]', 'Error registering withholding', e, st);
       return WithholdingResult(
         success: false,
-        errorMessage: e.toString(),
+        errorMessage: friendlyErrorMessage(e),
       );
     }
   }
@@ -1690,7 +1691,7 @@ class PaymentService {
       logger.e('[PaymentService]', 'Error requesting credit approval', e, st);
       return CreditApprovalResult(
         success: false,
-        errorMessage: e.toString(),
+        errorMessage: friendlyErrorMessage(e),
       );
     }
   }

@@ -5,6 +5,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:theos_pos_core/theos_pos_core.dart' hide DatabaseHelper;
 import 'package:odoo_sdk/odoo_sdk.dart' as odoo;
+import '../../../shared/utils/error_utils.dart';
 import '../../products/services/stock_sync_service.dart';
 
 /// Configurable limits for offline mode preload (M10 improvement)
@@ -370,7 +371,7 @@ class OfflineModeService {
         partnersLoaded: partnersLoaded,
         stockRecordsLoaded: stockRecordsLoaded,
         duration: duration,
-        errorMessage: e.toString(),
+        errorMessage: friendlyErrorMessage(e),
       );
 
       await _saveLastPreloadResult(result);

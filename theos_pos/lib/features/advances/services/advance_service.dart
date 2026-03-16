@@ -2,6 +2,7 @@ import 'package:odoo_sdk/odoo_sdk.dart' show OdooNotFoundException;
 
 import '../../../features/banks/repositories/bank_repository.dart';
 import '../../../core/services/odoo_service.dart';
+import '../../../shared/utils/error_utils.dart';
 import 'package:theos_pos_core/theos_pos_core.dart';
 
 /// Servicio para gestionar anticipos de clientes/proveedores
@@ -396,7 +397,7 @@ class AdvanceService {
       logger.e('[AdvanceService]', 'Error creating advance', e, st);
       return AdvanceResult(
         success: false,
-        errorMessage: e.toString(),
+        errorMessage: friendlyErrorMessage(e),
       );
     }
   }
@@ -445,7 +446,7 @@ class AdvanceService {
       logger.e('[AdvanceService]', 'Error creating and posting advance', e, st);
       return AdvanceResult(
         success: false,
-        errorMessage: e.toString(),
+        errorMessage: friendlyErrorMessage(e),
       );
     }
   }
@@ -508,7 +509,7 @@ class AdvanceService {
       return AdvanceResult(
         success: false,
         advanceId: advanceId,
-        errorMessage: e.toString(),
+        errorMessage: friendlyErrorMessage(e),
       );
     }
   }

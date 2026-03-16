@@ -15,6 +15,7 @@ import 'package:drift/drift.dart' as drift;
 import 'package:theos_pos_core/theos_pos_core.dart' show AppDatabase, AccountPaymentManager, SaleOrderLine, SaleOrderLineManager, SaleOrderLineManagerBusiness, saleOrderLineManager, SaleOrderManager, SaleOrderManagerBusiness, saleOrderManager, ClientManagerBusiness, clientManager, CollectionSessionManager, CollectionSessionManagerBusiness, SaleOrderPaymentLineCompanion;
 import '../../../core/database/database_helper.dart';
 import '../../../core/database/datasources/datasources.dart';
+import '../../../shared/utils/error_utils.dart';
 
 // Re-export sync types from package for backward compatibility
 export 'package:odoo_sdk/odoo_sdk.dart'
@@ -843,7 +844,7 @@ class OfflineSyncService {
           await _completeOperationWithAudit(
             op,
             result: 'error',
-            errorMessage: e.toString(),
+            errorMessage: friendlyErrorMessage(e),
           );
           logger.e('[OfflineSyncService]', 'Failed to sync: $errorMsg');
           orderSyncFailed = true;
@@ -908,7 +909,7 @@ class OfflineSyncService {
             await _completeOperationWithAudit(
               op,
               result: 'error',
-              errorMessage: e.toString(),
+              errorMessage: friendlyErrorMessage(e),
             );
             logger.e('[OfflineSyncService]', 'Failed to sync: $errorMsg');
           }
@@ -946,7 +947,7 @@ class OfflineSyncService {
               await _completeOperationWithAudit(
                 op,
                 result: 'error',
-                errorMessage: e.toString(),
+                errorMessage: friendlyErrorMessage(e),
               );
               logger.e('[OfflineSyncService]', 'Failed to sync: $errorMsg');
             }

@@ -1,6 +1,7 @@
 import 'package:theos_pos_core/theos_pos_core.dart';
 
 import '../../../core/services/odoo_service.dart';
+import '../../../shared/utils/error_utils.dart';
 import '../../../shared/utils/formatting_utils.dart';
 
 /// Servicio para gestionar retiros de dinero de la caja de cobranzas
@@ -389,7 +390,7 @@ class CashOutService {
       logger.e('[CashOutService]', 'Error creating cash out', e, st);
       return CashOutResult(
         success: false,
-        errorMessage: e.toString(),
+        errorMessage: friendlyErrorMessage(e),
       );
     }
   }
@@ -409,7 +410,7 @@ class CashOutService {
       logger.e('[CashOutService]', 'Error creating and confirming cash out', e, st);
       return CashOutResult(
         success: false,
-        errorMessage: e.toString(),
+        errorMessage: friendlyErrorMessage(e),
       );
     }
   }
@@ -472,7 +473,7 @@ class CashOutService {
       return CashOutResult(
         success: false,
         cashOutId: cashOutId,
-        errorMessage: e.toString(),
+        errorMessage: friendlyErrorMessage(e),
       );
     }
   }
@@ -562,7 +563,7 @@ class CashOutService {
       logger.e('[CashOutService]', 'Error creating security withdrawal', e, st);
       return CashOutResult(
         success: false,
-        errorMessage: e.toString(),
+        errorMessage: friendlyErrorMessage(e),
       );
     }
   }
@@ -600,7 +601,7 @@ class CashOutService {
       logger.e('[CashOutService]', 'Error creating expense withdrawal', e, st);
       return CashOutResult(
         success: false,
-        errorMessage: e.toString(),
+        errorMessage: friendlyErrorMessage(e),
       );
     }
   }

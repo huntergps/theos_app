@@ -7,6 +7,7 @@ import '../../core/database/repositories/repository_providers.dart';
 import '../../core/services/logger_service.dart';
 import '../../features/sync/services/offline_sync_service.dart'
     show SyncOperationStatus, SyncProgressEvent, SyncResult, SyncStatus;
+import '../utils/error_utils.dart';
 
 /// Progress info for a single operation being synced
 class OperationSyncProgress {
@@ -122,7 +123,7 @@ class OfflineQueueNotifier extends Notifier<OfflineQueueState> {
       logger.d('[OfflineQueue] Loaded ${operations.length} pending operations');
     } catch (e) {
       logger.e('[OfflineQueue] Error loading operations: $e');
-      state = OfflineQueueState(error: e.toString());
+      state = OfflineQueueState(error: friendlyErrorMessage(e));
     }
   }
 
@@ -181,7 +182,7 @@ class OfflineQueueNotifier extends Notifier<OfflineQueueState> {
       return result;
     } catch (e) {
       logger.e('[OfflineQueue] Error processing queue: $e');
-      state = state.copyWith(error: e.toString(), isProcessing: false);
+      state = state.copyWith(error: friendlyErrorMessage(e), isProcessing: false);
       return SyncResult(
         model: 'queue',
         status: SyncStatus.error,
@@ -226,7 +227,7 @@ class OfflineQueueNotifier extends Notifier<OfflineQueueState> {
       logger.i('[OfflineQueue] Cleared all operations');
     } catch (e) {
       logger.e('[OfflineQueue] Error clearing operations: $e');
-      state = state.copyWith(error: e.toString());
+      state = state.copyWith(error: friendlyErrorMessage(e));
     }
   }
 }

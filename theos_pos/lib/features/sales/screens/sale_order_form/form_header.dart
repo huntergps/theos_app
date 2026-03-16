@@ -17,6 +17,7 @@ import '../../../../core/theme/spacing.dart';
 import '../../../../shared/providers/company_config_provider.dart';
 import '../../../../shared/providers/report_provider.dart';
 import '../../../../shared/providers/user_provider.dart';
+import '../../../../shared/utils/error_utils.dart';
 import '../../../../shared/widgets/dialogs/copyable_info_bar.dart';
 import '../../../../shared/widgets/status_indicator.dart';
 import 'package:theos_pos_core/theos_pos_core.dart';
@@ -1194,7 +1195,7 @@ class _ViewActionButtons extends ConsumerWidget {
       logger.i('[FormHeader]', 'PDF preview generated for ${order.name}');
     } catch (e) {
       // Set error on the tab (shows error view instead of loading)
-      tabsNotifier.setPdfPreviewError(tabId, e.toString());
+      tabsNotifier.setPdfPreviewError(tabId, friendlyErrorMessage(e));
     }
   }
 

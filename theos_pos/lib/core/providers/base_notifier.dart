@@ -1,6 +1,7 @@
 import 'package:dartz/dartz.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../shared/utils/error_utils.dart';
 import '../errors/errors.dart';
 import '../services/logger_service.dart';
 import 'base_feature_state.dart';
@@ -98,7 +99,7 @@ mixin BaseNotifierMixin<S extends BaseFeatureState> on Notifier<S> {
       if (onError != null) {
         onError(e);
       } else {
-        setError(e.toString());
+        setError(friendlyErrorMessage(e));
       }
       return null;
     }
@@ -141,7 +142,7 @@ mixin BaseNotifierMixin<S extends BaseFeatureState> on Notifier<S> {
     } catch (e) {
       if (showLoading) setLoading(false);
       logError('Unexpected error', e);
-      setError('Error inesperado: $e');
+      setError(friendlyErrorMessage(e));
       return null;
     }
   }
@@ -176,7 +177,7 @@ mixin BaseNotifierMixin<S extends BaseFeatureState> on Notifier<S> {
       );
     } catch (e) {
       rollback();
-      setError('Error inesperado: $e');
+      setError(friendlyErrorMessage(e));
       return false;
     }
   }

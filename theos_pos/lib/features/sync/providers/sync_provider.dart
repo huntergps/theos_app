@@ -6,6 +6,7 @@ import '../../../core/managers/manager_providers.dart';
 import 'package:odoo_sdk/odoo_sdk.dart' show logger;
 import '../../reports/repositories/qweb_template_repository.dart';
 import '../../../shared/providers/report_provider.dart';
+import '../../../shared/utils/error_utils.dart';
 
 part 'sync_provider.g.dart';
 
@@ -624,7 +625,7 @@ class SyncNotifier extends _$SyncNotifier {
       );
     } catch (e) {
       logger.e('[SyncNotifier] Error syncing ${itemDef.description}: $e');
-      final errorMessage = e.toString();
+      final errorMessage = friendlyErrorMessage(e);
 
       // Save error
       await _saveSyncResult(
@@ -877,7 +878,7 @@ class SyncNotifier extends _$SyncNotifier {
         );
       } catch (e) {
         logger.e('[SyncNotifier] Error syncing ${itemDef.description}: $e');
-        final errorMessage = e.toString();
+        final errorMessage = friendlyErrorMessage(e);
 
         // Save error
         await _saveSyncResult(
