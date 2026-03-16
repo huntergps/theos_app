@@ -45,32 +45,34 @@ abstract class User with _$User {
     // Calendar preferences
     @OdooString(odooName: 'calendar_default_privacy') String? calendarDefaultPrivacy,
 
-    // Work location (modulo hr)
-    @OdooMany2One('hr.work.location', odooName: 'work_location_id') int? workLocationId,
-    @OdooMany2OneName(sourceField: 'work_location_id') String? workLocationName,
+    // Work location (modulo hr) — requiere módulo hr instalado
+    @OdooLocalOnly() int? workLocationId,
+    // Requiere módulo hr instalado
+    @OdooLocalOnly() String? workLocationName,
 
-    // Resource calendar / Work schedule
-    @OdooMany2One('resource.calendar', odooName: 'resource_calendar_id') int? resourceCalendarId,
-    @OdooMany2OneName(sourceField: 'resource_calendar_id') String? resourceCalendarName,
+    // Resource calendar / Work schedule — requiere módulo hr instalado
+    @OdooLocalOnly() int? resourceCalendarId,
+    // Requiere módulo hr instalado
+    @OdooLocalOnly() String? resourceCalendarName,
 
-    // PIN for attendance (modulo hr)
-    @OdooString() String? pin,
+    // PIN for attendance — requiere módulo hr instalado
+    @OdooLocalOnly() String? pin,
 
-    // Private information (modulo hr)
-    @OdooString(odooName: 'private_street') String? privateStreet,
-    @OdooString(odooName: 'private_street2') String? privateStreet2,
-    @OdooString(odooName: 'private_city') String? privateCity,
-    @OdooString(odooName: 'private_zip') String? privateZip,
-    @OdooMany2One('res.country.state', odooName: 'private_state_id') int? privateStateId,
-    @OdooMany2OneName(sourceField: 'private_state_id') String? privateStateName,
-    @OdooMany2One('res.country', odooName: 'private_country_id') int? privateCountryId,
-    @OdooMany2OneName(sourceField: 'private_country_id') String? privateCountryName,
-    @OdooString(odooName: 'private_email') String? privateEmail,
-    @OdooString(odooName: 'private_phone') String? privatePhone,
+    // Private information — requiere módulo hr instalado
+    @OdooLocalOnly() String? privateStreet,
+    @OdooLocalOnly() String? privateStreet2,
+    @OdooLocalOnly() String? privateCity,
+    @OdooLocalOnly() String? privateZip,
+    @OdooLocalOnly() int? privateStateId,
+    @OdooLocalOnly() String? privateStateName,
+    @OdooLocalOnly() int? privateCountryId,
+    @OdooLocalOnly() String? privateCountryName,
+    @OdooLocalOnly() String? privateEmail,
+    @OdooLocalOnly() String? privatePhone,
 
-    // Emergency contact (modulo hr)
-    @OdooString(odooName: 'emergency_contact') String? emergencyContact,
-    @OdooString(odooName: 'emergency_phone') String? emergencyPhone,
+    // Emergency contact — requiere módulo hr instalado
+    @OdooLocalOnly() String? emergencyContact,
+    @OdooLocalOnly() String? emergencyPhone,
   }) = _User;
 
   // ============ Computed Fields (@api.depends equivalents) ============

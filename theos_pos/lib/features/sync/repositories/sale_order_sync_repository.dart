@@ -130,6 +130,14 @@ class SaleOrderSyncRepository extends BaseSyncRepository {
         'order_line',
         'withhold_line_ids', // Ecuador: withhold lines
         'invoice_ids', // Invoices linked to this order
+        'locked',
+        'is_expired',
+        'delivery_status',
+        'collection_session_id',
+        'collection_user_id',
+        'sale_created_user_id',
+        'x_uuid',
+        'nota_adicional',
         'write_date',
       ];
 
@@ -367,6 +375,14 @@ class SaleOrderSyncRepository extends BaseSyncRepository {
         'write_date',
         'order_line',
         'withhold_line_ids', // Ecuador: withhold lines
+        'locked',
+        'is_expired',
+        'delivery_status',
+        'collection_session_id',
+        'collection_user_id',
+        'sale_created_user_id',
+        'x_uuid',
+        'nota_adicional',
       ];
 
       final data = await odooClient!.searchRead(
@@ -486,6 +502,14 @@ class SaleOrderSyncRepository extends BaseSyncRepository {
             'write_date',
             'order_line',
             'withhold_line_ids', // Ecuador: withhold lines
+            'locked',
+            'is_expired',
+            'delivery_status',
+            'collection_session_id',
+            'collection_user_id',
+            'sale_created_user_id',
+            'x_uuid',
+            'nota_adicional',
           ],
           domain: [
             '|',
@@ -665,6 +689,8 @@ class SaleOrderSyncRepository extends BaseSyncRepository {
           'tax_ids', // Odoo 18/19: renamed from tax_id
           'qty_delivered',
           'qty_invoiced',
+          'qty_to_invoice',
+          'invoice_status',
           'display_type',
           'state',
           'write_date',
@@ -691,11 +717,11 @@ class SaleOrderSyncRepository extends BaseSyncRepository {
         final companion = SaleOrderLineCompanion(
           odooId: Value(lineId),
           orderId: Value(orderId),
-          name: Value(line['name'] as String? ?? ''),
+          name: Value(line['name'] is String ? line['name'] as String : ''),
           sequence: Value(line['sequence'] as int? ?? 10),
           productId: Value(extractId(line['product_id'])),
           productName: Value(extractName(line['product_id'])),
-          productDefaultCode: Value(line['product_default_code'] as String?),
+          productCode: Value(line['product_default_code'] is String ? line['product_default_code'] as String : null),
           productUomQty: Value((line['product_uom_qty'] as num?)?.toDouble() ?? 0.0),
           productUomId: Value(extractId(line['product_uom_id'])),
           productUomName: Value(extractName(line['product_uom_id'])),

@@ -65,10 +65,16 @@ class _SplashScreenState extends ConsumerState<SplashScreen> {
   Future<void> _checkSession() async {
     logger.d('[SPLASH] ⏳ Iniciando _checkSession()...');
 
-    // Minimum splash duration
-    logger.d('[SPLASH] ⏱️  Esperando 2 segundos (splash mínimo)...');
-    await Future.delayed(const Duration(seconds: 2));
-    logger.d('[SPLASH] ✅ Espera de 2 segundos completada');
+    // Run minimum splash delay IN PARALLEL with loading the last server config.
+    // This avoids a full 2-second artificial wait when initialization is fast.
+    logger.d('[SPLASH] ⏱️  Iniciando delay mínimo (800ms) y carga de servidor en paralelo...');
+    final serverService = ref.read(serverServiceProvider.notifier);
+    final results = await Future.wait([
+      Future.delayed(const Duration(milliseconds: 800)),
+      serverService.loadLastServer(),
+    ]);
+    final lastServer = results[1] as ServerConfig?;
+    logger.d('[SPLASH] ✅ Delay mínimo y carga de servidor completados');
 
     if (!mounted) {
       logger.d('[SPLASH] ⚠️  Widget no está montado, saliendo...');
@@ -76,9 +82,7 @@ class _SplashScreenState extends ConsumerState<SplashScreen> {
     }
 
     _setStatus('Cargando configuración...');
-    logger.d('[SPLASH] 🔍 Cargando último servidor...');
-    final serverService = ref.read(serverServiceProvider.notifier);
-    final lastServer = await serverService.loadLastServer();
+    logger.d('[SPLASH] 🔍 Servidor cargado: ${lastServer?.url ?? "ninguno"}');
 
     if (!mounted) return;
 

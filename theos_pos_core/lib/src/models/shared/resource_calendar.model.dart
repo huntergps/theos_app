@@ -13,10 +13,14 @@ abstract class ResourceCalendar with _$ResourceCalendar {
   const factory ResourceCalendar({
     @OdooId() required int id,
     @OdooString() required String name,
+    @OdooBoolean() @Default(true) bool active,
     @OdooMany2One('res.company', odooName: 'company_id') int? companyId,
     @OdooMany2OneName(sourceField: 'company_id') String? companyName,
     @OdooDateTime(odooName: 'write_date', writable: false) DateTime? writeDate,
   }) = _ResourceCalendar;
+
+  factory ResourceCalendar.fromJson(Map<String, dynamic> json) =>
+      _$ResourceCalendarFromJson(json);
 
   String get displayName => name;
 }

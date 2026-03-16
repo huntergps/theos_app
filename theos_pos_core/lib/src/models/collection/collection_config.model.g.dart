@@ -19,9 +19,11 @@ _CollectionConfig _$CollectionConfigFromJson(
   journalName: json['journalName'] as String?,
   cashJournalId: (json['cashJournalId'] as num?)?.toInt(),
   cashJournalName: json['cashJournalName'] as String?,
-  allowedJournalIds: (json['allowedJournalIds'] as List<dynamic>?)
-      ?.map((e) => (e as num).toInt())
-      .toList(),
+  allowedJournalIds:
+      (json['allowedJournalIds'] as List<dynamic>?)
+          ?.map((e) => (e as num).toInt())
+          .toList() ??
+      const <int>[],
   cashDifferenceAccountId: (json['cashDifferenceAccountId'] as num?)?.toInt(),
   currencyId: (json['currencyId'] as num?)?.toInt(),
   currencyName: json['currencyName'] as String?,

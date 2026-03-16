@@ -59,7 +59,7 @@ class TaxRecordHandler extends ModelRecordHandler {
       companyId: Value(odoo.extractMany2oneId(data['company_id'])),
       companyName: Value(odoo.extractMany2oneName(data['company_id'])),
       taxGroupId: Value(odoo.extractMany2oneId(data['tax_group_id'])),
-      taxGroupIdName: Value(odoo.extractMany2oneName(data['tax_group_id'])),
+      taxGroupName: Value(odoo.extractMany2oneName(data['tax_group_id'])),
       taxGroupL10nEcType: Value(data['tax_group_l10n_ec_type'] is String ? data['tax_group_l10n_ec_type'] : null),
       writeDate: Value(odoo.parseOdooDateTime(data['write_date'])),
     );

@@ -2,6 +2,11 @@
 ///
 /// Read-only manager for credit note data synced from Odoo.
 /// Only handles credit notes with residual balance for payment application.
+///
+/// WARNING: This manager operates on the same AccountMove table as
+/// accountMoveManager. Writes from both managers are NOT coordinated.
+/// Ensure that CreditNoteManager and AccountMoveManager do not write
+/// to the same records concurrently.
 library;
 
 import 'package:drift/drift.dart';

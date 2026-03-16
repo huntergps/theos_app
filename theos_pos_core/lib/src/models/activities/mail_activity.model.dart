@@ -41,7 +41,7 @@ abstract class MailActivity with _$MailActivity {
     @OdooMany2One('res.users', odooName: 'user_id') int? userId,
     @OdooMany2OneName(sourceField: 'user_id') String? userName,
     @OdooDate(odooName: 'date_deadline') required DateTime dateDeadline,
-    @OdooString() required String state,
+    @OdooString(writable: false) required String state,
     @OdooString() String? icon,
     @OdooBoolean(odooName: 'can_write') @Default(true) bool canWrite,
     @OdooDateTime(odooName: 'create_date', writable: false) DateTime? createDate,

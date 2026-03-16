@@ -18,4 +18,7 @@ abstract class ResCountryState with _$ResCountryState {
     @OdooMany2OneName(sourceField: 'country_id') String? countryName,
     @OdooDateTime(odooName: 'write_date', writable: false) DateTime? writeDate,
   }) = _ResCountryState;
+
+  factory ResCountryState.fromJson(Map<String, dynamic> json) =>
+      _$ResCountryStateFromJson(json);
 }

@@ -45,7 +45,8 @@ abstract class Tax with _$Tax {
     @OdooMany2OneName(sourceField: 'company_id') String? companyName,
     @OdooMany2One('account.tax.group', odooName: 'tax_group_id') int? taxGroupId,
     @OdooMany2OneName(sourceField: 'tax_group_id') String? taxGroupName,
-    @OdooString(odooName: 'tax_group_l10n_ec_type') String? taxGroupL10nEcType,
+    // Campo de account.tax.group, no de account.tax. Se llena desde tax_group_id separadamente.
+    @OdooLocalOnly() String? taxGroupL10nEcType,
     @OdooDateTime(odooName: 'write_date', writable: false) DateTime? writeDate,
   }) = _Tax;
 

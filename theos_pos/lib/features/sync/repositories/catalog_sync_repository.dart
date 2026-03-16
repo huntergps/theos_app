@@ -249,9 +249,11 @@ class CatalogSyncRepository {
     SyncProgressCallback? onProgress,
     DateTime? sinceDate,
   }) async {
-    // UserSyncRepository.syncCurrencies doesn't take onProgress yet, but it's fast
-    await _userSync.syncCurrencies();
-    return 0; // Returns count if updated, but void for now
+    return _userSync.syncCurrencies(
+      limit: batchSize,
+      onProgress: onProgress,
+      sinceDate: sinceDate,
+    );
   }
 
   /// Sync decimal precision
@@ -260,8 +262,7 @@ class CatalogSyncRepository {
     SyncProgressCallback? onProgress,
     DateTime? sinceDate,
   }) async {
-    await _userSync.syncDecimalPrecision();
-    return 0;
+    return _userSync.syncDecimalPrecision();
   }
 
   /// Sync users
@@ -849,6 +850,7 @@ class CatalogSyncRepository {
     'account.payment.term': 'account_payment_term',
     'sale.order': 'sale_order',
     'sale.order.line': 'sale_order_line',
+    'account.withhold.line': 'sale_order_withhold_line',
     'account.move': 'account_move',
     'account.move.line': 'account_move_line',
     'account.journal': 'account_journal',
@@ -1673,7 +1675,7 @@ class CatalogSyncRepository {
         method: 'search_read',
         kwargs: {
           'domain': domain,
-          'fields': ['id', 'name', 'code', 'active'],
+          'fields': ['id', 'name', 'code', 'active', 'write_date'],
           'limit': batchSize,
           'order': 'name asc',
         },
@@ -1684,12 +1686,16 @@ class CatalogSyncRepository {
       int count = 0;
       for (final b in result) {
         final odooId = b['id'] as int;
+        final writeDateRaw = b['write_date'];
+        final writeDate = writeDateRaw is String
+            ? DateTime.tryParse(writeDateRaw)
+            : null;
         final companion = AccountCreditCardBrandCompanion(
           odooId: Value(odooId),
           name: Value(b['name'] as String? ?? ''),
           code: Value(b['code'] as String?),
           active: Value(b['active'] as bool? ?? true),
-          writeDate: Value(DateTime.now()),
+          writeDate: Value(writeDate ?? DateTime.now()),
         );
 
         final existing = await (_appDb.select(_appDb.accountCreditCardBrand)
@@ -1737,7 +1743,7 @@ class CatalogSyncRepository {
         method: 'search_read',
         kwargs: {
           'domain': domain,
-          'fields': ['id', 'name', 'meses', 'active'],
+          'fields': ['id', 'name', 'meses', 'active', 'write_date'],
           'limit': batchSize,
           'order': 'name asc',
         },
@@ -1748,12 +1754,16 @@ class CatalogSyncRepository {
       int count = 0;
       for (final d in result) {
         final odooId = d['id'] as int;
+        final writeDateRaw = d['write_date'];
+        final writeDate = writeDateRaw is String
+            ? DateTime.tryParse(writeDateRaw)
+            : null;
         final companion = AccountCreditCardDeadlineCompanion(
           odooId: Value(odooId),
           name: Value(d['name'] as String? ?? ''),
           deadlineDays: Value(d['meses'] as int? ?? 0),
           active: Value(d['active'] as bool? ?? true),
-          writeDate: Value(DateTime.now()),
+          writeDate: Value(writeDate ?? DateTime.now()),
         );
 
         final existing = await (_appDb.select(_appDb.accountCreditCardDeadline)

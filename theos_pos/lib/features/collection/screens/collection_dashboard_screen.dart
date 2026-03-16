@@ -13,6 +13,7 @@ import '../../../../core/database/providers.dart';
 import '../../../../core/database/repositories/repository_providers.dart';
 import '../../../../core/services/logger_service.dart';
 import '../../../../core/theme/spacing.dart';
+import '../../../../shared/utils/error_utils.dart';
 import '../../../../shared/widgets/dialogs/copyable_info_bar.dart';
 import 'cash_count_dialog.dart';
 import 'widgets/widgets.dart';
@@ -300,8 +301,8 @@ class _CollectionDashboardScreenState
                 ),
               ),
               error: (error, _) => InfoBar(
-                title: const Text('Error'),
-                content: Text(error.toString()),
+                title: const Text('Error al cargar puntos de cobro'),
+                content: Text(friendlyErrorMessage(error)),
                 severity: InfoBarSeverity.error,
               ),
             ),

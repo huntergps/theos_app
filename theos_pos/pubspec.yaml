@@ -89,6 +89,7 @@ dependencies:
     path: ../theos_pos_core
   flutter_svg: ^2.2.3
   connectivity_plus: ^7.0.0
+  web: ^1.1.0
 
 dev_dependencies:
   flutter_test:

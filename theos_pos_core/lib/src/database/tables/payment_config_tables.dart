@@ -72,14 +72,14 @@ class AccountAdvance extends Table {
   )(); // draft, posted, partial, reconciled, returned, cancelled
   TextColumn get advanceType =>
       text()(); // advance (anticipo), retention (retención)
-  TextColumn get partnerType => text()(); // customer, supplier
+  TextColumn get partnerType => text()(); // customer, supplier — Note: no field in Advance model — populated via SQL
   IntColumn get partnerId => integer()();
   TextColumn get partnerName => text().nullable()();
-  TextColumn get partnerVat => text().nullable()();
-  IntColumn get companyId => integer()();
+  TextColumn get partnerVat => text().nullable()(); // Note: no field in Advance model — populated via SQL
+  IntColumn get companyId => integer()(); // Note: no field in Advance model — populated via SQL
   IntColumn get currencyId => integer().nullable()();
-  IntColumn get cashierId => integer().nullable()(); // Usuario que registró
-  TextColumn get cashierName => text().nullable()();
+  IntColumn get cashierId => integer().nullable()(); // Note: no field in Advance model — populated via SQL
+  TextColumn get cashierName => text().nullable()(); // Note: no field in Advance model — populated via SQL
   TextColumn get reference => text().nullable()(); // Referencia/memo
   DateTimeColumn get date => dateTime()(); // Fecha del anticipo
   DateTimeColumn get dateEstimated =>
@@ -100,7 +100,7 @@ class AccountAdvance extends Table {
   TextColumn get advanceUuid => text().nullable()(); // UUID local para sync
   // Collection session reference
   IntColumn get collectionSessionId => integer().nullable()();
-  IntColumn get collectionConfigId => integer().nullable()();
+  IntColumn get collectionConfigId => integer().nullable()(); // TODO: orphan column — no field in Advance model
   IntColumn get saleOrderId =>
       integer().nullable()(); // Pedido que generó el anticipo
   DateTimeColumn get writeDate => dateTime().nullable()();

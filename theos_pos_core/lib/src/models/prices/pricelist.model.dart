@@ -40,6 +40,10 @@ abstract class Pricelist with _$Pricelist {
   bool get includesDiscountInPrice => discountPolicy != 'without_discount';
 }
 
+/// TODO: Migrate PricelistItem from OdooRecord legacy to @OdooModel + @freezed.
+/// Currently managed manually via toCompanion()/fromOdoo() without generated manager.
+/// Subordinate to Pricelist — does not require independent sync.
+///
 /// Pricelist Item model representing product.pricelist.item in Odoo
 ///
 /// Wraps the Drift-generated [ProductPricelistItemData] with business logic.

@@ -17,4 +17,7 @@ abstract class ResLang with _$ResLang {
     @OdooBoolean() @Default(true) bool active,
     @OdooDateTime(odooName: 'write_date', writable: false) DateTime? writeDate,
   }) = _ResLang;
+
+  factory ResLang.fromJson(Map<String, dynamic> json) =>
+      _$ResLangFromJson(json);
 }

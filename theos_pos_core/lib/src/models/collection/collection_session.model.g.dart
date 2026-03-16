@@ -178,6 +178,9 @@ _CollectionSession _$CollectionSessionFromJson(
   lastSyncAttempt: json['lastSyncAttempt'] == null
       ? null
       : DateTime.parse(json['lastSyncAttempt'] as String),
+  writeDate: json['writeDate'] == null
+      ? null
+      : DateTime.parse(json['writeDate'] as String),
 );
 
 Map<String, dynamic> _$CollectionSessionToJson(_CollectionSession instance) =>
@@ -306,6 +309,7 @@ Map<String, dynamic> _$CollectionSessionToJson(_CollectionSession instance) =>
       'lastSyncDate': instance.lastSyncDate?.toIso8601String(),
       'syncRetryCount': instance.syncRetryCount,
       'lastSyncAttempt': instance.lastSyncAttempt?.toIso8601String(),
+      'writeDate': instance.writeDate?.toIso8601String(),
     };
 
 const _$SessionStateEnumMap = {
@@ -447,6 +451,7 @@ class CollectionSessionManager extends OdooModelManager<CollectionSession>
     'supervisor_notes',
     'opening_notes',
     'closing_notes',
+    'write_date',
   ];
 
   @override
@@ -622,6 +627,7 @@ class CollectionSessionManager extends OdooModelManager<CollectionSession>
       closingNotes: parseOdooString(data['closing_notes']),
       isSynced: false,
       syncRetryCount: 0,
+      writeDate: parseOdooDateTime(data['write_date']),
     );
   }
 
@@ -875,6 +881,7 @@ class CollectionSessionManager extends OdooModelManager<CollectionSession>
       lastSyncDate: row.lastSyncDate as DateTime?,
       syncRetryCount: row.syncRetryCount as int? ?? 0,
       lastSyncAttempt: row.lastSyncAttempt as DateTime?,
+      writeDate: row.writeDate as DateTime?,
     );
   }
 
@@ -1019,6 +1026,7 @@ class CollectionSessionManager extends OdooModelManager<CollectionSession>
     'supervisor_notes': 'supervisorNotes',
     'opening_notes': 'openingNotes',
     'closing_notes': 'closingNotes',
+    'write_date': 'writeDate',
   };
 
   /// Get Dart field name from Odoo field name.
@@ -1224,6 +1232,7 @@ class CollectionSessionManager extends OdooModelManager<CollectionSession>
       'supervisor_notes': driftVar<String>(record.supervisorNotes),
       'opening_notes': driftVar<String>(record.openingNotes),
       'closing_notes': driftVar<String>(record.closingNotes),
+      'write_date': driftVar<DateTime>(record.writeDate),
       'is_synced': Variable<bool>(record.isSynced),
       'last_sync_date': driftVar<DateTime>(record.lastSyncDate),
       'sync_retry_count': Variable<int>(record.syncRetryCount),
@@ -1476,6 +1485,7 @@ class CollectionSessionManager extends OdooModelManager<CollectionSession>
     'lastSyncDate': 'Last Sync Date',
     'syncRetryCount': 'Sync Retry Count',
     'lastSyncAttempt': 'Last Sync Attempt',
+    'writeDate': 'Write Date',
   };
 
   // ═══════════════════════════════════════════════════
@@ -1756,6 +1766,8 @@ class CollectionSessionManager extends OdooModelManager<CollectionSession>
         return record.syncRetryCount;
       case 'lastSyncAttempt':
         return record.lastSyncAttempt;
+      case 'writeDate':
+        return record.writeDate;
       default:
         return null;
     }
@@ -2168,6 +2180,7 @@ class CollectionSessionManager extends OdooModelManager<CollectionSession>
     'lastSyncDate',
     'syncRetryCount',
     'lastSyncAttempt',
+    'writeDate',
   ];
 
   @override

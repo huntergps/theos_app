@@ -38,6 +38,7 @@ class ClientManager extends OdooModelManager<Client>
     'is_company',
     'active',
     'parent_id',
+    'commercial_partner_id',
     'property_product_pricelist',
     'property_payment_term_id',
     'lang',
@@ -91,6 +92,7 @@ class ClientManager extends OdooModelManager<Client>
       active: parseOdooBool(data['active']),
       parentId: extractMany2oneId(data['parent_id']),
       parentName: extractMany2oneName(data['parent_id']),
+      commercialPartnerId: extractMany2oneId(data['commercial_partner_id']),
       commercialPartnerName: extractMany2oneName(data['commercial_partner_id']),
       propertyProductPricelistId: extractMany2oneId(
         data['property_product_pricelist'],
@@ -153,6 +155,7 @@ class ClientManager extends OdooModelManager<Client>
       'is_company': record.isCompany,
       'active': record.active,
       'parent_id': record.parentId,
+      'commercial_partner_id': record.commercialPartnerId,
       'property_product_pricelist': record.propertyProductPricelistId,
       'property_payment_term_id': record.propertyPaymentTermId,
       'lang': record.lang,
@@ -208,6 +211,7 @@ class ClientManager extends OdooModelManager<Client>
       active: row.active as bool,
       parentId: row.parentId as int?,
       parentName: row.parentName as String?,
+      commercialPartnerId: row.commercialPartnerId as int?,
       commercialPartnerName: row.commercialPartnerName as String?,
       propertyProductPricelistId: row.propertyProductPricelist as int?,
       propertyProductPricelistName: row.propertyProductPricelistName as String?,
@@ -282,6 +286,7 @@ class ClientManager extends OdooModelManager<Client>
     'is_company': 'isCompany',
     'active': 'active',
     'parent_id': 'parentId',
+    'commercial_partner_id': 'commercialPartnerId',
     'property_product_pricelist': 'propertyProductPricelistId',
     'property_payment_term_id': 'propertyPaymentTermId',
     'lang': 'lang',
@@ -367,6 +372,7 @@ class ClientManager extends OdooModelManager<Client>
       'active': Variable<bool>(record.active),
       'parent_id': driftVar<int>(record.parentId),
       'parent_id_name': driftVar<String>(record.parentName),
+      'commercial_partner_id': driftVar<int>(record.commercialPartnerId),
       'commercial_partner_id_name': driftVar<String>(
         record.commercialPartnerName,
       ),
@@ -433,6 +439,7 @@ class ClientManager extends OdooModelManager<Client>
     'isCompany',
     'active',
     'parentId',
+    'commercialPartnerId',
     'propertyProductPricelistId',
     'propertyPaymentTermId',
     'lang',
@@ -489,6 +496,7 @@ class ClientManager extends OdooModelManager<Client>
     'active': 'Active',
     'parentId': 'Parent Id',
     'parentName': 'Parent Name',
+    'commercialPartnerId': 'Commercial Partner Id',
     'commercialPartnerName': 'Commercial Partner Name',
     'propertyProductPricelistId': 'Property Product Pricelist Id',
     'propertyProductPricelistName': 'Property Product Pricelist Name',
@@ -599,6 +607,8 @@ class ClientManager extends OdooModelManager<Client>
         return record.parentId;
       case 'parentName':
         return record.parentName;
+      case 'commercialPartnerId':
+        return record.commercialPartnerId;
       case 'commercialPartnerName':
         return record.commercialPartnerName;
       case 'propertyProductPricelistId':
@@ -731,6 +741,8 @@ class ClientManager extends OdooModelManager<Client>
         return (obj as dynamic).parentId;
       case 'parentName':
         return (obj as dynamic).parentName;
+      case 'commercialPartnerId':
+        return (obj as dynamic).commercialPartnerId;
       case 'commercialPartnerName':
         return (obj as dynamic).commercialPartnerName;
       case 'propertyProductPricelistId':
@@ -826,6 +838,7 @@ class ClientManager extends OdooModelManager<Client>
     'active',
     'parentId',
     'parentName',
+    'commercialPartnerId',
     'commercialPartnerName',
     'propertyProductPricelistId',
     'propertyProductPricelistName',
@@ -877,6 +890,7 @@ class ClientManager extends OdooModelManager<Client>
     'isCompany',
     'active',
     'parentId',
+    'commercialPartnerId',
     'propertyProductPricelistId',
     'propertyPaymentTermId',
     'lang',

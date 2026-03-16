@@ -19,7 +19,7 @@ class SaleOrderLine extends Table {
   // Product
   IntColumn get productId => integer().nullable()();
   TextColumn get productName => text().nullable()();
-  TextColumn get productDefaultCode => text().nullable()(); // default_code from Odoo
+  TextColumn get productCode => text().nullable()(); // default_code from product (local-only field)
   IntColumn get productTemplateId => integer().nullable()();
   TextColumn get productTemplateName => text().nullable()();
   TextColumn get productType =>
@@ -66,15 +66,15 @@ class SaleOrderLine extends Table {
   BoolColumn get isOptional => boolean().withDefault(const Constant(false))();
 
   // Margin (sale_margin)
-  RealColumn get margin => real().withDefault(const Constant(0.0))();
-  RealColumn get marginPercent => real().withDefault(const Constant(0.0))();
-  RealColumn get purchasePrice => real().withDefault(const Constant(0.0))();
-  RealColumn get lastPurchaseCost => real().withDefault(const Constant(0.0))();
+  RealColumn get margin => real().withDefault(const Constant(0.0))(); // Local computed field — updated via SQL, not via model
+  RealColumn get marginPercent => real().withDefault(const Constant(0.0))(); // Local computed field — updated via SQL, not via model
+  RealColumn get purchasePrice => real().withDefault(const Constant(0.0))(); // Local computed field — updated via SQL, not via model
+  RealColumn get lastPurchaseCost => real().withDefault(const Constant(0.0))(); // Local computed field — updated via SQL, not via model
 
   // Cost (l10n_ec_sale_base)
-  RealColumn get totalCostLine => real().withDefault(const Constant(0.0))();
-  RealColumn get taxAmount => real().withDefault(const Constant(0.0))();
-  RealColumn get amountUndiscounted => real().withDefault(const Constant(0.0))();
+  RealColumn get totalCostLine => real().withDefault(const Constant(0.0))(); // Local computed field — updated via SQL, not via model
+  RealColumn get taxAmount => real().withDefault(const Constant(0.0))(); // Local computed field — updated via SQL, not via model
+  RealColumn get amountUndiscounted => real().withDefault(const Constant(0.0))(); // Local computed field — updated via SQL, not via model
 
   // Tax names (for display)
   TextColumn get taxNames => text().nullable()();

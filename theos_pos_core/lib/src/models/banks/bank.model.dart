@@ -5,6 +5,10 @@ part 'bank.model.freezed.dart';
 part 'bank.model.g.dart';
 
 /// Bank model representing res.bank in Odoo
+///
+/// NOTE: res.bank model ONLY EXISTS in Odoo 19.1.
+/// In Odoo 19.2 this model was ELIMINATED.
+/// Use hasBankModel flag (OdooVersion) before syncing this model.
 @OdooModel('res.bank', tableName: 'res_bank')
 @freezed
 abstract class Bank with _$Bank {
@@ -55,7 +59,8 @@ abstract class PartnerBank with _$PartnerBank {
   const factory PartnerBank({
     @OdooId() required int id,
     @OdooMany2One('res.partner', odooName: 'partner_id') required int partnerId,
-    @OdooMany2One('res.bank', odooName: 'bank_id') int? bankId,
+    // Removed in 19.2, use bank_name/bank_bic (flat fields on res.partner.bank)
+    @OdooLocalOnly() int? bankId,
     @OdooString(odooName: 'acc_number') required String accNumber,
     @OdooDateTime(odooName: 'write_date', writable: false) DateTime? writeDate,
   }) = _PartnerBank;

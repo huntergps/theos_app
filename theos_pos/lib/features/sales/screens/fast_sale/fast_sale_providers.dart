@@ -248,6 +248,10 @@ class FastSaleNotifier extends _$FastSaleNotifier {
   SaleOrderLine? lastDeletedLine;
   int? lastDeletedLineIndex;
 
+  /// Guard against double-submit on order confirmation.
+  /// Set to true while [confirmActiveOrder] is in progress; resets on completion.
+  bool isConfirming = false;
+
   /// Debounce timer for end customer text fields (name, phone, email).
   /// Prevents excessive DB writes and queue updates on every keystroke.
   Timer? _endCustomerDebounceTimer;

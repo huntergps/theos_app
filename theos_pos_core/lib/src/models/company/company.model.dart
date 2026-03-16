@@ -95,50 +95,65 @@ abstract class Company with _$Company {
     @OdooMany2OneName(sourceField: 'default_payment_term_id') String? defaultPaymentTermName,
 
     /// Whether to require end customer data in sales
+    // Campo custom — requiere módulo l10n_ec instalado
     @OdooBoolean(odooName: 'pedir_end_customer_data') @Default(false) bool pedirEndCustomerData,
 
     /// Whether to require sales referrer
+    // Campo custom — requiere módulo l10n_ec instalado
     @OdooBoolean(odooName: 'pedir_sale_referrer') @Default(false) bool pedirSaleReferrer,
 
     /// Whether to require client type/channel
+    // Campo custom — requiere módulo l10n_ec instalado
     @OdooBoolean(odooName: 'pedir_tipo_canal_cliente') @Default(false) bool pedirTipoCanalCliente,
 
     /// SRI invoice limit for sales customers
+    // Campo custom — requiere módulo l10n_ec instalado
     @OdooFloat(odooName: 'sale_customer_invoice_limit_sri') double? saleCustomerInvoiceLimitSri,
 
     /// Maximum discount percentage allowed
+    // Campo custom — requiere módulo l10n_ec instalado
     @OdooFloat(odooName: 'max_discount_percentage') @Default(100.0) double maxDiscountPercentage,
 
     // ═══════════════════ Credit Control Configuration ═══════════════════
     /// Overdue days threshold for credit blocking
+    // Campo custom — requiere módulo l10n_ec instalado
     @OdooInteger(odooName: 'credit_overdue_days_threshold') @Default(30) int creditOverdueDaysThreshold,
 
     /// Overdue invoices threshold for credit blocking
+    // Campo custom — requiere módulo l10n_ec instalado
     @OdooInteger(odooName: 'credit_overdue_invoices_threshold') @Default(3) int creditOverdueInvoicesThreshold,
 
     /// Safety margin for offline credit validation (%)
+    // Campo custom — requiere módulo l10n_ec instalado
     @OdooFloat(odooName: 'credit_offline_safety_margin') @Default(0.0) double creditOfflineSafetyMargin,
 
     /// Maximum age in hours for credit data to be considered valid
+    // Campo custom — requiere módulo l10n_ec instalado
     @OdooInteger(odooName: 'credit_data_max_age_hours') @Default(24) int creditDataMaxAgeHours,
 
     // ═══════════════════ Reservation Configuration ═══════════════════
     /// Days before a reservation expires
+    // Campo custom — requiere módulo l10n_ec instalado
     @OdooInteger(odooName: 'reservation_expiry_days') @Default(7) int reservationExpiryDays,
 
     /// Warehouse for reservations
+    // Campo custom — requiere módulo l10n_ec instalado
     @OdooMany2One('stock.warehouse', odooName: 'reservation_warehouse_id') int? reservationWarehouseId,
 
     /// Warehouse name for reservations
+    // Campo custom — requiere módulo l10n_ec instalado
     @OdooMany2OneName(sourceField: 'reservation_warehouse_id') String? reservationWarehouseName,
 
     /// Location for reservations
+    // Campo custom — requiere módulo l10n_ec instalado
     @OdooMany2One('stock.location', odooName: 'reservation_location_id') int? reservationLocationId,
 
     /// Location name for reservations
+    // Campo custom — requiere módulo l10n_ec instalado
     @OdooMany2OneName(sourceField: 'reservation_location_id') String? reservationLocationName,
 
     /// Reserve stock from quotation stage
+    // Campo custom — requiere módulo l10n_ec instalado
     @OdooBoolean(odooName: 'reserve_from_quotation') @Default(false) bool reserveFromQuotation,
 
     // ═══════════════════ Metadata ═══════════════════

@@ -108,6 +108,7 @@ abstract class AccountMove with _$AccountMove {
     @OdooString(odooName: 'l10n_latam_document_number') String? l10nLatamDocumentNumber,
     @OdooMany2One('l10n_latam.document.type', odooName: 'l10n_latam_document_type_id') int? l10nLatamDocumentTypeId,
     @OdooMany2OneName(sourceField: 'l10n_latam_document_type_id') String? l10nLatamDocumentTypeName,
+    @OdooMany2One('l10n.ec.sri.payment', odooName: 'l10n_ec_sri_payment_id') int? l10nEcSriPaymentId,
     @OdooMany2OneName(sourceField: 'l10n_ec_sri_payment_id') String? l10nEcSriPaymentName,
 
     // ============ State ============
@@ -152,7 +153,7 @@ abstract class AccountMove with _$AccountMove {
     @OdooLocalOnly() @Default([]) List<AccountMoveLine> lines,
 
     // ============ Sync ============
-    @OdooDateTime(odooName: 'write_date') DateTime? writeDate,
+    @OdooDateTime(odooName: 'write_date', writable: false) DateTime? writeDate,
     @OdooLocalOnly() DateTime? lastSyncDate,
   }) = _AccountMove;
 

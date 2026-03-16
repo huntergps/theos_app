@@ -54,12 +54,16 @@ abstract class SaleOrderLine with _$SaleOrderLine {
     // Producto
     @OdooMany2One('product.product', odooName: 'product_id') int? productId,
     @OdooMany2OneName(sourceField: 'product_id') String? productName,
-    @OdooString(odooName: 'product_default_code') String? productCode, // default_code del producto
+    // No existe en sale.order.line, se llena desde producto
+    @OdooLocalOnly() String? productCode,
     @OdooMany2One('product.template', odooName: 'product_template_id') int? productTemplateId,
     @OdooMany2OneName(sourceField: 'product_template_id') String? productTemplateName,
-    @OdooString(odooName: 'product_type') String? productType, // 'consu', 'service', 'product'
-    @OdooMany2One('product.category', odooName: 'categ_id') int? categId,
-    @OdooMany2OneName(sourceField: 'categ_id') String? categName,
+    // No existe en sale.order.line, se llena desde producto
+    @OdooLocalOnly() String? productType,
+    // No existe en sale.order.line, se llena desde producto
+    @OdooLocalOnly() int? categId,
+    // No existe en sale.order.line, se llena desde producto
+    @OdooLocalOnly() String? categName,
 
     // Descripcion
     @OdooString() required String name, // Descripcion de la linea
@@ -77,8 +81,8 @@ abstract class SaleOrderLine with _$SaleOrderLine {
     @OdooFloat(odooName: 'price_tax') @Default(0.0) double priceTax,
     @OdooFloat(odooName: 'price_total') @Default(0.0) double priceTotal,
     @OdooFloat(odooName: 'price_reduce_taxexcl') @Default(0.0) double priceReduce, // Precio con descuento
-    // Impuestos (JSON array de IDs)
-    @OdooString(odooName: 'tax_ids') String? taxIds,
+    // Many2many en Odoo, se maneja como CSV string localmente
+    @OdooLocalOnly() String? taxIds,
     // Nombres de impuestos (para mostrar en UI)
     @OdooLocalOnly() String? taxNames,
 

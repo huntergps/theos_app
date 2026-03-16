@@ -16,7 +16,12 @@ mixin _$Uom {
 
 // ============ Identifiers ============
 @OdooId() int get id;// ============ Basic Data ============
-@OdooString() String get name;@OdooMany2One('uom.category', odooName: 'category_id') int? get categoryId;@OdooMany2OneName(sourceField: 'category_id') String? get categoryName;@OdooSelection(odooName: 'uom_type') UomType get uomType;@OdooFloat() double get factor;@OdooFloat(odooName: 'factor_inv') double get factorInv;@OdooFloat() double get rounding;@OdooBoolean() bool get active;// ============ Metadata ============
+@OdooString() String get name;// Eliminated in Odoo 19.2 — category_id replaced by relative_uom_id (Many2one to self)
+@OdooLocalOnly() int? get categoryId;// Eliminated in Odoo 19.2
+@OdooLocalOnly() String? get categoryName;// Eliminated in Odoo 19.2 — uom_type field no longer exists
+@OdooLocalOnly() UomType get uomType;@OdooFloat() double get factor;// Eliminated in Odoo 19.2 — compute locally as 1/factor
+@OdooLocalOnly() double get factorInv;// Eliminated in Odoo 19.2
+@OdooLocalOnly() double get rounding;@OdooBoolean() bool get active;// ============ Metadata ============
 @OdooDateTime(odooName: 'write_date', writable: false) DateTime? get writeDate;
 /// Create a copy of Uom
 /// with the given fields replaced by the non-null parameter values.
@@ -48,7 +53,7 @@ abstract mixin class $UomCopyWith<$Res>  {
   factory $UomCopyWith(Uom value, $Res Function(Uom) _then) = _$UomCopyWithImpl;
 @useResult
 $Res call({
-@OdooId() int id,@OdooString() String name,@OdooMany2One('uom.category', odooName: 'category_id') int? categoryId,@OdooMany2OneName(sourceField: 'category_id') String? categoryName,@OdooSelection(odooName: 'uom_type') UomType uomType,@OdooFloat() double factor,@OdooFloat(odooName: 'factor_inv') double factorInv,@OdooFloat() double rounding,@OdooBoolean() bool active,@OdooDateTime(odooName: 'write_date', writable: false) DateTime? writeDate
+@OdooId() int id,@OdooString() String name,@OdooLocalOnly() int? categoryId,@OdooLocalOnly() String? categoryName,@OdooLocalOnly() UomType uomType,@OdooFloat() double factor,@OdooLocalOnly() double factorInv,@OdooLocalOnly() double rounding,@OdooBoolean() bool active,@OdooDateTime(odooName: 'write_date', writable: false) DateTime? writeDate
 });
 
 
@@ -162,7 +167,7 @@ return $default(_that);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function(@OdooId()  int id, @OdooString()  String name, @OdooMany2One('uom.category', odooName: 'category_id')  int? categoryId, @OdooMany2OneName(sourceField: 'category_id')  String? categoryName, @OdooSelection(odooName: 'uom_type')  UomType uomType, @OdooFloat()  double factor, @OdooFloat(odooName: 'factor_inv')  double factorInv, @OdooFloat()  double rounding, @OdooBoolean()  bool active, @OdooDateTime(odooName: 'write_date', writable: false)  DateTime? writeDate)?  $default,{required TResult orElse(),}) {final _that = this;
+@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function(@OdooId()  int id, @OdooString()  String name, @OdooLocalOnly()  int? categoryId, @OdooLocalOnly()  String? categoryName, @OdooLocalOnly()  UomType uomType, @OdooFloat()  double factor, @OdooLocalOnly()  double factorInv, @OdooLocalOnly()  double rounding, @OdooBoolean()  bool active, @OdooDateTime(odooName: 'write_date', writable: false)  DateTime? writeDate)?  $default,{required TResult orElse(),}) {final _that = this;
 switch (_that) {
 case _Uom() when $default != null:
 return $default(_that.id,_that.name,_that.categoryId,_that.categoryName,_that.uomType,_that.factor,_that.factorInv,_that.rounding,_that.active,_that.writeDate);case _:
@@ -183,7 +188,7 @@ return $default(_that.id,_that.name,_that.categoryId,_that.categoryName,_that.uo
 /// }
 /// ```
 
-@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function(@OdooId()  int id, @OdooString()  String name, @OdooMany2One('uom.category', odooName: 'category_id')  int? categoryId, @OdooMany2OneName(sourceField: 'category_id')  String? categoryName, @OdooSelection(odooName: 'uom_type')  UomType uomType, @OdooFloat()  double factor, @OdooFloat(odooName: 'factor_inv')  double factorInv, @OdooFloat()  double rounding, @OdooBoolean()  bool active, @OdooDateTime(odooName: 'write_date', writable: false)  DateTime? writeDate)  $default,) {final _that = this;
+@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function(@OdooId()  int id, @OdooString()  String name, @OdooLocalOnly()  int? categoryId, @OdooLocalOnly()  String? categoryName, @OdooLocalOnly()  UomType uomType, @OdooFloat()  double factor, @OdooLocalOnly()  double factorInv, @OdooLocalOnly()  double rounding, @OdooBoolean()  bool active, @OdooDateTime(odooName: 'write_date', writable: false)  DateTime? writeDate)  $default,) {final _that = this;
 switch (_that) {
 case _Uom():
 return $default(_that.id,_that.name,_that.categoryId,_that.categoryName,_that.uomType,_that.factor,_that.factorInv,_that.rounding,_that.active,_that.writeDate);case _:
@@ -203,7 +208,7 @@ return $default(_that.id,_that.name,_that.categoryId,_that.categoryName,_that.uo
 /// }
 /// ```
 
-@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function(@OdooId()  int id, @OdooString()  String name, @OdooMany2One('uom.category', odooName: 'category_id')  int? categoryId, @OdooMany2OneName(sourceField: 'category_id')  String? categoryName, @OdooSelection(odooName: 'uom_type')  UomType uomType, @OdooFloat()  double factor, @OdooFloat(odooName: 'factor_inv')  double factorInv, @OdooFloat()  double rounding, @OdooBoolean()  bool active, @OdooDateTime(odooName: 'write_date', writable: false)  DateTime? writeDate)?  $default,) {final _that = this;
+@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function(@OdooId()  int id, @OdooString()  String name, @OdooLocalOnly()  int? categoryId, @OdooLocalOnly()  String? categoryName, @OdooLocalOnly()  UomType uomType, @OdooFloat()  double factor, @OdooLocalOnly()  double factorInv, @OdooLocalOnly()  double rounding, @OdooBoolean()  bool active, @OdooDateTime(odooName: 'write_date', writable: false)  DateTime? writeDate)?  $default,) {final _that = this;
 switch (_that) {
 case _Uom() when $default != null:
 return $default(_that.id,_that.name,_that.categoryId,_that.categoryName,_that.uomType,_that.factor,_that.factorInv,_that.rounding,_that.active,_that.writeDate);case _:
@@ -218,19 +223,24 @@ return $default(_that.id,_that.name,_that.categoryId,_that.categoryName,_that.uo
 
 
 class _Uom extends Uom {
-  const _Uom({@OdooId() required this.id, @OdooString() required this.name, @OdooMany2One('uom.category', odooName: 'category_id') this.categoryId, @OdooMany2OneName(sourceField: 'category_id') this.categoryName, @OdooSelection(odooName: 'uom_type') this.uomType = UomType.reference, @OdooFloat() this.factor = 1.0, @OdooFloat(odooName: 'factor_inv') this.factorInv = 1.0, @OdooFloat() this.rounding = 0.01, @OdooBoolean() this.active = true, @OdooDateTime(odooName: 'write_date', writable: false) this.writeDate}): super._();
+  const _Uom({@OdooId() required this.id, @OdooString() required this.name, @OdooLocalOnly() this.categoryId, @OdooLocalOnly() this.categoryName, @OdooLocalOnly() this.uomType = UomType.reference, @OdooFloat() this.factor = 1.0, @OdooLocalOnly() this.factorInv = 1.0, @OdooLocalOnly() this.rounding = 0.01, @OdooBoolean() this.active = true, @OdooDateTime(odooName: 'write_date', writable: false) this.writeDate}): super._();
   
 
 // ============ Identifiers ============
 @override@OdooId() final  int id;
 // ============ Basic Data ============
 @override@OdooString() final  String name;
-@override@OdooMany2One('uom.category', odooName: 'category_id') final  int? categoryId;
-@override@OdooMany2OneName(sourceField: 'category_id') final  String? categoryName;
-@override@JsonKey()@OdooSelection(odooName: 'uom_type') final  UomType uomType;
+// Eliminated in Odoo 19.2 — category_id replaced by relative_uom_id (Many2one to self)
+@override@OdooLocalOnly() final  int? categoryId;
+// Eliminated in Odoo 19.2
+@override@OdooLocalOnly() final  String? categoryName;
+// Eliminated in Odoo 19.2 — uom_type field no longer exists
+@override@JsonKey()@OdooLocalOnly() final  UomType uomType;
 @override@JsonKey()@OdooFloat() final  double factor;
-@override@JsonKey()@OdooFloat(odooName: 'factor_inv') final  double factorInv;
-@override@JsonKey()@OdooFloat() final  double rounding;
+// Eliminated in Odoo 19.2 — compute locally as 1/factor
+@override@JsonKey()@OdooLocalOnly() final  double factorInv;
+// Eliminated in Odoo 19.2
+@override@JsonKey()@OdooLocalOnly() final  double rounding;
 @override@JsonKey()@OdooBoolean() final  bool active;
 // ============ Metadata ============
 @override@OdooDateTime(odooName: 'write_date', writable: false) final  DateTime? writeDate;
@@ -265,7 +275,7 @@ abstract mixin class _$UomCopyWith<$Res> implements $UomCopyWith<$Res> {
   factory _$UomCopyWith(_Uom value, $Res Function(_Uom) _then) = __$UomCopyWithImpl;
 @override @useResult
 $Res call({
-@OdooId() int id,@OdooString() String name,@OdooMany2One('uom.category', odooName: 'category_id') int? categoryId,@OdooMany2OneName(sourceField: 'category_id') String? categoryName,@OdooSelection(odooName: 'uom_type') UomType uomType,@OdooFloat() double factor,@OdooFloat(odooName: 'factor_inv') double factorInv,@OdooFloat() double rounding,@OdooBoolean() bool active,@OdooDateTime(odooName: 'write_date', writable: false) DateTime? writeDate
+@OdooId() int id,@OdooString() String name,@OdooLocalOnly() int? categoryId,@OdooLocalOnly() String? categoryName,@OdooLocalOnly() UomType uomType,@OdooFloat() double factor,@OdooLocalOnly() double factorInv,@OdooLocalOnly() double rounding,@OdooBoolean() bool active,@OdooDateTime(odooName: 'write_date', writable: false) DateTime? writeDate
 });
 
 

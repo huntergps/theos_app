@@ -218,6 +218,7 @@ abstract class Client with _$Client {
     // ============ Relations ============
     @OdooMany2One('res.partner', odooName: 'parent_id') int? parentId,
     @OdooMany2OneName(sourceField: 'parent_id') String? parentName,
+    @OdooMany2One('res.partner', odooName: 'commercial_partner_id') int? commercialPartnerId,
     @OdooMany2OneName(sourceField: 'commercial_partner_id') String? commercialPartnerName,
     @OdooMany2One('product.pricelist', odooName: 'property_product_pricelist') int? propertyProductPricelistId,
     @OdooMany2OneName(sourceField: 'property_product_pricelist') String? propertyProductPricelistName,

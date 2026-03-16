@@ -245,7 +245,7 @@ class ShortcutHelpPanel extends StatelessWidget {
           _buildShortcutRow('F4', 'Nueva orden'),
           _buildShortcutRow('F9', 'Confirmar orden'),
           _buildShortcutRow('F10', 'Guardar borrador'),
-          _buildShortcutRow('F12', 'Imprimir'),
+          _buildShortcutRow('F12', 'Imprimir (Proximamente)'),
 
           const SizedBox(height: 12),
           const Divider(),
@@ -267,7 +267,7 @@ class ShortcutHelpPanel extends StatelessWidget {
           const SizedBox(height: 8),
           _buildShortcutRow('Ctrl+N', 'Nueva orden'),
           _buildShortcutRow('Ctrl+S', 'Guardar'),
-          _buildShortcutRow('Ctrl+P', 'Imprimir'),
+          _buildShortcutRow('Ctrl+P', 'Imprimir (Proximamente)'),
           _buildShortcutRow('Esc', 'Cancelar'),
         ],
       ),

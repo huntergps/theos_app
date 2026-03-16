@@ -97,24 +97,26 @@ abstract class SaleOrder with _$SaleOrder {
 
     // Payment type (synced from Odoo: payment_term_id.is_cash / is_credit)
     /// True if payment term is cash/immediate payment
+    // Campo custom l10n_ec_collection_box — requiere módulo instalado
     @OdooBoolean(odooName: 'is_cash') @Default(true) bool isCash,
 
     /// True if payment term is credit (has payment days > 0)
+    // Campo custom l10n_ec_collection_box — requiere módulo instalado
     @OdooBoolean(odooName: 'is_credit') @Default(false) bool isCredit,
 
     @OdooMany2One('account.fiscal.position', odooName: 'fiscal_position_id') int? fiscalPositionId,
     @OdooMany2OneName(sourceField: 'fiscal_position_id') String? fiscalPositionName,
 
-    // Montos
-    @OdooFloat(odooName: 'amount_untaxed') @Default(0.0) double amountUntaxed,
-    @OdooFloat(odooName: 'amount_tax') @Default(0.0) double amountTax,
-    @OdooFloat(odooName: 'amount_total') @Default(0.0) double amountTotal,
-    @OdooFloat(odooName: 'amount_to_invoice') @Default(0.0) double amountToInvoice,
-    @OdooFloat(odooName: 'amount_invoiced') @Default(0.0) double amountInvoiced,
+    // Montos — campos computados por Odoo (readonly)
+    @OdooFloat(odooName: 'amount_untaxed', writable: false) @Default(0.0) double amountUntaxed,
+    @OdooFloat(odooName: 'amount_tax', writable: false) @Default(0.0) double amountTax,
+    @OdooFloat(odooName: 'amount_total', writable: false) @Default(0.0) double amountTotal,
+    @OdooFloat(odooName: 'amount_to_invoice', writable: false) @Default(0.0) double amountToInvoice,
+    @OdooFloat(odooName: 'amount_invoiced', writable: false) @Default(0.0) double amountInvoiced,
 
-    // Estado de facturacion
-    @OdooSelection(odooName: 'invoice_status') @Default(InvoiceStatus.no) InvoiceStatus invoiceStatus,
-    @OdooInteger(odooName: 'invoice_count') @Default(0) int invoiceCount,
+    // Estado de facturacion — campos computados por Odoo (readonly)
+    @OdooSelection(odooName: 'invoice_status', writable: false) @Default(InvoiceStatus.no) InvoiceStatus invoiceStatus,
+    @OdooInteger(odooName: 'invoice_count', writable: false) @Default(0) int invoiceCount,
 
     // Notas y referencias
     @OdooString(odooName: 'note') String? note,
@@ -130,9 +132,9 @@ abstract class SaleOrder with _$SaleOrder {
     @OdooBoolean(odooName: 'require_payment') @Default(false) bool requirePayment,
     @OdooFloat(odooName: 'prepayment_percent') @Default(0.0) double prepaymentPercent,
 
-    // Control
-    @OdooBoolean(odooName: 'locked') @Default(false) bool locked,
-    @OdooBoolean(odooName: 'is_expired') @Default(false) bool isExpired,
+    // Control — campos computados por Odoo (readonly)
+    @OdooBoolean(odooName: 'locked', writable: false) @Default(false) bool locked,
+    @OdooBoolean(odooName: 'is_expired', writable: false) @Default(false) bool isExpired,
 
     // Descuentos (l10n_ec_sale_discount)
     @OdooFloat(odooName: 'total_discount_amount') @Default(0.0) double totalDiscountAmount,
@@ -172,8 +174,8 @@ abstract class SaleOrder with _$SaleOrder {
     @OdooFloat(odooName: 'amount_cash') @Default(0.0) double amountCash,
     @OdooLocalOnly() @Default(0.0) double amountUnpaid,
     @OdooFloat(odooName: 'total_cost_amount') @Default(0.0) double totalCostAmount,
-    @OdooFloat(odooName: 'margin') @Default(0.0) double margin,
-    @OdooFloat(odooName: 'margin_percent') @Default(0.0) double marginPercent,
+    @OdooFloat(odooName: 'margin', writable: false) @Default(0.0) double margin,
+    @OdooFloat(odooName: 'margin_percent', writable: false) @Default(0.0) double marginPercent,
     @OdooFloat(odooName: 'retenido_amount') @Default(0.0) double retenidoAmount,
 
     // Approvals (l10n_ec_sale_credit)
@@ -365,6 +367,8 @@ abstract class SaleOrder with _$SaleOrder {
       if (partnerShippingId != null) 'partner_shipping_id': partnerShippingId,
       if (userId != null) 'user_id': userId,
       if (teamId != null) 'team_id': teamId,
+      if (warehouseId != null) 'warehouse_id': warehouseId,
+      if (companyId != null) 'company_id': companyId,
       if (pricelistId != null) 'pricelist_id': pricelistId,
       if (paymentTermId != null) 'payment_term_id': paymentTermId,
       if (fiscalPositionId != null) 'fiscal_position_id': fiscalPositionId,
@@ -658,7 +662,7 @@ abstract class SaleOrder with _$SaleOrder {
     bool isCredit = false,
   }) {
     return SaleOrder(
-      id: 0, // ID temporal hasta que se guarde
+      id: -(DateTime.now().millisecondsSinceEpoch % 1000000000), // ID negativo temporal hasta sync
       orderUuid: null, // Se asignara al guardar
       name: 'Nuevo', // Se generara secuencia al confirmar
       state: SaleOrderState.draft,

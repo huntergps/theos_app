@@ -17,6 +17,7 @@ _AccountMove _$AccountMoveFromJson(Map<String, dynamic> json) => _AccountMove(
   l10nLatamDocumentNumber: json['l10nLatamDocumentNumber'] as String?,
   l10nLatamDocumentTypeId: (json['l10nLatamDocumentTypeId'] as num?)?.toInt(),
   l10nLatamDocumentTypeName: json['l10nLatamDocumentTypeName'] as String?,
+  l10nEcSriPaymentId: (json['l10nEcSriPaymentId'] as num?)?.toInt(),
   l10nEcSriPaymentName: json['l10nEcSriPaymentName'] as String?,
   state: json['state'] as String? ?? 'draft',
   paymentState: json['paymentState'] as String?,
@@ -70,6 +71,7 @@ Map<String, dynamic> _$AccountMoveToJson(_AccountMove instance) =>
       'l10nLatamDocumentNumber': instance.l10nLatamDocumentNumber,
       'l10nLatamDocumentTypeId': instance.l10nLatamDocumentTypeId,
       'l10nLatamDocumentTypeName': instance.l10nLatamDocumentTypeName,
+      'l10nEcSriPaymentId': instance.l10nEcSriPaymentId,
       'l10nEcSriPaymentName': instance.l10nEcSriPaymentName,
       'state': instance.state,
       'paymentState': instance.paymentState,
@@ -125,6 +127,7 @@ class AccountMoveManager extends OdooModelManager<AccountMove>
     'l10n_ec_authorization_date',
     'l10n_latam_document_number',
     'l10n_latam_document_type_id',
+    'l10n_ec_sri_payment_id',
     'state',
     'payment_state',
     'invoice_date',
@@ -164,6 +167,7 @@ class AccountMoveManager extends OdooModelManager<AccountMove>
       l10nLatamDocumentTypeName: extractMany2oneName(
         data['l10n_latam_document_type_id'],
       ),
+      l10nEcSriPaymentId: extractMany2oneId(data['l10n_ec_sri_payment_id']),
       l10nEcSriPaymentName: extractMany2oneName(data['l10n_ec_sri_payment_id']),
       state: parseOdooSelection(data['state']) ?? '',
       paymentState: parseOdooSelection(data['payment_state']),
@@ -199,6 +203,7 @@ class AccountMoveManager extends OdooModelManager<AccountMove>
       ),
       'l10n_latam_document_number': record.l10nLatamDocumentNumber,
       'l10n_latam_document_type_id': record.l10nLatamDocumentTypeId,
+      'l10n_ec_sri_payment_id': record.l10nEcSriPaymentId,
       'state': record.state,
       'payment_state': record.paymentState,
       'invoice_date': formatOdooDate(record.invoiceDate),
@@ -214,7 +219,6 @@ class AccountMoveManager extends OdooModelManager<AccountMove>
       'currency_id': record.currencyId,
       'invoice_origin': record.invoiceOrigin,
       'ref': record.ref,
-      'write_date': formatOdooDateTime(record.writeDate),
     };
   }
 
@@ -229,6 +233,7 @@ class AccountMoveManager extends OdooModelManager<AccountMove>
       l10nLatamDocumentNumber: row.l10nLatamDocumentNumber as String?,
       l10nLatamDocumentTypeId: row.l10nLatamDocumentTypeId as int?,
       l10nLatamDocumentTypeName: row.l10nLatamDocumentTypeName as String?,
+      l10nEcSriPaymentId: row.l10nEcSriPaymentId as int?,
       l10nEcSriPaymentName: row.l10nEcSriPaymentName as String?,
       state: row.state as String,
       paymentState: row.paymentState as String?,
@@ -289,6 +294,7 @@ class AccountMoveManager extends OdooModelManager<AccountMove>
     'l10n_ec_authorization_date': 'l10nEcAuthorizationDate',
     'l10n_latam_document_number': 'l10nLatamDocumentNumber',
     'l10n_latam_document_type_id': 'l10nLatamDocumentTypeId',
+    'l10n_ec_sri_payment_id': 'l10nEcSriPaymentId',
     'state': 'state',
     'payment_state': 'paymentState',
     'invoice_date': 'invoiceDate',
@@ -361,6 +367,7 @@ class AccountMoveManager extends OdooModelManager<AccountMove>
       'l10n_latam_document_type_id_name': driftVar<String>(
         record.l10nLatamDocumentTypeName,
       ),
+      'l10n_ec_sri_payment_id': driftVar<int>(record.l10nEcSriPaymentId),
       'l10n_ec_sri_payment_id_name': driftVar<String>(
         record.l10nEcSriPaymentName,
       ),
@@ -401,6 +408,7 @@ class AccountMoveManager extends OdooModelManager<AccountMove>
     'l10nEcAuthorizationDate',
     'l10nLatamDocumentNumber',
     'l10nLatamDocumentTypeId',
+    'l10nEcSriPaymentId',
     'state',
     'paymentState',
     'invoiceDate',
@@ -416,7 +424,6 @@ class AccountMoveManager extends OdooModelManager<AccountMove>
     'currencyId',
     'invoiceOrigin',
     'ref',
-    'writeDate',
   ];
 
   /// List of required fields for validation.
@@ -432,6 +439,7 @@ class AccountMoveManager extends OdooModelManager<AccountMove>
     'l10nLatamDocumentNumber': 'L10n Latam Document Number',
     'l10nLatamDocumentTypeId': 'L10n Latam Document Type Id',
     'l10nLatamDocumentTypeName': 'L10n Latam Document Type Name',
+    'l10nEcSriPaymentId': 'L10n Ec Sri Payment Id',
     'l10nEcSriPaymentName': 'L10n Ec Sri Payment Name',
     'state': 'State',
     'paymentState': 'Payment State',
@@ -510,6 +518,8 @@ class AccountMoveManager extends OdooModelManager<AccountMove>
         return record.l10nLatamDocumentTypeId;
       case 'l10nLatamDocumentTypeName':
         return record.l10nLatamDocumentTypeName;
+      case 'l10nEcSriPaymentId':
+        return record.l10nEcSriPaymentId;
       case 'l10nEcSriPaymentName':
         return record.l10nEcSriPaymentName;
       case 'state':
@@ -613,6 +623,8 @@ class AccountMoveManager extends OdooModelManager<AccountMove>
         return (obj as dynamic).l10nLatamDocumentTypeId;
       case 'l10nLatamDocumentTypeName':
         return (obj as dynamic).l10nLatamDocumentTypeName;
+      case 'l10nEcSriPaymentId':
+        return (obj as dynamic).l10nEcSriPaymentId;
       case 'l10nEcSriPaymentName':
         return (obj as dynamic).l10nEcSriPaymentName;
       case 'state':
@@ -693,6 +705,7 @@ class AccountMoveManager extends OdooModelManager<AccountMove>
     'l10nLatamDocumentNumber',
     'l10nLatamDocumentTypeId',
     'l10nLatamDocumentTypeName',
+    'l10nEcSriPaymentId',
     'l10nEcSriPaymentName',
     'state',
     'paymentState',
@@ -731,6 +744,7 @@ class AccountMoveManager extends OdooModelManager<AccountMove>
     'l10nEcAuthorizationDate',
     'l10nLatamDocumentNumber',
     'l10nLatamDocumentTypeId',
+    'l10nEcSriPaymentId',
     'state',
     'paymentState',
     'invoiceDate',
@@ -746,7 +760,6 @@ class AccountMoveManager extends OdooModelManager<AccountMove>
     'currencyId',
     'invoiceOrigin',
     'ref',
-    'writeDate',
   ];
 }
 

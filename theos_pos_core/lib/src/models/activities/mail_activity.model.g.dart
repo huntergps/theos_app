@@ -117,7 +117,6 @@ class MailActivityManager extends OdooModelManager<MailActivity>
       'activity_type_id': record.activityTypeId,
       'user_id': record.userId,
       'date_deadline': formatOdooDate(record.dateDeadline),
-      'state': record.state,
       'icon': record.icon,
       'can_write': record.canWrite,
     };
@@ -249,7 +248,6 @@ class MailActivityManager extends OdooModelManager<MailActivity>
     'activityTypeId',
     'userId',
     'dateDeadline',
-    'state',
     'icon',
     'canWrite',
   ];
@@ -437,7 +435,6 @@ class MailActivityManager extends OdooModelManager<MailActivity>
     'activityTypeId',
     'userId',
     'dateDeadline',
-    'state',
     'icon',
     'canWrite',
   ];

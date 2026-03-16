@@ -16,4 +16,7 @@ abstract class ResCountry with _$ResCountry {
     @OdooString() String? code,
     @OdooDateTime(odooName: 'write_date', writable: false) DateTime? writeDate,
   }) = _ResCountry;
+
+  factory ResCountry.fromJson(Map<String, dynamic> json) =>
+      _$ResCountryFromJson(json);
 }

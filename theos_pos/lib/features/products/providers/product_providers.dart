@@ -17,6 +17,8 @@ CatalogService catalogService(Ref ref) {
   return CatalogService();
 }
 
+// TODO: catalogInit wraps a mutable singleton CatalogService with keepAlive: true.
+// Refactor to StreamProvider when CatalogService becomes reactive (ChangeNotifier/streams).
 @Riverpod(keepAlive: true)
 Future<CatalogService> catalogInit(Ref ref) async {
   final catalog = ref.watch(catalogServiceProvider);

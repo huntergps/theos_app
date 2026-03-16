@@ -12,6 +12,10 @@ import '../../models/warehouses/warehouse.model.dart';
 /// Extension methods for WarehouseManager
 extension WarehouseManagerBusiness on WarehouseManager {
   /// Upsert warehouse to local database using AppDatabase directly
+  ///
+  /// TODO: Consider using `database` from the base manager instead of
+  /// receiving AppDatabase as parameter, to align with the generated
+  /// manager pattern.
   Future<void> upsertWarehouse(AppDatabase db, Warehouse record) async {
     final existing = await (db.select(db.stockWarehouse)
           ..where((t) => t.odooId.equals(record.id)))

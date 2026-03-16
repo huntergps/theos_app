@@ -328,6 +328,7 @@ abstract class CollectionSession with _$CollectionSession {
     @OdooLocalOnly() DateTime? lastSyncDate,
     @OdooLocalOnly() @Default(0) int syncRetryCount,
     @OdooLocalOnly() DateTime? lastSyncAttempt,
+    @OdooDateTime(odooName: 'write_date', writable: false) DateTime? writeDate,
   }) = _CollectionSession;
 
   factory CollectionSession.fromJson(Map<String, dynamic> json) =>

@@ -12,6 +12,7 @@
 /// - [OrderService] via [orderServiceProvider]
 /// - [OrderConfirmationService] via [orderConfirmationServiceProvider]
 /// - [CreditValidationUIService] via [creditValidationUIServiceProvider]
+/// - [CreditApprovalService] via [creditApprovalServiceProvider]
 library;
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -33,6 +34,7 @@ import '../services/order_line_creation_service.dart';
 import '../services/order_service.dart';
 import '../services/order_confirmation_service.dart';
 import '../services/credit_validation_ui_service.dart';
+import '../services/credit_approval_service.dart';
 import '../services/sale_order_logic_engine.dart';
 import '../services/line_operations_helper.dart';
 
@@ -197,3 +199,39 @@ final lineOperationsHelperProvider = Provider.family<LineOperationsHelper, Strin
     logTag: logTag,
   ),
 );
+
+// =============================================================================
+// CreditApprovalService
+// =============================================================================
+
+/// Provider para [CreditApprovalService].
+///
+/// Retorna `null` si el cliente Odoo no está disponible (modo offline sin
+/// configuración). Cuando está disponible, usa el wizard
+/// `credit.limit.exceeded.wizard` del módulo `l10n_ec_sale_credit` para
+/// crear solicitudes de aprobación de crédito de forma nativa en Odoo.
+///
+/// Uso:
+/// ```dart
+/// final approvalService = ref.read(creditApprovalServiceProvider);
+/// if (approvalService != null) {
+///   await approvalService.createApprovalViaWizard(
+///     saleOrderId: orderId,
+///     partnerId: partnerId,
+///     transactionAmount: total,
+///     currentCreditLimit: client.creditLimit ?? 0,
+///     creditAvailable: client.creditAvailable ?? 0,
+///     checkType: 'credit_limit_exceeded',
+///     paymentTermId: paymentTermId ?? 1,
+///   );
+/// }
+/// ```
+final creditApprovalServiceProvider = Provider<CreditApprovalService?>((ref) {
+  final odooClient = ref.watch(odooClientProvider);
+  if (odooClient == null) return null;
+
+  return CreditApprovalService(
+    client: odooClient,
+    offlineQueue: ref.watch(offlineQueueDataSourceProvider),
+  );
+});

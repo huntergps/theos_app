@@ -32,7 +32,6 @@ class TaxManager extends OdooModelManager<Tax>
     'sequence',
     'company_id',
     'tax_group_id',
-    'tax_group_l10n_ec_type',
     'write_date',
   ];
 
@@ -59,7 +58,6 @@ class TaxManager extends OdooModelManager<Tax>
       companyName: extractMany2oneName(data['company_id']),
       taxGroupId: extractMany2oneId(data['tax_group_id']),
       taxGroupName: extractMany2oneName(data['tax_group_id']),
-      taxGroupL10nEcType: parseOdooString(data['tax_group_l10n_ec_type']),
       writeDate: parseOdooDateTime(data['write_date']),
     );
   }
@@ -78,7 +76,6 @@ class TaxManager extends OdooModelManager<Tax>
       'sequence': record.sequence,
       'company_id': record.companyId,
       'tax_group_id': record.taxGroupId,
-      'tax_group_l10n_ec_type': record.taxGroupL10nEcType,
     };
   }
 
@@ -145,7 +142,6 @@ class TaxManager extends OdooModelManager<Tax>
     'sequence': 'sequence',
     'company_id': 'companyId',
     'tax_group_id': 'taxGroupId',
-    'tax_group_l10n_ec_type': 'taxGroupL10nEcType',
     'write_date': 'writeDate',
   };
 
@@ -199,8 +195,8 @@ class TaxManager extends OdooModelManager<Tax>
       'company_id_name': driftVar<String>(record.companyName),
       'tax_group_id': driftVar<int>(record.taxGroupId),
       'tax_group_id_name': driftVar<String>(record.taxGroupName),
-      'tax_group_l10n_ec_type': driftVar<String>(record.taxGroupL10nEcType),
       'write_date': driftVar<DateTime>(record.writeDate),
+      'tax_group_l10n_ec_type': driftVar<String>(record.taxGroupL10nEcType),
     });
   }
 
@@ -217,7 +213,6 @@ class TaxManager extends OdooModelManager<Tax>
     'sequence',
     'companyId',
     'taxGroupId',
-    'taxGroupL10nEcType',
   ];
 
   /// List of required fields for validation.
@@ -318,6 +313,8 @@ class TaxManager extends OdooModelManager<Tax>
     current.addAll(changes);
     current['id'] = getId(record);
     var updated = fromOdoo(current);
+    // Preserve local-only fields from original record
+    updated = updated.copyWith(taxGroupL10nEcType: record.taxGroupL10nEcType);
     return updated;
   }
 
@@ -403,7 +400,6 @@ class TaxManager extends OdooModelManager<Tax>
     'sequence',
     'companyId',
     'taxGroupId',
-    'taxGroupL10nEcType',
   ];
 }
 

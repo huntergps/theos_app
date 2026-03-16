@@ -104,6 +104,7 @@ class WebSocketSyncService {
 
   StreamSubscription<OdooWebSocketEvent>? _wsSubscription;
 
+  // TODO: Persist _editingRecords to SharedPreferences to survive app restart
   /// In-memory tracking of records currently being edited
   final _editingRecords = <String>{};
 

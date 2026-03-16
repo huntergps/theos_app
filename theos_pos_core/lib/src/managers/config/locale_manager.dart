@@ -1,6 +1,13 @@
 /// LocaleManager - Managers for res.country, res.country.state, res.lang models
 ///
 /// Read-only managers for locale data synced from Odoo.
+///
+/// @deprecated Use generated managers instead:
+/// - resCountryManager (from res_country.model.g.dart)
+/// - resCountryStateManager (from res_country_state.model.g.dart)
+/// - resLangManager (from res_lang.model.g.dart)
+/// These manual managers are kept for backward compatibility but should be
+/// migrated to the generated OdooModelManager equivalents.
 library;
 
 import 'package:drift/drift.dart';

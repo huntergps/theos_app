@@ -868,7 +868,7 @@ class RelatedRecordResolver {
       companyId: Value(_extractId(t['company_id'])),
       companyName: Value(_extractName(t['company_id'])),
       taxGroupId: Value(_extractId(t['tax_group_id'])),
-      taxGroupIdName: Value(_extractName(t['tax_group_id'])),
+      taxGroupName: Value(_extractName(t['tax_group_id'])),
       // Note: tax_group_l10n_ec_type is NOT fetched (not a direct field on account.tax),
       // so we don't set it here. It's populated during full sync via tax_group relation.
       writeDate: Value(_parseDateTime(t['write_date'])),

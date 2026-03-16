@@ -11,6 +11,7 @@ part of 'res_country_state.model.dart';
 
 // dart format off
 T _$identity<T>(T value) => value;
+
 /// @nodoc
 mixin _$ResCountryState {
 
@@ -21,6 +22,8 @@ mixin _$ResCountryState {
 @pragma('vm:prefer-inline')
 $ResCountryStateCopyWith<ResCountryState> get copyWith => _$ResCountryStateCopyWithImpl<ResCountryState>(this as ResCountryState, _$identity);
 
+  /// Serializes this ResCountryState to a JSON map.
+  Map<String, dynamic> toJson();
 
 
 @override
@@ -28,7 +31,7 @@ bool operator ==(Object other) {
   return identical(this, other) || (other.runtimeType == runtimeType&&other is ResCountryState&&(identical(other.id, id) || other.id == id)&&(identical(other.name, name) || other.name == name)&&(identical(other.code, code) || other.code == code)&&(identical(other.countryId, countryId) || other.countryId == countryId)&&(identical(other.countryName, countryName) || other.countryName == countryName)&&(identical(other.writeDate, writeDate) || other.writeDate == writeDate));
 }
 
-
+@JsonKey(includeFromJson: false, includeToJson: false)
 @override
 int get hashCode => Object.hash(runtimeType,id,name,code,countryId,countryName,writeDate);
 
@@ -208,11 +211,11 @@ return $default(_that.id,_that.name,_that.code,_that.countryId,_that.countryName
 }
 
 /// @nodoc
-
+@JsonSerializable()
 
 class _ResCountryState extends ResCountryState {
   const _ResCountryState({@OdooId() required this.id, @OdooString() required this.name, @OdooString() this.code, @OdooMany2One('res.country', odooName: 'country_id') this.countryId, @OdooMany2OneName(sourceField: 'country_id') this.countryName, @OdooDateTime(odooName: 'write_date', writable: false) this.writeDate}): super._();
-  
+  factory _ResCountryState.fromJson(Map<String, dynamic> json) => _$ResCountryStateFromJson(json);
 
 @override@OdooId() final  int id;
 @override@OdooString() final  String name;
@@ -227,14 +230,17 @@ class _ResCountryState extends ResCountryState {
 @pragma('vm:prefer-inline')
 _$ResCountryStateCopyWith<_ResCountryState> get copyWith => __$ResCountryStateCopyWithImpl<_ResCountryState>(this, _$identity);
 
-
+@override
+Map<String, dynamic> toJson() {
+  return _$ResCountryStateToJson(this, );
+}
 
 @override
 bool operator ==(Object other) {
   return identical(this, other) || (other.runtimeType == runtimeType&&other is _ResCountryState&&(identical(other.id, id) || other.id == id)&&(identical(other.name, name) || other.name == name)&&(identical(other.code, code) || other.code == code)&&(identical(other.countryId, countryId) || other.countryId == countryId)&&(identical(other.countryName, countryName) || other.countryName == countryName)&&(identical(other.writeDate, writeDate) || other.writeDate == writeDate));
 }
 
-
+@JsonKey(includeFromJson: false, includeToJson: false)
 @override
 int get hashCode => Object.hash(runtimeType,id,name,code,countryId,countryName,writeDate);
 

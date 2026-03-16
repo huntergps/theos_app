@@ -122,9 +122,9 @@ class PaymentService {
 
           logger.d('[PaymentService]', 'config found: ${config != null}, allowedJournalIds: ${config?.allowedJournalIds}, cashJournalId: ${config?.cashJournalId}');
           if (config != null) {
-            // allowedJournalIds is List<int>? from the Freezed model
-            if (config.allowedJournalIds != null && config.allowedJournalIds!.isNotEmpty) {
-              allowedJournalIds = List<int>.from(config.allowedJournalIds!);
+            // allowedJournalIds is List<int> from the Freezed model
+            if (config.allowedJournalIds.isNotEmpty) {
+              allowedJournalIds = List<int>.from(config.allowedJournalIds);
             }
             // Agregar diario de efectivo si no está en la lista
             if (config.cashJournalId != null && !allowedJournalIds.contains(config.cashJournalId)) {

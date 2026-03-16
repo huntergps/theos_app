@@ -48,7 +48,7 @@ class UomUom extends Table {
   RealColumn get factorInv => real().withDefault(const Constant(1.0))();
   RealColumn get rounding => real().withDefault(const Constant(0.01))();
   BoolColumn get active => boolean().withDefault(const Constant(true))();
-  IntColumn get sequence => integer().withDefault(const Constant(1))();
+  IntColumn get sequence => integer().withDefault(const Constant(1))(); // Note: no field in Uom model — populated manually
   DateTimeColumn get writeDate => dateTime().nullable()();
 }
 

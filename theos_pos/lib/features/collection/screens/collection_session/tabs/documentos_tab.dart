@@ -5,10 +5,6 @@ import '../../../../../core/theme/spacing.dart';
 
 /// Tab para mostrar documentos relacionados con la sesion
 /// Incluye ordenes, facturas y retenciones
-///
-/// Nota: Actualmente muestra solo resumen de contadores.
-/// La lista detallada de documentos requiere implementación de endpoints
-/// en el backend para obtener las órdenes y facturas específicas de la sesión.
 class DocumentosTab extends StatelessWidget {
   final CollectionSession session;
 
@@ -127,12 +123,11 @@ class DocumentosTab extends StatelessWidget {
   }
 
   Widget _buildPendingFeatureNote(FluentThemeData theme) {
-    return InfoBar(
-      title: const Text('Lista detallada pendiente'),
-      content: const Text(
-        'La visualización detallada de órdenes de venta y facturas asociadas '
-        'a esta sesión requiere implementación de endpoints adicionales en el backend.\n\n'
-        'Actualmente se muestra el resumen con contadores totales.',
+    return const InfoBar(
+      title: Text('Documentos'),
+      content: Text(
+        'La lista detallada de documentos estará disponible próximamente. '
+        'Por ahora se muestra el resumen con los totales de la sesión.',
       ),
       severity: InfoBarSeverity.info,
     );

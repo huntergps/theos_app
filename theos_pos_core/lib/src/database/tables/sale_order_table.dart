@@ -15,9 +15,9 @@ class SaleOrder extends Table {
   IntColumn get partnerId => integer().nullable()();
   TextColumn get partnerName => text().nullable()();
   IntColumn get partnerInvoiceId => integer().nullable()();
-  TextColumn get partnerInvoiceName => text().nullable()();
+  TextColumn get partnerInvoiceName => text().nullable()(); // TODO: orphan column — consider removing in next migration
   IntColumn get partnerShippingId => integer().nullable()();
-  TextColumn get partnerShippingName => text().nullable()();
+  TextColumn get partnerShippingName => text().nullable()(); // TODO: orphan column — consider removing in next migration
   IntColumn get pricelistId => integer().nullable()();
   TextColumn get pricelistName => text().nullable()();
   IntColumn get paymentTermId => integer().nullable()();
@@ -31,7 +31,7 @@ class SaleOrder extends Table {
   IntColumn get warehouseId => integer().nullable()();
   TextColumn get warehouseName => text().nullable()();
   IntColumn get currencyId => integer().nullable()();
-  TextColumn get currencyName => text().nullable()();
+  TextColumn get currencyName => text().nullable()(); // TODO: orphan column — consider removing in next migration
   RealColumn get amountUntaxed => real().nullable()();
   RealColumn get amountTax => real().nullable()();
   RealColumn get amountTotal => real().nullable()();
@@ -68,8 +68,8 @@ class SaleOrder extends Table {
   // Collection-specific fields
   IntColumn get collectionSessionId => integer().nullable()();
   TextColumn get collectionSessionName => text().nullable()();
-  IntColumn get collectionConfigId => integer().nullable()();
-  TextColumn get collectionConfigName => text().nullable()();
+  IntColumn get collectionConfigId => integer().nullable()(); // TODO: orphan column — consider removing in next migration
+  TextColumn get collectionConfigName => text().nullable()(); // TODO: orphan column — consider removing in next migration
   IntColumn get collectionUserId => integer().nullable()();
   TextColumn get collectionUserName => text().nullable()();
   IntColumn get saleCreatedUserId => integer().nullable()();
@@ -161,15 +161,15 @@ class SaleOrder extends Table {
   BoolColumn get isSynced => boolean().withDefault(const Constant(true))();
   BoolColumn get pendingConfirm => boolean().withDefault(const Constant(false))();
   DateTimeColumn get writeDate => dateTime().nullable()();
-  TextColumn get uuid => text().nullable()();
+  TextColumn get uuid => text().nullable()(); // Local computed field — updated via SQL, not via model
   DateTimeColumn get lastSyncDate => dateTime().nullable()();
   IntColumn get syncRetryCount => integer().withDefault(const Constant(0))();
   DateTimeColumn get lastSyncAttempt => dateTime().nullable()();
   BoolColumn get hasQueuedInvoice => boolean().withDefault(const Constant(false))();
 
   // Computed fields stored for performance
-  RealColumn get totalQuantity => real().nullable()();
-  IntColumn get lineCount => integer().nullable()();
-  TextColumn get displayAmount => text().nullable()();
-  BoolColumn get hasUnsyncedLines => boolean().nullable()();
+  RealColumn get totalQuantity => real().nullable()(); // Local computed field — updated via SQL, not via model
+  IntColumn get lineCount => integer().nullable()(); // Local computed field — updated via SQL, not via model
+  TextColumn get displayAmount => text().nullable()(); // Local computed field — updated via SQL, not via model
+  BoolColumn get hasUnsyncedLines => boolean().nullable()(); // Local computed field — updated via SQL, not via model
 }

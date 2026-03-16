@@ -29,6 +29,7 @@ enum CardType {
 /// - Pago directo (efectivo, tarjeta, cheque, transferencia)
 /// - Aplicacion de anticipo
 /// - Aplicacion de nota de credito
+// Modelo custom l10n_ec_collection_box — requiere módulo instalado
 @OdooModel('account.payment.line', tableName: 'sale_order_payment_line')
 @freezed
 abstract class PaymentLine with _$PaymentLine {

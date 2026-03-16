@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../core/constants/app_constants.dart';
+import '../../../../core/services/platform/server_connectivity_service.dart';
 import '../../../../core/theme/spacing.dart';
 import '../../../../shared/widgets/dialogs/copyable_info_bar.dart';
 import '../../utils/keyboard_shortcuts.dart';
@@ -286,6 +287,9 @@ class _FastSaleScreenState extends ConsumerState<FastSaleScreen> {
     // Check collection permissions for actions panel
     final hasCollectionPermissions = ref.watch(hasCollectionPermissionsProvider);
 
+    // Check server connectivity for offline indicator
+    final isServerOnline = ref.watch(isServerOnlineProvider);
+
     return Focus(
       focusNode: _focusNode,
       onKeyEvent: _handleKeyEvent,
@@ -296,6 +300,13 @@ class _FastSaleScreenState extends ConsumerState<FastSaleScreen> {
           children: [
             // Order tabs at the top
             const POSOrderTabs(),
+
+            // Persistent offline warning bar
+            if (!isServerOnline)
+              const InfoBar(
+                title: Text('Sin conexion — Las ventas se guardan localmente'),
+                severity: InfoBarSeverity.warning,
+              ),
 
             // Main content area
             Expanded(
@@ -404,7 +415,7 @@ class _FastSaleScreenState extends ConsumerState<FastSaleScreen> {
           child: POSOrderLinesPanel(),
         ),
 
-        // Customer info (collapsed)
+        // Customer info + keypad (scrollable so nothing is hidden)
         Container(
           decoration: BoxDecoration(
             border: Border(
@@ -413,7 +424,12 @@ class _FastSaleScreenState extends ConsumerState<FastSaleScreen> {
               ),
             ),
           ),
-          child: const POSCustomerKeypadPanel(isCompact: true),
+          constraints: BoxConstraints(
+            maxHeight: MediaQuery.of(context).size.height * 0.55,
+          ),
+          child: const SingleChildScrollView(
+            child: POSCustomerKeypadPanel(),
+          ),
         ),
 
         // Actions bar at bottom - only for collection users

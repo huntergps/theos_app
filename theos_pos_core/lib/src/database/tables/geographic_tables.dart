@@ -27,7 +27,7 @@ class ResLang extends Table {
   TextColumn get name => text()();
   TextColumn get code => text()();
   BoolColumn get active => boolean().withDefault(const Constant(true))();
-  BoolColumn get translatable => boolean().withDefault(const Constant(false))();
+  BoolColumn get translatable => boolean().withDefault(const Constant(false))(); // Note: no field in ResLang model — populated manually
   DateTimeColumn get writeDate => dateTime().nullable()();
 }
 

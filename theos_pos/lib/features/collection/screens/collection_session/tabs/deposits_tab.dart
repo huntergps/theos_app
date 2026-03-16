@@ -6,6 +6,7 @@ import '../../../../../core/database/providers.dart';
 import '../../../../../core/database/repositories/repository_providers.dart';
 import '../../../../../core/services/config_service.dart';
 
+import '../../../../../shared/utils/error_utils.dart';
 import '../../../../../shared/utils/formatting_utils.dart';
 import '../../../../../shared/widgets/dialogs/copyable_info_bar.dart';
 import '../widgets/deposit_form_dialog.dart';
@@ -78,8 +79,8 @@ class DepositsTab extends ConsumerWidget {
       loading: () => const Center(child: ProgressRing()),
       error: (error, _) => Center(
         child: InfoBar(
-          title: const Text('Error'),
-          content: Text(error.toString()),
+          title: const Text('Error al cargar depositos'),
+          content: Text(friendlyErrorMessage(error)),
           severity: InfoBarSeverity.error,
         ),
       ),

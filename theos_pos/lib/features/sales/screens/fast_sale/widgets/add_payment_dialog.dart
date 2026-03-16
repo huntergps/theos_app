@@ -909,6 +909,7 @@ class AddPaymentDialogContentState extends ConsumerState<AddPaymentDialogContent
 
               // Create the partner bank
               final advanceService = ref.read(advanceServiceProvider);
+              if (advanceService == null) return;
               final newBank = await advanceService.createPartnerBank(
                 partnerId: partnerId,
                 accNumber: accNumber,

@@ -75,7 +75,7 @@ abstract class CollectionConfig with _$CollectionConfig {
     @OdooMany2OneName(sourceField: 'journal_id') String? journalName,
     @OdooMany2One('account.journal', odooName: 'cash_journal_id') int? cashJournalId,
     @OdooMany2OneName(sourceField: 'cash_journal_id') String? cashJournalName,
-    @OdooMany2Many('account.journal', odooName: 'allowed_journal_ids') List<int>? allowedJournalIds,
+    @OdooMany2Many('account.journal', odooName: 'allowed_journal_ids') @Default(<int>[]) List<int> allowedJournalIds,
     @OdooMany2One('account.account', odooName: 'cash_difference_account_id') int? cashDifferenceAccountId,
     @OdooMany2One('res.currency', odooName: 'currency_id') int? currencyId,
     @OdooMany2OneName(sourceField: 'currency_id') String? currencyName,

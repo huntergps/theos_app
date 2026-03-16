@@ -25,7 +25,7 @@ class ProductProduct extends Table {
   TextColumn get uomName => text().nullable()();
   IntColumn get uomPoId => integer().nullable()();
   TextColumn get uomPoName => text().nullable()();
-  RealColumn get lstPrice => real().nullable()(); // Sale price (Odoo field name)
+  RealColumn get lstPrice => real().nullable()(); // TODO: orphan column — vestige of old Odoo field name, model uses listPrice
   RealColumn get listPrice => real().nullable()(); // Sale price (alias)
   RealColumn get standardPrice => real().nullable()(); // Cost price
   RealColumn get weight => real().nullable()();
@@ -63,7 +63,7 @@ class ProductProduct extends Table {
   BoolColumn get temporalNoDespachar => boolean().withDefault(const Constant(false))();
 
   // Computed fields stored for performance
-  RealColumn get availableQuantity => real().nullable()();
-  TextColumn get displayPrice => text().nullable()();
-  BoolColumn get canBeSold => boolean().nullable()();
+  RealColumn get availableQuantity => real().nullable()(); // Local computed field — updated via SQL, not via model
+  TextColumn get displayPrice => text().nullable()(); // Local computed field — updated via SQL, not via model
+  BoolColumn get canBeSold => boolean().nullable()(); // Local computed field — updated via SQL, not via model
 }

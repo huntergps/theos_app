@@ -16,6 +16,7 @@ final advanceDetailProvider = FutureProvider.family<Advance?, int>((
   advanceId,
 ) async {
   final advanceService = ref.watch(advanceServiceProvider);
+  if (advanceService == null) return null;
   return advanceService.getAdvance(advanceId);
 });
 
@@ -503,12 +504,13 @@ class AdvanceDetailDialog extends ConsumerWidget {
               dateFormat.format(advance.date),
               FluentIcons.calendar,
             ),
-            _buildDateRow(
-              theme,
-              'Fecha Estimada de Uso',
-              dateFormat.format(advance.dateEstimated),
-              FluentIcons.date_time,
-            ),
+            if (advance.dateEstimated != null)
+              _buildDateRow(
+                theme,
+                'Fecha Estimada de Uso',
+                dateFormat.format(advance.dateEstimated!),
+                FluentIcons.date_time,
+              ),
             if (advance.dateDue != null)
               _buildDateRow(
                 theme,
@@ -768,6 +770,7 @@ class AdvanceDetailDialog extends ConsumerWidget {
     if (confirm == true) {
       try {
         final advanceService = ref.read(advanceServiceProvider);
+        if (advanceService == null) return;
         final success = await advanceService.returnAdvance(advance.id);
 
         if (success && context.mounted) {
@@ -823,6 +826,7 @@ class AdvanceDetailDialog extends ConsumerWidget {
     if (confirm == true) {
       try {
         final advanceService = ref.read(advanceServiceProvider);
+        if (advanceService == null) return;
         final success = await advanceService.cancelAdvance(advance.id);
 
         if (success && context.mounted) {

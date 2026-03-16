@@ -68,7 +68,8 @@ abstract class AccountPayment with _$AccountPayment {
 
     // ============ Relations ============
     @OdooMany2One('collection.session', odooName: 'collection_session_id') int? collectionSessionId,
-    @OdooMany2One('account.move', odooName: 'reconciled_invoice_ids') int? invoiceId,
+    // reconciled_invoice_ids es Many2many en Odoo, se extrae el primer ID manualmente
+    @OdooLocalOnly() int? invoiceId,
     @OdooMany2One('res.partner', odooName: 'partner_id') int? partnerId,
     @OdooMany2OneName(sourceField: 'partner_id') String? partnerName,
     @OdooMany2One('account.journal', odooName: 'journal_id') int? journalId,

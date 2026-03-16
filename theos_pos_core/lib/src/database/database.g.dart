@@ -45317,17 +45317,17 @@ class $SaleOrderLineTable extends SaleOrderLine
     type: DriftSqlType.string,
     requiredDuringInsert: false,
   );
-  static const VerificationMeta _productDefaultCodeMeta =
-      const VerificationMeta('productDefaultCode');
+  static const VerificationMeta _productCodeMeta = const VerificationMeta(
+    'productCode',
+  );
   @override
-  late final GeneratedColumn<String> productDefaultCode =
-      GeneratedColumn<String>(
-        'product_default_code',
-        aliasedName,
-        true,
-        type: DriftSqlType.string,
-        requiredDuringInsert: false,
-      );
+  late final GeneratedColumn<String> productCode = GeneratedColumn<String>(
+    'product_code',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
   static const VerificationMeta _productTemplateIdMeta = const VerificationMeta(
     'productTemplateId',
   );
@@ -45818,7 +45818,7 @@ class $SaleOrderLineTable extends SaleOrderLine
     isDownpayment,
     productId,
     productName,
-    productDefaultCode,
+    productCode,
     productTemplateId,
     productTemplateName,
     productType,
@@ -45935,12 +45935,12 @@ class $SaleOrderLineTable extends SaleOrderLine
         ),
       );
     }
-    if (data.containsKey('product_default_code')) {
+    if (data.containsKey('product_code')) {
       context.handle(
-        _productDefaultCodeMeta,
-        productDefaultCode.isAcceptableOrUnknown(
-          data['product_default_code']!,
-          _productDefaultCodeMeta,
+        _productCodeMeta,
+        productCode.isAcceptableOrUnknown(
+          data['product_code']!,
+          _productCodeMeta,
         ),
       );
     }
@@ -46312,9 +46312,9 @@ class $SaleOrderLineTable extends SaleOrderLine
         DriftSqlType.string,
         data['${effectivePrefix}product_name'],
       ),
-      productDefaultCode: attachedDatabase.typeMapping.read(
+      productCode: attachedDatabase.typeMapping.read(
         DriftSqlType.string,
-        data['${effectivePrefix}product_default_code'],
+        data['${effectivePrefix}product_code'],
       ),
       productTemplateId: attachedDatabase.typeMapping.read(
         DriftSqlType.int,
@@ -46500,7 +46500,7 @@ class SaleOrderLineData extends DataClass
   final bool isDownpayment;
   final int? productId;
   final String? productName;
-  final String? productDefaultCode;
+  final String? productCode;
   final int? productTemplateId;
   final String? productTemplateName;
   final String? productType;
@@ -46552,7 +46552,7 @@ class SaleOrderLineData extends DataClass
     required this.isDownpayment,
     this.productId,
     this.productName,
-    this.productDefaultCode,
+    this.productCode,
     this.productTemplateId,
     this.productTemplateName,
     this.productType,
@@ -46615,8 +46615,8 @@ class SaleOrderLineData extends DataClass
     if (!nullToAbsent || productName != null) {
       map['product_name'] = Variable<String>(productName);
     }
-    if (!nullToAbsent || productDefaultCode != null) {
-      map['product_default_code'] = Variable<String>(productDefaultCode);
+    if (!nullToAbsent || productCode != null) {
+      map['product_code'] = Variable<String>(productCode);
     }
     if (!nullToAbsent || productTemplateId != null) {
       map['product_template_id'] = Variable<int>(productTemplateId);
@@ -46711,9 +46711,9 @@ class SaleOrderLineData extends DataClass
       productName: productName == null && nullToAbsent
           ? const Value.absent()
           : Value(productName),
-      productDefaultCode: productDefaultCode == null && nullToAbsent
+      productCode: productCode == null && nullToAbsent
           ? const Value.absent()
-          : Value(productDefaultCode),
+          : Value(productCode),
       productTemplateId: productTemplateId == null && nullToAbsent
           ? const Value.absent()
           : Value(productTemplateId),
@@ -46803,9 +46803,7 @@ class SaleOrderLineData extends DataClass
       isDownpayment: serializer.fromJson<bool>(json['isDownpayment']),
       productId: serializer.fromJson<int?>(json['productId']),
       productName: serializer.fromJson<String?>(json['productName']),
-      productDefaultCode: serializer.fromJson<String?>(
-        json['productDefaultCode'],
-      ),
+      productCode: serializer.fromJson<String?>(json['productCode']),
       productTemplateId: serializer.fromJson<int?>(json['productTemplateId']),
       productTemplateName: serializer.fromJson<String?>(
         json['productTemplateName'],
@@ -46872,7 +46870,7 @@ class SaleOrderLineData extends DataClass
       'isDownpayment': serializer.toJson<bool>(isDownpayment),
       'productId': serializer.toJson<int?>(productId),
       'productName': serializer.toJson<String?>(productName),
-      'productDefaultCode': serializer.toJson<String?>(productDefaultCode),
+      'productCode': serializer.toJson<String?>(productCode),
       'productTemplateId': serializer.toJson<int?>(productTemplateId),
       'productTemplateName': serializer.toJson<String?>(productTemplateName),
       'productType': serializer.toJson<String?>(productType),
@@ -46927,7 +46925,7 @@ class SaleOrderLineData extends DataClass
     bool? isDownpayment,
     Value<int?> productId = const Value.absent(),
     Value<String?> productName = const Value.absent(),
-    Value<String?> productDefaultCode = const Value.absent(),
+    Value<String?> productCode = const Value.absent(),
     Value<int?> productTemplateId = const Value.absent(),
     Value<String?> productTemplateName = const Value.absent(),
     Value<String?> productType = const Value.absent(),
@@ -46979,9 +46977,7 @@ class SaleOrderLineData extends DataClass
     isDownpayment: isDownpayment ?? this.isDownpayment,
     productId: productId.present ? productId.value : this.productId,
     productName: productName.present ? productName.value : this.productName,
-    productDefaultCode: productDefaultCode.present
-        ? productDefaultCode.value
-        : this.productDefaultCode,
+    productCode: productCode.present ? productCode.value : this.productCode,
     productTemplateId: productTemplateId.present
         ? productTemplateId.value
         : this.productTemplateId,
@@ -47051,9 +47047,9 @@ class SaleOrderLineData extends DataClass
       productName: data.productName.present
           ? data.productName.value
           : this.productName,
-      productDefaultCode: data.productDefaultCode.present
-          ? data.productDefaultCode.value
-          : this.productDefaultCode,
+      productCode: data.productCode.present
+          ? data.productCode.value
+          : this.productCode,
       productTemplateId: data.productTemplateId.present
           ? data.productTemplateId.value
           : this.productTemplateId,
@@ -47164,7 +47160,7 @@ class SaleOrderLineData extends DataClass
           ..write('isDownpayment: $isDownpayment, ')
           ..write('productId: $productId, ')
           ..write('productName: $productName, ')
-          ..write('productDefaultCode: $productDefaultCode, ')
+          ..write('productCode: $productCode, ')
           ..write('productTemplateId: $productTemplateId, ')
           ..write('productTemplateName: $productTemplateName, ')
           ..write('productType: $productType, ')
@@ -47221,7 +47217,7 @@ class SaleOrderLineData extends DataClass
     isDownpayment,
     productId,
     productName,
-    productDefaultCode,
+    productCode,
     productTemplateId,
     productTemplateName,
     productType,
@@ -47277,7 +47273,7 @@ class SaleOrderLineData extends DataClass
           other.isDownpayment == this.isDownpayment &&
           other.productId == this.productId &&
           other.productName == this.productName &&
-          other.productDefaultCode == this.productDefaultCode &&
+          other.productCode == this.productCode &&
           other.productTemplateId == this.productTemplateId &&
           other.productTemplateName == this.productTemplateName &&
           other.productType == this.productType &&
@@ -47331,7 +47327,7 @@ class SaleOrderLineCompanion extends UpdateCompanion<SaleOrderLineData> {
   final Value<bool> isDownpayment;
   final Value<int?> productId;
   final Value<String?> productName;
-  final Value<String?> productDefaultCode;
+  final Value<String?> productCode;
   final Value<int?> productTemplateId;
   final Value<String?> productTemplateName;
   final Value<String?> productType;
@@ -47383,7 +47379,7 @@ class SaleOrderLineCompanion extends UpdateCompanion<SaleOrderLineData> {
     this.isDownpayment = const Value.absent(),
     this.productId = const Value.absent(),
     this.productName = const Value.absent(),
-    this.productDefaultCode = const Value.absent(),
+    this.productCode = const Value.absent(),
     this.productTemplateId = const Value.absent(),
     this.productTemplateName = const Value.absent(),
     this.productType = const Value.absent(),
@@ -47436,7 +47432,7 @@ class SaleOrderLineCompanion extends UpdateCompanion<SaleOrderLineData> {
     this.isDownpayment = const Value.absent(),
     this.productId = const Value.absent(),
     this.productName = const Value.absent(),
-    this.productDefaultCode = const Value.absent(),
+    this.productCode = const Value.absent(),
     this.productTemplateId = const Value.absent(),
     this.productTemplateName = const Value.absent(),
     this.productType = const Value.absent(),
@@ -47490,7 +47486,7 @@ class SaleOrderLineCompanion extends UpdateCompanion<SaleOrderLineData> {
     Expression<bool>? isDownpayment,
     Expression<int>? productId,
     Expression<String>? productName,
-    Expression<String>? productDefaultCode,
+    Expression<String>? productCode,
     Expression<int>? productTemplateId,
     Expression<String>? productTemplateName,
     Expression<String>? productType,
@@ -47543,8 +47539,7 @@ class SaleOrderLineCompanion extends UpdateCompanion<SaleOrderLineData> {
       if (isDownpayment != null) 'is_downpayment': isDownpayment,
       if (productId != null) 'product_id': productId,
       if (productName != null) 'product_name': productName,
-      if (productDefaultCode != null)
-        'product_default_code': productDefaultCode,
+      if (productCode != null) 'product_code': productCode,
       if (productTemplateId != null) 'product_template_id': productTemplateId,
       if (productTemplateName != null)
         'product_template_name': productTemplateName,
@@ -47603,7 +47598,7 @@ class SaleOrderLineCompanion extends UpdateCompanion<SaleOrderLineData> {
     Value<bool>? isDownpayment,
     Value<int?>? productId,
     Value<String?>? productName,
-    Value<String?>? productDefaultCode,
+    Value<String?>? productCode,
     Value<int?>? productTemplateId,
     Value<String?>? productTemplateName,
     Value<String?>? productType,
@@ -47656,7 +47651,7 @@ class SaleOrderLineCompanion extends UpdateCompanion<SaleOrderLineData> {
       isDownpayment: isDownpayment ?? this.isDownpayment,
       productId: productId ?? this.productId,
       productName: productName ?? this.productName,
-      productDefaultCode: productDefaultCode ?? this.productDefaultCode,
+      productCode: productCode ?? this.productCode,
       productTemplateId: productTemplateId ?? this.productTemplateId,
       productTemplateName: productTemplateName ?? this.productTemplateName,
       productType: productType ?? this.productType,
@@ -47731,8 +47726,8 @@ class SaleOrderLineCompanion extends UpdateCompanion<SaleOrderLineData> {
     if (productName.present) {
       map['product_name'] = Variable<String>(productName.value);
     }
-    if (productDefaultCode.present) {
-      map['product_default_code'] = Variable<String>(productDefaultCode.value);
+    if (productCode.present) {
+      map['product_code'] = Variable<String>(productCode.value);
     }
     if (productTemplateId.present) {
       map['product_template_id'] = Variable<int>(productTemplateId.value);
@@ -47874,7 +47869,7 @@ class SaleOrderLineCompanion extends UpdateCompanion<SaleOrderLineData> {
           ..write('isDownpayment: $isDownpayment, ')
           ..write('productId: $productId, ')
           ..write('productName: $productName, ')
-          ..write('productDefaultCode: $productDefaultCode, ')
+          ..write('productCode: $productCode, ')
           ..write('productTemplateId: $productTemplateId, ')
           ..write('productTemplateName: $productTemplateName, ')
           ..write('productType: $productType, ')
@@ -96604,7 +96599,7 @@ typedef $$SaleOrderLineTableCreateCompanionBuilder =
       Value<bool> isDownpayment,
       Value<int?> productId,
       Value<String?> productName,
-      Value<String?> productDefaultCode,
+      Value<String?> productCode,
       Value<int?> productTemplateId,
       Value<String?> productTemplateName,
       Value<String?> productType,
@@ -96658,7 +96653,7 @@ typedef $$SaleOrderLineTableUpdateCompanionBuilder =
       Value<bool> isDownpayment,
       Value<int?> productId,
       Value<String?> productName,
-      Value<String?> productDefaultCode,
+      Value<String?> productCode,
       Value<int?> productTemplateId,
       Value<String?> productTemplateName,
       Value<String?> productType,
@@ -96756,8 +96751,8 @@ class $$SaleOrderLineTableFilterComposer
     builder: (column) => ColumnFilters(column),
   );
 
-  ColumnFilters<String> get productDefaultCode => $composableBuilder(
-    column: $table.productDefaultCode,
+  ColumnFilters<String> get productCode => $composableBuilder(
+    column: $table.productCode,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -97021,8 +97016,8 @@ class $$SaleOrderLineTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
-  ColumnOrderings<String> get productDefaultCode => $composableBuilder(
-    column: $table.productDefaultCode,
+  ColumnOrderings<String> get productCode => $composableBuilder(
+    column: $table.productCode,
     builder: (column) => ColumnOrderings(column),
   );
 
@@ -97274,8 +97269,8 @@ class $$SaleOrderLineTableAnnotationComposer
     builder: (column) => column,
   );
 
-  GeneratedColumn<String> get productDefaultCode => $composableBuilder(
-    column: $table.productDefaultCode,
+  GeneratedColumn<String> get productCode => $composableBuilder(
+    column: $table.productCode,
     builder: (column) => column,
   );
 
@@ -97501,7 +97496,7 @@ class $$SaleOrderLineTableTableManager
                 Value<bool> isDownpayment = const Value.absent(),
                 Value<int?> productId = const Value.absent(),
                 Value<String?> productName = const Value.absent(),
-                Value<String?> productDefaultCode = const Value.absent(),
+                Value<String?> productCode = const Value.absent(),
                 Value<int?> productTemplateId = const Value.absent(),
                 Value<String?> productTemplateName = const Value.absent(),
                 Value<String?> productType = const Value.absent(),
@@ -97553,7 +97548,7 @@ class $$SaleOrderLineTableTableManager
                 isDownpayment: isDownpayment,
                 productId: productId,
                 productName: productName,
-                productDefaultCode: productDefaultCode,
+                productCode: productCode,
                 productTemplateId: productTemplateId,
                 productTemplateName: productTemplateName,
                 productType: productType,
@@ -97607,7 +97602,7 @@ class $$SaleOrderLineTableTableManager
                 Value<bool> isDownpayment = const Value.absent(),
                 Value<int?> productId = const Value.absent(),
                 Value<String?> productName = const Value.absent(),
-                Value<String?> productDefaultCode = const Value.absent(),
+                Value<String?> productCode = const Value.absent(),
                 Value<int?> productTemplateId = const Value.absent(),
                 Value<String?> productTemplateName = const Value.absent(),
                 Value<String?> productType = const Value.absent(),
@@ -97659,7 +97654,7 @@ class $$SaleOrderLineTableTableManager
                 isDownpayment: isDownpayment,
                 productId: productId,
                 productName: productName,
-                productDefaultCode: productDefaultCode,
+                productCode: productCode,
                 productTemplateId: productTemplateId,
                 productTemplateName: productTemplateName,
                 productType: productType,

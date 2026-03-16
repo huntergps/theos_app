@@ -144,12 +144,12 @@ class AccountFiscalPositionTax extends Table {
   IntColumn get id => integer().autoIncrement()();
   IntColumn get odooId => integer().unique()();
   IntColumn get positionId => integer()();
-  TextColumn get positionName => text().nullable()();
+  TextColumn get positionName => text().nullable()(); // Note: no field in FiscalPositionTax model — populated manually
   IntColumn get taxSrcId => integer()();
   TextColumn get taxSrcName => text().nullable()();
   IntColumn get taxDestId => integer()();
   TextColumn get taxDestName => text().nullable()();
-  IntColumn get companyId => integer().nullable()();
+  IntColumn get companyId => integer().nullable()(); // Note: no field in FiscalPositionTax model — populated manually
   DateTimeColumn get writeDate => dateTime().nullable()();
 }
 

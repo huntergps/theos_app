@@ -1,4 +1,5 @@
 /// Stub for web — no file system access for database files.
+library;
 
 Future<List<Map<String, dynamic>>> listDbFiles() async => [];
 

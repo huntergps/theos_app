@@ -235,6 +235,7 @@ final posPartnerBanksProvider = FutureProvider<List<PartnerBank>>((ref) async {
   if (activeTab?.order?.partnerId == null) return [];
 
   final advanceService = ref.watch(advanceServiceProvider);
+  if (advanceService == null) return [];
   return advanceService.getPartnerBanks(activeTab!.order!.partnerId!);
 });
 

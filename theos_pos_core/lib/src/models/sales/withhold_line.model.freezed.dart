@@ -15,7 +15,7 @@ T _$identity<T>(T value) => value;
 /// @nodoc
 mixin _$WithholdLine {
 
-@OdooId() int get id;@OdooLocalOnly() String get lineUuid;@OdooInteger(odooName: 'tax_id') int get taxId;@OdooString(odooName: 'tax_name') String get taxName;@OdooFloat(odooName: 'tax_percent') double get taxPercent;@OdooSelection() WithholdType get withholdType;@OdooSelection(odooName: 'taxsupport_code') TaxSupportCode? get taxSupportCode;@OdooFloat() double get base;@OdooFloat() double get amount;@OdooString() String? get notes;
+@OdooId() int get id;@OdooLocalOnly() String get lineUuid;@OdooMany2One('account.tax', odooName: 'tax_id') int get taxId;@OdooString(odooName: 'tax_name') String get taxName;@OdooFloat(odooName: 'tax_percent') double get taxPercent;@OdooSelection() WithholdType get withholdType;@OdooSelection(odooName: 'taxsupport_code') TaxSupportCode? get taxSupportCode;@OdooFloat() double get base;@OdooFloat() double get amount;@OdooString() String? get notes;
 /// Create a copy of WithholdLine
 /// with the given fields replaced by the non-null parameter values.
 @JsonKey(includeFromJson: false, includeToJson: false)
@@ -48,7 +48,7 @@ abstract mixin class $WithholdLineCopyWith<$Res>  {
   factory $WithholdLineCopyWith(WithholdLine value, $Res Function(WithholdLine) _then) = _$WithholdLineCopyWithImpl;
 @useResult
 $Res call({
-@OdooId() int id,@OdooLocalOnly() String lineUuid,@OdooInteger(odooName: 'tax_id') int taxId,@OdooString(odooName: 'tax_name') String taxName,@OdooFloat(odooName: 'tax_percent') double taxPercent,@OdooSelection() WithholdType withholdType,@OdooSelection(odooName: 'taxsupport_code') TaxSupportCode? taxSupportCode,@OdooFloat() double base,@OdooFloat() double amount,@OdooString() String? notes
+@OdooId() int id,@OdooLocalOnly() String lineUuid,@OdooMany2One('account.tax', odooName: 'tax_id') int taxId,@OdooString(odooName: 'tax_name') String taxName,@OdooFloat(odooName: 'tax_percent') double taxPercent,@OdooSelection() WithholdType withholdType,@OdooSelection(odooName: 'taxsupport_code') TaxSupportCode? taxSupportCode,@OdooFloat() double base,@OdooFloat() double amount,@OdooString() String? notes
 });
 
 
@@ -162,7 +162,7 @@ return $default(_that);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function(@OdooId()  int id, @OdooLocalOnly()  String lineUuid, @OdooInteger(odooName: 'tax_id')  int taxId, @OdooString(odooName: 'tax_name')  String taxName, @OdooFloat(odooName: 'tax_percent')  double taxPercent, @OdooSelection()  WithholdType withholdType, @OdooSelection(odooName: 'taxsupport_code')  TaxSupportCode? taxSupportCode, @OdooFloat()  double base, @OdooFloat()  double amount, @OdooString()  String? notes)?  $default,{required TResult orElse(),}) {final _that = this;
+@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function(@OdooId()  int id, @OdooLocalOnly()  String lineUuid, @OdooMany2One('account.tax', odooName: 'tax_id')  int taxId, @OdooString(odooName: 'tax_name')  String taxName, @OdooFloat(odooName: 'tax_percent')  double taxPercent, @OdooSelection()  WithholdType withholdType, @OdooSelection(odooName: 'taxsupport_code')  TaxSupportCode? taxSupportCode, @OdooFloat()  double base, @OdooFloat()  double amount, @OdooString()  String? notes)?  $default,{required TResult orElse(),}) {final _that = this;
 switch (_that) {
 case _WithholdLine() when $default != null:
 return $default(_that.id,_that.lineUuid,_that.taxId,_that.taxName,_that.taxPercent,_that.withholdType,_that.taxSupportCode,_that.base,_that.amount,_that.notes);case _:
@@ -183,7 +183,7 @@ return $default(_that.id,_that.lineUuid,_that.taxId,_that.taxName,_that.taxPerce
 /// }
 /// ```
 
-@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function(@OdooId()  int id, @OdooLocalOnly()  String lineUuid, @OdooInteger(odooName: 'tax_id')  int taxId, @OdooString(odooName: 'tax_name')  String taxName, @OdooFloat(odooName: 'tax_percent')  double taxPercent, @OdooSelection()  WithholdType withholdType, @OdooSelection(odooName: 'taxsupport_code')  TaxSupportCode? taxSupportCode, @OdooFloat()  double base, @OdooFloat()  double amount, @OdooString()  String? notes)  $default,) {final _that = this;
+@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function(@OdooId()  int id, @OdooLocalOnly()  String lineUuid, @OdooMany2One('account.tax', odooName: 'tax_id')  int taxId, @OdooString(odooName: 'tax_name')  String taxName, @OdooFloat(odooName: 'tax_percent')  double taxPercent, @OdooSelection()  WithholdType withholdType, @OdooSelection(odooName: 'taxsupport_code')  TaxSupportCode? taxSupportCode, @OdooFloat()  double base, @OdooFloat()  double amount, @OdooString()  String? notes)  $default,) {final _that = this;
 switch (_that) {
 case _WithholdLine():
 return $default(_that.id,_that.lineUuid,_that.taxId,_that.taxName,_that.taxPercent,_that.withholdType,_that.taxSupportCode,_that.base,_that.amount,_that.notes);case _:
@@ -203,7 +203,7 @@ return $default(_that.id,_that.lineUuid,_that.taxId,_that.taxName,_that.taxPerce
 /// }
 /// ```
 
-@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function(@OdooId()  int id, @OdooLocalOnly()  String lineUuid, @OdooInteger(odooName: 'tax_id')  int taxId, @OdooString(odooName: 'tax_name')  String taxName, @OdooFloat(odooName: 'tax_percent')  double taxPercent, @OdooSelection()  WithholdType withholdType, @OdooSelection(odooName: 'taxsupport_code')  TaxSupportCode? taxSupportCode, @OdooFloat()  double base, @OdooFloat()  double amount, @OdooString()  String? notes)?  $default,) {final _that = this;
+@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function(@OdooId()  int id, @OdooLocalOnly()  String lineUuid, @OdooMany2One('account.tax', odooName: 'tax_id')  int taxId, @OdooString(odooName: 'tax_name')  String taxName, @OdooFloat(odooName: 'tax_percent')  double taxPercent, @OdooSelection()  WithholdType withholdType, @OdooSelection(odooName: 'taxsupport_code')  TaxSupportCode? taxSupportCode, @OdooFloat()  double base, @OdooFloat()  double amount, @OdooString()  String? notes)?  $default,) {final _that = this;
 switch (_that) {
 case _WithholdLine() when $default != null:
 return $default(_that.id,_that.lineUuid,_that.taxId,_that.taxName,_that.taxPercent,_that.withholdType,_that.taxSupportCode,_that.base,_that.amount,_that.notes);case _:
@@ -218,12 +218,12 @@ return $default(_that.id,_that.lineUuid,_that.taxId,_that.taxName,_that.taxPerce
 @JsonSerializable()
 
 class _WithholdLine extends WithholdLine {
-  const _WithholdLine({@OdooId() this.id = 0, @OdooLocalOnly() required this.lineUuid, @OdooInteger(odooName: 'tax_id') required this.taxId, @OdooString(odooName: 'tax_name') required this.taxName, @OdooFloat(odooName: 'tax_percent') required this.taxPercent, @OdooSelection() required this.withholdType, @OdooSelection(odooName: 'taxsupport_code') this.taxSupportCode, @OdooFloat() required this.base, @OdooFloat() required this.amount, @OdooString() this.notes}): super._();
+  const _WithholdLine({@OdooId() this.id = 0, @OdooLocalOnly() this.lineUuid = '', @OdooMany2One('account.tax', odooName: 'tax_id') required this.taxId, @OdooString(odooName: 'tax_name') required this.taxName, @OdooFloat(odooName: 'tax_percent') required this.taxPercent, @OdooSelection() required this.withholdType, @OdooSelection(odooName: 'taxsupport_code') this.taxSupportCode, @OdooFloat() required this.base, @OdooFloat() required this.amount, @OdooString() this.notes}): super._();
   factory _WithholdLine.fromJson(Map<String, dynamic> json) => _$WithholdLineFromJson(json);
 
 @override@JsonKey()@OdooId() final  int id;
-@override@OdooLocalOnly() final  String lineUuid;
-@override@OdooInteger(odooName: 'tax_id') final  int taxId;
+@override@JsonKey()@OdooLocalOnly() final  String lineUuid;
+@override@OdooMany2One('account.tax', odooName: 'tax_id') final  int taxId;
 @override@OdooString(odooName: 'tax_name') final  String taxName;
 @override@OdooFloat(odooName: 'tax_percent') final  double taxPercent;
 @override@OdooSelection() final  WithholdType withholdType;
@@ -265,7 +265,7 @@ abstract mixin class _$WithholdLineCopyWith<$Res> implements $WithholdLineCopyWi
   factory _$WithholdLineCopyWith(_WithholdLine value, $Res Function(_WithholdLine) _then) = __$WithholdLineCopyWithImpl;
 @override @useResult
 $Res call({
-@OdooId() int id,@OdooLocalOnly() String lineUuid,@OdooInteger(odooName: 'tax_id') int taxId,@OdooString(odooName: 'tax_name') String taxName,@OdooFloat(odooName: 'tax_percent') double taxPercent,@OdooSelection() WithholdType withholdType,@OdooSelection(odooName: 'taxsupport_code') TaxSupportCode? taxSupportCode,@OdooFloat() double base,@OdooFloat() double amount,@OdooString() String? notes
+@OdooId() int id,@OdooLocalOnly() String lineUuid,@OdooMany2One('account.tax', odooName: 'tax_id') int taxId,@OdooString(odooName: 'tax_name') String taxName,@OdooFloat(odooName: 'tax_percent') double taxPercent,@OdooSelection() WithholdType withholdType,@OdooSelection(odooName: 'taxsupport_code') TaxSupportCode? taxSupportCode,@OdooFloat() double base,@OdooFloat() double amount,@OdooString() String? notes
 });
 
 

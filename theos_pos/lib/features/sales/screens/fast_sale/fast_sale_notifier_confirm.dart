@@ -102,18 +102,27 @@ extension FastSaleNotifierConfirm on FastSaleNotifier {
   ///
   /// [skipCreditCheck] - Skip credit validation (used after dialog approval)
   Future<bool> confirmActiveOrder({bool skipCreditCheck = false}) async {
+    // Guard: prevent double-submit (e.g. rapid double-tap on confirm button)
+    if (isConfirming) {
+      logger.w('[FastSale]', 'confirmActiveOrder: already in progress, ignoring duplicate call');
+      return false;
+    }
+    isConfirming = true;
+
     logger.d(
       '[FastSale]',
       'confirmActiveOrder: START (skipCreditCheck=$skipCreditCheck)',
     );
     final activeTab = state.activeTab;
     if (activeTab == null) {
+      isConfirming = false;
       state = state.copyWith(error: 'No hay orden activa');
       return false;
     }
 
     final order = activeTab.order;
     if (order == null) {
+      isConfirming = false;
       state = state.copyWith(error: 'Orden no encontrada');
       return false;
     }
@@ -240,6 +249,9 @@ extension FastSaleNotifierConfirm on FastSaleNotifier {
       _updateActiveTab(activeTab.copyWith(isLoading: false, error: null));
       state = state.copyWith(error: 'Error al confirmar: $e');
       return false;
+    } finally {
+      // Always release the guard so future calls are not blocked
+      isConfirming = false;
     }
   }
 

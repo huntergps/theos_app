@@ -9,7 +9,7 @@ part of 'withhold_line.model.dart';
 _WithholdLine _$WithholdLineFromJson(Map<String, dynamic> json) =>
     _WithholdLine(
       id: (json['id'] as num?)?.toInt() ?? 0,
-      lineUuid: json['lineUuid'] as String,
+      lineUuid: json['lineUuid'] as String? ?? '',
       taxId: (json['taxId'] as num).toInt(),
       taxName: json['taxName'] as String,
       taxPercent: (json['taxPercent'] as num).toDouble(),
@@ -104,7 +104,7 @@ class WithholdLineManager extends OdooModelManager<WithholdLine>
     return WithholdLine(
       id: data['id'] as int? ?? 0,
       lineUuid: '',
-      taxId: parseOdooInt(data['tax_id']) ?? 0,
+      taxId: extractMany2oneId(data['tax_id']) ?? 0,
       taxName: parseOdooStringRequired(data['tax_name']),
       taxPercent: parseOdooDouble(data['tax_percent']) ?? 0.0,
       withholdType: WithholdType.values.firstWhere(

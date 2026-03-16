@@ -35,22 +35,37 @@ mixin _$Company {
 @OdooMany2One('stock.warehouse', odooName: 'warehouse_id') int? get defaultWarehouseId;@OdooMany2OneName(sourceField: 'warehouse_id') String? get defaultWarehouseName;/// Default pricelist for new sales
 @OdooMany2One('product.pricelist', odooName: 'default_pricelist_id') int? get defaultPricelistId;@OdooMany2OneName(sourceField: 'default_pricelist_id') String? get defaultPricelistName;/// Default payment term for new sales
 @OdooMany2One('account.payment.term', odooName: 'default_payment_term_id') int? get defaultPaymentTermId;@OdooMany2OneName(sourceField: 'default_payment_term_id') String? get defaultPaymentTermName;/// Whether to require end customer data in sales
+// Campo custom — requiere módulo l10n_ec instalado
 @OdooBoolean(odooName: 'pedir_end_customer_data') bool get pedirEndCustomerData;/// Whether to require sales referrer
+// Campo custom — requiere módulo l10n_ec instalado
 @OdooBoolean(odooName: 'pedir_sale_referrer') bool get pedirSaleReferrer;/// Whether to require client type/channel
+// Campo custom — requiere módulo l10n_ec instalado
 @OdooBoolean(odooName: 'pedir_tipo_canal_cliente') bool get pedirTipoCanalCliente;/// SRI invoice limit for sales customers
+// Campo custom — requiere módulo l10n_ec instalado
 @OdooFloat(odooName: 'sale_customer_invoice_limit_sri') double? get saleCustomerInvoiceLimitSri;/// Maximum discount percentage allowed
+// Campo custom — requiere módulo l10n_ec instalado
 @OdooFloat(odooName: 'max_discount_percentage') double get maxDiscountPercentage;// ═══════════════════ Credit Control Configuration ═══════════════════
 /// Overdue days threshold for credit blocking
+// Campo custom — requiere módulo l10n_ec instalado
 @OdooInteger(odooName: 'credit_overdue_days_threshold') int get creditOverdueDaysThreshold;/// Overdue invoices threshold for credit blocking
+// Campo custom — requiere módulo l10n_ec instalado
 @OdooInteger(odooName: 'credit_overdue_invoices_threshold') int get creditOverdueInvoicesThreshold;/// Safety margin for offline credit validation (%)
+// Campo custom — requiere módulo l10n_ec instalado
 @OdooFloat(odooName: 'credit_offline_safety_margin') double get creditOfflineSafetyMargin;/// Maximum age in hours for credit data to be considered valid
+// Campo custom — requiere módulo l10n_ec instalado
 @OdooInteger(odooName: 'credit_data_max_age_hours') int get creditDataMaxAgeHours;// ═══════════════════ Reservation Configuration ═══════════════════
 /// Days before a reservation expires
+// Campo custom — requiere módulo l10n_ec instalado
 @OdooInteger(odooName: 'reservation_expiry_days') int get reservationExpiryDays;/// Warehouse for reservations
+// Campo custom — requiere módulo l10n_ec instalado
 @OdooMany2One('stock.warehouse', odooName: 'reservation_warehouse_id') int? get reservationWarehouseId;/// Warehouse name for reservations
+// Campo custom — requiere módulo l10n_ec instalado
 @OdooMany2OneName(sourceField: 'reservation_warehouse_id') String? get reservationWarehouseName;/// Location for reservations
+// Campo custom — requiere módulo l10n_ec instalado
 @OdooMany2One('stock.location', odooName: 'reservation_location_id') int? get reservationLocationId;/// Location name for reservations
+// Campo custom — requiere módulo l10n_ec instalado
 @OdooMany2OneName(sourceField: 'reservation_location_id') String? get reservationLocationName;/// Reserve stock from quotation stage
+// Campo custom — requiere módulo l10n_ec instalado
 @OdooBoolean(odooName: 'reserve_from_quotation') bool get reserveFromQuotation;// ═══════════════════ Metadata ═══════════════════
 @OdooDateTime(odooName: 'write_date', writable: false) DateTime? get writeDate;
 /// Create a copy of Company
@@ -374,36 +389,51 @@ class _Company extends Company {
 @override@OdooMany2One('account.payment.term', odooName: 'default_payment_term_id') final  int? defaultPaymentTermId;
 @override@OdooMany2OneName(sourceField: 'default_payment_term_id') final  String? defaultPaymentTermName;
 /// Whether to require end customer data in sales
+// Campo custom — requiere módulo l10n_ec instalado
 @override@JsonKey()@OdooBoolean(odooName: 'pedir_end_customer_data') final  bool pedirEndCustomerData;
 /// Whether to require sales referrer
+// Campo custom — requiere módulo l10n_ec instalado
 @override@JsonKey()@OdooBoolean(odooName: 'pedir_sale_referrer') final  bool pedirSaleReferrer;
 /// Whether to require client type/channel
+// Campo custom — requiere módulo l10n_ec instalado
 @override@JsonKey()@OdooBoolean(odooName: 'pedir_tipo_canal_cliente') final  bool pedirTipoCanalCliente;
 /// SRI invoice limit for sales customers
+// Campo custom — requiere módulo l10n_ec instalado
 @override@OdooFloat(odooName: 'sale_customer_invoice_limit_sri') final  double? saleCustomerInvoiceLimitSri;
 /// Maximum discount percentage allowed
+// Campo custom — requiere módulo l10n_ec instalado
 @override@JsonKey()@OdooFloat(odooName: 'max_discount_percentage') final  double maxDiscountPercentage;
 // ═══════════════════ Credit Control Configuration ═══════════════════
 /// Overdue days threshold for credit blocking
+// Campo custom — requiere módulo l10n_ec instalado
 @override@JsonKey()@OdooInteger(odooName: 'credit_overdue_days_threshold') final  int creditOverdueDaysThreshold;
 /// Overdue invoices threshold for credit blocking
+// Campo custom — requiere módulo l10n_ec instalado
 @override@JsonKey()@OdooInteger(odooName: 'credit_overdue_invoices_threshold') final  int creditOverdueInvoicesThreshold;
 /// Safety margin for offline credit validation (%)
+// Campo custom — requiere módulo l10n_ec instalado
 @override@JsonKey()@OdooFloat(odooName: 'credit_offline_safety_margin') final  double creditOfflineSafetyMargin;
 /// Maximum age in hours for credit data to be considered valid
+// Campo custom — requiere módulo l10n_ec instalado
 @override@JsonKey()@OdooInteger(odooName: 'credit_data_max_age_hours') final  int creditDataMaxAgeHours;
 // ═══════════════════ Reservation Configuration ═══════════════════
 /// Days before a reservation expires
+// Campo custom — requiere módulo l10n_ec instalado
 @override@JsonKey()@OdooInteger(odooName: 'reservation_expiry_days') final  int reservationExpiryDays;
 /// Warehouse for reservations
+// Campo custom — requiere módulo l10n_ec instalado
 @override@OdooMany2One('stock.warehouse', odooName: 'reservation_warehouse_id') final  int? reservationWarehouseId;
 /// Warehouse name for reservations
+// Campo custom — requiere módulo l10n_ec instalado
 @override@OdooMany2OneName(sourceField: 'reservation_warehouse_id') final  String? reservationWarehouseName;
 /// Location for reservations
+// Campo custom — requiere módulo l10n_ec instalado
 @override@OdooMany2One('stock.location', odooName: 'reservation_location_id') final  int? reservationLocationId;
 /// Location name for reservations
+// Campo custom — requiere módulo l10n_ec instalado
 @override@OdooMany2OneName(sourceField: 'reservation_location_id') final  String? reservationLocationName;
 /// Reserve stock from quotation stage
+// Campo custom — requiere módulo l10n_ec instalado
 @override@JsonKey()@OdooBoolean(odooName: 'reserve_from_quotation') final  bool reserveFromQuotation;
 // ═══════════════════ Metadata ═══════════════════
 @override@OdooDateTime(odooName: 'write_date', writable: false) final  DateTime? writeDate;

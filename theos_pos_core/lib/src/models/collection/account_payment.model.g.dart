@@ -126,7 +126,6 @@ class AccountPaymentManager extends OdooModelManager<AccountPayment>
   List<String> get odooFields => [
     'id',
     'collection_session_id',
-    'reconciled_invoice_ids',
     'partner_id',
     'journal_id',
     'payment_method_line_id',
@@ -166,7 +165,6 @@ class AccountPaymentManager extends OdooModelManager<AccountPayment>
       id: data['id'] as int? ?? 0,
       isSynced: false,
       collectionSessionId: extractMany2oneId(data['collection_session_id']),
-      invoiceId: extractMany2oneId(data['reconciled_invoice_ids']),
       partnerId: extractMany2oneId(data['partner_id']),
       partnerName: extractMany2oneName(data['partner_id']),
       journalId: extractMany2oneId(data['journal_id']),
@@ -214,7 +212,6 @@ class AccountPaymentManager extends OdooModelManager<AccountPayment>
   Map<String, dynamic> toOdoo(AccountPayment record) {
     return {
       'collection_session_id': record.collectionSessionId,
-      'reconciled_invoice_ids': record.invoiceId,
       'partner_id': record.partnerId,
       'journal_id': record.journalId,
       'payment_method_line_id': record.paymentMethodLineId,
@@ -256,7 +253,7 @@ class AccountPaymentManager extends OdooModelManager<AccountPayment>
       paymentUuid: row.paymentUuid as String?,
       isSynced: row.isSynced as bool? ?? false,
       collectionSessionId: row.collectionSessionId as int?,
-      invoiceId: row.reconciledInvoiceIds as int?,
+      invoiceId: row.invoiceId as int?,
       partnerId: row.partnerId as int?,
       partnerName: row.partnerName as String?,
       journalId: row.journalId as int?,
@@ -322,7 +319,6 @@ class AccountPaymentManager extends OdooModelManager<AccountPayment>
   static const Map<String, String> fieldMappings = {
     'id': 'id',
     'collection_session_id': 'collectionSessionId',
-    'reconciled_invoice_ids': 'invoiceId',
     'partner_id': 'partnerId',
     'journal_id': 'journalId',
     'payment_method_line_id': 'paymentMethodLineId',
@@ -394,7 +390,6 @@ class AccountPaymentManager extends OdooModelManager<AccountPayment>
     return RawValuesInsertable({
       'odoo_id': Variable<int>(record.id),
       'collection_session_id': driftVar<int>(record.collectionSessionId),
-      'reconciled_invoice_ids': driftVar<int>(record.invoiceId),
       'partner_id': driftVar<int>(record.partnerId),
       'partner_id_name': driftVar<String>(record.partnerName),
       'journal_id': driftVar<int>(record.journalId),
@@ -435,6 +430,7 @@ class AccountPaymentManager extends OdooModelManager<AccountPayment>
       'write_date': driftVar<DateTime>(record.writeDate),
       'payment_uuid': driftVar<String>(record.paymentUuid),
       'is_synced': Variable<bool>(record.isSynced),
+      'invoice_id': driftVar<int>(record.invoiceId),
       'last_sync_date': driftVar<DateTime>(record.lastSyncDate),
     });
   }
@@ -442,7 +438,6 @@ class AccountPaymentManager extends OdooModelManager<AccountPayment>
   /// List of writable fields for partial updates.
   static const List<String> writableFields = [
     'collectionSessionId',
-    'invoiceId',
     'partnerId',
     'journalId',
     'paymentMethodLineId',
@@ -659,6 +654,7 @@ class AccountPaymentManager extends OdooModelManager<AccountPayment>
     updated = updated.copyWith(
       paymentUuid: record.paymentUuid,
       isSynced: record.isSynced,
+      invoiceId: record.invoiceId,
       lastSyncDate: record.lastSyncDate,
     );
     return updated;
@@ -676,7 +672,7 @@ class AccountPaymentManager extends OdooModelManager<AccountPayment>
       case 'collectionSessionId':
         return (obj as dynamic).collectionSessionId;
       case 'invoiceId':
-        return (obj as dynamic).reconciledInvoiceIds;
+        return (obj as dynamic).invoiceId;
       case 'partnerId':
         return (obj as dynamic).partnerId;
       case 'partnerName':
@@ -812,7 +808,6 @@ class AccountPaymentManager extends OdooModelManager<AccountPayment>
   @override
   List<String> get writableFieldNames => const [
     'collectionSessionId',
-    'invoiceId',
     'partnerId',
     'journalId',
     'paymentMethodLineId',

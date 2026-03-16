@@ -51,6 +51,10 @@ abstract class FiscalPosition with _$FiscalPosition {
   bool get isAutoApply => autoApply;
 }
 
+/// NOTE: FiscalPositionTax intentionally does NOT use @OdooModel.
+/// Uses dual id/odooId pattern (legacy) with manual fromOdoo()/toCompanion().
+/// Managed by FiscalPositionTaxManager without code generation.
+///
 /// Fiscal Position Tax Mapping model representing account.fiscal.position.tax
 ///
 /// Maps source taxes to destination taxes for a fiscal position.

@@ -131,6 +131,19 @@ extension SaleOrderLineManagerBusiness on SaleOrderLineManager {
     await upsertLocal(updatedLine);
   }
 
+  /// Find a sale order line by its Odoo ID (odooId column).
+  ///
+  /// This is the correct lookup for temporary negative IDs, which are stored
+  /// in [odooId] (not in the autoincrement PK [id]).
+  /// Note: [readLocal] already queries by odooId, this method is an explicit alias.
+  Future<SaleOrderLine?> findByOdooId(int odooId) async {
+    final rows = await (_db.select(_db.saleOrderLine)
+          ..where((t) => t.odooId.equals(odooId)))
+        .get();
+    if (rows.isEmpty) return null;
+    return fromDrift(rows.first);
+  }
+
   /// Get next temporary negative ID for offline lines
   Future<int> _getNextTempLineId() async {
     final result = await _db

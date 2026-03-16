@@ -1,6 +1,11 @@
 /// JournalManager - Manager for account.journal model
 ///
 /// Read-only manager for accounting journal data synced from Odoo.
+///
+/// Manual managers for account.journal and account.payment.method.line.
+/// These do NOT extend OdooModelManager and are NOT registered in
+/// initializeModelManagers(). They are instantiated ad-hoc in sync
+/// repositories and operate via direct Drift queries.
 library;
 
 import 'package:drift/drift.dart';

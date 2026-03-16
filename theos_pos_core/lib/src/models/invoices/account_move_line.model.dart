@@ -52,7 +52,7 @@ abstract class AccountMoveLine with _$AccountMoveLine {
 
     // ============ Basic Data ============
     @OdooString() @Default('') String name,
-    @OdooLocalOnly() @Default(InvoiceLineDisplayType.product) InvoiceLineDisplayType displayType,
+    @OdooSelection(odooName: 'display_type') @Default(InvoiceLineDisplayType.product) InvoiceLineDisplayType displayType,
     @OdooInteger() @Default(10) int sequence,
 
     // ============ Product ============

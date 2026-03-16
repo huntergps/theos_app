@@ -3,6 +3,28 @@
 part of 'res_lang.model.dart';
 
 // **************************************************************************
+// JsonSerializableGenerator
+// **************************************************************************
+
+_ResLang _$ResLangFromJson(Map<String, dynamic> json) => _ResLang(
+  id: (json['id'] as num).toInt(),
+  name: json['name'] as String,
+  code: json['code'] as String,
+  active: json['active'] as bool? ?? true,
+  writeDate: json['writeDate'] == null
+      ? null
+      : DateTime.parse(json['writeDate'] as String),
+);
+
+Map<String, dynamic> _$ResLangToJson(_ResLang instance) => <String, dynamic>{
+  'id': instance.id,
+  'name': instance.name,
+  'code': instance.code,
+  'active': instance.active,
+  'writeDate': instance.writeDate?.toIso8601String(),
+};
+
+// **************************************************************************
 // OdooModelGenerator
 // **************************************************************************
 

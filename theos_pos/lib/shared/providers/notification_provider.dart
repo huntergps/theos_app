@@ -174,11 +174,7 @@ class NotificationCounterNotifier extends Notifier<NotificationCounter> {
   /// Process offline queue when connection is restored
   Future<void> _processOfflineQueue() async {
     // Guard: skip if database is not initialized or was closed (server switch)
-    try {
-      final db = DatabaseHelper.db;
-      // ignore: unnecessary_null_comparison
-      if (db == null) return;
-    } catch (_) {
+    if (!DatabaseHelper.isInitialized) {
       logger.d('[NotificationProvider]', 'DB not ready, skipping queue processing');
       return;
     }
@@ -2984,7 +2980,7 @@ class NotificationCounterNotifier extends Notifier<NotificationCounter> {
       final taxGroupId = values['tax_group_id'] is List
           ? (values['tax_group_id'] as List).first as int?
           : values['tax_group_id'] is int ? values['tax_group_id'] as int : null;
-      final taxGroupIdName = values['tax_group_id'] is List && (values['tax_group_id'] as List).length > 1
+      final taxGroupName = values['tax_group_id'] is List && (values['tax_group_id'] as List).length > 1
           ? (values['tax_group_id'] as List)[1] as String?
           : values['tax_group_name'] is String ? values['tax_group_name'] as String : null;
       final taxGroupL10nEcType = values['tax_group_l10n_ec_type'] is String ? values['tax_group_l10n_ec_type'] as String : null;
@@ -3003,7 +2999,7 @@ class NotificationCounterNotifier extends Notifier<NotificationCounter> {
         companyId: Value(companyId),
         companyName: Value(companyName),
         taxGroupId: Value(taxGroupId),
-        taxGroupIdName: Value(taxGroupIdName),
+        taxGroupName: Value(taxGroupName),
         taxGroupL10nEcType: Value(taxGroupL10nEcType),
         writeDate: Value(DateTime.now()),
       );

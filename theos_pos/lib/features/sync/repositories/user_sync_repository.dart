@@ -28,8 +28,6 @@ import 'package:odoo_sdk/odoo_sdk.dart';
 import 'package:odoo_sdk/odoo_sdk.dart' as odoo;
 
 import 'package:theos_pos_core/theos_pos_core.dart' hide OdooClient, DatabaseHelper;
-// ignore: implementation_imports
-import 'package:theos_pos_core/src/models/config/currency.model.dart';
 import '../../../core/database/database_helper.dart';
 
 /// Repository for syncing user-related configuration data from Odoo.

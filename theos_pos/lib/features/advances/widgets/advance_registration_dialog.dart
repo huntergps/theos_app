@@ -127,6 +127,7 @@ class _AdvanceRegistrationDialogState
   Future<void> _loadCatalogs() async {
     try {
       final advanceService = ref.read(advanceServiceProvider);
+      if (advanceService == null) return;
       final paymentService = ref.read(paymentServiceProvider);
 
       // Cargar en paralelo
@@ -192,6 +193,7 @@ class _AdvanceRegistrationDialogState
   Future<void> _loadCardBrandsForJournal(int journalId) async {
     try {
       final advanceService = ref.read(advanceServiceProvider);
+      if (advanceService == null) return;
       final brands = await advanceService.getCardBrands(journalId);
       if (mounted) {
         setState(() {
@@ -248,6 +250,7 @@ class _AdvanceRegistrationDialogState
 
     try {
       final advanceService = ref.read(advanceServiceProvider);
+      if (advanceService == null) return;
 
       // Construir líneas de anticipo
       final advanceLines = _paymentLines.map((line) {

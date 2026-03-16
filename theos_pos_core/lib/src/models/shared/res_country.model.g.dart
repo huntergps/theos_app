@@ -3,6 +3,27 @@
 part of 'res_country.model.dart';
 
 // **************************************************************************
+// JsonSerializableGenerator
+// **************************************************************************
+
+_ResCountry _$ResCountryFromJson(Map<String, dynamic> json) => _ResCountry(
+  id: (json['id'] as num).toInt(),
+  name: json['name'] as String,
+  code: json['code'] as String?,
+  writeDate: json['writeDate'] == null
+      ? null
+      : DateTime.parse(json['writeDate'] as String),
+);
+
+Map<String, dynamic> _$ResCountryToJson(_ResCountry instance) =>
+    <String, dynamic>{
+      'id': instance.id,
+      'name': instance.name,
+      'code': instance.code,
+      'writeDate': instance.writeDate?.toIso8601String(),
+    };
+
+// **************************************************************************
 // OdooModelGenerator
 // **************************************************************************
 

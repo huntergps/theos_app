@@ -13,16 +13,17 @@ import '../services/advance_service.dart';
 
 /// Provider for AdvanceService.
 ///
-/// Note: This provider requires BankRepository to be available.
-/// Returns AdvanceService directly - will throw if BankRepository is not initialized.
-final advanceServiceProvider = Provider<AdvanceService>((ref) {
+/// Returns `null` when [bankRepositoryProvider] is not yet initialized
+/// (e.g., before the app completes its startup sequence).
+///
+/// Consumers MUST perform a null-check before using the service:
+/// ```dart
+/// final advanceService = ref.watch(advanceServiceProvider);
+/// if (advanceService == null) return; // or show loading/disabled state
+/// ```
+final advanceServiceProvider = Provider<AdvanceService?>((ref) {
   final bankRepo = ref.watch(bankRepositoryProvider);
-  if (bankRepo == null) {
-    throw StateError(
-      'AdvanceService requires BankRepository to be initialized. '
-      'Ensure the app is properly initialized before using payment features.',
-    );
-  }
+  if (bankRepo == null) return null;
 
   return AdvanceService(
     ref.watch(odooServiceProvider),

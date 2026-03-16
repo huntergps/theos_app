@@ -3,6 +3,32 @@
 part of 'resource_calendar.model.dart';
 
 // **************************************************************************
+// JsonSerializableGenerator
+// **************************************************************************
+
+_ResourceCalendar _$ResourceCalendarFromJson(Map<String, dynamic> json) =>
+    _ResourceCalendar(
+      id: (json['id'] as num).toInt(),
+      name: json['name'] as String,
+      active: json['active'] as bool? ?? true,
+      companyId: (json['companyId'] as num?)?.toInt(),
+      companyName: json['companyName'] as String?,
+      writeDate: json['writeDate'] == null
+          ? null
+          : DateTime.parse(json['writeDate'] as String),
+    );
+
+Map<String, dynamic> _$ResourceCalendarToJson(_ResourceCalendar instance) =>
+    <String, dynamic>{
+      'id': instance.id,
+      'name': instance.name,
+      'active': instance.active,
+      'companyId': instance.companyId,
+      'companyName': instance.companyName,
+      'writeDate': instance.writeDate?.toIso8601String(),
+    };
+
+// **************************************************************************
 // OdooModelGenerator
 // **************************************************************************
 
@@ -19,13 +45,20 @@ class ResourceCalendarManager extends OdooModelManager<ResourceCalendar>
   String get tableName => 'resource_calendar';
 
   @override
-  List<String> get odooFields => ['id', 'name', 'company_id', 'write_date'];
+  List<String> get odooFields => [
+    'id',
+    'name',
+    'active',
+    'company_id',
+    'write_date',
+  ];
 
   @override
   ResourceCalendar fromOdoo(Map<String, dynamic> data) {
     return ResourceCalendar(
       id: data['id'] as int? ?? 0,
       name: parseOdooStringRequired(data['name']),
+      active: parseOdooBool(data['active']),
       companyId: extractMany2oneId(data['company_id']),
       companyName: extractMany2oneName(data['company_id']),
       writeDate: parseOdooDateTime(data['write_date']),
@@ -34,7 +67,11 @@ class ResourceCalendarManager extends OdooModelManager<ResourceCalendar>
 
   @override
   Map<String, dynamic> toOdoo(ResourceCalendar record) {
-    return {'name': record.name, 'company_id': record.companyId};
+    return {
+      'name': record.name,
+      'active': record.active,
+      'company_id': record.companyId,
+    };
   }
 
   @override
@@ -42,6 +79,7 @@ class ResourceCalendarManager extends OdooModelManager<ResourceCalendar>
     return ResourceCalendar(
       id: row.odooId as int,
       name: row.name as String,
+      active: row.active as bool,
       companyId: row.companyId as int?,
       companyName: row.companyName as String?,
       writeDate: row.writeDate as DateTime?,
@@ -73,6 +111,7 @@ class ResourceCalendarManager extends OdooModelManager<ResourceCalendar>
   static const Map<String, String> fieldMappings = {
     'id': 'id',
     'name': 'name',
+    'active': 'active',
     'company_id': 'companyId',
     'write_date': 'writeDate',
   };
@@ -115,6 +154,7 @@ class ResourceCalendarManager extends OdooModelManager<ResourceCalendar>
     return RawValuesInsertable({
       'odoo_id': Variable<int>(record.id),
       'name': Variable<String>(record.name),
+      'active': Variable<bool>(record.active),
       'company_id': driftVar<int>(record.companyId),
       'company_id_name': driftVar<String>(record.companyName),
       'write_date': driftVar<DateTime>(record.writeDate),
@@ -122,7 +162,7 @@ class ResourceCalendarManager extends OdooModelManager<ResourceCalendar>
   }
 
   /// List of writable fields for partial updates.
-  static const List<String> writableFields = ['name', 'companyId'];
+  static const List<String> writableFields = ['name', 'active', 'companyId'];
 
   /// List of required fields for validation.
   static const List<String> requiredFields = ['id'];
@@ -131,6 +171,7 @@ class ResourceCalendarManager extends OdooModelManager<ResourceCalendar>
   static const Map<String, String> fieldLabels = {
     'id': 'Id',
     'name': 'Name',
+    'active': 'Active',
     'companyId': 'Company Id',
     'companyName': 'Company Name',
     'writeDate': 'Write Date',
@@ -172,6 +213,8 @@ class ResourceCalendarManager extends OdooModelManager<ResourceCalendar>
         return record.id;
       case 'name':
         return record.name;
+      case 'active':
+        return record.active;
       case 'companyId':
         return record.companyId;
       case 'companyName':
@@ -202,6 +245,8 @@ class ResourceCalendarManager extends OdooModelManager<ResourceCalendar>
         return (obj as dynamic).odooId;
       case 'name':
         return (obj as dynamic).name;
+      case 'active':
+        return (obj as dynamic).active;
       case 'companyId':
         return (obj as dynamic).companyId;
       case 'companyName':
@@ -226,13 +271,14 @@ class ResourceCalendarManager extends OdooModelManager<ResourceCalendar>
   List<String> get storedFieldNames => const [
     'id',
     'name',
+    'active',
     'companyId',
     'companyName',
     'writeDate',
   ];
 
   @override
-  List<String> get writableFieldNames => const ['name', 'companyId'];
+  List<String> get writableFieldNames => const ['name', 'active', 'companyId'];
 }
 
 /// Global instance of ResourceCalendarManager.

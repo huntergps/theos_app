@@ -425,6 +425,7 @@ class POSActionsPanel extends ConsumerWidget {
       await ref.read(fastSaleProvider.notifier).reloadActiveOrder();
 
       // Close dialog safely (navigator may be locked during transition)
+      if (!context.mounted) return;
       _safePop(context);
 
       if (!context.mounted) return;
@@ -1213,6 +1214,7 @@ class POSActionsPanel extends ConsumerWidget {
       await salesRepo.cancel(order.id);
 
       // Close dialog first
+      if (!context.mounted) return;
       _safePop(context);
 
       // Then show success and reload
@@ -1227,6 +1229,7 @@ class POSActionsPanel extends ConsumerWidget {
       await ref.read(fastSaleProvider.notifier).reloadActiveOrder();
     } catch (e) {
       // Close dialog first
+      if (!context.mounted) return;
       _safePop(context);
 
       if (!context.mounted) return;
@@ -1399,6 +1402,7 @@ class POSActionsPanel extends ConsumerWidget {
       );
 
       // Close dialog first
+      if (!context.mounted) return;
       _safePop(context);
 
       if (!context.mounted) return;

@@ -87,6 +87,7 @@ abstract class Product with _$Product {
     @OdooFloat(odooName: 'qty_available', writable: false) @Default(0.0) double qtyAvailable,
     @OdooFloat(odooName: 'virtual_available', writable: false) @Default(0.0) double virtualAvailable,
     @OdooSelection() @Default(TrackingType.none) TrackingType tracking,
+    // Puede no existir en 19.2 como campo API-accesible
     @OdooBoolean(odooName: 'is_storable') @Default(false) bool isStorable,
 
     // ============ Ecuador Localization ============

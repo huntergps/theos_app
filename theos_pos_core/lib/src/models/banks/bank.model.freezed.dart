@@ -286,7 +286,8 @@ as DateTime?,
 /// @nodoc
 mixin _$PartnerBank {
 
-@OdooId() int get id;@OdooMany2One('res.partner', odooName: 'partner_id') int get partnerId;@OdooMany2One('res.bank', odooName: 'bank_id') int? get bankId;@OdooString(odooName: 'acc_number') String get accNumber;@OdooDateTime(odooName: 'write_date', writable: false) DateTime? get writeDate;
+@OdooId() int get id;@OdooMany2One('res.partner', odooName: 'partner_id') int get partnerId;// Removed in 19.2, use bank_name/bank_bic (flat fields on res.partner.bank)
+@OdooLocalOnly() int? get bankId;@OdooString(odooName: 'acc_number') String get accNumber;@OdooDateTime(odooName: 'write_date', writable: false) DateTime? get writeDate;
 /// Create a copy of PartnerBank
 /// with the given fields replaced by the non-null parameter values.
 @JsonKey(includeFromJson: false, includeToJson: false)
@@ -317,7 +318,7 @@ abstract mixin class $PartnerBankCopyWith<$Res>  {
   factory $PartnerBankCopyWith(PartnerBank value, $Res Function(PartnerBank) _then) = _$PartnerBankCopyWithImpl;
 @useResult
 $Res call({
-@OdooId() int id,@OdooMany2One('res.partner', odooName: 'partner_id') int partnerId,@OdooMany2One('res.bank', odooName: 'bank_id') int? bankId,@OdooString(odooName: 'acc_number') String accNumber,@OdooDateTime(odooName: 'write_date', writable: false) DateTime? writeDate
+@OdooId() int id,@OdooMany2One('res.partner', odooName: 'partner_id') int partnerId,@OdooLocalOnly() int? bankId,@OdooString(odooName: 'acc_number') String accNumber,@OdooDateTime(odooName: 'write_date', writable: false) DateTime? writeDate
 });
 
 
@@ -426,7 +427,7 @@ return $default(_that);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function(@OdooId()  int id, @OdooMany2One('res.partner', odooName: 'partner_id')  int partnerId, @OdooMany2One('res.bank', odooName: 'bank_id')  int? bankId, @OdooString(odooName: 'acc_number')  String accNumber, @OdooDateTime(odooName: 'write_date', writable: false)  DateTime? writeDate)?  $default,{required TResult orElse(),}) {final _that = this;
+@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function(@OdooId()  int id, @OdooMany2One('res.partner', odooName: 'partner_id')  int partnerId, @OdooLocalOnly()  int? bankId, @OdooString(odooName: 'acc_number')  String accNumber, @OdooDateTime(odooName: 'write_date', writable: false)  DateTime? writeDate)?  $default,{required TResult orElse(),}) {final _that = this;
 switch (_that) {
 case _PartnerBank() when $default != null:
 return $default(_that.id,_that.partnerId,_that.bankId,_that.accNumber,_that.writeDate);case _:
@@ -447,7 +448,7 @@ return $default(_that.id,_that.partnerId,_that.bankId,_that.accNumber,_that.writ
 /// }
 /// ```
 
-@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function(@OdooId()  int id, @OdooMany2One('res.partner', odooName: 'partner_id')  int partnerId, @OdooMany2One('res.bank', odooName: 'bank_id')  int? bankId, @OdooString(odooName: 'acc_number')  String accNumber, @OdooDateTime(odooName: 'write_date', writable: false)  DateTime? writeDate)  $default,) {final _that = this;
+@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function(@OdooId()  int id, @OdooMany2One('res.partner', odooName: 'partner_id')  int partnerId, @OdooLocalOnly()  int? bankId, @OdooString(odooName: 'acc_number')  String accNumber, @OdooDateTime(odooName: 'write_date', writable: false)  DateTime? writeDate)  $default,) {final _that = this;
 switch (_that) {
 case _PartnerBank():
 return $default(_that.id,_that.partnerId,_that.bankId,_that.accNumber,_that.writeDate);case _:
@@ -467,7 +468,7 @@ return $default(_that.id,_that.partnerId,_that.bankId,_that.accNumber,_that.writ
 /// }
 /// ```
 
-@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function(@OdooId()  int id, @OdooMany2One('res.partner', odooName: 'partner_id')  int partnerId, @OdooMany2One('res.bank', odooName: 'bank_id')  int? bankId, @OdooString(odooName: 'acc_number')  String accNumber, @OdooDateTime(odooName: 'write_date', writable: false)  DateTime? writeDate)?  $default,) {final _that = this;
+@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function(@OdooId()  int id, @OdooMany2One('res.partner', odooName: 'partner_id')  int partnerId, @OdooLocalOnly()  int? bankId, @OdooString(odooName: 'acc_number')  String accNumber, @OdooDateTime(odooName: 'write_date', writable: false)  DateTime? writeDate)?  $default,) {final _that = this;
 switch (_that) {
 case _PartnerBank() when $default != null:
 return $default(_that.id,_that.partnerId,_that.bankId,_that.accNumber,_that.writeDate);case _:
@@ -482,12 +483,13 @@ return $default(_that.id,_that.partnerId,_that.bankId,_that.accNumber,_that.writ
 
 
 class _PartnerBank extends PartnerBank {
-  const _PartnerBank({@OdooId() required this.id, @OdooMany2One('res.partner', odooName: 'partner_id') required this.partnerId, @OdooMany2One('res.bank', odooName: 'bank_id') this.bankId, @OdooString(odooName: 'acc_number') required this.accNumber, @OdooDateTime(odooName: 'write_date', writable: false) this.writeDate}): super._();
+  const _PartnerBank({@OdooId() required this.id, @OdooMany2One('res.partner', odooName: 'partner_id') required this.partnerId, @OdooLocalOnly() this.bankId, @OdooString(odooName: 'acc_number') required this.accNumber, @OdooDateTime(odooName: 'write_date', writable: false) this.writeDate}): super._();
   
 
 @override@OdooId() final  int id;
 @override@OdooMany2One('res.partner', odooName: 'partner_id') final  int partnerId;
-@override@OdooMany2One('res.bank', odooName: 'bank_id') final  int? bankId;
+// Removed in 19.2, use bank_name/bank_bic (flat fields on res.partner.bank)
+@override@OdooLocalOnly() final  int? bankId;
 @override@OdooString(odooName: 'acc_number') final  String accNumber;
 @override@OdooDateTime(odooName: 'write_date', writable: false) final  DateTime? writeDate;
 
@@ -521,7 +523,7 @@ abstract mixin class _$PartnerBankCopyWith<$Res> implements $PartnerBankCopyWith
   factory _$PartnerBankCopyWith(_PartnerBank value, $Res Function(_PartnerBank) _then) = __$PartnerBankCopyWithImpl;
 @override @useResult
 $Res call({
-@OdooId() int id,@OdooMany2One('res.partner', odooName: 'partner_id') int partnerId,@OdooMany2One('res.bank', odooName: 'bank_id') int? bankId,@OdooString(odooName: 'acc_number') String accNumber,@OdooDateTime(odooName: 'write_date', writable: false) DateTime? writeDate
+@OdooId() int id,@OdooMany2One('res.partner', odooName: 'partner_id') int partnerId,@OdooLocalOnly() int? bankId,@OdooString(odooName: 'acc_number') String accNumber,@OdooDateTime(odooName: 'write_date', writable: false) DateTime? writeDate
 });
 
 

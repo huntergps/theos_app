@@ -32,12 +32,17 @@ abstract class Uom with _$Uom {
 
     // ============ Basic Data ============
     @OdooString() required String name,
-    @OdooMany2One('uom.category', odooName: 'category_id') int? categoryId,
-    @OdooMany2OneName(sourceField: 'category_id') String? categoryName,
-    @OdooSelection(odooName: 'uom_type') @Default(UomType.reference) UomType uomType,
+    // Eliminated in Odoo 19.2 — category_id replaced by relative_uom_id (Many2one to self)
+    @OdooLocalOnly() int? categoryId,
+    // Eliminated in Odoo 19.2
+    @OdooLocalOnly() String? categoryName,
+    // Eliminated in Odoo 19.2 — uom_type field no longer exists
+    @OdooLocalOnly() @Default(UomType.reference) UomType uomType,
     @OdooFloat() @Default(1.0) double factor,
-    @OdooFloat(odooName: 'factor_inv') @Default(1.0) double factorInv,
-    @OdooFloat() @Default(0.01) double rounding,
+    // Eliminated in Odoo 19.2 — compute locally as 1/factor
+    @OdooLocalOnly() @Default(1.0) double factorInv,
+    // Eliminated in Odoo 19.2
+    @OdooLocalOnly() @Default(0.01) double rounding,
     @OdooBoolean() @Default(true) bool active,
 
     // ============ Metadata ============
@@ -89,6 +94,9 @@ abstract class Uom with _$Uom {
   }
 }
 
+/// TODO: UomCategory needs @OdooModel annotation when independent sync is implemented.
+/// Currently managed manually without generated manager. Table exists in Drift.
+///
 /// UoM Category model
 @freezed
 abstract class UomCategory with _$UomCategory {

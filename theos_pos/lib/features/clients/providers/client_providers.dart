@@ -15,14 +15,13 @@ part 'client_providers.g.dart';
 // ============ CORE SERVICE PROVIDERS ============
 
 @Riverpod(keepAlive: true)
-ClientCalculatorService? clientCalculator(Ref ref) {
+ClientCalculatorService clientCalculator(Ref ref) {
   return ClientCalculatorService();
 }
 
 @Riverpod(keepAlive: true)
-ClientValidationService? clientValidation(Ref ref) {
+ClientValidationService clientValidation(Ref ref) {
   final calculator = ref.watch(clientCalculatorProvider);
-  if (calculator == null) return null;
   return ClientValidationService(calculator);
 }
 
@@ -46,7 +45,7 @@ ClientCreditService? clientCreditService(Ref ref) {
   final validator = ref.watch(clientValidationProvider);
   final repository = ref.watch(clientRepositoryProvider);
 
-  if (calculator == null || validator == null || repository == null) {
+  if (repository == null) {
     return null;
   }
 

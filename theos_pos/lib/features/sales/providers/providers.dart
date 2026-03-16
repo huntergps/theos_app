@@ -123,6 +123,8 @@ Future<List<SaleOrder>> saleOrderSearch(Ref ref, String query) async {
 
 // ============ Sale Order Form Providers ============
 
+// TODO: These selectors compare List/Map with == which always triggers rebuild
+// Consider using a primitive selector (e.g., hashCode or length) for better performance
 @Riverpod(keepAlive: true)
 List<SaleOrderLine> saleOrderFormVisibleLines(Ref ref) {
   final notifier = ref.watch(saleOrderFormProvider.notifier);

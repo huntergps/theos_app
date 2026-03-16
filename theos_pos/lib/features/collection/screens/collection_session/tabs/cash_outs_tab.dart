@@ -2,6 +2,7 @@ import 'package:fluent_ui/fluent_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 
+import '../../../../../shared/utils/error_utils.dart';
 import '../../../../../shared/utils/formatting_utils.dart';
 import '../../../../../../core/database/providers.dart';
 import '../../../../../../core/services/config_service.dart';
@@ -67,8 +68,8 @@ class CashOutsTab extends ConsumerWidget {
       loading: () => const Center(child: ProgressRing()),
       error: (error, _) => Center(
         child: InfoBar(
-          title: const Text('Error'),
-          content: Text(error.toString()),
+          title: const Text('Error al cargar salidas de efectivo'),
+          content: Text(friendlyErrorMessage(error)),
           severity: InfoBarSeverity.error,
         ),
       ),

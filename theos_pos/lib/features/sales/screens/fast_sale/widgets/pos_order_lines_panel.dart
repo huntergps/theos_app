@@ -17,6 +17,7 @@ import '../../../ui/sale_order_ui_extensions.dart';
 import '../../../repositories/sales_repository.dart' show CreditIssue;
 import '../../../services/credit_validation_ui_service.dart'
     show UnifiedCreditResult;
+import '../../../../../shared/providers/user_provider.dart' show userProvider;
 import '../../../../../shared/utils/formatting_utils.dart';
 import '../../../../../shared/widgets/dialogs/copyable_info_bar.dart';
 import '../../../../products/widgets/product_info_dialog.dart';
@@ -129,12 +130,23 @@ class _POSOrderLinesPanelState extends ConsumerState<POSOrderLinesPanel> {
         creditResult.validationResult != null) {
       if (!context.mounted) return;
 
+      // Verificar si el usuario tiene permiso para omitir la validación de crédito.
+      // Solo usuarios con el grupo 'l10n_ec_sale_credit.group_credit_bypass'
+      // verán el botón "Continuar de todas formas".
+      final user = ref.read(userProvider);
+      final canBypassCredit =
+          user?.permissions.contains(
+            'l10n_ec_sale_credit.group_credit_bypass',
+          ) ??
+          false;
+
       final action = await CreditControlDialog.show(
         context: context,
         client: creditResult.client!,
         validationResult: creditResult.validationResult!,
         orderAmount: creditResult.orderAmount,
         isOnline: creditResult.isOnline,
+        canBypass: canBypassCredit,
       );
 
       if (action == null || action == CreditDialogAction.cancel) {
@@ -230,6 +242,16 @@ class _POSOrderLinesPanelState extends ConsumerState<POSOrderLinesPanel> {
           if (!context.mounted) return;
 
           if (client != null) {
+            // Verificar si el usuario actual tiene permiso para omitir la
+            // validación de crédito (grupo l10n_ec_sale_credit.group_credit_bypass).
+            // Solo usuarios con ese grupo pueden ver el botón "Continuar de todas formas".
+            final user = ref.read(userProvider);
+            final canBypassCredit =
+                user?.permissions.contains(
+                  'l10n_ec_sale_credit.group_credit_bypass',
+                ) ??
+                false;
+
             // Show credit control dialog
             final action = await CreditControlDialog.show(
               context: context,
@@ -238,7 +260,7 @@ class _POSOrderLinesPanelState extends ConsumerState<POSOrderLinesPanel> {
               orderAmount:
                   creditIssue.orderAmount ?? currentState.activeTab?.total ?? 0,
               isOnline: true, // We got this from Odoo, so we're online
-              canBypass: true, // Allow bypass from POS
+              canBypass: canBypassCredit,
             );
 
             // Clear the credit issue

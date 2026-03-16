@@ -11,30 +11,33 @@ part of 'resource_calendar.model.dart';
 
 // dart format off
 T _$identity<T>(T value) => value;
+
 /// @nodoc
 mixin _$ResourceCalendar {
 
-@OdooId() int get id;@OdooString() String get name;@OdooMany2One('res.company', odooName: 'company_id') int? get companyId;@OdooMany2OneName(sourceField: 'company_id') String? get companyName;@OdooDateTime(odooName: 'write_date', writable: false) DateTime? get writeDate;
+@OdooId() int get id;@OdooString() String get name;@OdooBoolean() bool get active;@OdooMany2One('res.company', odooName: 'company_id') int? get companyId;@OdooMany2OneName(sourceField: 'company_id') String? get companyName;@OdooDateTime(odooName: 'write_date', writable: false) DateTime? get writeDate;
 /// Create a copy of ResourceCalendar
 /// with the given fields replaced by the non-null parameter values.
 @JsonKey(includeFromJson: false, includeToJson: false)
 @pragma('vm:prefer-inline')
 $ResourceCalendarCopyWith<ResourceCalendar> get copyWith => _$ResourceCalendarCopyWithImpl<ResourceCalendar>(this as ResourceCalendar, _$identity);
 
+  /// Serializes this ResourceCalendar to a JSON map.
+  Map<String, dynamic> toJson();
 
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is ResourceCalendar&&(identical(other.id, id) || other.id == id)&&(identical(other.name, name) || other.name == name)&&(identical(other.companyId, companyId) || other.companyId == companyId)&&(identical(other.companyName, companyName) || other.companyName == companyName)&&(identical(other.writeDate, writeDate) || other.writeDate == writeDate));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is ResourceCalendar&&(identical(other.id, id) || other.id == id)&&(identical(other.name, name) || other.name == name)&&(identical(other.active, active) || other.active == active)&&(identical(other.companyId, companyId) || other.companyId == companyId)&&(identical(other.companyName, companyName) || other.companyName == companyName)&&(identical(other.writeDate, writeDate) || other.writeDate == writeDate));
 }
 
-
+@JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,id,name,companyId,companyName,writeDate);
+int get hashCode => Object.hash(runtimeType,id,name,active,companyId,companyName,writeDate);
 
 @override
 String toString() {
-  return 'ResourceCalendar(id: $id, name: $name, companyId: $companyId, companyName: $companyName, writeDate: $writeDate)';
+  return 'ResourceCalendar(id: $id, name: $name, active: $active, companyId: $companyId, companyName: $companyName, writeDate: $writeDate)';
 }
 
 
@@ -45,7 +48,7 @@ abstract mixin class $ResourceCalendarCopyWith<$Res>  {
   factory $ResourceCalendarCopyWith(ResourceCalendar value, $Res Function(ResourceCalendar) _then) = _$ResourceCalendarCopyWithImpl;
 @useResult
 $Res call({
-@OdooId() int id,@OdooString() String name,@OdooMany2One('res.company', odooName: 'company_id') int? companyId,@OdooMany2OneName(sourceField: 'company_id') String? companyName,@OdooDateTime(odooName: 'write_date', writable: false) DateTime? writeDate
+@OdooId() int id,@OdooString() String name,@OdooBoolean() bool active,@OdooMany2One('res.company', odooName: 'company_id') int? companyId,@OdooMany2OneName(sourceField: 'company_id') String? companyName,@OdooDateTime(odooName: 'write_date', writable: false) DateTime? writeDate
 });
 
 
@@ -62,11 +65,12 @@ class _$ResourceCalendarCopyWithImpl<$Res>
 
 /// Create a copy of ResourceCalendar
 /// with the given fields replaced by the non-null parameter values.
-@pragma('vm:prefer-inline') @override $Res call({Object? id = null,Object? name = null,Object? companyId = freezed,Object? companyName = freezed,Object? writeDate = freezed,}) {
+@pragma('vm:prefer-inline') @override $Res call({Object? id = null,Object? name = null,Object? active = null,Object? companyId = freezed,Object? companyName = freezed,Object? writeDate = freezed,}) {
   return _then(_self.copyWith(
 id: null == id ? _self.id : id // ignore: cast_nullable_to_non_nullable
 as int,name: null == name ? _self.name : name // ignore: cast_nullable_to_non_nullable
-as String,companyId: freezed == companyId ? _self.companyId : companyId // ignore: cast_nullable_to_non_nullable
+as String,active: null == active ? _self.active : active // ignore: cast_nullable_to_non_nullable
+as bool,companyId: freezed == companyId ? _self.companyId : companyId // ignore: cast_nullable_to_non_nullable
 as int?,companyName: freezed == companyName ? _self.companyName : companyName // ignore: cast_nullable_to_non_nullable
 as String?,writeDate: freezed == writeDate ? _self.writeDate : writeDate // ignore: cast_nullable_to_non_nullable
 as DateTime?,
@@ -154,10 +158,10 @@ return $default(_that);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function(@OdooId()  int id, @OdooString()  String name, @OdooMany2One('res.company', odooName: 'company_id')  int? companyId, @OdooMany2OneName(sourceField: 'company_id')  String? companyName, @OdooDateTime(odooName: 'write_date', writable: false)  DateTime? writeDate)?  $default,{required TResult orElse(),}) {final _that = this;
+@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function(@OdooId()  int id, @OdooString()  String name, @OdooBoolean()  bool active, @OdooMany2One('res.company', odooName: 'company_id')  int? companyId, @OdooMany2OneName(sourceField: 'company_id')  String? companyName, @OdooDateTime(odooName: 'write_date', writable: false)  DateTime? writeDate)?  $default,{required TResult orElse(),}) {final _that = this;
 switch (_that) {
 case _ResourceCalendar() when $default != null:
-return $default(_that.id,_that.name,_that.companyId,_that.companyName,_that.writeDate);case _:
+return $default(_that.id,_that.name,_that.active,_that.companyId,_that.companyName,_that.writeDate);case _:
   return orElse();
 
 }
@@ -175,10 +179,10 @@ return $default(_that.id,_that.name,_that.companyId,_that.companyName,_that.writ
 /// }
 /// ```
 
-@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function(@OdooId()  int id, @OdooString()  String name, @OdooMany2One('res.company', odooName: 'company_id')  int? companyId, @OdooMany2OneName(sourceField: 'company_id')  String? companyName, @OdooDateTime(odooName: 'write_date', writable: false)  DateTime? writeDate)  $default,) {final _that = this;
+@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function(@OdooId()  int id, @OdooString()  String name, @OdooBoolean()  bool active, @OdooMany2One('res.company', odooName: 'company_id')  int? companyId, @OdooMany2OneName(sourceField: 'company_id')  String? companyName, @OdooDateTime(odooName: 'write_date', writable: false)  DateTime? writeDate)  $default,) {final _that = this;
 switch (_that) {
 case _ResourceCalendar():
-return $default(_that.id,_that.name,_that.companyId,_that.companyName,_that.writeDate);case _:
+return $default(_that.id,_that.name,_that.active,_that.companyId,_that.companyName,_that.writeDate);case _:
   throw StateError('Unexpected subclass');
 
 }
@@ -195,10 +199,10 @@ return $default(_that.id,_that.name,_that.companyId,_that.companyName,_that.writ
 /// }
 /// ```
 
-@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function(@OdooId()  int id, @OdooString()  String name, @OdooMany2One('res.company', odooName: 'company_id')  int? companyId, @OdooMany2OneName(sourceField: 'company_id')  String? companyName, @OdooDateTime(odooName: 'write_date', writable: false)  DateTime? writeDate)?  $default,) {final _that = this;
+@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function(@OdooId()  int id, @OdooString()  String name, @OdooBoolean()  bool active, @OdooMany2One('res.company', odooName: 'company_id')  int? companyId, @OdooMany2OneName(sourceField: 'company_id')  String? companyName, @OdooDateTime(odooName: 'write_date', writable: false)  DateTime? writeDate)?  $default,) {final _that = this;
 switch (_that) {
 case _ResourceCalendar() when $default != null:
-return $default(_that.id,_that.name,_that.companyId,_that.companyName,_that.writeDate);case _:
+return $default(_that.id,_that.name,_that.active,_that.companyId,_that.companyName,_that.writeDate);case _:
   return null;
 
 }
@@ -207,14 +211,15 @@ return $default(_that.id,_that.name,_that.companyId,_that.companyName,_that.writ
 }
 
 /// @nodoc
-
+@JsonSerializable()
 
 class _ResourceCalendar extends ResourceCalendar {
-  const _ResourceCalendar({@OdooId() required this.id, @OdooString() required this.name, @OdooMany2One('res.company', odooName: 'company_id') this.companyId, @OdooMany2OneName(sourceField: 'company_id') this.companyName, @OdooDateTime(odooName: 'write_date', writable: false) this.writeDate}): super._();
-  
+  const _ResourceCalendar({@OdooId() required this.id, @OdooString() required this.name, @OdooBoolean() this.active = true, @OdooMany2One('res.company', odooName: 'company_id') this.companyId, @OdooMany2OneName(sourceField: 'company_id') this.companyName, @OdooDateTime(odooName: 'write_date', writable: false) this.writeDate}): super._();
+  factory _ResourceCalendar.fromJson(Map<String, dynamic> json) => _$ResourceCalendarFromJson(json);
 
 @override@OdooId() final  int id;
 @override@OdooString() final  String name;
+@override@JsonKey()@OdooBoolean() final  bool active;
 @override@OdooMany2One('res.company', odooName: 'company_id') final  int? companyId;
 @override@OdooMany2OneName(sourceField: 'company_id') final  String? companyName;
 @override@OdooDateTime(odooName: 'write_date', writable: false) final  DateTime? writeDate;
@@ -225,20 +230,23 @@ class _ResourceCalendar extends ResourceCalendar {
 @pragma('vm:prefer-inline')
 _$ResourceCalendarCopyWith<_ResourceCalendar> get copyWith => __$ResourceCalendarCopyWithImpl<_ResourceCalendar>(this, _$identity);
 
-
+@override
+Map<String, dynamic> toJson() {
+  return _$ResourceCalendarToJson(this, );
+}
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _ResourceCalendar&&(identical(other.id, id) || other.id == id)&&(identical(other.name, name) || other.name == name)&&(identical(other.companyId, companyId) || other.companyId == companyId)&&(identical(other.companyName, companyName) || other.companyName == companyName)&&(identical(other.writeDate, writeDate) || other.writeDate == writeDate));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is _ResourceCalendar&&(identical(other.id, id) || other.id == id)&&(identical(other.name, name) || other.name == name)&&(identical(other.active, active) || other.active == active)&&(identical(other.companyId, companyId) || other.companyId == companyId)&&(identical(other.companyName, companyName) || other.companyName == companyName)&&(identical(other.writeDate, writeDate) || other.writeDate == writeDate));
 }
 
-
+@JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,id,name,companyId,companyName,writeDate);
+int get hashCode => Object.hash(runtimeType,id,name,active,companyId,companyName,writeDate);
 
 @override
 String toString() {
-  return 'ResourceCalendar(id: $id, name: $name, companyId: $companyId, companyName: $companyName, writeDate: $writeDate)';
+  return 'ResourceCalendar(id: $id, name: $name, active: $active, companyId: $companyId, companyName: $companyName, writeDate: $writeDate)';
 }
 
 
@@ -249,7 +257,7 @@ abstract mixin class _$ResourceCalendarCopyWith<$Res> implements $ResourceCalend
   factory _$ResourceCalendarCopyWith(_ResourceCalendar value, $Res Function(_ResourceCalendar) _then) = __$ResourceCalendarCopyWithImpl;
 @override @useResult
 $Res call({
-@OdooId() int id,@OdooString() String name,@OdooMany2One('res.company', odooName: 'company_id') int? companyId,@OdooMany2OneName(sourceField: 'company_id') String? companyName,@OdooDateTime(odooName: 'write_date', writable: false) DateTime? writeDate
+@OdooId() int id,@OdooString() String name,@OdooBoolean() bool active,@OdooMany2One('res.company', odooName: 'company_id') int? companyId,@OdooMany2OneName(sourceField: 'company_id') String? companyName,@OdooDateTime(odooName: 'write_date', writable: false) DateTime? writeDate
 });
 
 
@@ -266,11 +274,12 @@ class __$ResourceCalendarCopyWithImpl<$Res>
 
 /// Create a copy of ResourceCalendar
 /// with the given fields replaced by the non-null parameter values.
-@override @pragma('vm:prefer-inline') $Res call({Object? id = null,Object? name = null,Object? companyId = freezed,Object? companyName = freezed,Object? writeDate = freezed,}) {
+@override @pragma('vm:prefer-inline') $Res call({Object? id = null,Object? name = null,Object? active = null,Object? companyId = freezed,Object? companyName = freezed,Object? writeDate = freezed,}) {
   return _then(_ResourceCalendar(
 id: null == id ? _self.id : id // ignore: cast_nullable_to_non_nullable
 as int,name: null == name ? _self.name : name // ignore: cast_nullable_to_non_nullable
-as String,companyId: freezed == companyId ? _self.companyId : companyId // ignore: cast_nullable_to_non_nullable
+as String,active: null == active ? _self.active : active // ignore: cast_nullable_to_non_nullable
+as bool,companyId: freezed == companyId ? _self.companyId : companyId // ignore: cast_nullable_to_non_nullable
 as int?,companyName: freezed == companyName ? _self.companyName : companyName // ignore: cast_nullable_to_non_nullable
 as String?,writeDate: freezed == writeDate ? _self.writeDate : writeDate // ignore: cast_nullable_to_non_nullable
 as DateTime?,

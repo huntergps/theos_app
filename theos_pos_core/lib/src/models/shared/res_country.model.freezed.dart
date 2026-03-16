@@ -11,6 +11,7 @@ part of 'res_country.model.dart';
 
 // dart format off
 T _$identity<T>(T value) => value;
+
 /// @nodoc
 mixin _$ResCountry {
 
@@ -21,6 +22,8 @@ mixin _$ResCountry {
 @pragma('vm:prefer-inline')
 $ResCountryCopyWith<ResCountry> get copyWith => _$ResCountryCopyWithImpl<ResCountry>(this as ResCountry, _$identity);
 
+  /// Serializes this ResCountry to a JSON map.
+  Map<String, dynamic> toJson();
 
 
 @override
@@ -28,7 +31,7 @@ bool operator ==(Object other) {
   return identical(this, other) || (other.runtimeType == runtimeType&&other is ResCountry&&(identical(other.id, id) || other.id == id)&&(identical(other.name, name) || other.name == name)&&(identical(other.code, code) || other.code == code)&&(identical(other.writeDate, writeDate) || other.writeDate == writeDate));
 }
 
-
+@JsonKey(includeFromJson: false, includeToJson: false)
 @override
 int get hashCode => Object.hash(runtimeType,id,name,code,writeDate);
 
@@ -206,11 +209,11 @@ return $default(_that.id,_that.name,_that.code,_that.writeDate);case _:
 }
 
 /// @nodoc
-
+@JsonSerializable()
 
 class _ResCountry extends ResCountry {
   const _ResCountry({@OdooId() required this.id, @OdooString() required this.name, @OdooString() this.code, @OdooDateTime(odooName: 'write_date', writable: false) this.writeDate}): super._();
-  
+  factory _ResCountry.fromJson(Map<String, dynamic> json) => _$ResCountryFromJson(json);
 
 @override@OdooId() final  int id;
 @override@OdooString() final  String name;
@@ -223,14 +226,17 @@ class _ResCountry extends ResCountry {
 @pragma('vm:prefer-inline')
 _$ResCountryCopyWith<_ResCountry> get copyWith => __$ResCountryCopyWithImpl<_ResCountry>(this, _$identity);
 
-
+@override
+Map<String, dynamic> toJson() {
+  return _$ResCountryToJson(this, );
+}
 
 @override
 bool operator ==(Object other) {
   return identical(this, other) || (other.runtimeType == runtimeType&&other is _ResCountry&&(identical(other.id, id) || other.id == id)&&(identical(other.name, name) || other.name == name)&&(identical(other.code, code) || other.code == code)&&(identical(other.writeDate, writeDate) || other.writeDate == writeDate));
 }
 
-
+@JsonKey(includeFromJson: false, includeToJson: false)
 @override
 int get hashCode => Object.hash(runtimeType,id,name,code,writeDate);
 

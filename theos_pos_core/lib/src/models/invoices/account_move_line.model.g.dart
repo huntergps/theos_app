@@ -101,6 +101,7 @@ class AccountMoveLineManager extends OdooModelManager<AccountMoveLine>
     'id',
     'move_id',
     'name',
+    'display_type',
     'sequence',
     'product_id',
     'quantity',
@@ -121,7 +122,10 @@ class AccountMoveLineManager extends OdooModelManager<AccountMoveLine>
       id: data['id'] as int? ?? 0,
       moveId: extractMany2oneId(data['move_id']) ?? 0,
       name: parseOdooStringRequired(data['name']),
-      displayType: InvoiceLineDisplayType.values.first,
+      displayType: InvoiceLineDisplayType.values.firstWhere(
+        (e) => e.name == parseOdooSelection(data['display_type']),
+        orElse: () => InvoiceLineDisplayType.values.first,
+      ),
       sequence: parseOdooInt(data['sequence']) ?? 0,
       productId: extractMany2oneId(data['product_id']),
       productName: extractMany2oneName(data['product_id']),
@@ -146,6 +150,7 @@ class AccountMoveLineManager extends OdooModelManager<AccountMoveLine>
     return {
       'move_id': record.moveId,
       'name': record.name,
+      'display_type': record.displayType.name,
       'sequence': record.sequence,
       'product_id': record.productId,
       'quantity': record.quantity,
@@ -167,12 +172,10 @@ class AccountMoveLineManager extends OdooModelManager<AccountMoveLine>
       id: row.odooId as int,
       moveId: row.moveId as int,
       name: row.name as String,
-      displayType: (row.displayType as String?) != null
-          ? InvoiceLineDisplayType.values.firstWhere(
-              (e) => e.name == (row.displayType as String?),
-              orElse: () => InvoiceLineDisplayType.values.first,
-            )
-          : InvoiceLineDisplayType.values.first,
+      displayType: InvoiceLineDisplayType.values.firstWhere(
+        (e) => e.name == (row.displayType as String?),
+        orElse: () => InvoiceLineDisplayType.values.first,
+      ),
       sequence: row.sequence as int,
       productId: row.productId as int?,
       productName: row.productName as String?,
@@ -224,6 +227,7 @@ class AccountMoveLineManager extends OdooModelManager<AccountMoveLine>
     'id': 'id',
     'move_id': 'moveId',
     'name': 'name',
+    'display_type': 'displayType',
     'sequence': 'sequence',
     'product_id': 'productId',
     'quantity': 'quantity',
@@ -277,6 +281,7 @@ class AccountMoveLineManager extends OdooModelManager<AccountMoveLine>
       'odoo_id': Variable<int>(record.id),
       'move_id': Variable<int>(record.moveId),
       'name': Variable<String>(record.name),
+      'display_type': Variable<String>(record.displayType.name),
       'sequence': Variable<int>(record.sequence),
       'product_id': driftVar<int>(record.productId),
       'product_id_name': driftVar<String>(record.productName),
@@ -293,7 +298,6 @@ class AccountMoveLineManager extends OdooModelManager<AccountMoveLine>
       'account_id_name': driftVar<String>(record.accountName),
       'collapse_composition': Variable<bool>(record.collapseComposition),
       'collapse_prices': Variable<bool>(record.collapsePrices),
-      'display_type': Variable<String>(record.displayType.name),
       'product_code': driftVar<String>(record.productCode),
       'product_barcode': driftVar<String>(record.productBarcode),
       'product_l10n_ec_auxiliary_code': driftVar<String>(
@@ -309,6 +313,7 @@ class AccountMoveLineManager extends OdooModelManager<AccountMoveLine>
   static const List<String> writableFields = [
     'moveId',
     'name',
+    'displayType',
     'sequence',
     'productId',
     'quantity',
@@ -456,7 +461,6 @@ class AccountMoveLineManager extends OdooModelManager<AccountMoveLine>
     var updated = fromOdoo(current);
     // Preserve local-only fields from original record
     updated = updated.copyWith(
-      displayType: record.displayType,
       productCode: record.productCode,
       productBarcode: record.productBarcode,
       productL10nEcAuxiliaryCode: record.productL10nEcAuxiliaryCode,
@@ -572,6 +576,7 @@ class AccountMoveLineManager extends OdooModelManager<AccountMoveLine>
   List<String> get writableFieldNames => const [
     'moveId',
     'name',
+    'displayType',
     'sequence',
     'productId',
     'quantity',

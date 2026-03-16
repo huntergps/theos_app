@@ -1,5 +1,4 @@
 import 'package:theos_pos_core/theos_pos_core.dart';
-import '../../../core/database/datasources/datasources.dart';
 import '../repositories/sales_repository.dart';
 import 'order_validation_types.dart';
 import 'credit_validation_ui_service.dart';

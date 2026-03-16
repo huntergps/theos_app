@@ -2,7 +2,6 @@ import 'dart:convert';
 import 'package:drift/drift.dart' as drift;
 import 'package:drift_flutter/drift_flutter.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
-import 'package:path_provider/path_provider.dart';
 
 import 'database_helper_file_ops.dart'
     if (dart.library.js_interop) 'database_helper_file_ops_stub.dart'

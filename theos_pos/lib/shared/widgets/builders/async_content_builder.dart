@@ -1,6 +1,8 @@
 import 'package:fluent_ui/fluent_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../utils/error_utils.dart';
+
 /// Widget generico para manejar estados de carga/error/exito de AsyncValue.
 ///
 /// Proporciona una experiencia de usuario consistente para estados asincronos:
@@ -102,7 +104,7 @@ class AsyncContentBuilder<T> extends StatelessWidget {
     }
 
     final theme = FluentTheme.of(context);
-    final errorMessage = error.toString();
+    final errorMessage = friendlyErrorMessage(error);
 
     return Center(
       child: ConstrainedBox(

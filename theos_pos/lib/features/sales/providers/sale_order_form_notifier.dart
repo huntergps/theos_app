@@ -2679,10 +2679,6 @@ class SaleOrderFormNotifier extends _$SaleOrderFormNotifier
 
     // 6. Usar ClientValidationService para validar
     final validationService = ref.read(clientValidationProvider);
-    if (validationService == null) {
-      logger.w('[SaleOrderForm]', 'ClientValidationService not available');
-      return null;
-    }
 
     final result = await validationService.validateCreditForOrder(
       client: client,

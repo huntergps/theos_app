@@ -25,7 +25,8 @@ mixin _$Product {
 @OdooString() String? get description;@OdooString(odooName: 'description_sale') String? get descriptionSale;// ============ Template Reference ============
 @OdooMany2One('product.template', odooName: 'product_tmpl_id') int? get productTmplId;// ============ Image ============
 @OdooBinary(odooName: 'image_128') String? get image128;// ============ Inventory ============
-@OdooFloat(odooName: 'qty_available', writable: false) double get qtyAvailable;@OdooFloat(odooName: 'virtual_available', writable: false) double get virtualAvailable;@OdooSelection() TrackingType get tracking;@OdooBoolean(odooName: 'is_storable') bool get isStorable;// ============ Ecuador Localization ============
+@OdooFloat(odooName: 'qty_available', writable: false) double get qtyAvailable;@OdooFloat(odooName: 'virtual_available', writable: false) double get virtualAvailable;@OdooSelection() TrackingType get tracking;// Puede no existir en 19.2 como campo API-accesible
+@OdooBoolean(odooName: 'is_storable') bool get isStorable;// ============ Ecuador Localization ============
 @OdooString(odooName: 'l10n_ec_auxiliary_code') String? get l10nEcAuxiliaryCode;@OdooBoolean(odooName: 'is_unit_product') bool get isUnitProduct;@OdooBoolean(odooName: 'temporal_no_despachar') bool get temporalNoDespachar;// ============ Metadata ============
 @OdooDateTime(odooName: 'write_date', writable: false) DateTime? get writeDate;
 /// Create a copy of Product
@@ -299,6 +300,7 @@ class _Product extends Product {
 @override@JsonKey()@OdooFloat(odooName: 'qty_available', writable: false) final  double qtyAvailable;
 @override@JsonKey()@OdooFloat(odooName: 'virtual_available', writable: false) final  double virtualAvailable;
 @override@JsonKey()@OdooSelection() final  TrackingType tracking;
+// Puede no existir en 19.2 como campo API-accesible
 @override@JsonKey()@OdooBoolean(odooName: 'is_storable') final  bool isStorable;
 // ============ Ecuador Localization ============
 @override@OdooString(odooName: 'l10n_ec_auxiliary_code') final  String? l10nEcAuxiliaryCode;

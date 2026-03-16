@@ -54,6 +54,7 @@ enum WithholdType {
 }
 
 /// Modelo de linea de retencion para ordenes de venta
+// Modelo custom l10n_ec_withholding — requiere módulo instalado
 @OdooModel('account.withhold.line', tableName: 'sale_order_withhold_line')
 @freezed
 abstract class WithholdLine with _$WithholdLine {
@@ -61,8 +62,8 @@ abstract class WithholdLine with _$WithholdLine {
 
   const factory WithholdLine({
     @OdooId() @Default(0) int id,
-    @OdooLocalOnly() required String lineUuid,
-    @OdooInteger(odooName: 'tax_id') required int taxId,
+    @OdooLocalOnly() @Default('') String lineUuid,
+    @OdooMany2One('account.tax', odooName: 'tax_id') required int taxId,
     @OdooString(odooName: 'tax_name') required String taxName,
     @OdooFloat(odooName: 'tax_percent') required double taxPercent,
     @OdooSelection() required WithholdType withholdType,

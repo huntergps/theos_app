@@ -384,9 +384,10 @@ class _SearchInputFieldState extends ConsumerState<_SearchInputField> {
       // Show success feedback
       _showSuccessFeedback(result['name'] as String? ?? 'Producto');
 
-      // Clear the search field after adding product
+      // Clear the search field after adding product and restore focus
       _controller.clear();
       ref.read(fastSaleProvider.notifier).clearKeypad();
+      _requestFocus();
     }
   }
 
@@ -404,12 +405,14 @@ class _SearchInputFieldState extends ConsumerState<_SearchInputField> {
         // Product found and added - show success feedback
         _showSuccessFeedback('Producto agregado');
         _clearField();
+        _requestFocus();
         break;
 
       case ProductSearchAddResult.incrementedQuantity:
         // Quantity incremented on existing line - show feedback
         _showSuccessFeedback('Cantidad incrementada');
         _clearField();
+        _requestFocus();
         break;
 
       case ProductSearchAddResult.notFound:
@@ -463,6 +466,7 @@ class _SearchInputFieldState extends ConsumerState<_SearchInputField> {
 
             _showSuccessFeedback(selected['name'] as String? ?? 'Producto');
             _clearField();
+            _requestFocus();
           }
         }
         break;

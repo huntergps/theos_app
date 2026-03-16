@@ -22,11 +22,7 @@ class UomManager extends OdooModelManager<Uom>
   List<String> get odooFields => [
     'id',
     'name',
-    'category_id',
-    'uom_type',
     'factor',
-    'factor_inv',
-    'rounding',
     'active',
     'write_date',
   ];
@@ -36,15 +32,10 @@ class UomManager extends OdooModelManager<Uom>
     return Uom(
       id: data['id'] as int? ?? 0,
       name: parseOdooStringRequired(data['name']),
-      categoryId: extractMany2oneId(data['category_id']),
-      categoryName: extractMany2oneName(data['category_id']),
-      uomType: UomType.values.firstWhere(
-        (e) => e.name == parseOdooSelection(data['uom_type']),
-        orElse: () => UomType.values.first,
-      ),
+      uomType: UomType.values.first,
       factor: parseOdooDouble(data['factor']) ?? 0.0,
-      factorInv: parseOdooDouble(data['factor_inv']) ?? 0.0,
-      rounding: parseOdooDouble(data['rounding']) ?? 0.0,
+      factorInv: 0.0,
+      rounding: 0.0,
       active: parseOdooBool(data['active']),
       writeDate: parseOdooDateTime(data['write_date']),
     );
@@ -54,11 +45,7 @@ class UomManager extends OdooModelManager<Uom>
   Map<String, dynamic> toOdoo(Uom record) {
     return {
       'name': record.name,
-      'category_id': record.categoryId,
-      'uom_type': record.uomType.name,
       'factor': record.factor,
-      'factor_inv': record.factorInv,
-      'rounding': record.rounding,
       'active': record.active,
     };
   }
@@ -70,13 +57,15 @@ class UomManager extends OdooModelManager<Uom>
       name: row.name as String,
       categoryId: row.categoryId as int?,
       categoryName: row.categoryName as String?,
-      uomType: UomType.values.firstWhere(
-        (e) => e.name == (row.uomType as String?),
-        orElse: () => UomType.values.first,
-      ),
+      uomType: (row.uomType as String?) != null
+          ? UomType.values.firstWhere(
+              (e) => e.name == (row.uomType as String?),
+              orElse: () => UomType.values.first,
+            )
+          : UomType.values.first,
       factor: row.factor as double,
-      factorInv: row.factorInv as double,
-      rounding: row.rounding as double,
+      factorInv: row.factorInv as double? ?? 0.0,
+      rounding: row.rounding as double? ?? 0.0,
       active: row.active as bool,
       writeDate: row.writeDate as DateTime?,
     );
@@ -107,11 +96,7 @@ class UomManager extends OdooModelManager<Uom>
   static const Map<String, String> fieldMappings = {
     'id': 'id',
     'name': 'name',
-    'category_id': 'categoryId',
-    'uom_type': 'uomType',
     'factor': 'factor',
-    'factor_inv': 'factorInv',
-    'rounding': 'rounding',
     'active': 'active',
     'write_date': 'writeDate',
   };
@@ -154,27 +139,19 @@ class UomManager extends OdooModelManager<Uom>
     return RawValuesInsertable({
       'odoo_id': Variable<int>(record.id),
       'name': Variable<String>(record.name),
-      'category_id': driftVar<int>(record.categoryId),
-      'category_id_name': driftVar<String>(record.categoryName),
-      'uom_type': Variable<String>(record.uomType.name),
       'factor': Variable<double>(record.factor),
-      'factor_inv': Variable<double>(record.factorInv),
-      'rounding': Variable<double>(record.rounding),
       'active': Variable<bool>(record.active),
       'write_date': driftVar<DateTime>(record.writeDate),
+      'category_id': driftVar<int>(record.categoryId),
+      'category_name': driftVar<String>(record.categoryName),
+      'uom_type': Variable<String>(record.uomType.name),
+      'factor_inv': Variable<double>(record.factorInv),
+      'rounding': Variable<double>(record.rounding),
     });
   }
 
   /// List of writable fields for partial updates.
-  static const List<String> writableFields = [
-    'name',
-    'categoryId',
-    'uomType',
-    'factor',
-    'factorInv',
-    'rounding',
-    'active',
-  ];
+  static const List<String> writableFields = ['name', 'factor', 'active'];
 
   /// List of required fields for validation.
   static const List<String> requiredFields = ['id'];
@@ -256,6 +233,14 @@ class UomManager extends OdooModelManager<Uom>
     current.addAll(changes);
     current['id'] = getId(record);
     var updated = fromOdoo(current);
+    // Preserve local-only fields from original record
+    updated = updated.copyWith(
+      categoryId: record.categoryId,
+      categoryName: record.categoryName,
+      uomType: record.uomType,
+      factorInv: record.factorInv,
+      rounding: record.rounding,
+    );
     return updated;
   }
 
@@ -311,15 +296,7 @@ class UomManager extends OdooModelManager<Uom>
   ];
 
   @override
-  List<String> get writableFieldNames => const [
-    'name',
-    'categoryId',
-    'uomType',
-    'factor',
-    'factorInv',
-    'rounding',
-    'active',
-  ];
+  List<String> get writableFieldNames => const ['name', 'factor', 'active'];
 }
 
 /// Global instance of UomManager.
