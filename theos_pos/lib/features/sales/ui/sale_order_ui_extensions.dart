@@ -1,6 +1,7 @@
 import 'package:fluent_ui/fluent_ui.dart';
 import 'package:theos_pos_core/theos_pos_core.dart'
     show SaleOrderState, InvoiceStatus;
+import '../../../core/constants/app_colors.dart';
 
 /// UI extensions for SaleOrderState (colors, icons)
 /// These are presentation-layer concerns and should not be in the domain layer.
@@ -10,19 +11,19 @@ extension SaleOrderStateUI on SaleOrderState {
       case SaleOrderState.draft:
         return Colors.grey;
       case SaleOrderState.sent:
-        return Colors.blue;
+        return Colors.blue; // TODO: agregar AppColors.info cuando esté disponible
       case SaleOrderState.waitingApproval:
-        return Colors.orange;
+        return AppColors.warning;
       case SaleOrderState.approved:
-        return Colors.blue;
+        return Colors.blue; // TODO: agregar AppColors.info cuando esté disponible
       case SaleOrderState.rejected:
-        return Colors.red;
+        return AppColors.danger;
       case SaleOrderState.sale:
-        return Colors.green;
+        return AppColors.success;
       case SaleOrderState.done:
-        return Colors.teal;
+        return Colors.teal; // TODO: agregar AppColors.done cuando esté disponible
       case SaleOrderState.cancel:
-        return Colors.red;
+        return AppColors.danger;
     }
   }
 
@@ -32,19 +33,19 @@ extension SaleOrderStateUI on SaleOrderState {
       case SaleOrderState.draft:
         return Colors.grey[40];
       case SaleOrderState.sent:
-        return Colors.blue.lightest;
+        return Colors.blue.lightest; // TODO: agregar AppColors.info cuando esté disponible
       case SaleOrderState.waitingApproval:
-        return Colors.orange.lightest;
+        return AppColors.warning.withAlpha(25);
       case SaleOrderState.approved:
-        return Colors.teal.lightest;
+        return Colors.teal.lightest; // TODO: agregar AppColors.info cuando esté disponible
       case SaleOrderState.rejected:
-        return Colors.red.lightest;
+        return AppColors.danger.withAlpha(25);
       case SaleOrderState.sale:
-        return Colors.green.lightest;
+        return AppColors.success.withAlpha(25);
       case SaleOrderState.done:
-        return Colors.purple.lightest;
+        return Colors.purple.lightest; // TODO: agregar AppColors.done cuando esté disponible
       case SaleOrderState.cancel:
-        return Colors.red.lightest;
+        return AppColors.danger.withAlpha(25);
     }
   }
 
@@ -54,19 +55,19 @@ extension SaleOrderStateUI on SaleOrderState {
       case SaleOrderState.draft:
         return Colors.grey[160];
       case SaleOrderState.sent:
-        return Colors.blue.dark;
+        return Colors.blue.dark; // TODO: agregar AppColors.info cuando esté disponible
       case SaleOrderState.waitingApproval:
-        return Colors.orange.dark;
+        return AppColors.warning;
       case SaleOrderState.approved:
-        return Colors.teal.dark;
+        return Colors.teal.dark; // TODO: agregar AppColors.info cuando esté disponible
       case SaleOrderState.rejected:
-        return Colors.red.dark;
+        return AppColors.danger;
       case SaleOrderState.sale:
-        return Colors.green.dark;
+        return AppColors.success;
       case SaleOrderState.done:
-        return Colors.purple.dark;
+        return Colors.purple.dark; // TODO: agregar AppColors.done cuando esté disponible
       case SaleOrderState.cancel:
-        return Colors.red.dark;
+        return AppColors.danger;
     }
   }
 
@@ -99,11 +100,11 @@ extension InvoiceStatusUI on InvoiceStatus {
       case InvoiceStatus.no:
         return Colors.transparent;
       case InvoiceStatus.toInvoice:
-        return Colors.orange;
+        return AppColors.warning;
       case InvoiceStatus.invoiced:
-        return Colors.green;
+        return AppColors.success;
       case InvoiceStatus.upselling:
-        return Colors.purple;
+        return Colors.purple; // TODO: agregar AppColors.upselling cuando esté disponible
     }
   }
 

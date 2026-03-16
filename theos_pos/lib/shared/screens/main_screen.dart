@@ -35,6 +35,7 @@ import '../widgets/user_preferences_dialog.dart';
 import '../providers/menu_provider.dart';
 import '../../features/sync/widgets/sync_status_badge.dart';
 import '../../core/managers/managers.dart';
+import '../../features/dashboard/widgets/supervisor_dashboard.dart';
 import 'package:theos_pos_core/theos_pos_core.dart';
 
 class MainScreen extends ConsumerStatefulWidget {
@@ -631,20 +632,44 @@ class UserProfileBar extends ConsumerWidget {
 class HomeScreen extends ConsumerWidget {
   const HomeScreen({super.key});
 
+  /// Returns true when the user has supervisor-level permissions:
+  /// collection_manager, sale_manager, account_manager, or system admin.
+  bool _isSupervisor(List<String> permissions) {
+    const supervisorGroups = [
+      'l10n_ec_collection_box.group_collection_manager',
+      'sales_team.group_sale_manager',
+      'account.group_account_manager',
+      'base.group_system',
+    ];
+    return supervisorGroups.any((g) => permissions.contains(g));
+  }
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final theme = FluentTheme.of(context);
     final user = ref.watch(userProvider);
     final spacing = ref.watch(themedSpacingProvider);
 
+    final permissions = user?.permissions ?? [];
+    final isSupervisor = _isSupervisor(permissions);
+
+    if (isSupervisor) {
+      return ScaffoldPage.scrollable(
+        header: PageHeader(
+          title: Text('Hola, ${user?.name ?? 'Usuario'}'),
+        ),
+        children: [
+          const SupervisorDashboard(),
+        ],
+      );
+    }
+
+    // Vista de cajero basico: boton unico para empezar a vender
     return ScaffoldPage.scrollable(
       header: PageHeader(
-        title: Text(
-          'Hola, ${user?.name ?? 'Usuario'}',
-        ),
+        title: Text('Hola, ${user?.name ?? 'Usuario'}'),
       ),
       children: [
-        // Quick action: Start selling
         Center(
           child: ConstrainedBox(
             constraints: const BoxConstraints(maxWidth: 600),
@@ -663,7 +688,7 @@ class HomeScreen extends ConsumerWidget {
                 ),
                 spacing.vertical.sm,
                 Text(
-                  'Selecciona una opción del menú o empieza una venta rápida',
+                  'Selecciona una opcion del menu o empieza una venta rapida',
                   style: theme.typography.body?.copyWith(
                     color: theme.inactiveColor,
                   ),

@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:path_provider/path_provider.dart';
 
 import '../../../core/constants/app_constants.dart';
+import '../../../core/constants/app_colors.dart';
 import '../../../core/database/database_helper.dart';
 import '../../../core/database/database_helper_file_ops.dart'
     if (dart.library.js_interop) '../../../core/database/database_helper_file_ops_stub.dart'
@@ -274,7 +275,7 @@ class _SyncScreenState extends ConsumerState<SyncScreen> {
             onPressed: () => Navigator.pop(context, false),
           ),
           FilledButton(
-            style: ButtonStyle(backgroundColor: WidgetStatePropertyAll(Colors.red)),
+            style: ButtonStyle(backgroundColor: WidgetStatePropertyAll(AppColors.danger)),
             child: const Text('Eliminar Todo'),
             onPressed: () => Navigator.pop(context, true),
           ),
@@ -404,8 +405,12 @@ class _SyncScreenState extends ConsumerState<SyncScreen> {
           getItemDescription: _getItemDescription,
         ),
 
+        // Checklist "Listo para salir a campo"
+        const SizedBox(height: 16),
+        const SyncReadinessChecklist(),
+
         // Offline Mode Toggle Section (FASE 4)
-        const SizedBox(height: 24),
+        const SizedBox(height: 16),
         Card(
           padding: const EdgeInsets.all(16),
           child: const OfflineModeSection(),
@@ -713,7 +718,7 @@ class _DatabasePathDisplay extends StatelessWidget {
               message: 'Eliminar Base de Datos (Reset)',
               child: IconButton(
                 style: ButtonStyle(
-                  foregroundColor: WidgetStatePropertyAll(Colors.red),
+                  foregroundColor: WidgetStatePropertyAll(AppColors.danger),
                 ),
                 icon: const Icon(FluentIcons.delete, size: 14),
                 onPressed: onDelete,

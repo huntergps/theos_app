@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../shared/providers/offline_queue_provider.dart';
 import '../providers/sync_provider.dart';
+import '../../../core/constants/app_colors.dart';
 
 /// Badge animado que muestra el estado de sincronización y operaciones offline
 ///
@@ -133,11 +134,11 @@ class SyncStatusBadge extends ConsumerWidget {
       width: size,
       height: size,
       decoration: BoxDecoration(
-        color: Colors.orange,
+        color: AppColors.warning,
         shape: BoxShape.circle,
         boxShadow: [
           BoxShadow(
-            color: Colors.orange.withValues(alpha: 0.4),
+            color: AppColors.warning.withValues(alpha: 0.4),
             blurRadius: 4,
             spreadRadius: 1,
           ),
@@ -167,7 +168,7 @@ class SyncStatusBadge extends ConsumerWidget {
       width: size,
       height: size,
       decoration: BoxDecoration(
-        color: Colors.red,
+        color: AppColors.danger,
         shape: BoxShape.circle,
       ),
       child: Icon(
@@ -183,7 +184,7 @@ class SyncStatusBadge extends ConsumerWidget {
       width: size,
       height: size,
       decoration: BoxDecoration(
-        color: Colors.green,
+        color: AppColors.success,
         shape: BoxShape.circle,
       ),
       child: Icon(
@@ -227,13 +228,13 @@ class SyncStatusIndicator extends ConsumerWidget {
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       decoration: BoxDecoration(
         color: isSyncing
-            ? Colors.blue.withValues(alpha: 0.2)
-            : Colors.orange.withValues(alpha: 0.2),
+            ? Colors.blue.withValues(alpha: 0.2) // TODO: agregar AppColors.info cuando esté disponible
+            : AppColors.warning.withValues(alpha: 0.2),
         borderRadius: BorderRadius.circular(12),
         border: Border.all(
           color: isSyncing
-              ? Colors.blue.withValues(alpha: 0.5)
-              : Colors.orange.withValues(alpha: 0.5),
+              ? Colors.blue.withValues(alpha: 0.5) // TODO: agregar AppColors.info cuando esté disponible
+              : AppColors.warning.withValues(alpha: 0.5),
         ),
       ),
       child: Row(
@@ -249,7 +250,7 @@ class SyncStatusIndicator extends ConsumerWidget {
             Icon(
               FluentIcons.cloud_upload,
               size: 14,
-              color: Colors.orange,
+              color: AppColors.warning,
             ),
           const SizedBox(width: 6),
           Text(
@@ -346,7 +347,7 @@ class SyncProgressDetail extends ConsumerWidget {
           Text(
             itemState.error!,
             style: theme.typography.caption?.copyWith(
-              color: Colors.red,
+              color: AppColors.danger,
             ),
             maxLines: 2,
             overflow: TextOverflow.ellipsis,
@@ -367,9 +368,9 @@ class SyncProgressDetail extends ConsumerWidget {
           child: ProgressRing(strokeWidth: 2),
         );
       case SyncStatus.success:
-        return Icon(FluentIcons.check_mark, size: 12, color: Colors.green);
+        return Icon(FluentIcons.check_mark, size: 12, color: AppColors.success);
       case SyncStatus.error:
-        return Icon(FluentIcons.error_badge, size: 12, color: Colors.red);
+        return Icon(FluentIcons.error_badge, size: 12, color: AppColors.danger);
     }
   }
 
@@ -396,11 +397,11 @@ class SyncProgressDetail extends ConsumerWidget {
       case SyncStatus.idle:
         return Colors.grey;
       case SyncStatus.syncing:
-        return Colors.blue;
+        return Colors.blue; // TODO: agregar AppColors.info cuando esté disponible
       case SyncStatus.success:
-        return Colors.green;
+        return AppColors.success;
       case SyncStatus.error:
-        return Colors.red;
+        return AppColors.danger;
     }
   }
 

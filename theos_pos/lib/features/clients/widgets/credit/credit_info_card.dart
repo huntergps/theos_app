@@ -3,6 +3,7 @@ import 'package:intl/intl.dart';
 
 import 'credit_status_badge.dart';
 import 'package:theos_pos_core/theos_pos_core.dart';
+import '../../../../core/constants/app_colors.dart';
 
 /// Card showing detailed credit information for a client
 ///
@@ -125,7 +126,7 @@ class CreditInfoCard extends StatelessWidget {
           Text(
             _currencyFormat.format(client.creditAvailable ?? 0),
             style: theme.typography.caption?.copyWith(
-              color: client.creditExceeded ? Colors.red : color,
+              color: client.creditExceeded ? AppColors.danger : color,
               fontWeight: FontWeight.w600,
             ),
           ),
@@ -171,21 +172,21 @@ class CreditInfoCard extends StatelessWidget {
           'Crédito usado',
           _currencyFormat.format(creditUsed),
           theme,
-          valueColor: creditUsed > 0 ? Colors.orange : null,
+          valueColor: creditUsed > 0 ? AppColors.warning : null,
         ),
         const SizedBox(height: 4),
         _buildInfoRow(
           'Por facturar',
           _currencyFormat.format(creditToInvoice),
           theme,
-          valueColor: creditToInvoice > 0 ? Colors.orange : null,
+          valueColor: creditToInvoice > 0 ? AppColors.warning : null,
         ),
         const Divider(),
         _buildInfoRow(
           'Disponible',
           _currencyFormat.format(client.creditAvailable ?? 0),
           theme,
-          valueColor: client.creditExceeded ? Colors.red : Colors.green,
+          valueColor: client.creditExceeded ? AppColors.danger : AppColors.success,
           isBold: true,
         ),
       ],
@@ -340,9 +341,9 @@ class CreditInfoCard extends StatelessWidget {
   }
 
   Color _getUsageColor(double percentage) {
-    if (percentage >= 100) return Colors.red;
-    if (percentage >= 80) return Colors.orange;
-    return Colors.green;
+    if (percentage >= 100) return AppColors.danger;
+    if (percentage >= 80) return AppColors.warning;
+    return AppColors.success;
   }
 
   String _formatLastSync() {

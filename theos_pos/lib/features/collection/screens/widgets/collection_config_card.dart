@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 
 import '../../../../core/services/config_service.dart';
+import '../../../../core/constants/app_colors.dart';
 import '../../../../shared/widgets/common/chip_is_local.dart';
 
 import '../../../../shared/utils/formatting_utils.dart';
@@ -74,7 +75,7 @@ class CollectionConfigCard extends ConsumerWidget {
                   Icon(
                     FluentIcons.money,
                     color: hasActiveSession
-                        ? Colors.green
+                        ? AppColors.success
                         : theme.resources.textFillColorSecondary,
                     size: 24,
                   ),
@@ -156,15 +157,15 @@ class CollectionConfigCard extends ConsumerWidget {
                 Container(
                   padding: const EdgeInsets.all(12),
                   decoration: BoxDecoration(
-                    color: Colors.orange.withValues(alpha: 0.15),
+                    color: AppColors.warning.withValues(alpha: 0.15),
                     borderRadius: BorderRadius.circular(4),
                     border: Border.all(
-                      color: Colors.orange.withValues(alpha: 0.5),
+                      color: AppColors.warning.withValues(alpha: 0.5),
                     ),
                   ),
                   child: Row(
                     children: [
-                      Icon(FluentIcons.warning, size: 16, color: Colors.orange),
+                      Icon(FluentIcons.warning, size: 16, color: AppColors.warning),
                       const SizedBox(width: 8),
                       Expanded(
                         child: Text(
@@ -172,7 +173,7 @@ class CollectionConfigCard extends ConsumerWidget {
                               ? '1 sesion de rescate pendiente'
                               : '${config.numberOfRescueSession} sesiones de rescate pendientes',
                           style: theme.typography.body?.copyWith(
-                            color: Colors.orange,
+                            color: AppColors.warning,
                           ),
                         ),
                       ),

@@ -1,5 +1,6 @@
 import 'package:fluent_ui/fluent_ui.dart';
 import 'package:theos_pos_core/theos_pos_core.dart';
+import '../../../../core/constants/app_colors.dart';
 
 /// Badge that displays credit status with appropriate styling
 ///
@@ -87,29 +88,29 @@ class CreditStatusBadge extends StatelessWidget {
       case CreditStatus.ok:
         return _StatusConfig(
           icon: FluentIcons.check_mark,
-          color: Colors.green.dark,
-          backgroundColor: Colors.green.withAlpha(25),
+          color: AppColors.success,
+          backgroundColor: AppColors.success.withAlpha(25),
           label: 'OK',
         );
       case CreditStatus.warning:
         return _StatusConfig(
           icon: FluentIcons.warning,
-          color: Colors.orange.dark,
-          backgroundColor: Colors.orange.withAlpha(25),
+          color: AppColors.warning,
+          backgroundColor: AppColors.warning.withAlpha(25),
           label: 'Advertencia',
         );
       case CreditStatus.exceeded:
         return _StatusConfig(
           icon: FluentIcons.error_badge,
-          color: Colors.red.dark,
-          backgroundColor: Colors.red.withAlpha(25),
+          color: AppColors.danger,
+          backgroundColor: AppColors.danger.withAlpha(25),
           label: 'Excedido',
         );
       case CreditStatus.overdueDebt:
         return _StatusConfig(
           icon: FluentIcons.clock,
-          color: Colors.red.dark,
-          backgroundColor: Colors.red.withAlpha(25),
+          color: AppColors.danger,
+          backgroundColor: AppColors.danger.withAlpha(25),
           label: 'Mora',
         );
       case CreditStatus.noLimit:

@@ -4,6 +4,7 @@ import 'package:fluent_ui/fluent_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 import 'package:syncfusion_flutter_datagrid/datagrid.dart';
+import '../../../core/constants/app_colors.dart';
 
 import '../../../core/database/datasources/datasources.dart';
 import '../../../core/database/repositories/repository_providers.dart';
@@ -86,7 +87,7 @@ class _OfflineSyncManagementScreenState
             CommandBarButton(
               icon: Icon(
                 isOnline ? FluentIcons.plug_connected : FluentIcons.plug_disconnected,
-                color: isOnline ? Colors.green : Colors.red,
+                color: isOnline ? AppColors.success : AppColors.danger,
               ),
               label: Text(isOnline ? 'Conectado' : 'Sin conexion'),
               onPressed: null,
@@ -126,13 +127,13 @@ class _OfflineSyncManagementScreenState
                         Container(
                           padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                           decoration: BoxDecoration(
-                            color: Colors.orange.withValues(alpha: 0.2),
+                            color: AppColors.warning.withValues(alpha: 0.2),
                             borderRadius: BorderRadius.circular(16),
                           ),
                           child: Text(
                             '${queueState.totalCount}',
                             style: theme.typography.body?.copyWith(
-                              color: Colors.orange,
+                              color: AppColors.warning,
                               fontWeight: FontWeight.bold,
                             ),
                           ),
@@ -178,15 +179,15 @@ class _OfflineSyncManagementScreenState
             title: 'Total',
             count: queueState.totalCount,
             icon: FluentIcons.cloud_upload,
-            color: queueState.totalCount > 0 ? Colors.orange : Colors.green,
+            color: queueState.totalCount > 0 ? AppColors.warning : AppColors.success,
           ),
           const SizedBox(width: 12),
           if (queueState.criticalCount > 0) ...[
-            _SummaryCard(title: 'Criticos', count: queueState.criticalCount, icon: FluentIcons.warning, color: Colors.red),
+            _SummaryCard(title: 'Criticos', count: queueState.criticalCount, icon: FluentIcons.warning, color: AppColors.danger),
             const SizedBox(width: 12),
           ],
           if (queueState.highCount > 0) ...[
-            _SummaryCard(title: 'Altos', count: queueState.highCount, icon: FluentIcons.important, color: Colors.orange),
+            _SummaryCard(title: 'Altos', count: queueState.highCount, icon: FluentIcons.important, color: AppColors.warning),
             const SizedBox(width: 12),
           ],
           if (queueState.normalCount > 0) ...[
@@ -248,9 +249,9 @@ class _OfflineSyncManagementScreenState
           const SizedBox(width: 16),
           _PurgeStatChip(label: 'Ordenes', count: _localOrdersCount, color: Colors.blue),
           const SizedBox(width: 8),
-          _PurgeStatChip(label: 'Pendientes', count: _pendingOpsCount, color: Colors.orange),
+          _PurgeStatChip(label: 'Pendientes', count: _pendingOpsCount, color: AppColors.warning),
           const SizedBox(width: 8),
-          _PurgeStatChip(label: 'Fallidas', count: _failedOpsCount, color: Colors.red),
+          _PurgeStatChip(label: 'Fallidas', count: _failedOpsCount, color: AppColors.danger),
           const Spacer(),
           Button(onPressed: _localOrdersCount > 0 ? () => _showPurgeDialog(_PurgeType.orders) : null, child: const Text('Ordenes')),
           const SizedBox(width: 8),
@@ -260,7 +261,7 @@ class _OfflineSyncManagementScreenState
           const SizedBox(width: 8),
           FilledButton(
             onPressed: _pendingOpsCount > 0 || _localOrdersCount > 0 ? () => _showPurgeDialog(_PurgeType.all) : null,
-            style: ButtonStyle(backgroundColor: WidgetStateProperty.all(Colors.red)),
+            style: ButtonStyle(backgroundColor: WidgetStateProperty.all(AppColors.danger)),
             child: const Text('Purgar Todo'),
           ),
         ],
@@ -273,7 +274,7 @@ class _OfflineSyncManagementScreenState
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(FluentIcons.completed, size: 64, color: Colors.green),
+          Icon(FluentIcons.completed, size: 64, color: AppColors.success),
           const SizedBox(height: 16),
           Text('Todo sincronizado', style: theme.typography.title?.copyWith(fontWeight: FontWeight.w600)),
           const SizedBox(height: 8),
@@ -315,7 +316,7 @@ class _OfflineSyncManagementScreenState
           Button(onPressed: () => Navigator.pop(context, false), child: const Text('Cancelar')),
           FilledButton(
             onPressed: () => Navigator.pop(context, true),
-            style: ButtonStyle(backgroundColor: WidgetStateProperty.all(Colors.red)),
+            style: ButtonStyle(backgroundColor: WidgetStateProperty.all(AppColors.danger)),
             child: const Text('Confirmar'),
           ),
         ],
@@ -373,7 +374,7 @@ class _OfflineSyncManagementScreenState
           Button(onPressed: () => Navigator.pop(context, false), child: const Text('Cancelar')),
           FilledButton(
             onPressed: () => Navigator.pop(context, true),
-            style: ButtonStyle(backgroundColor: WidgetStateProperty.all(Colors.red)),
+            style: ButtonStyle(backgroundColor: WidgetStateProperty.all(AppColors.danger)),
             child: const Text('Eliminar'),
           ),
         ],
@@ -677,7 +678,7 @@ class _OfflineQueueDataSource extends DataGridSource {
   }
 
   Widget _buildRetryCell(OfflineOperation op) {
-    final color = op.retryCount > 0 ? Colors.orange : Colors.grey;
+    final color = op.retryCount > 0 ? AppColors.warning : Colors.grey;
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8),
       alignment: Alignment.center,
@@ -697,10 +698,10 @@ class _OfflineQueueDataSource extends DataGridSource {
 
     if (op.lastError != null && op.lastError!.isNotEmpty) {
       status = 'Error';
-      color = Colors.red;
+      color = AppColors.danger;
     } else if (op.retryCount >= 10) {
       status = 'Fallido';
-      color = Colors.red;
+      color = AppColors.danger;
     } else if (op.nextRetryAt != null && op.nextRetryAt!.isAfter(DateTime.now())) {
       final remaining = op.nextRetryAt!.difference(DateTime.now());
       if (remaining.inMinutes > 0) {
@@ -708,10 +709,10 @@ class _OfflineQueueDataSource extends DataGridSource {
       } else {
         status = 'Retry ${remaining.inSeconds}s';
       }
-      color = Colors.orange;
+      color = AppColors.warning;
     } else if (op.retryCount > 0) {
       status = 'Reintentando';
-      color = Colors.orange;
+      color = AppColors.warning;
     } else {
       status = 'Pendiente';
       color = Colors.blue;
@@ -743,22 +744,22 @@ class _OfflineQueueDataSource extends DataGridSource {
         break;
       case SyncOperationStatus.success:
         statusLabel = 'Completado';
-        color = Colors.green;
+        color = AppColors.success;
         icon = FluentIcons.check_mark;
         break;
       case SyncOperationStatus.failed:
         statusLabel = 'Error';
-        color = Colors.red;
+        color = AppColors.danger;
         icon = FluentIcons.error;
         break;
       case SyncOperationStatus.skipped:
         statusLabel = 'Omitido';
-        color = Colors.orange;
+        color = AppColors.warning;
         icon = FluentIcons.warning;
         break;
       case SyncOperationStatus.conflict:
         statusLabel = 'Conflicto';
-        color = Colors.orange;
+        color = AppColors.warning;
         icon = FluentIcons.warning;
         break;
       case SyncOperationStatus.pending:
@@ -885,12 +886,12 @@ class _OfflineQueueDataSource extends DataGridSource {
         Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(FluentIcons.error, size: 10, color: Colors.red),
+            Icon(FluentIcons.error, size: 10, color: AppColors.danger),
             const SizedBox(width: 2),
             Flexible(
               child: Text(
                 op.lastError!.length > 40 ? '${op.lastError!.substring(0, 37)}...' : op.lastError!,
-                style: TextStyle(fontSize: 9, color: Colors.red),
+                style: TextStyle(fontSize: 9, color: AppColors.danger),
                 overflow: TextOverflow.ellipsis,
               ),
             ),
@@ -955,7 +956,7 @@ class _OfflineQueueDataSource extends DataGridSource {
   Widget _buildActionsCell(OfflineOperation op) {
     return Center(
       child: IconButton(
-        icon: Icon(FluentIcons.delete, size: 14, color: Colors.red),
+        icon: Icon(FluentIcons.delete, size: 14, color: AppColors.danger),
         onPressed: () => onRemove(op.id),
       ),
     );
@@ -963,8 +964,8 @@ class _OfflineQueueDataSource extends DataGridSource {
 
   Color _getPriorityColor(int priority) {
     switch (priority) {
-      case OfflinePriority.critical: return Colors.red;
-      case OfflinePriority.high: return Colors.orange;
+      case OfflinePriority.critical: return AppColors.danger;
+      case OfflinePriority.high: return AppColors.warning;
       case OfflinePriority.normal: return Colors.blue;
       case OfflinePriority.low: return Colors.grey;
       default: return Colors.blue;

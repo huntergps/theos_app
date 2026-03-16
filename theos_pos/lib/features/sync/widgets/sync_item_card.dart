@@ -3,6 +3,7 @@ import 'package:intl/intl.dart';
 
 import '../repositories/sync_models.dart' show SyncProgress;
 import '../providers/sync_provider.dart';
+import '../../../core/constants/app_colors.dart';
 
 /// Tarjeta para mostrar el estado de sincronización de un item individual
 class SyncItemCard extends StatelessWidget {
@@ -124,9 +125,9 @@ class _SyncStatusIcon extends StatelessWidget {
           child: ProgressRing(strokeWidth: 2),
         );
       case SyncStatus.success:
-        return Icon(FluentIcons.check_mark, size: 16, color: Colors.green);
+        return Icon(FluentIcons.check_mark, size: 16, color: AppColors.success);
       case SyncStatus.error:
-        return Icon(FluentIcons.error_badge, size: 16, color: Colors.red);
+        return Icon(FluentIcons.error_badge, size: 16, color: AppColors.danger);
       case SyncStatus.idle:
         if (state.lastSyncDate != null) {
           return Icon(
@@ -307,12 +308,12 @@ class _SuccessStatus extends StatelessWidget {
 
     return Row(
       children: [
-        Icon(FluentIcons.check_mark, size: 12, color: Colors.green),
+        Icon(FluentIcons.check_mark, size: 12, color: AppColors.success),
         const SizedBox(width: 4),
         Text(
           '$count registros sincronizados',
           style: theme.typography.caption?.copyWith(
-            color: Colors.green,
+            color: AppColors.success,
           ),
         ),
         if (wasIncremental) ...[
@@ -352,12 +353,12 @@ class _ErrorStatus extends StatelessWidget {
       children: [
         Row(
           children: [
-            Icon(FluentIcons.error_badge, size: 12, color: Colors.red),
+            Icon(FluentIcons.error_badge, size: 12, color: AppColors.danger),
             const SizedBox(width: 4),
             Text(
               'Error en sincronizacion',
               style: theme.typography.caption?.copyWith(
-                color: Colors.red,
+                color: AppColors.danger,
                 fontWeight: FontWeight.bold,
               ),
             ),
@@ -367,7 +368,7 @@ class _ErrorStatus extends StatelessWidget {
         Text(
           error ?? 'Error desconocido',
           style: theme.typography.caption?.copyWith(
-            color: Colors.red.withValues(alpha: 0.8),
+            color: AppColors.danger.withValues(alpha: 0.8),
           ),
           maxLines: 2,
           overflow: TextOverflow.ellipsis,
@@ -399,7 +400,7 @@ class _IdleStatus extends StatelessWidget {
     return Text(
       'Nunca sincronizado - se requiere sync completo',
       style: theme.typography.caption?.copyWith(
-        color: Colors.orange,
+        color: AppColors.warning,
       ),
     );
   }
@@ -528,12 +529,12 @@ class _PartialErrorDisplay extends StatelessWidget {
       children: [
         Row(
           children: [
-            Icon(FluentIcons.warning, size: 12, color: Colors.orange),
+            Icon(FluentIcons.warning, size: 12, color: AppColors.warning),
             const SizedBox(width: 4),
             Text(
               'Error parcial',
               style: theme.typography.caption?.copyWith(
-                color: Colors.orange,
+                color: AppColors.warning,
                 fontWeight: FontWeight.bold,
               ),
             ),
@@ -543,7 +544,7 @@ class _PartialErrorDisplay extends StatelessWidget {
         Text(
           error,
           style: theme.typography.caption?.copyWith(
-            color: Colors.orange.withValues(alpha: 0.8),
+            color: AppColors.warning.withValues(alpha: 0.8),
           ),
           maxLines: 1,
           overflow: TextOverflow.ellipsis,
@@ -582,7 +583,7 @@ class _SyncActionButtons extends StatelessWidget {
           child: isSyncing
               ? FilledButton(
                   style: ButtonStyle(
-                    backgroundColor: WidgetStateProperty.all(Colors.orange),
+                    backgroundColor: WidgetStateProperty.all(AppColors.warning),
                   ),
                   onPressed: onCancel,
                   child: const Row(
@@ -627,7 +628,7 @@ class _SyncActionButtons extends StatelessWidget {
             icon: Icon(
               FluentIcons.delete,
               size: 16,
-              color: !isSyncing && !isSyncingAll ? Colors.red : null,
+              color: !isSyncing && !isSyncingAll ? AppColors.danger : null,
             ),
             onPressed: !isSyncing && !isSyncingAll ? onClear : null,
           ),

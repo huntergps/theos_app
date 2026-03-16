@@ -218,6 +218,22 @@ final collectionConfigsProvider = StreamProvider<List<CollectionConfig>>((ref) {
   return collectionConfigManager.watchLocalSearch();
 });
 
+/// Reactive stream of all active sessions (state != closed) from local DB.
+///
+/// Uses `collectionSessionManager.watchLocalSearch()` with a domain filter
+/// so the list auto-updates whenever any session state changes.
+/// Ordered by start_at descending (most recent first).
+///
+/// Intended for supervisor use — shows every open cajero session.
+final activeSessionsProvider = StreamProvider<List<CollectionSession>>((ref) {
+  return collectionSessionManager.watchLocalSearch(
+    domain: [
+      ['state', '!=', 'closed'],
+    ],
+    orderBy: 'start_at desc',
+  );
+});
+
 @Riverpod(keepAlive: true)
 class CurrentSession extends _$CurrentSession {
   @override

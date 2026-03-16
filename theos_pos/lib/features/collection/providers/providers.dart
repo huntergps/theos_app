@@ -12,7 +12,8 @@ export '../../../core/database/providers.dart'
         sessionByIdProvider,
         sessionPaymentsProvider,
         sessionCashOutsProvider,
-        sessionDepositsProvider;
+        sessionDepositsProvider,
+        activeSessionsProvider;
 
 // Export presentation providers
 export 'collection_session_state.dart';

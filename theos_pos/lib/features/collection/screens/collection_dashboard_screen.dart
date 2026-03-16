@@ -217,6 +217,10 @@ class _CollectionDashboardScreenState
             FailedSyncSessionsCard(),
             spacing.vertical.md,
 
+            // Supervisor: Active Sessions Section (only visible to managers)
+            ActiveSessionsSection(),
+            spacing.vertical.lg,
+
             // Collection Points Section
             Text('Puntos de Cobro', style: theme.typography.subtitle),
             spacing.vertical.ms,
