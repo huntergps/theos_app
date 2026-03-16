@@ -4,6 +4,12 @@ import 'package:drift/drift.dart';
 ///
 /// This table stores all product information synced from Odoo.
 /// Used by ProductManager and related services.
+///
+/// Índices declarados en database.dart via beforeOpen para búsqueda eficiente:
+///   - idx_product_name         → name
+///   - idx_product_barcode      → barcode
+///   - idx_product_default_code → defaultCode
+///   - idx_product_available_pos → availableInPos
 class ProductProduct extends Table {
   IntColumn get id => integer().autoIncrement()();
   IntColumn get odooId => integer().unique()();

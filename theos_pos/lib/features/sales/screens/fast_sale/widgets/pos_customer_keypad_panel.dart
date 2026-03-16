@@ -71,7 +71,7 @@ class POSCustomerKeypadPanel extends ConsumerWidget {
                 padding: const EdgeInsets.symmetric(horizontal: Spacing.sm),
                 child: ReactivePartnerCard(
                   config: ReactiveFieldConfig(
-                    label: 'Cliente',
+                    label: 'Cliente (F3)',
                     isEditing: canEdit, // Only editable in draft/sent
                     isCompact: !isExpanded,
                   ),
@@ -187,7 +187,7 @@ class POSCustomerKeypadPanel extends ConsumerWidget {
                   Icon(FluentIcons.contact, size: 16),
                   const SizedBox(width: Spacing.xs),
                   Text(
-                    activeTab?.order?.partnerName ?? 'Seleccionar cliente',
+                    activeTab?.order?.partnerName ?? 'Seleccionar cliente (F3)',
                     style: theme.typography.body,
                     overflow: TextOverflow.ellipsis,
                   ),
@@ -516,7 +516,7 @@ class _SearchInputFieldState extends ConsumerState<_SearchInputField> {
 
     switch (inputMode) {
       case KeypadInputMode.search:
-        placeholder = 'Buscar producto por código o nombre';
+        placeholder = 'Buscar producto por código o nombre (F2)';
         icon = FluentIcons.search;
         break;
       case KeypadInputMode.quantity:

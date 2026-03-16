@@ -11,10 +11,12 @@ import '../../../../shared/widgets/dialogs/copyable_info_bar.dart';
 import '../../providers/session_guard_provider.dart';
 import '../../utils/keyboard_shortcuts.dart';
 import 'fast_sale_providers.dart';
+import 'widgets/barcode_listener_widget.dart';
 import 'widgets/pos_actions_panel.dart';
 import 'widgets/pos_customer_keypad_panel.dart';
 import 'widgets/pos_order_lines_panel.dart';
 import 'widgets/pos_order_tabs.dart' show POSOrderTabs, showSearchOrdersDialog;
+import 'widgets/touch_actions_fab.dart';
 
 export 'widgets/pos_actions_panel.dart' show hasCollectionPermissionsProvider;
 
@@ -312,49 +314,71 @@ class _FastSaleScreenState extends ConsumerState<FastSaleScreen> {
     // Check server connectivity for offline indicator
     final isServerOnline = ref.watch(isServerOnlineProvider);
 
+    // Mostrar FAB táctil solo en tablet/móvil sin teclado físico
+    final hasPhysicalKeyboard = ref.watch(hasPhysicalKeyboardProvider);
+    final showTouchFab = !isDesktop && !hasPhysicalKeyboard;
+
     return Focus(
       focusNode: _focusNode,
       onKeyEvent: _handleKeyEvent,
       autofocus: true,
-      child: ScaffoldPage(
-        padding: EdgeInsets.zero,
-        content: Column(
-          children: [
-            // Order tabs at the top
-            const POSOrderTabs(),
+      // BarcodeListenerWidget detecta secuencias de lectores HID (USB/Bluetooth)
+      // y las procesa automáticamente sin interferir con atajos F1-F12 ni TextBoxes.
+      child: BarcodeListenerWidget(
+        child: ScaffoldPage(
+          padding: EdgeInsets.zero,
+          content: Column(
+            children: [
+              // Order tabs at the top
+              const POSOrderTabs(),
 
-            // Persistent offline warning bar
-            if (!isServerOnline)
-              const InfoBar(
-                title: Text('Sin conexion — Las ventas se guardan localmente'),
-                severity: InfoBarSeverity.warning,
-              ),
-
-            // Session guard warning — only for collection users without an active session
-            if (hasCollectionPermissions && !hasActiveSession)
-              InfoBar(
-                title: const Text('Sesion de caja no iniciada'),
-                content: const Text(
-                  'Para registrar cobros necesitas abrir una sesion de caja primero.',
+              // Persistent offline warning bar
+              if (!isServerOnline)
+                const InfoBar(
+                  title: Text('Sin internet — Puedes seguir vendiendo normalmente'),
+                  content: Text(
+                    'Tus ventas se guardan en esta computadora y se enviarán '
+                    'al servidor cuando regrese la conexión.',
+                  ),
+                  severity: InfoBarSeverity.warning,
                 ),
-                severity: InfoBarSeverity.warning,
-                action: HyperlinkButton(
-                  onPressed: () => context.go('/collection'),
-                  child: const Text('Ir a Caja'),
-                ),
-              ),
 
-            // Main content area
-            Expanded(
-              child: isDesktop
-                  ? _buildDesktopLayout(theme, hasCollectionPermissions)
-                  : isTablet
-                      ? _buildTabletLayout(theme, hasCollectionPermissions)
-                      : _buildMobileLayout(theme, hasCollectionPermissions),
-            ),
-          ],
+              // Session guard warning — only for collection users without an active session
+              if (hasCollectionPermissions && !hasActiveSession)
+                InfoBar(
+                  title: const Text('Sesion de caja no iniciada'),
+                  content: const Text(
+                    'Para registrar cobros necesitas abrir una sesion de caja primero.',
+                  ),
+                  severity: InfoBarSeverity.warning,
+                  action: HyperlinkButton(
+                    onPressed: () => context.go('/collection'),
+                    child: const Text('Ir a Caja'),
+                  ),
+                ),
+
+              // Main content area — envuelto en Stack para el FAB táctil
+              Expanded(
+                child: showTouchFab
+                    ? Stack(
+                        children: [
+                          isTablet
+                              ? _buildTabletLayout(theme, hasCollectionPermissions)
+                              : _buildMobileLayout(theme, hasCollectionPermissions),
+                          // FAB táctil flotante sobre el contenido
+                          const TouchActionsFab(),
+                        ],
+                      )
+                    : isDesktop
+                        ? _buildDesktopLayout(theme, hasCollectionPermissions)
+                        : isTablet
+                            ? _buildTabletLayout(theme, hasCollectionPermissions)
+                            : _buildMobileLayout(theme, hasCollectionPermissions),
+              ),
+            ],
+          ),
         ),
-      ),
+      ), // cierra BarcodeListenerWidget
     );
   }
 

@@ -27,7 +27,7 @@ class CreditInfoCard extends StatelessWidget {
     this.onRefresh,
     this.showActions = true,
     this.isCompact = false,
-    this.staleHours = 24,
+    this.staleHours = 4,
   });
 
   // Computed properties delegating to Client
@@ -111,23 +111,41 @@ class CreditInfoCard extends StatelessWidget {
       );
     }
 
-    final color = _getUsageColor(client.creditUsagePercentage ?? 0);
+    final usageColor = _getUsageColor(client.creditUsagePercentage ?? 0);
+    final isStaleNow = _isStale;
+    final displayColor = isStaleNow ? Colors.orange : usageColor;
+
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       decoration: BoxDecoration(
-        color: color.withAlpha(25),
+        color: displayColor.withAlpha(isStaleNow ? 30 : 25),
         borderRadius: BorderRadius.circular(4),
+        border: isStaleNow
+            ? Border.all(color: Colors.orange.withAlpha(100), width: 1)
+            : null,
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(FluentIcons.money, size: 12, color: color),
+          Icon(
+            isStaleNow ? FluentIcons.warning : FluentIcons.money,
+            size: 12,
+            color: displayColor,
+          ),
           const SizedBox(width: 4),
           Text(
-            _currencyFormat.format(client.creditAvailable ?? 0),
+            'Disp. ${_currencyFormat.format(client.creditAvailable ?? 0)}',
             style: theme.typography.caption?.copyWith(
-              color: client.creditExceeded ? AppColors.danger : color,
+              color: client.creditExceeded ? AppColors.danger : displayColor,
               fontWeight: FontWeight.w600,
+            ),
+          ),
+          const SizedBox(width: 4),
+          Text(
+            '— ${_formatLastSyncShort()}',
+            style: theme.typography.caption?.copyWith(
+              color: isStaleNow ? Colors.orange : theme.inactiveColor,
+              fontStyle: FontStyle.italic,
             ),
           ),
           const SizedBox(width: 4),
@@ -188,6 +206,43 @@ class CreditInfoCard extends StatelessWidget {
           theme,
           valueColor: client.creditExceeded ? AppColors.danger : AppColors.success,
           isBold: true,
+        ),
+        const SizedBox(height: 4),
+        _buildSyncTimestampRow(theme),
+      ],
+    );
+  }
+
+  Widget _buildSyncTimestampRow(FluentThemeData theme) {
+    final isStaleNow = _isStale;
+    final timestampColor = isStaleNow ? Colors.orange : theme.inactiveColor;
+
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              isStaleNow ? FluentIcons.warning : FluentIcons.clock,
+              size: 11,
+              color: timestampColor,
+            ),
+            const SizedBox(width: 4),
+            Text(
+              'Actualizado',
+              style: theme.typography.caption?.copyWith(
+                color: theme.inactiveColor,
+              ),
+            ),
+          ],
+        ),
+        Text(
+          _formatLastSync(),
+          style: theme.typography.caption?.copyWith(
+            color: timestampColor,
+            fontWeight: isStaleNow ? FontWeight.w600 : FontWeight.normal,
+          ),
         ),
       ],
     );
@@ -281,10 +336,10 @@ class CreditInfoCard extends StatelessWidget {
 
   Widget _buildStaleWarning(FluentThemeData theme) {
     return InfoBar(
-      title: const Text('Datos desactualizados'),
-      content: Text(
-        'Los datos de crédito pueden no estar actualizados. '
-        'Última sincronización: ${_formatLastSync()}',
+      title: Text('Crédito sin actualizar (${_formatLastSync().toLowerCase()})'),
+      content: const Text(
+        'Otro vendedor pudo haber usado este crédito. '
+        'Sincronice antes de aprobar la venta a crédito.',
       ),
       severity: InfoBarSeverity.warning,
       action: onRefresh != null
@@ -349,9 +404,18 @@ class CreditInfoCard extends StatelessWidget {
   String _formatLastSync() {
     if (client.creditLastSyncDate == null) return 'Nunca';
     final diff = DateTime.now().difference(client.creditLastSyncDate!);
-    if (diff.inDays > 0) return 'Hace ${diff.inDays} días';
-    if (diff.inHours > 0) return 'Hace ${diff.inHours} horas';
-    if (diff.inMinutes > 0) return 'Hace ${diff.inMinutes} minutos';
+    if (diff.inDays > 0) return 'Hace ${diff.inDays} día${diff.inDays == 1 ? '' : 's'}';
+    if (diff.inHours > 0) return 'Hace ${diff.inHours} hora${diff.inHours == 1 ? '' : 's'}';
+    if (diff.inMinutes > 0) return 'Hace ${diff.inMinutes} minuto${diff.inMinutes == 1 ? '' : 's'}';
     return 'Hace un momento';
+  }
+
+  String _formatLastSyncShort() {
+    if (client.creditLastSyncDate == null) return 'sin sync';
+    final diff = DateTime.now().difference(client.creditLastSyncDate!);
+    if (diff.inDays > 0) return 'hace ${diff.inDays}d';
+    if (diff.inHours > 0) return 'hace ${diff.inHours}h';
+    if (diff.inMinutes > 0) return 'hace ${diff.inMinutes}m';
+    return 'recién';
   }
 }

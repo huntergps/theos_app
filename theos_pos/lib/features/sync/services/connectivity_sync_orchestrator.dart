@@ -11,6 +11,7 @@ import '../../../core/database/datasources/datasources.dart' show OfflineQueueDa
 import '../../../core/services/logger_service.dart' show logger;
 import '../../../core/services/platform/server_connectivity_service.dart';
 import '../providers/offline_mode_providers.dart' show offlineModeConfigProvider;
+import '../providers/route_mode_provider.dart' show isRouteModeActiveProvider;
 import '../../../core/database/repositories/repository_providers.dart';
 import '../providers/sync_provider.dart';
 import 'offline_sync_service.dart';
@@ -25,6 +26,11 @@ import 'offline_sync_service.dart';
 class ConnectivitySyncOrchestrator {
   final ServerHealthService _healthService;
   final bool Function() _isOfflineModeEnabledFn;
+
+  /// Callback que devuelve true si el Modo Ruta esta activo.
+  /// Si es null, el modo ruta nunca se considera activo.
+  final bool Function()? _isRouteModeActiveFn;
+
   final OfflineSyncService? Function() _getOfflineSyncService;
   final OfflineQueueDataSource? Function() _getOfflineQueue;
   final Future<void> Function() _syncCriticalData;
@@ -43,11 +49,13 @@ class ConnectivitySyncOrchestrator {
   ConnectivitySyncOrchestrator({
     required ServerHealthService healthService,
     required bool Function() isOfflineModeEnabled,
+    bool Function()? isRouteModeActive,
     required OfflineSyncService? Function() getOfflineSyncService,
     required OfflineQueueDataSource? Function() getOfflineQueue,
     required Future<void> Function() syncCriticalData,
   })  : _healthService = healthService,
         _isOfflineModeEnabledFn = isOfflineModeEnabled,
+        _isRouteModeActiveFn = isRouteModeActive,
         _getOfflineSyncService = getOfflineSyncService,
         _getOfflineQueue = getOfflineQueue,
         _syncCriticalData = syncCriticalData;
@@ -84,6 +92,13 @@ class ConnectivitySyncOrchestrator {
       // Don't auto-sync if offline mode is manually enabled
       if (_isOfflineModeEnabledFn()) {
         logger.d('[SyncOrchestrator]', 'Server recovered but offline mode is enabled - skipping auto-sync');
+        _previousState = currentState;
+        return;
+      }
+      // Don't auto-sync if Route Mode is active.
+      // The user explicitly chose to work disconnected — honor that decision.
+      if (_isRouteModeActiveFn?.call() == true) {
+        logger.d('[SyncOrchestrator]', 'Server recovered but Modo Ruta is active - skipping auto-sync');
         _previousState = currentState;
         return;
       }
@@ -259,6 +274,13 @@ final connectivitySyncOrchestratorProvider = Provider<ConnectivitySyncOrchestrat
           data: (config) => config.isEnabled,
           orElse: () => false,
         );
+      } catch (_) {
+        return false;
+      }
+    },
+    isRouteModeActive: () {
+      try {
+        return ref.read(isRouteModeActiveProvider);
       } catch (_) {
         return false;
       }

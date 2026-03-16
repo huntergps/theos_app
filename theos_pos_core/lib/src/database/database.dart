@@ -32,6 +32,8 @@ import 'tables/account_journal_table.dart';
 import 'tables/product_product_table.dart';
 import 'tables/sale_order_table.dart';
 
+import 'migrations.dart';
+
 part 'database.g.dart';
 
 // ============ Database Definition ============
@@ -169,7 +171,7 @@ class AppDatabase extends _$AppDatabase {
   }
 
   @override
-  int get schemaVersion => 3;
+  int get schemaVersion => 4;
 
   @override
   MigrationStrategy get migration {
@@ -180,18 +182,72 @@ class AppDatabase extends _$AppDatabase {
         logger.i('[Database]', 'All tables created successfully');
       },
       onUpgrade: (Migrator m, int from, int to) async {
-        // Alpha: no users with existing data — drop and recreate
-        logger.i('[Database]', 'Upgrading v$from → v$to: recreating all tables...');
-        final tables = allTables.toList().reversed;
-        for (final table in tables) {
-          await m.deleteTable(table.actualTableName);
-        }
-        await m.createAll();
-        logger.i('[Database]', 'All tables recreated');
+        // Delega a DatabaseMigrations para lógica de migración incremental.
+        //
+        // Estrategia:
+        //   - from <= 3 (alfa): drop + recreate. Sin datos de producción.
+        //   - from >= 4 (prod): migraciones incrementales que preservan datos.
+        //     Las migraciones se ejecutan paso a paso: from→from+1→...→to.
+        //
+        // Ver: theos_pos_core/lib/src/database/migrations.dart
+        logger.i('[Database]', 'Iniciando upgrade v$from → v$to...');
+        await DatabaseMigrations.migrate(m, from, to, this);
+        logger.i('[Database]', 'Upgrade v$from → v$to completado.');
       },
       beforeOpen: (details) async {
         await customStatement('PRAGMA journal_mode=WAL');
         await customStatement('PRAGMA busy_timeout=10000');
+
+        // ----------------------------------------------------------------
+        // Índices de búsqueda en ProductProduct
+        //
+        // Se crean con IF NOT EXISTS → idempotentes en cada apertura.
+        // Sobreviven al onUpgrade (drop+recreate) porque beforeOpen corre
+        // después del recreate.
+        //
+        // Beneficio: queries de catálogo con filtro por name/barcode/
+        // defaultCode/availableInPos pasan de full table scan a index scan,
+        // crítico con 5,000+ productos.
+        // ----------------------------------------------------------------
+        await customStatement(
+          'CREATE INDEX IF NOT EXISTS idx_product_name '
+          'ON product_product (name)',
+        );
+        await customStatement(
+          'CREATE INDEX IF NOT EXISTS idx_product_barcode '
+          'ON product_product (barcode)',
+        );
+        await customStatement(
+          'CREATE INDEX IF NOT EXISTS idx_product_default_code '
+          'ON product_product (default_code)',
+        );
+        await customStatement(
+          'CREATE INDEX IF NOT EXISTS idx_product_available_pos '
+          'ON product_product (available_in_pos)',
+        );
+
+        // ----------------------------------------------------------------
+        // Recovery de operaciones 'processing' al startup
+        //
+        // Si la app crashea mientras procesaba operaciones offline, éstas
+        // quedan en estado 'processing' indefinidamente. Al abrir la DB,
+        // se resetean a 'pending' para que el sync las reintente.
+        //
+        // Seguro: una operación genuinamente en curso no existirá en la DB
+        // en el momento de apertura, ya que el proceso previo fue terminado.
+        // ----------------------------------------------------------------
+        await customStatement(
+          "UPDATE offline_queue SET status = 'pending' WHERE status = 'processing'",
+        );
+        final recovered = await customSelect(
+          "SELECT COUNT(*) AS cnt FROM offline_queue WHERE status = 'pending'",
+        ).getSingle();
+        final pendingCount = recovered.read<int>('cnt');
+        logger.i(
+          '[Database]',
+          'Startup recovery: offline_queue processing→pending reset. '
+          'Total pending now: $pendingCount',
+        );
       },
     );
   }

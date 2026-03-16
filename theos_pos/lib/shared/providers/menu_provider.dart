@@ -1,6 +1,7 @@
 import 'package:fluent_ui/fluent_ui.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 import 'user_provider.dart';
+import '../../core/services/config_service.dart';
 
 part 'menu_provider.g.dart';
 
@@ -39,6 +40,10 @@ class MenuItemDefinition {
   /// Whether this is an action item (like logout) vs navigation item
   final bool isAction;
 
+  /// Whether this item is only visible when developer mode is active.
+  /// Developer-only items are hidden by default in production environments.
+  final bool isDeveloperOnly;
+
   const MenuItemDefinition({
     required this.path,
     required this.icon,
@@ -46,6 +51,7 @@ class MenuItemDefinition {
     this.requiredGroups = const [],
     this.isFooterItem = false,
     this.isAction = false,
+    this.isDeveloperOnly = false,
   });
 
   /// Check if user has permission to access this menu item
@@ -131,9 +137,19 @@ const allMenuItems = [
   MenuItemDefinition(
     path: '/conflicts',
     icon: FluentIcons.error,
-    title: 'Conflictos',
+    title: 'Conflictos de Sync',
     isFooterItem: true,
     requiredGroups: adminGroups,
+    isDeveloperOnly: true,
+  ),
+
+  MenuItemDefinition(
+    path: '/dead-letter-queue',
+    icon: FluentIcons.warning,
+    title: 'Cola Fallida',
+    isFooterItem: true,
+    requiredGroups: adminGroups,
+    isDeveloperOnly: true,
   ),
 
   MenuItemDefinition(
@@ -142,6 +158,7 @@ const allMenuItems = [
     title: 'WebSocket Debug',
     isFooterItem: true,
     requiredGroups: adminGroups,
+    isDeveloperOnly: true,
   ),
 
   MenuItemDefinition(
@@ -172,17 +189,23 @@ class FilteredMenuItems {
   });
 }
 
-/// Provider that returns filtered menu items based on user permissions
+/// Provider that returns filtered menu items based on user permissions and developer mode
 @riverpod
 FilteredMenuItems filteredMenuItems(Ref ref) {
   final user = ref.watch(userProvider);
   final permissions = user?.permissions ?? [];
+  final config = ref.watch(configServiceProvider);
+  final isDeveloperMode = config.developerMode;
 
   final navItems = <MenuItemDefinition>[];
   final footerItems = <MenuItemDefinition>[];
 
   for (final item in allMenuItems) {
+    // Skip items that require permissions the user does not have
     if (!item.hasAccess(permissions)) continue;
+
+    // Skip developer-only items unless developer mode is active
+    if (item.isDeveloperOnly && !isDeveloperMode) continue;
 
     if (item.isFooterItem) {
       footerItems.add(item);
@@ -202,9 +225,13 @@ FilteredMenuItems filteredMenuItems(Ref ref) {
 bool hasRouteAccess(Ref ref, String path) {
   final user = ref.watch(userProvider);
   final permissions = user?.permissions ?? [];
+  final config = ref.watch(configServiceProvider);
+  final isDeveloperMode = config.developerMode;
 
   final item = allMenuItems.where((m) => m.path == path).firstOrNull;
   if (item == null) return true; // Unknown routes are accessible
+
+  if (item.isDeveloperOnly && !isDeveloperMode) return false;
 
   return item.hasAccess(permissions);
 }

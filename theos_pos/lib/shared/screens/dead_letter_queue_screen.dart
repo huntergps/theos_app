@@ -67,7 +67,7 @@ class _DeadLetterQueueScreenState extends ConsumerState<DeadLetterQueueScreen> {
           CopyableInfoBar.showSuccess(
             context,
             title: 'Operación reintentada',
-            message: '${op.model} - ${op.method}',
+            message: _getOperationDescription(op),
           );
         }
 
@@ -96,10 +96,9 @@ class _DeadLetterQueueScreenState extends ConsumerState<DeadLetterQueueScreen> {
         title: const Text('Eliminar operación'),
         content: Text(
           '¿Está seguro de eliminar esta operación?\n\n'
-          'Modelo: ${op.model}\n'
-          'Método: ${op.method}\n'
+          '${_getOperationDescription(op)}\n'
           'Reintentos: ${op.retryCount}\n\n'
-          'Esta acción no se puede deshacer.',
+          'Esta acción no se puede deshacer y los datos NO se enviarán al servidor.',
         ),
         actions: [
           Button(
@@ -364,6 +363,9 @@ class _DeadLetterQueueScreenState extends ConsumerState<DeadLetterQueueScreen> {
   }
 
   Widget _buildOperationCard(OfflineOperation op, FluentThemeData theme) {
+    final description = _getOperationDescription(op);
+    final recordInfo = _getRecordInfo(op);
+
     return Card(
       padding: const EdgeInsets.all(Spacing.md),
       child: Column(
@@ -381,13 +383,16 @@ class _DeadLetterQueueScreenState extends ConsumerState<DeadLetterQueueScreen> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      _getModelDisplayName(op.model),
+                      description,
                       style: theme.typography.bodyStrong,
                     ),
-                    Text(
-                      'Método: ${op.method}',
-                      style: theme.typography.caption,
-                    ),
+                    if (recordInfo != null)
+                      Text(
+                        recordInfo,
+                        style: theme.typography.caption?.copyWith(
+                          color: theme.accentColor,
+                        ),
+                      ),
                   ],
                 ),
               ),
@@ -411,12 +416,12 @@ class _DeadLetterQueueScreenState extends ConsumerState<DeadLetterQueueScreen> {
           ),
           const SizedBox(height: Spacing.sm),
 
-          // Record ID and UUID
-          if (op.recordId != null || op.values['uuid'] != null)
+          // Record reference (only show if there's useful info)
+          if (op.recordId != null && op.recordId! > 0)
             Padding(
               padding: const EdgeInsets.only(bottom: Spacing.sm),
               child: Text(
-                'ID: ${op.recordId ?? "N/A"} | UUID: ${_formatUuid(op.values['uuid'])}',
+                'Referencia: #${op.recordId}',
                 style: theme.typography.caption,
               ),
             ),
@@ -493,6 +498,82 @@ class _DeadLetterQueueScreenState extends ConsumerState<DeadLetterQueueScreen> {
     );
   }
 
+  /// Returns a human-readable description of the operation in business terms.
+  String _getOperationDescription(OfflineOperation op) {
+    final key = '${op.model}::${op.method}';
+    switch (key) {
+      case 'sale.order::create':
+        return 'Creación de orden de venta';
+      case 'sale.order::write':
+        return 'Actualización de orden de venta';
+      case 'sale.order::action_confirm':
+        return 'Confirmación de orden de venta';
+      case 'sale.order::action_cancel':
+        return 'Cancelación de orden de venta';
+      case 'sale.order.line::create':
+        return 'Agregar producto a orden de venta';
+      case 'sale.order.line::write':
+        return 'Cambio de cantidad o precio en orden';
+      case 'sale.order.line::unlink':
+        return 'Eliminar producto de orden de venta';
+      case 'account.move::create':
+        return 'Creación de factura';
+      case 'account.move::write':
+        return 'Actualización de factura';
+      case 'account.move::action_post':
+        return 'Confirmación de factura';
+      case 'account.payment::create':
+        return 'Registro de pago';
+      case 'account.payment::write':
+        return 'Actualización de pago';
+      case 'collection.session::create':
+      case 'collection.session::session_create_and_open':
+        return 'Apertura de sesión de caja';
+      case 'collection.session::write':
+        return 'Actualización de sesión de caja';
+      case 'collection.session::session_close':
+      case 'collection.session::session_closing_control':
+        return 'Cierre de sesión de caja';
+      case 'res.partner::create':
+      case 'res.partner::partner_create':
+        return 'Creación de cliente';
+      case 'res.partner::write':
+        return 'Actualización de cliente';
+      default:
+        // Fallback: compose from model + method names
+        return 'Operación en ${_getModelDisplayName(op.model)}';
+    }
+  }
+
+  /// Returns additional record context (partner name, amount, etc.) if available
+  /// in the operation values, to help identify the specific record.
+  String? _getRecordInfo(OfflineOperation op) {
+    final v = op.values;
+    final parts = <String>[];
+
+    // Try to get partner name
+    final partnerName = v['partner_name'] ?? v['partner_id_name'];
+    if (partnerName is String && partnerName.isNotEmpty) {
+      parts.add(partnerName);
+    }
+
+    // Try to get order name / reference
+    final name = v['name'];
+    if (name is String && name.isNotEmpty && name != '/') {
+      parts.add(name);
+    }
+
+    // Try to get amount total
+    final amountTotal = v['amount_total'];
+    if (amountTotal != null) {
+      final amount = (amountTotal as num).toDouble();
+      parts.add('\$${amount.toStringAsFixed(2)}');
+    }
+
+    if (parts.isEmpty) return null;
+    return parts.join(' — ');
+  }
+
   IconData _getIconForModel(String model) {
     switch (model) {
       case 'sale.order':
@@ -528,12 +609,4 @@ class _DeadLetterQueueScreenState extends ConsumerState<DeadLetterQueueScreen> {
     return '${dt.day}/${dt.month}/${dt.year} ${dt.hour.toString().padLeft(2, '0')}:${dt.minute.toString().padLeft(2, '0')}';
   }
 
-  String _formatUuid(dynamic uuid) {
-    if (uuid == null) return 'N/A';
-    final uuidStr = uuid.toString();
-    if (uuidStr.length >= 8) {
-      return '${uuidStr.substring(0, 8)}...';
-    }
-    return uuidStr;
-  }
 }

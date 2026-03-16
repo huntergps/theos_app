@@ -7,13 +7,27 @@ library;
 import 'package:fluent_ui/fluent_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:intl/intl.dart';
 import 'package:theos_pos_core/theos_pos_core.dart'
-    show SessionState;
+    show CollectionSession, SessionState, SessionStateExtension;
 
+import '../../../core/database/providers.dart' show activeSessionsProvider;
+import '../../../core/navigation/app_router.dart';
 import '../../../core/theme/spacing.dart';
 import '../../../features/sync/providers/sync_provider.dart';
 import '../providers/dashboard_providers.dart';
 import '../../../shared/utils/formatting_utils.dart';
+
+// ============================================================================
+// CONSTANTES DE COLOR — estado de sesion de caja
+// ============================================================================
+
+/// Colores para cada estado de sesion. Definidos aqui para evitar
+/// duplicacion entre _stateColor() y _StateDot.
+const _colorSessionOpened = Color(0xFF107C10); // verde — abierta
+const _colorSessionOpening = Color(0xFFCA5010); // naranja — apertura/cierre
+const _colorSessionClosing = Color(0xFF0078D4); // azul — cierre en proceso
+const _colorSessionClosed = Color(0xFF767676); // gris — cerrada
 
 class SupervisorDashboard extends ConsumerWidget {
   const SupervisorDashboard({super.key});
@@ -38,26 +52,12 @@ class SupervisorDashboard extends ConsumerWidget {
         _SalesMetricsSection(isCompact: isCompact, spacing: spacing),
         SizedBox(height: spacing.md),
 
-        // --- Sesion de caja + Ultimo sync ---
-        if (isCompact)
-          Column(
-            children: [
-              _SessionCard(spacing: spacing),
-              SizedBox(height: spacing.sm),
-              _LastSyncCard(spacing: spacing),
-            ],
-          )
-        else
-          IntrinsicHeight(
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                Expanded(child: _SessionCard(spacing: spacing)),
-                SizedBox(width: spacing.sm),
-                Expanded(child: _LastSyncCard(spacing: spacing)),
-              ],
-            ),
-          ),
+        // --- Sesiones activas + Ultimo sync ---
+        _LastSyncCard(spacing: spacing),
+        SizedBox(height: spacing.md),
+
+        // --- Lista de todas las sesiones activas ---
+        _AllSessionsSection(spacing: spacing),
 
         SizedBox(height: spacing.lg),
 
@@ -263,174 +263,316 @@ class _MetricCard extends StatelessWidget {
 }
 
 // ============================================================================
-// TARJETA: Sesion de caja activa
+// SECCION: Todas las sesiones de caja activas
 // ============================================================================
 
-class _SessionCard extends ConsumerWidget {
+/// Muestra TODAS las sesiones de caja activas (no cerradas) del dia.
+///
+/// Disenada para el dashboard del supervisor. Cada sesion se muestra como
+/// una fila compacta con: punto de estado, nombre de sesion, config/sucursal,
+/// cajero, hora de apertura, total cobrado, chip de estado y flecha.
+/// Al hacer clic navega a [AppRouter.collectionSessionPath].
+class _AllSessionsSection extends ConsumerWidget {
   final ThemedSpacing spacing;
-  const _SessionCard({required this.spacing});
+  const _AllSessionsSection({required this.spacing});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final theme = FluentTheme.of(context);
-    final summary = ref.watch(activeSessionSummaryProvider);
+    final sessionsAsync = ref.watch(activeSessionsProvider);
 
-    return Card(
-      padding: const EdgeInsets.all(16),
-      child: Builder(builder: (_) {
-          if (!summary.hasActiveSession) {
-            return _SessionEmptyState(theme: theme);
-          }
-
-          final stateColor = _sessionStateColor(summary.sessionState);
-          final stateLabel = _sessionStateLabel(summary.sessionState);
-
-          return Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Row(
-                children: [
-                  Icon(FluentIcons.money, size: 18, color: theme.accentColor),
-                  const SizedBox(width: 8),
-                  Text(
-                    'Sesion de caja',
-                    style: theme.typography.bodyStrong,
-                  ),
-                  const Spacer(),
-                  // Chip de estado
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 8,
-                      vertical: 3,
-                    ),
-                    decoration: BoxDecoration(
-                      color: stateColor.withValues(alpha: 0.15),
-                      borderRadius: BorderRadius.circular(12),
-                      border: Border.all(
-                        color: stateColor.withValues(alpha: 0.5),
-                        width: 1,
-                      ),
-                    ),
-                    child: Text(
-                      stateLabel,
-                      style: TextStyle(
-                        fontSize: 11,
-                        color: stateColor,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 10),
-              if (summary.configName != null)
-                Row(
-                  children: [
-                    Icon(
-                      FluentIcons.settings,
-                      size: 13,
-                      color: theme.inactiveColor,
-                    ),
-                    const SizedBox(width: 4),
-                    Expanded(
-                      child: Text(
-                        summary.configName!,
-                        style: theme.typography.body,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ),
-                  ],
-                ),
-              if (summary.userName != null) ...[
-                const SizedBox(height: 4),
-                Row(
-                  children: [
-                    Icon(
-                      FluentIcons.contact,
-                      size: 13,
-                      color: theme.inactiveColor,
-                    ),
-                    const SizedBox(width: 4),
-                    Expanded(
-                      child: Text(
-                        summary.userName!,
-                        style: theme.typography.caption?.copyWith(
-                          color: theme.inactiveColor,
-                        ),
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ),
-                  ],
-                ),
-              ],
-            ],
-          );
-        }),
-    );
-  }
-
-  Color _sessionStateColor(SessionState? state) {
-    switch (state) {
-      case SessionState.opened:
-        return Colors.green;
-      case SessionState.openingControl:
-        return Colors.orange;
-      case SessionState.closingControl:
-        return Colors.orange;
-      case SessionState.closed:
-      case null:
-        return Colors.grey;
-    }
-  }
-
-  String _sessionStateLabel(SessionState? state) {
-    switch (state) {
-      case SessionState.opened:
-        return 'Abierta';
-      case SessionState.openingControl:
-        return 'Apertura';
-      case SessionState.closingControl:
-        return 'Cierre';
-      case SessionState.closed:
-        return 'Cerrada';
-      case null:
-        return 'Desconocido';
-    }
-  }
-}
-
-class _SessionEmptyState extends StatelessWidget {
-  final FluentThemeData theme;
-  const _SessionEmptyState({required this.theme});
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Icon(
-          FluentIcons.money,
-          size: 18,
-          color: theme.inactiveColor,
-        ),
-        const SizedBox(width: 8),
-        Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          mainAxisSize: MainAxisSize.min,
+        Row(
           children: [
-            Text(
-              'Sesion de caja',
-              style: theme.typography.bodyStrong,
-            ),
-            Text(
-              'Sin sesion activa',
-              style: theme.typography.caption?.copyWith(
-                color: theme.inactiveColor,
+            Icon(FluentIcons.people, size: 16, color: theme.accentColor),
+            const SizedBox(width: 8),
+            Text('Sesiones de caja activas', style: theme.typography.bodyStrong),
+            const Spacer(),
+            sessionsAsync.maybeWhen(
+              data: (s) => Text(
+                '${s.length} ${s.length == 1 ? "sesion" : "sesiones"}',
+                style: theme.typography.caption?.copyWith(
+                  color: theme.inactiveColor,
+                ),
               ),
+              orElse: () => const SizedBox.shrink(),
             ),
           ],
         ),
+        SizedBox(height: spacing.sm),
+        sessionsAsync.when(
+          data: (sessions) {
+            if (sessions.isEmpty) {
+              return const InfoBar(
+                title: Text('Sin sesiones activas'),
+                content: Text(
+                  'No hay cajeros con sesiones abiertas en este momento.',
+                ),
+                severity: InfoBarSeverity.info,
+              );
+            }
+            return Column(
+              children: sessions
+                  .map((s) => _SessionRowCard(session: s, spacing: spacing))
+                  .toList(),
+            );
+          },
+          loading: () => const Center(
+            child: Padding(
+              padding: EdgeInsets.symmetric(vertical: 24),
+              child: ProgressRing(),
+            ),
+          ),
+          error: (err, _) => InfoBar(
+            title: const Text('Error al cargar sesiones'),
+            content: Text(err.toString()),
+            severity: InfoBarSeverity.error,
+          ),
+        ),
       ],
+    );
+  }
+}
+
+// ============================================================================
+// FILA: Una sesion individual en el dashboard
+// ============================================================================
+
+class _SessionRowCard extends StatelessWidget {
+  final CollectionSession session;
+  final ThemedSpacing spacing;
+
+  const _SessionRowCard({required this.session, required this.spacing});
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = FluentTheme.of(context);
+    final startTime = session.startAt;
+    final timeLabel = startTime != null
+        ? DateFormat('dd/MM HH:mm', 'es_ES').format(startTime.toLocal())
+        : '--:--';
+
+    final totalLabel = session.totalGeneral > 0
+        ? '\$${session.totalGeneral.toStringAsFixed(2)}'
+        : session.totalPaymentsAmount > 0
+            ? '\$${session.totalPaymentsAmount.toStringAsFixed(2)}'
+            : null;
+
+    final stateColor = _stateColor(session.state);
+    final stateLabel = session.state.label;
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 6),
+      child: HoverButton(
+        onPressed: () =>
+            context.go(AppRouter.collectionSessionPath(session.id)),
+        builder: (ctx, states) {
+          final hovered = states.isHovered;
+          return AnimatedContainer(
+            duration: const Duration(milliseconds: 120),
+            decoration: BoxDecoration(
+              color: hovered
+                  ? theme.resources.subtleFillColorSecondary
+                  : theme.resources.cardBackgroundFillColorDefault,
+              borderRadius: BorderRadius.circular(6),
+              border: Border.all(
+                color: hovered
+                    ? theme.accentColor.defaultBrushFor(theme.brightness)
+                    : theme.resources.cardStrokeColorDefault,
+              ),
+            ),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+              child: Row(
+                children: [
+                  // Indicador de estado (punto de color)
+                  _StateDot(state: session.state),
+                  const SizedBox(width: 10),
+
+                  // Nombre de sesion + config/sucursal
+                  Expanded(
+                    flex: 3,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          session.name,
+                          style: theme.typography.bodyStrong,
+                          overflow: TextOverflow.ellipsis,
+                          maxLines: 1,
+                        ),
+                        if (session.configName != null)
+                          Text(
+                            session.configName!,
+                            style: theme.typography.caption?.copyWith(
+                              color: theme.resources.textFillColorSecondary,
+                            ),
+                            overflow: TextOverflow.ellipsis,
+                            maxLines: 1,
+                          ),
+                      ],
+                    ),
+                  ),
+
+                  // Cajero
+                  Expanded(
+                    flex: 3,
+                    child: Row(
+                      children: [
+                        Icon(
+                          FluentIcons.contact,
+                          size: 13,
+                          color: theme.resources.textFillColorSecondary,
+                        ),
+                        const SizedBox(width: 5),
+                        Expanded(
+                          child: Text(
+                            session.userName ?? 'Sin asignar',
+                            style: theme.typography.body,
+                            overflow: TextOverflow.ellipsis,
+                            maxLines: 1,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+
+                  // Hora de apertura
+                  Expanded(
+                    flex: 2,
+                    child: Row(
+                      children: [
+                        Icon(
+                          FluentIcons.clock,
+                          size: 13,
+                          color: theme.resources.textFillColorSecondary,
+                        ),
+                        const SizedBox(width: 5),
+                        Expanded(
+                          child: Text(
+                            timeLabel,
+                            style: theme.typography.caption,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+
+                  // Total acumulado (si disponible)
+                  if (totalLabel != null) ...[
+                    Expanded(
+                      flex: 2,
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.end,
+                        children: [
+                          Icon(
+                            FluentIcons.money,
+                            size: 13,
+                            color: theme.resources.textFillColorSecondary,
+                          ),
+                          const SizedBox(width: 4),
+                          Text(
+                            totalLabel,
+                            style: theme.typography.bodyStrong?.copyWith(
+                              fontSize: 13,
+                            ),
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ],
+                      ),
+                    ),
+                  ] else
+                    const Expanded(flex: 2, child: SizedBox.shrink()),
+
+                  const SizedBox(width: 10),
+
+                  // Chip de estado
+                  _StateChip(state: session.state, color: stateColor, label: stateLabel),
+
+                  const SizedBox(width: 8),
+
+                  // Flecha de navegacion
+                  Icon(
+                    FluentIcons.chevron_right,
+                    size: 13,
+                    color: theme.resources.textFillColorSecondary,
+                  ),
+                ],
+              ),
+            ),
+          );
+        },
+      ),
+    );
+  }
+
+  Color _stateColor(SessionState state) => switch (state) {
+        SessionState.opened => _colorSessionOpened,
+        SessionState.openingControl => _colorSessionOpening,
+        SessionState.closingControl => _colorSessionClosing,
+        SessionState.closed => _colorSessionClosed,
+      };
+}
+
+// ============================================================================
+// COMPONENTES AUXILIARES LOCALES
+// ============================================================================
+
+/// Punto de color que indica el estado de la sesion.
+class _StateDot extends StatelessWidget {
+  final SessionState state;
+  const _StateDot({required this.state});
+
+  @override
+  Widget build(BuildContext context) {
+    final color = switch (state) {
+      SessionState.opened => _colorSessionOpened,
+      SessionState.openingControl => _colorSessionOpening,
+      SessionState.closingControl => _colorSessionClosing,
+      SessionState.closed => _colorSessionClosed,
+    };
+    return Container(
+      width: 9,
+      height: 9,
+      decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+    );
+  }
+}
+
+/// Chip compacto de estado (no usa StateChip de collection para evitar
+/// dependencia cruzada de features).
+class _StateChip extends StatelessWidget {
+  final SessionState state;
+  final Color color;
+  final String label;
+
+  const _StateChip({
+    required this.state,
+    required this.color,
+    required this.label,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: color.withValues(alpha: 0.45), width: 1),
+      ),
+      child: Text(
+        label,
+        style: TextStyle(
+          fontSize: 11,
+          color: color,
+          fontWeight: FontWeight.w600,
+        ),
+      ),
     );
   }
 }

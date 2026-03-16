@@ -21,6 +21,7 @@ import '../../../../../shared/providers/user_provider.dart' show userProvider;
 import '../../../../../shared/utils/formatting_utils.dart';
 import '../../../../../shared/widgets/dialogs/copyable_info_bar.dart';
 import '../../../../products/widgets/product_info_dialog.dart';
+import 'product_favorites_grid.dart';
 import '../../../../taxes/widgets/tax_badge.dart';
 import '../../../widgets/totals/sales_order_totals.dart';
 import '../../sale_order_form/select_uom_dialog.dart';
@@ -70,34 +71,46 @@ class _POSOrderLinesPanelState extends ConsumerState<POSOrderLinesPanel> {
         order.partnerId != null &&
         !hasInvoice;
 
+    // Determina qué mostrar en el área de contenido principal
+    Widget contentArea;
+    switch (currentPanelTab) {
+      case OrderPanelTab.products:
+        contentArea = const ProductFavoritesGrid();
+      case OrderPanelTab.lines:
+        contentArea = _OrderLinesGrid(
+          lines: lines,
+          selectedIndex: activeTab?.selectedLineIndex ?? -1,
+          pricelistId: activeTab?.order?.pricelistId,
+          canEdit: order?.isEditable ?? true,
+        );
+      case OrderPanelTab.payments:
+        contentArea = _OrderLinesPaymentsContent(order: order);
+    }
+
+    // Mostrar totales sólo cuando estamos en la pestaña de líneas
+    final showTotals = currentPanelTab == OrderPanelTab.lines ||
+        currentPanelTab == OrderPanelTab.products;
+
     return Column(
       children: [
-        // Header: sub-tabs
+        // Header: sub-tabs (Productos | Lineas | Pagos/Credito)
         _OrderLinesHeader(
           showPayments: hasCollectionPermissions,
           orderState: order?.state,
           isCreditSale: isCreditSale,
           currentPanelTab: currentPanelTab,
+          linesCount: lines.length,
         ),
 
-        // Content: lines grid or payments
-        Expanded(
-          child: currentPanelTab == OrderPanelTab.lines
-              ? _OrderLinesGrid(
-                  lines: lines,
-                  selectedIndex: activeTab?.selectedLineIndex ?? -1,
-                  pricelistId: activeTab?.order?.pricelistId,
-                  canEdit: order?.isEditable ?? true,
-                )
-              : _OrderLinesPaymentsContent(order: order),
-        ),
+        // Content: productos favoritos, líneas de orden, o pagos
+        Expanded(child: contentArea),
 
-        // Footer: totals + confirm + sync + invoices
+        // Footer: totales + confirmar + sync + facturas
         _OrderLinesTotals(
           order: order,
           lines: lines,
           canConfirm: canConfirm,
-          showTotals: currentPanelTab == OrderPanelTab.lines,
+          showTotals: showTotals,
           onConfirm: () => _handleConfirmOrder(context),
         ),
       ],
@@ -216,10 +229,14 @@ class _POSOrderLinesPanelState extends ConsumerState<POSOrderLinesPanel> {
       if (!context.mounted) return;
 
       if (success) {
+        final confirmedTab = ref.read(fastSaleProvider).activeTab;
+        final orderRef = confirmedTab?.orderName ?? '';
+        final orderTotal = confirmedTab?.total ?? 0.0;
         CopyableInfoBar.showSuccess(
           context,
-          title: 'Orden confirmada',
-          message: 'La orden está lista para facturar',
+          title: 'Venta registrada${orderRef.isNotEmpty ? ' — $orderRef' : ''}',
+          message: 'Total: ${orderTotal.toCurrency()}. La orden está lista para facturar.',
+          durationSeconds: 5,
         );
       } else {
         // Check if there's a credit issue from Odoo
@@ -531,24 +548,34 @@ class _POSOrderLinesPanelState extends ConsumerState<POSOrderLinesPanel> {
 // Extracted sub-widgets for POSOrderLinesPanel
 // =============================================================================
 
-/// Header with sub-tabs (Lineas | Pagos/Credito) and order state badge
+/// Header con sub-pestañas: Productos | Lineas [N] | Pagos/Credito
+///
+/// - "Productos": muestra el grid de productos favoritos/frecuentes
+/// - "Lineas": muestra la tabla de líneas de la orden (con contador si hay líneas)
+/// - "Pagos/Credito": muestra la pestaña de pagos (solo si el usuario tiene permisos)
 class _OrderLinesHeader extends ConsumerWidget {
   final bool showPayments;
   final SaleOrderState? orderState;
   final bool isCreditSale;
   final OrderPanelTab currentPanelTab;
+  final int linesCount;
 
   const _OrderLinesHeader({
     required this.showPayments,
     this.orderState,
     this.isCreditSale = false,
     required this.currentPanelTab,
+    required this.linesCount,
   });
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final theme = FluentTheme.of(context);
-    final secondTabLabel = isCreditSale ? 'Credito' : 'Pagos';
+    final paymentsTabLabel = isCreditSale ? 'Credito' : 'Pagos';
+
+    // Etiqueta de la pestaña Lineas: muestra el contador cuando hay líneas
+    final linesTabLabel =
+        linesCount > 0 ? 'Lineas ($linesCount)' : 'Lineas';
 
     return Container(
       height: 36,
@@ -560,16 +587,27 @@ class _OrderLinesHeader extends ConsumerWidget {
       ),
       child: Row(
         children: [
+          // Pestaña: Productos favoritos/frecuentes
           _SubTabButton(
-            label: 'Lineas',
-            isActive: currentPanelTab == OrderPanelTab.lines,
-            onTap: () => ref.read(orderPanelTabProvider.notifier).goToLines(),
+            label: 'Productos',
+            isActive: currentPanelTab == OrderPanelTab.products,
+            onTap: () =>
+                ref.read(orderPanelTabProvider.notifier).goToProducts(),
           ),
+          // Pestaña: Líneas de la orden
+          _SubTabButton(
+            label: linesTabLabel,
+            isActive: currentPanelTab == OrderPanelTab.lines,
+            onTap: () =>
+                ref.read(orderPanelTabProvider.notifier).goToLines(),
+          ),
+          // Pestaña: Pagos/Crédito (condicional)
           if (showPayments)
             _SubTabButton(
-              label: secondTabLabel,
+              label: paymentsTabLabel,
               isActive: currentPanelTab == OrderPanelTab.payments,
-              onTap: () => ref.read(orderPanelTabProvider.notifier).goToPayments(),
+              onTap: () =>
+                  ref.read(orderPanelTabProvider.notifier).goToPayments(),
             ),
           const Spacer(),
           if (orderState != null)
@@ -794,7 +832,7 @@ class _OrderLinesTotals extends StatelessWidget {
                       ),
                       const SizedBox(width: Spacing.xs),
                       Text(
-                        'Confirmar Venta',
+                        'Confirmar Venta (F9)',
                         style: TextStyle(
                           color: canConfirm ? Colors.white : null,
                           fontWeight: FontWeight.w600,

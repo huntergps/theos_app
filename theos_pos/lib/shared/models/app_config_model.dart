@@ -38,6 +38,9 @@ class AppConfigModel {
   // Date format
   final String dateFormat;
 
+  // Developer mode — enables diagnostic routes (WebSocket debug, DLQ, conflicts)
+  final bool developerMode;
+
   const AppConfigModel({
     required this.themeMode,
     required this.accentColor,
@@ -65,6 +68,7 @@ class AppConfigModel {
         5, // Default: 5 segundos para advertencias
     this.infoNotificationDuration = 3, // Default: 3 segundos para info
     this.dateFormat = 'dd/MM/yyyy', // Default: Ecuador format
+    this.developerMode = false, // Default: disabled for production
   });
 
   factory AppConfigModel.defaultConfig() {
@@ -90,6 +94,7 @@ class AppConfigModel {
       warningNotificationDuration: 5,
       infoNotificationDuration: 3,
       dateFormat: 'dd/MM/yyyy',
+      developerMode: false,
     );
   }
 
@@ -119,6 +124,7 @@ class AppConfigModel {
     int? warningNotificationDuration,
     int? infoNotificationDuration,
     String? dateFormat,
+    bool? developerMode,
   }) {
     return AppConfigModel(
       themeMode: themeMode ?? this.themeMode,
@@ -150,6 +156,7 @@ class AppConfigModel {
       infoNotificationDuration:
           infoNotificationDuration ?? this.infoNotificationDuration,
       dateFormat: dateFormat ?? this.dateFormat,
+      developerMode: developerMode ?? this.developerMode,
     );
   }
 }

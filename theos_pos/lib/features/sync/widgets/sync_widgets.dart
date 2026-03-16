@@ -7,3 +7,4 @@ export 'sync_info_banner.dart';
 export 'sync_item_card.dart';
 export 'sync_readiness_checklist.dart';
 export 'sync_status_badge.dart';
+export 'route_mode_indicator.dart';

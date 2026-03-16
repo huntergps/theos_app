@@ -424,66 +424,68 @@ class _CollectionSessionScreenState
     );
   }
 
-  /// Construye el TabView con todas las tabs
+  /// Construye el TabView agrupado en 3 tabs logicas:
+  ///   1. Efectivo  — Resumen de cierre + Contar billetes y monedas + Retiros
+  ///   2. Cobros    — Anticipos + Cobros + Cheques + Depositos
+  ///   3. Documentos y Notas — Documentos + Notas
   Widget _buildTabView(CollectionSession session) {
-    // Calcular altura basada en el tamaño de pantalla (menos header, info card, etc.)
     final screenHeight = MediaQuery.of(context).size.height;
+    // Altura total del TabView (header ~280 px + padding)
     final tabViewHeight = (screenHeight - 280).clamp(400.0, double.infinity);
+    // Altura disponible para el cuerpo de cada tab (menos la barra de tabs ~42 px)
+    final tabBodyHeight = tabViewHeight - 42;
+
     return SizedBox(
       height: tabViewHeight,
-          child: TabView(
-            currentIndex: _selectedTab,
-            onChanged: (index) => setState(() => _selectedTab = index),
-            tabs: [
-              Tab(
-                text: const Text('Resumen de Cierre'),
-                icon: const Icon(FluentIcons.calculator_multiply),
-                body: ResumenCierreTab(session: session),
-              ),
-              Tab(
-                text: const Text('Conteo Manual'),
-                icon: const Icon(FluentIcons.edit),
-                body: ConteoManualTab(session: session),
-              ),
-              Tab(
-                text: Text('Retiros (${session.cashOutCount})'),
-                icon: const Icon(FluentIcons.money),
-                body: CashOutsTab(sessionId: widget.sessionId),
-              ),
-              Tab(
-                text: Text('Depositos (${session.depositCount})'),
-                icon: const Icon(FluentIcons.bank),
-                body: DepositsTab(sessionId: widget.sessionId),
-              ),
-              Tab(
-                text: Text('Cheques (${session.chequeRecibidoCount})'),
-                icon: const Icon(FluentIcons.page),
-                body: ChequesTab(session: session),
-              ),
-              Tab(
-                text: Text('Anticipos (${session.advanceCount})'),
-                icon: const Icon(FluentIcons.money),
-                body: AdvancesTab(session: session),
-              ),
-              Tab(
-                text: Text('Cobros (${session.paymentCount})'),
-                icon: const Icon(FluentIcons.payment_card),
-                body: PaymentsTab(session: session),
-              ),
-              Tab(
-                text: const Text('Documentos'),
-                icon: const Icon(FluentIcons.document_set),
-                body: DocumentosTab(session: session),
-              ),
-              Tab(
-                text: const Text('Notas'),
-                icon: const Icon(FluentIcons.quick_note),
-                body: NotasTab(session: session),
-              ),
-            ],
+      child: TabView(
+        currentIndex: _selectedTab,
+        onChanged: (index) => setState(() => _selectedTab = index),
+        tabs: [
+          // ----------------------------------------------------------------
+          // TAB 1 — EFECTIVO
+          // ----------------------------------------------------------------
+          Tab(
+            text: const Text('Efectivo'),
+            icon: const Icon(FluentIcons.money),
+            body: _EfectivoTab(
+              session: session,
+              sessionId: widget.sessionId,
+              bodyHeight: tabBodyHeight,
+            ),
           ),
+
+          // ----------------------------------------------------------------
+          // TAB 2 — COBROS
+          // ----------------------------------------------------------------
+          Tab(
+            text: Text(
+              'Cobros'
+              '${_cobrosTotal(session) > 0 ? " (${_cobrosTotal(session)})" : ""}',
+            ),
+            icon: const Icon(FluentIcons.payment_card),
+            body: _CobrosTab(
+              session: session,
+              sessionId: widget.sessionId,
+              bodyHeight: tabBodyHeight,
+            ),
+          ),
+
+          // ----------------------------------------------------------------
+          // TAB 3 — DOCUMENTOS Y NOTAS
+          // ----------------------------------------------------------------
+          Tab(
+            text: const Text('Documentos y Notas'),
+            icon: const Icon(FluentIcons.document_set),
+            body: _DocumentosNotasTab(session: session),
+          ),
+        ],
+      ),
     );
   }
+
+  /// Total combinado de cobros visibles en el badge del tab
+  int _cobrosTotal(CollectionSession session) =>
+      session.paymentCount + session.advanceCount;
 
   // ============================================================================
   // HANDLERS - Delegan la logica al Notifier
@@ -667,5 +669,310 @@ class _CollectionSessionScreenState
       return 'd MMM, yyyy h:mm a';
     }
     return '$baseFormat HH:mm';
+  }
+}
+
+// ============================================================================
+// WIDGETS PRIVADOS — TABS AGRUPADAS
+// ============================================================================
+
+/// Altura minima garantizada para secciones con lista scrollable
+const double _kSectionListHeight = 320.0;
+
+/// Espaciado entre expanders dentro de una tab
+const double _kExpanderSpacing = 8.0;
+
+/// Decoracion comun para el header de sub-seccion con badge de conteo
+Widget _buildSectionHeader(
+  BuildContext context, {
+  required IconData icon,
+  required String title,
+  required Color iconColor,
+  int? count,
+}) {
+  final theme = FluentTheme.of(context);
+  return Row(
+    children: [
+      Icon(icon, size: 16, color: iconColor),
+      const SizedBox(width: 8),
+      Text(title, style: theme.typography.bodyStrong),
+      if (count != null && count > 0) ...[
+        const SizedBox(width: 8),
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 1),
+          decoration: BoxDecoration(
+            color: iconColor.withValues(alpha: 0.15),
+            borderRadius: BorderRadius.circular(10),
+          ),
+          child: Text(
+            '$count',
+            style: theme.typography.caption?.copyWith(
+              color: iconColor,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+        ),
+      ],
+    ],
+  );
+}
+
+// ----------------------------------------------------------------------------
+// TAB 1 — EFECTIVO
+// Agrupa: Resumen de Cierre + Contar Billetes y Monedas + Retiros
+// ----------------------------------------------------------------------------
+class _EfectivoTab extends StatefulWidget {
+  final CollectionSession session;
+  final int sessionId;
+  final double bodyHeight;
+
+  const _EfectivoTab({
+    required this.session,
+    required this.sessionId,
+    required this.bodyHeight,
+  });
+
+  @override
+  State<_EfectivoTab> createState() => _EfectivoTabState();
+}
+
+class _EfectivoTabState extends State<_EfectivoTab> {
+  bool _resumenExpanded = true;
+  bool _conteoExpanded = false;
+  bool _retirosExpanded = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = FluentTheme.of(context);
+    final cashOutCount = widget.session.cashOutCount;
+
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // ---- Resumen de Cierre ----
+          Expander(
+            initiallyExpanded: _resumenExpanded,
+            onStateChanged: (open) => setState(() => _resumenExpanded = open),
+            header: _buildSectionHeader(
+              context,
+              icon: FluentIcons.calculator_multiply,
+              title: 'Resumen de Cierre',
+              iconColor: theme.accentColor,
+            ),
+            content: ResumenCierreTab(session: widget.session),
+          ),
+
+          const SizedBox(height: _kExpanderSpacing),
+
+          // ---- Contar Billetes y Monedas ----
+          Expander(
+            initiallyExpanded: _conteoExpanded,
+            onStateChanged: (open) => setState(() => _conteoExpanded = open),
+            header: _buildSectionHeader(
+              context,
+              icon: FluentIcons.edit,
+              title: 'Contar Billetes y Monedas',
+              iconColor: Colors.teal,
+            ),
+            content: ConteoManualTab(session: widget.session),
+          ),
+
+          const SizedBox(height: _kExpanderSpacing),
+
+          // ---- Retiros de Efectivo ----
+          Expander(
+            initiallyExpanded: _retirosExpanded,
+            onStateChanged: (open) => setState(() => _retirosExpanded = open),
+            header: _buildSectionHeader(
+              context,
+              icon: FluentIcons.money,
+              title: 'Retiros de Efectivo',
+              iconColor: Colors.red,
+              count: cashOutCount,
+            ),
+            content: SizedBox(
+              height: _kSectionListHeight,
+              child: CashOutsTab(sessionId: widget.sessionId),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ----------------------------------------------------------------------------
+// TAB 2 — COBROS
+// Agrupa: Anticipos + Cobros + Cheques + Depositos
+// ----------------------------------------------------------------------------
+class _CobrosTab extends StatefulWidget {
+  final CollectionSession session;
+  final int sessionId;
+  final double bodyHeight;
+
+  const _CobrosTab({
+    required this.session,
+    required this.sessionId,
+    required this.bodyHeight,
+  });
+
+  @override
+  State<_CobrosTab> createState() => _CobrosTabState();
+}
+
+class _CobrosTabState extends State<_CobrosTab> {
+  bool _cobrosExpanded = true;
+  bool _anticiposExpanded = false;
+  bool _chequesExpanded = false;
+  bool _depositosExpanded = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = FluentTheme.of(context);
+    final paymentCount = widget.session.paymentCount;
+    final advanceCount = widget.session.advanceCount;
+    final chequeCount = widget.session.chequeRecibidoCount;
+    final depositCount = widget.session.depositCount;
+
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // ---- Cobros Registrados ----
+          Expander(
+            initiallyExpanded: _cobrosExpanded,
+            onStateChanged: (open) => setState(() => _cobrosExpanded = open),
+            header: _buildSectionHeader(
+              context,
+              icon: FluentIcons.payment_card,
+              title: 'Cobros Registrados',
+              iconColor: theme.accentColor,
+              count: paymentCount,
+            ),
+            content: SizedBox(
+              height: _kSectionListHeight,
+              child: PaymentsTab(session: widget.session),
+            ),
+          ),
+
+          const SizedBox(height: _kExpanderSpacing),
+
+          // ---- Anticipos ----
+          Expander(
+            initiallyExpanded: _anticiposExpanded,
+            onStateChanged: (open) => setState(() => _anticiposExpanded = open),
+            header: _buildSectionHeader(
+              context,
+              icon: FluentIcons.money,
+              title: 'Anticipos',
+              iconColor: Colors.orange,
+              count: advanceCount,
+            ),
+            content: SizedBox(
+              height: _kSectionListHeight,
+              child: AdvancesTab(session: widget.session),
+            ),
+          ),
+
+          const SizedBox(height: _kExpanderSpacing),
+
+          // ---- Cheques Recibidos ----
+          Expander(
+            initiallyExpanded: _chequesExpanded,
+            onStateChanged: (open) => setState(() => _chequesExpanded = open),
+            header: _buildSectionHeader(
+              context,
+              icon: FluentIcons.page,
+              title: 'Cheques Recibidos',
+              iconColor: Colors.blue,
+              count: chequeCount,
+            ),
+            content: ChequesTab(session: widget.session),
+          ),
+
+          const SizedBox(height: _kExpanderSpacing),
+
+          // ---- Depositos Bancarios ----
+          Expander(
+            initiallyExpanded: _depositosExpanded,
+            onStateChanged: (open) => setState(() => _depositosExpanded = open),
+            header: _buildSectionHeader(
+              context,
+              icon: FluentIcons.bank,
+              title: 'Depositos Bancarios',
+              iconColor: Colors.purple,
+              count: depositCount,
+            ),
+            content: SizedBox(
+              height: _kSectionListHeight,
+              child: DepositsTab(sessionId: widget.sessionId),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ----------------------------------------------------------------------------
+// TAB 3 — DOCUMENTOS Y NOTAS
+// Agrupa: Documentos + Notas
+// ----------------------------------------------------------------------------
+class _DocumentosNotasTab extends StatefulWidget {
+  final CollectionSession session;
+
+  const _DocumentosNotasTab({required this.session});
+
+  @override
+  State<_DocumentosNotasTab> createState() => _DocumentosNotasTabState();
+}
+
+class _DocumentosNotasTabState extends State<_DocumentosNotasTab> {
+  bool _documentosExpanded = true;
+  bool _notasExpanded = true;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = FluentTheme.of(context);
+
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // ---- Documentos ----
+          Expander(
+            initiallyExpanded: _documentosExpanded,
+            onStateChanged: (open) =>
+                setState(() => _documentosExpanded = open),
+            header: _buildSectionHeader(
+              context,
+              icon: FluentIcons.document_set,
+              title: 'Documentos',
+              iconColor: Colors.teal,
+            ),
+            content: DocumentosTab(session: widget.session),
+          ),
+
+          const SizedBox(height: _kExpanderSpacing),
+
+          // ---- Notas ----
+          Expander(
+            initiallyExpanded: _notasExpanded,
+            onStateChanged: (open) => setState(() => _notasExpanded = open),
+            header: _buildSectionHeader(
+              context,
+              icon: FluentIcons.quick_note,
+              title: 'Notas',
+              iconColor: theme.accentColor,
+            ),
+            content: NotasTab(session: widget.session),
+          ),
+        ],
+      ),
+    );
   }
 }

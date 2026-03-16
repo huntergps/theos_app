@@ -162,7 +162,7 @@ class POSActionsPanel extends ConsumerWidget {
       if (canConfirm)
         _ActionItem(
           icon: FluentIcons.check_mark,
-          label: 'Confirmar',
+          label: 'Confirmar (F9)',
           color: AppColors.success,
           onTap: () => _handleConfirmOrder(context, ref, activeTab),
           isPrimary: true,
@@ -214,9 +214,9 @@ class POSActionsPanel extends ConsumerWidget {
       ),
       _ActionItem(
         icon: FluentIcons.payment_card,
-        label: 'Ver Pagos',
+        label: 'Cobrar',
         color: AppColors.success,
-        onTap: () => _goToPaymentsTab(context, ref),
+        onTap: () => _handleGoToPayments(context, ref, activeTab),
       ),
       _ActionItem(
         icon: FluentIcons.circle_dollar,
@@ -224,6 +224,18 @@ class POSActionsPanel extends ConsumerWidget {
         // TODO: AppColors no tiene equivalente para magenta; definir AppColors.advance si se estandariza
         color: Colors.magenta,
         onTap: () => _showAdvanceDialog(context, ref, activeTab),
+      ),
+      _ActionItem(
+        icon: FluentIcons.save,
+        label: 'Guardar (F10)',
+        color: AppColors.textSecondary,
+        onTap: () => ref.read(fastSaleProvider.notifier).saveActiveOrder(),
+      ),
+      _ActionItem(
+        icon: FluentIcons.add,
+        label: 'Nueva Orden (F4)',
+        color: AppColors.primaryBackground,
+        onTap: () => ref.read(fastSaleProvider.notifier).addNewTab(),
       ),
     ];
 
@@ -758,8 +770,93 @@ class POSActionsPanel extends ConsumerWidget {
 
 
 
-  /// Navigate to payments tab
-  void _goToPaymentsTab(BuildContext context, WidgetRef ref) {
+  /// Navigate to payments tab, confirming order first if it is in draft state.
+  ///
+  /// If the active order is still in draft (quotation), shows a quick dialog
+  /// asking the user to confirm and pay in one step. On acceptance, the order
+  /// is confirmed (with credit check) and then the payments tab is opened.
+  Future<void> _handleGoToPayments(
+    BuildContext context,
+    WidgetRef ref,
+    FastSaleTabState? activeTab,
+  ) async {
+    final order = activeTab?.order;
+
+    // If the order is in draft/quotation, auto-confirm before going to payments
+    if (order != null && order.state == SaleOrderState.draft) {
+      final hasLines = activeTab != null && activeTab.lines.isNotEmpty;
+      final hasPartner = order.partnerId != null;
+
+      // Check minimum requirements to confirm
+      if (!hasLines || !hasPartner) {
+        final missing = <String>[];
+        if (!hasLines) missing.add('líneas de producto');
+        if (!hasPartner) missing.add('un cliente');
+        if (!context.mounted) return;
+        CopyableInfoBar.showWarning(
+          context,
+          title: 'Faltan datos para confirmar',
+          message: 'Agrega ${missing.join(' y ')} antes de registrar el cobro.',
+        );
+        return;
+      }
+
+      if (!context.mounted) return;
+
+      // Show quick confirm-and-pay dialog
+      final proceed = await showDialog<bool>(
+        context: context,
+        builder: (ctx) => ContentDialog(
+          title: const Text('Confirmar y Cobrar'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'La orden ${order.name} está en borrador.',
+                style: const TextStyle(fontWeight: FontWeight.w500),
+              ),
+              const SizedBox(height: Spacing.sm),
+              const Text(
+                'Para registrar el cobro, primero se debe confirmar la orden.',
+              ),
+              const SizedBox(height: Spacing.sm),
+              const Text(
+                '¿Confirmar la orden y continuar al cobro?',
+              ),
+            ],
+          ),
+          actions: [
+            Button(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('Cancelar'),
+            ),
+            FilledButton(
+              style: ButtonStyle(
+                backgroundColor: WidgetStateProperty.all(AppColors.success),
+              ),
+              onPressed: () => Navigator.pop(ctx, true),
+              child: const Text('Confirmar y Cobrar'),
+            ),
+          ],
+        ),
+      );
+
+      if (proceed != true || !context.mounted) return;
+
+      // Confirm the order (full flow with credit check)
+      await _handleConfirmOrder(context, ref, activeTab);
+
+      // After confirmation, check if it succeeded (state should no longer be draft)
+      if (!context.mounted) return;
+      final updatedOrder = ref.read(fastSaleActiveTabProvider)?.order;
+      if (updatedOrder?.state == SaleOrderState.draft) {
+        // Confirmation failed or was cancelled — do not navigate to payments
+        return;
+      }
+    }
+
+    // Navigate to payments tab
     ref.read(orderPanelTabProvider.notifier).goToPayments();
   }
 

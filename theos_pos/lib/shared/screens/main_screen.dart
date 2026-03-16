@@ -32,10 +32,14 @@ import '../../features/sync/providers/sync_provider.dart';
 import '../../core/database/providers.dart';
 import '../models/im_status.dart';
 import '../widgets/user_preferences_dialog.dart';
+import '../constants/user_groups.dart';
 import '../providers/menu_provider.dart';
 import '../../features/sync/widgets/sync_status_badge.dart';
+import '../../features/sync/widgets/route_mode_indicator.dart';
+import '../providers/offline_queue_provider.dart';
 import '../../core/managers/managers.dart';
 import '../../features/dashboard/widgets/supervisor_dashboard.dart';
+import '../widgets/credit_approval_notification.dart';
 import 'package:theos_pos_core/theos_pos_core.dart';
 
 class MainScreen extends ConsumerStatefulWidget {
@@ -291,9 +295,14 @@ class _MainScreenState extends ConsumerState<MainScreen> with WindowListener {
   List<NavigationPaneItem> _buildNavItems(List<MenuItemDefinition> items) {
     final List<NavigationPaneItem> result = [];
     for (final item in items) {
+      // El ítem de Órdenes de Venta muestra badge con solicitudes de crédito pendientes
+      final icon = item.path == '/sales'
+          ? SalesBadgeIcon(baseIcon: item.icon)
+          : Icon(item.icon);
+
       result.add(PaneItem(
         key: ValueKey(item.path),
-        icon: Icon(item.icon),
+        icon: icon,
         title: Text(item.title),
         body: const SizedBox.shrink(),
         onTap: () {
@@ -380,7 +389,8 @@ class _MainScreenState extends ConsumerState<MainScreen> with WindowListener {
       displayMode = PaneDisplayMode.auto;
     }
 
-    return Column(
+    return CreditApprovalNotificationListener(
+      child: Column(
       children: [
       Expanded(child: NavigationView(
       titleBar: DragToMoveArea(
@@ -391,6 +401,12 @@ class _MainScreenState extends ConsumerState<MainScreen> with WindowListener {
               child: Text('Orbi ERP'),
             ),
             const Spacer(),
+            // Route Mode Badge — aparece cuando el vendedor activa Modo Ruta
+            Padding(
+              padding: EdgeInsets.only(right: spacing.sm),
+              child: const RouteModeIndicatorBadge(),
+            ),
+
             // Offline Mode Indicator
             Consumer(
               builder: (context, ref, child) {
@@ -436,7 +452,66 @@ class _MainScreenState extends ConsumerState<MainScreen> with WindowListener {
               },
             ),
 
-            // Sync Status Badge - shows sync progress and pending offline operations
+            // Pending offline operations badge — always visible when there are ops queued
+            Consumer(
+              builder: (context, ref, child) {
+                final offlineState = ref.watch(offlineQueueProvider);
+                final pendingCount = offlineState.totalCount;
+                if (pendingCount == 0) return const SizedBox.shrink();
+
+                final label = pendingCount == 1
+                    ? '1 pendiente'
+                    : '$pendingCount pendientes';
+
+                return Padding(
+                  padding: EdgeInsets.only(right: spacing.sm),
+                  child: Tooltip(
+                    message: '$pendingCount ${pendingCount == 1 ? 'operación pendiente' : 'operaciones pendientes'} de enviar al servidor',
+                    child: GestureDetector(
+                      onTap: () => context.go('/offline-sync'),
+                      child: MouseRegion(
+                        cursor: SystemMouseCursors.click,
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 8,
+                            vertical: 4,
+                          ),
+                          decoration: BoxDecoration(
+                            color: Colors.orange.withValues(alpha: 0.2),
+                            borderRadius: BorderRadius.circular(4),
+                            border: Border.all(
+                              color: Colors.orange,
+                              width: 1,
+                            ),
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(
+                                FluentIcons.cloud_upload,
+                                size: 14,
+                                color: Colors.orange,
+                              ),
+                              const SizedBox(width: 4),
+                              Text(
+                                label,
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.bold,
+                                  color: Colors.orange,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                );
+              },
+            ),
+
+            // Sync Status Badge - shows sync progress and errors
             Padding(
               padding: EdgeInsets.only(right: spacing.sm),
               child: SyncStatusBadge(
@@ -585,6 +660,7 @@ class _MainScreenState extends ConsumerState<MainScreen> with WindowListener {
     )),
       const ServerInfoBar(),
       ],
+    ),
     );
   }
 }
@@ -635,13 +711,7 @@ class HomeScreen extends ConsumerWidget {
   /// Returns true when the user has supervisor-level permissions:
   /// collection_manager, sale_manager, account_manager, or system admin.
   bool _isSupervisor(List<String> permissions) {
-    const supervisorGroups = [
-      'l10n_ec_collection_box.group_collection_manager',
-      'sales_team.group_sale_manager',
-      'account.group_account_manager',
-      'base.group_system',
-    ];
-    return supervisorGroups.any((g) => permissions.contains(g));
+    return kSupervisorGroups.any((g) => permissions.contains(g));
   }
 
   @override

@@ -29,6 +29,7 @@ export 'services/offline_preloader.dart';
 // Hide SyncStatus from sync_provider.dart - use the one from odoo_offline_core
 export 'providers/sync_provider.dart' hide SyncStatus;
 export 'providers/offline_mode_providers.dart';
+export 'providers/route_mode_provider.dart';
 
 // Screens
 export 'screens/sync_screen.dart';

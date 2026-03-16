@@ -44,6 +44,7 @@ class ConfigService extends _$ConfigService {
       'warning_notification_duration';
   static const _keyInfoNotificationDuration = 'info_notification_duration';
   static const _keyDateFormat = 'date_format';
+  static const _keyDeveloperMode = 'developer_mode';
 
   Future<void> _loadConfig() async {
     final prefs = await SharedPreferences.getInstance();
@@ -130,6 +131,7 @@ class ConfigService extends _$ConfigService {
           prefs.getInt(_keyWarningNotificationDuration) ?? 5,
       infoNotificationDuration: prefs.getInt(_keyInfoNotificationDuration) ?? 3,
       dateFormat: prefs.getString(_keyDateFormat) ?? 'dd/MM/yyyy',
+      developerMode: prefs.getBool(_keyDeveloperMode) ?? false,
     );
   }
 
@@ -238,6 +240,7 @@ class ConfigService extends _$ConfigService {
       state.infoNotificationDuration,
     );
     await prefs.setString(_keyDateFormat, state.dateFormat);
+    await prefs.setBool(_keyDeveloperMode, state.developerMode);
 
     if (state.windowWidth != null) {
       await prefs.setDouble(_keyWindowWidth, state.windowWidth!);
@@ -551,6 +554,11 @@ class ConfigService extends _$ConfigService {
 
   void setDateFormat(String format) {
     state = state.copyWith(dateFormat: format);
+    _saveConfig();
+  }
+
+  void setDeveloperMode(bool enabled) {
+    state = state.copyWith(developerMode: enabled);
     _saveConfig();
   }
 }

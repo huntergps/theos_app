@@ -6,10 +6,10 @@ library;
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:theos_pos_core/theos_pos_core.dart'
-    show SaleOrderState, SessionState;
+    show CollectionSession, SaleOrderState, SessionState;
 
 import '../../../core/database/providers.dart'
-    show saleOrdersStreamProvider, activeSessionsProvider;
+    show activeSessionsProvider, saleOrdersStreamProvider;
 import '../../../features/sync/providers/sync_provider.dart';
 
 // ============================================================================
@@ -32,21 +32,6 @@ class DailySaleMetrics {
     this.confirmedCount = 0,
     this.doneCount = 0,
     this.cancelledCount = 0,
-  });
-}
-
-/// Estado resumido de la sesion de caja activa
-class ActiveSessionSummary {
-  final bool hasActiveSession;
-  final String? configName;
-  final SessionState? sessionState;
-  final String? userName;
-
-  const ActiveSessionSummary({
-    this.hasActiveSession = false,
-    this.configName,
-    this.sessionState,
-    this.userName,
   });
 }
 
@@ -109,6 +94,25 @@ final dailySaleMetricsProvider = Provider<DailySaleMetrics>((ref) {
   );
 });
 
+// ============================================================================
+// SESIONES ACTIVAS
+// ============================================================================
+
+/// Resumen de una sesion de caja activa
+class ActiveSessionSummary {
+  final bool hasActiveSession;
+  final String? configName;
+  final SessionState? sessionState;
+  final String? userName;
+
+  const ActiveSessionSummary({
+    this.hasActiveSession = false,
+    this.configName,
+    this.sessionState,
+    this.userName,
+  });
+}
+
 /// Resumen de la sesion de caja activa para el dashboard.
 /// Reactivo via activeSessionsProvider.
 final activeSessionSummaryProvider = Provider<ActiveSessionSummary>((ref) {
@@ -132,6 +136,17 @@ final activeSessionSummaryProvider = Provider<ActiveSessionSummary>((ref) {
     },
     loading: () => const ActiveSessionSummary(),
     error: (_, _) => const ActiveSessionSummary(),
+  );
+});
+
+/// Todas las sesiones activas para el dashboard multi-sesion del supervisor.
+final allActiveSessionsProvider = Provider<List<CollectionSession>>((ref) {
+  final sessionsAsync = ref.watch(activeSessionsProvider);
+  return sessionsAsync.when(
+    data: (sessions) =>
+        sessions.where((s) => s.state != SessionState.closed).toList(),
+    loading: () => [],
+    error: (_, _) => [],
   );
 });
 

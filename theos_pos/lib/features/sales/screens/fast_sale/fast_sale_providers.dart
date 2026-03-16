@@ -36,18 +36,19 @@ part 'fast_sale_notifier_save.dart';
 part 'fast_sale_notifier_confirm.dart';
 part 'fast_sale_notifier_websocket.dart';
 
-/// Sub-tab type for the order panel (Lines | Payments/Credit)
-enum OrderPanelTab { lines, payments }
+/// Sub-tab type for the order panel (Productos | Lineas | Pagos/Credito)
+enum OrderPanelTab { products, lines, payments }
 
-/// Notifier for the current panel tab (Lines | Payments)
+/// Notifier for the current panel tab (Productos | Lineas | Pagos)
 class OrderPanelTabNotifier extends Notifier<OrderPanelTab> {
   @override
-  OrderPanelTab build() => OrderPanelTab.lines;
+  OrderPanelTab build() => OrderPanelTab.products;
 
   void setTab(OrderPanelTab tab) {
     state = tab;
   }
 
+  void goToProducts() => state = OrderPanelTab.products;
   void goToLines() => state = OrderPanelTab.lines;
   void goToPayments() => state = OrderPanelTab.payments;
 }

@@ -6,6 +6,7 @@ import '../../core/constants/app_colors.dart';
 import '../../core/constants/app_constants.dart';
 import '../../core/services/config_service.dart';
 import '../widgets/form/form_fields.dart';
+import '../../features/sync/widgets/route_mode_indicator.dart';
 
 // Custom cyan/turquoise color using centralized constants
 final cyanAccentColor = AccentColor.swatch(AppColors.primaryVariants);
@@ -510,7 +511,7 @@ class _SettingsSectionAppearance extends StatelessWidget {
 // SECTION 3: System
 // =============================================================================
 
-class _SettingsSectionSystem extends StatelessWidget {
+class _SettingsSectionSystem extends ConsumerWidget {
   final dynamic config;
   final ConfigService notifier;
 
@@ -520,11 +521,23 @@ class _SettingsSectionSystem extends StatelessWidget {
   });
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         const FormSection(title: 'Sistema'),
+        const SizedBox(height: 16),
+
+        // Route Mode Toggle — para vendedores rurales sin internet
+        InfoLabel(
+          label: 'Modo Ruta (Vendedores Rurales)',
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const RouteModeToggle(showDescription: true),
+            ],
+          ),
+        ),
         const SizedBox(height: 16),
 
         // Date Format
@@ -552,6 +565,48 @@ class _SettingsSectionSystem extends StatelessWidget {
           onChanged: (format) {
             if (format != null) notifier.setDateFormat(format);
           },
+        ),
+        const SizedBox(height: 16),
+
+        // Developer Mode Toggle
+        InfoLabel(
+          label: 'Modo Desarrollador',
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  ToggleSwitch(
+                    checked: config.developerMode,
+                    onChanged: (value) => notifier.setDeveloperMode(value),
+                    content: Text(
+                      config.developerMode ? 'Activo' : 'Inactivo',
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 8),
+              Text(
+                'Muestra herramientas de diagnostico en el menu de navegacion: '
+                'WebSocket Debug, Conflictos de Sync y Cola Fallida.',
+                style: FluentTheme.of(context).typography.caption?.copyWith(
+                  color: FluentTheme.of(
+                    context,
+                  ).resources.textFillColorSecondary,
+                ),
+              ),
+              if (config.developerMode) ...[
+                const SizedBox(height: 6),
+                Text(
+                  'Rutas disponibles: /websocket-debug, /conflicts, /dead-letter-queue',
+                  style: FluentTheme.of(context).typography.caption?.copyWith(
+                    color: FluentTheme.of(context).accentColor,
+                    fontSize: 11,
+                  ),
+                ),
+              ],
+            ],
+          ),
         ),
         const SizedBox(height: 16),
 

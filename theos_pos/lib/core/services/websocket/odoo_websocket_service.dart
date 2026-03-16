@@ -16,6 +16,8 @@ import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:odoo_sdk/odoo_sdk.dart' hide ServerConfig;
 
 import '../../../features/authentication/services/server_service.dart';
+import '../../../features/sync/providers/route_mode_provider.dart'
+    show isRouteModeActiveProvider;
 
 // Re-export types from package for backward compatibility
 export 'package:odoo_sdk/odoo_sdk.dart'
@@ -103,8 +105,14 @@ class ReconnectState {
 /// - Configures browser session establishment for Web platform
 /// - Manages default channel subscriptions
 /// - Auto-reconnect with exponential backoff on disconnect
+/// - Respects Route Mode: disables reconnect when vendedor is offline by choice
 class AppOdooWebSocketService {
   final ServerConfig? Function() _getCurrentSession;
+
+  /// Callback que devuelve true si el Modo Ruta esta activo.
+  /// Si es null, el modo ruta nunca se considera activo.
+  final bool Function()? _isRouteModeActive;
+
   late final OdooWebSocketService _service;
 
   /// Auto-reconnect configuration
@@ -127,7 +135,9 @@ class AppOdooWebSocketService {
 
   AppOdooWebSocketService({
     required ServerConfig? Function() getCurrentSession,
-  }) : _getCurrentSession = getCurrentSession {
+    bool Function()? isRouteModeActive,
+  }) : _getCurrentSession = getCurrentSession,
+       _isRouteModeActive = isRouteModeActive {
     _service = OdooWebSocketService();
 
     // Configure browser session establishment callback for Web platform
@@ -208,6 +218,17 @@ class AppOdooWebSocketService {
         connected: true,
       ));
     } else if (_autoReconnectEnabled && !_isReconnecting) {
+      // Si el Modo Ruta esta activo, NO intentar reconectar.
+      // El usuario ha decidido trabajar offline — respetar esa decision.
+      if (_isRouteModeActive?.call() == true) {
+        logger.d('[OdooWebSocket] Modo Ruta activo — reconexion suspendida');
+        _reconnectStateController.add(ReconnectState(
+          isReconnecting: false,
+          attempt: 0,
+          connected: false,
+        ));
+        return;
+      }
       // Disconnected - start auto-reconnect
       _startAutoReconnect();
     }
@@ -217,12 +238,26 @@ class AppOdooWebSocketService {
   void _startAutoReconnect() async {
     if (_isReconnecting || !_autoReconnectEnabled) return;
 
+    // Si el Modo Ruta esta activo, no iniciar el bucle de reconexion
+    if (_isRouteModeActive?.call() == true) {
+      logger.d('[OdooWebSocket] Modo Ruta activo — reconexion no iniciada');
+      return;
+    }
+
     _isReconnecting = true;
     _backoff.reset();
 
     logger.d('[OdooWebSocket] Starting auto-reconnect...');
 
     while (_backoff.shouldRetry && _autoReconnectEnabled && _isReconnecting) {
+      // Verificar modo ruta en cada iteracion — podria activarse mientras reconecta
+      if (_isRouteModeActive?.call() == true) {
+        logger.d('[OdooWebSocket] Modo Ruta activado durante reconexion — deteniendo');
+        _isReconnecting = false;
+        _backoff.reset();
+        return;
+      }
+
       // Wait for backoff delay
       if (!await _backoff.wait()) {
         break;
@@ -420,9 +455,13 @@ class AppOdooWebSocketService {
 ///
 /// This provides an `AppOdooWebSocketService` which wraps the generic
 /// `OdooWebSocketService` from odoo_offline_core with Riverpod integration.
+/// Integra Modo Ruta: el WebSocket no reconecta cuando el vendedor esta
+/// en zona sin senial y ha activado el modo ruta.
 final odooWebSocketServiceProvider = Provider<AppOdooWebSocketService>((ref) {
   final service = AppOdooWebSocketService(
     getCurrentSession: () => ref.read(serverServiceProvider.notifier).currentSession,
+    // Inyectar modo ruta como callback (read, no watch — evita rebuilds)
+    isRouteModeActive: () => ref.read(isRouteModeActiveProvider),
   );
   ref.onDispose(() => service.dispose());
   return service;
