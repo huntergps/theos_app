@@ -14,16 +14,35 @@ part 'product_providers.g.dart';
 
 @Riverpod(keepAlive: true)
 CatalogService catalogService(Ref ref) {
-  return CatalogService();
+  final catalog = CatalogService();
+  // Cancelar suscripciones Drift al destruir el provider (p.ej. logout)
+  ref.onDispose(catalog.dispose);
+  return catalog;
 }
 
-// TODO: catalogInit wraps a mutable singleton CatalogService with keepAlive: true.
-// Refactor to StreamProvider when CatalogService becomes reactive (ChangeNotifier/streams).
+/// Stream que emite un entero incremental cada vez que el catálogo cambia.
+///
+/// Los providers de lookup escuchan este stream para saber cuándo
+/// deben reconstruirse. El valor en sí (el entero) no es relevante;
+/// solo importa que emita para disparar el rebuild de Riverpod.
+@Riverpod(keepAlive: true)
+Stream<int> catalogChanges(Ref ref) {
+  final catalog = ref.watch(catalogServiceProvider);
+  return catalog.onChanged;
+}
+
+/// Inicializa el catálogo y arranca la escucha reactiva de Drift.
+///
+/// Debe usarse con `ref.watch(catalogInitProvider)` en la pantalla raíz
+/// para garantizar que los HashMaps estén poblados antes de usarlos.
 @Riverpod(keepAlive: true)
 Future<CatalogService> catalogInit(Ref ref) async {
   final catalog = ref.watch(catalogServiceProvider);
   if (!catalog.isLoaded || catalog.needsRefresh) {
     await catalog.loadCatalogs();
+    // Iniciar escucha reactiva después de la carga inicial.
+    // startWatching() es idempotente: limpia suscripciones previas.
+    catalog.startWatching();
   }
   return catalog;
 }
@@ -33,6 +52,8 @@ Future<CatalogService> catalogInit(Ref ref) async {
 @Riverpod(keepAlive: true)
 String productName(Ref ref, int? productId) {
   if (productId == null) return '';
+  // Escuchar cambios del catálogo para rebuilds reactivos
+  ref.watch(catalogChangesProvider);
   final catalog = ref.watch(catalogServiceProvider);
   return catalog.resolveProductName(productId);
 }
@@ -40,6 +61,7 @@ String productName(Ref ref, int? productId) {
 @Riverpod(keepAlive: true)
 String uomName(Ref ref, int? uomId) {
   if (uomId == null) return 'Unid.';
+  ref.watch(catalogChangesProvider);
   final catalog = ref.watch(catalogServiceProvider);
   return catalog.resolveUomName(uomId);
 }
@@ -47,6 +69,7 @@ String uomName(Ref ref, int? uomId) {
 @Riverpod(keepAlive: true)
 String categoryName(Ref ref, int? categId) {
   if (categId == null) return '';
+  ref.watch(catalogChangesProvider);
   final catalog = ref.watch(catalogServiceProvider);
   return catalog.resolveCategoryName(categId);
 }
@@ -56,6 +79,7 @@ String categoryName(Ref ref, int? categId) {
 @Riverpod(keepAlive: true)
 Product? productByIdCache(Ref ref, int? productId) {
   if (productId == null) return null;
+  ref.watch(catalogChangesProvider);
   final catalog = ref.watch(catalogServiceProvider);
   return catalog.getProduct(productId);
 }
@@ -63,6 +87,7 @@ Product? productByIdCache(Ref ref, int? productId) {
 @Riverpod(keepAlive: true)
 Product? productByBarcode(Ref ref, String? barcode) {
   if (barcode == null || barcode.isEmpty) return null;
+  ref.watch(catalogChangesProvider);
   final catalog = ref.watch(catalogServiceProvider);
   return catalog.getProductByBarcode(barcode);
 }
@@ -70,6 +95,7 @@ Product? productByBarcode(Ref ref, String? barcode) {
 @Riverpod(keepAlive: true)
 Product? productByCode(Ref ref, String? code) {
   if (code == null || code.isEmpty) return null;
+  ref.watch(catalogChangesProvider);
   final catalog = ref.watch(catalogServiceProvider);
   return catalog.getProductByCode(code);
 }
@@ -79,12 +105,14 @@ Product? productByCode(Ref ref, String? code) {
 @Riverpod(keepAlive: true)
 Uom? uomById(Ref ref, int? uomId) {
   if (uomId == null) return null;
+  ref.watch(catalogChangesProvider);
   final catalog = ref.watch(catalogServiceProvider);
   return catalog.getUom(uomId);
 }
 
 @Riverpod(keepAlive: true)
 List<Uom> allUoms(Ref ref) {
+  ref.watch(catalogChangesProvider);
   final catalog = ref.watch(catalogServiceProvider);
   return catalog.allUoms;
 }
@@ -94,12 +122,14 @@ List<Uom> allUoms(Ref ref) {
 @Riverpod(keepAlive: true)
 ProductCategory? categoryById(Ref ref, int? categId) {
   if (categId == null) return null;
+  ref.watch(catalogChangesProvider);
   final catalog = ref.watch(catalogServiceProvider);
   return catalog.getCategory(categId);
 }
 
 @Riverpod(keepAlive: true)
 List<ProductCategory> allCategories(Ref ref) {
+  ref.watch(catalogChangesProvider);
   final catalog = ref.watch(catalogServiceProvider);
   return catalog.allCategories;
 }
@@ -108,6 +138,7 @@ List<ProductCategory> allCategories(Ref ref) {
 
 @Riverpod(keepAlive: true)
 List<Product> productSearchCache(Ref ref, String query) {
+  ref.watch(catalogChangesProvider);
   final catalog = ref.watch(catalogServiceProvider);
   return catalog.searchProducts(query);
 }
@@ -116,6 +147,7 @@ List<Product> productSearchCache(Ref ref, String query) {
 
 @Riverpod(keepAlive: true)
 Map<String, int> catalogStats(Ref ref) {
+  ref.watch(catalogChangesProvider);
   final catalog = ref.watch(catalogServiceProvider);
   return catalog.stats;
 }

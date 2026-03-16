@@ -1,5 +1,7 @@
 import 'package:fluent_ui/fluent_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+
+import '../../core/constants/app_colors.dart';
 import '../../core/services/platform/server_connectivity_service.dart';
 import '../../features/sync/providers/offline_mode_providers.dart' show offlineModeConfigProvider;
 
@@ -53,7 +55,7 @@ class ServerStatusWidget extends ConsumerWidget {
 
   /// Vista cuando el modo offline está activado manualmente
   Widget _buildOfflineModeView(BuildContext context) {
-    final color = Colors.blue;
+    final color = FluentTheme.of(context).accentColor;
     return Tooltip(
       message: 'Modo offline activado manualmente.\nLos datos se guardan localmente.',
       child: Container(
@@ -175,14 +177,14 @@ class ServerStatusWidget extends ConsumerWidget {
             context,
             'WebSocket',
             status.webSocketConnected ? 'Conectado' : 'Desconectado',
-            status.webSocketConnected ? Colors.green : Colors.grey,
+            status.webSocketConnected ? AppColors.success : AppColors.textSecondary,
           ),
           const SizedBox(height: 8),
           _buildDetailRow(
             context,
             'Sesión',
             status.sessionValid ? 'Válida' : 'Expirada',
-            status.sessionValid ? Colors.green : Colors.red,
+            status.sessionValid ? AppColors.success : AppColors.danger,
           ),
 
           if (status.latencyMs != null) ...[
@@ -201,7 +203,7 @@ class ServerStatusWidget extends ConsumerWidget {
               context,
               'Fallos consecutivos',
               '${status.consecutiveFailures}',
-              Colors.orange,
+              AppColors.warning,
             ),
           ],
 
@@ -211,7 +213,7 @@ class ServerStatusWidget extends ConsumerWidget {
               context,
               'Última vez online',
               _formatDateTime(status.lastOnlineAt!),
-              Colors.grey,
+              AppColors.textSecondary,
             ),
           ],
 
@@ -221,9 +223,9 @@ class ServerStatusWidget extends ConsumerWidget {
               width: double.infinity,
               padding: const EdgeInsets.all(8),
               decoration: BoxDecoration(
-                color: Colors.red.withValues(alpha: 0.1),
+                color: AppColors.danger.withValues(alpha: 0.1),
                 borderRadius: BorderRadius.circular(4),
-                border: Border.all(color: Colors.red.withValues(alpha: 0.3)),
+                border: Border.all(color: AppColors.danger.withValues(alpha: 0.3)),
               ),
               child: Text(
                 status.lastError!.length > 100
@@ -231,7 +233,7 @@ class ServerStatusWidget extends ConsumerWidget {
                     : status.lastError!,
                 style: TextStyle(
                   fontSize: 11,
-                  color: Colors.red.dark,
+                  color: AppColors.danger,
                 ),
               ),
             ),
@@ -271,37 +273,37 @@ class ServerStatusWidget extends ConsumerWidget {
 
   (Color, IconData, String) _getStatusDisplay(ConnectivityStatus status) {
     if (!status.hasNetwork) {
-      return (Colors.grey, FluentIcons.globe, 'Sin Red');
+      return (AppColors.textSecondary, FluentIcons.globe, 'Sin Red');
     }
 
     return switch (status.serverState) {
       ServerConnectionState.online => (
-          Colors.green,
+          AppColors.success,
           FluentIcons.cloud,
           'Online'
         ),
       ServerConnectionState.degraded => (
-          Colors.orange,
+          AppColors.warning,
           FluentIcons.warning,
           'Degradado'
         ),
       ServerConnectionState.unreachable => (
-          Colors.red,
+          AppColors.danger,
           FluentIcons.cloud_not_synced,
           'Inalcanzable'
         ),
       ServerConnectionState.maintenance => (
-          Colors.orange,
+          AppColors.warning,
           FluentIcons.repair,
           'Mantenimiento'
         ),
       ServerConnectionState.sessionExpired => (
-          Colors.red,
+          AppColors.danger,
           FluentIcons.lock,
           'Sesión Expirada'
         ),
       ServerConnectionState.unknown => (
-          Colors.grey,
+          AppColors.textSecondary,
           FluentIcons.sync,
           'Verificando...'
         ),
@@ -321,19 +323,19 @@ class ServerStatusWidget extends ConsumerWidget {
 
   Color _getServerStateColor(ServerConnectionState state) {
     return switch (state) {
-      ServerConnectionState.online => Colors.green,
-      ServerConnectionState.degraded => Colors.orange,
-      ServerConnectionState.unreachable => Colors.red,
-      ServerConnectionState.maintenance => Colors.orange,
-      ServerConnectionState.sessionExpired => Colors.red,
-      ServerConnectionState.unknown => Colors.grey,
+      ServerConnectionState.online => AppColors.success,
+      ServerConnectionState.degraded => AppColors.warning,
+      ServerConnectionState.unreachable => AppColors.danger,
+      ServerConnectionState.maintenance => AppColors.warning,
+      ServerConnectionState.sessionExpired => AppColors.danger,
+      ServerConnectionState.unknown => AppColors.textSecondary,
     };
   }
 
   Color _getLatencyColor(int latencyMs) {
-    if (latencyMs < 100) return Colors.green;
-    if (latencyMs < 300) return Colors.orange;
-    return Colors.red;
+    if (latencyMs < 100) return AppColors.success;
+    if (latencyMs < 300) return AppColors.warning;
+    return AppColors.danger;
   }
 
   String _getTooltipMessage(ConnectivityStatus status) {

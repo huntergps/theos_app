@@ -1,10 +1,15 @@
+import 'dart:async';
+
 import 'package:flutter/foundation.dart' show visibleForTesting;
 import 'package:theos_pos_core/theos_pos_core.dart';
 
 /// Servicio que mantiene un caché de los catálogos locales
 /// para poder resolver nombres de forma síncrona en la UI.
 ///
-/// Reemplaza a CatalogLookupService con soporte para los nuevos modelos Freezed.
+/// El caché es un HashMap O(1) que se actualiza reactivamente cuando
+/// Drift recibe cambios vía WebSocket (upsert → stream → actualización
+/// de los mapas internos). No depende de TTL para reflejar precios
+/// actualizados.
 ///
 /// Uso:
 /// ```dart
@@ -32,16 +37,33 @@ class CatalogService {
   bool _isLoaded = false;
   DateTime? _lastLoadTime;
 
+  // Stream de cambios para que los providers de UI sepan cuándo re-renderizar.
+  // Emite un entero que se incrementa con cada actualización del caché.
+  final StreamController<int> _changesController =
+      StreamController<int>.broadcast();
+  int _changeVersion = 0;
+
+  // Suscripciones a los streams de Drift (para cancelar en dispose)
+  final List<StreamSubscription<dynamic>> _watchSubscriptions = [];
+
+  // Debounce: agrupa cambios rápidos en una sola actualización
+  Timer? _debounceTimer;
+
   CatalogService();
+
+  /// Stream que emite un entero incremental cada vez que el caché cambia.
+  ///
+  /// Los providers de UI deben hacer `ref.watch(catalogChangesProvider)`
+  /// para recibir rebuilds cuando los datos del catálogo se actualicen.
+  Stream<int> get onChanged => _changesController.stream;
 
   /// Indica si el caché está cargado
   bool get isLoaded => _isLoaded;
 
-  /// Indica si el caché necesita recargarse (más de 5 minutos)
-  bool get needsRefresh {
-    if (_lastLoadTime == null) return true;
-    return DateTime.now().difference(_lastLoadTime!).inMinutes > 5;
-  }
+  /// Indica si el caché necesita recargarse (nunca cargado).
+  /// Con reactividad basada en streams, el TTL ya no es necesario.
+  /// Solo se usa para la carga inicial.
+  bool get needsRefresh => _lastLoadTime == null;
 
   /// Cantidad de productos en caché
   int get productCount => _productsById.length;
@@ -62,6 +84,194 @@ class CatalogService {
   Future<void> refresh() async {
     clear();
     await loadCatalogs();
+  }
+
+  /// Inicia la suscripción reactiva a los streams de Drift.
+  ///
+  /// Debe llamarse una sola vez después de la carga inicial. Cuando Drift
+  /// recibe un upsert (vía WebSocket), los streams emiten los datos
+  /// actualizados. Con un debounce de 500 ms se agrupan cambios rápidos
+  /// (p.ej. sync masivo) en una sola actualización del HashMap.
+  ///
+  /// Los subscriptions se cancelan en [dispose].
+  void startWatching() {
+    // Limpiar suscripciones anteriores si se llama más de una vez
+    _cancelWatchSubscriptions();
+
+    // Productos — se actualiza el mapa en lugar de reemplazarlo completo
+    _watchSubscriptions.add(
+      productManager.watchAll().listen(
+        (products) => _scheduleProductsUpdate(products),
+        onError: (Object e) =>
+            logger.w('[CatalogService]', 'Products stream error: $e'),
+      ),
+    );
+
+    // UoMs
+    _watchSubscriptions.add(
+      uomManager.watchAll().listen(
+        (uoms) => _scheduleUomsUpdate(uoms),
+        onError: (Object e) =>
+            logger.w('[CatalogService]', 'Uoms stream error: $e'),
+      ),
+    );
+
+    // Categorías
+    _watchSubscriptions.add(
+      productCategoryManager.watchAll().listen(
+        (categories) => _scheduleCategoriesUpdate(categories),
+        onError: (Object e) =>
+            logger.w('[CatalogService]', 'Categories stream error: $e'),
+      ),
+    );
+
+    // Impuestos
+    _watchSubscriptions.add(
+      taxManager.watchAll().listen(
+        (taxes) => _scheduleTaxesUpdate(taxes),
+        onError: (Object e) =>
+            logger.w('[CatalogService]', 'Taxes stream error: $e'),
+      ),
+    );
+
+    logger.d('[CatalogService]', 'Watching Drift streams for reactive updates');
+  }
+
+  /// Libera recursos: cancela suscripciones y cierra el stream de cambios.
+  void dispose() {
+    _debounceTimer?.cancel();
+    _cancelWatchSubscriptions();
+    _changesController.close();
+  }
+
+  // ============ Actualización reactiva de mapas ============
+
+  void _scheduleProductsUpdate(List<Product> products) {
+    _pendingProducts = products;
+    _scheduleFlush();
+  }
+
+  void _scheduleUomsUpdate(List<Uom> uoms) {
+    _pendingUoms = uoms;
+    _scheduleFlush();
+  }
+
+  void _scheduleCategoriesUpdate(List<ProductCategory> categories) {
+    _pendingCategories = categories;
+    _scheduleFlush();
+  }
+
+  void _scheduleTaxesUpdate(List<Tax> taxes) {
+    _pendingTaxes = taxes;
+    _scheduleFlush();
+  }
+
+  // Datos pendientes de aplicar (los streams pueden emitir antes de que
+  // expire el debounce)
+  List<Product>? _pendingProducts;
+  List<Uom>? _pendingUoms;
+  List<ProductCategory>? _pendingCategories;
+  List<Tax>? _pendingTaxes;
+
+  /// Debounce de 500 ms: agrupa cambios rápidos en una sola actualización.
+  void _scheduleFlush() {
+    _debounceTimer?.cancel();
+    _debounceTimer = Timer(const Duration(milliseconds: 500), _flush);
+  }
+
+  void _flush() {
+    if (!_isLoaded) return; // No actualizar antes de la carga inicial
+
+    bool changed = false;
+
+    if (_pendingProducts != null) {
+      _applyProductsUpdate(_pendingProducts!);
+      _pendingProducts = null;
+      changed = true;
+    }
+    if (_pendingUoms != null) {
+      _applyUomsUpdate(_pendingUoms!);
+      _pendingUoms = null;
+      changed = true;
+    }
+    if (_pendingCategories != null) {
+      _applyCategoriesUpdate(_pendingCategories!);
+      _pendingCategories = null;
+      changed = true;
+    }
+    if (_pendingTaxes != null) {
+      _applyTaxesUpdate(_pendingTaxes!);
+      _pendingTaxes = null;
+      changed = true;
+    }
+
+    if (changed) {
+      _notifyChange();
+    }
+  }
+
+  void _applyProductsUpdate(List<Product> products) {
+    _productsById.clear();
+    _productsByBarcode.clear();
+    _productsByCode.clear();
+    for (final product in products) {
+      _productsById[product.id] = product;
+      if (product.hasBarcode) {
+        _productsByBarcode[product.barcode!] = product;
+      }
+      if (product.hasDefaultCode) {
+        _productsByCode[product.defaultCode!.toLowerCase()] = product;
+      }
+    }
+    logger.d(
+      '[CatalogService]',
+      'Products map updated reactively: ${_productsById.length} products',
+    );
+  }
+
+  void _applyUomsUpdate(List<Uom> uoms) {
+    _uomsById.clear();
+    for (final u in uoms) {
+      _uomsById[u.id] = u;
+    }
+    logger.d('[CatalogService]', 'UoMs map updated: ${_uomsById.length}');
+  }
+
+  void _applyCategoriesUpdate(List<ProductCategory> categories) {
+    _categoriesById.clear();
+    for (final c in categories) {
+      _categoriesById[c.id] = c;
+    }
+    logger.d(
+      '[CatalogService]',
+      'Categories map updated: ${_categoriesById.length}',
+    );
+  }
+
+  void _applyTaxesUpdate(List<Tax> taxes) {
+    _taxesById.clear();
+    for (final t in taxes) {
+      _taxesById[t.id] = t;
+    }
+    logger.d('[CatalogService]', 'Taxes map updated: ${_taxesById.length}');
+  }
+
+  void _notifyChange() {
+    _changeVersion++;
+    if (!_changesController.isClosed) {
+      _changesController.add(_changeVersion);
+      logger.d(
+        '[CatalogService]',
+        'Catalog updated (version $_changeVersion)',
+      );
+    }
+  }
+
+  void _cancelWatchSubscriptions() {
+    for (final sub in _watchSubscriptions) {
+      sub.cancel();
+    }
+    _watchSubscriptions.clear();
   }
 
   /// Carga todos los catálogos en memoria

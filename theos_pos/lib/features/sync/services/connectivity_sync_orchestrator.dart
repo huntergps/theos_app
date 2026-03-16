@@ -38,7 +38,6 @@ class ConnectivitySyncOrchestrator {
 
   // Configuration
   static const Duration _stabilityWait = Duration(seconds: 5);
-  static const int _batchSize = 10;
   static const Duration _batchDelay = Duration(seconds: 2);
 
   ConnectivitySyncOrchestrator({
@@ -154,7 +153,7 @@ class ConnectivitySyncOrchestrator {
 
     logger.d('[SyncOrchestrator]', 'Processing offline queue...');
 
-    // Get pending operations count
+    // Get initial pending count for logging only
     final pendingCount = await _getPendingOperationsCount();
     if (pendingCount == 0) {
       logger.d('[SyncOrchestrator]', 'No pending operations in queue');
@@ -163,26 +162,39 @@ class ConnectivitySyncOrchestrator {
 
     logger.i('[SyncOrchestrator]', 'Processing $pendingCount pending operations');
 
-    // Process in batches to avoid overwhelming server
-    int processed = 0;
-    while (processed < pendingCount) {
-      // Check if still online
+    // Process in batches driven by actual results — not a fixed counter.
+    // Each call to processQueue() processes one batch internally; we keep
+    // looping until either (a) nothing was processed (queue exhausted) or
+    // (b) connectivity is lost.
+    int totalProcessed = 0;
+    while (true) {
+      // Verify connectivity before each batch
       if (_healthService.status.serverState != ServerConnectionState.online) {
         logger.w('[SyncOrchestrator]', 'Connection lost - pausing queue processing');
         break;
       }
 
-      // Process a batch
       final result = await offlineSyncService.processQueue();
-      processed += _batchSize;
 
-      logger.d('[SyncOrchestrator]', 'Batch processed: $result');
-
-      // Rate limiting delay between batches
-      if (processed < pendingCount) {
-        await Future.delayed(_batchDelay);
+      // synced == 0 means the queue is empty or every item failed and the
+      // processor has nothing left to attempt — stop looping.
+      if (result.synced == 0) {
+        logger.d('[SyncOrchestrator]', 'Queue exhausted or no progress — stopping batch loop');
+        break;
       }
+
+      totalProcessed += result.synced;
+      logger.d(
+        '[SyncOrchestrator]',
+        'Batch done: ${result.synced} synced, ${result.failed} failed '
+        '(total so far: $totalProcessed)',
+      );
+
+      // Rate-limiting delay between batches
+      await Future.delayed(_batchDelay);
     }
+
+    logger.i('[SyncOrchestrator]', 'Queue processing complete — total synced: $totalProcessed');
   }
 
   /// Get count of pending operations

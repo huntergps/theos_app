@@ -42,6 +42,9 @@ export 'sale_order_stream_providers.dart';
 // Re-export service providers (extracted from service files)
 export 'service_providers.dart';
 
+// Session guard — checks if there's an active collection session
+export 'session_guard_provider.dart';
+
 part 'providers.g.dart';
 
 // ============ Sale Order Providers (Server Sync - FutureProvider) ============

@@ -1,6 +1,7 @@
 import 'package:fluent_ui/fluent_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'dart:convert';
+import '../../core/constants/app_colors.dart';
 import '../../core/services/websocket/odoo_websocket_service.dart';
 
 /// Widget que muestra el estado de la conexión WebSocket
@@ -27,7 +28,7 @@ class WebSocketStatusWidget extends ConsumerWidget {
     AppOdooWebSocketService wsService,
   ) {
     final isConnected = wsService.isConnected;
-    final color = isConnected ? Colors.green : Colors.red;
+    final color = isConnected ? AppColors.success : AppColors.danger;
     final icon = isConnected ? FluentIcons.completed : FluentIcons.error_badge;
     final text = isConnected ? 'Tiempo Real' : 'Sin Conexión';
 
@@ -62,7 +63,7 @@ class WebSocketStatusWidget extends ConsumerWidget {
     AppOdooWebSocketService wsService,
   ) {
     final isConnected = wsService.isConnected;
-    final color = isConnected ? Colors.green : Colors.red;
+    final color = isConnected ? AppColors.success : AppColors.danger;
 
     return Card(
       padding: const EdgeInsets.all(16),
@@ -96,7 +97,7 @@ class WebSocketStatusWidget extends ConsumerWidget {
             _buildInfoRow('Conectando', wsService.isConnected ? 'No' : 'Sí'),
             _buildInfoRow('URL', wsService.connectionUrl ?? 'N/A'),
             if (wsService.lastError != null)
-              _buildInfoRow('Último Error', wsService.lastError!, Colors.red),
+              _buildInfoRow('Último Error', wsService.lastError!, AppColors.danger),
           ]),
 
           const SizedBox(height: 12),
@@ -141,9 +142,9 @@ class WebSocketStatusWidget extends ConsumerWidget {
               Container(
                 padding: const EdgeInsets.all(8),
                 decoration: BoxDecoration(
-                  color: Colors.grey.withValues(alpha: 0.05),
+                  color: AppColors.textSecondary.withValues(alpha: 0.05),
                   borderRadius: BorderRadius.circular(4),
-                  border: Border.all(color: Colors.grey.withValues(alpha: 0.2)),
+                  border: Border.all(color: AppColors.textSecondary.withValues(alpha: 0.2)),
                 ),
                 child: SelectableText(
                   _formatJson(wsService.lastNotification!),

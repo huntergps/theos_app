@@ -2,10 +2,13 @@ import 'package:fluent_ui/fluent_ui.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import 'package:go_router/go_router.dart';
+
 import '../../../../core/constants/app_constants.dart';
 import '../../../../core/services/platform/server_connectivity_service.dart';
 import '../../../../core/theme/spacing.dart';
 import '../../../../shared/widgets/dialogs/copyable_info_bar.dart';
+import '../../providers/session_guard_provider.dart';
 import '../../utils/keyboard_shortcuts.dart';
 import 'fast_sale_providers.dart';
 import 'widgets/pos_actions_panel.dart';
@@ -214,6 +217,10 @@ class _FastSaleScreenState extends ConsumerState<FastSaleScreen> {
       fastSaleProvider.select((s) => s.totalOrdersCount),
     );
 
+    // Session guard: relevant only to users with collection permissions
+    final hasCollectionPermissions = ref.watch(hasCollectionPermissionsProvider);
+    final hasActiveSession = ref.watch(hasActiveCollectionSessionProvider);
+
     if (!hasTabs) {
       return ScaffoldPage(
         header: const PageHeader(title: Text('Punto de Venta')),
@@ -238,6 +245,24 @@ class _FastSaleScreenState extends ConsumerState<FastSaleScreen> {
                   color: theme.inactiveColor,
                 ),
               ),
+              // Session guard warning — only shown to users with collection permissions
+              if (hasCollectionPermissions && !hasActiveSession) ...[
+                const SizedBox(height: Spacing.md),
+                ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 480),
+                  child: InfoBar(
+                    title: const Text('Sesion de caja no iniciada'),
+                    content: const Text(
+                      'Para registrar cobros y pagos necesitas abrir una sesion de caja primero.',
+                    ),
+                    severity: InfoBarSeverity.warning,
+                    action: HyperlinkButton(
+                      onPressed: () => context.go('/collection'),
+                      child: const Text('Ir a Caja'),
+                    ),
+                  ),
+                ),
+              ],
               const SizedBox(height: Spacing.md),
               Row(
                 mainAxisSize: MainAxisSize.min,
@@ -284,9 +309,6 @@ class _FastSaleScreenState extends ConsumerState<FastSaleScreen> {
     final isTablet = screenWidth >= ScreenBreakpoints.mobileMaxWidth &&
         screenWidth < ScreenBreakpoints.tabletMaxWidth;
 
-    // Check collection permissions for actions panel
-    final hasCollectionPermissions = ref.watch(hasCollectionPermissionsProvider);
-
     // Check server connectivity for offline indicator
     final isServerOnline = ref.watch(isServerOnlineProvider);
 
@@ -306,6 +328,20 @@ class _FastSaleScreenState extends ConsumerState<FastSaleScreen> {
               const InfoBar(
                 title: Text('Sin conexion — Las ventas se guardan localmente'),
                 severity: InfoBarSeverity.warning,
+              ),
+
+            // Session guard warning — only for collection users without an active session
+            if (hasCollectionPermissions && !hasActiveSession)
+              InfoBar(
+                title: const Text('Sesion de caja no iniciada'),
+                content: const Text(
+                  'Para registrar cobros necesitas abrir una sesion de caja primero.',
+                ),
+                severity: InfoBarSeverity.warning,
+                action: HyperlinkButton(
+                  onPressed: () => context.go('/collection'),
+                  child: const Text('Ir a Caja'),
+                ),
               ),
 
             // Main content area

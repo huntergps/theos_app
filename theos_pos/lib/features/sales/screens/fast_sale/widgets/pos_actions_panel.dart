@@ -2,6 +2,7 @@ import 'package:fluent_ui/fluent_ui.dart' hide showDialog;
 import 'package:flutter/material.dart' show showDialog;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../../../core/constants/app_colors.dart';
 import '../../../../../core/database/providers.dart';
 import '../../../../../core/database/repositories/repository_providers.dart';
 import '../../../../../core/theme/spacing.dart';
@@ -145,7 +146,7 @@ class POSActionsPanel extends ConsumerWidget {
         _ActionItem(
           icon: FluentIcons.sync,
           label: 'Sincronizar',
-          color: Colors.orange,
+          color: AppColors.warning,
           onTap: () => _handleSyncOrder(context, ref, activeTab),
         ),
       // Sincronizar datos (cliente, crédito, etc.) - always visible when has partner
@@ -153,7 +154,8 @@ class POSActionsPanel extends ConsumerWidget {
         _ActionItem(
           icon: FluentIcons.sync,
           label: 'Actualizar Datos',
-          color: Colors.blue,
+          // TODO: Migrar a TheosTheme.info(context) cuando _ActionItem soporte BuildContext
+          color: AppColors.primaryBackground,
           onTap: () => _handleSyncData(context, ref, activeTab),
         ),
       // Confirmar Venta button - only visible for draft, sent, approved states
@@ -161,7 +163,7 @@ class POSActionsPanel extends ConsumerWidget {
         _ActionItem(
           icon: FluentIcons.check_mark,
           label: 'Confirmar',
-          color: Colors.green.dark,
+          color: AppColors.success,
           onTap: () => _handleConfirmOrder(context, ref, activeTab),
           isPrimary: true,
         ),
@@ -170,7 +172,7 @@ class POSActionsPanel extends ConsumerWidget {
         _ActionItem(
           icon: FluentIcons.cancel,
           label: 'Cancelar',
-          color: Colors.red,
+          color: AppColors.danger,
           onTap: () => _handleCancelOrder(context, ref, activeTab),
         ),
       // Bloquear - only for sale state, not locked
@@ -178,7 +180,7 @@ class POSActionsPanel extends ConsumerWidget {
         _ActionItem(
           icon: FluentIcons.lock,
           label: 'Bloquear',
-          color: Colors.grey,
+          color: AppColors.textSecondary,
           onTap: () => _handleLockOrder(context, ref, order),
         ),
       // Desbloquear - only for sale state, locked
@@ -186,37 +188,40 @@ class POSActionsPanel extends ConsumerWidget {
         _ActionItem(
           icon: FluentIcons.unlock,
           label: 'Desbloquear',
-          color: Colors.teal,
+          color: AppColors.primaryBackground,
           onTap: () => _handleUnlockOrder(context, ref, order),
         ),
       // Facturar button removed - now handled in credit tab for credit sales
       _ActionItem(
         icon: FluentIcons.bank,
         label: 'Retencion',
-        color: Colors.blue.light,
+        // TODO: Migrar a TheosTheme.info(context) cuando _ActionItem soporte BuildContext
+        color: AppColors.primaryBackground,
         onTap: () => _showRetentionDialog(context, ref, activeTab),
       ),
       _ActionItem(
         icon: FluentIcons.page_list,
         label: 'Nota Credito',
+        // TODO: AppColors no tiene equivalente para purple; definir AppColors.creditNote si se estandariza
         color: Colors.purple,
         onTap: () => _showCreditNoteDialog(context, ref, activeTab),
       ),
       _ActionItem(
         icon: FluentIcons.money,
         label: 'Salida Dinero',
-        color: Colors.orange,
+        color: AppColors.warning,
         onTap: () => _showCashOutDialog(context, ref),
       ),
       _ActionItem(
         icon: FluentIcons.payment_card,
         label: 'Ver Pagos',
-        color: Colors.green,
+        color: AppColors.success,
         onTap: () => _goToPaymentsTab(context, ref),
       ),
       _ActionItem(
         icon: FluentIcons.circle_dollar,
         label: 'Anticipo',
+        // TODO: AppColors no tiene equivalente para magenta; definir AppColors.advance si se estandariza
         color: Colors.magenta,
         onTap: () => _showAdvanceDialog(context, ref, activeTab),
       ),
@@ -520,7 +525,7 @@ class POSActionsPanel extends ConsumerWidget {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Icon(FluentIcons.warning, size: 48, color: Colors.orange),
+              Icon(FluentIcons.warning, size: 48, color: AppColors.warning),
               const SizedBox(height: 16),
               Text(
                 'La factura ${selectedInvoice.name.isNotEmpty ? selectedInvoice.name : selectedInvoice.id} '
@@ -686,14 +691,14 @@ class POSActionsPanel extends ConsumerWidget {
               const SizedBox(height: Spacing.xs),
               Text(
                 'Disponible: ${selected.amountResidual.toCurrency()}',
-                style: TextStyle(color: Colors.green.dark),
+                style: TextStyle(color: AppColors.success),
               ),
               Text('Total de la orden: ${activeTab.total.toCurrency()}'),
               const SizedBox(height: Spacing.sm),
               Container(
                 padding: const EdgeInsets.all(Spacing.sm),
                 decoration: BoxDecoration(
-                  color: Colors.blue.withValues(alpha: 0.1),
+                  color: AppColors.primaryBackground.withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(4),
                 ),
                 child: Text(
@@ -1175,7 +1180,7 @@ class POSActionsPanel extends ConsumerWidget {
           ),
           FilledButton(
             style: ButtonStyle(
-              backgroundColor: WidgetStateProperty.all(Colors.red),
+              backgroundColor: WidgetStateProperty.all(AppColors.danger),
             ),
             onPressed: () => Navigator.pop(ctx, true),
             child: const Text('Sí, cancelar'),
@@ -1473,7 +1478,7 @@ class _ActionButton extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = FluentTheme.of(context);
     final isEnabled = action.isEnabled;
-    final effectiveColor = isEnabled ? action.color : Colors.grey[100];
+    final effectiveColor = isEnabled ? action.color : theme.inactiveColor;
 
     if (isCompact) {
       return IconButton(
@@ -1498,7 +1503,7 @@ class _ActionButton extends StatelessWidget {
               action.label,
               style: theme.typography.caption?.copyWith(
                 fontSize: 10,
-                color: isEnabled ? null : Colors.grey[100],
+                color: isEnabled ? null : theme.inactiveColor,
               ),
               textAlign: TextAlign.center,
               maxLines: 2,
@@ -1687,19 +1692,21 @@ class _CreditNoteSelectionDialog extends StatelessWidget {
                   leading: Container(
                     padding: const EdgeInsets.all(8),
                     decoration: BoxDecoration(
+                      // TODO: AppColors no tiene equivalente para purple; definir AppColors.creditNote si se estandariza
                       color: Colors.purple.withValues(alpha: 0.1),
                       borderRadius: BorderRadius.circular(4),
                     ),
                     child: Icon(
                       FluentIcons.page_list,
                       size: 20,
+                      // TODO: AppColors no tiene equivalente para purple; definir AppColors.creditNote si se estandariza
                       color: Colors.purple,
                     ),
                   ),
                   title: Text(nc.name),
                   subtitle: Text(
                     'Disponible: ${nc.amountResidual.toCurrency()}',
-                    style: TextStyle(color: Colors.green.dark),
+                    style: TextStyle(color: AppColors.success),
                   ),
                   onPressed: () => Navigator.pop(context, nc),
                 );
