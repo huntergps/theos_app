@@ -77,7 +77,7 @@ abstract class Advance with _$Advance {
     @OdooLocalOnly() String? advanceUuid,
     @OdooString() String? name,
     @OdooDate() required DateTime date,
-    @OdooDate(odooName: 'date_estimated') required DateTime dateEstimated,
+    @OdooDate(odooName: 'date_estimated') DateTime? dateEstimated,
     @OdooDate(odooName: 'date_due') DateTime? dateDue,
     @OdooSelection() @Default(AdvanceState.draft) AdvanceState state,
     @OdooSelection(odooName: 'advance_type') required AdvanceType advanceType,
@@ -104,7 +104,7 @@ abstract class Advance with _$Advance {
   /// Crear nuevo anticipo con UUID generado
   factory Advance.create({
     required DateTime date,
-    required DateTime dateEstimated,
+    DateTime? dateEstimated,
     DateTime? dateDue,
     AdvanceState state = AdvanceState.draft,
     required AdvanceType advanceType,

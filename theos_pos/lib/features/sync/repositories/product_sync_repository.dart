@@ -55,6 +55,18 @@ class ProductSyncRepository {
   void resetCancelFlag() => _syncRepo.resetCancelFlag();
 
   // ============ Product Fields ============
+  //
+  // MODULE DEPENDENCIES for custom fields:
+  //   - 'is_unit_product'          -> requires: product_extended (custom module)
+  //   - 'temporal_no_despachar'    -> requires: product_extended (custom module)
+  //   - 'l10n_ec_auxiliary_code'   -> requires: l10n_ec_base (Ecuador localization)
+  //   - 'tracking'                 -> requires: stock (standard Odoo module)
+  //   - 'is_storable'             -> requires: stock (standard Odoo module)
+  //   - 'uom_ids'                 -> requires: product_multiple_uom (custom module)
+  //
+  // These modules are ALWAYS installed on our target servers (erp1, localhost).
+  // If syncing against a vanilla Odoo instance without these modules,
+  // the sync will fail with HTTP 500 for unknown fields.
 
   static const _productFields = [
     'id',

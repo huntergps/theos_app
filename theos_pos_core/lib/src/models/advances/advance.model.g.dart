@@ -11,7 +11,9 @@ _Advance _$AdvanceFromJson(Map<String, dynamic> json) => _Advance(
   advanceUuid: json['advanceUuid'] as String?,
   name: json['name'] as String?,
   date: DateTime.parse(json['date'] as String),
-  dateEstimated: DateTime.parse(json['dateEstimated'] as String),
+  dateEstimated: json['dateEstimated'] == null
+      ? null
+      : DateTime.parse(json['dateEstimated'] as String),
   dateDue: json['dateDue'] == null
       ? null
       : DateTime.parse(json['dateDue'] as String),
@@ -43,7 +45,7 @@ Map<String, dynamic> _$AdvanceToJson(_Advance instance) => <String, dynamic>{
   'advanceUuid': instance.advanceUuid,
   'name': instance.name,
   'date': instance.date.toIso8601String(),
-  'dateEstimated': instance.dateEstimated.toIso8601String(),
+  'dateEstimated': instance.dateEstimated?.toIso8601String(),
   'dateDue': instance.dateDue?.toIso8601String(),
   'state': _$AdvanceStateEnumMap[instance.state]!,
   'advanceType': _$AdvanceTypeEnumMap[instance.advanceType]!,
@@ -166,7 +168,7 @@ class AdvanceManager extends OdooModelManager<Advance>
       id: data['id'] as int? ?? 0,
       name: parseOdooString(data['name']),
       date: parseOdooDate(data['date']) ?? DateTime(1970),
-      dateEstimated: parseOdooDate(data['date_estimated']) ?? DateTime(1970),
+      dateEstimated: parseOdooDate(data['date_estimated']),
       dateDue: parseOdooDate(data['date_due']),
       state: AdvanceState.values.firstWhere(
         (e) => e.code == parseOdooSelection(data['state']),
@@ -222,7 +224,7 @@ class AdvanceManager extends OdooModelManager<Advance>
       advanceUuid: row.advanceUuid as String?,
       name: row.name as String?,
       date: row.date as DateTime,
-      dateEstimated: row.dateEstimated as DateTime,
+      dateEstimated: row.dateEstimated as DateTime?,
       dateDue: row.dateDue as DateTime?,
       state: AdvanceState.values.firstWhere(
         (e) => e.code == (row.state as String?),
@@ -329,7 +331,7 @@ class AdvanceManager extends OdooModelManager<Advance>
       'odoo_id': Variable<int>(record.id),
       'name': driftVar<String>(record.name),
       'date': Variable<DateTime>(record.date),
-      'date_estimated': Variable<DateTime>(record.dateEstimated),
+      'date_estimated': driftVar<DateTime>(record.dateEstimated),
       'date_due': driftVar<DateTime>(record.dateDue),
       'state': Variable<String>(record.state.code),
       'advance_type': Variable<String>(record.advanceType.code),

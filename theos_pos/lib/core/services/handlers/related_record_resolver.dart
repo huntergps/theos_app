@@ -479,6 +479,14 @@ class RelatedRecordResolver {
         'qty_available',
         'virtual_available',
         'write_date',
+        // Custom module fields (require: l10n_ec_base, product_extended)
+        // See Issue 4 comment in product_sync_repository.dart
+        'tracking',
+        'is_storable',
+        'is_unit_product',
+        'temporal_no_despachar',
+        'l10n_ec_auxiliary_code',
+        'uom_ids',
       ],
     );
 
@@ -759,6 +767,15 @@ class RelatedRecordResolver {
         (p['virtual_available'] as num?)?.toDouble() ?? 0.0,
       ),
       writeDate: Value(_parseDateTime(p['write_date'])),
+      // Custom module fields
+      tracking: Value(p['tracking'] is String ? p['tracking'] as String : null),
+      isStorable: Value(p['is_storable'] as bool? ?? true),
+      isUnitProduct: Value(p['is_unit_product'] as bool? ?? false),
+      temporalNoDespachar: Value(p['temporal_no_despachar'] as bool? ?? false),
+      l10nEcAuxiliaryCode: Value(
+        p['l10n_ec_auxiliary_code'] is String ? p['l10n_ec_auxiliary_code'] as String : null,
+      ),
+      uomIds: Value(_encodeIntList(p['uom_ids'])),
     );
 
     if (existing != null) {
@@ -852,7 +869,8 @@ class RelatedRecordResolver {
       companyName: Value(_extractName(t['company_id'])),
       taxGroupId: Value(_extractId(t['tax_group_id'])),
       taxGroupIdName: Value(_extractName(t['tax_group_id'])),
-      taxGroupL10nEcType: Value(t['tax_group_l10n_ec_type'] is String ? t['tax_group_l10n_ec_type'] : null),
+      // Note: tax_group_l10n_ec_type is NOT fetched (not a direct field on account.tax),
+      // so we don't set it here. It's populated during full sync via tax_group relation.
       writeDate: Value(_parseDateTime(t['write_date'])),
     );
 

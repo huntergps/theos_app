@@ -17,6 +17,11 @@ import '../../products/repositories/product_repository.dart';
 /// - Cancellation support
 /// - Related record resolution (partners, products, taxes, etc.)
 /// - Fetch/search operations with online/offline fallback
+///
+/// MODULE DEPENDENCIES for custom fields:
+///   - 'is_final_consumer', 'end_customer_*' -> requires: sale_final_consumer (custom module)
+/// These modules are ALWAYS installed on our target servers (erp1, localhost).
+/// Syncing against a vanilla Odoo instance without these modules will cause HTTP 500.
 class SaleOrderSyncRepository extends BaseSyncRepository {
   final ProductRepository? _productRepository;
 

@@ -104,7 +104,7 @@ class TaxManager extends OdooModelManager<Tax>
       companyId: row.companyId as int?,
       companyName: row.companyName as String?,
       taxGroupId: row.taxGroupId as int?,
-      taxGroupName: row.taxGroupIdName as String?,
+      taxGroupName: row.taxGroupName as String?,
       taxGroupL10nEcType: row.taxGroupL10nEcType as String?,
       writeDate: row.writeDate as DateTime?,
     );
