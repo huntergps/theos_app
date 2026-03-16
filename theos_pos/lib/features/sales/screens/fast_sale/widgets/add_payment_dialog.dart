@@ -685,7 +685,7 @@ class AddPaymentDialogContentState extends ConsumerState<AddPaymentDialogContent
                           } else {
                             CopyableInfoBar.showError(
                               context,
-                              title: 'Error',
+                              title: 'Error al crear lote',
                               message: 'No se pudo crear el lote',
                             );
                           }
@@ -840,7 +840,7 @@ class AddPaymentDialogContentState extends ConsumerState<AddPaymentDialogContent
     if (partnerId == null) {
       CopyableInfoBar.showWarning(
         context,
-        title: 'Error',
+        title: 'Cliente requerido',
         message: 'No hay cliente seleccionado',
       );
       return;
@@ -901,7 +901,7 @@ class AddPaymentDialogContentState extends ConsumerState<AddPaymentDialogContent
               if (accNumber.isEmpty) {
                 CopyableInfoBar.showWarning(
                   context,
-                  title: 'Error',
+                  title: 'Validacion de cuenta',
                   message: 'El número de cuenta es obligatorio',
                 );
                 return;

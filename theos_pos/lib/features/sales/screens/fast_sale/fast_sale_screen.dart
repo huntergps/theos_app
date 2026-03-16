@@ -112,16 +112,15 @@ class _FastSaleScreenState extends ConsumerState<FastSaleScreen> {
         return KeyEventResult.handled;
 
       case POSShortcutAction.confirmOrder:
-        // Confirm is handled via the action buttons
-        // This triggers focus on the confirm button area
-        return KeyEventResult.ignored;
+        notifier.confirmActiveOrder();
+        return KeyEventResult.handled;
 
       case POSShortcutAction.saveOrder:
-        // Save is handled via the action buttons
-        return KeyEventResult.ignored;
+        notifier.saveActiveOrder();
+        return KeyEventResult.handled;
 
       case POSShortcutAction.printReceipt:
-        // Print is handled via the action buttons
+        // TODO: Wire print receipt when print service is available
         return KeyEventResult.ignored;
 
       case POSShortcutAction.cancel:
@@ -195,7 +194,7 @@ class _FastSaleScreenState extends ConsumerState<FastSaleScreen> {
       fastSaleProvider.select((s) => s.error),
       (previous, next) {
         if (next != null && next.isNotEmpty && mounted) {
-          CopyableInfoBar.showError(context, title: 'Error', message: next);
+          CopyableInfoBar.showError(context, title: 'Error en punto de venta', message: next);
           ref.read(fastSaleProvider.notifier).clearError();
         }
       },

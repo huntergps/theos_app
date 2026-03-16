@@ -1093,8 +1093,8 @@ class _POSPaymentTabState extends ConsumerState<POSPaymentTab> {
       if (context.mounted) {
         CopyableInfoBar.showError(
           context,
-          title: 'Error',
-          message: 'Error al guardar pagos: $e',
+          title: 'Error de pago',
+          message: 'No se pudieron guardar los pagos. Intente nuevamente.',
         );
       }
     } finally {

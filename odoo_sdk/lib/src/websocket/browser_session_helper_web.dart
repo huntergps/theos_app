@@ -3,8 +3,8 @@
 /// Handles session cookie management for WebSocket authentication on Web platform.
 library;
 
-// ignore: avoid_web_libraries_in_flutter, deprecated_member_use
-import 'dart:html' as html;
+import 'dart:js_interop';
+import 'package:web/web.dart' as web;
 
 import '../services/logger_service.dart';
 
@@ -38,7 +38,7 @@ Future<bool> establishBrowserSession({
     // For production, we might need to set the domain
     final cookieValue = 'session_id=$sessionId; path=/; SameSite=Lax';
 
-    html.document.cookie = cookieValue;
+    web.document.cookie = cookieValue;
 
     logger.d(
       '[BrowserSession]',
@@ -47,7 +47,7 @@ Future<bool> establishBrowserSession({
     logger.d('[BrowserSession]', 'Domain: $domain');
 
     // Verify the cookie was set
-    final cookies = html.document.cookie ?? '';
+    final cookies = web.document.cookie;
     if (cookies.contains('session_id=')) {
       logger.d('[BrowserSession]', 'Cookie verified in browser');
       return true;
@@ -63,13 +63,13 @@ Future<bool> establishBrowserSession({
 
 /// Check if we have a session cookie in the browser
 bool hasSessionCookie() {
-  final cookies = html.document.cookie ?? '';
+  final cookies = web.document.cookie;
   return cookies.contains('session_id=');
 }
 
 /// Get session_id from browser cookies
 String? getSessionIdFromCookies() {
-  final cookies = html.document.cookie ?? '';
+  final cookies = web.document.cookie;
   final match = RegExp(r'session_id=([^;]+)').firstMatch(cookies);
   return match?.group(1);
 }

@@ -15,7 +15,7 @@ import '../../../../shared/widgets/dialogs/copyable_info_bar.dart';
 
 // Conditional imports for native file operations
 import 'pdf_preview_native.dart'
-    if (dart.library.html) 'pdf_preview_web.dart'
+    if (dart.library.js_interop) 'pdf_preview_web.dart'
     as platform_pdf;
 
 /// Screen for previewing PDF documents (used as tab content)
@@ -259,7 +259,7 @@ class _PdfPreviewScreenState extends State<PdfPreviewScreen>
   void _showError(String message) {
     CopyableInfoBar.showError(
       context,
-      title: 'Error',
+      title: 'Error de vista previa',
       message: message,
     );
   }

@@ -53,20 +53,14 @@ class POSOrderLinesPanel extends ConsumerStatefulWidget {
 class _POSOrderLinesPanelState extends ConsumerState<POSOrderLinesPanel> {
   @override
   Widget build(BuildContext context) {
-    final theme = FluentTheme.of(context);
     final activeTab = ref.watch(fastSaleActiveTabProvider);
-    final lines = activeTab?.lines ?? [];
-    final selectedIndex = activeTab?.selectedLineIndex ?? -1;
     final currentPanelTab = ref.watch(orderPanelTabProvider);
-
-    // Only show Pagos tab for cashiers/supervisors
-    final hasCollectionPermissions = ref.watch(
-      hasCollectionPermissionsProvider,
-    );
+    final hasCollectionPermissions = ref.watch(hasCollectionPermissionsProvider);
 
     final order = activeTab?.order;
-    // Use model's canConfirm + business rules (needs lines and partner)
-    // Don't allow confirm if order already has invoice (queued or synced)
+    final lines = activeTab?.lines ?? [];
+    final isCreditSale = order?.isCreditSale ?? false;
+
     final hasInvoice = order?.hasQueuedInvoice == true || order?.isFullyInvoiced == true;
     final canConfirm =
         order != null &&
@@ -75,336 +69,41 @@ class _POSOrderLinesPanelState extends ConsumerState<POSOrderLinesPanel> {
         order.partnerId != null &&
         !hasInvoice;
 
-    // Check if this is a credit sale (NOT immediate payment)
-    final isCreditSale = order?.isCreditSale ?? false;
-
     return Column(
       children: [
-        // Sub-tabs: Lineas | Pagos/Credito (only for cashiers)
-        _buildSubTabs(
-          theme,
+        // Header: sub-tabs
+        _OrderLinesHeader(
           showPayments: hasCollectionPermissions,
           orderState: order?.state,
           isCreditSale: isCreditSale,
           currentPanelTab: currentPanelTab,
         ),
 
-        // Content based on selected sub-tab
+        // Content: lines grid or payments
         Expanded(
           child: currentPanelTab == OrderPanelTab.lines
-              ? _buildLinesContent(
-                  context,
-                  theme,
-                  lines,
-                  selectedIndex,
-                  activeTab?.order?.pricelistId,
-                  order?.isEditable ?? true,
+              ? _OrderLinesGrid(
+                  lines: lines,
+                  selectedIndex: activeTab?.selectedLineIndex ?? -1,
+                  pricelistId: activeTab?.order?.pricelistId,
+                  canEdit: order?.isEditable ?? true,
                 )
-              : _buildPaymentsContent(theme),
+              : _OrderLinesPaymentsContent(order: order),
         ),
 
-        // Footer with totals and confirm button (totals only on lines tab)
-        _buildFooter(
-          context,
-          theme,
-          order,
-          lines,
-          canConfirm,
+        // Footer: totals + confirm + sync + invoices
+        _OrderLinesTotals(
+          order: order,
+          lines: lines,
+          canConfirm: canConfirm,
           showTotals: currentPanelTab == OrderPanelTab.lines,
+          onConfirm: () => _handleConfirmOrder(context),
         ),
       ],
     );
   }
 
-  Widget _buildSubTabs(
-    FluentThemeData theme, {
-    required bool showPayments,
-    SaleOrderState? orderState,
-    bool isCreditSale = false,
-    required OrderPanelTab currentPanelTab,
-  }) {
-    // Determine the label for the second tab based on sale type
-    final secondTabLabel = isCreditSale ? 'Crédito' : 'Pagos';
 
-    return Container(
-      height: 36,
-      decoration: BoxDecoration(
-        color: theme.scaffoldBackgroundColor,
-        border: Border(
-          bottom: BorderSide(color: theme.resources.dividerStrokeColorDefault),
-        ),
-      ),
-      child: Row(
-        children: [
-          // Lineas tab
-          _SubTabButton(
-            label: 'Lineas',
-            isActive: currentPanelTab == OrderPanelTab.lines,
-            onTap: () => ref.read(orderPanelTabProvider.notifier).goToLines(),
-          ),
-          // Pagos/Credito tab - only visible for cashiers/supervisors
-          if (showPayments)
-            _SubTabButton(
-              label: secondTabLabel,
-              isActive: currentPanelTab == OrderPanelTab.payments,
-              onTap: () => ref.read(orderPanelTabProvider.notifier).goToPayments(),
-            ),
-          const Spacer(),
-          // Order state badge
-          if (orderState != null)
-            Padding(
-              padding: const EdgeInsets.only(right: Spacing.sm),
-              child: _OrderStateBadge(state: orderState),
-            ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildLinesContent(
-    BuildContext context,
-    FluentThemeData theme,
-    List<SaleOrderLine> lines,
-    int selectedIndex,
-    int? pricelistId,
-    bool canEdit,
-  ) {
-    if (lines.isEmpty) {
-      return _buildEmptyState(theme);
-    }
-
-    // Use cards instead of table
-    return ListView.builder(
-      padding: const EdgeInsets.all(Spacing.xs),
-      itemCount: lines.length,
-      itemBuilder: (context, index) {
-        final line = lines[index];
-        final isSelected = index == selectedIndex;
-
-        return _POSLineCard(
-          line: line,
-          isSelected: isSelected,
-          lineIndex: index,
-          pricelistId: pricelistId,
-          canEdit: canEdit,
-          // listPrice and productTmplId will be loaded in the widget
-          onTap: () {
-            ref.read(fastSaleProvider.notifier).selectLine(index);
-          },
-          onShowProductInfo: line.productId != null
-              ? () => _showProductInfoDialog(context, line, pricelistId)
-              : null,
-          onDelete: canEdit
-              ? () async {
-                  ref.read(fastSaleProvider.notifier).deleteLine(index);
-                  return true;
-                }
-              : null,
-          onIncrement: canEdit
-              ? () async {
-                  await ref
-                      .read(fastSaleProvider.notifier)
-                      .incrementLineQuantity(index);
-                }
-              : null,
-          onDecrement: canEdit
-              ? () async {
-                  await ref
-                      .read(fastSaleProvider.notifier)
-                      .decrementLineQuantity(index);
-                }
-              : null,
-          onUpdateUom: canEdit
-              ? (uomId, uomName, price) async {
-                  await ref
-                      .read(fastSaleProvider.notifier)
-                      .updateLineUom(index, uomId, uomName, dialogPrice: price);
-                }
-              : null,
-          onUpdateDescription: canEdit
-              ? (description) {
-                  ref
-                      .read(fastSaleProvider.notifier)
-                      .updateLineDescription(index, description);
-                }
-              : null,
-        );
-      },
-    );
-  }
-
-  Widget _buildPaymentsContent(FluentThemeData theme) {
-    final activeTab = ref.watch(fastSaleActiveTabProvider);
-    final order = activeTab?.order;
-
-    // Check if this is a credit sale (NOT immediate payment)
-    final isCreditSale = order?.isCreditSale ?? false;
-
-    if (isCreditSale) {
-      // Credit sale: show credit control tab
-      return const POSCreditSaleTab();
-    }
-
-    // Cash sale: show normal payment tab
-    return const POSPaymentTab();
-  }
-
-  /// Footer with totals and confirm button
-  /// [showTotals] - only show totals panel when on lines tab
-  Widget _buildFooter(
-    BuildContext context,
-    FluentThemeData theme,
-    SaleOrder? order,
-    List<SaleOrderLine> lines,
-    bool canConfirm, {
-    bool showTotals = true,
-  }) {
-    return Container(
-      padding: const EdgeInsets.all(8.0),
-      decoration: BoxDecoration(
-        color: theme.scaffoldBackgroundColor,
-        border: Border(
-          top: BorderSide(color: theme.resources.dividerStrokeColorDefault),
-        ),
-      ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          // Totals - only show on lines tab
-          if (showTotals) ...[
-            SalesOrderTotals(order: order, lines: lines),
-            const SizedBox(height: Spacing.xs),
-          ],
-          // Confirm button - visible when order is in draft and has no invoice yet
-          if (order != null && order.state == SaleOrderState.draft && !order.hasQueuedInvoice && !order.isFullyInvoiced)
-            SizedBox(
-              width: double.infinity,
-              child: FilledButton(
-                onPressed: canConfirm
-                    ? () => _handleConfirmOrder(context)
-                    : null,
-                style: ButtonStyle(
-                  backgroundColor: canConfirm
-                      ? WidgetStateProperty.all(Colors.green.dark)
-                      : null,
-                  padding: WidgetStateProperty.all(
-                    const EdgeInsets.symmetric(vertical: Spacing.sm),
-                  ),
-                ),
-                child: SizedBox(
-                  width: double.infinity,
-                  height: Spacing.xl,
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Icon(
-                        FluentIcons.check_mark,
-                        size: 16,
-                        color: canConfirm ? Colors.white : null,
-                      ),
-                      const SizedBox(width: Spacing.xs),
-
-                      Text(
-                        'Confirmar Venta',
-                        style: TextStyle(
-                          color: canConfirm ? Colors.white : null,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ),
-          // Show "Invoice queued" indicator when invoice is pending sync
-          if (order != null && order.hasQueuedInvoice)
-            Row(
-              children: [
-                Expanded(
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(vertical: Spacing.sm),
-                    decoration: BoxDecoration(
-                      color: Colors.orange.lightest,
-                      borderRadius: BorderRadius.circular(4),
-                    ),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Icon(
-                          FluentIcons.sync,
-                          size: 16,
-                          color: Colors.orange.dark,
-                        ),
-                        const SizedBox(width: Spacing.xs),
-                        Text(
-                          'Factura pendiente de sync',
-                          style: TextStyle(
-                            color: Colors.orange.dark,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-                // Sync button (inline)
-                _SyncOrderButtonInline(orderId: order.id),
-              ],
-            )
-          // Show "Ready to invoice" indicator + sync button in a row
-          else if (order != null &&
-              order.state == SaleOrderState.sale &&
-              order.isFullyInvoiced == false)
-            Row(
-              children: [
-                // Ready to invoice indicator
-                Expanded(
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(vertical: Spacing.sm),
-                    decoration: BoxDecoration(
-                      color: Colors.blue.lightest,
-                      borderRadius: BorderRadius.circular(4),
-                    ),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Icon(
-                          FluentIcons.completed,
-                          size: 16,
-                          color: Colors.blue.dark,
-                        ),
-                        const SizedBox(width: Spacing.xs),
-                        Text(
-                          'Listo para facturar',
-                          style: TextStyle(
-                            color: Colors.blue.dark,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-                // Sync button (inline, next to "Listo para facturar")
-                _SyncOrderButtonInline(orderId: order.id),
-              ],
-            )
-          else if (order != null)
-            // Show sync button alone when not ready to invoice
-            _SyncOrderButtonInline(orderId: order.id, fullWidth: true),
-
-          // Invoice section (when order has invoices OR has offline invoice)
-          // Offline invoices have AccountMove stored locally with negative odooId
-          if (order != null &&
-              ((order.isSynced && order.invoiceCount > 0) ||
-                  order.hasQueuedInvoice)) ...[
-            const SizedBox(height: Spacing.sm),
-            InvoiceSection(orderId: order.id),
-          ],
-        ],
-      ),
-    );
-  }
 
   /// Handle confirm order button press
   Future<void> _handleConfirmOrder(BuildContext context) async {
@@ -418,7 +117,7 @@ class _POSOrderLinesPanelState extends ConsumerState<POSOrderLinesPanel> {
       if (!context.mounted) return;
       CopyableInfoBar.showError(
         context,
-        title: 'Error',
+        title: 'Error de validacion de credito',
         message: creditResult.errorMessage!,
       );
       return;
@@ -568,7 +267,7 @@ class _POSOrderLinesPanelState extends ConsumerState<POSOrderLinesPanel> {
         final errorMsg = currentState.error ?? 'No se pudo confirmar la orden';
         CopyableInfoBar.showError(
           context,
-          title: 'Error',
+          title: 'Error al confirmar',
           message: errorMsg,
         );
       }
@@ -586,8 +285,8 @@ class _POSOrderLinesPanelState extends ConsumerState<POSOrderLinesPanel> {
 
       CopyableInfoBar.showError(
         context,
-        title: 'Error',
-        message: 'Error al confirmar: $e',
+        title: 'Error al confirmar',
+        message: 'No se pudo confirmar la orden. Intente nuevamente.',
       );
     }
   }
@@ -644,7 +343,7 @@ class _POSOrderLinesPanelState extends ConsumerState<POSOrderLinesPanel> {
       } else {
         CopyableInfoBar.showError(
           context,
-          title: 'Error',
+          title: 'Error de aprobacion',
           message: 'No se pudo crear la solicitud de aprobación',
         );
       }
@@ -656,8 +355,8 @@ class _POSOrderLinesPanelState extends ConsumerState<POSOrderLinesPanel> {
 
       CopyableInfoBar.showError(
         context,
-        title: 'Error',
-        message: 'Error al crear solicitud: $e',
+        title: 'Error de aprobacion',
+        message: 'No se pudo crear la solicitud. Intente nuevamente.',
       );
     }
   }
@@ -786,7 +485,7 @@ class _POSOrderLinesPanelState extends ConsumerState<POSOrderLinesPanel> {
       } else {
         CopyableInfoBar.showError(
           context,
-          title: 'Error',
+          title: 'Error de aprobacion',
           message: 'No se pudo crear la solicitud de aprobación',
         );
       }
@@ -798,35 +497,150 @@ class _POSOrderLinesPanelState extends ConsumerState<POSOrderLinesPanel> {
 
       CopyableInfoBar.showError(
         context,
-        title: 'Error',
-        message: 'Error al crear solicitud: $e',
+        title: 'Error de aprobacion',
+        message: 'No se pudo crear la solicitud. Intente nuevamente.',
       );
     }
   }
 
-  /// Show product info dialog for a line
-  void _showProductInfoDialog(
-    BuildContext context,
-    SaleOrderLine line,
-    int? pricelistId,
-  ) {
-    if (line.productId == null) return;
+}
 
-    final activeTab = ref.read(fastSaleActiveTabProvider);
-    final order = activeTab?.order;
+// =============================================================================
+// Extracted sub-widgets for POSOrderLinesPanel
+// =============================================================================
 
-    showDialog(
-      context: context,
-      builder: (context) => ProductInfoDialog(
-        productId: line.productId!,
-        partnerId: order?.partnerId,
-        partnerName: order?.partnerName,
-        pricelistId: pricelistId ?? order?.pricelistId,
+/// Header with sub-tabs (Lineas | Pagos/Credito) and order state badge
+class _OrderLinesHeader extends ConsumerWidget {
+  final bool showPayments;
+  final SaleOrderState? orderState;
+  final bool isCreditSale;
+  final OrderPanelTab currentPanelTab;
+
+  const _OrderLinesHeader({
+    required this.showPayments,
+    this.orderState,
+    this.isCreditSale = false,
+    required this.currentPanelTab,
+  });
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final theme = FluentTheme.of(context);
+    final secondTabLabel = isCreditSale ? 'Credito' : 'Pagos';
+
+    return Container(
+      height: 36,
+      decoration: BoxDecoration(
+        color: theme.scaffoldBackgroundColor,
+        border: Border(
+          bottom: BorderSide(color: theme.resources.dividerStrokeColorDefault),
+        ),
+      ),
+      child: Row(
+        children: [
+          _SubTabButton(
+            label: 'Lineas',
+            isActive: currentPanelTab == OrderPanelTab.lines,
+            onTap: () => ref.read(orderPanelTabProvider.notifier).goToLines(),
+          ),
+          if (showPayments)
+            _SubTabButton(
+              label: secondTabLabel,
+              isActive: currentPanelTab == OrderPanelTab.payments,
+              onTap: () => ref.read(orderPanelTabProvider.notifier).goToPayments(),
+            ),
+          const Spacer(),
+          if (orderState != null)
+            Padding(
+              padding: const EdgeInsets.only(right: Spacing.sm),
+              child: _OrderStateBadge(state: orderState!),
+            ),
+        ],
       ),
     );
   }
+}
 
-  Widget _buildEmptyState(FluentThemeData theme) {
+/// Grid/list of order line cards
+class _OrderLinesGrid extends ConsumerWidget {
+  final List<SaleOrderLine> lines;
+  final int selectedIndex;
+  final int? pricelistId;
+  final bool canEdit;
+
+  const _OrderLinesGrid({
+    required this.lines,
+    required this.selectedIndex,
+    this.pricelistId,
+    required this.canEdit,
+  });
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    if (lines.isEmpty) {
+      return _buildEmptyState(context);
+    }
+
+    return ListView.builder(
+      padding: const EdgeInsets.all(Spacing.xs),
+      itemCount: lines.length,
+      itemBuilder: (context, index) {
+        final line = lines[index];
+        final isSelected = index == selectedIndex;
+
+        return _POSLineCard(
+          line: line,
+          isSelected: isSelected,
+          lineIndex: index,
+          pricelistId: pricelistId,
+          canEdit: canEdit,
+          onTap: () {
+            ref.read(fastSaleProvider.notifier).selectLine(index);
+          },
+          onShowProductInfo: line.productId != null
+              ? () => _showProductInfoDialog(context, ref, line, pricelistId)
+              : null,
+          onDelete: canEdit
+              ? () async {
+                  ref.read(fastSaleProvider.notifier).deleteLine(index);
+                  return true;
+                }
+              : null,
+          onIncrement: canEdit
+              ? () async {
+                  await ref
+                      .read(fastSaleProvider.notifier)
+                      .incrementLineQuantity(index);
+                }
+              : null,
+          onDecrement: canEdit
+              ? () async {
+                  await ref
+                      .read(fastSaleProvider.notifier)
+                      .decrementLineQuantity(index);
+                }
+              : null,
+          onUpdateUom: canEdit
+              ? (uomId, uomName, price) async {
+                  await ref
+                      .read(fastSaleProvider.notifier)
+                      .updateLineUom(index, uomId, uomName, dialogPrice: price);
+                }
+              : null,
+          onUpdateDescription: canEdit
+              ? (description) {
+                  ref
+                      .read(fastSaleProvider.notifier)
+                      .updateLineDescription(index, description);
+                }
+              : null,
+        );
+      },
+    );
+  }
+
+  Widget _buildEmptyState(BuildContext context) {
+    final theme = FluentTheme.of(context);
     return Center(
       child: Column(
         mainAxisSize: MainAxisSize.min,
@@ -850,6 +664,197 @@ class _POSOrderLinesPanelState extends ConsumerState<POSOrderLinesPanel> {
               color: theme.inactiveColor,
             ),
           ),
+        ],
+      ),
+    );
+  }
+
+  void _showProductInfoDialog(
+    BuildContext context,
+    WidgetRef ref,
+    SaleOrderLine line,
+    int? pricelistId,
+  ) {
+    if (line.productId == null) return;
+
+    final activeTab = ref.read(fastSaleActiveTabProvider);
+    final order = activeTab?.order;
+
+    showDialog(
+      context: context,
+      builder: (context) => ProductInfoDialog(
+        productId: line.productId!,
+        partnerId: order?.partnerId,
+        partnerName: order?.partnerName,
+        pricelistId: pricelistId ?? order?.pricelistId,
+      ),
+    );
+  }
+}
+
+/// Payments content switcher (credit vs cash)
+class _OrderLinesPaymentsContent extends ConsumerWidget {
+  final SaleOrder? order;
+
+  const _OrderLinesPaymentsContent({this.order});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final isCreditSale = order?.isCreditSale ?? false;
+
+    if (isCreditSale) {
+      return const POSCreditSaleTab();
+    }
+
+    return const POSPaymentTab();
+  }
+}
+
+/// Footer with totals, confirm button, sync status, and invoice section
+class _OrderLinesTotals extends StatelessWidget {
+  final SaleOrder? order;
+  final List<SaleOrderLine> lines;
+  final bool canConfirm;
+  final bool showTotals;
+  final VoidCallback onConfirm;
+
+  const _OrderLinesTotals({
+    this.order,
+    required this.lines,
+    required this.canConfirm,
+    required this.showTotals,
+    required this.onConfirm,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = FluentTheme.of(context);
+
+    return Container(
+      padding: const EdgeInsets.all(8.0),
+      decoration: BoxDecoration(
+        color: theme.scaffoldBackgroundColor,
+        border: Border(
+          top: BorderSide(color: theme.resources.dividerStrokeColorDefault),
+        ),
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (showTotals) ...[
+            SalesOrderTotals(order: order, lines: lines),
+            const SizedBox(height: Spacing.xs),
+          ],
+          // Confirm button
+          if (order != null && order!.state == SaleOrderState.draft && !order!.hasQueuedInvoice && !order!.isFullyInvoiced)
+            SizedBox(
+              width: double.infinity,
+              child: FilledButton(
+                onPressed: canConfirm ? onConfirm : null,
+                style: ButtonStyle(
+                  backgroundColor: canConfirm
+                      ? WidgetStateProperty.all(Colors.green.dark)
+                      : null,
+                  padding: WidgetStateProperty.all(
+                    const EdgeInsets.symmetric(vertical: Spacing.sm),
+                  ),
+                ),
+                child: SizedBox(
+                  width: double.infinity,
+                  height: Spacing.xl,
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(
+                        FluentIcons.check_mark,
+                        size: 16,
+                        color: canConfirm ? Colors.white : null,
+                      ),
+                      const SizedBox(width: Spacing.xs),
+                      Text(
+                        'Confirmar Venta',
+                        style: TextStyle(
+                          color: canConfirm ? Colors.white : null,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          // Invoice queued indicator
+          if (order != null && order!.hasQueuedInvoice)
+            Row(
+              children: [
+                Expanded(
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(vertical: Spacing.sm),
+                    decoration: BoxDecoration(
+                      color: Colors.orange.lightest,
+                      borderRadius: BorderRadius.circular(4),
+                    ),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(FluentIcons.sync, size: 16, color: Colors.orange.dark),
+                        const SizedBox(width: Spacing.xs),
+                        Text(
+                          'Factura pendiente de enviar',
+                          style: TextStyle(
+                            color: Colors.orange.dark,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+                _SyncOrderButtonInline(orderId: order!.id),
+              ],
+            )
+          // Ready to invoice indicator
+          else if (order != null &&
+              order!.state == SaleOrderState.sale &&
+              order!.isFullyInvoiced == false)
+            Row(
+              children: [
+                Expanded(
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(vertical: Spacing.sm),
+                    decoration: BoxDecoration(
+                      color: Colors.blue.lightest,
+                      borderRadius: BorderRadius.circular(4),
+                    ),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(FluentIcons.completed, size: 16, color: Colors.blue.dark),
+                        const SizedBox(width: Spacing.xs),
+                        Text(
+                          'Listo para facturar',
+                          style: TextStyle(
+                            color: Colors.blue.dark,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+                _SyncOrderButtonInline(orderId: order!.id),
+              ],
+            )
+          else if (order != null)
+            _SyncOrderButtonInline(orderId: order!.id, fullWidth: true),
+
+          // Invoice section
+          if (order != null &&
+              ((order!.isSynced && order!.invoiceCount > 0) ||
+                  order!.hasQueuedInvoice)) ...[
+            const SizedBox(height: Spacing.sm),
+            InvoiceSection(orderId: order!.id),
+          ],
         ],
       ),
     );
@@ -1999,8 +2004,8 @@ class _SyncOrderButtonInlineState extends ConsumerState<_SyncOrderButtonInline> 
       if (mounted) {
         CopyableInfoBar.showError(
           context,
-          title: 'Error',
-          message: 'Error al sincronizar: $e',
+          title: 'Error de sincronización',
+          message: 'No se pudieron sincronizar los datos. Intente nuevamente.',
         );
       }
     } finally {

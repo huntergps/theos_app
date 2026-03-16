@@ -449,8 +449,8 @@ class _ConflictResolutionScreenState
       if (mounted) {
         ref.showErrorNotification(
           context,
-          title: 'Error',
-          message: 'No se pudo resolver el conflicto: $e',
+          title: 'Error al resolver conflicto',
+          message: 'No se pudo resolver el conflicto. Intente nuevamente.',
         );
       }
     } finally {

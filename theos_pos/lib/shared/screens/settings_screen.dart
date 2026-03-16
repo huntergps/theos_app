@@ -19,24 +19,52 @@ class SettingsScreen extends ConsumerWidget {
     final notifier = ref.read(configServiceProvider.notifier);
 
     return ScaffoldPage.scrollable(
-      header: const PageHeader(title: Text('Configuración')),
+      header: const PageHeader(title: Text('Configuracion')),
       children: [
-        const Text('Personaliza la apariencia y los parámetros del sistema.'),
+        const Text('Personaliza la apariencia y los parametros del sistema.'),
         const SizedBox(height: 20),
+        _SettingsSectionProfiles(config: config, notifier: notifier),
+        const SizedBox(height: 24),
+        _SettingsSectionAppearance(config: config, notifier: notifier),
+        const SizedBox(height: 24),
+        _SettingsSectionSystem(config: config, notifier: notifier),
+        const SizedBox(height: 32),
+      ],
+    );
+  }
+}
 
-        // === SECTION 1: PERFILES ===
-        const FormSection(title: 'Perfiles de Configuración'),
+// =============================================================================
+// SECTION 1: Profiles
+// =============================================================================
+
+class _SettingsSectionProfiles extends StatelessWidget {
+  final dynamic config;
+  final ConfigService notifier;
+
+  const _SettingsSectionProfiles({
+    required this.config,
+    required this.notifier,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const FormSection(title: 'Perfiles de Configuracion'),
         const SizedBox(height: 16),
         LayoutBuilder(
           builder: (context, constraints) {
-            final isSmallScreen = constraints.maxWidth < ScreenBreakpoints.mobileMaxWidth;
+            final isSmallScreen =
+                constraints.maxWidth < ScreenBreakpoints.mobileMaxWidth;
 
             Widget buildComboBox() {
               return ComboBox<String>(
                 placeholder: const Text('Seleccionar perfil...'),
                 isExpanded: true,
                 value: config.activeProfileId,
-                items: config.profiles.map((e) {
+                items: config.profiles.map<ComboBoxItem<String>>((e) {
                   return ComboBoxItem(
                     value: e.id,
                     child: Row(
@@ -88,8 +116,8 @@ class SettingsScreen extends ConsumerWidget {
                     message: 'Eliminar perfil seleccionado',
                     child: IconButton(
                       icon: Icon(FluentIcons.delete, color: Colors.red),
-                      onPressed: () =>
-                          _showDeleteProfileDialog(context, config, notifier),
+                      onPressed: () => _showDeleteProfileDialog(
+                          context, config, notifier),
                     ),
                   ),
                 ],
@@ -100,7 +128,8 @@ class SettingsScreen extends ConsumerWidget {
               return Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  SizedBox(width: double.infinity, child: buildComboBox()),
+                  SizedBox(
+                      width: double.infinity, child: buildComboBox()),
                   const SizedBox(height: 10),
                   buildButtons(),
                 ],
@@ -116,9 +145,111 @@ class SettingsScreen extends ConsumerWidget {
             }
           },
         ),
-        const SizedBox(height: 24),
+      ],
+    );
+  }
 
-        // === SECTION 2: APARIENCIA (UI) ===
+  void _showSaveProfileDialog(
+      BuildContext context, ConfigService notifier) {
+    final controller = TextEditingController();
+    showDialog(
+      context: context,
+      builder: (context) {
+        return ContentDialog(
+          title: const Text('Guardar Perfil'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Text('Ingresa un nombre para el nuevo perfil:'),
+              const SizedBox(height: 10),
+              TextFormBox(
+                controller: controller,
+                placeholder: 'Nombre del perfil',
+              ),
+            ],
+          ),
+          actions: [
+            Button(
+              child: const Text('Cancelar'),
+              onPressed: () => Navigator.pop(context),
+            ),
+            FilledButton(
+              child: const Text('Guardar'),
+              onPressed: () {
+                if (controller.text.isNotEmpty) {
+                  notifier.createProfile(controller.text);
+                  Navigator.pop(context);
+                }
+              },
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  void _showDeleteProfileDialog(
+    BuildContext context,
+    dynamic config,
+    ConfigService notifier,
+  ) {
+    showDialog(
+      context: context,
+      builder: (context) {
+        return ContentDialog(
+          title: const Text('Eliminar Perfil'),
+          content: SizedBox(
+            height: 200,
+            width: 300,
+            child: ListView.builder(
+              itemCount: config.profiles.length,
+              itemBuilder: (context, index) {
+                final profile = config.profiles[index];
+                if (profile.isDefault) return const SizedBox.shrink();
+
+                return ListTile(
+                  title: Text(profile.name),
+                  trailing: IconButton(
+                    icon: Icon(FluentIcons.delete, color: Colors.red),
+                    onPressed: () {
+                      notifier.deleteProfile(profile.id);
+                      Navigator.pop(context);
+                    },
+                  ),
+                );
+              },
+            ),
+          ),
+          actions: [
+            Button(
+              child: const Text('Cerrar'),
+              onPressed: () => Navigator.pop(context),
+            ),
+          ],
+        );
+      },
+    );
+  }
+}
+
+// =============================================================================
+// SECTION 2: Appearance
+// =============================================================================
+
+class _SettingsSectionAppearance extends StatelessWidget {
+  final dynamic config;
+  final ConfigService notifier;
+
+  const _SettingsSectionAppearance({
+    required this.config,
+    required this.notifier,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
         const FormSection(title: 'Apariencia'),
         const SizedBox(height: 16),
 
@@ -144,7 +275,8 @@ class SettingsScreen extends ConsumerWidget {
           child: Wrap(
             spacing: 10,
             runSpacing: 10,
-            children: [...Colors.accentColors, cyanAccentColor].map((color) {
+            children:
+                [...Colors.accentColors, cyanAccentColor].map((color) {
               return Tooltip(
                 message: _getColorName(color),
                 child: IconButton(
@@ -204,7 +336,8 @@ class SettingsScreen extends ConsumerWidget {
         // Display Mode
         LayoutBuilder(
           builder: (context, constraints) {
-            final isSmallScreen = constraints.maxWidth < ScreenBreakpoints.mobileMaxWidth;
+            final isSmallScreen =
+                constraints.maxWidth < ScreenBreakpoints.mobileMaxWidth;
 
             if (isSmallScreen) {
               return const SizedBox.shrink();
@@ -214,7 +347,7 @@ class SettingsScreen extends ConsumerWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 FormComboBox<PaneDisplayMode>(
-                  label: 'Modo de Visualización (Panel)',
+                  label: 'Modo de Visualizacion (Panel)',
                   value: config.displayMode,
                   items: PaneDisplayMode.values.map((e) {
                     return ComboBoxItem(
@@ -232,9 +365,9 @@ class SettingsScreen extends ConsumerWidget {
           },
         ),
 
-        // Typography Scaling - Use Expander to save space
+        // Typography Scaling
         Expander(
-          header: const Text('Escala de Tipografía'),
+          header: const Text('Escala de Tipografia'),
           content: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -249,45 +382,31 @@ class SettingsScreen extends ConsumerWidget {
               ),
               const SizedBox(height: 10),
               _buildSlider(
-                context,
-                'Display',
-                config.displayFactor,
+                context, 'Display', config.displayFactor,
                 notifier.setDisplayFactor,
               ),
               _buildSlider(
-                context,
-                'Título Grande',
-                config.titleLargeFactor,
+                context, 'Titulo Grande', config.titleLargeFactor,
                 notifier.setTitleLargeFactor,
               ),
               _buildSlider(
-                context,
-                'Título',
-                config.titleFactor,
+                context, 'Titulo', config.titleFactor,
                 notifier.setTitleFactor,
               ),
               _buildSlider(
-                context,
-                'Cuerpo Grande',
-                config.bodyLargeFactor,
+                context, 'Cuerpo Grande', config.bodyLargeFactor,
                 notifier.setBodyLargeFactor,
               ),
               _buildSlider(
-                context,
-                'Cuerpo Fuerte',
-                config.bodyStrongFactor,
+                context, 'Cuerpo Fuerte', config.bodyStrongFactor,
                 notifier.setBodyStrongFactor,
               ),
               _buildSlider(
-                context,
-                'Cuerpo',
-                config.bodyFactor,
+                context, 'Cuerpo', config.bodyFactor,
                 notifier.setBodyFactor,
               ),
               _buildSlider(
-                context,
-                'Subtítulo',
-                config.captionFactor,
+                context, 'Subtitulo', config.captionFactor,
                 notifier.setCaptionFactor,
               ),
             ],
@@ -318,7 +437,8 @@ class SettingsScreen extends ConsumerWidget {
                     width: 50,
                     child: Text(
                       config.spacingFactor.toStringAsFixed(1),
-                      style: const TextStyle(fontWeight: FontWeight.bold),
+                      style: const TextStyle(
+                          fontWeight: FontWeight.bold),
                     ),
                   ),
                   const SizedBox(width: 8),
@@ -331,7 +451,8 @@ class SettingsScreen extends ConsumerWidget {
               const SizedBox(height: 8),
               Text(
                 'Ajusta el espaciado entre elementos de la interfaz.',
-                style: FluentTheme.of(context).typography.caption?.copyWith(
+                style:
+                    FluentTheme.of(context).typography.caption?.copyWith(
                   color: FluentTheme.of(
                     context,
                   ).resources.textFillColorSecondary,
@@ -340,221 +461,7 @@ class SettingsScreen extends ConsumerWidget {
             ],
           ),
         ),
-        const SizedBox(height: 24),
-
-        // === SECTION 3: SISTEMA (PARAMETROS) ===
-        const FormSection(title: 'Sistema'),
-        const SizedBox(height: 16),
-
-        // Date Format
-        FormComboBox<String>(
-          label: 'Formato de visualización de fechas',
-          value: config.dateFormat,
-          items: const [
-            ComboBoxItem(
-              value: 'dd/MM/yyyy',
-              child: Text('dd/MM/yyyy (28/05/2025)'),
-            ),
-            ComboBoxItem(
-              value: 'MM/dd/yyyy',
-              child: Text('MM/dd/yyyy (05/28/2025)'),
-            ),
-            ComboBoxItem(
-              value: 'yyyy-MM-dd',
-              child: Text('yyyy-MM-dd (2025-05-28)'),
-            ),
-            ComboBoxItem(
-              value: 'd MMM, yyyy',
-              child: Text('d MMM, yyyy (28 May, 2025)'),
-            ),
-          ],
-          onChanged: (format) {
-            if (format != null) notifier.setDateFormat(format);
-          },
-        ),
-        const SizedBox(height: 16),
-
-        // Sync Configuration Section
-        InfoLabel(
-          label: 'Reintentos Automáticos de Sincronización',
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                children: [
-                  Expanded(
-                    child: Slider(
-                      value: config.maxSyncRetries.toDouble(),
-                      min: 1,
-                      max: 10,
-                      divisions: 9,
-                      label: config.maxSyncRetries.toString(),
-                      onChanged: (value) {
-                        notifier.setMaxSyncRetries(value.toInt());
-                      },
-                    ),
-                  ),
-                  const SizedBox(width: 16),
-                  SizedBox(
-                    width: 60,
-                    child: Text(
-                      '${config.maxSyncRetries} ${config.maxSyncRetries == 1 ? 'vez' : 'veces'}',
-                      style: const TextStyle(fontWeight: FontWeight.bold),
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 8),
-              Text(
-                'Intentos antes de requerir intervención manual.',
-                style: FluentTheme.of(context).typography.caption?.copyWith(
-                  color: FluentTheme.of(
-                    context,
-                  ).resources.textFillColorSecondary,
-                ),
-              ),
-            ],
-          ),
-        ),
-        const SizedBox(height: 16),
-
-        // Notification Durations
-        Expander(
-          header: const Text('Duración de Notificaciones'),
-          content: Column(
-            children: [
-              const SizedBox(height: 10),
-              _buildNotificationDurationSlider(
-                context,
-                'Errores',
-                config.errorNotificationDuration,
-                notifier.setErrorNotificationDuration,
-                FluentIcons.status_error_full,
-                Colors.red,
-                1,
-                60,
-              ),
-              _buildNotificationDurationSlider(
-                context,
-                'Advertencias',
-                config.warningNotificationDuration,
-                notifier.setWarningNotificationDuration,
-                FluentIcons.warning,
-                Colors.orange,
-                1,
-                30,
-              ),
-              _buildNotificationDurationSlider(
-                context,
-                'Éxito',
-                config.successNotificationDuration,
-                notifier.setSuccessNotificationDuration,
-                FluentIcons.completed_solid,
-                Colors.green,
-                1,
-                30,
-              ),
-              _buildNotificationDurationSlider(
-                context,
-                'Información',
-                config.infoNotificationDuration,
-                notifier.setInfoNotificationDuration,
-                FluentIcons.info,
-                Colors.blue,
-                1,
-                30,
-              ),
-            ],
-          ),
-        ),
-        const SizedBox(height: 32),
       ],
-    );
-  }
-
-  void _showSaveProfileDialog(BuildContext context, ConfigService notifier) {
-    final controller = TextEditingController();
-    showDialog(
-      context: context,
-      builder: (context) {
-        return ContentDialog(
-          title: const Text('Guardar Perfil'),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const Text('Ingresa un nombre para el nuevo perfil:'),
-              const SizedBox(height: 10),
-              TextFormBox(
-                controller: controller,
-                placeholder: 'Nombre del perfil',
-              ),
-            ],
-          ),
-          actions: [
-            Button(
-              child: const Text('Cancelar'),
-              onPressed: () => Navigator.pop(context),
-            ),
-            FilledButton(
-              child: const Text('Guardar'),
-              onPressed: () {
-                if (controller.text.isNotEmpty) {
-                  notifier.createProfile(controller.text);
-                  Navigator.pop(context);
-                }
-              },
-            ),
-          ],
-        );
-      },
-    );
-  }
-
-  void _showDeleteProfileDialog(
-    BuildContext context,
-    dynamic
-    config, // Using dynamic to avoid import cycle if type not available yet
-    ConfigService notifier,
-  ) {
-    // We need to let user select which profile to delete, or delete the "current" one if we tracked it.
-    // Since we don't strictly track "current profile ID" in the state (only the values),
-    // we'll show a list of deletable profiles.
-
-    showDialog(
-      context: context,
-      builder: (context) {
-        return ContentDialog(
-          title: const Text('Eliminar Perfil'),
-          content: SizedBox(
-            height: 200,
-            width: 300,
-            child: ListView.builder(
-              itemCount: config.profiles.length,
-              itemBuilder: (context, index) {
-                final profile = config.profiles[index];
-                if (profile.isDefault) return const SizedBox.shrink();
-
-                return ListTile(
-                  title: Text(profile.name),
-                  trailing: IconButton(
-                    icon: Icon(FluentIcons.delete, color: Colors.red),
-                    onPressed: () {
-                      notifier.deleteProfile(profile.id);
-                      Navigator.pop(context); // Close dialog after delete
-                    },
-                  ),
-                );
-              },
-            ),
-          ),
-          actions: [
-            Button(
-              child: const Text('Cerrar'),
-              onPressed: () => Navigator.pop(context),
-            ),
-          ],
-        );
-      },
     );
   }
 
@@ -582,6 +489,152 @@ class SettingsScreen extends ConsumerWidget {
           SizedBox(width: 50, child: Text(value.toStringAsFixed(1))),
         ],
       ),
+    );
+  }
+
+  String _getColorName(AccentColor color) {
+    if (color == Colors.yellow) return 'Amarillo';
+    if (color == Colors.orange) return 'Naranja';
+    if (color == Colors.red) return 'Rojo';
+    if (color == Colors.magenta) return 'Magenta';
+    if (color == Colors.purple) return 'Morado';
+    if (color == Colors.blue) return 'Azul';
+    if (color == Colors.teal) return 'Verde azulado';
+    if (color == Colors.green) return 'Verde';
+    if (color == cyanAccentColor) return 'Cian';
+    return 'Personalizado';
+  }
+}
+
+// =============================================================================
+// SECTION 3: System
+// =============================================================================
+
+class _SettingsSectionSystem extends StatelessWidget {
+  final dynamic config;
+  final ConfigService notifier;
+
+  const _SettingsSectionSystem({
+    required this.config,
+    required this.notifier,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const FormSection(title: 'Sistema'),
+        const SizedBox(height: 16),
+
+        // Date Format
+        FormComboBox<String>(
+          label: 'Formato de visualizacion de fechas',
+          value: config.dateFormat,
+          items: const [
+            ComboBoxItem(
+              value: 'dd/MM/yyyy',
+              child: Text('dd/MM/yyyy (28/05/2025)'),
+            ),
+            ComboBoxItem(
+              value: 'MM/dd/yyyy',
+              child: Text('MM/dd/yyyy (05/28/2025)'),
+            ),
+            ComboBoxItem(
+              value: 'yyyy-MM-dd',
+              child: Text('yyyy-MM-dd (2025-05-28)'),
+            ),
+            ComboBoxItem(
+              value: 'd MMM, yyyy',
+              child: Text('d MMM, yyyy (28 May, 2025)'),
+            ),
+          ],
+          onChanged: (format) {
+            if (format != null) notifier.setDateFormat(format);
+          },
+        ),
+        const SizedBox(height: 16),
+
+        // Sync Configuration Section
+        InfoLabel(
+          label: 'Reintentos Automaticos de Sincronizacion',
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Expanded(
+                    child: Slider(
+                      value: config.maxSyncRetries.toDouble(),
+                      min: 1,
+                      max: 10,
+                      divisions: 9,
+                      label: config.maxSyncRetries.toString(),
+                      onChanged: (value) {
+                        notifier.setMaxSyncRetries(value.toInt());
+                      },
+                    ),
+                  ),
+                  const SizedBox(width: 16),
+                  SizedBox(
+                    width: 60,
+                    child: Text(
+                      '${config.maxSyncRetries} ${config.maxSyncRetries == 1 ? 'vez' : 'veces'}',
+                      style: const TextStyle(
+                          fontWeight: FontWeight.bold),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 8),
+              Text(
+                'Intentos antes de requerir intervencion manual.',
+                style:
+                    FluentTheme.of(context).typography.caption?.copyWith(
+                  color: FluentTheme.of(
+                    context,
+                  ).resources.textFillColorSecondary,
+                ),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 16),
+
+        // Notification Durations
+        Expander(
+          header: const Text('Duracion de Notificaciones'),
+          content: Column(
+            children: [
+              const SizedBox(height: 10),
+              _buildNotificationDurationSlider(
+                context, 'Errores',
+                config.errorNotificationDuration,
+                notifier.setErrorNotificationDuration,
+                FluentIcons.status_error_full, Colors.red, 1, 60,
+              ),
+              _buildNotificationDurationSlider(
+                context, 'Advertencias',
+                config.warningNotificationDuration,
+                notifier.setWarningNotificationDuration,
+                FluentIcons.warning, Colors.orange, 1, 30,
+              ),
+              _buildNotificationDurationSlider(
+                context, 'Exito',
+                config.successNotificationDuration,
+                notifier.setSuccessNotificationDuration,
+                FluentIcons.completed_solid, Colors.green, 1, 30,
+              ),
+              _buildNotificationDurationSlider(
+                context, 'Informacion',
+                config.infoNotificationDuration,
+                notifier.setInfoNotificationDuration,
+                FluentIcons.info, Colors.blue, 1, 30,
+              ),
+            ],
+          ),
+        ),
+      ],
     );
   }
 
@@ -622,18 +675,5 @@ class SettingsScreen extends ConsumerWidget {
         ],
       ),
     );
-  }
-
-  String _getColorName(AccentColor color) {
-    if (color == Colors.yellow) return 'Amarillo';
-    if (color == Colors.orange) return 'Naranja';
-    if (color == Colors.red) return 'Rojo';
-    if (color == Colors.magenta) return 'Magenta';
-    if (color == Colors.purple) return 'Morado';
-    if (color == Colors.blue) return 'Azul';
-    if (color == Colors.teal) return 'Verde azulado';
-    if (color == Colors.green) return 'Verde';
-    if (color == cyanAccentColor) return 'Cian';
-    return 'Personalizado';
   }
 }

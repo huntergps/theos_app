@@ -347,7 +347,7 @@ class POSActionsPanel extends ConsumerWidget {
       if (context.mounted) {
         CopyableInfoBar.showError(
           context,
-          title: 'Error',
+          title: 'Error al sincronizar',
           message: 'Orden no encontrada en la base de datos local',
         );
       }
@@ -445,7 +445,7 @@ class POSActionsPanel extends ConsumerWidget {
       CopyableInfoBar.showError(
         context,
         title: 'Error de sincronización',
-        message: e.toString(),
+        message: 'No se pudo sincronizar la orden. Verifique su conexion e intente nuevamente.',
       );
     }
   }
@@ -742,7 +742,7 @@ class POSActionsPanel extends ConsumerWidget {
         } else if (context.mounted) {
           CopyableInfoBar.showError(
             context,
-            title: 'Error',
+            title: 'Error de nota de credito',
             message: 'No se pudo aplicar la nota de crédito',
           );
         }
@@ -883,7 +883,7 @@ class POSActionsPanel extends ConsumerWidget {
       CopyableInfoBar.showError(
         context,
         title: 'Error de sincronización',
-        message: e.toString(),
+        message: 'No se pudieron sincronizar los datos. Verifique su conexion e intente nuevamente.',
       );
     }
   }
@@ -1053,7 +1053,7 @@ class POSActionsPanel extends ConsumerWidget {
       if (!context.mounted) return;
       CopyableInfoBar.showError(
         context,
-        title: 'Error',
+        title: 'Error de validacion de credito',
         message: creditResult.errorMessage!,
       );
       return;
@@ -1133,7 +1133,7 @@ class POSActionsPanel extends ConsumerWidget {
         final error = ref.read(fastSaleProvider).error;
         CopyableInfoBar.showError(
           context,
-          title: 'Error',
+          title: 'Error al confirmar',
           message: error ?? 'No se pudo confirmar la orden',
         );
       }
@@ -1142,8 +1142,8 @@ class POSActionsPanel extends ConsumerWidget {
 
       CopyableInfoBar.showError(
         context,
-        title: 'Error',
-        message: 'Error al confirmar: $e',
+        title: 'Error al confirmar',
+        message: 'No se pudo confirmar la orden. Intente nuevamente.',
       );
     }
   }
@@ -1232,8 +1232,8 @@ class POSActionsPanel extends ConsumerWidget {
       if (!context.mounted) return;
       CopyableInfoBar.showError(
         context,
-        title: 'Error',
-        message: 'Error al cancelar: $e',
+        title: 'Error al cancelar',
+        message: 'No se pudo cancelar la orden. Intente nuevamente.',
       );
     }
   }
@@ -1292,8 +1292,8 @@ class POSActionsPanel extends ConsumerWidget {
       if (!context.mounted) return;
       CopyableInfoBar.showError(
         context,
-        title: 'Error',
-        message: 'Error al bloquear: $e',
+        title: 'Error al bloquear orden',
+        message: 'No se pudo bloquear la orden. Intente nuevamente.',
       );
     }
   }
@@ -1352,8 +1352,8 @@ class POSActionsPanel extends ConsumerWidget {
       if (!context.mounted) return;
       CopyableInfoBar.showError(
         context,
-        title: 'Error',
-        message: 'Error al desbloquear: $e',
+        title: 'Error al desbloquear orden',
+        message: 'No se pudo desbloquear la orden. Intente nuevamente.',
       );
     }
   }
@@ -1414,7 +1414,7 @@ class POSActionsPanel extends ConsumerWidget {
       } else {
         CopyableInfoBar.showError(
           context,
-          title: 'Error',
+          title: 'Error de aprobacion',
           message: 'No se pudo crear la solicitud de aprobación',
         );
       }
@@ -1427,8 +1427,8 @@ class POSActionsPanel extends ConsumerWidget {
       logger.e('[POS]', 'Error creating approval request: $e');
       CopyableInfoBar.showError(
         context,
-        title: 'Error',
-        message: 'Error al crear solicitud: $e',
+        title: 'Error de aprobacion',
+        message: 'No se pudo crear la solicitud. Intente nuevamente.',
       );
     }
   }
@@ -1754,7 +1754,7 @@ class _CashOutDialogState extends ConsumerState<_CashOutDialog> {
     if (amount <= 0) {
       CopyableInfoBar.showError(
         context,
-        title: 'Error',
+        title: 'Error de validacion',
         message: 'Ingrese un monto válido',
       );
       return;
@@ -1800,8 +1800,8 @@ class _CashOutDialogState extends ConsumerState<_CashOutDialog> {
         setState(() => _isLoading = false);
         CopyableInfoBar.showError(
           context,
-          title: 'Error',
-          message: 'Error al registrar salida: $e',
+          title: 'Error de retiro de efectivo',
+          message: 'No se pudo registrar la salida de efectivo. Intente nuevamente.',
         );
       }
     }

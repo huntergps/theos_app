@@ -837,8 +837,8 @@ class AdvanceDetailDialog extends ConsumerWidget {
         if (context.mounted) {
           CopyableInfoBar.showError(
             context,
-            title: 'Error',
-            message: 'No se pudo cancelar el anticipo: $e',
+            title: 'Error al cancelar anticipo',
+            message: 'No se pudo cancelar el anticipo. Intente nuevamente.',
           );
         }
       }

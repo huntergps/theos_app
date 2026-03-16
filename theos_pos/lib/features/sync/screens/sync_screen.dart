@@ -8,7 +8,7 @@ import 'package:path_provider/path_provider.dart';
 import '../../../core/constants/app_constants.dart';
 import '../../../core/database/database_helper.dart';
 import '../../../core/database/database_helper_file_ops.dart'
-    if (dart.library.html) '../../../core/database/database_helper_file_ops_stub.dart'
+    if (dart.library.js_interop) '../../../core/database/database_helper_file_ops_stub.dart'
     as file_ops;
 import '../../../core/database/repositories/repository_providers.dart';
 import '../../../shared/providers/offline_queue_provider.dart';

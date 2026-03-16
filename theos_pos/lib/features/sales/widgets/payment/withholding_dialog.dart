@@ -276,7 +276,7 @@ class _WithholdingDialogState extends ConsumerState<WithholdingDialog> {
   void _showError(String message) {
     CopyableInfoBar.showError(
       context,
-      title: 'Error',
+      title: 'Error de retencion',
       message: message,
     );
   }

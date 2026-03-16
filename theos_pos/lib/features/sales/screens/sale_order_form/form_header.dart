@@ -386,7 +386,7 @@ class SaleOrderFormHeader extends ConsumerWidget {
       if (context.mounted) {
         CopyableInfoBar.showError(
           context,
-          title: 'Error',
+          title: 'Error de configuracion',
           message: 'Repositorio de ventas no disponible',
         );
       }
@@ -478,7 +478,7 @@ class SaleOrderFormHeader extends ConsumerWidget {
         CopyableInfoBar.showError(
           context,
           title: 'Error de solicitud',
-          message: e.toString(),
+          message: 'No se pudo procesar la solicitud. Intente nuevamente.',
         );
       }
     }
@@ -1085,7 +1085,7 @@ class _ViewActionButtons extends ConsumerWidget {
         CopyableInfoBar.showError(
           context,
           title: 'Error al imprimir',
-          message: e.toString(),
+          message: 'No se pudo generar la impresion. Intente nuevamente.',
         );
       }
     }
@@ -1282,7 +1282,7 @@ class _ViewActionButtons extends ConsumerWidget {
       onRefresh();
     } on OdooException catch (e) {
       if (context.mounted) {
-        CopyableInfoBar.showError(context, title: 'Error', message: e.message);
+        CopyableInfoBar.showError(context, title: 'Error al cambiar estado', message: e.message);
       }
     }
   }
@@ -1336,7 +1336,7 @@ class _ViewActionButtons extends ConsumerWidget {
       }
     } on OdooException catch (e) {
       if (context.mounted) {
-        CopyableInfoBar.showError(context, title: 'Error', message: e.message);
+        CopyableInfoBar.showError(context, title: 'Error al bloquear orden', message: e.message);
       }
     }
   }
@@ -1375,7 +1375,7 @@ class _ViewActionButtons extends ConsumerWidget {
       }
     } on OdooException catch (e) {
       if (context.mounted) {
-        CopyableInfoBar.showError(context, title: 'Error', message: e.message);
+        CopyableInfoBar.showError(context, title: 'Error al desbloquear orden', message: e.message);
       }
     }
   }

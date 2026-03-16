@@ -58,8 +58,8 @@ class _SaleOrdersScreenState extends ConsumerState<SaleOrdersScreen> {
       if (mounted) {
         CopyableInfoBar.showError(
           context,
-          title: 'Error',
-          message: 'No se pudieron sincronizar las órdenes: $e',
+          title: 'Error de sincronización',
+          message: 'No se pudieron sincronizar las ordenes. Intente nuevamente.',
         );
       }
     } finally {

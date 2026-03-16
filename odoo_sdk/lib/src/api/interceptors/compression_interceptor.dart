@@ -9,7 +9,7 @@ import 'dart:convert';
 import 'package:dio/dio.dart';
 
 import 'gzip_native.dart'
-    if (dart.library.html) 'gzip_web.dart'
+    if (dart.library.js_interop) 'gzip_web.dart'
     as gzip_impl;
 
 /// Configuration for request compression.

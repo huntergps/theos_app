@@ -354,8 +354,8 @@ class _OfflineSyncManagementScreenState
       } else {
         CopyableInfoBar.showError(
           context,
-          title: 'Error',
-          message: result.error ?? 'Error',
+          title: 'Error de limpieza',
+          message: result.error ?? 'No se pudo completar la limpieza',
         );
       }
       await _loadPurgeData();

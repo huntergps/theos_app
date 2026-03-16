@@ -281,7 +281,7 @@ class _SaleOrderFormScreenState extends ConsumerState<SaleOrderFormScreen> {
       CopyableInfoBar.showError(
         context,
         title: 'Error de sincronización',
-        message: e.toString(),
+        message: 'No se pudo sincronizar la orden. Verifique su conexion e intente nuevamente.',
       );
     }
   }
@@ -380,7 +380,7 @@ class _SaleOrderFormScreenState extends ConsumerState<SaleOrderFormScreen> {
       next,
     ) {
       if (next != null && next.isNotEmpty && mounted) {
-        CopyableInfoBar.showError(context, title: 'Error', message: next);
+        CopyableInfoBar.showError(context, title: 'Error en la orden', message: next);
         ref.read(saleOrderFormProvider.notifier).clearError();
       }
     });

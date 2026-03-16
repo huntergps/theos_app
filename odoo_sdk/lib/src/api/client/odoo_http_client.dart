@@ -5,7 +5,7 @@ import '../interceptors/retry_interceptor.dart';
 import '../interceptors/compression_interceptor.dart';
 
 import 'native_helpers.dart'
-    if (dart.library.html) 'web_helpers.dart'
+    if (dart.library.js_interop) 'web_helpers.dart'
     as platform_helpers;
 
 /// SEC-04: Exception thrown when insecure connection is attempted.

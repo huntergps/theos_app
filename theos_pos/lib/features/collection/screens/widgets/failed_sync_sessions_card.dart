@@ -95,8 +95,8 @@ class FailedSyncSessionsCard extends ConsumerWidget {
         final errorDuration = ref.read(errorNotificationDurationProvider);
         CopyableInfoBar.showError(
           context,
-          title: 'Error',
-          message: 'Error al sincronizar: $e',
+          title: 'Error de sincronización',
+          message: 'No se pudo sincronizar la sesion. Intente nuevamente.',
           durationSeconds: errorDuration,
         );
       }

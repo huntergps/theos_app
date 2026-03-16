@@ -199,7 +199,7 @@ class _CollectionSessionScreenState
   void _showErrorMessage(String message) {
     if (!mounted) return;
 
-    ref.showErrorNotification(context, title: 'Error', message: message);
+    ref.showErrorNotification(context, title: 'Error de cobranza', message: message);
   }
 
   /// Construye la pantalla de error

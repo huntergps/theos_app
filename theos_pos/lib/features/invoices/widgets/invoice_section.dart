@@ -381,7 +381,7 @@ class _InvoiceRowState extends ConsumerState<_InvoiceRow> {
         CopyableInfoBar.showError(
           context,
           title: 'Error al imprimir',
-          message: e.toString(),
+          message: 'No se pudo procesar la impresion de la factura. Intente nuevamente.',
         );
       }
     }

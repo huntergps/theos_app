@@ -336,8 +336,8 @@ class DepositsTab extends ConsumerWidget {
             if (context.mounted) {
               CopyableInfoBar.showError(
                 context,
-                title: 'Error',
-                message: 'Error guardando depósito: ${failure.message}',
+                title: 'Error al guardar deposito',
+                message: 'No se pudo guardar el deposito: ${failure.message}',
               );
             }
           },
@@ -359,8 +359,8 @@ class DepositsTab extends ConsumerWidget {
         if (context.mounted) {
           CopyableInfoBar.showError(
             context,
-            title: 'Error',
-            message: 'Error inesperado: $e',
+            title: 'Error al guardar deposito',
+            message: 'Ocurrio un error inesperado. Intente nuevamente.',
           );
         }
       }
@@ -393,8 +393,8 @@ class DepositsTab extends ConsumerWidget {
             if (context.mounted) {
               CopyableInfoBar.showError(
                 context,
-                title: 'Error',
-                message: 'Error actualizando depósito: ${failure.message}',
+                title: 'Error al actualizar deposito',
+                message: 'No se pudo actualizar el deposito: ${failure.message}',
               );
             }
           },
@@ -416,8 +416,8 @@ class DepositsTab extends ConsumerWidget {
         if (context.mounted) {
           CopyableInfoBar.showError(
             context,
-            title: 'Error',
-            message: 'Error inesperado: $e',
+            title: 'Error al actualizar deposito',
+            message: 'Ocurrio un error inesperado. Intente nuevamente.',
           );
         }
       }

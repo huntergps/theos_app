@@ -224,7 +224,7 @@ class _BaseFormDialogState<T> extends ConsumerState<BaseFormDialog<T>>
       if (mounted) {
         setState(() {
           _isLoading = false;
-          _validationErrors = [e.toString()];
+          _validationErrors = ['Error al procesar. Intente nuevamente.'];
         });
       }
     }
@@ -421,7 +421,7 @@ class _SimpleFormDialogState<T> extends ConsumerState<SimpleFormDialog<T>> {
       if (mounted) {
         setState(() {
           _isLoading = false;
-          _errors = [e.toString()];
+          _errors = ['Error al procesar. Intente nuevamente.'];
         });
       }
     }
@@ -585,7 +585,7 @@ abstract class StatefulFormDialogState<T, W extends StatefulFormDialog<T>>
       if (mounted) {
         setState(() {
           _isLoading = false;
-          _validationErrors = [e.toString()];
+          _validationErrors = ['Error al procesar. Intente nuevamente.'];
         });
       }
     }

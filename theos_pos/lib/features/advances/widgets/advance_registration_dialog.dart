@@ -309,7 +309,7 @@ class _AdvanceRegistrationDialogState
   }
 
   void _showError(String message) {
-    CopyableInfoBar.showError(context, title: 'Error', message: message);
+    CopyableInfoBar.showError(context, title: 'Error de anticipo', message: message);
   }
 
   @override

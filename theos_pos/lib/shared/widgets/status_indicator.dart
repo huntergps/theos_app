@@ -113,7 +113,7 @@ class StatusIndicator extends StatelessWidget {
     this.child,
   });
 
-  /// Constructor conveniente para badge de sync pendiente
+  /// Constructor conveniente para badge de envio pendiente
   factory StatusIndicator.pendingSync({
     Key? key,
     VoidCallback? onTap,

@@ -2,6 +2,7 @@ import 'dart:async';
 import 'package:fluent_ui/fluent_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
+import '../providers/offline_queue_provider.dart';
 import '../providers/server_info_provider.dart';
 
 /// A compact status bar displayed at the bottom of the main screen.
@@ -102,6 +103,46 @@ class _ServerInfoBarState extends ConsumerState<ServerInfoBar> {
             ),
             _Separator(color: separatorColor),
           ],
+
+          // Pending operations badge
+          Builder(builder: (context) {
+            final pendingCount = ref.watch(
+              offlineQueueProvider.select((s) => s.totalCount),
+            );
+            if (pendingCount <= 0) return const SizedBox.shrink();
+            return Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                  decoration: BoxDecoration(
+                    color: Colors.orange.withValues(alpha: 0.15),
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(
+                      color: Colors.orange.withValues(alpha: 0.4),
+                      width: 0.5,
+                    ),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(FluentIcons.cloud_upload, size: 12, color: Colors.orange.dark),
+                      const SizedBox(width: 4),
+                      Text(
+                        '$pendingCount pendiente${pendingCount == 1 ? '' : 's'}',
+                        style: TextStyle(
+                          fontSize: 11,
+                          color: Colors.orange.dark,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                _Separator(color: separatorColor),
+              ],
+            );
+          }),
 
           // Date/Time (pushed to the right)
           const Spacer(),

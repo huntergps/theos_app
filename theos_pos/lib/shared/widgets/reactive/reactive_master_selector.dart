@@ -117,7 +117,7 @@ class ReactiveMasterSelector<T> extends ConsumerWidget {
         return _buildComboBox(context, theme, filteredItems);
       },
       loading: () => _buildLoading(theme),
-      error: (e, _) => _buildError(theme, e.toString()),
+      error: (e, _) => _buildError(theme, 'Error al cargar datos'),
     );
   }
 
@@ -854,7 +854,7 @@ class _SearchDialogState<T> extends State<_SearchDialog<T>> {
     } catch (e) {
       if (mounted) {
         setState(() {
-          _error = e.toString();
+          _error = 'Error al cargar datos';
           _isLoading = false;
         });
       }

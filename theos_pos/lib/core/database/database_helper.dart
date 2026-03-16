@@ -5,7 +5,7 @@ import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:path_provider/path_provider.dart';
 
 import 'database_helper_file_ops.dart'
-    if (dart.library.html) 'database_helper_file_ops_stub.dart'
+    if (dart.library.js_interop) 'database_helper_file_ops_stub.dart'
     as file_ops;
 import 'package:theos_pos_core/theos_pos_core.dart' show AppDatabase, IOdooDatabase, ProductProductData, OfflineQueueCompanion, SyncAuditLogCompanion, SyncAuditLogData;
 import 'package:odoo_sdk/odoo_sdk.dart';

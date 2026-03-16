@@ -5,7 +5,7 @@
 library;
 
 import 'browser_session_helper_stub.dart'
-    if (dart.library.html) 'browser_session_helper_web.dart'
+    if (dart.library.js_interop) 'browser_session_helper_web.dart'
     as platform;
 
 /// Helper to establish browser session cookies for WebSocket authentication

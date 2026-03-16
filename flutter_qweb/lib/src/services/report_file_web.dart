@@ -1,16 +1,17 @@
 import 'dart:convert';
 import 'dart:typed_data';
-// ignore: avoid_web_libraries_in_flutter
-import 'dart:html' as html;
+import 'dart:js_interop';
+import 'package:web/web.dart' as web;
 
 /// Download PDF in the browser.
 Future<bool> saveAndOpen(Uint8List pdfBytes, String filename) async {
   final base64Data = base64Encode(pdfBytes);
-  final anchor = html.AnchorElement()
-    ..href = 'data:application/pdf;base64,$base64Data'
-    ..download = filename
-    ..style.display = 'none';
-  html.document.body?.append(anchor);
+  final anchor =
+      web.document.createElement('a') as web.HTMLAnchorElement;
+  anchor.href = 'data:application/pdf;base64,$base64Data';
+  anchor.download = filename;
+  anchor.style.display = 'none';
+  web.document.body!.appendChild(anchor);
   anchor.click();
   anchor.remove();
   return true;

@@ -523,7 +523,7 @@ class _CollectionDashboardScreenState
             final errorDuration = ref.read(errorNotificationDurationProvider);
             CopyableInfoBar.showError(
               context,
-              title: 'Error',
+              title: 'Error de sesion',
               message: 'No se pudo obtener el usuario actual',
               durationSeconds: errorDuration,
             );
@@ -573,8 +573,8 @@ class _CollectionDashboardScreenState
           final errorDuration = ref.read(errorNotificationDurationProvider);
           CopyableInfoBar.showError(
             context,
-            title: 'Error',
-            message: 'No se pudo crear la sesion: $e',
+            title: 'Error al crear sesion',
+            message: 'No se pudo crear la sesion de cobranza. Intente nuevamente.',
             durationSeconds: errorDuration,
           );
         }

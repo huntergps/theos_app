@@ -13,7 +13,7 @@ import 'package:printing/printing.dart';
 import 'package:pdf/widgets.dart' as pw;
 
 import 'report_file_native.dart'
-    if (dart.library.html) 'report_file_web.dart'
+    if (dart.library.js_interop) 'report_file_web.dart'
     as platform_file;
 
 import '../models/render_options.dart';

@@ -14,7 +14,7 @@ import 'websocket_model_registry.dart';
 
 // Conditional imports for platform-specific WebSocket creation
 import 'platform/websocket_connect_stub.dart'
-    if (dart.library.html) 'platform/websocket_connect_web.dart'
+    if (dart.library.js_interop) 'platform/websocket_connect_web.dart'
     if (dart.library.io) 'platform/websocket_connect_io.dart';
 
 /// Manages WebSocket connection lifecycle.

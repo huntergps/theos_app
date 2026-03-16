@@ -79,8 +79,8 @@ class _DeadLetterQueueScreenState extends ConsumerState<DeadLetterQueueScreen> {
       if (mounted) {
         CopyableInfoBar.showError(
           context,
-          title: 'Error',
-          message: 'No se pudo reintentar: $e',
+          title: 'Error al reintentar operacion',
+          message: 'No se pudo reintentar la operacion. Intente nuevamente.',
         );
       }
     } finally {

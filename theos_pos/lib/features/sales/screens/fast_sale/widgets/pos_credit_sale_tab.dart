@@ -615,7 +615,7 @@ class _POSCreditSaleTabState extends ConsumerState<POSCreditSaleTab> {
       } else {
         CopyableInfoBar.showError(
           context,
-          title: 'Error',
+          title: 'Error de aprobacion',
           message: 'No se pudo crear la solicitud',
         );
       }
@@ -623,8 +623,8 @@ class _POSCreditSaleTabState extends ConsumerState<POSCreditSaleTab> {
       if (!mounted) return;
       CopyableInfoBar.showError(
         context,
-        title: 'Error',
-        message: 'Error: $e',
+        title: 'Error de aprobacion',
+        message: 'No se pudo crear la solicitud. Intente nuevamente.',
       );
     } finally {
       if (mounted) setState(() => _isLoading = false);
@@ -673,7 +673,7 @@ class _POSCreditSaleTabState extends ConsumerState<POSCreditSaleTab> {
       } else {
         CopyableInfoBar.showError(
           context,
-          title: 'Error',
+          title: 'Error de facturación',
           message: 'No se pudo crear la factura',
         );
       }
@@ -681,8 +681,8 @@ class _POSCreditSaleTabState extends ConsumerState<POSCreditSaleTab> {
       if (!mounted) return;
       CopyableInfoBar.showError(
         context,
-        title: 'Error',
-        message: 'Error al crear factura: $e',
+        title: 'Error de facturación',
+        message: 'No se pudo crear la factura. Intente nuevamente.',
       );
     } finally {
       if (mounted) setState(() => _isLoading = false);

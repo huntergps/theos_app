@@ -508,7 +508,7 @@ class _UserPreferencesDialogState extends ConsumerState<UserPreferencesDialog> {
         } else {
           ref.showErrorNotification(
             context,
-            title: 'Error',
+            title: 'Error al guardar perfil',
             message: 'No se pudieron guardar los cambios en el usuario',
           );
         }
@@ -516,7 +516,7 @@ class _UserPreferencesDialogState extends ConsumerState<UserPreferencesDialog> {
     } on Exception catch (e) {
       if (mounted) {
         setState(() => _isLoading = false);
-        ref.showErrorNotification(context, title: 'Error', message: '$e');
+        ref.showErrorNotification(context, title: 'Error al guardar perfil', message: '$e');
       }
     }
   }
@@ -591,7 +591,7 @@ class _UserPreferencesDialogState extends ConsumerState<UserPreferencesDialog> {
           } else {
             ref.showErrorNotification(
               context,
-              title: 'Error',
+              title: 'Error al cerrar sesion',
               message: 'Contraseña incorrecta o no se pudo cerrar la sesión',
             );
           }
@@ -599,7 +599,7 @@ class _UserPreferencesDialogState extends ConsumerState<UserPreferencesDialog> {
       } catch (e) {
         if (mounted) {
           setState(() => _isLoading = false);
-          ref.showErrorNotification(context, title: 'Error', message: '$e');
+          ref.showErrorNotification(context, title: 'Error al cerrar sesion', message: '$e');
         }
       }
     }
@@ -675,7 +675,7 @@ class _UserPreferencesDialogState extends ConsumerState<UserPreferencesDialog> {
           } else {
             ref.showErrorNotification(
               context,
-              title: 'Error',
+              title: 'Error al cerrar sesiones',
               message:
                   'Contraseña incorrecta o no se pudieron cerrar las sesiones',
             );
@@ -684,7 +684,7 @@ class _UserPreferencesDialogState extends ConsumerState<UserPreferencesDialog> {
       } catch (e) {
         if (mounted) {
           setState(() => _isLoading = false);
-          ref.showErrorNotification(context, title: 'Error', message: '$e');
+          ref.showErrorNotification(context, title: 'Error al cerrar sesiones', message: '$e');
         }
       }
     }
@@ -774,7 +774,7 @@ class _UserPreferencesDialogState extends ConsumerState<UserPreferencesDialog> {
                     confirmPassword.isEmpty) {
                   CopyableInfoBar.showError(
                     context,
-                    title: 'Error',
+                    title: 'Validacion de contraseña',
                     message: 'Todos los campos son requeridos',
                   );
                   return;
@@ -783,7 +783,7 @@ class _UserPreferencesDialogState extends ConsumerState<UserPreferencesDialog> {
                 if (newPassword != confirmPassword) {
                   CopyableInfoBar.showError(
                     context,
-                    title: 'Error',
+                    title: 'Validacion de contraseña',
                     message: 'Las contraseñas no coinciden',
                   );
                   return;
@@ -792,7 +792,7 @@ class _UserPreferencesDialogState extends ConsumerState<UserPreferencesDialog> {
                 if (newPassword.length < 8) {
                   CopyableInfoBar.showError(
                     context,
-                    title: 'Error',
+                    title: 'Validacion de contraseña',
                     message: 'La contraseña debe tener al menos 8 caracteres',
                   );
                   return;
@@ -833,7 +833,7 @@ class _UserPreferencesDialogState extends ConsumerState<UserPreferencesDialog> {
         } else {
           ref.showErrorNotification(
             context,
-            title: 'Error',
+            title: 'Error al cambiar contraseña',
             message:
                 'No se pudo cambiar la contraseña. Verifica tu contraseña actual',
           );
@@ -842,7 +842,7 @@ class _UserPreferencesDialogState extends ConsumerState<UserPreferencesDialog> {
     } catch (e) {
       if (mounted) {
         setState(() => _isLoading = false);
-        ref.showErrorNotification(context, title: 'Error', message: '$e');
+        ref.showErrorNotification(context, title: 'Error al cambiar contraseña', message: '$e');
       }
     }
   }

@@ -35,6 +35,9 @@ dependencies:
   # WebSocket
   web_socket_channel: ^3.0.1
 
+  # Web platform
+  web: ^1.1.0
+
 dev_dependencies:
   build_runner: ^2.10.5
   source_gen: ^4.2.0

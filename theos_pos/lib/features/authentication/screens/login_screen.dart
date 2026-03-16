@@ -680,7 +680,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> with WindowListener {
     if (_selectedServer == null) {
       CopyableInfoBar.showError(
         context,
-        title: 'Error',
+        title: 'Error de conexion',
         message: 'Selecciona un servidor',
       );
       return;

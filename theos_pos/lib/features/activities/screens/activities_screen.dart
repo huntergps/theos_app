@@ -423,7 +423,7 @@ class _ActivitiesScreenState extends ConsumerState<ActivitiesScreen> {
     if (isError) {
       CopyableInfoBar.showError(
         context,
-        title: 'Error',
+        title: 'Error de actividades',
         message: message,
         durationSeconds: 5,
       );
