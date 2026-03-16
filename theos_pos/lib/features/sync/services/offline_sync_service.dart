@@ -278,13 +278,23 @@ class OfflineSyncService {
         await _processOrderConfirm(op);
         return null;
       // Sale order state actions (offline-first) - with conflict detection
+      // Only route to order-specific handler for sale.order model
       case 'action_lock':
       case 'action_unlock':
       case 'action_confirm':
       case 'action_pos_confirm':
       case 'action_cancel':
       case 'action_draft':
-        return await _processOrderStateAction(op);
+        if (op.model == 'sale.order') {
+          return await _processOrderStateAction(op);
+        }
+        // For other models (account.advance, l10n_ec.cash.out, etc.)
+        // use the generic action handler
+        return await _processGenericAction(op);
+      // Generic action methods that work on any model
+      case 'action_post':
+      case 'action_return':
+        return await _processGenericAction(op);
       // Invoice creation with payments (offline-first)
       case 'invoice_create_with_payments':
         await _processInvoiceWithPayments(op);
@@ -294,11 +304,21 @@ class OfflineSyncService {
         await _processSyncOfflineInvoice(op);
         return null;
       default:
+        // For unknown action_* methods, use generic handler instead of dropping
+        if (op.method.startsWith('action_')) {
+          logger.i(
+            '[OfflineSyncService]',
+            'Using generic action handler for ${op.model}.${op.method} (op ${op.id})',
+          );
+          return await _processGenericAction(op);
+        }
         logger.w(
           '[OfflineSyncService]',
-          'Unknown method: ${op.method} for op ${op.id}',
+          'Unknown method: ${op.method} for model ${op.model} (op ${op.id}) - operation will be retried',
         );
-        return null;
+        throw Exception(
+          'Unknown offline sync method: ${op.model}.${op.method} (op ${op.id})',
+        );
     }
   }
 
@@ -1637,6 +1657,39 @@ class OfflineSyncService {
   ///
   /// Expected op.values:
   /// - order_id: int (Odoo order ID)
+  /// Process a generic action method on any model.
+  ///
+  /// This handles action_* methods (action_confirm, action_cancel, action_post,
+  /// action_return, etc.) for models other than sale.order by calling the method
+  /// directly on the correct model via the Odoo API.
+  Future<ConflictInfo?> _processGenericAction(OfflineOperation op) async {
+    final recordId = op.recordId ?? op.values['id'] as int?;
+
+    if (recordId == null) {
+      throw Exception(
+        'Cannot process ${op.model}.${op.method} - no record ID available',
+      );
+    }
+
+    logger.d(
+      '[OfflineSyncService]',
+      'Processing generic action ${op.model}.${op.method} for record $recordId',
+    );
+
+    await _odooClient!.call(
+      model: op.model,
+      method: op.method,
+      ids: [recordId],
+    );
+
+    logger.d(
+      '[OfflineSyncService]',
+      '${op.model} $recordId ${op.method} synced to Odoo',
+    );
+
+    return null;
+  }
+
   Future<ConflictInfo?> _processOrderStateAction(OfflineOperation op) async {
     final orderId = op.recordId ?? op.values['order_id'] as int?;
 

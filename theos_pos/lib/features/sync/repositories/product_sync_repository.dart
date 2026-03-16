@@ -309,7 +309,7 @@ class ProductSyncRepository {
           'price_round',
           'price_min_margin',
           'price_max_margin',
-          'uom_id',
+          // Note: 'uom_id' does NOT exist on product.pricelist.item in Odoo 19
           'write_date',
         ],
         limit: limit,

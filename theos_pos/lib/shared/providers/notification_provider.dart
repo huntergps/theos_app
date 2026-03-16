@@ -2544,18 +2544,19 @@ class NotificationCounterNotifier extends Notifier<NotificationCounter> {
       if (values == null) return;
 
       // Upsert payment method line
-      final name = values['name'] as String? ?? '';
+      // Note: Odoo sends `false` (not `null`) for empty Many2one fields.
+      final name = values['name'] is String ? values['name'] as String : '';
       final paymentMethodId = values['payment_method_id'] is List
           ? (values['payment_method_id'] as List).first as int
-          : values['payment_method_id'] as int? ?? 0;
+          : values['payment_method_id'] is int ? values['payment_method_id'] as int : 0;
       final paymentMethodName = values['payment_method_id'] is List && (values['payment_method_id'] as List).length > 1
           ? (values['payment_method_id'] as List)[1] as String?
           : null;
-      final paymentMethodCode = values['payment_method_code'] as String?;
-      final paymentType = values['payment_type'] as String?;
+      final paymentMethodCode = values['payment_method_code'] is String ? values['payment_method_code'] as String : null;
+      final paymentType = values['payment_type'] is String ? values['payment_type'] as String : null;
       final journalId = values['journal_id'] is List
           ? (values['journal_id'] as List).first as int
-          : values['journal_id'] as int? ?? 0;
+          : values['journal_id'] is int ? values['journal_id'] as int : 0;
       final active = values['active'] as bool? ?? true;
 
       final companion = AccountPaymentMethodLineCompanion.insert(
@@ -2611,35 +2612,37 @@ class NotificationCounterNotifier extends Notifier<NotificationCounter> {
       if (values == null) return;
 
       // Upsert advance
-      final name = values['name'] as String? ?? '';
-      final state = values['state'] as String? ?? 'draft';
-      final advanceType = values['advance_type'] as String? ?? 'advance';
-      final partnerType = values['partner_type'] as String? ?? 'customer';
+      // Note: Odoo sends `false` (not `null`) for empty Many2one fields,
+      // so we use `is Type` checks instead of direct `as Type?` casts.
+      final name = values['name'] is String ? values['name'] as String : '';
+      final state = values['state'] is String ? values['state'] as String : 'draft';
+      final advanceType = values['advance_type'] is String ? values['advance_type'] as String : 'advance';
+      final partnerType = values['partner_type'] is String ? values['partner_type'] as String : 'customer';
       final partnerId = values['partner_id'] is List
           ? (values['partner_id'] as List).first as int
-          : values['partner_id'] as int? ?? 0;
+          : values['partner_id'] is int ? values['partner_id'] as int : 0;
       final partnerName = values['partner_id'] is List && (values['partner_id'] as List).length > 1
           ? (values['partner_id'] as List)[1] as String?
-          : values['partner_name'] as String?;
-      final partnerVat = values['partner_vat'] as String?;
+          : values['partner_name'] is String ? values['partner_name'] as String : null;
+      final partnerVat = values['partner_vat'] is String ? values['partner_vat'] as String : null;
       final companyId = values['company_id'] is List
           ? (values['company_id'] as List).first as int
-          : values['company_id'] as int? ?? 1;
+          : values['company_id'] is int ? values['company_id'] as int : 1;
       final currencyId = values['currency_id'] is List
           ? (values['currency_id'] as List).first as int?
-          : values['currency_id'] as int?;
+          : values['currency_id'] is int ? values['currency_id'] as int : null;
       final cashierId = values['cashier_id'] is List
           ? (values['cashier_id'] as List).first as int?
-          : values['cashier_id'] as int?;
+          : values['cashier_id'] is int ? values['cashier_id'] as int : null;
       final cashierName = values['cashier_id'] is List && (values['cashier_id'] as List).length > 1
           ? (values['cashier_id'] as List)[1] as String?
           : null;
-      final reference = values['reference'] as String?;
-      final dateStr = values['date'] as String?;
+      final reference = values['reference'] is String ? values['reference'] as String : null;
+      final dateStr = values['date'] is String ? values['date'] as String : null;
       final date = dateStr != null ? DateTime.tryParse(dateStr) ?? DateTime.now() : DateTime.now();
-      final dateEstimatedStr = values['date_estimated'] as String?;
+      final dateEstimatedStr = values['date_estimated'] is String ? values['date_estimated'] as String : null;
       final dateEstimated = dateEstimatedStr != null ? DateTime.tryParse(dateEstimatedStr) : null;
-      final dateDueStr = values['date_due'] as String?;
+      final dateDueStr = values['date_due'] is String ? values['date_due'] as String : null;
       final dateDue = dateDueStr != null ? DateTime.tryParse(dateDueStr) : null;
       final amount = (values['amount'] as num?)?.toDouble() ?? 0.0;
       final amountUsed = (values['amount_used'] as num?)?.toDouble() ?? 0.0;
@@ -2648,13 +2651,13 @@ class NotificationCounterNotifier extends Notifier<NotificationCounter> {
       final isExpired = values['is_expired'] as bool? ?? false;
       final collectionSessionId = values['collection_session_id'] is List
           ? (values['collection_session_id'] as List).first as int?
-          : values['collection_session_id'] as int?;
+          : values['collection_session_id'] is int ? values['collection_session_id'] as int : null;
       final collectionConfigId = values['collection_config_id'] is List
           ? (values['collection_config_id'] as List).first as int?
-          : values['collection_config_id'] as int?;
+          : values['collection_config_id'] is int ? values['collection_config_id'] as int : null;
       final saleOrderId = values['sale_order_id'] is List
           ? (values['sale_order_id'] as List).first as int?
-          : values['sale_order_id'] as int?;
+          : values['sale_order_id'] is int ? values['sale_order_id'] as int : null;
 
       final advanceCompanion = AccountAdvanceCompanion.insert(
         odooId: advanceId,
@@ -2720,21 +2723,23 @@ class NotificationCounterNotifier extends Notifier<NotificationCounter> {
       if (values == null) return;
 
       // Upsert credit note
-      final name = values['name'] as String? ?? '';
-      final ref = values['ref'] as String?;
-      final state = values['state'] as String? ?? 'draft';
+      // Note: Odoo sends `false` (not `null`) for empty Many2one fields,
+      // so we use `is Type` checks instead of direct `as Type?` casts.
+      final name = values['name'] is String ? values['name'] as String : '';
+      final ref = values['ref'] is String ? values['ref'] as String : null;
+      final state = values['state'] is String ? values['state'] as String : 'draft';
       final partnerId = values['partner_id'] is List
           ? (values['partner_id'] as List).first as int
-          : values['partner_id'] as int? ?? 0;
+          : values['partner_id'] is int ? values['partner_id'] as int : 0;
       final partnerName = values['partner_id'] is List && (values['partner_id'] as List).length > 1
           ? (values['partner_id'] as List)[1] as String?
-          : values['partner_name'] as String?;
+          : values['partner_name'] is String ? values['partner_name'] as String : null;
       final companyId = values['company_id'] is List
           ? (values['company_id'] as List).first as int
-          : values['company_id'] as int? ?? 1;
-      final dateStr = values['date'] as String?;
+          : values['company_id'] is int ? values['company_id'] as int : 1;
+      final dateStr = values['date'] is String ? values['date'] as String : null;
       final date = dateStr != null ? DateTime.tryParse(dateStr) ?? DateTime.now() : DateTime.now();
-      final invoiceDateDueStr = values['invoice_date_due'] as String?;
+      final invoiceDateDueStr = values['invoice_date_due'] is String ? values['invoice_date_due'] as String : null;
       final invoiceDateDue = invoiceDateDueStr != null ? DateTime.tryParse(invoiceDateDueStr) : null;
       final amountTotal = (values['amount_total'] as num?)?.toDouble() ?? 0.0;
       final amountResidual = (values['amount_residual'] as num?)?.toDouble() ?? 0.0;
@@ -2796,66 +2801,68 @@ class NotificationCounterNotifier extends Notifier<NotificationCounter> {
       if (values == null) return;
 
       // Extract values from payload
-      final name = values['name'] as String?;
-      final ref = values['ref'] as String?;
-      final invoiceOrigin = values['invoice_origin'] as String?;
+      // Note: Odoo sends `false` (not `null`) for empty Many2one fields,
+      // so we use `is Type` checks instead of direct `as Type?` casts.
+      final name = values['name'] is String ? values['name'] as String : null;
+      final ref = values['ref'] is String ? values['ref'] as String : null;
+      final invoiceOrigin = values['invoice_origin'] is String ? values['invoice_origin'] as String : null;
       final saleOrderId = values['sale_order_id'] is List
           ? (values['sale_order_id'] as List).first as int?
-          : values['sale_order_id'] as int?;
-      final moveType = values['move_type'] as String? ?? 'out_invoice';
-      final state = values['state'] as String? ?? 'draft';
+          : values['sale_order_id'] is int ? values['sale_order_id'] as int : null;
+      final moveType = values['move_type'] is String ? values['move_type'] as String : 'out_invoice';
+      final state = values['state'] is String ? values['state'] as String : 'draft';
       final partnerId = values['partner_id'] is List
           ? (values['partner_id'] as List).first as int?
-          : values['partner_id'] as int?;
+          : values['partner_id'] is int ? values['partner_id'] as int : null;
       final partnerName = values['partner_id'] is List && (values['partner_id'] as List).length > 1
           ? (values['partner_id'] as List)[1] as String?
-          : values['partner_name'] as String?;
-      final partnerVat = values['partner_vat'] as String?;
+          : values['partner_name'] is String ? values['partner_name'] as String : null;
+      final partnerVat = values['partner_vat'] is String ? values['partner_vat'] as String : null;
       final journalId = values['journal_id'] is List
           ? (values['journal_id'] as List).first as int?
-          : values['journal_id'] as int?;
+          : values['journal_id'] is int ? values['journal_id'] as int : null;
       final journalName = values['journal_id'] is List && (values['journal_id'] as List).length > 1
           ? (values['journal_id'] as List)[1] as String?
-          : values['journal_name'] as String?;
+          : values['journal_name'] is String ? values['journal_name'] as String : null;
       final companyId = values['company_id'] is List
           ? (values['company_id'] as List).first as int?
-          : values['company_id'] as int?;
+          : values['company_id'] is int ? values['company_id'] as int : null;
       final companyName = values['company_id'] is List && (values['company_id'] as List).length > 1
           ? (values['company_id'] as List)[1] as String?
-          : values['company_name'] as String?;
+          : values['company_name'] is String ? values['company_name'] as String : null;
       final currencyId = values['currency_id'] is List
           ? (values['currency_id'] as List).first as int?
-          : values['currency_id'] as int?;
+          : values['currency_id'] is int ? values['currency_id'] as int : null;
       final currencyName = values['currency_id'] is List && (values['currency_id'] as List).length > 1
           ? (values['currency_id'] as List)[1] as String?
-          : values['currency_name'] as String?;
+          : values['currency_name'] is String ? values['currency_name'] as String : null;
       final amountUntaxed = (values['amount_untaxed'] as num?)?.toDouble() ?? 0.0;
       final amountTax = (values['amount_tax'] as num?)?.toDouble() ?? 0.0;
       final amountTotal = (values['amount_total'] as num?)?.toDouble() ?? 0.0;
       final amountResidual = (values['amount_residual'] as num?)?.toDouble() ?? 0.0;
-      final paymentState = values['payment_state'] as String? ?? 'not_paid';
+      final paymentState = values['payment_state'] is String ? values['payment_state'] as String : 'not_paid';
 
       // Partner contact fields
-      final partnerStreet = values['partner_street'] as String?;
-      final partnerCity = values['partner_city'] as String?;
-      final partnerPhone = values['partner_phone'] as String?;
-      final partnerEmail = values['partner_email'] as String?;
-      final currencySymbol = values['currency_symbol'] as String?;
+      final partnerStreet = values['partner_street'] is String ? values['partner_street'] as String : null;
+      final partnerCity = values['partner_city'] is String ? values['partner_city'] as String : null;
+      final partnerPhone = values['partner_phone'] is String ? values['partner_phone'] as String : null;
+      final partnerEmail = values['partner_email'] is String ? values['partner_email'] as String : null;
+      final currencySymbol = values['currency_symbol'] is String ? values['currency_symbol'] as String : null;
 
       // Ecuador localization fields
-      final l10nEcAuthorizationDateStr = values['l10n_ec_authorization_date'] as String?;
+      final l10nEcAuthorizationDateStr = values['l10n_ec_authorization_date'] is String ? values['l10n_ec_authorization_date'] as String : null;
       final l10nEcAuthorizationDate = l10nEcAuthorizationDateStr != null
           ? DateTime.tryParse(l10nEcAuthorizationDateStr) : null;
-      final l10nEcAuthorizationNumber = values['l10n_ec_authorization_number'] as String?;
-      final l10nLatamDocumentNumber = values['l10n_latam_document_number'] as String?;
+      final l10nEcAuthorizationNumber = values['l10n_ec_authorization_number'] is String ? values['l10n_ec_authorization_number'] as String : null;
+      final l10nLatamDocumentNumber = values['l10n_latam_document_number'] is String ? values['l10n_latam_document_number'] as String : null;
       final l10nLatamDocumentTypeId = values['l10n_latam_document_type_id'] is List
           ? (values['l10n_latam_document_type_id'] as List).first as int?
-          : values['l10n_latam_document_type_id'] as int?;
+          : values['l10n_latam_document_type_id'] is int ? values['l10n_latam_document_type_id'] as int : null;
       final l10nLatamDocumentTypeName = values['l10n_latam_document_type_id'] is List &&
               (values['l10n_latam_document_type_id'] as List).length > 1
           ? (values['l10n_latam_document_type_id'] as List)[1] as String?
-          : values['l10n_latam_document_type_name'] as String?;
-      final l10nEcSriPaymentName = values['l10n_ec_sri_payment_name'] as String?;
+          : values['l10n_latam_document_type_name'] is String ? values['l10n_latam_document_type_name'] as String : null;
+      final l10nEcSriPaymentName = values['l10n_ec_sri_payment_name'] is String ? values['l10n_ec_sri_payment_name'] as String : null;
 
       // Parse dates
       DateTime? date;
@@ -2957,10 +2964,12 @@ class NotificationCounterNotifier extends Notifier<NotificationCounter> {
       if (values == null) return;
 
       // Extract values from payload
-      final name = values['name'] as String? ?? '';
-      final description = values['description'] as String?;
-      final typeTaxUse = values['type_tax_use'] as String? ?? 'sale';
-      final amountType = values['amount_type'] as String? ?? 'percent';
+      // Note: Odoo sends `false` (not `null`) for empty Many2one fields,
+      // so we use `is Type` checks instead of direct `as Type?` casts.
+      final name = values['name'] is String ? values['name'] as String : '';
+      final description = values['description'] is String ? values['description'] as String : null;
+      final typeTaxUse = values['type_tax_use'] is String ? values['type_tax_use'] as String : 'sale';
+      final amountType = values['amount_type'] is String ? values['amount_type'] as String : 'percent';
       final amount = (values['amount'] as num?)?.toDouble() ?? 0.0;
       final active = values['active'] as bool? ?? true;
       final priceInclude = values['price_include'] as bool? ?? false;
@@ -2968,17 +2977,17 @@ class NotificationCounterNotifier extends Notifier<NotificationCounter> {
       final sequence = values['sequence'] as int? ?? 1;
       final companyId = values['company_id'] is List
           ? (values['company_id'] as List).first as int?
-          : values['company_id'] as int?;
+          : values['company_id'] is int ? values['company_id'] as int : null;
       final companyName = values['company_id'] is List && (values['company_id'] as List).length > 1
           ? (values['company_id'] as List)[1] as String?
-          : values['company_name'] as String?;
+          : values['company_name'] is String ? values['company_name'] as String : null;
       final taxGroupId = values['tax_group_id'] is List
           ? (values['tax_group_id'] as List).first as int?
-          : values['tax_group_id'] as int?;
+          : values['tax_group_id'] is int ? values['tax_group_id'] as int : null;
       final taxGroupIdName = values['tax_group_id'] is List && (values['tax_group_id'] as List).length > 1
           ? (values['tax_group_id'] as List)[1] as String?
-          : values['tax_group_name'] as String?;
-      final taxGroupL10nEcType = values['tax_group_l10n_ec_type'] as String?;
+          : values['tax_group_name'] is String ? values['tax_group_name'] as String : null;
+      final taxGroupL10nEcType = values['tax_group_l10n_ec_type'] is String ? values['tax_group_l10n_ec_type'] as String : null;
 
       final companion = AccountTaxCompanion.insert(
         odooId: taxId,
@@ -3045,44 +3054,46 @@ class NotificationCounterNotifier extends Notifier<NotificationCounter> {
       if (values == null) return;
 
       // Extract values from payload
+      // Note: Odoo sends `false` (not `null`) for empty Many2one fields,
+      // so we use `is Type` checks instead of direct `as Type?` casts.
       final sessionId = values['session_id'] is List
           ? (values['session_id'] as List).first as int
-          : values['session_id'] as int? ?? 0;
-      final cashOutType = values['cash_out_type'] as String? ?? 'other';
-      final cashFlow = values['cash_flow'] as String? ?? 'out';
+          : values['session_id'] is int ? values['session_id'] as int : 0;
+      final cashOutType = values['cash_out_type'] is String ? values['cash_out_type'] as String : 'other';
+      final cashFlow = values['cash_flow'] is String ? values['cash_flow'] as String : 'out';
       final journalId = values['journal_id'] is List
           ? (values['journal_id'] as List).first as int? ?? 0
-          : values['journal_id'] as int? ?? 0;
+          : values['journal_id'] is int ? values['journal_id'] as int : 0;
       final journalName = values['journal_id'] is List && (values['journal_id'] as List).length > 1
           ? (values['journal_id'] as List)[1] as String?
-          : values['journal_name'] as String?;
+          : values['journal_name'] is String ? values['journal_name'] as String : null;
       final partnerId = values['partner_id'] is List
           ? (values['partner_id'] as List).first as int?
-          : values['partner_id'] as int?;
+          : values['partner_id'] is int ? values['partner_id'] as int : null;
       final partnerName = values['partner_id'] is List && (values['partner_id'] as List).length > 1
           ? (values['partner_id'] as List)[1] as String?
-          : values['partner_name'] as String?;
+          : values['partner_name'] is String ? values['partner_name'] as String : null;
       final amount = (values['amount'] as num?)?.toDouble() ?? 0.0;
-      final description = values['description'] as String?;
-      final name = values['name'] as String?;
-      final note = values['note'] as String?;
-      final uuid = values['uuid'] as String?;
-      final state = values['state'] as String? ?? 'draft';
+      final description = values['description'] is String ? values['description'] as String : null;
+      final name = values['name'] is String ? values['name'] as String : null;
+      final note = values['note'] is String ? values['note'] as String : null;
+      final uuid = values['uuid'] is String ? values['uuid'] as String : null;
+      final state = values['state'] is String ? values['state'] as String : 'draft';
       final cashOutTypeId = values['cash_out_type_id'] is List
           ? (values['cash_out_type_id'] as List).first as int?
-          : values['cash_out_type_id'] as int?;
+          : values['cash_out_type_id'] is int ? values['cash_out_type_id'] as int : null;
       final typeName = values['cash_out_type_id'] is List && (values['cash_out_type_id'] as List).length > 1
           ? (values['cash_out_type_id'] as List)[1] as String?
-          : values['type_name'] as String?;
+          : values['type_name'] is String ? values['type_name'] as String : null;
       final moveId = values['move_id'] is List
           ? (values['move_id'] as List).first as int?
-          : values['move_id'] as int?;
+          : values['move_id'] is int ? values['move_id'] as int : null;
       final approvedById = values['approved_by_id'] is List
           ? (values['approved_by_id'] as List).first as int?
-          : values['approved_by_id'] as int?;
+          : values['approved_by_id'] is int ? values['approved_by_id'] as int : null;
       final approvedByName = values['approved_by_id'] is List && (values['approved_by_id'] as List).length > 1
           ? (values['approved_by_id'] as List)[1] as String?
-          : values['approved_by_name'] as String?;
+          : values['approved_by_name'] is String ? values['approved_by_name'] as String : null;
 
       // Parse dates
       DateTime? date;
@@ -3163,44 +3174,46 @@ class NotificationCounterNotifier extends Notifier<NotificationCounter> {
       if (values == null) return;
 
       // Extract values from payload
+      // Note: Odoo sends `false` (not `null`) for empty Many2one fields,
+      // so we use `is Type` checks instead of direct `as Type?` casts.
       final sessionId = values['session_id'] is List
           ? (values['session_id'] as List).first as int
-          : values['session_id'] as int? ?? 0;
-      final depositName = values['name'] as String?;
-      final depositType = values['deposit_type'] as String? ?? 'bank';
+          : values['session_id'] is int ? values['session_id'] as int : 0;
+      final depositName = values['name'] is String ? values['name'] as String : null;
+      final depositType = values['deposit_type'] is String ? values['deposit_type'] as String : 'bank';
       final amount = (values['amount'] as num?)?.toDouble() ?? 0.0;
-      final reference = values['reference'] as String?;
-      final sessionUuid = values['session_uuid'] as String?;
+      final reference = values['reference'] is String ? values['reference'] as String : null;
+      final sessionUuid = values['session_uuid'] is String ? values['session_uuid'] as String : null;
       final userId = values['user_id'] is List
           ? (values['user_id'] as List).first as int?
-          : values['user_id'] as int?;
+          : values['user_id'] is int ? values['user_id'] as int : null;
       final userName = values['user_id'] is List && (values['user_id'] as List).length > 1
           ? (values['user_id'] as List)[1] as String?
-          : values['user_name'] as String?;
+          : values['user_name'] is String ? values['user_name'] as String : null;
       final cashAmount = (values['cash_amount'] as num?)?.toDouble() ?? 0.0;
       final checkAmount = (values['check_amount'] as num?)?.toDouble() ?? 0.0;
       final checkCount = values['check_count'] as int? ?? 0;
       final bankJournalId = values['bank_journal_id'] is List
           ? (values['bank_journal_id'] as List).first as int?
-          : values['bank_journal_id'] as int?;
+          : values['bank_journal_id'] is int ? values['bank_journal_id'] as int : null;
       final bankJournalName = values['bank_journal_id'] is List && (values['bank_journal_id'] as List).length > 1
           ? (values['bank_journal_id'] as List)[1] as String?
-          : values['bank_journal_name'] as String?;
+          : values['bank_journal_name'] is String ? values['bank_journal_name'] as String : null;
       final bankId = values['bank_id'] is List
           ? (values['bank_id'] as List).first as int?
-          : values['bank_id'] as int?;
+          : values['bank_id'] is int ? values['bank_id'] as int : null;
       final bankName = values['bank_id'] is List && (values['bank_id'] as List).length > 1
           ? (values['bank_id'] as List)[1] as String?
-          : values['bank_name'] as String?;
-      final state = values['state'] as String? ?? 'draft';
-      final depositSlipNumber = values['deposit_slip_number'] as String?;
-      final bankReference = values['bank_reference'] as String?;
+          : values['bank_name'] is String ? values['bank_name'] as String : null;
+      final state = values['state'] is String ? values['state'] as String : 'draft';
+      final depositSlipNumber = values['deposit_slip_number'] is String ? values['deposit_slip_number'] as String : null;
+      final bankReference = values['bank_reference'] is String ? values['bank_reference'] as String : null;
       final depositMoveId = values['move_id'] is List
           ? (values['move_id'] as List).first as int?
-          : values['move_id'] as int?;
-      final depositorName = values['depositor_name'] as String?;
-      final notes = values['notes'] as String?;
-      final depositUuid = values['uuid'] as String?;
+          : values['move_id'] is int ? values['move_id'] as int : null;
+      final depositorName = values['depositor_name'] is String ? values['depositor_name'] as String : null;
+      final notes = values['notes'] is String ? values['notes'] as String : null;
+      final depositUuid = values['uuid'] is String ? values['uuid'] as String : null;
 
       // Parse dates
       DateTime depositDate = DateTime.now();
@@ -3289,11 +3302,13 @@ class NotificationCounterNotifier extends Notifier<NotificationCounter> {
       if (values == null) return;
 
       // Extract values from payload
+      // Note: Odoo sends `false` (not `null`) for empty Many2one fields,
+      // so we use `is Type` checks instead of direct `as Type?` casts.
       final sessionId = values['session_id'] is List
           ? (values['session_id'] as List).first as int
-          : values['session_id'] as int? ?? 0;
-      final denomination = values['denomination'] as String?;
-      final cashType = values['cash_type'] as String?;
+          : values['session_id'] is int ? values['session_id'] as int : 0;
+      final denomination = values['denomination'] is String ? values['denomination'] as String : null;
+      final cashType = values['cash_type'] is String ? values['cash_type'] as String : null;
       final count = values['count'] as int? ?? 0;
       final amount = (values['amount'] as num?)?.toDouble() ?? 0.0;
 
@@ -3310,7 +3325,7 @@ class NotificationCounterNotifier extends Notifier<NotificationCounter> {
       final coins10 = values['coins_10'] as int? ?? 0;
       final coins5 = values['coins_5'] as int? ?? 0;
       final coins1Cent = values['coins_1_cent'] as int? ?? 0;
-      final notes = values['notes'] as String?;
+      final notes = values['notes'] is String ? values['notes'] as String : null;
 
       final companion = CollectionSessionCashCompanion.insert(
         odooId: cashId,
@@ -3378,14 +3393,16 @@ class NotificationCounterNotifier extends Notifier<NotificationCounter> {
       if (values == null) return;
 
       // Extract values from payload
-      final name = values['name'] as String? ?? '';
-      final completeName = values['complete_name'] as String?;
+      // Note: Odoo sends `false` (not `null`) for empty Many2one fields,
+      // so we use `is Type` checks instead of direct `as Type?` casts.
+      final name = values['name'] is String ? values['name'] as String : '';
+      final completeName = values['complete_name'] is String ? values['complete_name'] as String : null;
       final parentId = values['parent_id'] is List
           ? (values['parent_id'] as List).first as int?
-          : values['parent_id'] as int?;
+          : values['parent_id'] is int ? values['parent_id'] as int : null;
       final parentName = values['parent_id'] is List && (values['parent_id'] as List).length > 1
           ? (values['parent_id'] as List)[1] as String?
-          : values['parent_name'] as String?;
+          : values['parent_name'] is String ? values['parent_name'] as String : null;
 
       final companion = ProductCategoryCompanion.insert(
         odooId: categoryId,

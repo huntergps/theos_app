@@ -54472,12 +54472,12 @@ class $AccountTaxTable extends AccountTax
     type: DriftSqlType.int,
     requiredDuringInsert: false,
   );
-  static const VerificationMeta _taxGroupIdNameMeta = const VerificationMeta(
-    'taxGroupIdName',
+  static const VerificationMeta _taxGroupNameMeta = const VerificationMeta(
+    'taxGroupName',
   );
   @override
-  late final GeneratedColumn<String> taxGroupIdName = GeneratedColumn<String>(
-    'tax_group_id_name',
+  late final GeneratedColumn<String> taxGroupName = GeneratedColumn<String>(
+    'tax_group_name',
     aliasedName,
     true,
     type: DriftSqlType.string,
@@ -54521,7 +54521,7 @@ class $AccountTaxTable extends AccountTax
     companyId,
     companyName,
     taxGroupId,
-    taxGroupIdName,
+    taxGroupName,
     taxGroupL10nEcType,
     writeDate,
   ];
@@ -54640,12 +54640,12 @@ class $AccountTaxTable extends AccountTax
         ),
       );
     }
-    if (data.containsKey('tax_group_id_name')) {
+    if (data.containsKey('tax_group_name')) {
       context.handle(
-        _taxGroupIdNameMeta,
-        taxGroupIdName.isAcceptableOrUnknown(
-          data['tax_group_id_name']!,
-          _taxGroupIdNameMeta,
+        _taxGroupNameMeta,
+        taxGroupName.isAcceptableOrUnknown(
+          data['tax_group_name']!,
+          _taxGroupNameMeta,
         ),
       );
     }
@@ -54729,9 +54729,9 @@ class $AccountTaxTable extends AccountTax
         DriftSqlType.int,
         data['${effectivePrefix}tax_group_id'],
       ),
-      taxGroupIdName: attachedDatabase.typeMapping.read(
+      taxGroupName: attachedDatabase.typeMapping.read(
         DriftSqlType.string,
-        data['${effectivePrefix}tax_group_id_name'],
+        data['${effectivePrefix}tax_group_name'],
       ),
       taxGroupL10nEcType: attachedDatabase.typeMapping.read(
         DriftSqlType.string,
@@ -54765,7 +54765,7 @@ class AccountTaxData extends DataClass implements Insertable<AccountTaxData> {
   final int? companyId;
   final String? companyName;
   final int? taxGroupId;
-  final String? taxGroupIdName;
+  final String? taxGroupName;
   final String? taxGroupL10nEcType;
   final DateTime? writeDate;
   const AccountTaxData({
@@ -54783,7 +54783,7 @@ class AccountTaxData extends DataClass implements Insertable<AccountTaxData> {
     this.companyId,
     this.companyName,
     this.taxGroupId,
-    this.taxGroupIdName,
+    this.taxGroupName,
     this.taxGroupL10nEcType,
     this.writeDate,
   });
@@ -54812,8 +54812,8 @@ class AccountTaxData extends DataClass implements Insertable<AccountTaxData> {
     if (!nullToAbsent || taxGroupId != null) {
       map['tax_group_id'] = Variable<int>(taxGroupId);
     }
-    if (!nullToAbsent || taxGroupIdName != null) {
-      map['tax_group_id_name'] = Variable<String>(taxGroupIdName);
+    if (!nullToAbsent || taxGroupName != null) {
+      map['tax_group_name'] = Variable<String>(taxGroupName);
     }
     if (!nullToAbsent || taxGroupL10nEcType != null) {
       map['tax_group_l10n_ec_type'] = Variable<String>(taxGroupL10nEcType);
@@ -54848,9 +54848,9 @@ class AccountTaxData extends DataClass implements Insertable<AccountTaxData> {
       taxGroupId: taxGroupId == null && nullToAbsent
           ? const Value.absent()
           : Value(taxGroupId),
-      taxGroupIdName: taxGroupIdName == null && nullToAbsent
+      taxGroupName: taxGroupName == null && nullToAbsent
           ? const Value.absent()
-          : Value(taxGroupIdName),
+          : Value(taxGroupName),
       taxGroupL10nEcType: taxGroupL10nEcType == null && nullToAbsent
           ? const Value.absent()
           : Value(taxGroupL10nEcType),
@@ -54880,7 +54880,7 @@ class AccountTaxData extends DataClass implements Insertable<AccountTaxData> {
       companyId: serializer.fromJson<int?>(json['companyId']),
       companyName: serializer.fromJson<String?>(json['companyName']),
       taxGroupId: serializer.fromJson<int?>(json['taxGroupId']),
-      taxGroupIdName: serializer.fromJson<String?>(json['taxGroupIdName']),
+      taxGroupName: serializer.fromJson<String?>(json['taxGroupName']),
       taxGroupL10nEcType: serializer.fromJson<String?>(
         json['taxGroupL10nEcType'],
       ),
@@ -54905,7 +54905,7 @@ class AccountTaxData extends DataClass implements Insertable<AccountTaxData> {
       'companyId': serializer.toJson<int?>(companyId),
       'companyName': serializer.toJson<String?>(companyName),
       'taxGroupId': serializer.toJson<int?>(taxGroupId),
-      'taxGroupIdName': serializer.toJson<String?>(taxGroupIdName),
+      'taxGroupName': serializer.toJson<String?>(taxGroupName),
       'taxGroupL10nEcType': serializer.toJson<String?>(taxGroupL10nEcType),
       'writeDate': serializer.toJson<DateTime?>(writeDate),
     };
@@ -54926,7 +54926,7 @@ class AccountTaxData extends DataClass implements Insertable<AccountTaxData> {
     Value<int?> companyId = const Value.absent(),
     Value<String?> companyName = const Value.absent(),
     Value<int?> taxGroupId = const Value.absent(),
-    Value<String?> taxGroupIdName = const Value.absent(),
+    Value<String?> taxGroupName = const Value.absent(),
     Value<String?> taxGroupL10nEcType = const Value.absent(),
     Value<DateTime?> writeDate = const Value.absent(),
   }) => AccountTaxData(
@@ -54944,9 +54944,7 @@ class AccountTaxData extends DataClass implements Insertable<AccountTaxData> {
     companyId: companyId.present ? companyId.value : this.companyId,
     companyName: companyName.present ? companyName.value : this.companyName,
     taxGroupId: taxGroupId.present ? taxGroupId.value : this.taxGroupId,
-    taxGroupIdName: taxGroupIdName.present
-        ? taxGroupIdName.value
-        : this.taxGroupIdName,
+    taxGroupName: taxGroupName.present ? taxGroupName.value : this.taxGroupName,
     taxGroupL10nEcType: taxGroupL10nEcType.present
         ? taxGroupL10nEcType.value
         : this.taxGroupL10nEcType,
@@ -54982,9 +54980,9 @@ class AccountTaxData extends DataClass implements Insertable<AccountTaxData> {
       taxGroupId: data.taxGroupId.present
           ? data.taxGroupId.value
           : this.taxGroupId,
-      taxGroupIdName: data.taxGroupIdName.present
-          ? data.taxGroupIdName.value
-          : this.taxGroupIdName,
+      taxGroupName: data.taxGroupName.present
+          ? data.taxGroupName.value
+          : this.taxGroupName,
       taxGroupL10nEcType: data.taxGroupL10nEcType.present
           ? data.taxGroupL10nEcType.value
           : this.taxGroupL10nEcType,
@@ -55009,7 +55007,7 @@ class AccountTaxData extends DataClass implements Insertable<AccountTaxData> {
           ..write('companyId: $companyId, ')
           ..write('companyName: $companyName, ')
           ..write('taxGroupId: $taxGroupId, ')
-          ..write('taxGroupIdName: $taxGroupIdName, ')
+          ..write('taxGroupName: $taxGroupName, ')
           ..write('taxGroupL10nEcType: $taxGroupL10nEcType, ')
           ..write('writeDate: $writeDate')
           ..write(')'))
@@ -55032,7 +55030,7 @@ class AccountTaxData extends DataClass implements Insertable<AccountTaxData> {
     companyId,
     companyName,
     taxGroupId,
-    taxGroupIdName,
+    taxGroupName,
     taxGroupL10nEcType,
     writeDate,
   );
@@ -55054,7 +55052,7 @@ class AccountTaxData extends DataClass implements Insertable<AccountTaxData> {
           other.companyId == this.companyId &&
           other.companyName == this.companyName &&
           other.taxGroupId == this.taxGroupId &&
-          other.taxGroupIdName == this.taxGroupIdName &&
+          other.taxGroupName == this.taxGroupName &&
           other.taxGroupL10nEcType == this.taxGroupL10nEcType &&
           other.writeDate == this.writeDate);
 }
@@ -55074,7 +55072,7 @@ class AccountTaxCompanion extends UpdateCompanion<AccountTaxData> {
   final Value<int?> companyId;
   final Value<String?> companyName;
   final Value<int?> taxGroupId;
-  final Value<String?> taxGroupIdName;
+  final Value<String?> taxGroupName;
   final Value<String?> taxGroupL10nEcType;
   final Value<DateTime?> writeDate;
   const AccountTaxCompanion({
@@ -55092,7 +55090,7 @@ class AccountTaxCompanion extends UpdateCompanion<AccountTaxData> {
     this.companyId = const Value.absent(),
     this.companyName = const Value.absent(),
     this.taxGroupId = const Value.absent(),
-    this.taxGroupIdName = const Value.absent(),
+    this.taxGroupName = const Value.absent(),
     this.taxGroupL10nEcType = const Value.absent(),
     this.writeDate = const Value.absent(),
   });
@@ -55111,7 +55109,7 @@ class AccountTaxCompanion extends UpdateCompanion<AccountTaxData> {
     this.companyId = const Value.absent(),
     this.companyName = const Value.absent(),
     this.taxGroupId = const Value.absent(),
-    this.taxGroupIdName = const Value.absent(),
+    this.taxGroupName = const Value.absent(),
     this.taxGroupL10nEcType = const Value.absent(),
     this.writeDate = const Value.absent(),
   }) : odooId = Value(odooId),
@@ -55131,7 +55129,7 @@ class AccountTaxCompanion extends UpdateCompanion<AccountTaxData> {
     Expression<int>? companyId,
     Expression<String>? companyName,
     Expression<int>? taxGroupId,
-    Expression<String>? taxGroupIdName,
+    Expression<String>? taxGroupName,
     Expression<String>? taxGroupL10nEcType,
     Expression<DateTime>? writeDate,
   }) {
@@ -55150,7 +55148,7 @@ class AccountTaxCompanion extends UpdateCompanion<AccountTaxData> {
       if (companyId != null) 'company_id': companyId,
       if (companyName != null) 'company_name': companyName,
       if (taxGroupId != null) 'tax_group_id': taxGroupId,
-      if (taxGroupIdName != null) 'tax_group_id_name': taxGroupIdName,
+      if (taxGroupName != null) 'tax_group_name': taxGroupName,
       if (taxGroupL10nEcType != null)
         'tax_group_l10n_ec_type': taxGroupL10nEcType,
       if (writeDate != null) 'write_date': writeDate,
@@ -55172,7 +55170,7 @@ class AccountTaxCompanion extends UpdateCompanion<AccountTaxData> {
     Value<int?>? companyId,
     Value<String?>? companyName,
     Value<int?>? taxGroupId,
-    Value<String?>? taxGroupIdName,
+    Value<String?>? taxGroupName,
     Value<String?>? taxGroupL10nEcType,
     Value<DateTime?>? writeDate,
   }) {
@@ -55191,7 +55189,7 @@ class AccountTaxCompanion extends UpdateCompanion<AccountTaxData> {
       companyId: companyId ?? this.companyId,
       companyName: companyName ?? this.companyName,
       taxGroupId: taxGroupId ?? this.taxGroupId,
-      taxGroupIdName: taxGroupIdName ?? this.taxGroupIdName,
+      taxGroupName: taxGroupName ?? this.taxGroupName,
       taxGroupL10nEcType: taxGroupL10nEcType ?? this.taxGroupL10nEcType,
       writeDate: writeDate ?? this.writeDate,
     );
@@ -55242,8 +55240,8 @@ class AccountTaxCompanion extends UpdateCompanion<AccountTaxData> {
     if (taxGroupId.present) {
       map['tax_group_id'] = Variable<int>(taxGroupId.value);
     }
-    if (taxGroupIdName.present) {
-      map['tax_group_id_name'] = Variable<String>(taxGroupIdName.value);
+    if (taxGroupName.present) {
+      map['tax_group_name'] = Variable<String>(taxGroupName.value);
     }
     if (taxGroupL10nEcType.present) {
       map['tax_group_l10n_ec_type'] = Variable<String>(
@@ -55273,7 +55271,7 @@ class AccountTaxCompanion extends UpdateCompanion<AccountTaxData> {
           ..write('companyId: $companyId, ')
           ..write('companyName: $companyName, ')
           ..write('taxGroupId: $taxGroupId, ')
-          ..write('taxGroupIdName: $taxGroupIdName, ')
+          ..write('taxGroupName: $taxGroupName, ')
           ..write('taxGroupL10nEcType: $taxGroupL10nEcType, ')
           ..write('writeDate: $writeDate')
           ..write(')'))
@@ -100500,7 +100498,7 @@ typedef $$AccountTaxTableCreateCompanionBuilder =
       Value<int?> companyId,
       Value<String?> companyName,
       Value<int?> taxGroupId,
-      Value<String?> taxGroupIdName,
+      Value<String?> taxGroupName,
       Value<String?> taxGroupL10nEcType,
       Value<DateTime?> writeDate,
     });
@@ -100520,7 +100518,7 @@ typedef $$AccountTaxTableUpdateCompanionBuilder =
       Value<int?> companyId,
       Value<String?> companyName,
       Value<int?> taxGroupId,
-      Value<String?> taxGroupIdName,
+      Value<String?> taxGroupName,
       Value<String?> taxGroupL10nEcType,
       Value<DateTime?> writeDate,
     });
@@ -100604,8 +100602,8 @@ class $$AccountTaxTableFilterComposer
     builder: (column) => ColumnFilters(column),
   );
 
-  ColumnFilters<String> get taxGroupIdName => $composableBuilder(
-    column: $table.taxGroupIdName,
+  ColumnFilters<String> get taxGroupName => $composableBuilder(
+    column: $table.taxGroupName,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -100699,8 +100697,8 @@ class $$AccountTaxTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
-  ColumnOrderings<String> get taxGroupIdName => $composableBuilder(
-    column: $table.taxGroupIdName,
+  ColumnOrderings<String> get taxGroupName => $composableBuilder(
+    column: $table.taxGroupName,
     builder: (column) => ColumnOrderings(column),
   );
 
@@ -100780,8 +100778,8 @@ class $$AccountTaxTableAnnotationComposer
     builder: (column) => column,
   );
 
-  GeneratedColumn<String> get taxGroupIdName => $composableBuilder(
-    column: $table.taxGroupIdName,
+  GeneratedColumn<String> get taxGroupName => $composableBuilder(
+    column: $table.taxGroupName,
     builder: (column) => column,
   );
 
@@ -100839,7 +100837,7 @@ class $$AccountTaxTableTableManager
                 Value<int?> companyId = const Value.absent(),
                 Value<String?> companyName = const Value.absent(),
                 Value<int?> taxGroupId = const Value.absent(),
-                Value<String?> taxGroupIdName = const Value.absent(),
+                Value<String?> taxGroupName = const Value.absent(),
                 Value<String?> taxGroupL10nEcType = const Value.absent(),
                 Value<DateTime?> writeDate = const Value.absent(),
               }) => AccountTaxCompanion(
@@ -100857,7 +100855,7 @@ class $$AccountTaxTableTableManager
                 companyId: companyId,
                 companyName: companyName,
                 taxGroupId: taxGroupId,
-                taxGroupIdName: taxGroupIdName,
+                taxGroupName: taxGroupName,
                 taxGroupL10nEcType: taxGroupL10nEcType,
                 writeDate: writeDate,
               ),
@@ -100877,7 +100875,7 @@ class $$AccountTaxTableTableManager
                 Value<int?> companyId = const Value.absent(),
                 Value<String?> companyName = const Value.absent(),
                 Value<int?> taxGroupId = const Value.absent(),
-                Value<String?> taxGroupIdName = const Value.absent(),
+                Value<String?> taxGroupName = const Value.absent(),
                 Value<String?> taxGroupL10nEcType = const Value.absent(),
                 Value<DateTime?> writeDate = const Value.absent(),
               }) => AccountTaxCompanion.insert(
@@ -100895,7 +100893,7 @@ class $$AccountTaxTableTableManager
                 companyId: companyId,
                 companyName: companyName,
                 taxGroupId: taxGroupId,
-                taxGroupIdName: taxGroupIdName,
+                taxGroupName: taxGroupName,
                 taxGroupL10nEcType: taxGroupL10nEcType,
                 writeDate: writeDate,
               ),

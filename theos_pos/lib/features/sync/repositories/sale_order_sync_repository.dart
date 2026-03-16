@@ -123,6 +123,8 @@ class SaleOrderSyncRepository extends BaseSyncRepository {
         'total_amount_undiscounted',
         'invoice_status',
         'invoice_count',
+        'is_cash', // l10n_ec: cash payment indicator
+        'is_credit', // l10n_ec: credit payment indicator
         'note',
         'client_order_ref',
         'order_line',
@@ -358,6 +360,8 @@ class SaleOrderSyncRepository extends BaseSyncRepository {
         'total_amount_undiscounted',
         'invoice_status',
         'invoice_count',
+        'is_cash', // l10n_ec: cash payment indicator
+        'is_credit', // l10n_ec: credit payment indicator
         'note',
         'client_order_ref',
         'write_date',
@@ -475,6 +479,8 @@ class SaleOrderSyncRepository extends BaseSyncRepository {
             'total_amount_undiscounted',
             'invoice_status',
             'invoice_count',
+            'is_cash', // l10n_ec: cash payment indicator
+            'is_credit', // l10n_ec: credit payment indicator
             'note',
             'client_order_ref',
             'write_date',
@@ -647,6 +653,7 @@ class SaleOrderSyncRepository extends BaseSyncRepository {
           'name',
           'sequence',
           'product_id',
+          'product_default_code', // product internal reference
           'product_uom_qty',
           'product_uom_id', // Odoo 18/19: renamed from product_uom
           'price_unit',

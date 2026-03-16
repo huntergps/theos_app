@@ -31,7 +31,7 @@ class AccountTax extends Table {
   IntColumn get companyId => integer().nullable()();
   TextColumn get companyName => text().nullable()();
   IntColumn get taxGroupId => integer().nullable()();
-  TextColumn get taxGroupIdName => text().nullable()();
+  TextColumn get taxGroupName => text().nullable()();
   TextColumn get taxGroupL10nEcType => text().nullable()();
   DateTimeColumn get writeDate => dateTime().nullable()();
 }
