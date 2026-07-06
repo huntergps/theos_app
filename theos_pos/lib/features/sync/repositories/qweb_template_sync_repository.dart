@@ -34,6 +34,11 @@ class QwebTemplateSyncRepository {
     'web.external_layout_standard',
     'web.address_layout',
     'web.report_layout',
+    // Sub-templates del external_layout refactorizado en Odoo 19.x
+    // (t-call desde external_layout_standard / los documentos).
+    'web.external_layout_body',
+    'web.external_layout_footer_content',
+    'web.company_address_list',
 
     // === Account base templates (invoices) ===
     'account.report_invoice',
@@ -60,6 +65,13 @@ class QwebTemplateSyncRepository {
     'l10n_ec_base.l10n_ec_stock_account_report_invoice_document',
     'l10n_ec_base.l10n_ec_report_invoice_document_client_ec',
     'l10n_ec_base.l10n_ec_report_invoice_document_lines_ec',
+    // === Sale order report body (t-call desde sale.report_saleorder) ===
+    // El wrapper sale.report_saleorder llega vía ir.actions.report, pero su
+    // cuerpo _document se invoca por t-call y no se auto-resuelve — hay que
+    // pedirlo explícito o la impresión de órdenes de venta falla.
+    'sale.report_saleorder_document',
+    'sale.document_tax_totals',
+
     // === Ecuador sale/discount templates ===
     'l10n_ec_sale_discount.l10n_ec_sale_discount_ec',
     'l10n_ec_sale_discount.document_tax_totals_ecuador',

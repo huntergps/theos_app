@@ -25,12 +25,28 @@ class UserRepository extends BaseRepository
   Future<User?> getCurrentUser() async {
     try {
       final sessionInfo = await getSessionInfoCached();
-      if (sessionInfo == null) {
-        return await userManager.getCurrentUser();
-      }
 
-      int? uid = sessionInfo['uid'];
-      String? username = sessionInfo['username'];
+      int? uid = sessionInfo?['uid'] as int?;
+      String? username = sessionInfo?['username'] as String?;
+
+      // session_info NO funciona con API key pura (requiere sesión web). En ese
+      // caso resolvemos la identidad del dueño de la API key vía
+      // res.users.context_get(), que devuelve {uid, lang, tz}. Sin esto, el
+      // usuario actual nunca se marca (is_current_user) y los permisos no
+      // cargan en el primer login por API key.
+      if (uid == null && username == null && isOnline) {
+        try {
+          final ctx = await odooClient!.call(
+            model: 'res.users',
+            method: 'context_get',
+          );
+          if (ctx is Map && ctx['uid'] != null) {
+            uid = ctx['uid'] as int?;
+          }
+        } catch (_) {
+          // Servidor viejo sin context_get accesible — se cae al local.
+        }
+      }
 
       if (uid == null && username == null) {
         return await userManager.getCurrentUser();
@@ -54,6 +70,7 @@ class UserRepository extends BaseRepository
 
       if (response is List && response.isNotEmpty) {
         final user = userManager.fromOdoo(response.first);
+        // isCurrent: true marca is_current_user, base del gate de permisos.
         await userManager.upsertUser(user);
 
         return user;

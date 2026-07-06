@@ -5,6 +5,7 @@ import 'package:flutter_acrylic/flutter_acrylic.dart';
 import '../../core/constants/app_colors.dart';
 import '../../core/constants/app_constants.dart';
 import '../../core/services/config_service.dart';
+import '../models/config_profile.dart';
 import '../widgets/form/form_fields.dart';
 import '../../features/sync/widgets/route_mode_indicator.dart';
 
@@ -65,8 +66,8 @@ class _SettingsSectionProfiles extends StatelessWidget {
                 placeholder: const Text('Seleccionar perfil...'),
                 isExpanded: true,
                 value: config.activeProfileId,
-                items: config.profiles.map<ComboBoxItem<String>>((e) {
-                  return ComboBoxItem(
+                items: config.profiles.map<ComboBoxItem<String>>((ConfigProfile e) {
+                  return ComboBoxItem<String>(
                     value: e.id,
                     child: Row(
                       children: [

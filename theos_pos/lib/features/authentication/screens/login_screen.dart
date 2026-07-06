@@ -912,9 +912,13 @@ class _LoginScreenState extends ConsumerState<LoginScreen> with WindowListener {
                   logger.d('[LOGIN] ✅ All users synced');
 
                   _setStage('Sincronizando permisos...');
-                  logger.d('[LOGIN] 🔄 Syncing all groups...');
-                  await catalogRepo.syncGroups();
-                  logger.d('[LOGIN] ✅ All groups synced');
+                  logger.d('[LOGIN] 🔄 Syncing groups + user memberships...');
+                  // syncUserGroups (no syncGroups a secas): además de poblar la
+                  // tabla res_groups, escribe group_ids del usuario actual vía
+                  // has_group() — base del gate de permisos del menú. Sin el
+                  // userId aquí, el usuario quedaba sin permisos al entrar.
+                  await catalogRepo.syncUserGroups(user.id);
+                  logger.d('[LOGIN] ✅ Groups + memberships synced');
                 }
               } catch (e) {
                 // Non-blocking: sync failure shouldn't prevent login
