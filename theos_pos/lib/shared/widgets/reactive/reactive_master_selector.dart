@@ -619,9 +619,12 @@ class ReactiveMasterSelectorMap extends ConsumerWidget {
             ),
             if (clearable && value != null) ...[
               const SizedBox(width: 4),
-              IconButton(
-                icon: const Icon(FluentIcons.clear, size: 12),
-                onPressed: () => onChanged?.call(null),
+              Tooltip(
+                message: 'Limpiar selección',
+                child: IconButton(
+                  icon: const Icon(FluentIcons.clear, size: 12),
+                  onPressed: () => onChanged?.call(null),
+                ),
               ),
             ],
           ],
@@ -768,9 +771,12 @@ class ReactiveRelatedField<T> extends ConsumerWidget {
             ),
             if (onCreate != null) ...[
               const SizedBox(width: 4),
-              IconButton(
-                icon: const Icon(FluentIcons.add, size: 14),
-                onPressed: onCreate,
+              Tooltip(
+                message: 'Crear nuevo',
+                child: IconButton(
+                  icon: const Icon(FluentIcons.add, size: 14),
+                  onPressed: onCreate,
+                ),
               ),
             ],
           ],

@@ -54,7 +54,6 @@ class UserSyncRepository {
   JournalManager get _journalManager => JournalManager(_currentDb);
   PaymentMethodLineManager get _paymentMethodLineManager => PaymentMethodLineManager(_currentDb);
   AdvanceManager get _advanceManager => advanceManager;
-  CreditNoteManager get _creditNoteManager => CreditNoteManager(_currentDb);
   CollectionConfigManager get _collectionConfigManager => collectionConfigManager;
   CountryManager get _countryManager => CountryManager(_currentDb);
   CountryStateManager get _countryStateManager => CountryStateManager(_currentDb);
@@ -113,6 +112,7 @@ class UserSyncRepository {
         batchSize: batchSize,
         fromOdoo: _userManager.fromOdoo,
         upsertLocal: _userManager.upsertLocal,
+        upsertLocalBatch: _userManager.upsertLocalBatch,
       ),
       sinceDate: sinceDate,
       onProgress: onProgress,
@@ -140,6 +140,7 @@ class UserSyncRepository {
         order: 'name asc',
         fromOdoo: _warehouseManager.fromOdoo,
         upsertLocal: _warehouseManager.upsertLocal,
+        upsertLocalBatch: _warehouseManager.upsertLocalBatch,
       ),
       sinceDate: sinceDate,
       onProgress: onProgress,
@@ -167,6 +168,7 @@ class UserSyncRepository {
         order: 'sequence asc',
         fromOdoo: _teamManager.fromOdoo,
         upsertLocal: _teamManager.upsertLocal,
+        upsertLocalBatch: _teamManager.upsertLocalBatch,
       ),
       sinceDate: sinceDate,
       onProgress: onProgress,
@@ -194,6 +196,7 @@ class UserSyncRepository {
         order: 'sequence asc',
         fromOdoo: _fiscalPositionManager.fromOdoo,
         upsertLocal: _fiscalPositionManager.upsertLocal,
+        upsertLocalBatch: _fiscalPositionManager.upsertLocalBatch,
       ),
       sinceDate: sinceDate,
       onProgress: onProgress,
@@ -203,26 +206,118 @@ class UserSyncRepository {
 
   // ═══════════════════════════════════════════════════════════════════════════
   // Fiscal Position Tax Mapping Sync (uses FiscalPositionTaxManager)
+  //
+  // REWORK compatibilidad Odoo >= 18.3 (hallazgo verificado en vivo contra
+  // erp1.tecnosmart.com.ec corriendo 19.5a1+e, julio 2026): el modelo
+  // account.fiscal.position.tax fue ELIMINADO del core de Odoo desde la
+  // 18.3 (fields_get en vivo: "the model does not exist" — no existe ni en
+  // 19.1 ni en 19.2). Esta sync llevaba MESES fallando en silencio,
+  // dejando la tabla local account_fiscal_position_tax permanentemente
+  // vacía — daño funcional real en tax_calculator_service.dart:239-268
+  // (siempre caía al `orElse` sin mapeo, sin aplicar sustituciones de
+  // impuestos por posición fiscal para exportación/exención).
+  //
+  // El reemplazo real del core (idéntico en account/models/account_tax.py
+  // de 19.1/19.2/19.5, líneas 111/117): account.tax.fiscal_position_ids
+  // (M2M) + account.tax.original_tax_ids (M2M). Ya NO se hace un fetch 1:1
+  // vía GenericSyncRepository/SyncConfigBuilder (ese pipeline asume
+  // fromOdoo: Map -> UN modelo T; aquí necesitamos Map -> 0..N filas
+  // sintetizadas, producto cartesiano de ambas M2M — ver
+  // FiscalPositionTax.synthesizeFromAccountTax), así que este método pasó a
+  // ser una implementación manual (mismo patrón que syncCompany/syncGroups
+  // en este archivo), full-replace en vez de incremental (ver
+  // FiscalPositionTaxManager.replaceAllLocal para el porqué). El contrato
+  // de LECTURA para tax_calculator_service NO cambia (misma tabla, mismas
+  // columnas position_id/tax_src_id/tax_dest_id).
   // ═══════════════════════════════════════════════════════════════════════════
 
   Future<int> syncFiscalPositionTaxMappings({
     int limit = 500,
     SyncProgressCallback? onProgress,
+    // sinceDate se ignora a propósito — ver nota de replaceAllLocal sobre
+    // por qué esta sync es full-replace y no incremental. Se mantiene el
+    // parámetro por compatibilidad de firma con el resto de syncXxx() de
+    // este archivo (todos aceptan sinceDate desde el orquestador de sync).
     DateTime? sinceDate,
   }) async {
-    final result = await _syncRepo.syncModel(
-      SyncConfigBuilder.create(
-        model: _fiscalPositionTaxManager.odooModel,
-        fields: _fiscalPositionTaxManager.odooFields,
-        batchSize: limit,
-        order: 'id asc',
-        fromOdoo: _fiscalPositionTaxManager.fromOdoo,
-        upsertLocal: _fiscalPositionTaxManager.upsertLocal,
-      ),
-      sinceDate: sinceDate,
-      onProgress: onProgress,
-    );
-    return result.synced;
+    if (!isOnline) return 0;
+
+    const domain = [
+      ['fiscal_position_ids', '!=', false],
+    ];
+
+    try {
+      final totalTaxes = await odooClient!.searchCount(
+        model: FiscalPositionTax.odooModel,
+        domain: domain,
+      ) ?? 0;
+
+      onProgress?.call(SyncProgress(
+        total: totalTaxes,
+        synced: 0,
+        currentItem: 'Sintetizando mapeos fiscales...',
+      ));
+
+      // Paginado (mismo patrón que syncGroups en este archivo) — el dominio
+      // filtra sólo taxes que actúan como destino de al menos una posición
+      // fiscal, normalmente un set pequeño, pero no asumimos que siempre
+      // cabe en una sola página de `limit`.
+      final synthesized = <FiscalPositionTax>[];
+      var offset = 0;
+      var fetchedTaxes = 0;
+      var hasMore = true;
+
+      while (hasMore) {
+        if (_syncRepo.isCancelRequested) break;
+
+        final page = await odooClient!.searchRead(
+          model: FiscalPositionTax.odooModel,
+          domain: domain,
+          fields: FiscalPositionTax.odooFields,
+          limit: limit,
+          offset: offset,
+          order: 'id asc',
+        );
+
+        if (page.isEmpty) {
+          hasMore = false;
+          break;
+        }
+
+        for (final data in page) {
+          synthesized.addAll(FiscalPositionTax.synthesizeFromAccountTax(data));
+        }
+        fetchedTaxes += page.length;
+
+        onProgress?.call(SyncProgress(
+          total: totalTaxes,
+          synced: fetchedTaxes,
+        ));
+
+        if (page.length < limit) {
+          hasMore = false;
+        } else {
+          offset += limit;
+        }
+      }
+
+      // Full-replace atómico — ver FiscalPositionTaxManager.replaceAllLocal
+      // para el porqué (no incremental: hay que poder "borrar" mapeos que
+      // ya no aplican, algo que un upsert por write_date no detecta).
+      await _fiscalPositionTaxManager.replaceAllLocal(synthesized);
+
+      logger.i(
+        '[UserSync] Mapeos fiscal-position-tax sintetizados: '
+        '${synthesized.length} filas desde $fetchedTaxes account.tax '
+        'con fiscal_position_ids',
+      );
+
+      return synthesized.length;
+    } catch (e) {
+      logger.e('[UserSync] Error sincronizando mapeos fiscal-position-tax: $e');
+      onProgress?.call(SyncProgress(total: 0, synced: 0, error: e.toString()));
+      rethrow;
+    }
   }
 
   /// Get fiscal position tax mappings for a specific position
@@ -253,6 +348,7 @@ class UserSyncRepository {
         batchSize: limit,
         fromOdoo: _currencyManager.fromOdoo,
         upsertLocal: _currencyManager.upsertLocal,
+        upsertLocalBatch: _currencyManager.upsertLocalBatch,
       ),
       sinceDate: sinceDate,
       onProgress: onProgress,
@@ -272,6 +368,7 @@ class UserSyncRepository {
         batchSize: 100,
         fromOdoo: _decimalPrecisionManager.fromOdoo,
         upsertLocal: _decimalPrecisionManager.upsertLocal,
+        upsertLocalBatch: _decimalPrecisionManager.upsertLocalBatch,
       ),
     );
     return result.synced;
@@ -350,6 +447,7 @@ class UserSyncRepository {
         order: 'name asc',
         fromOdoo: _bankManager.fromOdoo,
         upsertLocal: _bankManager.upsertLocal,
+        upsertLocalBatch: _bankManager.upsertLocalBatch,
       ),
       sinceDate: sinceDate,
       onProgress: onProgress,
@@ -376,6 +474,7 @@ class UserSyncRepository {
         batchSize: limit,
         fromOdoo: _partnerBankManager.fromOdoo,
         upsertLocal: _partnerBankManager.upsertLocal,
+        upsertLocalBatch: _partnerBankManager.upsertLocalBatch,
       ),
       sinceDate: sinceDate,
       onProgress: onProgress,
@@ -404,6 +503,7 @@ class UserSyncRepository {
         order: 'date desc',
         fromOdoo: _advanceManager.fromOdoo,
         upsertLocal: _advanceManager.upsertLocal,
+        upsertLocalBatch: _advanceManager.upsertLocalBatch,
       ),
       sinceDate: sinceDate,
       onProgress: onProgress,
@@ -412,7 +512,15 @@ class UserSyncRepository {
   }
 
   // ═══════════════════════════════════════════════════════════════════════════
-  // Credit Notes Sync (uses CreditNoteManager)
+  // Credit Notes Sync (usa accountMoveManager — Fase F3b)
+  //
+  // Antes usaba CreditNoteManager (manager transicional, ya eliminado — ver
+  // migración documentada en el historial de
+  // theos_pos_core/lib/src/managers/invoices/credit_note_manager.dart).
+  // account.move es la MISMA tabla que ya sincroniza accountMoveManager (con
+  // el set completo de ~30 campos, incluido `ref`/`payment_state`), así que
+  // usar el manager generado evita el bug de campos incompletos que tenía el
+  // manager transicional.
   // ═══════════════════════════════════════════════════════════════════════════
 
   Future<int> syncCreditNotes({
@@ -422,13 +530,20 @@ class UserSyncRepository {
   }) async {
     final result = await _syncRepo.syncModel(
       SyncConfigBuilder.create(
-        model: _creditNoteManager.odooModel,
-        fields: _creditNoteManager.odooFields,
-        domain: _creditNoteManager.creditNoteDomain,
+        model: accountMoveManager.odooModel,
+        fields: accountMoveManager.odooFields,
+        domain: [
+          ['move_type', '=', 'out_refund'],
+          ['state', '=', 'posted'],
+          ['payment_state', 'in', ['not_paid', 'partial']],
+          ['amount_residual', '>', 0],
+        ],
         batchSize: limit,
         order: 'invoice_date desc',
-        fromOdoo: _creditNoteManager.fromOdoo,
-        upsertLocal: _creditNoteManager.upsertLocal,
+        fromOdoo: accountMoveManager.fromOdoo,
+        upsertLocal: accountMoveManager.upsertLocal,
+        upsertLocalBatch: accountMoveManager.upsertLocalBatch,
+        isolateParser: AccountMoveManager.fromOdooMap,
       ),
       sinceDate: sinceDate,
       onProgress: onProgress,
@@ -456,6 +571,7 @@ class UserSyncRepository {
         order: 'name asc',
         fromOdoo: _collectionConfigManager.fromOdoo,
         upsertLocal: _collectionConfigManager.upsertLocal,
+        upsertLocalBatch: _collectionConfigManager.upsertLocalBatch,
       ),
       sinceDate: sinceDate,
       onProgress: onProgress,
@@ -525,6 +641,7 @@ class UserSyncRepository {
         order: 'name asc',
         fromOdoo: _countryManager.fromOdoo,
         upsertLocal: _countryManager.upsertLocal,
+        upsertLocalBatch: _countryManager.upsertLocalBatch,
       ),
       sinceDate: sinceDate,
       onProgress: onProgress,
@@ -549,6 +666,7 @@ class UserSyncRepository {
         order: 'name asc',
         fromOdoo: _countryStateManager.fromOdoo,
         upsertLocal: _countryStateManager.upsertLocal,
+        upsertLocalBatch: _countryStateManager.upsertLocalBatch,
       ),
       sinceDate: sinceDate,
       onProgress: onProgress,

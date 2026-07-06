@@ -245,7 +245,7 @@ class DatabaseHelper extends IOdooDatabase {
     // Collection tables
     await _db.delete(_db.collectionConfig).go();
     await _db.delete(_db.collectionSession).go();
-    await _db.delete(_db.accountPayment).go();
+    await _db.delete(_db.accountPaymentTable).go();
     await _db.delete(_db.cashOut).go();
     await _db.delete(_db.collectionSessionCash).go();
     await _db.delete(_db.collectionSessionDeposit).go();

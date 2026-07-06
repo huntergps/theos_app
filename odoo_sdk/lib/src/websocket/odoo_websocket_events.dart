@@ -38,15 +38,30 @@ final class OdooConnectionEvent extends OdooWebSocketEvent {
   final bool isReconnection;
   final String? error;
 
+  /// Fase B, tarea 6 — circuit breaker suave: `true` cuando ya se
+  /// superaron `WebSocketReconnectionManager.circuitBreakerThreshold`
+  /// intentos de reconexión consecutivos fallidos y el intervalo entre
+  /// reintentos se espació a `circuitBreakerInterval` (5 min). La UI puede
+  /// usar esto para avisar "sin conexión hace rato" en vez de que el
+  /// usuario note, sin explicación, que el POS dejó de reintentar tan
+  /// seguido.
+  final bool circuitBreakerActive;
+
+  /// Número de intentos de reconexión consecutivos (0 si no aplica).
+  final int reconnectAttempts;
+
   OdooConnectionEvent({
     required this.isConnected,
     this.isReconnection = false,
     this.error,
+    this.circuitBreakerActive = false,
+    this.reconnectAttempts = 0,
   });
 
   @override
   String toString() =>
-      'OdooConnectionEvent(connected: $isConnected, reconnection: $isReconnection)';
+      'OdooConnectionEvent(connected: $isConnected, reconnection: $isReconnection, '
+      'circuitBreakerActive: $circuitBreakerActive)';
 }
 
 /// Event fired when a WebSocket error occurs

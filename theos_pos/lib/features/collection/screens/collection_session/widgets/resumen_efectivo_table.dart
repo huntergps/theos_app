@@ -1,6 +1,7 @@
 import 'package:fluent_ui/fluent_ui.dart';
 
 import 'package:odoo_widgets/odoo_widgets.dart' show ReactiveSummaryCard, ReactiveSummaryRow;
+import '../../../../../core/constants/app_colors.dart';
 import '../../../../../shared/utils/formatting_utils.dart';
 import 'package:theos_pos_core/theos_pos_core.dart';
 
@@ -19,14 +20,14 @@ class ResumenEfectivoTable extends StatelessWidget {
     return ReactiveSummaryCard(
       title: 'Resumen de Efectivo',
       titleIcon: FluentIcons.money,
-      footer: _buildFooterTotal(theme),
+      footer: _buildFooterTotal(theme, difference),
       children: [
         // Entradas
-        _buildSectionHeader(theme, 'Entradas', Colors.green),
+        _buildSectionHeader(theme, 'Entradas', AppColors.success),
         const SizedBox(height: 8),
         ReactiveSummaryRow(
           icon: FluentIcons.add,
-          iconColor: Colors.green,
+          iconColor: AppColors.success,
           label: 'Cobros en Efectivo',
           amount: session.totalCash,
         ),
@@ -40,11 +41,11 @@ class ResumenEfectivoTable extends StatelessWidget {
         const SizedBox(height: 12),
 
         // Salidas
-        _buildSectionHeader(theme, 'Salidas', Colors.red),
+        _buildSectionHeader(theme, 'Salidas', AppColors.danger),
         const SizedBox(height: 8),
         ReactiveSummaryRow(
           icon: FluentIcons.remove,
-          iconColor: Colors.red,
+          iconColor: AppColors.danger,
           label: 'Retiros Efectivo',
           amount: -session.totalCashOutAmount,
           highlightNegative: true,
@@ -66,7 +67,7 @@ class ResumenEfectivoTable extends StatelessWidget {
         ),
         ReactiveSummaryRow(
           icon: FluentIcons.calculator,
-          iconColor: Colors.grey,
+          iconColor: AppColors.textSecondary,
           label: 'Diferencia',
           amount: difference,
           highlightPositive: difference > 0,
@@ -105,7 +106,15 @@ class ResumenEfectivoTable extends StatelessWidget {
     );
   }
 
-  Widget _buildFooterTotal(FluentThemeData theme) {
+  Widget _buildFooterTotal(FluentThemeData theme, double difference) {
+    // Mismo criterio de color que la fila "Diferencia" del cuerpo:
+    // verde si sobra efectivo, rojo si falta, neutro si cuadra exacto.
+    final Color amountColor = difference > 0
+        ? AppColors.success
+        : difference < 0
+            ? AppColors.danger
+            : theme.accentColor;
+
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
@@ -125,7 +134,7 @@ class ResumenEfectivoTable extends StatelessWidget {
           Text(
             session.cashRegisterBalanceEnd.toCurrency(),
             style: theme.typography.subtitle?.copyWith(
-              color: theme.accentColor,
+              color: amountColor,
               fontWeight: FontWeight.bold,
             ),
           ),

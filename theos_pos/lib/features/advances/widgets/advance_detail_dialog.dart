@@ -4,13 +4,29 @@ import 'package:intl/intl.dart';
 import 'package:theos_pos_core/theos_pos_core.dart'
     show Advance, AdvanceState, AdvanceLine;
 
+import '../../../core/constants/app_colors.dart';
 import '../../../core/services/logger_service.dart';
 import '../../../core/theme/spacing.dart';
 import '../../../shared/utils/formatting_utils.dart';
+import '../../../shared/widgets/dialogs/confirm_action_dialog.dart';
 import '../../../shared/widgets/dialogs/copyable_info_bar.dart';
 import '../providers/advance_providers.dart';
 
 /// Provider para detalle de un anticipo
+///
+/// AUDITADO (plan de refactor "d-flutter", ítem 1) y se decide NO migrar a
+/// `StreamProvider`/`advanceManager.watch(id)`: `AdvanceService.getAdvance()`
+/// NO es un simple delegado al manager — agrega comportamiento real:
+/// 1. Lee el cache local primero.
+/// 2. Si hay cache, dispara un refresh en BACKGROUND desde Odoo
+///    (`_refreshAdvanceFromOdoo`, fire-and-forget) y retorna el cache
+///    inmediatamente.
+/// 3. Si NO hay cache, hace fetch+cache activo desde Odoo (awaited) antes de
+///    releer local.
+/// Un `advanceManager.watch(id)` puro NO dispararía el fetch/refresh desde
+/// Odoo por sí solo — perderíamos el "self-healing" cuando el anticipo aún
+/// no está cacheado localmente. Mismo patrón de decisión que
+/// `localOrderDefaultsProvider` (no tocar, documentar el motivo).
 final advanceDetailProvider = FutureProvider.family<Advance?, int>((
   ref,
   advanceId,
@@ -69,7 +85,7 @@ class AdvanceDetailDialog extends ConsumerWidget {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Icon(FluentIcons.error, size: 48, color: Colors.red),
+              Icon(FluentIcons.error, size: 48, color: AppColors.danger),
               const SizedBox(height: Spacing.sm),
               Text('Error cargando anticipo: $e'),
             ],
@@ -517,7 +533,7 @@ class AdvanceDetailDialog extends ConsumerWidget {
                 'Fecha de Vencimiento',
                 dateFormat.format(advance.dateDue!),
                 FluentIcons.clock,
-                color: advance.isExpired ? Colors.red : null,
+                color: advance.isExpired ? AppColors.danger : null,
               ),
             if (advance.daysToExpire != null)
               _buildDateRow(
@@ -525,7 +541,7 @@ class AdvanceDetailDialog extends ConsumerWidget {
                 'Días para Vencer',
                 '${advance.daysToExpire} días',
                 FluentIcons.timer,
-                color: advance.daysToExpire! <= 7 ? Colors.orange : null,
+                color: advance.daysToExpire! <= 7 ? AppColors.warning : null,
               ),
           ],
         ),
@@ -567,7 +583,7 @@ class AdvanceDetailDialog extends ConsumerWidget {
 
   Widget _buildWarningsCard(FluentThemeData theme, Advance advance) {
     final isExpired = advance.isExpired;
-    final color = isExpired ? Colors.red : Colors.orange;
+    final color = isExpired ? AppColors.danger : AppColors.warning;
     final icon = isExpired ? FluentIcons.error_badge : FluentIcons.warning;
     final message = isExpired
         ? 'Este anticipo ha vencido. Considere devolverlo al cliente.'
@@ -643,9 +659,9 @@ class AdvanceDetailDialog extends ConsumerWidget {
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      Icon(FluentIcons.cancel, size: 14, color: Colors.red),
+                      Icon(FluentIcons.cancel, size: 14, color: AppColors.danger),
                       const SizedBox(width: 4),
-                      Text('Cancelar', style: TextStyle(color: Colors.red)),
+                      Text('Cancelar', style: TextStyle(color: AppColors.danger)),
                     ],
                   ),
                 ),
@@ -662,28 +678,17 @@ class AdvanceDetailDialog extends ConsumerWidget {
     Advance advance,
     WidgetRef ref,
   ) async {
-    final confirm = await showDialog<bool>(
-      context: context,
-      builder: (context) => ContentDialog(
-        title: const Text('Marcar como Usado'),
-        content: Text(
+    final confirm = await ConfirmActionDialog.show(
+      context,
+      title: 'Marcar como Usado',
+      message:
           '¿Está seguro de marcar el anticipo ${advance.name} como totalmente usado?\n\n'
           'Saldo disponible: ${advance.amountAvailable.toCurrency()}',
-        ),
-        actions: [
-          Button(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text('Cancelar'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.pop(context, true),
-            child: const Text('Confirmar'),
-          ),
-        ],
-      ),
+      confirmText: 'Confirmar',
+      icon: FluentIcons.completed,
     );
 
-    if (confirm == true) {
+    if (confirm) {
       // TODO: Implementar llamada a Odoo action_mark_as_used
       logger.i('[AdvanceDetail]', 'Mark as used: ${advance.id}');
       ref.invalidate(advanceDetailProvider(advanceId));
@@ -695,79 +700,67 @@ class AdvanceDetailDialog extends ConsumerWidget {
     Advance advance,
     WidgetRef ref,
   ) async {
-    final confirm = await showDialog<bool>(
-      context: context,
-      builder: (context) => ContentDialog(
-        title: const Text('Devolver Saldo de Anticipo'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              'Se devolverá el saldo disponible del anticipo ${advance.name} al cliente.',
+    final confirm = await ConfirmActionDialog.show(
+      context,
+      title: 'Devolver Saldo de Anticipo',
+      message:
+          'Se devolverá el saldo disponible del anticipo ${advance.name} al cliente.',
+      confirmText: 'Confirmar Devolución',
+      icon: FluentIcons.undo,
+      additionalContent: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            padding: const EdgeInsets.all(Spacing.md),
+            decoration: BoxDecoration(
+              color: AppColors.warning.withValues(alpha: 0.1),
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: AppColors.warning.withValues(alpha: 0.3)),
             ),
-            const SizedBox(height: Spacing.md),
-            Container(
-              padding: const EdgeInsets.all(Spacing.md),
-              decoration: BoxDecoration(
-                color: Colors.orange.withValues(alpha: 0.1),
-                borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: Colors.orange.withValues(alpha: 0.3)),
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      const Text('Monto total:'),
-                      Text(
-                        advance.amount.toCurrency(),
-                        style: const TextStyle(fontWeight: FontWeight.bold),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    const Text('Monto total:'),
+                    Text(
+                      advance.amount.toCurrency(),
+                      style: const TextStyle(fontWeight: FontWeight.bold),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 4),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    const Text('Monto a devolver:'),
+                    Text(
+                      advance.amountAvailable.toCurrency(),
+                      style: TextStyle(
+                        fontWeight: FontWeight.bold,
+                        color: AppColors.warning,
                       ),
-                    ],
-                  ),
-                  const SizedBox(height: 4),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      const Text('Monto a devolver:'),
-                      Text(
-                        advance.amountAvailable.toCurrency(),
-                        style: TextStyle(
-                          fontWeight: FontWeight.bold,
-                          color: Colors.orange,
-                        ),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
+                    ),
+                  ],
+                ),
+              ],
             ),
-            const SizedBox(height: Spacing.md),
-            Text(
-              'Esta acción generará el asiento contable de devolución.',
-              style: TextStyle(
-                color: FluentTheme.of(context).inactiveColor,
-                fontSize: 12,
-              ),
-            ),
-          ],
-        ),
-        actions: [
-          Button(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text('Cancelar'),
           ),
-          FilledButton(
-            onPressed: () => Navigator.pop(context, true),
-            child: const Text('Confirmar Devolución'),
+          const SizedBox(height: Spacing.md),
+          Text(
+            'Esta acción generará el asiento contable de devolución.',
+            style: TextStyle(
+              color: FluentTheme.of(context).inactiveColor,
+              fontSize: 12,
+            ),
           ),
         ],
       ),
     );
 
-    if (confirm == true) {
+    if (confirm) {
       try {
         final advanceService = ref.read(advanceServiceProvider);
         if (advanceService == null) return;
@@ -799,31 +792,19 @@ class AdvanceDetailDialog extends ConsumerWidget {
     Advance advance,
     WidgetRef ref,
   ) async {
-    final confirm = await showDialog<bool>(
-      context: context,
-      builder: (context) => ContentDialog(
-        title: const Text('Cancelar Anticipo'),
-        content: Text(
+    final confirm = await ConfirmActionDialog.show(
+      context,
+      title: 'Cancelar Anticipo',
+      message:
           '¿Está seguro de cancelar el anticipo ${advance.name}?\n\n'
           'Esta acción no se puede deshacer.',
-        ),
-        actions: [
-          Button(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text('No'),
-          ),
-          FilledButton(
-            style: ButtonStyle(
-              backgroundColor: WidgetStatePropertyAll(Colors.red),
-            ),
-            onPressed: () => Navigator.pop(context, true),
-            child: const Text('Sí, Cancelar'),
-          ),
-        ],
-      ),
+      confirmText: 'Sí, Cancelar',
+      cancelText: 'No',
+      icon: FluentIcons.cancel,
+      isDestructive: true,
     );
 
-    if (confirm == true) {
+    if (confirm) {
       try {
         final advanceService = ref.read(advanceServiceProvider);
         if (advanceService == null) return;
@@ -852,17 +833,17 @@ class AdvanceDetailDialog extends ConsumerWidget {
   Color _getStateColor(AdvanceState state) {
     switch (state) {
       case AdvanceState.draft:
-        return Colors.grey;
+        return AppColors.textSecondary;
       case AdvanceState.posted:
-        return Colors.green;
+        return AppColors.success;
       case AdvanceState.inUse:
         return Colors.blue;
       case AdvanceState.used:
         return Colors.teal;
       case AdvanceState.expired:
-        return Colors.orange;
+        return AppColors.warning;
       case AdvanceState.canceled:
-        return Colors.red;
+        return AppColors.danger;
       case AdvanceState.rejected:
         return Colors.red.darker;
     }

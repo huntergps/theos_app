@@ -345,7 +345,6 @@ class CollectionSessionManager extends OdooModelManager<CollectionSession>
     'company_id',
     'user_id',
     'currency_id',
-    'currency_symbol',
     'cash_journal_id',
     'start_at',
     'stop_at',
@@ -454,8 +453,12 @@ class CollectionSessionManager extends OdooModelManager<CollectionSession>
     'write_date',
   ];
 
-  @override
-  CollectionSession fromOdoo(Map<String, dynamic> data) {
+  /// Versión estática pura de [fromOdoo] — no referencia `this` ni
+  /// estado de instancia (OdooClient, GeneratedDatabase), solo [data].
+  /// Por eso su tear-off (`CollectionSessionManager.fromOdooMap`) es transferible a
+  /// `Isolate.run()`, a diferencia del tear-off del método de instancia
+  /// [fromOdoo] (que arrastra el manager completo, no transferible).
+  static CollectionSession fromOdooMap(Map<String, dynamic> data) {
     return CollectionSession(
       id: data['id'] as int? ?? 0,
       name: parseOdooStringRequired(data['name']),
@@ -471,7 +474,6 @@ class CollectionSessionManager extends OdooModelManager<CollectionSession>
       userId: extractMany2oneId(data['user_id']),
       userName: extractMany2oneName(data['user_id']),
       currencyId: extractMany2oneId(data['currency_id']),
-      currencySymbol: parseOdooString(data['currency_symbol']),
       cashJournalId: extractMany2oneId(data['cash_journal_id']),
       cashJournalName: extractMany2oneName(data['cash_journal_id']),
       startAt: parseOdooDateTime(data['start_at']),
@@ -632,6 +634,9 @@ class CollectionSessionManager extends OdooModelManager<CollectionSession>
   }
 
   @override
+  CollectionSession fromOdoo(Map<String, dynamic> data) => fromOdooMap(data);
+
+  @override
   Map<String, dynamic> toOdoo(CollectionSession record) {
     return {
       'name': record.name,
@@ -641,7 +646,6 @@ class CollectionSessionManager extends OdooModelManager<CollectionSession>
       'company_id': record.companyId,
       'user_id': record.userId,
       'currency_id': record.currencyId,
-      'currency_symbol': record.currencySymbol,
       'cash_journal_id': record.cashJournalId,
       'start_at': formatOdooDateTime(record.startAt),
       'stop_at': formatOdooDateTime(record.stopAt),
@@ -920,7 +924,6 @@ class CollectionSessionManager extends OdooModelManager<CollectionSession>
     'company_id': 'companyId',
     'user_id': 'userId',
     'currency_id': 'currencyId',
-    'currency_symbol': 'currencySymbol',
     'cash_journal_id': 'cashJournalId',
     'start_at': 'startAt',
     'stop_at': 'stopAt',
@@ -1070,15 +1073,14 @@ class CollectionSessionManager extends OdooModelManager<CollectionSession>
       'state': Variable<String>(record.state.code),
       'session_uuid': driftVar<String>(record.sessionUuid),
       'config_id': driftVar<int>(record.configId),
-      'config_id_name': driftVar<String>(record.configName),
+      'config_name': driftVar<String>(record.configName),
       'company_id': driftVar<int>(record.companyId),
-      'company_id_name': driftVar<String>(record.companyName),
+      'company_name': driftVar<String>(record.companyName),
       'user_id': driftVar<int>(record.userId),
-      'user_id_name': driftVar<String>(record.userName),
+      'user_name': driftVar<String>(record.userName),
       'currency_id': driftVar<int>(record.currencyId),
-      'currency_symbol': driftVar<String>(record.currencySymbol),
       'cash_journal_id': driftVar<int>(record.cashJournalId),
-      'cash_journal_id_name': driftVar<String>(record.cashJournalName),
+      'cash_journal_name': driftVar<String>(record.cashJournalName),
       'start_at': driftVar<DateTime>(record.startAt),
       'stop_at': driftVar<DateTime>(record.stopAt),
       'cash_register_balance_start': Variable<double>(
@@ -1225,7 +1227,7 @@ class CollectionSessionManager extends OdooModelManager<CollectionSession>
       'total_checks_post': Variable<double>(record.totalChecksPost),
       'total_general': Variable<double>(record.totalGeneral),
       'supervisor_id': driftVar<int>(record.supervisorId),
-      'supervisor_id_name': driftVar<String>(record.supervisorName),
+      'supervisor_name': driftVar<String>(record.supervisorName),
       'supervisor_validation_date': driftVar<DateTime>(
         record.supervisorValidationDate,
       ),
@@ -1233,6 +1235,7 @@ class CollectionSessionManager extends OdooModelManager<CollectionSession>
       'opening_notes': driftVar<String>(record.openingNotes),
       'closing_notes': driftVar<String>(record.closingNotes),
       'write_date': driftVar<DateTime>(record.writeDate),
+      'currency_symbol': driftVar<String>(record.currencySymbol),
       'is_synced': Variable<bool>(record.isSynced),
       'last_sync_date': driftVar<DateTime>(record.lastSyncDate),
       'sync_retry_count': Variable<int>(record.syncRetryCount),
@@ -1249,7 +1252,6 @@ class CollectionSessionManager extends OdooModelManager<CollectionSession>
     'companyId',
     'userId',
     'currencyId',
-    'currencySymbol',
     'cashJournalId',
     'startAt',
     'stopAt',
@@ -1784,6 +1786,7 @@ class CollectionSessionManager extends OdooModelManager<CollectionSession>
     var updated = fromOdoo(current);
     // Preserve local-only fields from original record
     updated = updated.copyWith(
+      currencySymbol: record.currencySymbol,
       isSynced: record.isSynced,
       lastSyncDate: record.lastSyncDate,
       syncRetryCount: record.syncRetryCount,
@@ -2192,7 +2195,6 @@ class CollectionSessionManager extends OdooModelManager<CollectionSession>
     'companyId',
     'userId',
     'currencyId',
-    'currencySymbol',
     'cashJournalId',
     'startAt',
     'stopAt',

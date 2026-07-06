@@ -87,8 +87,15 @@ abstract class AccountPayment with _$AccountPayment {
     @OdooSelection(odooName: 'payment_method_category') String? paymentMethodCategory,
 
     // ============ Bank (res.bank) ============
-    @OdooMany2One('res.bank', odooName: 'bank_id') int? bankId,
-    @OdooMany2OneName(sourceField: 'bank_id') String? bankName,
+    // bank_id (Many2one res.bank) fue reemplazado por bank_name_ec (Char) en
+    // los modelos de pago l10n_ec — ver
+    // working/l10n_ec_collection_box/models/sale_order_payment.py. Se marca
+    // @OdooLocalOnly para evitar que toOdoo()/syncFromOdoo() envien/pidan un
+    // campo que puede no existir segun version del servidor; resolver el
+    // campo correcto (bank_id o bank_name_ec) manualmente antes de sync si
+    // este modelo llega a sincronizarse de forma generica.
+    @OdooLocalOnly() int? bankId,
+    @OdooLocalOnly() String? bankName,
 
     // ============ Check Fields (l10n_ec_collection_box) ============
     @OdooString(odooName: 'check_number') String? checkNumber,
@@ -102,15 +109,19 @@ abstract class AccountPayment with _$AccountPayment {
     @OdooMany2OneName(sourceField: 'card_brand_id') String? cardBrandName,
     @OdooSelection(odooName: 'card_type') String? cardType,
     @OdooMany2One('account.card.lote', odooName: 'lote_id') int? loteId,
-    @OdooString(odooName: 'card_holder_name') String? cardHolderName,
-    @OdooString(odooName: 'card_last_4') String? cardLast4,
-    @OdooString(odooName: 'authorization_code') String? authorizationCode,
+    // Odoo 19.5 (erp1): card_holder_name/card_last_4/authorization_code ya
+    // no existen en el servidor (smoke fields_get, julio 2026). Tampoco en
+    // 19.2 local ni en los módulos fuente.
+    @OdooLocalOnly() String? cardHolderName,
+    @OdooLocalOnly() String? cardLast4,
+    @OdooLocalOnly() String? authorizationCode,
 
     // ============ Payment Classification (computed flags) ============
     @OdooBoolean(odooName: 'is_card_payment') @Default(false) bool isCardPayment,
     @OdooBoolean(odooName: 'is_transfer_payment') @Default(false) bool isTransferPayment,
     @OdooBoolean(odooName: 'is_check_payment') @Default(false) bool isCheckPayment,
-    @OdooBoolean(odooName: 'is_cash_payment') @Default(false) bool isCashPayment,
+    // Odoo 19.5 (erp1): is_cash_payment ya no existe en el servidor.
+    @OdooLocalOnly() @Default(false) bool isCashPayment,
 
     // ============ Sale Order Link ============
     @OdooMany2One('sale.order', odooName: 'sale_id') int? saleId,
@@ -120,7 +131,8 @@ abstract class AccountPayment with _$AccountPayment {
     // ============ Metadata ============
     @OdooDate() DateTime? date,
     @OdooString() String? name,
-    @OdooString() String? ref,
+    // Odoo 19.5 (erp1): 'ref' ya no existe en account.payment del servidor.
+    @OdooLocalOnly() String? ref,
 
     // ============ Sync ============
     @OdooLocalOnly() DateTime? lastSyncDate,

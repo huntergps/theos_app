@@ -2,6 +2,7 @@ import 'package:fluent_ui/fluent_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 
+import '../../../../../core/constants/app_colors.dart';
 import '../../../../../core/theme/spacing.dart';
 import '../../../../../shared/utils/formatting_utils.dart';
 import '../../../../sales/services/payment_service.dart';
@@ -82,7 +83,7 @@ class _PaymentsTabState extends ConsumerState<PaymentsTab> {
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Icon(FluentIcons.error, size: 48, color: Colors.red),
+                  Icon(FluentIcons.error, size: 48, color: AppColors.danger),
                   const SizedBox(height: Spacing.sm),
                   Text('Error cargando cobros: $e'),
                   const SizedBox(height: Spacing.sm),
@@ -280,7 +281,7 @@ class _PaymentsTabState extends ConsumerState<PaymentsTab> {
             'Efectivo',
             cashTotal,
             FluentIcons.money,
-            Colors.green,
+            AppColors.success,
           ),
           _buildTotalItem(
             theme,
@@ -501,7 +502,7 @@ class _PaymentsTabState extends ConsumerState<PaymentsTab> {
             Text(
               payment.amount.toCurrency(),
               style: theme.typography.bodyStrong?.copyWith(
-                color: payment.isInbound ? Colors.green : Colors.red,
+                color: payment.isInbound ? AppColors.success : AppColors.danger,
               ),
             ),
             Text(
@@ -520,11 +521,11 @@ class _PaymentsTabState extends ConsumerState<PaymentsTab> {
   Color _getStateColor(PaymentState state) {
     switch (state) {
       case PaymentState.draft:
-        return Colors.grey;
+        return AppColors.textSecondary;
       case PaymentState.posted:
-        return Colors.green;
+        return AppColors.success;
       case PaymentState.canceled:
-        return Colors.red;
+        return AppColors.danger;
       case PaymentState.rejected:
         return Colors.red.darker;
     }
@@ -533,7 +534,7 @@ class _PaymentsTabState extends ConsumerState<PaymentsTab> {
   Color _getCategoryColor(PaymentMethodCategory category) {
     switch (category) {
       case PaymentMethodCategory.cash:
-        return Colors.green;
+        return AppColors.success;
       case PaymentMethodCategory.cardCredit:
         return Colors.blue;
       case PaymentMethodCategory.cardDebit:
@@ -543,7 +544,7 @@ class _PaymentsTabState extends ConsumerState<PaymentsTab> {
       case PaymentMethodCategory.transfer:
         return Colors.purple;
       case PaymentMethodCategory.other:
-        return Colors.grey;
+        return AppColors.textSecondary;
     }
   }
 

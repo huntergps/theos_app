@@ -62,7 +62,11 @@ ClientCreditService? clientCreditService(Ref ref) {
 ///
 /// Replaces the old FutureProvider [clientById] with a StreamProvider
 /// that auto-re-emits whenever the partner record changes in the local DB.
-final clientByIdProvider = StreamProvider.family<Client?, int>((ref, clientId) {
+///
+/// `autoDispose`: es `.family` por `clientId` transitorio (memory leak
+/// corregido). Verificado: sin consumidores activos hoy (solo mencionado en
+/// el doc comment de `clients.dart`) — cero riesgo de romper algo.
+final clientByIdProvider = StreamProvider.autoDispose.family<Client?, int>((ref, clientId) {
   return clientManager.watchPartner(clientId);
 });
 
@@ -89,7 +93,14 @@ Future<List<Client>> clientSearch(Ref ref, String query) async {
 ///   UI ← Stream(local DB) ← background refresh → Odoo → local DB → Stream re-emits
 ///
 /// If offline, returns cached local data immediately with no error.
-@Riverpod(keepAlive: true)
+///
+/// `keepAlive:false`: es `.family` por `clientId` transitorio (memory leak
+/// corregido). Verificado: el único consumidor real
+/// (`partner_credit_info_card.dart`) lo observa vía `ref.watch()` en
+/// `build()` (y usa `ref.invalidate()` para forzar refresh, compatible con
+/// autoDispose); `sale_order_form_screen.dart` solo lo invalida, no lo
+/// observa directamente.
+@Riverpod(keepAlive: false)
 Stream<Client?> clientWithCredit(Ref ref, int clientId) {
   // Trigger background credit refresh (fire-and-forget)
   final creditService = ref.watch(clientCreditServiceProvider);
@@ -107,7 +118,11 @@ Stream<Client?> clientWithCredit(Ref ref, int clientId) {
   return clientManager.watchPartner(clientId);
 }
 
-@Riverpod(keepAlive: true)
+/// `keepAlive:false`: es `.family` por `params` (clientId+amount), un valor
+/// transitorio de validación puntual. Verificado: sin consumidores reales en
+/// todo el codebase hoy (solo mencionado en el doc comment de `clients.dart`)
+/// — cero riesgo de romper algo.
+@Riverpod(keepAlive: false)
 Future<CreditValidationResult> validateOrderCredit(
   Ref ref,
   ({int clientId, double amount}) params,

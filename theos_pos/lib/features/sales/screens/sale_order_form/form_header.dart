@@ -1,6 +1,5 @@
 import 'package:dio/dio.dart';
-import 'package:fluent_ui/fluent_ui.dart' hide showDialog;
-import 'package:flutter/material.dart' show showDialog;
+import 'package:fluent_ui/fluent_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:odoo_sdk/odoo_sdk.dart';
@@ -1614,12 +1613,13 @@ class _PendingSyncBadgeState extends ConsumerState<_PendingSyncBadge> {
               : 'Orden sincronizada correctamente',
         );
       }
-    } catch (e) {
+    } catch (e, st) {
+      logger.e('[_PendingSyncBadge]', 'Sync failed for order ${widget.orderId}', e, st);
       if (mounted) {
         CopyableInfoBar.showError(
           context,
           title: 'Error de sincronización',
-          message: 'No se pudo sincronizar la orden:\n\n$e',
+          message: 'No se pudo sincronizar la orden: ${friendlyErrorMessage(e)}',
           durationSeconds: 15,
         );
       }

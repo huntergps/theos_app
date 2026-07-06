@@ -33,7 +33,6 @@ class ProductManager extends OdooModelManager<Product>
     'standard_price',
     'categ_id',
     'uom_id',
-    'uom_po_id',
     'taxes_id',
     'supplier_taxes_id',
     'description',
@@ -50,8 +49,12 @@ class ProductManager extends OdooModelManager<Product>
     'write_date',
   ];
 
-  @override
-  Product fromOdoo(Map<String, dynamic> data) {
+  /// Versión estática pura de [fromOdoo] — no referencia `this` ni
+  /// estado de instancia (OdooClient, GeneratedDatabase), solo [data].
+  /// Por eso su tear-off (`ProductManager.fromOdooMap`) es transferible a
+  /// `Isolate.run()`, a diferencia del tear-off del método de instancia
+  /// [fromOdoo] (que arrastra el manager completo, no transferible).
+  static Product fromOdooMap(Map<String, dynamic> data) {
     return Product(
       id: data['id'] as int? ?? 0,
       name: parseOdooStringRequired(data['name']),
@@ -71,8 +74,6 @@ class ProductManager extends OdooModelManager<Product>
       categName: extractMany2oneName(data['categ_id']),
       uomId: extractMany2oneId(data['uom_id']),
       uomName: extractMany2oneName(data['uom_id']),
-      uomPoId: extractMany2oneId(data['uom_po_id']),
-      uomPoName: extractMany2oneName(data['uom_po_id']),
       taxesId: data['taxes_id']?.toString(),
       supplierTaxesId: data['supplier_taxes_id']?.toString(),
       description: parseOdooString(data['description']),
@@ -94,6 +95,9 @@ class ProductManager extends OdooModelManager<Product>
   }
 
   @override
+  Product fromOdoo(Map<String, dynamic> data) => fromOdooMap(data);
+
+  @override
   Map<String, dynamic> toOdoo(Product record) {
     return {
       'name': record.name,
@@ -107,7 +111,6 @@ class ProductManager extends OdooModelManager<Product>
       'standard_price': record.standardPrice,
       'categ_id': record.categId,
       'uom_id': record.uomId,
-      'uom_po_id': record.uomPoId,
       'taxes_id': record.taxesId,
       'supplier_taxes_id': record.supplierTaxesId,
       'description': record.description,
@@ -201,7 +204,6 @@ class ProductManager extends OdooModelManager<Product>
     'standard_price': 'standardPrice',
     'categ_id': 'categId',
     'uom_id': 'uomId',
-    'uom_po_id': 'uomPoId',
     'taxes_id': 'taxesId',
     'supplier_taxes_id': 'supplierTaxesId',
     'description': 'description',
@@ -266,17 +268,15 @@ class ProductManager extends OdooModelManager<Product>
       'list_price': Variable<double>(record.listPrice),
       'standard_price': Variable<double>(record.standardPrice),
       'categ_id': driftVar<int>(record.categId),
-      'categ_id_name': driftVar<String>(record.categName),
+      'categ_name': driftVar<String>(record.categName),
       'uom_id': driftVar<int>(record.uomId),
-      'uom_id_name': driftVar<String>(record.uomName),
-      'uom_po_id': driftVar<int>(record.uomPoId),
-      'uom_po_id_name': driftVar<String>(record.uomPoName),
+      'uom_name': driftVar<String>(record.uomName),
       'taxes_id': driftVar<String>(record.taxesId),
       'supplier_taxes_id': driftVar<String>(record.supplierTaxesId),
       'description': driftVar<String>(record.description),
       'description_sale': driftVar<String>(record.descriptionSale),
       'product_tmpl_id': driftVar<int>(record.productTmplId),
-      'image_128': driftVar<String>(record.image128),
+      'image128': driftVar<String>(record.image128),
       'qty_available': Variable<double>(record.qtyAvailable),
       'virtual_available': Variable<double>(record.virtualAvailable),
       'tracking': Variable<String>(record.tracking.name),
@@ -285,6 +285,8 @@ class ProductManager extends OdooModelManager<Product>
       'is_unit_product': Variable<bool>(record.isUnitProduct),
       'temporal_no_despachar': Variable<bool>(record.temporalNoDespachar),
       'write_date': driftVar<DateTime>(record.writeDate),
+      'uom_po_id': driftVar<int>(record.uomPoId),
+      'uom_po_name': driftVar<String>(record.uomPoName),
     });
   }
 
@@ -301,7 +303,6 @@ class ProductManager extends OdooModelManager<Product>
     'standardPrice',
     'categId',
     'uomId',
-    'uomPoId',
     'taxesId',
     'supplierTaxesId',
     'description',
@@ -465,7 +466,11 @@ class ProductManager extends OdooModelManager<Product>
     current['id'] = getId(record);
     var updated = fromOdoo(current);
     // Preserve local-only fields from original record
-    updated = updated.copyWith(uomIds: record.uomIds);
+    updated = updated.copyWith(
+      uomPoId: record.uomPoId,
+      uomPoName: record.uomPoName,
+      uomIds: record.uomIds,
+    );
     return updated;
   }
 
@@ -599,7 +604,6 @@ class ProductManager extends OdooModelManager<Product>
     'standardPrice',
     'categId',
     'uomId',
-    'uomPoId',
     'taxesId',
     'supplierTaxesId',
     'description',

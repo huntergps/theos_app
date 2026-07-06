@@ -9,7 +9,7 @@ abstract class TheosDialogs {
     BuildContext context, {
     required String title,
     required String message,
-    String confirmText = 'Si',
+    String confirmText = 'Sí',
     String cancelText = 'No',
     bool isDangerous = false,
   }) async {
@@ -46,8 +46,9 @@ abstract class TheosDialogs {
   }) async {
     return await showConfirm(
       context,
-      title: 'Confirmar eliminacion',
-      message: customMessage ?? 'Esta seguro que desea eliminar "$itemName"?',
+      title: 'Confirmar eliminación',
+      message:
+          customMessage ?? '¿Estás seguro que deseas eliminar "$itemName"?',
       confirmText: 'Eliminar',
       cancelText: 'Cancelar',
       isDangerous: true,
@@ -58,13 +59,13 @@ abstract class TheosDialogs {
   static Future<bool> showCloseConfirm(
     BuildContext context, {
     String title = 'Confirmar cierre',
-    String message = 'Esta seguro de que desea cerrar la aplicacion?',
+    String message = '¿Estás seguro de que deseas cerrar la aplicación?',
   }) async {
     return await showConfirm(
       context,
       title: title,
       message: message,
-      confirmText: 'Si',
+      confirmText: 'Sí',
       cancelText: 'No',
     );
   }

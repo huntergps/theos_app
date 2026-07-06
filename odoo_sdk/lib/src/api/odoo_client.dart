@@ -191,23 +191,46 @@ class OdooClient {
 
   /// Detect the Odoo server version by reading the base module version.
   /// Returns the detected version and caches it.
-  Future<OdooVersion> fetchVersion() async {
-    try {
-      final result = await searchRead(
-        model: 'ir.module.module',
-        fields: ['latest_version'],
-        domain: [
-          ['name', '=', 'base']
-        ],
-        limit: 1,
-      );
-      if (result.isNotEmpty) {
-        final versionStr =
-            result.first['latest_version']?.toString() ?? '';
-        _version = OdooVersion.parse(versionStr);
+  ///
+  /// Reintenta internamente hasta [maxAttempts] veces (con [retryDelay] entre
+  /// cada intento) para absorber fallas transitorias de red durante el
+  /// arranque. Si todos los intentos fallan, [version] queda en
+  /// [OdooVersion.unknown] (o conserva el último valor detectado con éxito).
+  ///
+  /// IMPORTANTE: mientras la versión sea `unknown`, los flags derivados
+  /// (`hasBankModel`, `hasStockScrapModel`, `hasLegacyUomFields`) asumen el
+  /// comportamiento de Odoo 19.1 por defecto — ver [OdooVersion.hasBankModel].
+  /// El llamador (p.ej. `AppInitializer`) debe reintentar más tarde cuando la
+  /// conectividad se restablezca.
+  Future<OdooVersion> fetchVersion({
+    int maxAttempts = 3,
+    Duration retryDelay = const Duration(seconds: 1),
+  }) async {
+    for (var attempt = 1; attempt <= maxAttempts; attempt++) {
+      try {
+        final result = await searchRead(
+          model: 'ir.module.module',
+          fields: ['latest_version'],
+          domain: [
+            ['name', '=', 'base']
+          ],
+          limit: 1,
+        );
+        if (result.isNotEmpty) {
+          final versionStr =
+              result.first['latest_version']?.toString() ?? '';
+          _version = OdooVersion.parse(versionStr);
+        }
+        return _version;
+      } catch (_) {
+        // Si no es el último intento, esperamos un poco y reintentamos
+        // (falla transitoria de red durante el arranque).
+        if (attempt < maxAttempts) {
+          await Future.delayed(retryDelay);
+        }
+        // Si es el último intento, dejamos _version como estaba (unknown
+        // si nunca se detectó con éxito antes).
       }
-    } catch (_) {
-      // If we can't detect, leave as unknown
     }
     return _version;
   }
@@ -241,6 +264,18 @@ class OdooClient {
     required String model,
     required String method,
     List<int>? ids,
+    @Deprecated(
+      'El dispatcher JSON-2 estándar de Odoo (/json/2/<model>/<method>) NO '
+      'trata "args" como argumentos posicionales: el body se pasa como '
+      '**kwargs al método destino, así que "args" termina siendo un kwarg '
+      'literal llamado "args" y falla con "unexpected keyword argument '
+      '\'args\'" salvo que el método acepte ese nombre. Usa kwargs: {} con '
+      'los nombres reales de los parámetros de Python. La única excepción '
+      'válida es cuando el propio servidor expone un controller HTTP custom '
+      'que lee "args" manualmente del body (ver '
+      'product.template/get_stock_by_warehouse en '
+      'l10n_ec_collection_box_pos).',
+    )
     List<dynamic>? args,
     Map<String, dynamic>? kwargs,
     CancelToken? cancelToken,

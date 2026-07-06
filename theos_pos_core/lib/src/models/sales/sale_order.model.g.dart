@@ -306,7 +306,6 @@ class SaleOrderManager extends OdooModelManager<SaleOrder>
     'signature',
     'signed_by',
     'signed_on',
-    'require_payment',
     'prepayment_percent',
     'locked',
     'is_expired',
@@ -346,8 +345,12 @@ class SaleOrderManager extends OdooModelManager<SaleOrder>
     'write_date',
   ];
 
-  @override
-  SaleOrder fromOdoo(Map<String, dynamic> data) {
+  /// Versión estática pura de [fromOdoo] — no referencia `this` ni
+  /// estado de instancia (OdooClient, GeneratedDatabase), solo [data].
+  /// Por eso su tear-off (`SaleOrderManager.fromOdooMap`) es transferible a
+  /// `Isolate.run()`, a diferencia del tear-off del método de instancia
+  /// [fromOdoo] (que arrastra el manager completo, no transferible).
+  static SaleOrder fromOdooMap(Map<String, dynamic> data) {
     return SaleOrder(
       id: data['id'] as int? ?? 0,
       name: parseOdooStringRequired(data['name']),
@@ -399,7 +402,7 @@ class SaleOrderManager extends OdooModelManager<SaleOrder>
       signature: parseOdooString(data['signature']),
       signedBy: parseOdooString(data['signed_by']),
       signedOn: parseOdooDateTime(data['signed_on']),
-      requirePayment: parseOdooBool(data['require_payment']),
+      requirePayment: false,
       prepaymentPercent: parseOdooDouble(data['prepayment_percent']) ?? 0.0,
       locked: parseOdooBool(data['locked']),
       isExpired: parseOdooBool(data['is_expired']),
@@ -452,6 +455,9 @@ class SaleOrderManager extends OdooModelManager<SaleOrder>
   }
 
   @override
+  SaleOrder fromOdoo(Map<String, dynamic> data) => fromOdooMap(data);
+
+  @override
   Map<String, dynamic> toOdoo(SaleOrder record) {
     return {
       'name': record.name,
@@ -480,7 +486,6 @@ class SaleOrderManager extends OdooModelManager<SaleOrder>
       'signature': record.signature,
       'signed_by': record.signedBy,
       'signed_on': formatOdooDateTime(record.signedOn),
-      'require_payment': record.requirePayment,
       'prepayment_percent': record.prepaymentPercent,
       'total_discount_amount': record.totalDiscountAmount,
       'total_amount_undiscounted': record.amountUntaxedUndiscounted,
@@ -576,7 +581,7 @@ class SaleOrderManager extends OdooModelManager<SaleOrder>
       signature: row.signature as String?,
       signedBy: row.signedBy as String?,
       signedOn: row.signedOn as DateTime?,
-      requirePayment: row.requirePayment as bool,
+      requirePayment: row.requirePayment as bool? ?? false,
       prepaymentPercent: row.prepaymentPercent as double,
       locked: row.locked as bool,
       isExpired: row.isExpired as bool,
@@ -680,7 +685,6 @@ class SaleOrderManager extends OdooModelManager<SaleOrder>
     'signature': 'signature',
     'signed_by': 'signedBy',
     'signed_on': 'signedOn',
-    'require_payment': 'requirePayment',
     'prepayment_percent': 'prepaymentPercent',
     'locked': 'locked',
     'is_expired': 'isExpired',
@@ -764,31 +768,31 @@ class SaleOrderManager extends OdooModelManager<SaleOrder>
       'commitment_date': driftVar<DateTime>(record.commitmentDate),
       'expected_date': driftVar<DateTime>(record.expectedDate),
       'partner_id': driftVar<int>(record.partnerId),
-      'partner_id_name': driftVar<String>(record.partnerName),
+      'partner_name': driftVar<String>(record.partnerName),
       'partner_invoice_id': driftVar<int>(record.partnerInvoiceId),
-      'partner_invoice_id_name': driftVar<String>(record.partnerInvoiceAddress),
+      'partner_invoice_address': driftVar<String>(record.partnerInvoiceAddress),
       'partner_shipping_id': driftVar<int>(record.partnerShippingId),
-      'partner_shipping_id_name': driftVar<String>(
+      'partner_shipping_address': driftVar<String>(
         record.partnerShippingAddress,
       ),
       'user_id': driftVar<int>(record.userId),
-      'user_id_name': driftVar<String>(record.userName),
+      'user_name': driftVar<String>(record.userName),
       'team_id': driftVar<int>(record.teamId),
-      'team_id_name': driftVar<String>(record.teamName),
+      'team_name': driftVar<String>(record.teamName),
       'company_id': driftVar<int>(record.companyId),
-      'company_id_name': driftVar<String>(record.companyName),
+      'company_name': driftVar<String>(record.companyName),
       'warehouse_id': driftVar<int>(record.warehouseId),
-      'warehouse_id_name': driftVar<String>(record.warehouseName),
+      'warehouse_name': driftVar<String>(record.warehouseName),
       'pricelist_id': driftVar<int>(record.pricelistId),
-      'pricelist_id_name': driftVar<String>(record.pricelistName),
+      'pricelist_name': driftVar<String>(record.pricelistName),
       'currency_id': driftVar<int>(record.currencyId),
       'currency_rate': Variable<double>(record.currencyRate),
       'payment_term_id': driftVar<int>(record.paymentTermId),
-      'payment_term_id_name': driftVar<String>(record.paymentTermName),
+      'payment_term_name': driftVar<String>(record.paymentTermName),
       'is_cash': Variable<bool>(record.isCash),
       'is_credit': Variable<bool>(record.isCredit),
       'fiscal_position_id': driftVar<int>(record.fiscalPositionId),
-      'fiscal_position_id_name': driftVar<String>(record.fiscalPositionName),
+      'fiscal_position_name': driftVar<String>(record.fiscalPositionName),
       'amount_untaxed': Variable<double>(record.amountUntaxed),
       'amount_tax': Variable<double>(record.amountTax),
       'amount_total': Variable<double>(record.amountTotal),
@@ -802,7 +806,6 @@ class SaleOrderManager extends OdooModelManager<SaleOrder>
       'signature': driftVar<String>(record.signature),
       'signed_by': driftVar<String>(record.signedBy),
       'signed_on': driftVar<DateTime>(record.signedOn),
-      'require_payment': Variable<bool>(record.requirePayment),
       'prepayment_percent': Variable<double>(record.prepaymentPercent),
       'locked': Variable<bool>(record.locked),
       'is_expired': Variable<bool>(record.isExpired),
@@ -822,7 +825,7 @@ class SaleOrderManager extends OdooModelManager<SaleOrder>
       ),
       'fecha_facturar': driftVar<DateTime>(record.fechaFacturar),
       'referrer_id': driftVar<int>(record.referrerId),
-      'referrer_id_name': driftVar<String>(record.referrerName),
+      'referrer_name': driftVar<String>(record.referrerName),
       'tipo_cliente': driftVar<String>(record.tipoCliente),
       'canal_cliente': driftVar<String>(record.canalCliente),
       'delivery_status': driftVar<String>(record.deliveryStatus),
@@ -853,6 +856,7 @@ class SaleOrderManager extends OdooModelManager<SaleOrder>
       'partner_email': driftVar<String>(record.partnerEmail),
       'partner_avatar': driftVar<String>(record.partnerAvatar),
       'currency_symbol': driftVar<String>(record.currencySymbol),
+      'require_payment': Variable<bool>(record.requirePayment),
       'amount_unpaid': Variable<double>(record.amountUnpaid),
       'is_synced': Variable<bool>(record.isSynced),
       'last_sync_date': driftVar<DateTime>(record.lastSyncDate),
@@ -890,7 +894,6 @@ class SaleOrderManager extends OdooModelManager<SaleOrder>
     'signature',
     'signedBy',
     'signedOn',
-    'requirePayment',
     'prepaymentPercent',
     'totalDiscountAmount',
     'amountUntaxedUndiscounted',
@@ -1275,6 +1278,7 @@ class SaleOrderManager extends OdooModelManager<SaleOrder>
       partnerEmail: record.partnerEmail,
       partnerAvatar: record.partnerAvatar,
       currencySymbol: record.currencySymbol,
+      requirePayment: record.requirePayment,
       amountUnpaid: record.amountUnpaid,
       isSynced: record.isSynced,
       lastSyncDate: record.lastSyncDate,
@@ -1620,7 +1624,6 @@ class SaleOrderManager extends OdooModelManager<SaleOrder>
     'signature',
     'signedBy',
     'signedOn',
-    'requirePayment',
     'prepaymentPercent',
     'totalDiscountAmount',
     'amountUntaxedUndiscounted',

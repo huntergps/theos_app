@@ -19,7 +19,7 @@ class ChequesTab extends StatelessWidget {
         children: [
           _buildCheckSection(
             context,
-            title: 'Cheques al Dia',
+            title: 'Cheques al Día',
             total: session.checksOnDayTotal,
           ),
           const SizedBox(height: 24),

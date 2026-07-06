@@ -33,12 +33,19 @@ final pricelistsProvider = StreamProvider<List<Pricelist>>((ref) {
 ///
 /// Uses `pricelistManager.watchLocalRecord(id)` so UI auto-updates
 /// when the pricelist is modified or synced locally.
-final pricelistByIdProvider = StreamProvider.family<Pricelist?, int>((ref, pricelistId) {
+///
+/// `autoDispose`: es `.family` por `pricelistId` transitorio (memory leak
+/// corregido). Verificado: sin consumidores en todo el codebase hoy — cero
+/// riesgo de romper algo.
+final pricelistByIdProvider = StreamProvider.autoDispose.family<Pricelist?, int>((ref, pricelistId) {
   return pricelistManager.watchLocalRecord(pricelistId);
 });
 
 /// Get a pricelist name from cache. Derives from the pricelists stream.
-final pricelistNameProvider = Provider.family<String, int?>((ref, pricelistId) {
+///
+/// `autoDispose`: es `.family` por `pricelistId` transitorio (memory leak
+/// corregido). Verificado: sin consumidores en todo el codebase hoy.
+final pricelistNameProvider = Provider.autoDispose.family<String, int?>((ref, pricelistId) {
   if (pricelistId == null) return '';
   final pricelists = ref.watch(pricelistsProvider);
   return pricelists.when(
@@ -65,7 +72,11 @@ final defaultPricelistProvider = Provider<Pricelist?>((ref) {
 ///
 /// Uses a lazy singleton PricelistItemManager with `watchLocalSearch()`
 /// so the UI auto-updates when pricelist items are synced or modified.
-final pricelistItemsProvider = StreamProvider.family<List<PricelistItem>, int>((ref, pricelistId) {
+///
+/// `autoDispose`: es `.family` por `pricelistId` transitorio (memory leak
+/// corregido). Verificado: sin consumidores en todo el codebase hoy — cero
+/// riesgo de romper algo.
+final pricelistItemsProvider = StreamProvider.autoDispose.family<List<PricelistItem>, int>((ref, pricelistId) {
   _pricelistItemManagerInstance ??= PricelistItemManager(ref.read(appDatabaseProvider));
   return _pricelistItemManagerInstance!.watchLocalSearch(
     domain: [['pricelist_id', '=', pricelistId]],

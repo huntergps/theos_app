@@ -1,5 +1,6 @@
 import 'package:fluent_ui/fluent_ui.dart';
 
+import '../../../../../core/constants/app_colors.dart';
 import 'summary_row.dart';
 import 'package:theos_pos_core/theos_pos_core.dart';
 
@@ -58,18 +59,18 @@ class FacturasEmitidasTable extends StatelessWidget {
           const SizedBox(height: 4),
           SummaryRow(
             icon: FluentIcons.money,
-            iconColor: Colors.green,
+            iconColor: AppColors.success,
             label: 'Total Cobrado Contado',
             amount: session.totalCashCollectedAmount,
           ),
           const SizedBox(height: 4),
           SummaryRow(
             icon: FluentIcons.warning,
-            iconColor: Colors.orange,
+            iconColor: AppColors.warning,
             label: 'Total por Cobrar Contado',
             amount: session.totalCashPendingAmount,
             amountColor: session.totalCashPendingAmount > 0
-                ? Colors.orange
+                ? AppColors.warning
                 : null,
           ),
 
@@ -80,7 +81,7 @@ class FacturasEmitidasTable extends StatelessWidget {
 
           // Credit Invoices Section
           Text(
-            'VENTAS CREDITO',
+            'VENTAS CRÉDITO',
             style: theme.typography.caption?.copyWith(
               fontWeight: FontWeight.bold,
             ),
@@ -89,23 +90,24 @@ class FacturasEmitidasTable extends StatelessWidget {
           SummaryRow(
             icon: FluentIcons.payment_card,
             iconColor: Colors.purple,
-            label: 'Total Ordenes Credito',
+            label: 'Total Órdenes Crédito',
             amount: session.totalCreditOrdersAmount,
           ),
           const SizedBox(height: 4),
           SummaryRow(
             icon: FluentIcons.invoice,
             iconColor: Colors.teal,
-            label: 'Total Facturas Credito',
+            label: 'Total Facturas Crédito',
             amount: session.totalCreditInvoicesAmount,
           ),
           const SizedBox(height: 4),
           SummaryRow(
             icon: FluentIcons.calculator,
-            iconColor: Colors.grey,
-            label: 'Diferencia Ventas Credito',
+            iconColor: AppColors.textSecondary,
+            label: 'Diferencia Ventas Crédito',
             amount: session.creditSalesDifference,
-            amountColor: session.creditSalesDifference != 0 ? Colors.red : null,
+            amountColor:
+                session.creditSalesDifference != 0 ? AppColors.danger : null,
           ),
         ],
       ),

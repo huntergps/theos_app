@@ -1,6 +1,8 @@
 import 'package:fluent_ui/fluent_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../common/theos_info_bars.dart';
+
 /// Configuración para BaseFormDialog
 class FormDialogConfig {
   /// Título del diálogo
@@ -91,13 +93,10 @@ class FormValidationState {
   final bool isValid;
   final List<String> errors;
 
-  const FormValidationState({
-    this.isValid = true,
-    this.errors = const [],
-  });
+  const FormValidationState({this.isValid = true, this.errors = const []});
 
   const FormValidationState.valid() : isValid = true, errors = const [];
-  
+
   const FormValidationState.invalid(this.errors) : isValid = false;
 
   factory FormValidationState.fromErrors(List<String?> errors) {
@@ -166,7 +165,8 @@ mixin FormDialogMixin<T> on ConsumerState<BaseFormDialog<T>> {
   Widget buildForm(BuildContext context, WidgetRef ref);
 
   /// Valida el formulario antes de submit
-  FormValidationState validate(WidgetRef ref) => const FormValidationState.valid();
+  FormValidationState validate(WidgetRef ref) =>
+      const FormValidationState.valid();
 
   /// Ejecuta la acción principal (guardar)
   Future<T?> onSubmit(WidgetRef ref);
@@ -242,27 +242,25 @@ class _BaseFormDialogState<T> extends ConsumerState<BaseFormDialog<T>>
     return ContentDialog(
       constraints: BoxConstraints(
         maxWidth: _config.maxWidth,
-        maxHeight: _config.maxHeight ?? MediaQuery.of(context).size.height * 0.9,
+        maxHeight:
+            _config.maxHeight ?? MediaQuery.of(context).size.height * 0.9,
       ),
       title: Row(
         children: [
           if (_config.icon != null) ...[
-            Icon(
-              _config.icon,
-              color: _config.iconColor ?? theme.accentColor,
-            ),
+            Icon(_config.icon, color: _config.iconColor ?? theme.accentColor),
             const SizedBox(width: 10),
           ],
           Expanded(
-            child: Text(
-              _config.title,
-              style: theme.typography.subtitle,
-            ),
+            child: Text(_config.title, style: theme.typography.subtitle),
           ),
           if (_config.showCloseButton)
-            IconButton(
-              icon: const Icon(FluentIcons.chrome_close),
-              onPressed: _handleCancel,
+            Tooltip(
+              message: 'Cerrar',
+              child: IconButton(
+                icon: const Icon(FluentIcons.chrome_close),
+                onPressed: _handleCancel,
+              ),
             ),
         ],
       ),
@@ -308,7 +306,9 @@ class _BaseFormDialogState<T> extends ConsumerState<BaseFormDialog<T>>
         const SizedBox(width: 8),
         // Botón principal
         FilledButton(
-          onPressed: (_isLoading || !_config.isPrimaryEnabled) ? null : _handleSubmit,
+          onPressed: (_isLoading || !_config.isPrimaryEnabled)
+              ? null
+              : _handleSubmit,
           child: _isLoading
               ? const SizedBox(
                   width: 16,
@@ -330,17 +330,10 @@ class _BaseFormDialogState<T> extends ConsumerState<BaseFormDialog<T>>
       ),
       child: Row(
         children: [
-          Icon(
-            FluentIcons.info,
-            size: 16,
-            color: theme.inactiveColor,
-          ),
+          Icon(FluentIcons.info, size: 16, color: theme.inactiveColor),
           const SizedBox(width: 8),
           Expanded(
-            child: Text(
-              _config.description!,
-              style: theme.typography.body,
-            ),
+            child: Text(_config.description!, style: theme.typography.body),
           ),
         ],
       ),
@@ -348,19 +341,8 @@ class _BaseFormDialogState<T> extends ConsumerState<BaseFormDialog<T>>
   }
 
   Widget _buildValidationBanner(FluentThemeData theme) {
-    return InfoBar(
-      title: Text(
-        _validationErrors.length == 1
-            ? 'Error de validación'
-            : 'Errores de validación',
-      ),
-      content: Text(
-        _validationErrors.length == 1
-            ? _validationErrors.first
-            : _validationErrors.map((e) => '• $e').join('\n'),
-      ),
-      severity: InfoBarSeverity.error,
-      isLong: _validationErrors.length > 1,
+    return TheosInfoBars.validation(
+      errors: _validationErrors,
       onClose: () => setState(() => _validationErrors = []),
     );
   }
@@ -391,7 +373,8 @@ class SimpleFormDialog<T> extends ConsumerStatefulWidget {
   });
 
   @override
-  ConsumerState<SimpleFormDialog<T>> createState() => _SimpleFormDialogState<T>();
+  ConsumerState<SimpleFormDialog<T>> createState() =>
+      _SimpleFormDialogState<T>();
 }
 
 class _SimpleFormDialogState<T> extends ConsumerState<SimpleFormDialog<T>> {
@@ -434,7 +417,8 @@ class _SimpleFormDialogState<T> extends ConsumerState<SimpleFormDialog<T>> {
     return ContentDialog(
       constraints: BoxConstraints(
         maxWidth: widget.config.maxWidth,
-        maxHeight: widget.config.maxHeight ?? MediaQuery.of(context).size.height * 0.9,
+        maxHeight:
+            widget.config.maxHeight ?? MediaQuery.of(context).size.height * 0.9,
       ),
       title: Text(widget.config.title, style: theme.typography.subtitle),
       content: Column(
@@ -442,10 +426,8 @@ class _SimpleFormDialogState<T> extends ConsumerState<SimpleFormDialog<T>> {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           if (_errors.isNotEmpty) ...[
-            InfoBar(
-              title: const Text('Error'),
-              content: Text(_errors.join('\n')),
-              severity: InfoBarSeverity.error,
+            TheosInfoBars.error(
+              message: _errors.join('\n'),
               onClose: () => setState(() => _errors = []),
             ),
             const SizedBox(height: 16),
@@ -478,44 +460,44 @@ class _SimpleFormDialogState<T> extends ConsumerState<SimpleFormDialog<T>> {
 // =============================================================================
 
 /// Versión de BaseFormDialog que NO requiere Riverpod.
-/// 
+///
 /// Útil para diálogos simples que no necesitan state management global.
-/// 
+///
 /// Uso:
 /// ```dart
 /// class CashCountDialog extends StatefulFormDialog<CollectionSessionCash> {
 ///   final String title;
 ///   final CashType cashType;
-///   
+///
 ///   const CashCountDialog({super.key, required this.title, required this.cashType});
-///   
+///
 ///   @override
 ///   FormDialogConfig get config => FormDialogConfig(
 ///     title: title,
 ///     icon: cashType == CashType.opening ? FluentIcons.unlock : FluentIcons.lock,
 ///     primaryButtonText: 'Confirmar',
 ///   );
-///   
+///
 ///   @override
-///   StatefulFormDialogState<CollectionSessionCash, CashCountDialog> createState() => 
+///   StatefulFormDialogState<CollectionSessionCash, CashCountDialog> createState() =>
 ///     _CashCountDialogState();
 /// }
-/// 
-/// class _CashCountDialogState 
+///
+/// class _CashCountDialogState
 ///     extends StatefulFormDialogState<CollectionSessionCash, CashCountDialog> {
 ///   late CashCountState _cashCountState;
-///   
+///
 ///   @override
 ///   void initState() {
 ///     super.initState();
 ///     _cashCountState = CashCountState.initial();
 ///   }
-///   
+///
 ///   @override
 ///   Widget buildForm(BuildContext context) {
 ///     return ReactiveCashCountField(...);
 ///   }
-///   
+///
 ///   @override
 ///   Future<CollectionSessionCash?> onSubmit() async {
 ///     return CollectionSessionCash(...);
@@ -610,19 +592,17 @@ abstract class StatefulFormDialogState<T, W extends StatefulFormDialog<T>>
       title: Row(
         children: [
           if (config.icon != null) ...[
-            Icon(
-              config.icon,
-              color: config.iconColor ?? theme.accentColor,
-            ),
+            Icon(config.icon, color: config.iconColor ?? theme.accentColor),
             const SizedBox(width: 10),
           ],
-          Expanded(
-            child: Text(config.title),
-          ),
+          Expanded(child: Text(config.title)),
           if (config.showCloseButton)
-            IconButton(
-              icon: const Icon(FluentIcons.chrome_close),
-              onPressed: handleCancel,
+            Tooltip(
+              message: 'Cerrar',
+              child: IconButton(
+                icon: const Icon(FluentIcons.chrome_close),
+                onPressed: handleCancel,
+              ),
             ),
         ],
       ),
@@ -649,10 +629,7 @@ abstract class StatefulFormDialogState<T, W extends StatefulFormDialog<T>>
               ),
             )
           else
-            Padding(
-              padding: config.contentPadding,
-              child: buildForm(context),
-            ),
+            Padding(padding: config.contentPadding, child: buildForm(context)),
         ],
       ),
       actions: [
@@ -668,7 +645,9 @@ abstract class StatefulFormDialogState<T, W extends StatefulFormDialog<T>>
         const SizedBox(width: 8),
         // Botón principal
         FilledButton(
-          onPressed: (_isLoading || !config.isPrimaryEnabled) ? null : handleSubmit,
+          onPressed: (_isLoading || !config.isPrimaryEnabled)
+              ? null
+              : handleSubmit,
           child: _isLoading
               ? const SizedBox(
                   width: 16,
@@ -690,37 +669,17 @@ abstract class StatefulFormDialogState<T, W extends StatefulFormDialog<T>>
       ),
       child: Row(
         children: [
-          Icon(
-            FluentIcons.info,
-            size: 16,
-            color: theme.inactiveColor,
-          ),
+          Icon(FluentIcons.info, size: 16, color: theme.inactiveColor),
           const SizedBox(width: 8),
-          Expanded(
-            child: Text(
-              description,
-              style: theme.typography.body,
-            ),
-          ),
+          Expanded(child: Text(description, style: theme.typography.body)),
         ],
       ),
     );
   }
 
   Widget _buildValidationBanner(FluentThemeData theme) {
-    return InfoBar(
-      title: Text(
-        _validationErrors.length == 1
-            ? 'Error de validación'
-            : 'Errores de validación',
-      ),
-      content: Text(
-        _validationErrors.length == 1
-            ? _validationErrors.first
-            : _validationErrors.map((e) => '• $e').join('\n'),
-      ),
-      severity: InfoBarSeverity.error,
-      isLong: _validationErrors.length > 1,
+    return TheosInfoBars.validation(
+      errors: _validationErrors,
       onClose: () => setState(() => _validationErrors = []),
     );
   }

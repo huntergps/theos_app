@@ -1,4 +1,5 @@
-import 'package:theos_pos_core/theos_pos_core.dart' show SaleOrderLine;
+import 'package:theos_pos_core/theos_pos_core.dart'
+    show SaleOrderLine, orderTotalsCalculator;
 
 import '../../../core/services/logger_service.dart';
 import 'order_line_creation_service.dart';
@@ -446,24 +447,21 @@ class LineOperationsHelper {
   // ========== Computed Properties ==========
 
   /// Calculate subtotal from all product lines
+  ///
+  /// Delega en [orderTotalsCalculator] (dedup — mismo resultado numérico que
+  /// el fold anterior, ver `order_totals_calculator_test.dart`).
   double calculateSubtotal(List<SaleOrderLine> lines) {
-    return lines
-        .where((l) => l.isProductLine)
-        .fold(0.0, (sum, line) => sum + line.priceSubtotal);
+    return orderTotalsCalculator.calculate(lines: lines).subtotal;
   }
 
   /// Calculate tax total from all product lines
   double calculateTaxTotal(List<SaleOrderLine> lines) {
-    return lines
-        .where((l) => l.isProductLine)
-        .fold(0.0, (sum, line) => sum + line.priceTax);
+    return orderTotalsCalculator.calculate(lines: lines).taxTotal;
   }
 
   /// Calculate grand total from all product lines
   double calculateTotal(List<SaleOrderLine> lines) {
-    return lines
-        .where((l) => l.isProductLine)
-        .fold(0.0, (sum, line) => sum + line.priceTotal);
+    return orderTotalsCalculator.calculate(lines: lines).total;
   }
 
   /// Count product lines (excluding sections/notes)

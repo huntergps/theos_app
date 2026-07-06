@@ -35,8 +35,12 @@ class TaxManager extends OdooModelManager<Tax>
     'write_date',
   ];
 
-  @override
-  Tax fromOdoo(Map<String, dynamic> data) {
+  /// Versión estática pura de [fromOdoo] — no referencia `this` ni
+  /// estado de instancia (OdooClient, GeneratedDatabase), solo [data].
+  /// Por eso su tear-off (`TaxManager.fromOdooMap`) es transferible a
+  /// `Isolate.run()`, a diferencia del tear-off del método de instancia
+  /// [fromOdoo] (que arrastra el manager completo, no transferible).
+  static Tax fromOdooMap(Map<String, dynamic> data) {
     return Tax(
       id: data['id'] as int? ?? 0,
       name: parseOdooStringRequired(data['name']),
@@ -61,6 +65,9 @@ class TaxManager extends OdooModelManager<Tax>
       writeDate: parseOdooDateTime(data['write_date']),
     );
   }
+
+  @override
+  Tax fromOdoo(Map<String, dynamic> data) => fromOdooMap(data);
 
   @override
   Map<String, dynamic> toOdoo(Tax record) {
@@ -192,9 +199,9 @@ class TaxManager extends OdooModelManager<Tax>
       'include_base_amount': Variable<bool>(record.includeBaseAmount),
       'sequence': Variable<int>(record.sequence),
       'company_id': driftVar<int>(record.companyId),
-      'company_id_name': driftVar<String>(record.companyName),
+      'company_name': driftVar<String>(record.companyName),
       'tax_group_id': driftVar<int>(record.taxGroupId),
-      'tax_group_id_name': driftVar<String>(record.taxGroupName),
+      'tax_group_name': driftVar<String>(record.taxGroupName),
       'write_date': driftVar<DateTime>(record.writeDate),
       'tax_group_l10n_ec_type': driftVar<String>(record.taxGroupL10nEcType),
     });

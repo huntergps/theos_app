@@ -111,7 +111,6 @@ class CollectionSessionDepositManager
     'name',
     'number',
     'collection_session_id',
-    'session_uuid',
     'user_id',
     'deposit_date',
     'accounting_date',
@@ -121,8 +120,6 @@ class CollectionSessionDepositManager
     'check_amount',
     'check_count',
     'bank_journal_id',
-    'bank_id',
-    'state',
     'write_date',
     'deposit_slip_number',
     'bank_reference',
@@ -131,15 +128,18 @@ class CollectionSessionDepositManager
     'notes',
   ];
 
-  @override
-  CollectionSessionDeposit fromOdoo(Map<String, dynamic> data) {
+  /// Versión estática pura de [fromOdoo] — no referencia `this` ni
+  /// estado de instancia (OdooClient, GeneratedDatabase), solo [data].
+  /// Por eso su tear-off (`CollectionSessionDepositManager.fromOdooMap`) es transferible a
+  /// `Isolate.run()`, a diferencia del tear-off del método de instancia
+  /// [fromOdoo] (que arrastra el manager completo, no transferible).
+  static CollectionSessionDeposit fromOdooMap(Map<String, dynamic> data) {
     return CollectionSessionDeposit(
       id: data['id'] as int? ?? 0,
       isSynced: false,
       name: parseOdooString(data['name']),
       number: parseOdooString(data['number']),
       collectionSessionId: extractMany2oneId(data['collection_session_id']),
-      sessionUuid: parseOdooString(data['session_uuid']),
       userId: extractMany2oneId(data['user_id']),
       userName: extractMany2oneName(data['user_id']),
       depositDate: parseOdooDateTime(data['deposit_date']),
@@ -154,9 +154,6 @@ class CollectionSessionDepositManager
       checkCount: parseOdooInt(data['check_count']) ?? 0,
       bankJournalId: extractMany2oneId(data['bank_journal_id']),
       bankJournalName: extractMany2oneName(data['bank_journal_id']),
-      bankId: extractMany2oneId(data['bank_id']),
-      bankName: extractMany2oneName(data['bank_id']),
-      state: parseOdooSelection(data['state']),
       writeDate: parseOdooDateTime(data['write_date']),
       depositSlipNumber: parseOdooString(data['deposit_slip_number']),
       bankReference: parseOdooString(data['bank_reference']),
@@ -167,12 +164,15 @@ class CollectionSessionDepositManager
   }
 
   @override
+  CollectionSessionDeposit fromOdoo(Map<String, dynamic> data) =>
+      fromOdooMap(data);
+
+  @override
   Map<String, dynamic> toOdoo(CollectionSessionDeposit record) {
     return {
       'name': record.name,
       'number': record.number,
       'collection_session_id': record.collectionSessionId,
-      'session_uuid': record.sessionUuid,
       'user_id': record.userId,
       'deposit_date': formatOdooDateTime(record.depositDate),
       'accounting_date': formatOdooDate(record.accountingDate),
@@ -182,8 +182,6 @@ class CollectionSessionDepositManager
       'check_amount': record.checkAmount,
       'check_count': record.checkCount,
       'bank_journal_id': record.bankJournalId,
-      'bank_id': record.bankId,
-      'state': record.state,
       'write_date': formatOdooDateTime(record.writeDate),
       'deposit_slip_number': record.depositSlipNumber,
       'bank_reference': record.bankReference,
@@ -264,7 +262,6 @@ class CollectionSessionDepositManager
     'name': 'name',
     'number': 'number',
     'collection_session_id': 'collectionSessionId',
-    'session_uuid': 'sessionUuid',
     'user_id': 'userId',
     'deposit_date': 'depositDate',
     'accounting_date': 'accountingDate',
@@ -274,8 +271,6 @@ class CollectionSessionDepositManager
     'check_amount': 'checkAmount',
     'check_count': 'checkCount',
     'bank_journal_id': 'bankJournalId',
-    'bank_id': 'bankId',
-    'state': 'state',
     'write_date': 'writeDate',
     'deposit_slip_number': 'depositSlipNumber',
     'bank_reference': 'bankReference',
@@ -326,9 +321,8 @@ class CollectionSessionDepositManager
       'name': driftVar<String>(record.name),
       'number': driftVar<String>(record.number),
       'collection_session_id': driftVar<int>(record.collectionSessionId),
-      'session_uuid': driftVar<String>(record.sessionUuid),
       'user_id': driftVar<int>(record.userId),
-      'user_id_name': driftVar<String>(record.userName),
+      'user_name': driftVar<String>(record.userName),
       'deposit_date': driftVar<DateTime>(record.depositDate),
       'accounting_date': driftVar<DateTime>(record.accountingDate),
       'amount': Variable<double>(record.amount),
@@ -337,10 +331,7 @@ class CollectionSessionDepositManager
       'check_amount': Variable<double>(record.checkAmount),
       'check_count': Variable<int>(record.checkCount),
       'bank_journal_id': driftVar<int>(record.bankJournalId),
-      'bank_journal_id_name': driftVar<String>(record.bankJournalName),
-      'bank_id': driftVar<int>(record.bankId),
-      'bank_id_name': driftVar<String>(record.bankName),
-      'state': driftVar<String>(record.state),
+      'bank_journal_name': driftVar<String>(record.bankJournalName),
       'write_date': driftVar<DateTime>(record.writeDate),
       'deposit_slip_number': driftVar<String>(record.depositSlipNumber),
       'bank_reference': driftVar<String>(record.bankReference),
@@ -350,6 +341,10 @@ class CollectionSessionDepositManager
       'uuid': driftVar<String>(record.uuid),
       'is_synced': Variable<bool>(record.isSynced),
       'last_sync_date': driftVar<DateTime>(record.lastSyncDate),
+      'session_uuid': driftVar<String>(record.sessionUuid),
+      'bank_id': driftVar<int>(record.bankId),
+      'bank_name': driftVar<String>(record.bankName),
+      'state': driftVar<String>(record.state),
     });
   }
 
@@ -358,7 +353,6 @@ class CollectionSessionDepositManager
     'name',
     'number',
     'collectionSessionId',
-    'sessionUuid',
     'userId',
     'depositDate',
     'accountingDate',
@@ -368,8 +362,6 @@ class CollectionSessionDepositManager
     'checkAmount',
     'checkCount',
     'bankJournalId',
-    'bankId',
-    'state',
     'writeDate',
     'depositSlipNumber',
     'bankReference',
@@ -524,6 +516,10 @@ class CollectionSessionDepositManager
       uuid: record.uuid,
       isSynced: record.isSynced,
       lastSyncDate: record.lastSyncDate,
+      sessionUuid: record.sessionUuid,
+      bankId: record.bankId,
+      bankName: record.bankName,
+      state: record.state,
     );
     return updated;
   }
@@ -634,7 +630,6 @@ class CollectionSessionDepositManager
     'name',
     'number',
     'collectionSessionId',
-    'sessionUuid',
     'userId',
     'depositDate',
     'accountingDate',
@@ -644,8 +639,6 @@ class CollectionSessionDepositManager
     'checkAmount',
     'checkCount',
     'bankJournalId',
-    'bankId',
-    'state',
     'writeDate',
     'depositSlipNumber',
     'bankReference',

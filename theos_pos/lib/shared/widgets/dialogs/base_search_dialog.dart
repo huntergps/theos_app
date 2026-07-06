@@ -242,9 +242,9 @@ class _BaseSearchDialogState<T> extends ConsumerState<BaseSearchDialog<T>> {
         if (event is KeyDownEvent &&
             _results.isNotEmpty &&
             (event.logicalKey == LogicalKeyboardKey.arrowDown ||
-             event.logicalKey == LogicalKeyboardKey.arrowUp ||
-             (event.logicalKey == LogicalKeyboardKey.enter &&
-              _selectedIndex >= 0))) {
+                event.logicalKey == LogicalKeyboardKey.arrowUp ||
+                (event.logicalKey == LogicalKeyboardKey.enter &&
+                    _selectedIndex >= 0))) {
           return KeyEventResult.handled;
         }
         return KeyEventResult.ignored;
@@ -267,12 +267,15 @@ class _BaseSearchDialogState<T> extends ConsumerState<BaseSearchDialog<T>> {
                 child: Icon(FluentIcons.search, size: 14),
               ),
               suffix: _searchController.text.isNotEmpty
-                  ? IconButton(
-                      icon: const Icon(FluentIcons.clear, size: 12),
-                      onPressed: () {
-                        _searchController.clear();
-                        _search('');
-                      },
+                  ? Tooltip(
+                      message: 'Limpiar búsqueda',
+                      child: IconButton(
+                        icon: const Icon(FluentIcons.clear, size: 12),
+                        onPressed: () {
+                          _searchController.clear();
+                          _search('');
+                        },
+                      ),
                     )
                   : null,
               onChanged: _search,

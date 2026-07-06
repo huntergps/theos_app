@@ -36,7 +36,18 @@ class OdooVersion implements Comparable<OdooVersion> {
     return OdooVersion(major: 0, minor: 0, raw: raw);
   }
 
-  /// Unknown/undetected version
+  /// Unknown/undetected version.
+  ///
+  /// IMPORTANTE — supuesto por defecto: cuando la versión es `unknown`
+  /// (p.ej. `fetchVersion()` nunca se ejecutó con éxito porque el arranque
+  /// ocurrió offline), todos los flags derivados (`hasBankModel`,
+  /// `hasStockScrapModel`, `hasLegacyUomFields`) asumen el comportamiento de
+  /// **Odoo 19.1** (el más antiguo/legacy), porque `isOdoo19_2OrLater` da
+  /// `false` para major/minor = 0. Esto es una decisión consciente: es más
+  /// seguro asumir el modelo "legacy" (con `res.bank`, etc.) y fallar con un
+  /// error de campo inválido si el servidor real es 19.2, que asumir 19.2 y
+  /// nunca pedir campos que sí existen en 19.1. Ver `OdooClient.fetchVersion`
+  /// y `AppInitializer` (theos_pos) para el reintento de detección.
   static const unknown = OdooVersion(major: 0, minor: 0, raw: 'unknown');
 
   bool get isUnknown => major == 0 && minor == 0;
@@ -51,13 +62,16 @@ class OdooVersion implements Comparable<OdooVersion> {
   bool get isOdoo19_2OrLater => isAtLeast(19, 2);
   bool get isOdoo19_1OrLater => isAtLeast(19, 1);
 
-  /// In 19.2, res.bank was removed
+  /// In 19.2, res.bank was removed.
+  /// Si la versión es [unknown], asume `true` (comportamiento 19.1) — ver [unknown].
   bool get hasBankModel => !isOdoo19_2OrLater;
 
   /// In 19.2, stock.scrap was removed (now stock.move with is_scrap=True)
+  /// Si la versión es [unknown], asume `true` (comportamiento 19.1) — ver [unknown].
   bool get hasStockScrapModel => !isOdoo19_2OrLater;
 
   /// In 19.2, UOM fields renamed in stock models
+  /// Si la versión es [unknown], asume `true` (comportamiento 19.1) — ver [unknown].
   bool get hasLegacyUomFields => !isOdoo19_2OrLater;
 
   @override

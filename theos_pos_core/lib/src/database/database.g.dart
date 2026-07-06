@@ -8999,6 +8999,7 @@ class $ResPartnerBankTable extends ResPartnerBank
     false,
     type: DriftSqlType.int,
     requiredDuringInsert: true,
+    defaultConstraints: GeneratedColumn.constraintIsAlways('UNIQUE'),
   );
   static const VerificationMeta _accNumberMeta = const VerificationMeta(
     'accNumber',
@@ -26806,17 +26807,6 @@ class $CollectionSessionCashTable extends CollectionSessionCash
     requiredDuringInsert: true,
     defaultConstraints: GeneratedColumn.constraintIsAlways('UNIQUE'),
   );
-  static const VerificationMeta _sessionIdMeta = const VerificationMeta(
-    'sessionId',
-  );
-  @override
-  late final GeneratedColumn<int> sessionId = GeneratedColumn<int>(
-    'session_id',
-    aliasedName,
-    false,
-    type: DriftSqlType.int,
-    requiredDuringInsert: true,
-  );
   static const VerificationMeta _collectionSessionIdMeta =
       const VerificationMeta('collectionSessionId');
   @override
@@ -27055,7 +27045,6 @@ class $CollectionSessionCashTable extends CollectionSessionCash
   List<GeneratedColumn> get $columns => [
     id,
     odooId,
-    sessionId,
     collectionSessionId,
     denomination,
     cashType,
@@ -27100,14 +27089,6 @@ class $CollectionSessionCashTable extends CollectionSessionCash
       );
     } else if (isInserting) {
       context.missing(_odooIdMeta);
-    }
-    if (data.containsKey('session_id')) {
-      context.handle(
-        _sessionIdMeta,
-        sessionId.isAcceptableOrUnknown(data['session_id']!, _sessionIdMeta),
-      );
-    } else if (isInserting) {
-      context.missing(_sessionIdMeta);
     }
     if (data.containsKey('collection_session_id')) {
       context.handle(
@@ -27266,10 +27247,6 @@ class $CollectionSessionCashTable extends CollectionSessionCash
         DriftSqlType.int,
         data['${effectivePrefix}odoo_id'],
       )!,
-      sessionId: attachedDatabase.typeMapping.read(
-        DriftSqlType.int,
-        data['${effectivePrefix}session_id'],
-      )!,
       collectionSessionId: attachedDatabase.typeMapping.read(
         DriftSqlType.int,
         data['${effectivePrefix}collection_session_id'],
@@ -27367,7 +27344,6 @@ class CollectionSessionCashData extends DataClass
     implements Insertable<CollectionSessionCashData> {
   final int id;
   final int odooId;
-  final int sessionId;
   final int collectionSessionId;
   final String? denomination;
   final String? cashType;
@@ -27392,7 +27368,6 @@ class CollectionSessionCashData extends DataClass
   const CollectionSessionCashData({
     required this.id,
     required this.odooId,
-    required this.sessionId,
     required this.collectionSessionId,
     this.denomination,
     this.cashType,
@@ -27420,7 +27395,6 @@ class CollectionSessionCashData extends DataClass
     final map = <String, Expression>{};
     map['id'] = Variable<int>(id);
     map['odoo_id'] = Variable<int>(odooId);
-    map['session_id'] = Variable<int>(sessionId);
     map['collection_session_id'] = Variable<int>(collectionSessionId);
     if (!nullToAbsent || denomination != null) {
       map['denomination'] = Variable<String>(denomination);
@@ -27459,7 +27433,6 @@ class CollectionSessionCashData extends DataClass
     return CollectionSessionCashCompanion(
       id: Value(id),
       odooId: Value(odooId),
-      sessionId: Value(sessionId),
       collectionSessionId: Value(collectionSessionId),
       denomination: denomination == null && nullToAbsent
           ? const Value.absent()
@@ -27502,7 +27475,6 @@ class CollectionSessionCashData extends DataClass
     return CollectionSessionCashData(
       id: serializer.fromJson<int>(json['id']),
       odooId: serializer.fromJson<int>(json['odooId']),
-      sessionId: serializer.fromJson<int>(json['sessionId']),
       collectionSessionId: serializer.fromJson<int>(
         json['collectionSessionId'],
       ),
@@ -27534,7 +27506,6 @@ class CollectionSessionCashData extends DataClass
     return <String, dynamic>{
       'id': serializer.toJson<int>(id),
       'odooId': serializer.toJson<int>(odooId),
-      'sessionId': serializer.toJson<int>(sessionId),
       'collectionSessionId': serializer.toJson<int>(collectionSessionId),
       'denomination': serializer.toJson<String?>(denomination),
       'cashType': serializer.toJson<String?>(cashType),
@@ -27562,7 +27533,6 @@ class CollectionSessionCashData extends DataClass
   CollectionSessionCashData copyWith({
     int? id,
     int? odooId,
-    int? sessionId,
     int? collectionSessionId,
     Value<String?> denomination = const Value.absent(),
     Value<String?> cashType = const Value.absent(),
@@ -27587,7 +27557,6 @@ class CollectionSessionCashData extends DataClass
   }) => CollectionSessionCashData(
     id: id ?? this.id,
     odooId: odooId ?? this.odooId,
-    sessionId: sessionId ?? this.sessionId,
     collectionSessionId: collectionSessionId ?? this.collectionSessionId,
     denomination: denomination.present ? denomination.value : this.denomination,
     cashType: cashType.present ? cashType.value : this.cashType,
@@ -27616,7 +27585,6 @@ class CollectionSessionCashData extends DataClass
     return CollectionSessionCashData(
       id: data.id.present ? data.id.value : this.id,
       odooId: data.odooId.present ? data.odooId.value : this.odooId,
-      sessionId: data.sessionId.present ? data.sessionId.value : this.sessionId,
       collectionSessionId: data.collectionSessionId.present
           ? data.collectionSessionId.value
           : this.collectionSessionId,
@@ -27654,7 +27622,6 @@ class CollectionSessionCashData extends DataClass
     return (StringBuffer('CollectionSessionCashData(')
           ..write('id: $id, ')
           ..write('odooId: $odooId, ')
-          ..write('sessionId: $sessionId, ')
           ..write('collectionSessionId: $collectionSessionId, ')
           ..write('denomination: $denomination, ')
           ..write('cashType: $cashType, ')
@@ -27684,7 +27651,6 @@ class CollectionSessionCashData extends DataClass
   int get hashCode => Object.hashAll([
     id,
     odooId,
-    sessionId,
     collectionSessionId,
     denomination,
     cashType,
@@ -27713,7 +27679,6 @@ class CollectionSessionCashData extends DataClass
       (other is CollectionSessionCashData &&
           other.id == this.id &&
           other.odooId == this.odooId &&
-          other.sessionId == this.sessionId &&
           other.collectionSessionId == this.collectionSessionId &&
           other.denomination == this.denomination &&
           other.cashType == this.cashType &&
@@ -27741,7 +27706,6 @@ class CollectionSessionCashCompanion
     extends UpdateCompanion<CollectionSessionCashData> {
   final Value<int> id;
   final Value<int> odooId;
-  final Value<int> sessionId;
   final Value<int> collectionSessionId;
   final Value<String?> denomination;
   final Value<String?> cashType;
@@ -27766,7 +27730,6 @@ class CollectionSessionCashCompanion
   const CollectionSessionCashCompanion({
     this.id = const Value.absent(),
     this.odooId = const Value.absent(),
-    this.sessionId = const Value.absent(),
     this.collectionSessionId = const Value.absent(),
     this.denomination = const Value.absent(),
     this.cashType = const Value.absent(),
@@ -27792,7 +27755,6 @@ class CollectionSessionCashCompanion
   CollectionSessionCashCompanion.insert({
     this.id = const Value.absent(),
     required int odooId,
-    required int sessionId,
     required int collectionSessionId,
     this.denomination = const Value.absent(),
     this.cashType = const Value.absent(),
@@ -27815,12 +27777,10 @@ class CollectionSessionCashCompanion
     this.lastSyncDate = const Value.absent(),
     this.writeDate = const Value.absent(),
   }) : odooId = Value(odooId),
-       sessionId = Value(sessionId),
        collectionSessionId = Value(collectionSessionId);
   static Insertable<CollectionSessionCashData> custom({
     Expression<int>? id,
     Expression<int>? odooId,
-    Expression<int>? sessionId,
     Expression<int>? collectionSessionId,
     Expression<String>? denomination,
     Expression<String>? cashType,
@@ -27846,7 +27806,6 @@ class CollectionSessionCashCompanion
     return RawValuesInsertable({
       if (id != null) 'id': id,
       if (odooId != null) 'odoo_id': odooId,
-      if (sessionId != null) 'session_id': sessionId,
       if (collectionSessionId != null)
         'collection_session_id': collectionSessionId,
       if (denomination != null) 'denomination': denomination,
@@ -27875,7 +27834,6 @@ class CollectionSessionCashCompanion
   CollectionSessionCashCompanion copyWith({
     Value<int>? id,
     Value<int>? odooId,
-    Value<int>? sessionId,
     Value<int>? collectionSessionId,
     Value<String?>? denomination,
     Value<String?>? cashType,
@@ -27901,7 +27859,6 @@ class CollectionSessionCashCompanion
     return CollectionSessionCashCompanion(
       id: id ?? this.id,
       odooId: odooId ?? this.odooId,
-      sessionId: sessionId ?? this.sessionId,
       collectionSessionId: collectionSessionId ?? this.collectionSessionId,
       denomination: denomination ?? this.denomination,
       cashType: cashType ?? this.cashType,
@@ -27934,9 +27891,6 @@ class CollectionSessionCashCompanion
     }
     if (odooId.present) {
       map['odoo_id'] = Variable<int>(odooId.value);
-    }
-    if (sessionId.present) {
-      map['session_id'] = Variable<int>(sessionId.value);
     }
     if (collectionSessionId.present) {
       map['collection_session_id'] = Variable<int>(collectionSessionId.value);
@@ -28009,7 +27963,6 @@ class CollectionSessionCashCompanion
     return (StringBuffer('CollectionSessionCashCompanion(')
           ..write('id: $id, ')
           ..write('odooId: $odooId, ')
-          ..write('sessionId: $sessionId, ')
           ..write('collectionSessionId: $collectionSessionId, ')
           ..write('denomination: $denomination, ')
           ..write('cashType: $cashType, ')
@@ -28077,17 +28030,6 @@ class $CollectionSessionDepositTable extends CollectionSessionDeposit
     true,
     type: DriftSqlType.string,
     requiredDuringInsert: false,
-  );
-  static const VerificationMeta _sessionIdMeta = const VerificationMeta(
-    'sessionId',
-  );
-  @override
-  late final GeneratedColumn<int> sessionId = GeneratedColumn<int>(
-    'session_id',
-    aliasedName,
-    false,
-    type: DriftSqlType.int,
-    requiredDuringInsert: true,
   );
   static const VerificationMeta _collectionSessionIdMeta =
       const VerificationMeta('collectionSessionId');
@@ -28403,7 +28345,6 @@ class $CollectionSessionDepositTable extends CollectionSessionDeposit
     id,
     odooId,
     uuid,
-    sessionId,
     collectionSessionId,
     name,
     depositType,
@@ -28460,14 +28401,6 @@ class $CollectionSessionDepositTable extends CollectionSessionDeposit
         _uuidMeta,
         uuid.isAcceptableOrUnknown(data['uuid']!, _uuidMeta),
       );
-    }
-    if (data.containsKey('session_id')) {
-      context.handle(
-        _sessionIdMeta,
-        sessionId.isAcceptableOrUnknown(data['session_id']!, _sessionIdMeta),
-      );
-    } else if (isInserting) {
-      context.missing(_sessionIdMeta);
     }
     if (data.containsKey('collection_session_id')) {
       context.handle(
@@ -28709,10 +28642,6 @@ class $CollectionSessionDepositTable extends CollectionSessionDeposit
         DriftSqlType.string,
         data['${effectivePrefix}uuid'],
       ),
-      sessionId: attachedDatabase.typeMapping.read(
-        DriftSqlType.int,
-        data['${effectivePrefix}session_id'],
-      )!,
       collectionSessionId: attachedDatabase.typeMapping.read(
         DriftSqlType.int,
         data['${effectivePrefix}collection_session_id'],
@@ -28843,7 +28772,6 @@ class CollectionSessionDepositData extends DataClass
   final int id;
   final int? odooId;
   final String? uuid;
-  final int sessionId;
   final int collectionSessionId;
   final String? name;
   final String depositType;
@@ -28877,7 +28805,6 @@ class CollectionSessionDepositData extends DataClass
     required this.id,
     this.odooId,
     this.uuid,
-    required this.sessionId,
     required this.collectionSessionId,
     this.name,
     required this.depositType,
@@ -28918,7 +28845,6 @@ class CollectionSessionDepositData extends DataClass
     if (!nullToAbsent || uuid != null) {
       map['uuid'] = Variable<String>(uuid);
     }
-    map['session_id'] = Variable<int>(sessionId);
     map['collection_session_id'] = Variable<int>(collectionSessionId);
     if (!nullToAbsent || name != null) {
       map['name'] = Variable<String>(name);
@@ -28998,7 +28924,6 @@ class CollectionSessionDepositData extends DataClass
           ? const Value.absent()
           : Value(odooId),
       uuid: uuid == null && nullToAbsent ? const Value.absent() : Value(uuid),
-      sessionId: Value(sessionId),
       collectionSessionId: Value(collectionSessionId),
       name: name == null && nullToAbsent ? const Value.absent() : Value(name),
       depositType: Value(depositType),
@@ -29074,7 +28999,6 @@ class CollectionSessionDepositData extends DataClass
       id: serializer.fromJson<int>(json['id']),
       odooId: serializer.fromJson<int?>(json['odooId']),
       uuid: serializer.fromJson<String?>(json['uuid']),
-      sessionId: serializer.fromJson<int>(json['sessionId']),
       collectionSessionId: serializer.fromJson<int>(
         json['collectionSessionId'],
       ),
@@ -29117,7 +29041,6 @@ class CollectionSessionDepositData extends DataClass
       'id': serializer.toJson<int>(id),
       'odooId': serializer.toJson<int?>(odooId),
       'uuid': serializer.toJson<String?>(uuid),
-      'sessionId': serializer.toJson<int>(sessionId),
       'collectionSessionId': serializer.toJson<int>(collectionSessionId),
       'name': serializer.toJson<String?>(name),
       'depositType': serializer.toJson<String>(depositType),
@@ -29154,7 +29077,6 @@ class CollectionSessionDepositData extends DataClass
     int? id,
     Value<int?> odooId = const Value.absent(),
     Value<String?> uuid = const Value.absent(),
-    int? sessionId,
     int? collectionSessionId,
     Value<String?> name = const Value.absent(),
     String? depositType,
@@ -29188,7 +29110,6 @@ class CollectionSessionDepositData extends DataClass
     id: id ?? this.id,
     odooId: odooId.present ? odooId.value : this.odooId,
     uuid: uuid.present ? uuid.value : this.uuid,
-    sessionId: sessionId ?? this.sessionId,
     collectionSessionId: collectionSessionId ?? this.collectionSessionId,
     name: name.present ? name.value : this.name,
     depositType: depositType ?? this.depositType,
@@ -29238,7 +29159,6 @@ class CollectionSessionDepositData extends DataClass
       id: data.id.present ? data.id.value : this.id,
       odooId: data.odooId.present ? data.odooId.value : this.odooId,
       uuid: data.uuid.present ? data.uuid.value : this.uuid,
-      sessionId: data.sessionId.present ? data.sessionId.value : this.sessionId,
       collectionSessionId: data.collectionSessionId.present
           ? data.collectionSessionId.value
           : this.collectionSessionId,
@@ -29305,7 +29225,6 @@ class CollectionSessionDepositData extends DataClass
           ..write('id: $id, ')
           ..write('odooId: $odooId, ')
           ..write('uuid: $uuid, ')
-          ..write('sessionId: $sessionId, ')
           ..write('collectionSessionId: $collectionSessionId, ')
           ..write('name: $name, ')
           ..write('depositType: $depositType, ')
@@ -29344,7 +29263,6 @@ class CollectionSessionDepositData extends DataClass
     id,
     odooId,
     uuid,
-    sessionId,
     collectionSessionId,
     name,
     depositType,
@@ -29382,7 +29300,6 @@ class CollectionSessionDepositData extends DataClass
           other.id == this.id &&
           other.odooId == this.odooId &&
           other.uuid == this.uuid &&
-          other.sessionId == this.sessionId &&
           other.collectionSessionId == this.collectionSessionId &&
           other.name == this.name &&
           other.depositType == this.depositType &&
@@ -29419,7 +29336,6 @@ class CollectionSessionDepositCompanion
   final Value<int> id;
   final Value<int?> odooId;
   final Value<String?> uuid;
-  final Value<int> sessionId;
   final Value<int> collectionSessionId;
   final Value<String?> name;
   final Value<String> depositType;
@@ -29453,7 +29369,6 @@ class CollectionSessionDepositCompanion
     this.id = const Value.absent(),
     this.odooId = const Value.absent(),
     this.uuid = const Value.absent(),
-    this.sessionId = const Value.absent(),
     this.collectionSessionId = const Value.absent(),
     this.name = const Value.absent(),
     this.depositType = const Value.absent(),
@@ -29488,7 +29403,6 @@ class CollectionSessionDepositCompanion
     this.id = const Value.absent(),
     this.odooId = const Value.absent(),
     this.uuid = const Value.absent(),
-    required int sessionId,
     required int collectionSessionId,
     this.name = const Value.absent(),
     required String depositType,
@@ -29518,15 +29432,13 @@ class CollectionSessionDepositCompanion
     this.isSynced = const Value.absent(),
     this.lastSyncDate = const Value.absent(),
     this.writeDate = const Value.absent(),
-  }) : sessionId = Value(sessionId),
-       collectionSessionId = Value(collectionSessionId),
+  }) : collectionSessionId = Value(collectionSessionId),
        depositType = Value(depositType),
        depositDate = Value(depositDate);
   static Insertable<CollectionSessionDepositData> custom({
     Expression<int>? id,
     Expression<int>? odooId,
     Expression<String>? uuid,
-    Expression<int>? sessionId,
     Expression<int>? collectionSessionId,
     Expression<String>? name,
     Expression<String>? depositType,
@@ -29561,7 +29473,6 @@ class CollectionSessionDepositCompanion
       if (id != null) 'id': id,
       if (odooId != null) 'odoo_id': odooId,
       if (uuid != null) 'uuid': uuid,
-      if (sessionId != null) 'session_id': sessionId,
       if (collectionSessionId != null)
         'collection_session_id': collectionSessionId,
       if (name != null) 'name': name,
@@ -29599,7 +29510,6 @@ class CollectionSessionDepositCompanion
     Value<int>? id,
     Value<int?>? odooId,
     Value<String?>? uuid,
-    Value<int>? sessionId,
     Value<int>? collectionSessionId,
     Value<String?>? name,
     Value<String>? depositType,
@@ -29634,7 +29544,6 @@ class CollectionSessionDepositCompanion
       id: id ?? this.id,
       odooId: odooId ?? this.odooId,
       uuid: uuid ?? this.uuid,
-      sessionId: sessionId ?? this.sessionId,
       collectionSessionId: collectionSessionId ?? this.collectionSessionId,
       name: name ?? this.name,
       depositType: depositType ?? this.depositType,
@@ -29678,9 +29587,6 @@ class CollectionSessionDepositCompanion
     }
     if (uuid.present) {
       map['uuid'] = Variable<String>(uuid.value);
-    }
-    if (sessionId.present) {
-      map['session_id'] = Variable<int>(sessionId.value);
     }
     if (collectionSessionId.present) {
       map['collection_session_id'] = Variable<int>(collectionSessionId.value);
@@ -29778,7 +29684,6 @@ class CollectionSessionDepositCompanion
           ..write('id: $id, ')
           ..write('odooId: $odooId, ')
           ..write('uuid: $uuid, ')
-          ..write('sessionId: $sessionId, ')
           ..write('collectionSessionId: $collectionSessionId, ')
           ..write('name: $name, ')
           ..write('depositType: $depositType, ')
@@ -29840,17 +29745,6 @@ class $CashOutTable extends CashOut with TableInfo<$CashOutTable, CashOutData> {
     type: DriftSqlType.int,
     requiredDuringInsert: false,
     defaultConstraints: GeneratedColumn.constraintIsAlways('UNIQUE'),
-  );
-  static const VerificationMeta _sessionIdMeta = const VerificationMeta(
-    'sessionId',
-  );
-  @override
-  late final GeneratedColumn<int> sessionId = GeneratedColumn<int>(
-    'session_id',
-    aliasedName,
-    false,
-    type: DriftSqlType.int,
-    requiredDuringInsert: true,
   );
   static const VerificationMeta _collectionSessionIdMeta =
       const VerificationMeta('collectionSessionId');
@@ -30122,7 +30016,6 @@ class $CashOutTable extends CashOut with TableInfo<$CashOutTable, CashOutData> {
   List<GeneratedColumn> get $columns => [
     id,
     odooId,
-    sessionId,
     collectionSessionId,
     cashOutType,
     type,
@@ -30169,14 +30062,6 @@ class $CashOutTable extends CashOut with TableInfo<$CashOutTable, CashOutData> {
         _odooIdMeta,
         odooId.isAcceptableOrUnknown(data['odoo_id']!, _odooIdMeta),
       );
-    }
-    if (data.containsKey('session_id')) {
-      context.handle(
-        _sessionIdMeta,
-        sessionId.isAcceptableOrUnknown(data['session_id']!, _sessionIdMeta),
-      );
-    } else if (isInserting) {
-      context.missing(_sessionIdMeta);
     }
     if (data.containsKey('collection_session_id')) {
       context.handle(
@@ -30379,10 +30264,6 @@ class $CashOutTable extends CashOut with TableInfo<$CashOutTable, CashOutData> {
         DriftSqlType.int,
         data['${effectivePrefix}odoo_id'],
       ),
-      sessionId: attachedDatabase.typeMapping.read(
-        DriftSqlType.int,
-        data['${effectivePrefix}session_id'],
-      )!,
       collectionSessionId: attachedDatabase.typeMapping.read(
         DriftSqlType.int,
         data['${effectivePrefix}collection_session_id'],
@@ -30495,7 +30376,6 @@ class $CashOutTable extends CashOut with TableInfo<$CashOutTable, CashOutData> {
 class CashOutData extends DataClass implements Insertable<CashOutData> {
   final int id;
   final int? odooId;
-  final int sessionId;
   final int collectionSessionId;
   final String cashOutType;
   final String? type;
@@ -30524,7 +30404,6 @@ class CashOutData extends DataClass implements Insertable<CashOutData> {
   const CashOutData({
     required this.id,
     this.odooId,
-    required this.sessionId,
     required this.collectionSessionId,
     required this.cashOutType,
     this.type,
@@ -30558,7 +30437,6 @@ class CashOutData extends DataClass implements Insertable<CashOutData> {
     if (!nullToAbsent || odooId != null) {
       map['odoo_id'] = Variable<int>(odooId);
     }
-    map['session_id'] = Variable<int>(sessionId);
     map['collection_session_id'] = Variable<int>(collectionSessionId);
     map['cash_out_type'] = Variable<String>(cashOutType);
     if (!nullToAbsent || type != null) {
@@ -30629,7 +30507,6 @@ class CashOutData extends DataClass implements Insertable<CashOutData> {
       odooId: odooId == null && nullToAbsent
           ? const Value.absent()
           : Value(odooId),
-      sessionId: Value(sessionId),
       collectionSessionId: Value(collectionSessionId),
       cashOutType: Value(cashOutType),
       type: type == null && nullToAbsent ? const Value.absent() : Value(type),
@@ -30692,7 +30569,6 @@ class CashOutData extends DataClass implements Insertable<CashOutData> {
     return CashOutData(
       id: serializer.fromJson<int>(json['id']),
       odooId: serializer.fromJson<int?>(json['odooId']),
-      sessionId: serializer.fromJson<int>(json['sessionId']),
       collectionSessionId: serializer.fromJson<int>(
         json['collectionSessionId'],
       ),
@@ -30728,7 +30604,6 @@ class CashOutData extends DataClass implements Insertable<CashOutData> {
     return <String, dynamic>{
       'id': serializer.toJson<int>(id),
       'odooId': serializer.toJson<int?>(odooId),
-      'sessionId': serializer.toJson<int>(sessionId),
       'collectionSessionId': serializer.toJson<int>(collectionSessionId),
       'cashOutType': serializer.toJson<String>(cashOutType),
       'type': serializer.toJson<String?>(type),
@@ -30760,7 +30635,6 @@ class CashOutData extends DataClass implements Insertable<CashOutData> {
   CashOutData copyWith({
     int? id,
     Value<int?> odooId = const Value.absent(),
-    int? sessionId,
     int? collectionSessionId,
     String? cashOutType,
     Value<String?> type = const Value.absent(),
@@ -30789,7 +30663,6 @@ class CashOutData extends DataClass implements Insertable<CashOutData> {
   }) => CashOutData(
     id: id ?? this.id,
     odooId: odooId.present ? odooId.value : this.odooId,
-    sessionId: sessionId ?? this.sessionId,
     collectionSessionId: collectionSessionId ?? this.collectionSessionId,
     cashOutType: cashOutType ?? this.cashOutType,
     type: type.present ? type.value : this.type,
@@ -30826,7 +30699,6 @@ class CashOutData extends DataClass implements Insertable<CashOutData> {
     return CashOutData(
       id: data.id.present ? data.id.value : this.id,
       odooId: data.odooId.present ? data.odooId.value : this.odooId,
-      sessionId: data.sessionId.present ? data.sessionId.value : this.sessionId,
       collectionSessionId: data.collectionSessionId.present
           ? data.collectionSessionId.value
           : this.collectionSessionId,
@@ -30882,7 +30754,6 @@ class CashOutData extends DataClass implements Insertable<CashOutData> {
     return (StringBuffer('CashOutData(')
           ..write('id: $id, ')
           ..write('odooId: $odooId, ')
-          ..write('sessionId: $sessionId, ')
           ..write('collectionSessionId: $collectionSessionId, ')
           ..write('cashOutType: $cashOutType, ')
           ..write('type: $type, ')
@@ -30916,7 +30787,6 @@ class CashOutData extends DataClass implements Insertable<CashOutData> {
   int get hashCode => Object.hashAll([
     id,
     odooId,
-    sessionId,
     collectionSessionId,
     cashOutType,
     type,
@@ -30949,7 +30819,6 @@ class CashOutData extends DataClass implements Insertable<CashOutData> {
       (other is CashOutData &&
           other.id == this.id &&
           other.odooId == this.odooId &&
-          other.sessionId == this.sessionId &&
           other.collectionSessionId == this.collectionSessionId &&
           other.cashOutType == this.cashOutType &&
           other.type == this.type &&
@@ -30980,7 +30849,6 @@ class CashOutData extends DataClass implements Insertable<CashOutData> {
 class CashOutCompanion extends UpdateCompanion<CashOutData> {
   final Value<int> id;
   final Value<int?> odooId;
-  final Value<int> sessionId;
   final Value<int> collectionSessionId;
   final Value<String> cashOutType;
   final Value<String?> type;
@@ -31009,7 +30877,6 @@ class CashOutCompanion extends UpdateCompanion<CashOutData> {
   const CashOutCompanion({
     this.id = const Value.absent(),
     this.odooId = const Value.absent(),
-    this.sessionId = const Value.absent(),
     this.collectionSessionId = const Value.absent(),
     this.cashOutType = const Value.absent(),
     this.type = const Value.absent(),
@@ -31039,7 +30906,6 @@ class CashOutCompanion extends UpdateCompanion<CashOutData> {
   CashOutCompanion.insert({
     this.id = const Value.absent(),
     this.odooId = const Value.absent(),
-    required int sessionId,
     required int collectionSessionId,
     required String cashOutType,
     this.type = const Value.absent(),
@@ -31065,13 +30931,11 @@ class CashOutCompanion extends UpdateCompanion<CashOutData> {
     this.isSynced = const Value.absent(),
     this.lastSyncDate = const Value.absent(),
     this.writeDate = const Value.absent(),
-  }) : sessionId = Value(sessionId),
-       collectionSessionId = Value(collectionSessionId),
+  }) : collectionSessionId = Value(collectionSessionId),
        cashOutType = Value(cashOutType);
   static Insertable<CashOutData> custom({
     Expression<int>? id,
     Expression<int>? odooId,
-    Expression<int>? sessionId,
     Expression<int>? collectionSessionId,
     Expression<String>? cashOutType,
     Expression<String>? type,
@@ -31101,7 +30965,6 @@ class CashOutCompanion extends UpdateCompanion<CashOutData> {
     return RawValuesInsertable({
       if (id != null) 'id': id,
       if (odooId != null) 'odoo_id': odooId,
-      if (sessionId != null) 'session_id': sessionId,
       if (collectionSessionId != null)
         'collection_session_id': collectionSessionId,
       if (cashOutType != null) 'cash_out_type': cashOutType,
@@ -31134,7 +30997,6 @@ class CashOutCompanion extends UpdateCompanion<CashOutData> {
   CashOutCompanion copyWith({
     Value<int>? id,
     Value<int?>? odooId,
-    Value<int>? sessionId,
     Value<int>? collectionSessionId,
     Value<String>? cashOutType,
     Value<String?>? type,
@@ -31164,7 +31026,6 @@ class CashOutCompanion extends UpdateCompanion<CashOutData> {
     return CashOutCompanion(
       id: id ?? this.id,
       odooId: odooId ?? this.odooId,
-      sessionId: sessionId ?? this.sessionId,
       collectionSessionId: collectionSessionId ?? this.collectionSessionId,
       cashOutType: cashOutType ?? this.cashOutType,
       type: type ?? this.type,
@@ -31201,9 +31062,6 @@ class CashOutCompanion extends UpdateCompanion<CashOutData> {
     }
     if (odooId.present) {
       map['odoo_id'] = Variable<int>(odooId.value);
-    }
-    if (sessionId.present) {
-      map['session_id'] = Variable<int>(sessionId.value);
     }
     if (collectionSessionId.present) {
       map['collection_session_id'] = Variable<int>(collectionSessionId.value);
@@ -31288,7 +31146,6 @@ class CashOutCompanion extends UpdateCompanion<CashOutData> {
     return (StringBuffer('CashOutCompanion(')
           ..write('id: $id, ')
           ..write('odooId: $odooId, ')
-          ..write('sessionId: $sessionId, ')
           ..write('collectionSessionId: $collectionSessionId, ')
           ..write('cashOutType: $cashOutType, ')
           ..write('type: $type, ')
@@ -31319,12 +31176,12 @@ class CashOutCompanion extends UpdateCompanion<CashOutData> {
   }
 }
 
-class $AccountPaymentTable extends AccountPayment
-    with TableInfo<$AccountPaymentTable, AccountPaymentData> {
+class $AccountPaymentTableTable extends AccountPaymentTable
+    with TableInfo<$AccountPaymentTableTable, AccountPaymentData> {
   @override
   final GeneratedDatabase attachedDatabase;
   final String? _alias;
-  $AccountPaymentTable(this.attachedDatabase, [this._alias]);
+  $AccountPaymentTableTable(this.attachedDatabase, [this._alias]);
   static const VerificationMeta _idMeta = const VerificationMeta('id');
   @override
   late final GeneratedColumn<int> id = GeneratedColumn<int>(
@@ -32408,8 +32265,8 @@ class $AccountPaymentTable extends AccountPayment
   }
 
   @override
-  $AccountPaymentTable createAlias(String alias) {
-    return $AccountPaymentTable(attachedDatabase, alias);
+  $AccountPaymentTableTable createAlias(String alias) {
+    return $AccountPaymentTableTable(attachedDatabase, alias);
   }
 }
 
@@ -34137,6 +33994,16 @@ class $AccountMoveTable extends AccountMove
         type: DriftSqlType.string,
         requiredDuringInsert: false,
       );
+  static const VerificationMeta _l10nEcSriPaymentIdMeta =
+      const VerificationMeta('l10nEcSriPaymentId');
+  @override
+  late final GeneratedColumn<int> l10nEcSriPaymentId = GeneratedColumn<int>(
+    'l10n_ec_sri_payment_id',
+    aliasedName,
+    true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+  );
   static const VerificationMeta _l10nEcSriPaymentNameMeta =
       const VerificationMeta('l10nEcSriPaymentName');
   @override
@@ -34222,6 +34089,7 @@ class $AccountMoveTable extends AccountMove
     l10nLatamDocumentNumber,
     l10nLatamDocumentTypeId,
     l10nLatamDocumentTypeName,
+    l10nEcSriPaymentId,
     l10nEcSriPaymentName,
     isSynced,
     lastSyncDate,
@@ -34516,6 +34384,15 @@ class $AccountMoveTable extends AccountMove
         ),
       );
     }
+    if (data.containsKey('l10n_ec_sri_payment_id')) {
+      context.handle(
+        _l10nEcSriPaymentIdMeta,
+        l10nEcSriPaymentId.isAcceptableOrUnknown(
+          data['l10n_ec_sri_payment_id']!,
+          _l10nEcSriPaymentIdMeta,
+        ),
+      );
+    }
     if (data.containsKey('l10n_ec_sri_payment_name')) {
       context.handle(
         _l10nEcSriPaymentNameMeta,
@@ -34695,6 +34572,10 @@ class $AccountMoveTable extends AccountMove
         DriftSqlType.string,
         data['${effectivePrefix}l10n_latam_document_type_name'],
       ),
+      l10nEcSriPaymentId: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}l10n_ec_sri_payment_id'],
+      ),
       l10nEcSriPaymentName: attachedDatabase.typeMapping.read(
         DriftSqlType.string,
         data['${effectivePrefix}l10n_ec_sri_payment_name'],
@@ -34756,6 +34637,7 @@ class AccountMoveData extends DataClass implements Insertable<AccountMoveData> {
   final String? l10nLatamDocumentNumber;
   final int? l10nLatamDocumentTypeId;
   final String? l10nLatamDocumentTypeName;
+  final int? l10nEcSriPaymentId;
   final String? l10nEcSriPaymentName;
   final bool isSynced;
   final DateTime? lastSyncDate;
@@ -34796,6 +34678,7 @@ class AccountMoveData extends DataClass implements Insertable<AccountMoveData> {
     this.l10nLatamDocumentNumber,
     this.l10nLatamDocumentTypeId,
     this.l10nLatamDocumentTypeName,
+    this.l10nEcSriPaymentId,
     this.l10nEcSriPaymentName,
     required this.isSynced,
     this.lastSyncDate,
@@ -34901,6 +34784,9 @@ class AccountMoveData extends DataClass implements Insertable<AccountMoveData> {
         l10nLatamDocumentTypeName,
       );
     }
+    if (!nullToAbsent || l10nEcSriPaymentId != null) {
+      map['l10n_ec_sri_payment_id'] = Variable<int>(l10nEcSriPaymentId);
+    }
     if (!nullToAbsent || l10nEcSriPaymentName != null) {
       map['l10n_ec_sri_payment_name'] = Variable<String>(l10nEcSriPaymentName);
     }
@@ -34999,6 +34885,9 @@ class AccountMoveData extends DataClass implements Insertable<AccountMoveData> {
           l10nLatamDocumentTypeName == null && nullToAbsent
           ? const Value.absent()
           : Value(l10nLatamDocumentTypeName),
+      l10nEcSriPaymentId: l10nEcSriPaymentId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(l10nEcSriPaymentId),
       l10nEcSriPaymentName: l10nEcSriPaymentName == null && nullToAbsent
           ? const Value.absent()
           : Value(l10nEcSriPaymentName),
@@ -35063,6 +34952,7 @@ class AccountMoveData extends DataClass implements Insertable<AccountMoveData> {
       l10nLatamDocumentTypeName: serializer.fromJson<String?>(
         json['l10nLatamDocumentTypeName'],
       ),
+      l10nEcSriPaymentId: serializer.fromJson<int?>(json['l10nEcSriPaymentId']),
       l10nEcSriPaymentName: serializer.fromJson<String?>(
         json['l10nEcSriPaymentName'],
       ),
@@ -35120,6 +35010,7 @@ class AccountMoveData extends DataClass implements Insertable<AccountMoveData> {
       'l10nLatamDocumentTypeName': serializer.toJson<String?>(
         l10nLatamDocumentTypeName,
       ),
+      'l10nEcSriPaymentId': serializer.toJson<int?>(l10nEcSriPaymentId),
       'l10nEcSriPaymentName': serializer.toJson<String?>(l10nEcSriPaymentName),
       'isSynced': serializer.toJson<bool>(isSynced),
       'lastSyncDate': serializer.toJson<DateTime?>(lastSyncDate),
@@ -35163,6 +35054,7 @@ class AccountMoveData extends DataClass implements Insertable<AccountMoveData> {
     Value<String?> l10nLatamDocumentNumber = const Value.absent(),
     Value<int?> l10nLatamDocumentTypeId = const Value.absent(),
     Value<String?> l10nLatamDocumentTypeName = const Value.absent(),
+    Value<int?> l10nEcSriPaymentId = const Value.absent(),
     Value<String?> l10nEcSriPaymentName = const Value.absent(),
     bool? isSynced,
     Value<DateTime?> lastSyncDate = const Value.absent(),
@@ -35221,6 +35113,9 @@ class AccountMoveData extends DataClass implements Insertable<AccountMoveData> {
     l10nLatamDocumentTypeName: l10nLatamDocumentTypeName.present
         ? l10nLatamDocumentTypeName.value
         : this.l10nLatamDocumentTypeName,
+    l10nEcSriPaymentId: l10nEcSriPaymentId.present
+        ? l10nEcSriPaymentId.value
+        : this.l10nEcSriPaymentId,
     l10nEcSriPaymentName: l10nEcSriPaymentName.present
         ? l10nEcSriPaymentName.value
         : this.l10nEcSriPaymentName,
@@ -35313,6 +35208,9 @@ class AccountMoveData extends DataClass implements Insertable<AccountMoveData> {
       l10nLatamDocumentTypeName: data.l10nLatamDocumentTypeName.present
           ? data.l10nLatamDocumentTypeName.value
           : this.l10nLatamDocumentTypeName,
+      l10nEcSriPaymentId: data.l10nEcSriPaymentId.present
+          ? data.l10nEcSriPaymentId.value
+          : this.l10nEcSriPaymentId,
       l10nEcSriPaymentName: data.l10nEcSriPaymentName.present
           ? data.l10nEcSriPaymentName.value
           : this.l10nEcSriPaymentName,
@@ -35362,6 +35260,7 @@ class AccountMoveData extends DataClass implements Insertable<AccountMoveData> {
           ..write('l10nLatamDocumentNumber: $l10nLatamDocumentNumber, ')
           ..write('l10nLatamDocumentTypeId: $l10nLatamDocumentTypeId, ')
           ..write('l10nLatamDocumentTypeName: $l10nLatamDocumentTypeName, ')
+          ..write('l10nEcSriPaymentId: $l10nEcSriPaymentId, ')
           ..write('l10nEcSriPaymentName: $l10nEcSriPaymentName, ')
           ..write('isSynced: $isSynced, ')
           ..write('lastSyncDate: $lastSyncDate, ')
@@ -35407,6 +35306,7 @@ class AccountMoveData extends DataClass implements Insertable<AccountMoveData> {
     l10nLatamDocumentNumber,
     l10nLatamDocumentTypeId,
     l10nLatamDocumentTypeName,
+    l10nEcSriPaymentId,
     l10nEcSriPaymentName,
     isSynced,
     lastSyncDate,
@@ -35451,6 +35351,7 @@ class AccountMoveData extends DataClass implements Insertable<AccountMoveData> {
           other.l10nLatamDocumentNumber == this.l10nLatamDocumentNumber &&
           other.l10nLatamDocumentTypeId == this.l10nLatamDocumentTypeId &&
           other.l10nLatamDocumentTypeName == this.l10nLatamDocumentTypeName &&
+          other.l10nEcSriPaymentId == this.l10nEcSriPaymentId &&
           other.l10nEcSriPaymentName == this.l10nEcSriPaymentName &&
           other.isSynced == this.isSynced &&
           other.lastSyncDate == this.lastSyncDate &&
@@ -35493,6 +35394,7 @@ class AccountMoveCompanion extends UpdateCompanion<AccountMoveData> {
   final Value<String?> l10nLatamDocumentNumber;
   final Value<int?> l10nLatamDocumentTypeId;
   final Value<String?> l10nLatamDocumentTypeName;
+  final Value<int?> l10nEcSriPaymentId;
   final Value<String?> l10nEcSriPaymentName;
   final Value<bool> isSynced;
   final Value<DateTime?> lastSyncDate;
@@ -35533,6 +35435,7 @@ class AccountMoveCompanion extends UpdateCompanion<AccountMoveData> {
     this.l10nLatamDocumentNumber = const Value.absent(),
     this.l10nLatamDocumentTypeId = const Value.absent(),
     this.l10nLatamDocumentTypeName = const Value.absent(),
+    this.l10nEcSriPaymentId = const Value.absent(),
     this.l10nEcSriPaymentName = const Value.absent(),
     this.isSynced = const Value.absent(),
     this.lastSyncDate = const Value.absent(),
@@ -35574,6 +35477,7 @@ class AccountMoveCompanion extends UpdateCompanion<AccountMoveData> {
     this.l10nLatamDocumentNumber = const Value.absent(),
     this.l10nLatamDocumentTypeId = const Value.absent(),
     this.l10nLatamDocumentTypeName = const Value.absent(),
+    this.l10nEcSriPaymentId = const Value.absent(),
     this.l10nEcSriPaymentName = const Value.absent(),
     this.isSynced = const Value.absent(),
     this.lastSyncDate = const Value.absent(),
@@ -35616,6 +35520,7 @@ class AccountMoveCompanion extends UpdateCompanion<AccountMoveData> {
     Expression<String>? l10nLatamDocumentNumber,
     Expression<int>? l10nLatamDocumentTypeId,
     Expression<String>? l10nLatamDocumentTypeName,
+    Expression<int>? l10nEcSriPaymentId,
     Expression<String>? l10nEcSriPaymentName,
     Expression<bool>? isSynced,
     Expression<DateTime>? lastSyncDate,
@@ -35662,6 +35567,8 @@ class AccountMoveCompanion extends UpdateCompanion<AccountMoveData> {
         'l10n_latam_document_type_id': l10nLatamDocumentTypeId,
       if (l10nLatamDocumentTypeName != null)
         'l10n_latam_document_type_name': l10nLatamDocumentTypeName,
+      if (l10nEcSriPaymentId != null)
+        'l10n_ec_sri_payment_id': l10nEcSriPaymentId,
       if (l10nEcSriPaymentName != null)
         'l10n_ec_sri_payment_name': l10nEcSriPaymentName,
       if (isSynced != null) 'is_synced': isSynced,
@@ -35706,6 +35613,7 @@ class AccountMoveCompanion extends UpdateCompanion<AccountMoveData> {
     Value<String?>? l10nLatamDocumentNumber,
     Value<int?>? l10nLatamDocumentTypeId,
     Value<String?>? l10nLatamDocumentTypeName,
+    Value<int?>? l10nEcSriPaymentId,
     Value<String?>? l10nEcSriPaymentName,
     Value<bool>? isSynced,
     Value<DateTime?>? lastSyncDate,
@@ -35752,6 +35660,7 @@ class AccountMoveCompanion extends UpdateCompanion<AccountMoveData> {
           l10nLatamDocumentTypeId ?? this.l10nLatamDocumentTypeId,
       l10nLatamDocumentTypeName:
           l10nLatamDocumentTypeName ?? this.l10nLatamDocumentTypeName,
+      l10nEcSriPaymentId: l10nEcSriPaymentId ?? this.l10nEcSriPaymentId,
       l10nEcSriPaymentName: l10nEcSriPaymentName ?? this.l10nEcSriPaymentName,
       isSynced: isSynced ?? this.isSynced,
       lastSyncDate: lastSyncDate ?? this.lastSyncDate,
@@ -35877,6 +35786,9 @@ class AccountMoveCompanion extends UpdateCompanion<AccountMoveData> {
         l10nLatamDocumentTypeName.value,
       );
     }
+    if (l10nEcSriPaymentId.present) {
+      map['l10n_ec_sri_payment_id'] = Variable<int>(l10nEcSriPaymentId.value);
+    }
     if (l10nEcSriPaymentName.present) {
       map['l10n_ec_sri_payment_name'] = Variable<String>(
         l10nEcSriPaymentName.value,
@@ -35932,6 +35844,7 @@ class AccountMoveCompanion extends UpdateCompanion<AccountMoveData> {
           ..write('l10nLatamDocumentNumber: $l10nLatamDocumentNumber, ')
           ..write('l10nLatamDocumentTypeId: $l10nLatamDocumentTypeId, ')
           ..write('l10nLatamDocumentTypeName: $l10nLatamDocumentTypeName, ')
+          ..write('l10nEcSriPaymentId: $l10nEcSriPaymentId, ')
           ..write('l10nEcSriPaymentName: $l10nEcSriPaymentName, ')
           ..write('isSynced: $isSynced, ')
           ..write('lastSyncDate: $lastSyncDate, ')
@@ -36315,9 +36228,9 @@ class $AccountMoveLineTable extends AccountMoveLine
   late final GeneratedColumn<DateTime> date = GeneratedColumn<DateTime>(
     'date',
     aliasedName,
-    false,
+    true,
     type: DriftSqlType.dateTime,
-    requiredDuringInsert: true,
+    requiredDuringInsert: false,
   );
   static const VerificationMeta _journalIdMeta = const VerificationMeta(
     'journalId',
@@ -36326,9 +36239,9 @@ class $AccountMoveLineTable extends AccountMoveLine
   late final GeneratedColumn<int> journalId = GeneratedColumn<int>(
     'journal_id',
     aliasedName,
-    false,
+    true,
     type: DriftSqlType.int,
-    requiredDuringInsert: true,
+    requiredDuringInsert: false,
   );
   static const VerificationMeta _journalNameMeta = const VerificationMeta(
     'journalName',
@@ -36348,9 +36261,9 @@ class $AccountMoveLineTable extends AccountMoveLine
   late final GeneratedColumn<int> companyId = GeneratedColumn<int>(
     'company_id',
     aliasedName,
-    false,
+    true,
     type: DriftSqlType.int,
-    requiredDuringInsert: true,
+    requiredDuringInsert: false,
   );
   static const VerificationMeta _companyNameMeta = const VerificationMeta(
     'companyName',
@@ -36746,16 +36659,12 @@ class $AccountMoveLineTable extends AccountMoveLine
         _dateMeta,
         date.isAcceptableOrUnknown(data['date']!, _dateMeta),
       );
-    } else if (isInserting) {
-      context.missing(_dateMeta);
     }
     if (data.containsKey('journal_id')) {
       context.handle(
         _journalIdMeta,
         journalId.isAcceptableOrUnknown(data['journal_id']!, _journalIdMeta),
       );
-    } else if (isInserting) {
-      context.missing(_journalIdMeta);
     }
     if (data.containsKey('journal_name')) {
       context.handle(
@@ -36771,8 +36680,6 @@ class $AccountMoveLineTable extends AccountMoveLine
         _companyIdMeta,
         companyId.isAcceptableOrUnknown(data['company_id']!, _companyIdMeta),
       );
-    } else if (isInserting) {
-      context.missing(_companyIdMeta);
     }
     if (data.containsKey('company_name')) {
       context.handle(
@@ -36975,11 +36882,11 @@ class $AccountMoveLineTable extends AccountMoveLine
       date: attachedDatabase.typeMapping.read(
         DriftSqlType.dateTime,
         data['${effectivePrefix}date'],
-      )!,
+      ),
       journalId: attachedDatabase.typeMapping.read(
         DriftSqlType.int,
         data['${effectivePrefix}journal_id'],
-      )!,
+      ),
       journalName: attachedDatabase.typeMapping.read(
         DriftSqlType.string,
         data['${effectivePrefix}journal_name'],
@@ -36987,7 +36894,7 @@ class $AccountMoveLineTable extends AccountMoveLine
       companyId: attachedDatabase.typeMapping.read(
         DriftSqlType.int,
         data['${effectivePrefix}company_id'],
-      )!,
+      ),
       companyName: attachedDatabase.typeMapping.read(
         DriftSqlType.string,
         data['${effectivePrefix}company_name'],
@@ -37060,10 +36967,10 @@ class AccountMoveLineData extends DataClass
   final int? currencyId;
   final String? currencyName;
   final double? amountCurrency;
-  final DateTime date;
-  final int journalId;
+  final DateTime? date;
+  final int? journalId;
   final String? journalName;
-  final int companyId;
+  final int? companyId;
   final String? companyName;
   final bool collapseComposition;
   final bool collapsePrices;
@@ -37105,10 +37012,10 @@ class AccountMoveLineData extends DataClass
     this.currencyId,
     this.currencyName,
     this.amountCurrency,
-    required this.date,
-    required this.journalId,
+    this.date,
+    this.journalId,
     this.journalName,
-    required this.companyId,
+    this.companyId,
     this.companyName,
     required this.collapseComposition,
     required this.collapsePrices,
@@ -37193,12 +37100,18 @@ class AccountMoveLineData extends DataClass
     if (!nullToAbsent || amountCurrency != null) {
       map['amount_currency'] = Variable<double>(amountCurrency);
     }
-    map['date'] = Variable<DateTime>(date);
-    map['journal_id'] = Variable<int>(journalId);
+    if (!nullToAbsent || date != null) {
+      map['date'] = Variable<DateTime>(date);
+    }
+    if (!nullToAbsent || journalId != null) {
+      map['journal_id'] = Variable<int>(journalId);
+    }
     if (!nullToAbsent || journalName != null) {
       map['journal_name'] = Variable<String>(journalName);
     }
-    map['company_id'] = Variable<int>(companyId);
+    if (!nullToAbsent || companyId != null) {
+      map['company_id'] = Variable<int>(companyId);
+    }
     if (!nullToAbsent || companyName != null) {
       map['company_name'] = Variable<String>(companyName);
     }
@@ -37291,12 +37204,16 @@ class AccountMoveLineData extends DataClass
       amountCurrency: amountCurrency == null && nullToAbsent
           ? const Value.absent()
           : Value(amountCurrency),
-      date: Value(date),
-      journalId: Value(journalId),
+      date: date == null && nullToAbsent ? const Value.absent() : Value(date),
+      journalId: journalId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(journalId),
       journalName: journalName == null && nullToAbsent
           ? const Value.absent()
           : Value(journalName),
-      companyId: Value(companyId),
+      companyId: companyId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(companyId),
       companyName: companyName == null && nullToAbsent
           ? const Value.absent()
           : Value(companyName),
@@ -37356,10 +37273,10 @@ class AccountMoveLineData extends DataClass
       currencyId: serializer.fromJson<int?>(json['currencyId']),
       currencyName: serializer.fromJson<String?>(json['currencyName']),
       amountCurrency: serializer.fromJson<double?>(json['amountCurrency']),
-      date: serializer.fromJson<DateTime>(json['date']),
-      journalId: serializer.fromJson<int>(json['journalId']),
+      date: serializer.fromJson<DateTime?>(json['date']),
+      journalId: serializer.fromJson<int?>(json['journalId']),
       journalName: serializer.fromJson<String?>(json['journalName']),
-      companyId: serializer.fromJson<int>(json['companyId']),
+      companyId: serializer.fromJson<int?>(json['companyId']),
       companyName: serializer.fromJson<String?>(json['companyName']),
       collapseComposition: serializer.fromJson<bool>(
         json['collapseComposition'],
@@ -37410,10 +37327,10 @@ class AccountMoveLineData extends DataClass
       'currencyId': serializer.toJson<int?>(currencyId),
       'currencyName': serializer.toJson<String?>(currencyName),
       'amountCurrency': serializer.toJson<double?>(amountCurrency),
-      'date': serializer.toJson<DateTime>(date),
-      'journalId': serializer.toJson<int>(journalId),
+      'date': serializer.toJson<DateTime?>(date),
+      'journalId': serializer.toJson<int?>(journalId),
       'journalName': serializer.toJson<String?>(journalName),
-      'companyId': serializer.toJson<int>(companyId),
+      'companyId': serializer.toJson<int?>(companyId),
       'companyName': serializer.toJson<String?>(companyName),
       'collapseComposition': serializer.toJson<bool>(collapseComposition),
       'collapsePrices': serializer.toJson<bool>(collapsePrices),
@@ -37458,10 +37375,10 @@ class AccountMoveLineData extends DataClass
     Value<int?> currencyId = const Value.absent(),
     Value<String?> currencyName = const Value.absent(),
     Value<double?> amountCurrency = const Value.absent(),
-    DateTime? date,
-    int? journalId,
+    Value<DateTime?> date = const Value.absent(),
+    Value<int?> journalId = const Value.absent(),
     Value<String?> journalName = const Value.absent(),
-    int? companyId,
+    Value<int?> companyId = const Value.absent(),
     Value<String?> companyName = const Value.absent(),
     bool? collapseComposition,
     bool? collapsePrices,
@@ -37511,10 +37428,10 @@ class AccountMoveLineData extends DataClass
     amountCurrency: amountCurrency.present
         ? amountCurrency.value
         : this.amountCurrency,
-    date: date ?? this.date,
-    journalId: journalId ?? this.journalId,
+    date: date.present ? date.value : this.date,
+    journalId: journalId.present ? journalId.value : this.journalId,
     journalName: journalName.present ? journalName.value : this.journalName,
-    companyId: companyId ?? this.companyId,
+    companyId: companyId.present ? companyId.value : this.companyId,
     companyName: companyName.present ? companyName.value : this.companyName,
     collapseComposition: collapseComposition ?? this.collapseComposition,
     collapsePrices: collapsePrices ?? this.collapsePrices,
@@ -37796,10 +37713,10 @@ class AccountMoveLineCompanion extends UpdateCompanion<AccountMoveLineData> {
   final Value<int?> currencyId;
   final Value<String?> currencyName;
   final Value<double?> amountCurrency;
-  final Value<DateTime> date;
-  final Value<int> journalId;
+  final Value<DateTime?> date;
+  final Value<int?> journalId;
   final Value<String?> journalName;
-  final Value<int> companyId;
+  final Value<int?> companyId;
   final Value<String?> companyName;
   final Value<bool> collapseComposition;
   final Value<bool> collapsePrices;
@@ -37887,10 +37804,10 @@ class AccountMoveLineCompanion extends UpdateCompanion<AccountMoveLineData> {
     this.currencyId = const Value.absent(),
     this.currencyName = const Value.absent(),
     this.amountCurrency = const Value.absent(),
-    required DateTime date,
-    required int journalId,
+    this.date = const Value.absent(),
+    this.journalId = const Value.absent(),
     this.journalName = const Value.absent(),
-    required int companyId,
+    this.companyId = const Value.absent(),
     this.companyName = const Value.absent(),
     this.collapseComposition = const Value.absent(),
     this.collapsePrices = const Value.absent(),
@@ -37901,10 +37818,7 @@ class AccountMoveLineCompanion extends UpdateCompanion<AccountMoveLineData> {
   }) : odooId = Value(odooId),
        moveId = Value(moveId),
        accountId = Value(accountId),
-       name = Value(name),
-       date = Value(date),
-       journalId = Value(journalId),
-       companyId = Value(companyId);
+       name = Value(name);
   static Insertable<AccountMoveLineData> custom({
     Expression<int>? id,
     Expression<int>? odooId,
@@ -38035,10 +37949,10 @@ class AccountMoveLineCompanion extends UpdateCompanion<AccountMoveLineData> {
     Value<int?>? currencyId,
     Value<String?>? currencyName,
     Value<double?>? amountCurrency,
-    Value<DateTime>? date,
-    Value<int>? journalId,
+    Value<DateTime?>? date,
+    Value<int?>? journalId,
     Value<String?>? journalName,
-    Value<int>? companyId,
+    Value<int?>? companyId,
     Value<String?>? companyName,
     Value<bool>? collapseComposition,
     Value<bool>? collapsePrices,
@@ -38402,17 +38316,6 @@ class $SaleOrderTable extends SaleOrder
     type: DriftSqlType.int,
     requiredDuringInsert: false,
   );
-  static const VerificationMeta _partnerInvoiceNameMeta =
-      const VerificationMeta('partnerInvoiceName');
-  @override
-  late final GeneratedColumn<String> partnerInvoiceName =
-      GeneratedColumn<String>(
-        'partner_invoice_name',
-        aliasedName,
-        true,
-        type: DriftSqlType.string,
-        requiredDuringInsert: false,
-      );
   static const VerificationMeta _partnerShippingIdMeta = const VerificationMeta(
     'partnerShippingId',
   );
@@ -38424,17 +38327,6 @@ class $SaleOrderTable extends SaleOrder
     type: DriftSqlType.int,
     requiredDuringInsert: false,
   );
-  static const VerificationMeta _partnerShippingNameMeta =
-      const VerificationMeta('partnerShippingName');
-  @override
-  late final GeneratedColumn<String> partnerShippingName =
-      GeneratedColumn<String>(
-        'partner_shipping_name',
-        aliasedName,
-        true,
-        type: DriftSqlType.string,
-        requiredDuringInsert: false,
-      );
   static const VerificationMeta _pricelistIdMeta = const VerificationMeta(
     'pricelistId',
   );
@@ -38572,17 +38464,6 @@ class $SaleOrderTable extends SaleOrder
     aliasedName,
     true,
     type: DriftSqlType.int,
-    requiredDuringInsert: false,
-  );
-  static const VerificationMeta _currencyNameMeta = const VerificationMeta(
-    'currencyName',
-  );
-  @override
-  late final GeneratedColumn<String> currencyName = GeneratedColumn<String>(
-    'currency_name',
-    aliasedName,
-    true,
-    type: DriftSqlType.string,
     requiredDuringInsert: false,
   );
   static const VerificationMeta _amountUntaxedMeta = const VerificationMeta(
@@ -38963,27 +38844,6 @@ class $SaleOrderTable extends SaleOrder
   late final GeneratedColumn<String> collectionSessionName =
       GeneratedColumn<String>(
         'collection_session_name',
-        aliasedName,
-        true,
-        type: DriftSqlType.string,
-        requiredDuringInsert: false,
-      );
-  static const VerificationMeta _collectionConfigIdMeta =
-      const VerificationMeta('collectionConfigId');
-  @override
-  late final GeneratedColumn<int> collectionConfigId = GeneratedColumn<int>(
-    'collection_config_id',
-    aliasedName,
-    true,
-    type: DriftSqlType.int,
-    requiredDuringInsert: false,
-  );
-  static const VerificationMeta _collectionConfigNameMeta =
-      const VerificationMeta('collectionConfigName');
-  @override
-  late final GeneratedColumn<String> collectionConfigName =
-      GeneratedColumn<String>(
-        'collection_config_name',
         aliasedName,
         true,
         type: DriftSqlType.string,
@@ -39766,9 +39626,7 @@ class $SaleOrderTable extends SaleOrder
     partnerId,
     partnerName,
     partnerInvoiceId,
-    partnerInvoiceName,
     partnerShippingId,
-    partnerShippingName,
     pricelistId,
     pricelistName,
     paymentTermId,
@@ -39782,7 +39640,6 @@ class $SaleOrderTable extends SaleOrder
     warehouseId,
     warehouseName,
     currencyId,
-    currencyName,
     amountUntaxed,
     amountTax,
     amountTotal,
@@ -39817,8 +39674,6 @@ class $SaleOrderTable extends SaleOrder
     accessWarning,
     collectionSessionId,
     collectionSessionName,
-    collectionConfigId,
-    collectionConfigName,
     collectionUserId,
     collectionUserName,
     saleCreatedUserId,
@@ -39969,30 +39824,12 @@ class $SaleOrderTable extends SaleOrder
         ),
       );
     }
-    if (data.containsKey('partner_invoice_name')) {
-      context.handle(
-        _partnerInvoiceNameMeta,
-        partnerInvoiceName.isAcceptableOrUnknown(
-          data['partner_invoice_name']!,
-          _partnerInvoiceNameMeta,
-        ),
-      );
-    }
     if (data.containsKey('partner_shipping_id')) {
       context.handle(
         _partnerShippingIdMeta,
         partnerShippingId.isAcceptableOrUnknown(
           data['partner_shipping_id']!,
           _partnerShippingIdMeta,
-        ),
-      );
-    }
-    if (data.containsKey('partner_shipping_name')) {
-      context.handle(
-        _partnerShippingNameMeta,
-        partnerShippingName.isAcceptableOrUnknown(
-          data['partner_shipping_name']!,
-          _partnerShippingNameMeta,
         ),
       );
     }
@@ -40093,15 +39930,6 @@ class $SaleOrderTable extends SaleOrder
       context.handle(
         _currencyIdMeta,
         currencyId.isAcceptableOrUnknown(data['currency_id']!, _currencyIdMeta),
-      );
-    }
-    if (data.containsKey('currency_name')) {
-      context.handle(
-        _currencyNameMeta,
-        currencyName.isAcceptableOrUnknown(
-          data['currency_name']!,
-          _currencyNameMeta,
-        ),
       );
     }
     if (data.containsKey('amount_untaxed')) {
@@ -40371,24 +40199,6 @@ class $SaleOrderTable extends SaleOrder
         collectionSessionName.isAcceptableOrUnknown(
           data['collection_session_name']!,
           _collectionSessionNameMeta,
-        ),
-      );
-    }
-    if (data.containsKey('collection_config_id')) {
-      context.handle(
-        _collectionConfigIdMeta,
-        collectionConfigId.isAcceptableOrUnknown(
-          data['collection_config_id']!,
-          _collectionConfigIdMeta,
-        ),
-      );
-    }
-    if (data.containsKey('collection_config_name')) {
-      context.handle(
-        _collectionConfigNameMeta,
-        collectionConfigName.isAcceptableOrUnknown(
-          data['collection_config_name']!,
-          _collectionConfigNameMeta,
         ),
       );
     }
@@ -40969,17 +40779,9 @@ class $SaleOrderTable extends SaleOrder
         DriftSqlType.int,
         data['${effectivePrefix}partner_invoice_id'],
       ),
-      partnerInvoiceName: attachedDatabase.typeMapping.read(
-        DriftSqlType.string,
-        data['${effectivePrefix}partner_invoice_name'],
-      ),
       partnerShippingId: attachedDatabase.typeMapping.read(
         DriftSqlType.int,
         data['${effectivePrefix}partner_shipping_id'],
-      ),
-      partnerShippingName: attachedDatabase.typeMapping.read(
-        DriftSqlType.string,
-        data['${effectivePrefix}partner_shipping_name'],
       ),
       pricelistId: attachedDatabase.typeMapping.read(
         DriftSqlType.int,
@@ -41032,10 +40834,6 @@ class $SaleOrderTable extends SaleOrder
       currencyId: attachedDatabase.typeMapping.read(
         DriftSqlType.int,
         data['${effectivePrefix}currency_id'],
-      ),
-      currencyName: attachedDatabase.typeMapping.read(
-        DriftSqlType.string,
-        data['${effectivePrefix}currency_name'],
       ),
       amountUntaxed: attachedDatabase.typeMapping.read(
         DriftSqlType.double,
@@ -41172,14 +40970,6 @@ class $SaleOrderTable extends SaleOrder
       collectionSessionName: attachedDatabase.typeMapping.read(
         DriftSqlType.string,
         data['${effectivePrefix}collection_session_name'],
-      ),
-      collectionConfigId: attachedDatabase.typeMapping.read(
-        DriftSqlType.int,
-        data['${effectivePrefix}collection_config_id'],
-      ),
-      collectionConfigName: attachedDatabase.typeMapping.read(
-        DriftSqlType.string,
-        data['${effectivePrefix}collection_config_name'],
       ),
       collectionUserId: attachedDatabase.typeMapping.read(
         DriftSqlType.int,
@@ -41457,9 +41247,7 @@ class SaleOrderData extends DataClass implements Insertable<SaleOrderData> {
   final int? partnerId;
   final String? partnerName;
   final int? partnerInvoiceId;
-  final String? partnerInvoiceName;
   final int? partnerShippingId;
-  final String? partnerShippingName;
   final int? pricelistId;
   final String? pricelistName;
   final int? paymentTermId;
@@ -41473,7 +41261,6 @@ class SaleOrderData extends DataClass implements Insertable<SaleOrderData> {
   final int? warehouseId;
   final String? warehouseName;
   final int? currencyId;
-  final String? currencyName;
   final double? amountUntaxed;
   final double? amountTax;
   final double? amountTotal;
@@ -41508,8 +41295,6 @@ class SaleOrderData extends DataClass implements Insertable<SaleOrderData> {
   final String? accessWarning;
   final int? collectionSessionId;
   final String? collectionSessionName;
-  final int? collectionConfigId;
-  final String? collectionConfigName;
   final int? collectionUserId;
   final String? collectionUserName;
   final int? saleCreatedUserId;
@@ -41585,9 +41370,7 @@ class SaleOrderData extends DataClass implements Insertable<SaleOrderData> {
     this.partnerId,
     this.partnerName,
     this.partnerInvoiceId,
-    this.partnerInvoiceName,
     this.partnerShippingId,
-    this.partnerShippingName,
     this.pricelistId,
     this.pricelistName,
     this.paymentTermId,
@@ -41601,7 +41384,6 @@ class SaleOrderData extends DataClass implements Insertable<SaleOrderData> {
     this.warehouseId,
     this.warehouseName,
     this.currencyId,
-    this.currencyName,
     this.amountUntaxed,
     this.amountTax,
     this.amountTotal,
@@ -41636,8 +41418,6 @@ class SaleOrderData extends DataClass implements Insertable<SaleOrderData> {
     this.accessWarning,
     this.collectionSessionId,
     this.collectionSessionName,
-    this.collectionConfigId,
-    this.collectionConfigName,
     this.collectionUserId,
     this.collectionUserName,
     this.saleCreatedUserId,
@@ -41730,14 +41510,8 @@ class SaleOrderData extends DataClass implements Insertable<SaleOrderData> {
     if (!nullToAbsent || partnerInvoiceId != null) {
       map['partner_invoice_id'] = Variable<int>(partnerInvoiceId);
     }
-    if (!nullToAbsent || partnerInvoiceName != null) {
-      map['partner_invoice_name'] = Variable<String>(partnerInvoiceName);
-    }
     if (!nullToAbsent || partnerShippingId != null) {
       map['partner_shipping_id'] = Variable<int>(partnerShippingId);
-    }
-    if (!nullToAbsent || partnerShippingName != null) {
-      map['partner_shipping_name'] = Variable<String>(partnerShippingName);
     }
     if (!nullToAbsent || pricelistId != null) {
       map['pricelist_id'] = Variable<int>(pricelistId);
@@ -41777,9 +41551,6 @@ class SaleOrderData extends DataClass implements Insertable<SaleOrderData> {
     }
     if (!nullToAbsent || currencyId != null) {
       map['currency_id'] = Variable<int>(currencyId);
-    }
-    if (!nullToAbsent || currencyName != null) {
-      map['currency_name'] = Variable<String>(currencyName);
     }
     if (!nullToAbsent || amountUntaxed != null) {
       map['amount_untaxed'] = Variable<double>(amountUntaxed);
@@ -41876,12 +41647,6 @@ class SaleOrderData extends DataClass implements Insertable<SaleOrderData> {
     }
     if (!nullToAbsent || collectionSessionName != null) {
       map['collection_session_name'] = Variable<String>(collectionSessionName);
-    }
-    if (!nullToAbsent || collectionConfigId != null) {
-      map['collection_config_id'] = Variable<int>(collectionConfigId);
-    }
-    if (!nullToAbsent || collectionConfigName != null) {
-      map['collection_config_name'] = Variable<String>(collectionConfigName);
     }
     if (!nullToAbsent || collectionUserId != null) {
       map['collection_user_id'] = Variable<int>(collectionUserId);
@@ -42056,15 +41821,9 @@ class SaleOrderData extends DataClass implements Insertable<SaleOrderData> {
       partnerInvoiceId: partnerInvoiceId == null && nullToAbsent
           ? const Value.absent()
           : Value(partnerInvoiceId),
-      partnerInvoiceName: partnerInvoiceName == null && nullToAbsent
-          ? const Value.absent()
-          : Value(partnerInvoiceName),
       partnerShippingId: partnerShippingId == null && nullToAbsent
           ? const Value.absent()
           : Value(partnerShippingId),
-      partnerShippingName: partnerShippingName == null && nullToAbsent
-          ? const Value.absent()
-          : Value(partnerShippingName),
       pricelistId: pricelistId == null && nullToAbsent
           ? const Value.absent()
           : Value(pricelistId),
@@ -42104,9 +41863,6 @@ class SaleOrderData extends DataClass implements Insertable<SaleOrderData> {
       currencyId: currencyId == null && nullToAbsent
           ? const Value.absent()
           : Value(currencyId),
-      currencyName: currencyName == null && nullToAbsent
-          ? const Value.absent()
-          : Value(currencyName),
       amountUntaxed: amountUntaxed == null && nullToAbsent
           ? const Value.absent()
           : Value(amountUntaxed),
@@ -42201,12 +41957,6 @@ class SaleOrderData extends DataClass implements Insertable<SaleOrderData> {
       collectionSessionName: collectionSessionName == null && nullToAbsent
           ? const Value.absent()
           : Value(collectionSessionName),
-      collectionConfigId: collectionConfigId == null && nullToAbsent
-          ? const Value.absent()
-          : Value(collectionConfigId),
-      collectionConfigName: collectionConfigName == null && nullToAbsent
-          ? const Value.absent()
-          : Value(collectionConfigName),
       collectionUserId: collectionUserId == null && nullToAbsent
           ? const Value.absent()
           : Value(collectionUserId),
@@ -42360,13 +42110,7 @@ class SaleOrderData extends DataClass implements Insertable<SaleOrderData> {
       partnerId: serializer.fromJson<int?>(json['partnerId']),
       partnerName: serializer.fromJson<String?>(json['partnerName']),
       partnerInvoiceId: serializer.fromJson<int?>(json['partnerInvoiceId']),
-      partnerInvoiceName: serializer.fromJson<String?>(
-        json['partnerInvoiceName'],
-      ),
       partnerShippingId: serializer.fromJson<int?>(json['partnerShippingId']),
-      partnerShippingName: serializer.fromJson<String?>(
-        json['partnerShippingName'],
-      ),
       pricelistId: serializer.fromJson<int?>(json['pricelistId']),
       pricelistName: serializer.fromJson<String?>(json['pricelistName']),
       paymentTermId: serializer.fromJson<int?>(json['paymentTermId']),
@@ -42380,7 +42124,6 @@ class SaleOrderData extends DataClass implements Insertable<SaleOrderData> {
       warehouseId: serializer.fromJson<int?>(json['warehouseId']),
       warehouseName: serializer.fromJson<String?>(json['warehouseName']),
       currencyId: serializer.fromJson<int?>(json['currencyId']),
-      currencyName: serializer.fromJson<String?>(json['currencyName']),
       amountUntaxed: serializer.fromJson<double?>(json['amountUntaxed']),
       amountTax: serializer.fromJson<double?>(json['amountTax']),
       amountTotal: serializer.fromJson<double?>(json['amountTotal']),
@@ -42426,10 +42169,6 @@ class SaleOrderData extends DataClass implements Insertable<SaleOrderData> {
       ),
       collectionSessionName: serializer.fromJson<String?>(
         json['collectionSessionName'],
-      ),
-      collectionConfigId: serializer.fromJson<int?>(json['collectionConfigId']),
-      collectionConfigName: serializer.fromJson<String?>(
-        json['collectionConfigName'],
       ),
       collectionUserId: serializer.fromJson<int?>(json['collectionUserId']),
       collectionUserName: serializer.fromJson<String?>(
@@ -42527,9 +42266,7 @@ class SaleOrderData extends DataClass implements Insertable<SaleOrderData> {
       'partnerId': serializer.toJson<int?>(partnerId),
       'partnerName': serializer.toJson<String?>(partnerName),
       'partnerInvoiceId': serializer.toJson<int?>(partnerInvoiceId),
-      'partnerInvoiceName': serializer.toJson<String?>(partnerInvoiceName),
       'partnerShippingId': serializer.toJson<int?>(partnerShippingId),
-      'partnerShippingName': serializer.toJson<String?>(partnerShippingName),
       'pricelistId': serializer.toJson<int?>(pricelistId),
       'pricelistName': serializer.toJson<String?>(pricelistName),
       'paymentTermId': serializer.toJson<int?>(paymentTermId),
@@ -42543,7 +42280,6 @@ class SaleOrderData extends DataClass implements Insertable<SaleOrderData> {
       'warehouseId': serializer.toJson<int?>(warehouseId),
       'warehouseName': serializer.toJson<String?>(warehouseName),
       'currencyId': serializer.toJson<int?>(currencyId),
-      'currencyName': serializer.toJson<String?>(currencyName),
       'amountUntaxed': serializer.toJson<double?>(amountUntaxed),
       'amountTax': serializer.toJson<double?>(amountTax),
       'amountTotal': serializer.toJson<double?>(amountTotal),
@@ -42580,8 +42316,6 @@ class SaleOrderData extends DataClass implements Insertable<SaleOrderData> {
       'collectionSessionName': serializer.toJson<String?>(
         collectionSessionName,
       ),
-      'collectionConfigId': serializer.toJson<int?>(collectionConfigId),
-      'collectionConfigName': serializer.toJson<String?>(collectionConfigName),
       'collectionUserId': serializer.toJson<int?>(collectionUserId),
       'collectionUserName': serializer.toJson<String?>(collectionUserName),
       'saleCreatedUserId': serializer.toJson<int?>(saleCreatedUserId),
@@ -42670,9 +42404,7 @@ class SaleOrderData extends DataClass implements Insertable<SaleOrderData> {
     Value<int?> partnerId = const Value.absent(),
     Value<String?> partnerName = const Value.absent(),
     Value<int?> partnerInvoiceId = const Value.absent(),
-    Value<String?> partnerInvoiceName = const Value.absent(),
     Value<int?> partnerShippingId = const Value.absent(),
-    Value<String?> partnerShippingName = const Value.absent(),
     Value<int?> pricelistId = const Value.absent(),
     Value<String?> pricelistName = const Value.absent(),
     Value<int?> paymentTermId = const Value.absent(),
@@ -42686,7 +42418,6 @@ class SaleOrderData extends DataClass implements Insertable<SaleOrderData> {
     Value<int?> warehouseId = const Value.absent(),
     Value<String?> warehouseName = const Value.absent(),
     Value<int?> currencyId = const Value.absent(),
-    Value<String?> currencyName = const Value.absent(),
     Value<double?> amountUntaxed = const Value.absent(),
     Value<double?> amountTax = const Value.absent(),
     Value<double?> amountTotal = const Value.absent(),
@@ -42721,8 +42452,6 @@ class SaleOrderData extends DataClass implements Insertable<SaleOrderData> {
     Value<String?> accessWarning = const Value.absent(),
     Value<int?> collectionSessionId = const Value.absent(),
     Value<String?> collectionSessionName = const Value.absent(),
-    Value<int?> collectionConfigId = const Value.absent(),
-    Value<String?> collectionConfigName = const Value.absent(),
     Value<int?> collectionUserId = const Value.absent(),
     Value<String?> collectionUserName = const Value.absent(),
     Value<int?> saleCreatedUserId = const Value.absent(),
@@ -42802,15 +42531,9 @@ class SaleOrderData extends DataClass implements Insertable<SaleOrderData> {
     partnerInvoiceId: partnerInvoiceId.present
         ? partnerInvoiceId.value
         : this.partnerInvoiceId,
-    partnerInvoiceName: partnerInvoiceName.present
-        ? partnerInvoiceName.value
-        : this.partnerInvoiceName,
     partnerShippingId: partnerShippingId.present
         ? partnerShippingId.value
         : this.partnerShippingId,
-    partnerShippingName: partnerShippingName.present
-        ? partnerShippingName.value
-        : this.partnerShippingName,
     pricelistId: pricelistId.present ? pricelistId.value : this.pricelistId,
     pricelistName: pricelistName.present
         ? pricelistName.value
@@ -42832,7 +42555,6 @@ class SaleOrderData extends DataClass implements Insertable<SaleOrderData> {
         ? warehouseName.value
         : this.warehouseName,
     currencyId: currencyId.present ? currencyId.value : this.currencyId,
-    currencyName: currencyName.present ? currencyName.value : this.currencyName,
     amountUntaxed: amountUntaxed.present
         ? amountUntaxed.value
         : this.amountUntaxed,
@@ -42897,12 +42619,6 @@ class SaleOrderData extends DataClass implements Insertable<SaleOrderData> {
     collectionSessionName: collectionSessionName.present
         ? collectionSessionName.value
         : this.collectionSessionName,
-    collectionConfigId: collectionConfigId.present
-        ? collectionConfigId.value
-        : this.collectionConfigId,
-    collectionConfigName: collectionConfigName.present
-        ? collectionConfigName.value
-        : this.collectionConfigName,
     collectionUserId: collectionUserId.present
         ? collectionUserId.value
         : this.collectionUserId,
@@ -43027,15 +42743,9 @@ class SaleOrderData extends DataClass implements Insertable<SaleOrderData> {
       partnerInvoiceId: data.partnerInvoiceId.present
           ? data.partnerInvoiceId.value
           : this.partnerInvoiceId,
-      partnerInvoiceName: data.partnerInvoiceName.present
-          ? data.partnerInvoiceName.value
-          : this.partnerInvoiceName,
       partnerShippingId: data.partnerShippingId.present
           ? data.partnerShippingId.value
           : this.partnerShippingId,
-      partnerShippingName: data.partnerShippingName.present
-          ? data.partnerShippingName.value
-          : this.partnerShippingName,
       pricelistId: data.pricelistId.present
           ? data.pricelistId.value
           : this.pricelistId,
@@ -43065,9 +42775,6 @@ class SaleOrderData extends DataClass implements Insertable<SaleOrderData> {
       currencyId: data.currencyId.present
           ? data.currencyId.value
           : this.currencyId,
-      currencyName: data.currencyName.present
-          ? data.currencyName.value
-          : this.currencyName,
       amountUntaxed: data.amountUntaxed.present
           ? data.amountUntaxed.value
           : this.amountUntaxed,
@@ -43154,12 +42861,6 @@ class SaleOrderData extends DataClass implements Insertable<SaleOrderData> {
       collectionSessionName: data.collectionSessionName.present
           ? data.collectionSessionName.value
           : this.collectionSessionName,
-      collectionConfigId: data.collectionConfigId.present
-          ? data.collectionConfigId.value
-          : this.collectionConfigId,
-      collectionConfigName: data.collectionConfigName.present
-          ? data.collectionConfigName.value
-          : this.collectionConfigName,
       collectionUserId: data.collectionUserId.present
           ? data.collectionUserId.value
           : this.collectionUserId,
@@ -43344,9 +43045,7 @@ class SaleOrderData extends DataClass implements Insertable<SaleOrderData> {
           ..write('partnerId: $partnerId, ')
           ..write('partnerName: $partnerName, ')
           ..write('partnerInvoiceId: $partnerInvoiceId, ')
-          ..write('partnerInvoiceName: $partnerInvoiceName, ')
           ..write('partnerShippingId: $partnerShippingId, ')
-          ..write('partnerShippingName: $partnerShippingName, ')
           ..write('pricelistId: $pricelistId, ')
           ..write('pricelistName: $pricelistName, ')
           ..write('paymentTermId: $paymentTermId, ')
@@ -43360,7 +43059,6 @@ class SaleOrderData extends DataClass implements Insertable<SaleOrderData> {
           ..write('warehouseId: $warehouseId, ')
           ..write('warehouseName: $warehouseName, ')
           ..write('currencyId: $currencyId, ')
-          ..write('currencyName: $currencyName, ')
           ..write('amountUntaxed: $amountUntaxed, ')
           ..write('amountTax: $amountTax, ')
           ..write('amountTotal: $amountTotal, ')
@@ -43395,8 +43093,6 @@ class SaleOrderData extends DataClass implements Insertable<SaleOrderData> {
           ..write('accessWarning: $accessWarning, ')
           ..write('collectionSessionId: $collectionSessionId, ')
           ..write('collectionSessionName: $collectionSessionName, ')
-          ..write('collectionConfigId: $collectionConfigId, ')
-          ..write('collectionConfigName: $collectionConfigName, ')
           ..write('collectionUserId: $collectionUserId, ')
           ..write('collectionUserName: $collectionUserName, ')
           ..write('saleCreatedUserId: $saleCreatedUserId, ')
@@ -43477,9 +43173,7 @@ class SaleOrderData extends DataClass implements Insertable<SaleOrderData> {
     partnerId,
     partnerName,
     partnerInvoiceId,
-    partnerInvoiceName,
     partnerShippingId,
-    partnerShippingName,
     pricelistId,
     pricelistName,
     paymentTermId,
@@ -43493,7 +43187,6 @@ class SaleOrderData extends DataClass implements Insertable<SaleOrderData> {
     warehouseId,
     warehouseName,
     currencyId,
-    currencyName,
     amountUntaxed,
     amountTax,
     amountTotal,
@@ -43528,8 +43221,6 @@ class SaleOrderData extends DataClass implements Insertable<SaleOrderData> {
     accessWarning,
     collectionSessionId,
     collectionSessionName,
-    collectionConfigId,
-    collectionConfigName,
     collectionUserId,
     collectionUserName,
     saleCreatedUserId,
@@ -43609,9 +43300,7 @@ class SaleOrderData extends DataClass implements Insertable<SaleOrderData> {
           other.partnerId == this.partnerId &&
           other.partnerName == this.partnerName &&
           other.partnerInvoiceId == this.partnerInvoiceId &&
-          other.partnerInvoiceName == this.partnerInvoiceName &&
           other.partnerShippingId == this.partnerShippingId &&
-          other.partnerShippingName == this.partnerShippingName &&
           other.pricelistId == this.pricelistId &&
           other.pricelistName == this.pricelistName &&
           other.paymentTermId == this.paymentTermId &&
@@ -43625,7 +43314,6 @@ class SaleOrderData extends DataClass implements Insertable<SaleOrderData> {
           other.warehouseId == this.warehouseId &&
           other.warehouseName == this.warehouseName &&
           other.currencyId == this.currencyId &&
-          other.currencyName == this.currencyName &&
           other.amountUntaxed == this.amountUntaxed &&
           other.amountTax == this.amountTax &&
           other.amountTotal == this.amountTotal &&
@@ -43660,8 +43348,6 @@ class SaleOrderData extends DataClass implements Insertable<SaleOrderData> {
           other.accessWarning == this.accessWarning &&
           other.collectionSessionId == this.collectionSessionId &&
           other.collectionSessionName == this.collectionSessionName &&
-          other.collectionConfigId == this.collectionConfigId &&
-          other.collectionConfigName == this.collectionConfigName &&
           other.collectionUserId == this.collectionUserId &&
           other.collectionUserName == this.collectionUserName &&
           other.saleCreatedUserId == this.saleCreatedUserId &&
@@ -43740,9 +43426,7 @@ class SaleOrderCompanion extends UpdateCompanion<SaleOrderData> {
   final Value<int?> partnerId;
   final Value<String?> partnerName;
   final Value<int?> partnerInvoiceId;
-  final Value<String?> partnerInvoiceName;
   final Value<int?> partnerShippingId;
-  final Value<String?> partnerShippingName;
   final Value<int?> pricelistId;
   final Value<String?> pricelistName;
   final Value<int?> paymentTermId;
@@ -43756,7 +43440,6 @@ class SaleOrderCompanion extends UpdateCompanion<SaleOrderData> {
   final Value<int?> warehouseId;
   final Value<String?> warehouseName;
   final Value<int?> currencyId;
-  final Value<String?> currencyName;
   final Value<double?> amountUntaxed;
   final Value<double?> amountTax;
   final Value<double?> amountTotal;
@@ -43791,8 +43474,6 @@ class SaleOrderCompanion extends UpdateCompanion<SaleOrderData> {
   final Value<String?> accessWarning;
   final Value<int?> collectionSessionId;
   final Value<String?> collectionSessionName;
-  final Value<int?> collectionConfigId;
-  final Value<String?> collectionConfigName;
   final Value<int?> collectionUserId;
   final Value<String?> collectionUserName;
   final Value<int?> saleCreatedUserId;
@@ -43868,9 +43549,7 @@ class SaleOrderCompanion extends UpdateCompanion<SaleOrderData> {
     this.partnerId = const Value.absent(),
     this.partnerName = const Value.absent(),
     this.partnerInvoiceId = const Value.absent(),
-    this.partnerInvoiceName = const Value.absent(),
     this.partnerShippingId = const Value.absent(),
-    this.partnerShippingName = const Value.absent(),
     this.pricelistId = const Value.absent(),
     this.pricelistName = const Value.absent(),
     this.paymentTermId = const Value.absent(),
@@ -43884,7 +43563,6 @@ class SaleOrderCompanion extends UpdateCompanion<SaleOrderData> {
     this.warehouseId = const Value.absent(),
     this.warehouseName = const Value.absent(),
     this.currencyId = const Value.absent(),
-    this.currencyName = const Value.absent(),
     this.amountUntaxed = const Value.absent(),
     this.amountTax = const Value.absent(),
     this.amountTotal = const Value.absent(),
@@ -43919,8 +43597,6 @@ class SaleOrderCompanion extends UpdateCompanion<SaleOrderData> {
     this.accessWarning = const Value.absent(),
     this.collectionSessionId = const Value.absent(),
     this.collectionSessionName = const Value.absent(),
-    this.collectionConfigId = const Value.absent(),
-    this.collectionConfigName = const Value.absent(),
     this.collectionUserId = const Value.absent(),
     this.collectionUserName = const Value.absent(),
     this.saleCreatedUserId = const Value.absent(),
@@ -43997,9 +43673,7 @@ class SaleOrderCompanion extends UpdateCompanion<SaleOrderData> {
     this.partnerId = const Value.absent(),
     this.partnerName = const Value.absent(),
     this.partnerInvoiceId = const Value.absent(),
-    this.partnerInvoiceName = const Value.absent(),
     this.partnerShippingId = const Value.absent(),
-    this.partnerShippingName = const Value.absent(),
     this.pricelistId = const Value.absent(),
     this.pricelistName = const Value.absent(),
     this.paymentTermId = const Value.absent(),
@@ -44013,7 +43687,6 @@ class SaleOrderCompanion extends UpdateCompanion<SaleOrderData> {
     this.warehouseId = const Value.absent(),
     this.warehouseName = const Value.absent(),
     this.currencyId = const Value.absent(),
-    this.currencyName = const Value.absent(),
     this.amountUntaxed = const Value.absent(),
     this.amountTax = const Value.absent(),
     this.amountTotal = const Value.absent(),
@@ -44048,8 +43721,6 @@ class SaleOrderCompanion extends UpdateCompanion<SaleOrderData> {
     this.accessWarning = const Value.absent(),
     this.collectionSessionId = const Value.absent(),
     this.collectionSessionName = const Value.absent(),
-    this.collectionConfigId = const Value.absent(),
-    this.collectionConfigName = const Value.absent(),
     this.collectionUserId = const Value.absent(),
     this.collectionUserName = const Value.absent(),
     this.saleCreatedUserId = const Value.absent(),
@@ -44127,9 +43798,7 @@ class SaleOrderCompanion extends UpdateCompanion<SaleOrderData> {
     Expression<int>? partnerId,
     Expression<String>? partnerName,
     Expression<int>? partnerInvoiceId,
-    Expression<String>? partnerInvoiceName,
     Expression<int>? partnerShippingId,
-    Expression<String>? partnerShippingName,
     Expression<int>? pricelistId,
     Expression<String>? pricelistName,
     Expression<int>? paymentTermId,
@@ -44143,7 +43812,6 @@ class SaleOrderCompanion extends UpdateCompanion<SaleOrderData> {
     Expression<int>? warehouseId,
     Expression<String>? warehouseName,
     Expression<int>? currencyId,
-    Expression<String>? currencyName,
     Expression<double>? amountUntaxed,
     Expression<double>? amountTax,
     Expression<double>? amountTotal,
@@ -44178,8 +43846,6 @@ class SaleOrderCompanion extends UpdateCompanion<SaleOrderData> {
     Expression<String>? accessWarning,
     Expression<int>? collectionSessionId,
     Expression<String>? collectionSessionName,
-    Expression<int>? collectionConfigId,
-    Expression<String>? collectionConfigName,
     Expression<int>? collectionUserId,
     Expression<String>? collectionUserName,
     Expression<int>? saleCreatedUserId,
@@ -44256,11 +43922,7 @@ class SaleOrderCompanion extends UpdateCompanion<SaleOrderData> {
       if (partnerId != null) 'partner_id': partnerId,
       if (partnerName != null) 'partner_name': partnerName,
       if (partnerInvoiceId != null) 'partner_invoice_id': partnerInvoiceId,
-      if (partnerInvoiceName != null)
-        'partner_invoice_name': partnerInvoiceName,
       if (partnerShippingId != null) 'partner_shipping_id': partnerShippingId,
-      if (partnerShippingName != null)
-        'partner_shipping_name': partnerShippingName,
       if (pricelistId != null) 'pricelist_id': pricelistId,
       if (pricelistName != null) 'pricelist_name': pricelistName,
       if (paymentTermId != null) 'payment_term_id': paymentTermId,
@@ -44274,7 +43936,6 @@ class SaleOrderCompanion extends UpdateCompanion<SaleOrderData> {
       if (warehouseId != null) 'warehouse_id': warehouseId,
       if (warehouseName != null) 'warehouse_name': warehouseName,
       if (currencyId != null) 'currency_id': currencyId,
-      if (currencyName != null) 'currency_name': currencyName,
       if (amountUntaxed != null) 'amount_untaxed': amountUntaxed,
       if (amountTax != null) 'amount_tax': amountTax,
       if (amountTotal != null) 'amount_total': amountTotal,
@@ -44314,10 +43975,6 @@ class SaleOrderCompanion extends UpdateCompanion<SaleOrderData> {
         'collection_session_id': collectionSessionId,
       if (collectionSessionName != null)
         'collection_session_name': collectionSessionName,
-      if (collectionConfigId != null)
-        'collection_config_id': collectionConfigId,
-      if (collectionConfigName != null)
-        'collection_config_name': collectionConfigName,
       if (collectionUserId != null) 'collection_user_id': collectionUserId,
       if (collectionUserName != null)
         'collection_user_name': collectionUserName,
@@ -44405,9 +44062,7 @@ class SaleOrderCompanion extends UpdateCompanion<SaleOrderData> {
     Value<int?>? partnerId,
     Value<String?>? partnerName,
     Value<int?>? partnerInvoiceId,
-    Value<String?>? partnerInvoiceName,
     Value<int?>? partnerShippingId,
-    Value<String?>? partnerShippingName,
     Value<int?>? pricelistId,
     Value<String?>? pricelistName,
     Value<int?>? paymentTermId,
@@ -44421,7 +44076,6 @@ class SaleOrderCompanion extends UpdateCompanion<SaleOrderData> {
     Value<int?>? warehouseId,
     Value<String?>? warehouseName,
     Value<int?>? currencyId,
-    Value<String?>? currencyName,
     Value<double?>? amountUntaxed,
     Value<double?>? amountTax,
     Value<double?>? amountTotal,
@@ -44456,8 +44110,6 @@ class SaleOrderCompanion extends UpdateCompanion<SaleOrderData> {
     Value<String?>? accessWarning,
     Value<int?>? collectionSessionId,
     Value<String?>? collectionSessionName,
-    Value<int?>? collectionConfigId,
-    Value<String?>? collectionConfigName,
     Value<int?>? collectionUserId,
     Value<String?>? collectionUserName,
     Value<int?>? saleCreatedUserId,
@@ -44534,9 +44186,7 @@ class SaleOrderCompanion extends UpdateCompanion<SaleOrderData> {
       partnerId: partnerId ?? this.partnerId,
       partnerName: partnerName ?? this.partnerName,
       partnerInvoiceId: partnerInvoiceId ?? this.partnerInvoiceId,
-      partnerInvoiceName: partnerInvoiceName ?? this.partnerInvoiceName,
       partnerShippingId: partnerShippingId ?? this.partnerShippingId,
-      partnerShippingName: partnerShippingName ?? this.partnerShippingName,
       pricelistId: pricelistId ?? this.pricelistId,
       pricelistName: pricelistName ?? this.pricelistName,
       paymentTermId: paymentTermId ?? this.paymentTermId,
@@ -44550,7 +44200,6 @@ class SaleOrderCompanion extends UpdateCompanion<SaleOrderData> {
       warehouseId: warehouseId ?? this.warehouseId,
       warehouseName: warehouseName ?? this.warehouseName,
       currencyId: currencyId ?? this.currencyId,
-      currencyName: currencyName ?? this.currencyName,
       amountUntaxed: amountUntaxed ?? this.amountUntaxed,
       amountTax: amountTax ?? this.amountTax,
       amountTotal: amountTotal ?? this.amountTotal,
@@ -44586,8 +44235,6 @@ class SaleOrderCompanion extends UpdateCompanion<SaleOrderData> {
       collectionSessionId: collectionSessionId ?? this.collectionSessionId,
       collectionSessionName:
           collectionSessionName ?? this.collectionSessionName,
-      collectionConfigId: collectionConfigId ?? this.collectionConfigId,
-      collectionConfigName: collectionConfigName ?? this.collectionConfigName,
       collectionUserId: collectionUserId ?? this.collectionUserId,
       collectionUserName: collectionUserName ?? this.collectionUserName,
       saleCreatedUserId: saleCreatedUserId ?? this.saleCreatedUserId,
@@ -44693,16 +44340,8 @@ class SaleOrderCompanion extends UpdateCompanion<SaleOrderData> {
     if (partnerInvoiceId.present) {
       map['partner_invoice_id'] = Variable<int>(partnerInvoiceId.value);
     }
-    if (partnerInvoiceName.present) {
-      map['partner_invoice_name'] = Variable<String>(partnerInvoiceName.value);
-    }
     if (partnerShippingId.present) {
       map['partner_shipping_id'] = Variable<int>(partnerShippingId.value);
-    }
-    if (partnerShippingName.present) {
-      map['partner_shipping_name'] = Variable<String>(
-        partnerShippingName.value,
-      );
     }
     if (pricelistId.present) {
       map['pricelist_id'] = Variable<int>(pricelistId.value);
@@ -44742,9 +44381,6 @@ class SaleOrderCompanion extends UpdateCompanion<SaleOrderData> {
     }
     if (currencyId.present) {
       map['currency_id'] = Variable<int>(currencyId.value);
-    }
-    if (currencyName.present) {
-      map['currency_name'] = Variable<String>(currencyName.value);
     }
     if (amountUntaxed.present) {
       map['amount_untaxed'] = Variable<double>(amountUntaxed.value);
@@ -44852,14 +44488,6 @@ class SaleOrderCompanion extends UpdateCompanion<SaleOrderData> {
     if (collectionSessionName.present) {
       map['collection_session_name'] = Variable<String>(
         collectionSessionName.value,
-      );
-    }
-    if (collectionConfigId.present) {
-      map['collection_config_id'] = Variable<int>(collectionConfigId.value);
-    }
-    if (collectionConfigName.present) {
-      map['collection_config_name'] = Variable<String>(
-        collectionConfigName.value,
       );
     }
     if (collectionUserId.present) {
@@ -45082,9 +44710,7 @@ class SaleOrderCompanion extends UpdateCompanion<SaleOrderData> {
           ..write('partnerId: $partnerId, ')
           ..write('partnerName: $partnerName, ')
           ..write('partnerInvoiceId: $partnerInvoiceId, ')
-          ..write('partnerInvoiceName: $partnerInvoiceName, ')
           ..write('partnerShippingId: $partnerShippingId, ')
-          ..write('partnerShippingName: $partnerShippingName, ')
           ..write('pricelistId: $pricelistId, ')
           ..write('pricelistName: $pricelistName, ')
           ..write('paymentTermId: $paymentTermId, ')
@@ -45098,7 +44724,6 @@ class SaleOrderCompanion extends UpdateCompanion<SaleOrderData> {
           ..write('warehouseId: $warehouseId, ')
           ..write('warehouseName: $warehouseName, ')
           ..write('currencyId: $currencyId, ')
-          ..write('currencyName: $currencyName, ')
           ..write('amountUntaxed: $amountUntaxed, ')
           ..write('amountTax: $amountTax, ')
           ..write('amountTotal: $amountTotal, ')
@@ -45133,8 +44758,6 @@ class SaleOrderCompanion extends UpdateCompanion<SaleOrderData> {
           ..write('accessWarning: $accessWarning, ')
           ..write('collectionSessionId: $collectionSessionId, ')
           ..write('collectionSessionName: $collectionSessionName, ')
-          ..write('collectionConfigId: $collectionConfigId, ')
-          ..write('collectionConfigName: $collectionConfigName, ')
           ..write('collectionUserId: $collectionUserId, ')
           ..write('collectionUserName: $collectionUserName, ')
           ..write('saleCreatedUserId: $saleCreatedUserId, ')
@@ -51444,17 +51067,6 @@ class $ProductProductTable extends ProductProduct
     type: DriftSqlType.string,
     requiredDuringInsert: false,
   );
-  static const VerificationMeta _lstPriceMeta = const VerificationMeta(
-    'lstPrice',
-  );
-  @override
-  late final GeneratedColumn<double> lstPrice = GeneratedColumn<double>(
-    'lst_price',
-    aliasedName,
-    true,
-    type: DriftSqlType.double,
-    requiredDuringInsert: false,
-  );
   static const VerificationMeta _listPriceMeta = const VerificationMeta(
     'listPrice',
   );
@@ -51802,7 +51414,6 @@ class $ProductProductTable extends ProductProduct
     uomName,
     uomPoId,
     uomPoName,
-    lstPrice,
     listPrice,
     standardPrice,
     weight,
@@ -51981,12 +51592,6 @@ class $ProductProductTable extends ProductProduct
       context.handle(
         _uomPoNameMeta,
         uomPoName.isAcceptableOrUnknown(data['uom_po_name']!, _uomPoNameMeta),
-      );
-    }
-    if (data.containsKey('lst_price')) {
-      context.handle(
-        _lstPriceMeta,
-        lstPrice.isAcceptableOrUnknown(data['lst_price']!, _lstPriceMeta),
       );
     }
     if (data.containsKey('list_price')) {
@@ -52288,10 +51893,6 @@ class $ProductProductTable extends ProductProduct
         DriftSqlType.string,
         data['${effectivePrefix}uom_po_name'],
       ),
-      lstPrice: attachedDatabase.typeMapping.read(
-        DriftSqlType.double,
-        data['${effectivePrefix}lst_price'],
-      ),
       listPrice: attachedDatabase.typeMapping.read(
         DriftSqlType.double,
         data['${effectivePrefix}list_price'],
@@ -52435,7 +52036,6 @@ class ProductProductData extends DataClass
   final String? uomName;
   final int? uomPoId;
   final String? uomPoName;
-  final double? lstPrice;
   final double? listPrice;
   final double? standardPrice;
   final double? weight;
@@ -52485,7 +52085,6 @@ class ProductProductData extends DataClass
     this.uomName,
     this.uomPoId,
     this.uomPoName,
-    this.lstPrice,
     this.listPrice,
     this.standardPrice,
     this.weight,
@@ -52563,9 +52162,6 @@ class ProductProductData extends DataClass
     }
     if (!nullToAbsent || uomPoName != null) {
       map['uom_po_name'] = Variable<String>(uomPoName);
-    }
-    if (!nullToAbsent || lstPrice != null) {
-      map['lst_price'] = Variable<double>(lstPrice);
     }
     if (!nullToAbsent || listPrice != null) {
       map['list_price'] = Variable<double>(listPrice);
@@ -52686,9 +52282,6 @@ class ProductProductData extends DataClass
       uomPoName: uomPoName == null && nullToAbsent
           ? const Value.absent()
           : Value(uomPoName),
-      lstPrice: lstPrice == null && nullToAbsent
-          ? const Value.absent()
-          : Value(lstPrice),
       listPrice: listPrice == null && nullToAbsent
           ? const Value.absent()
           : Value(listPrice),
@@ -52788,7 +52381,6 @@ class ProductProductData extends DataClass
       uomName: serializer.fromJson<String?>(json['uomName']),
       uomPoId: serializer.fromJson<int?>(json['uomPoId']),
       uomPoName: serializer.fromJson<String?>(json['uomPoName']),
-      lstPrice: serializer.fromJson<double?>(json['lstPrice']),
       listPrice: serializer.fromJson<double?>(json['listPrice']),
       standardPrice: serializer.fromJson<double?>(json['standardPrice']),
       weight: serializer.fromJson<double?>(json['weight']),
@@ -52849,7 +52441,6 @@ class ProductProductData extends DataClass
       'uomName': serializer.toJson<String?>(uomName),
       'uomPoId': serializer.toJson<int?>(uomPoId),
       'uomPoName': serializer.toJson<String?>(uomPoName),
-      'lstPrice': serializer.toJson<double?>(lstPrice),
       'listPrice': serializer.toJson<double?>(listPrice),
       'standardPrice': serializer.toJson<double?>(standardPrice),
       'weight': serializer.toJson<double?>(weight),
@@ -52902,7 +52493,6 @@ class ProductProductData extends DataClass
     Value<String?> uomName = const Value.absent(),
     Value<int?> uomPoId = const Value.absent(),
     Value<String?> uomPoName = const Value.absent(),
-    Value<double?> lstPrice = const Value.absent(),
     Value<double?> listPrice = const Value.absent(),
     Value<double?> standardPrice = const Value.absent(),
     Value<double?> weight = const Value.absent(),
@@ -52956,7 +52546,6 @@ class ProductProductData extends DataClass
     uomName: uomName.present ? uomName.value : this.uomName,
     uomPoId: uomPoId.present ? uomPoId.value : this.uomPoId,
     uomPoName: uomPoName.present ? uomPoName.value : this.uomPoName,
-    lstPrice: lstPrice.present ? lstPrice.value : this.lstPrice,
     listPrice: listPrice.present ? listPrice.value : this.listPrice,
     standardPrice: standardPrice.present
         ? standardPrice.value
@@ -53032,7 +52621,6 @@ class ProductProductData extends DataClass
       uomName: data.uomName.present ? data.uomName.value : this.uomName,
       uomPoId: data.uomPoId.present ? data.uomPoId.value : this.uomPoId,
       uomPoName: data.uomPoName.present ? data.uomPoName.value : this.uomPoName,
-      lstPrice: data.lstPrice.present ? data.lstPrice.value : this.lstPrice,
       listPrice: data.listPrice.present ? data.listPrice.value : this.listPrice,
       standardPrice: data.standardPrice.present
           ? data.standardPrice.value
@@ -53117,7 +52705,6 @@ class ProductProductData extends DataClass
           ..write('uomName: $uomName, ')
           ..write('uomPoId: $uomPoId, ')
           ..write('uomPoName: $uomPoName, ')
-          ..write('lstPrice: $lstPrice, ')
           ..write('listPrice: $listPrice, ')
           ..write('standardPrice: $standardPrice, ')
           ..write('weight: $weight, ')
@@ -53172,7 +52759,6 @@ class ProductProductData extends DataClass
     uomName,
     uomPoId,
     uomPoName,
-    lstPrice,
     listPrice,
     standardPrice,
     weight,
@@ -53226,7 +52812,6 @@ class ProductProductData extends DataClass
           other.uomName == this.uomName &&
           other.uomPoId == this.uomPoId &&
           other.uomPoName == this.uomPoName &&
-          other.lstPrice == this.lstPrice &&
           other.listPrice == this.listPrice &&
           other.standardPrice == this.standardPrice &&
           other.weight == this.weight &&
@@ -53278,7 +52863,6 @@ class ProductProductCompanion extends UpdateCompanion<ProductProductData> {
   final Value<String?> uomName;
   final Value<int?> uomPoId;
   final Value<String?> uomPoName;
-  final Value<double?> lstPrice;
   final Value<double?> listPrice;
   final Value<double?> standardPrice;
   final Value<double?> weight;
@@ -53328,7 +52912,6 @@ class ProductProductCompanion extends UpdateCompanion<ProductProductData> {
     this.uomName = const Value.absent(),
     this.uomPoId = const Value.absent(),
     this.uomPoName = const Value.absent(),
-    this.lstPrice = const Value.absent(),
     this.listPrice = const Value.absent(),
     this.standardPrice = const Value.absent(),
     this.weight = const Value.absent(),
@@ -53379,7 +52962,6 @@ class ProductProductCompanion extends UpdateCompanion<ProductProductData> {
     this.uomName = const Value.absent(),
     this.uomPoId = const Value.absent(),
     this.uomPoName = const Value.absent(),
-    this.lstPrice = const Value.absent(),
     this.listPrice = const Value.absent(),
     this.standardPrice = const Value.absent(),
     this.weight = const Value.absent(),
@@ -53431,7 +53013,6 @@ class ProductProductCompanion extends UpdateCompanion<ProductProductData> {
     Expression<String>? uomName,
     Expression<int>? uomPoId,
     Expression<String>? uomPoName,
-    Expression<double>? lstPrice,
     Expression<double>? listPrice,
     Expression<double>? standardPrice,
     Expression<double>? weight,
@@ -53483,7 +53064,6 @@ class ProductProductCompanion extends UpdateCompanion<ProductProductData> {
       if (uomName != null) 'uom_name': uomName,
       if (uomPoId != null) 'uom_po_id': uomPoId,
       if (uomPoName != null) 'uom_po_name': uomPoName,
-      if (lstPrice != null) 'lst_price': lstPrice,
       if (listPrice != null) 'list_price': listPrice,
       if (standardPrice != null) 'standard_price': standardPrice,
       if (weight != null) 'weight': weight,
@@ -53538,7 +53118,6 @@ class ProductProductCompanion extends UpdateCompanion<ProductProductData> {
     Value<String?>? uomName,
     Value<int?>? uomPoId,
     Value<String?>? uomPoName,
-    Value<double?>? lstPrice,
     Value<double?>? listPrice,
     Value<double?>? standardPrice,
     Value<double?>? weight,
@@ -53589,7 +53168,6 @@ class ProductProductCompanion extends UpdateCompanion<ProductProductData> {
       uomName: uomName ?? this.uomName,
       uomPoId: uomPoId ?? this.uomPoId,
       uomPoName: uomPoName ?? this.uomPoName,
-      lstPrice: lstPrice ?? this.lstPrice,
       listPrice: listPrice ?? this.listPrice,
       standardPrice: standardPrice ?? this.standardPrice,
       weight: weight ?? this.weight,
@@ -53683,9 +53261,6 @@ class ProductProductCompanion extends UpdateCompanion<ProductProductData> {
     }
     if (uomPoName.present) {
       map['uom_po_name'] = Variable<String>(uomPoName.value);
-    }
-    if (lstPrice.present) {
-      map['lst_price'] = Variable<double>(lstPrice.value);
     }
     if (listPrice.present) {
       map['list_price'] = Variable<double>(listPrice.value);
@@ -53799,7 +53374,6 @@ class ProductProductCompanion extends UpdateCompanion<ProductProductData> {
           ..write('uomName: $uomName, ')
           ..write('uomPoId: $uomPoId, ')
           ..write('uomPoName: $uomPoName, ')
-          ..write('lstPrice: $lstPrice, ')
           ..write('listPrice: $listPrice, ')
           ..write('standardPrice: $standardPrice, ')
           ..write('weight: $weight, ')
@@ -66160,9 +65734,9 @@ class $AccountAdvanceTable extends AccountAdvance
   late final GeneratedColumn<String> name = GeneratedColumn<String>(
     'name',
     aliasedName,
-    false,
+    true,
     type: DriftSqlType.string,
-    requiredDuringInsert: true,
+    requiredDuringInsert: false,
   );
   static const VerificationMeta _stateMeta = const VerificationMeta('state');
   @override
@@ -66194,7 +65768,8 @@ class $AccountAdvanceTable extends AccountAdvance
     aliasedName,
     false,
     type: DriftSqlType.string,
-    requiredDuringInsert: true,
+    requiredDuringInsert: false,
+    defaultValue: const Constant('customer'),
   );
   static const VerificationMeta _partnerIdMeta = const VerificationMeta(
     'partnerId',
@@ -66236,9 +65811,9 @@ class $AccountAdvanceTable extends AccountAdvance
   late final GeneratedColumn<int> companyId = GeneratedColumn<int>(
     'company_id',
     aliasedName,
-    false,
+    true,
     type: DriftSqlType.int,
-    requiredDuringInsert: true,
+    requiredDuringInsert: false,
   );
   static const VerificationMeta _currencyIdMeta = const VerificationMeta(
     'currencyId',
@@ -66513,8 +66088,6 @@ class $AccountAdvanceTable extends AccountAdvance
         _nameMeta,
         name.isAcceptableOrUnknown(data['name']!, _nameMeta),
       );
-    } else if (isInserting) {
-      context.missing(_nameMeta);
     }
     if (data.containsKey('state')) {
       context.handle(
@@ -66541,8 +66114,6 @@ class $AccountAdvanceTable extends AccountAdvance
           _partnerTypeMeta,
         ),
       );
-    } else if (isInserting) {
-      context.missing(_partnerTypeMeta);
     }
     if (data.containsKey('partner_id')) {
       context.handle(
@@ -66572,8 +66143,6 @@ class $AccountAdvanceTable extends AccountAdvance
         _companyIdMeta,
         companyId.isAcceptableOrUnknown(data['company_id']!, _companyIdMeta),
       );
-    } else if (isInserting) {
-      context.missing(_companyIdMeta);
     }
     if (data.containsKey('currency_id')) {
       context.handle(
@@ -66741,7 +66310,7 @@ class $AccountAdvanceTable extends AccountAdvance
       name: attachedDatabase.typeMapping.read(
         DriftSqlType.string,
         data['${effectivePrefix}name'],
-      )!,
+      ),
       state: attachedDatabase.typeMapping.read(
         DriftSqlType.string,
         data['${effectivePrefix}state'],
@@ -66769,7 +66338,7 @@ class $AccountAdvanceTable extends AccountAdvance
       companyId: attachedDatabase.typeMapping.read(
         DriftSqlType.int,
         data['${effectivePrefix}company_id'],
-      )!,
+      ),
       currencyId: attachedDatabase.typeMapping.read(
         DriftSqlType.int,
         data['${effectivePrefix}currency_id'],
@@ -66859,14 +66428,14 @@ class AccountAdvanceData extends DataClass
     implements Insertable<AccountAdvanceData> {
   final int id;
   final int odooId;
-  final String name;
+  final String? name;
   final String state;
   final String advanceType;
   final String partnerType;
   final int partnerId;
   final String? partnerName;
   final String? partnerVat;
-  final int companyId;
+  final int? companyId;
   final int? currencyId;
   final int? cashierId;
   final String? cashierName;
@@ -66889,14 +66458,14 @@ class AccountAdvanceData extends DataClass
   const AccountAdvanceData({
     required this.id,
     required this.odooId,
-    required this.name,
+    this.name,
     required this.state,
     required this.advanceType,
     required this.partnerType,
     required this.partnerId,
     this.partnerName,
     this.partnerVat,
-    required this.companyId,
+    this.companyId,
     this.currencyId,
     this.cashierId,
     this.cashierName,
@@ -66922,7 +66491,9 @@ class AccountAdvanceData extends DataClass
     final map = <String, Expression>{};
     map['id'] = Variable<int>(id);
     map['odoo_id'] = Variable<int>(odooId);
-    map['name'] = Variable<String>(name);
+    if (!nullToAbsent || name != null) {
+      map['name'] = Variable<String>(name);
+    }
     map['state'] = Variable<String>(state);
     map['advance_type'] = Variable<String>(advanceType);
     map['partner_type'] = Variable<String>(partnerType);
@@ -66933,7 +66504,9 @@ class AccountAdvanceData extends DataClass
     if (!nullToAbsent || partnerVat != null) {
       map['partner_vat'] = Variable<String>(partnerVat);
     }
-    map['company_id'] = Variable<int>(companyId);
+    if (!nullToAbsent || companyId != null) {
+      map['company_id'] = Variable<int>(companyId);
+    }
     if (!nullToAbsent || currencyId != null) {
       map['currency_id'] = Variable<int>(currencyId);
     }
@@ -66984,7 +66557,7 @@ class AccountAdvanceData extends DataClass
     return AccountAdvanceCompanion(
       id: Value(id),
       odooId: Value(odooId),
-      name: Value(name),
+      name: name == null && nullToAbsent ? const Value.absent() : Value(name),
       state: Value(state),
       advanceType: Value(advanceType),
       partnerType: Value(partnerType),
@@ -66995,7 +66568,9 @@ class AccountAdvanceData extends DataClass
       partnerVat: partnerVat == null && nullToAbsent
           ? const Value.absent()
           : Value(partnerVat),
-      companyId: Value(companyId),
+      companyId: companyId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(companyId),
       currencyId: currencyId == null && nullToAbsent
           ? const Value.absent()
           : Value(currencyId),
@@ -67050,14 +66625,14 @@ class AccountAdvanceData extends DataClass
     return AccountAdvanceData(
       id: serializer.fromJson<int>(json['id']),
       odooId: serializer.fromJson<int>(json['odooId']),
-      name: serializer.fromJson<String>(json['name']),
+      name: serializer.fromJson<String?>(json['name']),
       state: serializer.fromJson<String>(json['state']),
       advanceType: serializer.fromJson<String>(json['advanceType']),
       partnerType: serializer.fromJson<String>(json['partnerType']),
       partnerId: serializer.fromJson<int>(json['partnerId']),
       partnerName: serializer.fromJson<String?>(json['partnerName']),
       partnerVat: serializer.fromJson<String?>(json['partnerVat']),
-      companyId: serializer.fromJson<int>(json['companyId']),
+      companyId: serializer.fromJson<int?>(json['companyId']),
       currencyId: serializer.fromJson<int?>(json['currencyId']),
       cashierId: serializer.fromJson<int?>(json['cashierId']),
       cashierName: serializer.fromJson<String?>(json['cashierName']),
@@ -67087,14 +66662,14 @@ class AccountAdvanceData extends DataClass
     return <String, dynamic>{
       'id': serializer.toJson<int>(id),
       'odooId': serializer.toJson<int>(odooId),
-      'name': serializer.toJson<String>(name),
+      'name': serializer.toJson<String?>(name),
       'state': serializer.toJson<String>(state),
       'advanceType': serializer.toJson<String>(advanceType),
       'partnerType': serializer.toJson<String>(partnerType),
       'partnerId': serializer.toJson<int>(partnerId),
       'partnerName': serializer.toJson<String?>(partnerName),
       'partnerVat': serializer.toJson<String?>(partnerVat),
-      'companyId': serializer.toJson<int>(companyId),
+      'companyId': serializer.toJson<int?>(companyId),
       'currencyId': serializer.toJson<int?>(currencyId),
       'cashierId': serializer.toJson<int?>(cashierId),
       'cashierName': serializer.toJson<String?>(cashierName),
@@ -67120,14 +66695,14 @@ class AccountAdvanceData extends DataClass
   AccountAdvanceData copyWith({
     int? id,
     int? odooId,
-    String? name,
+    Value<String?> name = const Value.absent(),
     String? state,
     String? advanceType,
     String? partnerType,
     int? partnerId,
     Value<String?> partnerName = const Value.absent(),
     Value<String?> partnerVat = const Value.absent(),
-    int? companyId,
+    Value<int?> companyId = const Value.absent(),
     Value<int?> currencyId = const Value.absent(),
     Value<int?> cashierId = const Value.absent(),
     Value<String?> cashierName = const Value.absent(),
@@ -67150,14 +66725,14 @@ class AccountAdvanceData extends DataClass
   }) => AccountAdvanceData(
     id: id ?? this.id,
     odooId: odooId ?? this.odooId,
-    name: name ?? this.name,
+    name: name.present ? name.value : this.name,
     state: state ?? this.state,
     advanceType: advanceType ?? this.advanceType,
     partnerType: partnerType ?? this.partnerType,
     partnerId: partnerId ?? this.partnerId,
     partnerName: partnerName.present ? partnerName.value : this.partnerName,
     partnerVat: partnerVat.present ? partnerVat.value : this.partnerVat,
-    companyId: companyId ?? this.companyId,
+    companyId: companyId.present ? companyId.value : this.companyId,
     currencyId: currencyId.present ? currencyId.value : this.currencyId,
     cashierId: cashierId.present ? cashierId.value : this.cashierId,
     cashierName: cashierName.present ? cashierName.value : this.cashierName,
@@ -67356,14 +66931,14 @@ class AccountAdvanceData extends DataClass
 class AccountAdvanceCompanion extends UpdateCompanion<AccountAdvanceData> {
   final Value<int> id;
   final Value<int> odooId;
-  final Value<String> name;
+  final Value<String?> name;
   final Value<String> state;
   final Value<String> advanceType;
   final Value<String> partnerType;
   final Value<int> partnerId;
   final Value<String?> partnerName;
   final Value<String?> partnerVat;
-  final Value<int> companyId;
+  final Value<int?> companyId;
   final Value<int?> currencyId;
   final Value<int?> cashierId;
   final Value<String?> cashierName;
@@ -67417,14 +66992,14 @@ class AccountAdvanceCompanion extends UpdateCompanion<AccountAdvanceData> {
   AccountAdvanceCompanion.insert({
     this.id = const Value.absent(),
     required int odooId,
-    required String name,
+    this.name = const Value.absent(),
     this.state = const Value.absent(),
     required String advanceType,
-    required String partnerType,
+    this.partnerType = const Value.absent(),
     required int partnerId,
     this.partnerName = const Value.absent(),
     this.partnerVat = const Value.absent(),
-    required int companyId,
+    this.companyId = const Value.absent(),
     this.currencyId = const Value.absent(),
     this.cashierId = const Value.absent(),
     this.cashierName = const Value.absent(),
@@ -67445,11 +67020,8 @@ class AccountAdvanceCompanion extends UpdateCompanion<AccountAdvanceData> {
     this.saleOrderId = const Value.absent(),
     this.writeDate = const Value.absent(),
   }) : odooId = Value(odooId),
-       name = Value(name),
        advanceType = Value(advanceType),
-       partnerType = Value(partnerType),
        partnerId = Value(partnerId),
-       companyId = Value(companyId),
        date = Value(date);
   static Insertable<AccountAdvanceData> custom({
     Expression<int>? id,
@@ -67520,14 +67092,14 @@ class AccountAdvanceCompanion extends UpdateCompanion<AccountAdvanceData> {
   AccountAdvanceCompanion copyWith({
     Value<int>? id,
     Value<int>? odooId,
-    Value<String>? name,
+    Value<String?>? name,
     Value<String>? state,
     Value<String>? advanceType,
     Value<String>? partnerType,
     Value<int>? partnerId,
     Value<String?>? partnerName,
     Value<String?>? partnerVat,
-    Value<int>? companyId,
+    Value<int?>? companyId,
     Value<int?>? currencyId,
     Value<int?>? cashierId,
     Value<String?>? cashierName,
@@ -74179,670 +73751,6 @@ class StockQuantityChangeCompanion
   }
 }
 
-class $DirtyFieldsTable extends DirtyFields
-    with TableInfo<$DirtyFieldsTable, DirtyField> {
-  @override
-  final GeneratedDatabase attachedDatabase;
-  final String? _alias;
-  $DirtyFieldsTable(this.attachedDatabase, [this._alias]);
-  static const VerificationMeta _idMeta = const VerificationMeta('id');
-  @override
-  late final GeneratedColumn<int> id = GeneratedColumn<int>(
-    'id',
-    aliasedName,
-    false,
-    hasAutoIncrement: true,
-    type: DriftSqlType.int,
-    requiredDuringInsert: false,
-    defaultConstraints: GeneratedColumn.constraintIsAlways(
-      'PRIMARY KEY AUTOINCREMENT',
-    ),
-  );
-  static const VerificationMeta _modelMeta = const VerificationMeta('model');
-  @override
-  late final GeneratedColumn<String> model = GeneratedColumn<String>(
-    'model',
-    aliasedName,
-    false,
-    type: DriftSqlType.string,
-    requiredDuringInsert: true,
-  );
-  static const VerificationMeta _recordIdMeta = const VerificationMeta(
-    'recordId',
-  );
-  @override
-  late final GeneratedColumn<int> recordId = GeneratedColumn<int>(
-    'record_id',
-    aliasedName,
-    false,
-    type: DriftSqlType.int,
-    requiredDuringInsert: true,
-  );
-  static const VerificationMeta _fieldNameMeta = const VerificationMeta(
-    'fieldName',
-  );
-  @override
-  late final GeneratedColumn<String> fieldName = GeneratedColumn<String>(
-    'field_name',
-    aliasedName,
-    false,
-    type: DriftSqlType.string,
-    requiredDuringInsert: true,
-  );
-  static const VerificationMeta _oldValueMeta = const VerificationMeta(
-    'oldValue',
-  );
-  @override
-  late final GeneratedColumn<String> oldValue = GeneratedColumn<String>(
-    'old_value',
-    aliasedName,
-    true,
-    type: DriftSqlType.string,
-    requiredDuringInsert: false,
-  );
-  static const VerificationMeta _newValueMeta = const VerificationMeta(
-    'newValue',
-  );
-  @override
-  late final GeneratedColumn<String> newValue = GeneratedColumn<String>(
-    'new_value',
-    aliasedName,
-    true,
-    type: DriftSqlType.string,
-    requiredDuringInsert: false,
-  );
-  static const VerificationMeta _localValueMeta = const VerificationMeta(
-    'localValue',
-  );
-  @override
-  late final GeneratedColumn<String> localValue = GeneratedColumn<String>(
-    'local_value',
-    aliasedName,
-    true,
-    type: DriftSqlType.string,
-    requiredDuringInsert: false,
-  );
-  static const VerificationMeta _serverValueMeta = const VerificationMeta(
-    'serverValue',
-  );
-  @override
-  late final GeneratedColumn<String> serverValue = GeneratedColumn<String>(
-    'server_value',
-    aliasedName,
-    true,
-    type: DriftSqlType.string,
-    requiredDuringInsert: false,
-  );
-  static const VerificationMeta _lastSyncAtMeta = const VerificationMeta(
-    'lastSyncAt',
-  );
-  @override
-  late final GeneratedColumn<DateTime> lastSyncAt = GeneratedColumn<DateTime>(
-    'last_sync_at',
-    aliasedName,
-    true,
-    type: DriftSqlType.dateTime,
-    requiredDuringInsert: false,
-  );
-  static const VerificationMeta _modifiedAtMeta = const VerificationMeta(
-    'modifiedAt',
-  );
-  @override
-  late final GeneratedColumn<DateTime> modifiedAt = GeneratedColumn<DateTime>(
-    'modified_at',
-    aliasedName,
-    false,
-    type: DriftSqlType.dateTime,
-    requiredDuringInsert: true,
-  );
-  static const VerificationMeta _isSyncedMeta = const VerificationMeta(
-    'isSynced',
-  );
-  @override
-  late final GeneratedColumn<bool> isSynced = GeneratedColumn<bool>(
-    'is_synced',
-    aliasedName,
-    false,
-    type: DriftSqlType.bool,
-    requiredDuringInsert: false,
-    defaultConstraints: GeneratedColumn.constraintIsAlways(
-      'CHECK ("is_synced" IN (0, 1))',
-    ),
-    defaultValue: const Constant(false),
-  );
-  @override
-  List<GeneratedColumn> get $columns => [
-    id,
-    model,
-    recordId,
-    fieldName,
-    oldValue,
-    newValue,
-    localValue,
-    serverValue,
-    lastSyncAt,
-    modifiedAt,
-    isSynced,
-  ];
-  @override
-  String get aliasedName => _alias ?? actualTableName;
-  @override
-  String get actualTableName => $name;
-  static const String $name = 'dirty_fields';
-  @override
-  VerificationContext validateIntegrity(
-    Insertable<DirtyField> instance, {
-    bool isInserting = false,
-  }) {
-    final context = VerificationContext();
-    final data = instance.toColumns(true);
-    if (data.containsKey('id')) {
-      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
-    }
-    if (data.containsKey('model')) {
-      context.handle(
-        _modelMeta,
-        model.isAcceptableOrUnknown(data['model']!, _modelMeta),
-      );
-    } else if (isInserting) {
-      context.missing(_modelMeta);
-    }
-    if (data.containsKey('record_id')) {
-      context.handle(
-        _recordIdMeta,
-        recordId.isAcceptableOrUnknown(data['record_id']!, _recordIdMeta),
-      );
-    } else if (isInserting) {
-      context.missing(_recordIdMeta);
-    }
-    if (data.containsKey('field_name')) {
-      context.handle(
-        _fieldNameMeta,
-        fieldName.isAcceptableOrUnknown(data['field_name']!, _fieldNameMeta),
-      );
-    } else if (isInserting) {
-      context.missing(_fieldNameMeta);
-    }
-    if (data.containsKey('old_value')) {
-      context.handle(
-        _oldValueMeta,
-        oldValue.isAcceptableOrUnknown(data['old_value']!, _oldValueMeta),
-      );
-    }
-    if (data.containsKey('new_value')) {
-      context.handle(
-        _newValueMeta,
-        newValue.isAcceptableOrUnknown(data['new_value']!, _newValueMeta),
-      );
-    }
-    if (data.containsKey('local_value')) {
-      context.handle(
-        _localValueMeta,
-        localValue.isAcceptableOrUnknown(data['local_value']!, _localValueMeta),
-      );
-    }
-    if (data.containsKey('server_value')) {
-      context.handle(
-        _serverValueMeta,
-        serverValue.isAcceptableOrUnknown(
-          data['server_value']!,
-          _serverValueMeta,
-        ),
-      );
-    }
-    if (data.containsKey('last_sync_at')) {
-      context.handle(
-        _lastSyncAtMeta,
-        lastSyncAt.isAcceptableOrUnknown(
-          data['last_sync_at']!,
-          _lastSyncAtMeta,
-        ),
-      );
-    }
-    if (data.containsKey('modified_at')) {
-      context.handle(
-        _modifiedAtMeta,
-        modifiedAt.isAcceptableOrUnknown(data['modified_at']!, _modifiedAtMeta),
-      );
-    } else if (isInserting) {
-      context.missing(_modifiedAtMeta);
-    }
-    if (data.containsKey('is_synced')) {
-      context.handle(
-        _isSyncedMeta,
-        isSynced.isAcceptableOrUnknown(data['is_synced']!, _isSyncedMeta),
-      );
-    }
-    return context;
-  }
-
-  @override
-  Set<GeneratedColumn> get $primaryKey => {id};
-  @override
-  DirtyField map(Map<String, dynamic> data, {String? tablePrefix}) {
-    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
-    return DirtyField(
-      id: attachedDatabase.typeMapping.read(
-        DriftSqlType.int,
-        data['${effectivePrefix}id'],
-      )!,
-      model: attachedDatabase.typeMapping.read(
-        DriftSqlType.string,
-        data['${effectivePrefix}model'],
-      )!,
-      recordId: attachedDatabase.typeMapping.read(
-        DriftSqlType.int,
-        data['${effectivePrefix}record_id'],
-      )!,
-      fieldName: attachedDatabase.typeMapping.read(
-        DriftSqlType.string,
-        data['${effectivePrefix}field_name'],
-      )!,
-      oldValue: attachedDatabase.typeMapping.read(
-        DriftSqlType.string,
-        data['${effectivePrefix}old_value'],
-      ),
-      newValue: attachedDatabase.typeMapping.read(
-        DriftSqlType.string,
-        data['${effectivePrefix}new_value'],
-      ),
-      localValue: attachedDatabase.typeMapping.read(
-        DriftSqlType.string,
-        data['${effectivePrefix}local_value'],
-      ),
-      serverValue: attachedDatabase.typeMapping.read(
-        DriftSqlType.string,
-        data['${effectivePrefix}server_value'],
-      ),
-      lastSyncAt: attachedDatabase.typeMapping.read(
-        DriftSqlType.dateTime,
-        data['${effectivePrefix}last_sync_at'],
-      ),
-      modifiedAt: attachedDatabase.typeMapping.read(
-        DriftSqlType.dateTime,
-        data['${effectivePrefix}modified_at'],
-      )!,
-      isSynced: attachedDatabase.typeMapping.read(
-        DriftSqlType.bool,
-        data['${effectivePrefix}is_synced'],
-      )!,
-    );
-  }
-
-  @override
-  $DirtyFieldsTable createAlias(String alias) {
-    return $DirtyFieldsTable(attachedDatabase, alias);
-  }
-}
-
-class DirtyField extends DataClass implements Insertable<DirtyField> {
-  final int id;
-  final String model;
-  final int recordId;
-  final String fieldName;
-  final String? oldValue;
-  final String? newValue;
-  final String? localValue;
-  final String? serverValue;
-  final DateTime? lastSyncAt;
-  final DateTime modifiedAt;
-  final bool isSynced;
-  const DirtyField({
-    required this.id,
-    required this.model,
-    required this.recordId,
-    required this.fieldName,
-    this.oldValue,
-    this.newValue,
-    this.localValue,
-    this.serverValue,
-    this.lastSyncAt,
-    required this.modifiedAt,
-    required this.isSynced,
-  });
-  @override
-  Map<String, Expression> toColumns(bool nullToAbsent) {
-    final map = <String, Expression>{};
-    map['id'] = Variable<int>(id);
-    map['model'] = Variable<String>(model);
-    map['record_id'] = Variable<int>(recordId);
-    map['field_name'] = Variable<String>(fieldName);
-    if (!nullToAbsent || oldValue != null) {
-      map['old_value'] = Variable<String>(oldValue);
-    }
-    if (!nullToAbsent || newValue != null) {
-      map['new_value'] = Variable<String>(newValue);
-    }
-    if (!nullToAbsent || localValue != null) {
-      map['local_value'] = Variable<String>(localValue);
-    }
-    if (!nullToAbsent || serverValue != null) {
-      map['server_value'] = Variable<String>(serverValue);
-    }
-    if (!nullToAbsent || lastSyncAt != null) {
-      map['last_sync_at'] = Variable<DateTime>(lastSyncAt);
-    }
-    map['modified_at'] = Variable<DateTime>(modifiedAt);
-    map['is_synced'] = Variable<bool>(isSynced);
-    return map;
-  }
-
-  DirtyFieldsCompanion toCompanion(bool nullToAbsent) {
-    return DirtyFieldsCompanion(
-      id: Value(id),
-      model: Value(model),
-      recordId: Value(recordId),
-      fieldName: Value(fieldName),
-      oldValue: oldValue == null && nullToAbsent
-          ? const Value.absent()
-          : Value(oldValue),
-      newValue: newValue == null && nullToAbsent
-          ? const Value.absent()
-          : Value(newValue),
-      localValue: localValue == null && nullToAbsent
-          ? const Value.absent()
-          : Value(localValue),
-      serverValue: serverValue == null && nullToAbsent
-          ? const Value.absent()
-          : Value(serverValue),
-      lastSyncAt: lastSyncAt == null && nullToAbsent
-          ? const Value.absent()
-          : Value(lastSyncAt),
-      modifiedAt: Value(modifiedAt),
-      isSynced: Value(isSynced),
-    );
-  }
-
-  factory DirtyField.fromJson(
-    Map<String, dynamic> json, {
-    ValueSerializer? serializer,
-  }) {
-    serializer ??= driftRuntimeOptions.defaultSerializer;
-    return DirtyField(
-      id: serializer.fromJson<int>(json['id']),
-      model: serializer.fromJson<String>(json['model']),
-      recordId: serializer.fromJson<int>(json['recordId']),
-      fieldName: serializer.fromJson<String>(json['fieldName']),
-      oldValue: serializer.fromJson<String?>(json['oldValue']),
-      newValue: serializer.fromJson<String?>(json['newValue']),
-      localValue: serializer.fromJson<String?>(json['localValue']),
-      serverValue: serializer.fromJson<String?>(json['serverValue']),
-      lastSyncAt: serializer.fromJson<DateTime?>(json['lastSyncAt']),
-      modifiedAt: serializer.fromJson<DateTime>(json['modifiedAt']),
-      isSynced: serializer.fromJson<bool>(json['isSynced']),
-    );
-  }
-  @override
-  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
-    serializer ??= driftRuntimeOptions.defaultSerializer;
-    return <String, dynamic>{
-      'id': serializer.toJson<int>(id),
-      'model': serializer.toJson<String>(model),
-      'recordId': serializer.toJson<int>(recordId),
-      'fieldName': serializer.toJson<String>(fieldName),
-      'oldValue': serializer.toJson<String?>(oldValue),
-      'newValue': serializer.toJson<String?>(newValue),
-      'localValue': serializer.toJson<String?>(localValue),
-      'serverValue': serializer.toJson<String?>(serverValue),
-      'lastSyncAt': serializer.toJson<DateTime?>(lastSyncAt),
-      'modifiedAt': serializer.toJson<DateTime>(modifiedAt),
-      'isSynced': serializer.toJson<bool>(isSynced),
-    };
-  }
-
-  DirtyField copyWith({
-    int? id,
-    String? model,
-    int? recordId,
-    String? fieldName,
-    Value<String?> oldValue = const Value.absent(),
-    Value<String?> newValue = const Value.absent(),
-    Value<String?> localValue = const Value.absent(),
-    Value<String?> serverValue = const Value.absent(),
-    Value<DateTime?> lastSyncAt = const Value.absent(),
-    DateTime? modifiedAt,
-    bool? isSynced,
-  }) => DirtyField(
-    id: id ?? this.id,
-    model: model ?? this.model,
-    recordId: recordId ?? this.recordId,
-    fieldName: fieldName ?? this.fieldName,
-    oldValue: oldValue.present ? oldValue.value : this.oldValue,
-    newValue: newValue.present ? newValue.value : this.newValue,
-    localValue: localValue.present ? localValue.value : this.localValue,
-    serverValue: serverValue.present ? serverValue.value : this.serverValue,
-    lastSyncAt: lastSyncAt.present ? lastSyncAt.value : this.lastSyncAt,
-    modifiedAt: modifiedAt ?? this.modifiedAt,
-    isSynced: isSynced ?? this.isSynced,
-  );
-  DirtyField copyWithCompanion(DirtyFieldsCompanion data) {
-    return DirtyField(
-      id: data.id.present ? data.id.value : this.id,
-      model: data.model.present ? data.model.value : this.model,
-      recordId: data.recordId.present ? data.recordId.value : this.recordId,
-      fieldName: data.fieldName.present ? data.fieldName.value : this.fieldName,
-      oldValue: data.oldValue.present ? data.oldValue.value : this.oldValue,
-      newValue: data.newValue.present ? data.newValue.value : this.newValue,
-      localValue: data.localValue.present
-          ? data.localValue.value
-          : this.localValue,
-      serverValue: data.serverValue.present
-          ? data.serverValue.value
-          : this.serverValue,
-      lastSyncAt: data.lastSyncAt.present
-          ? data.lastSyncAt.value
-          : this.lastSyncAt,
-      modifiedAt: data.modifiedAt.present
-          ? data.modifiedAt.value
-          : this.modifiedAt,
-      isSynced: data.isSynced.present ? data.isSynced.value : this.isSynced,
-    );
-  }
-
-  @override
-  String toString() {
-    return (StringBuffer('DirtyField(')
-          ..write('id: $id, ')
-          ..write('model: $model, ')
-          ..write('recordId: $recordId, ')
-          ..write('fieldName: $fieldName, ')
-          ..write('oldValue: $oldValue, ')
-          ..write('newValue: $newValue, ')
-          ..write('localValue: $localValue, ')
-          ..write('serverValue: $serverValue, ')
-          ..write('lastSyncAt: $lastSyncAt, ')
-          ..write('modifiedAt: $modifiedAt, ')
-          ..write('isSynced: $isSynced')
-          ..write(')'))
-        .toString();
-  }
-
-  @override
-  int get hashCode => Object.hash(
-    id,
-    model,
-    recordId,
-    fieldName,
-    oldValue,
-    newValue,
-    localValue,
-    serverValue,
-    lastSyncAt,
-    modifiedAt,
-    isSynced,
-  );
-  @override
-  bool operator ==(Object other) =>
-      identical(this, other) ||
-      (other is DirtyField &&
-          other.id == this.id &&
-          other.model == this.model &&
-          other.recordId == this.recordId &&
-          other.fieldName == this.fieldName &&
-          other.oldValue == this.oldValue &&
-          other.newValue == this.newValue &&
-          other.localValue == this.localValue &&
-          other.serverValue == this.serverValue &&
-          other.lastSyncAt == this.lastSyncAt &&
-          other.modifiedAt == this.modifiedAt &&
-          other.isSynced == this.isSynced);
-}
-
-class DirtyFieldsCompanion extends UpdateCompanion<DirtyField> {
-  final Value<int> id;
-  final Value<String> model;
-  final Value<int> recordId;
-  final Value<String> fieldName;
-  final Value<String?> oldValue;
-  final Value<String?> newValue;
-  final Value<String?> localValue;
-  final Value<String?> serverValue;
-  final Value<DateTime?> lastSyncAt;
-  final Value<DateTime> modifiedAt;
-  final Value<bool> isSynced;
-  const DirtyFieldsCompanion({
-    this.id = const Value.absent(),
-    this.model = const Value.absent(),
-    this.recordId = const Value.absent(),
-    this.fieldName = const Value.absent(),
-    this.oldValue = const Value.absent(),
-    this.newValue = const Value.absent(),
-    this.localValue = const Value.absent(),
-    this.serverValue = const Value.absent(),
-    this.lastSyncAt = const Value.absent(),
-    this.modifiedAt = const Value.absent(),
-    this.isSynced = const Value.absent(),
-  });
-  DirtyFieldsCompanion.insert({
-    this.id = const Value.absent(),
-    required String model,
-    required int recordId,
-    required String fieldName,
-    this.oldValue = const Value.absent(),
-    this.newValue = const Value.absent(),
-    this.localValue = const Value.absent(),
-    this.serverValue = const Value.absent(),
-    this.lastSyncAt = const Value.absent(),
-    required DateTime modifiedAt,
-    this.isSynced = const Value.absent(),
-  }) : model = Value(model),
-       recordId = Value(recordId),
-       fieldName = Value(fieldName),
-       modifiedAt = Value(modifiedAt);
-  static Insertable<DirtyField> custom({
-    Expression<int>? id,
-    Expression<String>? model,
-    Expression<int>? recordId,
-    Expression<String>? fieldName,
-    Expression<String>? oldValue,
-    Expression<String>? newValue,
-    Expression<String>? localValue,
-    Expression<String>? serverValue,
-    Expression<DateTime>? lastSyncAt,
-    Expression<DateTime>? modifiedAt,
-    Expression<bool>? isSynced,
-  }) {
-    return RawValuesInsertable({
-      if (id != null) 'id': id,
-      if (model != null) 'model': model,
-      if (recordId != null) 'record_id': recordId,
-      if (fieldName != null) 'field_name': fieldName,
-      if (oldValue != null) 'old_value': oldValue,
-      if (newValue != null) 'new_value': newValue,
-      if (localValue != null) 'local_value': localValue,
-      if (serverValue != null) 'server_value': serverValue,
-      if (lastSyncAt != null) 'last_sync_at': lastSyncAt,
-      if (modifiedAt != null) 'modified_at': modifiedAt,
-      if (isSynced != null) 'is_synced': isSynced,
-    });
-  }
-
-  DirtyFieldsCompanion copyWith({
-    Value<int>? id,
-    Value<String>? model,
-    Value<int>? recordId,
-    Value<String>? fieldName,
-    Value<String?>? oldValue,
-    Value<String?>? newValue,
-    Value<String?>? localValue,
-    Value<String?>? serverValue,
-    Value<DateTime?>? lastSyncAt,
-    Value<DateTime>? modifiedAt,
-    Value<bool>? isSynced,
-  }) {
-    return DirtyFieldsCompanion(
-      id: id ?? this.id,
-      model: model ?? this.model,
-      recordId: recordId ?? this.recordId,
-      fieldName: fieldName ?? this.fieldName,
-      oldValue: oldValue ?? this.oldValue,
-      newValue: newValue ?? this.newValue,
-      localValue: localValue ?? this.localValue,
-      serverValue: serverValue ?? this.serverValue,
-      lastSyncAt: lastSyncAt ?? this.lastSyncAt,
-      modifiedAt: modifiedAt ?? this.modifiedAt,
-      isSynced: isSynced ?? this.isSynced,
-    );
-  }
-
-  @override
-  Map<String, Expression> toColumns(bool nullToAbsent) {
-    final map = <String, Expression>{};
-    if (id.present) {
-      map['id'] = Variable<int>(id.value);
-    }
-    if (model.present) {
-      map['model'] = Variable<String>(model.value);
-    }
-    if (recordId.present) {
-      map['record_id'] = Variable<int>(recordId.value);
-    }
-    if (fieldName.present) {
-      map['field_name'] = Variable<String>(fieldName.value);
-    }
-    if (oldValue.present) {
-      map['old_value'] = Variable<String>(oldValue.value);
-    }
-    if (newValue.present) {
-      map['new_value'] = Variable<String>(newValue.value);
-    }
-    if (localValue.present) {
-      map['local_value'] = Variable<String>(localValue.value);
-    }
-    if (serverValue.present) {
-      map['server_value'] = Variable<String>(serverValue.value);
-    }
-    if (lastSyncAt.present) {
-      map['last_sync_at'] = Variable<DateTime>(lastSyncAt.value);
-    }
-    if (modifiedAt.present) {
-      map['modified_at'] = Variable<DateTime>(modifiedAt.value);
-    }
-    if (isSynced.present) {
-      map['is_synced'] = Variable<bool>(isSynced.value);
-    }
-    return map;
-  }
-
-  @override
-  String toString() {
-    return (StringBuffer('DirtyFieldsCompanion(')
-          ..write('id: $id, ')
-          ..write('model: $model, ')
-          ..write('recordId: $recordId, ')
-          ..write('fieldName: $fieldName, ')
-          ..write('oldValue: $oldValue, ')
-          ..write('newValue: $newValue, ')
-          ..write('localValue: $localValue, ')
-          ..write('serverValue: $serverValue, ')
-          ..write('lastSyncAt: $lastSyncAt, ')
-          ..write('modifiedAt: $modifiedAt, ')
-          ..write('isSynced: $isSynced')
-          ..write(')'))
-        .toString();
-  }
-}
-
 class $SyncConflictTable extends SyncConflict
     with TableInfo<$SyncConflictTable, SyncConflictData> {
   @override
@@ -77332,7 +76240,8 @@ abstract class _$AppDatabase extends GeneratedDatabase {
   late final $CollectionSessionDepositTable collectionSessionDeposit =
       $CollectionSessionDepositTable(this);
   late final $CashOutTable cashOut = $CashOutTable(this);
-  late final $AccountPaymentTable accountPayment = $AccountPaymentTable(this);
+  late final $AccountPaymentTableTable accountPaymentTable =
+      $AccountPaymentTableTable(this);
   late final $AccountMoveTable accountMove = $AccountMoveTable(this);
   late final $AccountMoveLineTable accountMoveLine = $AccountMoveLineTable(
     this,
@@ -77387,7 +76296,6 @@ abstract class _$AppDatabase extends GeneratedDatabase {
       $ProductPriceChangeTable(this);
   late final $StockQuantityChangeTable stockQuantityChange =
       $StockQuantityChangeTable(this);
-  late final $DirtyFieldsTable dirtyFields = $DirtyFieldsTable(this);
   late final $SyncConflictTable syncConflict = $SyncConflictTable(this);
   late final $QwebReportTemplateTable qwebReportTemplate =
       $QwebReportTemplateTable(this);
@@ -77423,7 +76331,7 @@ abstract class _$AppDatabase extends GeneratedDatabase {
     collectionSessionCash,
     collectionSessionDeposit,
     cashOut,
-    accountPayment,
+    accountPaymentTable,
     accountMove,
     accountMoveLine,
     saleOrder,
@@ -77455,7 +76363,6 @@ abstract class _$AppDatabase extends GeneratedDatabase {
     stockByWarehouse,
     productPriceChange,
     stockQuantityChange,
-    dirtyFields,
     syncConflict,
     qwebReportTemplate,
     qwebPaperFormat,
@@ -89011,7 +87918,6 @@ typedef $$CollectionSessionCashTableCreateCompanionBuilder =
     CollectionSessionCashCompanion Function({
       Value<int> id,
       required int odooId,
-      required int sessionId,
       required int collectionSessionId,
       Value<String?> denomination,
       Value<String?> cashType,
@@ -89038,7 +87944,6 @@ typedef $$CollectionSessionCashTableUpdateCompanionBuilder =
     CollectionSessionCashCompanion Function({
       Value<int> id,
       Value<int> odooId,
-      Value<int> sessionId,
       Value<int> collectionSessionId,
       Value<String?> denomination,
       Value<String?> cashType,
@@ -89078,11 +87983,6 @@ class $$CollectionSessionCashTableFilterComposer
 
   ColumnFilters<int> get odooId => $composableBuilder(
     column: $table.odooId,
-    builder: (column) => ColumnFilters(column),
-  );
-
-  ColumnFilters<int> get sessionId => $composableBuilder(
-    column: $table.sessionId,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -89211,11 +88111,6 @@ class $$CollectionSessionCashTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
-  ColumnOrderings<int> get sessionId => $composableBuilder(
-    column: $table.sessionId,
-    builder: (column) => ColumnOrderings(column),
-  );
-
   ColumnOrderings<int> get collectionSessionId => $composableBuilder(
     column: $table.collectionSessionId,
     builder: (column) => ColumnOrderings(column),
@@ -89337,9 +88232,6 @@ class $$CollectionSessionCashTableAnnotationComposer
   GeneratedColumn<int> get odooId =>
       $composableBuilder(column: $table.odooId, builder: (column) => column);
 
-  GeneratedColumn<int> get sessionId =>
-      $composableBuilder(column: $table.sessionId, builder: (column) => column);
-
   GeneratedColumn<int> get collectionSessionId => $composableBuilder(
     column: $table.collectionSessionId,
     builder: (column) => column,
@@ -89460,7 +88352,6 @@ class $$CollectionSessionCashTableTableManager
               ({
                 Value<int> id = const Value.absent(),
                 Value<int> odooId = const Value.absent(),
-                Value<int> sessionId = const Value.absent(),
                 Value<int> collectionSessionId = const Value.absent(),
                 Value<String?> denomination = const Value.absent(),
                 Value<String?> cashType = const Value.absent(),
@@ -89485,7 +88376,6 @@ class $$CollectionSessionCashTableTableManager
               }) => CollectionSessionCashCompanion(
                 id: id,
                 odooId: odooId,
-                sessionId: sessionId,
                 collectionSessionId: collectionSessionId,
                 denomination: denomination,
                 cashType: cashType,
@@ -89512,7 +88402,6 @@ class $$CollectionSessionCashTableTableManager
               ({
                 Value<int> id = const Value.absent(),
                 required int odooId,
-                required int sessionId,
                 required int collectionSessionId,
                 Value<String?> denomination = const Value.absent(),
                 Value<String?> cashType = const Value.absent(),
@@ -89537,7 +88426,6 @@ class $$CollectionSessionCashTableTableManager
               }) => CollectionSessionCashCompanion.insert(
                 id: id,
                 odooId: odooId,
-                sessionId: sessionId,
                 collectionSessionId: collectionSessionId,
                 denomination: denomination,
                 cashType: cashType,
@@ -89594,7 +88482,6 @@ typedef $$CollectionSessionDepositTableCreateCompanionBuilder =
       Value<int> id,
       Value<int?> odooId,
       Value<String?> uuid,
-      required int sessionId,
       required int collectionSessionId,
       Value<String?> name,
       required String depositType,
@@ -89630,7 +88517,6 @@ typedef $$CollectionSessionDepositTableUpdateCompanionBuilder =
       Value<int> id,
       Value<int?> odooId,
       Value<String?> uuid,
-      Value<int> sessionId,
       Value<int> collectionSessionId,
       Value<String?> name,
       Value<String> depositType,
@@ -89683,11 +88569,6 @@ class $$CollectionSessionDepositTableFilterComposer
 
   ColumnFilters<String> get uuid => $composableBuilder(
     column: $table.uuid,
-    builder: (column) => ColumnFilters(column),
-  );
-
-  ColumnFilters<int> get sessionId => $composableBuilder(
-    column: $table.sessionId,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -89861,11 +88742,6 @@ class $$CollectionSessionDepositTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
-  ColumnOrderings<int> get sessionId => $composableBuilder(
-    column: $table.sessionId,
-    builder: (column) => ColumnOrderings(column),
-  );
-
   ColumnOrderings<int> get collectionSessionId => $composableBuilder(
     column: $table.collectionSessionId,
     builder: (column) => ColumnOrderings(column),
@@ -90029,9 +88905,6 @@ class $$CollectionSessionDepositTableAnnotationComposer
 
   GeneratedColumn<String> get uuid =>
       $composableBuilder(column: $table.uuid, builder: (column) => column);
-
-  GeneratedColumn<int> get sessionId =>
-      $composableBuilder(column: $table.sessionId, builder: (column) => column);
 
   GeneratedColumn<int> get collectionSessionId => $composableBuilder(
     column: $table.collectionSessionId,
@@ -90198,7 +89071,6 @@ class $$CollectionSessionDepositTableTableManager
                 Value<int> id = const Value.absent(),
                 Value<int?> odooId = const Value.absent(),
                 Value<String?> uuid = const Value.absent(),
-                Value<int> sessionId = const Value.absent(),
                 Value<int> collectionSessionId = const Value.absent(),
                 Value<String?> name = const Value.absent(),
                 Value<String> depositType = const Value.absent(),
@@ -90232,7 +89104,6 @@ class $$CollectionSessionDepositTableTableManager
                 id: id,
                 odooId: odooId,
                 uuid: uuid,
-                sessionId: sessionId,
                 collectionSessionId: collectionSessionId,
                 name: name,
                 depositType: depositType,
@@ -90268,7 +89139,6 @@ class $$CollectionSessionDepositTableTableManager
                 Value<int> id = const Value.absent(),
                 Value<int?> odooId = const Value.absent(),
                 Value<String?> uuid = const Value.absent(),
-                required int sessionId,
                 required int collectionSessionId,
                 Value<String?> name = const Value.absent(),
                 required String depositType,
@@ -90302,7 +89172,6 @@ class $$CollectionSessionDepositTableTableManager
                 id: id,
                 odooId: odooId,
                 uuid: uuid,
-                sessionId: sessionId,
                 collectionSessionId: collectionSessionId,
                 name: name,
                 depositType: depositType,
@@ -90366,7 +89235,6 @@ typedef $$CashOutTableCreateCompanionBuilder =
     CashOutCompanion Function({
       Value<int> id,
       Value<int?> odooId,
-      required int sessionId,
       required int collectionSessionId,
       required String cashOutType,
       Value<String?> type,
@@ -90397,7 +89265,6 @@ typedef $$CashOutTableUpdateCompanionBuilder =
     CashOutCompanion Function({
       Value<int> id,
       Value<int?> odooId,
-      Value<int> sessionId,
       Value<int> collectionSessionId,
       Value<String> cashOutType,
       Value<String?> type,
@@ -90441,11 +89308,6 @@ class $$CashOutTableFilterComposer
 
   ColumnFilters<int> get odooId => $composableBuilder(
     column: $table.odooId,
-    builder: (column) => ColumnFilters(column),
-  );
-
-  ColumnFilters<int> get sessionId => $composableBuilder(
-    column: $table.sessionId,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -90594,11 +89456,6 @@ class $$CashOutTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
-  ColumnOrderings<int> get sessionId => $composableBuilder(
-    column: $table.sessionId,
-    builder: (column) => ColumnOrderings(column),
-  );
-
   ColumnOrderings<int> get collectionSessionId => $composableBuilder(
     column: $table.collectionSessionId,
     builder: (column) => ColumnOrderings(column),
@@ -90740,9 +89597,6 @@ class $$CashOutTableAnnotationComposer
   GeneratedColumn<int> get odooId =>
       $composableBuilder(column: $table.odooId, builder: (column) => column);
 
-  GeneratedColumn<int> get sessionId =>
-      $composableBuilder(column: $table.sessionId, builder: (column) => column);
-
   GeneratedColumn<int> get collectionSessionId => $composableBuilder(
     column: $table.collectionSessionId,
     builder: (column) => column,
@@ -90874,7 +89728,6 @@ class $$CashOutTableTableManager
               ({
                 Value<int> id = const Value.absent(),
                 Value<int?> odooId = const Value.absent(),
-                Value<int> sessionId = const Value.absent(),
                 Value<int> collectionSessionId = const Value.absent(),
                 Value<String> cashOutType = const Value.absent(),
                 Value<String?> type = const Value.absent(),
@@ -90903,7 +89756,6 @@ class $$CashOutTableTableManager
               }) => CashOutCompanion(
                 id: id,
                 odooId: odooId,
-                sessionId: sessionId,
                 collectionSessionId: collectionSessionId,
                 cashOutType: cashOutType,
                 type: type,
@@ -90934,7 +89786,6 @@ class $$CashOutTableTableManager
               ({
                 Value<int> id = const Value.absent(),
                 Value<int?> odooId = const Value.absent(),
-                required int sessionId,
                 required int collectionSessionId,
                 required String cashOutType,
                 Value<String?> type = const Value.absent(),
@@ -90963,7 +89814,6 @@ class $$CashOutTableTableManager
               }) => CashOutCompanion.insert(
                 id: id,
                 odooId: odooId,
-                sessionId: sessionId,
                 collectionSessionId: collectionSessionId,
                 cashOutType: cashOutType,
                 type: type,
@@ -91012,7 +89862,7 @@ typedef $$CashOutTableProcessedTableManager =
       CashOutData,
       PrefetchHooks Function()
     >;
-typedef $$AccountPaymentTableCreateCompanionBuilder =
+typedef $$AccountPaymentTableTableCreateCompanionBuilder =
     AccountPaymentCompanion Function({
       Value<int> id,
       Value<int?> odooId,
@@ -91059,7 +89909,7 @@ typedef $$AccountPaymentTableCreateCompanionBuilder =
       Value<DateTime?> lastSyncDate,
       Value<DateTime?> writeDate,
     });
-typedef $$AccountPaymentTableUpdateCompanionBuilder =
+typedef $$AccountPaymentTableTableUpdateCompanionBuilder =
     AccountPaymentCompanion Function({
       Value<int> id,
       Value<int?> odooId,
@@ -91107,9 +89957,9 @@ typedef $$AccountPaymentTableUpdateCompanionBuilder =
       Value<DateTime?> writeDate,
     });
 
-class $$AccountPaymentTableFilterComposer
-    extends Composer<_$AppDatabase, $AccountPaymentTable> {
-  $$AccountPaymentTableFilterComposer({
+class $$AccountPaymentTableTableFilterComposer
+    extends Composer<_$AppDatabase, $AccountPaymentTableTable> {
+  $$AccountPaymentTableTableFilterComposer({
     required super.$db,
     required super.$table,
     super.joinBuilder,
@@ -91337,9 +90187,9 @@ class $$AccountPaymentTableFilterComposer
   );
 }
 
-class $$AccountPaymentTableOrderingComposer
-    extends Composer<_$AppDatabase, $AccountPaymentTable> {
-  $$AccountPaymentTableOrderingComposer({
+class $$AccountPaymentTableTableOrderingComposer
+    extends Composer<_$AppDatabase, $AccountPaymentTableTable> {
+  $$AccountPaymentTableTableOrderingComposer({
     required super.$db,
     required super.$table,
     super.joinBuilder,
@@ -91567,9 +90417,9 @@ class $$AccountPaymentTableOrderingComposer
   );
 }
 
-class $$AccountPaymentTableAnnotationComposer
-    extends Composer<_$AppDatabase, $AccountPaymentTable> {
-  $$AccountPaymentTableAnnotationComposer({
+class $$AccountPaymentTableTableAnnotationComposer
+    extends Composer<_$AppDatabase, $AccountPaymentTableTable> {
+  $$AccountPaymentTableTableAnnotationComposer({
     required super.$db,
     required super.$table,
     super.joinBuilder,
@@ -91759,41 +90609,47 @@ class $$AccountPaymentTableAnnotationComposer
       $composableBuilder(column: $table.writeDate, builder: (column) => column);
 }
 
-class $$AccountPaymentTableTableManager
+class $$AccountPaymentTableTableTableManager
     extends
         RootTableManager<
           _$AppDatabase,
-          $AccountPaymentTable,
+          $AccountPaymentTableTable,
           AccountPaymentData,
-          $$AccountPaymentTableFilterComposer,
-          $$AccountPaymentTableOrderingComposer,
-          $$AccountPaymentTableAnnotationComposer,
-          $$AccountPaymentTableCreateCompanionBuilder,
-          $$AccountPaymentTableUpdateCompanionBuilder,
+          $$AccountPaymentTableTableFilterComposer,
+          $$AccountPaymentTableTableOrderingComposer,
+          $$AccountPaymentTableTableAnnotationComposer,
+          $$AccountPaymentTableTableCreateCompanionBuilder,
+          $$AccountPaymentTableTableUpdateCompanionBuilder,
           (
             AccountPaymentData,
             BaseReferences<
               _$AppDatabase,
-              $AccountPaymentTable,
+              $AccountPaymentTableTable,
               AccountPaymentData
             >,
           ),
           AccountPaymentData,
           PrefetchHooks Function()
         > {
-  $$AccountPaymentTableTableManager(
+  $$AccountPaymentTableTableTableManager(
     _$AppDatabase db,
-    $AccountPaymentTable table,
+    $AccountPaymentTableTable table,
   ) : super(
         TableManagerState(
           db: db,
           table: table,
           createFilteringComposer: () =>
-              $$AccountPaymentTableFilterComposer($db: db, $table: table),
+              $$AccountPaymentTableTableFilterComposer($db: db, $table: table),
           createOrderingComposer: () =>
-              $$AccountPaymentTableOrderingComposer($db: db, $table: table),
+              $$AccountPaymentTableTableOrderingComposer(
+                $db: db,
+                $table: table,
+              ),
           createComputedFieldComposer: () =>
-              $$AccountPaymentTableAnnotationComposer($db: db, $table: table),
+              $$AccountPaymentTableTableAnnotationComposer(
+                $db: db,
+                $table: table,
+              ),
           updateCompanionCallback:
               ({
                 Value<int> id = const Value.absent(),
@@ -91986,19 +90842,23 @@ class $$AccountPaymentTableTableManager
       );
 }
 
-typedef $$AccountPaymentTableProcessedTableManager =
+typedef $$AccountPaymentTableTableProcessedTableManager =
     ProcessedTableManager<
       _$AppDatabase,
-      $AccountPaymentTable,
+      $AccountPaymentTableTable,
       AccountPaymentData,
-      $$AccountPaymentTableFilterComposer,
-      $$AccountPaymentTableOrderingComposer,
-      $$AccountPaymentTableAnnotationComposer,
-      $$AccountPaymentTableCreateCompanionBuilder,
-      $$AccountPaymentTableUpdateCompanionBuilder,
+      $$AccountPaymentTableTableFilterComposer,
+      $$AccountPaymentTableTableOrderingComposer,
+      $$AccountPaymentTableTableAnnotationComposer,
+      $$AccountPaymentTableTableCreateCompanionBuilder,
+      $$AccountPaymentTableTableUpdateCompanionBuilder,
       (
         AccountPaymentData,
-        BaseReferences<_$AppDatabase, $AccountPaymentTable, AccountPaymentData>,
+        BaseReferences<
+          _$AppDatabase,
+          $AccountPaymentTableTable,
+          AccountPaymentData
+        >,
       ),
       AccountPaymentData,
       PrefetchHooks Function()
@@ -92040,6 +90900,7 @@ typedef $$AccountMoveTableCreateCompanionBuilder =
       Value<String?> l10nLatamDocumentNumber,
       Value<int?> l10nLatamDocumentTypeId,
       Value<String?> l10nLatamDocumentTypeName,
+      Value<int?> l10nEcSriPaymentId,
       Value<String?> l10nEcSriPaymentName,
       Value<bool> isSynced,
       Value<DateTime?> lastSyncDate,
@@ -92082,6 +90943,7 @@ typedef $$AccountMoveTableUpdateCompanionBuilder =
       Value<String?> l10nLatamDocumentNumber,
       Value<int?> l10nLatamDocumentTypeId,
       Value<String?> l10nLatamDocumentTypeName,
+      Value<int?> l10nEcSriPaymentId,
       Value<String?> l10nEcSriPaymentName,
       Value<bool> isSynced,
       Value<DateTime?> lastSyncDate,
@@ -92269,6 +91131,11 @@ class $$AccountMoveTableFilterComposer
 
   ColumnFilters<String> get l10nLatamDocumentTypeName => $composableBuilder(
     column: $table.l10nLatamDocumentTypeName,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get l10nEcSriPaymentId => $composableBuilder(
+    column: $table.l10nEcSriPaymentId,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -92477,6 +91344,11 @@ class $$AccountMoveTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<int> get l10nEcSriPaymentId => $composableBuilder(
+    column: $table.l10nEcSriPaymentId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<String> get l10nEcSriPaymentName => $composableBuilder(
     column: $table.l10nEcSriPaymentName,
     builder: (column) => ColumnOrderings(column),
@@ -92660,6 +91532,11 @@ class $$AccountMoveTableAnnotationComposer
     builder: (column) => column,
   );
 
+  GeneratedColumn<int> get l10nEcSriPaymentId => $composableBuilder(
+    column: $table.l10nEcSriPaymentId,
+    builder: (column) => column,
+  );
+
   GeneratedColumn<String> get l10nEcSriPaymentName => $composableBuilder(
     column: $table.l10nEcSriPaymentName,
     builder: (column) => column,
@@ -92743,6 +91620,7 @@ class $$AccountMoveTableTableManager
                 Value<String?> l10nLatamDocumentNumber = const Value.absent(),
                 Value<int?> l10nLatamDocumentTypeId = const Value.absent(),
                 Value<String?> l10nLatamDocumentTypeName = const Value.absent(),
+                Value<int?> l10nEcSriPaymentId = const Value.absent(),
                 Value<String?> l10nEcSriPaymentName = const Value.absent(),
                 Value<bool> isSynced = const Value.absent(),
                 Value<DateTime?> lastSyncDate = const Value.absent(),
@@ -92783,6 +91661,7 @@ class $$AccountMoveTableTableManager
                 l10nLatamDocumentNumber: l10nLatamDocumentNumber,
                 l10nLatamDocumentTypeId: l10nLatamDocumentTypeId,
                 l10nLatamDocumentTypeName: l10nLatamDocumentTypeName,
+                l10nEcSriPaymentId: l10nEcSriPaymentId,
                 l10nEcSriPaymentName: l10nEcSriPaymentName,
                 isSynced: isSynced,
                 lastSyncDate: lastSyncDate,
@@ -92825,6 +91704,7 @@ class $$AccountMoveTableTableManager
                 Value<String?> l10nLatamDocumentNumber = const Value.absent(),
                 Value<int?> l10nLatamDocumentTypeId = const Value.absent(),
                 Value<String?> l10nLatamDocumentTypeName = const Value.absent(),
+                Value<int?> l10nEcSriPaymentId = const Value.absent(),
                 Value<String?> l10nEcSriPaymentName = const Value.absent(),
                 Value<bool> isSynced = const Value.absent(),
                 Value<DateTime?> lastSyncDate = const Value.absent(),
@@ -92865,6 +91745,7 @@ class $$AccountMoveTableTableManager
                 l10nLatamDocumentNumber: l10nLatamDocumentNumber,
                 l10nLatamDocumentTypeId: l10nLatamDocumentTypeId,
                 l10nLatamDocumentTypeName: l10nLatamDocumentTypeName,
+                l10nEcSriPaymentId: l10nEcSriPaymentId,
                 l10nEcSriPaymentName: l10nEcSriPaymentName,
                 isSynced: isSynced,
                 lastSyncDate: lastSyncDate,
@@ -92930,10 +91811,10 @@ typedef $$AccountMoveLineTableCreateCompanionBuilder =
       Value<int?> currencyId,
       Value<String?> currencyName,
       Value<double?> amountCurrency,
-      required DateTime date,
-      required int journalId,
+      Value<DateTime?> date,
+      Value<int?> journalId,
       Value<String?> journalName,
-      required int companyId,
+      Value<int?> companyId,
       Value<String?> companyName,
       Value<bool> collapseComposition,
       Value<bool> collapsePrices,
@@ -92977,10 +91858,10 @@ typedef $$AccountMoveLineTableUpdateCompanionBuilder =
       Value<int?> currencyId,
       Value<String?> currencyName,
       Value<double?> amountCurrency,
-      Value<DateTime> date,
-      Value<int> journalId,
+      Value<DateTime?> date,
+      Value<int?> journalId,
       Value<String?> journalName,
-      Value<int> companyId,
+      Value<int?> companyId,
       Value<String?> companyName,
       Value<bool> collapseComposition,
       Value<bool> collapsePrices,
@@ -93705,10 +92586,10 @@ class $$AccountMoveLineTableTableManager
                 Value<int?> currencyId = const Value.absent(),
                 Value<String?> currencyName = const Value.absent(),
                 Value<double?> amountCurrency = const Value.absent(),
-                Value<DateTime> date = const Value.absent(),
-                Value<int> journalId = const Value.absent(),
+                Value<DateTime?> date = const Value.absent(),
+                Value<int?> journalId = const Value.absent(),
                 Value<String?> journalName = const Value.absent(),
-                Value<int> companyId = const Value.absent(),
+                Value<int?> companyId = const Value.absent(),
                 Value<String?> companyName = const Value.absent(),
                 Value<bool> collapseComposition = const Value.absent(),
                 Value<bool> collapsePrices = const Value.absent(),
@@ -93798,10 +92679,10 @@ class $$AccountMoveLineTableTableManager
                 Value<int?> currencyId = const Value.absent(),
                 Value<String?> currencyName = const Value.absent(),
                 Value<double?> amountCurrency = const Value.absent(),
-                required DateTime date,
-                required int journalId,
+                Value<DateTime?> date = const Value.absent(),
+                Value<int?> journalId = const Value.absent(),
                 Value<String?> journalName = const Value.absent(),
-                required int companyId,
+                Value<int?> companyId = const Value.absent(),
                 Value<String?> companyName = const Value.absent(),
                 Value<bool> collapseComposition = const Value.absent(),
                 Value<bool> collapsePrices = const Value.absent(),
@@ -93896,9 +92777,7 @@ typedef $$SaleOrderTableCreateCompanionBuilder =
       Value<int?> partnerId,
       Value<String?> partnerName,
       Value<int?> partnerInvoiceId,
-      Value<String?> partnerInvoiceName,
       Value<int?> partnerShippingId,
-      Value<String?> partnerShippingName,
       Value<int?> pricelistId,
       Value<String?> pricelistName,
       Value<int?> paymentTermId,
@@ -93912,7 +92791,6 @@ typedef $$SaleOrderTableCreateCompanionBuilder =
       Value<int?> warehouseId,
       Value<String?> warehouseName,
       Value<int?> currencyId,
-      Value<String?> currencyName,
       Value<double?> amountUntaxed,
       Value<double?> amountTax,
       Value<double?> amountTotal,
@@ -93947,8 +92825,6 @@ typedef $$SaleOrderTableCreateCompanionBuilder =
       Value<String?> accessWarning,
       Value<int?> collectionSessionId,
       Value<String?> collectionSessionName,
-      Value<int?> collectionConfigId,
-      Value<String?> collectionConfigName,
       Value<int?> collectionUserId,
       Value<String?> collectionUserName,
       Value<int?> saleCreatedUserId,
@@ -94026,9 +92902,7 @@ typedef $$SaleOrderTableUpdateCompanionBuilder =
       Value<int?> partnerId,
       Value<String?> partnerName,
       Value<int?> partnerInvoiceId,
-      Value<String?> partnerInvoiceName,
       Value<int?> partnerShippingId,
-      Value<String?> partnerShippingName,
       Value<int?> pricelistId,
       Value<String?> pricelistName,
       Value<int?> paymentTermId,
@@ -94042,7 +92916,6 @@ typedef $$SaleOrderTableUpdateCompanionBuilder =
       Value<int?> warehouseId,
       Value<String?> warehouseName,
       Value<int?> currencyId,
-      Value<String?> currencyName,
       Value<double?> amountUntaxed,
       Value<double?> amountTax,
       Value<double?> amountTotal,
@@ -94077,8 +92950,6 @@ typedef $$SaleOrderTableUpdateCompanionBuilder =
       Value<String?> accessWarning,
       Value<int?> collectionSessionId,
       Value<String?> collectionSessionName,
-      Value<int?> collectionConfigId,
-      Value<String?> collectionConfigName,
       Value<int?> collectionUserId,
       Value<String?> collectionUserName,
       Value<int?> saleCreatedUserId,
@@ -94204,18 +93075,8 @@ class $$SaleOrderTableFilterComposer
     builder: (column) => ColumnFilters(column),
   );
 
-  ColumnFilters<String> get partnerInvoiceName => $composableBuilder(
-    column: $table.partnerInvoiceName,
-    builder: (column) => ColumnFilters(column),
-  );
-
   ColumnFilters<int> get partnerShippingId => $composableBuilder(
     column: $table.partnerShippingId,
-    builder: (column) => ColumnFilters(column),
-  );
-
-  ColumnFilters<String> get partnerShippingName => $composableBuilder(
-    column: $table.partnerShippingName,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -94281,11 +93142,6 @@ class $$SaleOrderTableFilterComposer
 
   ColumnFilters<int> get currencyId => $composableBuilder(
     column: $table.currencyId,
-    builder: (column) => ColumnFilters(column),
-  );
-
-  ColumnFilters<String> get currencyName => $composableBuilder(
-    column: $table.currencyName,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -94456,16 +93312,6 @@ class $$SaleOrderTableFilterComposer
 
   ColumnFilters<String> get collectionSessionName => $composableBuilder(
     column: $table.collectionSessionName,
-    builder: (column) => ColumnFilters(column),
-  );
-
-  ColumnFilters<int> get collectionConfigId => $composableBuilder(
-    column: $table.collectionConfigId,
-    builder: (column) => ColumnFilters(column),
-  );
-
-  ColumnFilters<String> get collectionConfigName => $composableBuilder(
-    column: $table.collectionConfigName,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -94849,18 +93695,8 @@ class $$SaleOrderTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
-  ColumnOrderings<String> get partnerInvoiceName => $composableBuilder(
-    column: $table.partnerInvoiceName,
-    builder: (column) => ColumnOrderings(column),
-  );
-
   ColumnOrderings<int> get partnerShippingId => $composableBuilder(
     column: $table.partnerShippingId,
-    builder: (column) => ColumnOrderings(column),
-  );
-
-  ColumnOrderings<String> get partnerShippingName => $composableBuilder(
-    column: $table.partnerShippingName,
     builder: (column) => ColumnOrderings(column),
   );
 
@@ -94926,11 +93762,6 @@ class $$SaleOrderTableOrderingComposer
 
   ColumnOrderings<int> get currencyId => $composableBuilder(
     column: $table.currencyId,
-    builder: (column) => ColumnOrderings(column),
-  );
-
-  ColumnOrderings<String> get currencyName => $composableBuilder(
-    column: $table.currencyName,
     builder: (column) => ColumnOrderings(column),
   );
 
@@ -95101,16 +93932,6 @@ class $$SaleOrderTableOrderingComposer
 
   ColumnOrderings<String> get collectionSessionName => $composableBuilder(
     column: $table.collectionSessionName,
-    builder: (column) => ColumnOrderings(column),
-  );
-
-  ColumnOrderings<int> get collectionConfigId => $composableBuilder(
-    column: $table.collectionConfigId,
-    builder: (column) => ColumnOrderings(column),
-  );
-
-  ColumnOrderings<String> get collectionConfigName => $composableBuilder(
-    column: $table.collectionConfigName,
     builder: (column) => ColumnOrderings(column),
   );
 
@@ -95482,18 +94303,8 @@ class $$SaleOrderTableAnnotationComposer
     builder: (column) => column,
   );
 
-  GeneratedColumn<String> get partnerInvoiceName => $composableBuilder(
-    column: $table.partnerInvoiceName,
-    builder: (column) => column,
-  );
-
   GeneratedColumn<int> get partnerShippingId => $composableBuilder(
     column: $table.partnerShippingId,
-    builder: (column) => column,
-  );
-
-  GeneratedColumn<String> get partnerShippingName => $composableBuilder(
-    column: $table.partnerShippingName,
     builder: (column) => column,
   );
 
@@ -95549,11 +94360,6 @@ class $$SaleOrderTableAnnotationComposer
 
   GeneratedColumn<int> get currencyId => $composableBuilder(
     column: $table.currencyId,
-    builder: (column) => column,
-  );
-
-  GeneratedColumn<String> get currencyName => $composableBuilder(
-    column: $table.currencyName,
     builder: (column) => column,
   );
 
@@ -95708,16 +94514,6 @@ class $$SaleOrderTableAnnotationComposer
 
   GeneratedColumn<String> get collectionSessionName => $composableBuilder(
     column: $table.collectionSessionName,
-    builder: (column) => column,
-  );
-
-  GeneratedColumn<int> get collectionConfigId => $composableBuilder(
-    column: $table.collectionConfigId,
-    builder: (column) => column,
-  );
-
-  GeneratedColumn<String> get collectionConfigName => $composableBuilder(
-    column: $table.collectionConfigName,
     builder: (column) => column,
   );
 
@@ -96059,9 +94855,7 @@ class $$SaleOrderTableTableManager
                 Value<int?> partnerId = const Value.absent(),
                 Value<String?> partnerName = const Value.absent(),
                 Value<int?> partnerInvoiceId = const Value.absent(),
-                Value<String?> partnerInvoiceName = const Value.absent(),
                 Value<int?> partnerShippingId = const Value.absent(),
-                Value<String?> partnerShippingName = const Value.absent(),
                 Value<int?> pricelistId = const Value.absent(),
                 Value<String?> pricelistName = const Value.absent(),
                 Value<int?> paymentTermId = const Value.absent(),
@@ -96075,7 +94869,6 @@ class $$SaleOrderTableTableManager
                 Value<int?> warehouseId = const Value.absent(),
                 Value<String?> warehouseName = const Value.absent(),
                 Value<int?> currencyId = const Value.absent(),
-                Value<String?> currencyName = const Value.absent(),
                 Value<double?> amountUntaxed = const Value.absent(),
                 Value<double?> amountTax = const Value.absent(),
                 Value<double?> amountTotal = const Value.absent(),
@@ -96110,8 +94903,6 @@ class $$SaleOrderTableTableManager
                 Value<String?> accessWarning = const Value.absent(),
                 Value<int?> collectionSessionId = const Value.absent(),
                 Value<String?> collectionSessionName = const Value.absent(),
-                Value<int?> collectionConfigId = const Value.absent(),
-                Value<String?> collectionConfigName = const Value.absent(),
                 Value<int?> collectionUserId = const Value.absent(),
                 Value<String?> collectionUserName = const Value.absent(),
                 Value<int?> saleCreatedUserId = const Value.absent(),
@@ -96187,9 +94978,7 @@ class $$SaleOrderTableTableManager
                 partnerId: partnerId,
                 partnerName: partnerName,
                 partnerInvoiceId: partnerInvoiceId,
-                partnerInvoiceName: partnerInvoiceName,
                 partnerShippingId: partnerShippingId,
-                partnerShippingName: partnerShippingName,
                 pricelistId: pricelistId,
                 pricelistName: pricelistName,
                 paymentTermId: paymentTermId,
@@ -96203,7 +94992,6 @@ class $$SaleOrderTableTableManager
                 warehouseId: warehouseId,
                 warehouseName: warehouseName,
                 currencyId: currencyId,
-                currencyName: currencyName,
                 amountUntaxed: amountUntaxed,
                 amountTax: amountTax,
                 amountTotal: amountTotal,
@@ -96238,8 +95026,6 @@ class $$SaleOrderTableTableManager
                 accessWarning: accessWarning,
                 collectionSessionId: collectionSessionId,
                 collectionSessionName: collectionSessionName,
-                collectionConfigId: collectionConfigId,
-                collectionConfigName: collectionConfigName,
                 collectionUserId: collectionUserId,
                 collectionUserName: collectionUserName,
                 saleCreatedUserId: saleCreatedUserId,
@@ -96317,9 +95103,7 @@ class $$SaleOrderTableTableManager
                 Value<int?> partnerId = const Value.absent(),
                 Value<String?> partnerName = const Value.absent(),
                 Value<int?> partnerInvoiceId = const Value.absent(),
-                Value<String?> partnerInvoiceName = const Value.absent(),
                 Value<int?> partnerShippingId = const Value.absent(),
-                Value<String?> partnerShippingName = const Value.absent(),
                 Value<int?> pricelistId = const Value.absent(),
                 Value<String?> pricelistName = const Value.absent(),
                 Value<int?> paymentTermId = const Value.absent(),
@@ -96333,7 +95117,6 @@ class $$SaleOrderTableTableManager
                 Value<int?> warehouseId = const Value.absent(),
                 Value<String?> warehouseName = const Value.absent(),
                 Value<int?> currencyId = const Value.absent(),
-                Value<String?> currencyName = const Value.absent(),
                 Value<double?> amountUntaxed = const Value.absent(),
                 Value<double?> amountTax = const Value.absent(),
                 Value<double?> amountTotal = const Value.absent(),
@@ -96368,8 +95151,6 @@ class $$SaleOrderTableTableManager
                 Value<String?> accessWarning = const Value.absent(),
                 Value<int?> collectionSessionId = const Value.absent(),
                 Value<String?> collectionSessionName = const Value.absent(),
-                Value<int?> collectionConfigId = const Value.absent(),
-                Value<String?> collectionConfigName = const Value.absent(),
                 Value<int?> collectionUserId = const Value.absent(),
                 Value<String?> collectionUserName = const Value.absent(),
                 Value<int?> saleCreatedUserId = const Value.absent(),
@@ -96445,9 +95226,7 @@ class $$SaleOrderTableTableManager
                 partnerId: partnerId,
                 partnerName: partnerName,
                 partnerInvoiceId: partnerInvoiceId,
-                partnerInvoiceName: partnerInvoiceName,
                 partnerShippingId: partnerShippingId,
-                partnerShippingName: partnerShippingName,
                 pricelistId: pricelistId,
                 pricelistName: pricelistName,
                 paymentTermId: paymentTermId,
@@ -96461,7 +95240,6 @@ class $$SaleOrderTableTableManager
                 warehouseId: warehouseId,
                 warehouseName: warehouseName,
                 currencyId: currencyId,
-                currencyName: currencyName,
                 amountUntaxed: amountUntaxed,
                 amountTax: amountTax,
                 amountTotal: amountTotal,
@@ -96496,8 +95274,6 @@ class $$SaleOrderTableTableManager
                 accessWarning: accessWarning,
                 collectionSessionId: collectionSessionId,
                 collectionSessionName: collectionSessionName,
-                collectionConfigId: collectionConfigId,
-                collectionConfigName: collectionConfigName,
                 collectionUserId: collectionUserId,
                 collectionUserName: collectionUserName,
                 saleCreatedUserId: saleCreatedUserId,
@@ -99173,7 +97949,6 @@ typedef $$ProductProductTableCreateCompanionBuilder =
       Value<String?> uomName,
       Value<int?> uomPoId,
       Value<String?> uomPoName,
-      Value<double?> lstPrice,
       Value<double?> listPrice,
       Value<double?> standardPrice,
       Value<double?> weight,
@@ -99225,7 +98000,6 @@ typedef $$ProductProductTableUpdateCompanionBuilder =
       Value<String?> uomName,
       Value<int?> uomPoId,
       Value<String?> uomPoName,
-      Value<double?> lstPrice,
       Value<double?> listPrice,
       Value<double?> standardPrice,
       Value<double?> weight,
@@ -99362,11 +98136,6 @@ class $$ProductProductTableFilterComposer
 
   ColumnFilters<String> get uomPoName => $composableBuilder(
     column: $table.uomPoName,
-    builder: (column) => ColumnFilters(column),
-  );
-
-  ColumnFilters<double> get lstPrice => $composableBuilder(
-    column: $table.lstPrice,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -99620,11 +98389,6 @@ class $$ProductProductTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
-  ColumnOrderings<double> get lstPrice => $composableBuilder(
-    column: $table.lstPrice,
-    builder: (column) => ColumnOrderings(column),
-  );
-
   ColumnOrderings<double> get listPrice => $composableBuilder(
     column: $table.listPrice,
     builder: (column) => ColumnOrderings(column),
@@ -99849,9 +98613,6 @@ class $$ProductProductTableAnnotationComposer
   GeneratedColumn<String> get uomPoName =>
       $composableBuilder(column: $table.uomPoName, builder: (column) => column);
 
-  GeneratedColumn<double> get lstPrice =>
-      $composableBuilder(column: $table.lstPrice, builder: (column) => column);
-
   GeneratedColumn<double> get listPrice =>
       $composableBuilder(column: $table.listPrice, builder: (column) => column);
 
@@ -100024,7 +98785,6 @@ class $$ProductProductTableTableManager
                 Value<String?> uomName = const Value.absent(),
                 Value<int?> uomPoId = const Value.absent(),
                 Value<String?> uomPoName = const Value.absent(),
-                Value<double?> lstPrice = const Value.absent(),
                 Value<double?> listPrice = const Value.absent(),
                 Value<double?> standardPrice = const Value.absent(),
                 Value<double?> weight = const Value.absent(),
@@ -100074,7 +98834,6 @@ class $$ProductProductTableTableManager
                 uomName: uomName,
                 uomPoId: uomPoId,
                 uomPoName: uomPoName,
-                lstPrice: lstPrice,
                 listPrice: listPrice,
                 standardPrice: standardPrice,
                 weight: weight,
@@ -100126,7 +98885,6 @@ class $$ProductProductTableTableManager
                 Value<String?> uomName = const Value.absent(),
                 Value<int?> uomPoId = const Value.absent(),
                 Value<String?> uomPoName = const Value.absent(),
-                Value<double?> lstPrice = const Value.absent(),
                 Value<double?> listPrice = const Value.absent(),
                 Value<double?> standardPrice = const Value.absent(),
                 Value<double?> weight = const Value.absent(),
@@ -100176,7 +98934,6 @@ class $$ProductProductTableTableManager
                 uomName: uomName,
                 uomPoId: uomPoId,
                 uomPoName: uomPoName,
-                lstPrice: lstPrice,
                 listPrice: listPrice,
                 standardPrice: standardPrice,
                 weight: weight,
@@ -106089,14 +104846,14 @@ typedef $$AccountAdvanceTableCreateCompanionBuilder =
     AccountAdvanceCompanion Function({
       Value<int> id,
       required int odooId,
-      required String name,
+      Value<String?> name,
       Value<String> state,
       required String advanceType,
-      required String partnerType,
+      Value<String> partnerType,
       required int partnerId,
       Value<String?> partnerName,
       Value<String?> partnerVat,
-      required int companyId,
+      Value<int?> companyId,
       Value<int?> currencyId,
       Value<int?> cashierId,
       Value<String?> cashierName,
@@ -106121,14 +104878,14 @@ typedef $$AccountAdvanceTableUpdateCompanionBuilder =
     AccountAdvanceCompanion Function({
       Value<int> id,
       Value<int> odooId,
-      Value<String> name,
+      Value<String?> name,
       Value<String> state,
       Value<String> advanceType,
       Value<String> partnerType,
       Value<int> partnerId,
       Value<String?> partnerName,
       Value<String?> partnerVat,
-      Value<int> companyId,
+      Value<int?> companyId,
       Value<int?> currencyId,
       Value<int?> cashierId,
       Value<String?> cashierName,
@@ -106628,14 +105385,14 @@ class $$AccountAdvanceTableTableManager
               ({
                 Value<int> id = const Value.absent(),
                 Value<int> odooId = const Value.absent(),
-                Value<String> name = const Value.absent(),
+                Value<String?> name = const Value.absent(),
                 Value<String> state = const Value.absent(),
                 Value<String> advanceType = const Value.absent(),
                 Value<String> partnerType = const Value.absent(),
                 Value<int> partnerId = const Value.absent(),
                 Value<String?> partnerName = const Value.absent(),
                 Value<String?> partnerVat = const Value.absent(),
-                Value<int> companyId = const Value.absent(),
+                Value<int?> companyId = const Value.absent(),
                 Value<int?> currencyId = const Value.absent(),
                 Value<int?> cashierId = const Value.absent(),
                 Value<String?> cashierName = const Value.absent(),
@@ -106690,14 +105447,14 @@ class $$AccountAdvanceTableTableManager
               ({
                 Value<int> id = const Value.absent(),
                 required int odooId,
-                required String name,
+                Value<String?> name = const Value.absent(),
                 Value<String> state = const Value.absent(),
                 required String advanceType,
-                required String partnerType,
+                Value<String> partnerType = const Value.absent(),
                 required int partnerId,
                 Value<String?> partnerName = const Value.absent(),
                 Value<String?> partnerVat = const Value.absent(),
-                required int companyId,
+                Value<int?> companyId = const Value.absent(),
                 Value<int?> currencyId = const Value.absent(),
                 Value<int?> cashierId = const Value.absent(),
                 Value<String?> cashierName = const Value.absent(),
@@ -109758,322 +108515,6 @@ typedef $$StockQuantityChangeTableProcessedTableManager =
       StockQuantityChangeData,
       PrefetchHooks Function()
     >;
-typedef $$DirtyFieldsTableCreateCompanionBuilder =
-    DirtyFieldsCompanion Function({
-      Value<int> id,
-      required String model,
-      required int recordId,
-      required String fieldName,
-      Value<String?> oldValue,
-      Value<String?> newValue,
-      Value<String?> localValue,
-      Value<String?> serverValue,
-      Value<DateTime?> lastSyncAt,
-      required DateTime modifiedAt,
-      Value<bool> isSynced,
-    });
-typedef $$DirtyFieldsTableUpdateCompanionBuilder =
-    DirtyFieldsCompanion Function({
-      Value<int> id,
-      Value<String> model,
-      Value<int> recordId,
-      Value<String> fieldName,
-      Value<String?> oldValue,
-      Value<String?> newValue,
-      Value<String?> localValue,
-      Value<String?> serverValue,
-      Value<DateTime?> lastSyncAt,
-      Value<DateTime> modifiedAt,
-      Value<bool> isSynced,
-    });
-
-class $$DirtyFieldsTableFilterComposer
-    extends Composer<_$AppDatabase, $DirtyFieldsTable> {
-  $$DirtyFieldsTableFilterComposer({
-    required super.$db,
-    required super.$table,
-    super.joinBuilder,
-    super.$addJoinBuilderToRootComposer,
-    super.$removeJoinBuilderFromRootComposer,
-  });
-  ColumnFilters<int> get id => $composableBuilder(
-    column: $table.id,
-    builder: (column) => ColumnFilters(column),
-  );
-
-  ColumnFilters<String> get model => $composableBuilder(
-    column: $table.model,
-    builder: (column) => ColumnFilters(column),
-  );
-
-  ColumnFilters<int> get recordId => $composableBuilder(
-    column: $table.recordId,
-    builder: (column) => ColumnFilters(column),
-  );
-
-  ColumnFilters<String> get fieldName => $composableBuilder(
-    column: $table.fieldName,
-    builder: (column) => ColumnFilters(column),
-  );
-
-  ColumnFilters<String> get oldValue => $composableBuilder(
-    column: $table.oldValue,
-    builder: (column) => ColumnFilters(column),
-  );
-
-  ColumnFilters<String> get newValue => $composableBuilder(
-    column: $table.newValue,
-    builder: (column) => ColumnFilters(column),
-  );
-
-  ColumnFilters<String> get localValue => $composableBuilder(
-    column: $table.localValue,
-    builder: (column) => ColumnFilters(column),
-  );
-
-  ColumnFilters<String> get serverValue => $composableBuilder(
-    column: $table.serverValue,
-    builder: (column) => ColumnFilters(column),
-  );
-
-  ColumnFilters<DateTime> get lastSyncAt => $composableBuilder(
-    column: $table.lastSyncAt,
-    builder: (column) => ColumnFilters(column),
-  );
-
-  ColumnFilters<DateTime> get modifiedAt => $composableBuilder(
-    column: $table.modifiedAt,
-    builder: (column) => ColumnFilters(column),
-  );
-
-  ColumnFilters<bool> get isSynced => $composableBuilder(
-    column: $table.isSynced,
-    builder: (column) => ColumnFilters(column),
-  );
-}
-
-class $$DirtyFieldsTableOrderingComposer
-    extends Composer<_$AppDatabase, $DirtyFieldsTable> {
-  $$DirtyFieldsTableOrderingComposer({
-    required super.$db,
-    required super.$table,
-    super.joinBuilder,
-    super.$addJoinBuilderToRootComposer,
-    super.$removeJoinBuilderFromRootComposer,
-  });
-  ColumnOrderings<int> get id => $composableBuilder(
-    column: $table.id,
-    builder: (column) => ColumnOrderings(column),
-  );
-
-  ColumnOrderings<String> get model => $composableBuilder(
-    column: $table.model,
-    builder: (column) => ColumnOrderings(column),
-  );
-
-  ColumnOrderings<int> get recordId => $composableBuilder(
-    column: $table.recordId,
-    builder: (column) => ColumnOrderings(column),
-  );
-
-  ColumnOrderings<String> get fieldName => $composableBuilder(
-    column: $table.fieldName,
-    builder: (column) => ColumnOrderings(column),
-  );
-
-  ColumnOrderings<String> get oldValue => $composableBuilder(
-    column: $table.oldValue,
-    builder: (column) => ColumnOrderings(column),
-  );
-
-  ColumnOrderings<String> get newValue => $composableBuilder(
-    column: $table.newValue,
-    builder: (column) => ColumnOrderings(column),
-  );
-
-  ColumnOrderings<String> get localValue => $composableBuilder(
-    column: $table.localValue,
-    builder: (column) => ColumnOrderings(column),
-  );
-
-  ColumnOrderings<String> get serverValue => $composableBuilder(
-    column: $table.serverValue,
-    builder: (column) => ColumnOrderings(column),
-  );
-
-  ColumnOrderings<DateTime> get lastSyncAt => $composableBuilder(
-    column: $table.lastSyncAt,
-    builder: (column) => ColumnOrderings(column),
-  );
-
-  ColumnOrderings<DateTime> get modifiedAt => $composableBuilder(
-    column: $table.modifiedAt,
-    builder: (column) => ColumnOrderings(column),
-  );
-
-  ColumnOrderings<bool> get isSynced => $composableBuilder(
-    column: $table.isSynced,
-    builder: (column) => ColumnOrderings(column),
-  );
-}
-
-class $$DirtyFieldsTableAnnotationComposer
-    extends Composer<_$AppDatabase, $DirtyFieldsTable> {
-  $$DirtyFieldsTableAnnotationComposer({
-    required super.$db,
-    required super.$table,
-    super.joinBuilder,
-    super.$addJoinBuilderToRootComposer,
-    super.$removeJoinBuilderFromRootComposer,
-  });
-  GeneratedColumn<int> get id =>
-      $composableBuilder(column: $table.id, builder: (column) => column);
-
-  GeneratedColumn<String> get model =>
-      $composableBuilder(column: $table.model, builder: (column) => column);
-
-  GeneratedColumn<int> get recordId =>
-      $composableBuilder(column: $table.recordId, builder: (column) => column);
-
-  GeneratedColumn<String> get fieldName =>
-      $composableBuilder(column: $table.fieldName, builder: (column) => column);
-
-  GeneratedColumn<String> get oldValue =>
-      $composableBuilder(column: $table.oldValue, builder: (column) => column);
-
-  GeneratedColumn<String> get newValue =>
-      $composableBuilder(column: $table.newValue, builder: (column) => column);
-
-  GeneratedColumn<String> get localValue => $composableBuilder(
-    column: $table.localValue,
-    builder: (column) => column,
-  );
-
-  GeneratedColumn<String> get serverValue => $composableBuilder(
-    column: $table.serverValue,
-    builder: (column) => column,
-  );
-
-  GeneratedColumn<DateTime> get lastSyncAt => $composableBuilder(
-    column: $table.lastSyncAt,
-    builder: (column) => column,
-  );
-
-  GeneratedColumn<DateTime> get modifiedAt => $composableBuilder(
-    column: $table.modifiedAt,
-    builder: (column) => column,
-  );
-
-  GeneratedColumn<bool> get isSynced =>
-      $composableBuilder(column: $table.isSynced, builder: (column) => column);
-}
-
-class $$DirtyFieldsTableTableManager
-    extends
-        RootTableManager<
-          _$AppDatabase,
-          $DirtyFieldsTable,
-          DirtyField,
-          $$DirtyFieldsTableFilterComposer,
-          $$DirtyFieldsTableOrderingComposer,
-          $$DirtyFieldsTableAnnotationComposer,
-          $$DirtyFieldsTableCreateCompanionBuilder,
-          $$DirtyFieldsTableUpdateCompanionBuilder,
-          (
-            DirtyField,
-            BaseReferences<_$AppDatabase, $DirtyFieldsTable, DirtyField>,
-          ),
-          DirtyField,
-          PrefetchHooks Function()
-        > {
-  $$DirtyFieldsTableTableManager(_$AppDatabase db, $DirtyFieldsTable table)
-    : super(
-        TableManagerState(
-          db: db,
-          table: table,
-          createFilteringComposer: () =>
-              $$DirtyFieldsTableFilterComposer($db: db, $table: table),
-          createOrderingComposer: () =>
-              $$DirtyFieldsTableOrderingComposer($db: db, $table: table),
-          createComputedFieldComposer: () =>
-              $$DirtyFieldsTableAnnotationComposer($db: db, $table: table),
-          updateCompanionCallback:
-              ({
-                Value<int> id = const Value.absent(),
-                Value<String> model = const Value.absent(),
-                Value<int> recordId = const Value.absent(),
-                Value<String> fieldName = const Value.absent(),
-                Value<String?> oldValue = const Value.absent(),
-                Value<String?> newValue = const Value.absent(),
-                Value<String?> localValue = const Value.absent(),
-                Value<String?> serverValue = const Value.absent(),
-                Value<DateTime?> lastSyncAt = const Value.absent(),
-                Value<DateTime> modifiedAt = const Value.absent(),
-                Value<bool> isSynced = const Value.absent(),
-              }) => DirtyFieldsCompanion(
-                id: id,
-                model: model,
-                recordId: recordId,
-                fieldName: fieldName,
-                oldValue: oldValue,
-                newValue: newValue,
-                localValue: localValue,
-                serverValue: serverValue,
-                lastSyncAt: lastSyncAt,
-                modifiedAt: modifiedAt,
-                isSynced: isSynced,
-              ),
-          createCompanionCallback:
-              ({
-                Value<int> id = const Value.absent(),
-                required String model,
-                required int recordId,
-                required String fieldName,
-                Value<String?> oldValue = const Value.absent(),
-                Value<String?> newValue = const Value.absent(),
-                Value<String?> localValue = const Value.absent(),
-                Value<String?> serverValue = const Value.absent(),
-                Value<DateTime?> lastSyncAt = const Value.absent(),
-                required DateTime modifiedAt,
-                Value<bool> isSynced = const Value.absent(),
-              }) => DirtyFieldsCompanion.insert(
-                id: id,
-                model: model,
-                recordId: recordId,
-                fieldName: fieldName,
-                oldValue: oldValue,
-                newValue: newValue,
-                localValue: localValue,
-                serverValue: serverValue,
-                lastSyncAt: lastSyncAt,
-                modifiedAt: modifiedAt,
-                isSynced: isSynced,
-              ),
-          withReferenceMapper: (p0) => p0
-              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
-              .toList(),
-          prefetchHooksCallback: null,
-        ),
-      );
-}
-
-typedef $$DirtyFieldsTableProcessedTableManager =
-    ProcessedTableManager<
-      _$AppDatabase,
-      $DirtyFieldsTable,
-      DirtyField,
-      $$DirtyFieldsTableFilterComposer,
-      $$DirtyFieldsTableOrderingComposer,
-      $$DirtyFieldsTableAnnotationComposer,
-      $$DirtyFieldsTableCreateCompanionBuilder,
-      $$DirtyFieldsTableUpdateCompanionBuilder,
-      (
-        DirtyField,
-        BaseReferences<_$AppDatabase, $DirtyFieldsTable, DirtyField>,
-      ),
-      DirtyField,
-      PrefetchHooks Function()
-    >;
 typedef $$SyncConflictTableCreateCompanionBuilder =
     SyncConflictCompanion Function({
       Value<int> id,
@@ -111291,8 +109732,8 @@ class $AppDatabaseManager {
       );
   $$CashOutTableTableManager get cashOut =>
       $$CashOutTableTableManager(_db, _db.cashOut);
-  $$AccountPaymentTableTableManager get accountPayment =>
-      $$AccountPaymentTableTableManager(_db, _db.accountPayment);
+  $$AccountPaymentTableTableTableManager get accountPaymentTable =>
+      $$AccountPaymentTableTableTableManager(_db, _db.accountPaymentTable);
   $$AccountMoveTableTableManager get accountMove =>
       $$AccountMoveTableTableManager(_db, _db.accountMove);
   $$AccountMoveLineTableTableManager get accountMoveLine =>
@@ -111367,8 +109808,6 @@ class $AppDatabaseManager {
       $$ProductPriceChangeTableTableManager(_db, _db.productPriceChange);
   $$StockQuantityChangeTableTableManager get stockQuantityChange =>
       $$StockQuantityChangeTableTableManager(_db, _db.stockQuantityChange);
-  $$DirtyFieldsTableTableManager get dirtyFields =>
-      $$DirtyFieldsTableTableManager(_db, _db.dirtyFields);
   $$SyncConflictTableTableManager get syncConflict =>
       $$SyncConflictTableTableManager(_db, _db.syncConflict);
   $$QwebReportTemplateTableTableManager get qwebReportTemplate =>

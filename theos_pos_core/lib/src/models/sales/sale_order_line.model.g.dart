@@ -166,8 +166,12 @@ class SaleOrderLineManager extends OdooModelManager<SaleOrderLine>
     'write_date',
   ];
 
-  @override
-  SaleOrderLine fromOdoo(Map<String, dynamic> data) {
+  /// Versión estática pura de [fromOdoo] — no referencia `this` ni
+  /// estado de instancia (OdooClient, GeneratedDatabase), solo [data].
+  /// Por eso su tear-off (`SaleOrderLineManager.fromOdooMap`) es transferible a
+  /// `Isolate.run()`, a diferencia del tear-off del método de instancia
+  /// [fromOdoo] (que arrastra el manager completo, no transferible).
+  static SaleOrderLine fromOdooMap(Map<String, dynamic> data) {
     return SaleOrderLine(
       id: data['id'] as int? ?? 0,
       orderId: extractMany2oneId(data['order_id']) ?? 0,
@@ -209,6 +213,9 @@ class SaleOrderLineManager extends OdooModelManager<SaleOrderLine>
       isUnitProduct: false,
     );
   }
+
+  @override
+  SaleOrderLine fromOdoo(Map<String, dynamic> data) => fromOdooMap(data);
 
   @override
   Map<String, dynamic> toOdoo(SaleOrderLine record) {
@@ -387,13 +394,13 @@ class SaleOrderLineManager extends OdooModelManager<SaleOrderLine>
       'display_type': Variable<String>(record.displayType.code),
       'is_downpayment': Variable<bool>(record.isDownpayment),
       'product_id': driftVar<int>(record.productId),
-      'product_id_name': driftVar<String>(record.productName),
+      'product_name': driftVar<String>(record.productName),
       'product_template_id': driftVar<int>(record.productTemplateId),
-      'product_template_id_name': driftVar<String>(record.productTemplateName),
+      'product_template_name': driftVar<String>(record.productTemplateName),
       'name': Variable<String>(record.name),
       'product_uom_qty': Variable<double>(record.productUomQty),
       'product_uom_id': driftVar<int>(record.productUomId),
-      'product_uom_id_name': driftVar<String>(record.productUomName),
+      'product_uom_name': driftVar<String>(record.productUomName),
       'price_unit': Variable<double>(record.priceUnit),
       'discount': Variable<double>(record.discount),
       'discount_amount': Variable<double>(record.discountAmount),

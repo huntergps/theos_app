@@ -222,7 +222,7 @@ class CreditApprovalService {
         'partner_id': partnerId,
         'amount': amount,
         'check_type': checkType,
-        if (paymentTermId != null) 'payment_term_id': paymentTermId,
+        'payment_term_id': ?paymentTermId,
       },
       priority: OfflinePriority.high,
     );

@@ -305,12 +305,19 @@ extension FastSaleNotifierLines on FastSaleNotifier {
     }
 
     final newLine = result.line!;
-    final newLines = [...activeTab.lines, newLine];
-    final updatedTab = activeTab.copyWith(
+
+    // Releer el estado ACTUAL: pudo haber cambiado mientras se creaba la
+    // línea (ej. otra línea añadida/eliminada concurrentemente) — mismo fix
+    // de race condition que en _updateLineQuantity/_updateLineDiscount.
+    final freshTab = state.activeTab;
+    if (freshTab == null || freshTab.orderId != activeTab.orderId) return;
+
+    final newLines = [...freshTab.lines, newLine];
+    final updatedTab = freshTab.copyWith(
       lines: newLines,
       hasChanges: true,
       selectedLineIndex: newLines.length - 1,
-      linesVersion: activeTab.linesVersion + 1,
+      linesVersion: freshTab.linesVersion + 1,
     );
 
     _updateActiveTab(updatedTab);
@@ -484,26 +491,21 @@ extension FastSaleNotifierLines on FastSaleNotifier {
   }
 
   /// Recalculate order totals from lines
+  ///
+  /// Delega en [orderTotalsCalculator] (compartido con `theos_pos_core`) en
+  /// vez de reimplementar el mismo fold sobre `priceSubtotal`/`priceTax`/
+  /// `priceTotal` (dedup — mismo resultado numérico, ya validado por los
+  /// tests de `order_totals_calculator_test.dart`).
   SaleOrder _recalculateOrderTotals(
     SaleOrder order,
     List<SaleOrderLine> lines,
   ) {
-    double amountUntaxed = 0.0;
-    double amountTax = 0.0;
-    double amountTotal = 0.0;
-
-    for (final line in lines) {
-      if (line.isProductLine) {
-        amountUntaxed += line.priceSubtotal;
-        amountTax += line.priceTax;
-        amountTotal += line.priceTotal;
-      }
-    }
+    final totals = orderTotalsCalculator.calculate(lines: lines);
 
     return order.copyWith(
-      amountUntaxed: amountUntaxed,
-      amountTax: amountTax,
-      amountTotal: amountTotal,
+      amountUntaxed: totals.subtotal,
+      amountTax: totals.taxTotal,
+      amountTotal: totals.total,
     );
   }
 
@@ -515,9 +517,29 @@ extension FastSaleNotifierLines on FastSaleNotifier {
     await _updateLineQuantity(activeTab.selectedLineIndex, quantity);
   }
 
+  /// Ubica el índice de una línea usando su identidad estable
+  /// ([SaleOrderLine.lineUuid] si existe, o [SaleOrderLine.id] como respaldo).
+  ///
+  /// Se usa para releer el estado DESPUÉS de un `await` (recálculo de
+  /// impuestos/pricelist) sin depender del índice/lista capturados ANTES del
+  /// `await`, que pueden haber quedado obsoletos si otra operación concurrente
+  /// (ej. escanear otro producto) modificó las líneas mientras tanto.
+  int _findLineIndex(List<SaleOrderLine> lines, SaleOrderLine target) {
+    final uuid = target.lineUuid;
+    if (uuid != null && uuid.isNotEmpty) {
+      final byUuid = lines.indexWhere((l) => l.lineUuid == uuid);
+      if (byUuid >= 0) return byUuid;
+    }
+    return lines.indexWhere((l) => l.id == target.id);
+  }
+
   /// Update quantity of a specific line and save to database
   ///
   /// Uses [OrderLineCreationService.recalculateLine] for consistent offline-first calculation.
+  ///
+  /// Releemos `state.activeTab` DESPUÉS del `await` para no sobrescribir con
+  /// datos obsoletos si otra operación concurrente modificó las líneas
+  /// mientras se recalculaba esta (race condition corregida).
   Future<void> _updateLineQuantity(int lineIndex, double quantity) async {
     final activeTab = state.activeTab;
     if (activeTab == null) return;
@@ -530,13 +552,19 @@ extension FastSaleNotifierLines on FastSaleNotifier {
       newQuantity: quantity,
     );
 
-    final newLines = List<SaleOrderLine>.from(activeTab.lines);
-    newLines[lineIndex] = calculatedLine;
+    // Releer el estado ACTUAL tras el await: pudo haber cambiado.
+    final freshTab = state.activeTab;
+    if (freshTab == null || freshTab.orderId != activeTab.orderId) return;
+    final freshIndex = _findLineIndex(freshTab.lines, line);
+    if (freshIndex < 0) return; // La línea fue eliminada mientras se recalculaba
 
-    final updatedTab = activeTab.copyWith(
+    final newLines = List<SaleOrderLine>.from(freshTab.lines);
+    newLines[freshIndex] = calculatedLine;
+
+    final updatedTab = freshTab.copyWith(
       lines: newLines,
       hasChanges: true,
-      linesVersion: activeTab.linesVersion + 1,
+      linesVersion: freshTab.linesVersion + 1,
     );
 
     _updateActiveTab(updatedTab);
@@ -556,6 +584,11 @@ extension FastSaleNotifierLines on FastSaleNotifier {
   ///
   /// Uses [OrderLineCreationService.recalculateLine] for consistent offline-first calculation.
   /// Validates against company's max discount percentage.
+  ///
+  /// Tiene DOS `await` (validación de descuento máximo + recálculo). Releemos
+  /// `state.activeTab` DESPUÉS de cada uno para no indexar sobre una lista
+  /// obsoleta (riesgo real de `RangeError` si la línea fue eliminada mientras
+  /// tanto) ni sobrescribir cambios concurrentes (race condition corregida).
   Future<void> _updateLineDiscount(int lineIndex, double discount) async {
     logger.d(
       '[FastSale]',
@@ -565,6 +598,8 @@ extension FastSaleNotifierLines on FastSaleNotifier {
     final activeTab = state.activeTab;
     if (activeTab == null) return;
     if (lineIndex < 0 || lineIndex >= activeTab.lines.length) return;
+
+    final originalLine = activeTab.lines[lineIndex];
 
     // Validate against company's max discount percentage (await to ensure data is loaded)
     final maxDiscount = await getMaxDiscountPercentage(ref);
@@ -586,7 +621,13 @@ extension FastSaleNotifierLines on FastSaleNotifier {
       return;
     }
 
-    final line = activeTab.lines[lineIndex];
+    // Releer tras el primer await: la línea pudo haber sido eliminada.
+    var freshTab = state.activeTab;
+    if (freshTab == null || freshTab.orderId != activeTab.orderId) return;
+    var freshIndex = _findLineIndex(freshTab.lines, originalLine);
+    if (freshIndex < 0) return;
+
+    final line = freshTab.lines[freshIndex];
     final clampedDiscount = discount.clamp(0.0, maxDiscount);
     final creationService = ref.read(orderLineCreationServiceProvider);
     final calculatedLine = await creationService.recalculateLine(
@@ -594,13 +635,19 @@ extension FastSaleNotifierLines on FastSaleNotifier {
       newDiscount: clampedDiscount,
     );
 
-    final newLines = List<SaleOrderLine>.from(activeTab.lines);
-    newLines[lineIndex] = calculatedLine;
+    // Releer de nuevo tras el segundo await.
+    freshTab = state.activeTab;
+    if (freshTab == null || freshTab.orderId != activeTab.orderId) return;
+    freshIndex = _findLineIndex(freshTab.lines, originalLine);
+    if (freshIndex < 0) return;
 
-    final updatedTab = activeTab.copyWith(
+    final newLines = List<SaleOrderLine>.from(freshTab.lines);
+    newLines[freshIndex] = calculatedLine;
+
+    final updatedTab = freshTab.copyWith(
       lines: newLines,
       hasChanges: true,
-      linesVersion: activeTab.linesVersion + 1,
+      linesVersion: freshTab.linesVersion + 1,
     );
 
     _updateActiveTab(updatedTab);
@@ -907,10 +954,19 @@ extension FastSaleNotifierLines on FastSaleNotifier {
       taxPercent: taxPercent,
     );
 
-    final newLines = List<SaleOrderLine>.from(activeTab.lines);
-    newLines[lineIndex] = updatedLine;
+    // Releer el estado ACTUAL: hubo hasta 3 `await` (lookup de producto,
+    // cálculo de precio de pricelist, info de impuestos) durante los cuales
+    // pudo haber cambiado (race condition corregida, mismo patrón que
+    // _updateLineQuantity/_updateLineDiscount).
+    final freshTab = state.activeTab;
+    if (freshTab == null || freshTab.orderId != activeTab.orderId) return;
+    final freshIndex = _findLineIndex(freshTab.lines, line);
+    if (freshIndex < 0) return; // La línea fue eliminada mientras se recalculaba
 
-    final updatedTab = activeTab.copyWith(lines: newLines, hasChanges: true);
+    final newLines = List<SaleOrderLine>.from(freshTab.lines);
+    newLines[freshIndex] = updatedLine;
+
+    final updatedTab = freshTab.copyWith(lines: newLines, hasChanges: true);
 
     _updateActiveTab(updatedTab);
 

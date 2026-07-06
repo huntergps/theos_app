@@ -289,9 +289,8 @@ class SaleOrderLogicEngine {
     if (!order.isFinalConsumer) return null;
     if (limit <= 0) return null;
 
-    final total = lines
-        .where((l) => l.isProductLine)
-        .fold(0.0, (sum, line) => sum + line.priceTotal);
+    // Dedup: delega en orderTotalsCalculator (mismo resultado numérico).
+    final total = orderTotalsCalculator.calculate(lines: lines).total;
 
     if (total > limit) {
       return ValidationError.finalConsumerLimitExceeded(
@@ -483,9 +482,8 @@ class SaleOrderLogicEngine {
     if (order.partnerId == null) return null;
     if (_creditService == null) return null;
 
-    final orderAmount = lines
-        .where((l) => l.isProductLine)
-        .fold(0.0, (sum, line) => sum + line.priceTotal);
+    // Dedup: delega en orderTotalsCalculator (mismo resultado numérico).
+    final orderAmount = orderTotalsCalculator.calculate(lines: lines).total;
 
     final result = await _creditService.validateOrderCredit(
       clientId: order.partnerId!,

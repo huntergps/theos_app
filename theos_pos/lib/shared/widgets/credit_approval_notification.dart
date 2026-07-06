@@ -35,32 +35,32 @@ class _CreditApprovalNotificationListenerState
 
     // Solo escuchar si es supervisor
     if (isSupervisor) {
-      ref.listen<List<SaleOrder>>(
-        pendingApprovalOrdersProvider,
-        (previous, next) {
-          // En la primera carga, registrar las órdenes existentes sin notificar
-          // para evitar spam al iniciar la app.
-          if (_isFirstLoad) {
-            _isFirstLoad = false;
-            for (final order in next) {
-              _notifiedIds.add(order.id);
-            }
-            return;
-          }
-
-          // Detectar órdenes nuevas que no han sido notificadas
+      ref.listen<List<SaleOrder>>(pendingApprovalOrdersProvider, (
+        previous,
+        next,
+      ) {
+        // En la primera carga, registrar las órdenes existentes sin notificar
+        // para evitar spam al iniciar la app.
+        if (_isFirstLoad) {
+          _isFirstLoad = false;
           for (final order in next) {
-            if (!_notifiedIds.contains(order.id)) {
-              _notifiedIds.add(order.id);
-              _showApprovalNotification(context, order);
-            }
+            _notifiedIds.add(order.id);
           }
+          return;
+        }
 
-          // Limpiar IDs de órdenes que ya no están en waitingApproval
-          final currentIds = next.map((o) => o.id).toSet();
-          _notifiedIds.removeWhere((id) => !currentIds.contains(id));
-        },
-      );
+        // Detectar órdenes nuevas que no han sido notificadas
+        for (final order in next) {
+          if (!_notifiedIds.contains(order.id)) {
+            _notifiedIds.add(order.id);
+            _showApprovalNotification(context, order);
+          }
+        }
+
+        // Limpiar IDs de órdenes que ya no están en waitingApproval
+        final currentIds = next.map((o) => o.id).toSet();
+        _notifiedIds.removeWhere((id) => !currentIds.contains(id));
+      });
     }
 
     return widget.child;
@@ -79,7 +79,7 @@ class _CreditApprovalNotificationListenerState
     // Duracion larga (30s) porque requiere respuesta activa del supervisor
     CopyableInfoBar.showWarning(
       context,
-      title: 'Solicitud de aprobacion de credito',
+      title: 'Solicitud de aprobación de crédito',
       message: '$orderName — $client por $amount\nVendedor: $seller',
       duration: const Duration(seconds: 30),
       action: Button(

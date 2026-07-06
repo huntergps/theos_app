@@ -2,6 +2,7 @@ import 'package:fluent_ui/fluent_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:odoo_widgets/odoo_widgets.dart' show OdooSummaryCard;
 
+import '../../../../../core/constants/app_colors.dart';
 import '../../../../../core/database/providers.dart' show currentSessionProvider;
 import '../../../../../core/database/repositories/repository_providers.dart';
 import '../../../../../core/services/odoo_service.dart';
@@ -10,7 +11,6 @@ import 'package:theos_pos_core/theos_pos_core.dart' hide DatabaseHelper, Partner
 import '../../../providers/service_providers.dart';
 import '../../../../../shared/utils/formatting_utils.dart';
 import '../fast_sale_providers.dart';
-import 'pos_order_tabs.dart' show orderPendingSyncProvider;
 import 'pos_payment_providers.dart';
 import 'add_payment_dialog.dart';
 import 'add_withhold_dialog.dart';
@@ -136,7 +136,7 @@ class _POSPaymentTabState extends ConsumerState<POSPaymentTab> {
       padding: const EdgeInsets.all(Spacing.sm),
       child: OdooSummaryCard(
         backgroundColor: isFullyPaid
-            ? Colors.green.withValues(alpha: 0.1)
+            ? AppColors.success.withValues(alpha: 0.1)
             : null,
         padding: const EdgeInsets.symmetric(horizontal: Spacing.md, vertical: Spacing.sm),
         children: [
@@ -147,28 +147,28 @@ class _POSPaymentTabState extends ConsumerState<POSPaymentTab> {
                 theme,
                 'A COBRAR',
                 amountToCollect,
-                color: Colors.blue,
+                color: AppColors.info,
               ),
               Container(width: 1, height: 50, color: theme.resources.dividerStrokeColorDefault),
               _buildSummaryItem(
                 theme,
                 'RETENIDO',
                 totalWithheld,
-                color: totalWithheld > 0 ? Colors.orange : theme.inactiveColor,
+                color: totalWithheld > 0 ? AppColors.warning : theme.inactiveColor,
               ),
               Container(width: 1, height: 50, color: theme.resources.dividerStrokeColorDefault),
               _buildSummaryItem(
                 theme,
                 'PAGADO',
                 totalPaid,
-                color: Colors.green,
+                color: AppColors.success,
               ),
               Container(width: 1, height: 50, color: theme.resources.dividerStrokeColorDefault),
               _buildSummaryItem(
                 theme,
                 isFullyPaid ? 'COMPLETADO' : 'PENDIENTE',
                 pendingAmount.abs(),
-                color: isFullyPaid ? Colors.green : Colors.orange,
+                color: isFullyPaid ? AppColors.success : AppColors.warning,
                 icon: isFullyPaid ? FluentIcons.check_mark : null,
               ),
             ],
@@ -225,7 +225,7 @@ class _POSPaymentTabState extends ConsumerState<POSPaymentTab> {
           Icon(
             FluentIcons.info,
             size: 48,
-            color: Colors.blue.withValues(alpha: 0.5),
+            color: AppColors.info.withValues(alpha: 0.5),
           ),
           const SizedBox(height: Spacing.sm),
           Text(
@@ -255,7 +255,7 @@ class _POSPaymentTabState extends ConsumerState<POSPaymentTab> {
           Icon(
             FluentIcons.warning,
             size: 48,
-            color: Colors.orange.withValues(alpha: 0.5),
+            color: AppColors.warning.withValues(alpha: 0.5),
           ),
           const SizedBox(height: Spacing.sm),
           Text(
@@ -411,7 +411,7 @@ class _POSPaymentTabState extends ConsumerState<POSPaymentTab> {
         // Section header with add button
         Row(
           children: [
-            Icon(FluentIcons.calculator_percentage, size: 14, color: Colors.orange),
+            Icon(FluentIcons.calculator_percentage, size: 14, color: AppColors.warning),
             const SizedBox(width: Spacing.xs),
             Text(
               'Retenciones',
@@ -490,11 +490,11 @@ class _POSPaymentTabState extends ConsumerState<POSPaymentTab> {
     return Expander(
       initiallyExpanded: false,
       headerBackgroundColor: WidgetStateColor.resolveWith(
-        (_) => Colors.orange.withValues(alpha: 0.08),
+        (_) => AppColors.warning.withValues(alpha: 0.08),
       ),
       header: Row(
         children: [
-          Icon(FluentIcons.calculator_percentage, size: 16, color: Colors.orange),
+          Icon(FluentIcons.calculator_percentage, size: 16, color: AppColors.warning),
           const SizedBox(width: Spacing.sm),
           Expanded(
             child: Row(
@@ -514,26 +514,29 @@ class _POSPaymentTabState extends ConsumerState<POSPaymentTab> {
           Container(
             padding: const EdgeInsets.symmetric(horizontal: Spacing.sm, vertical: Spacing.xxs),
             decoration: BoxDecoration(
-              color: Colors.orange.withValues(alpha: 0.2),
+              color: AppColors.warning.withValues(alpha: 0.2),
               borderRadius: BorderRadius.circular(4),
             ),
             child: Text(
               'Total: ${totalAmount.toCurrency()}',
               style: theme.typography.bodyStrong?.copyWith(
-                color: Colors.orange.dark,
+                color: AppColors.warning,
               ),
             ),
           ),
           const SizedBox(width: Spacing.sm),
           // Delete all button - hidden when invoiced
           if (!isInvoiced)
-            IconButton(
-              icon: Icon(FluentIcons.delete, size: 14, color: Colors.red.light),
-              onPressed: () {
-                for (final line in allLines) {
-                  ref.read(posWithholdLinesByOrderProvider.notifier).removeLine(orderId, line.lineUuid);
-                }
-              },
+            Tooltip(
+              message: 'Eliminar todas las retenciones',
+              child: IconButton(
+                icon: Icon(FluentIcons.delete, size: 14, color: AppColors.danger),
+                onPressed: () {
+                  for (final line in allLines) {
+                    ref.read(posWithholdLinesByOrderProvider.notifier).removeLine(orderId, line.lineUuid);
+                  }
+                },
+              ),
             ),
         ],
       ),
@@ -585,7 +588,7 @@ class _POSPaymentTabState extends ConsumerState<POSPaymentTab> {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: Spacing.xs, vertical: 2),
       decoration: BoxDecoration(
-        color: Colors.orange.withValues(alpha: 0.15),
+        color: AppColors.warning.withValues(alpha: 0.15),
         borderRadius: BorderRadius.circular(4),
       ),
       child: Row(
@@ -594,7 +597,7 @@ class _POSPaymentTabState extends ConsumerState<POSPaymentTab> {
           Text(
             type,
             style: theme.typography.caption?.copyWith(
-              color: Colors.orange.dark,
+              color: AppColors.warning,
               fontWeight: FontWeight.w600,
             ),
           ),
@@ -602,7 +605,7 @@ class _POSPaymentTabState extends ConsumerState<POSPaymentTab> {
           Text(
             amount.toCurrency(),
             style: theme.typography.caption?.copyWith(
-              color: Colors.orange,
+              color: AppColors.warning,
             ),
           ),
           Text(
@@ -652,7 +655,7 @@ class _POSPaymentTabState extends ConsumerState<POSPaymentTab> {
             child: Text(
               '${line.taxPercent.toFixed(0)}%',
               style: theme.typography.caption?.copyWith(
-                color: Colors.orange,
+                color: AppColors.warning,
                 fontWeight: FontWeight.w600,
               ),
               textAlign: TextAlign.center,
@@ -671,11 +674,14 @@ class _POSPaymentTabState extends ConsumerState<POSPaymentTab> {
           if (!isInvoiced)
             SizedBox(
               width: 32,
-              child: IconButton(
-                icon: Icon(FluentIcons.delete, size: 10, color: Colors.red.light),
-                onPressed: () {
-                  ref.read(posWithholdLinesByOrderProvider.notifier).removeLine(orderId, line.lineUuid);
-                },
+              child: Tooltip(
+                message: 'Eliminar retención',
+                child: IconButton(
+                  icon: Icon(FluentIcons.delete, size: 10, color: AppColors.danger),
+                  onPressed: () {
+                    ref.read(posWithholdLinesByOrderProvider.notifier).removeLine(orderId, line.lineUuid);
+                  },
+                ),
               ),
             )
           else
@@ -775,7 +781,7 @@ class _POSPaymentTabState extends ConsumerState<POSPaymentTab> {
           Text(
             line.amount.toCurrency(),
             style: theme.typography.bodyStrong?.copyWith(
-              color: Colors.green,
+              color: AppColors.success,
             ),
           ),
 
@@ -783,11 +789,14 @@ class _POSPaymentTabState extends ConsumerState<POSPaymentTab> {
 
           // Delete button - hidden when order is invoiced
           if (!isInvoiced)
-            IconButton(
-              icon: Icon(FluentIcons.delete, size: 14, color: Colors.red.light),
-              onPressed: () {
-                ref.read(posPaymentLinesByOrderProvider.notifier).removeLine(orderId, line.id);
-              },
+            Tooltip(
+              message: 'Eliminar pago',
+              child: IconButton(
+                icon: Icon(FluentIcons.delete, size: 14, color: AppColors.danger),
+                onPressed: () {
+                  ref.read(posPaymentLinesByOrderProvider.notifier).removeLine(orderId, line.id);
+                },
+              ),
             ),
         ],
       ),
@@ -804,13 +813,13 @@ class _POSPaymentTabState extends ConsumerState<POSPaymentTab> {
     return Container(
       padding: const EdgeInsets.all(Spacing.md),
       decoration: BoxDecoration(
-        color: Colors.green.withValues(alpha: 0.1),
+        color: AppColors.success.withValues(alpha: 0.1),
         borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: Colors.green.withValues(alpha: 0.3)),
+        border: Border.all(color: AppColors.success.withValues(alpha: 0.3)),
       ),
       child: Row(
         children: [
-          Icon(FluentIcons.completed, size: 32, color: Colors.green),
+          Icon(FluentIcons.completed, size: 32, color: AppColors.success),
           const SizedBox(width: Spacing.sm),
           Expanded(
             child: Column(
@@ -819,13 +828,13 @@ class _POSPaymentTabState extends ConsumerState<POSPaymentTab> {
                 Text(
                   'Pago completo',
                   style: theme.typography.bodyStrong?.copyWith(
-                    color: Colors.green.dark,
+                    color: AppColors.success,
                   ),
                 ),
                 Text(
                   'La orden está lista para facturar',
                   style: theme.typography.caption?.copyWith(
-                    color: Colors.green,
+                    color: AppColors.success,
                   ),
                 ),
               ],
@@ -864,7 +873,7 @@ class _POSPaymentTabState extends ConsumerState<POSPaymentTab> {
             Icon(
               hasQueuedInvoice ? FluentIcons.cloud_upload : FluentIcons.check_mark,
               size: 16,
-              color: hasQueuedInvoice ? Colors.orange : Colors.green,
+              color: hasQueuedInvoice ? AppColors.warning : AppColors.success,
             ),
             const SizedBox(width: Spacing.xs),
             Flexible(
@@ -873,7 +882,7 @@ class _POSPaymentTabState extends ConsumerState<POSPaymentTab> {
                     ? 'Factura pendiente de sincronización'
                     : 'Orden facturada',
                 style: theme.typography.caption?.copyWith(
-                  color: hasQueuedInvoice ? Colors.orange : Colors.green,
+                  color: hasQueuedInvoice ? AppColors.warning : AppColors.success,
                 ),
                 overflow: TextOverflow.ellipsis,
               ),
@@ -900,7 +909,7 @@ class _POSPaymentTabState extends ConsumerState<POSPaymentTab> {
             },
             child: Row(
               children: [
-                Icon(FluentIcons.delete, size: 14, color: Colors.red.light),
+                Icon(FluentIcons.delete, size: 14, color: AppColors.danger),
                 const SizedBox(width: Spacing.xs),
                 const Text('Limpiar'),
               ],
@@ -914,7 +923,7 @@ class _POSPaymentTabState extends ConsumerState<POSPaymentTab> {
             onPressed: (_isSaving || !canInvoice) ? null : () => _savePayments(context, activeTab, paymentLines, isFullyPaid),
             style: ButtonStyle(
               backgroundColor: WidgetStateProperty.all(
-                isFullyPaid ? Colors.green : theme.accentColor,
+                isFullyPaid ? AppColors.success : theme.accentColor,
               ),
             ),
             child: _isSaving
@@ -1025,7 +1034,15 @@ class _POSPaymentTabState extends ConsumerState<POSPaymentTab> {
           if (salesRepo != null) {
             // Get ALL local payment lines for this order (not just new ones)
             final allLocalPayments = await salesRepo.getLocalPaymentLinesForOrder(activeTab.order!.id);
-            final allPaymentLinesData = allLocalPayments.map((line) => paymentLineManager.toOdoo(line)).toList();
+            // bankId/bankName son @OdooLocalOnly — el guard resuelve el campo
+            // correcto (bank_id vs bank_name_ec) segun la version del servidor,
+            // igual que en PaymentService._syncPaymentLinesToOdoo.
+            final allPaymentLinesData = allLocalPayments
+                .map((line) => paymentService.applyBankFieldGuard(
+                      paymentLineManager.toOdoo(line),
+                      line,
+                    ))
+                .toList();
 
             logger.i('[POSPaymentTab]', 'Creating offline invoice for order ${activeTab.order!.id} with ${allPaymentLinesData.length} payment lines');
 
@@ -1038,8 +1055,7 @@ class _POSPaymentTabState extends ConsumerState<POSPaymentTab> {
 
             logger.d('[POSPaymentTab]', 'Offline invoice result: ${offlineInvoice?.invoiceName ?? "NULL"}');
 
-            // Refresh the pending sync counter
-            ref.invalidate(orderPendingSyncProvider(activeTab.orderId));
+            // El contador de pendientes se actualiza automáticamente via Drift watch
 
             // Reload order to get hasQueuedInvoice flag
             await ref.read(fastSaleProvider.notifier).reloadActiveOrder();
@@ -1118,11 +1134,11 @@ class _POSPaymentTabState extends ConsumerState<POSPaymentTab> {
   Color _getPaymentTypeColor(PaymentLineType type) {
     switch (type) {
       case PaymentLineType.payment:
-        return Colors.green;
+        return AppColors.success;
       case PaymentLineType.advance:
-        return Colors.magenta;
+        return AppColors.advance;
       case PaymentLineType.creditNote:
-        return Colors.purple;
+        return AppColors.creditNote;
     }
   }
 }

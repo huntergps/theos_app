@@ -17,8 +17,8 @@ void main() {
       expect(manager.odooModel, equals('res.partner'));
     });
 
-    test('tableName returns res_partners', () {
-      expect(manager.tableName, equals('res_partners'));
+    test('tableName returns res_partner', () {
+      expect(manager.tableName, equals('res_partner'));
     });
 
     test('odooFields contains essential fields', () {
@@ -97,7 +97,9 @@ void main() {
       expect(client.vat, equals('0992345678001'));
       expect(client.email, equals('test@empresa.com'));
       expect(client.phone, equals('042123456'));
-      expect(client.mobile, equals('0991234567'));
+      // mobile es @OdooLocalOnly desde julio 2026 (no existe en 19.2/19.5):
+      // fromOdoo ya no lo lee del payload.
+      expect(client.mobile, isNull);
       expect(client.street, equals('Av. Principal 123'));
       expect(client.city, equals('Guayaquil'));
       expect(client.isCompany, isTrue);
@@ -195,7 +197,8 @@ void main() {
       expect(client.totalOverdue, equals(250.0));
       expect(client.allowOverCredit, isTrue);
       expect(client.usePartnerCreditLimit, isTrue);
-      expect(client.overdueInvoicesCount, equals(3));
+      // unpaid_invoices_count es @OdooLocalOnly (no existe en el servidor):
+      expect(client.overdueInvoicesCount, isNull);
     });
 
     test('parses write_date with UTC suffix', () {
@@ -267,7 +270,8 @@ void main() {
       expect(map['vat'], equals('0992345678001'));
       expect(map['email'], equals('test@empresa.com'));
       expect(map['phone'], equals('042123456'));
-      expect(map['mobile'], equals('0991234567'));
+      // mobile es @OdooLocalOnly: toOdoo ya no lo envía (no existe en 19.2/19.5).
+      expect(map.containsKey('mobile'), isFalse);
       expect(map['street'], equals('Av. Principal 123'));
       expect(map['city'], equals('Guayaquil'));
       expect(map['country_id'], equals(63));

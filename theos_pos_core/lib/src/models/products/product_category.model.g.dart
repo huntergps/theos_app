@@ -27,8 +27,12 @@ class ProductCategoryManager extends OdooModelManager<ProductCategory>
     'write_date',
   ];
 
-  @override
-  ProductCategory fromOdoo(Map<String, dynamic> data) {
+  /// Versión estática pura de [fromOdoo] — no referencia `this` ni
+  /// estado de instancia (OdooClient, GeneratedDatabase), solo [data].
+  /// Por eso su tear-off (`ProductCategoryManager.fromOdooMap`) es transferible a
+  /// `Isolate.run()`, a diferencia del tear-off del método de instancia
+  /// [fromOdoo] (que arrastra el manager completo, no transferible).
+  static ProductCategory fromOdooMap(Map<String, dynamic> data) {
     return ProductCategory(
       id: data['id'] as int? ?? 0,
       name: parseOdooStringRequired(data['name']),
@@ -38,6 +42,9 @@ class ProductCategoryManager extends OdooModelManager<ProductCategory>
       writeDate: parseOdooDateTime(data['write_date']),
     );
   }
+
+  @override
+  ProductCategory fromOdoo(Map<String, dynamic> data) => fromOdooMap(data);
 
   @override
   Map<String, dynamic> toOdoo(ProductCategory record) {
@@ -130,7 +137,7 @@ class ProductCategoryManager extends OdooModelManager<ProductCategory>
       'name': Variable<String>(record.name),
       'complete_name': driftVar<String>(record.completeName),
       'parent_id': driftVar<int>(record.parentId),
-      'parent_id_name': driftVar<String>(record.parentName),
+      'parent_name': driftVar<String>(record.parentName),
       'write_date': driftVar<DateTime>(record.writeDate),
     });
   }

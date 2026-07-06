@@ -269,11 +269,11 @@ Map<String, dynamic> _$CardLoteToJson(_CardLote instance) => <String, dynamic>{
 /// Generated manager for PaymentLine.
 ///
 /// Provides offline-first CRUD operations and sync
-/// with Odoo model: account.payment.line
+/// with Odoo model: l10n_ec_collection_box.sale.order.payment
 class PaymentLineManager extends OdooModelManager<PaymentLine>
     with GenericDriftOperations<PaymentLine> {
   @override
-  String get odooModel => 'account.payment.line';
+  String get odooModel => 'l10n_ec_collection_box.sale.order.payment';
 
   @override
   String get tableName => 'sale_order_payment_line';
@@ -287,7 +287,6 @@ class PaymentLineManager extends OdooModelManager<PaymentLine>
     'state',
     'journal_id',
     'payment_method_line_id',
-    'bank_id',
     'card_brand_id',
     'card_deadline_id',
     'lote_id',
@@ -298,8 +297,12 @@ class PaymentLineManager extends OdooModelManager<PaymentLine>
     'credit_note_id',
   ];
 
-  @override
-  PaymentLine fromOdoo(Map<String, dynamic> data) {
+  /// Versión estática pura de [fromOdoo] — no referencia `this` ni
+  /// estado de instancia (OdooClient, GeneratedDatabase), solo [data].
+  /// Por eso su tear-off (`PaymentLineManager.fromOdooMap`) es transferible a
+  /// `Isolate.run()`, a diferencia del tear-off del método de instancia
+  /// [fromOdoo] (que arrastra el manager completo, no transferible).
+  static PaymentLine fromOdooMap(Map<String, dynamic> data) {
     return PaymentLine(
       id: data['id'] as int? ?? 0,
       isSynced: false,
@@ -311,8 +314,6 @@ class PaymentLineManager extends OdooModelManager<PaymentLine>
       journalId: extractMany2oneId(data['journal_id']),
       journalName: extractMany2oneName(data['journal_id']),
       paymentMethodLineId: extractMany2oneId(data['payment_method_line_id']),
-      bankId: extractMany2oneId(data['bank_id']),
-      bankName: extractMany2oneName(data['bank_id']),
       cardBrandId: extractMany2oneId(data['card_brand_id']),
       cardBrandName: extractMany2oneName(data['card_brand_id']),
       cardDeadlineId: extractMany2oneId(data['card_deadline_id']),
@@ -331,6 +332,9 @@ class PaymentLineManager extends OdooModelManager<PaymentLine>
   }
 
   @override
+  PaymentLine fromOdoo(Map<String, dynamic> data) => fromOdooMap(data);
+
+  @override
   Map<String, dynamic> toOdoo(PaymentLine record) {
     return {
       'date': formatOdooDate(record.date),
@@ -339,7 +343,6 @@ class PaymentLineManager extends OdooModelManager<PaymentLine>
       'state': record.state,
       'journal_id': record.journalId,
       'payment_method_line_id': record.paymentMethodLineId,
-      'bank_id': record.bankId,
       'card_brand_id': record.cardBrandId,
       'card_deadline_id': record.cardDeadlineId,
       'lote_id': record.loteId,
@@ -433,7 +436,6 @@ class PaymentLineManager extends OdooModelManager<PaymentLine>
     'state': 'state',
     'journal_id': 'journalId',
     'payment_method_line_id': 'paymentMethodLineId',
-    'bank_id': 'bankId',
     'card_brand_id': 'cardBrandId',
     'card_deadline_id': 'cardDeadlineId',
     'lote_id': 'loteId',
@@ -488,24 +490,22 @@ class PaymentLineManager extends OdooModelManager<PaymentLine>
       'payment_reference': driftVar<String>(record.reference),
       'state': Variable<String>(record.state),
       'journal_id': driftVar<int>(record.journalId),
-      'journal_id_name': driftVar<String>(record.journalName),
+      'journal_name': driftVar<String>(record.journalName),
       'payment_method_line_id': driftVar<int>(record.paymentMethodLineId),
-      'bank_id': driftVar<int>(record.bankId),
-      'bank_id_name': driftVar<String>(record.bankName),
       'card_brand_id': driftVar<int>(record.cardBrandId),
-      'card_brand_id_name': driftVar<String>(record.cardBrandName),
+      'card_brand_name': driftVar<String>(record.cardBrandName),
       'card_deadline_id': driftVar<int>(record.cardDeadlineId),
-      'card_deadline_id_name': driftVar<String>(record.cardDeadlineName),
+      'card_deadline_name': driftVar<String>(record.cardDeadlineName),
       'lote_id': driftVar<int>(record.loteId),
-      'lote_id_name': driftVar<String>(record.loteName),
+      'lote_name': driftVar<String>(record.loteName),
       'bank_reference_date': driftVar<DateTime>(record.voucherDate),
       'partner_bank_id': driftVar<int>(record.partnerBankId),
-      'partner_bank_id_name': driftVar<String>(record.partnerBankName),
+      'partner_bank_name': driftVar<String>(record.partnerBankName),
       'effective_date': driftVar<DateTime>(record.effectiveDate),
       'advance_id': driftVar<int>(record.advanceId),
-      'advance_id_name': driftVar<String>(record.advanceName),
+      'advance_name': driftVar<String>(record.advanceName),
       'credit_note_id': driftVar<int>(record.creditNoteId),
-      'credit_note_id_name': driftVar<String>(record.creditNoteName),
+      'credit_note_name': driftVar<String>(record.creditNoteName),
       'line_uuid': driftVar<String>(record.lineUuid),
       'uuid': driftVar<String>(record.uuid),
       'is_synced': Variable<bool>(record.isSynced),
@@ -515,6 +515,8 @@ class PaymentLineManager extends OdooModelManager<PaymentLine>
       'payment_method_id': driftVar<int>(record.paymentMethodId),
       'payment_method_code': driftVar<String>(record.paymentMethodCode),
       'payment_method_name': driftVar<String>(record.paymentMethodName),
+      'bank_id': driftVar<int>(record.bankId),
+      'bank_name': driftVar<String>(record.bankName),
       'card_type': driftVar<String>(record.cardType?.name),
       'advance_available': driftVar<double>(record.advanceAvailable),
       'credit_note_available': driftVar<double>(record.creditNoteAvailable),
@@ -529,7 +531,6 @@ class PaymentLineManager extends OdooModelManager<PaymentLine>
     'state',
     'journalId',
     'paymentMethodLineId',
-    'bankId',
     'cardBrandId',
     'cardDeadlineId',
     'loteId',
@@ -712,6 +713,8 @@ class PaymentLineManager extends OdooModelManager<PaymentLine>
       paymentMethodId: record.paymentMethodId,
       paymentMethodCode: record.paymentMethodCode,
       paymentMethodName: record.paymentMethodName,
+      bankId: record.bankId,
+      bankName: record.bankName,
       cardType: record.cardType,
       advanceAvailable: record.advanceAvailable,
       creditNoteAvailable: record.creditNoteAvailable,
@@ -854,7 +857,6 @@ class PaymentLineManager extends OdooModelManager<PaymentLine>
     'state',
     'journalId',
     'paymentMethodLineId',
-    'bankId',
     'cardBrandId',
     'cardDeadlineId',
     'loteId',
@@ -895,8 +897,12 @@ class CardLoteManager extends OdooModelManager<CardLote>
     'is_pos_lote',
   ];
 
-  @override
-  CardLote fromOdoo(Map<String, dynamic> data) {
+  /// Versión estática pura de [fromOdoo] — no referencia `this` ni
+  /// estado de instancia (OdooClient, GeneratedDatabase), solo [data].
+  /// Por eso su tear-off (`CardLoteManager.fromOdooMap`) es transferible a
+  /// `Isolate.run()`, a diferencia del tear-off del método de instancia
+  /// [fromOdoo] (que arrastra el manager completo, no transferible).
+  static CardLote fromOdooMap(Map<String, dynamic> data) {
     return CardLote(
       id: data['id'] as int? ?? 0,
       name: parseOdooStringRequired(data['name']),
@@ -911,6 +917,9 @@ class CardLoteManager extends OdooModelManager<CardLote>
       isPosLote: parseOdooBool(data['is_pos_lote']),
     );
   }
+
+  @override
+  CardLote fromOdoo(Map<String, dynamic> data) => fromOdooMap(data);
 
   @override
   Map<String, dynamic> toOdoo(CardLote record) {
@@ -1020,7 +1029,7 @@ class CardLoteManager extends OdooModelManager<CardLote>
       'odoo_id': Variable<int>(record.id),
       'name': Variable<String>(record.name),
       'journal_id': Variable<int>(record.journalId),
-      'journal_id_name': driftVar<String>(record.journalName),
+      'journal_name': driftVar<String>(record.journalName),
       'state': Variable<String>(record.state),
       'date': driftVar<DateTime>(record.date),
       'numero_lote': driftVar<String>(record.numeroLote),

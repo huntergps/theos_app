@@ -4,9 +4,13 @@ import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 import 'package:theos_pos_core/theos_pos_core.dart' show CollectionSession, SessionState;
 
+import '../../../../core/constants/app_colors.dart';
 import '../../../../core/database/providers.dart';
 import '../../../../shared/providers/menu_provider.dart';
 import '../../../../shared/providers/user_provider.dart';
+import '../../../../shared/utils/error_utils.dart';
+import '../../../../shared/utils/formatting_utils.dart';
+import '../../../../shared/widgets/common/theos_info_bars.dart';
 import '../state_chip.dart';
 
 /// Section shown in the supervisor dashboard listing all non-closed sessions.
@@ -49,10 +53,9 @@ class ActiveSessionsSection extends ConsumerWidget {
         sessionsAsync.when(
           data: (sessions) {
             if (sessions.isEmpty) {
-              return const InfoBar(
-                title: Text('Sin sesiones activas'),
-                content: Text('No hay cajeros con sesiones abiertas en este momento.'),
-                severity: InfoBarSeverity.info,
+              return TheosInfoBars.info(
+                title: 'Sin sesiones activas',
+                message: 'No hay cajeros con sesiones abiertas en este momento.',
               );
             }
 
@@ -63,10 +66,9 @@ class ActiveSessionsSection extends ConsumerWidget {
             );
           },
           loading: () => const Center(child: ProgressRing()),
-          error: (err, _) => InfoBar(
-            title: const Text('Error al cargar sesiones'),
-            content: Text(err.toString()),
-            severity: InfoBarSeverity.error,
+          error: (err, _) => TheosInfoBars.error(
+            title: 'Error al cargar sesiones',
+            message: friendlyErrorMessage(err),
           ),
         ),
       ],
@@ -96,6 +98,8 @@ class _ActiveSessionCard extends ConsumerWidget {
         onPressed: () => context.go('/collection/session/${session.id}'),
         builder: (ctx, states) {
           final hovered = states.isHovered;
+          final hasMismatch = session.hasCashDifference;
+
           return AnimatedContainer(
             duration: const Duration(milliseconds: 120),
             decoration: BoxDecoration(
@@ -104,9 +108,12 @@ class _ActiveSessionCard extends ConsumerWidget {
                   : theme.resources.cardBackgroundFillColorDefault,
               borderRadius: BorderRadius.circular(6),
               border: Border.all(
-                color: hovered
-                    ? theme.accentColor.defaultBrushFor(theme.brightness)
-                    : theme.resources.cardStrokeColorDefault,
+                color: hasMismatch
+                    ? AppColors.danger.withValues(alpha: 0.6)
+                    : hovered
+                        ? theme.accentColor.defaultBrushFor(theme.brightness)
+                        : theme.resources.cardStrokeColorDefault,
+                width: hasMismatch ? 1.5 : 1,
               ),
             ),
             child: Padding(
@@ -184,6 +191,12 @@ class _ActiveSessionCard extends ConsumerWidget {
                     ),
                   ),
 
+                  // Descuadre de caja (si aplica)
+                  if (hasMismatch) ...[
+                    _CashMismatchBadge(difference: session.cashRegisterDifference),
+                    const SizedBox(width: 8),
+                  ],
+
                   // State chip
                   StateChip(state: stateCode),
                   const SizedBox(width: 8),
@@ -238,6 +251,44 @@ class _StateDot extends StatelessWidget {
       decoration: BoxDecoration(
         color: color,
         shape: BoxShape.circle,
+      ),
+    );
+  }
+}
+
+/// Badge de alerta mostrado cuando la sesión tiene descuadre de caja
+/// (diferencia entre el efectivo contado y el esperado).
+class _CashMismatchBadge extends StatelessWidget {
+  final double difference;
+
+  const _CashMismatchBadge({required this.difference});
+
+  @override
+  Widget build(BuildContext context) {
+    return Tooltip(
+      message: 'Descuadre de caja: ${difference.toCurrency()}',
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+        decoration: BoxDecoration(
+          color: AppColors.danger.withValues(alpha: 0.15),
+          borderRadius: BorderRadius.circular(4),
+          border: Border.all(color: AppColors.danger.withValues(alpha: 0.4)),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(FluentIcons.warning, size: 10, color: AppColors.danger),
+            const SizedBox(width: 4),
+            Text(
+              'Descuadre',
+              style: TextStyle(
+                fontSize: 10,
+                color: AppColors.danger,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

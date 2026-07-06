@@ -23,7 +23,13 @@ Stream<List<SaleOrder>> saleOrdersStream(Ref ref) {
 }
 
 /// Stream provider for watching sale orders filtered by state
-@Riverpod(keepAlive: true)
+///
+/// `keepAlive:false` (autoDispose, default): es `.family` por `state` — sin
+/// esto, cada valor de `state` visto durante la sesión dejaría un stream de
+/// Drift `.watch()` vivo para siempre, aunque nadie lo esté observando
+/// (memory leak corregido). Riverpod libera automáticamente la instancia
+/// cuando el último watcher se va y la recrea si vuelve a observarse.
+@Riverpod(keepAlive: false)
 Stream<List<SaleOrder>> saleOrdersByStateStream(Ref ref, String state) {
   final dbHelper = ref.watch(databaseHelperProvider);
   if (dbHelper == null) return Stream.value([]);
@@ -37,7 +43,12 @@ Stream<List<SaleOrder>> saleOrdersByStateStream(Ref ref, String state) {
 }
 
 /// Stream provider for watching a single sale order by ID
-@Riverpod(keepAlive: true)
+///
+/// `keepAlive:false`: `.family` por `orderId` transitorio — ver nota en
+/// [saleOrdersByStateStream] sobre por qué autoDispose es el default correcto
+/// para providers "por ID de entidad" (evita cientos de streams de Drift
+/// activos indefinidamente en un turno largo de POS).
+@Riverpod(keepAlive: false)
 Stream<SaleOrder?> saleOrderStream(Ref ref, int orderId) {
   final dbHelper = ref.watch(databaseHelperProvider);
   if (dbHelper == null) return Stream.value(null);
@@ -46,7 +57,10 @@ Stream<SaleOrder?> saleOrderStream(Ref ref, int orderId) {
 }
 
 /// Stream provider for watching a single sale order line by ID
-@Riverpod(keepAlive: true)
+///
+/// `keepAlive:false`: `.family` por `lineId` transitorio (ver nota en
+/// [saleOrdersByStateStream]).
+@Riverpod(keepAlive: false)
 Stream<SaleOrderLine?> saleOrderLineStream(Ref ref, int lineId) {
   final dbHelper = ref.watch(databaseHelperProvider);
   if (dbHelper == null) return Stream.value(null);
@@ -55,7 +69,10 @@ Stream<SaleOrderLine?> saleOrderLineStream(Ref ref, int lineId) {
 }
 
 /// Stream provider for watching all lines of a specific order
-@Riverpod(keepAlive: true)
+///
+/// `keepAlive:false`: `.family` por `orderId` transitorio (ver nota en
+/// [saleOrdersByStateStream]).
+@Riverpod(keepAlive: false)
 Stream<List<SaleOrderLine>> saleOrderLinesStream(Ref ref, int orderId) {
   final dbHelper = ref.watch(databaseHelperProvider);
   if (dbHelper == null) return Stream.value([]);
@@ -69,7 +86,10 @@ Stream<List<SaleOrderLine>> saleOrderLinesStream(Ref ref, int orderId) {
 }
 
 /// Stream provider for watching only line IDs of an order
-@Riverpod(keepAlive: true)
+///
+/// `keepAlive:false`: `.family` por `orderId` transitorio (ver nota en
+/// [saleOrdersByStateStream]).
+@Riverpod(keepAlive: false)
 Stream<List<int>> saleOrderLineIdsStream(Ref ref, int orderId) {
   final dbHelper = ref.watch(databaseHelperProvider);
   if (dbHelper == null) return Stream.value([]);
@@ -99,7 +119,10 @@ Stream<List<SaleOrder>> unsyncedSaleOrdersStream(Ref ref) {
 }
 
 /// Stream provider for counting orders by state
-@Riverpod(keepAlive: true)
+///
+/// `keepAlive:false`: `.family` por `state` (ver nota en
+/// [saleOrdersByStateStream]).
+@Riverpod(keepAlive: false)
 Stream<int> saleOrderCountByStateStream(Ref ref, String state) {
   final dbHelper = ref.watch(databaseHelperProvider);
   if (dbHelper == null) return Stream.value(0);
@@ -118,49 +141,70 @@ Stream<int> saleOrderCountByStateStream(Ref ref, String state) {
 // ============================================================================
 
 /// Provider for watching only the partner name of an order
-@Riverpod(keepAlive: true)
+///
+/// `keepAlive:false`: `.family` por `orderId` transitorio (ver nota en
+/// [saleOrdersByStateStream]).
+@Riverpod(keepAlive: false)
 String? saleOrderPartnerName(Ref ref, int orderId) {
   final asyncValue = ref.watch(saleOrderStreamProvider(orderId));
   return asyncValue.whenData((order) => order?.partnerName).value;
 }
 
 /// Provider for watching only the state of an order
-@Riverpod(keepAlive: true)
+///
+/// `keepAlive:false`: `.family` por `orderId` transitorio (ver nota en
+/// [saleOrdersByStateStream]).
+@Riverpod(keepAlive: false)
 SaleOrderState? saleOrderState(Ref ref, int orderId) {
   final asyncValue = ref.watch(saleOrderStreamProvider(orderId));
   return asyncValue.whenData((order) => order?.state).value;
 }
 
 /// Provider for watching only the total of an order
-@Riverpod(keepAlive: true)
+///
+/// `keepAlive:false`: `.family` por `orderId` transitorio (ver nota en
+/// [saleOrdersByStateStream]).
+@Riverpod(keepAlive: false)
 double? saleOrderTotal(Ref ref, int orderId) {
   final asyncValue = ref.watch(saleOrderStreamProvider(orderId));
   return asyncValue.whenData((order) => order?.amountTotal).value;
 }
 
 /// Provider for watching if an order is synced
-@Riverpod(keepAlive: true)
+///
+/// `keepAlive:false`: `.family` por `orderId` transitorio (ver nota en
+/// [saleOrdersByStateStream]).
+@Riverpod(keepAlive: false)
 bool saleOrderIsSynced(Ref ref, int orderId) {
   final asyncValue = ref.watch(saleOrderStreamProvider(orderId));
   return asyncValue.whenData((order) => order?.isSynced ?? false).value ?? false;
 }
 
 /// Provider for watching only the quantity of a line
-@Riverpod(keepAlive: true)
+///
+/// `keepAlive:false`: `.family` por `lineId` transitorio (ver nota en
+/// [saleOrdersByStateStream]).
+@Riverpod(keepAlive: false)
 double? saleOrderLineQty(Ref ref, int lineId) {
   final asyncValue = ref.watch(saleOrderLineStreamProvider(lineId));
   return asyncValue.whenData((line) => line?.productUomQty).value;
 }
 
 /// Provider for watching only the price of a line
-@Riverpod(keepAlive: true)
+///
+/// `keepAlive:false`: `.family` por `lineId` transitorio (ver nota en
+/// [saleOrdersByStateStream]).
+@Riverpod(keepAlive: false)
 double? saleOrderLinePrice(Ref ref, int lineId) {
   final asyncValue = ref.watch(saleOrderLineStreamProvider(lineId));
   return asyncValue.whenData((line) => line?.priceUnit).value;
 }
 
 /// Provider for watching only the subtotal of a line
-@Riverpod(keepAlive: true)
+///
+/// `keepAlive:false`: `.family` por `lineId` transitorio (ver nota en
+/// [saleOrdersByStateStream]).
+@Riverpod(keepAlive: false)
 double? saleOrderLineSubtotal(Ref ref, int lineId) {
   final asyncValue = ref.watch(saleOrderLineStreamProvider(lineId));
   return asyncValue.whenData((line) => line?.priceSubtotal).value;

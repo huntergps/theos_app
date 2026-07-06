@@ -42,8 +42,12 @@ class ResCountryManager extends OdooModelManager<ResCountry>
   @override
   List<String> get odooFields => ['id', 'name', 'code', 'write_date'];
 
-  @override
-  ResCountry fromOdoo(Map<String, dynamic> data) {
+  /// Versión estática pura de [fromOdoo] — no referencia `this` ni
+  /// estado de instancia (OdooClient, GeneratedDatabase), solo [data].
+  /// Por eso su tear-off (`ResCountryManager.fromOdooMap`) es transferible a
+  /// `Isolate.run()`, a diferencia del tear-off del método de instancia
+  /// [fromOdoo] (que arrastra el manager completo, no transferible).
+  static ResCountry fromOdooMap(Map<String, dynamic> data) {
     return ResCountry(
       id: data['id'] as int? ?? 0,
       name: parseOdooStringRequired(data['name']),
@@ -51,6 +55,9 @@ class ResCountryManager extends OdooModelManager<ResCountry>
       writeDate: parseOdooDateTime(data['write_date']),
     );
   }
+
+  @override
+  ResCountry fromOdoo(Map<String, dynamic> data) => fromOdooMap(data);
 
   @override
   Map<String, dynamic> toOdoo(ResCountry record) {

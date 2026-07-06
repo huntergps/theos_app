@@ -23,7 +23,9 @@ abstract class Pricelist with _$Pricelist {
     @OdooMany2One('res.company', odooName: 'company_id') int? companyId,
     @OdooMany2OneName(sourceField: 'company_id') String? companyName,
     @OdooInteger() @Default(16) int sequence,
-    @OdooSelection(odooName: 'discount_policy') String? discountPolicy,
+    // Odoo 19.5 (erp1): 'discount_policy' ya no existe en product.pricelist
+    // del servidor (smoke fields_get, julio 2026).
+    @OdooLocalOnly() String? discountPolicy,
     @OdooDateTime(odooName: 'write_date', writable: false) DateTime? writeDate,
   }) = _Pricelist;
 

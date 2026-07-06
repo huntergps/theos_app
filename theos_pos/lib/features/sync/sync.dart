@@ -20,7 +20,8 @@ export 'repositories/qweb_template_sync_repository.dart';
 // Services
 export 'services/offline_sync_service.dart' hide SyncFieldResult, SyncResult;
 export 'services/offline_mode_service.dart';
-export 'services/websocket_sync_service.dart' hide SyncFieldResult, SyncResult;
+// websocket_sync_service.dart eliminado (Fase B, tarea 5) — código muerto,
+// sin consumidores. Ver comentario en providers/sync_service_providers.dart.
 export 'services/connectivity_sync_orchestrator.dart';
 export 'services/data_purge_service.dart';
 export 'services/offline_preloader.dart';

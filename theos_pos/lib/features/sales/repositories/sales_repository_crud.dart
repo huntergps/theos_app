@@ -27,7 +27,7 @@ extension SalesRepositoryCrud on SalesRepository {
     if (tempId == null) return null;
 
     // 2. If online, try to sync to Odoo in the background
-    if (_odooClient != null) {
+    if (_orderManager.isOnline) {
       try {
         // Build values map with required fields
         final values = <String, dynamic>{
@@ -47,7 +47,7 @@ extension SalesRepositoryCrud on SalesRepository {
           }
         }
 
-        final remoteId = await _odooClient.create(
+        final remoteId = await _orderManager.client.create(
           model: 'sale.order',
           values: values,
         );
@@ -181,9 +181,9 @@ extension SalesRepositoryCrud on SalesRepository {
           recordId: tempId,
           values: {
             'partner_id': partnerId,
-            if (warehouseId != null) 'warehouse_id': warehouseId,
-            if (pricelistId != null) 'pricelist_id': pricelistId,
-            if (paymentTermId != null) 'payment_term_id': paymentTermId,
+            'warehouse_id': ?warehouseId,
+            'pricelist_id': ?pricelistId,
+            'payment_term_id': ?paymentTermId,
             if (isFinalConsumer) 'is_final_consumer': true,
             if (endCustomerName != null && endCustomerName.isNotEmpty)
               'end_customer_name': endCustomerName,
@@ -240,9 +240,9 @@ extension SalesRepositoryCrud on SalesRepository {
     logger.d('[SalesRepository]', 'Order $orderId updated locally');
 
     // 4. If online, sync to Odoo
-    if (_odooClient != null) {
+    if (_orderManager.isOnline) {
       try {
-        final success = await _odooClient.write(
+        final success = await _orderManager.client.write(
           model: 'sale.order',
           ids: [orderId],
           values: values,
@@ -411,7 +411,7 @@ extension SalesRepositoryCrud on SalesRepository {
   }
 
   Future<bool> syncOrder(int orderId) async {
-    if (_odooClient == null) {
+    if (!_orderManager.isOnline) {
       logger.w('[SalesRepository]', 'Cannot sync order $orderId - offline');
       return false;
     }
@@ -465,7 +465,7 @@ extension SalesRepositoryCrud on SalesRepository {
       }
 
       // Write changes to Odoo
-      final success = await _odooClient.write(
+      final success = await _orderManager.client.write(
         model: 'sale.order',
         ids: [orderId],
         values: values,

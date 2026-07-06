@@ -146,8 +146,12 @@ class AccountMoveManager extends OdooModelManager<AccountMove>
     'write_date',
   ];
 
-  @override
-  AccountMove fromOdoo(Map<String, dynamic> data) {
+  /// Versión estática pura de [fromOdoo] — no referencia `this` ni
+  /// estado de instancia (OdooClient, GeneratedDatabase), solo [data].
+  /// Por eso su tear-off (`AccountMoveManager.fromOdooMap`) es transferible a
+  /// `Isolate.run()`, a diferencia del tear-off del método de instancia
+  /// [fromOdoo] (que arrastra el manager completo, no transferible).
+  static AccountMove fromOdooMap(Map<String, dynamic> data) {
     return AccountMove(
       id: data['id'] as int? ?? 0,
       name: parseOdooStringRequired(data['name']),
@@ -191,6 +195,9 @@ class AccountMoveManager extends OdooModelManager<AccountMove>
       writeDate: parseOdooDateTime(data['write_date']),
     );
   }
+
+  @override
+  AccountMove fromOdoo(Map<String, dynamic> data) => fromOdooMap(data);
 
   @override
   Map<String, dynamic> toOdoo(AccountMove record) {
@@ -364,29 +371,27 @@ class AccountMoveManager extends OdooModelManager<AccountMove>
       'l10n_latam_document_type_id': driftVar<int>(
         record.l10nLatamDocumentTypeId,
       ),
-      'l10n_latam_document_type_id_name': driftVar<String>(
+      'l10n_latam_document_type_name': driftVar<String>(
         record.l10nLatamDocumentTypeName,
       ),
       'l10n_ec_sri_payment_id': driftVar<int>(record.l10nEcSriPaymentId),
-      'l10n_ec_sri_payment_id_name': driftVar<String>(
-        record.l10nEcSriPaymentName,
-      ),
+      'l10n_ec_sri_payment_name': driftVar<String>(record.l10nEcSriPaymentName),
       'state': Variable<String>(record.state),
       'payment_state': driftVar<String>(record.paymentState),
       'invoice_date': driftVar<DateTime>(record.invoiceDate),
       'invoice_date_due': driftVar<DateTime>(record.invoiceDateDue),
       'date': driftVar<DateTime>(record.date),
       'partner_id': driftVar<int>(record.partnerId),
-      'partner_id_name': driftVar<String>(record.partnerName),
+      'partner_name': driftVar<String>(record.partnerName),
       'journal_id': driftVar<int>(record.journalId),
-      'journal_id_name': driftVar<String>(record.journalName),
+      'journal_name': driftVar<String>(record.journalName),
       'amount_untaxed': Variable<double>(record.amountUntaxed),
       'amount_tax': Variable<double>(record.amountTax),
       'amount_total': Variable<double>(record.amountTotal),
       'amount_residual': Variable<double>(record.amountResidual),
       'company_id': driftVar<int>(record.companyId),
       'currency_id': driftVar<int>(record.currencyId),
-      'currency_id_name': driftVar<String>(record.currencySymbol),
+      'currency_symbol': driftVar<String>(record.currencySymbol),
       'invoice_origin': driftVar<String>(record.invoiceOrigin),
       'ref': driftVar<String>(record.ref),
       'write_date': driftVar<DateTime>(record.writeDate),

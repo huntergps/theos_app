@@ -65,8 +65,11 @@ abstract class Product with _$Product {
     // ============ Unit of Measure ============
     @OdooMany2One('uom.uom', odooName: 'uom_id') int? uomId,
     @OdooMany2OneName(sourceField: 'uom_id') String? uomName,
-    @OdooMany2One('uom.uom', odooName: 'uom_po_id') int? uomPoId,
-    @OdooMany2OneName(sourceField: 'uom_po_id') String? uomPoName,
+    // Odoo 19.5 (erp1): 'uom_po_id' ya no existe en product.product del
+    // servidor (smoke fields_get, julio 2026). uomPoName también pasa a
+    // local-only porque ya no llega el par [id, name] de ese campo.
+    @OdooLocalOnly() int? uomPoId,
+    @OdooLocalOnly() String? uomPoName,
     @OdooLocalOnly() List<int>? uomIds, // Allowed UoMs
 
     // ============ Taxes ============

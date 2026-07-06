@@ -2,6 +2,7 @@ import 'package:fluent_ui/fluent_ui.dart';
 import 'package:theos_pos_core/theos_pos_core.dart' show CollectionSession;
 
 import '../../../../../core/theme/spacing.dart';
+import '../../../../../shared/widgets/common/theos_info_bars.dart';
 
 /// Tab para mostrar documentos relacionados con la sesion
 /// Incluye ordenes, facturas y retenciones
@@ -123,13 +124,11 @@ class DocumentosTab extends StatelessWidget {
   }
 
   Widget _buildPendingFeatureNote(FluentThemeData theme) {
-    return const InfoBar(
-      title: Text('Documentos'),
-      content: Text(
-        'La lista detallada de documentos estará disponible próximamente. '
-        'Por ahora se muestra el resumen con los totales de la sesión.',
-      ),
-      severity: InfoBarSeverity.info,
+    return TheosInfoBars.info(
+      title: 'Documentos',
+      message:
+          'La lista detallada de documentos estará disponible próximamente. '
+          'Por ahora se muestra el resumen con los totales de la sesión.',
     );
   }
 }

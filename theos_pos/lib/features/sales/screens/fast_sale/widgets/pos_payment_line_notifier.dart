@@ -4,7 +4,6 @@ import '../../../../../core/database/repositories/repository_providers.dart';
 import '../../../../../core/managers/manager_providers.dart' show appDatabaseProvider;
 import 'package:theos_pos_core/theos_pos_core.dart' hide DatabaseHelper, PartnerBank, CreditIssue;
 import '../../../services/payment_line_local_service.dart';
-import 'pos_order_tabs.dart' show orderPendingSyncProvider;
 
 /// Notifier for managing payment lines by order
 class POSPaymentLinesByOrderNotifier extends Notifier<Map<int, List<PaymentLine>>> {
@@ -59,8 +58,8 @@ class POSPaymentLinesByOrderNotifier extends Notifier<Map<int, List<PaymentLine>
         'effective_date': line.effectiveDate,
         'bank_reference_date': line.voucherDate,
       });
-      // Refresh the pending sync counter
-      ref.invalidate(orderPendingSyncProvider(orderId));
+      // El contador de pendientes se actualiza automáticamente via Drift watch
+      // (orderPendingSyncProvider usa StreamProvider — no necesita invalidación manual)
     } else {
       // Fallback to local-only save if repository not available
       await _localService.saveLineToDb(orderId, line);
@@ -86,8 +85,7 @@ class POSPaymentLinesByOrderNotifier extends Notifier<Map<int, List<PaymentLine>
         odooId: lineId > 0 ? lineId : null,
         uuid: lineToRemove?.lineUuid,
       );
-      // Refresh the pending sync counter
-      ref.invalidate(orderPendingSyncProvider(orderId));
+      // El contador de pendientes se actualiza automáticamente via Drift watch
     } else {
       // Fallback to local-only delete if repository not available
       await _localService.removeLineFromDb(orderId, lineId);
@@ -116,8 +114,7 @@ class POSPaymentLinesByOrderNotifier extends Notifier<Map<int, List<PaymentLine>
           uuid: line.lineUuid,
         );
       }
-      // Refresh the pending sync counter
-      ref.invalidate(orderPendingSyncProvider(orderId));
+      // El contador de pendientes se actualiza automáticamente via Drift watch
       logger.d('[PaymentProvider]', 'Cleared ${linesToRemove.length} payment lines (synced to Odoo) for order $orderId');
     } else {
       // Fallback to local-only clear if repository not available
@@ -128,6 +125,21 @@ class POSPaymentLinesByOrderNotifier extends Notifier<Map<int, List<PaymentLine>
   /// Clear all payment lines for all orders
   void clearAll() {
     state = {};
+  }
+
+  /// Elimina las líneas de pago de una orden SOLO de la memoria (caché en
+  /// Riverpod), sin sincronizar ninguna eliminación a Odoo.
+  ///
+  /// A diferencia de [clear], que también dispara `deletePaymentLine` contra
+  /// Odoo por cada línea, este método se usa cuando la orden simplemente se
+  /// deja de ver (ej. al cerrar una pestaña de FastSale) y no debe borrarse
+  /// nada remoto — la orden y sus pagos siguen existiendo, solo dejamos de
+  /// mantenerlos en memoria.
+  void evict(int orderId) {
+    if (!state.containsKey(orderId)) return;
+    final newState = Map<int, List<PaymentLine>>.from(state);
+    newState.remove(orderId);
+    state = newState;
   }
 
   /// Get lines for a specific order
@@ -147,6 +159,12 @@ class POSPaymentLinesByOrderNotifier extends Notifier<Map<int, List<PaymentLine>
     final lines = await _localService.loadFromDb(orderId);
 
     if (lines.isEmpty) {
+      // Sin líneas en la DB: si había líneas en memoria (ej. se eliminaron
+      // todas), hay que limpiarlas también para no dejar líneas "fantasma"
+      // visibles en la UI (mismo fix ya aplicado en POSWithholdLinesByOrderNotifier).
+      if (state[orderId]?.isEmpty ?? true) {
+        state = {...state, orderId: <PaymentLine>[]};
+      }
       logger.d('[PaymentProvider]', 'No payment lines in DB for order $orderId');
       return;
     }

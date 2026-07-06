@@ -16,8 +16,8 @@ void main() {
       expect(manager.odooModel, equals('sale.order.line'));
     });
 
-    test('tableName is sale_order_lines', () {
-      expect(manager.tableName, equals('sale_order_lines'));
+    test('tableName is sale_order_line', () {
+      expect(manager.tableName, equals('sale_order_line'));
     });
 
     test('odooFields contains key fields for core functionality', () {
@@ -30,8 +30,7 @@ void main() {
       expect(fields, contains('is_downpayment'));
       expect(fields, contains('product_id'));
       expect(fields, contains('product_template_id'));
-      expect(fields, contains('product_type'));
-      expect(fields, contains('categ_id'));
+      // product_type, categ_id, tax_ids are @OdooLocalOnly() — not in odooFields
       expect(fields, contains('name'));
       expect(fields, contains('product_uom_qty'));
       expect(fields, contains('product_uom_id'));
@@ -42,7 +41,6 @@ void main() {
       expect(fields, contains('price_tax'));
       expect(fields, contains('price_total'));
       expect(fields, contains('price_reduce_taxexcl'));
-      expect(fields, contains('tax_ids'));
       expect(fields, contains('qty_delivered'));
       expect(fields, contains('customer_lead'));
       expect(fields, contains('qty_invoiced'));
@@ -58,8 +56,9 @@ void main() {
     test('odooFields is a hardcoded list (not from OdooFieldRegistry)', () {
       final fields = manager.odooFields;
       // Verify it is a concrete List<String> with known length
+      // product_type, categ_id, tax_ids are @OdooLocalOnly() so not included
       expect(fields, isA<List<String>>());
-      expect(fields.length, greaterThanOrEqualTo(28));
+      expect(fields.length, greaterThanOrEqualTo(27));
     });
   });
 
@@ -112,11 +111,13 @@ void main() {
       expect(line.isDownpayment, isFalse);
       expect(line.productId, equals(5));
       expect(line.productName, equals('Laptop HP'));
-      expect(line.productCode, equals('LAP001'));
+      // productCode is @OdooLocalOnly() — not populated by generated fromOdoo
+      expect(line.productCode, isNull);
       expect(line.productTemplateId, equals(10));
-      expect(line.productType, equals('consu'));
-      expect(line.categId, equals(1));
-      expect(line.categName, equals('Electronicos'));
+      // productType, categId, categName are @OdooLocalOnly() — not populated by generated fromOdoo
+      expect(line.productType, isNull);
+      expect(line.categId, isNull);
+      expect(line.categName, isNull);
       // name is preserved as-is from Odoo
       expect(line.name, equals('[LAP001] Laptop HP'));
       expect(line.productUomQty, equals(2.0));

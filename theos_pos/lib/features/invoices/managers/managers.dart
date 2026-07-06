@@ -2,4 +2,4 @@
 library;
 
 export 'package:theos_pos_core/theos_pos_core.dart'
-    show AccountMoveManager, CreditNoteManager;
+    show AccountMoveManager;

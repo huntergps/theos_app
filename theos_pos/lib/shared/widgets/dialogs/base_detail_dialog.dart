@@ -155,12 +155,13 @@ abstract class BaseDetailDialog extends ConsumerWidget {
       ),
       title: Row(
         children: [
-          Expanded(
-            child: Text(config.title, style: theme.typography.subtitle),
-          ),
-          IconButton(
-            icon: const Icon(FluentIcons.chrome_close),
-            onPressed: () => Navigator.of(context).pop(),
+          Expanded(child: Text(config.title, style: theme.typography.subtitle)),
+          Tooltip(
+            message: 'Cerrar',
+            child: IconButton(
+              icon: const Icon(FluentIcons.chrome_close),
+              onPressed: () => Navigator.of(context).pop(),
+            ),
           ),
         ],
       ),
@@ -315,10 +316,10 @@ class SimpleDetailDialog extends ConsumerWidget {
         ],
       ),
       actions: [
-        ...config.actions.map((action) => Button(
-              onPressed: action.onPressed,
-              child: Text(action.label),
-            )),
+        ...config.actions.map(
+          (action) =>
+              Button(onPressed: action.onPressed, child: Text(action.label)),
+        ),
         Button(
           onPressed: () => Navigator.of(context).pop(),
           child: Text(config.closeButtonText),
@@ -379,18 +380,15 @@ class DetailInfoRow extends StatelessWidget {
     String format = 'dd/MM/yyyy',
     bool showTime = false,
   }) {
-    final dateStr = '${date.day.toString().padLeft(2, '0')}/'
+    final dateStr =
+        '${date.day.toString().padLeft(2, '0')}/'
         '${date.month.toString().padLeft(2, '0')}/'
         '${date.year}';
     final timeStr = showTime
         ? ' ${date.hour.toString().padLeft(2, '0')}:'
-            '${date.minute.toString().padLeft(2, '0')}'
+              '${date.minute.toString().padLeft(2, '0')}'
         : '';
-    return DetailInfoRow(
-      key: key,
-      label: label,
-      value: '$dateStr$timeStr',
-    );
+    return DetailInfoRow(key: key, label: label, value: '$dateStr$timeStr');
   }
 
   @override
@@ -406,23 +404,23 @@ class DetailInfoRow extends StatelessWidget {
             width: 120,
             child: Text(
               label,
-              style: labelStyle ??
-                  theme.typography.body?.copyWith(
-                    color: theme.inactiveColor,
-                  ),
+              style:
+                  labelStyle ??
+                  theme.typography.body?.copyWith(color: theme.inactiveColor),
             ),
           ),
           const SizedBox(width: 16),
           Expanded(
             child: Text(
               value,
-              style: valueStyle ??
+              style:
+                  valueStyle ??
                   theme.typography.body?.copyWith(
                     fontWeight: isHighlighted ? FontWeight.w600 : null,
                   ),
             ),
           ),
-          if (trailing != null) trailing!,
+          ?trailing,
         ],
       ),
     );
@@ -463,10 +461,7 @@ class DetailSection extends StatelessWidget {
         if (title != null)
           Padding(
             padding: const EdgeInsets.only(bottom: 12),
-            child: Text(
-              title!,
-              style: theme.typography.bodyStrong,
-            ),
+            child: Text(title!, style: theme.typography.bodyStrong),
           ),
         ...children,
         if (showDivider) ...[
@@ -504,9 +499,11 @@ class DetailSection extends StatelessWidget {
 class AsyncDetailDialog<T> extends ConsumerWidget {
   final DetailDialogConfig config;
   final AsyncValue<T?> asyncValue;
-  final Widget Function(BuildContext context, WidgetRef ref, T data) contentBuilder;
+  final Widget Function(BuildContext context, WidgetRef ref, T data)
+  contentBuilder;
   final Widget Function(BuildContext context, WidgetRef ref)? headerBuilder;
-  final Widget Function(BuildContext context, WidgetRef ref, T data)? footerBuilder;
+  final Widget Function(BuildContext context, WidgetRef ref, T data)?
+  footerBuilder;
   final VoidCallback? onRefresh;
   final String notFoundMessage;
   final String errorPrefix;
@@ -535,14 +532,21 @@ class AsyncDetailDialog<T> extends ConsumerWidget {
       title: Row(
         children: [
           if (config.icon != null) ...[
-            Icon(config.icon, size: 24, color: config.iconColor ?? theme.accentColor),
+            Icon(
+              config.icon,
+              size: 24,
+              color: config.iconColor ?? theme.accentColor,
+            ),
             const SizedBox(width: 8),
           ],
           Expanded(child: Text(config.title, style: theme.typography.subtitle)),
           if (config.showRefreshButton && onRefresh != null)
-            IconButton(
-              icon: const Icon(FluentIcons.refresh, size: 16),
-              onPressed: onRefresh,
+            Tooltip(
+              message: 'Actualizar',
+              child: IconButton(
+                icon: const Icon(FluentIcons.refresh, size: 16),
+                onPressed: onRefresh,
+              ),
             ),
         ],
       ),
@@ -571,7 +575,11 @@ class AsyncDetailDialog<T> extends ConsumerWidget {
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Icon(FluentIcons.search, size: 48, color: theme.inactiveColor),
+                  Icon(
+                    FluentIcons.search,
+                    size: 48,
+                    color: theme.inactiveColor,
+                  ),
                   const SizedBox(height: 12),
                   Text(notFoundMessage, style: theme.typography.body),
                 ],

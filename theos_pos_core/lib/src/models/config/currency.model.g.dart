@@ -29,8 +29,12 @@ class CurrencyManager extends OdooModelManager<Currency>
     'write_date',
   ];
 
-  @override
-  Currency fromOdoo(Map<String, dynamic> data) {
+  /// Versión estática pura de [fromOdoo] — no referencia `this` ni
+  /// estado de instancia (OdooClient, GeneratedDatabase), solo [data].
+  /// Por eso su tear-off (`CurrencyManager.fromOdooMap`) es transferible a
+  /// `Isolate.run()`, a diferencia del tear-off del método de instancia
+  /// [fromOdoo] (que arrastra el manager completo, no transferible).
+  static Currency fromOdooMap(Map<String, dynamic> data) {
     return Currency(
       id: data['id'] as int? ?? 0,
       name: parseOdooStringRequired(data['name']),
@@ -41,6 +45,9 @@ class CurrencyManager extends OdooModelManager<Currency>
       writeDate: parseOdooDateTime(data['write_date']),
     );
   }
+
+  @override
+  Currency fromOdoo(Map<String, dynamic> data) => fromOdooMap(data);
 
   @override
   Map<String, dynamic> toOdoo(Currency record) {
@@ -308,8 +315,12 @@ class DecimalPrecisionManager extends OdooModelManager<DecimalPrecision>
   @override
   List<String> get odooFields => ['id', 'name', 'digits', 'write_date'];
 
-  @override
-  DecimalPrecision fromOdoo(Map<String, dynamic> data) {
+  /// Versión estática pura de [fromOdoo] — no referencia `this` ni
+  /// estado de instancia (OdooClient, GeneratedDatabase), solo [data].
+  /// Por eso su tear-off (`DecimalPrecisionManager.fromOdooMap`) es transferible a
+  /// `Isolate.run()`, a diferencia del tear-off del método de instancia
+  /// [fromOdoo] (que arrastra el manager completo, no transferible).
+  static DecimalPrecision fromOdooMap(Map<String, dynamic> data) {
     return DecimalPrecision(
       id: data['id'] as int? ?? 0,
       name: parseOdooStringRequired(data['name']),
@@ -317,6 +328,9 @@ class DecimalPrecisionManager extends OdooModelManager<DecimalPrecision>
       writeDate: parseOdooDateTime(data['write_date']),
     );
   }
+
+  @override
+  DecimalPrecision fromOdoo(Map<String, dynamic> data) => fromOdooMap(data);
 
   @override
   Map<String, dynamic> toOdoo(DecimalPrecision record) {

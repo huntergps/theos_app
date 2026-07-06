@@ -1,6 +1,5 @@
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
-import '../../../core/database/repositories/repository_providers.dart';
 import '../../../core/managers/manager_providers.dart' show appDatabaseProvider;
 
 import '../repositories/product_repository.dart';
@@ -156,8 +155,9 @@ Map<String, int> catalogStats(Ref ref) {
 
 @Riverpod(keepAlive: true)
 ProductRepository productRepository(Ref ref) {
-  final odooClient = ref.watch(odooClientProvider);
-  return ProductRepository(db: ref.watch(appDatabaseProvider), odooClient: odooClient);
+  // F5: ProductRepository ya no recibe OdooClient — ver
+  // repository_providers.dart para el detalle del trade-off documentado.
+  return ProductRepository(db: ref.watch(appDatabaseProvider));
 }
 
 // ============ Service Provider ============

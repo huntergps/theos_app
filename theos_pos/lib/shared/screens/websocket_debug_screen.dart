@@ -2,6 +2,7 @@ import 'package:fluent_ui/fluent_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'dart:async';
 import 'dart:convert';
+import '../../core/constants/app_colors.dart';
 import '../../core/constants/app_constants.dart';
 import '../../core/services/websocket/odoo_websocket_service.dart';
 import '../widgets/dialogs/copyable_info_bar.dart';
@@ -72,7 +73,8 @@ class _WebSocketDebugScreenState extends ConsumerState<WebSocketDebugScreen> {
   @override
   Widget build(BuildContext context) {
     final wsService = ref.watch(odooWebSocketServiceProvider);
-    final isSmallScreen = MediaQuery.of(context).size.width < ScreenBreakpoints.mobileMaxWidth;
+    final isSmallScreen =
+        MediaQuery.of(context).size.width < ScreenBreakpoints.mobileMaxWidth;
 
     return ScaffoldPage.scrollable(
       header: PageHeader(
@@ -200,16 +202,16 @@ class _WebSocketDebugScreenState extends ConsumerState<WebSocketDebugScreen> {
 
   /// Build status indicator in header
   Widget _buildStatusIndicator(AppOdooWebSocketService wsService) {
-    Color color = Colors.grey;
+    Color color = AppColors.textSecondary;
     IconData icon = FluentIcons.plug_disconnected;
     String text = 'Desconectado';
 
     if (wsService.isConnected) {
-      color = Colors.green;
+      color = AppColors.success;
       icon = FluentIcons.completed;
       text = 'Conectado';
     } else if (wsService.reconnectAttempts > 0) {
-      color = Colors.orange;
+      color = AppColors.warning;
       icon = FluentIcons.sync;
       text = 'Reconectando...';
     }
@@ -330,7 +332,7 @@ class _WebSocketDebugScreenState extends ConsumerState<WebSocketDebugScreen> {
                 _buildMetric(
                   'Estado',
                   wsService.isConnected ? 'Conectado' : 'Desconectado',
-                  wsService.isConnected ? Colors.green : Colors.red,
+                  wsService.isConnected ? AppColors.success : AppColors.danger,
                   FluentIcons.plug_connected,
                   isSmallScreen: isSmallScreen,
                 ),
@@ -352,14 +354,14 @@ class _WebSocketDebugScreenState extends ConsumerState<WebSocketDebugScreen> {
                 _buildMetric(
                   'Intentos Reconexión',
                   '${wsService.reconnectAttempts}',
-                  Colors.orange,
+                  AppColors.warning,
                   FluentIcons.sync,
                   isSmallScreen: isSmallScreen,
                 ),
                 _buildMetric(
                   'Mensajes Recibidos',
                   '$_messagesReceived',
-                  Colors.green,
+                  AppColors.success,
                   FluentIcons.mail,
                   isSmallScreen: isSmallScreen,
                 ),
@@ -477,7 +479,7 @@ class _WebSocketDebugScreenState extends ConsumerState<WebSocketDebugScreen> {
         'name': 'collection_session',
         'description': 'Sesiones de cobro',
         'events': ['session_created', 'session_updated', 'session_closed'],
-        'color': Colors.green,
+        'color': AppColors.success,
       },
       {
         'name': 'res.partner',
@@ -489,7 +491,7 @@ class _WebSocketDebugScreenState extends ConsumerState<WebSocketDebugScreen> {
         'name': 'mail.channel',
         'description': 'Mensajes de canales de mail',
         'events': ['message_posted', 'channel_joined'],
-        'color': Colors.orange,
+        'color': AppColors.warning,
       },
       {
         'name': 'odoo-activity-res.partner_{id}',
@@ -528,7 +530,7 @@ class _WebSocketDebugScreenState extends ConsumerState<WebSocketDebugScreen> {
               'Patrón: {database}.{channel_name}',
               style: TextStyle(
                 fontSize: 11,
-                color: Colors.grey,
+                color: AppColors.textSecondary,
                 fontFamily: 'monospace',
               ),
             ),
@@ -652,7 +654,11 @@ class _WebSocketDebugScreenState extends ConsumerState<WebSocketDebugScreen> {
               Center(
                 child: Column(
                   children: [
-                    Icon(FluentIcons.streaming, size: 48, color: Colors.grey),
+                    Icon(
+                      FluentIcons.streaming,
+                      size: 48,
+                      color: AppColors.textSecondary,
+                    ),
                     const SizedBox(height: 8),
                     const Text('No hay canales suscritos'),
                   ],
@@ -816,7 +822,7 @@ class _WebSocketDebugScreenState extends ConsumerState<WebSocketDebugScreen> {
               Icon(
                 FluentIcons.view_all,
                 size: isSmallScreen ? 36 : 48,
-                color: Colors.grey,
+                color: AppColors.textSecondary,
               ),
               const SizedBox(height: 8),
               const Text('No hay mensajes registrados'),
@@ -829,7 +835,9 @@ class _WebSocketDebugScreenState extends ConsumerState<WebSocketDebugScreen> {
     return Container(
       height: isSmallScreen ? 250 : 300,
       decoration: BoxDecoration(
-        border: Border.all(color: Colors.grey.withValues(alpha: 0.3)),
+        border: Border.all(
+          color: AppColors.textSecondary.withValues(alpha: 0.3),
+        ),
         borderRadius: BorderRadius.circular(4),
       ),
       child: ListView.builder(
@@ -846,7 +854,7 @@ class _WebSocketDebugScreenState extends ConsumerState<WebSocketDebugScreen> {
 
           switch (type) {
             case 'received':
-              typeColor = Colors.green;
+              typeColor = AppColors.success;
               typeIcon = FluentIcons.download;
               break;
             case 'sent':
@@ -854,7 +862,7 @@ class _WebSocketDebugScreenState extends ConsumerState<WebSocketDebugScreen> {
               typeIcon = FluentIcons.upload;
               break;
             case 'error':
-              typeColor = Colors.red;
+              typeColor = AppColors.danger;
               typeIcon = FluentIcons.error;
               break;
           }
@@ -863,7 +871,9 @@ class _WebSocketDebugScreenState extends ConsumerState<WebSocketDebugScreen> {
             padding: EdgeInsets.all(isSmallScreen ? 6 : 8),
             decoration: BoxDecoration(
               border: Border(
-                bottom: BorderSide(color: Colors.grey.withValues(alpha: 0.2)),
+                bottom: BorderSide(
+                  color: AppColors.textSecondary.withValues(alpha: 0.2),
+                ),
               ),
             ),
             child: Column(

@@ -29,8 +29,14 @@ enum CardType {
 /// - Pago directo (efectivo, tarjeta, cheque, transferencia)
 /// - Aplicacion de anticipo
 /// - Aplicacion de nota de credito
-// Modelo custom l10n_ec_collection_box — requiere módulo instalado
-@OdooModel('account.payment.line', tableName: 'sale_order_payment_line')
+// Modelo custom l10n_ec_collection_box — requiere módulo instalado.
+// F6 (julio 2026): corregido el nombre de modelo Odoo real — antes decía
+// 'account.payment.line' (nunca existió como tal), el modelo real es
+// 'l10n_ec_collection_box.sale.order.payment' (ver
+// working/l10n_ec_collection_box/models/sale_order_payment.py). Trazado
+// exhaustivo sin flujos vivos dependientes del string viejo — ver nota en
+// withhold_line.model.dart. tableName NO cambia.
+@OdooModel('l10n_ec_collection_box.sale.order.payment', tableName: 'sale_order_payment_line')
 @freezed
 abstract class PaymentLine with _$PaymentLine {
   const PaymentLine._();
@@ -81,8 +87,16 @@ abstract class PaymentLine with _$PaymentLine {
     @OdooLocalOnly() String? paymentMethodName,
 
     // ============ Card Fields ============
-    @OdooMany2One('res.bank', odooName: 'bank_id') int? bankId,
-    @OdooMany2OneName(sourceField: 'bank_id') String? bankName,
+    // bank_id (Many2one res.bank) existia en el modelo real
+    // (l10n_ec_collection_box.sale.order.payment) en versiones anteriores,
+    // pero fue reemplazado por bank_name_ec (Char) — ver
+    // working/l10n_ec_collection_box/models/sale_order_payment.py. Se marca
+    // @OdooLocalOnly para que el generador NO lo incluya en el payload de
+    // toOdoo(): el campo correcto (bank_id o bank_name_ec) se resuelve segun
+    // version del servidor en PaymentService antes de enviarlo (mismo patron
+    // que sales_repository_sync.dart usa en lectura).
+    @OdooLocalOnly() int? bankId,
+    @OdooLocalOnly() String? bankName,
     @OdooLocalOnly() CardType? cardType,
     @OdooMany2One('account.card.brand', odooName: 'card_brand_id') int? cardBrandId,
     @OdooMany2OneName(sourceField: 'card_brand_id') String? cardBrandName,

@@ -28,8 +28,12 @@ class BankManager extends OdooModelManager<Bank>
     'write_date',
   ];
 
-  @override
-  Bank fromOdoo(Map<String, dynamic> data) {
+  /// Versión estática pura de [fromOdoo] — no referencia `this` ni
+  /// estado de instancia (OdooClient, GeneratedDatabase), solo [data].
+  /// Por eso su tear-off (`BankManager.fromOdooMap`) es transferible a
+  /// `Isolate.run()`, a diferencia del tear-off del método de instancia
+  /// [fromOdoo] (que arrastra el manager completo, no transferible).
+  static Bank fromOdooMap(Map<String, dynamic> data) {
     return Bank(
       id: data['id'] as int? ?? 0,
       name: parseOdooStringRequired(data['name']),
@@ -39,6 +43,9 @@ class BankManager extends OdooModelManager<Bank>
       writeDate: parseOdooDateTime(data['write_date']),
     );
   }
+
+  @override
+  Bank fromOdoo(Map<String, dynamic> data) => fromOdooMap(data);
 
   @override
   Map<String, dynamic> toOdoo(Bank record) {
@@ -287,23 +294,30 @@ class PartnerBankManager extends OdooModelManager<PartnerBank>
   List<String> get odooFields => [
     'id',
     'partner_id',
-    'acc_number',
+    'account_number',
     'write_date',
   ];
 
-  @override
-  PartnerBank fromOdoo(Map<String, dynamic> data) {
+  /// Versión estática pura de [fromOdoo] — no referencia `this` ni
+  /// estado de instancia (OdooClient, GeneratedDatabase), solo [data].
+  /// Por eso su tear-off (`PartnerBankManager.fromOdooMap`) es transferible a
+  /// `Isolate.run()`, a diferencia del tear-off del método de instancia
+  /// [fromOdoo] (que arrastra el manager completo, no transferible).
+  static PartnerBank fromOdooMap(Map<String, dynamic> data) {
     return PartnerBank(
       id: data['id'] as int? ?? 0,
       partnerId: extractMany2oneId(data['partner_id']) ?? 0,
-      accNumber: parseOdooStringRequired(data['acc_number']),
+      accNumber: parseOdooStringRequired(data['account_number']),
       writeDate: parseOdooDateTime(data['write_date']),
     );
   }
 
   @override
+  PartnerBank fromOdoo(Map<String, dynamic> data) => fromOdooMap(data);
+
+  @override
   Map<String, dynamic> toOdoo(PartnerBank record) {
-    return {'partner_id': record.partnerId, 'acc_number': record.accNumber};
+    return {'partner_id': record.partnerId, 'account_number': record.accNumber};
   }
 
   @override
@@ -342,7 +356,7 @@ class PartnerBankManager extends OdooModelManager<PartnerBank>
   static const Map<String, String> fieldMappings = {
     'id': 'id',
     'partner_id': 'partnerId',
-    'acc_number': 'accNumber',
+    'account_number': 'accNumber',
     'write_date': 'writeDate',
   };
 

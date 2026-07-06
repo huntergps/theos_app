@@ -55,21 +55,24 @@ void main() {
       expect(user.warehouseName, equals('Bodega Principal'));
       expect(user.avatar128, equals('base64avatardata'));
       expect(user.groupIds, isEmpty);
-      expect(user.workEmail, equals('john.work@example.com'));
-      expect(user.workPhone, equals('042000000'));
-      expect(user.mobilePhone, equals('0991234567'));
+      // workEmail, workPhone, mobilePhone are @OdooLocalOnly() — not populated by generated fromOdoo
+      expect(user.workEmail, isNull);
+      expect(user.workPhone, isNull);
+      expect(user.mobilePhone, isNull);
       expect(user.writeDate, isNotNull);
       expect(user.outOfOfficeMessage, equals('On vacation'));
-      expect(user.workLocationId, equals(3));
-      expect(user.workLocationName, equals('Office GYE'));
-      expect(user.resourceCalendarId, equals(1));
-      expect(user.pin, equals('1234'));
-      expect(user.privateStreet, equals('Calle Privada 123'));
-      expect(user.privateCity, equals('Guayaquil'));
-      expect(user.privateStateId, equals(5));
-      expect(user.privateCountryId, equals(63));
-      expect(user.emergencyContact, equals('Jane Doe'));
-      expect(user.emergencyPhone, equals('0992345678'));
+      // workLocationId/Name, resourceCalendarId, pin, private fields,
+      // emergencyContact/Phone are @OdooLocalOnly() — not populated by generated fromOdoo
+      expect(user.workLocationId, isNull);
+      expect(user.workLocationName, isNull);
+      expect(user.resourceCalendarId, isNull);
+      expect(user.pin, isNull);
+      expect(user.privateStreet, isNull);
+      expect(user.privateCity, isNull);
+      expect(user.privateStateId, isNull);
+      expect(user.privateCountryId, isNull);
+      expect(user.emergencyContact, isNull);
+      expect(user.emergencyPhone, isNull);
     });
 
     test('handles false/null values', () {

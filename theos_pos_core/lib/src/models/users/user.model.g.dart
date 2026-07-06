@@ -39,8 +39,12 @@ class UserManager extends OdooModelManager<User>
     'calendar_default_privacy',
   ];
 
-  @override
-  User fromOdoo(Map<String, dynamic> data) {
+  /// Versión estática pura de [fromOdoo] — no referencia `this` ni
+  /// estado de instancia (OdooClient, GeneratedDatabase), solo [data].
+  /// Por eso su tear-off (`UserManager.fromOdooMap`) es transferible a
+  /// `Isolate.run()`, a diferencia del tear-off del método de instancia
+  /// [fromOdoo] (que arrastra el manager completo, no transferible).
+  static User fromOdooMap(Map<String, dynamic> data) {
     return User(
       id: data['id'] as int? ?? 0,
       name: parseOdooStringRequired(data['name']),
@@ -67,6 +71,9 @@ class UserManager extends OdooModelManager<User>
       calendarDefaultPrivacy: parseOdooString(data['calendar_default_privacy']),
     );
   }
+
+  @override
+  User fromOdoo(Map<String, dynamic> data) => fromOdooMap(data);
 
   @override
   Map<String, dynamic> toOdoo(User record) {
@@ -223,12 +230,12 @@ class UserManager extends OdooModelManager<User>
       'tz': driftVar<String>(record.tz),
       'signature': driftVar<String>(record.signature),
       'partner_id': driftVar<int>(record.partnerId),
-      'partner_id_name': driftVar<String>(record.partnerName),
+      'partner_name': driftVar<String>(record.partnerName),
       'company_id': driftVar<int>(record.companyId),
-      'company_id_name': driftVar<String>(record.companyName),
+      'company_name': driftVar<String>(record.companyName),
       'property_warehouse_id': driftVar<int>(record.warehouseId),
-      'property_warehouse_id_name': driftVar<String>(record.warehouseName),
-      'avatar_128': driftVar<String>(record.avatar128),
+      'warehouse_name': driftVar<String>(record.warehouseName),
+      'avatar128': driftVar<String>(record.avatar128),
       'notification_type': driftVar<String>(record.notificationType),
       'write_date': driftVar<DateTime>(record.writeDate),
       'out_of_office_from': driftVar<DateTime>(record.outOfOfficeFrom),

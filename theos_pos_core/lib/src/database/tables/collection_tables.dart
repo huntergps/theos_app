@@ -192,8 +192,7 @@ class CollectionSession extends Table {
 class CollectionSessionCash extends Table {
   IntColumn get id => integer().autoIncrement()();
   IntColumn get odooId => integer().unique()();
-  IntColumn get sessionId => integer()(); // TODO: orphan column — model uses collectionSessionId
-  IntColumn get collectionSessionId => integer()(); // Alias for sessionId
+  IntColumn get collectionSessionId => integer()();
   TextColumn get denomination => text().nullable()(); // 100, 50, 20, 10, 5, 1, 0.50, 0.25, etc.
   TextColumn get cashType => text().nullable()(); // opening, closing
   IntColumn get count => integer().withDefault(const Constant(0))();
@@ -222,8 +221,7 @@ class CollectionSessionDeposit extends Table {
   IntColumn get id => integer().autoIncrement()();
   IntColumn get odooId => integer().unique().nullable()();
   TextColumn get uuid => text().nullable()();
-  IntColumn get sessionId => integer()(); // TODO: orphan column — model uses collectionSessionId
-  IntColumn get collectionSessionId => integer()(); // Alias for sessionId
+  IntColumn get collectionSessionId => integer()();
   TextColumn get name => text().nullable()();
   TextColumn get depositType => text()(); // bank, cash, check
   TextColumn get type => text().nullable()(); // Alias for depositType
@@ -258,8 +256,7 @@ class CollectionSessionDeposit extends Table {
 class CashOut extends Table {
   IntColumn get id => integer().autoIncrement()();
   IntColumn get odooId => integer().unique().nullable()();
-  IntColumn get sessionId => integer()(); // TODO: orphan column — model uses collectionSessionId
-  IntColumn get collectionSessionId => integer()(); // Alias for sessionId (backwards compatibility)
+  IntColumn get collectionSessionId => integer()();
   TextColumn get cashOutType => text()(); // security, invoice, refund, withhold, other
   TextColumn get type => text().nullable()(); // Alias for cashOutType
   TextColumn get cashFlow => text().withDefault(const Constant('out'))(); // out, in

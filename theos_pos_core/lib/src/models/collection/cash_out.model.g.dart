@@ -72,11 +72,11 @@ const _$CashFlowEnumMap = {CashFlow.out: 'out', CashFlow.inFlow: 'in'};
 /// Generated manager for CashOut.
 ///
 /// Provides offline-first CRUD operations and sync
-/// with Odoo model: l10n_ec_collection_box.cash_out
+/// with Odoo model: l10n_ec.cash.out
 class CashOutManager extends OdooModelManager<CashOut>
     with GenericDriftOperations<CashOut> {
   @override
-  String get odooModel => 'l10n_ec_collection_box.cash_out';
+  String get odooModel => 'l10n_ec.cash.out';
 
   @override
   String get tableName => 'cash_out';
@@ -99,8 +99,12 @@ class CashOutManager extends OdooModelManager<CashOut>
     'cash_out_type_id',
   ];
 
-  @override
-  CashOut fromOdoo(Map<String, dynamic> data) {
+  /// Versión estática pura de [fromOdoo] — no referencia `this` ni
+  /// estado de instancia (OdooClient, GeneratedDatabase), solo [data].
+  /// Por eso su tear-off (`CashOutManager.fromOdooMap`) es transferible a
+  /// `Isolate.run()`, a diferencia del tear-off del método de instancia
+  /// [fromOdoo] (que arrastra el manager completo, no transferible).
+  static CashOut fromOdooMap(Map<String, dynamic> data) {
     return CashOut(
       id: data['id'] as int? ?? 0,
       isSynced: false,
@@ -128,6 +132,9 @@ class CashOutManager extends OdooModelManager<CashOut>
       typeName: extractMany2oneName(data['cash_out_type_id']),
     );
   }
+
+  @override
+  CashOut fromOdoo(Map<String, dynamic> data) => fromOdooMap(data);
 
   @override
   Map<String, dynamic> toOdoo(CashOut record) {
@@ -261,9 +268,9 @@ class CashOutManager extends OdooModelManager<CashOut>
       'state': Variable<String>(record.state.code),
       'cash_flow': Variable<String>(record.cashFlow.code),
       'journal_id': Variable<int>(record.journalId),
-      'journal_id_name': driftVar<String>(record.journalName),
+      'journal_name': driftVar<String>(record.journalName),
       'partner_id': driftVar<int>(record.partnerId),
-      'partner_id_name': driftVar<String>(record.partnerName),
+      'partner_name': driftVar<String>(record.partnerName),
       'account_id_manual': driftVar<int>(record.accountIdManual),
       'collection_session_id': driftVar<int>(record.collectionSessionId),
       'move_id': driftVar<int>(record.moveId),
@@ -271,7 +278,7 @@ class CashOutManager extends OdooModelManager<CashOut>
       'note': driftVar<String>(record.note),
       'cash_out_type': Variable<String>(record.typeCode),
       'cash_out_type_id': driftVar<int>(record.typeId),
-      'cash_out_type_id_name': driftVar<String>(record.typeName),
+      'type_name': driftVar<String>(record.typeName),
       'uuid': driftVar<String>(record.uuid),
       'is_synced': Variable<bool>(record.isSynced),
       'last_sync_date': driftVar<DateTime>(record.lastSyncDate),

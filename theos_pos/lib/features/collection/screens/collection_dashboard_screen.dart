@@ -14,6 +14,7 @@ import '../../../../core/database/repositories/repository_providers.dart';
 import '../../../../core/services/logger_service.dart';
 import '../../../../core/theme/spacing.dart';
 import '../../../../shared/utils/error_utils.dart';
+import '../../../../shared/widgets/common/theos_info_bars.dart';
 import '../../../../shared/widgets/dialogs/copyable_info_bar.dart';
 import 'cash_count_dialog.dart';
 import 'widgets/widgets.dart';
@@ -228,12 +229,10 @@ class _CollectionDashboardScreenState
             configsAsync.when(
               data: (configs) {
                 if (configs.isEmpty) {
-                  return const InfoBar(
-                    title: Text('Sin puntos de cobro'),
-                    content: Text(
-                      'No tiene puntos de cobro asignados. Contacte al administrador.',
-                    ),
-                    severity: InfoBarSeverity.warning,
+                  return TheosInfoBars.warning(
+                    title: 'Sin puntos de cobro',
+                    message:
+                        'No tiene puntos de cobro asignados. Contacte al administrador.',
                   );
                 }
 
@@ -281,8 +280,8 @@ class _CollectionDashboardScreenState
                         } else {
                           CopyableInfoBar.showWarning(
                             context,
-                            title: 'Sin sesion activa',
-                            message: 'No hay una sesion activa para continuar.',
+                            title: 'Sin sesión activa',
+                            message: 'No hay una sesión activa para continuar.',
                           );
                         }
                       },
@@ -304,10 +303,9 @@ class _CollectionDashboardScreenState
                   child: const ProgressRing(),
                 ),
               ),
-              error: (error, _) => InfoBar(
-                title: const Text('Error al cargar puntos de cobro'),
-                content: Text(friendlyErrorMessage(error)),
-                severity: InfoBarSeverity.error,
+              error: (error, _) => TheosInfoBars.error(
+                title: 'Error al cargar puntos de cobro',
+                message: friendlyErrorMessage(error),
               ),
             ),
           ],
@@ -442,8 +440,8 @@ class _CollectionDashboardScreenState
       if (context.mounted) {
         CopyableInfoBar.showSuccess(
           context,
-          title: 'Sesion sincronizada',
-          message: 'Sesion ${odooSession.name} lista',
+          title: 'Sesión sincronizada',
+          message: 'Sesión ${odooSession.name} lista',
         );
       }
     } catch (e) {
@@ -458,7 +456,7 @@ class _CollectionDashboardScreenState
           context,
           title: 'Guardado localmente',
           message:
-              'La sesion se guardó localmente. Se sincronizará con el servidor cuando haya conexión.',
+              'La sesión se guardó localmente. Se sincronizará con el servidor cuando haya conexión.',
           durationSeconds: warningDuration,
         );
       }
@@ -528,7 +526,7 @@ class _CollectionDashboardScreenState
             final errorDuration = ref.read(errorNotificationDurationProvider);
             CopyableInfoBar.showError(
               context,
-              title: 'Error de sesion',
+              title: 'Error de sesión',
               message: 'No se pudo obtener el usuario actual',
               durationSeconds: errorDuration,
             );
@@ -562,8 +560,8 @@ class _CollectionDashboardScreenState
         if (context.mounted) {
           CopyableInfoBar.showInfo(
             context,
-            title: 'Sesion creada',
-            message: 'Creando sesion en servidor...',
+            title: 'Sesión creada',
+            message: 'Creando sesión en servidor...',
           );
 
           // Navigate to session con ID temporal
@@ -578,8 +576,8 @@ class _CollectionDashboardScreenState
           final errorDuration = ref.read(errorNotificationDurationProvider);
           CopyableInfoBar.showError(
             context,
-            title: 'Error al crear sesion',
-            message: 'No se pudo crear la sesion de cobranza. Intente nuevamente.',
+            title: 'Error al crear sesión',
+            message: 'No se pudo crear la sesión de cobranza. Intente nuevamente.',
             durationSeconds: errorDuration,
           );
         }

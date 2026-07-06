@@ -17,8 +17,8 @@ void main() {
       expect(manager.odooModel, equals('account.move'));
     });
 
-    test('tableName is account_moves', () {
-      expect(manager.tableName, equals('account_moves'));
+    test('tableName is account_move', () {
+      expect(manager.tableName, equals('account_move'));
     });
 
     test('odooFields contains key fields', () {
@@ -42,7 +42,7 @@ void main() {
       expect(fields, contains('amount_tax'));
       expect(fields, contains('amount_residual'));
       expect(fields, contains('ref'));
-      expect(fields, contains('partner_vat'));
+      // partner_vat is @OdooLocalOnly() — not in odooFields
     });
 
     test('odooFields contains Ecuador localization fields', () {
@@ -94,7 +94,8 @@ void main() {
       expect(move.invoiceDateDue, isNotNull);
       expect(move.partnerId, equals(10));
       expect(move.partnerName, equals('Cliente Test'));
-      expect(move.partnerVat, equals('0992345678001'));
+      // partnerVat is @OdooLocalOnly() — not populated by generated fromOdoo
+      expect(move.partnerVat, isNull);
       expect(move.journalId, equals(1));
       expect(move.journalName, equals('Diario de Ventas'));
       expect(move.companyId, equals(1));

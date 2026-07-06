@@ -24,7 +24,8 @@ export 'platform/platform.dart';
 // Sync services moved to features/sync/
 export '../../features/sync/services/offline_sync_service.dart' hide SyncFieldResult, SyncResult;
 export '../../features/sync/services/offline_mode_service.dart';
-export '../../features/sync/services/websocket_sync_service.dart' hide SyncFieldResult, SyncResult;
+// websocket_sync_service.dart eliminado (Fase B, tarea 5) — código muerto,
+// sin consumidores. Ver comentario en sync_service_providers.dart.
 export '../../features/sync/services/connectivity_sync_orchestrator.dart';
 
 // ═══════════════════════════════════════════════════════════════════════════

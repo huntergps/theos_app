@@ -12,7 +12,7 @@ import 'package:drift/drift.dart';
 // CANONICAL SOURCE: odoo_offline_core defines the authoritative schemas.
 // Any schema changes MUST be applied to both locations.
 //
-// Tables exclusive to theos_pos_core: DirtyFields, SyncConflict.
+// Tables exclusive to theos_pos_core: SyncConflict.
 // ============================================================================
 
 /// OfflineQueue - Cola de operaciones offline pendientes de sincronización
@@ -148,21 +148,6 @@ class RelatedRecordCache extends Table {
   List<Set<Column>> get uniqueKeys => [
     {model, odooId},
   ];
-}
-
-/// DirtyFields - Seguimiento de campos modificados localmente
-class DirtyFields extends Table {
-  IntColumn get id => integer().autoIncrement()();
-  TextColumn get model => text()();
-  IntColumn get recordId => integer()();
-  TextColumn get fieldName => text()();
-  TextColumn get oldValue => text().nullable()();
-  TextColumn get newValue => text().nullable()();
-  TextColumn get localValue => text().nullable()(); // Alias for newValue
-  TextColumn get serverValue => text().nullable()(); // Server value for conflict detection
-  DateTimeColumn get lastSyncAt => dateTime().nullable()(); // Last sync timestamp
-  DateTimeColumn get modifiedAt => dateTime()();
-  BoolColumn get isSynced => boolean().withDefault(const Constant(false))();
 }
 
 /// SyncConflict - Registro de conflictos de sincronización

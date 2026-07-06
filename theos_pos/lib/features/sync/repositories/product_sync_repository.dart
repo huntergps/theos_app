@@ -118,6 +118,8 @@ class ProductSyncRepository {
         batchSize: batchSize,
         fromOdoo: _productManager.fromOdoo,
         upsertLocal: _productManager.upsertLocal,
+        upsertLocalBatch: _productManager.upsertLocalBatch,
+        isolateParser: ProductManager.fromOdooMap,
       ),
       sinceDate: sinceDate,
       onProgress: onProgress,
@@ -138,6 +140,7 @@ class ProductSyncRepository {
         batchSize: batchSize,
         fromOdoo: _categoryManager.fromOdoo,
         upsertLocal: _categoryManager.upsertLocal,
+        upsertLocalBatch: _categoryManager.upsertLocalBatch,
       ),
       sinceDate: sinceDate,
       onProgress: onProgress,
@@ -175,6 +178,7 @@ class ProductSyncRepository {
         batchSize: batchSize,
         fromOdoo: _taxManager.fromOdoo,
         upsertLocal: _taxManager.upsertLocal,
+        upsertLocalBatch: _taxManager.upsertLocalBatch,
       ),
       sinceDate: sinceDate,
       onProgress: onProgress,
@@ -205,6 +209,7 @@ class ProductSyncRepository {
         order: 'name asc',
         fromOdoo: _uomManager.fromOdoo,
         upsertLocal: _uomManager.upsertLocal,
+        upsertLocalBatch: _uomManager.upsertLocalBatch,
       ),
       sinceDate: sinceDate,
       onProgress: onProgress,
@@ -354,6 +359,7 @@ class ProductSyncRepository {
         batchSize: batchSize,
         fromOdoo: _paymentTermManager.fromOdoo,
         upsertLocal: _paymentTermManager.upsertLocal,
+        upsertLocalBatch: _paymentTermManager.upsertLocalBatch,
       ),
       sinceDate: sinceDate,
       onProgress: onProgress,
@@ -379,6 +385,7 @@ class ProductSyncRepository {
           batchSize: 200,
           fromOdoo: _categoryManager.fromOdoo,
           upsertLocal: _categoryManager.upsertLocal,
+          upsertLocalBatch: _categoryManager.upsertLocalBatch,
         ),
 
         // UoM (products reference them)
@@ -391,6 +398,7 @@ class ProductSyncRepository {
           batchSize: 100,
           fromOdoo: _uomManager.fromOdoo,
           upsertLocal: _uomManager.upsertLocal,
+          upsertLocalBatch: _uomManager.upsertLocalBatch,
         ),
 
         // Taxes (products reference them)
@@ -417,6 +425,7 @@ class ProductSyncRepository {
           batchSize: 200,
           fromOdoo: _taxManager.fromOdoo,
           upsertLocal: _taxManager.upsertLocal,
+          upsertLocalBatch: _taxManager.upsertLocalBatch,
         ),
 
         // Products
@@ -430,6 +439,8 @@ class ProductSyncRepository {
           batchSize: 500,
           fromOdoo: _productManager.fromOdoo,
           upsertLocal: _productManager.upsertLocal,
+          upsertLocalBatch: _productManager.upsertLocalBatch,
+          isolateParser: ProductManager.fromOdooMap,
         ),
 
         // Product UoM (needs products)
@@ -495,6 +506,7 @@ class ProductSyncRepository {
           batchSize: 100,
           fromOdoo: _paymentTermManager.fromOdoo,
           upsertLocal: _paymentTermManager.upsertLocal,
+          upsertLocalBatch: _paymentTermManager.upsertLocalBatch,
         ),
       ],
       sinceDate: sinceDate,

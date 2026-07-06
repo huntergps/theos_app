@@ -162,8 +162,12 @@ class AdvanceManager extends OdooModelManager<Advance>
     'sale_order_id',
   ];
 
-  @override
-  Advance fromOdoo(Map<String, dynamic> data) {
+  /// Versión estática pura de [fromOdoo] — no referencia `this` ni
+  /// estado de instancia (OdooClient, GeneratedDatabase), solo [data].
+  /// Por eso su tear-off (`AdvanceManager.fromOdooMap`) es transferible a
+  /// `Isolate.run()`, a diferencia del tear-off del método de instancia
+  /// [fromOdoo] (que arrastra el manager completo, no transferible).
+  static Advance fromOdooMap(Map<String, dynamic> data) {
     return Advance(
       id: data['id'] as int? ?? 0,
       name: parseOdooString(data['name']),
@@ -193,6 +197,9 @@ class AdvanceManager extends OdooModelManager<Advance>
       lines: const [],
     );
   }
+
+  @override
+  Advance fromOdoo(Map<String, dynamic> data) => fromOdooMap(data);
 
   @override
   Map<String, dynamic> toOdoo(Advance record) {
@@ -336,7 +343,7 @@ class AdvanceManager extends OdooModelManager<Advance>
       'state': Variable<String>(record.state.code),
       'advance_type': Variable<String>(record.advanceType.code),
       'partner_id': Variable<int>(record.partnerId),
-      'partner_id_name': driftVar<String>(record.partnerName),
+      'partner_name': driftVar<String>(record.partnerName),
       'reference': Variable<String>(record.reference),
       'amount': Variable<double>(record.amount),
       'amount_used': Variable<double>(record.amountUsed),
@@ -634,8 +641,12 @@ class AdvanceLineManager extends OdooModelManager<AdvanceLine>
     'card_deadline_id',
   ];
 
-  @override
-  AdvanceLine fromOdoo(Map<String, dynamic> data) {
+  /// Versión estática pura de [fromOdoo] — no referencia `this` ni
+  /// estado de instancia (OdooClient, GeneratedDatabase), solo [data].
+  /// Por eso su tear-off (`AdvanceLineManager.fromOdooMap`) es transferible a
+  /// `Isolate.run()`, a diferencia del tear-off del método de instancia
+  /// [fromOdoo] (que arrastra el manager completo, no transferible).
+  static AdvanceLine fromOdooMap(Map<String, dynamic> data) {
     return AdvanceLine(
       id: data['id'] as int? ?? 0,
       journalId: extractMany2oneId(data['journal_id']) ?? 0,
@@ -655,6 +666,9 @@ class AdvanceLineManager extends OdooModelManager<AdvanceLine>
       cardDeadlineName: extractMany2oneName(data['card_deadline_id']),
     );
   }
+
+  @override
+  AdvanceLine fromOdoo(Map<String, dynamic> data) => fromOdooMap(data);
 
   @override
   Map<String, dynamic> toOdoo(AdvanceLine record) {
@@ -769,20 +783,20 @@ class AdvanceLineManager extends OdooModelManager<AdvanceLine>
     return RawValuesInsertable({
       'odoo_id': Variable<int>(record.id),
       'journal_id': Variable<int>(record.journalId),
-      'journal_id_name': driftVar<String>(record.journalName),
+      'journal_name': driftVar<String>(record.journalName),
       'journal_type': driftVar<String>(record.journalType),
       'advance_method_line_id': driftVar<int>(record.advanceMethodLineId),
-      'advance_method_line_id_name': driftVar<String>(record.advanceMethodName),
+      'advance_method_name': driftVar<String>(record.advanceMethodName),
       'amount': Variable<double>(record.amount),
       'nro_document': driftVar<String>(record.documentNumber),
       'date_document': driftVar<DateTime>(record.documentDate),
       'partner_bank_id': driftVar<int>(record.partnerBankId),
-      'partner_bank_id_name': driftVar<String>(record.partnerBankName),
+      'partner_bank_name': driftVar<String>(record.partnerBankName),
       'check_due_date': driftVar<DateTime>(record.checkDueDate),
       'card_brand_id': driftVar<int>(record.cardBrandId),
-      'card_brand_id_name': driftVar<String>(record.cardBrandName),
+      'card_brand_name': driftVar<String>(record.cardBrandName),
       'card_deadline_id': driftVar<int>(record.cardDeadlineId),
-      'card_deadline_id_name': driftVar<String>(record.cardDeadlineName),
+      'card_deadline_name': driftVar<String>(record.cardDeadlineName),
       'line_uuid': driftVar<String>(record.lineUuid),
     });
   }

@@ -7,7 +7,6 @@ library;
 
 import 'dart:typed_data';
 
-import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/services.dart' show rootBundle;
 import 'package:printing/printing.dart';
 import 'package:pdf/widgets.dart' as pw;

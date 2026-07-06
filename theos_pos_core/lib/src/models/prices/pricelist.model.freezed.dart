@@ -14,7 +14,9 @@ T _$identity<T>(T value) => value;
 /// @nodoc
 mixin _$Pricelist {
 
-@OdooId() int get id;@OdooString() String get name;@OdooBoolean() bool get active;@OdooMany2One('res.currency', odooName: 'currency_id') int? get currencyId;@OdooMany2OneName(sourceField: 'currency_id') String? get currencyName;@OdooMany2One('res.company', odooName: 'company_id') int? get companyId;@OdooMany2OneName(sourceField: 'company_id') String? get companyName;@OdooInteger() int get sequence;@OdooSelection(odooName: 'discount_policy') String? get discountPolicy;@OdooDateTime(odooName: 'write_date', writable: false) DateTime? get writeDate;
+@OdooId() int get id;@OdooString() String get name;@OdooBoolean() bool get active;@OdooMany2One('res.currency', odooName: 'currency_id') int? get currencyId;@OdooMany2OneName(sourceField: 'currency_id') String? get currencyName;@OdooMany2One('res.company', odooName: 'company_id') int? get companyId;@OdooMany2OneName(sourceField: 'company_id') String? get companyName;@OdooInteger() int get sequence;// Odoo 19.5 (erp1): 'discount_policy' ya no existe en product.pricelist
+// del servidor (smoke fields_get, julio 2026).
+@OdooLocalOnly() String? get discountPolicy;@OdooDateTime(odooName: 'write_date', writable: false) DateTime? get writeDate;
 /// Create a copy of Pricelist
 /// with the given fields replaced by the non-null parameter values.
 @JsonKey(includeFromJson: false, includeToJson: false)
@@ -45,7 +47,7 @@ abstract mixin class $PricelistCopyWith<$Res>  {
   factory $PricelistCopyWith(Pricelist value, $Res Function(Pricelist) _then) = _$PricelistCopyWithImpl;
 @useResult
 $Res call({
-@OdooId() int id,@OdooString() String name,@OdooBoolean() bool active,@OdooMany2One('res.currency', odooName: 'currency_id') int? currencyId,@OdooMany2OneName(sourceField: 'currency_id') String? currencyName,@OdooMany2One('res.company', odooName: 'company_id') int? companyId,@OdooMany2OneName(sourceField: 'company_id') String? companyName,@OdooInteger() int sequence,@OdooSelection(odooName: 'discount_policy') String? discountPolicy,@OdooDateTime(odooName: 'write_date', writable: false) DateTime? writeDate
+@OdooId() int id,@OdooString() String name,@OdooBoolean() bool active,@OdooMany2One('res.currency', odooName: 'currency_id') int? currencyId,@OdooMany2OneName(sourceField: 'currency_id') String? currencyName,@OdooMany2One('res.company', odooName: 'company_id') int? companyId,@OdooMany2OneName(sourceField: 'company_id') String? companyName,@OdooInteger() int sequence,@OdooLocalOnly() String? discountPolicy,@OdooDateTime(odooName: 'write_date', writable: false) DateTime? writeDate
 });
 
 
@@ -159,7 +161,7 @@ return $default(_that);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function(@OdooId()  int id, @OdooString()  String name, @OdooBoolean()  bool active, @OdooMany2One('res.currency', odooName: 'currency_id')  int? currencyId, @OdooMany2OneName(sourceField: 'currency_id')  String? currencyName, @OdooMany2One('res.company', odooName: 'company_id')  int? companyId, @OdooMany2OneName(sourceField: 'company_id')  String? companyName, @OdooInteger()  int sequence, @OdooSelection(odooName: 'discount_policy')  String? discountPolicy, @OdooDateTime(odooName: 'write_date', writable: false)  DateTime? writeDate)?  $default,{required TResult orElse(),}) {final _that = this;
+@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function(@OdooId()  int id, @OdooString()  String name, @OdooBoolean()  bool active, @OdooMany2One('res.currency', odooName: 'currency_id')  int? currencyId, @OdooMany2OneName(sourceField: 'currency_id')  String? currencyName, @OdooMany2One('res.company', odooName: 'company_id')  int? companyId, @OdooMany2OneName(sourceField: 'company_id')  String? companyName, @OdooInteger()  int sequence, @OdooLocalOnly()  String? discountPolicy, @OdooDateTime(odooName: 'write_date', writable: false)  DateTime? writeDate)?  $default,{required TResult orElse(),}) {final _that = this;
 switch (_that) {
 case _Pricelist() when $default != null:
 return $default(_that.id,_that.name,_that.active,_that.currencyId,_that.currencyName,_that.companyId,_that.companyName,_that.sequence,_that.discountPolicy,_that.writeDate);case _:
@@ -180,7 +182,7 @@ return $default(_that.id,_that.name,_that.active,_that.currencyId,_that.currency
 /// }
 /// ```
 
-@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function(@OdooId()  int id, @OdooString()  String name, @OdooBoolean()  bool active, @OdooMany2One('res.currency', odooName: 'currency_id')  int? currencyId, @OdooMany2OneName(sourceField: 'currency_id')  String? currencyName, @OdooMany2One('res.company', odooName: 'company_id')  int? companyId, @OdooMany2OneName(sourceField: 'company_id')  String? companyName, @OdooInteger()  int sequence, @OdooSelection(odooName: 'discount_policy')  String? discountPolicy, @OdooDateTime(odooName: 'write_date', writable: false)  DateTime? writeDate)  $default,) {final _that = this;
+@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function(@OdooId()  int id, @OdooString()  String name, @OdooBoolean()  bool active, @OdooMany2One('res.currency', odooName: 'currency_id')  int? currencyId, @OdooMany2OneName(sourceField: 'currency_id')  String? currencyName, @OdooMany2One('res.company', odooName: 'company_id')  int? companyId, @OdooMany2OneName(sourceField: 'company_id')  String? companyName, @OdooInteger()  int sequence, @OdooLocalOnly()  String? discountPolicy, @OdooDateTime(odooName: 'write_date', writable: false)  DateTime? writeDate)  $default,) {final _that = this;
 switch (_that) {
 case _Pricelist():
 return $default(_that.id,_that.name,_that.active,_that.currencyId,_that.currencyName,_that.companyId,_that.companyName,_that.sequence,_that.discountPolicy,_that.writeDate);case _:
@@ -200,7 +202,7 @@ return $default(_that.id,_that.name,_that.active,_that.currencyId,_that.currency
 /// }
 /// ```
 
-@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function(@OdooId()  int id, @OdooString()  String name, @OdooBoolean()  bool active, @OdooMany2One('res.currency', odooName: 'currency_id')  int? currencyId, @OdooMany2OneName(sourceField: 'currency_id')  String? currencyName, @OdooMany2One('res.company', odooName: 'company_id')  int? companyId, @OdooMany2OneName(sourceField: 'company_id')  String? companyName, @OdooInteger()  int sequence, @OdooSelection(odooName: 'discount_policy')  String? discountPolicy, @OdooDateTime(odooName: 'write_date', writable: false)  DateTime? writeDate)?  $default,) {final _that = this;
+@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function(@OdooId()  int id, @OdooString()  String name, @OdooBoolean()  bool active, @OdooMany2One('res.currency', odooName: 'currency_id')  int? currencyId, @OdooMany2OneName(sourceField: 'currency_id')  String? currencyName, @OdooMany2One('res.company', odooName: 'company_id')  int? companyId, @OdooMany2OneName(sourceField: 'company_id')  String? companyName, @OdooInteger()  int sequence, @OdooLocalOnly()  String? discountPolicy, @OdooDateTime(odooName: 'write_date', writable: false)  DateTime? writeDate)?  $default,) {final _that = this;
 switch (_that) {
 case _Pricelist() when $default != null:
 return $default(_that.id,_that.name,_that.active,_that.currencyId,_that.currencyName,_that.companyId,_that.companyName,_that.sequence,_that.discountPolicy,_that.writeDate);case _:
@@ -215,7 +217,7 @@ return $default(_that.id,_that.name,_that.active,_that.currencyId,_that.currency
 
 
 class _Pricelist extends Pricelist {
-  const _Pricelist({@OdooId() required this.id, @OdooString() required this.name, @OdooBoolean() this.active = true, @OdooMany2One('res.currency', odooName: 'currency_id') this.currencyId, @OdooMany2OneName(sourceField: 'currency_id') this.currencyName, @OdooMany2One('res.company', odooName: 'company_id') this.companyId, @OdooMany2OneName(sourceField: 'company_id') this.companyName, @OdooInteger() this.sequence = 16, @OdooSelection(odooName: 'discount_policy') this.discountPolicy, @OdooDateTime(odooName: 'write_date', writable: false) this.writeDate}): super._();
+  const _Pricelist({@OdooId() required this.id, @OdooString() required this.name, @OdooBoolean() this.active = true, @OdooMany2One('res.currency', odooName: 'currency_id') this.currencyId, @OdooMany2OneName(sourceField: 'currency_id') this.currencyName, @OdooMany2One('res.company', odooName: 'company_id') this.companyId, @OdooMany2OneName(sourceField: 'company_id') this.companyName, @OdooInteger() this.sequence = 16, @OdooLocalOnly() this.discountPolicy, @OdooDateTime(odooName: 'write_date', writable: false) this.writeDate}): super._();
   
 
 @override@OdooId() final  int id;
@@ -226,7 +228,9 @@ class _Pricelist extends Pricelist {
 @override@OdooMany2One('res.company', odooName: 'company_id') final  int? companyId;
 @override@OdooMany2OneName(sourceField: 'company_id') final  String? companyName;
 @override@JsonKey()@OdooInteger() final  int sequence;
-@override@OdooSelection(odooName: 'discount_policy') final  String? discountPolicy;
+// Odoo 19.5 (erp1): 'discount_policy' ya no existe en product.pricelist
+// del servidor (smoke fields_get, julio 2026).
+@override@OdooLocalOnly() final  String? discountPolicy;
 @override@OdooDateTime(odooName: 'write_date', writable: false) final  DateTime? writeDate;
 
 /// Create a copy of Pricelist
@@ -259,7 +263,7 @@ abstract mixin class _$PricelistCopyWith<$Res> implements $PricelistCopyWith<$Re
   factory _$PricelistCopyWith(_Pricelist value, $Res Function(_Pricelist) _then) = __$PricelistCopyWithImpl;
 @override @useResult
 $Res call({
-@OdooId() int id,@OdooString() String name,@OdooBoolean() bool active,@OdooMany2One('res.currency', odooName: 'currency_id') int? currencyId,@OdooMany2OneName(sourceField: 'currency_id') String? currencyName,@OdooMany2One('res.company', odooName: 'company_id') int? companyId,@OdooMany2OneName(sourceField: 'company_id') String? companyName,@OdooInteger() int sequence,@OdooSelection(odooName: 'discount_policy') String? discountPolicy,@OdooDateTime(odooName: 'write_date', writable: false) DateTime? writeDate
+@OdooId() int id,@OdooString() String name,@OdooBoolean() bool active,@OdooMany2One('res.currency', odooName: 'currency_id') int? currencyId,@OdooMany2OneName(sourceField: 'currency_id') String? currencyName,@OdooMany2One('res.company', odooName: 'company_id') int? companyId,@OdooMany2OneName(sourceField: 'company_id') String? companyName,@OdooInteger() int sequence,@OdooLocalOnly() String? discountPolicy,@OdooDateTime(odooName: 'write_date', writable: false) DateTime? writeDate
 });
 
 

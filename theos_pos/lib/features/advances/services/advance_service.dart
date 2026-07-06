@@ -830,6 +830,23 @@ class AdvanceService {
     }
   }
 
+  /// Reactive stream of partner banks — mismo dato que [getPartnerBanks]
+  /// pero reactivo, usando [BankRepository.watchPartnerBanks]. No unifica el
+  /// [PartnerBank] local (esta clase) con el `PartnerBank` de
+  /// `theos_pos_core` — sigue siendo el mismo modelo local de siempre.
+  Stream<List<PartnerBank>> watchPartnerBanks(int partnerId) {
+    return _bankRepo.watchPartnerBanks(partnerId).map(
+          (banks) => banks
+              .map((b) => PartnerBank(
+                    id: b.odooId,
+                    accountNumber: b.accNumber,
+                    bankId: b.bankId,
+                    bankName: b.bankName,
+                  ))
+              .toList(),
+        );
+  }
+
   /// Crea una nueva cuenta bancaria para el cliente (delegado a BankRepository)
   ///
   /// Si online: crea en Odoo primero, luego guarda en local
@@ -961,7 +978,9 @@ class PartnerBank {
 
     return PartnerBank(
       id: data['id'] as int,
-      accountNumber: data['acc_number'] as String,
+      // Odoo 19.5/19.2: 'acc_number' fue renombrado a 'account_number' en
+      // res.partner.bank (verificado en vivo contra erp1, julio 2026).
+      accountNumber: data['account_number'] as String,
       bankId: bankId,
       bankName: bankName,
     );

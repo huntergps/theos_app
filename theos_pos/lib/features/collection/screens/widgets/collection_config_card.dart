@@ -170,7 +170,7 @@ class CollectionConfigCard extends ConsumerWidget {
                       Expanded(
                         child: Text(
                           config.numberOfRescueSession == 1
-                              ? '1 sesion de rescate pendiente'
+                              ? '1 sesión de rescate pendiente'
                               : '${config.numberOfRescueSession} sesiones de rescate pendientes',
                           style: theme.typography.body?.copyWith(
                             color: AppColors.warning,
@@ -191,7 +191,7 @@ class CollectionConfigCard extends ConsumerWidget {
                       const Icon(FluentIcons.calendar, size: 14),
                       const SizedBox(width: 8),
                       Text(
-                        'Ultimo cierre: ${dateFormat.format(config.lastSessionClosingDate!)}',
+                        'Último cierre: ${dateFormat.format(config.lastSessionClosingDate!)}',
                         style: theme.typography.caption,
                       ),
                     ],
@@ -203,7 +203,7 @@ class CollectionConfigCard extends ConsumerWidget {
                       const Icon(FluentIcons.money, size: 14),
                       const SizedBox(width: 8),
                       Text(
-                        'Ultimo saldo: ${config.lastSessionClosingCash.toCurrency()}',
+                        'Último saldo: ${config.lastSessionClosingCash.toCurrency()}',
                         style: theme.typography.caption,
                       ),
                     ],
@@ -224,7 +224,7 @@ class CollectionConfigCard extends ConsumerWidget {
                           children: [
                             const Icon(FluentIcons.play, size: 14),
                             const SizedBox(width: 8),
-                            const Text('Continuar Sesion'),
+                            const Text('Continuar Sesión'),
                           ],
                         ),
                       )
@@ -235,7 +235,7 @@ class CollectionConfigCard extends ConsumerWidget {
                           children: [
                             const Icon(FluentIcons.add, size: 14),
                             const SizedBox(width: 8),
-                            const Text('Nueva Sesion'),
+                            const Text('Nueva Sesión'),
                           ],
                         ),
                       ),

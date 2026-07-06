@@ -1,7 +1,7 @@
 import 'dart:convert';
 
 import 'package:drift/drift.dart';
-import 'package:odoo_sdk/odoo_sdk.dart';
+import 'package:odoo_sdk/odoo_sdk.dart' show FuzzySearch, FuzzySearchResult;
 
 import 'package:theos_pos_core/theos_pos_core.dart' hide DatabaseHelper;
 
@@ -9,6 +9,27 @@ import 'package:theos_pos_core/theos_pos_core.dart' hide DatabaseHelper;
 ///
 /// Maneja búsqueda de productos, consultas de stock, y llamadas onchange.
 /// Reemplaza el ProductRepository anterior con soporte para modelos Freezed.
+///
+/// F5 (eliminación de fuga de OdooClient): este repo ya NO guarda su propio
+/// `OdooClient?`. Las llamadas RPC se hacen a través de los managers ya
+/// registrados que gestionan cada modelo Odoo tocado acá:
+/// - `product.product` → [productManager]
+/// - `product.uom` → [productUomManager]
+/// - `account.tax` → [taxManager]
+/// - `uom.uom` → [uomManager]
+/// - `sale.order.line` → [saleOrderLineManager] (incluye `onchange`, que
+///   pertenece a este modelo)
+///
+/// EXCEPCIÓN documentada: `get_stock_by_warehouse` es un método de
+/// `product.template` — modelo SIN manager generado en este proyecto (solo
+/// existe manager para la variante `product.product`). Usar
+/// `productManager.callCustomMethod(...)` enviaría el modelo equivocado
+/// (`product.product` en vez de `product.template`), rompiendo el
+/// controller HTTP custom del lado servidor. Se resuelve pidiendo prestado
+/// el `client` de [productManager] (mismo `OdooClient` compartido en toda
+/// la app — un solo punto de conexión) pero especificando el modelo
+/// correcto explícitamente en la llamada — sin inventar un manager nuevo
+/// solo para este caso, tal como pide el lineamiento de esta fase.
 ///
 /// Uso:
 /// ```dart
@@ -25,16 +46,13 @@ import 'package:theos_pos_core/theos_pos_core.dart' hide DatabaseHelper;
 /// ```
 class ProductRepository {
   final AppDatabase _db;
-  final OdooClient? _odooClient;
 
   ProductRepository({
     required AppDatabase db,
-    OdooClient? odooClient,
-  })  : _db = db,
-        _odooClient = odooClient;
+  }) : _db = db;
 
   /// Indica si hay conexión con Odoo
-  bool get isOnline => _odooClient != null;
+  bool get isOnline => productManager.isOnline;
 
   // ============ Product Search ============
 
@@ -113,7 +131,7 @@ class ProductRepository {
 
   /// Búsqueda en Odoo — retorna productos parseados
   Future<List<Product>> _searchProductsOdoo(String query, {int limit = 50}) async {
-    final response = await _odooClient!.searchRead(
+    final response = await productManager.client.searchRead(
       model: 'product.product',
       fields: _productSearchFields,
       domain: [
@@ -408,9 +426,9 @@ class ProductRepository {
       final localProduct = await _getProductMapFromLocal(productId);
 
       // Si hay conexión, intentar obtener datos actualizados de Odoo
-      if (_odooClient != null) {
+      if (productManager.isOnline) {
         try {
-          final result = await _odooClient.searchRead(
+          final result = await productManager.client.searchRead(
             model: 'product.product',
             fields: [
               'id',
@@ -568,16 +586,16 @@ class ProductRepository {
                   'barcode': u.barcode,
                 })
             .toList();
-        if (localMaps.isNotEmpty || _odooClient == null) return localMaps;
+        if (localMaps.isNotEmpty || !productUomManager.isOnline) return localMaps;
       }
     } catch (e) {
       logger.w('[ProductRepository]', 'Error getting local packaging barcodes: $e');
     }
 
-    if (_odooClient == null) return [];
+    if (!productUomManager.isOnline) return [];
 
     try {
-      final packagingBarcodes = await _odooClient.searchRead(
+      final packagingBarcodes = await productUomManager.client.searchRead(
         model: 'product.uom',
         fields: ['id', 'uom_id', 'barcode'],
         domain: [
@@ -632,7 +650,7 @@ class ProductRepository {
   /// - Offline/Error: returns the last cached per-warehouse data. Falls back to
   ///   aggregate product qty_available if no cached data exists.
   Future<List<Map<String, dynamic>>> getStockByWarehouse(int productId) async {
-    if (_odooClient == null) {
+    if (!productManager.isOnline) {
       return _getStockFromCache(productId);
     }
 
@@ -642,7 +660,26 @@ class ProductRepository {
         'Getting stock by warehouse for product $productId',
       );
 
-      final result = await _odooClient.crud.call(
+      // NOTA: get_stock_by_warehouse es un metodo de `product.template`, que
+      // NO tiene manager generado en este proyecto (solo existe manager
+      // para la variante `product.product`). Se usa el `client` de
+      // [productManager] (mismo OdooClient compartido por toda la app) pero
+      // especificando el modelo correcto ('product.template') explicitamente
+      // — no se usa `productManager.callCustomMethod` porque ese metodo fija
+      // el modelo al propio del manager ('product.product'), lo cual seria
+      // incorrecto acá.
+      //
+      // Este es ademas el UNICO lugar de la app donde `args:` funciona.
+      // No es el dispatcher JSON-2 estandar de Odoo (que ignora "args" como
+      // posicional y lo trata como kwarg literal) sino un controller HTTP
+      // custom que sobreescribe la ruta
+      // /json/2/product.template/get_stock_by_warehouse y lee "args" del
+      // body manualmente (ver
+      // l10n_ec_collection_box_pos/controllers/product_controller.py).
+      // Si ese controller custom no esta desplegado igual en 19.1 y 19.2,
+      // esta llamada tambien fallaria — no migrar a kwargs sin antes migrar
+      // el controller del lado servidor.
+      final result = await productManager.client.crud.call(
         model: 'product.template',
         method: 'get_stock_by_warehouse',
         args: [productId, null, true],
@@ -755,10 +792,10 @@ class ProductRepository {
     required int productId,
     required int partnerId,
   }) async {
-    if (_odooClient == null) return [];
+    if (!saleOrderLineManager.isOnline) return [];
 
     try {
-      return await _odooClient.searchRead(
+      return await saleOrderLineManager.client.searchRead(
         model: 'sale.order.line',
         fields: [
           'id',
@@ -803,10 +840,10 @@ class ProductRepository {
     }
 
     // Try server if available
-    if (_odooClient == null) return [];
+    if (!taxManager.isOnline) return [];
 
     try {
-      final result = await _odooClient.searchRead(
+      final result = await taxManager.client.searchRead(
         model: 'account.tax',
         fields: ['id', 'name'],
         domain: [
@@ -845,10 +882,10 @@ class ProductRepository {
     }
 
     // Try server if available
-    if (_odooClient == null) return [];
+    if (!uomManager.isOnline) return [];
 
     try {
-      final result = await _odooClient.searchRead(
+      final result = await uomManager.client.searchRead(
         model: 'uom.uom',
         fields: ['id', 'name', 'factor', 'relative_factor'],
         domain: [
@@ -878,26 +915,27 @@ class ProductRepository {
     double qty = 1.0,
   }) async {
     // Try server first if online
-    if (_odooClient != null) {
+    if (saleOrderLineManager.isOnline) {
       try {
         logger.d(
           '[ProductRepository]',
           'Calling product_id_change for product $productId...',
         );
 
-        final result = await _odooClient.call(
-          model: 'sale.order.line',
-          method: 'onchange',
-          args: [
-            [],
-            {
+        // onchange(self, values: dict, field_names: list[str], fields_spec: dict)
+        // (odoo/orm/models.py, implementado en addons/web/models/models.py).
+        // Metodo propio de sale.order.line -> usa saleOrderLineManager.
+        final result = await saleOrderLineManager.callCustomMethod<dynamic>(
+          'onchange',
+          kwargs: {
+            'values': {
               'order_id': orderId,
               'product_id': productId,
               'product_uom_qty': qty,
             },
-            ['product_id'],
-          ],
-          kwargs: {},
+            'field_names': ['product_id'],
+            'fields_spec': <String, dynamic>{},
+          },
         );
 
         if (result is Map<String, dynamic> && result.containsKey('value')) {
@@ -956,27 +994,27 @@ class ProductRepository {
     double qty = 1.0,
   }) async {
     // Try server first if online
-    if (_odooClient != null) {
+    if (saleOrderLineManager.isOnline) {
       try {
         logger.d(
           '[ProductRepository]',
           'Calling onchange for UoM change: product=$productId, uom=$uomId...',
         );
 
-        final result = await _odooClient.call(
-          model: 'sale.order.line',
-          method: 'onchange',
-          args: [
-            [],
-            {
+        // onchange(self, values: dict, field_names: list[str], fields_spec: dict)
+        // (ver comentario equivalente en onchangeProduct arriba).
+        final result = await saleOrderLineManager.callCustomMethod<dynamic>(
+          'onchange',
+          kwargs: {
+            'values': {
               'order_id': orderId,
               'product_id': productId,
               'product_uom_id': uomId,
               'product_uom_qty': qty,
             },
-            ['product_uom_id'],
-          ],
-          kwargs: {},
+            'field_names': ['product_uom_id'],
+            'fields_spec': <String, dynamic>{},
+          },
         );
 
         if (result is Map<String, dynamic> && result.containsKey('value')) {

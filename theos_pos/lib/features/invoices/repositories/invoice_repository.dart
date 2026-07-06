@@ -1,7 +1,7 @@
 import 'dart:convert';
 import 'package:drift/drift.dart' as drift;
-import 'package:odoo_sdk/odoo_sdk.dart';
-import 'package:theos_pos_core/theos_pos_core.dart' show AppDatabase, AccountMove, AccountMoveLine, accountMoveManager, accountMoveLineManager, clientManager, SaleOrderCompanion, AccountMoveLineCompanion;
+import 'package:odoo_sdk/odoo_sdk.dart' show logger;
+import 'package:theos_pos_core/theos_pos_core.dart' show AppDatabase, AccountMove, AccountMoveLine, accountMoveManager, accountMoveLineManager, saleOrderManager, clientManager, SaleOrderCompanion, AccountMoveLineCompanion;
 
 import '../../products/repositories/product_repository.dart';
 
@@ -16,17 +16,25 @@ import '../../products/repositories/product_repository.dart';
 /// Uses generated managers (accountMoveManager, accountMoveLineManager) for
 /// standard CRUD and direct Drift access for complex operations (line upsert
 /// with parent-derived required columns, search with LIKE, offline cascades).
+///
+/// F5 (eliminación de fuga de OdooClient): este repo ya NO guarda su propio
+/// `OdooClient?`. Las llamadas RPC targetean `account.move`/
+/// `account.move.line` (via `accountMoveManager`/`accountMoveLineManager`) y
+/// `sale.order` (via `saleOrderManager`, solo para leer `invoice_ids`) — se
+/// usa `xManager.client`/`xManager.isOnline` para cada una.
 class InvoiceRepository {
-  final OdooClient? odooClient;
   final ProductRepository? _productRepository;
   final AppDatabase _appDb;
 
   InvoiceRepository({
-    this.odooClient,
     ProductRepository? productRepository,
     required AppDatabase appDb,
   })  : _productRepository = productRepository,
         _appDb = appDb;
+
+  /// Indica si hay conexión con Odoo (cualquier manager sirve — comparten
+  /// el mismo `OdooClient` inyectado centralmente).
+  bool get _isOnline => accountMoveManager.isOnline;
 
   // ============ Local Data Access (via Managers) ============
 
@@ -223,7 +231,7 @@ class InvoiceRepository {
 
     // 2. Fetch invoice_ids from sale order and load invoices
     // This is more efficient than searching by invoice_origin
-    if (odooClient == null) {
+    if (!_isOnline) {
       // Offline: return local data with lines
       final cachedInvoices = await getInvoicesForSaleOrderLocal(saleOrderOdooId);
       final invoicesWithLines = <AccountMove>[];
@@ -236,7 +244,7 @@ class InvoiceRepository {
 
     try {
       // Get sale order to read invoice_ids
-      final orderData = await odooClient!.searchRead(
+      final orderData = await saleOrderManager.client.searchRead(
         model: 'sale.order',
         fields: ['invoice_ids'],
         domain: [
@@ -287,7 +295,7 @@ class InvoiceRepository {
     await _cleanupObsoleteInvoices(saleOrderOdooId, invoiceIds);
 
     // 1. Fetch invoice headers
-    final data = await odooClient!.searchRead(
+    final data = await accountMoveManager.client.searchRead(
       model: accountMoveManager.odooModel,
       fields: accountMoveManager.odooFields,
       domain: [
@@ -319,7 +327,7 @@ class InvoiceRepository {
 
       // 3. Fetch ALL invoice lines, then filter in code
       try {
-        final linesData = await odooClient!.searchRead(
+        final linesData = await accountMoveLineManager.client.searchRead(
           model: accountMoveLineManager.odooModel,
           fields: accountMoveLineManager.odooFields,
           domain: [
@@ -386,7 +394,7 @@ class InvoiceRepository {
     }
 
     // 2. Fetch from Odoo with lines (only if online)
-    if (odooClient == null) {
+    if (!_isOnline) {
       // Offline: return local data (even without lines)
       return await getInvoiceWithLinesLocal(odooId);
     }
@@ -394,7 +402,7 @@ class InvoiceRepository {
     try {
       logger.d('[InvoiceRepository]', 'Fetching invoice $odooId from Odoo...');
 
-      final data = await odooClient!.searchRead(
+      final data = await accountMoveManager.client.searchRead(
         model: accountMoveManager.odooModel,
         fields: accountMoveManager.odooFields,
         domain: [
@@ -431,7 +439,7 @@ class InvoiceRepository {
 
       // 3. Fetch ALL invoice lines for this move, then filter in code
       // This avoids issues with complex OR domain in Odoo JSON-RPC
-      final linesData = await odooClient!.searchRead(
+      final linesData = await accountMoveLineManager.client.searchRead(
         model: accountMoveLineManager.odooModel,
         fields: accountMoveLineManager.odooFields,
         domain: [
@@ -509,7 +517,7 @@ class InvoiceRepository {
     }
 
     // 2. Fetch from Odoo with lines (only if online)
-    if (odooClient == null) {
+    if (!_isOnline) {
       // Offline: return local data with lines
       final cached = await getInvoicesByOdooIdsLocal(odooIds);
       final invoicesWithLines = <AccountMove>[];
@@ -521,7 +529,7 @@ class InvoiceRepository {
     }
 
     try {
-      final data = await odooClient!.searchRead(
+      final data = await accountMoveManager.client.searchRead(
         model: accountMoveManager.odooModel,
         fields: accountMoveManager.odooFields,
         domain: [
@@ -553,7 +561,7 @@ class InvoiceRepository {
 
         // Fetch lines for this invoice
         try {
-          final linesData = await odooClient!.searchRead(
+          final linesData = await accountMoveLineManager.client.searchRead(
             model: accountMoveLineManager.odooModel,
             fields: accountMoveLineManager.odooFields,
             domain: [
@@ -713,7 +721,7 @@ class InvoiceRepository {
     }
 
     // 2. Try to fetch from Odoo if nothing local (only if online)
-    if (odooClient == null) return localResults;
+    if (!_isOnline) return localResults;
 
     try {
       // Build domain for search
@@ -726,7 +734,7 @@ class InvoiceRepository {
         ['partner_id.name', 'ilike', query],
       ];
 
-      final data = await odooClient!.searchRead(
+      final data = await accountMoveManager.client.searchRead(
         model: accountMoveManager.odooModel,
         fields: accountMoveManager.odooFields,
         domain: domain,
@@ -760,13 +768,13 @@ class InvoiceRepository {
   ///
   /// Returns 0 if no withholds, >0 if has withholds, -1 if error (treated as 0)
   Future<int> getActiveWithholdsCount(int invoiceOdooId) async {
-    if (odooClient == null) return 0; // Cannot check withholds offline
+    if (!_isOnline) return 0; // Cannot check withholds offline
 
     try {
       // In Odoo, withholds are account.move records where their lines have
       // l10n_ec_withhold_invoice_id pointing to the invoice.
       // We search account.move.line to find withholds linked to this invoice.
-      final data = await odooClient!.searchRead(
+      final data = await accountMoveLineManager.client.searchRead(
         model: 'account.move.line',
         fields: ['move_id'],
         domain: [
@@ -841,9 +849,12 @@ class InvoiceRepository {
               odooId: line.id,
               moveId: moveOdooId,
               accountId: line.accountId ?? 1, // Use dummy account if not specified
-              companyId: invoiceRow.companyId ?? 1,
-              date: invoiceRow.date ?? DateTime.now(),
-              journalId: invoiceRow.journalId ?? 1,
+              // companyId/date/journalId pasaron a nullable en la tabla
+              // (schema v8, fix del roundtrip) — el companion ahora los
+              // recibe como Value<T?>.
+              companyId: drift.Value(invoiceRow.companyId ?? 1),
+              date: drift.Value(invoiceRow.date ?? DateTime.now()),
+              journalId: drift.Value(invoiceRow.journalId ?? 1),
               name: line.name,
               displayType: drift.Value(line.displayTypeString),
               sequence: drift.Value(line.sequence),

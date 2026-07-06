@@ -1,6 +1,7 @@
 import 'package:fluent_ui/fluent_ui.dart';
 
 import 'package:odoo_widgets/odoo_widgets.dart' show ReactiveSummaryCard, ReactiveSummaryRow, ReactiveSummaryHeader;
+import '../../../../../core/constants/app_colors.dart';
 import '../../../../../shared/utils/formatting_utils.dart';
 import 'package:theos_pos_core/theos_pos_core.dart';
 
@@ -32,7 +33,7 @@ class ConteoManualTable extends StatelessWidget {
         // Comparison rows
         ReactiveSummaryRow.comparison(
           icon: FluentIcons.check_list,
-          label: 'Cheques al Dia',
+          label: 'Cheques al Día',
           systemAmount: session.systemChecksOnDay,
           manualAmount: session.manualChecksOnDay,
         ),
@@ -44,7 +45,7 @@ class ConteoManualTable extends StatelessWidget {
         ),
         ReactiveSummaryRow.comparison(
           icon: FluentIcons.payment_card,
-          label: 'Tarjetas de Credito',
+          label: 'Tarjetas de Crédito',
           systemAmount: session.systemCardsTotal,
           manualAmount: session.manualCardsTotal,
         ),
@@ -56,13 +57,13 @@ class ConteoManualTable extends StatelessWidget {
         ),
         ReactiveSummaryRow.comparison(
           icon: FluentIcons.money,
-          label: 'Depositos Efectivo',
+          label: 'Depósitos Efectivo',
           systemAmount: session.systemDepositsCashTotal,
           manualAmount: session.manualDepositsCashTotal,
         ),
         ReactiveSummaryRow.comparison(
           icon: FluentIcons.bank,
-          label: 'Depositos Cheques',
+          label: 'Depósitos Cheques',
           systemAmount: session.systemDepositsChecksTotal,
           manualAmount: session.manualDepositsChecksTotal,
         ),
@@ -74,7 +75,7 @@ class ConteoManualTable extends StatelessWidget {
         ),
         ReactiveSummaryRow.comparison(
           icon: FluentIcons.return_key,
-          label: 'Notas de Credito',
+          label: 'Notas de Crédito',
           systemAmount: session.systemCreditNotesTotal,
           manualAmount: session.manualCreditNotesTotal,
         ),
@@ -95,8 +96,8 @@ class ConteoManualTable extends StatelessWidget {
       padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 4),
       decoration: BoxDecoration(
         color: hasDifference
-            ? Colors.red.withValues(alpha: 0.1)
-            : Colors.green.withValues(alpha: 0.1),
+            ? AppColors.danger.withValues(alpha: 0.1)
+            : AppColors.success.withValues(alpha: 0.1),
         borderRadius: BorderRadius.circular(4),
       ),
       child: Row(
@@ -137,7 +138,7 @@ class ConteoManualTable extends StatelessWidget {
             child: Text(
               session.summaryDiffTotal.toCurrency(),
               style: theme.typography.bodyStrong?.copyWith(
-                color: hasDifference ? Colors.red : Colors.green,
+                color: hasDifference ? AppColors.danger : AppColors.success,
               ),
               textAlign: TextAlign.right,
             ),

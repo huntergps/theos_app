@@ -1,6 +1,7 @@
 import 'package:fluent_ui/fluent_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../../../core/constants/app_colors.dart';
 import '../../../../../core/services/odoo_service.dart';
 import '../../../../../core/theme/spacing.dart';
 import '../../../../../shared/utils/formatting_utils.dart';
@@ -149,7 +150,7 @@ class _POSCreditSaleTabState extends ConsumerState<POSCreditSaleTab> {
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(FluentIcons.info, size: 48, color: Colors.grey[100]),
+          Icon(FluentIcons.info, size: 48, color: theme.inactiveColor.withValues(alpha: 0.4)),
           const SizedBox(height: Spacing.sm),
           Text(message, style: theme.typography.body),
         ],
@@ -175,7 +176,7 @@ class _POSCreditSaleTabState extends ConsumerState<POSCreditSaleTab> {
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(FluentIcons.error_badge, size: 48, color: Colors.red),
+          Icon(FluentIcons.error_badge, size: 48, color: AppColors.danger),
           const SizedBox(height: Spacing.sm),
           Text(error, style: theme.typography.body),
           const SizedBox(height: Spacing.md),
@@ -199,7 +200,7 @@ class _POSCreditSaleTabState extends ConsumerState<POSCreditSaleTab> {
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(FluentIcons.edit, size: 48, color: Colors.orange),
+          Icon(FluentIcons.edit, size: 48, color: AppColors.warning),
           const SizedBox(height: Spacing.sm),
           Text(
             'Orden en Borrador',
@@ -228,12 +229,12 @@ class _POSCreditSaleTabState extends ConsumerState<POSCreditSaleTab> {
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
           const SizedBox(height: Spacing.xl),
-          Icon(FluentIcons.clock, size: 64, color: Colors.orange),
+          Icon(FluentIcons.clock, size: 64, color: AppColors.warning),
           const SizedBox(height: Spacing.md),
           Text(
             'Esperando Aprobación',
             style: theme.typography.subtitle?.copyWith(
-              color: Colors.orange,
+              color: AppColors.warning,
             ),
           ),
           const SizedBox(height: Spacing.sm),
@@ -246,15 +247,15 @@ class _POSCreditSaleTabState extends ConsumerState<POSCreditSaleTab> {
           Container(
             padding: const EdgeInsets.all(Spacing.md),
             decoration: BoxDecoration(
-              color: Colors.orange.withValues(alpha: 0.1),
+              color: AppColors.warning.withValues(alpha: 0.1),
               borderRadius: BorderRadius.circular(8),
-              border: Border.all(color: Colors.orange.withValues(alpha: 0.3)),
+              border: Border.all(color: AppColors.warning.withValues(alpha: 0.3)),
             ),
             child: Column(
               children: [
                 Row(
                   children: [
-                    Icon(FluentIcons.info, color: Colors.orange, size: 20),
+                    Icon(FluentIcons.info, color: AppColors.warning, size: 20),
                     const SizedBox(width: Spacing.sm),
                     Expanded(
                       child: Text(
@@ -289,7 +290,7 @@ class _POSCreditSaleTabState extends ConsumerState<POSCreditSaleTab> {
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(FluentIcons.completed, size: 48, color: Colors.green),
+          Icon(FluentIcons.completed, size: 48, color: AppColors.success),
           const SizedBox(height: Spacing.sm),
           Text(
             'Orden Facturada',
@@ -344,13 +345,13 @@ class _POSCreditSaleTabState extends ConsumerState<POSCreditSaleTab> {
     return Container(
       padding: const EdgeInsets.all(Spacing.sm),
       decoration: BoxDecoration(
-        color: Colors.teal.withValues(alpha: 0.1),
+        color: AppColors.primaryBackground.withValues(alpha: 0.1),
         borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: Colors.teal.withValues(alpha: 0.3)),
+        border: Border.all(color: AppColors.primaryBackground.withValues(alpha: 0.3)),
       ),
       child: Row(
         children: [
-          Icon(FluentIcons.calendar, color: Colors.teal, size: 24),
+          Icon(FluentIcons.calendar, color: AppColors.primaryBackground, size: 24),
           const SizedBox(width: Spacing.sm),
           Expanded(
             child: Column(
@@ -359,7 +360,7 @@ class _POSCreditSaleTabState extends ConsumerState<POSCreditSaleTab> {
                 Text(
                   'Venta a Crédito',
                   style: theme.typography.bodyStrong?.copyWith(
-                    color: Colors.teal,
+                    color: AppColors.primaryBackground,
                   ),
                 ),
                 Text(
@@ -375,13 +376,13 @@ class _POSCreditSaleTabState extends ConsumerState<POSCreditSaleTab> {
               vertical: Spacing.xs,
             ),
             decoration: BoxDecoration(
-              color: Colors.blue.withValues(alpha: 0.2),
+              color: AppColors.info.withValues(alpha: 0.2),
               borderRadius: BorderRadius.circular(4),
             ),
             child: Text(
               'Confirmada',
               style: theme.typography.caption?.copyWith(
-                color: Colors.blue,
+                color: AppColors.info,
                 fontWeight: FontWeight.bold,
               ),
             ),
@@ -418,7 +419,7 @@ class _POSCreditSaleTabState extends ConsumerState<POSCreditSaleTab> {
             theme,
             'Crédito Disponible:',
             creditAvailable,
-            color: creditAvailable >= orderAmount ? Colors.green : Colors.red,
+            color: creditAvailable >= orderAmount ? AppColors.success : AppColors.danger,
           ),
           const Divider(),
           _buildCreditRow(
@@ -432,7 +433,7 @@ class _POSCreditSaleTabState extends ConsumerState<POSCreditSaleTab> {
               theme,
               'Deuda Vencida:',
               client.totalOverdue!,
-              color: Colors.red,
+              color: AppColors.danger,
             ),
         ],
       ),
@@ -470,20 +471,20 @@ class _POSCreditSaleTabState extends ConsumerState<POSCreditSaleTab> {
       padding: const EdgeInsets.all(Spacing.md),
       decoration: BoxDecoration(
         color: isOk
-            ? Colors.green.withValues(alpha: 0.1)
-            : Colors.orange.withValues(alpha: 0.1),
+            ? AppColors.success.withValues(alpha: 0.1)
+            : AppColors.warning.withValues(alpha: 0.1),
         borderRadius: BorderRadius.circular(8),
         border: Border.all(
           color: isOk
-              ? Colors.green.withValues(alpha: 0.3)
-              : Colors.orange.withValues(alpha: 0.3),
+              ? AppColors.success.withValues(alpha: 0.3)
+              : AppColors.warning.withValues(alpha: 0.3),
         ),
       ),
       child: Row(
         children: [
           Icon(
             isOk ? FluentIcons.check_mark : FluentIcons.warning,
-            color: isOk ? Colors.green : Colors.orange,
+            color: isOk ? AppColors.success : AppColors.warning,
             size: 24,
           ),
           const SizedBox(width: Spacing.sm),
@@ -494,7 +495,7 @@ class _POSCreditSaleTabState extends ConsumerState<POSCreditSaleTab> {
                 Text(
                   isOk ? 'Crédito Aprobado' : 'Requiere Aprobación',
                   style: theme.typography.bodyStrong?.copyWith(
-                    color: isOk ? Colors.green : Colors.orange,
+                    color: isOk ? AppColors.success : AppColors.warning,
                   ),
                 ),
                 if (!isOk && result.message != null)
@@ -514,7 +515,7 @@ class _POSCreditSaleTabState extends ConsumerState<POSCreditSaleTab> {
     return FilledButton(
       onPressed: _isLoading ? null : () => _createInvoice(order),
       style: ButtonStyle(
-        backgroundColor: WidgetStateProperty.all(Colors.teal),
+        backgroundColor: WidgetStateProperty.all(AppColors.primaryBackground),
         padding: WidgetStateProperty.all(
           const EdgeInsets.symmetric(vertical: Spacing.md),
         ),
@@ -551,7 +552,7 @@ class _POSCreditSaleTabState extends ConsumerState<POSCreditSaleTab> {
           ? null
           : () => _showCreditControlDialog(order, activeTab),
       style: ButtonStyle(
-        backgroundColor: WidgetStateProperty.all(Colors.orange),
+        backgroundColor: WidgetStateProperty.all(AppColors.warning),
         padding: WidgetStateProperty.all(
           const EdgeInsets.symmetric(vertical: Spacing.md),
         ),

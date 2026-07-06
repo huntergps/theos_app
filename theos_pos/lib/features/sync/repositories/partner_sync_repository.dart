@@ -74,6 +74,8 @@ class PartnerSyncRepository {
         batchSize: batchSize,
         fromOdoo: clientManager.fromOdoo,
         upsertLocal: clientManager.upsertLocal,
+        upsertLocalBatch: clientManager.upsertLocalBatch,
+        isolateParser: ClientManager.fromOdooMap,
       ),
       sinceDate: sinceDate,
       onProgress: onProgress,

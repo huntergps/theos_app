@@ -7,7 +7,7 @@ import '../../../../../core/services/platform/global_notification_service.dart';
 import '../../../../../shared/widgets/reactive/reactive_field_base.dart';
 import '../../../../../shared/widgets/reactive/reactive_partner_card.dart';
 import '../../../../../shared/utils/formatting_utils.dart';
-import '../../../widgets/credit_info_card.dart';
+import '../../../widgets/partner_credit_info_card.dart';
 import '../../sale_order_form/edit_dialogs.dart';
 import '../fast_sale_providers.dart';
 import 'pos_order_config_card.dart';
@@ -80,8 +80,12 @@ class POSCustomerKeypadPanel extends ConsumerWidget {
                     name: partner?.name ?? activeTab?.order?.partnerName,
                     vat: partner?.vat ?? activeTab?.order?.partnerVat,
                     street: partner?.street ?? activeTab?.order?.partnerStreet,
-                    phone: partner?.phone ?? activeTab?.order?.partnerPhone,
-                    email: partner?.email ?? activeTab?.order?.partnerEmail,
+                    phone: (partner?.effectivePhone.isNotEmpty ?? false)
+                        ? partner!.effectivePhone
+                        : activeTab?.order?.partnerPhone,
+                    email: (partner?.effectiveEmail.isNotEmpty ?? false)
+                        ? partner!.effectiveEmail
+                        : activeTab?.order?.partnerEmail,
                     avatar: partner?.avatar128 ?? activeTab?.order?.partnerAvatar,
                     isFinalConsumer: activeTab?.order?.isFinalConsumer ?? false,
                     endCustomerName: activeTab?.order?.endCustomerName,
@@ -215,16 +219,9 @@ class POSCustomerKeypadPanel extends ConsumerWidget {
     BuildContext context,
     WidgetRef ref,
   ) async {
-    debugPrint('[POSCustomerKeypad] >>> _showCustomerSearchDialog: Opening dialog...');
     final client = await showSelectClientDialog(context);
 
-    debugPrint('[POSCustomerKeypad] >>> _showCustomerSearchDialog: Dialog returned client=$client');
     if (client != null) {
-      debugPrint(
-        '[POSCustomerKeypad] >>> _showCustomerSearchDialog: Client selected: '
-        'id=${client.id}, name=${client.name}, vat=${client.vat}',
-      );
-      debugPrint('[POSCustomerKeypad] >>> _showCustomerSearchDialog: Calling setCustomer...');
       await ref
           .read(fastSaleProvider.notifier)
           .setCustomer(
@@ -236,9 +233,6 @@ class POSCustomerKeypadPanel extends ConsumerWidget {
             partnerEmail: client.email,
             partnerAvatar: client.avatar128,
           );
-      debugPrint('[POSCustomerKeypad] >>> _showCustomerSearchDialog: setCustomer DONE');
-    } else {
-      debugPrint('[POSCustomerKeypad] >>> _showCustomerSearchDialog: Dialog cancelled (client is null)');
     }
   }
 
@@ -569,9 +563,12 @@ class _SearchInputFieldState extends ConsumerState<_SearchInputField> {
             ),
           // Clear button when there's text
           if (keypadValue.isNotEmpty)
-            IconButton(
-              icon: const Icon(FluentIcons.chrome_close, size: 14),
-              onPressed: _clearField,
+            Tooltip(
+              message: 'Limpiar campo',
+              child: IconButton(
+                icon: const Icon(FluentIcons.chrome_close, size: 14),
+                onPressed: _clearField,
+              ),
             ),
         ],
       ),

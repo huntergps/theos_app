@@ -9,7 +9,7 @@ extension SalesRepositorySync on SalesRepository {
   /// Called during forceRefresh to ensure withhold data is up to date.
   /// Sync withhold lines from Odoo - PUBLIC for use by providers
   Future<void> syncWithholdLinesFromOdoo(int orderId) async {
-    if (_odooClient == null) return;
+    if (!withholdLineManager.isOnline) return;
 
     // Skip sync for offline orders (negative ID)
     if (orderId < 0) {
@@ -20,8 +20,12 @@ extension SalesRepositorySync on SalesRepository {
     }
 
     try {
-      final response = await _odooClient.searchRead(
-        model: 'sale.order.withhold.line',
+      // F6: @OdooModel de WithholdLine ya corregido a
+      // 'sale.order.withhold.line' — usa withholdLineManager.odooModel
+      // directamente (antes se especificaba explícito por un mismatch en la
+      // anotación, ver historial).
+      final response = await withholdLineManager.client.searchRead(
+        model: withholdLineManager.odooModel,
         domain: [
           ['sale_id', '=', orderId],
         ],
@@ -67,62 +71,67 @@ extension SalesRepositorySync on SalesRepository {
         return;
       }
 
-      // Delete only SYNCED local lines for this order (preserve unsynced)
-      await (appDb.delete(
-        appDb.saleOrderWithholdLine,
-      )..where((t) => t.orderId.equals(orderId) & t.isSynced.equals(true))).go();
+      // Delete + reinsert atómico: si el proceso falla a mitad del loop (ej.
+      // la app se cierra), no queremos perder las líneas synced que ya se
+      // borraron sin haber insertado las nuevas de Odoo.
+      await appDb.transaction(() async {
+        // Delete only SYNCED local lines for this order (preserve unsynced)
+        await (appDb.delete(
+          appDb.saleOrderWithholdLine,
+        )..where((t) => t.orderId.equals(orderId) & t.isSynced.equals(true))).go();
 
-      // Insert new lines from Odoo
-      for (final lineData in response) {
-        final lineId = lineData['id'] as int;
+        // Insert new lines from Odoo
+        for (final lineData in response) {
+          final lineId = lineData['id'] as int;
 
-        // Extract tax info (tax_id is [id, name] tuple in Odoo)
-        final taxId = odoo.extractMany2oneId(lineData['tax_id']);
-        final taxName = odoo.extractMany2oneName(lineData['tax_id']) ?? '';
+          // Extract tax info (tax_id is [id, name] tuple in Odoo)
+          final taxId = odoo.extractMany2oneId(lineData['tax_id']);
+          final taxName = odoo.extractMany2oneName(lineData['tax_id']) ?? '';
 
-        // Determine withhold type and percentage from tax name
-        String withholdType = 'withhold_income_sale';
-        double taxPercent = 0.0;
+          // Determine withhold type and percentage from tax name
+          String withholdType = 'withhold_income_sale';
+          double taxPercent = 0.0;
 
-        if (taxName.toLowerCase().contains('iva') ||
-            taxName.toLowerCase().contains('vat')) {
-          withholdType = 'withhold_vat_sale';
+          if (taxName.toLowerCase().contains('iva') ||
+              taxName.toLowerCase().contains('vat')) {
+            withholdType = 'withhold_vat_sale';
+          }
+          // Extract percentage from tax name if present (e.g., "10% WTH" -> 0.10)
+          final percentMatch = RegExp(
+            r'(\d+(?:[.,]\d+)?)\s*%',
+          ).firstMatch(taxName);
+          if (percentMatch != null) {
+            taxPercent =
+                (double.tryParse(percentMatch.group(1)!.replaceAll(',', '.')) ??
+                    0) /
+                100;
+          }
+
+          final companion = SaleOrderWithholdLineCompanion(
+            odooId: drift.Value(lineId),
+            orderId: drift.Value(orderId),
+            sequence: drift.Value(lineData['sequence'] as int? ?? 10),
+            taxId: drift.Value(taxId ?? 0),
+            taxName: drift.Value(taxName),
+            taxPercent: drift.Value(taxPercent),
+            withholdType: drift.Value(withholdType),
+            taxsupportCode: drift.Value(
+              lineData['taxsupport_code'] is String
+                  ? lineData['taxsupport_code']
+                  : null,
+            ),
+            base: drift.Value((lineData['base'] as num?)?.toDouble() ?? 0.0),
+            amount: drift.Value((lineData['amount'] as num?)?.toDouble() ?? 0.0),
+            notes: drift.Value(
+              lineData['notes'] is String ? lineData['notes'] : null,
+            ),
+            isSynced: const drift.Value(true),
+            lastSyncDate: drift.Value(DateTime.now()),
+          );
+
+          await appDb.into(appDb.saleOrderWithholdLine).insert(companion);
         }
-        // Extract percentage from tax name if present (e.g., "10% WTH" -> 0.10)
-        final percentMatch = RegExp(
-          r'(\d+(?:[.,]\d+)?)\s*%',
-        ).firstMatch(taxName);
-        if (percentMatch != null) {
-          taxPercent =
-              (double.tryParse(percentMatch.group(1)!.replaceAll(',', '.')) ??
-                  0) /
-              100;
-        }
-
-        final companion = SaleOrderWithholdLineCompanion(
-          odooId: drift.Value(lineId),
-          orderId: drift.Value(orderId),
-          sequence: drift.Value(lineData['sequence'] as int? ?? 10),
-          taxId: drift.Value(taxId ?? 0),
-          taxName: drift.Value(taxName),
-          taxPercent: drift.Value(taxPercent),
-          withholdType: drift.Value(withholdType),
-          taxsupportCode: drift.Value(
-            lineData['taxsupport_code'] is String
-                ? lineData['taxsupport_code']
-                : null,
-          ),
-          base: drift.Value((lineData['base'] as num?)?.toDouble() ?? 0.0),
-          amount: drift.Value((lineData['amount'] as num?)?.toDouble() ?? 0.0),
-          notes: drift.Value(
-            lineData['notes'] is String ? lineData['notes'] : null,
-          ),
-          isSynced: const drift.Value(true),
-          lastSyncDate: drift.Value(DateTime.now()),
-        );
-
-        await appDb.into(appDb.saleOrderWithholdLine).insert(companion);
-      }
+      });
 
       logger.i(
         '[SalesRepository] Synced ${response.length} withhold lines for order $orderId',
@@ -188,7 +197,7 @@ extension SalesRepositorySync on SalesRepository {
   /// Called during forceRefresh to ensure payment data is up to date.
   /// Sync payment lines from Odoo - PUBLIC for use by providers
   Future<void> syncPaymentLinesFromOdoo(int orderId) async {
-    if (_odooClient == null) return;
+    if (!paymentLineManager.isOnline) return;
 
     // Skip sync for offline orders (negative ID)
     if (orderId < 0) {
@@ -199,8 +208,17 @@ extension SalesRepositorySync on SalesRepository {
     }
 
     try {
-      final response = await _odooClient.searchRead(
-        model: 'l10n_ec_collection_box.sale.order.payment',
+      // FIX 4: bank_id (Many2one res.bank) existe en Odoo 19.1 pero fue eliminado
+      // en 19.2. En 19.2 el campo equivalente es bank_name_ec (Char).
+      // Pedimos el campo correcto según la versión del servidor.
+      final hasBankModel = paymentLineManager.client.version.hasBankModel;
+      final bankField = hasBankModel ? 'bank_id' : 'bank_name_ec';
+
+      // F6: @OdooModel de PaymentLine ya corregido a
+      // 'l10n_ec_collection_box.sale.order.payment' — usa
+      // paymentLineManager.odooModel directamente.
+      final response = await paymentLineManager.client.searchRead(
+        model: paymentLineManager.odooModel,
         domain: [
           ['sale_id', '=', orderId],
         ],
@@ -220,7 +238,7 @@ extension SalesRepositorySync on SalesRepository {
           'card_brand_id',
           'card_deadline_id',
           'lote_id',
-          'bank_id',
+          bankField, // 19.1: bank_id (Many2one), 19.2: bank_name_ec (Char)
           'partner_bank_id',
           'effective_date',
           'bank_reference_date',
@@ -259,131 +277,147 @@ extension SalesRepositorySync on SalesRepository {
         return;
       }
 
-      // Delete only SYNCED local lines for this order (preserve unsynced)
-      await (appDb.delete(
-        appDb.saleOrderPaymentLine,
-      )..where((t) => t.orderId.equals(orderId) & t.isSynced.equals(true))).go();
+      // Delete + reinsert atómico: si el proceso falla a mitad del loop (ej.
+      // la app se cierra), no queremos perder las líneas synced que ya se
+      // borraron sin haber insertado las nuevas de Odoo.
+      await appDb.transaction(() async {
+        // Delete only SYNCED local lines for this order (preserve unsynced)
+        await (appDb.delete(
+          appDb.saleOrderPaymentLine,
+        )..where((t) => t.orderId.equals(orderId) & t.isSynced.equals(true))).go();
 
-      // Insert new lines from Odoo
-      for (final lineData in response) {
-        final lineId = lineData['id'] as int;
+        // Insert new lines from Odoo
+        for (final lineData in response) {
+          final lineId = lineData['id'] as int;
 
-        // Extract related fields (many2one are [id, name] tuples in Odoo)
-        final journalId = odoo.extractMany2oneId(lineData['journal_id']);
-        final journalName = odoo.extractMany2oneName(lineData['journal_id']);
-        final paymentMethodLineId = odoo.extractMany2oneId(
-          lineData['payment_method_line_id'],
-        );
-        final paymentMethodName = odoo.extractMany2oneName(
-          lineData['payment_method_line_id'],
-        );
-        final creditNoteId = odoo.extractMany2oneId(lineData['credit_note_id']);
-        final creditNoteName = odoo.extractMany2oneName(
-          lineData['credit_note_id'],
-        );
-        final advanceId = odoo.extractMany2oneId(lineData['advance_id']);
-        final advanceName = odoo.extractMany2oneName(lineData['advance_id']);
-        final cardBrandId = odoo.extractMany2oneId(lineData['card_brand_id']);
-        final cardBrandName = odoo.extractMany2oneName(
-          lineData['card_brand_id'],
-        );
-        final cardDeadlineId = odoo.extractMany2oneId(
-          lineData['card_deadline_id'],
-        );
-        final cardDeadlineName = odoo.extractMany2oneName(
-          lineData['card_deadline_id'],
-        );
-        final loteId = odoo.extractMany2oneId(lineData['lote_id']);
-        final loteName = odoo.extractMany2oneName(lineData['lote_id']);
-        final bankId = odoo.extractMany2oneId(lineData['bank_id']);
-        final bankName = odoo.extractMany2oneName(lineData['bank_id']);
-        final partnerBankId = odoo.extractMany2oneId(
-          lineData['partner_bank_id'],
-        );
-        final partnerBankName = odoo.extractMany2oneName(
-          lineData['partner_bank_id'],
-        );
-        // Parse dates
-        DateTime? date;
-        if (lineData['date'] is String) {
-          date = DateTime.tryParse(lineData['date']);
-        }
-        DateTime? effectiveDate;
-        if (lineData['effective_date'] is String) {
-          effectiveDate = DateTime.tryParse(lineData['effective_date']);
-        }
-        DateTime? bankReferenceDate;
-        if (lineData['bank_reference_date'] is String) {
-          bankReferenceDate = DateTime.tryParse(
-            lineData['bank_reference_date'],
+          // Extract related fields (many2one are [id, name] tuples in Odoo)
+          final journalId = odoo.extractMany2oneId(lineData['journal_id']);
+          final journalName = odoo.extractMany2oneName(lineData['journal_id']);
+          final paymentMethodLineId = odoo.extractMany2oneId(
+            lineData['payment_method_line_id'],
           );
-        }
-
-        // Infer journal type from journal name (cash/bank)
-        String? journalType;
-        if (journalName != null) {
-          final lowerName = journalName.toLowerCase();
-          if (lowerName.contains('efectivo') ||
-              lowerName.contains('cash') ||
-              lowerName.contains('caja')) {
-            journalType = 'cash';
-          } else if (lowerName.contains('banco') ||
-              lowerName.contains('bank')) {
-            journalType = 'bank';
+          final paymentMethodName = odoo.extractMany2oneName(
+            lineData['payment_method_line_id'],
+          );
+          final creditNoteId = odoo.extractMany2oneId(lineData['credit_note_id']);
+          final creditNoteName = odoo.extractMany2oneName(
+            lineData['credit_note_id'],
+          );
+          final advanceId = odoo.extractMany2oneId(lineData['advance_id']);
+          final advanceName = odoo.extractMany2oneName(lineData['advance_id']);
+          final cardBrandId = odoo.extractMany2oneId(lineData['card_brand_id']);
+          final cardBrandName = odoo.extractMany2oneName(
+            lineData['card_brand_id'],
+          );
+          final cardDeadlineId = odoo.extractMany2oneId(
+            lineData['card_deadline_id'],
+          );
+          final cardDeadlineName = odoo.extractMany2oneName(
+            lineData['card_deadline_id'],
+          );
+          final loteId = odoo.extractMany2oneId(lineData['lote_id']);
+          final loteName = odoo.extractMany2oneName(lineData['lote_id']);
+          // FIX 4: Extraer bank según versión del servidor.
+          // En 19.1: bank_id es Many2one → [id, name]; en 19.2: bank_name_ec es Char.
+          int? bankId;
+          String? bankName;
+          if (hasBankModel) {
+            // Odoo 19.1: bank_id = [id, name] o false
+            bankId = odoo.extractMany2oneId(lineData['bank_id']);
+            bankName = odoo.extractMany2oneName(lineData['bank_id']);
+          } else {
+            // Odoo 19.2: bank_name_ec = String o false
+            bankName = lineData['bank_name_ec'] is String ? lineData['bank_name_ec'] as String : null;
+            bankId = null; // No existe ID en 19.2
           }
+          final partnerBankId = odoo.extractMany2oneId(
+            lineData['partner_bank_id'],
+          );
+          final partnerBankName = odoo.extractMany2oneName(
+            lineData['partner_bank_id'],
+          );
+          // Parse dates
+          DateTime? date;
+          if (lineData['date'] is String) {
+            date = DateTime.tryParse(lineData['date']);
+          }
+          DateTime? effectiveDate;
+          if (lineData['effective_date'] is String) {
+            effectiveDate = DateTime.tryParse(lineData['effective_date']);
+          }
+          DateTime? bankReferenceDate;
+          if (lineData['bank_reference_date'] is String) {
+            bankReferenceDate = DateTime.tryParse(
+              lineData['bank_reference_date'],
+            );
+          }
+
+          // Infer journal type from journal name (cash/bank)
+          String? journalType;
+          if (journalName != null) {
+            final lowerName = journalName.toLowerCase();
+            if (lowerName.contains('efectivo') ||
+                lowerName.contains('cash') ||
+                lowerName.contains('caja')) {
+              journalType = 'cash';
+            } else if (lowerName.contains('banco') ||
+                lowerName.contains('bank')) {
+              journalType = 'bank';
+            }
+          }
+
+          final companion = SaleOrderPaymentLineCompanion(
+            odooId: drift.Value(lineId),
+            lineUuid: drift.Value(
+              _uuid.v4(),
+            ), // Generate UUID for lines synced from Odoo
+            orderId: drift.Value(orderId),
+            paymentType: drift.Value(
+              lineData['payment_type'] is String
+                  ? lineData['payment_type']
+                  : 'inbound',
+            ),
+            journalId: drift.Value(journalId),
+            journalName: drift.Value(journalName),
+            journalType: drift.Value(journalType),
+            paymentMethodLineId: drift.Value(paymentMethodLineId),
+            paymentMethodName: drift.Value(paymentMethodName),
+            amount: drift.Value((lineData['amount'] as num?)?.toDouble() ?? 0.0),
+            date: drift.Value(date),
+            paymentReference: drift.Value(
+              lineData['payment_reference'] is String
+                  ? lineData['payment_reference']
+                  : null,
+            ),
+            creditNoteId: drift.Value(creditNoteId),
+            creditNoteName: drift.Value(creditNoteName),
+            advanceId: drift.Value(advanceId),
+            advanceName: drift.Value(advanceName),
+            cardType: drift.Value(
+              lineData['card_type'] is String ? lineData['card_type'] : null,
+            ),
+            cardBrandId: drift.Value(cardBrandId),
+            cardBrandName: drift.Value(cardBrandName),
+            cardDeadlineId: drift.Value(cardDeadlineId),
+            cardDeadlineName: drift.Value(cardDeadlineName),
+            loteId: drift.Value(loteId),
+            loteName: drift.Value(loteName),
+            bankId: drift.Value(bankId),
+            bankName: drift.Value(bankName),
+            partnerBankId: drift.Value(partnerBankId),
+            partnerBankName: drift.Value(partnerBankName),
+            effectiveDate: drift.Value(effectiveDate),
+            bankReferenceDate: drift.Value(bankReferenceDate),
+            state: drift.Value(
+              lineData['state'] is String ? lineData['state'] : 'draft',
+            ),
+            isSynced: const drift.Value(true),
+            lastSyncDate: drift.Value(DateTime.now()),
+          );
+
+          await appDb.into(appDb.saleOrderPaymentLine).insert(companion);
         }
-
-        final companion = SaleOrderPaymentLineCompanion(
-          odooId: drift.Value(lineId),
-          lineUuid: drift.Value(
-            _uuid.v4(),
-          ), // Generate UUID for lines synced from Odoo
-          orderId: drift.Value(orderId),
-          paymentType: drift.Value(
-            lineData['payment_type'] is String
-                ? lineData['payment_type']
-                : 'inbound',
-          ),
-          journalId: drift.Value(journalId),
-          journalName: drift.Value(journalName),
-          journalType: drift.Value(journalType),
-          paymentMethodLineId: drift.Value(paymentMethodLineId),
-          paymentMethodName: drift.Value(paymentMethodName),
-          amount: drift.Value((lineData['amount'] as num?)?.toDouble() ?? 0.0),
-          date: drift.Value(date),
-          paymentReference: drift.Value(
-            lineData['payment_reference'] is String
-                ? lineData['payment_reference']
-                : null,
-          ),
-          creditNoteId: drift.Value(creditNoteId),
-          creditNoteName: drift.Value(creditNoteName),
-          advanceId: drift.Value(advanceId),
-          advanceName: drift.Value(advanceName),
-          cardType: drift.Value(
-            lineData['card_type'] is String ? lineData['card_type'] : null,
-          ),
-          cardBrandId: drift.Value(cardBrandId),
-          cardBrandName: drift.Value(cardBrandName),
-          cardDeadlineId: drift.Value(cardDeadlineId),
-          cardDeadlineName: drift.Value(cardDeadlineName),
-          loteId: drift.Value(loteId),
-          loteName: drift.Value(loteName),
-          bankId: drift.Value(bankId),
-          bankName: drift.Value(bankName),
-          partnerBankId: drift.Value(partnerBankId),
-          partnerBankName: drift.Value(partnerBankName),
-          effectiveDate: drift.Value(effectiveDate),
-          bankReferenceDate: drift.Value(bankReferenceDate),
-          state: drift.Value(
-            lineData['state'] is String ? lineData['state'] : 'draft',
-          ),
-          isSynced: const drift.Value(true),
-          lastSyncDate: drift.Value(DateTime.now()),
-        );
-
-        await appDb.into(appDb.saleOrderPaymentLine).insert(companion);
-      }
+      });
 
       logger.i(
         '[SalesRepository] Synced ${response.length} payment lines for order $orderId',

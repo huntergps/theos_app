@@ -2,16 +2,15 @@ import 'package:fluent_ui/fluent_ui.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import 'package:go_router/go_router.dart';
-
 import '../../../../core/constants/app_constants.dart';
 import '../../../../core/services/platform/server_connectivity_service.dart';
 import '../../../../core/theme/spacing.dart';
+import '../../../../shared/widgets/common/theos_info_bars.dart';
 import '../../../../shared/widgets/dialogs/copyable_info_bar.dart';
-import '../../providers/session_guard_provider.dart';
 import '../../utils/keyboard_shortcuts.dart';
 import 'fast_sale_providers.dart';
 import 'widgets/barcode_listener_widget.dart';
+import 'widgets/confirm_order_handler.dart' show confirmOrderWithCreditCheck;
 import 'widgets/pos_actions_panel.dart';
 import 'widgets/pos_customer_keypad_panel.dart';
 import 'widgets/pos_order_lines_panel.dart';
@@ -61,6 +60,7 @@ class _FastSaleScreenState extends ConsumerState<FastSaleScreen> {
   /// - F3: Search/select client
   /// - F4: Add new order
   /// - F5: Refresh
+  /// - F6: Go to payments (Cobrar)
   /// - F9: Confirm order
   /// - F10: Save order (draft)
   /// - F12: Print
@@ -117,8 +117,21 @@ class _FastSaleScreenState extends ConsumerState<FastSaleScreen> {
         notifier.toggleCustomerPanel();
         return KeyEventResult.handled;
 
+      case POSShortcutAction.goToPayments:
+        // F6: abre el flujo de cobro (mismo handler que el botón "Cobrar"
+        // del panel de acciones — confirma la orden primero si es borrador).
+        goToPaymentsWithAutoConfirm(
+          context,
+          ref,
+          ref.read(fastSaleActiveTabProvider),
+        );
+        return KeyEventResult.handled;
+
       case POSShortcutAction.confirmOrder:
-        notifier.confirmActiveOrder();
+        // Usa el flujo unificado (validación de crédito + diálogo de bypass)
+        // — antes llamaba a notifier.confirmActiveOrder() directo, lo que
+        // permitía saltarse la validación de crédito desde el teclado.
+        confirmOrderWithCreditCheck(context, ref);
         return KeyEventResult.handled;
 
       case POSShortcutAction.saveOrder:
@@ -127,7 +140,12 @@ class _FastSaleScreenState extends ConsumerState<FastSaleScreen> {
 
       case POSShortcutAction.printReceipt:
         // TODO: Wire print receipt when print service is available
-        return KeyEventResult.ignored;
+        CopyableInfoBar.showInfo(
+          context,
+          title: 'Impresión no disponible',
+          message: 'La impresión aún no está disponible.',
+        );
+        return KeyEventResult.handled;
 
       case POSShortcutAction.cancel:
         // Clear current input or cancel operation
@@ -221,7 +239,7 @@ class _FastSaleScreenState extends ConsumerState<FastSaleScreen> {
 
     // Session guard: relevant only to users with collection permissions
     final hasCollectionPermissions = ref.watch(hasCollectionPermissionsProvider);
-    final hasActiveSession = ref.watch(hasActiveCollectionSessionProvider);
+    // hasActiveSession se valida en pos_actions_panel al intentar cobrar
 
     if (!hasTabs) {
       return ScaffoldPage(
@@ -237,7 +255,7 @@ class _FastSaleScreenState extends ConsumerState<FastSaleScreen> {
               ),
               const SizedBox(height: Spacing.md),
               Text(
-                'No hay ordenes de venta',
+                'No hay órdenes de venta',
                 style: theme.typography.subtitle,
               ),
               const SizedBox(height: Spacing.xs),
@@ -247,24 +265,6 @@ class _FastSaleScreenState extends ConsumerState<FastSaleScreen> {
                   color: theme.inactiveColor,
                 ),
               ),
-              // Session guard warning — only shown to users with collection permissions
-              if (hasCollectionPermissions && !hasActiveSession) ...[
-                const SizedBox(height: Spacing.md),
-                ConstrainedBox(
-                  constraints: const BoxConstraints(maxWidth: 480),
-                  child: InfoBar(
-                    title: const Text('Sesion de caja no iniciada'),
-                    content: const Text(
-                      'Para registrar cobros y pagos necesitas abrir una sesion de caja primero.',
-                    ),
-                    severity: InfoBarSeverity.warning,
-                    action: HyperlinkButton(
-                      onPressed: () => context.go('/collection'),
-                      child: const Text('Ir a Caja'),
-                    ),
-                  ),
-                ),
-              ],
               const SizedBox(height: Spacing.md),
               Row(
                 mainAxisSize: MainAxisSize.min,
@@ -334,27 +334,10 @@ class _FastSaleScreenState extends ConsumerState<FastSaleScreen> {
 
               // Persistent offline warning bar
               if (!isServerOnline)
-                const InfoBar(
-                  title: Text('Sin internet — Puedes seguir vendiendo normalmente'),
-                  content: Text(
-                    'Tus ventas se guardan en esta computadora y se enviarán '
-                    'al servidor cuando regrese la conexión.',
-                  ),
-                  severity: InfoBarSeverity.warning,
-                ),
-
-              // Session guard warning — only for collection users without an active session
-              if (hasCollectionPermissions && !hasActiveSession)
-                InfoBar(
-                  title: const Text('Sesion de caja no iniciada'),
-                  content: const Text(
-                    'Para registrar cobros necesitas abrir una sesion de caja primero.',
-                  ),
-                  severity: InfoBarSeverity.warning,
-                  action: HyperlinkButton(
-                    onPressed: () => context.go('/collection'),
-                    child: const Text('Ir a Caja'),
-                  ),
+                TheosInfoBars.warning(
+                  title: 'Sin conexión al servidor — puedes seguir vendiendo',
+                  message: 'Las ventas se guardan localmente y se sincronizarán '
+                      'con Odoo al recuperar la conexión.',
                 ),
 
               // Main content area — envuelto en Stack para el FAB táctil

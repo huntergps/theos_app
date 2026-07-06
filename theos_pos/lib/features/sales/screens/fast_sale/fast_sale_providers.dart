@@ -257,6 +257,12 @@ class FastSaleNotifier extends _$FastSaleNotifier {
   /// Prevents excessive DB writes and queue updates on every keystroke.
   Timer? _endCustomerDebounceTimer;
 
+  /// Timer that triggers offline queue processing shortly after queuing a
+  /// new operation (see [FastSaleNotifierSave._scheduleQueueProcessing]).
+  /// Guardado en un campo para poder cancelarlo si el notifier se descarta
+  /// antes de que dispare (memory leak corregido).
+  Timer? _queueProcessingTimer;
+
   @override
   FastSaleState build() {
     // Listen to cache changes and sync open orders
@@ -265,6 +271,15 @@ class FastSaleNotifier extends _$FastSaleNotifier {
         // _syncFromCache is in FastSaleNotifierInit extension
         _syncFromCache(next);
       }
+    });
+
+    // Este notifier es keepAlive:true pero SÍ se invalida en runtime
+    // (logout en auth_guard.dart, reset en main_screen.dart). Si el debounce
+    // de cliente final queda pendiente cuando eso ocurre, dispararía sobre
+    // una instancia ya descartada (memory leak / crash potencial corregido).
+    ref.onDispose(() {
+      _endCustomerDebounceTimer?.cancel();
+      _queueProcessingTimer?.cancel();
     });
 
     return const FastSaleState();

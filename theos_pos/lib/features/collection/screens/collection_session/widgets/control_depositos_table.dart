@@ -35,7 +35,7 @@ class ControlDepositosTable extends StatelessWidget {
                 ),
               ),
               const SizedBox(width: 12),
-              Text('Control de Depositos', style: theme.typography.subtitle),
+              Text('Control de Depósitos', style: theme.typography.subtitle),
             ],
           ),
           const SizedBox(height: 20),

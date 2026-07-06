@@ -35,8 +35,19 @@ part 'sales_repository_withhold.dart';
 ///
 /// Related record resolution is delegated to [RelatedRecordResolver]
 /// which handles the offline-first pattern for fetching missing data.
+///
+/// F5 (eliminación de fuga de OdooClient): este repo (y sus parts) ya NO
+/// guardan su propio `OdooClient?`. Las llamadas RPC se hacen a través de
+/// los managers que gestionan cada modelo Odoo tocado:
+/// - `sale.order` → [saleOrderManager] (`_orderManager`)
+/// - `sale.order.line` → [saleOrderLineManager] (`_lineManager`)
+/// - `account.tax` → `taxManager`
+/// - `account.move`/`account.move.line` → `accountMoveManager`/
+///   `accountMoveLineManager`
+/// - otros modelos custom (retenciones, aprobación de crédito) — ver
+///   comentarios puntuales en cada part file para el manager usado o la
+///   excepción documentada si no existe manager para ese modelo.
 class SalesRepository {
-  final OdooClient? _odooClient;
   final OfflineQueueDataSource? _offlineQueue;
   final RelatedRecordResolver? _relatedResolver;
   final ProductRepository? _productRepository;
@@ -54,12 +65,10 @@ class SalesRepository {
   SalesRepository({
     required DatabaseHelper db,
     required AppDatabase appDb,
-    OdooClient? odooClient,
     OfflineQueueDataSource? offlineQueue,
     RelatedRecordResolver? relatedResolver,
     ProductRepository? productRepository,
   }) : _db = appDb,
-       _odooClient = odooClient,
        _offlineQueue = offlineQueue,
        _relatedResolver = relatedResolver,
        _productRepository = productRepository;
@@ -97,5 +106,8 @@ class SalesRepository {
   }
 
   /// Check if we're online (have an active Odoo connection)
-  bool get isOnline => _odooClient != null;
+  ///
+  /// Cualquier manager sirve para esta pregunta — todos comparten el mismo
+  /// `OdooClient` inyectado centralmente vía `DataContext`.
+  bool get isOnline => _orderManager.isOnline;
 }

@@ -45,6 +45,39 @@ class BankRepository {
     return await query.get();
   }
 
+  /// Reactive stream of partner banks by partner ID — mismo query que
+  /// [getPartnerBanks] pero con `.watch()`.
+  ///
+  /// NOTA: `res_partner_bank` ya tiene `bank_name` como columna
+  /// desnormalizada (cacheada al sincronizar) — no hace falta ningún join
+  /// manual con una tabla/manager de `res.bank` para resolver el nombre del
+  /// banco, el dato ya está en la misma fila.
+  Stream<List<ResPartnerBankData>> watchPartnerBanks(int partnerId) {
+    final query = _db.select(_db.resPartnerBank)
+      ..where((t) => t.partnerId.equals(partnerId) & t.active.equals(true))
+      ..orderBy([
+        (t) => drift.OrderingTerm(
+              expression: t.sequence,
+              mode: drift.OrderingMode.asc,
+            ),
+      ]);
+
+    return query.watch();
+  }
+
+  /// Resuelve el nombre del banco desde la tabla local res_bank.
+  ///
+  /// En 19.2/19.5 res.partner.bank ya no tiene bank_id (Many2one) — el banco
+  /// viaja como texto plano en bank_name, así que el nombre se resuelve
+  /// localmente antes de encolar la operación.
+  Future<String?> _resolveBankName(int? bankId) async {
+    if (bankId == null) return null;
+    final bank = await (_db.select(_db.resBank)
+          ..where((t) => t.odooId.equals(bankId)))
+        .getSingleOrNull();
+    return bank?.name;
+  }
+
   /// Create a new partner bank account
   Future<ResPartnerBankData?> createPartnerBank({
     required int partnerId,
@@ -71,15 +104,19 @@ class BankRepository {
 
       // Queue for offline sync
       if (_offlineQueue != null) {
+        // Campos verificados contra el servidor (19.2/19.5, julio 2026):
+        // acc_number → account_number (renombrado); bank_id y acc_holder_name
+        // YA NO existen en res.partner.bank — el banco viaja como texto plano
+        // en bank_name (se resuelve el nombre desde la tabla local res_bank).
+        final bankName = await _resolveBankName(bankId);
         await _offlineQueue.queueOperation(
           model: 'res.partner.bank',
           method: 'create',
           recordId: tempId,
           values: {
             'partner_id': partnerId,
-            'acc_number': accNumber,
-            if (bankId != null) 'bank_id': bankId,
-            if (accHolderName != null) 'acc_holder_name': accHolderName,
+            'account_number': accNumber,
+            'bank_name': ?bankName,
           },
         );
       }
@@ -120,10 +157,14 @@ class BankRepository {
               ..where((t) => t.id.equals(id)))
             .getSingleOrNull();
         if (record != null) {
+          // Mismos campos verificados que en createPartnerBank (19.2/19.5):
+          // account_number (renombrado) + bank_name (texto plano).
           final values = <String, dynamic>{};
-          if (accNumber != null) values['acc_number'] = accNumber;
-          if (bankId != null) values['bank_id'] = bankId;
-          if (accHolderName != null) values['acc_holder_name'] = accHolderName;
+          if (accNumber != null) values['account_number'] = accNumber;
+          if (bankId != null) {
+            final bankName = await _resolveBankName(bankId);
+            if (bankName != null) values['bank_name'] = bankName;
+          }
 
           await _offlineQueue.queueOperation(
             model: 'res.partner.bank',
@@ -252,6 +293,25 @@ class BankRepository {
           ..where((t) => t.active.equals(true))
           ..orderBy([(t) => drift.OrderingTerm.asc(t.name)]))
         .get();
+  }
+
+  /// Reactive stream of all active banks from the local database.
+  ///
+  /// Mismo query que [getBanks] pero con `.watch()` — la UI se actualiza
+  /// sola cuando la tabla `res_bank` cambia (ej. tras sincronizar catálogo),
+  /// sin necesitar `ref.invalidate()` manual.
+  ///
+  /// NOTA: no existe un `bankManager` generado para el modelo `Bank`
+  /// (`res.bank` no tiene `.odoo.g.dart` — el `@OdooModel` no se ha
+  /// regenerado para este modelo), así que este método usa `.watch()` de
+  /// Drift directo sobre la misma tabla `res_bank`, en vez de
+  /// `bankManager.watchLocalSearch()` (que hoy no compila). Mismo resultado
+  /// reactivo, sin depender de código generado inexistente.
+  Stream<List<ResBankData>> watchBanks() {
+    return (_db.select(_db.resBank)
+          ..where((t) => t.active.equals(true))
+          ..orderBy([(t) => drift.OrderingTerm.asc(t.name)]))
+        .watch();
   }
 
   /// Sync banks from Odoo (res.bank was removed in Odoo 19.2)

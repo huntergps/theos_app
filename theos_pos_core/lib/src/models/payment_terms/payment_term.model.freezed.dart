@@ -14,7 +14,9 @@ T _$identity<T>(T value) => value;
 /// @nodoc
 mixin _$PaymentTerm {
 
-@OdooId() int get id;@OdooString() String get name;@OdooBoolean() bool get active;@OdooString() String? get note;@OdooMany2One('res.company', odooName: 'company_id') int? get companyId;@OdooInteger() int get sequence;@OdooBoolean(odooName: 'is_cash') bool get isCash;@OdooBoolean(odooName: 'is_credit') bool get isCredit;@OdooInteger(odooName: 'due_days') int get dueDays;@OdooDateTime(odooName: 'write_date', writable: false) DateTime? get writeDate;
+@OdooId() int get id;@OdooString() String get name;@OdooBoolean() bool get active;@OdooString() String? get note;@OdooMany2One('res.company', odooName: 'company_id') int? get companyId;@OdooInteger() int get sequence;@OdooBoolean(odooName: 'is_cash') bool get isCash;@OdooBoolean(odooName: 'is_credit') bool get isCredit;// Odoo 19.5 (erp1): 'due_days' ya no existe en account.payment.term del
+// servidor (smoke fields_get, julio 2026).
+@OdooLocalOnly() int get dueDays;@OdooDateTime(odooName: 'write_date', writable: false) DateTime? get writeDate;
 /// Create a copy of PaymentTerm
 /// with the given fields replaced by the non-null parameter values.
 @JsonKey(includeFromJson: false, includeToJson: false)
@@ -45,7 +47,7 @@ abstract mixin class $PaymentTermCopyWith<$Res>  {
   factory $PaymentTermCopyWith(PaymentTerm value, $Res Function(PaymentTerm) _then) = _$PaymentTermCopyWithImpl;
 @useResult
 $Res call({
-@OdooId() int id,@OdooString() String name,@OdooBoolean() bool active,@OdooString() String? note,@OdooMany2One('res.company', odooName: 'company_id') int? companyId,@OdooInteger() int sequence,@OdooBoolean(odooName: 'is_cash') bool isCash,@OdooBoolean(odooName: 'is_credit') bool isCredit,@OdooInteger(odooName: 'due_days') int dueDays,@OdooDateTime(odooName: 'write_date', writable: false) DateTime? writeDate
+@OdooId() int id,@OdooString() String name,@OdooBoolean() bool active,@OdooString() String? note,@OdooMany2One('res.company', odooName: 'company_id') int? companyId,@OdooInteger() int sequence,@OdooBoolean(odooName: 'is_cash') bool isCash,@OdooBoolean(odooName: 'is_credit') bool isCredit,@OdooLocalOnly() int dueDays,@OdooDateTime(odooName: 'write_date', writable: false) DateTime? writeDate
 });
 
 
@@ -159,7 +161,7 @@ return $default(_that);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function(@OdooId()  int id, @OdooString()  String name, @OdooBoolean()  bool active, @OdooString()  String? note, @OdooMany2One('res.company', odooName: 'company_id')  int? companyId, @OdooInteger()  int sequence, @OdooBoolean(odooName: 'is_cash')  bool isCash, @OdooBoolean(odooName: 'is_credit')  bool isCredit, @OdooInteger(odooName: 'due_days')  int dueDays, @OdooDateTime(odooName: 'write_date', writable: false)  DateTime? writeDate)?  $default,{required TResult orElse(),}) {final _that = this;
+@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function(@OdooId()  int id, @OdooString()  String name, @OdooBoolean()  bool active, @OdooString()  String? note, @OdooMany2One('res.company', odooName: 'company_id')  int? companyId, @OdooInteger()  int sequence, @OdooBoolean(odooName: 'is_cash')  bool isCash, @OdooBoolean(odooName: 'is_credit')  bool isCredit, @OdooLocalOnly()  int dueDays, @OdooDateTime(odooName: 'write_date', writable: false)  DateTime? writeDate)?  $default,{required TResult orElse(),}) {final _that = this;
 switch (_that) {
 case _PaymentTerm() when $default != null:
 return $default(_that.id,_that.name,_that.active,_that.note,_that.companyId,_that.sequence,_that.isCash,_that.isCredit,_that.dueDays,_that.writeDate);case _:
@@ -180,7 +182,7 @@ return $default(_that.id,_that.name,_that.active,_that.note,_that.companyId,_tha
 /// }
 /// ```
 
-@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function(@OdooId()  int id, @OdooString()  String name, @OdooBoolean()  bool active, @OdooString()  String? note, @OdooMany2One('res.company', odooName: 'company_id')  int? companyId, @OdooInteger()  int sequence, @OdooBoolean(odooName: 'is_cash')  bool isCash, @OdooBoolean(odooName: 'is_credit')  bool isCredit, @OdooInteger(odooName: 'due_days')  int dueDays, @OdooDateTime(odooName: 'write_date', writable: false)  DateTime? writeDate)  $default,) {final _that = this;
+@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function(@OdooId()  int id, @OdooString()  String name, @OdooBoolean()  bool active, @OdooString()  String? note, @OdooMany2One('res.company', odooName: 'company_id')  int? companyId, @OdooInteger()  int sequence, @OdooBoolean(odooName: 'is_cash')  bool isCash, @OdooBoolean(odooName: 'is_credit')  bool isCredit, @OdooLocalOnly()  int dueDays, @OdooDateTime(odooName: 'write_date', writable: false)  DateTime? writeDate)  $default,) {final _that = this;
 switch (_that) {
 case _PaymentTerm():
 return $default(_that.id,_that.name,_that.active,_that.note,_that.companyId,_that.sequence,_that.isCash,_that.isCredit,_that.dueDays,_that.writeDate);case _:
@@ -200,7 +202,7 @@ return $default(_that.id,_that.name,_that.active,_that.note,_that.companyId,_tha
 /// }
 /// ```
 
-@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function(@OdooId()  int id, @OdooString()  String name, @OdooBoolean()  bool active, @OdooString()  String? note, @OdooMany2One('res.company', odooName: 'company_id')  int? companyId, @OdooInteger()  int sequence, @OdooBoolean(odooName: 'is_cash')  bool isCash, @OdooBoolean(odooName: 'is_credit')  bool isCredit, @OdooInteger(odooName: 'due_days')  int dueDays, @OdooDateTime(odooName: 'write_date', writable: false)  DateTime? writeDate)?  $default,) {final _that = this;
+@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function(@OdooId()  int id, @OdooString()  String name, @OdooBoolean()  bool active, @OdooString()  String? note, @OdooMany2One('res.company', odooName: 'company_id')  int? companyId, @OdooInteger()  int sequence, @OdooBoolean(odooName: 'is_cash')  bool isCash, @OdooBoolean(odooName: 'is_credit')  bool isCredit, @OdooLocalOnly()  int dueDays, @OdooDateTime(odooName: 'write_date', writable: false)  DateTime? writeDate)?  $default,) {final _that = this;
 switch (_that) {
 case _PaymentTerm() when $default != null:
 return $default(_that.id,_that.name,_that.active,_that.note,_that.companyId,_that.sequence,_that.isCash,_that.isCredit,_that.dueDays,_that.writeDate);case _:
@@ -215,7 +217,7 @@ return $default(_that.id,_that.name,_that.active,_that.note,_that.companyId,_tha
 
 
 class _PaymentTerm extends PaymentTerm {
-  const _PaymentTerm({@OdooId() required this.id, @OdooString() required this.name, @OdooBoolean() this.active = true, @OdooString() this.note, @OdooMany2One('res.company', odooName: 'company_id') this.companyId, @OdooInteger() this.sequence = 10, @OdooBoolean(odooName: 'is_cash') this.isCash = true, @OdooBoolean(odooName: 'is_credit') this.isCredit = false, @OdooInteger(odooName: 'due_days') this.dueDays = 0, @OdooDateTime(odooName: 'write_date', writable: false) this.writeDate}): super._();
+  const _PaymentTerm({@OdooId() required this.id, @OdooString() required this.name, @OdooBoolean() this.active = true, @OdooString() this.note, @OdooMany2One('res.company', odooName: 'company_id') this.companyId, @OdooInteger() this.sequence = 10, @OdooBoolean(odooName: 'is_cash') this.isCash = true, @OdooBoolean(odooName: 'is_credit') this.isCredit = false, @OdooLocalOnly() this.dueDays = 0, @OdooDateTime(odooName: 'write_date', writable: false) this.writeDate}): super._();
   
 
 @override@OdooId() final  int id;
@@ -226,7 +228,9 @@ class _PaymentTerm extends PaymentTerm {
 @override@JsonKey()@OdooInteger() final  int sequence;
 @override@JsonKey()@OdooBoolean(odooName: 'is_cash') final  bool isCash;
 @override@JsonKey()@OdooBoolean(odooName: 'is_credit') final  bool isCredit;
-@override@JsonKey()@OdooInteger(odooName: 'due_days') final  int dueDays;
+// Odoo 19.5 (erp1): 'due_days' ya no existe en account.payment.term del
+// servidor (smoke fields_get, julio 2026).
+@override@JsonKey()@OdooLocalOnly() final  int dueDays;
 @override@OdooDateTime(odooName: 'write_date', writable: false) final  DateTime? writeDate;
 
 /// Create a copy of PaymentTerm
@@ -259,7 +263,7 @@ abstract mixin class _$PaymentTermCopyWith<$Res> implements $PaymentTermCopyWith
   factory _$PaymentTermCopyWith(_PaymentTerm value, $Res Function(_PaymentTerm) _then) = __$PaymentTermCopyWithImpl;
 @override @useResult
 $Res call({
-@OdooId() int id,@OdooString() String name,@OdooBoolean() bool active,@OdooString() String? note,@OdooMany2One('res.company', odooName: 'company_id') int? companyId,@OdooInteger() int sequence,@OdooBoolean(odooName: 'is_cash') bool isCash,@OdooBoolean(odooName: 'is_credit') bool isCredit,@OdooInteger(odooName: 'due_days') int dueDays,@OdooDateTime(odooName: 'write_date', writable: false) DateTime? writeDate
+@OdooId() int id,@OdooString() String name,@OdooBoolean() bool active,@OdooString() String? note,@OdooMany2One('res.company', odooName: 'company_id') int? companyId,@OdooInteger() int sequence,@OdooBoolean(odooName: 'is_cash') bool isCash,@OdooBoolean(odooName: 'is_credit') bool isCredit,@OdooLocalOnly() int dueDays,@OdooDateTime(odooName: 'write_date', writable: false) DateTime? writeDate
 });
 
 

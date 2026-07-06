@@ -95,7 +95,7 @@ SalesConfig salesConfig(Ref ref) {
 ///
 /// This reads directly from the database to avoid async timing issues.
 /// Falls back to 100.0 only if database is not available.
-/// Works with both Ref and WidgetRef.
+/// Works with both Ref and WidgetRef — dynamic is intentional.
 Future<double> getMaxDiscountPercentage(dynamic ref) async {
   try {
     final company = await ref.read(currentCompanyProvider.future);

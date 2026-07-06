@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -35,6 +37,17 @@ class AppInitializationResult {
 class AppInitializer {
   static const _lastApiKeyKey = 'last_used_api_key';
   static AppInitializationResult? _lastResult;
+
+  // Reintento en segundo plano de la detección de versión Odoo (19.1 vs
+  // 19.2). Si fetchVersion() falla en el arranque (p.ej. app offline), no
+  // basta con solo loguear una advertencia: mientras version==unknown, el
+  // SDK asume Odoo 19.1 por defecto (ver OdooVersion.unknown), lo que puede
+  // enviar campos inválidos si el servidor real es 19.2. Reintentamos
+  // periódicamente hasta detectarla o agotar los intentos.
+  static Timer? _versionRetryTimer;
+  static int _versionRetryAttempts = 0;
+  static const _versionRetryInterval = Duration(seconds: 30);
+  static const _maxVersionRetryAttempts = 10;
 
   /// Initialize core app dependencies
   ///
@@ -81,9 +94,24 @@ class AppInitializer {
     logger.d('[AppInitializer] 🔍 Detecting Odoo server version...');
     try {
       final version = await odooClient.fetchVersion();
-      logger.i('[AppInitializer]', '✅ Odoo version detected: $version');
+      if (version.isUnknown) {
+        logger.w(
+          '[AppInitializer]',
+          '⚠️ No se pudo detectar la version de Odoo (sin conexion?). '
+          'Se asume Odoo 19.1 (hasBankModel=true) hasta poder detectarla. '
+          'Reintentando en segundo plano cada ${_versionRetryInterval.inSeconds}s...',
+        );
+        _scheduleVersionRetry(odooClient);
+      } else {
+        logger.i('[AppInitializer]', '✅ Odoo version detected: $version');
+      }
     } catch (e) {
-      logger.w('[AppInitializer]', '⚠️ Could not detect Odoo version: $e');
+      logger.w(
+        '[AppInitializer]',
+        '⚠️ Could not detect Odoo version: $e. '
+        'Se asume Odoo 19.1 (hasBankModel=true) hasta reintentar.',
+      );
+      _scheduleVersionRetry(odooClient);
     }
 
     // Generate server-specific database name for multi-server support
@@ -183,8 +211,48 @@ class AppInitializer {
     }
   }
 
+  /// Programa reintentos periódicos de `fetchVersion()` cuando el arranque
+  /// no pudo detectar la version de Odoo (p.ej. app offline). Se cancela
+  /// automáticamente al detectar la version o al agotar los intentos.
+  static void _scheduleVersionRetry(OdooClient odooClient) {
+    _versionRetryTimer?.cancel();
+    _versionRetryAttempts = 0;
+    _versionRetryTimer = Timer.periodic(_versionRetryInterval, (timer) async {
+      _versionRetryAttempts++;
+      logger.d(
+        '[AppInitializer]',
+        'Reintentando deteccion de version Odoo (intento $_versionRetryAttempts/$_maxVersionRetryAttempts)...',
+      );
+      try {
+        final version = await odooClient.fetchVersion();
+        if (!version.isUnknown) {
+          logger.i('[AppInitializer]', '✅ Odoo version detectada en reintento: $version');
+          timer.cancel();
+          _versionRetryTimer = null;
+          return;
+        }
+      } catch (e) {
+        logger.d('[AppInitializer]', 'Reintento de deteccion de version fallo: $e');
+      }
+
+      if (_versionRetryAttempts >= _maxVersionRetryAttempts) {
+        logger.w(
+          '[AppInitializer]',
+          '⚠️ No se pudo detectar la version de Odoo tras $_maxVersionRetryAttempts '
+          'intentos. Se mantiene el supuesto de Odoo 19.1 (hasBankModel=true) — '
+          'verificar conectividad con el servidor.',
+        );
+        timer.cancel();
+        _versionRetryTimer = null;
+      }
+    });
+  }
+
   /// Reset initialization state
   static void reset() {
+    _versionRetryTimer?.cancel();
+    _versionRetryTimer = null;
+    _versionRetryAttempts = 0;
     _lastResult = null;
     DatabaseHelper.resetInstance();
     logger.d('[AppInitializer] Reset complete');

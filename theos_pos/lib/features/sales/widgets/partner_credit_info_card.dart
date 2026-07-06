@@ -5,6 +5,7 @@ import '../../../core/database/repositories/repository_providers.dart'
     show salesRepositoryProvider;
 import '../repositories/sales_repository.dart'; // Extension methods (getWithLines, etc.)
 import '../../../core/services/logger_service.dart';
+import '../../../shared/utils/error_utils.dart';
 import '../../../shared/widgets/dialogs/copyable_info_bar.dart';
 import '../../clients/clients.dart'
     show
@@ -75,7 +76,6 @@ class _PartnerCreditInfoCardState extends ConsumerState<PartnerCreditInfoCard> {
         return CreditInfoCard(
           client: client,
           isCompact: widget.isCompact,
-          showActions: false,
           // Hide sync button when hideSyncButton is true (fast_sale uses POSActionsPanel)
           onRefresh: widget.hideSyncButton ? null : (_isSyncing ? null : _syncAllData),
         );
@@ -151,7 +151,7 @@ class _PartnerCreditInfoCardState extends ConsumerState<PartnerCreditInfoCard> {
         CopyableInfoBar.showError(
           context,
           title: 'Error de sincronización',
-          message: 'No se pudieron actualizar los datos:\n$e\n\nStack trace:\n$st',
+          message: 'No se pudieron actualizar los datos: ${friendlyErrorMessage(e)}',
         );
       }
     } finally {

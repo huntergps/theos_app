@@ -10,6 +10,7 @@ _WithholdLine _$WithholdLineFromJson(Map<String, dynamic> json) =>
     _WithholdLine(
       id: (json['id'] as num?)?.toInt() ?? 0,
       lineUuid: json['lineUuid'] as String? ?? '',
+      orderId: (json['orderId'] as num?)?.toInt(),
       taxId: (json['taxId'] as num).toInt(),
       taxName: json['taxName'] as String,
       taxPercent: (json['taxPercent'] as num).toDouble(),
@@ -27,6 +28,7 @@ Map<String, dynamic> _$WithholdLineToJson(_WithholdLine instance) =>
     <String, dynamic>{
       'id': instance.id,
       'lineUuid': instance.lineUuid,
+      'orderId': instance.orderId,
       'taxId': instance.taxId,
       'taxName': instance.taxName,
       'taxPercent': instance.taxPercent,
@@ -77,11 +79,11 @@ Map<String, dynamic> _$AvailableWithholdTaxToJson(
 /// Generated manager for WithholdLine.
 ///
 /// Provides offline-first CRUD operations and sync
-/// with Odoo model: account.withhold.line
+/// with Odoo model: sale.order.withhold.line
 class WithholdLineManager extends OdooModelManager<WithholdLine>
     with GenericDriftOperations<WithholdLine> {
   @override
-  String get odooModel => 'account.withhold.line';
+  String get odooModel => 'sale.order.withhold.line';
 
   @override
   String get tableName => 'sale_order_withhold_line';
@@ -90,27 +92,25 @@ class WithholdLineManager extends OdooModelManager<WithholdLine>
   List<String> get odooFields => [
     'id',
     'tax_id',
-    'tax_name',
-    'tax_percent',
-    'withhold_type',
     'taxsupport_code',
     'base',
     'amount',
     'notes',
   ];
 
-  @override
-  WithholdLine fromOdoo(Map<String, dynamic> data) {
+  /// Versión estática pura de [fromOdoo] — no referencia `this` ni
+  /// estado de instancia (OdooClient, GeneratedDatabase), solo [data].
+  /// Por eso su tear-off (`WithholdLineManager.fromOdooMap`) es transferible a
+  /// `Isolate.run()`, a diferencia del tear-off del método de instancia
+  /// [fromOdoo] (que arrastra el manager completo, no transferible).
+  static WithholdLine fromOdooMap(Map<String, dynamic> data) {
     return WithholdLine(
       id: data['id'] as int? ?? 0,
       lineUuid: '',
       taxId: extractMany2oneId(data['tax_id']) ?? 0,
-      taxName: parseOdooStringRequired(data['tax_name']),
-      taxPercent: parseOdooDouble(data['tax_percent']) ?? 0.0,
-      withholdType: WithholdType.values.firstWhere(
-        (e) => e.code == parseOdooSelection(data['withhold_type']),
-        orElse: () => WithholdType.values.first,
-      ),
+      taxName: '',
+      taxPercent: 0.0,
+      withholdType: WithholdType.values.first,
       taxSupportCode: parseOdooSelection(data['taxsupport_code']) != null
           ? TaxSupportCode.values.firstWhere(
               (e) => e.code == parseOdooSelection(data['taxsupport_code']),
@@ -124,12 +124,12 @@ class WithholdLineManager extends OdooModelManager<WithholdLine>
   }
 
   @override
+  WithholdLine fromOdoo(Map<String, dynamic> data) => fromOdooMap(data);
+
+  @override
   Map<String, dynamic> toOdoo(WithholdLine record) {
     return {
       'tax_id': record.taxId,
-      'tax_name': record.taxName,
-      'tax_percent': record.taxPercent,
-      'withhold_type': record.withholdType.code,
       'taxsupport_code': record.taxSupportCode?.code,
       'base': record.base,
       'amount': record.amount,
@@ -142,13 +142,16 @@ class WithholdLineManager extends OdooModelManager<WithholdLine>
     return WithholdLine(
       id: row.odooId as int,
       lineUuid: row.lineUuid as String? ?? '',
+      orderId: row.orderId as int?,
       taxId: row.taxId as int,
-      taxName: row.taxName as String,
-      taxPercent: row.taxPercent as double,
-      withholdType: WithholdType.values.firstWhere(
-        (e) => e.code == (row.withholdType as String?),
-        orElse: () => WithholdType.values.first,
-      ),
+      taxName: row.taxName as String? ?? '',
+      taxPercent: row.taxPercent as double? ?? 0.0,
+      withholdType: (row.withholdType as String?) != null
+          ? WithholdType.values.firstWhere(
+              (e) => e.code == (row.withholdType as String?),
+              orElse: () => WithholdType.values.first,
+            )
+          : WithholdType.values.first,
       taxSupportCode: (row.taxsupportCode as String?) != null
           ? TaxSupportCode.values.firstWhere(
               (e) => e.code == (row.taxsupportCode as String?),
@@ -186,9 +189,6 @@ class WithholdLineManager extends OdooModelManager<WithholdLine>
   static const Map<String, String> fieldMappings = {
     'id': 'id',
     'tax_id': 'taxId',
-    'tax_name': 'taxName',
-    'tax_percent': 'taxPercent',
-    'withhold_type': 'withholdType',
     'taxsupport_code': 'taxSupportCode',
     'base': 'base',
     'amount': 'amount',
@@ -235,23 +235,21 @@ class WithholdLineManager extends OdooModelManager<WithholdLine>
     return RawValuesInsertable({
       'odoo_id': Variable<int>(record.id),
       'tax_id': Variable<int>(record.taxId),
-      'tax_name': Variable<String>(record.taxName),
-      'tax_percent': Variable<double>(record.taxPercent),
-      'withhold_type': Variable<String>(record.withholdType.code),
       'taxsupport_code': driftVar<String>(record.taxSupportCode?.code),
       'base': Variable<double>(record.base),
       'amount': Variable<double>(record.amount),
       'notes': driftVar<String>(record.notes),
       'line_uuid': Variable<String>(record.lineUuid),
+      'order_id': driftVar<int>(record.orderId),
+      'tax_name': Variable<String>(record.taxName),
+      'tax_percent': Variable<double>(record.taxPercent),
+      'withhold_type': Variable<String>(record.withholdType.code),
     });
   }
 
   /// List of writable fields for partial updates.
   static const List<String> writableFields = [
     'taxId',
-    'taxName',
-    'taxPercent',
-    'withholdType',
     'taxSupportCode',
     'base',
     'amount',
@@ -265,6 +263,7 @@ class WithholdLineManager extends OdooModelManager<WithholdLine>
   static const Map<String, String> fieldLabels = {
     'id': 'Id',
     'lineUuid': 'Line Uuid',
+    'orderId': 'Order Id',
     'taxId': 'Tax Id',
     'taxName': 'Tax Name',
     'taxPercent': 'Tax Percent',
@@ -311,6 +310,8 @@ class WithholdLineManager extends OdooModelManager<WithholdLine>
         return record.id;
       case 'lineUuid':
         return record.lineUuid;
+      case 'orderId':
+        return record.orderId;
       case 'taxId':
         return record.taxId;
       case 'taxName':
@@ -342,7 +343,13 @@ class WithholdLineManager extends OdooModelManager<WithholdLine>
     current['id'] = getId(record);
     var updated = fromOdoo(current);
     // Preserve local-only fields from original record
-    updated = updated.copyWith(lineUuid: record.lineUuid);
+    updated = updated.copyWith(
+      lineUuid: record.lineUuid,
+      orderId: record.orderId,
+      taxName: record.taxName,
+      taxPercent: record.taxPercent,
+      withholdType: record.withholdType,
+    );
     return updated;
   }
 
@@ -353,6 +360,8 @@ class WithholdLineManager extends OdooModelManager<WithholdLine>
         return (obj as dynamic).odooId;
       case 'lineUuid':
         return (obj as dynamic).lineUuid;
+      case 'orderId':
+        return (obj as dynamic).orderId;
       case 'taxId':
         return (obj as dynamic).taxId;
       case 'taxName':
@@ -389,6 +398,7 @@ class WithholdLineManager extends OdooModelManager<WithholdLine>
   List<String> get storedFieldNames => const [
     'id',
     'lineUuid',
+    'orderId',
     'taxId',
     'taxName',
     'taxPercent',
@@ -402,9 +412,6 @@ class WithholdLineManager extends OdooModelManager<WithholdLine>
   @override
   List<String> get writableFieldNames => const [
     'taxId',
-    'taxName',
-    'taxPercent',
-    'withholdType',
     'taxSupportCode',
     'base',
     'amount',

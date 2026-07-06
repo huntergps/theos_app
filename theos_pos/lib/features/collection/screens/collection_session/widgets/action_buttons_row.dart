@@ -66,7 +66,7 @@ class ActionButtonsRow extends StatelessWidget {
             children: [
               Icon(FluentIcons.bank, size: 16),
               SizedBox(width: 6),
-              Text('Registrar Deposito'),
+              Text('Registrar Depósito'),
             ],
           ),
         ),

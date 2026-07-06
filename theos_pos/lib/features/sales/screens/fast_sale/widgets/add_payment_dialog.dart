@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/misc.dart' show ProviderListenable;
 import 'package:uuid/uuid.dart';
 
+import '../../../../../core/constants/app_colors.dart';
 import '../../../../../core/theme/spacing.dart';
 import 'package:theos_pos_core/theos_pos_core.dart' hide DatabaseHelper, PartnerBank, CreditIssue;
 import '../../../../advances/providers/advance_providers.dart';
@@ -154,7 +155,7 @@ class AddPaymentDialogContentState extends ConsumerState<AddPaymentDialogContent
             Container(
               padding: const EdgeInsets.all(Spacing.sm),
               decoration: BoxDecoration(
-                color: Colors.blue.withValues(alpha: 0.1),
+                color: AppColors.info.withValues(alpha: 0.1),
                 borderRadius: BorderRadius.circular(6),
               ),
               child: Row(
@@ -163,7 +164,7 @@ class AddPaymentDialogContentState extends ConsumerState<AddPaymentDialogContent
                   Text('Pendiente:', style: widget.theme.typography.body),
                   Text(
                     widget.pendingAmount.toCurrency(),
-                    style: widget.theme.typography.bodyStrong?.copyWith(color: Colors.blue),
+                    style: widget.theme.typography.bodyStrong?.copyWith(color: AppColors.info),
                   ),
                 ],
               ),
@@ -225,7 +226,7 @@ class AddPaymentDialogContentState extends ConsumerState<AddPaymentDialogContent
             value: PaymentLineType.payment,
             child: Row(
               children: [
-                Icon(FluentIcons.money, size: 14, color: Colors.green),
+                Icon(FluentIcons.money, size: 14, color: AppColors.success),
                 const SizedBox(width: Spacing.xs),
                 const Text('Pago directo'),
               ],
@@ -237,7 +238,7 @@ class AddPaymentDialogContentState extends ConsumerState<AddPaymentDialogContent
             child: Row(
               children: [
                 Icon(FluentIcons.circle_dollar, size: 14,
-                     color: hasAdvances ? Colors.magenta : widget.theme.inactiveColor),
+                     color: hasAdvances ? AppColors.advance : widget.theme.inactiveColor),
                 const SizedBox(width: Spacing.xs),
                 Text('Anticipo',
                      style: TextStyle(color: hasAdvances ? null : widget.theme.inactiveColor)),
@@ -253,7 +254,7 @@ class AddPaymentDialogContentState extends ConsumerState<AddPaymentDialogContent
             child: Row(
               children: [
                 Icon(FluentIcons.page_list, size: 14,
-                     color: hasCreditNotes ? Colors.purple : widget.theme.inactiveColor),
+                     color: hasCreditNotes ? AppColors.creditNote : widget.theme.inactiveColor),
                 const SizedBox(width: Spacing.xs),
                 Text('Nota de cr\u00e9dito',
                      style: TextStyle(color: hasCreditNotes ? null : widget.theme.inactiveColor)),
@@ -479,14 +480,14 @@ class AddPaymentDialogContentState extends ConsumerState<AddPaymentDialogContent
     return Container(
       padding: const EdgeInsets.all(Spacing.sm),
       decoration: BoxDecoration(
-        color: Colors.green.withValues(alpha: 0.05),
+        color: AppColors.success.withValues(alpha: 0.05),
         borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: Colors.green.withValues(alpha: 0.2)),
+        border: Border.all(color: AppColors.success.withValues(alpha: 0.2)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text('Efectivo', style: widget.theme.typography.bodyStrong?.copyWith(color: Colors.green.dark)),
+          Text('Efectivo', style: widget.theme.typography.bodyStrong?.copyWith(color: AppColors.success)),
           const SizedBox(height: Spacing.sm),
           // Quick amounts - these ADD to the current tendered amount
           Wrap(
@@ -542,14 +543,14 @@ class AddPaymentDialogContentState extends ConsumerState<AddPaymentDialogContent
                   child: Container(
                     padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
                     decoration: BoxDecoration(
-                      color: change >= 0 ? Colors.green.withValues(alpha: 0.1) : Colors.red.withValues(alpha: 0.1),
+                      color: change >= 0 ? AppColors.success.withValues(alpha: 0.1) : AppColors.danger.withValues(alpha: 0.1),
                       borderRadius: BorderRadius.circular(4),
                     ),
                     child: Text(
                       change.toCurrency(),
                       style: widget.theme.typography.body?.copyWith(
                         fontWeight: FontWeight.bold,
-                        color: change >= 0 ? Colors.green.dark : Colors.red.dark,
+                        color: change >= 0 ? AppColors.success : AppColors.danger,
                       ),
                     ),
                   ),
@@ -604,15 +605,15 @@ class AddPaymentDialogContentState extends ConsumerState<AddPaymentDialogContent
     return Container(
       padding: const EdgeInsets.all(Spacing.sm),
       decoration: BoxDecoration(
-        color: Colors.blue.withValues(alpha: 0.05),
+        color: AppColors.info.withValues(alpha: 0.05),
         borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: Colors.blue.withValues(alpha: 0.2)),
+        border: Border.all(color: AppColors.info.withValues(alpha: 0.2)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text('Tarjeta ${cardType == CardType.credit ? 'Cr\u00e9dito' : 'D\u00e9bito'}',
-               style: widget.theme.typography.bodyStrong?.copyWith(color: Colors.blue.dark)),
+               style: widget.theme.typography.bodyStrong?.copyWith(color: AppColors.info)),
           const SizedBox(height: Spacing.sm),
           // Bank and voucher (bank is wider to fit long names)
           Row(children: [
@@ -752,14 +753,14 @@ class AddPaymentDialogContentState extends ConsumerState<AddPaymentDialogContent
     return Container(
       padding: const EdgeInsets.all(Spacing.sm),
       decoration: BoxDecoration(
-        color: Colors.teal.withValues(alpha: 0.05),
+        color: AppColors.primaryBackground.withValues(alpha: 0.05),
         borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: Colors.teal.withValues(alpha: 0.2)),
+        border: Border.all(color: AppColors.primaryBackground.withValues(alpha: 0.2)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text('Cheque', style: widget.theme.typography.bodyStrong?.copyWith(color: Colors.teal.dark)),
+          Text('Cheque', style: widget.theme.typography.bodyStrong?.copyWith(color: AppColors.primaryBackground)),
           const SizedBox(height: Spacing.sm),
           Row(children: [
             Expanded(child: InfoLabel(
@@ -819,13 +820,13 @@ class AddPaymentDialogContentState extends ConsumerState<AddPaymentDialogContent
             Container(
               padding: const EdgeInsets.all(Spacing.xs),
               decoration: BoxDecoration(
-                color: Colors.orange.withValues(alpha: 0.1),
+                color: AppColors.warning.withValues(alpha: 0.1),
                 borderRadius: BorderRadius.circular(4),
               ),
               child: Row(children: [
-                Icon(FluentIcons.warning, size: 12, color: Colors.orange),
+                Icon(FluentIcons.warning, size: 12, color: AppColors.warning),
                 const SizedBox(width: Spacing.xs),
-                Text('Cheque posfechado', style: widget.theme.typography.caption?.copyWith(color: Colors.orange)),
+                Text('Cheque posfechado', style: widget.theme.typography.caption?.copyWith(color: AppColors.warning)),
               ]),
             ),
           ],
@@ -901,7 +902,7 @@ class AddPaymentDialogContentState extends ConsumerState<AddPaymentDialogContent
               if (accNumber.isEmpty) {
                 CopyableInfoBar.showWarning(
                   context,
-                  title: 'Validacion de cuenta',
+                  title: 'Validación de cuenta',
                   message: 'El número de cuenta es obligatorio',
                 );
                 return;
@@ -925,6 +926,8 @@ class AddPaymentDialogContentState extends ConsumerState<AddPaymentDialogContent
       ),
     );
 
+    accNumberController.dispose();
+
     if (result != null && mounted) {
       // Refresh the partner banks list and select the new one
       ref.invalidate(posPartnerBanksProvider);
@@ -944,14 +947,14 @@ class AddPaymentDialogContentState extends ConsumerState<AddPaymentDialogContent
     return Container(
       padding: const EdgeInsets.all(Spacing.sm),
       decoration: BoxDecoration(
-        color: Colors.purple.withValues(alpha: 0.05),
+        color: AppColors.creditNote.withValues(alpha: 0.05),
         borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: Colors.purple.withValues(alpha: 0.2)),
+        border: Border.all(color: AppColors.creditNote.withValues(alpha: 0.2)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text('Transferencia', style: widget.theme.typography.bodyStrong?.copyWith(color: Colors.purple.dark)),
+          Text('Transferencia', style: widget.theme.typography.bodyStrong?.copyWith(color: AppColors.creditNote)),
           const SizedBox(height: Spacing.sm),
           Row(children: [
             Expanded(child: InfoLabel(
@@ -978,14 +981,14 @@ class AddPaymentDialogContentState extends ConsumerState<AddPaymentDialogContent
     return Container(
       padding: const EdgeInsets.all(Spacing.sm),
       decoration: BoxDecoration(
-        color: Colors.teal.withValues(alpha: 0.05),
+        color: AppColors.primaryBackground.withValues(alpha: 0.05),
         borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: Colors.teal.withValues(alpha: 0.2)),
+        border: Border.all(color: AppColors.primaryBackground.withValues(alpha: 0.2)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text('Dep\u00f3sito Bancario Cheque', style: widget.theme.typography.bodyStrong?.copyWith(color: Colors.teal.dark)),
+          Text('Dep\u00f3sito Bancario Cheque', style: widget.theme.typography.bodyStrong?.copyWith(color: AppColors.primaryBackground)),
           const SizedBox(height: Spacing.sm),
           Row(children: [
             Expanded(child: InfoLabel(
@@ -1012,14 +1015,14 @@ class AddPaymentDialogContentState extends ConsumerState<AddPaymentDialogContent
     return Container(
       padding: const EdgeInsets.all(Spacing.sm),
       decoration: BoxDecoration(
-        color: Colors.blue.withValues(alpha: 0.05),
+        color: AppColors.info.withValues(alpha: 0.05),
         borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: Colors.blue.withValues(alpha: 0.2)),
+        border: Border.all(color: AppColors.info.withValues(alpha: 0.2)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text('Dep\u00f3sito Bancario', style: widget.theme.typography.bodyStrong?.copyWith(color: Colors.blue.dark)),
+          Text('Dep\u00f3sito Bancario', style: widget.theme.typography.bodyStrong?.copyWith(color: AppColors.info)),
           const SizedBox(height: Spacing.sm),
           Row(children: [
             Expanded(child: InfoLabel(
@@ -1049,14 +1052,14 @@ class AddPaymentDialogContentState extends ConsumerState<AddPaymentDialogContent
     return Container(
       padding: const EdgeInsets.all(Spacing.sm),
       decoration: BoxDecoration(
-        color: Colors.blue.withValues(alpha: 0.05),
+        color: AppColors.info.withValues(alpha: 0.05),
         borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: Colors.blue.withValues(alpha: 0.2)),
+        border: Border.all(color: AppColors.info.withValues(alpha: 0.2)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(title, style: widget.theme.typography.bodyStrong?.copyWith(color: Colors.blue.dark)),
+          Text(title, style: widget.theme.typography.bodyStrong?.copyWith(color: AppColors.info)),
           const SizedBox(height: Spacing.sm),
           Row(children: [
             Expanded(child: InfoLabel(
@@ -1087,14 +1090,14 @@ class AddPaymentDialogContentState extends ConsumerState<AddPaymentDialogContent
       data: (advances) => Container(
         padding: const EdgeInsets.all(Spacing.sm),
         decoration: BoxDecoration(
-          color: Colors.magenta.withValues(alpha: 0.05),
+          color: AppColors.advance.withValues(alpha: 0.05),
           borderRadius: BorderRadius.circular(8),
-          border: Border.all(color: Colors.magenta.withValues(alpha: 0.2)),
+          border: Border.all(color: AppColors.advance.withValues(alpha: 0.2)),
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('Aplicar Anticipo', style: widget.theme.typography.bodyStrong?.copyWith(color: Colors.magenta.dark)),
+            Text('Aplicar Anticipo', style: widget.theme.typography.bodyStrong?.copyWith(color: AppColors.advance)),
             const SizedBox(height: Spacing.sm),
             InfoLabel(
               label: 'Anticipo disponible *',
@@ -1109,7 +1112,7 @@ class AddPaymentDialogContentState extends ConsumerState<AddPaymentDialogContent
                     children: [
                       Expanded(child: Text(a.name, overflow: TextOverflow.ellipsis)),
                       Text(a.amountAvailable.toCurrency(),
-                           style: TextStyle(color: Colors.green.dark, fontWeight: FontWeight.bold)),
+                           style: TextStyle(color: AppColors.success, fontWeight: FontWeight.bold)),
                     ],
                   ),
                 )).toList(),
@@ -1129,11 +1132,11 @@ class AddPaymentDialogContentState extends ConsumerState<AddPaymentDialogContent
               Row(children: [
                 Expanded(child: Container(
                   padding: const EdgeInsets.all(Spacing.sm),
-                  decoration: BoxDecoration(color: Colors.magenta.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(4)),
+                  decoration: BoxDecoration(color: AppColors.advance.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(4)),
                   child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                     Text('Disponible', style: widget.theme.typography.caption),
                     Text(_selectedAdvance!.amountAvailable.toCurrency(),
-                         style: widget.theme.typography.bodyStrong?.copyWith(color: Colors.magenta.dark)),
+                         style: widget.theme.typography.bodyStrong?.copyWith(color: AppColors.advance)),
                   ]),
                 )),
                 const SizedBox(width: Spacing.sm),
@@ -1161,14 +1164,14 @@ class AddPaymentDialogContentState extends ConsumerState<AddPaymentDialogContent
       data: (creditNotes) => Container(
         padding: const EdgeInsets.all(Spacing.sm),
         decoration: BoxDecoration(
-          color: Colors.purple.withValues(alpha: 0.05),
+          color: AppColors.creditNote.withValues(alpha: 0.05),
           borderRadius: BorderRadius.circular(8),
-          border: Border.all(color: Colors.purple.withValues(alpha: 0.2)),
+          border: Border.all(color: AppColors.creditNote.withValues(alpha: 0.2)),
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('Aplicar Nota de Cr\u00e9dito', style: widget.theme.typography.bodyStrong?.copyWith(color: Colors.purple.dark)),
+            Text('Aplicar Nota de Cr\u00e9dito', style: widget.theme.typography.bodyStrong?.copyWith(color: AppColors.creditNote)),
             const SizedBox(height: Spacing.sm),
             InfoLabel(
               label: 'Nota de cr\u00e9dito *',
@@ -1183,7 +1186,7 @@ class AddPaymentDialogContentState extends ConsumerState<AddPaymentDialogContent
                     children: [
                       Expanded(child: Text(nc.name, overflow: TextOverflow.ellipsis)),
                       Text(nc.amountResidual.toCurrency(),
-                           style: TextStyle(color: Colors.green.dark, fontWeight: FontWeight.bold)),
+                           style: TextStyle(color: AppColors.success, fontWeight: FontWeight.bold)),
                     ],
                   ),
                 )).toList(),
@@ -1203,11 +1206,11 @@ class AddPaymentDialogContentState extends ConsumerState<AddPaymentDialogContent
               Row(children: [
                 Expanded(child: Container(
                   padding: const EdgeInsets.all(Spacing.sm),
-                  decoration: BoxDecoration(color: Colors.purple.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(4)),
+                  decoration: BoxDecoration(color: AppColors.creditNote.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(4)),
                   child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                     Text('Saldo NC', style: widget.theme.typography.caption),
                     Text(_selectedCreditNote!.amountResidual.toCurrency(),
-                         style: widget.theme.typography.bodyStrong?.copyWith(color: Colors.purple.dark)),
+                         style: widget.theme.typography.bodyStrong?.copyWith(color: AppColors.creditNote)),
                   ]),
                 )),
                 const SizedBox(width: Spacing.sm),
@@ -1234,12 +1237,28 @@ class AddPaymentDialogContentState extends ConsumerState<AddPaymentDialogContent
 
     if (_lineType == PaymentLineType.advance && _selectedAdvance != null) {
       if (amount > _selectedAdvance!.amountAvailable) {
-        alerts.add(_buildAlert('El monto excede el disponible del anticipo', Colors.orange));
+        alerts.add(_buildAlert('El monto excede el disponible del anticipo', AppColors.warning));
       }
     }
     if (_lineType == PaymentLineType.creditNote && _selectedCreditNote != null) {
       if (amount > _selectedCreditNote!.amountResidual) {
-        alerts.add(_buildAlert('El monto excede el saldo de la nota de cr\u00e9dito', Colors.orange));
+        alerts.add(_buildAlert('El monto excede el saldo de la nota de cr\u00e9dito', AppColors.warning));
+      }
+    }
+
+    // Efectivo con pago manual: si el cajero ya ingres\u00f3 el monto recibido y
+    // es menor al monto a abonar, se bloquea el bot\u00f3n (ver _isValid). No se
+    // bloquea si el campo "Recibido" est\u00e1 vac\u00edo (a\u00fan no lo ha llenado) para
+    // no interrumpir el flujo normal de digitaci\u00f3n.
+    if (_lineType == PaymentLineType.payment && _showCashFields) {
+      final tendered = double.tryParse(_cashTenderedController.text.trim());
+      if (tendered != null && tendered < amount) {
+        alerts.add(_buildAlert(
+          'El monto recibido (${tendered.toCurrency()}) es menor al monto a '
+          'abonar (${amount.toCurrency()}). Ingresa un monto recibido mayor '
+          'o igual, o reduce el monto a abonar.',
+          AppColors.danger,
+        ));
       }
     }
 
@@ -1271,6 +1290,14 @@ class AddPaymentDialogContentState extends ConsumerState<AddPaymentDialogContent
     switch (_lineType) {
       case PaymentLineType.payment:
         if (_selectedJournal == null || _selectedMethod == null) return false;
+        if (_showCashFields) {
+          // Solo bloquea si el cajero ya ingresó el monto recibido y es
+          // menor al monto a abonar. Si "Recibido" está vacío, se deja
+          // avanzar (el pago parcial intencional sin especificar recibido
+          // sigue permitido).
+          final tendered = double.tryParse(_cashTenderedController.text.trim());
+          if (tendered != null && tendered < amount) return false;
+        }
         if (_showCardFields) {
           // Full card journal (DATAFAST) - requires Lote, Marca, Plazo
           if (_referenceController.text.isEmpty || _selectedLote == null || _selectedCardBrand == null) return false;

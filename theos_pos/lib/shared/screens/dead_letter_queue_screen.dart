@@ -79,8 +79,8 @@ class _DeadLetterQueueScreenState extends ConsumerState<DeadLetterQueueScreen> {
       if (mounted) {
         CopyableInfoBar.showError(
           context,
-          title: 'Error al reintentar operacion',
-          message: 'No se pudo reintentar la operacion. Intente nuevamente.',
+          title: 'Error al reintentar operación',
+          message: 'No se pudo reintentar la operación. Intenta nuevamente.',
         );
       }
     } finally {
@@ -276,16 +276,9 @@ class _DeadLetterQueueScreenState extends ConsumerState<DeadLetterQueueScreen> {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(
-              FluentIcons.completed,
-              size: 64,
-              color: Colors.green,
-            ),
+            Icon(FluentIcons.completed, size: 64, color: Colors.green),
             const SizedBox(height: Spacing.md),
-            Text(
-              'Sin operaciones fallidas',
-              style: theme.typography.subtitle,
-            ),
+            Text('Sin operaciones fallidas', style: theme.typography.subtitle),
             const SizedBox(height: Spacing.sm),
             Text(
               'Todas las operaciones se sincronizaron correctamente',
@@ -310,11 +303,7 @@ class _DeadLetterQueueScreenState extends ConsumerState<DeadLetterQueueScreen> {
                 padding: const EdgeInsets.all(Spacing.md),
                 child: Row(
                   children: [
-                    Icon(
-                      FluentIcons.warning,
-                      color: Colors.orange,
-                      size: 32,
-                    ),
+                    Icon(FluentIcons.warning, color: Colors.orange, size: 32),
                     const SizedBox(width: Spacing.md),
                     Expanded(
                       child: Column(
@@ -373,19 +362,13 @@ class _DeadLetterQueueScreenState extends ConsumerState<DeadLetterQueueScreen> {
         children: [
           Row(
             children: [
-              Icon(
-                _getIconForModel(op.model),
-                color: theme.accentColor,
-              ),
+              Icon(_getIconForModel(op.model), color: theme.accentColor),
               const SizedBox(width: Spacing.sm),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
-                      description,
-                      style: theme.typography.bodyStrong,
-                    ),
+                    Text(description, style: theme.typography.bodyStrong),
                     if (recordInfo != null)
                       Text(
                         recordInfo,
@@ -407,9 +390,7 @@ class _DeadLetterQueueScreenState extends ConsumerState<DeadLetterQueueScreen> {
                 ),
                 child: Text(
                   '${op.retryCount} reintentos',
-                  style: theme.typography.caption?.copyWith(
-                    color: Colors.red,
-                  ),
+                  style: theme.typography.caption?.copyWith(color: Colors.red),
                 ),
               ),
             ],
@@ -437,9 +418,7 @@ class _DeadLetterQueueScreenState extends ConsumerState<DeadLetterQueueScreen> {
               ),
               child: Text(
                 op.lastError!,
-                style: theme.typography.caption?.copyWith(
-                  color: Colors.red,
-                ),
+                style: theme.typography.caption?.copyWith(color: Colors.red),
                 maxLines: 3,
                 overflow: TextOverflow.ellipsis,
               ),
@@ -608,5 +587,4 @@ class _DeadLetterQueueScreenState extends ConsumerState<DeadLetterQueueScreen> {
     if (dt == null) return '-';
     return '${dt.day}/${dt.month}/${dt.year} ${dt.hour.toString().padLeft(2, '0')}:${dt.minute.toString().padLeft(2, '0')}';
   }
-
 }

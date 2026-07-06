@@ -1000,7 +1000,19 @@ class CollectionRepository extends BaseRepository with OfflineSupport {
           'payment_origin_type': paymentOriginType,
           'payment_method_category': paymentMethodCategory,
           'invoice_id': invoiceId,
-          'ref': ref,
+          // Odoo 19.5 (erp1): account.payment.ref fue eliminado del
+          // servidor, reemplazado por 'memo' (verificado con fields_get en
+          // vivo, julio 2026 — ausente en 19.2 y 19.5, EXISTS: memo). Se usa
+          // el nombre 'memo' aqui tambien (no solo en el payload HTTP de
+          // _processPaymentCreate) para que la clave interna del encolado
+          // coincida con el campo remoto real y no confunda a futuros
+          // mantenedores. Mismo dato que el `ref` del modelo local
+          // (AccountPayment.ref, ahora @OdooLocalOnly).
+          'memo': ref,
+          // payment_uuid es EXCLUSIVAMENTE de correlacion local (nunca se
+          // envia a Odoo) — ver _processPaymentCreate en
+          // offline_sync_payment.dart, que lo usa solo para
+          // _updatePaymentIdByUuid despues del create.
           'payment_uuid': paymentUuid,
         },
         priority: OfflinePriority.high,

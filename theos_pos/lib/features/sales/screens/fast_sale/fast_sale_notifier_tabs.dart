@@ -270,8 +270,23 @@ extension FastSaleNotifierTabs on FastSaleNotifier {
   }
 
   /// Close a tab
+  ///
+  /// Además de quitar la pestaña de la UI, libera de memoria el caché
+  /// asociado a esa orden ([orderCacheProvider] + líneas de pago/retención).
+  /// Antes esto nunca se limpiaba: `OrderCache` y los notifiers de pago/
+  /// retención acumulaban datos de TODA orden vista durante el turno sin
+  /// límite (memory leak corregido). El evict es solo local — no sincroniza
+  /// ninguna eliminación a Odoo, la orden y sus datos siguen existiendo ahí.
   void closeTab(int index) {
+    if (index < 0 || index >= state.tabs.length) return;
+
+    final closedOrderId = state.tabs[index].orderId;
+
     final newTabs = List<FastSaleTabState>.from(state.tabs)..removeAt(index);
+
+    ref.read(orderCacheProvider.notifier).removeOrder(closedOrderId);
+    ref.read(posPaymentLinesByOrderProvider.notifier).evict(closedOrderId);
+    ref.read(posWithholdLinesByOrderProvider.notifier).evict(closedOrderId);
 
     // If closing the last tab, show empty state
     if (newTabs.isEmpty) {

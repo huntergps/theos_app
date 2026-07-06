@@ -267,16 +267,18 @@ class UserRepository extends BaseRepository
   }
 
   /// Revoke a specific device
+  ///
+  /// `mobile_revoke_device(self, password)` (l10n_ec_collection_box_pos/res_device.py)
+  /// es un metodo de recordset: el device se identifica via `ids`, no via args
+  /// posicionales (el dispatcher JSON-2 no soporta args posicionales, ver
+  /// OdooClient.call).
   Future<bool> revokeDevice(int deviceId, String password) async {
     try {
       await odooClient!.call(
         model: 'res.device',
         method: 'mobile_revoke_device',
-        args: [
-          [deviceId],
-          password,
-        ],
-        kwargs: {},
+        ids: [deviceId],
+        kwargs: {'password': password},
       );
 
       return true;
@@ -285,14 +287,47 @@ class UserRepository extends BaseRepository
     }
   }
 
+  // ============ Groups ============
+
+  /// Reactive stream of the current user's group IDs (`res_users.group_ids`,
+  /// campo local desnormalizado con IDs separados por coma).
+  ///
+  /// Antes esta consulta SQL vivía directo dentro de un `FutureProvider` en
+  /// `user_preferences_dialog.dart` (violación de capa) y no era reactiva —
+  /// si `group_ids` cambiaba por un re-sync de sesión/permisos mientras el
+  /// diálogo de preferencias estaba abierto, no se refrescaba. Usar
+  /// `.watchSingleOrNull()` (en vez de `.getSingleOrNull()`) hace que el
+  /// stream re-emita automáticamente cuando la fila cambia en la DB local.
+  Stream<List<int>> watchCurrentUserGroupIds() {
+    return _appDb
+        .customSelect(
+          'SELECT group_ids FROM res_users WHERE is_current_user = 1 LIMIT 1',
+        )
+        .watchSingleOrNull()
+        .map((row) {
+      if (row == null) return const <int>[];
+
+      final groupIdsStr = row.read<String?>('group_ids');
+      if (groupIdsStr == null || groupIdsStr.isEmpty) return const <int>[];
+
+      return groupIdsStr
+          .split(',')
+          .map((s) => int.tryParse(s.trim()))
+          .whereType<int>()
+          .toList();
+    });
+  }
+
   /// Revoke all devices except current
+  ///
+  /// `mobile_revoke_all_devices(self, password)` es `@api.model` (opera sobre
+  /// self.env.user, no necesita ids) — el parametro real es `password`.
   Future<bool> revokeAllDevices(String password) async {
     try {
       await odooClient!.call(
         model: 'res.users',
         method: 'mobile_revoke_all_devices',
-        args: [password],
-        kwargs: {},
+        kwargs: {'password': password},
       );
 
       return true;
@@ -304,6 +339,10 @@ class UserRepository extends BaseRepository
   // ============ Password Management ============
 
   /// Change user password
+  ///
+  /// `change_password(self, old_passwd, new_passwd)` es `@api.model` (metodo
+  /// estandar de res.users) — nombres reales de parametros verificados en
+  /// odoo/addons/base/models/res_users.py.
   Future<bool> changePassword({
     required String oldPassword,
     required String newPassword,
@@ -312,8 +351,10 @@ class UserRepository extends BaseRepository
       final result = await odooClient!.call(
         model: 'res.users',
         method: 'change_password',
-        args: [oldPassword, newPassword],
-        kwargs: {},
+        kwargs: {
+          'old_passwd': oldPassword,
+          'new_passwd': newPassword,
+        },
       );
       return result == true;
     } catch (e) {

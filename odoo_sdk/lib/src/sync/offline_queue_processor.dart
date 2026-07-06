@@ -98,6 +98,21 @@ class OfflineQueueProcessor {
   final _progressController =
       StreamController<SyncProgressEvent>.broadcast();
 
+  /// Mutex de PROCESO (compartido por TODAS las instancias de
+  /// [OfflineQueueProcessor], no solo por instancia).
+  ///
+  /// Por qué es necesario incluso con `markOperationProcessing`: el patrón
+  /// "SELECT snapshot, después marcar" no es atómico. Si dos llamadas a
+  /// [processQueue] arrancan en el mismo tick de Dart (ej. dos instancias de
+  /// `OfflineSyncService` — una porque `ref.invalidate(offlineSyncServiceProvider)`
+  /// se disparó mientras la sync anterior seguía en curso), AMBAS pueden
+  /// completar su `getPendingOperations()` ANTES de que cualquiera alcance a
+  /// marcar una sola fila como 'processing' — el filtro de status no
+  /// protege un snapshot que ya fue tomado. Este lock serializa TODAS las
+  /// llamadas a processQueue() del proceso, cerrando esa ventana por
+  /// completo (en vez de depender de una condición de carrera favorable).
+  static Future<void> _globalLock = Future.value();
+
   /// Creates a new [OfflineQueueProcessor].
   ///
   /// [queue] The queue store to read pending operations from.
@@ -149,9 +164,44 @@ class OfflineQueueProcessor {
   ///
   /// Returns a [QueueProcessResult] with counts of synced, failed, skipped
   /// operations, any errors, and detected conflicts.
+  ///
+  /// Serializado vía [_globalLock] contra CUALQUIER otra llamada a
+  /// processQueue() en el proceso (de esta u otra instancia) — ver doc de
+  /// [_globalLock].
   Future<QueueProcessResult> processQueue({
     List<OfflineOperation>? operations,
-  }) async {
+  }) {
+    return runExclusive(() => _processQueueLocked(operations));
+  }
+
+  /// Ejecuta [action] bajo el mismo lock global de proceso que usa
+  /// [processQueue] (ver [_globalLock]).
+  ///
+  /// Útil para OTROS caminos de despacho que no pasan por
+  /// [OfflineQueueProcessor] pero necesitan la MISMA exclusión mutua para no
+  /// despachar una operación en paralelo con una llamada a [processQueue] en
+  /// curso (de esta u otra instancia). Caso concreto (Fase B, tarea 4): el
+  /// despacho directo de una orden puntual en
+  /// `OfflineSyncService._processSaleOrderQueueInternal`, que tiene su
+  /// propio loop y no usa [OfflineQueueProcessor] — envolverlo con
+  /// [runExclusive] cierra esa brecha sin reescribir su lógica de
+  /// reintentos/errores.
+  static Future<T> runExclusive<T>(Future<T> Function() action) async {
+    final previousLock = _globalLock;
+    final releaseLock = Completer<void>();
+    _globalLock = releaseLock.future;
+    await previousLock;
+    try {
+      return await action();
+    } finally {
+      releaseLock.complete();
+    }
+  }
+
+  /// Cuerpo real de [processQueue], ejecutado bajo [_globalLock].
+  Future<QueueProcessResult> _processQueueLocked(
+    List<OfflineOperation>? operations,
+  ) async {
     final ops = operations ?? await _queue.getPendingOperations();
     if (ops.isEmpty) {
       return QueueProcessResult.empty;
@@ -182,6 +232,25 @@ class OfflineQueueProcessor {
       return a.createdAt.compareTo(b.createdAt);
     });
 
+    // Reclama TODO el batch como 'processing' de inmediato, ANTES de
+    // procesar ninguna operación.
+    //
+    // Antes esto se hacía una por una, adentro del loop principal, justo
+    // antes de llamar al handler de cada operación. Eso dejaba una ventana
+    // enorme abierta: la operación #10 de un batch de 20 seguía en
+    // 'pending' (visible para getPendingOperations) mientras se procesaban
+    // las 9 anteriores — si esas 9 incluían llamadas HTTP lentas, una
+    // segunda llamada concurrente a processQueue() (ej. tras invalidar
+    // offlineSyncServiceProvider mientras la primera sigue en curso) podía
+    // tomar esa misma operación #10 y despacharla en paralelo.
+    //
+    // Marcando todo el batch de una vez, apenas después del snapshot, esa
+    // ventana se reduce al mínimo posible con este diseño (snapshot + marca
+    // en un datasource sin "claim" atómico tipo UPDATE...RETURNING).
+    for (final op in ops) {
+      await _queue.markOperationProcessing(op.id);
+    }
+
     int success = 0;
     int failed = 0;
     int skipped = 0;
@@ -203,6 +272,11 @@ class OfflineQueueProcessor {
         ),
       );
 
+      // La operación ya fue marcada 'processing' en el paso de reclamo de
+      // todo el batch (ver arriba). Startup recovery en database.dart
+      // resetea 'processing' → 'pending' en cada apertura de la app, así
+      // que cualquier fila huérfana por un crash se auto-sana sola.
+
       try {
         final conflict = await _handler(op);
         if (conflict != null) {
@@ -213,6 +287,12 @@ class OfflineQueueProcessor {
           );
           if (_removeOnConflict) {
             await _queue.removeOperation(op.id);
+          } else {
+            // La operación se queda en la cola para resolución manual, pero
+            // debe volver a 'pending' — si se queda en 'processing', el
+            // filtro de status en getPendingOperations() la esconde para
+            // siempre y nunca vuelve a aparecer en la UI de conflictos.
+            await _queue.markOperationPending(op.id);
           }
           _progressController.add(
             SyncProgressEvent(
@@ -249,6 +329,10 @@ class OfflineQueueProcessor {
         );
         if (_removeOnSkipped) {
           await _queue.removeOperation(op.id);
+        } else {
+          // Igual que en el caso de conflicto: si no se remueve, debe volver
+          // a 'pending' para no quedar invisible para siempre.
+          await _queue.markOperationPending(op.id);
         }
         _progressController.add(
           SyncProgressEvent(
@@ -263,6 +347,10 @@ class OfflineQueueProcessor {
         failed++;
         final errorMsg = 'Op ${op.id} (${op.model}.${op.method}): $e';
         errors.add(errorMsg);
+        // markOperationFailed() debe dejar la operación en status='pending'
+        // (con el backoff ya programado vía nextRetryAt) — de lo contrario
+        // se queda en 'processing' para siempre y el filtro de status la
+        // esconde de getPendingOperations() en el próximo ciclo.
         await _queue.markOperationFailed(op.id, e.toString());
         await _auditLogger?.logOperation(
           op,

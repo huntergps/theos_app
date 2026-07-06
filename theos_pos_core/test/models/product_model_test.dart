@@ -51,8 +51,9 @@ void main() {
       expect(product.categName, equals('Electrónicos'));
       expect(product.uomId, equals(1));
       expect(product.uomName, equals('Unidades'));
-      expect(product.uomPoId, equals(2));
-      expect(product.uomPoName, equals('Cajas'));
+      // uom_po_id es @OdooLocalOnly (eliminado del core 19.x, julio 2026):
+      expect(product.uomPoId, isNull);
+      expect(product.uomPoName, isNull);
       expect(product.qtyAvailable, equals(25.0));
       expect(product.virtualAvailable, equals(30.0));
       expect(product.tracking, equals(TrackingType.serial));

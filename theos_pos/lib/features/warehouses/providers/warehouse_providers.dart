@@ -14,12 +14,19 @@ final warehousesProvider = StreamProvider<List<Warehouse>>((ref) {
 ///
 /// Uses `warehouseManager.watchLocalRecord(id)` so UI auto-updates
 /// when the warehouse is modified or synced locally.
-final warehouseByIdProvider = StreamProvider.family<Warehouse?, int>((ref, warehouseId) {
+///
+/// `autoDispose`: es `.family` por `warehouseId` transitorio (memory leak
+/// corregido). Verificado: sin consumidores en todo el codebase hoy — cero
+/// riesgo de romper algo.
+final warehouseByIdProvider = StreamProvider.autoDispose.family<Warehouse?, int>((ref, warehouseId) {
   return warehouseManager.watchLocalRecord(warehouseId);
 });
 
 /// Get a warehouse name from cache. Derives from the warehouses stream.
-final warehouseNameProvider = Provider.family<String, int?>((ref, warehouseId) {
+///
+/// `autoDispose`: es `.family` por `warehouseId` transitorio (memory leak
+/// corregido). Verificado: sin consumidores en todo el codebase hoy.
+final warehouseNameProvider = Provider.autoDispose.family<String, int?>((ref, warehouseId) {
   if (warehouseId == null) return '';
   final warehouses = ref.watch(warehousesProvider);
   return warehouses.when(

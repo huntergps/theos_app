@@ -81,6 +81,34 @@ class CountryManager {
     }
   }
 
+  /// Batch upsert de países — UNA sola transacción Drift para todo el lote,
+  /// en vez de 2 queries (select + update/insert) POR REGISTRO como hace
+  /// [upsertLocal]. Ver comentario equivalente en
+  /// `CountryStateManager.upsertLocalBatch` (mismo patrón).
+  Future<void> upsertLocalBatch(List<Country> records) async {
+    if (records.isEmpty) return;
+
+    await _db.batch((batch) {
+      for (final record in records) {
+        final companion = ResCountryCompanion(
+          odooId: Value(record.odooId),
+          name: Value(record.name),
+          code: Value(record.code),
+          writeDate: Value(record.writeDate),
+        );
+
+        batch.insert(
+          _db.resCountry,
+          companion,
+          onConflict: DoUpdate(
+            (_) => companion,
+            target: [_db.resCountry.odooId],
+          ),
+        );
+      }
+    });
+  }
+
   /// Get country by Odoo ID
   Future<ResCountryData?> getById(int odooId) async {
     return (_db.select(_db.resCountry)..where((t) => t.odooId.equals(odooId)))
@@ -174,6 +202,44 @@ class CountryStateManager {
     } else {
       await _db.into(_db.resCountryState).insert(companion);
     }
+  }
+
+  /// Batch upsert de country states — UNA sola transacción Drift
+  /// (`database.batch()`) para todo el lote, en vez de 2 queries
+  /// (select + update/insert) POR REGISTRO como hace [upsertLocal]. Pensado
+  /// para el sync inicial de catálogo (~500 registros en Odoo).
+  ///
+  /// A diferencia de `GenericDriftOperations.upsertLocalBatch` (usado por
+  /// managers generados), acá SÍ hay un `XxxCompanion` tipado real
+  /// (`ResCountryStateCompanion`) porque este manager es hand-written —
+  /// no hace falta el SQL crudo / `RawValuesInsertable` que existe para
+  /// managers genéricos. Usa la misma lógica de conflicto (`ON CONFLICT
+  /// (odoo_id) DO UPDATE`) que [upsertLocal], vía la API pública de Drift
+  /// (`DoUpdate` + `target:`).
+  Future<void> upsertLocalBatch(List<CountryState> records) async {
+    final valid = records.where((r) => r.countryId != 0).toList();
+    if (valid.isEmpty) return;
+
+    await _db.batch((batch) {
+      for (final record in valid) {
+        final companion = ResCountryStateCompanion(
+          odooId: Value(record.odooId),
+          name: Value(record.name),
+          code: Value(record.code),
+          countryId: Value(record.countryId),
+          writeDate: Value(record.writeDate),
+        );
+
+        batch.insert(
+          _db.resCountryState,
+          companion,
+          onConflict: DoUpdate(
+            (_) => companion,
+            target: [_db.resCountryState.odooId],
+          ),
+        );
+      }
+    });
   }
 
   /// Get states by country

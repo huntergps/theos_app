@@ -1,16 +1,21 @@
 import 'package:dartz/dartz.dart';
-import 'package:odoo_sdk/odoo_sdk.dart';
+import 'package:odoo_sdk/odoo_sdk.dart' show Failure, CacheFailure, ServerFailure;
 import 'package:theos_pos_core/theos_pos_core.dart' show MailActivity, mailActivityManager;
 
 /// Repository for Activities - Consolidated offline-first implementation
 ///
 /// Uses [mailActivityManager] for all local CRUD operations.
 /// Implements offline-first pattern with optimistic updates.
+///
+/// F5 (eliminación de fuga de OdooClient): este repo ya NO guarda su propio
+/// `OdooClient?` — todas sus llamadas RPC son sobre `mail.activity`, modelo
+/// gestionado por [mailActivityManager]. Los `search_read` usan
+/// `mailActivityManager.client.searchRead(...)`; las acciones custom
+/// (`action_done`, `action_cancel`, `action_reschedule_*`) usan
+/// `mailActivityManager.callCustomMethod(...)` (ver
+/// `odoo_sdk/lib/src/model/manager_actions_mixin.dart`).
 class ActivityRepository {
-  final OdooClient? _odooClient;
-
-  ActivityRepository({OdooClient? odooClient})
-    : _odooClient = odooClient;
+  ActivityRepository();
 
   // ============ Read Operations ============
 
@@ -70,41 +75,31 @@ class ActivityRepository {
   Future<Either<Failure, List<MailActivity>>> syncAndGet(
     int userId,
   ) async {
-    if (_odooClient == null) {
+    if (!mailActivityManager.isOnline) {
       return getActivities(); // Return cached if no remote
     }
 
     try {
       // Fetch from server
-      final response = await _odooClient.call(
+      final response = await mailActivityManager.client.searchRead(
         model: 'mail.activity',
-        method: 'search_read',
-        kwargs: {
-          'domain': [
-            ['user_id', '=', userId],
-          ],
-          'fields': mailActivityManager.odooFields,
-          'order': 'date_deadline asc',
-        },
+        fields: mailActivityManager.odooFields,
+        domain: [
+          ['user_id', '=', userId],
+        ],
+        order: 'date_deadline asc',
       );
 
-      if (response is List) {
-        final remoteModels = response
-            .map(
-              (json) =>
-                  mailActivityManager.fromOdoo(json as Map<String, dynamic>),
-            )
-            .toList();
+      final remoteModels = response
+          .map((json) => mailActivityManager.fromOdoo(json))
+          .toList();
 
-        // Clear and save locally
-        await mailActivityManager.deleteAllLocal();
-        await mailActivityManager.upsertLocalBatch(remoteModels);
+      // Clear and save locally
+      await mailActivityManager.deleteAllLocal();
+      await mailActivityManager.upsertLocalBatch(remoteModels);
 
-        // Return models directly
-        return Right(remoteModels);
-      }
-
-      return getActivities();
+      // Return models directly
+      return Right(remoteModels);
     } catch (e) {
       // On error, return cached data
       return getActivities();
@@ -120,7 +115,7 @@ class ActivityRepository {
       await mailActivityManager.deleteLocal(activityId);
 
       // Background sync with server
-      if (_odooClient != null) {
+      if (mailActivityManager.isOnline) {
         _syncCompleteWithServer(activityId);
       }
 
@@ -132,9 +127,8 @@ class ActivityRepository {
 
   Future<void> _syncCompleteWithServer(int activityId) async {
     try {
-      await _odooClient?.call(
-        model: 'mail.activity',
-        method: 'action_done',
+      await mailActivityManager.callCustomMethod<dynamic>(
+        'action_done',
         kwargs: {
           'ids': [activityId],
         },
@@ -151,7 +145,7 @@ class ActivityRepository {
       await mailActivityManager.deleteLocal(activityId);
 
       // Background sync with server
-      if (_odooClient != null) {
+      if (mailActivityManager.isOnline) {
         _syncCancelWithServer(activityId);
       }
 
@@ -163,9 +157,8 @@ class ActivityRepository {
 
   Future<void> _syncCancelWithServer(int activityId) async {
     try {
-      await _odooClient?.call(
-        model: 'mail.activity',
-        method: 'action_cancel',
+      await mailActivityManager.callCustomMethod<dynamic>(
+        'action_cancel',
         kwargs: {
           'ids': [activityId],
         },
@@ -203,25 +196,20 @@ class ActivityRepository {
 
   /// Refresh single activity from server
   Future<void> refreshSingleActivity(int activityId) async {
-    if (_odooClient == null) return;
+    if (!mailActivityManager.isOnline) return;
 
     try {
-      final response = await _odooClient.call(
+      final response = await mailActivityManager.client.searchRead(
         model: 'mail.activity',
-        method: 'search_read',
-        kwargs: {
-          'domain': [
-            ['id', '=', activityId],
-          ],
-          'fields': mailActivityManager.odooFields,
-          'limit': 1,
-        },
+        fields: mailActivityManager.odooFields,
+        domain: [
+          ['id', '=', activityId],
+        ],
+        limit: 1,
       );
 
-      if (response is List && response.isNotEmpty) {
-        final activity = mailActivityManager.fromOdoo(
-          response.first as Map<String, dynamic>,
-        );
+      if (response.isNotEmpty) {
+        final activity = mailActivityManager.fromOdoo(response.first);
         await mailActivityManager.upsertLocal(activity);
       }
     } catch (_) {
@@ -256,35 +244,29 @@ class ActivityRepository {
     String method,
   ) async {
     try {
-      if (_odooClient == null) {
+      if (!mailActivityManager.isOnline) {
         return Left(ServerFailure(message: 'No hay conexion con el servidor'));
       }
 
-      await _odooClient.call(
-        model: 'mail.activity',
-        method: method,
+      await mailActivityManager.callCustomMethod<dynamic>(
+        method,
         kwargs: {
           'ids': [activityId],
         },
       );
 
       // Refresh the activity from server to get updated date
-      final response = await _odooClient.call(
+      final response = await mailActivityManager.client.searchRead(
         model: 'mail.activity',
-        method: 'search_read',
-        kwargs: {
-          'domain': [
-            ['id', '=', activityId],
-          ],
-          'fields': mailActivityManager.odooFields,
-          'limit': 1,
-        },
+        fields: mailActivityManager.odooFields,
+        domain: [
+          ['id', '=', activityId],
+        ],
+        limit: 1,
       );
 
-      if (response is List && response.isNotEmpty) {
-        final updatedActivity = mailActivityManager.fromOdoo(
-          response.first as Map<String, dynamic>,
-        );
+      if (response.isNotEmpty) {
+        final updatedActivity = mailActivityManager.fromOdoo(response.first);
         await mailActivityManager.upsertLocal(updatedActivity);
       }
 

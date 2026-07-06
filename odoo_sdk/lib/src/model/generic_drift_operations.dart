@@ -112,14 +112,21 @@ mixin GenericDriftOperations<T> on OdooModelManager<T> {
 
   @override
   Future<int> countLocal({List<dynamic>? domain}) async {
-    var query = database.select(table);
+    final tbl = table;
+    // Use COUNT(*) via selectOnly for an efficient single-row response
+    // instead of fetching all rows and calling .length.
+    final countExpr = drift.countAll();
+    final q = database.selectOnly(tbl)..addColumns([countExpr]);
 
     if (domain != null) {
-      query = applyDomainFilters(query, domain);
+      final expr = _buildDomainExpression(domain);
+      if (expr != null) {
+        q.where(expr(tbl));
+      }
     }
 
-    final result = await query.get();
-    return result.length;
+    final row = await q.getSingleOrNull();
+    return row?.read(countExpr) ?? 0;
   }
 
   @override
@@ -150,6 +157,22 @@ mixin GenericDriftOperations<T> on OdooModelManager<T> {
       }
     }
 
+    // Falla SIEMPRE (no solo en debug) si createDriftCompanion() generó
+    // claves que no matchean ninguna columna real. Antes esto se
+    // descartaba en silencio (con warning solo en modo debug vía assert) —
+    // así fue como el bug de Many2OneName/dígitos-adyacentes (columnas
+    // fantasma como 'country_id_name' en vez de 'country_name') pasó
+    // desapercibido hasta la auditoría de julio 2026. CAMBIO DE
+    // COMPORTAMIENTO DELIBERADO: preferimos un crash ruidoso e inmediato a
+    // perder datos sin que nadie se entere. Ver `upsert_roundtrip_test.dart`
+    // en theos_pos_core para el caso positivo (37 managers reales) y
+    // `generic_drift_operations_test.dart` en odoo_sdk para el caso
+    // negativo (companion con clave fantasma debe tronar acá).
+    final droppedKeys = rawColumns.keys
+        .where((key) => !keyToSqlName.containsKey(key))
+        .toSet();
+    _throwIfDroppedKeys(tblName, droppedKeys);
+
     if (validEntries.isEmpty) return;
 
     final colNames = validEntries.keys.toList();
@@ -158,10 +181,57 @@ mixin GenericDriftOperations<T> on OdooModelManager<T> {
         colNames.map((c) => '"$c" = excluded."$c"').join(', ');
     final values = colNames.map((c) => validEntries[c]).toList();
 
+    // Determine the conflict-resolution key.
+    //
+    // Problem: SQLite treats NULL != NULL, so ON CONFLICT ("odoo_id") never
+    // fires for records with odoo_id = NULL (locally created, not yet synced).
+    // Repeated upserts of the same local record produce duplicate rows instead
+    // of updating the existing one.
+    //
+    // Fix: when odoo_id is NULL in this companion, fall back to an alternative
+    // UNIQUE column if the table has one:
+    //   1. "line_uuid" — used by SaleOrderLine, SaleOrderWithholdLine,
+    //      SaleOrderPaymentLine, AdvanceLinesTable
+    //   2. "uuid"      — used by SaleOrder, CollectionSessionDeposit, CashOut
+    //
+    // If neither alternative exists with a non-NULL value, we fall back to a
+    // plain INSERT (no ON CONFLICT clause). That means re-inserting a truly
+    // duplicate local record will fail with a UNIQUE constraint error on the
+    // auto-increment PK — callers must ensure they don't upsert the same local
+    // record twice without a uuid/lineUuid set.
+    final odooIdValue = validEntries['odoo_id'];
+    String conflictClause;
+
+    if (odooIdValue != null) {
+      // Normal case: record has a server-assigned Odoo ID.
+      conflictClause = 'ON CONFLICT ("odoo_id") DO UPDATE SET $updateSet';
+    } else {
+      // Local record (odoo_id IS NULL): pick best available UNIQUE key.
+      final hasLineUuid = keyToSqlName.containsKey('line_uuid') &&
+          validEntries['line_uuid'] != null;
+      final hasUuid =
+          keyToSqlName.containsKey('uuid') && validEntries['uuid'] != null;
+
+      if (hasLineUuid) {
+        // Tables: SaleOrderLine, SaleOrderWithholdLine, SaleOrderPaymentLine
+        conflictClause =
+            'ON CONFLICT ("line_uuid") DO UPDATE SET $updateSet';
+      } else if (hasUuid) {
+        // Tables: SaleOrder (orderUuid stored in "uuid"), CollectionSessionDeposit
+        conflictClause = 'ON CONFLICT ("uuid") DO UPDATE SET $updateSet';
+      } else {
+        // No usable alternative key — plain INSERT (best-effort).
+        // Callers that create records without a uuid should ensure they do not
+        // call upsertLocal more than once per local record to avoid UNIQUE
+        // violations on the auto-increment PK.
+        conflictClause = '';
+      }
+    }
+
     final sql =
         'INSERT INTO "$tblName" (${colNames.map((c) => '"$c"').join(', ')}) '
         'VALUES ($placeholders) '
-        'ON CONFLICT ("odoo_id") DO UPDATE SET $updateSet';
+        '$conflictClause';
 
     await database.customStatement(sql, values);
     database.markTablesUpdated({tbl});
@@ -176,9 +246,15 @@ mixin GenericDriftOperations<T> on OdooModelManager<T> {
 
     // Pre-compute valid column names from table schema
     final validColNames = <String>{};
+    final tableColNames = <String>{};
     for (final col in tbl.$columns) {
       validColNames.add(col.$name);
+      tableColNames.add(col.$name);
     }
+
+    // Check once which alternative UNIQUE keys exist in this table's schema
+    final tableHasLineUuid = tableColNames.contains('line_uuid');
+    final tableHasUuid = tableColNames.contains('uuid');
 
     await database.batch((batch) {
       for (final record in records) {
@@ -187,13 +263,23 @@ mixin GenericDriftOperations<T> on OdooModelManager<T> {
 
         // Filter only columns that exist in the actual table
         final validEntries = <String, Object?>{};
+        final droppedKeys = <String>{};
         for (final entry in rawColumns.entries) {
           if (validColNames.contains(entry.key)) {
             final expr = entry.value;
             final rawValue = expr is drift.Variable ? expr.value : null;
             validEntries[entry.key] = _toSqliteValue(rawValue);
+          } else {
+            droppedKeys.add(entry.key);
           }
         }
+
+        // Falla SIEMPRE ante la primera clave fantasma detectada — antes de
+        // encolar ningún `batch.customStatement`, así el lote completo no
+        // se ejecuta con datos parciales. Ver comentario extenso en
+        // upsertLocal() sobre por qué esto es un cambio de comportamiento
+        // deliberado (antes se descartaba en silencio).
+        _throwIfDroppedKeys(tblName, droppedKeys);
 
         if (validEntries.isEmpty) continue;
 
@@ -203,10 +289,27 @@ mixin GenericDriftOperations<T> on OdooModelManager<T> {
             colNames.map((c) => '"$c" = excluded."$c"').join(', ');
         final values = colNames.map((c) => validEntries[c]).toList();
 
+        // Same NULL-safe conflict resolution as upsertLocal (see comment there).
+        final odooIdValue = validEntries['odoo_id'];
+        String conflictClause;
+
+        if (odooIdValue != null) {
+          conflictClause =
+              'ON CONFLICT ("odoo_id") DO UPDATE SET $updateSet';
+        } else if (tableHasLineUuid && validEntries['line_uuid'] != null) {
+          conflictClause =
+              'ON CONFLICT ("line_uuid") DO UPDATE SET $updateSet';
+        } else if (tableHasUuid && validEntries['uuid'] != null) {
+          conflictClause =
+              'ON CONFLICT ("uuid") DO UPDATE SET $updateSet';
+        } else {
+          conflictClause = '';
+        }
+
         final sql =
             'INSERT INTO "$tblName" (${colNames.map((c) => '"$c"').join(', ')}) '
             'VALUES ($placeholders) '
-            'ON CONFLICT ("odoo_id") DO UPDATE SET $updateSet';
+            '$conflictClause';
 
         batch.customStatement(
             sql, values, [drift.TableUpdate.onTable(tbl)]);
@@ -687,6 +790,51 @@ mixin GenericDriftOperations<T> on OdooModelManager<T> {
       }
     };
   }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Dropped companion keys — falla siempre, no solo en debug
+// ═══════════════════════════════════════════════════════════════════════════
+
+/// Lanza una excepción cuando `createDriftCompanion()` generó claves que no
+/// matchean ninguna columna real de la tabla.
+///
+/// HISTORIAL: hasta julio 2026 esto solo se avisaba en modo debug (vía
+/// `assert`) y los `validEntries` se descartaban en silencio para poder
+/// seguir insertando el resto de columnas válidas. Así fue como el bug de
+/// `@OdooMany2OneName` (columnas fantasma tipo `country_id_name` en vez de
+/// `country_name`) pasó desapercibido durante meses — el INSERT/UPDATE se
+/// ejecutaba igual, simplemente sin ese dato, sin ningún error visible.
+///
+/// CAMBIO DE COMPORTAMIENTO DELIBERADO (julio 2026, evaluación de migrar a
+/// la API tipada de Drift — ver `d-data.md` ítem 2): se evaluó reemplazar
+/// todo el mecanismo de SQL crudo por `insertOnConflictUpdate`/`DoUpdate`
+/// para heredar gratis un fallo ruidoso ("no such column"), pero resultó
+/// ser un bloqueo real de tipos — `DoUpdate<T extends Table, D>` (y el
+/// `where((t) => ...)` de `select`/`update`) exigen conocer el tipo Drift
+/// CONCRETO de la tabla generada (ej. `$ProductProductTable`), que esta
+/// mixin genérica no puede conocer en tiempo de compilación (solo tiene
+/// `TableInfo` erasado). Se probó empíricamente: incluso forzando
+/// `(database.into(tbl) as dynamic)`, Dart sigue validando en runtime el
+/// tipo real del closure/entity contra la firma real del método resuelto,
+/// y `RawValuesInsertable<dynamic>`/`(dynamic) Function(dynamic)` NUNCA
+/// satisfacen `Insertable<D>`/`($XxxTable) => Expression<bool>` — no hay
+/// cast que lo resuelva sin conocer el tipo concreto (eso requeriría que el
+/// generador emita companions tipados por tabla — Camino A, costo alto,
+/// pospuesto). Por eso se mantiene el SQL crudo para la escritura, pero se
+/// recupera la parte que SÍ importa del objetivo (fallar ruidoso) con esta
+/// validación explícita, ahora incondicional en vez de debug-only.
+void _throwIfDroppedKeys(String tableName, Set<String> droppedKeys) {
+  if (droppedKeys.isEmpty) return;
+  throw StateError(
+    'upsertLocal/upsertLocalBatch("$tableName"): createDriftCompanion() '
+    'generó ${droppedKeys.length} clave(s) sin columna real: '
+    '${droppedKeys.join(', ')}. '
+    'El valor de ese campo se habría perdido en silencio. Revisa el mapeo '
+    'driftAccessorName/@Odoo* del campo en el modelo contra la columna real '
+    'en la tabla Drift manual, corrige, y regenera con '
+    '`dart run build_runner build --delete-conflicting-outputs`.',
+  );
 }
 
 // ═══════════════════════════════════════════════════════════════════════════

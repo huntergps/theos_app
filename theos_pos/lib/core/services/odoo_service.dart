@@ -91,9 +91,20 @@ class OdooService {
   ///
   /// This is the main method for calling Odoo API endpoints.
   /// Delegates to [OdooClient.call] from odoo_offline_core.
+  ///
+  /// [ids] construye el recordset (`self`) del método en el dispatcher
+  /// JSON-2 de Odoo (`/json/2/<model>/<method>`). Para métodos de recordset
+  /// (ej. `action_confirm`, `action_session_validate`) usa [ids], NO [args].
+  ///
+  /// [args] está deprecado: el dispatcher estándar de Odoo NO trata "args"
+  /// como argumentos posicionales — cae dentro de los kwargs del método y
+  /// falla salvo que el propio método tenga un parámetro llamado "args". Usa
+  /// [kwargs] con los nombres reales de los parámetros de Python.
   Future<dynamic> call({
     required String model,
     required String method,
+    List<int>? ids,
+    // ignore: deprecated_member_use
     List<dynamic>? args,
     Map<String, dynamic>? kwargs,
     Map<String, dynamic>? context,
@@ -115,6 +126,8 @@ class OdooService {
       final result = await _client!.call(
         model: model,
         method: method,
+        ids: ids,
+        // ignore: deprecated_member_use
         args: args,
         kwargs: effectiveKwargs.isNotEmpty ? effectiveKwargs : null,
       );

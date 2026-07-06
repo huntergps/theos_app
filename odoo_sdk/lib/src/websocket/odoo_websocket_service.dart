@@ -364,6 +364,22 @@ class OdooWebSocketService {
       return;
     }
 
+    // FIX 4: If the server URL or database changed, clear additionalChannels so
+    // channels registered for the previous server are not re-subscribed to the
+    // new one.  For a same-server reconnect, additionalChannels are preserved
+    // (see disconnect()) and re-activated below.
+    final previousInfo = _connection.connectionInfo;
+    if (previousInfo != null &&
+        (previousInfo.baseUrl != connectionInfo.baseUrl ||
+            previousInfo.database != connectionInfo.database)) {
+      logger.i(
+        '[OdooWebSocket]',
+        'Server switch detected (${previousInfo.baseUrl} → ${connectionInfo.baseUrl}): '
+            'clearing additionalChannels',
+      );
+      _channels.clear(clearAdditional: true);
+    }
+
     try {
       final wasReconnection = _reconnection.wasReconnection;
 
@@ -478,6 +494,18 @@ class OdooWebSocketService {
         await connect(info);
       }
     });
+
+    // Fase B, tarea 6: circuit breaker suave — avisar a los listeners de
+    // eventStream (ej. un widget de estado en la UI) cuando ya llevamos
+    // demasiados intentos consecutivos fallidos, sin dejar de reintentar.
+    if (_reconnection.isCircuitBreakerActive) {
+      _emitEvent(OdooConnectionEvent(
+        isConnected: false,
+        isReconnection: true,
+        circuitBreakerActive: true,
+        reconnectAttempts: _reconnection.reconnectAttempts,
+      ));
+    }
   }
 
   /// Disconnects from the WebSocket server.
@@ -500,7 +528,11 @@ class OdooWebSocketService {
     _heartbeat.stop();
     _reconnection.cancel();
     _connection.disconnect();
-    _channels.clear();
+    // Preserve additionalChannels so they are re-subscribed on the next
+    // connect() call to the SAME server (transient network drop / reconnect).
+    // When switching to a DIFFERENT server, connect() detects the URL change
+    // and clears additionalChannels before building the channel list.
+    _channels.clear(clearAdditional: false);
   }
 
   /// Releases all resources used by this service.

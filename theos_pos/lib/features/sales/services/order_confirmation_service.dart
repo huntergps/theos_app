@@ -393,10 +393,9 @@ class OrderConfirmationService {
     );
   }
 
+  // Dedup: delega en orderTotalsCalculator (mismo resultado numérico).
   double _calculateOrderTotal(List<SaleOrderLine> lines) {
-    return lines
-        .where((l) => l.isProductLine)
-        .fold(0.0, (sum, line) => sum + line.priceTotal);
+    return orderTotalsCalculator.calculate(lines: lines).total;
   }
 
   Future<_SyncResult> _syncLocalOrder(

@@ -11,6 +11,7 @@ import 'package:theos_pos_core/theos_pos_core.dart'
         CardDeadline,
         AvailableBank;
 
+import '../../../core/constants/app_colors.dart';
 import '../../../core/services/logger_service.dart';
 import '../../../core/theme/spacing.dart';
 import '../../../shared/widgets/dialogs/copyable_info_bar.dart';
@@ -470,7 +471,7 @@ class _AdvanceRegistrationDialogState
                 const Spacer(),
                 if (_paymentLines.length > 1)
                   IconButton(
-                    icon: Icon(FluentIcons.delete, size: 14, color: Colors.red),
+                    icon: Icon(FluentIcons.delete, size: 14, color: AppColors.danger),
                     onPressed: () => _removePaymentLine(index),
                   ),
               ],

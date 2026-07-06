@@ -26,12 +26,15 @@ class PricelistManager extends OdooModelManager<Pricelist>
     'currency_id',
     'company_id',
     'sequence',
-    'discount_policy',
     'write_date',
   ];
 
-  @override
-  Pricelist fromOdoo(Map<String, dynamic> data) {
+  /// Versión estática pura de [fromOdoo] — no referencia `this` ni
+  /// estado de instancia (OdooClient, GeneratedDatabase), solo [data].
+  /// Por eso su tear-off (`PricelistManager.fromOdooMap`) es transferible a
+  /// `Isolate.run()`, a diferencia del tear-off del método de instancia
+  /// [fromOdoo] (que arrastra el manager completo, no transferible).
+  static Pricelist fromOdooMap(Map<String, dynamic> data) {
     return Pricelist(
       id: data['id'] as int? ?? 0,
       name: parseOdooStringRequired(data['name']),
@@ -41,10 +44,12 @@ class PricelistManager extends OdooModelManager<Pricelist>
       companyId: extractMany2oneId(data['company_id']),
       companyName: extractMany2oneName(data['company_id']),
       sequence: parseOdooInt(data['sequence']) ?? 0,
-      discountPolicy: parseOdooSelection(data['discount_policy']),
       writeDate: parseOdooDateTime(data['write_date']),
     );
   }
+
+  @override
+  Pricelist fromOdoo(Map<String, dynamic> data) => fromOdooMap(data);
 
   @override
   Map<String, dynamic> toOdoo(Pricelist record) {
@@ -54,7 +59,6 @@ class PricelistManager extends OdooModelManager<Pricelist>
       'currency_id': record.currencyId,
       'company_id': record.companyId,
       'sequence': record.sequence,
-      'discount_policy': record.discountPolicy,
     };
   }
 
@@ -103,7 +107,6 @@ class PricelistManager extends OdooModelManager<Pricelist>
     'currency_id': 'currencyId',
     'company_id': 'companyId',
     'sequence': 'sequence',
-    'discount_policy': 'discountPolicy',
     'write_date': 'writeDate',
   };
 
@@ -147,12 +150,12 @@ class PricelistManager extends OdooModelManager<Pricelist>
       'name': Variable<String>(record.name),
       'active': Variable<bool>(record.active),
       'currency_id': driftVar<int>(record.currencyId),
-      'currency_id_name': driftVar<String>(record.currencyName),
+      'currency_name': driftVar<String>(record.currencyName),
       'company_id': driftVar<int>(record.companyId),
-      'company_id_name': driftVar<String>(record.companyName),
+      'company_name': driftVar<String>(record.companyName),
       'sequence': Variable<int>(record.sequence),
-      'discount_policy': driftVar<String>(record.discountPolicy),
       'write_date': driftVar<DateTime>(record.writeDate),
+      'discount_policy': driftVar<String>(record.discountPolicy),
     });
   }
 
@@ -163,7 +166,6 @@ class PricelistManager extends OdooModelManager<Pricelist>
     'currencyId',
     'companyId',
     'sequence',
-    'discountPolicy',
   ];
 
   /// List of required fields for validation.
@@ -249,6 +251,8 @@ class PricelistManager extends OdooModelManager<Pricelist>
     current.addAll(changes);
     current['id'] = getId(record);
     var updated = fromOdoo(current);
+    // Preserve local-only fields from original record
+    updated = updated.copyWith(discountPolicy: record.discountPolicy);
     return updated;
   }
 
@@ -310,7 +314,6 @@ class PricelistManager extends OdooModelManager<Pricelist>
     'currencyId',
     'companyId',
     'sequence',
-    'discountPolicy',
   ];
 }
 

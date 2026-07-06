@@ -8,15 +8,17 @@ import '../../../../../shared/providers/user_provider.dart';
 import '../../../../../shared/utils/formatting_utils.dart';
 import '../fast_sale_providers.dart';
 
-/// Provider to check if an order has pending sync operations
-final orderPendingSyncProvider = FutureProvider.family<int, int>((ref, orderId) async {
-  final offlineQueue = ref.read(offlineQueueDataSourceProvider);
+/// Provider reactivo que emite el conteo de operaciones pendientes para una orden.
+///
+/// Usa Drift .watch() vía [OfflineQueueDataSource.watchPendingCountForSaleOrder]
+/// para que las pestañas de órdenes se actualicen automáticamente sin invalidación
+/// manual. Reemplaza el antiguo FutureProvider.family + ref.invalidate en 4 sitios.
+final orderPendingSyncProvider = StreamProvider.family<int, int>((ref, orderId) {
+  final offlineQueue = ref.watch(offlineQueueDataSourceProvider);
   if (offlineQueue == null) {
-    return 0;
+    return Stream.value(0);
   }
-
-  final operations = await offlineQueue.getOperationsForSaleOrder(orderId);
-  return operations.length;
+  return offlineQueue.watchPendingCountForSaleOrder(orderId);
 });
 
 /// Provider to sync a specific order
@@ -386,12 +388,15 @@ class _SearchOrdersDialogState extends ConsumerState<_SearchOrdersDialog> {
                 child: const Icon(FluentIcons.search, size: 16),
               ),
               suffix: _searchController.text.isNotEmpty
-                  ? IconButton(
-                      icon: const Icon(FluentIcons.chrome_close, size: 12),
-                      onPressed: () {
-                        _searchController.clear();
-                        _search('');
-                      },
+                  ? Tooltip(
+                      message: 'Limpiar búsqueda',
+                      child: IconButton(
+                        icon: const Icon(FluentIcons.chrome_close, size: 12),
+                        onPressed: () {
+                          _searchController.clear();
+                          _search('');
+                        },
+                      ),
                     )
                   : null,
             ),

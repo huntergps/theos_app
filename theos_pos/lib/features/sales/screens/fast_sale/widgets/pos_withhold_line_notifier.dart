@@ -4,7 +4,6 @@ import '../../../../../core/database/repositories/repository_providers.dart';
 import '../../../../../core/managers/manager_providers.dart' show appDatabaseProvider;
 import 'package:theos_pos_core/theos_pos_core.dart' hide DatabaseHelper, PartnerBank, CreditIssue;
 import '../../../services/withhold_line_local_service.dart';
-import 'pos_order_tabs.dart' show orderPendingSyncProvider;
 
 /// Notifier for managing withhold lines by order
 class POSWithholdLinesByOrderNotifier extends Notifier<Map<int, List<WithholdLine>>> {
@@ -32,8 +31,7 @@ class POSWithholdLinesByOrderNotifier extends Notifier<Map<int, List<WithholdLin
         'amount': line.amount,
         'notes': line.notes,
       });
-      // Refresh the pending sync counter
-      ref.invalidate(orderPendingSyncProvider(orderId));
+      // El contador de pendientes se actualiza automáticamente via Drift watch
     } else {
       // Fallback to local-only save if repository not available
       await _localService.saveLineToDb(orderId, line);
@@ -54,8 +52,7 @@ class POSWithholdLinesByOrderNotifier extends Notifier<Map<int, List<WithholdLin
     final salesRepo = ref.read(salesRepositoryProvider);
     if (salesRepo != null) {
       await salesRepo.deleteWithholdLine(orderId, odooId: odooId, uuid: uuid);
-      // Refresh the pending sync counter
-      ref.invalidate(orderPendingSyncProvider(orderId));
+      // El contador de pendientes se actualiza automáticamente via Drift watch
     } else {
       // Fallback to local-only delete if repository not available
       await _localService.removeLineFromDb(orderId, uuid);
@@ -84,8 +81,7 @@ class POSWithholdLinesByOrderNotifier extends Notifier<Map<int, List<WithholdLin
           uuid: line.lineUuid,
         );
       }
-      // Refresh the pending sync counter
-      ref.invalidate(orderPendingSyncProvider(orderId));
+      // El contador de pendientes se actualiza automáticamente via Drift watch
       logger.d('[WithholdProvider]', 'Cleared ${linesToRemove.length} withhold lines (synced to Odoo) for order $orderId');
     } else {
       // Fallback to local-only clear if repository not available
@@ -96,6 +92,21 @@ class POSWithholdLinesByOrderNotifier extends Notifier<Map<int, List<WithholdLin
   /// Clear all withhold lines for all orders
   void clearAll() {
     state = {};
+  }
+
+  /// Elimina las líneas de retención de una orden SOLO de la memoria (caché
+  /// en Riverpod), sin sincronizar ninguna eliminación a Odoo.
+  ///
+  /// A diferencia de [clear], que también dispara `deleteWithholdLine` contra
+  /// Odoo por cada línea, este método se usa cuando la orden simplemente se
+  /// deja de ver (ej. al cerrar una pestaña de FastSale) y no debe borrarse
+  /// nada remoto — la orden y sus retenciones siguen existiendo, solo dejamos
+  /// de mantenerlas en memoria.
+  void evict(int orderId) {
+    if (!state.containsKey(orderId)) return;
+    final newState = Map<int, List<WithholdLine>>.from(state);
+    newState.remove(orderId);
+    state = newState;
   }
 
   /// Get lines for a specific order

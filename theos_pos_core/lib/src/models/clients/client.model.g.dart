@@ -27,7 +27,6 @@ class ClientManager extends OdooModelManager<Client>
     'vat',
     'email',
     'phone',
-    'mobile',
     'street',
     'street2',
     'city',
@@ -49,8 +48,6 @@ class ClientManager extends OdooModelManager<Client>
     'allow_over_credit',
     'use_partner_credit_limit',
     'total_overdue',
-    'unpaid_invoices_count',
-    'oldest_overdue_days',
     'dias_max_factura_posterior',
     'tipo_cliente',
     'canal_cliente',
@@ -67,8 +64,12 @@ class ClientManager extends OdooModelManager<Client>
     'write_date',
   ];
 
-  @override
-  Client fromOdoo(Map<String, dynamic> data) {
+  /// Versión estática pura de [fromOdoo] — no referencia `this` ni
+  /// estado de instancia (OdooClient, GeneratedDatabase), solo [data].
+  /// Por eso su tear-off (`ClientManager.fromOdooMap`) es transferible a
+  /// `Isolate.run()`, a diferencia del tear-off del método de instancia
+  /// [fromOdoo] (que arrastra el manager completo, no transferible).
+  static Client fromOdooMap(Map<String, dynamic> data) {
     return Client(
       id: data['id'] as int? ?? 0,
       isSynced: false,
@@ -78,7 +79,6 @@ class ClientManager extends OdooModelManager<Client>
       vat: parseOdooString(data['vat']),
       email: parseOdooString(data['email']),
       phone: parseOdooString(data['phone']),
-      mobile: parseOdooString(data['mobile']),
       street: parseOdooString(data['street']),
       street2: parseOdooString(data['street2']),
       city: parseOdooString(data['city']),
@@ -114,8 +114,6 @@ class ClientManager extends OdooModelManager<Client>
       allowOverCredit: parseOdooBool(data['allow_over_credit']),
       usePartnerCreditLimit: parseOdooBool(data['use_partner_credit_limit']),
       totalOverdue: parseOdooDouble(data['total_overdue']),
-      overdueInvoicesCount: parseOdooInt(data['unpaid_invoices_count']),
-      oldestOverdueDays: parseOdooInt(data['oldest_overdue_days']),
       diasMaxFacturaPosterior: parseOdooInt(data['dias_max_factura_posterior']),
       tipoCliente: parseOdooSelection(data['tipo_cliente']),
       canalCliente: parseOdooSelection(data['canal_cliente']),
@@ -136,6 +134,9 @@ class ClientManager extends OdooModelManager<Client>
   }
 
   @override
+  Client fromOdoo(Map<String, dynamic> data) => fromOdooMap(data);
+
+  @override
   Map<String, dynamic> toOdoo(Client record) {
     return {
       'name': record.name,
@@ -144,7 +145,6 @@ class ClientManager extends OdooModelManager<Client>
       'vat': record.vat,
       'email': record.email,
       'phone': record.phone,
-      'mobile': record.mobile,
       'street': record.street,
       'street2': record.street2,
       'city': record.city,
@@ -166,8 +166,6 @@ class ClientManager extends OdooModelManager<Client>
       'allow_over_credit': record.allowOverCredit,
       'use_partner_credit_limit': record.usePartnerCreditLimit,
       'total_overdue': record.totalOverdue,
-      'unpaid_invoices_count': record.overdueInvoicesCount,
-      'oldest_overdue_days': record.oldestOverdueDays,
       'dias_max_factura_posterior': record.diasMaxFacturaPosterior,
       'tipo_cliente': record.tipoCliente,
       'canal_cliente': record.canalCliente,
@@ -275,7 +273,6 @@ class ClientManager extends OdooModelManager<Client>
     'vat': 'vat',
     'email': 'email',
     'phone': 'phone',
-    'mobile': 'mobile',
     'street': 'street',
     'street2': 'street2',
     'city': 'city',
@@ -297,8 +294,6 @@ class ClientManager extends OdooModelManager<Client>
     'allow_over_credit': 'allowOverCredit',
     'use_partner_credit_limit': 'usePartnerCreditLimit',
     'total_overdue': 'totalOverdue',
-    'unpaid_invoices_count': 'overdueInvoicesCount',
-    'oldest_overdue_days': 'oldestOverdueDays',
     'dias_max_factura_posterior': 'diasMaxFacturaPosterior',
     'tipo_cliente': 'tipoCliente',
     'canal_cliente': 'canalCliente',
@@ -358,24 +353,21 @@ class ClientManager extends OdooModelManager<Client>
       'vat': driftVar<String>(record.vat),
       'email': driftVar<String>(record.email),
       'phone': driftVar<String>(record.phone),
-      'mobile': driftVar<String>(record.mobile),
       'street': driftVar<String>(record.street),
       'street2': driftVar<String>(record.street2),
       'city': driftVar<String>(record.city),
       'zip': driftVar<String>(record.zip),
       'country_id': driftVar<int>(record.countryId),
-      'country_id_name': driftVar<String>(record.countryName),
+      'country_name': driftVar<String>(record.countryName),
       'state_id': driftVar<int>(record.stateId),
-      'state_id_name': driftVar<String>(record.stateName),
-      'avatar_128': driftVar<String>(record.avatar128),
+      'state_name': driftVar<String>(record.stateName),
+      'avatar128': driftVar<String>(record.avatar128),
       'is_company': Variable<bool>(record.isCompany),
       'active': Variable<bool>(record.active),
       'parent_id': driftVar<int>(record.parentId),
-      'parent_id_name': driftVar<String>(record.parentName),
+      'parent_name': driftVar<String>(record.parentName),
       'commercial_partner_id': driftVar<int>(record.commercialPartnerId),
-      'commercial_partner_id_name': driftVar<String>(
-        record.commercialPartnerName,
-      ),
+      'commercial_partner_name': driftVar<String>(record.commercialPartnerName),
       'property_product_pricelist': driftVar<int>(
         record.propertyProductPricelistId,
       ),
@@ -383,7 +375,7 @@ class ClientManager extends OdooModelManager<Client>
         record.propertyProductPricelistName,
       ),
       'property_payment_term_id': driftVar<int>(record.propertyPaymentTermId),
-      'property_payment_term_id_name': driftVar<String>(
+      'property_payment_term_name': driftVar<String>(
         record.propertyPaymentTermName,
       ),
       'lang': driftVar<String>(record.lang),
@@ -394,8 +386,6 @@ class ClientManager extends OdooModelManager<Client>
       'allow_over_credit': Variable<bool>(record.allowOverCredit),
       'use_partner_credit_limit': Variable<bool>(record.usePartnerCreditLimit),
       'total_overdue': driftVar<double>(record.totalOverdue),
-      'unpaid_invoices_count': driftVar<int>(record.overdueInvoicesCount),
-      'oldest_overdue_days': driftVar<int>(record.oldestOverdueDays),
       'dias_max_factura_posterior': driftVar<int>(
         record.diasMaxFacturaPosterior,
       ),
@@ -416,6 +406,9 @@ class ClientManager extends OdooModelManager<Client>
       'write_date': driftVar<DateTime>(record.writeDate),
       'partner_uuid': driftVar<String>(record.uuid),
       'is_synced': Variable<bool>(record.isSynced),
+      'mobile': driftVar<String>(record.mobile),
+      'unpaid_invoices_count': driftVar<int>(record.overdueInvoicesCount),
+      'oldest_overdue_days': driftVar<int>(record.oldestOverdueDays),
       'credit_last_sync_date': driftVar<DateTime>(record.creditLastSyncDate),
     });
   }
@@ -428,7 +421,6 @@ class ClientManager extends OdooModelManager<Client>
     'vat',
     'email',
     'phone',
-    'mobile',
     'street',
     'street2',
     'city',
@@ -450,8 +442,6 @@ class ClientManager extends OdooModelManager<Client>
     'allowOverCredit',
     'usePartnerCreditLimit',
     'totalOverdue',
-    'overdueInvoicesCount',
-    'oldestOverdueDays',
     'diasMaxFacturaPosterior',
     'tipoCliente',
     'canalCliente',
@@ -687,6 +677,9 @@ class ClientManager extends OdooModelManager<Client>
     updated = updated.copyWith(
       uuid: record.uuid,
       isSynced: record.isSynced,
+      mobile: record.mobile,
+      overdueInvoicesCount: record.overdueInvoicesCount,
+      oldestOverdueDays: record.oldestOverdueDays,
       creditLastSyncDate: record.creditLastSyncDate,
     );
     return updated;
@@ -879,7 +872,6 @@ class ClientManager extends OdooModelManager<Client>
     'vat',
     'email',
     'phone',
-    'mobile',
     'street',
     'street2',
     'city',
@@ -901,8 +893,6 @@ class ClientManager extends OdooModelManager<Client>
     'allowOverCredit',
     'usePartnerCreditLimit',
     'totalOverdue',
-    'overdueInvoicesCount',
-    'oldestOverdueDays',
     'diasMaxFacturaPosterior',
     'tipoCliente',
     'canalCliente',

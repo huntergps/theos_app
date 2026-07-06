@@ -41,7 +41,6 @@ extension CollectionSessionDepositManagerBusiness
         .insert(
           CollectionSessionDepositCompanion.insert(
             odooId: drift.Value(deposit.id),
-            sessionId: deposit.collectionSessionId ?? 0,
             collectionSessionId: deposit.collectionSessionId ?? 0,
             depositType: deposit.depositType.name,
             depositDate: deposit.depositDate ?? DateTime.now(),

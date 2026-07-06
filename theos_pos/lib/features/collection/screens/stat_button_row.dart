@@ -1,6 +1,8 @@
 import 'package:fluent_ui/fluent_ui.dart';
 import 'package:theos_pos_core/theos_pos_core.dart' show CollectionSession;
 
+import '../../../core/constants/app_colors.dart';
+
 // =============================================================================
 // STAT BUTTONS ROW - Like Odoo button box
 // =============================================================================
@@ -17,7 +19,7 @@ class StatButtonsRow extends StatelessWidget {
       children: [
         _StatButton(
           icon: FluentIcons.shopping_cart,
-          label: 'Ordenes',
+          label: 'Órdenes',
           count: session.orderCount,
           color: Colors.blue,
         ),
@@ -31,7 +33,7 @@ class StatButtonsRow extends StatelessWidget {
           icon: FluentIcons.money,
           label: 'Pagos',
           count: session.paymentCount,
-          color: Colors.green,
+          color: AppColors.success,
         ),
         _StatButton(
           icon: FluentIcons.pinned,
@@ -49,11 +51,11 @@ class StatButtonsRow extends StatelessWidget {
           icon: FluentIcons.down,
           label: 'Salidas',
           count: session.cashOutCount,
-          color: Colors.red,
+          color: AppColors.danger,
         ),
         _StatButton(
           icon: FluentIcons.bank,
-          label: 'Depositos',
+          label: 'Depósitos',
           count: session.depositCount,
           color: Colors.magenta,
         ),

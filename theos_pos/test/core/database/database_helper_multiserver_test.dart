@@ -188,7 +188,7 @@ void main() {
       final db2 = AppDatabase(NativeDatabase.memory());
 
       expect(db1.schemaVersion, equals(db2.schemaVersion));
-      expect(db1.schemaVersion, equals(53)); // Current version
+      expect(db1.schemaVersion, equals(8)); // Current version (v8: fixes roundtrip persistencia)
 
       await db1.close();
       await db2.close();

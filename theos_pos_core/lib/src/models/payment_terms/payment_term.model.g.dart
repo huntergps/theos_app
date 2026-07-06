@@ -28,12 +28,15 @@ class PaymentTermManager extends OdooModelManager<PaymentTerm>
     'sequence',
     'is_cash',
     'is_credit',
-    'due_days',
     'write_date',
   ];
 
-  @override
-  PaymentTerm fromOdoo(Map<String, dynamic> data) {
+  /// Versión estática pura de [fromOdoo] — no referencia `this` ni
+  /// estado de instancia (OdooClient, GeneratedDatabase), solo [data].
+  /// Por eso su tear-off (`PaymentTermManager.fromOdooMap`) es transferible a
+  /// `Isolate.run()`, a diferencia del tear-off del método de instancia
+  /// [fromOdoo] (que arrastra el manager completo, no transferible).
+  static PaymentTerm fromOdooMap(Map<String, dynamic> data) {
     return PaymentTerm(
       id: data['id'] as int? ?? 0,
       name: parseOdooStringRequired(data['name']),
@@ -43,10 +46,13 @@ class PaymentTermManager extends OdooModelManager<PaymentTerm>
       sequence: parseOdooInt(data['sequence']) ?? 0,
       isCash: parseOdooBool(data['is_cash']),
       isCredit: parseOdooBool(data['is_credit']),
-      dueDays: parseOdooInt(data['due_days']) ?? 0,
+      dueDays: 0,
       writeDate: parseOdooDateTime(data['write_date']),
     );
   }
+
+  @override
+  PaymentTerm fromOdoo(Map<String, dynamic> data) => fromOdooMap(data);
 
   @override
   Map<String, dynamic> toOdoo(PaymentTerm record) {
@@ -58,7 +64,6 @@ class PaymentTermManager extends OdooModelManager<PaymentTerm>
       'sequence': record.sequence,
       'is_cash': record.isCash,
       'is_credit': record.isCredit,
-      'due_days': record.dueDays,
     };
   }
 
@@ -73,7 +78,7 @@ class PaymentTermManager extends OdooModelManager<PaymentTerm>
       sequence: row.sequence as int,
       isCash: row.isCash as bool,
       isCredit: row.isCredit as bool,
-      dueDays: row.dueDays as int,
+      dueDays: row.dueDays as int? ?? 0,
       writeDate: row.writeDate as DateTime?,
     );
   }
@@ -109,7 +114,6 @@ class PaymentTermManager extends OdooModelManager<PaymentTerm>
     'sequence': 'sequence',
     'is_cash': 'isCash',
     'is_credit': 'isCredit',
-    'due_days': 'dueDays',
     'write_date': 'writeDate',
   };
 
@@ -157,8 +161,8 @@ class PaymentTermManager extends OdooModelManager<PaymentTerm>
       'sequence': Variable<int>(record.sequence),
       'is_cash': Variable<bool>(record.isCash),
       'is_credit': Variable<bool>(record.isCredit),
-      'due_days': Variable<int>(record.dueDays),
       'write_date': driftVar<DateTime>(record.writeDate),
+      'due_days': Variable<int>(record.dueDays),
     });
   }
 
@@ -171,7 +175,6 @@ class PaymentTermManager extends OdooModelManager<PaymentTerm>
     'sequence',
     'isCash',
     'isCredit',
-    'dueDays',
   ];
 
   /// List of required fields for validation.
@@ -257,6 +260,8 @@ class PaymentTermManager extends OdooModelManager<PaymentTerm>
     current.addAll(changes);
     current['id'] = getId(record);
     var updated = fromOdoo(current);
+    // Preserve local-only fields from original record
+    updated = updated.copyWith(dueDays: record.dueDays);
     return updated;
   }
 
@@ -320,7 +325,6 @@ class PaymentTermManager extends OdooModelManager<PaymentTerm>
     'sequence',
     'isCash',
     'isCredit',
-    'dueDays',
   ];
 }
 

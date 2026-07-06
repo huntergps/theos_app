@@ -43,6 +43,12 @@ class AccountMove extends Table {
   TextColumn get l10nLatamDocumentNumber => text().nullable()();
   IntColumn get l10nLatamDocumentTypeId => integer().nullable()();
   TextColumn get l10nLatamDocumentTypeName => text().nullable()();
+  // NOTA: faltaba esta columna — el modelo AccountMove declara
+  // l10nEcSriPaymentId (@OdooMany2One) pero la tabla solo tenía la columna
+  // del nombre (l10nEcSriPaymentName). Sin ella, el ID nunca se podía
+  // persistir localmente (siempre se perdía en upsertLocal). Encontrado por
+  // el roundtrip test genérico (upsert_roundtrip_test.dart) — julio 2026.
+  IntColumn get l10nEcSriPaymentId => integer().nullable()();
   TextColumn get l10nEcSriPaymentName => text().nullable()();
 
   BoolColumn get isSynced => boolean().withDefault(const Constant(false))();
@@ -91,10 +97,19 @@ class AccountMoveLine extends Table {
   IntColumn get currencyId => integer().nullable()();
   TextColumn get currencyName => text().nullable()();
   RealColumn get amountCurrency => real().nullable()();
-  DateTimeColumn get date => dateTime()();
-  IntColumn get journalId => integer()();
+  // NOTA: date/journalId/companyId eran NOT NULL sin default, pero el
+  // modelo `AccountMoveLine` (read-only, ver comentario en el .dart) nunca
+  // los declara como campo @Odoo* — ni fromDrift ni createDriftCompanion los
+  // tocan jamás. Eso hacía que upsertLocal() fallara con NOT NULL
+  // constraint failed en CUALQUIER inserción, sin excepción (nunca se usa
+  // hoy en producción — invoice_repository.dart solo llama fromOdoo/
+  // searchLocal/deleteLocal — pero el roundtrip test genérico sí lo
+  // ejercita). Se vuelven nullable porque nada los popula; no cambia
+  // comportamiento real. Encontrado por el roundtrip test — julio 2026.
+  DateTimeColumn get date => dateTime().nullable()();
+  IntColumn get journalId => integer().nullable()();
   TextColumn get journalName => text().nullable()();
-  IntColumn get companyId => integer()();
+  IntColumn get companyId => integer().nullable()();
   TextColumn get companyName => text().nullable()();
 
   // Report display fields

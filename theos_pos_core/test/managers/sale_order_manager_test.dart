@@ -16,8 +16,8 @@ void main() {
       expect(manager.odooModel, equals('sale.order'));
     });
 
-    test('tableName is sale_orders', () {
-      expect(manager.tableName, equals('sale_orders'));
+    test('tableName is sale_order', () {
+      expect(manager.tableName, equals('sale_order'));
     });
 
     test('odooFields contains key fields', () {
@@ -265,12 +265,14 @@ void main() {
 
       final odooMap = manager.toOdoo(order);
 
-      // Generated toOdoo includes most fields (no 'id' key)
+      // Generated toOdoo includes writable fields (no 'id' key)
       expect(odooMap.containsKey('name'), isTrue);
       expect(odooMap.containsKey('state'), isTrue);
-      expect(odooMap.containsKey('amount_untaxed'), isTrue);
-      expect(odooMap.containsKey('amount_total'), isTrue);
       expect(odooMap.containsKey('partner_id'), isTrue);
+      // amount_untaxed, amount_tax, amount_total are writable: false in the model
+      // so the generated toOdoo does NOT include them
+      expect(odooMap.containsKey('amount_untaxed'), isFalse);
+      expect(odooMap.containsKey('amount_total'), isFalse);
     });
 
     test('formats date fields correctly for Odoo', () {

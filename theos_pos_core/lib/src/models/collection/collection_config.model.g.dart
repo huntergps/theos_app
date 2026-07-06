@@ -120,8 +120,12 @@ class CollectionConfigManager extends OdooModelManager<CollectionConfig>
     'number_of_rescue_session',
   ];
 
-  @override
-  CollectionConfig fromOdoo(Map<String, dynamic> data) {
+  /// Versión estática pura de [fromOdoo] — no referencia `this` ni
+  /// estado de instancia (OdooClient, GeneratedDatabase), solo [data].
+  /// Por eso su tear-off (`CollectionConfigManager.fromOdooMap`) es transferible a
+  /// `Isolate.run()`, a diferencia del tear-off del método de instancia
+  /// [fromOdoo] (que arrastra el manager completo, no transferible).
+  static CollectionConfig fromOdooMap(Map<String, dynamic> data) {
     return CollectionConfig(
       id: data['id'] as int? ?? 0,
       name: parseOdooStringRequired(data['name']),
@@ -163,6 +167,9 @@ class CollectionConfigManager extends OdooModelManager<CollectionConfig>
           parseOdooInt(data['number_of_rescue_session']) ?? 0,
     );
   }
+
+  @override
+  CollectionConfig fromOdoo(Map<String, dynamic> data) => fromOdooMap(data);
 
   @override
   Map<String, dynamic> toOdoo(CollectionConfig record) {
@@ -313,16 +320,16 @@ class CollectionConfigManager extends OdooModelManager<CollectionConfig>
       'code': Variable<String>(record.code),
       'active': Variable<bool>(record.active),
       'company_id': driftVar<int>(record.companyId),
-      'company_id_name': driftVar<String>(record.companyName),
+      'company_name': driftVar<String>(record.companyName),
       'journal_id': driftVar<int>(record.journalId),
-      'journal_id_name': driftVar<String>(record.journalName),
+      'journal_name': driftVar<String>(record.journalName),
       'cash_journal_id': driftVar<int>(record.cashJournalId),
-      'cash_journal_id_name': driftVar<String>(record.cashJournalName),
+      'cash_journal_name': driftVar<String>(record.cashJournalName),
       'cash_difference_account_id': driftVar<int>(
         record.cashDifferenceAccountId,
       ),
       'currency_id': driftVar<int>(record.currencyId),
-      'currency_id_name': driftVar<String>(record.currencyName),
+      'currency_name': driftVar<String>(record.currencyName),
       'set_maximum_difference': Variable<bool>(record.setMaximumDifference),
       'amount_authorized_diff': Variable<double>(record.amountAuthorizedDiff),
       'current_session_id': driftVar<int>(record.currentSessionId),

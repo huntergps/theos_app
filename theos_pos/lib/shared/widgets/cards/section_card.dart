@@ -55,7 +55,7 @@ class SectionCard extends StatelessWidget {
               Expanded(
                 child: Text(title, style: theme.typography.subtitle),
               ),
-              if (actions != null) ...actions!,
+              ...?actions,
             ],
           ),
           const SizedBox(height: 20),

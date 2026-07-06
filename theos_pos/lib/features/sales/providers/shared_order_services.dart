@@ -11,7 +11,6 @@
 ///
 /// Mixins:
 /// - [OrderFieldUpdateMixin] - Shared field update operations
-/// - [OrderLinesController] - Shared line manipulation operations
 ///
 /// State:
 /// - [BaseOrderState] - Common interface for order state
@@ -20,7 +19,6 @@ library;
 
 export 'base_order_state.dart';
 export 'order_field_update_mixin.dart';
-export 'order_lines_controller.dart';
 export '../services/order_line_creation_service.dart';
 export '../services/order_confirmation_service.dart';
 export '../services/conflict_detection_service.dart';

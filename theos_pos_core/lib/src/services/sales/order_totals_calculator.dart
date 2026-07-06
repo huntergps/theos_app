@@ -34,12 +34,20 @@ class OrderTotalsBreakdown {
   /// Whether any discount was applied
   bool get hasDiscount => totalDiscount > 0;
 
+  /// Total de impuestos: suma directa de `line.priceTax` de las líneas de
+  /// producto — misma semántica que los call sites legacy. NO se deriva como
+  /// `total - subtotal` porque con datos donde `priceTotal` no es consistente
+  /// con `priceSubtotal + priceTax` (fixtures de test, datos parciales de
+  /// sync) esa derivación produce un valor distinto al histórico.
+  final double taxTotal;
+
   const OrderTotalsBreakdown({
     required this.subtotalUndiscounted,
     required this.totalDiscount,
     required this.subtotal,
     required this.total,
     required this.taxGroups,
+    this.taxTotal = 0,
   });
 }
 
@@ -63,6 +71,7 @@ class OrderTotalsCalculator {
     double totalDiscount = 0;
     double subtotal = 0;
     double total = 0;
+    double taxTotal = 0;
 
     final taxGroupsMap = <String, TaxGroupTotal>{};
 
@@ -77,6 +86,7 @@ class OrderTotalsCalculator {
         totalDiscount += discountAmount;
         subtotal += lineSubtotal;
         total += line.priceTotal;
+        taxTotal += lineTax;
 
         // Group by tax name
         if (lineSubtotal > 0) {
@@ -119,6 +129,7 @@ class OrderTotalsCalculator {
       subtotal: subtotal,
       total: total,
       taxGroups: taxGroupsMap.values.toList(),
+      taxTotal: taxTotal,
     );
   }
 }

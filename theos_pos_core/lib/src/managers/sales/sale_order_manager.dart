@@ -220,32 +220,61 @@ extension SaleOrderManagerBusiness on SaleOrderManager {
   }
 
   /// Update local sale order with remote Odoo ID after successful sync
+  ///
+  /// Wrapped in a transaction: el delete + upsert + actualización de líneas
+  /// hijas debe ser atómico. Si algún paso falla, la DB queda en su estado
+  /// previo consistente y el caller recibe la excepción sin escrituras
+  /// parciales.
+  ///
+  /// IMPORTANTE: además de `sale_order_line`, hay que actualizar `order_id`
+  /// en `sale_order_payment_line` y `sale_order_withhold_line` — ambas tienen
+  /// FK a `SaleOrder.odooId` (ver `sales_lines_tables.dart`). Si se omiten,
+  /// esas líneas quedan huérfanas apuntando al ID local negativo que
+  /// `deleteLocal(localId)` acaba de borrar, y desaparecen de cualquier query
+  /// futura sobre la orden ya sincronizada.
   Future<void> updateSaleOrderRemoteId(int localId, int remoteId) async {
     final existingOrder = await readLocal(localId);
     if (existingOrder == null) return;
 
-    await deleteLocal(localId);
+    await _db.transaction(() async {
+      await deleteLocal(localId);
 
-    final updatedOrder = existingOrder.copyWith(
-      id: remoteId,
-      isSynced: true,
-      lastSyncDate: DateTime.now().toUtc(),
-    );
-    await upsertLocal(updatedOrder);
+      final updatedOrder = existingOrder.copyWith(
+        id: remoteId,
+        isSynced: true,
+        lastSyncDate: DateTime.now().toUtc(),
+      );
+      await upsertLocal(updatedOrder);
 
-    // Update order_id in pending lines
-    await (_db.update(_db.saleOrderLine)
-          ..where((t) => t.orderId.equals(localId)))
-        .write(SaleOrderLineCompanion(orderId: drift.Value(remoteId)));
+      // Update order_id in pending lines
+      await (_db.update(_db.saleOrderLine)
+            ..where((t) => t.orderId.equals(localId)))
+          .write(SaleOrderLineCompanion(orderId: drift.Value(remoteId)));
+
+      // Update order_id in pending payment lines (mismo FK huérfano si se omite)
+      await (_db.update(_db.saleOrderPaymentLine)
+            ..where((t) => t.orderId.equals(localId)))
+          .write(SaleOrderPaymentLineCompanion(orderId: drift.Value(remoteId)));
+
+      // Update order_id in pending withhold lines (mismo FK huérfano si se omite)
+      await (_db.update(_db.saleOrderWithholdLine)
+            ..where((t) => t.orderId.equals(localId)))
+          .write(SaleOrderWithholdLineCompanion(orderId: drift.Value(remoteId)));
+    });
   }
 
-  /// Delete a sale order and its lines
+  /// Delete a sale order and its lines atomically
+  ///
+  /// Wrapped in a transaction: both deletes succeed together or neither does,
+  /// avoiding orphaned lines if the order delete were to fail midway.
   Future<void> deleteSaleOrderWithLines(int odooId) async {
-    // Delete lines first
-    await (_db.delete(_db.saleOrderLine)
-          ..where((t) => t.orderId.equals(odooId)))
-        .go();
-    // Then delete order
-    await deleteLocal(odooId);
+    await _db.transaction(() async {
+      // Delete lines first (FK dependency)
+      await (_db.delete(_db.saleOrderLine)
+            ..where((t) => t.orderId.equals(odooId)))
+          .go();
+      // Then delete order
+      await deleteLocal(odooId);
+    });
   }
 }

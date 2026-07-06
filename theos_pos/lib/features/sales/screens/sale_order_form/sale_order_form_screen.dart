@@ -1,5 +1,4 @@
-import 'package:fluent_ui/fluent_ui.dart' hide showDialog;
-import 'package:flutter/material.dart' show showDialog;
+import 'package:fluent_ui/fluent_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../core/constants/app_constants.dart';
@@ -136,6 +135,23 @@ class _SaleOrderFormScreenState extends ConsumerState<SaleOrderFormScreen> {
         notifier.exitEditMode();
       }
     }
+  }
+
+  @override
+  void dispose() {
+    // `saleOrderFormProvider` es keepAlive:true (estado global). Si el
+    // usuario navega fuera de esta pantalla en modo edición sin guardar ni
+    // descartar explícitamente (ej. botón "atrás"), `state.isEditing`
+    // quedaría atascado en `true` para siempre — bloqueando indefinidamente
+    // la sincronización de esta orden vía `_syncFromCache`/streams de Drift,
+    // aunque el usuario ya ni esté viendo el formulario (race condition
+    // corregida). El flujo normal de "guardar y salir" no se ve afectado:
+    // `saveOrder()` ya deja `isEditing=false` antes de que esta pantalla se
+    // cierre, así que este guard no hace nada en ese caso.
+    if (ref.read(saleOrderFormProvider).isEditing) {
+      ref.read(saleOrderFormProvider.notifier).exitEditMode();
+    }
+    super.dispose();
   }
 
   /// Sync ALL data related to the current order (client, credit, order, lines)

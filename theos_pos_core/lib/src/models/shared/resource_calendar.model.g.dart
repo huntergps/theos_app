@@ -53,8 +53,12 @@ class ResourceCalendarManager extends OdooModelManager<ResourceCalendar>
     'write_date',
   ];
 
-  @override
-  ResourceCalendar fromOdoo(Map<String, dynamic> data) {
+  /// Versión estática pura de [fromOdoo] — no referencia `this` ni
+  /// estado de instancia (OdooClient, GeneratedDatabase), solo [data].
+  /// Por eso su tear-off (`ResourceCalendarManager.fromOdooMap`) es transferible a
+  /// `Isolate.run()`, a diferencia del tear-off del método de instancia
+  /// [fromOdoo] (que arrastra el manager completo, no transferible).
+  static ResourceCalendar fromOdooMap(Map<String, dynamic> data) {
     return ResourceCalendar(
       id: data['id'] as int? ?? 0,
       name: parseOdooStringRequired(data['name']),
@@ -64,6 +68,9 @@ class ResourceCalendarManager extends OdooModelManager<ResourceCalendar>
       writeDate: parseOdooDateTime(data['write_date']),
     );
   }
+
+  @override
+  ResourceCalendar fromOdoo(Map<String, dynamic> data) => fromOdooMap(data);
 
   @override
   Map<String, dynamic> toOdoo(ResourceCalendar record) {
@@ -156,7 +163,7 @@ class ResourceCalendarManager extends OdooModelManager<ResourceCalendar>
       'name': Variable<String>(record.name),
       'active': Variable<bool>(record.active),
       'company_id': driftVar<int>(record.companyId),
-      'company_id_name': driftVar<String>(record.companyName),
+      'company_name': driftVar<String>(record.companyName),
       'write_date': driftVar<DateTime>(record.writeDate),
     });
   }

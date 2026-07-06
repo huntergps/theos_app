@@ -41,7 +41,8 @@ void main() {
       expect(move.invoiceDateDue, isNotNull);
       expect(move.partnerId, equals(42));
       expect(move.partnerName, equals('Test Partner'));
-      expect(move.partnerVat, equals('1710034065001'));
+      // partnerVat is @OdooLocalOnly() — not populated by generated fromOdoo
+      expect(move.partnerVat, isNull);
       expect(move.journalId, equals(1));
       expect(move.journalName, equals('Facturas'));
       expect(move.amountUntaxed, equals(100.0));

@@ -31,8 +31,12 @@ class FiscalPositionManager extends OdooModelManager<FiscalPosition>
     'write_date',
   ];
 
-  @override
-  FiscalPosition fromOdoo(Map<String, dynamic> data) {
+  /// Versión estática pura de [fromOdoo] — no referencia `this` ni
+  /// estado de instancia (OdooClient, GeneratedDatabase), solo [data].
+  /// Por eso su tear-off (`FiscalPositionManager.fromOdooMap`) es transferible a
+  /// `Isolate.run()`, a diferencia del tear-off del método de instancia
+  /// [fromOdoo] (que arrastra el manager completo, no transferible).
+  static FiscalPosition fromOdooMap(Map<String, dynamic> data) {
     return FiscalPosition(
       id: data['id'] as int? ?? 0,
       name: parseOdooStringRequired(data['name']),
@@ -47,6 +51,9 @@ class FiscalPositionManager extends OdooModelManager<FiscalPosition>
       writeDate: parseOdooDateTime(data['write_date']),
     );
   }
+
+  @override
+  FiscalPosition fromOdoo(Map<String, dynamic> data) => fromOdooMap(data);
 
   @override
   Map<String, dynamic> toOdoo(FiscalPosition record) {
@@ -154,12 +161,12 @@ class FiscalPositionManager extends OdooModelManager<FiscalPosition>
       'name': Variable<String>(record.name),
       'active': Variable<bool>(record.active),
       'company_id': driftVar<int>(record.companyId),
-      'company_id_name': driftVar<String>(record.companyName),
+      'company_name': driftVar<String>(record.companyName),
       'sequence': Variable<int>(record.sequence),
       'note': driftVar<String>(record.note),
       'auto_apply': Variable<bool>(record.autoApply),
       'country_id': driftVar<int>(record.countryId),
-      'country_id_name': driftVar<String>(record.countryName),
+      'country_name': driftVar<String>(record.countryName),
       'write_date': driftVar<DateTime>(record.writeDate),
     });
   }

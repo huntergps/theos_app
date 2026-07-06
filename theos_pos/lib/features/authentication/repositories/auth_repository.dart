@@ -1,16 +1,21 @@
 import 'package:dartz/dartz.dart';
-import 'package:odoo_sdk/odoo_sdk.dart';
+import 'package:odoo_sdk/odoo_sdk.dart' show Failure, CacheFailure;
 import 'package:theos_pos_core/theos_pos_core.dart';
 
 /// Repository for Authentication - Consolidated offline-first implementation
 ///
 /// Combines local (SQLite) and remote (Odoo) operations in a single class.
 /// Handles user session management with offline support.
+///
+/// F5 (eliminación de fuga de OdooClient): este repo ya NO guarda su propio
+/// `OdooClient?` — todas sus llamadas son sobre `res.users`, modelo que ya
+/// tiene manager generado (`userManager`). Se usa `userManager.isOnline`/
+/// `userManager.client` en su lugar (mismo cliente, inyectado centralmente
+/// vía `initialize()`). No hay ningún caso de "composition-root" real acá
+/// (login/fetchVersion/sesión web viven en `OdooService`/`AppInitializer`,
+/// no en este repo).
 class AuthRepository {
-  final OdooClient? _odooClient;
-
-  AuthRepository({OdooClient? odooClient})
-    : _odooClient = odooClient;
+  AuthRepository();
 
   // ============ User Operations ============
 
@@ -31,12 +36,12 @@ class AuthRepository {
   /// 2. Save to local DB
   /// 3. Re-read from local DB and return
   Future<Either<Failure, User?>> refreshUser(int userId) async {
-    if (_odooClient == null) {
+    if (!userManager.isOnline) {
       return getCurrentUser();
     }
 
     try {
-      final data = await _odooClient.searchRead(
+      final data = await userManager.client.searchRead(
         model: 'res.users',
         fields: userManager.odooFields,
         domain: [
@@ -85,10 +90,10 @@ class AuthRepository {
   /// to verify both network connectivity AND valid API key authentication.
   /// A simple HTTP ping would only verify network, not auth status.
   Future<bool> isConnected() async {
-    if (_odooClient == null) return false;
+    if (!userManager.isOnline) return false;
 
     try {
-      await _odooClient.searchRead(
+      await userManager.client.searchRead(
         model: 'res.users',
         fields: ['id'],
         domain: [],

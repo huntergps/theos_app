@@ -202,7 +202,11 @@ abstract class Client with _$Client {
     @OdooString() String? vat,
     @OdooString() String? email,
     @OdooString() String? phone,
-    @OdooString() String? mobile,
+    // Odoo 19.5 (erp1): el campo 'mobile' ya no existe en res.partner (smoke
+    // fields_get contra erp1.tecnosmart.com.ec, julio 2026). Tampoco existe
+    // en 19.2 local ni en los módulos fuente — no es diferencia de versión,
+    // se quitó de Odoo. Pasa a local-only (columna Drift se conserva igual).
+    @OdooLocalOnly() String? mobile,
     @OdooString() String? street,
     @OdooString() String? street2,
     @OdooString() String? city,
@@ -236,8 +240,13 @@ abstract class Client with _$Client {
 
     // ============ Overdue Debt Fields ============
     @OdooFloat(odooName: 'total_overdue') double? totalOverdue,
-    @OdooInteger(odooName: 'unpaid_invoices_count') int? overdueInvoicesCount,
-    @OdooInteger(odooName: 'oldest_overdue_days') int? oldestOverdueDays,
+    // Odoo 19.5 (erp1): 'unpaid_invoices_count' no existe en el servidor.
+    // driftName explícito porque dartName (overdueInvoicesCount) no
+    // camelCase-matchea la columna real (unpaidInvoicesCount) — no se
+    // renombra la columna Drift, no hay migración de esquema.
+    @OdooLocalOnly(driftName: 'unpaidInvoicesCount') int? overdueInvoicesCount,
+    // Odoo 19.5 (erp1): 'oldest_overdue_days' tampoco existe en el servidor.
+    @OdooLocalOnly() int? oldestOverdueDays,
 
     // ============ Ecuador Fields ============
     @OdooInteger(odooName: 'dias_max_factura_posterior') int? diasMaxFacturaPosterior,

@@ -31,8 +31,7 @@ class ProductProduct extends Table {
   TextColumn get uomName => text().nullable()();
   IntColumn get uomPoId => integer().nullable()();
   TextColumn get uomPoName => text().nullable()();
-  RealColumn get lstPrice => real().nullable()(); // TODO: orphan column — vestige of old Odoo field name, model uses listPrice
-  RealColumn get listPrice => real().nullable()(); // Sale price (alias)
+  RealColumn get listPrice => real().nullable()(); // Sale price
   RealColumn get standardPrice => real().nullable()(); // Cost price
   RealColumn get weight => real().nullable()();
   RealColumn get volume => real().nullable()();

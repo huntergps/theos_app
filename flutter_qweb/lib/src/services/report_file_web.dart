@@ -1,6 +1,5 @@
 import 'dart:convert';
 import 'dart:typed_data';
-import 'dart:js_interop';
 import 'package:web/web.dart' as web;
 
 /// Download PDF in the browser.

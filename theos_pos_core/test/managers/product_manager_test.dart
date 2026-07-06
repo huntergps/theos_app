@@ -17,8 +17,8 @@ void main() {
       expect(manager.odooModel, equals('product.product'));
     });
 
-    test('tableName is product_products', () {
-      expect(manager.tableName, equals('product_products'));
+    test('tableName is product_product', () {
+      expect(manager.tableName, equals('product_product'));
     });
 
     test('odooFields is a concrete list with essential fields', () {
@@ -90,8 +90,9 @@ void main() {
       expect(product.categName, equals('Electrónicos'));
       expect(product.uomId, equals(1));
       expect(product.uomName, equals('Unidades'));
-      expect(product.uomPoId, equals(2));
-      expect(product.uomPoName, equals('Cajas'));
+      // uom_po_id es @OdooLocalOnly desde julio 2026 (eliminado del core 19.x):
+      expect(product.uomPoId, isNull);
+      expect(product.uomPoName, isNull);
       expect(product.qtyAvailable, equals(25.0));
       expect(product.virtualAvailable, equals(30.0));
       expect(product.tracking, equals(TrackingType.serial));

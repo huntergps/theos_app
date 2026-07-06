@@ -8,6 +8,7 @@ import '../../../../../core/services/config_service.dart';
 
 import '../../../../../shared/utils/error_utils.dart';
 import '../../../../../shared/utils/formatting_utils.dart';
+import '../../../../../shared/widgets/common/theos_info_bars.dart';
 import '../../../../../shared/widgets/dialogs/copyable_info_bar.dart';
 import '../widgets/deposit_form_dialog.dart';
 import 'package:theos_pos_core/theos_pos_core.dart';
@@ -43,7 +44,7 @@ class DepositsTab extends ConsumerWidget {
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
                     Text(
-                      'Depositos (${deposits.length})',
+                      'Depósitos (${deposits.length})',
                       style: theme.typography.subtitle,
                     ),
                     FilledButton(
@@ -53,7 +54,7 @@ class DepositsTab extends ConsumerWidget {
                         children: [
                           Icon(FluentIcons.add, size: 14),
                           SizedBox(width: 8),
-                          Text('Nuevo Deposito'),
+                          Text('Nuevo Depósito'),
                         ],
                       ),
                     ),
@@ -78,10 +79,9 @@ class DepositsTab extends ConsumerWidget {
       },
       loading: () => const Center(child: ProgressRing()),
       error: (error, _) => Center(
-        child: InfoBar(
-          title: const Text('Error al cargar depositos'),
-          content: Text(friendlyErrorMessage(error)),
-          severity: InfoBarSeverity.error,
+        child: TheosInfoBars.error(
+          title: 'Error al cargar depósitos',
+          message: friendlyErrorMessage(error),
         ),
       ),
     );
@@ -96,12 +96,12 @@ class DepositsTab extends ConsumerWidget {
           children: [
             const Icon(FluentIcons.bank, size: 48),
             const SizedBox(height: 16),
-            const Text('No hay depositos registrados en esta sesion.'),
+            const Text('No hay depósitos registrados en esta sesión.'),
             if (canEdit) ...[
               const SizedBox(height: 16),
               FilledButton(
                 onPressed: () => _showAddDialog(context, ref),
-                child: const Text('Agregar Deposito'),
+                child: const Text('Agregar Depósito'),
               ),
             ],
           ],
@@ -300,19 +300,19 @@ class DepositsTab extends ConsumerWidget {
       case DepositType.cash:
         return (
           icon: FluentIcons.money,
-          label: 'Deposito Efectivo',
+          label: 'Depósito Efectivo',
           color: Colors.green,
         );
       case DepositType.check:
         return (
           icon: FluentIcons.check_list,
-          label: 'Deposito Cheques',
+          label: 'Depósito Cheques',
           color: Colors.blue,
         );
       case DepositType.mixed:
         return (
           icon: FluentIcons.switch_widget,
-          label: 'Deposito Mixto',
+          label: 'Depósito Mixto',
           color: Colors.orange,
         );
     }
@@ -337,8 +337,8 @@ class DepositsTab extends ConsumerWidget {
             if (context.mounted) {
               CopyableInfoBar.showError(
                 context,
-                title: 'Error al guardar deposito',
-                message: 'No se pudo guardar el deposito: ${failure.message}',
+                title: 'Error al guardar depósito',
+                message: 'No se pudo guardar el depósito: ${failure.message}',
               );
             }
           },
@@ -360,8 +360,8 @@ class DepositsTab extends ConsumerWidget {
         if (context.mounted) {
           CopyableInfoBar.showError(
             context,
-            title: 'Error al guardar deposito',
-            message: 'Ocurrio un error inesperado. Intente nuevamente.',
+            title: 'Error al guardar depósito',
+            message: 'Ocurrió un error inesperado. Intente nuevamente.',
           );
         }
       }
@@ -394,8 +394,8 @@ class DepositsTab extends ConsumerWidget {
             if (context.mounted) {
               CopyableInfoBar.showError(
                 context,
-                title: 'Error al actualizar deposito',
-                message: 'No se pudo actualizar el deposito: ${failure.message}',
+                title: 'Error al actualizar depósito',
+                message: 'No se pudo actualizar el depósito: ${failure.message}',
               );
             }
           },
@@ -417,8 +417,8 @@ class DepositsTab extends ConsumerWidget {
         if (context.mounted) {
           CopyableInfoBar.showError(
             context,
-            title: 'Error al actualizar deposito',
-            message: 'Ocurrio un error inesperado. Intente nuevamente.',
+            title: 'Error al actualizar depósito',
+            message: 'Ocurrió un error inesperado. Intente nuevamente.',
           );
         }
       }

@@ -7,7 +7,7 @@ import '../../../../shared/widgets/order_config_card.dart';
 import '../../../../shared/widgets/reactive/reactive_widgets.dart';
 import 'package:theos_pos_core/theos_pos_core.dart';
 import '../../providers/providers.dart';
-import '../../widgets/credit_info_card.dart';
+import '../../widgets/partner_credit_info_card.dart';
 import 'edit_dialogs.dart';
 import 'form_sections.dart';
 
@@ -105,17 +105,23 @@ class SaleOrderFormFields extends ConsumerWidget {
       (s) => s.partnerStreet,
       order?.partnerStreet,
     );
-    final partnerPhone = partner?.phone ?? _selectField(
-      ref,
-      isEditing,
-      (s) => s.partnerPhone,
-      order?.partnerPhone,
-    );
-    final partnerEmail = partner?.email ?? _selectField(
-      ref,
-      isEditing,
-      (s) => s.partnerEmail,
-      order?.partnerEmail,
+    final effectivePhone = partner?.effectivePhone;
+    final partnerPhone = (effectivePhone != null && effectivePhone.isNotEmpty)
+        ? effectivePhone
+        : _selectField(
+            ref,
+            isEditing,
+            (s) => s.partnerPhone,
+            order?.partnerPhone,
+          );
+    final effectiveEmail = partner?.effectiveEmail;
+    final partnerEmail = (effectiveEmail != null && effectiveEmail.isNotEmpty)
+        ? effectiveEmail
+        : _selectField(
+            ref,
+            isEditing,
+            (s) => s.partnerEmail,
+            order?.partnerEmail,
     );
     final partnerAvatar = partner?.avatar128 ?? _selectField(
       ref,

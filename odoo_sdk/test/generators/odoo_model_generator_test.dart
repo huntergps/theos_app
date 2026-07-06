@@ -5,6 +5,8 @@
 /// we test the helper functions and expected output patterns.
 library;
 
+import 'dart:isolate';
+
 import 'package:test/test.dart';
 
 void main() {
@@ -302,6 +304,196 @@ void main() {
       });
     });
 
+    group('createDriftCompanion column naming (bug fix regression)', () {
+      // Estas pruebas cubren el fix de dos bugs sistémicos encontrados en la
+      // auditoría de Drift (2026-07):
+      //   1. Many2OneName escribía a '${sourceField}_name' (ej. 'country_id'
+      //      → 'country_id_name'), que NUNCA coincide con la columna real
+      //      de la tabla Drift (dartName snake-caseado, ej. 'country_name').
+      //   2. Campos normales usaban field.odooName tal cual, que rompe en
+      //      getters con dígitos pegados a letras ('bills100', 'coins1Cent',
+      //      'cardLast4').
+      //
+      // El fix: SIEMPRE derivar la columna aplicando _toSnakeCase() sobre
+      // driftAccessorName (el getter Dart real de la tabla), el mismo
+      // algoritmo que usa Drift internamente (paquete `recase`,
+      // ReCase.snakeCase: '_' antes de cada mayúscula + minúsculas).
+
+      test('OdooMany2OneName usa dartName snake-caseado, no sourceField', () {
+        // @OdooMany2OneName(sourceField: 'country_id') String? countryName
+        final column = _driftColumnFor(
+          dartName: 'countryName',
+          odooName: 'country_id', // sourceField
+          fieldType: 'many2oneName',
+        );
+        expect(column, equals('country_name'));
+        expect(column, isNot(equals('country_id_name')));
+      });
+
+      test('OdooMany2OneName con otros sourceField comunes', () {
+        expect(
+          _driftColumnFor(
+            dartName: 'currencyName',
+            odooName: 'currency_id',
+            fieldType: 'many2oneName',
+          ),
+          equals('currency_name'),
+        );
+        expect(
+          _driftColumnFor(
+            dartName: 'cardBrandName',
+            odooName: 'card_brand_id',
+            fieldType: 'many2oneName',
+          ),
+          equals('card_brand_name'),
+        );
+      });
+
+      test('campo con dígito pegado a letra sin mayúscula siguiente (bills100)', () {
+        // IntColumn get bills100 => ... (columna real: 'bills100', SIN guion)
+        final column = _driftColumnFor(
+          dartName: 'bills100',
+          odooName: 'bills_100',
+          fieldType: 'integer',
+        );
+        expect(column, equals('bills100'));
+        expect(column, isNot(equals('bills_100')));
+      });
+
+      test('campo con dígito seguido de mayúscula (coins1Cent)', () {
+        // IntColumn get coins1Cent => ... (columna real: 'coins1_cent')
+        final column = _driftColumnFor(
+          dartName: 'coins1Cent',
+          odooName: 'coins_1_cent',
+          fieldType: 'integer',
+        );
+        expect(column, equals('coins1_cent'));
+      });
+
+      test('campo con letra seguida de dígito al final (cardLast4)', () {
+        // TextColumn get cardLast4 => ... (columna real: 'card_last4', sin
+        // guion entre 't' y '4')
+        final column = _driftColumnFor(
+          dartName: 'cardLast4',
+          odooName: 'card_last_4',
+          fieldType: 'string',
+        );
+        expect(column, equals('card_last4'));
+        expect(column, isNot(equals('card_last_4')));
+      });
+
+      test('campo normal sin caso especial no cambia de comportamiento', () {
+        final column = _driftColumnFor(
+          dartName: 'listPrice',
+          odooName: 'list_price',
+          fieldType: 'float',
+        );
+        expect(column, equals('list_price'));
+      });
+
+      test('campo donde dartName difiere de camelCase(odooName)', () {
+        // Ver tabla de lecciones aprendidas: dartName distinto del odooName,
+        // la columna Drift real sigue camelCase(odooName).
+        final column = _driftColumnFor(
+          dartName: 'amountUntaxedUndiscounted',
+          odooName: 'total_amount_undiscounted',
+          fieldType: 'float',
+        );
+        expect(column, equals('total_amount_undiscounted'));
+      });
+
+      test('campo id siempre usa la columna fija odoo_id', () {
+        final column = _driftColumnFor(
+          dartName: 'id',
+          odooName: 'id',
+          fieldType: 'id',
+        );
+        expect(column, equals('odoo_id'));
+      });
+
+      test(
+        'driftName explícito en un campo normal (no LocalOnly) gana sobre '
+        'camelCase(odooName) — caso Odoo 19.5 acc_number -> account_number',
+        () {
+          // PartnerBank.accNumber: Odoo renombró el campo de 'acc_number' a
+          // 'account_number', pero la columna Drift ya existente sigue
+          // llamándose 'accNumber'. Sin driftName explícito,
+          // camelCase('account_number')='accountNumber' apuntaría a una
+          // columna que no existe. Este es el primer campo NO-LocalOnly que
+          // usa driftName (antes solo @OdooLocalOnly lo soportaba).
+          final column = _driftColumnFor(
+            dartName: 'accNumber',
+            odooName: 'account_number',
+            fieldType: 'string',
+            driftName: 'accNumber',
+          );
+          expect(column, equals('acc_number'));
+          expect(column, isNot(equals('account_number')));
+        },
+      );
+    });
+
+    group('fromOdoo estático (fromOdooMap) — transferible a Isolate', () {
+      // Contexto: el fromOdoo generado siempre fue "puro" en su cuerpo (solo
+      // usa `data` y parsers de nivel superior, nunca `this`), pero un
+      // tear-off de MÉTODO DE INSTANCIA (`manager.fromOdoo`) igual captura el
+      // objeto Manager completo — que arrastra OdooClient (sockets) y
+      // GeneratedDatabase (handle nativo SQLite), ninguno transferible a un
+      // Isolate. El fix: generar TAMBIÉN `static T fromOdooMap(data)` y hacer
+      // que `fromOdoo` delegue en ella. Un tear-off de función estática no
+      // captura `this`, así que sí es transferible.
+
+      test('la sección generada incluye fromOdooMap estático y fromOdoo delegando', () {
+        final generated = _generateFromOdooSection(
+          className: 'FakeProduct',
+          managerName: 'FakeProductManager',
+          body: "      id: data['id'] as int? ?? 0,\n"
+              "      name: parseOdooString(data['name']),\n",
+        );
+
+        expect(
+          generated,
+          contains('static FakeProduct fromOdooMap(Map<String, dynamic> data) {'),
+        );
+        expect(
+          generated,
+          contains(
+            'FakeProduct fromOdoo(Map<String, dynamic> data) => fromOdooMap(data);',
+          ),
+        );
+        // El método de instancia sigue existiendo con @override (no rompe
+        // OdooModelManager<T>) — solo cambia su implementación a un delegate.
+        expect(generated, contains('@override'));
+      });
+
+      test('fromOdooMap estático y fromOdoo de instancia devuelven el mismo resultado', () {
+        final data = {'id': 42, 'name': 'Tornillo'};
+
+        final viaStatic = _FakeProductManager.fromOdooMap(data);
+        final viaInstance = _FakeProductManager().fromOdoo(data);
+
+        expect(viaStatic.id, equals(viaInstance.id));
+        expect(viaStatic.name, equals(viaInstance.name));
+      });
+
+      test(
+        'el tear-off de fromOdooMap es transferible a Isolate.run() (prueba real)',
+        () async {
+          final data = {'id': 7, 'name': 'Martillo'};
+
+          // Esto es exactamente lo que fallaría con un tear-off de método de
+          // instancia si el manager tuviera campos no transferibles (OdooClient,
+          // GeneratedDatabase): Isolate.run() exige una función que no capture
+          // `this`. El tear-off ESTÁTICO sí cumple esa condición.
+          const tearOff = _FakeProductManager.fromOdooMap;
+          final result = await Isolate.run(() => tearOff(data));
+
+          expect(result.id, equals(7));
+          expect(result.name, equals('Martillo'));
+        },
+      );
+    });
+
     group('Complete Output Structure', () {
       test('generated manager extends OdooModelManager', () {
         final output = _generateManagerHeader('SaleOrder', 'sale.order');
@@ -522,4 +714,111 @@ String _generateTableNameGetter(String tableName) {
 String _generateGlobalInstance(String managerName) {
   final varName = _toCamelCase(managerName);
   return 'final $varName = $managerName();';
+}
+
+// ============================================================================
+// Mirror de la lógica de naming de createDriftCompanion (odoo_model_generator
+// .dart, _FieldInfo.driftAccessorName + el bloque createDriftCompanion).
+// Ver grupo de tests "createDriftCompanion column naming (bug fix regression)".
+// ============================================================================
+
+/// Espejo de _FieldInfo._snakeToCamel.
+String _snakeToCamelMirror(String snake) {
+  final parts = snake.split('_');
+  return parts.first +
+      parts
+          .skip(1)
+          .map((p) => p.isEmpty ? '' : '${p[0].toUpperCase()}${p.substring(1)}')
+          .join();
+}
+
+/// Espejo de _FieldInfo.driftAccessorName.
+///
+/// Prioridad: driftName explícito > dartName (many2oneName/localOnly) >
+/// camelCase(odooName) si difiere de dartName > dartName.
+String _driftAccessorNameMirror({
+  required String dartName,
+  required String odooName,
+  required String fieldType,
+  String? driftName,
+}) {
+  if (driftName != null) return driftName;
+  if (fieldType == 'many2oneName') return dartName;
+  if (fieldType == 'localOnly') return dartName;
+  final camelOdoo = _snakeToCamelMirror(odooName);
+  if (camelOdoo != dartName && fieldType != 'id') return camelOdoo;
+  return dartName;
+}
+
+/// Espejo del cómputo de `driftColumn` dentro de createDriftCompanion,
+/// ya con el fix aplicado: siempre deriva de driftAccessorName vía
+/// _toSnakeCase (mismo algoritmo que Drift usa internamente), salvo el caso
+/// especial 'id' que usa la columna fija 'odoo_id'.
+String _driftColumnFor({
+  required String dartName,
+  required String odooName,
+  required String fieldType,
+  String? driftName,
+}) {
+  if (fieldType == 'id') return 'odoo_id';
+  return _toSnakeCase(_driftAccessorNameMirror(
+    dartName: dartName,
+    odooName: odooName,
+    fieldType: fieldType,
+    driftName: driftName,
+  ));
+}
+
+// ============================================================================
+// Mirror de la sección fromOdoo/fromOdooMap generada en
+// _generateManagerClass (odoo_model_generator.dart). Ver grupo de tests
+// "fromOdoo estático (fromOdooMap) — transferible a Isolate".
+// ============================================================================
+
+/// Espejo textual de lo que escribe el generador para fromOdoo/fromOdooMap.
+/// [body] es el contenido ya generado por _generateFromOdooBody (aquí se pasa
+/// literal porque esa función ya se prueba indirectamente en otros grupos).
+String _generateFromOdooSection({
+  required String className,
+  required String managerName,
+  required String body,
+}) {
+  final buffer = StringBuffer();
+  buffer.writeln('  static $className fromOdooMap(Map<String, dynamic> data) {');
+  buffer.writeln('    return $className(');
+  buffer.write(body);
+  buffer.writeln('    );');
+  buffer.writeln('  }');
+  buffer.writeln();
+  buffer.writeln('  @override');
+  buffer.writeln('  $className fromOdoo(Map<String, dynamic> data) => fromOdooMap(data);');
+  return buffer.toString();
+}
+
+// ============================================================================
+// Fakes "generados a mano" para probar, con código real, que fromOdooMap
+// (estático) y fromOdoo (instancia, delegando) son intercambiables y que el
+// tear-off estático sí es transferible a Isolate.run().
+// ============================================================================
+
+class _FakeProduct {
+  final int id;
+  final String name;
+  const _FakeProduct({required this.id, required this.name});
+}
+
+/// Simula la forma que genera el generador para un manager: fromOdooMap
+/// estático puro + fromOdoo de instancia delegando en él. A diferencia de un
+/// manager real, este fake no tiene OdooClient/GeneratedDatabase — pero el
+/// punto de la prueba es que el tear-off de fromOdooMap NO depende de eso
+/// (no captura `this`), que es justamente lo que lo hace transferible.
+class _FakeProductManager {
+  static _FakeProduct fromOdooMap(Map<String, dynamic> data) {
+    return _FakeProduct(
+      id: data['id'] as int? ?? 0,
+      name: data['name'] as String? ?? '',
+    );
+  }
+
+  _FakeProduct fromOdoo(Map<String, dynamic> data) => fromOdooMap(data);
 }

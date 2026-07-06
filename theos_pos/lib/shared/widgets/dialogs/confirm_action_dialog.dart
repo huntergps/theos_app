@@ -125,7 +125,7 @@ class ConfirmActionDialog extends StatelessWidget {
       title: 'Eliminar $itemName',
       message:
           customMessage ??
-          'Esta accion eliminara "$itemName" de forma permanente. Esta seguro de continuar?',
+          'Esta acción eliminará "$itemName" de forma permanente. ¿Estás seguro de continuar?',
       confirmText: 'Eliminar',
       icon: FluentIcons.delete,
       isDestructive: true,
@@ -140,7 +140,7 @@ class ConfirmActionDialog extends StatelessWidget {
       context,
       title: 'Descartar cambios',
       message:
-          'Tiene cambios sin guardar que se perderan. Esta seguro de continuar?',
+          'Tienes cambios sin guardar que se perderán. ¿Estás seguro de continuar?',
       confirmText: 'Descartar',
       cancelText: 'Continuar editando',
       icon: FluentIcons.warning,

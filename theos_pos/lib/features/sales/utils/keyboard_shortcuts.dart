@@ -8,6 +8,7 @@ import 'package:flutter/services.dart';
 /// - F3: Search/select client
 /// - F4: Add new order
 /// - F5: Refresh/reload order
+/// - F6: Go to payments (Cobrar)
 /// - F8: Toggle payment mode
 /// - F9: Confirm order
 /// - F10: Save order (draft)
@@ -27,6 +28,7 @@ class POSKeyboardShortcuts {
     LogicalKeyboardKey.f3: POSShortcutAction.searchClient,
     LogicalKeyboardKey.f4: POSShortcutAction.newOrder,
     LogicalKeyboardKey.f5: POSShortcutAction.refresh,
+    LogicalKeyboardKey.f6: POSShortcutAction.goToPayments,
     LogicalKeyboardKey.f8: POSShortcutAction.togglePaymentMode,
     LogicalKeyboardKey.f9: POSShortcutAction.confirmOrder,
     LogicalKeyboardKey.f10: POSShortcutAction.saveOrder,
@@ -100,6 +102,8 @@ class POSKeyboardShortcuts {
         return 'F4';
       case POSShortcutAction.refresh:
         return 'F5';
+      case POSShortcutAction.goToPayments:
+        return 'F6';
       case POSShortcutAction.togglePaymentMode:
         return 'F8';
       case POSShortcutAction.confirmOrder:
@@ -138,6 +142,7 @@ enum POSShortcutAction {
   searchClient,
   newOrder,
   refresh,
+  goToPayments,
   togglePaymentMode,
   confirmOrder,
   saveOrder,
@@ -243,9 +248,10 @@ class ShortcutHelpPanel extends StatelessWidget {
           _buildShortcutRow('F2', 'Buscar producto'),
           _buildShortcutRow('F3', 'Buscar cliente'),
           _buildShortcutRow('F4', 'Nueva orden'),
+          _buildShortcutRow('F6', 'Cobrar'),
           _buildShortcutRow('F9', 'Confirmar orden'),
           _buildShortcutRow('F10', 'Guardar borrador'),
-          _buildShortcutRow('F12', 'Imprimir (Proximamente)'),
+          _buildShortcutRow('F12', 'Imprimir (Próximamente)'),
 
           const SizedBox(height: 12),
           const Divider(),
@@ -267,7 +273,7 @@ class ShortcutHelpPanel extends StatelessWidget {
           const SizedBox(height: 8),
           _buildShortcutRow('Ctrl+N', 'Nueva orden'),
           _buildShortcutRow('Ctrl+S', 'Guardar'),
-          _buildShortcutRow('Ctrl+P', 'Imprimir (Proximamente)'),
+          _buildShortcutRow('Ctrl+P', 'Imprimir (Próximamente)'),
           _buildShortcutRow('Esc', 'Cancelar'),
         ],
       ),

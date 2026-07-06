@@ -45,7 +45,6 @@ extension CollectionSessionCashManagerBusiness on CollectionSessionCashManager {
         .insert(
           CollectionSessionCashCompanion.insert(
             odooId: cash.id,
-            sessionId: cash.collectionSessionId ?? 0,
             collectionSessionId: cash.collectionSessionId ?? 0,
             cashType: drift.Value(cash.cashType == CashType.closing
                 ? 'closing'

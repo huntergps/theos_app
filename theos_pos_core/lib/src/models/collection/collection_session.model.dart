@@ -100,7 +100,10 @@ abstract class CollectionSession with _$CollectionSession {
     @OdooMany2One('res.users', odooName: 'user_id') int? userId,
     @OdooMany2OneName(sourceField: 'user_id') String? userName,
     @OdooMany2One('res.currency', odooName: 'currency_id') int? currencyId,
-    @OdooString(odooName: 'currency_symbol') String? currencySymbol,
+    // Odoo 19.5 (erp1): 'currency_symbol' ya no existe en collection.session
+    // del servidor (smoke fields_get, julio 2026). sessionUuid de este
+    // modelo SÍ existe en el servidor — no se toca.
+    @OdooLocalOnly() String? currencySymbol,
     @OdooMany2One('account.journal', odooName: 'cash_journal_id')
     int? cashJournalId,
     @OdooMany2OneName(sourceField: 'cash_journal_id') String? cashJournalName,

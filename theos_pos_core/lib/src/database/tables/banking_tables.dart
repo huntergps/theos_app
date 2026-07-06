@@ -15,7 +15,15 @@ class ResBank extends Table {
 /// ResPartnerBank - Cuentas bancarias de partners
 class ResPartnerBank extends Table {
   IntColumn get id => integer().autoIncrement()();
-  IntColumn get odooId => integer()(); // Can be negative for local-only records
+  // NOTA: le faltaba `.unique()` (todas las demás tablas lo tienen). Sin él,
+  // el mecanismo de upsert (ON CONFLICT ("odoo_id")) es SQL inválido para
+  // esta tabla — SqliteException "ON CONFLICT clause does not match any
+  // PRIMARY KEY or UNIQUE constraint" en CUALQUIER upsertLocal con odooId
+  // no-nulo. Esto rompía la sync real de res.partner.bank en producción
+  // (user_sync_repository.dart la usa vía GenericSyncRepository). Puede ser
+  // negativo para registros locales, igual que en las demás tablas.
+  // Encontrado por el roundtrip test genérico — julio 2026.
+  IntColumn get odooId => integer().unique()();
   TextColumn get accNumber => text()(); // Account number (required)
   TextColumn get accHolderName => text().nullable()(); // Account holder name
   IntColumn get partnerId => integer()(); // Owner of the bank account

@@ -124,7 +124,15 @@ final countriesProvider = StreamProvider<List<ResCountry>>((ref) {
 ///
 /// Uses `resCountryStateManager.watchLocalSearch()` so UI auto-updates
 /// when states are synced or modified locally.
-final statesProvider = StreamProvider.family<List<ResCountryState>, int?>((ref, countryId) {
+///
+/// `autoDispose`: es `.family` por `countryId` transitorio — sin esto,
+/// cada país consultado durante la sesión dejaría un stream de Drift
+/// `.watch()` vivo para siempre (memory leak). Verificado: el único
+/// consumidor (`user_preferences_dialog.dart`) lo lee vía
+/// `ref.read(statesProvider(id).future)` puntual — patrón seguro y
+/// oficialmente soportado para autoDispose (el `.future` mantiene el
+/// provider vivo hasta que resuelve el valor).
+final statesProvider = StreamProvider.autoDispose.family<List<ResCountryState>, int?>((ref, countryId) {
   if (countryId == null) {
     return resCountryStateManager.watchLocalSearch(orderBy: 'name asc');
   }
@@ -149,7 +157,12 @@ final currentUserProvider = StreamProvider<User?>((ref) {
 ///
 /// Delegates to `clientManager.watchPartner()` so UI auto-updates
 /// when the partner record is synced or modified locally.
-final partnerProvider = StreamProvider.family<Client?, int>((ref, partnerId) {
+///
+/// `autoDispose`: es `.family` por `partnerId` transitorio (memory leak
+/// corregido). Verificado: ambos consumidores (`pos_customer_keypad_panel.dart`,
+/// `form_fields.dart`) lo observan vía `ref.watch()` dentro de `build()` —
+/// patrón reactivo estándar, seguro con autoDispose.
+final partnerProvider = StreamProvider.autoDispose.family<Client?, int>((ref, partnerId) {
   return clientManager.watchPartner(partnerId);
 });
 
@@ -240,13 +253,49 @@ class CurrentSession extends _$CurrentSession {
   CollectionSession? build() => null;
 
   void set(CollectionSession? session) => state = session;
+
+  /// Carga la sesión activa desde la base de datos local si aún no está en el
+  /// provider.  Es seguro llamarlo desde dentro del build de otro provider
+  /// porque la escritura ocurre aquí (en el notifier) y no directamente desde
+  /// el provider consumidor.
+  ///
+  /// Retorna la sesión activa (la que ya estaba o la que se encontró en BD),
+  /// o null si no existe ninguna.
+  Future<CollectionSession?> ensureLoaded() async {
+    if (state != null) return state;
+
+    final collectionRepo = ref.read(collectionRepositoryProvider);
+    final userRepo = ref.read(userRepositoryProvider);
+    if (collectionRepo == null || userRepo == null) return null;
+
+    try {
+      final user = await userRepo.getCurrentUser();
+      if (user == null) return null;
+
+      final session = await collectionRepo.getActiveUserSession(user.id);
+      if (session != null) {
+        state = session;
+      }
+      return session;
+    } catch (e) {
+      return null;
+    }
+  }
 }
 
 /// Reactive stream of a collection session by ID.
 ///
 /// Uses `collectionSessionManager.watch()` so UI auto-updates
 /// when the session is modified or synced locally.
-@Riverpod(keepAlive: true)
+///
+/// `keepAlive:false`: es `.family` por `sessionId` transitorio (memory leak
+/// corregido). Verificado: **sin ningún consumidor vía `ref.watch()`** en
+/// todo el codebase hoy — los 8 usos existentes son todos
+/// `ref.invalidate(sessionByIdProvider(id))` (en `collection_dashboard_screen.dart`,
+/// `collection_session_screen.dart`, `notification_provider.dart`), lo cual
+/// ya era efectivamente un no-op porque nadie lo observaba. Cero riesgo de
+/// romper algo al convertirlo a autoDispose.
+@Riverpod(keepAlive: false)
 Stream<CollectionSession?> sessionById(Ref ref, int sessionId) {
   return collectionSessionManager.watch(sessionId);
 }
@@ -255,7 +304,12 @@ Stream<CollectionSession?> sessionById(Ref ref, int sessionId) {
 ///
 /// Uses `accountPaymentManager.watchLocalSearch()` so UI auto-updates
 /// when payments are created, modified, or synced locally.
-final sessionPaymentsProvider = StreamProvider.family<List<AccountPayment>, int>((ref, sessionId) {
+///
+/// `autoDispose`: es `.family` por `sessionId` transitorio (memory leak
+/// corregido). Verificado: sin consumidores activos hoy (solo re-exportado
+/// en el barrel de `features/collection/providers/providers.dart`) — cero
+/// riesgo de romper algo.
+final sessionPaymentsProvider = StreamProvider.autoDispose.family<List<AccountPayment>, int>((ref, sessionId) {
   return accountPaymentManager.watchLocalSearch(
     domain: [['collection_session_id', '=', sessionId]],
   );
@@ -265,7 +319,11 @@ final sessionPaymentsProvider = StreamProvider.family<List<AccountPayment>, int>
 ///
 /// Uses `cashOutManager.watchLocalSearch()` so UI auto-updates
 /// when cash outs are created, modified, or synced locally.
-final sessionCashOutsProvider = StreamProvider.family<List<CashOut>, int>((ref, sessionId) {
+///
+/// `autoDispose`: es `.family` por `sessionId` transitorio (memory leak
+/// corregido). Verificado: el único consumidor (`cash_outs_tab.dart`) lo
+/// observa vía `ref.watch()` en `build()` — patrón reactivo estándar.
+final sessionCashOutsProvider = StreamProvider.autoDispose.family<List<CashOut>, int>((ref, sessionId) {
   return cashOutManager.watchLocalSearch(
     domain: [['collection_session_id', '=', sessionId]],
   );
@@ -275,7 +333,12 @@ final sessionCashOutsProvider = StreamProvider.family<List<CashOut>, int>((ref, 
 ///
 /// Uses `collectionSessionDepositManager.watchLocalSearch()` so UI auto-updates
 /// when deposits are created, modified, or synced locally.
-final sessionDepositsProvider = StreamProvider.family<List<CollectionSessionDeposit>, int>((ref, sessionId) {
+///
+/// `autoDispose`: es `.family` por `sessionId` transitorio (memory leak
+/// corregido). Verificado: el único consumidor (`deposits_tab.dart`) lo
+/// observa vía `ref.watch()` en `build()` (y usa `ref.invalidate()` para
+/// forzar refresh, patrón compatible con autoDispose).
+final sessionDepositsProvider = StreamProvider.autoDispose.family<List<CollectionSessionDeposit>, int>((ref, sessionId) {
   return collectionSessionDepositManager.watchLocalSearch(
     domain: [['collection_session_id', '=', sessionId]],
   );

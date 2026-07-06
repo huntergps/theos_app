@@ -227,6 +227,18 @@ class InMemoryOfflineQueueStore implements OfflineQueueStore {
         .toList();
   }
 
+  @override
+  Future<void> markOperationProcessing(int id) async {
+    // In-memory store: no status column, no-op is sufficient for tests
+    // (the store doesn't filter by status, so double-execution prevention
+    // is exercised via the getPendingOperations snapshot taken before the loop)
+  }
+
+  @override
+  Future<void> markOperationPending(int id) async {
+    // No-op: ver comentario de markOperationProcessing.
+  }
+
   /// Get an operation by ID (for test assertions).
   OfflineOperation? getById(int id) {
     try {

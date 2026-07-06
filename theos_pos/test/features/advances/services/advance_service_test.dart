@@ -1,3 +1,4 @@
+import 'package:drift/native.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:theos_pos/features/advances/services/advance_service.dart'
@@ -82,7 +83,7 @@ void main() {
       test('should parse bank data with bank_id as list', () {
         final data = {
           'id': 10,
-          'acc_number': '2200012345',
+          'account_number': '2200012345',
           'bank_id': [5, 'Banco Pichincha'],
         };
 
@@ -97,7 +98,7 @@ void main() {
       test('should parse bank data without bank_id', () {
         final data = {
           'id': 11,
-          'acc_number': '3300098765',
+          'account_number': '3300098765',
           'bank_id': false,
         };
 
@@ -112,7 +113,7 @@ void main() {
       test('should parse bank data with empty bank_id list', () {
         final data = {
           'id': 12,
-          'acc_number': '1100011111',
+          'account_number': '1100011111',
           'bank_id': <dynamic>[],
         };
 
@@ -128,7 +129,7 @@ void main() {
         // Edge case: list with only ID, no name
         final data = {
           'id': 13,
-          'acc_number': '5500055555',
+          'account_number': '5500055555',
           'bank_id': [7],
         };
 
@@ -211,11 +212,20 @@ void main() {
     late MockOdooService mockOdoo;
     late MockBankRepository mockBankRepo;
     late AdvanceService service;
+    late AppDatabase database;
 
     setUp(() {
       mockOdoo = MockOdooService();
       mockBankRepo = MockBankRepository();
-      service = AdvanceService(mockOdoo, mockBankRepo);
+      service = AdvanceService(mockOdoo, mockBankRepo, null);
+      // createAdvance persiste primero en Drift (offline-first): el manager
+      // global necesita una BD en memoria para resolver account_advance.
+      database = AppDatabase(NativeDatabase.memory());
+      advanceManager.initDb(database);
+    });
+
+    tearDown(() async {
+      await database.close();
     });
 
     test('should fail when reference is too short', () async {
@@ -396,8 +406,12 @@ void main() {
 
       final result = await service.createAdvance(advance);
 
-      expect(result.success, isFalse);
-      expect(result.errorMessage, contains('Failed to create'));
+      // Offline-first: si Odoo falla, el anticipo queda guardado localmente
+      // con ID temporal negativo y se encola para sincronizar después.
+      expect(result.success, isTrue);
+      expect(result.advanceId, isNotNull);
+      expect(result.advanceId!, isNegative);
+      expect(result.errorMessage, contains('Se sincronizará'));
     });
 
     test('should handle Odoo exception during create', () async {
@@ -425,8 +439,12 @@ void main() {
 
       final result = await service.createAdvance(advance);
 
-      expect(result.success, isFalse);
-      expect(result.errorMessage, contains('Connection refused'));
+      // Offline-first: la excepción de red no es un fallo — el anticipo
+      // queda local con ID negativo y se encola para retry.
+      expect(result.success, isTrue);
+      expect(result.advanceId, isNotNull);
+      expect(result.advanceId!, isNegative);
+      expect(result.errorMessage, contains('Se sincronizará'));
     });
 
     test('should sum multiple line amounts for validation', () async {

@@ -53,8 +53,12 @@ class ResCountryStateManager extends OdooModelManager<ResCountryState>
     'write_date',
   ];
 
-  @override
-  ResCountryState fromOdoo(Map<String, dynamic> data) {
+  /// Versión estática pura de [fromOdoo] — no referencia `this` ni
+  /// estado de instancia (OdooClient, GeneratedDatabase), solo [data].
+  /// Por eso su tear-off (`ResCountryStateManager.fromOdooMap`) es transferible a
+  /// `Isolate.run()`, a diferencia del tear-off del método de instancia
+  /// [fromOdoo] (que arrastra el manager completo, no transferible).
+  static ResCountryState fromOdooMap(Map<String, dynamic> data) {
     return ResCountryState(
       id: data['id'] as int? ?? 0,
       name: parseOdooStringRequired(data['name']),
@@ -64,6 +68,9 @@ class ResCountryStateManager extends OdooModelManager<ResCountryState>
       writeDate: parseOdooDateTime(data['write_date']),
     );
   }
+
+  @override
+  ResCountryState fromOdoo(Map<String, dynamic> data) => fromOdooMap(data);
 
   @override
   Map<String, dynamic> toOdoo(ResCountryState record) {
@@ -156,7 +163,7 @@ class ResCountryStateManager extends OdooModelManager<ResCountryState>
       'name': Variable<String>(record.name),
       'code': driftVar<String>(record.code),
       'country_id': driftVar<int>(record.countryId),
-      'country_id_name': driftVar<String>(record.countryName),
+      'country_name': driftVar<String>(record.countryName),
       'write_date': driftVar<DateTime>(record.writeDate),
     });
   }

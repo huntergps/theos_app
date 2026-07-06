@@ -139,6 +139,18 @@ class SyncNotifier extends _$SyncNotifier {
   /// Reset the static sync flag (call on logout/server switch)
   static void resetSyncFlag() => _isSyncRunning = false;
 
+  /// Margen de solape para el high-water-mark de sync incremental.
+  ///
+  /// Se resta al timestamp capturado ANTES de iniciar el fetch a Odoo (no al
+  /// de después de que termine) para cubrir dos escenarios reales:
+  /// 1. Un registro se modifica en Odoo MIENTRAS el fetch está en curso —
+  ///    sin este margen, su `write_date` podría quedar apenas antes del
+  ///    `sinceDate` de la PRÓXIMA sync incremental y nunca más volver a
+  ///    traerse (pérdida silenciosa y permanente).
+  /// 2. Desfase de reloj (clock skew) entre el dispositivo y el servidor
+  ///    Odoo — común en tablets POS sin NTP correctamente configurado.
+  static const Duration _incrementalSyncOverlap = Duration(seconds: 60);
+
   /// List of all sync items
   /// IMPORTANT: Products is synced LAST because it has 13,000+ records
   /// and would block all other sync items during initial splash screen sync
@@ -484,10 +496,22 @@ class SyncNotifier extends _$SyncNotifier {
   }
 
   /// Save sync result to persistent storage
+  ///
+  /// [syncStartTime] DEBE ser el timestamp capturado ANTES de iniciar el
+  /// fetch a Odoo para este item (no el de después de que termine). Ver
+  /// [_incrementalSyncOverlap] para el porqué.
+  ///
+  /// [previousLastSyncDate] es el `lastSyncDate` que ya estaba guardado
+  /// antes de este intento. Si hubo error, NO avanzamos el watermark — lo
+  /// conservamos tal cual, porque no hay garantía de que el fetch haya
+  /// completado y avanzarlo igual arriesgaría saltarnos registros que
+  /// quedaron sin traer.
   Future<void> _saveSyncResult(
     String itemName, {
     required int count,
     required String odooModel,
+    required DateTime syncStartTime,
+    DateTime? previousLastSyncDate,
     String? error,
     bool wasIncremental = false,
   }) async {
@@ -497,9 +521,13 @@ class SyncNotifier extends _$SyncNotifier {
 
       final localCount = await catalogSync.getLocalCountForModel(odooModel);
 
+      final lastSyncDate = error != null
+          ? previousLastSyncDate
+          : syncStartTime.subtract(_incrementalSyncOverlap);
+
       final info = SyncModelInfo(
         modelName: itemName,
-        lastSyncDate: DateTime.now(),
+        lastSyncDate: lastSyncDate,
         syncedCount: count,
         localCount: localCount,
         errorMessage: error,
@@ -558,6 +586,11 @@ class SyncNotifier extends _$SyncNotifier {
     );
     state = state.copyWith(currentSyncingItem: itemName);
 
+    // Capturado ANTES de cualquier fetch a Odoo para este item (incluido
+    // syncDeletedRecords). Se usa como el nuevo watermark en vez del
+    // DateTime.now() de después de terminar — ver _incrementalSyncOverlap.
+    final syncStartTime = DateTime.now().toUtc();
+
     try {
       logger.d(
         '[SyncNotifier] Syncing ${itemDef.description}... (incremental: $isIncremental)',
@@ -605,6 +638,8 @@ class SyncNotifier extends _$SyncNotifier {
         itemName,
         count: count,
         odooModel: itemDef.odooModel,
+        syncStartTime: syncStartTime,
+        previousLastSyncDate: currentInfo.lastSyncDate,
         wasIncremental: isIncremental,
       );
 
@@ -618,7 +653,7 @@ class SyncNotifier extends _$SyncNotifier {
         SyncItemState(
           status: SyncStatus.success,
           count: count,
-          lastSyncDate: DateTime.now(),
+          lastSyncDate: syncStartTime.subtract(_incrementalSyncOverlap),
           localCount: localCount,
           wasIncremental: isIncremental,
         ),
@@ -627,11 +662,13 @@ class SyncNotifier extends _$SyncNotifier {
       logger.e('[SyncNotifier] Error syncing ${itemDef.description}: $e');
       final errorMessage = friendlyErrorMessage(e);
 
-      // Save error
+      // Save error — no avanza el watermark (ver _saveSyncResult)
       await _saveSyncResult(
         itemName,
         count: 0,
         odooModel: itemDef.odooModel,
+        syncStartTime: syncStartTime,
+        previousLastSyncDate: currentInfo.lastSyncDate,
         error: errorMessage,
       );
 
@@ -812,6 +849,10 @@ class SyncNotifier extends _$SyncNotifier {
             ),
       );
 
+      // Capturado ANTES de cualquier fetch a Odoo para este item — ver
+      // _incrementalSyncOverlap y syncItem() para la explicación completa.
+      final syncStartTime = DateTime.now().toUtc();
+
       try {
         logger.d(
           '[SyncNotifier] Syncing ${itemDef.description}... (incremental: $isIncremental)',
@@ -858,6 +899,8 @@ class SyncNotifier extends _$SyncNotifier {
           itemDef.name,
           count: count,
           odooModel: itemDef.odooModel,
+          syncStartTime: syncStartTime,
+          previousLastSyncDate: currentInfo.lastSyncDate,
           wasIncremental: isIncremental,
         );
 
@@ -871,7 +914,7 @@ class SyncNotifier extends _$SyncNotifier {
           SyncItemState(
             status: SyncStatus.success,
             count: count,
-            lastSyncDate: DateTime.now(),
+            lastSyncDate: syncStartTime.subtract(_incrementalSyncOverlap),
             localCount: localCount,
             wasIncremental: isIncremental,
           ),
@@ -880,11 +923,13 @@ class SyncNotifier extends _$SyncNotifier {
         logger.e('[SyncNotifier] Error syncing ${itemDef.description}: $e');
         final errorMessage = friendlyErrorMessage(e);
 
-        // Save error
+        // Save error — no avanza el watermark (ver _saveSyncResult)
         await _saveSyncResult(
           itemDef.name,
           count: 0,
           odooModel: itemDef.odooModel,
+          syncStartTime: syncStartTime,
+          previousLastSyncDate: currentInfo.lastSyncDate,
           error: errorMessage,
         );
 

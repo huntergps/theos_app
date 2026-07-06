@@ -55,10 +55,45 @@ abstract class FiscalPosition with _$FiscalPosition {
 /// Uses dual id/odooId pattern (legacy) with manual fromOdoo()/toCompanion().
 /// Managed by FiscalPositionTaxManager without code generation.
 ///
-/// Fiscal Position Tax Mapping model representing account.fiscal.position.tax
+/// Fiscal Position Tax Mapping model — filas LOCALES SINTETIZADAS que
+/// representan el mapeo de un impuesto fuente a un impuesto destino bajo una
+/// posición fiscal dada (ej. IVA 12% -> IVA 0% para exportaciones).
 ///
-/// Maps source taxes to destination taxes for a fiscal position.
-/// Used to change taxes based on customer location (e.g., IVA 12% -> IVA 0% for exports).
+/// ## Compatibilidad Odoo >= 18.3 (hallazgo verificado en vivo, julio 2026)
+///
+/// El modelo `account.fiscal.position.tax` fue ELIMINADO del core de Odoo
+/// desde la 18.3 — confirmado con `fields_get` en vivo contra
+/// `erp1.tecnosmart.com.ec` (19.5a1+e): "the model does not exist". Esto
+/// significa que este modelo NO EXISTE ni en Odoo 19.1 ni en 19.2 ni en
+/// 19.5 — la sync de este mapeo llevaba meses fallando en silencio dejando
+/// la tabla local `account_fiscal_position_tax` permanentemente vacía (ver
+/// `tax_calculator_service.dart:239-268`, que la lee para resolver
+/// sustituciones de impuestos por posición fiscal — siempre caía al
+/// `orElse` sin mapeo).
+///
+/// El reemplazo real vive en `account.tax` (idéntico en account/models/
+/// account_tax.py de 19.1/19.2/19.5, líneas 111/117):
+/// - `fiscal_position_ids` (M2M account.fiscal.position) — bajo qué
+///   posiciones fiscales este tax actúa como DESTINO de una sustitución.
+/// - `original_tax_ids` (M2M account.tax) — qué taxes FUENTE se sustituyen
+///   por este tax bajo esas posiciones.
+///
+/// Verificado en vivo (read-only, erp1.tecnosmart.com.ec, julio 2026): los
+/// campos M2M llegan como lista PLANA de enteros — ej.
+/// `fiscal_position_ids: [4]`, `original_tax_ids: [5, 6, 14, 15]`, o `[]`
+/// si está vacío — NUNCA como pares `[id, name]` (eso es sólo
+/// comportamiento de Many2one). Ejemplo real: tax id=19 ("VAT 0% EX G") con
+/// `fiscal_position_ids=[4]` y `original_tax_ids=[5,6,14,15]` produce 4
+/// filas sintéticas: (posición=4, fuente=5, destino=19),
+/// (4, 6, 19), (4, 14, 19), (4, 15, 19).
+///
+/// Por lo tanto ya NO existe una llamada 1:1 `fromOdoo()` desde un registro
+/// remoto — [synthesizeFromAccountTax] reemplaza esa función, tomando UN
+/// registro `account.tax` y devolviendo 0..N filas [FiscalPositionTax]
+/// (producto cartesiano de `fiscal_position_ids` × `original_tax_ids`). El
+/// contrato de LECTURA de `tax_calculator_service.dart` NO cambia (misma
+/// tabla `account_fiscal_position_tax`, mismas columnas `position_id`/
+/// `tax_src_id`/`tax_dest_id`).
 @freezed
 abstract class FiscalPositionTax with _$FiscalPositionTax {
   const FiscalPositionTax._();
@@ -105,46 +140,133 @@ abstract class FiscalPositionTax with _$FiscalPositionTax {
     );
   }
 
-  /// Create from Odoo JSON response
-  factory FiscalPositionTax.fromOdoo(Map<String, dynamic> json) {
-    int? positionId;
-    if (json['position_id'] is List &&
-        (json['position_id'] as List).isNotEmpty) {
-      positionId = json['position_id'][0] as int;
-    } else if (json['position_id'] is int) {
-      positionId = json['position_id'] as int;
-    }
+  /// Sintetiza 0..N filas [FiscalPositionTax] a partir de UN registro
+  /// `account.tax` (ver nota de compatibilidad de la clase para el porqué).
+  ///
+  /// [json] debe traer al menos los campos de [odooFields]: `id`,
+  /// `fiscal_position_ids`, `original_tax_ids`, `write_date`.
+  ///
+  /// Retorna lista vacía si el tax no tiene `fiscal_position_ids` NI
+  /// `original_tax_ids` (no participa en ninguna sustitución fiscal — el
+  /// caso común, la sync ya filtra por dominio
+  /// `fiscal_position_ids != false` así que esto rara vez ocurre en
+  /// práctica salvo datos inconsistentes).
+  static List<FiscalPositionTax> synthesizeFromAccountTax(
+    Map<String, dynamic> json,
+  ) {
+    final taxDestId = json['id'] as int;
+    final positionIds = _parseM2mIds(json['fiscal_position_ids']);
+    final sourceTaxIds = _parseM2mIds(json['original_tax_ids']);
 
-    int? taxSrcId;
-    String? taxSrcName;
-    if (json['tax_src_id'] is List && (json['tax_src_id'] as List).isNotEmpty) {
-      taxSrcId = json['tax_src_id'][0] as int;
-      taxSrcName =
-          json['tax_src_id'].length > 1 ? json['tax_src_id'][1] as String : null;
-    }
+    if (positionIds.isEmpty || sourceTaxIds.isEmpty) return const [];
 
-    int? taxDestId;
-    String? taxDestName;
-    if (json['tax_dest_id'] is List &&
-        (json['tax_dest_id'] as List).isNotEmpty) {
-      taxDestId = json['tax_dest_id'][0] as int;
-      taxDestName = json['tax_dest_id'].length > 1
-          ? json['tax_dest_id'][1] as String
-          : null;
-    }
+    final writeDate = json['write_date'] != null && json['write_date'] != false
+        ? DateTime.tryParse('${json['write_date']}Z')
+        : null;
 
-    return FiscalPositionTax(
-      id: 0, // Will be set by database
-      odooId: json['id'] as int,
-      positionId: positionId ?? 0,
-      taxSrcId: taxSrcId ?? 0,
-      taxSrcName: taxSrcName,
-      taxDestId: taxDestId,
-      taxDestName: taxDestName,
-      writeDate: json['write_date'] != null && json['write_date'] != false
-          ? DateTime.tryParse('${json['write_date']}Z')
-          : null,
-    );
+    final rows = <FiscalPositionTax>[];
+    for (final positionId in positionIds) {
+      for (final taxSrcId in sourceTaxIds) {
+        final syntheticId = syntheticOdooId(positionId, taxSrcId, taxDestId);
+        if (syntheticId == null) continue; // fuera de rango, ver syntheticOdooId
+        rows.add(FiscalPositionTax(
+          id: 0, // lo asigna Drift (autoincrement) al insertar
+          odooId: syntheticId,
+          positionId: positionId,
+          taxSrcId: taxSrcId,
+          taxSrcName: null,
+          taxDestId: taxDestId,
+          taxDestName: null,
+          writeDate: writeDate,
+        ));
+      }
+    }
+    return rows;
+  }
+
+  /// Parsea un campo Many2many de la respuesta JSON-2 de Odoo.
+  ///
+  /// Verificado en vivo (erp1.tecnosmart.com.ec, 19.5a1+e, julio 2026): los
+  /// M2M llegan como lista plana de enteros (`[3]`, `[5, 6, 14, 15]`, `[]`
+  /// si vacío) — nunca como pares `[id, name]` anidados (eso es sólo
+  /// Many2one).
+  static List<int> _parseM2mIds(dynamic value) {
+    if (value is! List) return const [];
+    return value.whereType<int>().toList();
+  }
+
+  /// Bits reservados por componente para el ID sintético — ver
+  /// [syntheticOdooId]. positionId usa 12 bits (0..4095 — de sobra para
+  /// cualquier catálogo real de posiciones fiscales, normalmente unas
+  /// pocas), taxSrcId/taxDestId usan 20 bits cada uno (0..1,048,575, de
+  /// sobra para IDs reales de account.tax). Total: 52 bits — se mantiene
+  /// bajo el límite de entero seguro en JS/dart2js (2^53) usado en builds
+  /// Flutter Web, donde `int` se representa como double de 64 bits IEEE-754
+  /// con 53 bits de mantisa.
+  static const int _positionBits = 12;
+  static const int _taxBits = 20;
+  static const int _positionMask = (1 << _positionBits) - 1; // 4,095
+  static const int _taxMask = (1 << _taxBits) - 1; // 1,048,575
+
+  /// Genera un `odooId` determinístico y NEGATIVO para una fila sintetizada
+  /// de mapeo fiscal-position→tax.
+  ///
+  /// ## Por qué se necesita un ID sintético
+  ///
+  /// Estas filas NO existen como registros reales en el servidor (no hay
+  /// modelo `account.fiscal.position.tax` del cual traer un ID — ver nota
+  /// de compatibilidad de la clase). Sin embargo la tabla local
+  /// `account_fiscal_position_tax` requiere un `odooId` NOT NULL/único
+  /// (target del `ON CONFLICT` en
+  /// `FiscalPositionTaxManager.upsertLocalBatch`), así que se sintetiza uno.
+  ///
+  /// ## Diseño
+  ///
+  /// Empaqueta los 3 componentes de la terna (positionId, taxSrcId,
+  /// taxDestId) en un único entero mediante bit-packing determinístico:
+  ///
+  /// ```
+  /// combined = (positionId << 40) | (taxSrcId << 20) | taxDestId
+  /// odooId   = -combined - 1
+  /// ```
+  ///
+  /// Es determinístico: la MISMA terna (P, S, D) SIEMPRE produce el MISMO
+  /// `odooId`, sin importar cuántas veces se re-sincronice — esto es lo que
+  /// permite que el upsert por `odooId` (`ON CONFLICT ... DO UPDATE`) sea
+  /// idempotente (actualiza la fila existente, ej. refresca `write_date`)
+  /// en vez de duplicarla en cada sync.
+  ///
+  /// Se usa signo NEGATIVO por convención del codebase para IDs "sin ID de
+  /// servidor real" (ej. IDs locales de `sale.order` antes de crear en
+  /// Odoo) — aquí no hay riesgo de colisión con esos IDs locales porque la
+  /// unicidad de `odooId` es POR TABLA (Drift), y esta tabla nunca recibe
+  /// filas "pendientes de sync" creadas por el usuario (es 100% derivada de
+  /// datos del servidor).
+  ///
+  /// Retorna `null` (se omite esa fila, con warning en log) si algún
+  /// componente excede su rango de bits — extremadamente improbable con
+  /// datos reales de Odoo, pero se prefiere omitir una fila y loguear antes
+  /// que arriesgar una colisión silenciosa de IDs (los `assert()` se
+  /// eliminan en builds release, así que la validación es un check
+  /// explícito, no un `assert`).
+  static int? syntheticOdooId(int positionId, int taxSrcId, int taxDestId) {
+    if (positionId < 0 ||
+        taxSrcId < 0 ||
+        taxDestId < 0 ||
+        positionId > _positionMask ||
+        taxSrcId > _taxMask ||
+        taxDestId > _taxMask) {
+      logger.w(
+        '[FiscalPositionTax] ID fuera de rango al sintetizar mapeo '
+        '(position=$positionId, src=$taxSrcId, dest=$taxDestId) — se omite '
+        'esta fila. Rango soportado: position 0..$_positionMask, '
+        'src/dest 0..$_taxMask.',
+      );
+      return null;
+    }
+    final combined =
+        (positionId << (2 * _taxBits)) | (taxSrcId << _taxBits) | taxDestId;
+    return -combined - 1;
   }
 
   /// Convert to Drift database companion for insert/update
@@ -160,15 +282,16 @@ abstract class FiscalPositionTax with _$FiscalPositionTax {
     );
   }
 
-  /// Odoo model name
-  static const String odooModel = 'account.fiscal.position.tax';
+  /// Odoo model a consultar para sintetizar el mapeo (Odoo >= 18.3 compat —
+  /// ver nota de la clase). NO es el modelo antiguo
+  /// `account.fiscal.position.tax` (eliminado desde Odoo 18.3).
+  static const String odooModel = 'account.tax';
 
-  /// Fields to fetch from Odoo
+  /// Campos a pedir de account.tax para la síntesis.
   static const List<String> odooFields = [
     'id',
-    'position_id',
-    'tax_src_id',
-    'tax_dest_id',
+    'fiscal_position_ids',
+    'original_tax_ids',
     'write_date',
   ];
 }

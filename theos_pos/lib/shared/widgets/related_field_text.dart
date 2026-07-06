@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:fluent_ui/fluent_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../providers/related_field_provider.dart';
 
@@ -256,12 +256,12 @@ class RelatedFieldChips extends ConsumerWidget {
         decoration: BoxDecoration(
           color:
               chipColor ??
-              Theme.of(context).colorScheme.surfaceContainerHighest,
+              FluentTheme.of(context).resources.cardBackgroundFillColorDefault,
           borderRadius: BorderRadius.circular(12),
         ),
         child: Text(
           name,
-          style: textStyle ?? Theme.of(context).textTheme.labelSmall,
+          style: textStyle ?? FluentTheme.of(context).typography.caption,
         ),
       ),
     );

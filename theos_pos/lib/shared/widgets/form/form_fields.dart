@@ -158,8 +158,9 @@ class _FormNumberFieldState extends State<FormNumberField> {
   void didUpdateWidget(FormNumberField oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.value != widget.value) {
-      final newText =
-          widget.value != null ? _formatter.format(widget.value!) : '';
+      final newText = widget.value != null
+          ? _formatter.format(widget.value!)
+          : '';
       if (_controller.text != newText) {
         _controller.text = newText;
       }
@@ -276,8 +277,9 @@ class _FormMoneyFieldState extends State<FormMoneyField> {
   void didUpdateWidget(FormMoneyField oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.value != widget.value) {
-      final newText =
-          widget.value != null ? _formatter.format(widget.value!) : '';
+      final newText = widget.value != null
+          ? _formatter.format(widget.value!)
+          : '';
       if (_controller.text != newText) {
         _controller.text = newText;
       }
@@ -496,11 +498,7 @@ class FormDatePicker extends StatelessWidget {
                     : null,
               ),
             ),
-            Icon(
-              FluentIcons.calendar,
-              size: 14,
-              color: theme.inactiveColor,
-            ),
+            Icon(FluentIcons.calendar, size: 14, color: theme.inactiveColor),
           ],
         ),
       ),
@@ -659,10 +657,7 @@ class FormToggleSwitch extends StatelessWidget {
       label: label,
       child: Row(
         children: [
-          ToggleSwitch(
-            checked: value,
-            onChanged: onChanged,
-          ),
+          ToggleSwitch(checked: value, onChanged: onChanged),
           if (checkedLabel != null || uncheckedLabel != null) ...[
             const SizedBox(width: 8),
             Text(value ? (checkedLabel ?? '') : (uncheckedLabel ?? '')),
@@ -727,9 +722,12 @@ class FormSelectionField extends StatelessWidget {
                 ),
               ),
               if (onClear != null && !isPlaceholder) ...[
-                IconButton(
-                  icon: const Icon(FluentIcons.chrome_close, size: 12),
-                  onPressed: onClear,
+                Tooltip(
+                  message: 'Limpiar',
+                  child: IconButton(
+                    icon: const Icon(FluentIcons.chrome_close, size: 12),
+                    onPressed: onClear,
+                  ),
                 ),
               ],
               Icon(icon, size: 12, color: theme.inactiveColor),
@@ -754,11 +752,7 @@ class FormSection extends StatelessWidget {
   final String title;
   final IconData? icon;
 
-  const FormSection({
-    super.key,
-    required this.title,
-    this.icon,
-  });
+  const FormSection({super.key, required this.title, this.icon});
 
   @override
   Widget build(BuildContext context) {
@@ -800,4 +794,3 @@ class FormSection extends StatelessWidget {
     );
   }
 }
-

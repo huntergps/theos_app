@@ -17,12 +17,19 @@ final paymentTermsProvider = StreamProvider<List<PaymentTerm>>((ref) {
 ///
 /// Uses `paymentTermManager.watchLocalRecord(id)` so UI auto-updates
 /// when the payment term is modified or synced locally.
-final paymentTermByIdProvider = StreamProvider.family<PaymentTerm?, int>((ref, paymentTermId) {
+///
+/// `autoDispose`: es `.family` por `paymentTermId` transitorio (memory leak
+/// corregido). Verificado: sin consumidores en todo el codebase hoy — cero
+/// riesgo de romper algo.
+final paymentTermByIdProvider = StreamProvider.autoDispose.family<PaymentTerm?, int>((ref, paymentTermId) {
   return paymentTermManager.watchLocalRecord(paymentTermId);
 });
 
 /// Get a payment term name from cache. Derives from the payment terms stream.
-final paymentTermNameProvider = Provider.family<String, int?>((ref, paymentTermId) {
+///
+/// `autoDispose`: es `.family` por `paymentTermId` transitorio (memory leak
+/// corregido). Verificado: sin consumidores en todo el codebase hoy.
+final paymentTermNameProvider = Provider.autoDispose.family<String, int?>((ref, paymentTermId) {
   if (paymentTermId == null) return '';
   final terms = ref.watch(paymentTermsProvider);
   return terms.when(
@@ -60,7 +67,10 @@ final defaultCashPaymentTermProvider = Provider<AsyncValue<PaymentTerm?>>((ref) 
 });
 
 /// Check if a payment term requires credit validation. Derives from the payment terms stream.
-final requiresCreditValidationProvider = Provider.family<bool, int?>((ref, paymentTermId) {
+///
+/// `autoDispose`: es `.family` por `paymentTermId` transitorio (memory leak
+/// corregido). Verificado: sin consumidores en todo el codebase hoy.
+final requiresCreditValidationProvider = Provider.autoDispose.family<bool, int?>((ref, paymentTermId) {
   if (paymentTermId == null) return false;
   final terms = ref.watch(paymentTermsProvider);
   return terms.when(

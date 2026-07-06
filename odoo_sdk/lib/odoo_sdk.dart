@@ -129,7 +129,6 @@ export 'src/model/model_registry.dart';
 export 'src/model/field_definition.dart';
 export 'src/model/computed_field_engine.dart';
 export 'src/model/conflict_resolution.dart';
-export 'src/model/drift_model_mixin.dart';
 export 'src/model/generic_drift_operations.dart';
 export 'src/model/related_record.dart';
 

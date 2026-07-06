@@ -3,7 +3,6 @@
 /// Handles session cookie management for WebSocket authentication on Web platform.
 library;
 
-import 'dart:js_interop';
 import 'package:web/web.dart' as web;
 
 import '../services/logger_service.dart';

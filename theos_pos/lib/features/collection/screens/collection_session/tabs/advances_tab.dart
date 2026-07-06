@@ -2,6 +2,7 @@ import 'package:fluent_ui/fluent_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 
+import '../../../../../core/constants/app_colors.dart';
 import '../../../../../core/theme/spacing.dart';
 import '../../../../../shared/utils/formatting_utils.dart';
 import 'package:theos_pos_core/theos_pos_core.dart';
@@ -58,7 +59,7 @@ class _AdvancesTabState extends ConsumerState<AdvancesTab> {
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Icon(FluentIcons.error, size: 48, color: Colors.red),
+                  Icon(FluentIcons.error, size: 48, color: AppColors.danger),
                   const SizedBox(height: Spacing.sm),
                   Text('Error cargando anticipos: $e'),
                   const SizedBox(height: Spacing.sm),
@@ -196,7 +197,7 @@ class _AdvancesTabState extends ConsumerState<AdvancesTab> {
             'Disponible',
             totalAvailable,
             FluentIcons.check_mark,
-            Colors.green,
+            AppColors.success,
           ),
           _buildTotalItem(
             theme,
@@ -351,12 +352,12 @@ class _AdvancesTabState extends ConsumerState<AdvancesTab> {
                 ),
                 if (advance.isExpired) ...[
                   const SizedBox(width: Spacing.sm),
-                  Icon(FluentIcons.warning, size: 12, color: Colors.orange),
+                  Icon(FluentIcons.warning, size: 12, color: AppColors.warning),
                   const SizedBox(width: 4),
                   Text(
                     'Vencido',
                     style: theme.typography.caption?.copyWith(
-                      color: Colors.orange,
+                      color: AppColors.warning,
                     ),
                   ),
                 ] else if (advance.daysToExpire != null &&
@@ -365,7 +366,7 @@ class _AdvancesTabState extends ConsumerState<AdvancesTab> {
                   Text(
                     'Vence en ${advance.daysToExpire} días',
                     style: theme.typography.caption?.copyWith(
-                      color: Colors.orange,
+                      color: AppColors.warning,
                     ),
                   ),
                 ],
@@ -387,7 +388,7 @@ class _AdvancesTabState extends ConsumerState<AdvancesTab> {
               'Disponible: ${advance.amountAvailable.toCurrency()}',
               style: theme.typography.caption?.copyWith(
                 color: advance.amountAvailable > 0
-                    ? Colors.green
+                    ? AppColors.success
                     : theme.inactiveColor,
               ),
             ),
@@ -408,17 +409,17 @@ class _AdvancesTabState extends ConsumerState<AdvancesTab> {
   Color _getStateColor(AdvanceState state) {
     switch (state) {
       case AdvanceState.draft:
-        return Colors.grey;
+        return AppColors.textSecondary;
       case AdvanceState.posted:
-        return Colors.green;
+        return AppColors.success;
       case AdvanceState.inUse:
         return Colors.blue;
       case AdvanceState.used:
         return Colors.teal;
       case AdvanceState.expired:
-        return Colors.orange;
+        return AppColors.warning;
       case AdvanceState.canceled:
-        return Colors.red;
+        return AppColors.danger;
       case AdvanceState.rejected:
         return Colors.red.darker;
     }

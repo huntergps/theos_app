@@ -1,5 +1,6 @@
 import 'package:fluent_ui/fluent_ui.dart';
 
+import '../../../../../core/constants/app_colors.dart';
 import 'summary_row.dart';
 import 'package:theos_pos_core/theos_pos_core.dart';
 
@@ -23,10 +24,10 @@ class DetalleRetirosTable extends StatelessWidget {
               Container(
                 padding: const EdgeInsets.all(6),
                 decoration: BoxDecoration(
-                  color: Colors.red.withValues(alpha: 0.1),
+                  color: AppColors.danger.withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(4),
                 ),
-                child: Icon(FluentIcons.remove, color: Colors.red, size: 16),
+                child: Icon(FluentIcons.remove, color: AppColors.danger, size: 16),
               ),
               const SizedBox(width: 12),
               Text(
@@ -39,7 +40,7 @@ class DetalleRetirosTable extends StatelessWidget {
 
           SummaryRow(
             icon: FluentIcons.lock,
-            iconColor: Colors.grey,
+            iconColor: AppColors.textSecondary,
             label: 'Retiro por Seguridad',
             amount: session.cashOutSecurityTotal,
           ),
@@ -79,11 +80,11 @@ class DetalleRetirosTable extends StatelessWidget {
 
           SummaryRow(
             icon: FluentIcons.total,
-            iconColor: Colors.red,
+            iconColor: AppColors.danger,
             label: 'TOTAL RETIROS',
             amount: session.totalCashOutAmount,
             isBold: true,
-            backgroundColor: Colors.red.withValues(alpha: 0.1),
+            backgroundColor: AppColors.danger.withValues(alpha: 0.1),
           ),
         ],
       ),

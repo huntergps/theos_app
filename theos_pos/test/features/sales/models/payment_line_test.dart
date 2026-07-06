@@ -242,7 +242,10 @@ void main() {
         final values = paymentLineManager.toOdoo(line);
 
         expect(values['journal_id'], 1);
-        expect(values['bank_id'], 10);
+        // bank_id es @OdooLocalOnly: no sale de toOdoo(). Lo agrega
+        // PaymentService.applyBankFieldGuard segun la version del servidor
+        // (bank_id en 19.1, bank_name_ec en 19.2).
+        expect(values.containsKey('bank_id'), false);
         // card_type is @OdooLocalOnly, not included in toOdoo()
         expect(values.containsKey('card_type'), false);
         expect(values['card_brand_id'], 20);

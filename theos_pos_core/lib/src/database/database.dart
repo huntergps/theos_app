@@ -94,7 +94,7 @@ part 'database.g.dart';
   CollectionSessionDeposit,
   CashOut,
   // Accounting tables
-  AccountPayment,
+  AccountPaymentTable,
   AccountMove,
   AccountMoveLine,
   // Sales tables
@@ -133,7 +133,6 @@ part 'database.g.dart';
   ProductPriceChange,
   StockQuantityChange,
   // Sync and conflict tables
-  DirtyFields,
   SyncConflict,
   // Report templates
   QwebReportTemplate,
@@ -171,7 +170,7 @@ class AppDatabase extends _$AppDatabase {
   }
 
   @override
-  int get schemaVersion => 4;
+  int get schemaVersion => 8;
 
   @override
   MigrationStrategy get migration {
@@ -224,6 +223,76 @@ class AppDatabase extends _$AppDatabase {
         await customStatement(
           'CREATE INDEX IF NOT EXISTS idx_product_available_pos '
           'ON product_product (available_in_pos)',
+        );
+
+        // ----------------------------------------------------------------
+        // Índices de búsqueda en SaleOrder
+        //
+        // sale_order_line(order_id): las queries de líneas filtran siempre
+        //   por order_id (FK a SaleOrder). Sin índice → full table scan en
+        //   tablas con miles de líneas acumuladas.
+        // sale_order(state): getEditableOrdersForPOS filtra por state.isIn(...)
+        //   en cada render del POS screen.
+        // sale_order(partner_id): getSaleOrders() con filtro partnerId y
+        //   queries del panel de clientes.
+        // offline_queue(status, priority): el procesador de cola filtra por
+        //   status='pending' ORDER BY priority desc; este índice compuesto
+        //   cubre ambas condiciones en una sola operación.
+        // sale_order(write_date): syncFromOdoo() filtra por write_date >= last
+        //   sync para incremental sync; sin índice → full scan en cada ciclo.
+        // ----------------------------------------------------------------
+        await customStatement(
+          'CREATE INDEX IF NOT EXISTS idx_sol_order_id '
+          'ON sale_order_line (order_id)',
+        );
+        await customStatement(
+          'CREATE INDEX IF NOT EXISTS idx_so_state '
+          'ON sale_order (state)',
+        );
+        await customStatement(
+          'CREATE INDEX IF NOT EXISTS idx_so_partner_id '
+          'ON sale_order (partner_id)',
+        );
+        await customStatement(
+          'CREATE INDEX IF NOT EXISTS idx_oq_status_priority '
+          'ON offline_queue (status, priority)',
+        );
+        await customStatement(
+          'CREATE INDEX IF NOT EXISTS idx_so_write_date '
+          'ON sale_order (write_date)',
+        );
+
+        // ----------------------------------------------------------------
+        // Índices en líneas hijas de SaleOrder y sesiones de cobranza
+        //
+        // sale_order_payment_line(order_id) / sale_order_withhold_line(order_id):
+        //   mismo patrón de filtro que sale_order_line(order_id) — payment_service,
+        //   payment_line_local_service y withhold_line_local_service siempre
+        //   consultan por order_id. Sin índice → full table scan, igual que
+        //   sale_order_line antes de indexarla.
+        // collection_session_cash/deposit(collection_session_id) y
+        //   cash_out(collection_session_id): se consultan en cada apertura de
+        //   la pantalla de sesión de cobranza (arqueo, depósitos, retiros).
+        // ----------------------------------------------------------------
+        await customStatement(
+          'CREATE INDEX IF NOT EXISTS idx_sopl_order_id '
+          'ON sale_order_payment_line (order_id)',
+        );
+        await customStatement(
+          'CREATE INDEX IF NOT EXISTS idx_sowl_order_id '
+          'ON sale_order_withhold_line (order_id)',
+        );
+        await customStatement(
+          'CREATE INDEX IF NOT EXISTS idx_csc_collection_session_id '
+          'ON collection_session_cash (collection_session_id)',
+        );
+        await customStatement(
+          'CREATE INDEX IF NOT EXISTS idx_csd_collection_session_id '
+          'ON collection_session_deposit (collection_session_id)',
+        );
+        await customStatement(
+          'CREATE INDEX IF NOT EXISTS idx_co_collection_session_id '
+          'ON cash_out (collection_session_id)',
         );
 
         // ----------------------------------------------------------------

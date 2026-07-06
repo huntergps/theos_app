@@ -1,5 +1,4 @@
-import 'package:fluent_ui/fluent_ui.dart' hide showDialog;
-import 'package:flutter/material.dart' show showDialog;
+import 'package:fluent_ui/fluent_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../../core/constants/app_colors.dart';
@@ -10,63 +9,124 @@ import '../../../../../shared/providers/menu_provider.dart';
 import '../../../../../shared/utils/formatting_utils.dart';
 import '../../../../../shared/providers/user_provider.dart';
 import '../../../../../shared/widgets/dialogs/copyable_info_bar.dart';
-import '../../../../clients/clients.dart'
-    show
-        CreditCheckType,
-        CreditControlDialog,
-        CreditDialogAction,
-        clientWithCreditProvider,
-        clientCreditServiceProvider,
-        clientRepositoryProvider;
+import '../../../../clients/clients.dart' show clientRepositoryProvider;
 import 'package:theos_pos_core/theos_pos_core.dart';
 import '../../../../invoices/invoices.dart';
-import '../../../services/credit_validation_ui_service.dart' show UnifiedCreditResult;
 import '../../../providers/service_providers.dart';
 import '../../../widgets/payment/withholding_dialog.dart';
 import '../../../../advances/widgets/advance_registration_dialog.dart';
 import '../../../providers/providers.dart' show saleOrderFormProvider;
 import '../fast_sale_providers.dart';
+import 'confirm_order_handler.dart' show confirmOrderWithCreditCheck;
 
-/// Helper to ensure collection session is loaded (offline-first)
+part 'pos_overflow_actions_button.dart';
+part 'pos_action_item_button.dart';
+part 'pos_close_current_tab_widget.dart';
+part 'pos_final_consumer_warning_banner.dart';
+part 'pos_credit_note_selection_dialog.dart';
+part 'pos_cash_out_dialog.dart';
+
+/// Helper to ensure collection session is loaded (offline-first).
 ///
-/// If session is not in provider, loads from local database first.
-/// Returns the session or null if no active session.
+/// Delegado único para cargar la sesión: usa [CurrentSession.ensureLoaded()]
+/// que centraliza la lógica de "cargar desde BD si el provider está vacío".
+/// Esto elimina la duplicación con [posAvailableJournalsProvider] y splash_screen.
 Future<CollectionSession?> ensureSessionLoaded(WidgetRef ref) async {
-  var currentSession = ref.read(currentSessionProvider);
-  if (currentSession != null) return currentSession;
+  return ref.read(currentSessionProvider.notifier).ensureLoaded();
+}
 
-  logger.d('[POSActions] Session not in provider, loading from database...');
-  final collectionRepo = ref.read(collectionRepositoryProvider);
-  final userRepo = ref.read(userRepositoryProvider);
+/// Navigate to payments tab, confirming order first if it is in draft state.
+///
+/// If the active order is still in draft (quotation), shows a quick dialog
+/// asking the user to confirm and pay in one step. On acceptance, the order
+/// is confirmed (with credit check) and then the payments tab is opened.
+///
+/// Top-level (no `_` prefix) para que también pueda invocarse desde el
+/// atajo de teclado F6 ("Cobrar") en `fast_sale_screen.dart`, no solo desde
+/// el botón "Cobrar" del panel de acciones.
+Future<void> goToPaymentsWithAutoConfirm(
+  BuildContext context,
+  WidgetRef ref,
+  FastSaleTabState? activeTab,
+) async {
+  final order = activeTab?.order;
 
-  if (collectionRepo == null || userRepo == null) {
-    logger.d('[POSActions] Repositories not available');
-    return null;
-  }
+  // If the order is in draft/quotation, auto-confirm before going to payments
+  if (order != null && order.state == SaleOrderState.draft) {
+    final hasLines = activeTab != null && activeTab.lines.isNotEmpty;
+    final hasPartner = order.partnerId != null;
 
-  try {
-    final user = await userRepo.getCurrentUser();
-    if (user == null) {
-      logger.d('[POSActions] No current user found');
-      return null;
+    // Check minimum requirements to confirm
+    if (!hasLines || !hasPartner) {
+      final missing = <String>[];
+      if (!hasLines) missing.add('líneas de producto');
+      if (!hasPartner) missing.add('un cliente');
+      if (!context.mounted) return;
+      CopyableInfoBar.showWarning(
+        context,
+        title: 'Faltan datos para confirmar',
+        message: 'Agrega ${missing.join(' y ')} antes de registrar el cobro.',
+      );
+      return;
     }
 
-    // Offline-first: load from local database
-    // IMPORTANT: User.id is the Odoo user ID
-    // CollectionSession.userId stores the Odoo user ID
-    final session = await collectionRepo.getActiveUserSession(user.id);
-    if (session != null) {
-      ref.read(currentSessionProvider.notifier).set(session);
-      logger.d('[POSActions] Loaded session: ${session.name} (id=${session.id})');
-      return session;
-    }
+    if (!context.mounted) return;
 
-    logger.d('[POSActions] No active session for user ${user.name}');
-    return null;
-  } catch (e) {
-    logger.e('[POSActions]', 'Error loading session: $e');
-    return null;
+    // Show quick confirm-and-pay dialog
+    final proceed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => ContentDialog(
+        title: const Text('Confirmar y Cobrar'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'La orden ${order.name} está en borrador.',
+              style: const TextStyle(fontWeight: FontWeight.w500),
+            ),
+            const SizedBox(height: Spacing.sm),
+            const Text(
+              'Para registrar el cobro, primero se debe confirmar la orden.',
+            ),
+            const SizedBox(height: Spacing.sm),
+            const Text(
+              '¿Confirmar la orden y continuar al cobro?',
+            ),
+          ],
+        ),
+        actions: [
+          Button(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancelar'),
+          ),
+          FilledButton(
+            style: ButtonStyle(
+              backgroundColor: WidgetStateProperty.all(AppColors.success),
+            ),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Confirmar y Cobrar'),
+          ),
+        ],
+      ),
+    );
+
+    if (proceed != true || !context.mounted) return;
+
+    // Confirm the order (full flow with credit check)
+    await confirmOrderWithCreditCheck(context, ref);
+
+    // After confirmation, check if it succeeded (state should no longer be draft)
+    if (!context.mounted) return;
+    final updatedOrder = ref.read(fastSaleActiveTabProvider)?.order;
+    if (updatedOrder?.state == SaleOrderState.draft) {
+      // Confirmation failed or was cancelled — do not navigate to payments
+      return;
+    }
   }
+
+  // Navigate to payments tab
+  ref.read(orderPanelTabProvider.notifier).goToPayments();
 }
 
 /// Provider to check if current user has collection permissions
@@ -140,23 +200,20 @@ class POSActionsPanel extends ConsumerWidget {
     // Check if order needs sync (not synced)
     final needsSync = hasOrder && order.isSynced == false;
 
+    // Consumidor final sin nombre: se marca visualmente desde el inicio
+    // (no solo cuando falla la sincronización — ver _handleSyncAll).
+    final needsFinalConsumerName = hasOrder &&
+        order.isFinalConsumer &&
+        (order.endCustomerName == null || order.endCustomerName!.trim().isEmpty);
+
     final actions = <_ActionItem>[
-      // Sincronizar orden - only visible when order is not synced
-      if (needsSync)
+      // Sincronizar: envía pendientes + actualiza datos del cliente y orden
+      if (hasOrder)
         _ActionItem(
           icon: FluentIcons.sync,
           label: 'Sincronizar',
-          color: AppColors.warning,
-          onTap: () => _handleSyncOrder(context, ref, activeTab),
-        ),
-      // Sincronizar datos (cliente, crédito, etc.) - always visible when has partner
-      if (hasPartner)
-        _ActionItem(
-          icon: FluentIcons.sync,
-          label: 'Actualizar Datos',
-          // TODO: Migrar a TheosTheme.info(context) cuando _ActionItem soporte BuildContext
-          color: AppColors.primaryBackground,
-          onTap: () => _handleSyncData(context, ref, activeTab),
+          color: needsSync ? AppColors.warning : AppColors.primaryBackground,
+          onTap: () => _handleSyncAll(context, ref, activeTab),
         ),
       // Confirmar Venta button - only visible for draft, sent, approved states
       if (canConfirm)
@@ -202,8 +259,7 @@ class POSActionsPanel extends ConsumerWidget {
       _ActionItem(
         icon: FluentIcons.page_list,
         label: 'Nota Credito',
-        // TODO: AppColors no tiene equivalente para purple; definir AppColors.creditNote si se estandariza
-        color: Colors.purple,
+        color: AppColors.creditNote,
         onTap: () => _showCreditNoteDialog(context, ref, activeTab),
       ),
       _ActionItem(
@@ -216,13 +272,12 @@ class POSActionsPanel extends ConsumerWidget {
         icon: FluentIcons.payment_card,
         label: 'Cobrar',
         color: AppColors.success,
-        onTap: () => _handleGoToPayments(context, ref, activeTab),
+        onTap: () => goToPaymentsWithAutoConfirm(context, ref, activeTab),
       ),
       _ActionItem(
         icon: FluentIcons.circle_dollar,
         label: 'Anticipo',
-        // TODO: AppColors no tiene equivalente para magenta; definir AppColors.advance si se estandariza
-        color: Colors.magenta,
+        color: AppColors.advance,
         onTap: () => _showAdvanceDialog(context, ref, activeTab),
       ),
       _ActionItem(
@@ -240,10 +295,24 @@ class POSActionsPanel extends ConsumerWidget {
     ];
 
     if (isHorizontal) {
-      return _buildHorizontalLayout(context, ref, theme, actions, activeTab);
+      return _buildHorizontalLayout(
+        context,
+        ref,
+        theme,
+        actions,
+        activeTab,
+        needsFinalConsumerName,
+      );
     }
 
-    return _buildVerticalLayout(context, ref, theme, actions, activeTab);
+    return _buildVerticalLayout(
+      context,
+      ref,
+      theme,
+      actions,
+      activeTab,
+      needsFinalConsumerName,
+    );
   }
 
   Widget _buildVerticalLayout(
@@ -252,11 +321,13 @@ class POSActionsPanel extends ConsumerWidget {
     FluentThemeData theme,
     List<_ActionItem> actions,
     FastSaleTabState? activeTab,
+    bool needsFinalConsumerName,
   ) {
     return Container(
       color: theme.menuColor,
       padding: const EdgeInsets.symmetric(vertical: Spacing.sm, horizontal: Spacing.xs),
-      child: Column(
+      child: SingleChildScrollView(
+        child: Column(
         children: [
           // Close current tab widget
           if (activeTab != null)
@@ -264,6 +335,10 @@ class POSActionsPanel extends ConsumerWidget {
               orderName: activeTab.orderName,
               onClose: () => _confirmCloseTab(context, ref, activeTab),
             ),
+          if (needsFinalConsumerName) ...[
+            const SizedBox(height: Spacing.xs),
+            const _FinalConsumerWarningBanner(),
+          ],
           const SizedBox(height: Spacing.sm),
 
           // Actions
@@ -276,8 +351,22 @@ class POSActionsPanel extends ConsumerWidget {
           ],
         ],
       ),
+      ),
     );
   }
+
+  /// Labels de acciones primarias que siempre son visibles en la barra horizontal.
+  ///
+  /// Se seleccionaron las 5 más frecuentes para que quepan con área táctil
+  /// de al menos 44 px de alto y evitar botones de 10px ilegibles junto a
+  /// acciones destructivas (Cancelar junto a Confirmar).
+  static const _primaryActionLabels = {
+    'Confirmar (F9)',
+    'Cobrar',
+    'Guardar (F10)',
+    'Nueva Orden (F4)',
+    'Sincronizar',
+  };
 
   Widget _buildHorizontalLayout(
     BuildContext context,
@@ -285,13 +374,25 @@ class POSActionsPanel extends ConsumerWidget {
     FluentThemeData theme,
     List<_ActionItem> actions,
     FastSaleTabState? activeTab,
+    bool needsFinalConsumerName,
   ) {
+    // Separa acciones primarias (visibles) de secundarias (overflow)
+    final primaryActions =
+        actions.where((a) => _primaryActionLabels.contains(a.label)).toList();
+    final secondaryActions =
+        actions.where((a) => !_primaryActionLabels.contains(a.label)).toList();
+
     return Container(
       color: theme.menuColor,
-      padding: const EdgeInsets.symmetric(vertical: Spacing.xs, horizontal: Spacing.sm),
+      // Mínimo 48 px de alto para área táctil accesible
+      constraints: const BoxConstraints(minHeight: 48),
+      padding: const EdgeInsets.symmetric(
+        vertical: Spacing.xs,
+        horizontal: Spacing.sm,
+      ),
       child: Row(
         children: [
-          // Close current tab widget (compact)
+          // Cierre de pestaña actual (compacto)
           if (activeTab != null)
             Padding(
               padding: const EdgeInsets.only(right: Spacing.xs),
@@ -302,15 +403,24 @@ class POSActionsPanel extends ConsumerWidget {
               ),
             ),
 
-          // Actions
+          // Alerta compacta de consumidor final sin nombre
+          if (needsFinalConsumerName)
+            const Padding(
+              padding: EdgeInsets.only(right: Spacing.xs),
+              child: _FinalConsumerWarningBanner(isCompact: true),
+            ),
+
+          // Acciones primarias — siempre visibles
           Expanded(
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceEvenly,
               children: [
-                for (final action in actions)
+                for (final action in primaryActions)
                   Expanded(
                     child: Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: Spacing.xxs),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: Spacing.xxs,
+                      ),
                       child: _ActionButton(
                         action: action,
                         isCompact: isCompact,
@@ -321,6 +431,13 @@ class POSActionsPanel extends ConsumerWidget {
               ],
             ),
           ),
+
+          // Menú de desbordamiento: acciones secundarias en Flyout de Fluent UI
+          if (secondaryActions.isNotEmpty)
+            Padding(
+              padding: const EdgeInsets.only(left: Spacing.xs),
+              child: _OverflowActionsButton(actions: secondaryActions),
+            ),
         ],
       ),
     );
@@ -345,7 +462,8 @@ class POSActionsPanel extends ConsumerWidget {
   }
 
   /// Handle sync order action
-  Future<void> _handleSyncOrder(
+  /// Unified sync: sends pending operations + refreshes client + order data
+  Future<void> _handleSyncAll(
     BuildContext context,
     WidgetRef ref,
     FastSaleTabState? activeTab,
@@ -388,27 +506,7 @@ class POSActionsPanel extends ConsumerWidget {
       return;
     }
 
-    // Show loading dialog
     if (!context.mounted) return;
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (context) => const ContentDialog(
-        content: SizedBox(
-          height: 80,
-          child: Center(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                ProgressRing(),
-                SizedBox(height: Spacing.sm),
-                Text('Sincronizando orden...'),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
 
     try {
       final syncService = ref.read(offlineSyncServiceProvider);
@@ -436,27 +534,30 @@ class POSActionsPanel extends ConsumerWidget {
       final salesRepo = ref.read(salesRepositoryProvider);
       if (salesRepo != null) {
         await salesRepo.getById(orderId, forceRefresh: true);
+        await salesRepo.getWithLines(orderId, forceRefresh: true);
+      }
+
+      // Refresh partner data (vat, phone, street, email, credit)
+      final partnerId = order.partnerId;
+      if (partnerId != null) {
+        try {
+          final clientRepo = ref.read(clientRepositoryProvider);
+          await clientRepo?.refreshCreditData(partnerId);
+        } catch (e) {
+          logger.w('[POSActions]', 'Error refreshing partner $partnerId: $e');
+        }
       }
 
       // Reload the active tab order
       await ref.read(fastSaleProvider.notifier).reloadActiveOrder();
 
-      // Close dialog safely (navigator may be locked during transition)
-      if (!context.mounted) return;
-      _safePop(context);
-
       if (!context.mounted) return;
       CopyableInfoBar.showSuccess(
         context,
         title: 'Sincronizado',
-        message: result.synced > 0
-            ? 'Se sincronizaron ${result.synced} operaciones'
-            : 'Orden sincronizada correctamente',
+        message: 'Orden y datos del cliente actualizados',
       );
     } catch (e) {
-      // Close dialog safely (navigator may be locked during transition)
-      _safePop(context);
-
       logger.e('[POSActions]', 'Sync error: $e');
 
       if (!context.mounted) return;
@@ -770,227 +871,6 @@ class POSActionsPanel extends ConsumerWidget {
 
 
 
-  /// Navigate to payments tab, confirming order first if it is in draft state.
-  ///
-  /// If the active order is still in draft (quotation), shows a quick dialog
-  /// asking the user to confirm and pay in one step. On acceptance, the order
-  /// is confirmed (with credit check) and then the payments tab is opened.
-  Future<void> _handleGoToPayments(
-    BuildContext context,
-    WidgetRef ref,
-    FastSaleTabState? activeTab,
-  ) async {
-    final order = activeTab?.order;
-
-    // If the order is in draft/quotation, auto-confirm before going to payments
-    if (order != null && order.state == SaleOrderState.draft) {
-      final hasLines = activeTab != null && activeTab.lines.isNotEmpty;
-      final hasPartner = order.partnerId != null;
-
-      // Check minimum requirements to confirm
-      if (!hasLines || !hasPartner) {
-        final missing = <String>[];
-        if (!hasLines) missing.add('líneas de producto');
-        if (!hasPartner) missing.add('un cliente');
-        if (!context.mounted) return;
-        CopyableInfoBar.showWarning(
-          context,
-          title: 'Faltan datos para confirmar',
-          message: 'Agrega ${missing.join(' y ')} antes de registrar el cobro.',
-        );
-        return;
-      }
-
-      if (!context.mounted) return;
-
-      // Show quick confirm-and-pay dialog
-      final proceed = await showDialog<bool>(
-        context: context,
-        builder: (ctx) => ContentDialog(
-          title: const Text('Confirmar y Cobrar'),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                'La orden ${order.name} está en borrador.',
-                style: const TextStyle(fontWeight: FontWeight.w500),
-              ),
-              const SizedBox(height: Spacing.sm),
-              const Text(
-                'Para registrar el cobro, primero se debe confirmar la orden.',
-              ),
-              const SizedBox(height: Spacing.sm),
-              const Text(
-                '¿Confirmar la orden y continuar al cobro?',
-              ),
-            ],
-          ),
-          actions: [
-            Button(
-              onPressed: () => Navigator.pop(ctx, false),
-              child: const Text('Cancelar'),
-            ),
-            FilledButton(
-              style: ButtonStyle(
-                backgroundColor: WidgetStateProperty.all(AppColors.success),
-              ),
-              onPressed: () => Navigator.pop(ctx, true),
-              child: const Text('Confirmar y Cobrar'),
-            ),
-          ],
-        ),
-      );
-
-      if (proceed != true || !context.mounted) return;
-
-      // Confirm the order (full flow with credit check)
-      await _handleConfirmOrder(context, ref, activeTab);
-
-      // After confirmation, check if it succeeded (state should no longer be draft)
-      if (!context.mounted) return;
-      final updatedOrder = ref.read(fastSaleActiveTabProvider)?.order;
-      if (updatedOrder?.state == SaleOrderState.draft) {
-        // Confirmation failed or was cancelled — do not navigate to payments
-        return;
-      }
-    }
-
-    // Navigate to payments tab
-    ref.read(orderPanelTabProvider.notifier).goToPayments();
-  }
-
-  /// Sync ALL data related to the current order (client, credit, order, lines)
-  Future<void> _handleSyncData(
-    BuildContext context,
-    WidgetRef ref,
-    FastSaleTabState? activeTab,
-  ) async {
-    if (activeTab?.order == null) return;
-
-    final order = activeTab!.order!;
-    final partnerId = order.partnerId;
-    final orderId = order.id;
-
-    if (partnerId == null) return;
-
-    logger.i('[POSActions]', '🔄 Starting data sync for partner $partnerId, order $orderId');
-
-    // Show loading dialog and track if it's open
-    if (!context.mounted) return;
-
-    bool dialogOpen = true;
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (dialogContext) => const ContentDialog(
-        content: SizedBox(
-          height: 80,
-          child: Center(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                ProgressRing(),
-                SizedBox(height: Spacing.sm),
-                Text('Sincronizando datos...'),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-
-    void closeDialog() {
-      if (dialogOpen && context.mounted) {
-        dialogOpen = false;
-        Navigator.of(context, rootNavigator: true).pop();
-      }
-    }
-
-    final syncedItems = <String>[];
-    final errors = <String>[];
-
-    try {
-      // 1. Sync partner/client data
-      try {
-        final clientRepo = ref.read(clientRepositoryProvider);
-        if (clientRepo != null) {
-          await clientRepo.refreshCreditData(partnerId);
-          syncedItems.add('Cliente');
-        } else {
-          logger.w('[POSActions]', 'clientRepository is null');
-        }
-      } catch (e) {
-        logger.e('[POSActions]', 'Error syncing client: $e');
-        errors.add('Cliente: $e');
-      }
-
-      // 2. Sync sale order, lines, payments, withholds, invoices
-      if (orderId > 0) {
-        try {
-          final salesRepo = ref.read(salesRepositoryProvider);
-          if (salesRepo != null) {
-            await salesRepo.getWithLines(orderId, forceRefresh: true);
-            syncedItems.addAll(['Orden', 'Líneas', 'Pagos']);
-          }
-        } catch (e) {
-          logger.e('[POSActions]', 'Error syncing order: $e');
-          errors.add('Orden: $e');
-        }
-      }
-
-      // 3. Refresh credit info
-      try {
-        final creditService = ref.read(clientCreditServiceProvider);
-        if (creditService != null) {
-          await creditService.getClientWithCredit(partnerId, forceRefresh: true);
-          syncedItems.add('Crédito');
-        }
-        // Invalidate the provider to reload UI
-        ref.invalidate(clientWithCreditProvider(partnerId));
-      } catch (e) {
-        logger.e('[POSActions]', 'Error syncing credit: $e');
-        errors.add('Crédito: $e');
-      }
-
-      // Reload the active tab order
-      await ref.read(fastSaleProvider.notifier).reloadActiveOrder();
-
-      // Close dialog
-      closeDialog();
-
-      logger.i('[POSActions]', 'Sync completed. Items: ${syncedItems.join(", ")}. Errors: ${errors.length}');
-
-      // Show result
-      if (!context.mounted) return;
-      if (errors.isEmpty) {
-        CopyableInfoBar.showSuccess(
-          context,
-          title: 'Sincronizado',
-          message: 'Actualizado: ${syncedItems.join(", ")}',
-        );
-      } else {
-        CopyableInfoBar.showWarning(
-          context,
-          title: 'Sincronización parcial',
-          message: 'OK: ${syncedItems.join(", ")}\n\nErrores:\n${errors.join("\n")}',
-        );
-      }
-    } catch (e) {
-      // Close dialog
-      closeDialog();
-
-      logger.e('[POSActions]', 'Sync data error: $e');
-
-      if (!context.mounted) return;
-      CopyableInfoBar.showError(
-        context,
-        title: 'Error de sincronización',
-        message: 'No se pudieron sincronizar los datos. Verifique su conexion e intente nuevamente.',
-      );
-    }
-  }
-
   Future<void> _showCashOutDialog(BuildContext context, WidgetRef ref) async {
     // Verificar que hay una sesión de cobranza abierta (offline-first)
     final currentSession = await ensureSessionLoaded(ref);
@@ -1138,117 +1018,19 @@ class POSActionsPanel extends ConsumerWidget {
     }
   }
 
-  /// Handle confirm order action with credit validation
+  /// Delega al handler centralizado que incluye validación de crédito,
+  /// diálogo de bypass con canBypass, indicador de carga y mensaje de resultado.
+  ///
+  /// Antes este método omitía [canBypass], por lo que supervisores con el grupo
+  /// 'l10n_ec_sale_credit.group_credit_bypass' no veían el botón "Continuar de
+  /// todas formas". Ahora ambos puntos de entrada usan exactamente el mismo flujo.
   Future<void> _handleConfirmOrder(
     BuildContext context,
     WidgetRef ref,
     FastSaleTabState? activeTab,
   ) async {
     if (activeTab == null) return;
-
-    final notifier = ref.read(fastSaleProvider.notifier);
-
-    // Step 1: Validate credit before confirming
-    final creditResult = await notifier.validateCreditForConfirmation();
-
-    // Check for error
-    if (creditResult.errorMessage != null) {
-      if (!context.mounted) return;
-      CopyableInfoBar.showError(
-        context,
-        title: 'Error de validacion de credito',
-        message: creditResult.errorMessage!,
-      );
-      return;
-    }
-
-    // Step 2: If dialog required, show credit control dialog
-    if (creditResult.requiresDialog &&
-        creditResult.client != null &&
-        creditResult.validationResult != null) {
-      if (!context.mounted) return;
-
-      final action = await CreditControlDialog.show(
-        context: context,
-        client: creditResult.client!,
-        validationResult: creditResult.validationResult!,
-        orderAmount: creditResult.orderAmount,
-        isOnline: creditResult.isOnline,
-      );
-
-      if (action == null || action == CreditDialogAction.cancel) {
-        // User cancelled
-        return;
-      }
-
-      if (action == CreditDialogAction.createApproval) {
-        // Create approval request
-        if (!context.mounted) return;
-        await _createApprovalRequest(
-          context,
-          ref,
-          activeTab,
-          creditResult,
-        );
-        return;
-      }
-
-      // action == CreditDialogAction.proceedAnyway
-      // Continue to confirm with skipCreditCheck
-      logger.i('[POS]', 'User chose to proceed anyway (bypass credit check)');
-    }
-
-    // Step 3: Confirm the order
-    if (!context.mounted) return;
-    await _executeConfirmOrder(
-      context,
-      ref,
-      skipCreditCheck: creditResult.requiresDialog,
-    );
-  }
-
-  /// Execute the actual order confirmation
-  ///
-  /// Note: No loading dialog is shown to avoid navigator lock issues
-  /// when state updates trigger widget rebuilds. The UI shows loading
-  /// state via the tab's isLoading flag instead.
-  Future<void> _executeConfirmOrder(
-    BuildContext context,
-    WidgetRef ref, {
-    bool skipCreditCheck = false,
-  }) async {
-    final notifier = ref.read(fastSaleProvider.notifier);
-
-    try {
-      final success =
-          await notifier.confirmActiveOrder(skipCreditCheck: skipCreditCheck);
-
-      if (!context.mounted) return;
-
-      if (success) {
-        CopyableInfoBar.showSuccess(
-          context,
-          title: 'Orden confirmada',
-          message: 'La orden está lista para facturar',
-        );
-      } else {
-        // Get error message from state for better user feedback
-        final error = ref.read(fastSaleProvider).error;
-        CopyableInfoBar.showError(
-          context,
-          title: 'Error al confirmar',
-          message: error ?? 'No se pudo confirmar la orden',
-        );
-      }
-    } catch (e) {
-      if (!context.mounted) return;
-
-      CopyableInfoBar.showError(
-        context,
-        title: 'Error al confirmar',
-        message: 'No se pudo confirmar la orden. Intente nuevamente.',
-      );
-    }
+    await confirmOrderWithCreditCheck(context, ref);
   }
 
   /// Handle cancel order action
@@ -1463,506 +1245,4 @@ class POSActionsPanel extends ConsumerWidget {
     }
   }
 
-  /// Create approval request for credit exception
-  Future<void> _createApprovalRequest(
-    BuildContext context,
-    WidgetRef ref,
-    FastSaleTabState activeTab,
-    UnifiedCreditResult creditResult,
-  ) async {
-    final notifier = ref.read(fastSaleProvider.notifier);
-
-    // Show loading indicator
-    if (!context.mounted) return;
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (context) => const ContentDialog(
-        content: SizedBox(
-          height: 80,
-          child: Center(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                ProgressRing(),
-                SizedBox(height: Spacing.sm),
-                Text('Creando solicitud de aprobación...'),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-
-    try {
-      final checkType = creditResult.validationResult!.type;
-      final approvalId = await notifier.createCreditApprovalRequest(
-        checkType: checkType.name, // Convert enum to string
-        reason: checkType == CreditCheckType.creditLimitExceeded
-            ? 'Límite de crédito excedido'
-            : 'Deuda vencida',
-      );
-
-      // Close dialog first
-      if (!context.mounted) return;
-      _safePop(context);
-
-      if (!context.mounted) return;
-
-      if (approvalId != null) {
-        logger.i('[POS]', 'Approval request created with ID: $approvalId');
-        CopyableInfoBar.showSuccess(
-          context,
-          title: 'Solicitud creada',
-          message: 'La solicitud de aprobación ha sido enviada.\n'
-              'La orden quedará en estado "Esperando aprobación".',
-        );
-      } else {
-        CopyableInfoBar.showError(
-          context,
-          title: 'Error de aprobacion',
-          message: 'No se pudo crear la solicitud de aprobación',
-        );
-      }
-    } catch (e) {
-      // Close dialog first
-      _safePop(context);
-
-      if (!context.mounted) return;
-
-      logger.e('[POS]', 'Error creating approval request: $e');
-      CopyableInfoBar.showError(
-        context,
-        title: 'Error de aprobacion',
-        message: 'No se pudo crear la solicitud. Intente nuevamente.',
-      );
-    }
-  }
-}
-
-/// Action item data
-class _ActionItem {
-  final IconData icon;
-  final String label;
-  final Color color;
-  final VoidCallback? onTap;
-  final bool isPrimary;
-
-  const _ActionItem({
-    required this.icon,
-    required this.label,
-    required this.color,
-    this.onTap,
-    this.isPrimary = false,
-  });
-
-  bool get isEnabled => onTap != null;
-}
-
-/// Individual action button
-class _ActionButton extends StatelessWidget {
-  final _ActionItem action;
-  final bool isCompact;
-  final bool isHorizontal;
-
-  const _ActionButton({
-    required this.action,
-    this.isCompact = false,
-    this.isHorizontal = false,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = FluentTheme.of(context);
-    final isEnabled = action.isEnabled;
-    final effectiveColor = isEnabled ? action.color : theme.inactiveColor;
-
-    if (isCompact) {
-      return IconButton(
-        icon: Icon(
-          action.icon,
-          size: 20,
-          color: effectiveColor,
-        ),
-        onPressed: action.onTap,
-      );
-    }
-
-    if (isHorizontal) {
-      return Button(
-        onPressed: action.onTap,
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(action.icon, size: 20, color: effectiveColor),
-            const SizedBox(height: Spacing.xxs),
-            Text(
-              action.label,
-              style: theme.typography.caption?.copyWith(
-                fontSize: 10,
-                color: isEnabled ? null : theme.inactiveColor,
-              ),
-              textAlign: TextAlign.center,
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
-            ),
-          ],
-        ),
-      );
-    }
-
-    // Vertical layout - full button with colored icon background
-    // Use FilledButton for primary actions
-    final buttonWidget = action.isPrimary && isEnabled
-        ? FilledButton(
-            onPressed: action.onTap,
-            style: ButtonStyle(
-              padding: WidgetStateProperty.all(
-                const EdgeInsets.symmetric(vertical: Spacing.sm, horizontal: Spacing.xs),
-              ),
-              backgroundColor: WidgetStateProperty.all(
-                action.color.withValues(alpha: 0.9),
-              ),
-            ),
-            child: _buildButtonContent(theme, Colors.white, isEnabled),
-          )
-        : Button(
-            onPressed: action.onTap,
-            style: ButtonStyle(
-              padding: WidgetStateProperty.all(
-                const EdgeInsets.symmetric(vertical: Spacing.sm, horizontal: Spacing.xs),
-              ),
-            ),
-            child: _buildButtonContent(theme, effectiveColor, isEnabled),
-          );
-
-    return SizedBox(
-      width: double.infinity,
-      child: buttonWidget,
-    );
-  }
-
-  Widget _buildButtonContent(
-    FluentThemeData theme,
-    Color iconColor,
-    bool isEnabled,
-  ) {
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Container(
-          padding: const EdgeInsets.all(Spacing.sm),
-          decoration: BoxDecoration(
-            color: action.isPrimary && isEnabled
-                ? Colors.white.withValues(alpha: 0.2)
-                : action.color.withValues(alpha: isEnabled ? 0.1 : 0.05),
-            borderRadius: BorderRadius.circular(8),
-          ),
-          child: Icon(
-            action.icon,
-            size: 24,
-            color: iconColor,
-          ),
-        ),
-        const SizedBox(height: Spacing.xs),
-        Text(
-          action.label,
-          style: theme.typography.caption?.copyWith(
-            fontWeight: FontWeight.w500,
-            color: action.isPrimary && isEnabled ? Colors.white : null,
-          ),
-          textAlign: TextAlign.center,
-          maxLines: 2,
-        ),
-      ],
-    );
-  }
-}
-
-
-/// Widget to display current order name with close button [Nuevo-2][X]
-class _CloseCurrentTabWidget extends StatelessWidget {
-  final String orderName;
-  final VoidCallback onClose;
-  final bool isCompact;
-
-  const _CloseCurrentTabWidget({
-    required this.orderName,
-    required this.onClose,
-    this.isCompact = false,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = FluentTheme.of(context);
-
-    return Container(
-      decoration: BoxDecoration(
-        color: theme.accentColor.withValues(alpha: 0.1),
-        borderRadius: BorderRadius.circular(6),
-        border: Border.all(
-          color: theme.accentColor.withValues(alpha: 0.3),
-        ),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          // Order name section
-          Container(
-            padding: EdgeInsets.symmetric(
-              horizontal: isCompact ? 8 : 12,
-              vertical: isCompact ? 4 : 8,
-            ),
-            decoration: BoxDecoration(
-              border: Border(
-                right: BorderSide(
-                  color: theme.accentColor.withValues(alpha: 0.3),
-                ),
-              ),
-            ),
-            child: Text(
-              orderName,
-              style: theme.typography.body?.copyWith(
-                fontWeight: FontWeight.w600,
-                color: theme.accentColor,
-                fontSize: isCompact ? 12 : 14,
-              ),
-            ),
-          ),
-
-          // Close button section [X]
-          GestureDetector(
-            onTap: onClose,
-            child: Container(
-              padding: EdgeInsets.symmetric(
-                horizontal: isCompact ? 6 : 10,
-                vertical: isCompact ? 4 : 8,
-              ),
-              child: Icon(
-                FluentIcons.chrome_close,
-                size: isCompact ? 10 : 12,
-                color: theme.accentColor,
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-// ============================================================================
-// Widgets de soporte para diálogos de acciones
-// ============================================================================
-
-/// Diálogo para seleccionar nota de crédito
-class _CreditNoteSelectionDialog extends StatelessWidget {
-  final List<AvailableCreditNote> creditNotes;
-  final double orderTotal;
-
-  const _CreditNoteSelectionDialog({
-    required this.creditNotes,
-    required this.orderTotal,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return ContentDialog(
-      title: const Text('Seleccionar Nota de Crédito'),
-      constraints: const BoxConstraints(maxWidth: 500, maxHeight: 400),
-      content: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            'Notas de crédito disponibles del cliente:',
-            style: FluentTheme.of(context).typography.bodyStrong,
-          ),
-          const SizedBox(height: Spacing.sm),
-          Flexible(
-            child: ListView.builder(
-              shrinkWrap: true,
-              itemCount: creditNotes.length,
-              itemBuilder: (context, index) {
-                final nc = creditNotes[index];
-                return ListTile.selectable(
-                  leading: Container(
-                    padding: const EdgeInsets.all(8),
-                    decoration: BoxDecoration(
-                      // TODO: AppColors no tiene equivalente para purple; definir AppColors.creditNote si se estandariza
-                      color: Colors.purple.withValues(alpha: 0.1),
-                      borderRadius: BorderRadius.circular(4),
-                    ),
-                    child: Icon(
-                      FluentIcons.page_list,
-                      size: 20,
-                      // TODO: AppColors no tiene equivalente para purple; definir AppColors.creditNote si se estandariza
-                      color: Colors.purple,
-                    ),
-                  ),
-                  title: Text(nc.name),
-                  subtitle: Text(
-                    'Disponible: ${nc.amountResidual.toCurrency()}',
-                    style: TextStyle(color: AppColors.success),
-                  ),
-                  onPressed: () => Navigator.pop(context, nc),
-                );
-              },
-            ),
-          ),
-        ],
-      ),
-      actions: [
-        Button(
-          onPressed: () => Navigator.pop(context),
-          child: const Text('Cancelar'),
-        ),
-      ],
-    );
-  }
-}
-
-/// Resultado del diálogo de salida de dinero
-class _CashOutResult {
-  final bool success;
-  final double amount;
-  final String? reason;
-
-  _CashOutResult({
-    required this.success,
-    required this.amount,
-    this.reason,
-  });
-}
-
-/// Diálogo para registrar salida de dinero
-class _CashOutDialog extends ConsumerStatefulWidget {
-  final int sessionId;
-
-  const _CashOutDialog({required this.sessionId});
-
-  @override
-  ConsumerState<_CashOutDialog> createState() => _CashOutDialogState();
-}
-
-class _CashOutDialogState extends ConsumerState<_CashOutDialog> {
-  final _amountController = TextEditingController();
-  final _reasonController = TextEditingController();
-  bool _isLoading = false;
-
-  @override
-  void dispose() {
-    _amountController.dispose();
-    _reasonController.dispose();
-    super.dispose();
-  }
-
-  Future<void> _saveCashOut() async {
-    final amount = double.tryParse(_amountController.text) ?? 0;
-    if (amount <= 0) {
-      CopyableInfoBar.showError(
-        context,
-        title: 'Error de validacion',
-        message: 'Ingrese un monto válido',
-      );
-      return;
-    }
-
-    setState(() => _isLoading = true);
-
-    try {
-      final cashOutService = ref.read(cashOutServiceProvider);
-
-      // Obtener diarios de efectivo disponibles
-      final cashJournals = await cashOutService.getCashJournals();
-      if (cashJournals.isEmpty) {
-        throw Exception('No hay diarios de efectivo configurados');
-      }
-
-      // Usar el primer diario de efectivo
-      final cashJournal = cashJournals.firstWhere(
-        (j) => j.type == 'cash',
-        orElse: () => cashJournals.first,
-      );
-
-      // Crear retiro de seguridad (tipo más común)
-      final result = await cashOutService.createSecurityWithdrawal(
-        amount: amount,
-        journalId: cashJournal.id,
-        sessionId: widget.sessionId,
-        note: _reasonController.text.isEmpty ? null : _reasonController.text,
-      );
-
-      if (mounted) {
-        Navigator.pop(
-          context,
-          _CashOutResult(
-            success: result.success,
-            amount: amount,
-            reason: _reasonController.text,
-          ),
-        );
-      }
-    } catch (e) {
-      if (mounted) {
-        setState(() => _isLoading = false);
-        CopyableInfoBar.showError(
-          context,
-          title: 'Error de retiro de efectivo',
-          message: 'No se pudo registrar la salida de efectivo. Intente nuevamente.',
-        );
-      }
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return ContentDialog(
-      title: const Text('Salida de Dinero'),
-      constraints: const BoxConstraints(maxWidth: 400),
-      content: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          InfoLabel(
-            label: 'Monto',
-            child: TextBox(
-              controller: _amountController,
-              placeholder: '0.00',
-              keyboardType: const TextInputType.numberWithOptions(decimal: true),
-              prefix: const Padding(
-                padding: EdgeInsets.only(left: 8),
-                child: Text('\$'),
-              ),
-            ),
-          ),
-          const SizedBox(height: Spacing.sm),
-          InfoLabel(
-            label: 'Motivo (opcional)',
-            child: TextBox(
-              controller: _reasonController,
-              placeholder: 'Ej: Pago a proveedor, gastos varios...',
-              maxLines: 2,
-            ),
-          ),
-        ],
-      ),
-      actions: [
-        Button(
-          onPressed: _isLoading ? null : () => Navigator.pop(context),
-          child: const Text('Cancelar'),
-        ),
-        FilledButton(
-          onPressed: _isLoading ? null : _saveCashOut,
-          child: _isLoading
-              ? const SizedBox(
-                  width: 16,
-                  height: 16,
-                  child: ProgressRing(strokeWidth: 2),
-                )
-              : const Text('Registrar Salida'),
-        ),
-      ],
-    );
-  }
 }

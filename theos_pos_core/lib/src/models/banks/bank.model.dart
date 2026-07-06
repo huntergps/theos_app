@@ -61,7 +61,13 @@ abstract class PartnerBank with _$PartnerBank {
     @OdooMany2One('res.partner', odooName: 'partner_id') required int partnerId,
     // Removed in 19.2, use bank_name/bank_bic (flat fields on res.partner.bank)
     @OdooLocalOnly() int? bankId,
-    @OdooString(odooName: 'acc_number') required String accNumber,
+    // Odoo 19.5/19.2: 'acc_number' fue renombrado a 'account_number' en
+    // res.partner.bank (verificado en vivo contra erp1 y en el código
+    // fuente de ambas versiones, julio 2026). driftName explícito porque
+    // dartName (accNumber) ya no camelCase-matchea el odooName nuevo
+    // (camelCase('account_number')='accountNumber') — se conserva la
+    // columna Drift existente 'accNumber' sin migración de esquema.
+    @OdooString(odooName: 'account_number', driftName: 'accNumber') required String accNumber,
     @OdooDateTime(odooName: 'write_date', writable: false) DateTime? writeDate,
   }) = _PartnerBank;
 

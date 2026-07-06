@@ -54,8 +54,17 @@ enum WithholdType {
 }
 
 /// Modelo de linea de retencion para ordenes de venta
-// Modelo custom l10n_ec_withholding — requiere módulo instalado
-@OdooModel('account.withhold.line', tableName: 'sale_order_withhold_line')
+// Modelo custom l10n_ec_collection_box — requiere módulo instalado.
+// F6 (julio 2026): corregido el nombre de modelo Odoo real — antes decía
+// 'account.withhold.line' (nunca existió como tal), el modelo real es
+// 'sale.order.withhold.line' (ver
+// working/l10n_ec_collection_box/models/sale_order_withhold_line.py).
+// Se trazó exhaustivamente (ModelRegistry, OfflineQueue, WebSocket
+// dispatch, sync repositories) y NINGÚN flujo vivo dependía del string
+// viejo — todos los call sites reales (offline queue, sync manual,
+// withhold_service.dart) ya usaban el string correcto hardcodeado como
+// workaround. tableName NO cambia (la tabla Drift sigue igual).
+@OdooModel('sale.order.withhold.line', tableName: 'sale_order_withhold_line')
 @freezed
 abstract class WithholdLine with _$WithholdLine {
   const WithholdLine._();
@@ -63,10 +72,32 @@ abstract class WithholdLine with _$WithholdLine {
   const factory WithholdLine({
     @OdooId() @Default(0) int id,
     @OdooLocalOnly() @Default('') String lineUuid,
+    // FK a la orden dueña (sale_order.odooId). Igual que en PaymentLine —
+    // el manager genérico (upsertLocal/fromDrift) necesita este campo para
+    // poder poblar la columna real `order_id` (NOT NULL en la tabla Drift).
+    // Antes no existía acá: WithholdLineManager.upsertLocal() fallaba
+    // siempre con NOT NULL constraint failed (nunca se usa hoy en
+    // producción — sales_repository_sync.dart/withhold_line_local_service
+    // .dart construyen el Companion a mano con el orderId real). Encontrado
+    // por el roundtrip test genérico — julio 2026.
+    @OdooLocalOnly() int? orderId,
     @OdooMany2One('account.tax', odooName: 'tax_id') required int taxId,
-    @OdooString(odooName: 'tax_name') required String taxName,
-    @OdooFloat(odooName: 'tax_percent') required double taxPercent,
-    @OdooSelection() required WithholdType withholdType,
+    // Odoo 19.5 (erp1): tax_name/tax_percent/withhold_type ya NO existen en
+    // sale.order.withhold.line del servidor (smoke fields_get, julio 2026)
+    // — tax_id, base, amount, taxsupport_code y notes sí siguen existiendo.
+    // Coincide con lo que ya hacía sales_repository_sync.dart en la
+    // práctica: taxName/withholdType nunca venían de un campo real del
+    // servidor, se derivaban del nombre del impuesto (tax_id) a mano
+    // (ver syncWithholdLinesFromOdoo). withholdType es un enum con
+    // @OdooSelection — el generador YA maneja enums LocalOnly escribiendo
+    // `.code` en createDriftCompanion() y reconstruyendo con
+    // `.firstWhere(code == valor, orElse: () => .values.first)` en
+    // fromDrift() (mismo mapeo que tenía antes, ver
+    // odoo_model_generator.dart _generateFromDriftBody/createDriftCompanion,
+    // rama isLocalOnly + isEnumType) — el roundtrip local no cambia.
+    @OdooLocalOnly() required String taxName,
+    @OdooLocalOnly() required double taxPercent,
+    @OdooLocalOnly() required WithholdType withholdType,
     @OdooSelection(odooName: 'taxsupport_code') TaxSupportCode? taxSupportCode,
     @OdooFloat() required double base,
     @OdooFloat() required double amount,

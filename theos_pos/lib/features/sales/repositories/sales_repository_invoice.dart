@@ -264,7 +264,7 @@ extension SalesRepositoryInvoice on SalesRepository {
   /// [forceRefresh]: If true, always fetch from Odoo. If false (default), only fetch
   /// if data is not available locally (incremental sync).
   Future<void> syncInvoicesForOrder(int orderId, {bool forceRefresh = false}) async {
-    if (_odooClient == null) return;
+    if (!_orderManager.isOnline) return;
 
     try {
       // Get order data from local DB to check invoice_ids
@@ -285,7 +285,7 @@ extension SalesRepositoryInvoice on SalesRepository {
       List<int>? invoiceIds;
       {
         try {
-          final orderDataFromOdoo = await _odooClient.searchRead(
+          final orderDataFromOdoo = await _orderManager.client.searchRead(
             model: 'sale.order',
             fields: ['invoice_ids'],
             domain: [
@@ -315,8 +315,9 @@ extension SalesRepositoryInvoice on SalesRepository {
       }
 
       // Use InvoiceRepository to sync invoices with their lines
+      // F5: InvoiceRepository ya no recibe OdooClient (usa managers
+      // internamente).
       final invoiceRepository = InvoiceRepository(
-        odooClient: _odooClient,
         productRepository: _productRepository,
         appDb: _db,
       );

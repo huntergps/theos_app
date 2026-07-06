@@ -4,6 +4,8 @@ import 'package:intl/intl.dart';
 
 import '../../../../../shared/utils/error_utils.dart';
 import '../../../../../shared/utils/formatting_utils.dart';
+import '../../../../../shared/widgets/common/theos_info_bars.dart';
+import '../../../../../../core/constants/app_colors.dart';
 import '../../../../../../core/database/providers.dart';
 import '../../../../../../core/services/config_service.dart';
 
@@ -49,7 +51,7 @@ class CashOutsTab extends ConsumerWidget {
             return Card(
               margin: const EdgeInsets.only(bottom: 8),
               child: ListTile.selectable(
-                leading: Icon(FluentIcons.money, color: Colors.red),
+                leading: Icon(FluentIcons.money, color: AppColors.danger),
                 title: Text(cashOut.name ?? 'Sin motivo'),
                 subtitle: Text(
                   dateFormat.format(cashOut.date),
@@ -57,7 +59,7 @@ class CashOutsTab extends ConsumerWidget {
                 trailing: Text(
                   '-${cashOut.amount.toCurrency()}',
                   style: theme.typography.bodyStrong?.copyWith(
-                    color: Colors.red,
+                    color: AppColors.danger,
                   ),
                 ),
               ),
@@ -67,10 +69,9 @@ class CashOutsTab extends ConsumerWidget {
       },
       loading: () => const Center(child: ProgressRing()),
       error: (error, _) => Center(
-        child: InfoBar(
-          title: const Text('Error al cargar salidas de efectivo'),
-          content: Text(friendlyErrorMessage(error)),
-          severity: InfoBarSeverity.error,
+        child: TheosInfoBars.error(
+          title: 'Error al cargar salidas de efectivo',
+          message: friendlyErrorMessage(error),
         ),
       ),
     );

@@ -68,7 +68,8 @@ void main() {
       expect(company.pedirEndCustomerData, isTrue);
       expect(company.pedirSaleReferrer, isFalse);
       expect(company.pedirTipoCanalCliente, isTrue);
-      expect(company.saleCustomerInvoiceLimitSri, equals(200.0));
+      // sale_customer_invoice_limit_sri es @OdooLocalOnly (no existe en 19.2/19.5):
+      expect(company.saleCustomerInvoiceLimitSri, isNull);
       expect(company.maxDiscountPercentage, equals(50.0));
       expect(company.writeDate, isNotNull);
     });

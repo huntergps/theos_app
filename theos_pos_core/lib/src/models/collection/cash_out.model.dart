@@ -184,7 +184,16 @@ class CashOutType {
 /// - [isOutflow] / [isInflow] -> depends: [cashFlow]
 /// - [hasMove] -> depends: [moveId]
 /// - [type] -> depends: [typeId, typeName, typeCode]
-@OdooModel('l10n_ec_collection_box.cash_out', tableName: 'cash_out')
+// F6 gemelo (julio 2026): corregido el nombre de modelo Odoo real — antes
+// decía 'l10n_ec_collection_box.cash_out' (nunca existió como tal), el
+// modelo real es 'l10n_ec.cash.out' (verificado en 19.1 working y en el
+// smoke fields_get contra erp1 19.5). Se trazó exhaustivamente (cash_out
+// _service.dart, sync_provider.dart, sync_counts_repository.dart,
+// offline_sync_service.dart, ModelRegistry, OfflineQueueDatasource) y
+// NINGÚN flujo vivo dependía del string viejo — todos los call sites reales
+// ya usaban 'l10n_ec.cash.out' hardcodeado como workaround. tableName NO
+// cambia (la tabla Drift sigue igual).
+@OdooModel('l10n_ec.cash.out', tableName: 'cash_out')
 @freezed
 abstract class CashOut with _$CashOut {
   const CashOut._();
@@ -262,7 +271,9 @@ abstract class CashOut with _$CashOut {
 
     // ============ Type Info ============
     @OdooSelection(odooName: 'cash_out_type') @Default('other') String typeCode,
-    @OdooMany2One('l10n_ec_collection_box.cash_out_type', odooName: 'cash_out_type_id') int? typeId,
+    // Mismo fix: el modelo real es 'l10n_ec.cash.out.type', no
+    // 'l10n_ec_collection_box.cash_out_type'.
+    @OdooMany2One('l10n_ec.cash.out.type', odooName: 'cash_out_type_id') int? typeId,
     @OdooMany2OneName(sourceField: 'cash_out_type_id') String? typeName,
   }) = _CashOut;
 

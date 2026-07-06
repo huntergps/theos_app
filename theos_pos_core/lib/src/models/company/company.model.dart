@@ -83,16 +83,22 @@ abstract class Company with _$Company {
     @OdooMany2OneName(sourceField: 'partner_id') String? defaultPartnerName,
 
     /// Default warehouse for new sales
-    @OdooMany2One('stock.warehouse', odooName: 'warehouse_id') int? defaultWarehouseId,
-    @OdooMany2OneName(sourceField: 'warehouse_id') String? defaultWarehouseName,
+    // Odoo 19.5 (erp1): 'warehouse_id' ya no existe en res.company del
+    // servidor (smoke fields_get, julio 2026). driftName explícito porque
+    // dartName (defaultWarehouseId) no camelCase-matchea la columna real
+    // (warehouseId) — no se renombra la columna Drift.
+    @OdooLocalOnly(driftName: 'warehouseId') int? defaultWarehouseId,
+    @OdooLocalOnly() String? defaultWarehouseName,
 
     /// Default pricelist for new sales
-    @OdooMany2One('product.pricelist', odooName: 'default_pricelist_id') int? defaultPricelistId,
-    @OdooMany2OneName(sourceField: 'default_pricelist_id') String? defaultPricelistName,
+    // Odoo 19.5 (erp1): 'default_pricelist_id' ya no existe en res.company.
+    @OdooLocalOnly() int? defaultPricelistId,
+    @OdooLocalOnly() String? defaultPricelistName,
 
     /// Default payment term for new sales
-    @OdooMany2One('account.payment.term', odooName: 'default_payment_term_id') int? defaultPaymentTermId,
-    @OdooMany2OneName(sourceField: 'default_payment_term_id') String? defaultPaymentTermName,
+    // Odoo 19.5 (erp1): 'default_payment_term_id' ya no existe en res.company.
+    @OdooLocalOnly() int? defaultPaymentTermId,
+    @OdooLocalOnly() String? defaultPaymentTermName,
 
     /// Whether to require end customer data in sales
     // Campo custom — requiere módulo l10n_ec instalado
@@ -107,8 +113,10 @@ abstract class Company with _$Company {
     @OdooBoolean(odooName: 'pedir_tipo_canal_cliente') @Default(false) bool pedirTipoCanalCliente,
 
     /// SRI invoice limit for sales customers
-    // Campo custom — requiere módulo l10n_ec instalado
-    @OdooFloat(odooName: 'sale_customer_invoice_limit_sri') double? saleCustomerInvoiceLimitSri,
+    // Campo custom — requiere módulo l10n_ec instalado.
+    // Odoo 19.5 (erp1): 'sale_customer_invoice_limit_sri' ya no existe en
+    // res.company del servidor (smoke fields_get, julio 2026).
+    @OdooLocalOnly() double? saleCustomerInvoiceLimitSri,
 
     /// Maximum discount percentage allowed
     // Campo custom — requiere módulo l10n_ec instalado
@@ -124,12 +132,16 @@ abstract class Company with _$Company {
     @OdooInteger(odooName: 'credit_overdue_invoices_threshold') @Default(3) int creditOverdueInvoicesThreshold,
 
     /// Safety margin for offline credit validation (%)
-    // Campo custom — requiere módulo l10n_ec instalado
-    @OdooFloat(odooName: 'credit_offline_safety_margin') @Default(0.0) double creditOfflineSafetyMargin,
+    // Campo custom — requiere módulo l10n_ec instalado.
+    // Odoo 19.5 (erp1): 'credit_offline_safety_margin' ya no existe en
+    // res.company del servidor (smoke fields_get, julio 2026).
+    @OdooLocalOnly() @Default(0.0) double creditOfflineSafetyMargin,
 
     /// Maximum age in hours for credit data to be considered valid
-    // Campo custom — requiere módulo l10n_ec instalado
-    @OdooInteger(odooName: 'credit_data_max_age_hours') @Default(24) int creditDataMaxAgeHours,
+    // Campo custom — requiere módulo l10n_ec instalado.
+    // Odoo 19.5 (erp1): 'credit_data_max_age_hours' ya no existe en
+    // res.company del servidor (smoke fields_get, julio 2026).
+    @OdooLocalOnly() @Default(24) int creditDataMaxAgeHours,
 
     // ═══════════════════ Reservation Configuration ═══════════════════
     /// Days before a reservation expires

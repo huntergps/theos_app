@@ -173,6 +173,11 @@ class OdooModelGenerator extends GeneratorForAnnotation<OdooModel> {
           fieldType: _OdooFieldType.string,
           isRequired: reader.peek('required')?.boolValue ?? false,
           isWritable: reader.peek('writable')?.boolValue ?? true,
+          // Override puntual para campos de Odoo renombrados (ej.
+          // 'acc_number' -> 'account_number') cuya columna Drift ya
+          // existente debe conservarse sin migración de esquema — ver
+          // OdooField.driftName.
+          driftName: reader.peek('driftName')?.stringValue,
         );
       }
 
@@ -602,12 +607,31 @@ class OdooModelGenerator extends GeneratorForAnnotation<OdooModel> {
     buffer.writeln();
 
     // fromOdoo conversion - fully generated
-    buffer.writeln('  @override');
-    buffer.writeln('  $className fromOdoo(Map<String, dynamic> data) {');
+    //
+    // Se genera también como función ESTÁTICA pura (`fromOdooMap`), además
+    // del método de instancia `fromOdoo` (que delega en ella). Motivo: el
+    // cuerpo de fromOdoo solo depende de [data] y de funciones/parsers de
+    // nivel superior (parseOdoo*, extractMany2one*, etc.) — nunca toca
+    // `this` ni estado de instancia. Pero un tear-off de MÉTODO DE INSTANCIA
+    // (`manager.fromOdoo`) igual captura el objeto `$managerName` completo,
+    // que incluye `OdooClient` (sockets HTTP) y `GeneratedDatabase` (handle
+    // nativo de SQLite) — ninguno transferible a un `Isolate`. Un tear-off
+    // de función ESTÁTICA (`$managerName.fromOdooMap`) no captura `this`,
+    // así que sí es transferible a `Isolate.run()` para parsear lotes
+    // grandes de `searchRead()` sin bloquear el isolate principal.
+    buffer.writeln('  /// Versión estática pura de [fromOdoo] — no referencia `this` ni');
+    buffer.writeln('  /// estado de instancia (OdooClient, GeneratedDatabase), solo [data].');
+    buffer.writeln('  /// Por eso su tear-off (`$managerName.fromOdooMap`) es transferible a');
+    buffer.writeln('  /// `Isolate.run()`, a diferencia del tear-off del método de instancia');
+    buffer.writeln('  /// [fromOdoo] (que arrastra el manager completo, no transferible).');
+    buffer.writeln('  static $className fromOdooMap(Map<String, dynamic> data) {');
     buffer.writeln('    return $className(');
     buffer.write(_generateFromOdooBody(fields, className));
     buffer.writeln('    );');
     buffer.writeln('  }');
+    buffer.writeln();
+    buffer.writeln('  @override');
+    buffer.writeln('  $className fromOdoo(Map<String, dynamic> data) => fromOdooMap(data);');
     buffer.writeln();
 
     // toOdoo conversion - fully generated
@@ -758,11 +782,30 @@ class OdooModelGenerator extends GeneratorForAnnotation<OdooModel> {
     buffer.writeln();
 
     // createDriftCompanion — returns a RawValuesInsertable map
-    // Column keys must match SQL column names from the manual Drift tables:
-    // - OdooId: 'odoo_id' (manual tables use id=autoIncrement + odoo_id=unique)
-    // - OdooMany2OneName: '${sourceField}_name'
-    // - OdooLocalOnly: _toSnakeCase(dartName)
-    // - All others: field.odooName (matches drift table .named() or default)
+    // Column keys must match SQL column names REALES de las tablas Drift
+    // manuales. Esas columnas las genera Drift aplicando ReCase.snakeCase
+    // (paquete `recase`) sobre el nombre del getter Dart: inserta '_' antes
+    // de cada mayúscula (salvo la primera letra) y pasa todo a minúsculas.
+    // `_toSnakeCase()` en este archivo implementa exactamente ese mismo
+    // algoritmo (ver más abajo), por eso lo reusamos aquí sobre
+    // `field.driftAccessorName` — que ya resuelve el getter Dart real de la
+    // tabla para cualquier tipo de campo (incluyendo el caso especial de
+    // Many2OneName, que usa dartName y no el sourceField).
+    //
+    // - OdooId: 'odoo_id' (las tablas manuales usan id=autoIncrement +
+    //   odoo_id=unique; no se deriva del getter)
+    // - Todos los demás: _toSnakeCase(field.driftAccessorName)
+    //
+    // ANTES este cómputo tenía dos bugs:
+    //   1. Many2OneName usaba '${sourceField}_name' (ej. 'country_id' →
+    //      'country_id_name'), que nunca coincide con la columna real
+    //      (dartName snake-cased, ej. 'country_name'). El valor se perdía
+    //      silenciosamente en el INSERT/UPDATE (ver generic_drift_operations
+    //      .dart, que descarta claves sin columna real).
+    //   2. Campos normales usaban field.odooName tal cual, que rompe en
+    //      getters con dígitos pegados a letras (ej. dartName 'bills100' con
+    //      odooName 'bills_100' → columna real es 'bills100', no 'bills_100';
+    //      'cardLast4' → columna real 'card_last4', no 'card_last_4').
     buffer.writeln('  @override');
     buffer.writeln('  dynamic createDriftCompanion($className record) {');
     buffer.writeln('    return RawValuesInsertable({');
@@ -773,10 +816,8 @@ class OdooModelGenerator extends GeneratorForAnnotation<OdooModel> {
         // Manual tables use 'odoo_id' column for the Odoo record ID
         // (the 'id' column is autoIncrement and managed by SQLite)
         driftColumn = 'odoo_id';
-      } else if (field.fieldType == _OdooFieldType.many2oneName) {
-        driftColumn = '${field.odooName}_name';
       } else {
-        driftColumn = field.odooName;
+        driftColumn = _toSnakeCase(field.driftAccessorName);
       }
       // Map Dart types to Drift Value expressions.
       // Non-nullable fields use Variable<T>(value).

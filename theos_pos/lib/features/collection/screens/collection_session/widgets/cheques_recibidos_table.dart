@@ -43,7 +43,7 @@ class ChequesRecibidosTable extends StatelessWidget {
               Expanded(
                 flex: 1,
                 child: Text(
-                  'Al Dia',
+                  'Al Día',
                   style: theme.typography.caption,
                   textAlign: TextAlign.right,
                 ),

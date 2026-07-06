@@ -10,6 +10,7 @@ library;
 import '../api/odoo_client.dart';
 import '../services/logger_service.dart';
 import '../utils/odoo_parsing_utils.dart' show formatOdooDateTime;
+import 'isolate_dispatch.dart' show parseInIsolate;
 import 'sync_models.dart';
 
 /// Configuration for a single model sync operation.
@@ -37,6 +38,22 @@ class ModelSyncConfig {
 
   /// Callback to upsert a single record
   final Future<void> Function(Map<String, dynamic> data) upsertRecord;
+
+  /// Callback opcional para upsert de una PÁGINA completa de registros.
+  ///
+  /// Cuando está definido, [GenericSyncRepository.syncModel] lo llama UNA
+  /// vez por página (de tamaño [batchSize]) en vez de invocar [upsertRecord]
+  /// fila por fila. Esto es mucho más rápido para catálogos grandes (ej.
+  /// 13,000+ productos) porque el batch completo se escribe en una sola
+  /// transacción Drift (`database.batch()`, ver `upsertLocalBatch` en
+  /// `generic_drift_operations.dart`) en vez de N `INSERT ... ON CONFLICT`
+  /// individuales.
+  ///
+  /// Si es `null` (default), [syncModel] usa el camino per-row existente
+  /// vía [upsertRecord] — ningún [ModelSyncConfig] existente se rompe por
+  /// no definir esto.
+  final Future<void> Function(List<Map<String, dynamic>> pageData)?
+      upsertBatch;
 
   // ===========================================================================
   // SELECTIVE FIELD SYNC OPTIONS
@@ -107,6 +124,7 @@ class ModelSyncConfig {
     this.supportsIncremental = true,
     this.order = 'id asc',
     required this.upsertRecord,
+    this.upsertBatch,
     // Selective sync options
     this.selectiveFields,
     this.enableFieldLevelSync = false,
@@ -116,6 +134,11 @@ class ModelSyncConfig {
   });
 
   /// Creates a copy of this config with selective sync enabled.
+  ///
+  /// NOTA: el sync selectivo (field-level) sigue siendo per-row por diseño
+  /// (necesita comparar contra el registro local ANTES de decidir si
+  /// escribe) — por eso esta copia no hereda [upsertBatch]; usa siempre el
+  /// camino [upsertRecord].
   ModelSyncConfig withSelectiveSync({
     required List<String> selectiveFields,
     required Future<Map<String, dynamic>?> Function(int recordId) getLocalRecord,
@@ -401,9 +424,17 @@ class GenericSyncRepository {
       ];
 
       // Add incremental filter if supported
+      //
+      // Se usa '>=' (no '>' estricto) por dos razones:
+      // 1. Consistencia con los filtros manuales de catalog_sync_repository.dart.
+      // 2. El caller (SyncNotifier) ya resta un margen de solape de 60s al
+      //    guardar este `sinceDate` (ver _incrementalSyncOverlap), así que un
+      //    '>=' aquí es la parte "inclusiva" de esa estrategia de solape —
+      //    preferimos volver a traer un registro de más (upsert es
+      //    idempotente) que arriesgarnos a perder uno por el límite exacto.
       if (sinceDate != null && config.supportsIncremental) {
         final sinceDateStr = formatOdooDateTime(sinceDate) ?? '';
-        domain.add(['write_date', '>', sinceDateStr]);
+        domain.add(['write_date', '>=', sinceDateStr]);
         logger.d('[GenericSync] ${config.model}: incremental since $sinceDateStr');
       }
 
@@ -461,9 +492,24 @@ class GenericSyncRepository {
           break;
         }
 
-        for (final record in records) {
-          // Check cancellation periodically
-          if (syncedCount % 20 == 0 && _cancelRequested) {
+        if (config.upsertBatch != null) {
+          // Camino batch: UNA sola escritura transaccional por página en vez
+          // de N llamadas a upsertRecord. Ver doc de [ModelSyncConfig.upsertBatch].
+          await config.upsertBatch!(records);
+          syncedCount += records.length;
+
+          final lastName = _extractDisplayName(records.last);
+          onProgress?.call(SyncProgress(
+            total: totalRecords,
+            synced: syncedCount,
+            currentItem: lastName.length > 30
+                ? '${lastName.substring(0, 30)}...'
+                : lastName,
+          ));
+
+          // La cancelación se revisa una vez por página (no por fila) — la
+          // página completa ya se escribió como una unidad transaccional.
+          if (_cancelRequested) {
             return ModelSyncResult(
               model: config.model,
               synced: syncedCount,
@@ -472,18 +518,33 @@ class GenericSyncRepository {
               duration: DateTime.now().difference(startTime),
             );
           }
+        } else {
+          // Camino per-row (default, sin cambios de comportamiento para
+          // configs existentes que no definen upsertBatch).
+          for (final record in records) {
+            // Check cancellation periodically
+            if (syncedCount % 20 == 0 && _cancelRequested) {
+              return ModelSyncResult(
+                model: config.model,
+                synced: syncedCount,
+                total: totalRecords,
+                wasCancelled: true,
+                duration: DateTime.now().difference(startTime),
+              );
+            }
 
-          await config.upsertRecord(record);
-          syncedCount++;
+            await config.upsertRecord(record);
+            syncedCount++;
 
-          // Report progress every 50 records
-          if (syncedCount % 50 == 0 || syncedCount == totalRecords) {
-            final name = _extractDisplayName(record);
-            onProgress?.call(SyncProgress(
-              total: totalRecords,
-              synced: syncedCount,
-              currentItem: name.length > 30 ? '${name.substring(0, 30)}...' : name,
-            ));
+            // Report progress every 50 records
+            if (syncedCount % 50 == 0 || syncedCount == totalRecords) {
+              final name = _extractDisplayName(record);
+              onProgress?.call(SyncProgress(
+                total: totalRecords,
+                synced: syncedCount,
+                currentItem: name.length > 30 ? '${name.substring(0, 30)}...' : name,
+              ));
+            }
           }
         }
 
@@ -596,15 +657,66 @@ class SyncConfigBuilder {
   ///
   /// [model] is the Odoo model name
   /// [fields] are the fields to fetch
-  /// [fromOdoo] converts Odoo data to domain model
+  /// [fromOdoo] converts Odoo data to domain model (instance tear-off, ej.
+  ///   `_productManager.fromOdoo` — usado en el camino per-row y como
+  ///   fallback bajo [isolateThreshold])
   /// [upsertLocal] persists the record locally
+  /// [upsertLocalBatch] opcional — si se pasa (ej. `manager.upsertLocalBatch`,
+  ///   disponible en TODO manager generado vía `GenericDriftOperations<T>`),
+  ///   el sync de este modelo usa el camino batch (una escritura
+  ///   transaccional por página) en vez de upsertLocal fila por fila. Ver
+  ///   [ModelSyncConfig.upsertBatch].
+  /// [isolateParser] opcional — versión ESTÁTICA/pura de [fromOdoo] (ej.
+  ///   `ProductManager.fromOdooMap`, generada junto al `fromOdoo` de
+  ///   instancia desde Fase E). Ver sección "Parsing en Isolate" abajo.
+  /// [isolateThreshold] cantidad mínima de registros en la página para
+  ///   justificar el overhead de spawnear un isolate (default 300 — ver
+  ///   justificación abajo).
   /// [domain] optional domain filter
   /// [batchSize] records per batch
+  ///
+  /// ## Parsing en Isolate (Fase E1, retomando el pendiente de Fase B)
+  ///
+  /// En Fase B se documentó que `fromOdoo` (instance tear-off) NO es
+  /// transferible a `Isolate.run()` porque arrastra el manager completo
+  /// (con `OdooClient`/`GeneratedDatabase`, ninguno isolate-safe). Ese
+  /// bloqueo ya se resolvió a nivel de generador: `odoo_model_generator.dart`
+  /// ahora TAMBIÉN emite una versión **estática** pura,
+  /// `$ManagerName.fromOdooMap(data)`, que no captura `this` — su tear-off
+  /// SÍ es transferible (hay un test real con `Isolate.run()` en
+  /// `odoo_model_generator_test.dart` que lo confirma). [isolateParser] es
+  /// el punto de entrada para pasar esa versión estática.
+  ///
+  /// Cuando [isolateParser] y [upsertLocalBatch] están definidos, y una
+  /// página trae `>= isolateThreshold` registros, el parseo de esa página
+  /// completa (JSON → modelo tipado, con toda la conversión de
+  /// many2one/selection/fecha/decimal) se despacha a un isolate separado
+  /// (`parseInIsolate`, ver `isolate_dispatch.dart`) en vez de correr
+  /// síncrono en el isolate que llama a `syncModel()` (normalmente el de UI).
+  /// Por debajo del umbral, o si no se pasa [isolateParser], se usa
+  /// [fromOdoo] inline como hasta ahora — **cero cambio de comportamiento**
+  /// para configs que no opten por esto.
+  ///
+  /// CRÍTICO — Web: `Isolate.run()` no existe en Flutter Web (lanza
+  /// `UnsupportedError` en runtime). `parseInIsolate` usa un shim de
+  /// conditional-import (`isolate_dispatch.dart`) que en Web simplemente
+  /// corre el parseo síncrono en el isolate actual — mismo resultado, sin
+  /// el offload (no hay isolate al cual offloadear en Web de todos modos).
+  ///
+  /// El umbral de 300 es un punto de partida conservador (no un benchmark
+  /// medido): para páginas pequeñas (categorías, uom, impuestos — decenas o
+  /// pocos cientos de registros con parsing simple), el overhead de
+  /// serializar el mensaje entre isolates puede superar la ganancia: mejor
+  /// dejarlas inline. Con productos (500/página, ~28 campos con
+  /// many2one/selection) el beneficio es claro.
   static ModelSyncConfig create<T>({
     required String model,
     required List<String> fields,
     required T Function(Map<String, dynamic>) fromOdoo,
     required Future<void> Function(T) upsertLocal,
+    Future<void> Function(List<T>)? upsertLocalBatch,
+    T Function(Map<String, dynamic>)? isolateParser,
+    int isolateThreshold = 300,
     List<dynamic>? domain,
     int batchSize = 200,
     bool supportsIncremental = true,
@@ -621,6 +733,15 @@ class SyncConfigBuilder {
         final record = fromOdoo(data);
         await upsertLocal(record);
       },
+      upsertBatch: upsertLocalBatch == null
+          ? null
+          : (pageData) async {
+              final parsed =
+                  (isolateParser != null && pageData.length >= isolateThreshold)
+                      ? await parseInIsolate(pageData, isolateParser)
+                      : pageData.map(fromOdoo).toList();
+              await upsertLocalBatch(parsed);
+            },
     );
   }
 }

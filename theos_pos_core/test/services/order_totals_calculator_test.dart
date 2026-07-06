@@ -276,6 +276,76 @@ void main() {
 
       expect(breakdown.hasDiscount, isFalse);
     });
+
+    test('taxTotal es el valor provisto (suma de priceTax), no derivado', () {
+      // taxTotal se acumula desde line.priceTax en calculate() — misma
+      // semántica que los call sites legacy. NO es total - subtotal.
+      const breakdown = OrderTotalsBreakdown(
+        subtotalUndiscounted: 200.0,
+        totalDiscount: 20.0,
+        subtotal: 180.0,
+        total: 207.0,
+        taxGroups: [],
+        taxTotal: 27.0,
+      );
+
+      expect(breakdown.taxTotal, equals(27.0));
+    });
+
+    test('taxTotal es 0 por defecto cuando no se provee', () {
+      const breakdown = OrderTotalsBreakdown(
+        subtotalUndiscounted: 200.0,
+        totalDiscount: 0.0,
+        subtotal: 200.0,
+        total: 200.0,
+        taxGroups: [],
+      );
+
+      expect(breakdown.taxTotal, equals(0.0));
+    });
+
+    test('taxTotal suma priceTax aunque priceTotal sea inconsistente', () {
+      // Caso que motivó el cambio: fixtures/datos parciales donde
+      // priceTotal NO es priceSubtotal + priceTax. La semántica legacy
+      // (sumar priceTax) debe preservarse.
+      final result = calculator.calculate(
+        lines: [
+          _makeLine(
+            priceUnit: 100.0,
+            quantity: 1.0,
+            priceSubtotal: 0.0,
+            priceTax: 45.0,
+            priceTotal: 0.0,
+          ),
+        ],
+      );
+
+      expect(result.taxTotal, equals(45.0));
+    });
+
+    test('taxTotal matches sum of line.priceTax via calculate()', () {
+      final result = calculator.calculate(
+        lines: [
+          _makeLine(
+            priceUnit: 100.0,
+            quantity: 1.0,
+            priceSubtotal: 100.0,
+            priceTax: 15.0,
+            priceTotal: 115.0,
+          ),
+          _makeLine(
+            priceUnit: 50.0,
+            quantity: 3.0,
+            priceSubtotal: 150.0,
+            priceTax: 22.5,
+            priceTotal: 172.5,
+          ),
+        ],
+      );
+
+      // 15.0 + 22.5 = 37.5, igual a total (287.5) - subtotal (250.0)
+      expect(result.taxTotal, equals(37.5));
+    });
   });
 
   group('TaxGroupTotal', () {

@@ -118,6 +118,9 @@ extension MonitoredOdooClientExtension on OdooClient {
       final result = await call(
         model: model,
         method: method,
+        // Passthrough para el caso legítimo del controller custom que lee
+        // "args" (get_stock_by_warehouse).
+        // ignore: deprecated_member_use
         args: args,
         kwargs: kwargs,
       );

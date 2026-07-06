@@ -1,6 +1,8 @@
 import 'package:fluent_ui/fluent_ui.dart';
 
+import '../../../../../core/constants/app_colors.dart';
 import '../../../../../shared/utils/formatting_utils.dart';
+import '../../../../../shared/widgets/common/theos_info_bars.dart';
 import '../../../../../shared/widgets/dialogs/confirm_action_dialog.dart';
 import 'package:theos_pos_core/theos_pos_core.dart';
 
@@ -68,17 +70,15 @@ class _SessionBalanceSummary extends StatelessWidget {
         _buildDifferenceRow(difference),
         if (difference != 0) ...[
           const SizedBox(height: 16),
-          InfoBar(
-            title: const Text('Atención'),
-            content: Text(
-              difference > 0
-                  ? 'Hay un sobrante de efectivo.'
-                  : 'Hay un faltante de efectivo.',
-            ),
-            severity: difference > 0
-                ? InfoBarSeverity.warning
-                : InfoBarSeverity.error,
-          ),
+          difference > 0
+              ? TheosInfoBars.warning(
+                  title: 'Atención',
+                  message: 'Hay un sobrante de efectivo.',
+                )
+              : TheosInfoBars.error(
+                  title: 'Atención',
+                  message: 'Hay un faltante de efectivo.',
+                ),
         ],
       ],
     );
@@ -105,7 +105,7 @@ class _SessionBalanceSummary extends StatelessWidget {
         Text(
           difference.toCurrency(),
           style: theme.typography.bodyStrong?.copyWith(
-            color: difference != 0 ? Colors.red : Colors.green,
+            color: difference != 0 ? AppColors.danger : AppColors.success,
           ),
         ),
       ],

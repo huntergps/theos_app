@@ -26,7 +26,7 @@ extension SalesRepositoryLines on SalesRepository {
     // 3. If online, try to sync immediately
     if (isOnline) {
       try {
-        final remoteId = await _odooClient!.create(
+        final remoteId = await _lineManager.client.create(
           model: 'sale.order.line',
           values: {
             'order_id': orderId,
@@ -89,7 +89,7 @@ extension SalesRepositoryLines on SalesRepository {
   /// Returns true if all lines were synced successfully, false otherwise.
   /// If offline, returns false (lines cannot be synced).
   Future<bool> syncOrderLinesToOdoo(int orderId, List<SaleOrderLine> lines) async {
-    if (!isOnline || _odooClient == null) {
+    if (!isOnline) {
       logger.w('[SalesRepository]', 'Cannot sync lines: offline');
       return false;
     }
@@ -114,7 +114,7 @@ extension SalesRepositoryLines on SalesRepository {
         final lineUuid = line.lineUuid ?? _uuid.v4();
 
         // Create line in Odoo
-        final remoteId = await _odooClient.create(
+        final remoteId = await _lineManager.client.create(
           model: 'sale.order.line',
           values: {
             'order_id': orderId,
@@ -176,7 +176,7 @@ extension SalesRepositoryLines on SalesRepository {
     // 4. If online and has remote ID, sync immediately
     if (isOnline && lineId > 0) {
       try {
-        final success = await _odooClient!.write(
+        final success = await _lineManager.client.write(
           model: 'sale.order.line',
           ids: [lineId],
           values: odooValues,
@@ -233,7 +233,7 @@ extension SalesRepositoryLines on SalesRepository {
         // === CREATE: new local line → Odoo ===
         if (isOnline) {
           try {
-            final remoteId = await _odooClient!.create(
+            final remoteId = await _lineManager.client.create(
               model: 'sale.order.line',
               values: {
                 'order_id': orderId,
@@ -291,7 +291,7 @@ extension SalesRepositoryLines on SalesRepository {
 
         if (isOnline) {
           try {
-            final success = await _odooClient!.write(
+            final success = await _lineManager.client.write(
               model: 'sale.order.line',
               ids: [line.id],
               values: odooValues,
@@ -351,7 +351,7 @@ extension SalesRepositoryLines on SalesRepository {
     // 4. If online, sync deletion immediately
     if (isOnline) {
       try {
-        final success = await _odooClient!.unlink(
+        final success = await _lineManager.client.unlink(
           model: 'sale.order.line',
           ids: [lineId],
         );

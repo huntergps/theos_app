@@ -84,8 +84,12 @@ class MailActivityManager extends OdooModelManager<MailActivity>
     'write_date',
   ];
 
-  @override
-  MailActivity fromOdoo(Map<String, dynamic> data) {
+  /// Versión estática pura de [fromOdoo] — no referencia `this` ni
+  /// estado de instancia (OdooClient, GeneratedDatabase), solo [data].
+  /// Por eso su tear-off (`MailActivityManager.fromOdooMap`) es transferible a
+  /// `Isolate.run()`, a diferencia del tear-off del método de instancia
+  /// [fromOdoo] (que arrastra el manager completo, no transferible).
+  static MailActivity fromOdooMap(Map<String, dynamic> data) {
     return MailActivity(
       id: data['id'] as int? ?? 0,
       resId: parseOdooInt(data['res_id']) ?? 0,
@@ -105,6 +109,9 @@ class MailActivityManager extends OdooModelManager<MailActivity>
       writeDate: parseOdooDateTime(data['write_date']),
     );
   }
+
+  @override
+  MailActivity fromOdoo(Map<String, dynamic> data) => fromOdooMap(data);
 
   @override
   Map<String, dynamic> toOdoo(MailActivity record) {
@@ -226,9 +233,9 @@ class MailActivityManager extends OdooModelManager<MailActivity>
       'summary': driftVar<String>(record.summary),
       'note': driftVar<String>(record.note),
       'activity_type_id': driftVar<int>(record.activityTypeId),
-      'activity_type_id_name': driftVar<String>(record.activityTypeName),
+      'activity_type_name': driftVar<String>(record.activityTypeName),
       'user_id': driftVar<int>(record.userId),
-      'user_id_name': driftVar<String>(record.userName),
+      'user_name': driftVar<String>(record.userName),
       'date_deadline': Variable<DateTime>(record.dateDeadline),
       'state': Variable<String>(record.state),
       'icon': driftVar<String>(record.icon),

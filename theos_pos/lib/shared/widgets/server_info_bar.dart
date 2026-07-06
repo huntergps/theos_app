@@ -2,7 +2,6 @@ import 'dart:async';
 import 'package:fluent_ui/fluent_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
-import '../providers/offline_queue_provider.dart';
 import '../providers/server_info_provider.dart';
 
 /// A compact status bar displayed at the bottom of the main screen.
@@ -43,25 +42,15 @@ class _ServerInfoBarState extends ConsumerState<ServerInfoBar> {
   Widget build(BuildContext context) {
     final serverInfo = ref.watch(serverInfoProvider);
     final theme = FluentTheme.of(context);
-    final isDark = theme.brightness == Brightness.dark;
 
     // Use server time offset for display
     final adjustedTime = _displayTime.toUtc().add(serverInfo.serverTimeOffset).toLocal();
     final dateTimeStr = DateFormat('dd/MM/yyyy HH:mm:ss').format(adjustedTime);
 
-    final textColor = isDark
-        ? theme.resources.textFillColorSecondary
-        : theme.resources.textFillColorSecondary;
-
+    final textColor = theme.resources.textFillColorSecondary;
     final separatorColor = textColor.withValues(alpha: 0.3);
-
-    final bgColor = isDark
-        ? theme.resources.cardBackgroundFillColorDefault
-        : theme.resources.cardBackgroundFillColorDefault;
-
-    final borderColor = isDark
-        ? theme.resources.cardStrokeColorDefault
-        : theme.resources.cardStrokeColorDefault;
+    final bgColor = theme.resources.cardBackgroundFillColorDefault;
+    final borderColor = theme.resources.cardStrokeColorDefault;
 
     return Container(
       width: double.infinity,
@@ -104,45 +93,7 @@ class _ServerInfoBarState extends ConsumerState<ServerInfoBar> {
             _Separator(color: separatorColor),
           ],
 
-          // Pending operations badge
-          Builder(builder: (context) {
-            final pendingCount = ref.watch(
-              offlineQueueProvider.select((s) => s.totalCount),
-            );
-            if (pendingCount <= 0) return const SizedBox.shrink();
-            return Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                  decoration: BoxDecoration(
-                    color: Colors.orange.withValues(alpha: 0.15),
-                    borderRadius: BorderRadius.circular(10),
-                    border: Border.all(
-                      color: Colors.orange.withValues(alpha: 0.4),
-                      width: 0.5,
-                    ),
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(FluentIcons.cloud_upload, size: 12, color: Colors.orange.dark),
-                      const SizedBox(width: 4),
-                      Text(
-                        '$pendingCount pendiente${pendingCount == 1 ? '' : 's'}',
-                        style: TextStyle(
-                          fontSize: 11,
-                          color: Colors.orange.dark,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                _Separator(color: separatorColor),
-              ],
-            );
-          }),
+          // Pending operations badge — mostrado en el header (main_screen.dart)
 
           // Date/Time (pushed to the right)
           const Spacer(),

@@ -20,7 +20,7 @@ extension AccountPaymentManagerBusiness on AccountPaymentManager {
 
   /// Get all payments for a collection session
   Future<List<AccountPayment>> getBySessionId(int sessionId) async {
-    final query = _db.select(_db.accountPayment)
+    final query = _db.select(_db.accountPaymentTable)
       ..where((t) => t.collectionSessionId.equals(sessionId))
       ..orderBy([(t) => drift.OrderingTerm.desc(t.date)]);
 
@@ -33,7 +33,7 @@ extension AccountPaymentManagerBusiness on AccountPaymentManager {
     int sessionId,
     String originType,
   ) async {
-    final query = _db.select(_db.accountPayment)
+    final query = _db.select(_db.accountPaymentTable)
       ..where((t) =>
           t.collectionSessionId.equals(sessionId) &
           t.paymentOriginType.equals(originType))
@@ -48,7 +48,7 @@ extension AccountPaymentManagerBusiness on AccountPaymentManager {
     int sessionId,
     String category,
   ) async {
-    final query = _db.select(_db.accountPayment)
+    final query = _db.select(_db.accountPaymentTable)
       ..where((t) =>
           t.collectionSessionId.equals(sessionId) &
           t.paymentMethodCategory.equals(category))
@@ -64,26 +64,26 @@ extension AccountPaymentManagerBusiness on AccountPaymentManager {
     String? originType,
     String? methodCategory,
   }) async {
-    final query = _db.selectOnly(_db.accountPayment)
-      ..addColumns([_db.accountPayment.amount.sum()]);
+    final query = _db.selectOnly(_db.accountPaymentTable)
+      ..addColumns([_db.accountPaymentTable.amount.sum()]);
 
-    query.where(_db.accountPayment.collectionSessionId.equals(sessionId));
+    query.where(_db.accountPaymentTable.collectionSessionId.equals(sessionId));
     if (originType != null) {
       query
-          .where(_db.accountPayment.paymentOriginType.equals(originType));
+          .where(_db.accountPaymentTable.paymentOriginType.equals(originType));
     }
     if (methodCategory != null) {
       query.where(
-          _db.accountPayment.paymentMethodCategory.equals(methodCategory));
+          _db.accountPaymentTable.paymentMethodCategory.equals(methodCategory));
     }
 
     final result = await query.getSingleOrNull();
-    return result?.read(_db.accountPayment.amount.sum()) ?? 0.0;
+    return result?.read(_db.accountPaymentTable.amount.sum()) ?? 0.0;
   }
 
   /// Get all payments for a sale order
   Future<List<AccountPayment>> getByOrderId(int orderId) async {
-    final query = _db.select(_db.accountPayment)
+    final query = _db.select(_db.accountPaymentTable)
       ..where((t) => t.saleId.equals(orderId))
       ..orderBy([(t) => drift.OrderingTerm.desc(t.date)]);
 
@@ -93,21 +93,21 @@ extension AccountPaymentManagerBusiness on AccountPaymentManager {
 
   /// Delete by UUID
   Future<void> deleteByUuid(String uuid) async {
-    await (_db.delete(_db.accountPayment)
+    await (_db.delete(_db.accountPaymentTable)
           ..where((t) => t.paymentUuid.equals(uuid)))
         .go();
   }
 
   /// Delete all payments for a session
   Future<void> deleteBySessionId(int sessionId) async {
-    await (_db.delete(_db.accountPayment)
+    await (_db.delete(_db.accountPaymentTable)
           ..where((t) => t.collectionSessionId.equals(sessionId)))
         .go();
   }
 
   /// Get unsynced payment records
   Future<List<AccountPayment>> getUnsyncedPayments() async {
-    final query = _db.select(_db.accountPayment)
+    final query = _db.select(_db.accountPaymentTable)
       ..where((t) => t.isSynced.equals(false));
     final results = await query.get();
     return results.map((row) => fromDrift(row)).toList();
@@ -115,13 +115,13 @@ extension AccountPaymentManagerBusiness on AccountPaymentManager {
 
   /// Get last write date for incremental sync
   Future<DateTime?> getLastPaymentWriteDate() async {
-    final query = _db.selectOnly(_db.accountPayment)
-      ..addColumns([_db.accountPayment.writeDate])
-      ..orderBy([drift.OrderingTerm.desc(_db.accountPayment.writeDate)])
+    final query = _db.selectOnly(_db.accountPaymentTable)
+      ..addColumns([_db.accountPaymentTable.writeDate])
+      ..orderBy([drift.OrderingTerm.desc(_db.accountPaymentTable.writeDate)])
       ..limit(1);
 
     final result = await query.getSingleOrNull();
-    return result?.read(_db.accountPayment.writeDate);
+    return result?.read(_db.accountPaymentTable.writeDate);
   }
 
   // ═══════════════════════════════════════════════════════════════════════════

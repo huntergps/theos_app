@@ -29,8 +29,12 @@ class SalesTeamManager extends OdooModelManager<SalesTeam>
     'write_date',
   ];
 
-  @override
-  SalesTeam fromOdoo(Map<String, dynamic> data) {
+  /// Versión estática pura de [fromOdoo] — no referencia `this` ni
+  /// estado de instancia (OdooClient, GeneratedDatabase), solo [data].
+  /// Por eso su tear-off (`SalesTeamManager.fromOdooMap`) es transferible a
+  /// `Isolate.run()`, a diferencia del tear-off del método de instancia
+  /// [fromOdoo] (que arrastra el manager completo, no transferible).
+  static SalesTeam fromOdooMap(Map<String, dynamic> data) {
     return SalesTeam(
       id: data['id'] as int? ?? 0,
       name: parseOdooStringRequired(data['name']),
@@ -43,6 +47,9 @@ class SalesTeamManager extends OdooModelManager<SalesTeam>
       writeDate: parseOdooDateTime(data['write_date']),
     );
   }
+
+  @override
+  SalesTeam fromOdoo(Map<String, dynamic> data) => fromOdooMap(data);
 
   @override
   Map<String, dynamic> toOdoo(SalesTeam record) {
@@ -142,9 +149,9 @@ class SalesTeamManager extends OdooModelManager<SalesTeam>
       'name': Variable<String>(record.name),
       'active': Variable<bool>(record.active),
       'company_id': driftVar<int>(record.companyId),
-      'company_id_name': driftVar<String>(record.companyName),
+      'company_name': driftVar<String>(record.companyName),
       'user_id': driftVar<int>(record.userId),
-      'user_id_name': driftVar<String>(record.userName),
+      'user_name': driftVar<String>(record.userName),
       'sequence': Variable<int>(record.sequence),
       'write_date': driftVar<DateTime>(record.writeDate),
     });

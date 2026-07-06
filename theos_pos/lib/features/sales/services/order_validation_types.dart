@@ -168,7 +168,7 @@ Opciones:
         details: {
           'discount': discount,
           'maxDiscount': maxDiscount,
-          if (productName != null) 'productName': productName,
+          'productName': ?productName,
         },
       );
 
@@ -185,7 +185,7 @@ Opciones:
         details: {
           'margin': margin,
           'minMargin': minMargin,
-          if (productName != null) 'productName': productName,
+          'productName': ?productName,
         },
       );
 
@@ -202,7 +202,7 @@ Opciones:
         details: {
           'margin': margin,
           'maxMargin': maxMargin,
-          if (productName != null) 'productName': productName,
+          'productName': ?productName,
         },
       );
 
@@ -217,7 +217,7 @@ Opciones:
             : 'Existen $count solicitudes de aprobación de crédito pendientes. Debe esperar la aprobación o cancelar las solicitudes existentes.',
         details: {
           'count': count,
-          if (latestReference != null) 'latestReference': latestReference,
+          'latestReference': ?latestReference,
         },
       );
 

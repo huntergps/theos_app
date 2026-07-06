@@ -53,6 +53,12 @@ class _CashCountDialogState
   @override
   void initState() {
     super.initState();
+    // Mover el foco al primer campo interactivo al abrir el diálogo
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        FocusScope.of(context).nextFocus();
+      }
+    });
     final initial = widget.initialCash;
     _cashCountState = CashCountState.fromCashModel(
       bills100: initial?.bills100 ?? 0,

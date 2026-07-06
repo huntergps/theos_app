@@ -111,6 +111,33 @@ extension ClientManagerBusiness on ClientManager {
     );
   }
 
+  /// Propaga el ID real de Odoo a los registros locales que todavía
+  /// referencian el ID negativo temporal de un partner creado offline.
+  ///
+  /// [updatePartnerIdByUuid] solo actualiza la fila `res_partner` en sí —
+  /// NO toca otros registros locales que ya guardaron ese ID negativo como
+  /// foreign key (ej. una `sale.order` creada para este cliente antes de
+  /// que el partner se sincronizara). Sin esta cascada, esas órdenes
+  /// quedan con `partner_id` negativo para siempre y su propio sync falla
+  /// de forma permanente en Odoo (ID de partner inválido).
+  ///
+  /// Ver también `OfflineQueueDataSource.updatePartnerIdInPendingOperations`
+  /// para el mismo reemplazo dentro de operaciones YA encoladas.
+  Future<void> updatePartnerIdInDependents(
+    int oldPartnerId,
+    int newPartnerId,
+  ) async {
+    if (oldPartnerId == newPartnerId) return;
+
+    await (_db.update(_db.saleOrder)
+          ..where((t) => t.partnerId.equals(oldPartnerId)))
+        .write(SaleOrderCompanion(partnerId: drift.Value(newPartnerId)));
+
+    await (_db.update(_db.accountPaymentTable)
+          ..where((t) => t.partnerId.equals(oldPartnerId)))
+        .write(AccountPaymentCompanion(partnerId: drift.Value(newPartnerId)));
+  }
+
   /// Insert a partner created offline (with UUID and not synced)
   Future<void> insertOfflinePartner({
     required int localOdooId,

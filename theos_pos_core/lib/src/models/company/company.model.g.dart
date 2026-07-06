@@ -191,18 +191,12 @@ class CompanyManager extends OdooModelManager<Company>
     'prepayment_percent',
     'sale_discount_product_id',
     'partner_id',
-    'warehouse_id',
-    'default_pricelist_id',
-    'default_payment_term_id',
     'pedir_end_customer_data',
     'pedir_sale_referrer',
     'pedir_tipo_canal_cliente',
-    'sale_customer_invoice_limit_sri',
     'max_discount_percentage',
     'credit_overdue_days_threshold',
     'credit_overdue_invoices_threshold',
-    'credit_offline_safety_margin',
-    'credit_data_max_age_hours',
     'reservation_expiry_days',
     'reservation_warehouse_id',
     'reservation_location_id',
@@ -210,8 +204,12 @@ class CompanyManager extends OdooModelManager<Company>
     'write_date',
   ];
 
-  @override
-  Company fromOdoo(Map<String, dynamic> data) {
+  /// Versión estática pura de [fromOdoo] — no referencia `this` ni
+  /// estado de instancia (OdooClient, GeneratedDatabase), solo [data].
+  /// Por eso su tear-off (`CompanyManager.fromOdooMap`) es transferible a
+  /// `Isolate.run()`, a diferencia del tear-off del método de instancia
+  /// [fromOdoo] (que arrastra el manager completo, no transferible).
+  static Company fromOdooMap(Map<String, dynamic> data) {
     return Company(
       id: data['id'] as int? ?? 0,
       name: parseOdooStringRequired(data['name']),
@@ -257,30 +255,17 @@ class CompanyManager extends OdooModelManager<Company>
       ),
       defaultPartnerId: extractMany2oneId(data['partner_id']),
       defaultPartnerName: extractMany2oneName(data['partner_id']),
-      defaultWarehouseId: extractMany2oneId(data['warehouse_id']),
-      defaultWarehouseName: extractMany2oneName(data['warehouse_id']),
-      defaultPricelistId: extractMany2oneId(data['default_pricelist_id']),
-      defaultPricelistName: extractMany2oneName(data['default_pricelist_id']),
-      defaultPaymentTermId: extractMany2oneId(data['default_payment_term_id']),
-      defaultPaymentTermName: extractMany2oneName(
-        data['default_payment_term_id'],
-      ),
       pedirEndCustomerData: parseOdooBool(data['pedir_end_customer_data']),
       pedirSaleReferrer: parseOdooBool(data['pedir_sale_referrer']),
       pedirTipoCanalCliente: parseOdooBool(data['pedir_tipo_canal_cliente']),
-      saleCustomerInvoiceLimitSri: parseOdooDouble(
-        data['sale_customer_invoice_limit_sri'],
-      ),
       maxDiscountPercentage:
           parseOdooDouble(data['max_discount_percentage']) ?? 0.0,
       creditOverdueDaysThreshold:
           parseOdooInt(data['credit_overdue_days_threshold']) ?? 0,
       creditOverdueInvoicesThreshold:
           parseOdooInt(data['credit_overdue_invoices_threshold']) ?? 0,
-      creditOfflineSafetyMargin:
-          parseOdooDouble(data['credit_offline_safety_margin']) ?? 0.0,
-      creditDataMaxAgeHours:
-          parseOdooInt(data['credit_data_max_age_hours']) ?? 0,
+      creditOfflineSafetyMargin: 0.0,
+      creditDataMaxAgeHours: 0,
       reservationExpiryDays: parseOdooInt(data['reservation_expiry_days']) ?? 0,
       reservationWarehouseId: extractMany2oneId(
         data['reservation_warehouse_id'],
@@ -296,6 +281,9 @@ class CompanyManager extends OdooModelManager<Company>
       writeDate: parseOdooDateTime(data['write_date']),
     );
   }
+
+  @override
+  Company fromOdoo(Map<String, dynamic> data) => fromOdooMap(data);
 
   @override
   Map<String, dynamic> toOdoo(Company record) {
@@ -330,19 +318,13 @@ class CompanyManager extends OdooModelManager<Company>
       'prepayment_percent': record.prepaymentPercent,
       'sale_discount_product_id': record.saleDiscountProductId,
       'partner_id': record.defaultPartnerId,
-      'warehouse_id': record.defaultWarehouseId,
-      'default_pricelist_id': record.defaultPricelistId,
-      'default_payment_term_id': record.defaultPaymentTermId,
       'pedir_end_customer_data': record.pedirEndCustomerData,
       'pedir_sale_referrer': record.pedirSaleReferrer,
       'pedir_tipo_canal_cliente': record.pedirTipoCanalCliente,
-      'sale_customer_invoice_limit_sri': record.saleCustomerInvoiceLimitSri,
       'max_discount_percentage': record.maxDiscountPercentage,
       'credit_overdue_days_threshold': record.creditOverdueDaysThreshold,
       'credit_overdue_invoices_threshold':
           record.creditOverdueInvoicesThreshold,
-      'credit_offline_safety_margin': record.creditOfflineSafetyMargin,
-      'credit_data_max_age_hours': record.creditDataMaxAgeHours,
       'reservation_expiry_days': record.reservationExpiryDays,
       'reservation_warehouse_id': record.reservationWarehouseId,
       'reservation_location_id': record.reservationLocationId,
@@ -405,8 +387,9 @@ class CompanyManager extends OdooModelManager<Company>
       maxDiscountPercentage: row.maxDiscountPercentage as double,
       creditOverdueDaysThreshold: row.creditOverdueDaysThreshold as int,
       creditOverdueInvoicesThreshold: row.creditOverdueInvoicesThreshold as int,
-      creditOfflineSafetyMargin: row.creditOfflineSafetyMargin as double,
-      creditDataMaxAgeHours: row.creditDataMaxAgeHours as int,
+      creditOfflineSafetyMargin:
+          row.creditOfflineSafetyMargin as double? ?? 0.0,
+      creditDataMaxAgeHours: row.creditDataMaxAgeHours as int? ?? 0,
       reservationExpiryDays: row.reservationExpiryDays as int,
       reservationWarehouseId: row.reservationWarehouseId as int?,
       reservationWarehouseName: row.reservationWarehouseName as String?,
@@ -471,18 +454,12 @@ class CompanyManager extends OdooModelManager<Company>
     'prepayment_percent': 'prepaymentPercent',
     'sale_discount_product_id': 'saleDiscountProductId',
     'partner_id': 'defaultPartnerId',
-    'warehouse_id': 'defaultWarehouseId',
-    'default_pricelist_id': 'defaultPricelistId',
-    'default_payment_term_id': 'defaultPaymentTermId',
     'pedir_end_customer_data': 'pedirEndCustomerData',
     'pedir_sale_referrer': 'pedirSaleReferrer',
     'pedir_tipo_canal_cliente': 'pedirTipoCanalCliente',
-    'sale_customer_invoice_limit_sri': 'saleCustomerInvoiceLimitSri',
     'max_discount_percentage': 'maxDiscountPercentage',
     'credit_overdue_days_threshold': 'creditOverdueDaysThreshold',
     'credit_overdue_invoices_threshold': 'creditOverdueInvoicesThreshold',
-    'credit_offline_safety_margin': 'creditOfflineSafetyMargin',
-    'credit_data_max_age_hours': 'creditDataMaxAgeHours',
     'reservation_expiry_days': 'reservationExpiryDays',
     'reservation_warehouse_id': 'reservationWarehouseId',
     'reservation_location_id': 'reservationLocationId',
@@ -534,16 +511,16 @@ class CompanyManager extends OdooModelManager<Company>
       'city': driftVar<String>(record.city),
       'zip': driftVar<String>(record.zip),
       'country_id': driftVar<int>(record.countryId),
-      'country_id_name': driftVar<String>(record.countryName),
+      'country_name': driftVar<String>(record.countryName),
       'state_id': driftVar<int>(record.stateId),
-      'state_id_name': driftVar<String>(record.stateName),
+      'state_name': driftVar<String>(record.stateName),
       'phone': driftVar<String>(record.phone),
       'email': driftVar<String>(record.email),
       'website': driftVar<String>(record.website),
       'currency_id': driftVar<int>(record.currencyId),
-      'currency_id_name': driftVar<String>(record.currencyName),
+      'currency_name': driftVar<String>(record.currencyName),
       'parent_id': driftVar<int>(record.parentId),
-      'parent_id_name': driftVar<String>(record.parentName),
+      'parent_name': driftVar<String>(record.parentName),
       'l10n_ec_comercial_name': driftVar<String>(record.l10nEcComercialName),
       'l10n_ec_legal_name': driftVar<String>(record.l10nEcLegalName),
       'l10n_ec_production_env': Variable<bool>(record.l10nEcProductionEnv),
@@ -562,27 +539,14 @@ class CompanyManager extends OdooModelManager<Company>
       'portal_confirmation_pay': Variable<bool>(record.portalConfirmationPay),
       'prepayment_percent': Variable<double>(record.prepaymentPercent),
       'sale_discount_product_id': driftVar<int>(record.saleDiscountProductId),
-      'sale_discount_product_id_name': driftVar<String>(
+      'sale_discount_product_name': driftVar<String>(
         record.saleDiscountProductName,
       ),
       'partner_id': driftVar<int>(record.defaultPartnerId),
-      'partner_id_name': driftVar<String>(record.defaultPartnerName),
-      'warehouse_id': driftVar<int>(record.defaultWarehouseId),
-      'warehouse_id_name': driftVar<String>(record.defaultWarehouseName),
-      'default_pricelist_id': driftVar<int>(record.defaultPricelistId),
-      'default_pricelist_id_name': driftVar<String>(
-        record.defaultPricelistName,
-      ),
-      'default_payment_term_id': driftVar<int>(record.defaultPaymentTermId),
-      'default_payment_term_id_name': driftVar<String>(
-        record.defaultPaymentTermName,
-      ),
+      'default_partner_name': driftVar<String>(record.defaultPartnerName),
       'pedir_end_customer_data': Variable<bool>(record.pedirEndCustomerData),
       'pedir_sale_referrer': Variable<bool>(record.pedirSaleReferrer),
       'pedir_tipo_canal_cliente': Variable<bool>(record.pedirTipoCanalCliente),
-      'sale_customer_invoice_limit_sri': driftVar<double>(
-        record.saleCustomerInvoiceLimitSri,
-      ),
       'max_discount_percentage': Variable<double>(record.maxDiscountPercentage),
       'credit_overdue_days_threshold': Variable<int>(
         record.creditOverdueDaysThreshold,
@@ -590,23 +554,34 @@ class CompanyManager extends OdooModelManager<Company>
       'credit_overdue_invoices_threshold': Variable<int>(
         record.creditOverdueInvoicesThreshold,
       ),
-      'credit_offline_safety_margin': Variable<double>(
-        record.creditOfflineSafetyMargin,
-      ),
-      'credit_data_max_age_hours': Variable<int>(record.creditDataMaxAgeHours),
       'reservation_expiry_days': Variable<int>(record.reservationExpiryDays),
       'reservation_warehouse_id': driftVar<int>(record.reservationWarehouseId),
-      'reservation_warehouse_id_name': driftVar<String>(
+      'reservation_warehouse_name': driftVar<String>(
         record.reservationWarehouseName,
       ),
       'reservation_location_id': driftVar<int>(record.reservationLocationId),
-      'reservation_location_id_name': driftVar<String>(
+      'reservation_location_name': driftVar<String>(
         record.reservationLocationName,
       ),
       'reserve_from_quotation': Variable<bool>(record.reserveFromQuotation),
       'write_date': driftVar<DateTime>(record.writeDate),
       'mobile': driftVar<String>(record.mobile),
       'layout_background': driftVar<String>(record.layoutBackground),
+      'warehouse_id': driftVar<int>(record.defaultWarehouseId),
+      'default_warehouse_name': driftVar<String>(record.defaultWarehouseName),
+      'default_pricelist_id': driftVar<int>(record.defaultPricelistId),
+      'default_pricelist_name': driftVar<String>(record.defaultPricelistName),
+      'default_payment_term_id': driftVar<int>(record.defaultPaymentTermId),
+      'default_payment_term_name': driftVar<String>(
+        record.defaultPaymentTermName,
+      ),
+      'sale_customer_invoice_limit_sri': driftVar<double>(
+        record.saleCustomerInvoiceLimitSri,
+      ),
+      'credit_offline_safety_margin': Variable<double>(
+        record.creditOfflineSafetyMargin,
+      ),
+      'credit_data_max_age_hours': Variable<int>(record.creditDataMaxAgeHours),
     });
   }
 
@@ -642,18 +617,12 @@ class CompanyManager extends OdooModelManager<Company>
     'prepaymentPercent',
     'saleDiscountProductId',
     'defaultPartnerId',
-    'defaultWarehouseId',
-    'defaultPricelistId',
-    'defaultPaymentTermId',
     'pedirEndCustomerData',
     'pedirSaleReferrer',
     'pedirTipoCanalCliente',
-    'saleCustomerInvoiceLimitSri',
     'maxDiscountPercentage',
     'creditOverdueDaysThreshold',
     'creditOverdueInvoicesThreshold',
-    'creditOfflineSafetyMargin',
-    'creditDataMaxAgeHours',
     'reservationExpiryDays',
     'reservationWarehouseId',
     'reservationLocationId',
@@ -900,6 +869,15 @@ class CompanyManager extends OdooModelManager<Company>
     updated = updated.copyWith(
       mobile: record.mobile,
       layoutBackground: record.layoutBackground,
+      defaultWarehouseId: record.defaultWarehouseId,
+      defaultWarehouseName: record.defaultWarehouseName,
+      defaultPricelistId: record.defaultPricelistId,
+      defaultPricelistName: record.defaultPricelistName,
+      defaultPaymentTermId: record.defaultPaymentTermId,
+      defaultPaymentTermName: record.defaultPaymentTermName,
+      saleCustomerInvoiceLimitSri: record.saleCustomerInvoiceLimitSri,
+      creditOfflineSafetyMargin: record.creditOfflineSafetyMargin,
+      creditDataMaxAgeHours: record.creditDataMaxAgeHours,
     );
     return updated;
   }
@@ -1140,18 +1118,12 @@ class CompanyManager extends OdooModelManager<Company>
     'prepaymentPercent',
     'saleDiscountProductId',
     'defaultPartnerId',
-    'defaultWarehouseId',
-    'defaultPricelistId',
-    'defaultPaymentTermId',
     'pedirEndCustomerData',
     'pedirSaleReferrer',
     'pedirTipoCanalCliente',
-    'saleCustomerInvoiceLimitSri',
     'maxDiscountPercentage',
     'creditOverdueDaysThreshold',
     'creditOverdueInvoicesThreshold',
-    'creditOfflineSafetyMargin',
-    'creditDataMaxAgeHours',
     'reservationExpiryDays',
     'reservationWarehouseId',
     'reservationLocationId',

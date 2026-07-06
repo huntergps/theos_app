@@ -7,7 +7,7 @@ extension SalesRepositoryCredit on SalesRepository {
     required int partnerId,
     int? orderId,
   }) async {
-    if (_odooClient == null) return null;
+    if (!_orderManager.isOnline) return null;
 
     try {
       final domain = [
@@ -21,7 +21,12 @@ extension SalesRepositoryCredit on SalesRepository {
         if (orderId != null) ['sale_order_id', '=', orderId],
       ];
 
-      final pendingRequests = await _odooClient.searchRead(
+      // NOTA: 'approval.request' no tiene manager generado — se usa el
+      // client de _orderManager (mismo OdooClient compartido) por ser el
+      // manager mas relacionado conceptualmente con este flujo (aprobacion
+      // de credito de una orden de venta). Ver comentario de excepcion en
+      // la clase para el criterio general.
+      final pendingRequests = await _orderManager.client.searchRead(
         model: 'approval.request',
         domain: domain,
         fields: [
@@ -62,7 +67,7 @@ extension SalesRepositoryCredit on SalesRepository {
     bool skipDuplicateCheck = false,
   }) async {
     // OFFLINE-FIRST: If offline, update local state and queue
-    if (_odooClient == null) {
+    if (!_orderManager.isOnline) {
       logger.d('[SalesRepo]', 'Offline - queuing credit approval request');
 
       // 1. Update local order state to 'waiting'
@@ -80,7 +85,7 @@ extension SalesRepositoryCredit on SalesRepository {
             'amount': amount,
             'reason': reason,
             'check_type': checkType,
-            if (paymentTermId != null) 'payment_term_id': paymentTermId,
+            'payment_term_id': ?paymentTermId,
           },
           priority: OfflinePriority.high,
         );
@@ -121,7 +126,7 @@ extension SalesRepositoryCredit on SalesRepository {
 
       try {
         approvalId = await _createApprovalViaWizard(
-          odooClient: _odooClient,
+          odooClient: _orderManager.client,
           orderId: orderId,
           partnerId: partnerId,
           amount: amount,
@@ -141,7 +146,7 @@ extension SalesRepositoryCredit on SalesRepository {
           'Wizard approach failed, using direct fallback: $wizardError',
         );
         approvalId = await _createApprovalDirect(
-          odooClient: _odooClient,
+          odooClient: _orderManager.client,
           orderId: orderId,
           partnerId: partnerId,
           amount: amount,
@@ -166,7 +171,7 @@ extension SalesRepositoryCredit on SalesRepository {
       // Si se usó el fallback directo, el estado de la orden no fue cambiado
       // por el wizard. Actualizarlo manualmente.
       if (!usedWizard) {
-        await _odooClient.write(
+        await _orderManager.client.write(
           model: 'sale.order',
           ids: [orderId],
           values: {'state': 'waiting'},
@@ -240,7 +245,7 @@ extension SalesRepositoryCredit on SalesRepository {
         'credit_available': creditAvailable,
         'authorization_type': checkType,
         'check_type': checkType,
-        if (paymentTermId != null) 'payment_term_id': paymentTermId,
+        'payment_term_id': ?paymentTermId,
       },
     );
 
@@ -323,7 +328,7 @@ extension SalesRepositoryCredit on SalesRepository {
         'reason': reason,
         'approval_type': 'credit',
         'sale_order_id': orderId,
-        if (paymentTermId != null) 'payment_term_id': paymentTermId,
+        'payment_term_id': ?paymentTermId,
       },
     );
 

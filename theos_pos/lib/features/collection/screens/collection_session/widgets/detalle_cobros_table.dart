@@ -106,7 +106,7 @@ class DetalleCobrosTable extends StatelessWidget {
           ),
           PaymentDetailRow(
             icon: FluentIcons.check_list,
-            label: 'Cheques al Dia',
+            label: 'Cheques al Día',
             facturas: session.factChecksDay,
             cartera: session.carteraChecksDay,
             anticipos: session.anticipoChecksDay,
@@ -122,7 +122,7 @@ class DetalleCobrosTable extends StatelessWidget {
           ),
           PaymentDetailRow(
             icon: FluentIcons.money,
-            label: 'Depositos Efect.',
+            label: 'Depósitos Efect.',
             facturas: session.factDepositsCash,
             cartera: session.carteraDepositsCash,
             anticipos: session.anticipoDepositsCash,
@@ -130,7 +130,7 @@ class DetalleCobrosTable extends StatelessWidget {
           ),
           PaymentDetailRow(
             icon: FluentIcons.bank,
-            label: 'Depositos Cheq.',
+            label: 'Depósitos Cheq.',
             facturas: session.factDepositsChecks,
             cartera: session.carteraDepositsChecks,
             anticipos: session.anticipoDepositsChecks,
@@ -163,7 +163,7 @@ class DetalleCobrosTable extends StatelessWidget {
 
           PaymentDetailRow(
             icon: FluentIcons.return_key,
-            label: 'Notas Credito',
+            label: 'Notas Crédito',
             facturas: session.systemCreditNotesTotal,
             total: session.systemCreditNotesTotal,
           ),

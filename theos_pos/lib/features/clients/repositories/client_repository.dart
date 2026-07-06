@@ -93,7 +93,7 @@ class ClientRepository extends BaseRepository with OfflineSupport<DatabaseHelper
 
   /// Refresh credit data from Odoo
   ///
-  /// Forces a fetch from Odoo to get the latest credit information.
+  /// Forces a fetch from Odoo to get the latest partner data + credit.
   /// Returns the updated client, or throws if offline or client not found.
   Future<Client> refreshCreditData(int clientId) async {
     if (!isOnline) {
@@ -105,7 +105,7 @@ class ClientRepository extends BaseRepository with OfflineSupport<DatabaseHelper
       domain: [
         ['id', '=', clientId]
       ],
-      fields: _creditFields,
+      fields: _partnerRefreshFields,
       limit: 1,
     );
 
@@ -290,17 +290,49 @@ class ClientRepository extends BaseRepository with OfflineSupport<DatabaseHelper
 
   // ============ FIELD DEFINITIONS ============
 
-  static const _creditFields = [
+  /// Campos para refresh individual de un partner (sync por orden).
+  /// Incluye datos básicos + crédito.
+  ///
+  /// Nota: los campos custom (use_partner_credit_limit, credit_limit, allow_over_credit,
+  /// total_overdue, etc.) son del módulo l10n_ec_collection_box_pos, que SIEMPRE está
+  /// instalado en los servidores objetivo (erp1.tecnosmart.com.ec y localhost).
+  ///
+  /// FIX 5: use_partner_credit_limit ahora incluido en ambas listas (_partnerRefreshFields
+  /// y _allFields) para que refreshCreditData() devuelva el valor correcto de Odoo en vez
+  /// del default false. La omisión anterior causaba que el campo quedara en false tras
+  /// el refresh aunque Odoo tuviera true.
+  static const _partnerRefreshFields = [
     'id',
     'name',
+    'display_name',
+    'ref',
+    'vat',
+    'email',
+    'phone',
+    'street',
+    'street2',
+    'city',
+    'zip',
+    'country_id',
+    'state_id',
+    'avatar_128',
+    'is_company',
+    'active',
+    'parent_id',
+    'commercial_partner_id',
+    'property_product_pricelist',
+    'property_payment_term_id',
+    'lang',
+    'comment',
+    'write_date',
+    // Credit fields (l10n_ec_collection_box_pos — siempre instalado)
     'credit_limit',
     'credit',
     'credit_to_invoice',
     'allow_over_credit',
-    'use_partner_credit_limit',
+    'use_partner_credit_limit', // FIX 5: campo faltante en el refresh individual
     'total_overdue',
     'unpaid_invoices_count',
-    // 'oldest_overdue_days', // Custom field - may not exist
   ];
 
   static const _allFields = [

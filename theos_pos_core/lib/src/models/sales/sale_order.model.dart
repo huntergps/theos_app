@@ -129,7 +129,9 @@ abstract class SaleOrder with _$SaleOrder {
     @OdooDateTime(odooName: 'signed_on') DateTime? signedOn,
 
     // Pago online
-    @OdooBoolean(odooName: 'require_payment') @Default(false) bool requirePayment,
+    // Odoo 19.5 (erp1): 'require_payment' ya no existe en sale.order del
+    // servidor (smoke fields_get, julio 2026).
+    @OdooLocalOnly() @Default(false) bool requirePayment,
     @OdooFloat(odooName: 'prepayment_percent') @Default(0.0) double prepaymentPercent,
 
     // Control — campos computados por Odoo (readonly)

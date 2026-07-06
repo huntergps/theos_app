@@ -27,8 +27,12 @@ class UomManager extends OdooModelManager<Uom>
     'write_date',
   ];
 
-  @override
-  Uom fromOdoo(Map<String, dynamic> data) {
+  /// Versión estática pura de [fromOdoo] — no referencia `this` ni
+  /// estado de instancia (OdooClient, GeneratedDatabase), solo [data].
+  /// Por eso su tear-off (`UomManager.fromOdooMap`) es transferible a
+  /// `Isolate.run()`, a diferencia del tear-off del método de instancia
+  /// [fromOdoo] (que arrastra el manager completo, no transferible).
+  static Uom fromOdooMap(Map<String, dynamic> data) {
     return Uom(
       id: data['id'] as int? ?? 0,
       name: parseOdooStringRequired(data['name']),
@@ -40,6 +44,9 @@ class UomManager extends OdooModelManager<Uom>
       writeDate: parseOdooDateTime(data['write_date']),
     );
   }
+
+  @override
+  Uom fromOdoo(Map<String, dynamic> data) => fromOdooMap(data);
 
   @override
   Map<String, dynamic> toOdoo(Uom record) {

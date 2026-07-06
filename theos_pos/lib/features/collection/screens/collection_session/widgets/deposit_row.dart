@@ -1,5 +1,6 @@
 import 'package:fluent_ui/fluent_ui.dart';
 
+import '../../../../../core/constants/app_colors.dart';
 import '../../../../../shared/utils/formatting_utils.dart';
 
 /// Widget para mostrar una fila de deposito con sistema, manual y diferencia
@@ -60,7 +61,7 @@ class DepositRow extends StatelessWidget {
           child: Text(
             difference.toCurrency(),
             style: theme.typography.body?.copyWith(
-              color: difference != 0 ? Colors.red : Colors.green,
+              color: difference != 0 ? AppColors.danger : AppColors.success,
               fontWeight: difference != 0 ? FontWeight.bold : FontWeight.normal,
             ),
             textAlign: TextAlign.right,

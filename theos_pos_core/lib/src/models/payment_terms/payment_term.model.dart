@@ -19,7 +19,9 @@ abstract class PaymentTerm with _$PaymentTerm {
     @OdooInteger() @Default(10) int sequence,
     @OdooBoolean(odooName: 'is_cash') @Default(true) bool isCash,
     @OdooBoolean(odooName: 'is_credit') @Default(false) bool isCredit,
-    @OdooInteger(odooName: 'due_days') @Default(0) int dueDays,
+    // Odoo 19.5 (erp1): 'due_days' ya no existe en account.payment.term del
+    // servidor (smoke fields_get, julio 2026).
+    @OdooLocalOnly() @Default(0) int dueDays,
     @OdooDateTime(odooName: 'write_date', writable: false) DateTime? writeDate,
   }) = _PaymentTerm;
 

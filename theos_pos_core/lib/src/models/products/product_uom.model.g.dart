@@ -28,8 +28,12 @@ class ProductUomManager extends OdooModelManager<ProductUom>
     'write_date',
   ];
 
-  @override
-  ProductUom fromOdoo(Map<String, dynamic> data) {
+  /// Versión estática pura de [fromOdoo] — no referencia `this` ni
+  /// estado de instancia (OdooClient, GeneratedDatabase), solo [data].
+  /// Por eso su tear-off (`ProductUomManager.fromOdooMap`) es transferible a
+  /// `Isolate.run()`, a diferencia del tear-off del método de instancia
+  /// [fromOdoo] (que arrastra el manager completo, no transferible).
+  static ProductUom fromOdooMap(Map<String, dynamic> data) {
     return ProductUom(
       id: data['id'] as int? ?? 0,
       productId: extractMany2oneId(data['product_id']) ?? 0,
@@ -40,6 +44,9 @@ class ProductUomManager extends OdooModelManager<ProductUom>
       writeDate: parseOdooDateTime(data['write_date']),
     );
   }
+
+  @override
+  ProductUom fromOdoo(Map<String, dynamic> data) => fromOdooMap(data);
 
   @override
   Map<String, dynamic> toOdoo(ProductUom record) {
@@ -134,7 +141,7 @@ class ProductUomManager extends OdooModelManager<ProductUom>
       'odoo_id': Variable<int>(record.id),
       'product_id': Variable<int>(record.productId),
       'uom_id': Variable<int>(record.uomId),
-      'uom_id_name': driftVar<String>(record.uomName),
+      'uom_name': driftVar<String>(record.uomName),
       'barcode': Variable<String>(record.barcode),
       'company_id': driftVar<int>(record.companyId),
       'write_date': driftVar<DateTime>(record.writeDate),

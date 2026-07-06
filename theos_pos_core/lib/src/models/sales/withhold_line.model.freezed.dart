@@ -15,7 +15,28 @@ T _$identity<T>(T value) => value;
 /// @nodoc
 mixin _$WithholdLine {
 
-@OdooId() int get id;@OdooLocalOnly() String get lineUuid;@OdooMany2One('account.tax', odooName: 'tax_id') int get taxId;@OdooString(odooName: 'tax_name') String get taxName;@OdooFloat(odooName: 'tax_percent') double get taxPercent;@OdooSelection() WithholdType get withholdType;@OdooSelection(odooName: 'taxsupport_code') TaxSupportCode? get taxSupportCode;@OdooFloat() double get base;@OdooFloat() double get amount;@OdooString() String? get notes;
+@OdooId() int get id;@OdooLocalOnly() String get lineUuid;// FK a la orden dueña (sale_order.odooId). Igual que en PaymentLine —
+// el manager genérico (upsertLocal/fromDrift) necesita este campo para
+// poder poblar la columna real `order_id` (NOT NULL en la tabla Drift).
+// Antes no existía acá: WithholdLineManager.upsertLocal() fallaba
+// siempre con NOT NULL constraint failed (nunca se usa hoy en
+// producción — sales_repository_sync.dart/withhold_line_local_service
+// .dart construyen el Companion a mano con el orderId real). Encontrado
+// por el roundtrip test genérico — julio 2026.
+@OdooLocalOnly() int? get orderId;@OdooMany2One('account.tax', odooName: 'tax_id') int get taxId;// Odoo 19.5 (erp1): tax_name/tax_percent/withhold_type ya NO existen en
+// sale.order.withhold.line del servidor (smoke fields_get, julio 2026)
+// — tax_id, base, amount, taxsupport_code y notes sí siguen existiendo.
+// Coincide con lo que ya hacía sales_repository_sync.dart en la
+// práctica: taxName/withholdType nunca venían de un campo real del
+// servidor, se derivaban del nombre del impuesto (tax_id) a mano
+// (ver syncWithholdLinesFromOdoo). withholdType es un enum con
+// @OdooSelection — el generador YA maneja enums LocalOnly escribiendo
+// `.code` en createDriftCompanion() y reconstruyendo con
+// `.firstWhere(code == valor, orElse: () => .values.first)` en
+// fromDrift() (mismo mapeo que tenía antes, ver
+// odoo_model_generator.dart _generateFromDriftBody/createDriftCompanion,
+// rama isLocalOnly + isEnumType) — el roundtrip local no cambia.
+@OdooLocalOnly() String get taxName;@OdooLocalOnly() double get taxPercent;@OdooLocalOnly() WithholdType get withholdType;@OdooSelection(odooName: 'taxsupport_code') TaxSupportCode? get taxSupportCode;@OdooFloat() double get base;@OdooFloat() double get amount;@OdooString() String? get notes;
 /// Create a copy of WithholdLine
 /// with the given fields replaced by the non-null parameter values.
 @JsonKey(includeFromJson: false, includeToJson: false)
@@ -28,16 +49,16 @@ $WithholdLineCopyWith<WithholdLine> get copyWith => _$WithholdLineCopyWithImpl<W
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is WithholdLine&&(identical(other.id, id) || other.id == id)&&(identical(other.lineUuid, lineUuid) || other.lineUuid == lineUuid)&&(identical(other.taxId, taxId) || other.taxId == taxId)&&(identical(other.taxName, taxName) || other.taxName == taxName)&&(identical(other.taxPercent, taxPercent) || other.taxPercent == taxPercent)&&(identical(other.withholdType, withholdType) || other.withholdType == withholdType)&&(identical(other.taxSupportCode, taxSupportCode) || other.taxSupportCode == taxSupportCode)&&(identical(other.base, base) || other.base == base)&&(identical(other.amount, amount) || other.amount == amount)&&(identical(other.notes, notes) || other.notes == notes));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is WithholdLine&&(identical(other.id, id) || other.id == id)&&(identical(other.lineUuid, lineUuid) || other.lineUuid == lineUuid)&&(identical(other.orderId, orderId) || other.orderId == orderId)&&(identical(other.taxId, taxId) || other.taxId == taxId)&&(identical(other.taxName, taxName) || other.taxName == taxName)&&(identical(other.taxPercent, taxPercent) || other.taxPercent == taxPercent)&&(identical(other.withholdType, withholdType) || other.withholdType == withholdType)&&(identical(other.taxSupportCode, taxSupportCode) || other.taxSupportCode == taxSupportCode)&&(identical(other.base, base) || other.base == base)&&(identical(other.amount, amount) || other.amount == amount)&&(identical(other.notes, notes) || other.notes == notes));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,id,lineUuid,taxId,taxName,taxPercent,withholdType,taxSupportCode,base,amount,notes);
+int get hashCode => Object.hash(runtimeType,id,lineUuid,orderId,taxId,taxName,taxPercent,withholdType,taxSupportCode,base,amount,notes);
 
 @override
 String toString() {
-  return 'WithholdLine(id: $id, lineUuid: $lineUuid, taxId: $taxId, taxName: $taxName, taxPercent: $taxPercent, withholdType: $withholdType, taxSupportCode: $taxSupportCode, base: $base, amount: $amount, notes: $notes)';
+  return 'WithholdLine(id: $id, lineUuid: $lineUuid, orderId: $orderId, taxId: $taxId, taxName: $taxName, taxPercent: $taxPercent, withholdType: $withholdType, taxSupportCode: $taxSupportCode, base: $base, amount: $amount, notes: $notes)';
 }
 
 
@@ -48,7 +69,7 @@ abstract mixin class $WithholdLineCopyWith<$Res>  {
   factory $WithholdLineCopyWith(WithholdLine value, $Res Function(WithholdLine) _then) = _$WithholdLineCopyWithImpl;
 @useResult
 $Res call({
-@OdooId() int id,@OdooLocalOnly() String lineUuid,@OdooMany2One('account.tax', odooName: 'tax_id') int taxId,@OdooString(odooName: 'tax_name') String taxName,@OdooFloat(odooName: 'tax_percent') double taxPercent,@OdooSelection() WithholdType withholdType,@OdooSelection(odooName: 'taxsupport_code') TaxSupportCode? taxSupportCode,@OdooFloat() double base,@OdooFloat() double amount,@OdooString() String? notes
+@OdooId() int id,@OdooLocalOnly() String lineUuid,@OdooLocalOnly() int? orderId,@OdooMany2One('account.tax', odooName: 'tax_id') int taxId,@OdooLocalOnly() String taxName,@OdooLocalOnly() double taxPercent,@OdooLocalOnly() WithholdType withholdType,@OdooSelection(odooName: 'taxsupport_code') TaxSupportCode? taxSupportCode,@OdooFloat() double base,@OdooFloat() double amount,@OdooString() String? notes
 });
 
 
@@ -65,11 +86,12 @@ class _$WithholdLineCopyWithImpl<$Res>
 
 /// Create a copy of WithholdLine
 /// with the given fields replaced by the non-null parameter values.
-@pragma('vm:prefer-inline') @override $Res call({Object? id = null,Object? lineUuid = null,Object? taxId = null,Object? taxName = null,Object? taxPercent = null,Object? withholdType = null,Object? taxSupportCode = freezed,Object? base = null,Object? amount = null,Object? notes = freezed,}) {
+@pragma('vm:prefer-inline') @override $Res call({Object? id = null,Object? lineUuid = null,Object? orderId = freezed,Object? taxId = null,Object? taxName = null,Object? taxPercent = null,Object? withholdType = null,Object? taxSupportCode = freezed,Object? base = null,Object? amount = null,Object? notes = freezed,}) {
   return _then(_self.copyWith(
 id: null == id ? _self.id : id // ignore: cast_nullable_to_non_nullable
 as int,lineUuid: null == lineUuid ? _self.lineUuid : lineUuid // ignore: cast_nullable_to_non_nullable
-as String,taxId: null == taxId ? _self.taxId : taxId // ignore: cast_nullable_to_non_nullable
+as String,orderId: freezed == orderId ? _self.orderId : orderId // ignore: cast_nullable_to_non_nullable
+as int?,taxId: null == taxId ? _self.taxId : taxId // ignore: cast_nullable_to_non_nullable
 as int,taxName: null == taxName ? _self.taxName : taxName // ignore: cast_nullable_to_non_nullable
 as String,taxPercent: null == taxPercent ? _self.taxPercent : taxPercent // ignore: cast_nullable_to_non_nullable
 as double,withholdType: null == withholdType ? _self.withholdType : withholdType // ignore: cast_nullable_to_non_nullable
@@ -162,10 +184,10 @@ return $default(_that);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function(@OdooId()  int id, @OdooLocalOnly()  String lineUuid, @OdooMany2One('account.tax', odooName: 'tax_id')  int taxId, @OdooString(odooName: 'tax_name')  String taxName, @OdooFloat(odooName: 'tax_percent')  double taxPercent, @OdooSelection()  WithholdType withholdType, @OdooSelection(odooName: 'taxsupport_code')  TaxSupportCode? taxSupportCode, @OdooFloat()  double base, @OdooFloat()  double amount, @OdooString()  String? notes)?  $default,{required TResult orElse(),}) {final _that = this;
+@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function(@OdooId()  int id, @OdooLocalOnly()  String lineUuid, @OdooLocalOnly()  int? orderId, @OdooMany2One('account.tax', odooName: 'tax_id')  int taxId, @OdooLocalOnly()  String taxName, @OdooLocalOnly()  double taxPercent, @OdooLocalOnly()  WithholdType withholdType, @OdooSelection(odooName: 'taxsupport_code')  TaxSupportCode? taxSupportCode, @OdooFloat()  double base, @OdooFloat()  double amount, @OdooString()  String? notes)?  $default,{required TResult orElse(),}) {final _that = this;
 switch (_that) {
 case _WithholdLine() when $default != null:
-return $default(_that.id,_that.lineUuid,_that.taxId,_that.taxName,_that.taxPercent,_that.withholdType,_that.taxSupportCode,_that.base,_that.amount,_that.notes);case _:
+return $default(_that.id,_that.lineUuid,_that.orderId,_that.taxId,_that.taxName,_that.taxPercent,_that.withholdType,_that.taxSupportCode,_that.base,_that.amount,_that.notes);case _:
   return orElse();
 
 }
@@ -183,10 +205,10 @@ return $default(_that.id,_that.lineUuid,_that.taxId,_that.taxName,_that.taxPerce
 /// }
 /// ```
 
-@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function(@OdooId()  int id, @OdooLocalOnly()  String lineUuid, @OdooMany2One('account.tax', odooName: 'tax_id')  int taxId, @OdooString(odooName: 'tax_name')  String taxName, @OdooFloat(odooName: 'tax_percent')  double taxPercent, @OdooSelection()  WithholdType withholdType, @OdooSelection(odooName: 'taxsupport_code')  TaxSupportCode? taxSupportCode, @OdooFloat()  double base, @OdooFloat()  double amount, @OdooString()  String? notes)  $default,) {final _that = this;
+@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function(@OdooId()  int id, @OdooLocalOnly()  String lineUuid, @OdooLocalOnly()  int? orderId, @OdooMany2One('account.tax', odooName: 'tax_id')  int taxId, @OdooLocalOnly()  String taxName, @OdooLocalOnly()  double taxPercent, @OdooLocalOnly()  WithholdType withholdType, @OdooSelection(odooName: 'taxsupport_code')  TaxSupportCode? taxSupportCode, @OdooFloat()  double base, @OdooFloat()  double amount, @OdooString()  String? notes)  $default,) {final _that = this;
 switch (_that) {
 case _WithholdLine():
-return $default(_that.id,_that.lineUuid,_that.taxId,_that.taxName,_that.taxPercent,_that.withholdType,_that.taxSupportCode,_that.base,_that.amount,_that.notes);case _:
+return $default(_that.id,_that.lineUuid,_that.orderId,_that.taxId,_that.taxName,_that.taxPercent,_that.withholdType,_that.taxSupportCode,_that.base,_that.amount,_that.notes);case _:
   throw StateError('Unexpected subclass');
 
 }
@@ -203,10 +225,10 @@ return $default(_that.id,_that.lineUuid,_that.taxId,_that.taxName,_that.taxPerce
 /// }
 /// ```
 
-@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function(@OdooId()  int id, @OdooLocalOnly()  String lineUuid, @OdooMany2One('account.tax', odooName: 'tax_id')  int taxId, @OdooString(odooName: 'tax_name')  String taxName, @OdooFloat(odooName: 'tax_percent')  double taxPercent, @OdooSelection()  WithholdType withholdType, @OdooSelection(odooName: 'taxsupport_code')  TaxSupportCode? taxSupportCode, @OdooFloat()  double base, @OdooFloat()  double amount, @OdooString()  String? notes)?  $default,) {final _that = this;
+@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function(@OdooId()  int id, @OdooLocalOnly()  String lineUuid, @OdooLocalOnly()  int? orderId, @OdooMany2One('account.tax', odooName: 'tax_id')  int taxId, @OdooLocalOnly()  String taxName, @OdooLocalOnly()  double taxPercent, @OdooLocalOnly()  WithholdType withholdType, @OdooSelection(odooName: 'taxsupport_code')  TaxSupportCode? taxSupportCode, @OdooFloat()  double base, @OdooFloat()  double amount, @OdooString()  String? notes)?  $default,) {final _that = this;
 switch (_that) {
 case _WithholdLine() when $default != null:
-return $default(_that.id,_that.lineUuid,_that.taxId,_that.taxName,_that.taxPercent,_that.withholdType,_that.taxSupportCode,_that.base,_that.amount,_that.notes);case _:
+return $default(_that.id,_that.lineUuid,_that.orderId,_that.taxId,_that.taxName,_that.taxPercent,_that.withholdType,_that.taxSupportCode,_that.base,_that.amount,_that.notes);case _:
   return null;
 
 }
@@ -218,15 +240,37 @@ return $default(_that.id,_that.lineUuid,_that.taxId,_that.taxName,_that.taxPerce
 @JsonSerializable()
 
 class _WithholdLine extends WithholdLine {
-  const _WithholdLine({@OdooId() this.id = 0, @OdooLocalOnly() this.lineUuid = '', @OdooMany2One('account.tax', odooName: 'tax_id') required this.taxId, @OdooString(odooName: 'tax_name') required this.taxName, @OdooFloat(odooName: 'tax_percent') required this.taxPercent, @OdooSelection() required this.withholdType, @OdooSelection(odooName: 'taxsupport_code') this.taxSupportCode, @OdooFloat() required this.base, @OdooFloat() required this.amount, @OdooString() this.notes}): super._();
+  const _WithholdLine({@OdooId() this.id = 0, @OdooLocalOnly() this.lineUuid = '', @OdooLocalOnly() this.orderId, @OdooMany2One('account.tax', odooName: 'tax_id') required this.taxId, @OdooLocalOnly() required this.taxName, @OdooLocalOnly() required this.taxPercent, @OdooLocalOnly() required this.withholdType, @OdooSelection(odooName: 'taxsupport_code') this.taxSupportCode, @OdooFloat() required this.base, @OdooFloat() required this.amount, @OdooString() this.notes}): super._();
   factory _WithholdLine.fromJson(Map<String, dynamic> json) => _$WithholdLineFromJson(json);
 
 @override@JsonKey()@OdooId() final  int id;
 @override@JsonKey()@OdooLocalOnly() final  String lineUuid;
+// FK a la orden dueña (sale_order.odooId). Igual que en PaymentLine —
+// el manager genérico (upsertLocal/fromDrift) necesita este campo para
+// poder poblar la columna real `order_id` (NOT NULL en la tabla Drift).
+// Antes no existía acá: WithholdLineManager.upsertLocal() fallaba
+// siempre con NOT NULL constraint failed (nunca se usa hoy en
+// producción — sales_repository_sync.dart/withhold_line_local_service
+// .dart construyen el Companion a mano con el orderId real). Encontrado
+// por el roundtrip test genérico — julio 2026.
+@override@OdooLocalOnly() final  int? orderId;
 @override@OdooMany2One('account.tax', odooName: 'tax_id') final  int taxId;
-@override@OdooString(odooName: 'tax_name') final  String taxName;
-@override@OdooFloat(odooName: 'tax_percent') final  double taxPercent;
-@override@OdooSelection() final  WithholdType withholdType;
+// Odoo 19.5 (erp1): tax_name/tax_percent/withhold_type ya NO existen en
+// sale.order.withhold.line del servidor (smoke fields_get, julio 2026)
+// — tax_id, base, amount, taxsupport_code y notes sí siguen existiendo.
+// Coincide con lo que ya hacía sales_repository_sync.dart en la
+// práctica: taxName/withholdType nunca venían de un campo real del
+// servidor, se derivaban del nombre del impuesto (tax_id) a mano
+// (ver syncWithholdLinesFromOdoo). withholdType es un enum con
+// @OdooSelection — el generador YA maneja enums LocalOnly escribiendo
+// `.code` en createDriftCompanion() y reconstruyendo con
+// `.firstWhere(code == valor, orElse: () => .values.first)` en
+// fromDrift() (mismo mapeo que tenía antes, ver
+// odoo_model_generator.dart _generateFromDriftBody/createDriftCompanion,
+// rama isLocalOnly + isEnumType) — el roundtrip local no cambia.
+@override@OdooLocalOnly() final  String taxName;
+@override@OdooLocalOnly() final  double taxPercent;
+@override@OdooLocalOnly() final  WithholdType withholdType;
 @override@OdooSelection(odooName: 'taxsupport_code') final  TaxSupportCode? taxSupportCode;
 @override@OdooFloat() final  double base;
 @override@OdooFloat() final  double amount;
@@ -245,16 +289,16 @@ Map<String, dynamic> toJson() {
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _WithholdLine&&(identical(other.id, id) || other.id == id)&&(identical(other.lineUuid, lineUuid) || other.lineUuid == lineUuid)&&(identical(other.taxId, taxId) || other.taxId == taxId)&&(identical(other.taxName, taxName) || other.taxName == taxName)&&(identical(other.taxPercent, taxPercent) || other.taxPercent == taxPercent)&&(identical(other.withholdType, withholdType) || other.withholdType == withholdType)&&(identical(other.taxSupportCode, taxSupportCode) || other.taxSupportCode == taxSupportCode)&&(identical(other.base, base) || other.base == base)&&(identical(other.amount, amount) || other.amount == amount)&&(identical(other.notes, notes) || other.notes == notes));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is _WithholdLine&&(identical(other.id, id) || other.id == id)&&(identical(other.lineUuid, lineUuid) || other.lineUuid == lineUuid)&&(identical(other.orderId, orderId) || other.orderId == orderId)&&(identical(other.taxId, taxId) || other.taxId == taxId)&&(identical(other.taxName, taxName) || other.taxName == taxName)&&(identical(other.taxPercent, taxPercent) || other.taxPercent == taxPercent)&&(identical(other.withholdType, withholdType) || other.withholdType == withholdType)&&(identical(other.taxSupportCode, taxSupportCode) || other.taxSupportCode == taxSupportCode)&&(identical(other.base, base) || other.base == base)&&(identical(other.amount, amount) || other.amount == amount)&&(identical(other.notes, notes) || other.notes == notes));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,id,lineUuid,taxId,taxName,taxPercent,withholdType,taxSupportCode,base,amount,notes);
+int get hashCode => Object.hash(runtimeType,id,lineUuid,orderId,taxId,taxName,taxPercent,withholdType,taxSupportCode,base,amount,notes);
 
 @override
 String toString() {
-  return 'WithholdLine(id: $id, lineUuid: $lineUuid, taxId: $taxId, taxName: $taxName, taxPercent: $taxPercent, withholdType: $withholdType, taxSupportCode: $taxSupportCode, base: $base, amount: $amount, notes: $notes)';
+  return 'WithholdLine(id: $id, lineUuid: $lineUuid, orderId: $orderId, taxId: $taxId, taxName: $taxName, taxPercent: $taxPercent, withholdType: $withholdType, taxSupportCode: $taxSupportCode, base: $base, amount: $amount, notes: $notes)';
 }
 
 
@@ -265,7 +309,7 @@ abstract mixin class _$WithholdLineCopyWith<$Res> implements $WithholdLineCopyWi
   factory _$WithholdLineCopyWith(_WithholdLine value, $Res Function(_WithholdLine) _then) = __$WithholdLineCopyWithImpl;
 @override @useResult
 $Res call({
-@OdooId() int id,@OdooLocalOnly() String lineUuid,@OdooMany2One('account.tax', odooName: 'tax_id') int taxId,@OdooString(odooName: 'tax_name') String taxName,@OdooFloat(odooName: 'tax_percent') double taxPercent,@OdooSelection() WithholdType withholdType,@OdooSelection(odooName: 'taxsupport_code') TaxSupportCode? taxSupportCode,@OdooFloat() double base,@OdooFloat() double amount,@OdooString() String? notes
+@OdooId() int id,@OdooLocalOnly() String lineUuid,@OdooLocalOnly() int? orderId,@OdooMany2One('account.tax', odooName: 'tax_id') int taxId,@OdooLocalOnly() String taxName,@OdooLocalOnly() double taxPercent,@OdooLocalOnly() WithholdType withholdType,@OdooSelection(odooName: 'taxsupport_code') TaxSupportCode? taxSupportCode,@OdooFloat() double base,@OdooFloat() double amount,@OdooString() String? notes
 });
 
 
@@ -282,11 +326,12 @@ class __$WithholdLineCopyWithImpl<$Res>
 
 /// Create a copy of WithholdLine
 /// with the given fields replaced by the non-null parameter values.
-@override @pragma('vm:prefer-inline') $Res call({Object? id = null,Object? lineUuid = null,Object? taxId = null,Object? taxName = null,Object? taxPercent = null,Object? withholdType = null,Object? taxSupportCode = freezed,Object? base = null,Object? amount = null,Object? notes = freezed,}) {
+@override @pragma('vm:prefer-inline') $Res call({Object? id = null,Object? lineUuid = null,Object? orderId = freezed,Object? taxId = null,Object? taxName = null,Object? taxPercent = null,Object? withholdType = null,Object? taxSupportCode = freezed,Object? base = null,Object? amount = null,Object? notes = freezed,}) {
   return _then(_WithholdLine(
 id: null == id ? _self.id : id // ignore: cast_nullable_to_non_nullable
 as int,lineUuid: null == lineUuid ? _self.lineUuid : lineUuid // ignore: cast_nullable_to_non_nullable
-as String,taxId: null == taxId ? _self.taxId : taxId // ignore: cast_nullable_to_non_nullable
+as String,orderId: freezed == orderId ? _self.orderId : orderId // ignore: cast_nullable_to_non_nullable
+as int?,taxId: null == taxId ? _self.taxId : taxId // ignore: cast_nullable_to_non_nullable
 as int,taxName: null == taxName ? _self.taxName : taxName // ignore: cast_nullable_to_non_nullable
 as String,taxPercent: null == taxPercent ? _self.taxPercent : taxPercent // ignore: cast_nullable_to_non_nullable
 as double,withholdType: null == withholdType ? _self.withholdType : withholdType // ignore: cast_nullable_to_non_nullable

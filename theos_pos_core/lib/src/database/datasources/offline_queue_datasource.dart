@@ -64,12 +64,22 @@ class OfflineQueueDataSource implements core.OfflineQueueStore {
   /// Get all pending operations ordered by priority (asc), then createdAt (asc)
   /// Priority 0 (critical) is processed first, then 1 (high), etc.
   /// Only returns operations that are ready for retry (nextRetryAt <= now or null)
+  ///
+  /// CRÍTICO: siempre excluye filas en status='processing', sin importar
+  /// [includeNotReady]. Esas filas ya fueron tomadas por otra llamada a
+  /// processQueue() (ver markOperationProcessing) y están en vuelo hacia
+  /// Odoo — devolverlas de nuevo aquí permitiría que una segunda llamada
+  /// concurrente (ej. tras invalidar offlineSyncServiceProvider mientras la
+  /// primera sigue en curso) reenvíe el mismo create/write dos veces →
+  /// registros duplicados en Odoo. Este filtro es lo que hace que
+  /// markOperationProcessing() realmente sirva de algo.
   @override
   Future<List<OfflineOperation>> getPendingOperations({
     bool includeNotReady = false,
   }) async {
     final now = DateTime.now().toUtc();
-    final query = _db.select(_db.offlineQueue);
+    final query = _db.select(_db.offlineQueue)
+      ..where((tbl) => tbl.status.equals('pending') | tbl.status.isNull());
 
     if (!includeNotReady) {
       // Only return operations ready for retry
@@ -130,12 +140,15 @@ class OfflineQueueDataSource implements core.OfflineQueueStore {
   }
 
   /// Get pending operations for a specific model
+  ///
+  /// Excluye filas 'processing' (ver nota en [getPendingOperations]).
   @override
   Future<List<OfflineOperation>> getOperationsForModel(String model) async {
     final now = DateTime.now().toUtc();
     final results =
         await (_db.select(_db.offlineQueue)
               ..where((tbl) => tbl.model.equals(model) &
+                  (tbl.status.equals('pending') | tbl.status.isNull()) &
                   (tbl.nextRetryAt.isNull() | tbl.nextRetryAt.isSmallerOrEqualValue(now)))
               ..orderBy([
                 (tbl) => drift.OrderingTerm.asc(tbl.priority),
@@ -158,6 +171,12 @@ class OfflineQueueDataSource implements core.OfflineQueueStore {
 
   /// Update operation after a failed retry attempt
   /// Calculates next retry time using exponential backoff
+  ///
+  /// También revierte status a 'pending': la operación llegó aquí después de
+  /// haber sido marcada 'processing' (ver [markOperationProcessing]) por
+  /// OfflineQueueProcessor. Si no se revirtiera, quedaría escondida para
+  /// siempre de [getPendingOperations] y nunca se reintentaría, aunque
+  /// nextRetryAt indique que ya está lista.
   @override
   Future<void> markOperationFailed(int id, String errorMessage) async {
     final op = await (_db.select(_db.offlineQueue)
@@ -174,6 +193,7 @@ class OfflineQueueDataSource implements core.OfflineQueueStore {
     await (_db.update(_db.offlineQueue)
           ..where((tbl) => tbl.id.equals(id)))
         .write(OfflineQueueCompanion(
+      status: const drift.Value('pending'),
       retryCount: drift.Value(newRetryCount),
       lastRetryAt: drift.Value(now),
       nextRetryAt: drift.Value(nextRetry),
@@ -278,8 +298,17 @@ class OfflineQueueDataSource implements core.OfflineQueueStore {
   /// Returns operations in FIFO order where:
   /// - model='sale.order' AND record_id=orderId
   /// - model='sale.order.line' AND (parentOrderId=orderId OR values contains order_id=orderId)
+  ///
+  /// OJO: este método NO es solo para mostrar estado en la UI — también es
+  /// la fuente de despacho de [OfflineSyncService._processSaleOrderQueueInternal]
+  /// (el "sync ahora" de una orden puntual, que corre en paralelo al
+  /// processQueue() genérico). Por eso hereda el filtro de status='pending'
+  /// de [getPendingOperations] (incluye no-listas-para-retry pero excluye
+  /// 'processing') — sin esto, ambos caminos de despacho podrían tomar la
+  /// misma operación al mismo tiempo y enviarla dos veces a Odoo.
   Future<List<OfflineOperation>> getOperationsForSaleOrder(int orderId) async {
-    // Include ALL operations (even those waiting for retry) so user can see pending sync status
+    // Include ALL operations (even those waiting for retry, but NOT those
+    // already 'processing') so user can see pending sync status.
     final allOps = await getPendingOperations(includeNotReady: true);
 
     final result = allOps.where((op) {
@@ -362,6 +391,44 @@ class OfflineQueueDataSource implements core.OfflineQueueStore {
     }
   }
 
+  /// Update partner_id in pending queue operations when a partner gets synced
+  ///
+  /// Mirror de [updateOrderIdInPendingOperations] pero para clientes creados
+  /// offline: cuando un `res.partner` con ID negativo local se sincroniza y
+  /// obtiene su ID real de Odoo, cualquier operación YA encolada (ej. un
+  /// `sale.order create` o `account.payment create`) que todavía tenga el ID
+  /// negativo en su payload JSON debe reescribirse — de lo contrario, al
+  /// procesarse, esa operación envía `partner_id` inválido a Odoo y falla
+  /// permanentemente (dead-letter).
+  ///
+  /// Revisa TODAS las filas de la cola (sin importar status/modelo) porque
+  /// `partner_id` puede aparecer en distintos métodos (create de orden,
+  /// create de pago, etc.). Retorna la cantidad de operaciones actualizadas.
+  Future<int> updatePartnerIdInPendingOperations(
+    int oldPartnerId,
+    int newPartnerId,
+  ) async {
+    if (oldPartnerId == newPartnerId) return 0;
+
+    final allOps = await _db.select(_db.offlineQueue).get();
+    var updated = 0;
+
+    for (final row in allOps) {
+      final values = _parseJsonValues(row.values);
+      if (values['partner_id'] == oldPartnerId) {
+        values['partner_id'] = newPartnerId;
+        await (_db.update(_db.offlineQueue)
+              ..where((tbl) => tbl.id.equals(row.id)))
+            .write(
+          OfflineQueueCompanion(values: drift.Value(jsonEncode(values))),
+        );
+        updated++;
+      }
+    }
+
+    return updated;
+  }
+
   /// Parse JSON values from string
   Map<String, dynamic> _parseJsonValues(String jsonStr) {
     try {
@@ -371,6 +438,38 @@ class OfflineQueueDataSource implements core.OfflineQueueStore {
     } catch (e) {
       return {};
     }
+  }
+
+  /// Reactive stream: emite el conteo de operaciones pendientes para una orden.
+  ///
+  /// Utiliza Drift `.watch()` para que la UI se actualice automáticamente
+  /// cuando se encolan o eliminan operaciones de la cola, sin necesidad de
+  /// invalidar manualmente el provider consumidor.
+  ///
+  /// La lógica de filtro es idéntica a [getOperationsForSaleOrder]: incluye
+  /// sale.order, sale.order.line (por parentOrderId) y cualquier operación con
+  /// sale_id/order_id en los valores que coincida con [orderId].
+  ///
+  /// NOTA: la consulta usa `.watch()` directamente en la tabla para que Drift
+  /// emita en cada cambio. El filtrado adicional (parentOrderId, valores JSON)
+  /// se hace en Dart sobre el stream resultante.
+  Stream<int> watchPendingCountForSaleOrder(int orderId) {
+    final query = _db.select(_db.offlineQueue);
+    return query.watch().map((rows) {
+      return rows.where((r) {
+        // Operaciones directas de la orden
+        if (r.model == 'sale.order' && r.recordId == orderId) return true;
+        // Líneas u operaciones con parentOrderId
+        if (r.parentOrderId == orderId) return true;
+        // Operaciones con sale_id / order_id en el payload JSON
+        try {
+          final vals = _parseJsonValues(r.values);
+          if (vals['sale_id'] == orderId) return true;
+          if (vals['order_id'] == orderId) return true;
+        } catch (_) {}
+        return false;
+      }).length;
+    });
   }
 
   /// Remove all pending WRITE operations for a sale.order
@@ -450,6 +549,38 @@ class OfflineQueueDataSource implements core.OfflineQueueStore {
     return true;
   }
 
+  /// Mark an operation as 'processing' to prevent double-execution.
+  ///
+  /// Called by OfflineQueueProcessor (y por el despacho puntual de
+  /// [getOperationsForSaleOrder] en OfflineSyncService) antes de enviar la
+  /// operación a Odoo.
+  ///
+  /// Recovery de huérfanos: si la app crashea con filas en 'processing', NO
+  /// hace falta ningún reset aquí — `AppDatabase`'s `beforeOpen` callback
+  /// (theos_pos_core/lib/src/database/database.dart) ya ejecuta
+  /// `UPDATE offline_queue SET status='pending' WHERE status='processing'`
+  /// en CADA apertura de la base de datos (no solo en upgrades de esquema),
+  /// así que las filas huérfanas se auto-sanan al siguiente arranque de la
+  /// app sin necesidad de duplicar esa lógica acá.
+  @override
+  Future<void> markOperationProcessing(int id) async {
+    await (_db.update(_db.offlineQueue)..where((tbl) => tbl.id.equals(id)))
+        .write(const OfflineQueueCompanion(
+      status: drift.Value('processing'),
+    ));
+  }
+
+  /// Revierte una operación de 'processing' a 'pending' sin tocar retry/backoff.
+  ///
+  /// Ver doc en [core.OfflineQueueStore.markOperationPending].
+  @override
+  Future<void> markOperationPending(int id) async {
+    await (_db.update(_db.offlineQueue)..where((tbl) => tbl.id.equals(id)))
+        .write(const OfflineQueueCompanion(
+      status: drift.Value('pending'),
+    ));
+  }
+
   /// Remove operations created before the given date
   @override
   Future<int> removeOperationsBefore(DateTime date) async {
@@ -470,6 +601,8 @@ class OfflineQueueDataSource implements core.OfflineQueueStore {
   }
 
   /// Get operations for a specific model and record
+  ///
+  /// Excluye filas 'processing' (ver nota en [getPendingOperations]).
   @override
   Future<List<OfflineOperation>> getOperationsForRecord(
     String model,
@@ -477,7 +610,9 @@ class OfflineQueueDataSource implements core.OfflineQueueStore {
   ) async {
     final results = await (_db.select(_db.offlineQueue)
           ..where((tbl) =>
-              tbl.model.equals(model) & tbl.recordId.equals(recordId))
+              tbl.model.equals(model) &
+              tbl.recordId.equals(recordId) &
+              (tbl.status.equals('pending') | tbl.status.isNull()))
           ..orderBy([
             (tbl) => drift.OrderingTerm.asc(tbl.priority),
             (tbl) => drift.OrderingTerm.asc(tbl.createdAt),

@@ -61,7 +61,7 @@ class CollectionSessionNotifier extends _$CollectionSessionNotifier {
         logger.w(_tag, 'Session not found: $sessionId');
         state = state.copyWith(
           isLoading: false,
-          errorMessage: 'Sesion no encontrada',
+          errorMessage: 'Sesión no encontrada',
           errorCode: 'NOT_FOUND',
         );
       }
@@ -69,7 +69,7 @@ class CollectionSessionNotifier extends _$CollectionSessionNotifier {
       logger.e(_tag, 'Error loading session', e);
       state = state.copyWith(
         isLoading: false,
-        errorMessage: 'Error al cargar la sesion: $e',
+        errorMessage: 'Error al cargar la sesión: $e',
         errorCode: 'LOAD_ERROR',
       );
     }
@@ -140,13 +140,13 @@ class CollectionSessionNotifier extends _$CollectionSessionNotifier {
             session: syncedSession,
             operationSuccess: true,
             successMessage:
-                'Sesion ${syncedSession.name} sincronizada correctamente',
+                'Sesión ${syncedSession.name} sincronizada correctamente',
             newSessionId: needsRedirect ? syncedSession.id : null,
           );
 
           return OperationSuccess(
             data: syncedSession,
-            message: 'Sesion sincronizada correctamente',
+            message: 'Sesión sincronizada correctamente',
           );
         },
       );
@@ -181,7 +181,7 @@ class CollectionSessionNotifier extends _$CollectionSessionNotifier {
     if (session == null) {
       logger.w(_tag, 'Cannot register opening cash: no session loaded');
       return const OperationFailure(
-        message: 'No hay sesion cargada',
+        message: 'No hay sesión cargada',
         code: 'NO_SESSION',
       );
     }
@@ -218,7 +218,7 @@ class CollectionSessionNotifier extends _$CollectionSessionNotifier {
               session.state == SessionState.openingControl;
 
           final message = isSessionOpened
-              ? 'Sesion abierta con fondo inicial: ${cash.cashTotal.toCurrency()}'
+              ? 'Sesión abierta con fondo inicial: ${cash.cashTotal.toCurrency()}'
               : 'Fondo registrado: ${cash.cashTotal.toCurrency()}';
 
           logger.i(_tag, message);
@@ -264,7 +264,7 @@ class CollectionSessionNotifier extends _$CollectionSessionNotifier {
     if (session == null) {
       logger.w(_tag, 'Cannot register closing cash: no session loaded');
       return const OperationFailure(
-        message: 'No hay sesion cargada',
+        message: 'No hay sesión cargada',
         code: 'NO_SESSION',
       );
     }
@@ -345,7 +345,7 @@ class CollectionSessionNotifier extends _$CollectionSessionNotifier {
     if (session == null) {
       logger.w(_tag, 'Cannot close session: no session loaded');
       return const OperationFailure(
-        message: 'No hay sesion cargada',
+        message: 'No hay sesión cargada',
         code: 'NO_SESSION',
       );
     }
@@ -372,22 +372,22 @@ class CollectionSessionNotifier extends _$CollectionSessionNotifier {
           isClosingSession: false,
           session: updatedSession,
           operationSuccess: true,
-          successMessage: 'Sesion cerrada exitosamente',
+          successMessage: 'Sesión cerrada exitosamente',
         );
 
         return OperationSuccess(
           data: updatedSession,
-          message: 'Sesion cerrada exitosamente',
+          message: 'Sesión cerrada exitosamente',
         );
       } else {
         logger.e(_tag, 'Failed to close session: no response from repository');
         state = state.copyWith(
           isClosingSession: false,
-          errorMessage: 'No se pudo obtener la sesion actualizada',
+          errorMessage: 'No se pudo obtener la sesión actualizada',
           errorCode: 'CLOSE_ERROR',
         );
         return const OperationFailure(
-          message: 'No se pudo obtener la sesion actualizada',
+          message: 'No se pudo obtener la sesión actualizada',
           code: 'CLOSE_ERROR',
         );
       }
@@ -395,11 +395,11 @@ class CollectionSessionNotifier extends _$CollectionSessionNotifier {
       logger.e(_tag, 'Error closing session', e);
       state = state.copyWith(
         isClosingSession: false,
-        errorMessage: 'Error al cerrar la sesion: $e',
+        errorMessage: 'Error al cerrar la sesión: $e',
         errorCode: 'CLOSE_ERROR',
       );
       return OperationFailure(
-        message: 'Error al cerrar la sesion: $e',
+        message: 'Error al cerrar la sesión: $e',
         code: 'CLOSE_ERROR',
       );
     }
@@ -439,7 +439,7 @@ class CollectionSessionNotifier extends _$CollectionSessionNotifier {
         state = state.copyWith(
           isLoading: false,
           session: null,
-          errorMessage: 'La sesion ya no existe',
+          errorMessage: 'La sesión ya no existe',
           errorCode: 'NOT_FOUND',
         );
       }

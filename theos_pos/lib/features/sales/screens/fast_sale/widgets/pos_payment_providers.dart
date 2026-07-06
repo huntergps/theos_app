@@ -1,7 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../../core/database/providers.dart';
-import '../../../../../core/database/repositories/repository_providers.dart';
 import 'package:theos_pos_core/theos_pos_core.dart' hide DatabaseHelper, PartnerBank, CreditIssue;
 import '../../../../advances/providers/advance_providers.dart';
 import '../../../../advances/services/advance_service.dart';
@@ -62,39 +61,18 @@ final _journalsConfigRefreshProvider = StreamProvider<void>((ref) {
 /// (collection_config, account_journal, account_payment_method_line) via raw
 /// SQL queries, so a pure StreamProvider would require composing multiple Drift
 /// watch queries. This hybrid approach gets reactivity with minimal complexity.
+///
+/// La carga de sesión desde BD se delega a [CurrentSession.ensureLoaded()] para
+/// evitar que este provider mute otro provider durante su fase de build.
 final posAvailableJournalsProvider = FutureProvider<List<AvailableJournal>>((ref) async {
   // Watch config stream — triggers rebuild when configs change in local DB
   ref.watch(_journalsConfigRefreshProvider);
 
-  var currentSession = ref.watch(currentSessionProvider);
-
-  // If no session in provider, try to load from database
-  if (currentSession == null) {
-    logger.d('[POSPayment] No session in provider, trying to load from database...');
-    final collectionRepo = ref.read(collectionRepositoryProvider);
-    final userRepo = ref.read(userRepositoryProvider);
-
-    if (collectionRepo != null && userRepo != null) {
-      try {
-        final user = await userRepo.getCurrentUser();
-        if (user != null) {
-          // IMPORTANT: User.id is the Odoo user ID
-          // CollectionSession.userId stores the Odoo user ID
-          final session = await collectionRepo.getActiveUserSession(user.id);
-          if (session != null) {
-            // Set session in provider for future use
-            ref.read(currentSessionProvider.notifier).set(session);
-            currentSession = session;
-            logger.d('[POSPayment] Loaded session from database: ${session.name}');
-          } else {
-            logger.d('[POSPayment] No active session found for user ${user.name}');
-          }
-        }
-      } catch (e) {
-        logger.e('[POSPayment]', 'Error loading session from database: $e');
-      }
-    }
-  }
+  // Watch currentSessionProvider — triggers rebuild on session change.
+  // Si es null, ensureLoaded() lo carga desde BD y actualiza el estado del
+  // notifier sin que este provider lo haga directamente (evita "modify during build").
+  final currentSession = ref.watch(currentSessionProvider) ??
+      await ref.read(currentSessionProvider.notifier).ensureLoaded();
 
   if (currentSession == null) {
     logger.d('[POSPayment] No session available, returning empty journals');
@@ -229,33 +207,95 @@ final posAvailableCreditNotesStream = StreamProvider<List<AvailableCreditNote>>(
 /// Alias kept for backward compatibility.
 final posAvailableCreditNotesProvider = posAvailableCreditNotesStream;
 
-/// Provider for partner bank accounts (for cheques)
-final posPartnerBanksProvider = FutureProvider<List<PartnerBank>>((ref) async {
+/// Reactive stream of partner bank accounts (for cheques).
+///
+/// Usa `AdvanceService.watchPartnerBanks()` (Drift `.watch()` sobre
+/// `res_partner_bank`). NOTA: `res_partner_bank` ya tiene `bank_name` como
+/// columna desnormalizada — no hizo falta ningún join manual con un
+/// manager/tabla de `res.bank` para resolver el nombre del banco (el dato
+/// ya estaba en la misma fila). No se unificó el `PartnerBank` local
+/// (`advance_service.dart`) con el `PartnerBank` de `theos_pos_core` — fuera
+/// de alcance de este refactor.
+///
+/// Los `ref.invalidate(posPartnerBanksProvider)` en `add_payment_dialog.dart`
+/// (tras crear una cuenta bancaria) ya no son estrictamente necesarios
+/// (el stream se actualiza solo), pero se dejan tal cual: son inofensivos y
+/// tocar ese archivo no está en el alcance de esta ronda.
+final posPartnerBanksStreamProvider = StreamProvider<List<PartnerBank>>((ref) {
   final activeTab = ref.watch(fastSaleProvider.select((s) => s.activeTab));
-  if (activeTab?.order?.partnerId == null) return [];
+  final partnerId = activeTab?.order?.partnerId;
+  if (partnerId == null) return Stream.value(const []);
 
   final advanceService = ref.watch(advanceServiceProvider);
-  if (advanceService == null) return [];
-  return advanceService.getPartnerBanks(activeTab!.order!.partnerId!);
+  if (advanceService == null) return Stream.value(const []);
+  return advanceService.watchPartnerBanks(partnerId);
 });
 
-/// Provider for available banks (for card payments)
-final posAvailableBanksProvider = FutureProvider<List<AvailableBank>>((ref) async {
+/// Provider for partner bank accounts (for cheques).
+///
+/// Directly exposes [posPartnerBanksStreamProvider] — no FutureProvider
+/// facade needed since consumers use `.when()` which works with both types.
+/// Alias kept for backward compatibility.
+final posPartnerBanksProvider = posPartnerBanksStreamProvider;
+
+/// Reactive stream of available banks (for card payments).
+///
+/// Usa `PaymentService.watchBanks()` (Drift `.watch()` directo sobre
+/// `res_bank`, ver nota en `BankRepository.watchBanks` — no existe un
+/// `bankManager` generado para este modelo todavía). La UI se actualiza sola
+/// cuando la tabla cambia, sin depender de que otro provider se invalide.
+final posAvailableBanksStreamProvider = StreamProvider<List<AvailableBank>>((ref) {
   final paymentService = ref.watch(paymentServiceProvider);
-  return paymentService.getBanks();
+  return paymentService.watchBanks();
 });
 
-/// Provider family for card brands by journal
-final posCardBrandsByJournalProvider = FutureProvider.family<List<CardBrand>, int>((ref, journalId) async {
+/// Provider for available banks (for card payments).
+///
+/// Directly exposes [posAvailableBanksStreamProvider] — no FutureProvider
+/// facade needed since consumers use `.when()` which works with both types.
+/// Alias kept for backward compatibility (mismo patrón que
+/// `posAvailableAdvancesProvider`/`posAvailableCreditNotesProvider`).
+final posAvailableBanksProvider = posAvailableBanksStreamProvider;
+
+/// Reactive stream family de marcas de tarjeta configuradas por diario.
+///
+/// Antes era un `FutureProvider.family` (comentario "DEUDA TÉCNICA" —
+/// desactualizado, ver ítem 1 Grupo B de `d-flutter.md`). `AccountCreditCardBrand`
+/// es una tabla Drift plana sin `@OdooModel`/manager generado — en vez de
+/// promoverla (fuera de alcance), `PaymentService.watchCardBrandsByJournal`
+/// combina el `.watch()` del diario con el `.watch()` de la tabla de marcas.
+/// La UI se actualiza sola cuando el diario o las marcas cambian en local
+/// (ej. tras el sync-on-demand que sigue disparando `getCardBrands`).
+final posCardBrandsByJournalStreamProvider =
+    StreamProvider.family<List<CardBrand>, int>((ref, journalId) {
   final paymentService = ref.watch(paymentServiceProvider);
-  return paymentService.getCardBrands(journalId);
+  return paymentService.watchCardBrandsByJournal(journalId);
 });
 
-/// Provider family for card deadlines by card type
-final posCardDeadlinesProvider = FutureProvider.family<List<CardDeadline>, ({int journalId, CardType cardType})>((ref, params) async {
+/// Provider family for card brands by journal.
+///
+/// Directly exposes [posCardBrandsByJournalStreamProvider] — no FutureProvider
+/// facade needed since consumers use `.whenData()`/`AsyncValue` which works
+/// with both types. Alias kept for backward compatibility (mismo patrón que
+/// `posAvailableAdvancesProvider`/`posAvailableCreditNotesProvider`).
+final posCardBrandsByJournalProvider = posCardBrandsByJournalStreamProvider;
+
+/// Reactive stream family de plazos de tarjeta configurados por diario y
+/// tipo de tarjeta (crédito/débito). Mismo patrón y motivo que
+/// [posCardBrandsByJournalStreamProvider] — ver
+/// `PaymentService.watchCardDeadlines`.
+final posCardDeadlinesStreamProvider = StreamProvider.family<List<CardDeadline>,
+    ({int journalId, CardType cardType})>((ref, params) {
   final paymentService = ref.watch(paymentServiceProvider);
-  return paymentService.getCardDeadlines(params.journalId, params.cardType);
+  return paymentService.watchCardDeadlines(params.journalId, params.cardType);
 });
+
+/// Provider family for card deadlines by card type.
+///
+/// Directly exposes [posCardDeadlinesStreamProvider] — no FutureProvider
+/// facade needed since consumers use `.whenData()`/`AsyncValue` which works
+/// with both types. Alias kept for backward compatibility.
+final posCardDeadlinesProvider = posCardDeadlinesStreamProvider;
 
 /// Provider family for open lotes by journal
 final posOpenLotesProvider = FutureProvider.family<List<CardLote>, int>((ref, journalId) async {

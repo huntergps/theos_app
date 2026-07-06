@@ -4,4 +4,4 @@
 /// Uses the shared [PartnerCreditInfoCard] from sales/widgets.
 library;
 
-export '../../../widgets/credit_info_card.dart' show PartnerCreditInfoCard;
+export '../../../widgets/partner_credit_info_card.dart' show PartnerCreditInfoCard;

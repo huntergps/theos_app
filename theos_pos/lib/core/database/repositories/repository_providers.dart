@@ -162,18 +162,22 @@ CompanyRepository? companyRepository(Ref ref) {
 
 @Riverpod(keepAlive: true)
 ActivityRepository activityRepository(Ref ref) {
-  final odooClient = ref.watch(healthAwareOdooClientProvider);
-
-  return ActivityRepository(
-    odooClient: odooClient,
-  );
+  // F5: ActivityRepository ya no recibe OdooClient — usa
+  // mailActivityManager.client/.isOnline internamente. NOTA: esto pierde el
+  // gate de healthAwareOdooClientProvider (evita intentos RPC cuando
+  // ServerHealthService ya detectó el servidor como inalcanzable) — el
+  // manager solo sabe si tiene un cliente configurado, no si el servidor
+  // está sano ahora mismo. Impacto acotado: las llamadas igual fallan con
+  // timeout/error de red y caen al catch existente (mismo resultado final,
+  // solo más lento en el peor caso) — ver reporte de Fase F5 para detalle.
+  return ActivityRepository();
 }
 
 @Riverpod(keepAlive: true)
 AuthRepository authRepository(Ref ref) {
-  final odooClient = ref.watch(odooClientProvider);
-
-  return AuthRepository(odooClient: odooClient);
+  // F5: AuthRepository ya no recibe OdooClient — usa userManager.client
+  // internamente (mismo cliente, inyectado centralmente en el manager).
+  return AuthRepository();
 }
 
 @Riverpod(keepAlive: true)
@@ -184,12 +188,15 @@ RelatedRecordResolver? relatedRecordResolver(Ref ref) {
 
 @Riverpod(keepAlive: true)
 ProductRepository? productRepository(Ref ref) {
-  final odooClient = ref.watch(healthAwareOdooClientProvider);
   final dbHelper = ref.watch(databaseHelperProvider);
 
   if (dbHelper == null) return null;
 
-  return ProductRepository(db: ref.watch(appDatabaseProvider), odooClient: odooClient);
+  // F5: ProductRepository ya no recibe OdooClient — usa
+  // productManager/saleOrderLineManager/taxManager/uomManager/
+  // productUomManager.client/.isOnline internamente (mismo trade-off de
+  // healthAwareOdooClientProvider documentado en activityRepository arriba).
+  return ProductRepository(db: ref.watch(appDatabaseProvider));
 }
 
 @Riverpod(keepAlive: true)
@@ -208,7 +215,6 @@ ClientRepository? partnerRepository(Ref ref) {
 
 @Riverpod(keepAlive: true)
 SalesRepository? salesRepository(Ref ref) {
-  final odooClient = ref.watch(healthAwareOdooClientProvider);
   final dbHelper = ref.watch(databaseHelperProvider);
   final offlineQueue = ref.watch(offlineQueueDataSourceProvider);
   final relatedResolver = ref.watch(relatedRecordResolverProvider);
@@ -216,10 +222,13 @@ SalesRepository? salesRepository(Ref ref) {
 
   if (dbHelper == null) return null;
 
+  // F5: SalesRepository ya no recibe OdooClient — usa saleOrderManager/
+  // saleOrderLineManager/taxManager/accountMoveManager/withholdLineManager/
+  // paymentLineManager.client/.isOnline internamente (mismo trade-off de
+  // healthAwareOdooClientProvider documentado en activityRepository).
   return SalesRepository(
     db: dbHelper,
     appDb: ref.watch(appDatabaseProvider),
-    odooClient: odooClient,
     offlineQueue: offlineQueue,
     relatedResolver: relatedResolver,
     productRepository: productRepository,
@@ -227,11 +236,13 @@ SalesRepository? salesRepository(Ref ref) {
 }
 @Riverpod(keepAlive: true)
 InvoiceRepository invoiceRepository(Ref ref) {
-  final odooClient = ref.watch(healthAwareOdooClientProvider);
   final productRepository = ref.watch(productRepositoryProvider);
 
+  // F5: InvoiceRepository ya no recibe OdooClient — usa
+  // accountMoveManager/accountMoveLineManager/saleOrderManager.client
+  // internamente (mismo trade-off de healthAwareOdooClientProvider
+  // documentado en activityRepository).
   return InvoiceRepository(
-    odooClient: odooClient,
     productRepository: productRepository,
     appDb: ref.watch(appDatabaseProvider),
   );

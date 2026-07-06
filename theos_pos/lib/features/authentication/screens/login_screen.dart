@@ -581,86 +581,99 @@ class _LoginScreenState extends ConsumerState<LoginScreen> with WindowListener {
     );
   }
 
-  void _showServerDialog(BuildContext context, {ServerConfig? server}) {
-    showDialog(
-      context: context,
-      builder: (context) {
-        final nameCtrl = TextEditingController(text: server?.name);
-        final urlCtrl = TextEditingController(text: server?.url);
-        final dbCtrl = TextEditingController(text: server?.database);
-        final apiKeyCtrl = TextEditingController(text: server?.apiKey);
+  Future<void> _showServerDialog(
+    BuildContext context, {
+    ServerConfig? server,
+  }) async {
+    final nameCtrl = TextEditingController(text: server?.name);
+    final urlCtrl = TextEditingController(text: server?.url);
+    final dbCtrl = TextEditingController(text: server?.database);
+    final apiKeyCtrl = TextEditingController(text: server?.apiKey);
 
-        return ContentDialog(
-          title: Text(server == null ? 'Agregar Servidor' : 'Editar Servidor'),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              TextFormBox(
-                controller: nameCtrl,
-                placeholder: 'Nombre (ej. Local)',
+    try {
+      await showDialog(
+        context: context,
+        builder: (context) {
+          return ContentDialog(
+            title: Text(
+              server == null ? 'Agregar Servidor' : 'Editar Servidor',
+            ),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                TextFormBox(
+                  controller: nameCtrl,
+                  placeholder: 'Nombre (ej. Local)',
+                ),
+                const SizedBox(height: 8),
+                TextFormBox(
+                  controller: urlCtrl,
+                  placeholder: 'URL (ej. http://localhost:8069)',
+                ),
+                const SizedBox(height: 8),
+                TextFormBox(controller: dbCtrl, placeholder: 'Base de Datos'),
+                const SizedBox(height: 8),
+                TextFormBox(
+                  controller: apiKeyCtrl,
+                  placeholder: 'Clave API (Opcional)',
+                ),
+              ],
+            ),
+            actions: [
+              Button(
+                child: const Text('Cancelar'),
+                onPressed: () {
+                  Navigator.pop(context);
+                  // Re-open manage dialog if we were editing/adding from there
+                  _showManageServersDialog(context);
+                },
               ),
-              const SizedBox(height: 8),
-              TextFormBox(
-                controller: urlCtrl,
-                placeholder: 'URL (ej. http://localhost:8069)',
-              ),
-              const SizedBox(height: 8),
-              TextFormBox(controller: dbCtrl, placeholder: 'Base de Datos'),
-              const SizedBox(height: 8),
-              TextFormBox(
-                controller: apiKeyCtrl,
-                placeholder: 'Clave API (Opcional)',
+              FilledButton(
+                child: const Text('Guardar'),
+                onPressed: () {
+                  if (nameCtrl.text.isNotEmpty &&
+                      urlCtrl.text.isNotEmpty &&
+                      dbCtrl.text.isNotEmpty) {
+                    final newServer = ServerConfig(
+                      name: nameCtrl.text,
+                      url: urlCtrl.text,
+                      database: dbCtrl.text,
+                      apiKey:
+                          apiKeyCtrl.text.isNotEmpty ? apiKeyCtrl.text : null,
+                    );
+
+                    if (server != null) {
+                      ref
+                          .read(serverServiceProvider.notifier)
+                          .updateServer(server, newServer);
+                    } else {
+                      ref
+                          .read(serverServiceProvider.notifier)
+                          .addServer(newServer);
+                    }
+
+                    Navigator.pop(context);
+                    _showManageServersDialog(context);
+                  } else {
+                    CopyableInfoBar.showWarning(
+                      context,
+                      title: 'Datos incompletos',
+                      message:
+                          'Por favor complete todos los campos obligatorios (Nombre, URL, Base de Datos).',
+                    );
+                  }
+                },
               ),
             ],
-          ),
-          actions: [
-            Button(
-              child: const Text('Cancelar'),
-              onPressed: () {
-                Navigator.pop(context);
-                // Re-open manage dialog if we were editing/adding from there
-                _showManageServersDialog(context);
-              },
-            ),
-            FilledButton(
-              child: const Text('Guardar'),
-              onPressed: () {
-                if (nameCtrl.text.isNotEmpty &&
-                    urlCtrl.text.isNotEmpty &&
-                    dbCtrl.text.isNotEmpty) {
-                  final newServer = ServerConfig(
-                    name: nameCtrl.text,
-                    url: urlCtrl.text,
-                    database: dbCtrl.text,
-                    apiKey: apiKeyCtrl.text.isNotEmpty ? apiKeyCtrl.text : null,
-                  );
-
-                  if (server != null) {
-                    ref
-                        .read(serverServiceProvider.notifier)
-                        .updateServer(server, newServer);
-                  } else {
-                    ref
-                        .read(serverServiceProvider.notifier)
-                        .addServer(newServer);
-                  }
-
-                  Navigator.pop(context);
-                  _showManageServersDialog(context);
-                } else {
-                  CopyableInfoBar.showWarning(
-                    context,
-                    title: 'Datos incompletos',
-                    message:
-                        'Por favor complete todos los campos obligatorios (Nombre, URL, Base de Datos).',
-                  );
-                }
-              },
-            ),
-          ],
-        );
-      },
-    );
+          );
+        },
+      );
+    } finally {
+      nameCtrl.dispose();
+      urlCtrl.dispose();
+      dbCtrl.dispose();
+      apiKeyCtrl.dispose();
+    }
   }
 
   void _setStage(String stage) {

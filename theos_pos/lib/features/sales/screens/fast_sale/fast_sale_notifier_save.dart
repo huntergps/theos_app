@@ -238,8 +238,13 @@ extension FastSaleNotifierSave on FastSaleNotifier {
   ///
   /// This ensures that items queued while the app is already online
   /// get processed promptly, without waiting for a connectivity change event.
+  ///
+  /// El [Timer] se guarda en [_queueProcessingTimer] (y se cancela cualquier
+  /// timer previo pendiente) para poder cancelarlo en `ref.onDispose` y no
+  /// dejarlo huérfano si el notifier se descarta antes de que dispare.
   void _scheduleQueueProcessing() {
-    Timer(const Duration(seconds: 2), () async {
+    _queueProcessingTimer?.cancel();
+    _queueProcessingTimer = Timer(const Duration(seconds: 2), () async {
       try {
         final syncService = ref.read(offlineSyncServiceProvider);
         if (syncService == null || !syncService.canSync) {

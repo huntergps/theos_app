@@ -34,6 +34,21 @@ abstract class AppColors {
   /// Rojo de error/peligro
   static const Color danger = Color(0xFFDC3545);
 
+  /// Azul informativo (estados "enviado"/"aprobado" de documentos)
+  static const Color info = Color(0xFF0078D4);
+
+  /// Teal para estados "hecho"/bloqueado (distinto del teal de marca)
+  static const Color done = Color(0xFF00B294);
+
+  /// Morado para oportunidades de venta adicional (upselling)
+  static const Color upselling = Color(0xFF744DA9);
+
+  /// Morado para notas de crédito
+  static const Color creditNote = Color(0xFF744DA9);
+
+  /// Magenta para anticipos de cliente
+  static const Color advance = Color(0xFFB4009E);
+
   // === Colores de login/splash ===
 
   /// Fondo oscuro para login screen
@@ -69,4 +84,21 @@ abstract class AppColors {
 
   /// Rojo para sin stock
   static const Color stockOut = Color(0xFFDC3545);
+
+  // === Paleta para tarjetas de productos favoritos ===
+
+  /// Paleta de 8 colores de acento determinista para las tarjetas del grid
+  /// de productos favoritos (FastSale). El color se elige por
+  /// `categId % favoriteCardPalette.length`, no aleatoriamente, para que no
+  /// cambie entre sesiones.
+  static const List<Color> favoriteCardPalette = [
+    Color(0xFF00A09D), // teal primario
+    Color(0xFF0078D4), // azul Fluent
+    Color(0xFF107C10), // verde
+    Color(0xFF8764B8), // púrpura
+    Color(0xFFCA5010), // naranja
+    Color(0xFF038387), // cyan
+    Color(0xFFB4009E), // magenta
+    Color(0xFF004E8C), // azul marino
+  ];
 }

@@ -58,9 +58,6 @@ import 'package:theos_pos_core/src/managers/collection/journal_manager.dart';
 // Advances (generated manager from model file)
 import 'package:theos_pos_core/src/models/advances/advance.model.dart';
 
-// Invoices
-import 'package:theos_pos_core/src/managers/invoices/credit_note_manager.dart';
-
 class MockAppDatabase extends Mock implements AppDatabase {}
 
 void main() {
@@ -90,8 +87,8 @@ void main() {
     test('odooModel is account.fiscal.position', () {
       expect(fiscalPositionManager.odooModel, equals('account.fiscal.position'));
     });
-    test('tableName is account_fiscal_positions', () {
-      expect(fiscalPositionManager.tableName, equals('account_fiscal_positions'));
+    test('tableName is account_fiscal_position', () {
+      expect(fiscalPositionManager.tableName, equals('account_fiscal_position'));
     });
     test('odooFields is non-empty', () {
       expect(fiscalPositionManager.odooFields, isNotEmpty);
@@ -102,8 +99,14 @@ void main() {
     late FiscalPositionTaxManager manager;
     setUp(() => manager = FiscalPositionTaxManager(db));
 
-    test('odooModel is account.fiscal.position.tax', () {
-      expect(manager.odooModel, equals('account.fiscal.position.tax'));
+    // NOTA compatibilidad Odoo >= 18.3 (julio 2026): account.fiscal.position.tax
+    // fue eliminado del core de Odoo desde la 18.3 (verificado con fields_get
+    // en vivo contra erp1.tecnosmart.com.ec, 19.5a1+e — "the model does not
+    // exist"). El manager ahora sintetiza las filas localmente desde
+    // account.tax.fiscal_position_ids/original_tax_ids — ver
+    // FiscalPositionTax.synthesizeFromAccountTax.
+    test('odooModel is account.tax (reemplazo, ver nota arriba)', () {
+      expect(manager.odooModel, equals('account.tax'));
     });
     test('odooFields is non-empty', () {
       expect(manager.odooFields, isNotEmpty);
@@ -210,8 +213,8 @@ void main() {
     test('odooModel is crm.team', () {
       expect(salesTeamManager.odooModel, equals('crm.team'));
     });
-    test('tableName is crm_teams', () {
-      expect(salesTeamManager.tableName, equals('crm_teams'));
+    test('tableName is crm_team', () {
+      expect(salesTeamManager.tableName, equals('crm_team'));
     });
     test('odooFields is non-empty', () {
       expect(salesTeamManager.odooFields, isNotEmpty);
@@ -226,8 +229,8 @@ void main() {
     test('odooModel is stock.warehouse', () {
       expect(warehouseManager.odooModel, equals('stock.warehouse'));
     });
-    test('tableName is stock_warehouses', () {
-      expect(warehouseManager.tableName, equals('stock_warehouses'));
+    test('tableName is stock_warehouse', () {
+      expect(warehouseManager.tableName, equals('stock_warehouse'));
     });
     test('odooFields is non-empty', () {
       expect(warehouseManager.odooFields, isNotEmpty);
@@ -242,8 +245,8 @@ void main() {
     test('odooModel is product.pricelist', () {
       expect(pricelistManager.odooModel, equals('product.pricelist'));
     });
-    test('tableName is product_pricelists', () {
-      expect(pricelistManager.tableName, equals('product_pricelists'));
+    test('tableName is product_pricelist', () {
+      expect(pricelistManager.tableName, equals('product_pricelist'));
     });
     test('odooFields is non-empty', () {
       expect(pricelistManager.odooFields, isNotEmpty);
@@ -275,8 +278,8 @@ void main() {
     test('odooModel is product.category', () {
       expect(manager.odooModel, equals('product.category'));
     });
-    test('tableName is product_categories', () {
-      expect(manager.tableName, equals('product_categories'));
+    test('tableName is product_category', () {
+      expect(manager.tableName, equals('product_category'));
     });
     test('odooFields is non-empty', () {
       expect(manager.odooFields, isNotEmpty);
@@ -364,8 +367,8 @@ void main() {
     test('odooModel is account.payment.term', () {
       expect(paymentTermManager.odooModel, equals('account.payment.term'));
     });
-    test('tableName is account_payment_terms', () {
-      expect(paymentTermManager.tableName, equals('account_payment_terms'));
+    test('tableName is account_payment_term', () {
+      expect(paymentTermManager.tableName, equals('account_payment_term'));
     });
     test('odooFields is non-empty', () {
       expect(paymentTermManager.odooFields, isNotEmpty);
@@ -382,8 +385,8 @@ void main() {
     test('odooModel is mail.activity', () {
       expect(manager.odooModel, equals('mail.activity'));
     });
-    test('tableName is mail_activities', () {
-      expect(manager.tableName, equals('mail_activities'));
+    test('tableName is mail_activity_table', () {
+      expect(manager.tableName, equals('mail_activity_table'));
     });
     test('odooFields is non-empty', () {
       expect(manager.odooFields, isNotEmpty);
@@ -411,8 +414,8 @@ void main() {
     test('odooModel is collection.session', () {
       expect(manager.odooModel, equals('collection.session'));
     });
-    test('tableName is collection_sessions', () {
-      expect(manager.tableName, equals('collection_sessions'));
+    test('tableName is collection_session', () {
+      expect(manager.tableName, equals('collection_session'));
     });
     test('odooFields is non-empty', () {
       expect(manager.odooFields, isNotEmpty);
@@ -425,8 +428,8 @@ void main() {
     test('odooModel is account.payment', () {
       expect(manager.odooModel, equals('account.payment'));
     });
-    test('tableName is account_payments', () {
-      expect(manager.tableName, equals('account_payments'));
+    test('tableName is account_payment', () {
+      expect(manager.tableName, equals('account_payment'));
     });
     test('odooFields is non-empty', () {
       expect(manager.odooFields, isNotEmpty);
@@ -467,27 +470,12 @@ void main() {
     test('odooModel is account.advance', () {
       expect(manager.odooModel, equals('account.advance'));
     });
-    test('tableName is advances', () {
-      expect(manager.tableName, equals('advances'));
+    test('tableName is account_advance', () {
+      expect(manager.tableName, equals('account_advance'));
     });
     test('odooFields is non-empty', () {
       expect(manager.odooFields, isNotEmpty);
     });
   });
 
-  // ═══════════════════════════════════════════════════════════════════════════
-  // Invoices
-  // ═══════════════════════════════════════════════════════════════════════════
-
-  group('CreditNoteManager', () {
-    late CreditNoteManager manager;
-    setUp(() => manager = CreditNoteManager(db));
-
-    test('odooModel is account.move', () {
-      expect(manager.odooModel, equals('account.move'));
-    });
-    test('odooFields is non-empty', () {
-      expect(manager.odooFields, isNotEmpty);
-    });
-  });
 }

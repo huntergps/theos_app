@@ -150,43 +150,49 @@ class _SettingsSectionProfiles extends StatelessWidget {
     );
   }
 
-  void _showSaveProfileDialog(
-      BuildContext context, ConfigService notifier) {
+  Future<void> _showSaveProfileDialog(
+    BuildContext context,
+    ConfigService notifier,
+  ) async {
     final controller = TextEditingController();
-    showDialog(
-      context: context,
-      builder: (context) {
-        return ContentDialog(
-          title: const Text('Guardar Perfil'),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const Text('Ingresa un nombre para el nuevo perfil:'),
-              const SizedBox(height: 10),
-              TextFormBox(
-                controller: controller,
-                placeholder: 'Nombre del perfil',
+    try {
+      await showDialog(
+        context: context,
+        builder: (context) {
+          return ContentDialog(
+            title: const Text('Guardar Perfil'),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Text('Ingresa un nombre para el nuevo perfil:'),
+                const SizedBox(height: 10),
+                TextFormBox(
+                  controller: controller,
+                  placeholder: 'Nombre del perfil',
+                ),
+              ],
+            ),
+            actions: [
+              Button(
+                child: const Text('Cancelar'),
+                onPressed: () => Navigator.pop(context),
+              ),
+              FilledButton(
+                child: const Text('Guardar'),
+                onPressed: () {
+                  if (controller.text.isNotEmpty) {
+                    notifier.createProfile(controller.text);
+                    Navigator.pop(context);
+                  }
+                },
               ),
             ],
-          ),
-          actions: [
-            Button(
-              child: const Text('Cancelar'),
-              onPressed: () => Navigator.pop(context),
-            ),
-            FilledButton(
-              child: const Text('Guardar'),
-              onPressed: () {
-                if (controller.text.isNotEmpty) {
-                  notifier.createProfile(controller.text);
-                  Navigator.pop(context);
-                }
-              },
-            ),
-          ],
-        );
-      },
-    );
+          );
+        },
+      );
+    } finally {
+      controller.dispose();
+    }
   }
 
   void _showDeleteProfileDialog(

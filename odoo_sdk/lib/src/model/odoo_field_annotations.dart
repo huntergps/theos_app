@@ -107,6 +107,19 @@ abstract class OdooField {
   /// Help text for the field.
   final String? help;
 
+  /// Override explícito del nombre del getter/columna Drift, cuando
+  /// difiere tanto de [odooName] (camelCase) como del nombre del campo
+  /// Dart. Caso de uso: un campo de Odoo fue renombrado (ej. 'acc_number'
+  /// → 'account_number') pero la columna Drift ya existente debe
+  /// conservarse igual para no requerir una migración de esquema.
+  ///
+  /// Nota: hoy solo algunos tipos de campo exponen este parámetro en su
+  /// propio constructor (ver [OdooLocalOnly], [OdooString]) — no todos los
+  /// subtipos de [OdooField] lo reexportan todavía. Si se necesita en otro
+  /// tipo, agregar `super.driftName` a su constructor y extraerlo en
+  /// `odoo_model_generator.dart`.
+  final String? driftName;
+
   const OdooField({
     this.odooName,
     this.required = false,
@@ -115,6 +128,7 @@ abstract class OdooField {
     this.defaultValue,
     this.label,
     this.help,
+    this.driftName,
   });
 }
 
@@ -168,6 +182,7 @@ class OdooString extends OdooField {
     super.defaultValue,
     super.label,
     super.help,
+    super.driftName,
     this.maxLength,
     this.trim = true,
     this.translate = false,
@@ -598,17 +613,11 @@ class OdooLocalOnly extends OdooField {
   /// The Drift column type to use.
   final String? driftType;
 
-  /// Override the Drift column accessor name when it differs from the Dart field name.
-  ///
-  /// Example: `@OdooLocalOnly(driftName: 'partnerUuid')` when the Drift table
-  /// column is `partnerUuid` but the model field is `uuid`.
-  final String? driftName;
-
   const OdooLocalOnly({
     super.defaultValue,
     super.label,
+    super.driftName,
     this.driftType,
-    this.driftName,
   }) : super(
           required: false,
           writable: false,

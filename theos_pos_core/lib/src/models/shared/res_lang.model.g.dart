@@ -43,8 +43,12 @@ class ResLangManager extends OdooModelManager<ResLang>
   @override
   List<String> get odooFields => ['id', 'name', 'code', 'active', 'write_date'];
 
-  @override
-  ResLang fromOdoo(Map<String, dynamic> data) {
+  /// Versión estática pura de [fromOdoo] — no referencia `this` ni
+  /// estado de instancia (OdooClient, GeneratedDatabase), solo [data].
+  /// Por eso su tear-off (`ResLangManager.fromOdooMap`) es transferible a
+  /// `Isolate.run()`, a diferencia del tear-off del método de instancia
+  /// [fromOdoo] (que arrastra el manager completo, no transferible).
+  static ResLang fromOdooMap(Map<String, dynamic> data) {
     return ResLang(
       id: data['id'] as int? ?? 0,
       name: parseOdooStringRequired(data['name']),
@@ -53,6 +57,9 @@ class ResLangManager extends OdooModelManager<ResLang>
       writeDate: parseOdooDateTime(data['write_date']),
     );
   }
+
+  @override
+  ResLang fromOdoo(Map<String, dynamic> data) => fromOdooMap(data);
 
   @override
   Map<String, dynamic> toOdoo(ResLang record) {

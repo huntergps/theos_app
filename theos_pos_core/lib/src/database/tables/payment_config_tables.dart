@@ -66,17 +66,24 @@ class AccountPaymentMethodLine extends Table {
 class AccountAdvance extends Table {
   IntColumn get id => integer().autoIncrement()();
   IntColumn get odooId => integer().unique()();
-  TextColumn get name => text()(); // Número de anticipo (ADV-xxxx)
+  // Número de anticipo (ADV-xxxx) — lo asigna la secuencia del servidor;
+  // nullable porque los anticipos creados offline aún no tienen número.
+  TextColumn get name => text().nullable()();
   TextColumn get state => text().withDefault(
     const Constant('draft'),
   )(); // draft, posted, partial, reconciled, returned, cancelled
   TextColumn get advanceType =>
       text()(); // advance (anticipo), retention (retención)
-  TextColumn get partnerType => text()(); // customer, supplier — Note: no field in Advance model — populated via SQL
+  // customer, supplier — no existe en el modelo Advance, lo llena el handler
+  // de WebSocket; default local para inserts offline (anticipos POS = cliente).
+  TextColumn get partnerType =>
+      text().withDefault(const Constant('customer'))();
   IntColumn get partnerId => integer()();
   TextColumn get partnerName => text().nullable()();
   TextColumn get partnerVat => text().nullable()(); // Note: no field in Advance model — populated via SQL
-  IntColumn get companyId => integer()(); // Note: no field in Advance model — populated via SQL
+  // No existe en el modelo Advance — lo llena el handler de WebSocket;
+  // nullable porque los inserts offline no conocen la compañía.
+  IntColumn get companyId => integer().nullable()();
   IntColumn get currencyId => integer().nullable()();
   IntColumn get cashierId => integer().nullable()(); // Note: no field in Advance model — populated via SQL
   TextColumn get cashierName => text().nullable()(); // Note: no field in Advance model — populated via SQL
@@ -100,7 +107,15 @@ class AccountAdvance extends Table {
   TextColumn get advanceUuid => text().nullable()(); // UUID local para sync
   // Collection session reference
   IntColumn get collectionSessionId => integer().nullable()();
-  IntColumn get collectionConfigId => integer().nullable()(); // TODO: orphan column — no field in Advance model
+  // NO es huérfana: no existe en el modelo Freezed `Advance` (no se lee acá),
+  // pero SÍ se escribe activamente desde el handler de WebSocket en
+  // theos_pos/lib/shared/providers/notification_provider.dart
+  // (AccountAdvanceCompanion.insert(..., collectionConfigId: ...)). Borrar
+  // esta columna rompería ese archivo al regenerar. Queda "write-only": se
+  // persiste pero ningún código de theos_pos_core/theos_pos la lee todavía.
+  // Si se confirma que de verdad no hace falta, coordinar la eliminación con
+  // quien mantiene notification_provider.dart antes de tocar esta columna.
+  IntColumn get collectionConfigId => integer().nullable()();
   IntColumn get saleOrderId =>
       integer().nullable()(); // Pedido que generó el anticipo
   DateTimeColumn get writeDate => dateTime().nullable()();
@@ -125,7 +140,31 @@ class AccountCreditNote extends Table {
   DateTimeColumn get writeDate => dateTime().nullable()();
 }
 /// AccountPayment - Pagos registrados en el sistema
-class AccountPayment extends Table {
+///
+/// Nombrada `AccountPaymentTable` (mismo patrón que `MailActivityTable`,
+/// `ResCompanyTable` y `AdvanceLinesTable`) para evitar la colisión de
+/// nombres con el modelo Freezed `AccountPayment`
+/// (`models/collection/account_payment.model.dart`) — antes ambas clases
+/// compartían el identificador `AccountPayment` en el mismo paquete, lo que
+/// solo no rompía la compilación porque nunca se importaban juntas sin alias.
+///
+/// `@DataClassName`/`companion` preservan los nombres `AccountPaymentData` y
+/// `AccountPaymentCompanion` (por defecto Drift generaría
+/// `AccountPaymentTableData`/`AccountPaymentTableCompanion` a partir del
+/// nombre de la clase). El `tableName` se overridea para conservar el
+/// nombre SQL real `account_payment`, que debe seguir coincidiendo con
+/// `@OdooModel('account.payment', tableName: 'account_payment')` en
+/// `models/collection/account_payment.model.dart`.
+///
+/// IMPORTANTE: el getter en `AppDatabase` cambia de `db.accountPayment` a
+/// `db.accountPaymentTable` (Drift deriva el getter del nombre de la clase,
+/// no hay forma de preservarlo). Referencias actualizadas dentro de
+/// theos_pos_core: `partner_manager.dart`, `account_payment_manager.dart`.
+@DataClassName('AccountPaymentData', companion: 'AccountPaymentCompanion')
+class AccountPaymentTable extends Table {
+  @override
+  String get tableName => 'account_payment';
+
   IntColumn get id => integer().autoIncrement()();
   IntColumn get odooId => integer().unique().nullable()();
   TextColumn get paymentUuid => text().unique()(); // Local UUID for sync

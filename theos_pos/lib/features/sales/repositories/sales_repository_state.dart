@@ -13,13 +13,12 @@ extension SalesRepositoryState on SalesRepository {
     logger.d('[SalesRepo]', 'Order $orderId approved locally');
 
     // 2. Try to sync to Odoo if online
-    if (_odooClient != null) {
+    if (_orderManager.isOnline) {
       try {
-        await _odooClient.call(
-          model: 'sale.order',
-          method: 'action_approve',
-          ids: [orderId],
-        );
+        await _orderManager.callCustomMethod<dynamic>(
+        'action_approve',
+        ids: [orderId],
+      );
         await _orderManager.clearSaleOrderPendingConfirm(orderId);
         logger.d('[SalesRepo]', 'Order $orderId approve synced to Odoo');
         // Refresh order from Odoo
@@ -46,13 +45,12 @@ extension SalesRepositoryState on SalesRepository {
     logger.d('[SalesRepo]', 'Order $orderId confirmed locally');
 
     // 2. Try to sync to Odoo if online
-    if (_odooClient != null) {
+    if (_orderManager.isOnline) {
       try {
-        await _odooClient.call(
-          model: 'sale.order',
-          method: 'action_pos_confirm',
-          ids: [orderId],
-        );
+        await _orderManager.callCustomMethod<dynamic>(
+        'action_pos_confirm',
+        ids: [orderId],
+      );
         await _orderManager.clearSaleOrderPendingConfirm(orderId);
         logger.d('[SalesRepo]', 'Order $orderId confirm synced to Odoo');
       } catch (e) {
@@ -71,7 +69,7 @@ extension SalesRepositoryState on SalesRepository {
     logger.d('[SalesRepository]', 'posConfirm: orderId=$orderId, skipCreditCheck=$skipCreditCheck');
 
     // OFFLINE-FIRST: If no connection, use offline confirmation
-    if (_odooClient == null) {
+    if (!_orderManager.isOnline) {
       logger.d('[SalesRepository]', 'posConfirm: offline mode, using confirmOffline');
       final success = await confirmOffline(orderId);
       if (success) {
@@ -93,9 +91,8 @@ extension SalesRepositoryState on SalesRepository {
 
     // ONLINE: Try to confirm with Odoo
     try {
-      final result = await _odooClient.call(
-        model: 'sale.order',
-        method: 'action_pos_confirm',
+      final result = await _orderManager.callCustomMethod<dynamic>(
+        'action_pos_confirm',
         ids: [orderId],
         kwargs: {'skip_credit_check': skipCreditCheck},
       );
@@ -242,13 +239,12 @@ extension SalesRepositoryState on SalesRepository {
     logger.d('[SalesRepo]', 'Order $orderId cancelled locally');
 
     // 2. Try to sync to Odoo if online
-    if (_odooClient != null) {
+    if (_orderManager.isOnline) {
       try {
-        await _odooClient.call(
-          model: 'sale.order',
-          method: 'action_cancel',
-          ids: [orderId],
-        );
+        await _orderManager.callCustomMethod<dynamic>(
+        'action_cancel',
+        ids: [orderId],
+      );
         logger.d('[SalesRepo]', 'Order $orderId cancel synced to Odoo');
       } catch (e) {
         logger.w('[SalesRepo]', 'Cancel sync failed, queuing: $e');
@@ -265,13 +261,12 @@ extension SalesRepositoryState on SalesRepository {
     logger.d('[SalesRepo]', 'Order $orderId set to draft locally');
 
     // 2. Try to sync to Odoo if online
-    if (_odooClient != null) {
+    if (_orderManager.isOnline) {
       try {
-        await _odooClient.call(
-          model: 'sale.order',
-          method: 'action_draft',
-          ids: [orderId],
-        );
+        await _orderManager.callCustomMethod<dynamic>(
+        'action_draft',
+        ids: [orderId],
+      );
         logger.d('[SalesRepo]', 'Order $orderId setToDraft synced to Odoo');
       } catch (e) {
         logger.w('[SalesRepo]', 'SetToDraft sync failed, queuing: $e');
@@ -288,13 +283,12 @@ extension SalesRepositoryState on SalesRepository {
     logger.d('[SalesRepo]', 'Order $orderId locked locally');
 
     // 2. Try to sync to Odoo if online
-    if (_odooClient != null) {
+    if (_orderManager.isOnline) {
       try {
-        await _odooClient.call(
-          model: 'sale.order',
-          method: 'action_lock',
-          ids: [orderId],
-        );
+        await _orderManager.callCustomMethod<dynamic>(
+        'action_lock',
+        ids: [orderId],
+      );
         // Mark as synced
         await _orderManager.updateSaleOrderLocked(orderId, locked: true, isSynced: true);
         logger.d('[SalesRepo]', 'Order $orderId lock synced to Odoo');
@@ -315,13 +309,12 @@ extension SalesRepositoryState on SalesRepository {
     logger.d('[SalesRepo]', 'Order $orderId unlocked locally');
 
     // 2. Try to sync to Odoo if online
-    if (_odooClient != null) {
+    if (_orderManager.isOnline) {
       try {
-        await _odooClient.call(
-          model: 'sale.order',
-          method: 'action_unlock',
-          ids: [orderId],
-        );
+        await _orderManager.callCustomMethod<dynamic>(
+        'action_unlock',
+        ids: [orderId],
+      );
         // Mark as synced
         await _orderManager.updateSaleOrderLocked(orderId, locked: false, isSynced: true);
         logger.d('[SalesRepo]', 'Order $orderId unlock synced to Odoo');

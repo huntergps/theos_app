@@ -2,6 +2,7 @@ import 'package:fluent_ui/fluent_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 
+import '../../../core/constants/app_colors.dart';
 import '../../../core/theme/spacing.dart';
 import '../../../shared/utils/formatting_utils.dart';
 import '../../../shared/widgets/dialogs/base_detail_dialog.dart';
@@ -242,7 +243,7 @@ class _PaymentDetailContent extends StatelessWidget {
   }
 
   Widget _buildAmountCard(FluentThemeData theme) {
-    final amountColor = payment.isInbound ? Colors.green : Colors.red;
+    final amountColor = payment.isInbound ? AppColors.success : AppColors.danger;
 
     return Container(
       padding: const EdgeInsets.all(Spacing.md),
@@ -275,11 +276,11 @@ class _PaymentDetailContent extends StatelessWidget {
   Color _getStateColor(PaymentState state) {
     switch (state) {
       case PaymentState.draft:
-        return Colors.grey;
+        return AppColors.textSecondary;
       case PaymentState.posted:
-        return Colors.green;
+        return AppColors.success;
       case PaymentState.canceled:
-        return Colors.red;
+        return AppColors.danger;
       case PaymentState.rejected:
         return Colors.red.darker;
     }
@@ -288,7 +289,7 @@ class _PaymentDetailContent extends StatelessWidget {
   Color _getCategoryColor(PaymentMethodCategory category) {
     switch (category) {
       case PaymentMethodCategory.cash:
-        return Colors.green;
+        return AppColors.success;
       case PaymentMethodCategory.cardCredit:
         return Colors.blue;
       case PaymentMethodCategory.cardDebit:
@@ -298,7 +299,7 @@ class _PaymentDetailContent extends StatelessWidget {
       case PaymentMethodCategory.transfer:
         return Colors.purple;
       case PaymentMethodCategory.other:
-        return Colors.grey;
+        return AppColors.textSecondary;
     }
   }
 

@@ -1,6 +1,8 @@
 import 'package:fluent_ui/fluent_ui.dart';
 import 'package:intl/intl.dart';
 
+import '../../../../core/constants/app_colors.dart';
+import '../../../../shared/widgets/common/theos_info_bars.dart';
 import '../../clients.dart';
 
 /// Action chosen by user in credit control dialog
@@ -242,7 +244,7 @@ class CreditControlDialog extends StatelessWidget {
             theme: theme,
             label: 'Crédito usado (facturas)',
             value: creditUsed,
-            color: Colors.red,
+            color: AppColors.danger,
             icon: FluentIcons.remove,
           ),
           const SizedBox(height: 6),
@@ -250,7 +252,7 @@ class CreditControlDialog extends StatelessWidget {
             theme: theme,
             label: 'Por facturar (órdenes)',
             value: creditToInvoice,
-            color: Colors.orange,
+            color: AppColors.warning,
             icon: FluentIcons.remove,
           ),
           const SizedBox(height: 6),
@@ -267,7 +269,7 @@ class CreditControlDialog extends StatelessWidget {
             theme: theme,
             label: 'Disponible actual',
             value: creditAvailable,
-            color: creditAvailable > 0 ? Colors.green : Colors.red,
+            color: creditAvailable > 0 ? AppColors.success : AppColors.danger,
             isBold: true,
           ),
           const SizedBox(height: 6),
@@ -275,7 +277,7 @@ class CreditControlDialog extends StatelessWidget {
             theme: theme,
             label: 'Después de transacción',
             value: creditAfterTransaction,
-            color: creditAfterTransaction >= 0 ? Colors.green : Colors.red,
+            color: creditAfterTransaction >= 0 ? AppColors.success : AppColors.danger,
             isBold: true,
             showSign: true,
           ),
@@ -286,13 +288,13 @@ class CreditControlDialog extends StatelessWidget {
             Container(
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
-                color: Colors.red.withAlpha(25),
+                color: AppColors.danger.withAlpha(25),
                 borderRadius: BorderRadius.circular(4),
-                border: Border.all(color: Colors.red.withAlpha(127)),
+                border: Border.all(color: AppColors.danger.withAlpha(127)),
               ),
               child: Row(
                 children: [
-                  Icon(FluentIcons.warning, size: 20, color: Colors.red),
+                  Icon(FluentIcons.warning, size: 20, color: AppColors.danger),
                   const SizedBox(width: 8),
                   Expanded(
                     child: Column(
@@ -301,13 +303,13 @@ class CreditControlDialog extends StatelessWidget {
                         Text(
                           'Exceso de crédito',
                           style: theme.typography.bodyStrong?.copyWith(
-                            color: Colors.red,
+                            color: AppColors.danger,
                           ),
                         ),
                         Text(
                           _currencyFormat.format(-creditAfterTransaction),
                           style: theme.typography.subtitle?.copyWith(
-                            color: Colors.red,
+                            color: AppColors.danger,
                           ),
                         ),
                       ],
@@ -334,7 +336,7 @@ class CreditControlDialog extends StatelessWidget {
         Container(
           height: 24,
           decoration: BoxDecoration(
-            color: Colors.grey.withAlpha(50),
+            color: AppColors.textSecondary.withAlpha(50),
             borderRadius: BorderRadius.circular(4),
           ),
           child: ClipRRect(
@@ -345,13 +347,13 @@ class CreditControlDialog extends StatelessWidget {
                 if (usedPercent > 0)
                   Flexible(
                     flex: usedPercent.round().clamp(1, 100),
-                    child: Container(color: Colors.red),
+                    child: Container(color: AppColors.danger),
                   ),
                 // To Invoice (orange)
                 if (toInvoicePercent > 0)
                   Flexible(
                     flex: toInvoicePercent.round().clamp(1, 100),
-                    child: Container(color: Colors.orange),
+                    child: Container(color: AppColors.warning),
                   ),
                 // Transaction (blue with stripes)
                 if (transactionPercent > 0)
@@ -370,7 +372,7 @@ class CreditControlDialog extends StatelessWidget {
                     flex: (100 - usedPercent - toInvoicePercent - transactionPercent)
                         .round()
                         .clamp(1, 100),
-                    child: Container(color: Colors.green.withAlpha(100)),
+                    child: Container(color: AppColors.success.withAlpha(100)),
                   ),
               ],
             ),
@@ -392,7 +394,7 @@ class CreditControlDialog extends StatelessWidget {
                   ? '${(usedPercent + toInvoicePercent + transactionPercent).toStringAsFixed(0)}% (EXCEDIDO)'
                   : '${(usedPercent + toInvoicePercent + transactionPercent).toStringAsFixed(0)}%',
               style: theme.typography.caption?.copyWith(
-                color: isExceeded ? Colors.red : theme.inactiveColor,
+                color: isExceeded ? AppColors.danger : theme.inactiveColor,
                 fontWeight: FontWeight.bold,
               ),
             ),
@@ -413,10 +415,10 @@ class CreditControlDialog extends StatelessWidget {
       spacing: 16,
       runSpacing: 8,
       children: [
-        _buildLegendItem(theme, Colors.red, 'Usado'),
-        _buildLegendItem(theme, Colors.orange, 'Por facturar'),
+        _buildLegendItem(theme, AppColors.danger, 'Usado'),
+        _buildLegendItem(theme, AppColors.warning, 'Por facturar'),
         _buildLegendItem(theme, Colors.blue, 'Esta transacción'),
-        _buildLegendItem(theme, Colors.green.withAlpha(100), 'Disponible'),
+        _buildLegendItem(theme, AppColors.success.withAlpha(100), 'Disponible'),
       ],
     );
   }
@@ -483,20 +485,20 @@ class CreditControlDialog extends StatelessWidget {
 
   Widget _buildOverdueSection(FluentThemeData theme) {
     return Card(
-      backgroundColor: Colors.red.withAlpha(25),
-      borderColor: Colors.red.withAlpha(127),
+      backgroundColor: AppColors.danger.withAlpha(25),
+      borderColor: AppColors.danger.withAlpha(127),
       padding: const EdgeInsets.all(16),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             children: [
-              Icon(FluentIcons.warning, size: 20, color: Colors.red),
+              Icon(FluentIcons.warning, size: 20, color: AppColors.danger),
               const SizedBox(width: 8),
               Text(
                 'Deudas Vencidas',
                 style: theme.typography.bodyStrong?.copyWith(
-                  color: Colors.red,
+                  color: AppColors.danger,
                 ),
               ),
             ],
@@ -540,7 +542,7 @@ class CreditControlDialog extends StatelessWidget {
   }) {
     return Row(
       children: [
-        Icon(icon, size: 14, color: Colors.red),
+        Icon(icon, size: 14, color: AppColors.danger),
         const SizedBox(width: 8),
         Expanded(
           child: Text(
@@ -553,7 +555,7 @@ class CreditControlDialog extends StatelessWidget {
         Text(
           value,
           style: theme.typography.bodyStrong?.copyWith(
-            color: Colors.red,
+            color: AppColors.danger,
           ),
         ),
       ],
@@ -567,13 +569,10 @@ class CreditControlDialog extends StatelessWidget {
     if (validationResult.isDataStale) {
       warnings.add(const SizedBox(height: 12));
       warnings.add(
-        InfoBar(
-          title: const Text('Datos desactualizados'),
-          content: const Text(
-            'Los datos de crédito pueden no estar actualizados. Conecte a internet para sincronizar.',
-          ),
-          severity: InfoBarSeverity.warning,
-          isIconVisible: true,
+        TheosInfoBars.warning(
+          title: 'Datos desactualizados',
+          message:
+              'Los datos de crédito pueden no estar actualizados. Conecte a internet para sincronizar.',
         ),
       );
     }
@@ -582,13 +581,10 @@ class CreditControlDialog extends StatelessWidget {
     if (validationResult.isOffline && !validationResult.isDataStale) {
       warnings.add(const SizedBox(height: 12));
       warnings.add(
-        InfoBar(
-          title: const Text('Modo offline'),
-          content: const Text(
-            'Sin conexión. Se aplica margen de seguridad al límite de crédito.',
-          ),
-          severity: InfoBarSeverity.warning,
-          isIconVisible: true,
+        TheosInfoBars.warning(
+          title: 'Modo offline',
+          message:
+              'Sin conexión. Se aplica margen de seguridad al límite de crédito.',
         ),
       );
     }
@@ -610,7 +606,7 @@ class CreditControlDialog extends StatelessWidget {
           onPressed: () =>
               Navigator.of(context).pop(CreditDialogAction.proceedAnyway),
           style: ButtonStyle(
-            foregroundColor: WidgetStateProperty.all(Colors.orange),
+            foregroundColor: WidgetStateProperty.all(AppColors.warning),
           ),
           child: const Text('Continuar de todas formas'),
         ),
@@ -649,10 +645,10 @@ class CreditControlDialog extends StatelessWidget {
     switch (validationResult.type) {
       case CreditCheckType.creditLimitExceeded:
       case CreditCheckType.overdueDebt:
-        return Colors.red;
+        return AppColors.danger;
       case CreditCheckType.staleData:
       case CreditCheckType.warning:
-        return Colors.orange;
+        return AppColors.warning;
       default:
         return Colors.blue;
     }

@@ -125,9 +125,9 @@ class _AuthGuardState extends ConsumerState<AuthGuard> {
     // Show error notification
     CopyableInfoBar.showError(
       context,
-      title: 'Sesion expirada',
+      title: 'Sesión expirada',
       message:
-          'Su clave API ha expirado o fue revocada. Inicie sesion nuevamente.',
+          'Tu clave API ha expirado o fue revocada. Inicia sesión nuevamente.',
     );
 
     // Navigate to login

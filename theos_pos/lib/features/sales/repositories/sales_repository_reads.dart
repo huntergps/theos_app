@@ -28,7 +28,7 @@ extension SalesRepositoryReads on SalesRepository {
     }
 
     // If offline or no Odoo client, return local data (may be null)
-    if (_odooClient == null) {
+    if (!_orderManager.isOnline) {
       if (order != null) {
         order = await _enrichOrderWithLocalDataOnly(order);
       }
@@ -37,7 +37,7 @@ extension SalesRepositoryReads on SalesRepository {
 
     // forceRefresh requested OR no local data - fetch from Odoo
     try {
-      final response = await _odooClient.searchRead(
+      final response = await _orderManager.client.searchRead(
         model: 'sale.order',
         fields: saleOrderManager.odooFields,
         domain: [
@@ -234,14 +234,14 @@ extension SalesRepositoryReads on SalesRepository {
     // This prevents blocking on slow/unavailable server during normal reads
     // IMPORTANT: Never sync offline orders (negative IDs) - they don't exist in Odoo
     // and syncing would DELETE local lines!
-    final shouldSync = _odooClient != null && forceRefresh && orderId > 0;
+    final shouldSync = _lineManager.isOnline && forceRefresh && orderId > 0;
 
     if (shouldSync) {
       logger.d(
         '[SalesRepository] Syncing lines from Odoo (forceRefresh=$forceRefresh, localEmpty=${localLines.isEmpty})',
       );
       try {
-        final response = await _odooClient.searchRead(
+        final response = await _lineManager.client.searchRead(
           model: 'sale.order.line',
           fields: saleOrderLineManager.odooFields,
           domain: [
@@ -283,7 +283,7 @@ extension SalesRepositoryReads on SalesRepository {
           final missingTaxIds = allTaxIds.where((id) => !taxIdToName.containsKey(id)).toList();
           if (missingTaxIds.isNotEmpty) {
             try {
-              final taxData = await _odooClient.read(
+              final taxData = await taxManager.client.read(
                 model: 'account.tax',
                 ids: missingTaxIds,
                 fields: ['id', 'name'],
@@ -464,16 +464,15 @@ extension SalesRepositoryReads on SalesRepository {
     final cachedDefaults = await _getDefaultsFromCompanyCache();
 
     // 2. If offline, return cached defaults
-    if (_odooClient == null) {
+    if (!_orderManager.isOnline) {
       logger.d('[SalesRepository]', 'Offline - using cached defaults: $cachedDefaults');
       return cachedDefaults;
     }
 
     // 3. Try to fetch fresh from Odoo
     try {
-      final result = await _odooClient.call(
-        model: 'sale.order',
-        method: 'default_get',
+      final result = await _orderManager.callCustomMethod<dynamic>(
+        'default_get',
         kwargs: {
           'fields_list': [
             'partner_id',

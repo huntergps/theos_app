@@ -1,3 +1,4 @@
+import 'package:collection/collection.dart';
 import 'package:theos_pos_core/theos_pos_core.dart' show SaleOrderLine;
 
 import '../../../core/services/logger_service.dart';
@@ -381,22 +382,10 @@ class SaleOrderLineCollectionService {
     List<SaleOrderLine> updatedLines,
     int lineId,
   ) {
-    // Check newLines first
-    try {
-      return newLines.firstWhere((l) => l.id == lineId);
-    } catch (_) {}
-
-    // Check updatedLines
-    try {
-      return updatedLines.firstWhere((l) => l.id == lineId);
-    } catch (_) {}
-
-    // Check original lines
-    try {
-      return originalLines.firstWhere((l) => l.id == lineId);
-    } catch (_) {}
-
-    return null;
+    // Check newLines first, then updatedLines, then original lines
+    return newLines.firstWhereOrNull((l) => l.id == lineId) ??
+        updatedLines.firstWhereOrNull((l) => l.id == lineId) ??
+        originalLines.firstWhereOrNull((l) => l.id == lineId);
   }
 
   /// Find a line by product ID
@@ -404,11 +393,7 @@ class SaleOrderLineCollectionService {
     List<SaleOrderLine> visibleLines,
     int productId,
   ) {
-    try {
-      return visibleLines.firstWhere((l) => l.productId == productId);
-    } catch (_) {
-      return null;
-    }
+    return visibleLines.firstWhereOrNull((l) => l.productId == productId);
   }
 
   /// Check if a product already exists in the lines

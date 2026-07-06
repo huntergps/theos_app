@@ -285,18 +285,24 @@ class OrderCache extends _$OrderCache {
 // ============================================================================
 
 /// Get a specific order from cache (reactive)
+///
+/// NOTA: NO observamos `state.version` acá — ese watch forzaba un rebuild de
+/// ESTE provider (y de todo widget que lo escuche) ante CUALQUIER cambio de
+/// CUALQUIER orden en el caché, anulando el propósito del `.select()` sobre
+/// `orders[orderId]`. Con múltiples pestañas abiertas en FastSale, editar una
+/// línea de la pestaña A recomputaba el provider de todas las demás órdenes
+/// cacheadas. El `.select()` sobre `orders[orderId]` ya dispara el rebuild
+/// correcto por igualdad estructural de Freezed cuando ESA orden cambia.
 @Riverpod(keepAlive: true)
 SaleOrder? cachedOrder(Ref ref, int orderId) {
-  // Watch version to ensure rebuilds on any change
-  ref.watch(orderCacheProvider.select((s) => s.version));
   return ref.watch(orderCacheProvider.select((s) => s.orders[orderId]));
 }
 
 /// Get lines for a specific order from cache (reactive)
+///
+/// Mismo fix que [cachedOrder]: no observamos `state.version` global.
 @Riverpod(keepAlive: true)
 List<SaleOrderLine> cachedOrderLines(Ref ref, int orderId) {
-  // Watch version to ensure rebuilds on any change
-  ref.watch(orderCacheProvider.select((s) => s.version));
   return ref.watch(
         orderCacheProvider.select((s) => s.orderLines[orderId]),
       ) ??

@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:theos_pos_core/theos_pos_core.dart'
     show CollectionSession, SessionState, SessionStateExtension;
 
+import '../../../core/constants/app_colors.dart';
 import '../../../core/services/logger_service.dart';
 import '../../../core/services/odoo_service.dart';
 import '../../../core/theme/spacing.dart';
@@ -114,18 +115,18 @@ class _SessionValidationDialogState
               Container(
                 padding: const EdgeInsets.all(Spacing.sm),
                 decoration: BoxDecoration(
-                  color: Colors.red.withValues(alpha: 0.1),
+                  color: AppColors.danger.withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(6),
-                  border: Border.all(color: Colors.red.withValues(alpha: 0.3)),
+                  border: Border.all(color: AppColors.danger.withValues(alpha: 0.3)),
                 ),
                 child: Row(
                   children: [
-                    Icon(FluentIcons.error, size: 16, color: Colors.red),
+                    Icon(FluentIcons.error, size: 16, color: AppColors.danger),
                     const SizedBox(width: Spacing.xs),
                     Expanded(
                       child: Text(
                         _errorMessage!,
-                        style: theme.typography.body?.copyWith(color: Colors.red),
+                        style: theme.typography.body?.copyWith(color: AppColors.danger),
                       ),
                     ),
                   ],
@@ -189,13 +190,13 @@ class _SessionValidationDialogState
       padding: const EdgeInsets.all(Spacing.sm),
       decoration: BoxDecoration(
         color: hasDifference
-            ? Colors.orange.withValues(alpha: 0.1)
-            : Colors.green.withValues(alpha: 0.1),
+            ? AppColors.warning.withValues(alpha: 0.1)
+            : AppColors.success.withValues(alpha: 0.1),
         borderRadius: BorderRadius.circular(8),
         border: Border.all(
           color: hasDifference
-              ? Colors.orange.withValues(alpha: 0.3)
-              : Colors.green.withValues(alpha: 0.3),
+              ? AppColors.warning.withValues(alpha: 0.3)
+              : AppColors.success.withValues(alpha: 0.3),
         ),
       ),
       child: Column(
@@ -206,13 +207,13 @@ class _SessionValidationDialogState
               Icon(
                 FluentIcons.money,
                 size: 16,
-                color: hasDifference ? Colors.orange : Colors.green,
+                color: hasDifference ? AppColors.warning : AppColors.success,
               ),
               const SizedBox(width: Spacing.xs),
               Text(
                 'Resumen de Efectivo',
                 style: theme.typography.bodyStrong?.copyWith(
-                  color: hasDifference ? Colors.orange : Colors.green,
+                  color: hasDifference ? AppColors.warning : AppColors.success,
                 ),
               ),
             ],
@@ -241,7 +242,7 @@ class _SessionValidationDialogState
               theme,
               'Diferencia',
               difference.toCurrency(),
-              valueColor: Colors.orange,
+              valueColor: AppColors.warning,
               bold: true,
             ),
           ],
@@ -318,14 +319,14 @@ class _SessionValidationDialogState
     return Container(
       padding: const EdgeInsets.all(Spacing.sm),
       decoration: BoxDecoration(
-        color: Colors.orange.withValues(alpha: 0.1),
+        color: AppColors.warning.withValues(alpha: 0.1),
         borderRadius: BorderRadius.circular(6),
-        border: Border.all(color: Colors.orange.withValues(alpha: 0.3)),
+        border: Border.all(color: AppColors.warning.withValues(alpha: 0.3)),
       ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(FluentIcons.warning, size: 20, color: Colors.orange),
+          Icon(FluentIcons.warning, size: 20, color: AppColors.warning),
           const SizedBox(width: Spacing.sm),
           Expanded(
             child: Column(
@@ -334,7 +335,7 @@ class _SessionValidationDialogState
                 Text(
                   isPositive ? 'Sobrante de efectivo' : 'Faltante de efectivo',
                   style: theme.typography.bodyStrong?.copyWith(
-                    color: Colors.orange,
+                    color: AppColors.warning,
                   ),
                 ),
                 Text(
@@ -342,7 +343,7 @@ class _SessionValidationDialogState
                       ? 'El efectivo contado es mayor al esperado. Se creará un asiento de ajuste.'
                       : 'El efectivo contado es menor al esperado. Se creará un asiento de ajuste.',
                   style: theme.typography.caption?.copyWith(
-                    color: Colors.orange,
+                    color: AppColors.warning,
                   ),
                 ),
               ],
@@ -378,11 +379,11 @@ class _SessionValidationDialogState
   Color _getStateColor(SessionState state) {
     switch (state) {
       case SessionState.openingControl:
-        return Colors.grey;
+        return AppColors.textSecondary;
       case SessionState.opened:
-        return Colors.green;
+        return AppColors.success;
       case SessionState.closingControl:
-        return Colors.orange;
+        return AppColors.warning;
       case SessionState.closed:
         return Colors.blue;
     }
@@ -397,16 +398,29 @@ class _SessionValidationDialogState
     try {
       final odoo = ref.read(odooServiceProvider);
 
-      // Call Odoo to validate and close session
+      // action_session_validate(self) no acepta parametros (ver
+      // l10n_ec_collection_box/models/collection_session.py) — las notas del
+      // supervisor son un campo normal del modelo (supervisor_notes), asi
+      // que se guardan con write() ANTES de validar. Antes esto se enviaba
+      // como args:[id] + kwargs:{supervisor_notes:...}, lo cual siempre
+      // fallaba con HTTP 422 porque el dispatcher JSON-2 no trata "args"
+      // como posicionales (ver OdooClient.call).
+      if (_notesController.text.isNotEmpty) {
+        await odoo.call(
+          model: 'collection.session',
+          method: 'write',
+          kwargs: {
+            'ids': [widget.session.id],
+            'vals': {'supervisor_notes': _notesController.text},
+          },
+        );
+      }
+
+      // Call Odoo to validate and close session (metodo de recordset: usa ids)
       await odoo.call(
         model: 'collection.session',
         method: 'action_session_validate',
-        args: [widget.session.id],
-        kwargs: {
-          'supervisor_notes': _notesController.text.isNotEmpty
-              ? _notesController.text
-              : null,
-        },
+        ids: [widget.session.id],
       );
 
       logger.i('[SessionValidation]',

@@ -5,6 +5,7 @@ import 'package:intl/intl.dart';
 import 'package:theos_pos_core/theos_pos_core.dart'
     show CollectionSession, CollectionSessionCash, SessionState, CashType;
 
+import '../../../../core/constants/app_colors.dart';
 import '../../../../core/database/providers.dart';
 import '../../../../core/services/config_service.dart';
 import '../../../../core/services/logger_service.dart';
@@ -90,15 +91,15 @@ class _CollectionSessionScreenState
       return const ScaffoldPage(content: Center(child: ProgressRing()));
     }
 
-    // Manejar error sin sesion
+    // Manejar error sin sesión
     if (sessionState.hasError && sessionState.session == null) {
       return _buildErrorScreen(context, sessionState.errorMessage!);
     }
 
-    // Obtener la sesion a mostrar
+    // Obtener la sesión a mostrar
     CollectionSession? session = sessionState.session;
 
-    // Fallback a currentSession si la sesion del estado es null
+    // Fallback a currentSession si la sesión del estado es null
     if (session == null && currentSession != null) {
       if (currentSession.id == widget.sessionId ||
           (widget.sessionId < 0 && !currentSession.isSynced)) {
@@ -214,9 +215,12 @@ class _CollectionSessionScreenState
 
     return ScaffoldPage(
       header: PageHeader(
-        leading: IconButton(
-          icon: const Icon(FluentIcons.back),
-          onPressed: () => context.go('/collection'),
+        leading: Tooltip(
+          message: 'Volver',
+          child: IconButton(
+            icon: const Icon(FluentIcons.back),
+            onPressed: () => context.go('/collection'),
+          ),
         ),
         title: const Text('Error'),
       ),
@@ -224,9 +228,9 @@ class _CollectionSessionScreenState
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(FluentIcons.error, size: 48, color: Colors.red),
+            Icon(FluentIcons.error, size: 48, color: AppColors.danger),
             const SizedBox(height: 16),
-            Text('Error al cargar la sesion: $error'),
+            Text('Error al cargar la sesión: $error'),
             const SizedBox(height: 16),
             const ProgressRing(),
           ],
@@ -235,15 +239,18 @@ class _CollectionSessionScreenState
     );
   }
 
-  /// Construye la pantalla de sesion no encontrada
+  /// Construye la pantalla de sesión no encontrada
   Widget _buildNotFoundScreen(BuildContext context) {
     return ScaffoldPage(
       header: PageHeader(
-        leading: IconButton(
-          icon: const Icon(FluentIcons.back),
-          onPressed: () => context.go('/collection'),
+        leading: Tooltip(
+          message: 'Volver',
+          child: IconButton(
+            icon: const Icon(FluentIcons.back),
+            onPressed: () => context.go('/collection'),
+          ),
         ),
-        title: const Text('Sesion no encontrada'),
+        title: const Text('Sesión no encontrada'),
       ),
       content: const Center(
         child: Column(
@@ -251,7 +258,7 @@ class _CollectionSessionScreenState
           children: [
             Icon(FluentIcons.error, size: 48),
             SizedBox(height: 16),
-            Text('La sesion fue eliminada o no existe'),
+            Text('La sesión fue eliminada o no existe'),
             SizedBox(height: 16),
             ProgressRing(),
           ],
@@ -260,17 +267,17 @@ class _CollectionSessionScreenState
     );
   }
 
-  /// Construye la pantalla de redireccion despues de sincronizar
+  /// Construye la pantalla de redirección después de sincronizar
   Widget _buildSyncingRedirectScreen(BuildContext context) {
     return ScaffoldPage(
-      header: PageHeader(title: Text('Actualizando sesion...')),
+      header: PageHeader(title: Text('Actualizando sesión...')),
       content: const Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             ProgressRing(),
             SizedBox(height: 16),
-            Text('Sesion sincronizada, actualizando...'),
+            Text('Sesión sincronizada, actualizando...'),
           ],
         ),
       ),
@@ -315,9 +322,12 @@ class _CollectionSessionScreenState
     CollectionSessionScreenState sessionState,
   ) {
     return PageHeader(
-      leading: IconButton(
-        icon: const Icon(FluentIcons.back),
-        onPressed: () => context.go('/collection'),
+      leading: Tooltip(
+        message: 'Volver',
+        child: IconButton(
+          icon: const Icon(FluentIcons.back),
+          onPressed: () => context.go('/collection'),
+        ),
       ),
       title: Row(
         children: [
@@ -415,7 +425,7 @@ class _CollectionSessionScreenState
                   child: ProgressRing(strokeWidth: 2),
                 )
               : const Icon(FluentIcons.completed),
-          label: const Text('Cerrar Sesion'),
+          label: const Text('Cerrar Sesión'),
           onPressed: sessionState.isProcessing
               ? null
               : () => _handleCloseSession(session),
@@ -499,7 +509,7 @@ class _CollectionSessionScreenState
       final configs = await ref.read(collectionConfigsProvider.future);
       final config = configs.firstWhere(
         (c) => c.id == session.configId,
-        orElse: () => throw Exception('Configuracion no encontrada'),
+        orElse: () => throw Exception('Configuración no encontrada'),
       );
 
       final notifier = ref.read(collectionSessionProvider.notifier);
@@ -518,7 +528,7 @@ class _CollectionSessionScreenState
       return false;
     } catch (e) {
       logger.e(_tag, 'Error getting config for sync', e);
-      _showErrorMessage('No se pudo obtener la configuracion: $e');
+      _showErrorMessage('No se pudo obtener la configuración: $e');
       return false;
     }
   }
@@ -617,7 +627,37 @@ class _CollectionSessionScreenState
   Future<void> _handleCloseSession(CollectionSession session) async {
     logger.d(_tag, 'Close session triggered');
 
-    // Paso 1: Confirmación básica
+    // Paso 1: Verificar si hay efectivo de cierre registrado
+    if (session.state == SessionState.opened ||
+        session.state == SessionState.closingControl) {
+      final notifier = ref.read(collectionSessionProvider.notifier);
+      final closingCash = await notifier.getExistingCashDetails(CashType.closing);
+
+      if (closingCash == null && mounted) {
+        // No se ha registrado efectivo de cierre — advertir al supervisor
+        final decision = await showDialog<_CloseWithoutCountDecision>(
+          context: context,
+          barrierDismissible: false,
+          builder: (context) => _NoClosingCashDialog(session: session),
+        );
+
+        if (!mounted) return;
+
+        if (decision == null) {
+          // El usuario cerró el diálogo sin elegir
+          return;
+        } else if (decision == _CloseWithoutCountDecision.registerCash) {
+          // Abrir flujo de registro de efectivo de cierre
+          await _handleRegisterClosingCash(session);
+          return;
+        }
+        // decision == continueWithoutCount → continúa hacia la confirmación normal
+      }
+    }
+
+    if (!mounted) return;
+
+    // Paso 2: Confirmación básica
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => CloseSessionConfirmDialog(session: session),
@@ -789,7 +829,7 @@ class _EfectivoTabState extends State<_EfectivoTab> {
               context,
               icon: FluentIcons.money,
               title: 'Retiros de Efectivo',
-              iconColor: Colors.red,
+              iconColor: AppColors.danger,
               count: cashOutCount,
             ),
             content: SizedBox(
@@ -902,7 +942,7 @@ class _CobrosTabState extends State<_CobrosTab> {
             header: _buildSectionHeader(
               context,
               icon: FluentIcons.bank,
-              title: 'Depositos Bancarios',
+              title: 'Depósitos Bancarios',
               iconColor: Colors.purple,
               count: depositCount,
             ),
@@ -973,6 +1013,94 @@ class _DocumentosNotasTabState extends State<_DocumentosNotasTab> {
           ),
         ],
       ),
+    );
+  }
+}
+
+// ============================================================================
+// ENUM Y DIALOGO PARA CIERRE SIN CONTEO DE EFECTIVO (FIX 1)
+// ============================================================================
+
+/// Decisión del supervisor cuando intenta cerrar sin haber registrado
+/// el efectivo de cierre.
+enum _CloseWithoutCountDecision {
+  /// Ir a registrar el efectivo de cierre antes de continuar
+  registerCash,
+
+  /// Cerrar la sesión de todas formas, sin conteo
+  continueWithoutCount,
+}
+
+/// Diálogo de advertencia que aparece cuando el supervisor intenta cerrar
+/// la sesión sin haber registrado el efectivo de cierre.
+///
+/// Opciones:
+///   • "Registrar efectivo" → abre [CashCountDialog] de tipo cierre
+///   • "Cerrar sin conteo"  → continúa hacia la confirmación de cierre normal
+class _NoClosingCashDialog extends StatelessWidget {
+  final CollectionSession session;
+
+  const _NoClosingCashDialog({required this.session});
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = FluentTheme.of(context);
+
+    return ContentDialog(
+      constraints: const BoxConstraints(maxWidth: 480),
+      title: Row(
+        children: [
+          Icon(FluentIcons.warning, color: AppColors.warning),
+          const SizedBox(width: 10),
+          const Expanded(child: Text('Efectivo de cierre no registrado')),
+        ],
+      ),
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Aún no registras el efectivo de cierre para la sesión '
+            '"${session.name}".',
+            style: theme.typography.body,
+          ),
+          const SizedBox(height: 8),
+          InfoBar(
+            title: const Text('Recomendación'),
+            content: const Text(
+              'Registrar el conteo de efectivo antes de cerrar evita '
+              'descuadres en el balance de caja.',
+            ),
+            severity: InfoBarSeverity.warning,
+          ),
+          const SizedBox(height: 12),
+          Text(
+            '¿Cómo deseas continuar?',
+            style: theme.typography.bodyStrong,
+          ),
+        ],
+      ),
+      actions: [
+        // Opción 1: Ir a registrar el efectivo
+        FilledButton(
+          onPressed: () => Navigator.of(context).pop(
+            _CloseWithoutCountDecision.registerCash,
+          ),
+          child: const Text('Registrar efectivo'),
+        ),
+        // Opción 2: Cerrar sin conteo (acción secundaria / menos prominente)
+        Button(
+          onPressed: () => Navigator.of(context).pop(
+            _CloseWithoutCountDecision.continueWithoutCount,
+          ),
+          child: const Text('Cerrar sin conteo'),
+        ),
+        // Cancelar todo
+        Button(
+          onPressed: () => Navigator.of(context).pop(null),
+          child: const Text('Cancelar'),
+        ),
+      ],
     );
   }
 }

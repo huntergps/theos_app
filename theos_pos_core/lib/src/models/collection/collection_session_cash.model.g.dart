@@ -98,8 +98,12 @@ class CollectionSessionCashManager
     'notes',
   ];
 
-  @override
-  CollectionSessionCash fromOdoo(Map<String, dynamic> data) {
+  /// Versión estática pura de [fromOdoo] — no referencia `this` ni
+  /// estado de instancia (OdooClient, GeneratedDatabase), solo [data].
+  /// Por eso su tear-off (`CollectionSessionCashManager.fromOdooMap`) es transferible a
+  /// `Isolate.run()`, a diferencia del tear-off del método de instancia
+  /// [fromOdoo] (que arrastra el manager completo, no transferible).
+  static CollectionSessionCash fromOdooMap(Map<String, dynamic> data) {
     return CollectionSessionCash(
       id: data['id'] as int? ?? 0,
       isSynced: false,
@@ -123,6 +127,10 @@ class CollectionSessionCashManager
       notes: parseOdooString(data['notes']),
     );
   }
+
+  @override
+  CollectionSessionCash fromOdoo(Map<String, dynamic> data) =>
+      fromOdooMap(data);
 
   @override
   Map<String, dynamic> toOdoo(CollectionSessionCash record) {
@@ -261,18 +269,18 @@ class CollectionSessionCashManager
       'odoo_id': Variable<int>(record.id),
       'collection_session_id': driftVar<int>(record.collectionSessionId),
       'cash_type': Variable<String>(record.cashType.name),
-      'bills_100': Variable<int>(record.bills100),
-      'bills_50': Variable<int>(record.bills50),
-      'bills_20': Variable<int>(record.bills20),
-      'bills_10': Variable<int>(record.bills10),
-      'bills_5': Variable<int>(record.bills5),
-      'bills_1': Variable<int>(record.bills1),
-      'coins_1': Variable<int>(record.coins1),
-      'coins_50': Variable<int>(record.coins50),
-      'coins_25': Variable<int>(record.coins25),
-      'coins_10': Variable<int>(record.coins10),
-      'coins_5': Variable<int>(record.coins5),
-      'coins_1_cent': Variable<int>(record.coins1Cent),
+      'bills100': Variable<int>(record.bills100),
+      'bills50': Variable<int>(record.bills50),
+      'bills20': Variable<int>(record.bills20),
+      'bills10': Variable<int>(record.bills10),
+      'bills5': Variable<int>(record.bills5),
+      'bills1': Variable<int>(record.bills1),
+      'coins1': Variable<int>(record.coins1),
+      'coins50': Variable<int>(record.coins50),
+      'coins25': Variable<int>(record.coins25),
+      'coins10': Variable<int>(record.coins10),
+      'coins5': Variable<int>(record.coins5),
+      'coins1_cent': Variable<int>(record.coins1Cent),
       'notes': driftVar<String>(record.notes),
       'is_synced': Variable<bool>(record.isSynced),
       'last_sync_date': driftVar<DateTime>(record.lastSyncDate),

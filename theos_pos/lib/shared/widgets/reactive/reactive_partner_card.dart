@@ -236,8 +236,9 @@ class _ReactivePartnerCardState extends ConsumerState<ReactivePartnerCard> {
           margin: EdgeInsets.only(right: spacing.ms),
           decoration: BoxDecoration(
             color: theme.resources.controlFillColorSecondary,
-            border:
-                Border.all(color: theme.resources.surfaceStrokeColorDefault),
+            border: Border.all(
+              color: theme.resources.surfaceStrokeColorDefault,
+            ),
           ),
           child: ClipRRect(
             child: SvgPicture.memory(
@@ -402,14 +403,20 @@ class _PartnerNameRow extends StatelessWidget {
           ),
         ),
         if (isEditing) ...[
-          IconButton(
-            icon: const Icon(FluentIcons.search, size: 14),
-            onPressed: onSelect,
+          Tooltip(
+            message: 'Buscar cliente',
+            child: IconButton(
+              icon: const Icon(FluentIcons.search, size: 14),
+              onPressed: onSelect,
+            ),
           ),
           if (onCreate != null)
-            IconButton(
-              icon: const Icon(FluentIcons.add, size: 14),
-              onPressed: onCreate,
+            Tooltip(
+              message: 'Crear cliente',
+              child: IconButton(
+                icon: const Icon(FluentIcons.add, size: 14),
+                onPressed: onCreate,
+              ),
             ),
         ],
       ],
@@ -621,13 +628,19 @@ class _PhoneRowState extends State<_PhoneRow> {
               onSubmitted: (_) => _saveAndClose(),
             ),
           ),
-          IconButton(
-            icon: Icon(FluentIcons.check_mark, size: 14, color: Colors.green),
-            onPressed: _saveAndClose,
+          Tooltip(
+            message: 'Guardar',
+            child: IconButton(
+              icon: Icon(FluentIcons.check_mark, size: 14, color: Colors.green),
+              onPressed: _saveAndClose,
+            ),
           ),
-          IconButton(
-            icon: Icon(FluentIcons.cancel, size: 14, color: Colors.red),
-            onPressed: _cancel,
+          Tooltip(
+            message: 'Cancelar',
+            child: IconButton(
+              icon: Icon(FluentIcons.cancel, size: 14, color: Colors.red),
+              onPressed: _cancel,
+            ),
           ),
         ],
       );
@@ -745,13 +758,19 @@ class _EmailRowState extends State<_EmailRow> {
               onSubmitted: (_) => _saveAndClose(),
             ),
           ),
-          IconButton(
-            icon: Icon(FluentIcons.check_mark, size: 14, color: Colors.green),
-            onPressed: _saveAndClose,
+          Tooltip(
+            message: 'Guardar',
+            child: IconButton(
+              icon: Icon(FluentIcons.check_mark, size: 14, color: Colors.green),
+              onPressed: _saveAndClose,
+            ),
           ),
-          IconButton(
-            icon: Icon(FluentIcons.cancel, size: 14, color: Colors.red),
-            onPressed: _cancel,
+          Tooltip(
+            message: 'Cancelar',
+            child: IconButton(
+              icon: Icon(FluentIcons.cancel, size: 14, color: Colors.red),
+              onPressed: _cancel,
+            ),
           ),
         ],
       );

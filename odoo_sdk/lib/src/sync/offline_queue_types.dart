@@ -161,4 +161,27 @@ abstract class OfflineQueueStore {
     String model,
     int recordId,
   );
+
+  /// Mark an operation as 'processing' to prevent double-execution.
+  ///
+  /// Call this BEFORE dispatching the operation to the handler. The startup
+  /// recovery in database.dart resets any 'processing' rows back to 'pending'
+  /// on app start, so orphaned rows self-heal after a crash or force-quit.
+  ///
+  /// IMPORTANTE: para que esta marca realmente prevenga doble-ejecución, los
+  /// métodos de lectura (getPendingOperations, getOperationsForModel, etc.)
+  /// DEBEN excluir las filas en estado 'processing'. Ver implementación en
+  /// theos_pos_core/lib/src/database/datasources/offline_queue_datasource.dart.
+  Future<void> markOperationProcessing(int id);
+
+  /// Revierte una operación de 'processing' de vuelta a 'pending' SIN tocar
+  /// retryCount/nextRetryAt/lastError.
+  ///
+  /// Se usa cuando una operación termina en un estado que la mantiene en la
+  /// cola pero que NO debe contar como un intento fallido (conflicto sin
+  /// remover, skip sin remover). A diferencia de [markOperationFailed], esto
+  /// no programa backoff ni incrementa el contador de reintentos — la
+  /// operación vuelve a estar disponible de inmediato para
+  /// [getPendingOperations] en el siguiente ciclo.
+  Future<void> markOperationPending(int id);
 }

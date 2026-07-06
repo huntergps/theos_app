@@ -253,7 +253,7 @@ class LayoutUtils {
                   style: theme.typography.subtitle,
                 ),
               ),
-              if (actions != null) ...actions,
+              ...?actions,
             ],
           ),
           const SizedBox(height: 12),

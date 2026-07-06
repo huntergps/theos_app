@@ -76,8 +76,19 @@ class WebSocketChannelManager {
     }
   }
 
-  /// Clears all subscribed channels.
-  void clear() {
+  /// Clears subscribed channels.
+  ///
+  /// By default clears both [subscribedChannels] AND [additionalChannels]
+  /// so that after a server-switch the stale channels are not re-subscribed
+  /// to the new server.
+  ///
+  /// Pass [clearAdditional: false] when the disconnect is a transient network
+  /// drop on the *same* server and you want to keep the extra subscriptions so
+  /// they are reinstated automatically on reconnect.
+  void clear({bool clearAdditional = true}) {
     subscribedChannels.clear();
+    if (clearAdditional) {
+      additionalChannels.clear();
+    }
   }
 }

@@ -71,8 +71,10 @@ extension SalesRepositoryWithhold on SalesRepository {
     // 4. If online, sync deletion immediately
     if (isOnline) {
       try {
-        final success = await _odooClient!.unlink(
-          model: 'sale.order.withhold.line',
+        // F6: @OdooModel de WithholdLine ya corregido — usa
+        // withholdLineManager.odooModel directamente.
+        final success = await withholdLineManager.client.unlink(
+          model: withholdLineManager.odooModel,
           ids: [lineOdooId],
         );
         if (success) {
@@ -189,8 +191,8 @@ extension SalesRepositoryWithhold on SalesRepository {
       // 2. If online, sync immediately
       if (isOnline) {
         try {
-          final result = await _odooClient!.create(
-            model: 'sale.order.withhold.line',
+          final result = await withholdLineManager.client.create(
+            model: withholdLineManager.odooModel,
             values: {
               'sale_id': orderId,
               'tax_id': values['tax_id'],
@@ -322,8 +324,10 @@ extension SalesRepositoryWithhold on SalesRepository {
     // 4. If online, sync deletion immediately
     if (isOnline) {
       try {
-        final success = await _odooClient!.unlink(
-          model: 'l10n_ec_collection_box.sale.order.payment',
+        // F6: @OdooModel de PaymentLine ya corregido — usa
+        // paymentLineManager.odooModel directamente.
+        final success = await paymentLineManager.client.unlink(
+          model: paymentLineManager.odooModel,
           ids: [lineOdooId],
         );
         if (success) {
@@ -465,8 +469,18 @@ extension SalesRepositoryWithhold on SalesRepository {
           if (values['lote_id'] != null) {
             odooValues['lote_id'] = values['lote_id'];
           }
-          if (values['bank_id'] != null) {
-            odooValues['bank_id'] = values['bank_id'];
+          // FIX 4: bank_id solo existe en Odoo 19.1. En 19.2 usar bank_name_ec.
+          final client = paymentLineManager.isOnline ? paymentLineManager.client : null;
+          if (client != null) {
+            if (client.version.hasBankModel) {
+              if (values['bank_id'] != null) {
+                odooValues['bank_id'] = values['bank_id'];
+              }
+            } else {
+              if (values['bank_name'] != null) {
+                odooValues['bank_name_ec'] = values['bank_name'];
+              }
+            }
           }
           if (values['partner_bank_id'] != null) {
             odooValues['partner_bank_id'] = values['partner_bank_id'];
@@ -482,8 +496,10 @@ extension SalesRepositoryWithhold on SalesRepository {
                 values['collection_session_id'];
           }
 
-          final result = await _odooClient!.create(
-            model: 'l10n_ec_collection_box.sale.order.payment',
+          // F6: @OdooModel de PaymentLine ya corregido — usa
+          // paymentLineManager.odooModel directamente.
+          final result = await paymentLineManager.client.create(
+            model: paymentLineManager.odooModel,
             values: odooValues,
           );
 

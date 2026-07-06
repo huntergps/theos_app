@@ -5,9 +5,19 @@ import 'package:test/test.dart';
 import 'package:odoo_sdk/odoo_sdk.dart';
 
 /// In-memory implementation of OfflineQueueStore for testing.
+///
+/// A diferencia de versiones anteriores, esta implementación SÍ respeta un
+/// status por operación ('pending' | 'processing'), igual que la tabla real
+/// `offline_queue` en SQLite. Esto permite escribir tests de concurrencia
+/// reales: dos `processQueue()` en paralelo no deben re-procesar la misma
+/// operación, exactamente el bug que se corrigió en
+/// OfflineQueueDataSource.getPendingOperations().
 class InMemoryQueueStore implements OfflineQueueStore {
   final List<OfflineOperation> _operations = [];
   int _nextId = 1;
+
+  // status por operación; default 'pending' (igual que la columna real).
+  final Map<int, String> _status = {};
 
   // Track method calls for verification
   final List<String> methodCalls = [];
@@ -37,6 +47,7 @@ class InMemoryQueueStore implements OfflineQueueStore {
       priority: priority,
       deviceId: deviceId,
     ));
+    _status[id] = 'pending';
     methodCalls.add('queueOperation:$id');
     return id;
   }
@@ -47,6 +58,7 @@ class InMemoryQueueStore implements OfflineQueueStore {
   }) async {
     methodCalls.add('getPendingOperations');
     return _operations
+        .where((op) => (_status[op.id] ?? 'pending') == 'pending')
         .where((op) => includeNotReady || op.isReadyForRetry)
         .toList()
       ..sort((a, b) => a.priority.compareTo(b.priority));
@@ -78,6 +90,7 @@ class InMemoryQueueStore implements OfflineQueueStore {
   Future<void> removeOperation(int id) async {
     methodCalls.add('removeOperation:$id');
     _operations.removeWhere((op) => op.id == id);
+    _status.remove(id);
   }
 
   @override
@@ -104,6 +117,9 @@ class InMemoryQueueStore implements OfflineQueueStore {
         lastError: errorMessage,
       );
     }
+    // Igual que en el datasource real: un fallo revierte 'processing' ->
+    // 'pending' para que la operación no quede escondida para siempre.
+    _status[id] = 'pending';
   }
 
   @override
@@ -154,14 +170,43 @@ class InMemoryQueueStore implements OfflineQueueStore {
         .toList();
   }
 
+  @override
+  Future<void> markOperationProcessing(int id) async {
+    methodCalls.add('markOperationProcessing:$id');
+    _status[id] = 'processing';
+  }
+
+  @override
+  Future<void> markOperationPending(int id) async {
+    methodCalls.add('markOperationPending:$id');
+    _status[id] = 'pending';
+  }
+
+  /// Simula la recuperación de huérfanos que hace `AppDatabase.beforeOpen`
+  /// en cada arranque de la app: cualquier fila que haya quedado en
+  /// 'processing' (ej. porque la app crasheó a mitad de un processQueue())
+  /// vuelve a 'pending'. Ver database.dart en theos_pos_core.
+  void simulateAppRestartRecovery() {
+    for (final id in _status.keys.toList()) {
+      if (_status[id] == 'processing') {
+        _status[id] = 'pending';
+      }
+    }
+  }
+
+  /// Status actual de una operación (para asserts en tests).
+  String? statusOf(int id) => _status[id];
+
   /// Helper to add operations directly for testing
   void addOperation(OfflineOperation op) {
     _operations.add(op);
+    _status[op.id] = 'pending';
   }
 
   /// Clear all operations
   void clear() {
     _operations.clear();
+    _status.clear();
     methodCalls.clear();
     failedOperations.clear();
     _nextId = 1;
@@ -492,6 +537,157 @@ void main() {
 
         processor.dispose();
       });
+    });
+
+    group('concurrency / double-dispatch protection', () {
+      test(
+        'two concurrent processQueue() calls do not double-process the same operation',
+        () async {
+          // Regresión del bug crítico: getPendingOperations() no filtraba
+          // por status, así que markOperationProcessing() no evitaba nada.
+          // Este test simula dos llamadas paralelas a processQueue() sobre
+          // el MISMO store (ej. dos instancias de OfflineSyncService, o
+          // ConnectivitySyncOrchestrator + WebSocket reconnection disparando
+          // sync al mismo tiempo) y verifica que cada operación se procese
+          // exactamente una vez.
+          await store.queueOperation(
+            model: 'sale.order',
+            method: 'create',
+            values: {'partner_id': 1},
+          );
+          await store.queueOperation(
+            model: 'res.partner',
+            method: 'create',
+            values: {'name': 'Cliente'},
+          );
+
+          final handlerCalls = <int>[];
+
+          final processorA = OfflineQueueProcessor(
+            queue: store,
+            handler: (op) async {
+              // Simula latencia de red: le da tiempo a la segunda llamada
+              // de tomar el snapshot de getPendingOperations() ANTES de
+              // que la primera termine y remueva la operación.
+              await Future.delayed(const Duration(milliseconds: 20));
+              handlerCalls.add(op.id);
+              return null;
+            },
+          );
+          final processorB = OfflineQueueProcessor(
+            queue: store,
+            handler: (op) async {
+              await Future.delayed(const Duration(milliseconds: 20));
+              handlerCalls.add(op.id);
+              return null;
+            },
+          );
+
+          final results = await Future.wait([
+            processorA.processQueue(),
+            processorB.processQueue(),
+          ]);
+
+          // Entre las dos llamadas, cada operación se procesó UNA sola vez.
+          expect(handlerCalls.length, equals(2));
+          expect(handlerCalls.toSet().length, equals(2));
+          expect(
+            results.map((r) => r.synced).reduce((a, b) => a + b),
+            equals(2),
+          );
+          expect(await store.getPendingCount(), equals(0));
+
+          processorA.dispose();
+          processorB.dispose();
+        },
+      );
+
+      test(
+        'a failed operation reverts to pending status (not stuck in processing)',
+        () async {
+          final id = await store.queueOperation(
+            model: 'sale.order',
+            method: 'create',
+            values: {},
+          );
+
+          var attempts = 0;
+          final processor = OfflineQueueProcessor(
+            queue: store,
+            handler: (op) async {
+              attempts++;
+              throw Exception('Network error');
+            },
+          );
+
+          await processor.processQueue();
+
+          // Tras el fallo, la operación debe quedar 'pending' de nuevo
+          // (no 'processing' para siempre) para que el próximo ciclo la
+          // reintente cuando nextRetryAt lo permita.
+          expect(store.statusOf(id), equals('pending'));
+          expect(attempts, equals(1));
+
+          processor.dispose();
+        },
+      );
+
+      test(
+        'a kept conflict reverts to pending status instead of staying processing',
+        () async {
+          final id = await store.queueOperation(
+            model: 'res.partner',
+            method: 'write',
+            recordId: 1,
+            values: {},
+          );
+
+          final processor = OfflineQueueProcessor(
+            queue: store,
+            handler: (op) async => ConflictInfo(
+              operationId: op.id,
+              model: op.model,
+              recordId: op.recordId,
+              localWriteDate: DateTime.now(),
+              serverWriteDate: DateTime.now(),
+              localValues: {},
+            ),
+            removeOnConflict: false,
+          );
+
+          await processor.processQueue();
+
+          expect(store.statusOf(id), equals('pending'));
+
+          processor.dispose();
+        },
+      );
+
+      test(
+        'orphaned processing operations become visible again after simulated app restart recovery',
+        () async {
+          // Simula el escenario de crash: una operación quedó marcada
+          // 'processing' porque la app murió a mitad de un processQueue().
+          final id = await store.queueOperation(
+            model: 'sale.order',
+            method: 'create',
+            values: {},
+          );
+          await store.markOperationProcessing(id);
+
+          // Mientras está 'processing', no debe aparecer como pendiente.
+          expect(await store.getPendingOperations(), isEmpty);
+
+          // AppDatabase.beforeOpen (database.dart) hace este mismo reset en
+          // cada apertura de la BD real; acá lo simulamos para el store en
+          // memoria.
+          store.simulateAppRestartRecovery();
+
+          final pending = await store.getPendingOperations();
+          expect(pending, hasLength(1));
+          expect(pending.first.id, equals(id));
+        },
+      );
     });
 
     group('progressStream', () {

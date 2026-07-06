@@ -4,6 +4,7 @@ import 'package:theos_pos_core/theos_pos_core.dart'
     hide DatabaseHelper, CreditIssue, PartnerBank;
 
 import '../../../../../core/constants/app_colors.dart';
+import '../../../../../core/services/platform/global_notification_service.dart';
 import '../../../../../core/theme/spacing.dart';
 import '../../../../../shared/utils/formatting_utils.dart';
 import '../fast_sale_providers.dart';
@@ -34,7 +35,7 @@ class ProductFavoritesGrid extends ConsumerWidget {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         // Barra de filtro por categorías
-        _CategoryFilterBar(),
+        const _CategoryFilterBar(),
 
         // Divisor
         Divider(
@@ -53,7 +54,7 @@ class ProductFavoritesGrid extends ConsumerWidget {
           child: isLoading
               ? const Center(child: ProgressRing())
               : products.isEmpty
-                  ? _EmptyProductsState()
+                  ? const _EmptyProductsState()
                   : _ProductGrid(
                       products: products,
                       canEdit: canEdit,
@@ -69,6 +70,8 @@ class ProductFavoritesGrid extends ConsumerWidget {
 // ============================================================================
 
 class _CategoryFilterBar extends ConsumerWidget {
+  const _CategoryFilterBar();
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final categories = ref.watch(favoriteFilterCategoriesProvider);
@@ -189,14 +192,14 @@ class _ProductGrid extends ConsumerWidget {
           product: product,
           canEdit: canEdit,
           onTap: canEdit
-              ? () => _addProduct(ref, product)
+              ? () => _addProduct(context, ref, product)
               : null,
         );
       },
     );
   }
 
-  void _addProduct(WidgetRef ref, Product product) {
+  void _addProduct(BuildContext context, WidgetRef ref, Product product) {
     ref.read(fastSaleProvider.notifier).addProduct(
           productId: product.id,
           productName: product.name,
@@ -207,6 +210,20 @@ class _ProductGrid extends ConsumerWidget {
           priceUnit: product.listPrice,
           taxIds:
               product.taxIdsList.isNotEmpty ? product.taxIdsList : null,
+        );
+
+    // Feedback breve para confirmar que el producto fue agregado y
+    // evitar que el cajero toque dos veces y duplique líneas.
+    final displayName = product.defaultCode != null && product.defaultCode!.isNotEmpty
+        ? '[${product.defaultCode}] ${product.name}'
+        : product.name;
+    ref
+        .read(globalNotificationProvider)
+        .showSuccess(
+          context,
+          title: 'Agregado',
+          message: displayName,
+          durationSeconds: 1,
         );
   }
 }
@@ -274,19 +291,20 @@ class _ProductCardState extends State<_ProductCard> {
             _isHovered = false;
             _isPressed = false;
           }),
-          child: AnimatedContainer(
-            duration: const Duration(milliseconds: 100),
-            constraints: const BoxConstraints(minHeight: 48),
-            decoration: BoxDecoration(
-              color: bgColor,
-              borderRadius: BorderRadius.circular(5),
-              border: Border(
-                left: BorderSide(color: accent, width: 3),
-                top: BorderSide(color: borderColor),
-                right: BorderSide(color: borderColor),
-                bottom: BorderSide(color: borderColor),
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(5),
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 100),
+              constraints: const BoxConstraints(minHeight: 48),
+              decoration: BoxDecoration(
+                color: bgColor,
+                border: Border(
+                  left: BorderSide(color: accent, width: 3),
+                  top: BorderSide(color: borderColor),
+                  right: BorderSide(color: borderColor),
+                  bottom: BorderSide(color: borderColor),
+                ),
               ),
-            ),
             child: Padding(
               padding: const EdgeInsets.fromLTRB(
                 Spacing.sm,
@@ -299,13 +317,23 @@ class _ProductCardState extends State<_ProductCard> {
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
                   // Nombre del producto (2 líneas máximo)
+                  //
+                  // Tamaño subido de 11 a 12px para mejorar legibilidad en
+                  // el grid táctil. Se retiró el código interno (que se
+                  // mostraba en 9px debajo del precio): en un grid de
+                  // "favoritos/frecuentes" pensado para toque rápido, el
+                  // cajero reconoce el producto por nombre, no por código
+                  // — mantenerlo solo apretaba las 3 líneas en una tarjeta
+                  // de 48px de alto. El código sigue disponible en las
+                  // pantallas de búsqueda/líneas de orden donde sí importa
+                  // para desambiguar variantes.
                   Text(
                     product.name,
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
                     style: theme.typography.caption?.copyWith(
                       fontWeight: FontWeight.w600,
-                      fontSize: 11,
+                      fontSize: 12,
                       height: 1.2,
                     ),
                   ),
@@ -319,20 +347,10 @@ class _ProductCardState extends State<_ProductCard> {
                       fontSize: 12,
                     ),
                   ),
-                  // Código interno (si disponible, en letra pequeña)
-                  if (product.hasDefaultCode)
-                    Text(
-                      product.defaultCode!,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: theme.typography.caption?.copyWith(
-                        color: theme.inactiveColor.withValues(alpha: 0.6),
-                        fontSize: 9,
-                      ),
-                    ),
                 ],
               ),
             ),
+          ),
           ),
         ),
       ),
@@ -345,16 +363,7 @@ class _ProductCardState extends State<_ProductCard> {
   /// (no colores aleatorios que cambiarían entre sesiones).
   static Color _categoryAccentColor(int? categId) {
     if (categId == null) return AppColors.primaryBackground;
-    const palette = [
-      Color(0xFF00A09D), // teal primario
-      Color(0xFF0078D4), // azul Fluent
-      Color(0xFF107C10), // verde
-      Color(0xFF8764B8), // púrpura
-      Color(0xFFCA5010), // naranja
-      Color(0xFF038387), // cyan
-      Color(0xFFB4009E), // magenta
-      Color(0xFF004E8C), // azul marino
-    ];
+    final palette = AppColors.favoriteCardPalette;
     return palette[categId % palette.length];
   }
 }
@@ -364,6 +373,8 @@ class _ProductCardState extends State<_ProductCard> {
 // ============================================================================
 
 class _EmptyProductsState extends StatelessWidget {
+  const _EmptyProductsState();
+
   @override
   Widget build(BuildContext context) {
     final theme = FluentTheme.of(context);

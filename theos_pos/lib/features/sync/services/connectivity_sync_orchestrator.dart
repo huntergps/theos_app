@@ -6,10 +6,13 @@ library;
 
 import 'dart:async';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:odoo_sdk/odoo_sdk.dart' show OdooConnectionEvent;
 
 import '../../../core/database/datasources/datasources.dart' show OfflineQueueDataSource;
 import '../../../core/services/logger_service.dart' show logger;
 import '../../../core/services/platform/server_connectivity_service.dart';
+import '../../../core/services/websocket/odoo_websocket_service.dart'
+    show odooWebSocketServiceProvider;
 import '../providers/offline_mode_providers.dart' show offlineModeConfigProvider;
 import '../providers/route_mode_provider.dart' show isRouteModeActiveProvider;
 import '../../../core/database/repositories/repository_providers.dart';
@@ -35,7 +38,20 @@ class ConnectivitySyncOrchestrator {
   final OfflineQueueDataSource? Function() _getOfflineQueue;
   final Future<void> Function() _syncCriticalData;
 
+  /// Stream de eventos de conexión del WebSocket (opcional).
+  ///
+  /// Fase B, tarea 3: antes, `OdooWebSocketService` solo LOGUEABA la
+  /// intención de "triggering offline sync" al reconectar
+  /// (odoo_websocket_service.dart, ver comentario histórico ahí) pero nunca
+  /// disparaba nada — el único catch-up real dependía de la ventana de
+  /// retención de `bus.bus` en Odoo (normalmente corta) más el chequeo de
+  /// salud HTTP por separado. Ahora este stream nos deja reaccionar
+  /// directamente al evento de reconexión del WS, sin pasar por
+  /// notification_provider.dart (que no debe tocarse — ver reglas de esta
+  /// fase).
+  final Stream<OdooConnectionEvent>? _webSocketEvents;
   StreamSubscription<ConnectivityStatus>? _statusSubscription;
+  StreamSubscription<OdooConnectionEvent>? _wsEventSubscription;
   Timer? _stabilityTimer;
 
   bool _isSyncing = false;
@@ -53,12 +69,14 @@ class ConnectivitySyncOrchestrator {
     required OfflineSyncService? Function() getOfflineSyncService,
     required OfflineQueueDataSource? Function() getOfflineQueue,
     required Future<void> Function() syncCriticalData,
+    Stream<OdooConnectionEvent>? webSocketReconnectionEvents,
   })  : _healthService = healthService,
         _isOfflineModeEnabledFn = isOfflineModeEnabled,
         _isRouteModeActiveFn = isRouteModeActive,
         _getOfflineSyncService = getOfflineSyncService,
         _getOfflineQueue = getOfflineQueue,
-        _syncCriticalData = syncCriticalData;
+        _syncCriticalData = syncCriticalData,
+        _webSocketEvents = webSocketReconnectionEvents;
 
   /// Initialize the orchestrator and start listening to connectivity changes
   void initialize() {
@@ -72,6 +90,44 @@ class ConnectivitySyncOrchestrator {
 
     // Listen to connectivity status changes
     _statusSubscription = _healthService.statusStream.listen(_onConnectivityChanged);
+
+    // Listen to WebSocket reconnection events (tarea 3, Fase B)
+    _wsEventSubscription = _webSocketEvents?.listen(_onWebSocketReconnected);
+  }
+
+  /// Reacciona a una reconexión exitosa del WebSocket disparando la MISMA
+  /// reconciliación que usa la recuperación por HTTP (cola offline +
+  /// incremental de catálogo) — ver [_scheduleRecoverySync].
+  ///
+  /// El WS puede reconectar antes, después, o al mismo tiempo que el health
+  /// check HTTP detecta la recuperación; reusar `_scheduleRecoverySync()`
+  /// (que cancela cualquier timer pendiente y reprograma) evita disparar la
+  /// reconciliación dos veces si ambas señales llegan casi juntas, y
+  /// `_performRecoverySync()` ya está protegido por `_isSyncing`.
+  void _onWebSocketReconnected(OdooConnectionEvent event) {
+    if (!event.isConnected || !event.isReconnection) return;
+
+    if (_isOfflineModeEnabledFn()) {
+      logger.d(
+        '[SyncOrchestrator]',
+        'WebSocket reconectado pero offline mode está activo - skip',
+      );
+      return;
+    }
+    if (_isRouteModeActiveFn?.call() == true) {
+      logger.d(
+        '[SyncOrchestrator]',
+        'WebSocket reconectado pero Modo Ruta está activo - skip',
+      );
+      return;
+    }
+
+    logger.i(
+      '[SyncOrchestrator]',
+      'WebSocket reconectado tras una caída — programando reconciliación '
+          '(cola offline + incremental de catálogo)...',
+    );
+    _scheduleRecoverySync();
   }
 
   /// Handle connectivity status changes
@@ -252,6 +308,7 @@ class ConnectivitySyncOrchestrator {
   void dispose() {
     _stabilityTimer?.cancel();
     _statusSubscription?.cancel();
+    _wsEventSubscription?.cancel();
     _isInitialized = false;
   }
 }
@@ -264,9 +321,13 @@ class ConnectivitySyncOrchestrator {
 final connectivitySyncOrchestratorProvider = Provider<ConnectivitySyncOrchestrator>((ref) {
   final healthService = ref.read(serverHealthServiceProvider);
   final syncNotifier = ref.read(syncProvider.notifier);
+  // Solo se usa para obtener el stream de eventos (no dispara connect/disconnect
+  // desde acá — la conexión WS la maneja main_screen.dart / notification_provider.dart).
+  final wsService = ref.read(odooWebSocketServiceProvider);
 
   final orchestrator = ConnectivitySyncOrchestrator(
     healthService: healthService,
+    webSocketReconnectionEvents: wsService.eventsOfType<OdooConnectionEvent>(),
     isOfflineModeEnabled: () {
       try {
         final offlineConfig = ref.read(offlineModeConfigProvider);

@@ -80,7 +80,10 @@ abstract class CollectionSessionDeposit with _$CollectionSessionDeposit {
     // ============ Relations ============
     @OdooMany2One('collection.session', odooName: 'collection_session_id') int? collectionSessionId,
     /// UUID of the parent session (for offline linking)
-    @OdooString(odooName: 'session_uuid') String? sessionUuid,
+    // Odoo 19.5 (erp1): 'session_uuid' ya no existe en
+    // collection.session.deposit del servidor (smoke fields_get, julio
+    // 2026) — a diferencia de collection.session, donde SÍ existe.
+    @OdooLocalOnly() String? sessionUuid,
     @OdooMany2One('res.users', odooName: 'user_id') int? userId,
     @OdooMany2OneName(sourceField: 'user_id') String? userName,
 
@@ -99,11 +102,19 @@ abstract class CollectionSessionDeposit with _$CollectionSessionDeposit {
     @OdooMany2One('account.journal', odooName: 'bank_journal_id') int? bankJournalId,
     @OdooMany2OneName(sourceField: 'bank_journal_id') String? bankJournalName,
     // Alias fields for table compatibility
-    @OdooMany2One('res.bank', odooName: 'bank_id') int? bankId,
-    @OdooMany2OneName(sourceField: 'bank_id') String? bankName,
+    // bank_id (Many2one res.bank) fue reemplazado por bank_name_ec (Char) en
+    // los modelos de pago l10n_ec — ver
+    // working/l10n_ec_collection_box/models/sale_order_payment.py. Se marca
+    // @OdooLocalOnly para evitar romper sync generico contra Odoo 19.2;
+    // resolver el campo correcto segun version del servidor si este modelo
+    // llega a sincronizarse con Odoo directamente.
+    @OdooLocalOnly() int? bankId,
+    @OdooLocalOnly() String? bankName,
 
     // ============ State & References ============
-    @OdooSelection() String? state,
+    // Odoo 19.5 (erp1): 'state' ya no existe en collection.session.deposit
+    // del servidor (smoke fields_get, julio 2026).
+    @OdooLocalOnly() String? state,
     @OdooDateTime(odooName: 'write_date') DateTime? writeDate,
     @OdooString(odooName: 'deposit_slip_number') String? depositSlipNumber,
     @OdooString(odooName: 'bank_reference') String? bankReference,

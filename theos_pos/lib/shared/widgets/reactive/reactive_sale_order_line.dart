@@ -244,13 +244,16 @@ class ReactiveSaleOrderLine extends ConsumerWidget {
             // Delete button
             if (isEditing && showDelete) ...[
               const SizedBox(width: 8),
-              IconButton(
-                icon: Icon(
-                  FluentIcons.delete,
-                  size: 16,
-                  color: Colors.red.light,
+              Tooltip(
+                message: 'Eliminar línea',
+                child: IconButton(
+                  icon: Icon(
+                    FluentIcons.delete,
+                    size: 16,
+                    color: Colors.red.light,
+                  ),
+                  onPressed: onDelete,
                 ),
-                onPressed: onDelete,
               ),
             ],
           ],

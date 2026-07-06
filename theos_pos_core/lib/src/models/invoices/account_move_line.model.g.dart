@@ -116,8 +116,12 @@ class AccountMoveLineManager extends OdooModelManager<AccountMoveLine>
     'collapse_prices',
   ];
 
-  @override
-  AccountMoveLine fromOdoo(Map<String, dynamic> data) {
+  /// Versión estática pura de [fromOdoo] — no referencia `this` ni
+  /// estado de instancia (OdooClient, GeneratedDatabase), solo [data].
+  /// Por eso su tear-off (`AccountMoveLineManager.fromOdooMap`) es transferible a
+  /// `Isolate.run()`, a diferencia del tear-off del método de instancia
+  /// [fromOdoo] (que arrastra el manager completo, no transferible).
+  static AccountMoveLine fromOdooMap(Map<String, dynamic> data) {
     return AccountMoveLine(
       id: data['id'] as int? ?? 0,
       moveId: extractMany2oneId(data['move_id']) ?? 0,
@@ -144,6 +148,9 @@ class AccountMoveLineManager extends OdooModelManager<AccountMoveLine>
       collapsePrices: parseOdooBool(data['collapse_prices']),
     );
   }
+
+  @override
+  AccountMoveLine fromOdoo(Map<String, dynamic> data) => fromOdooMap(data);
 
   @override
   Map<String, dynamic> toOdoo(AccountMoveLine record) {
@@ -284,18 +291,18 @@ class AccountMoveLineManager extends OdooModelManager<AccountMoveLine>
       'display_type': Variable<String>(record.displayType.name),
       'sequence': Variable<int>(record.sequence),
       'product_id': driftVar<int>(record.productId),
-      'product_id_name': driftVar<String>(record.productName),
+      'product_name': driftVar<String>(record.productName),
       'quantity': Variable<double>(record.quantity),
       'product_uom_id': driftVar<int>(record.productUomId),
-      'product_uom_id_name': driftVar<String>(record.productUomName),
+      'product_uom_name': driftVar<String>(record.productUomName),
       'price_unit': Variable<double>(record.priceUnit),
       'discount': Variable<double>(record.discount),
       'price_subtotal': Variable<double>(record.priceSubtotal),
       'price_total': Variable<double>(record.priceTotal),
       'tax_line_id': driftVar<int>(record.taxLineId),
-      'tax_line_id_name': driftVar<String>(record.taxLineName),
+      'tax_line_name': driftVar<String>(record.taxLineName),
       'account_id': driftVar<int>(record.accountId),
-      'account_id_name': driftVar<String>(record.accountName),
+      'account_name': driftVar<String>(record.accountName),
       'collapse_composition': Variable<bool>(record.collapseComposition),
       'collapse_prices': Variable<bool>(record.collapsePrices),
       'product_code': driftVar<String>(record.productCode),
