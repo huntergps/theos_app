@@ -1,7 +1,0 @@
-/// Browser Session Helper - Web
-///
-/// Re-exports from package for backward compatibility.
-library;
-
-export 'package:odoo_sdk/odoo_sdk.dart'
-    show BrowserSessionHelper;

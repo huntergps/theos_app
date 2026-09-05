@@ -4,73 +4,38 @@ part of 'sales_repository.dart';
 /// draft, lock/unlock, and offline state queueing.
 extension SalesRepositoryState on SalesRepository {
   Future<void> approve(int orderId) async {
-    // 1. Update local DB first (source of truth)
-    await _orderManager.updateSaleOrderState(
+    await _changeOrderState(
       orderId,
+      method: 'set_approved',
       state: 'approved',
       pendingConfirm: true,
     );
-    logger.d('[SalesRepo]', 'Order $orderId approved locally');
-
-    // 2. Try to sync to Odoo if online
-    if (_orderManager.isOnline) {
-      try {
-        await _orderManager.callCustomMethod<dynamic>(
-        'action_approve',
-        ids: [orderId],
-      );
-        await _orderManager.clearSaleOrderPendingConfirm(orderId);
-        logger.d('[SalesRepo]', 'Order $orderId approve synced to Odoo');
-        // Refresh order from Odoo
-        await getById(orderId, forceRefresh: true);
-      } catch (e) {
-        // Some Odoo installations don't have action_approve
-        // Queue for later sync
-        logger.w('[SalesRepo]', 'Approve sync failed, queuing: $e');
-        await _queueStateOperation(orderId, 'action_approve', 'approved');
-      }
-    } else {
-      // Offline - queue for later sync
-      await _queueStateOperation(orderId, 'action_approve', 'approved');
-    }
   }
 
   Future<void> confirm(int orderId) async {
-    // 1. Update local DB first (source of truth)
-    await _orderManager.updateSaleOrderState(
+    await _changeOrderState(
       orderId,
+      method: 'action_pos_confirm',
       state: 'sale',
       pendingConfirm: true,
     );
-    logger.d('[SalesRepo]', 'Order $orderId confirmed locally');
-
-    // 2. Try to sync to Odoo if online
-    if (_orderManager.isOnline) {
-      try {
-        await _orderManager.callCustomMethod<dynamic>(
-        'action_pos_confirm',
-        ids: [orderId],
-      );
-        await _orderManager.clearSaleOrderPendingConfirm(orderId);
-        logger.d('[SalesRepo]', 'Order $orderId confirm synced to Odoo');
-      } catch (e) {
-        logger.w('[SalesRepo]', 'Confirm sync failed, queuing: $e');
-        await _queueStateOperation(orderId, 'action_pos_confirm', 'sale');
-      }
-    } else {
-      await _queueStateOperation(orderId, 'action_pos_confirm', 'sale');
-    }
   }
 
   Future<PosConfirmResult> posConfirm(
     int orderId, {
     bool skipCreditCheck = false,
   }) async {
-    logger.d('[SalesRepository]', 'posConfirm: orderId=$orderId, skipCreditCheck=$skipCreditCheck');
+    logger.d(
+      '[SalesRepository]',
+      'posConfirm: orderId=$orderId, skipCreditCheck=$skipCreditCheck',
+    );
 
     // OFFLINE-FIRST: If no connection, use offline confirmation
     if (!_orderManager.isOnline) {
-      logger.d('[SalesRepository]', 'posConfirm: offline mode, using confirmOffline');
+      logger.d(
+        '[SalesRepository]',
+        'posConfirm: offline mode, using confirmOffline',
+      );
       final success = await confirmOffline(orderId);
       if (success) {
         final order = await _orderManager.getSaleOrder(orderId);
@@ -100,9 +65,46 @@ extension SalesRepositoryState on SalesRepository {
       logger.d('[SalesRepository]', 'posConfirm result: $result');
 
       if (result is Map<String, dynamic>) {
+        final approvalAction = readPendingSaleApprovalAction(
+          result,
+          orderId: orderId,
+        );
+        if (approvalAction != null) {
+          final context = approvalAction['context'];
+          final checkType = context is Map
+              ? context['default_check_type']
+              : null;
+          final message =
+              result['error'] as String? ??
+              'La venta necesita aprobación antes de confirmarse.';
+          final creditIssue =
+              approvalAction['res_model'] == 'credit.limit.exceeded.wizard' &&
+                  checkType is String
+              ? CreditIssue(
+                  approvalAction: approvalAction,
+                  type: checkType,
+                  message: message,
+                  partnerId: context['default_partner_id'] as int? ?? 0,
+                  partnerName: '',
+                  orderAmount: (context['default_transaction_amount'] as num?)
+                      ?.toDouble(),
+                  creditLimit: (context['default_current_credit_limit'] as num?)
+                      ?.toDouble(),
+                )
+              : null;
+          return PosConfirmResult(
+            success: false,
+            error: message,
+            orderId: orderId,
+            orderState: result['state'] as String,
+            approvalAction: approvalAction,
+            creditIssue: creditIssue,
+          );
+        }
         final success = result['success'] as bool? ?? false;
 
         if (success) {
+          requireConfirmedSaleResponse(result, orderId: orderId);
           // Refresh order to get new state
           await getById(orderId, forceRefresh: true);
           return PosConfirmResult(
@@ -134,18 +136,26 @@ extension SalesRepositoryState on SalesRepository {
         error: 'Respuesta inesperada del servidor',
       );
     } catch (e, stack) {
-      logger.e('[SalesRepository]', 'Error in posConfirm, trying offline', e, stack);
-      // On network error, try offline confirmation
-      final success = await confirmOffline(orderId);
-      if (success) {
-        final order = await _orderManager.getSaleOrder(orderId);
-        return PosConfirmResult(
-          success: true,
-          orderId: orderId,
-          orderName: order?.name,
-          orderState: 'sale',
-          confirmedOffline: true,
+      if (_isSalesTransportFailure(e)) {
+        logger.e(
+          '[SalesRepository]',
+          'Transport failed in posConfirm, trying offline',
+          e,
+          stack,
         );
+        final success = await confirmOffline(orderId);
+        if (success) {
+          final order = await _orderManager.getSaleOrder(orderId);
+          return PosConfirmResult(
+            success: true,
+            orderId: orderId,
+            orderName: order?.name,
+            orderState: 'sale',
+            confirmedOffline: true,
+          );
+        }
+      } else {
+        logger.e('[SalesRepository]', 'Server rejected posConfirm', e, stack);
       }
       return PosConfirmResult(success: false, error: 'Error al confirmar: $e');
     }
@@ -153,223 +163,226 @@ extension SalesRepositoryState on SalesRepository {
 
   Future<bool> confirmOffline(int orderId) async {
     try {
-      logger.d('[SalesRepository]', 'confirmOffline START for orderId=$orderId');
+      logger.d(
+        '[SalesRepository]',
+        'confirmOffline START for orderId=$orderId',
+      );
       // 1. Get current order to get UUID
       final order = await _orderManager.getSaleOrder(orderId);
-      logger.d('[SalesRepository]', 'getSaleOrder returned: ${order == null ? "NULL" : "order ${order.id}"}');
+      logger.d(
+        '[SalesRepository]',
+        'getSaleOrder returned: ${order == null ? "NULL" : "order ${order.id}"}',
+      );
       if (order == null) {
         logger.e('[SalesRepository]', 'Order $orderId not found locally');
         return false;
       }
-      logger.d('[SalesRepository]', 'confirmOffline: order found, orderUuid=${order.orderUuid}');
+      logger.d(
+        '[SalesRepository]',
+        'confirmOffline: order found, orderUuid=${order.orderUuid}',
+      );
 
-      // 2a. OFFLINE INVOICE GENERATION (SRI Ecuador)
-      // Use unified method to create invoice with AccountMove and lines
-      logger.d('[SalesRepository]', 'confirmOffline: creating offline invoice...');
-      try {
-        final offlineInvoice = await _createOfflineInvoiceWithAccountMove(
-          orderId: orderId,
-          order: order,
-        );
-
-        if (offlineInvoice != null) {
-          logger.d('[SalesRepository]', 'confirmOffline: invoice created = ${offlineInvoice.invoiceName}');
-
-          // Queue invoice sync
-          if (_offlineQueue != null) {
-            await _offlineQueue.queueOperation(
-              model: 'account.move',
-              method: 'invoice_create_offline',
-              recordId: orderId,
-              values: {
-                'order_local_id': orderId,
-                'order_uuid': order.orderUuid,
-                'access_key': offlineInvoice.accessKey,
-                'invoice_name': offlineInvoice.invoiceName,
-                'invoice_date': offlineInvoice.invoiceDate?.toIso8601String(),
-                'amount_total': order.amountTotal,
-              },
-              priority: OfflinePriority.high,
-              parentOrderId: orderId,
-            );
-          }
-        }
-      } catch (e) {
-        logger.w('[SalesRepository]', 'SRI invoice generation error (non-fatal): $e');
-        // Continue with confirmation - SRI invoice generation is optional
-      }
-
-      // 2. Update local state to 'sale' and mark pendingConfirm
-      logger.d('[SalesRepository]', 'confirmOffline: updating local state to sale...');
-      await _orderManager.updateSaleOrderState(
-        orderId,
+      await _persistStateSnapshotAndIntent(
+        order,
+        method: OfflineLocalCommand.orderConfirm.storageName,
         state: 'sale',
         pendingConfirm: true,
+        command: OfflineLocalCommand.orderConfirm,
       );
-      logger.d('[SalesRepository]', 'confirmOffline: local state updated');
-
-      // 3. Queue action_confirm for sync
-      logger.d('[SalesRepository]', 'confirmOffline: _offlineQueue is ${_offlineQueue == null ? "NULL" : "available"}');
-      if (_offlineQueue != null) {
-        logger.d('[SalesRepository]', 'confirmOffline: queueing operation...');
-        await _offlineQueue.queueOperation(
-          model: 'sale.order',
-          method: 'order_confirm',
-          recordId: order.id,
-          values: {'order_uuid': order.orderUuid, 'local_id': orderId},
-          priority: OfflinePriority.high,
-        );
-        logger.d(
-          '[SalesRepository]',
-          'Order $orderId confirmed offline, queued for sync',
-        );
-      }
 
       logger.d('[SalesRepository]', 'confirmOffline: returning TRUE');
       return true;
     } catch (e, stack) {
-      logger.e('[SalesRepository]', 'Error confirming order offline: $e', e, stack);
+      logger.e(
+        '[SalesRepository]',
+        'Error confirming order offline: $e',
+        e,
+        stack,
+      );
       return false;
     }
   }
 
   Future<void> cancel(int orderId) async {
-    // 1. Update local DB first (source of truth)
-    await _orderManager.updateSaleOrderState(orderId, state: 'cancel');
-    logger.d('[SalesRepo]', 'Order $orderId cancelled locally');
-
-    // 2. Try to sync to Odoo if online
-    if (_orderManager.isOnline) {
-      try {
-        await _orderManager.callCustomMethod<dynamic>(
-        'action_cancel',
-        ids: [orderId],
-      );
-        logger.d('[SalesRepo]', 'Order $orderId cancel synced to Odoo');
-      } catch (e) {
-        logger.w('[SalesRepo]', 'Cancel sync failed, queuing: $e');
-        await _queueStateOperation(orderId, 'action_cancel', 'cancel');
-      }
-    } else {
-      await _queueStateOperation(orderId, 'action_cancel', 'cancel');
-    }
+    await _changeOrderState(orderId, method: 'action_cancel', state: 'cancel');
   }
 
   Future<void> setToDraft(int orderId) async {
-    // 1. Update local DB first (source of truth)
-    await _orderManager.updateSaleOrderState(orderId, state: 'draft');
-    logger.d('[SalesRepo]', 'Order $orderId set to draft locally');
-
-    // 2. Try to sync to Odoo if online
-    if (_orderManager.isOnline) {
-      try {
-        await _orderManager.callCustomMethod<dynamic>(
-        'action_draft',
-        ids: [orderId],
-      );
-        logger.d('[SalesRepo]', 'Order $orderId setToDraft synced to Odoo');
-      } catch (e) {
-        logger.w('[SalesRepo]', 'SetToDraft sync failed, queuing: $e');
-        await _queueStateOperation(orderId, 'action_draft', 'draft');
-      }
-    } else {
-      await _queueStateOperation(orderId, 'action_draft', 'draft');
-    }
+    await _changeOrderState(orderId, method: 'action_draft', state: 'draft');
   }
 
   Future<void> lockOrder(int orderId) async {
-    // 1. Update local DB first (source of truth)
-    await _orderManager.updateSaleOrderLocked(orderId, locked: true, isSynced: false);
-    logger.d('[SalesRepo]', 'Order $orderId locked locally');
-
-    // 2. Try to sync to Odoo if online
-    if (_orderManager.isOnline) {
-      try {
-        await _orderManager.callCustomMethod<dynamic>(
-        'action_lock',
-        ids: [orderId],
-      );
-        // Mark as synced
-        await _orderManager.updateSaleOrderLocked(orderId, locked: true, isSynced: true);
-        logger.d('[SalesRepo]', 'Order $orderId lock synced to Odoo');
-      } catch (e) {
-        // Queue for later sync
-        logger.w('[SalesRepo]', 'Lock sync failed, queuing: $e');
-        await _queueLockOperation(orderId, true);
-      }
-    } else {
-      // Offline - queue for later
-      await _queueLockOperation(orderId, true);
-    }
+    await _changeOrderLock(orderId, locked: true);
   }
 
   Future<void> unlockOrder(int orderId) async {
-    // 1. Update local DB first (source of truth)
-    await _orderManager.updateSaleOrderLocked(orderId, locked: false, isSynced: false);
-    logger.d('[SalesRepo]', 'Order $orderId unlocked locally');
+    await _changeOrderLock(orderId, locked: false);
+  }
 
-    // 2. Try to sync to Odoo if online
-    if (_orderManager.isOnline) {
-      try {
-        await _orderManager.callCustomMethod<dynamic>(
-        'action_unlock',
+  Future<void> _changeOrderState(
+    int orderId, {
+    required String method,
+    required String state,
+    bool pendingConfirm = false,
+  }) async {
+    final order = await _orderManager.getSaleOrder(orderId);
+    if (order == null) throw StateError('Order $orderId not found locally');
+    final operationId = await _persistStateSnapshotAndIntent(
+      order,
+      method: method,
+      state: state,
+      pendingConfirm: pendingConfirm,
+    );
+    if (!_orderManager.isOnline || orderId <= 0) return;
+
+    try {
+      final response = await _orderManager.callCustomMethod<dynamic>(
+        method,
         ids: [orderId],
       );
-        // Mark as synced
-        await _orderManager.updateSaleOrderLocked(orderId, locked: false, isSynced: true);
-        logger.d('[SalesRepo]', 'Order $orderId unlock synced to Odoo');
-      } catch (e) {
-        // Queue for later sync
-        logger.w('[SalesRepo]', 'Unlock sync failed, queuing: $e');
-        await _queueLockOperation(orderId, false);
+      if (method == 'action_pos_confirm') {
+        requireConfirmedSaleResponse(response, orderId: orderId);
       }
-    } else {
-      // Offline - queue for later
-      await _queueLockOperation(orderId, false);
+      await _db.transaction(() async {
+        if (pendingConfirm) {
+          await _orderManager.clearSaleOrderPendingConfirm(orderId);
+        }
+        if (operationId != null) {
+          await _offlineQueue?.removeOperation(operationId);
+        }
+      });
+    } catch (error) {
+      if (_isSalesTransportFailure(error)) {
+        logger.w('[SalesRepo]', '$method transport failed; intent retained');
+        return;
+      }
+      await _db.transaction(() async {
+        await _orderManager.updateSaleOrderState(
+          orderId,
+          state: order.state.code,
+          pendingConfirm: false,
+        );
+        if (operationId != null) {
+          await _offlineQueue?.removeOperation(operationId);
+        }
+      });
+      rethrow;
     }
   }
 
-  Future<void> _queueLockOperation(int orderId, bool lock) async {
-    if (_offlineQueue == null) return;
+  Future<int?> _persistStateSnapshotAndIntent(
+    SaleOrder order, {
+    required String method,
+    required String state,
+    required bool pendingConfirm,
+    OfflineLocalCommand? command,
+  }) async {
+    Future<int?> persist() async {
+      await _orderManager.updateSaleOrderState(
+        order.id,
+        state: state,
+        pendingConfirm: pendingConfirm,
+      );
+      final queue = _offlineQueue;
+      if (queue == null) return null;
+      final values = <String, dynamic>{
+        'order_id': order.id,
+        'local_id': order.id,
+        'order_uuid': order.orderUuid,
+        'new_state': state,
+      };
+      if (command != null) {
+        return queue.queueCommand(
+          model: 'sale.order',
+          command: command,
+          recordId: order.id,
+          values: values,
+          baseWriteDate: order.writeDate,
+          parentOrderId: order.id,
+          priority: OfflinePriority.high,
+          replayPolicy: OfflineReplayPolicy.retrySafe,
+        );
+      }
+      return queue.queueOperation(
+        model: 'sale.order',
+        method: method,
+        recordId: order.id,
+        values: values,
+        baseWriteDate: order.writeDate,
+        parentOrderId: order.id,
+        operationKey: 'sale-state:${order.orderUuid ?? order.id}:${_uuid.v4()}',
+        replayPolicy: OfflineReplayPolicy.retrySafe,
+      );
+    }
 
-    // Get current write_date for conflict detection
-    final order = await _orderManager.getSaleOrder(orderId);
-    final baseWriteDate = order?.writeDate;
-
-    await _offlineQueue.queueOperation(
-      model: 'sale.order',
-      method: lock ? 'action_lock' : 'action_unlock',
-      recordId: orderId,
-      values: {'order_id': orderId, 'lock': lock},
-      baseWriteDate: baseWriteDate,
-    );
-    logger.d(
-      '[SalesRepo]',
-      'Queued ${lock ? "lock" : "unlock"} for order $orderId (baseWriteDate: $baseWriteDate)',
-    );
+    return _offlineQueue == null ? persist() : _db.transaction(persist);
   }
 
-  Future<void> _queueStateOperation(
-    int orderId,
-    String method,
-    String newState,
-  ) async {
-    if (_offlineQueue == null) return;
-
-    // Get current write_date for conflict detection
+  Future<void> _changeOrderLock(int orderId, {required bool locked}) async {
     final order = await _orderManager.getSaleOrder(orderId);
-    final baseWriteDate = order?.writeDate;
+    if (order == null) throw StateError('Order $orderId not found locally');
+    final method = locked ? 'action_lock' : 'action_unlock';
+    Future<int?> persist() async {
+      await _orderManager.updateSaleOrderLocked(
+        orderId,
+        locked: locked,
+        isSynced: false,
+      );
+      return _offlineQueue?.queueOperation(
+        model: 'sale.order',
+        method: method,
+        recordId: orderId,
+        values: {
+          'order_id': orderId,
+          'order_uuid': order.orderUuid,
+          'lock': locked,
+        },
+        baseWriteDate: order.writeDate,
+        parentOrderId: orderId,
+        operationKey: 'sale-lock:${order.orderUuid ?? orderId}:${_uuid.v4()}',
+        replayPolicy: OfflineReplayPolicy.retrySafe,
+      );
+    }
 
-    await _offlineQueue.queueOperation(
-      model: 'sale.order',
-      method: method,
-      recordId: orderId,
-      values: {'order_id': orderId, 'new_state': newState},
-      baseWriteDate: baseWriteDate,
-    );
-    logger.d(
-      '[SalesRepo]',
-      'Queued $method for order $orderId (baseWriteDate: $baseWriteDate)',
-    );
+    final operationId = _offlineQueue == null
+        ? await persist()
+        : await _db.transaction(persist);
+    if (!_orderManager.isOnline || orderId <= 0) return;
+
+    try {
+      await _orderManager.callCustomMethod<dynamic>(method, ids: [orderId]);
+      await _db.transaction(() async {
+        await _orderManager.updateSaleOrderLocked(
+          orderId,
+          locked: locked,
+          isSynced: true,
+        );
+        if (operationId != null) {
+          await _offlineQueue?.removeOperation(operationId);
+        }
+      });
+    } catch (error) {
+      if (_isSalesTransportFailure(error)) {
+        logger.w('[SalesRepo]', '$method transport failed; intent retained');
+        return;
+      }
+      await _db.transaction(() async {
+        await _orderManager.updateSaleOrderLocked(
+          orderId,
+          locked: order.locked,
+          isSynced: order.isSynced,
+        );
+        if (operationId != null) {
+          await _offlineQueue?.removeOperation(operationId);
+        }
+      });
+      rethrow;
+    }
   }
+}
+
+bool _isSalesTransportFailure(Object error) {
+  return error is OdooConnectionException ||
+      error is OdooTimeoutException ||
+      error is OdooOfflineException;
 }

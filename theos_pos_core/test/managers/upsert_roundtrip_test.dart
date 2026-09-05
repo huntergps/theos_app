@@ -74,6 +74,7 @@ import 'package:theos_pos_core/src/models/collection/collection_session_deposit.
 import 'package:theos_pos_core/src/models/company/company.model.dart';
 import 'package:theos_pos_core/src/models/config/currency.model.dart';
 import 'package:theos_pos_core/src/models/invoices/account_move.model.dart';
+import 'package:theos_pos_core/src/models/invoices/account_move_line.model.dart';
 import 'package:theos_pos_core/src/models/payment_terms/payment_term.model.dart';
 import 'package:theos_pos_core/src/models/prices/pricelist.model.dart';
 import 'package:theos_pos_core/src/models/products/product.model.dart';
@@ -219,6 +220,7 @@ final Map<String, dynamic Function()> _managerFactories = {
   'AccountMoveLineManager': () => AccountMoveLineManager(),
   'PaymentTermManager': () => PaymentTermManager(),
   'PricelistManager': () => PricelistManager(),
+  'PricelistItemManager': () => PricelistItemManager(),
   'ProductManager': () => ProductManager(),
   'ProductCategoryManager': () => ProductCategoryManager(),
   'ProductUomManager': () => ProductUomManager(),
@@ -253,14 +255,11 @@ void main() {
     await db.close();
   });
 
-  test(
-    'sanity: se están probando los 37 managers generados conocidos',
-    () {
-      // Si este número cambia porque se agregó/quitó un @OdooModel, hay que
-      // actualizar _managerFactories arriba (agregar o quitar una línea).
-      expect(_managerFactories, hasLength(37));
-    },
-  );
+  test('sanity: se están probando los 38 managers generados conocidos', () {
+    // Si este número cambia porque se agregó/quitó un @OdooModel, hay que
+    // actualizar _managerFactories arriba (agregar o quitar una línea).
+    expect(_managerFactories, hasLength(38));
+  });
 
   group('upsertLocal -> readLocal roundtrip (mecanismo actual)', () {
     for (final entry in _managerFactories.entries) {

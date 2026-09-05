@@ -87,8 +87,8 @@ class TokenRefreshResult {
 
   @override
   String toString() => success
-      ? 'TokenRefreshResult.success(token: ${newToken?.substring(0, 4)}****)'
-      : 'TokenRefreshResult.failed($error)';
+      ? 'TokenRefreshResult.success(token: [REDACTED])'
+      : 'TokenRefreshResult.failed(${error.runtimeType})';
 }
 
 /// Configuration for authentication interceptor.
@@ -154,10 +154,7 @@ class AuthInterceptor extends QueuedInterceptor {
   /// Create an authentication interceptor.
   ///
   /// The [dio] parameter should be the Dio instance this interceptor is added to.
-  AuthInterceptor({
-    required Dio dio,
-    required this.config,
-  }) : _dio = dio;
+  AuthInterceptor({required Dio dio, required this.config}) : _dio = dio;
 
   @override
   Future<void> onError(
@@ -192,7 +189,7 @@ class AuthInterceptor extends QueuedInterceptor {
       options.extra['authRefreshAttempts'] = refreshAttempts + 1;
 
       // Update the Authorization header with new token
-      options.headers['Authorization'] = 'bearer ${result.newToken}';
+      options.headers['Authorization'] = 'Bearer ${result.newToken}';
 
       // Notify callback
       config.onRetry?.call(options, result.newToken!);
@@ -254,21 +251,24 @@ class AuthInterceptor extends QueuedInterceptor {
 /// Extension for easily adding auth interceptor to Dio.
 extension DioAuthExtension on Dio {
   /// Add authentication interceptor with a refresh handler.
-  void enableTokenRefresh(TokenRefreshHandler handler, {
+  void enableTokenRefresh(
+    TokenRefreshHandler handler, {
     Set<int> triggerCodes = const {401},
     int maxAttempts = 1,
     bool queueDuringRefresh = true,
     void Function(RequestOptions options, String newToken)? onRetry,
   }) {
-    interceptors.add(AuthInterceptor(
-      dio: this,
-      config: AuthInterceptorConfig(
-        refreshHandler: handler,
-        refreshTriggerCodes: triggerCodes,
-        maxRefreshAttempts: maxAttempts,
-        queueDuringRefresh: queueDuringRefresh,
-        onRetry: onRetry,
+    interceptors.add(
+      AuthInterceptor(
+        dio: this,
+        config: AuthInterceptorConfig(
+          refreshHandler: handler,
+          refreshTriggerCodes: triggerCodes,
+          maxRefreshAttempts: maxAttempts,
+          queueDuringRefresh: queueDuringRefresh,
+          onRetry: onRetry,
+        ),
       ),
-    ));
+    );
   }
 }

@@ -260,23 +260,23 @@ class _ReactiveSearchBarState<T, N extends Notifier<ReactiveSearchBarState>>
   final _focusNode = FocusNode();
   final _searchFocusNode = FocusNode();
   Timer? _debounceTimer;
+  bool _syncingController = false;
 
   @override
   void initState() {
     super.initState();
     _searchController.addListener(_onSearchChanged);
-    // Initialize controller with persisted query after first frame
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      _syncControllerWithState();
-    });
-  }
-
-  /// Sync the text controller with the current provider state
-  void _syncControllerWithState() {
-    final state = ref.read(widget.provider);
-    if (state.query.isNotEmpty && _searchController.text != state.query) {
-      _searchController.text = state.query;
-    }
+    // Persisted filters load asynchronously. Listen for every provider change
+    // so the visible text never diverges from the query filtering the list.
+    ref.listenManual(widget.provider, (_, next) {
+      if (!mounted || _searchController.text == next.query) return;
+      _syncingController = true;
+      _searchController.value = TextEditingValue(
+        text: next.query,
+        selection: TextSelection.collapsed(offset: next.query.length),
+      );
+      _syncingController = false;
+    }, fireImmediately: true);
   }
 
   @override
@@ -290,6 +290,7 @@ class _ReactiveSearchBarState<T, N extends Notifier<ReactiveSearchBarState>>
   }
 
   void _onSearchChanged() {
+    if (_syncingController) return;
     _debounceTimer?.cancel();
     _debounceTimer = Timer(widget.debounceDuration, () {
       final query = _searchController.text;

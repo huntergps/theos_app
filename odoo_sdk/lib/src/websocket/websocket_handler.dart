@@ -12,6 +12,7 @@ import 'dart:convert';
 
 import '../utils/value_stream.dart';
 import 'odoo_websocket_events.dart';
+
 import 'package:web_socket_channel/web_socket_channel.dart';
 
 // ═════════════════════════════════════════════════════════════════════════════
@@ -31,7 +32,8 @@ class WebSocketSecurityException implements Exception {
 class SessionTokenRequiredException implements Exception {
   final String message;
   const SessionTokenRequiredException([
-    this.message = 'Session token is required for WebSocket connection. '
+    this.message =
+        'Session token is required for WebSocket connection. '
         'Provide sessionToken or set requireSessionToken=false',
   ]);
 
@@ -98,9 +100,7 @@ class WebSocketConfig {
   void validateSecureConnection() {
     final uri = Uri.tryParse(url);
     if (uri == null || !uri.hasScheme) {
-      throw WebSocketSecurityException(
-        'Invalid WebSocket URL: $url',
-      );
+      throw WebSocketSecurityException('Invalid WebSocket URL: $url');
     }
 
     if (uri.scheme != 'ws' && uri.scheme != 'wss') {
@@ -123,8 +123,7 @@ class WebSocketConfig {
   void validateModels(List<String> models) {
     if (allowedModels.isEmpty) return; // No whitelist = allow all
 
-    final disallowed =
-        models.where((m) => !allowedModels.contains(m)).toSet();
+    final disallowed = models.where((m) => !allowedModels.contains(m)).toSet();
     if (disallowed.isNotEmpty) {
       throw WebSocketSecurityException(
         'Models not in whitelist: ${disallowed.join(', ')}. '
@@ -202,21 +201,10 @@ class WebSocketConfig {
 // ═════════════════════════════════════════════════════════════════════════════
 
 /// WebSocket connection state.
-enum WebSocketState {
-  disconnected,
-  connecting,
-  connected,
-  reconnecting,
-  error,
-}
+enum WebSocketState { disconnected, connecting, connected, reconnecting, error }
 
 /// Types of connection events.
-enum ConnectionEventType {
-  connected,
-  disconnected,
-  reconnecting,
-  error,
-}
+enum ConnectionEventType { connected, disconnected, reconnecting, error }
 
 /// WebSocket connection event.
 class WebSocketConnectionEvent {
@@ -269,11 +257,10 @@ class OdooWebSocketHandler {
   bool _isDisposed = false;
 
   // State streams
-  final _state = ValueStream<WebSocketState>(
-    WebSocketState.disconnected,
-  );
+  final _state = ValueStream<WebSocketState>(WebSocketState.disconnected);
   final _recordEvents = StreamController<OdooRecordEvent>.broadcast();
-  final _connectionEvents = StreamController<WebSocketConnectionEvent>.broadcast();
+  final _connectionEvents =
+      StreamController<WebSocketConnectionEvent>.broadcast();
 
   /// Stream of connection state changes.
   Stream<WebSocketState> get state => _state.stream;
@@ -320,10 +307,12 @@ class OdooWebSocketHandler {
       _state.add(WebSocketState.connected);
       _reconnectAttempts = 0;
 
-      _connectionEvents.add(WebSocketConnectionEvent(
-        type: ConnectionEventType.connected,
-        timestamp: DateTime.now(),
-      ));
+      _connectionEvents.add(
+        WebSocketConnectionEvent(
+          type: ConnectionEventType.connected,
+          timestamp: DateTime.now(),
+        ),
+      );
 
       // Start listening
       _subscription = _channel!.stream.listen(
@@ -339,11 +328,13 @@ class OdooWebSocketHandler {
       _startPingTimer();
     } catch (e) {
       _state.add(WebSocketState.error);
-      _connectionEvents.add(WebSocketConnectionEvent(
-        type: ConnectionEventType.error,
-        timestamp: DateTime.now(),
-        error: e.toString(),
-      ));
+      _connectionEvents.add(
+        WebSocketConnectionEvent(
+          type: ConnectionEventType.error,
+          timestamp: DateTime.now(),
+          error: e.toString(),
+        ),
+      );
 
       if (config.autoReconnect) {
         _scheduleReconnect();
@@ -363,10 +354,12 @@ class OdooWebSocketHandler {
 
     if (!_isDisposed) {
       _state.add(WebSocketState.disconnected);
-      _connectionEvents.add(WebSocketConnectionEvent(
-        type: ConnectionEventType.disconnected,
-        timestamp: DateTime.now(),
-      ));
+      _connectionEvents.add(
+        WebSocketConnectionEvent(
+          type: ConnectionEventType.disconnected,
+          timestamp: DateTime.now(),
+        ),
+      );
     }
   }
 
@@ -374,20 +367,14 @@ class OdooWebSocketHandler {
   void subscribe(List<String> models) {
     if (!isConnected) return;
 
-    _send({
-      'type': 'subscribe',
-      'models': models,
-    });
+    _send({'type': 'subscribe', 'models': models});
   }
 
   /// Unsubscribe from record changes for specific models.
   void unsubscribe(List<String> models) {
     if (!isConnected) return;
 
-    _send({
-      'type': 'unsubscribe',
-      'models': models,
-    });
+    _send({'type': 'unsubscribe', 'models': models});
   }
 
   /// Dispose resources.
@@ -443,11 +430,13 @@ class OdooWebSocketHandler {
           break;
 
         case 'error':
-          _connectionEvents.add(WebSocketConnectionEvent(
-            type: ConnectionEventType.error,
-            timestamp: DateTime.now(),
-            error: data['message']?.toString(),
-          ));
+          _connectionEvents.add(
+            WebSocketConnectionEvent(
+              type: ConnectionEventType.error,
+              timestamp: DateTime.now(),
+              error: data['message']?.toString(),
+            ),
+          );
           break;
       }
     } catch (e) {
@@ -479,22 +468,26 @@ class OdooWebSocketHandler {
 
     final values = data['data'] as Map<String, dynamic>? ?? const {};
 
-    _recordEvents.add(OdooRecordEvent(
-      model: model,
-      recordId: recordId,
-      action: action,
-      values: values,
-      writeDate: DateTime.now(),
-    ));
+    _recordEvents.add(
+      OdooRecordEvent(
+        model: model,
+        recordId: recordId,
+        action: action,
+        values: values,
+        writeDate: DateTime.now(),
+      ),
+    );
   }
 
   void _handleError(dynamic error) {
     _state.add(WebSocketState.error);
-    _connectionEvents.add(WebSocketConnectionEvent(
-      type: ConnectionEventType.error,
-      timestamp: DateTime.now(),
-      error: error.toString(),
-    ));
+    _connectionEvents.add(
+      WebSocketConnectionEvent(
+        type: ConnectionEventType.error,
+        timestamp: DateTime.now(),
+        error: error.toString(),
+      ),
+    );
 
     if (config.autoReconnect) {
       _scheduleReconnect();
@@ -505,10 +498,12 @@ class OdooWebSocketHandler {
     if (_state.value == WebSocketState.disconnected) return;
 
     _state.add(WebSocketState.disconnected);
-    _connectionEvents.add(WebSocketConnectionEvent(
-      type: ConnectionEventType.disconnected,
-      timestamp: DateTime.now(),
-    ));
+    _connectionEvents.add(
+      WebSocketConnectionEvent(
+        type: ConnectionEventType.disconnected,
+        timestamp: DateTime.now(),
+      ),
+    );
 
     if (config.autoReconnect) {
       _scheduleReconnect();
@@ -534,14 +529,11 @@ class OdooWebSocketHandler {
 
   void _startPingTimer() {
     _pingTimer?.cancel();
-    _pingTimer = Timer.periodic(
-      const Duration(seconds: 30),
-      (_) {
-        if (isConnected) {
-          _send({'type': 'ping'});
-        }
-      },
-    );
+    _pingTimer = Timer.periodic(const Duration(seconds: 30), (_) {
+      if (isConnected) {
+        _send({'type': 'ping'});
+      }
+    });
   }
 
   void _send(Map<String, dynamic> data) {

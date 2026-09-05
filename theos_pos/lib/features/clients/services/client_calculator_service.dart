@@ -144,7 +144,9 @@ class ClientCalculatorService {
       // Get current user's company via datasources
       final currentUser = await userManager.getCurrentUser();
       if (currentUser?.companyId != null) {
-        _cachedCompany = await companyManager.readLocal(currentUser!.companyId!);
+        _cachedCompany = await companyManager.readLocal(
+          currentUser!.companyId!,
+        );
       }
     } catch (e) {
       logger.w('[ClientCalculator]', 'Failed to load company: $e');

@@ -193,7 +193,6 @@ abstract class PartnerSnapshot with _$PartnerSnapshot {
     if (street != null && street!.isNotEmpty) parts.add(street!);
     return parts.join(', ');
   }
-
 }
 
 /// Extension to create PartnerSnapshot from various sources

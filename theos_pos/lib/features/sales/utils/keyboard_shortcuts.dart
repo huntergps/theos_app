@@ -37,7 +37,10 @@ class POSKeyboardShortcuts {
   };
 
   /// Process a key event and return the action to perform
-  static POSShortcutAction? getAction(KeyEvent event, {bool isSearchMode = false}) {
+  static POSShortcutAction? getAction(
+    KeyEvent event, {
+    bool isSearchMode = false,
+  }) {
     if (event is! KeyDownEvent) return null;
 
     final key = event.logicalKey;
@@ -187,9 +190,7 @@ class ShortcutHint extends StatelessWidget {
       decoration: BoxDecoration(
         color: theme.inactiveColor.withAlpha(25),
         borderRadius: BorderRadius.circular(4),
-        border: Border.all(
-          color: theme.inactiveColor.withAlpha(50),
-        ),
+        border: Border.all(color: theme.inactiveColor.withAlpha(50)),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
@@ -233,7 +234,11 @@ class ShortcutHelpPanel extends StatelessWidget {
         children: [
           Row(
             children: [
-              Icon(FluentIcons.keyboard_classic, size: 20, color: theme.accentColor),
+              Icon(
+                FluentIcons.keyboard_classic,
+                size: 20,
+                color: theme.accentColor,
+              ),
               const SizedBox(width: 8),
               Text('Atajos de Teclado', style: theme.typography.bodyStrong),
             ],
@@ -251,7 +256,7 @@ class ShortcutHelpPanel extends StatelessWidget {
           _buildShortcutRow('F6', 'Cobrar'),
           _buildShortcutRow('F9', 'Confirmar orden'),
           _buildShortcutRow('F10', 'Guardar borrador'),
-          _buildShortcutRow('F12', 'Imprimir (Próximamente)'),
+          _buildShortcutRow('F12', 'Abrir orden para imprimir'),
 
           const SizedBox(height: 12),
           const Divider(),
@@ -273,7 +278,7 @@ class ShortcutHelpPanel extends StatelessWidget {
           const SizedBox(height: 8),
           _buildShortcutRow('Ctrl+N', 'Nueva orden'),
           _buildShortcutRow('Ctrl+S', 'Guardar'),
-          _buildShortcutRow('Ctrl+P', 'Imprimir (Próximamente)'),
+          _buildShortcutRow('Ctrl+P', 'Abrir orden para imprimir'),
           _buildShortcutRow('Esc', 'Cancelar'),
         ],
       ),
@@ -285,10 +290,7 @@ class ShortcutHelpPanel extends StatelessWidget {
       padding: const EdgeInsets.symmetric(vertical: 4),
       child: Row(
         children: [
-          SizedBox(
-            width: 80,
-            child: ShortcutHint(shortcut: shortcut),
-          ),
+          SizedBox(width: 80, child: ShortcutHint(shortcut: shortcut)),
           const SizedBox(width: 12),
           Text(description),
         ],

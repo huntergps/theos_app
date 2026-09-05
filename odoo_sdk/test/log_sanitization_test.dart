@@ -114,6 +114,29 @@ void main() {
       // after setUp resets it to true
       expect(testLogger.isSanitizationEnabled, isTrue);
     });
+
+    test('external sink payload never receives original sensitive objects', () {
+      final trace = StackTrace.fromString(
+        '#0 main (file:///Users/johndoe/projects/app/lib/main.dart:10:3)',
+      );
+      final original = Exception(
+        'Authorization: Bearer secret-token for john@example.com',
+      );
+
+      final payload = AppLogger.sanitizeForExternalSink(
+        tag: '[Auth john@example.com]',
+        message: 'Login failed for john@example.com',
+        error: original,
+        stackTrace: trace,
+      );
+
+      expect(payload.tag, isNot(contains('john@example.com')));
+      expect(payload.message, isNot(contains('john@example.com')));
+      expect(payload.error, isA<String>());
+      expect(payload.error.toString(), isNot(contains('secret-token')));
+      expect(payload.error, isNot(same(original)));
+      expect(payload.stackTrace.toString(), isNot(contains('johndoe')));
+    });
   });
 
   group('SEC-03: OdooException.toString() sanitization', () {
@@ -178,10 +201,10 @@ void main() {
       expect(str, contains('POS Store'));
       expect(str, contains('odoo.example.com'));
       expect(str, contains('production'));
-      // API key should be masked: shows first 2 and last 2
+      // API key must be completely hidden.
       expect(str, contains('key:'));
       expect(str, isNot(contains('key_abc123xyz789')));
-      expect(str, contains('ke************89'));
+      expect(str, contains('key: ********'));
     });
 
     test('masks short API key completely', () {
@@ -195,8 +218,7 @@ void main() {
 
       final str = session.toString();
       expect(str, isNot(contains('apiKey')));
-      // Short key (3 chars) is fully masked
-      expect(str, contains('***'));
+      expect(str, contains('********'));
     });
   });
 

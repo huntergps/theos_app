@@ -1,6 +1,6 @@
 // GENERATED CODE - DO NOT MODIFY BY HAND
 // coverage:ignore-file
-// ignore_for_file: type=lint
+// ignore_for_file: type=lint, type=warning, deprecated_member_use, deprecated_member_use_from_same_package
 // ignore_for_file: unused_element, deprecated_member_use, deprecated_member_use_from_same_package, use_function_type_syntax_for_parameters, unnecessary_const, avoid_init_to_null, invalid_override_different_default_values_named, prefer_expression_function_bodies, annotate_overrides, invalid_annotation_target, unnecessary_question_mark
 
 part of 'product.model.dart';
@@ -9,29 +9,13 @@ part of 'product.model.dart';
 // FreezedGenerator
 // **************************************************************************
 
+// GENERATED CODE - DO NOT MODIFY BY HAND
 // dart format off
 T _$identity<T>(T value) => value;
 /// @nodoc
 mixin _$Product {
 
-// ============ Identifiers ============
-@OdooId() int get id;// ============ Basic Data ============
-@OdooString() String get name;@OdooString(odooName: 'display_name', writable: false) String? get displayNameOdoo;@OdooString(odooName: 'default_code') String? get defaultCode;@OdooString() String? get barcode;@OdooSelection() ProductType get type;@OdooBoolean(odooName: 'sale_ok') bool get saleOk;@OdooBoolean(odooName: 'purchase_ok') bool get purchaseOk;@OdooBoolean() bool get active;// ============ Pricing ============
-@OdooFloat(odooName: 'list_price') double get listPrice;@OdooFloat(odooName: 'standard_price') double get standardPrice;// ============ Category ============
-@OdooMany2One('product.category', odooName: 'categ_id') int? get categId;@OdooMany2OneName(sourceField: 'categ_id') String? get categName;// ============ Unit of Measure ============
-@OdooMany2One('uom.uom', odooName: 'uom_id') int? get uomId;@OdooMany2OneName(sourceField: 'uom_id') String? get uomName;// Odoo 19.5 (erp1): 'uom_po_id' ya no existe en product.product del
-// servidor (smoke fields_get, julio 2026). uomPoName también pasa a
-// local-only porque ya no llega el par [id, name] de ese campo.
-@OdooLocalOnly() int? get uomPoId;@OdooLocalOnly() String? get uomPoName;@OdooLocalOnly() List<int>? get uomIds;// Allowed UoMs
-// ============ Taxes ============
-@OdooJson(odooName: 'taxes_id') String? get taxesId;@OdooJson(odooName: 'supplier_taxes_id') String? get supplierTaxesId;// ============ Description ============
-@OdooString() String? get description;@OdooString(odooName: 'description_sale') String? get descriptionSale;// ============ Template Reference ============
-@OdooMany2One('product.template', odooName: 'product_tmpl_id') int? get productTmplId;// ============ Image ============
-@OdooBinary(odooName: 'image_128') String? get image128;// ============ Inventory ============
-@OdooFloat(odooName: 'qty_available', writable: false) double get qtyAvailable;@OdooFloat(odooName: 'virtual_available', writable: false) double get virtualAvailable;@OdooSelection() TrackingType get tracking;// Puede no existir en 19.2 como campo API-accesible
-@OdooBoolean(odooName: 'is_storable') bool get isStorable;// ============ Ecuador Localization ============
-@OdooString(odooName: 'l10n_ec_auxiliary_code') String? get l10nEcAuxiliaryCode;@OdooBoolean(odooName: 'is_unit_product') bool get isUnitProduct;@OdooBoolean(odooName: 'temporal_no_despachar') bool get temporalNoDespachar;// ============ Metadata ============
-@OdooDateTime(odooName: 'write_date', writable: false) DateTime? get writeDate;
+@OdooId() int get id;@OdooString() String get name;@OdooString(odooName: 'display_name', writable: false) String? get displayNameOdoo;@OdooString(odooName: 'default_code') String? get defaultCode;@OdooString() String? get barcode;@OdooSelection() ProductType get type;@OdooBoolean(odooName: 'sale_ok') bool get saleOk;@OdooBoolean(odooName: 'purchase_ok') bool get purchaseOk;@OdooBoolean() bool get active;@OdooFloat(odooName: 'list_price') double get listPrice;@OdooFloat(odooName: 'standard_price') double get standardPrice;@OdooMany2One('product.category', odooName: 'categ_id') int? get categId;@OdooMany2OneName(sourceField: 'categ_id') String? get categName;@OdooMany2One('uom.uom', odooName: 'uom_id') int? get uomId;@OdooMany2OneName(sourceField: 'uom_id') String? get uomName;@OdooLocalOnly() int? get uomPoId;@OdooLocalOnly() String? get uomPoName;@OdooLocalOnly() List<int>? get uomIds;@OdooJson(odooName: 'taxes_id') String? get taxesId;@OdooJson(odooName: 'supplier_taxes_id') String? get supplierTaxesId;@OdooString() String? get description;@OdooString(odooName: 'description_sale') String? get descriptionSale;@OdooMany2One('product.template', odooName: 'product_tmpl_id') int? get productTmplId;@OdooBinary(odooName: 'image_128') String? get image128;@OdooFloat(odooName: 'qty_available', writable: false) double get qtyAvailable;@OdooFloat(odooName: 'virtual_available', writable: false) double get virtualAvailable;@OdooSelection() TrackingType get tracking;@OdooBoolean(odooName: 'is_storable') bool get isStorable;@OdooString(odooName: 'l10n_ec_auxiliary_code') String? get l10nEcAuxiliaryCode;@OdooBoolean(odooName: 'is_unit_product') bool get isUnitProduct;@OdooBoolean(odooName: 'temporal_no_despachar') bool get temporalNoDespachar;@OdooDateTime(odooName: 'write_date', writable: false) DateTime? get writeDate;
 /// Create a copy of Product
 /// with the given fields replaced by the non-null parameter values.
 @JsonKey(includeFromJson: false, includeToJson: false)
@@ -80,7 +64,7 @@ class _$ProductCopyWithImpl<$Res>
 /// Create a copy of Product
 /// with the given fields replaced by the non-null parameter values.
 @pragma('vm:prefer-inline') @override $Res call({Object? id = null,Object? name = null,Object? displayNameOdoo = freezed,Object? defaultCode = freezed,Object? barcode = freezed,Object? type = null,Object? saleOk = null,Object? purchaseOk = null,Object? active = null,Object? listPrice = null,Object? standardPrice = null,Object? categId = freezed,Object? categName = freezed,Object? uomId = freezed,Object? uomName = freezed,Object? uomPoId = freezed,Object? uomPoName = freezed,Object? uomIds = freezed,Object? taxesId = freezed,Object? supplierTaxesId = freezed,Object? description = freezed,Object? descriptionSale = freezed,Object? productTmplId = freezed,Object? image128 = freezed,Object? qtyAvailable = null,Object? virtualAvailable = null,Object? tracking = null,Object? isStorable = null,Object? l10nEcAuxiliaryCode = freezed,Object? isUnitProduct = null,Object? temporalNoDespachar = null,Object? writeDate = freezed,}) {
-  return _then(_self.copyWith(
+  return _then(Product(
 id: null == id ? _self.id : id // ignore: cast_nullable_to_non_nullable
 as int,name: null == name ? _self.name : name // ignore: cast_nullable_to_non_nullable
 as String,displayNameOdoo: freezed == displayNameOdoo ? _self.displayNameOdoo : displayNameOdoo // ignore: cast_nullable_to_non_nullable
@@ -254,12 +238,10 @@ return $default(_that.id,_that.name,_that.displayNameOdoo,_that.defaultCode,_tha
 
 
 class _Product extends Product {
-  const _Product({@OdooId() required this.id, @OdooString() required this.name, @OdooString(odooName: 'display_name', writable: false) this.displayNameOdoo, @OdooString(odooName: 'default_code') this.defaultCode, @OdooString() this.barcode, @OdooSelection() this.type = ProductType.consu, @OdooBoolean(odooName: 'sale_ok') this.saleOk = true, @OdooBoolean(odooName: 'purchase_ok') this.purchaseOk = true, @OdooBoolean() this.active = true, @OdooFloat(odooName: 'list_price') this.listPrice = 0.0, @OdooFloat(odooName: 'standard_price') this.standardPrice = 0.0, @OdooMany2One('product.category', odooName: 'categ_id') this.categId, @OdooMany2OneName(sourceField: 'categ_id') this.categName, @OdooMany2One('uom.uom', odooName: 'uom_id') this.uomId, @OdooMany2OneName(sourceField: 'uom_id') this.uomName, @OdooLocalOnly() this.uomPoId, @OdooLocalOnly() this.uomPoName, @OdooLocalOnly() final  List<int>? uomIds, @OdooJson(odooName: 'taxes_id') this.taxesId, @OdooJson(odooName: 'supplier_taxes_id') this.supplierTaxesId, @OdooString() this.description, @OdooString(odooName: 'description_sale') this.descriptionSale, @OdooMany2One('product.template', odooName: 'product_tmpl_id') this.productTmplId, @OdooBinary(odooName: 'image_128') this.image128, @OdooFloat(odooName: 'qty_available', writable: false) this.qtyAvailable = 0.0, @OdooFloat(odooName: 'virtual_available', writable: false) this.virtualAvailable = 0.0, @OdooSelection() this.tracking = TrackingType.none, @OdooBoolean(odooName: 'is_storable') this.isStorable = false, @OdooString(odooName: 'l10n_ec_auxiliary_code') this.l10nEcAuxiliaryCode, @OdooBoolean(odooName: 'is_unit_product') this.isUnitProduct = true, @OdooBoolean(odooName: 'temporal_no_despachar') this.temporalNoDespachar = false, @OdooDateTime(odooName: 'write_date', writable: false) this.writeDate}): _uomIds = uomIds,super._();
+  const _Product({@OdooId() required this.id, @OdooString() required this.name, @OdooString(odooName: 'display_name', writable: false) this.displayNameOdoo, @OdooString(odooName: 'default_code') this.defaultCode, @OdooString() this.barcode, @OdooSelection() this.type = ProductType.consu, @OdooBoolean(odooName: 'sale_ok') this.saleOk = true, @OdooBoolean(odooName: 'purchase_ok') this.purchaseOk = true, @OdooBoolean() this.active = true, @OdooFloat(odooName: 'list_price') this.listPrice = 0.0, @OdooFloat(odooName: 'standard_price') this.standardPrice = 0.0, @OdooMany2One('product.category', odooName: 'categ_id') this.categId, @OdooMany2OneName(sourceField: 'categ_id') this.categName, @OdooMany2One('uom.uom', odooName: 'uom_id') this.uomId, @OdooMany2OneName(sourceField: 'uom_id') this.uomName, @OdooLocalOnly() this.uomPoId, @OdooLocalOnly() this.uomPoName, @OdooLocalOnly()  List<int>? uomIds, @OdooJson(odooName: 'taxes_id') this.taxesId, @OdooJson(odooName: 'supplier_taxes_id') this.supplierTaxesId, @OdooString() this.description, @OdooString(odooName: 'description_sale') this.descriptionSale, @OdooMany2One('product.template', odooName: 'product_tmpl_id') this.productTmplId, @OdooBinary(odooName: 'image_128') this.image128, @OdooFloat(odooName: 'qty_available', writable: false) this.qtyAvailable = 0.0, @OdooFloat(odooName: 'virtual_available', writable: false) this.virtualAvailable = 0.0, @OdooSelection() this.tracking = TrackingType.none, @OdooBoolean(odooName: 'is_storable') this.isStorable = false, @OdooString(odooName: 'l10n_ec_auxiliary_code') this.l10nEcAuxiliaryCode, @OdooBoolean(odooName: 'is_unit_product') this.isUnitProduct = true, @OdooBoolean(odooName: 'temporal_no_despachar') this.temporalNoDespachar = false, @OdooDateTime(odooName: 'write_date', writable: false) this.writeDate}): _uomIds = uomIds,super._();
   
 
-// ============ Identifiers ============
 @override@OdooId() final  int id;
-// ============ Basic Data ============
 @override@OdooString() final  String name;
 @override@OdooString(odooName: 'display_name', writable: false) final  String? displayNameOdoo;
 @override@OdooString(odooName: 'default_code') final  String? defaultCode;
@@ -268,18 +250,12 @@ class _Product extends Product {
 @override@JsonKey()@OdooBoolean(odooName: 'sale_ok') final  bool saleOk;
 @override@JsonKey()@OdooBoolean(odooName: 'purchase_ok') final  bool purchaseOk;
 @override@JsonKey()@OdooBoolean() final  bool active;
-// ============ Pricing ============
 @override@JsonKey()@OdooFloat(odooName: 'list_price') final  double listPrice;
 @override@JsonKey()@OdooFloat(odooName: 'standard_price') final  double standardPrice;
-// ============ Category ============
 @override@OdooMany2One('product.category', odooName: 'categ_id') final  int? categId;
 @override@OdooMany2OneName(sourceField: 'categ_id') final  String? categName;
-// ============ Unit of Measure ============
 @override@OdooMany2One('uom.uom', odooName: 'uom_id') final  int? uomId;
 @override@OdooMany2OneName(sourceField: 'uom_id') final  String? uomName;
-// Odoo 19.5 (erp1): 'uom_po_id' ya no existe en product.product del
-// servidor (smoke fields_get, julio 2026). uomPoName también pasa a
-// local-only porque ya no llega el par [id, name] de ese campo.
 @override@OdooLocalOnly() final  int? uomPoId;
 @override@OdooLocalOnly() final  String? uomPoName;
  final  List<int>? _uomIds;
@@ -291,28 +267,19 @@ class _Product extends Product {
   return EqualUnmodifiableListView(value);
 }
 
-// Allowed UoMs
-// ============ Taxes ============
 @override@OdooJson(odooName: 'taxes_id') final  String? taxesId;
 @override@OdooJson(odooName: 'supplier_taxes_id') final  String? supplierTaxesId;
-// ============ Description ============
 @override@OdooString() final  String? description;
 @override@OdooString(odooName: 'description_sale') final  String? descriptionSale;
-// ============ Template Reference ============
 @override@OdooMany2One('product.template', odooName: 'product_tmpl_id') final  int? productTmplId;
-// ============ Image ============
 @override@OdooBinary(odooName: 'image_128') final  String? image128;
-// ============ Inventory ============
 @override@JsonKey()@OdooFloat(odooName: 'qty_available', writable: false) final  double qtyAvailable;
 @override@JsonKey()@OdooFloat(odooName: 'virtual_available', writable: false) final  double virtualAvailable;
 @override@JsonKey()@OdooSelection() final  TrackingType tracking;
-// Puede no existir en 19.2 como campo API-accesible
 @override@JsonKey()@OdooBoolean(odooName: 'is_storable') final  bool isStorable;
-// ============ Ecuador Localization ============
 @override@OdooString(odooName: 'l10n_ec_auxiliary_code') final  String? l10nEcAuxiliaryCode;
 @override@JsonKey()@OdooBoolean(odooName: 'is_unit_product') final  bool isUnitProduct;
 @override@JsonKey()@OdooBoolean(odooName: 'temporal_no_despachar') final  bool temporalNoDespachar;
-// ============ Metadata ============
 @override@OdooDateTime(odooName: 'write_date', writable: false) final  DateTime? writeDate;
 
 /// Create a copy of Product

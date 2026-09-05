@@ -137,7 +137,8 @@ void main() {
 
     test('spaces and hyphens are cleaned before validation', () {
       // 49 digits with spaces
-      final authorization = '1234 5678 9012 3456 7890 1234 5678 9012 3456 7890 123456789';
+      final authorization =
+          '1234 5678 9012 3456 7890 1234 5678 9012 3456 7890 123456789';
       final cleaned = authorization.replaceAll(RegExp(r'[\s-]'), '');
 
       // This should be 49 digits after cleaning
@@ -160,8 +161,11 @@ void main() {
       // Draft should allow these transitions
       for (final state in validTransitions) {
         expect(
-          [SaleOrderState.sent, SaleOrderState.sale, SaleOrderState.cancel]
-              .contains(state),
+          [
+            SaleOrderState.sent,
+            SaleOrderState.sale,
+            SaleOrderState.cancel,
+          ].contains(state),
           true,
           reason: 'Draft should transition to ${state.name}',
         );

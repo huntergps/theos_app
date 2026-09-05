@@ -2,6 +2,7 @@ import 'package:fluent_ui/fluent_ui.dart';
 
 import '../../../../../core/constants/app_colors.dart';
 import 'summary_row.dart';
+
 import 'package:theos_pos_core/theos_pos_core.dart';
 
 /// Tabla de detalle de retiros de efectivo
@@ -27,7 +28,11 @@ class DetalleRetirosTable extends StatelessWidget {
                   color: AppColors.danger.withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(4),
                 ),
-                child: Icon(FluentIcons.remove, color: AppColors.danger, size: 16),
+                child: Icon(
+                  FluentIcons.remove,
+                  color: AppColors.danger,
+                  size: 16,
+                ),
               ),
               const SizedBox(width: 12),
               Text(

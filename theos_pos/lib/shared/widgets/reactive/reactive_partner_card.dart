@@ -125,7 +125,7 @@ class PartnerCardCallbacks {
 /// Usage:
 /// ```dart
 /// ReactivePartnerCard(
-///   config: ReactiveFieldConfig(isEditing: isEditMode),
+///   config: OdooFieldConfig(isEditing: isEditMode),
 ///   partner: PartnerInfo(
 ///     id: partnerId,
 ///     name: partnerName,
@@ -142,7 +142,7 @@ class PartnerCardCallbacks {
 /// ```
 class ReactivePartnerCard extends ConsumerStatefulWidget {
   /// Field configuration (isEditing, isCompact, etc.)
-  final ReactiveFieldConfig config;
+  final OdooFieldConfig config;
 
   /// Partner information
   final PartnerInfo partner;

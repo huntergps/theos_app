@@ -60,10 +60,7 @@ class WebSocketFieldMapping {
   /// Payload field containing the record display name
   final String nameField;
 
-  const WebSocketFieldMapping({
-    required this.idField,
-    required this.nameField,
-  });
+  const WebSocketFieldMapping({required this.idField, required this.nameField});
 }
 
 /// Singleton registry for WebSocket model configuration.
@@ -122,9 +119,7 @@ class WebSocketModelRegistry {
 
   /// Build channels list for a given database and optional partnerId.
   List<String> buildChannels(String database, int? partnerId) {
-    final channels = _channelTemplates
-        .map((t) => '$database.$t')
-        .toList();
+    final channels = _channelTemplates.map((t) => '$database.$t').toList();
 
     if (partnerId != null) {
       channels.add('$database.odoo-presence-res.partner_$partnerId');
@@ -177,5 +172,4 @@ class WebSocketModelRegistry {
     _notificationPrefixToModel.clear();
     wsVersion = '19.0-2';
   }
-
 }

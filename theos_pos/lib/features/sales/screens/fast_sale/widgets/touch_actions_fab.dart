@@ -1,8 +1,7 @@
 import 'package:fluent_ui/fluent_ui.dart';
-import 'package:flutter/foundation.dart' show defaultTargetPlatform;
-import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../../../core/adaptive/adaptive_layout_policy.dart';
 import '../../../../../core/constants/app_colors.dart';
 import '../../../../../core/theme/spacing.dart';
 import '../fast_sale_providers.dart';
@@ -19,42 +18,24 @@ class _TouchFabExpandedNotifier extends Notifier<bool> {
 /// Provider que controla si el FAB táctil está expandido
 final _touchFabExpandedProvider =
     NotifierProvider<_TouchFabExpandedNotifier, bool>(
-  _TouchFabExpandedNotifier.new,
+      _TouchFabExpandedNotifier.new,
+    );
+
+/// Capacidades de entrada disponibles para Venta Rápida.
+///
+/// El fallback es deliberadamente aditivo: conserva touch, puntero y teclado
+/// sin intentar deducirlos desde Android, iOS, desktop o web. La composición
+/// del host y las pruebas pueden sobrescribir este provider con las capacidades
+/// observadas. Tener teclado nunca elimina por sí solo los controles táctiles.
+final fastSaleInputCapabilitiesProvider = Provider<AdaptiveInputCapabilities>(
+  (ref) => const AdaptiveInputCapabilities(
+    touch: true,
+    precisePointer: true,
+    hardwareKeyboard: true,
+  ),
 );
 
-/// Provider que detecta si hay teclado físico conectado
-///
-/// Retorna `true` si se detecta un dispositivo de entrada físico (teclado),
-/// lo que indica que el usuario no necesita el FAB táctil.
-///
-/// Estrategia de detección:
-/// - En desktop (Windows/Linux/macOS) siempre hay teclado → false
-/// - En mobile/tablet: se asume touch-only a menos que haya hardware conectado
-/// El estado se inicializa una vez por sesión y no cambia en caliente,
-/// ya que HardwareKeyboard.instance no expone un stream de conexión/desconexión.
-final hasPhysicalKeyboardProvider = Provider<bool>((ref) {
-  // En la práctica, detectar teclado físico en Flutter es indirecto.
-  // defaultTargetPlatform nos dice la plataforma de compilación, pero
-  // un tablet Android puede o no tener teclado bluetooth.
-  //
-  // La mejor heurística disponible sin plugins externos:
-  // - Verificar si hay teclas actualmente presionadas (indica hardware real)
-  // - Como proxy confiable: plataformas desktop siempre tienen teclado
-  final platform = defaultTargetPlatform;
-  final isDesktopPlatform = platform == TargetPlatform.windows ||
-      platform == TargetPlatform.linux ||
-      platform == TargetPlatform.macOS;
-
-  if (isDesktopPlatform) return true;
-
-  // Para Android/iOS: verificar si el HardwareKeyboard tiene claves conocidas
-  // (bluetooth keyboard conectado activo). Esta detección es imperfecta pero
-  // es el mejor proxy disponible sin flutter_keyboard_visibility o similar.
-  // Se considera que hay teclado si existen teclas físicas presionadas ahora.
-  return HardwareKeyboard.instance.physicalKeysPressed.isNotEmpty;
-});
-
-/// Barra de acciones táctiles flotante para tablet y móvil sin teclado físico
+/// Barra de acciones flotante para superficies con entrada táctil.
 ///
 /// Aparece como un FAB circular en la esquina inferior derecha que al pulsarse
 /// expande un menú vertical con las acciones críticas de la pantalla FastSale:
@@ -66,7 +47,8 @@ final hasPhysicalKeyboardProvider = Provider<bool>((ref) {
 /// - Cobrar          (equivale a F8 / ir a pagos)
 ///
 /// El FAB es semi-transparente cuando está cerrado para no bloquear contenido.
-/// Solo se muestra en dispositivos sin teclado físico (tablet/móvil touch).
+/// Su visibilidad la decide la política adaptativa a partir de capacidades
+/// explícitas y ancho disponible.
 ///
 /// Uso:
 /// ```dart
@@ -155,10 +137,7 @@ class _TouchActionsFabState extends ConsumerState<TouchActionsFab>
           ),
 
           // Botón principal del FAB
-          _FabMainButton(
-            isExpanded: isExpanded,
-            onTap: _toggle,
-          ),
+          _FabMainButton(isExpanded: isExpanded, onTap: _toggle),
         ],
       ),
     );
@@ -175,7 +154,11 @@ class _TouchActionsFabState extends ConsumerState<TouchActionsFab>
     final hasInvoice =
         order?.hasQueuedInvoice == true || order?.isFullyInvoiced == true;
     final canConfirm =
-        order != null && order.canConfirm && hasLines && hasPartner && !hasInvoice;
+        order != null &&
+        order.canConfirm &&
+        hasLines &&
+        hasPartner &&
+        !hasInvoice;
 
     return Column(
       mainAxisSize: MainAxisSize.min,
@@ -258,10 +241,7 @@ class _FabMainButton extends StatelessWidget {
   final bool isExpanded;
   final VoidCallback onTap;
 
-  const _FabMainButton({
-    required this.isExpanded,
-    required this.onTap,
-  });
+  const _FabMainButton({required this.isExpanded, required this.onTap});
 
   @override
   Widget build(BuildContext context) {

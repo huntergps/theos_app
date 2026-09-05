@@ -5,27 +5,13 @@
 library;
 
 import 'dart:async';
+
 import 'package:connectivity_plus/connectivity_plus.dart';
-import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:odoo_sdk/odoo_sdk.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-import '../websocket/odoo_websocket_service.dart';
 import '../../database/repositories/repository_providers.dart';
-
-// Re-export types from package for backward compatibility
-export 'package:odoo_sdk/odoo_sdk.dart'
-    show
-        ServerConnectionState,
-        ConnectivityStatus,
-        ServerHealthService,
-        ServerHealthConfig,
-        HealthCheckCallback,
-        WebSocketStateCallback,
-        WebSocketEventSubscriber,
-        HealthStatePersistence,
-        NetworkConnectivityMonitor;
 
 // ============================================================================
 // APP-SPECIFIC IMPLEMENTATIONS
@@ -52,8 +38,10 @@ class _SharedPrefsHealthPersistence implements HealthStatePersistence {
   }
 
   @override
-  Future<({ServerConnectionState? state, DateTime? timestamp, DateTime? lastOnline})>
-      loadState() async {
+  Future<
+    ({ServerConnectionState? state, DateTime? timestamp, DateTime? lastOnline})
+  >
+  loadState() async {
     final prefs = await SharedPreferences.getInstance();
     final stateStr = prefs.getString(_keyState);
     final timestamp = prefs.getInt(_keyTimestamp);
@@ -147,7 +135,6 @@ extension MonitoredOdooClientExtension on OdooClient {
 /// Provider for ServerHealthService with all app dependencies wired up
 final serverHealthServiceProvider = Provider<ServerHealthService>((ref) {
   final odooClient = ref.watch(odooClientProvider);
-  final wsService = ref.watch(odooWebSocketServiceProvider);
 
   final service = ServerHealthService(
     config: const ServerHealthConfig(),
@@ -163,26 +150,33 @@ final serverHealthServiceProvider = Provider<ServerHealthService>((ref) {
           }
         : null,
 
-    // WebSocket state
-    getWebSocketState: () => wsService.isConnected,
-
-    // WebSocket event subscription
-    subscribeToWebSocket: (callback) => wsService.eventStream.listen(callback),
-
     // Persistence
     persistence: _SharedPrefsHealthPersistence(),
 
-    // Network monitoring: use polling on web (connectivity_plus has known
-    // issues in web release builds), connectivity_plus on native.
-    networkMonitor: kIsWeb
-        ? PollingConnectivityMonitor()
-        : _ConnectivityPlusMonitor(),
+    // connectivity_plus uses browser online/offline events on Web and native
+    // reachability elsewhere. The authenticated health check above remains
+    // the authority for ERP availability. Avoid polling a third-party URL:
+    // cross-origin HEAD requests create false offline states and noisy CORS
+    // failures even while ERP2 is healthy.
+    networkMonitor: _ConnectivityPlusMonitor(),
   );
 
-  // Initialize asynchronously
-  Future.microtask(() => service.initialize());
+  // Initialize asynchronously, then verify the authenticated JSON-2 endpoint
+  // immediately instead of waiting for the first periodic health interval.
+  var disposed = false;
+  unawaited(
+    Future.microtask(() async {
+      await service.initialize();
+      if (!disposed && odooClient != null) {
+        await service.forceCheck();
+      }
+    }),
+  );
 
-  ref.onDispose(() => service.dispose());
+  ref.onDispose(() {
+    disposed = true;
+    service.dispose();
+  });
 
   return service;
 });

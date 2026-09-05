@@ -63,7 +63,8 @@ void main() {
       });
 
       test('should accept 49 digits with mixed spaces and hyphens', () {
-        final auth = '123 456-789 012 345-678 901 234-567 890 123 456-789 012 345 6789';
+        final auth =
+            '123 456-789 012 345-678 901 234-567 890 123 456-789 012 345 6789';
         // After cleaning: remove spaces and hyphens, should be 49 digits
         final cleaned = auth.replaceAll(RegExp(r'[\s-]'), '');
         expect(cleaned.length, 49); // Sanity check

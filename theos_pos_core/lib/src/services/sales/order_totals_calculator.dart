@@ -35,7 +35,7 @@ class OrderTotalsBreakdown {
   bool get hasDiscount => totalDiscount > 0;
 
   /// Total de impuestos: suma directa de `line.priceTax` de las líneas de
-  /// producto — misma semántica que los call sites legacy. NO se deriva como
+  /// producto — la misma semántica que el contrato del calculador. NO se deriva como
   /// `total - subtotal` porque con datos donde `priceTotal` no es consistente
   /// con `priceSubtotal + priceTax` (fixtures de test, datos parciales de
   /// sync) esa derivación produce un valor distinto al histórico.
@@ -97,8 +97,9 @@ class OrderTotalsCalculator {
             resolvedNames = taxNameResolver(line.taxIds, line.taxNames);
           }
           if (resolvedNames != null && resolvedNames.isNotEmpty) {
-            groupName =
-                TaxCalculatorService.getFirstSimplifiedTaxName(resolvedNames);
+            groupName = TaxCalculatorService.getFirstSimplifiedTaxName(
+              resolvedNames,
+            );
           } else if (lineTax > 0) {
             groupName = 'Impuestos';
           } else {

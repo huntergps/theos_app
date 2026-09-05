@@ -2,18 +2,21 @@ import 'package:fluent_ui/fluent_ui.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_qweb/flutter_qweb.dart'
-    show RenderOptions, ReportException;
+    show RenderOptions, ReportException, ReportService;
 import 'package:odoo_sdk/odoo_sdk.dart' show logger;
-import 'package:theos_pos_core/theos_pos_core.dart' show AccountMove, accountMoveManager, accountMoveLineManager, clientManager;
+import 'package:theos_pos_core/theos_pos_core.dart'
+    show AccountMove, accountMoveManager, accountMoveLineManager, clientManager;
 
 import '../../reports/providers/qweb_template_repository_provider.dart';
 import '../../../core/database/repositories/repository_providers.dart';
-import '../../reports/services/report_service.dart';
 import '../../../core/theme/spacing.dart';
 import '../../../shared/providers/report_provider.dart';
 import '../../../shared/providers/user_provider.dart';
 import '../../../shared/widgets/dialogs/copyable_info_bar.dart';
 import '../../../shared/utils/formatting_utils.dart';
+import '../../sales/screens/sale_order_form/pdf_preview_native.dart'
+    if (dart.library.js_interop) '../../sales/screens/sale_order_form/pdf_preview_web.dart'
+    as platform_pdf;
 
 /// Reactive stream of invoices for a sale order.
 ///
@@ -25,7 +28,9 @@ import '../../../shared/utils/formatting_utils.dart';
 final invoicesForOrderProvider = StreamProvider.family
     .autoDispose<List<AccountMove>, int>((ref, orderId) {
       return accountMoveManager.watchLocalSearch(
-        domain: [['sale_order_id', '=', orderId]],
+        domain: [
+          ['sale_order_id', '=', orderId],
+        ],
       );
     });
 
@@ -252,8 +257,7 @@ class _InvoiceRowState extends ConsumerState<_InvoiceRow> {
                                 CopyableInfoBar.showSuccess(
                                   context,
                                   title: 'Copiado',
-                                  message:
-                                      'Número de autorización copiado al portapapeles',
+                                  message: 'Número de autorización copiado al portapapeles',
                                 );
                               }
                             },
@@ -291,6 +295,14 @@ class _InvoiceRowState extends ConsumerState<_InvoiceRow> {
             ),
 
           spacing.horizontal.sm,
+          Tooltip(
+            message: 'Compartir factura',
+            child: IconButton(
+              icon: const Icon(FluentIcons.share, size: 14),
+              onPressed: () => _shareInvoice(context, ref, invoice),
+            ),
+          ),
+          spacing.horizontal.xs,
           // Print button - estandarizado con form_header.dart
           Button(
             onPressed: () => _printInvoice(context, ref, invoice),
@@ -314,67 +326,22 @@ class _InvoiceRowState extends ConsumerState<_InvoiceRow> {
     AccountMove invoice,
   ) async {
     try {
-      // Ensure templates are loaded (cached after first load)
-      await _ensureTemplatesLoaded(ref);
-
-      final reportService = ref.read(reportServiceProvider);
-      const templateName = 'l10n_ec_edi.report_invoice_document';
-
-      // Check if template is registered
-      if (!reportService.hasTemplate(templateName)) {
-        throw ReportException(
-          'Template de factura no disponible. '
-          'Sincronice los templates desde Odoo primero (incluir account.move).',
-        );
-      }
-
-      // Enrich invoice with lines and partner data for PDF generation
-      var enrichedInvoice = invoice;
-
-      // Load lines
-      try {
-        final lines = await accountMoveLineManager.searchLocal(
-          domain: [['move_id', '=', invoice.id]],
-          orderBy: 'sequence asc',
-        );
-        enrichedInvoice = enrichedInvoice.copyWith(lines: lines);
-      } catch (e) {
-        // Continue without lines if loading fails
-      }
-
-      // Load partner data for PDF
-      if (invoice.partnerId != null && invoice.partnerStreet == null) {
-        try {
-          final partner = await clientManager.readLocal(invoice.partnerId!);
-          if (partner != null) {
-            final street = partner.street ?? '';
-            final street2 = partner.street2 ?? '';
-            final fullStreet = street2.isNotEmpty ? '$street - $street2' : street;
-            enrichedInvoice = enrichedInvoice.copyWithPartnerData(
-              partnerStreet: fullStreet,
-              partnerCity: partner.city,
-              partnerPhone: partner.phone,
-              partnerEmail: partner.email,
-            );
-          }
-        } catch (e) {
-          // Continue without partner data if loading fails
-        }
-      }
-
-      final companyInfo = await _getCompanyInfo(ref);
-      final userInfo = _getUserInfo(ref);
-      final recordMap = enrichedInvoice.toReportMap(company: companyInfo);
-      final options = _getRenderOptions(reportService, templateName);
-
-      await reportService.generateAndOpen(
-        templateName: templateName,
-        records: [recordMap],
-        filename: '${invoice.name.replaceAll('/', '-')}.pdf',
-        company: companyInfo,
-        user: userInfo,
-        options: options,
+      final report = await _prepareInvoiceReport(ref, invoice);
+      final printed = await report.service.generateAndPrint(
+        templateName: report.templateName,
+        records: [report.record],
+        filename: report.filename,
+        company: report.company,
+        user: report.user,
+        options: report.options,
       );
+      if (!printed && context.mounted) {
+        CopyableInfoBar.showInfo(
+          context,
+          title: 'Impresión cancelada',
+          message: 'No se envió la factura a una impresora.',
+        );
+      }
     } catch (e, stack) {
       logger.e('[InvoiceSection]', 'Error printing invoice: $e\n$stack');
       if (context.mounted) {
@@ -385,6 +352,91 @@ class _InvoiceRowState extends ConsumerState<_InvoiceRow> {
         );
       }
     }
+  }
+
+  Future<void> _shareInvoice(
+    BuildContext context,
+    WidgetRef ref,
+    AccountMove invoice,
+  ) async {
+    try {
+      final report = await _prepareInvoiceReport(ref, invoice);
+      final bytes = await report.service.getPreviewBytes(
+        templateName: report.templateName,
+        records: [report.record],
+        company: report.company,
+        user: report.user,
+        options: report.options,
+      );
+      await platform_pdf.sharePdf(bytes, report.filename);
+    } catch (e, stack) {
+      logger.e('[InvoiceSection]', 'Error sharing invoice: $e\n$stack');
+      if (context.mounted) {
+        CopyableInfoBar.showError(
+          context,
+          title: 'Error al compartir',
+          message: 'No se pudo compartir la factura. Intente nuevamente.',
+        );
+      }
+    }
+  }
+
+  Future<_InvoiceReport> _prepareInvoiceReport(
+    WidgetRef ref,
+    AccountMove invoice,
+  ) async {
+    await _ensureTemplatesLoaded(ref);
+    final reportService = ref.read(reportServiceProvider);
+    const templateName = 'l10n_ec_edi.report_invoice_document';
+    if (!reportService.hasTemplate(templateName)) {
+      throw ReportException(
+        'Template de factura no disponible. '
+        'Sincronice los templates desde Odoo primero (incluir account.move).',
+      );
+    }
+
+    var enrichedInvoice = invoice;
+    try {
+      final lines = await accountMoveLineManager.searchLocal(
+        domain: [
+          ['move_id', '=', invoice.id],
+        ],
+        orderBy: 'sequence asc',
+      );
+      enrichedInvoice = enrichedInvoice.copyWith(lines: lines);
+    } catch (_) {
+      // A cached header is still printable when lines are temporarily absent.
+    }
+
+    if (invoice.partnerId != null && invoice.partnerStreet == null) {
+      try {
+        final partner = await clientManager.readLocal(invoice.partnerId!);
+        if (partner != null) {
+          final street = partner.street ?? '';
+          final street2 = partner.street2 ?? '';
+          enrichedInvoice = enrichedInvoice.copyWithPartnerData(
+            partnerStreet: street2.isNotEmpty ? '$street - $street2' : street,
+            partnerCity: partner.city,
+            partnerPhone: partner.phone,
+            partnerEmail: partner.email,
+          );
+        }
+      } catch (_) {
+        // Contact enrichment is optional; fiscal values remain intact.
+      }
+    }
+
+    final companyInfo = await _getCompanyInfo(ref);
+    final userInfo = _getUserInfo(ref);
+    return _InvoiceReport(
+      service: reportService,
+      templateName: templateName,
+      filename: '${invoice.name.replaceAll('/', '-')}.pdf',
+      record: enrichedInvoice.toReportMap(company: companyInfo),
+      company: companyInfo,
+      user: userInfo,
+      options: _getRenderOptions(reportService, templateName),
+    );
   }
 
   /// Ensure templates are loaded from database
@@ -496,6 +548,26 @@ class _InvoiceRowState extends ConsumerState<_InvoiceRow> {
       );
     }
   }
+}
+
+class _InvoiceReport {
+  final ReportService service;
+  final String templateName;
+  final String filename;
+  final Map<String, dynamic> record;
+  final Map<String, dynamic> company;
+  final Map<String, dynamic> user;
+  final RenderOptions options;
+
+  const _InvoiceReport({
+    required this.service,
+    required this.templateName,
+    required this.filename,
+    required this.record,
+    required this.company,
+    required this.user,
+    required this.options,
+  });
 }
 
 /// Widget compacto para mostrar info de factura en una línea

@@ -259,9 +259,3 @@ class OdooNumberInput extends StatelessWidget {
     );
   }
 }
-
-/// Backward-compatible aliases.
-typedef ReactiveNumberField = OdooNumberField;
-typedef ReactiveMoneyField = OdooMoneyField;
-typedef ReactivePercentField = OdooPercentField;
-typedef ReactiveNumberInput = OdooNumberInput;

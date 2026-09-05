@@ -1,4 +1,5 @@
 import 'package:test/test.dart';
+import 'package:theos_pos_core/src/models/sales/sale_order_enums.dart';
 import 'package:theos_pos_core/src/models/sales/sale_order.model.dart';
 
 void main() {
@@ -40,6 +41,8 @@ void main() {
       expect(fields, contains('amount_tax'));
       expect(fields, contains('invoice_status'));
       expect(fields, contains('locked'));
+      expect(fields, contains('exige_pago_total_entrega'));
+      expect(fields, isNot(contains('entregar_solo_pagado')));
     });
 
     test('odooFields does not contain many2one name-only fields', () {
@@ -115,11 +118,7 @@ void main() {
     });
 
     test('parses sale state correctly', () {
-      final data = <String, dynamic>{
-        'id': 1,
-        'name': 'SO001',
-        'state': 'sale',
-      };
+      final data = <String, dynamic>{'id': 1, 'name': 'SO001', 'state': 'sale'};
       final order = manager.fromOdoo(data);
       expect(order.state, equals(SaleOrderState.sale));
     });

@@ -1,24 +1,14 @@
 import 'package:freezed_annotation/freezed_annotation.dart';
 
 import '../../../core/providers/base_feature_state.dart';
+
 import 'package:theos_pos_core/theos_pos_core.dart';
 
+import 'base_order_state.dart' show ConflictDetail;
+
+export 'base_order_state.dart' show ConflictDetail;
+
 part 'sale_order_form_state.freezed.dart';
-
-/// Detalle de un conflicto de campo entre valor local y servidor
-class ConflictDetail {
-  final String fieldName;
-  final dynamic localValue;
-  final dynamic serverValue;
-  final String? serverUserName; // Usuario que hizo el cambio en el servidor
-
-  const ConflictDetail({
-    required this.fieldName,
-    required this.localValue,
-    required this.serverValue,
-    this.serverUserName,
-  });
-}
 
 /// Estado unificado para vista y edición de orden de venta
 ///
@@ -166,9 +156,7 @@ abstract class SaleOrderFormState
     // ---- Last sync timestamp ----
     DateTime? lastSyncAt,
 
-    // ---- Version counter for forcing UI rebuilds on WebSocket updates ----
-    /// Incrementado cada vez que llega una actualización WebSocket de líneas.
-    /// Esto fuerza a los providers que observan este valor a reconstruirse.
+    // ---- Version counter for derived line state ----
     @Default(0) int linesVersion,
 
     // ---- Conflict resolution state ----
@@ -199,9 +187,6 @@ abstract class SaleOrderFormState
     /// The pending server lines (stored until user applies or exits edit mode)
     @Default(null) List<SaleOrderLine>? pendingServerLines,
   }) = _SaleOrderFormState;
-
-  /// Backwards compatibility alias for errorMessage
-  String? get error => errorMessage;
 
   @override
   bool get hasError => errorMessage != null;
@@ -270,7 +255,8 @@ abstract class SaleOrderFormState
       commitmentDate ?? order?.commitmentDate;
 
   /// Effective client order reference (edit value > order value)
-  String? get effectiveClientOrderRef => clientOrderRef ?? order?.clientOrderRef;
+  String? get effectiveClientOrderRef =>
+      clientOrderRef ?? order?.clientOrderRef;
 
   /// Effective note (edit value > order value)
   String? get effectiveNote => note ?? order?.note;
@@ -327,7 +313,8 @@ abstract class SaleOrderFormState
   bool get canEdit => order?.canEdit ?? true;
 
   /// Whether order can be confirmed
-  bool get canConfirm => order?.canConfirm ?? (effectivePartnerId != null && totalLinesCount > 0);
+  bool get canConfirm =>
+      order?.canConfirm ?? (effectivePartnerId != null && totalLinesCount > 0);
 
   // ═══════════════════════════════════════════════════════════════════════════
   // HELPER METHODS

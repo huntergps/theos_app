@@ -116,8 +116,7 @@ List<T> applyListFilters<T, TFilter>({
   // Apply search filter
   if (filterState.searchQuery.isNotEmpty) {
     final query = filterState.searchQuery.toLowerCase();
-    result =
-        result.where((item) => config.searchMatcher(item, query)).toList();
+    result = result.where((item) => config.searchMatcher(item, query)).toList();
   }
 
   // Apply sorting

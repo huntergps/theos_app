@@ -4,12 +4,13 @@
 /// No Odoo API calls are made here.
 library;
 
+import 'dart:async';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:theos_pos_core/theos_pos_core.dart'
-    show CollectionSession, SaleOrderState, SessionState;
+    show SaleOrderManagerBusiness, SaleOrderPeriodMetrics, saleOrderManager;
 
-import '../../../core/database/providers.dart'
-    show activeSessionsProvider, saleOrdersStreamProvider;
+import '../../../core/managers/manager_providers.dart' show appDatabaseProvider;
 import '../../../features/sync/providers/sync_provider.dart';
 
 // ============================================================================
@@ -33,129 +34,75 @@ class DailySaleMetrics {
     this.doneCount = 0,
     this.cancelledCount = 0,
   });
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is DailySaleMetrics &&
+          totalOrders == other.totalOrders &&
+          totalAmount == other.totalAmount &&
+          draftCount == other.draftCount &&
+          confirmedCount == other.confirmedCount &&
+          doneCount == other.doneCount &&
+          cancelledCount == other.cancelledCount;
+
+  @override
+  int get hashCode => Object.hash(
+    totalOrders,
+    totalAmount,
+    draftCount,
+    confirmedCount,
+    doneCount,
+    cancelledCount,
+  );
 }
 
 // ============================================================================
 // PROVIDERS
 // ============================================================================
 
-/// Metricas de ventas del dia derivadas de Drift local.
-/// Reactivo via saleOrdersStreamProvider.
-final dailySaleMetricsProvider = Provider<DailySaleMetrics>((ref) {
-  final ordersAsync = ref.watch(saleOrdersStreamProvider);
-  return ordersAsync.when(
-    data: (orders) {
-      final now = DateTime.now();
-      final startOfDay = DateTime(now.year, now.month, now.day);
+/// Metricas de ventas del dia derivadas mediante un agregado SQL reactivo.
+///
+/// El rango se calcula en la zona horaria local y se expresa como intervalo
+/// semiabierto para no contar dos veces una orden exactamente a medianoche.
+final dailySaleMetricsProvider = StreamProvider.autoDispose<DailySaleMetrics>((
+  ref,
+) {
+  ref.watch(appDatabaseProvider);
+  final now = DateTime.now();
+  final startOfDay = DateTime(now.year, now.month, now.day);
+  final endOfDay = DateTime(now.year, now.month, now.day + 1);
+  final dayRollover = Timer(endOfDay.difference(now), ref.invalidateSelf);
+  ref.onDispose(dayRollover.cancel);
 
-      final todayOrders = orders.where((o) {
-        final orderDate = o.dateOrder;
-        if (orderDate == null) return false;
-        return orderDate.isAfter(startOfDay) ||
-            orderDate.isAtSameMomentAs(startOfDay);
-      }).toList();
-
-      int draftCount = 0;
-      int confirmedCount = 0;
-      int doneCount = 0;
-      int cancelledCount = 0;
-      double totalAmount = 0.0;
-
-      for (final order in todayOrders) {
-        switch (order.state) {
-          case SaleOrderState.draft:
-          case SaleOrderState.sent:
-          case SaleOrderState.waitingApproval:
-          case SaleOrderState.approved:
-          case SaleOrderState.rejected:
-            draftCount++;
-          case SaleOrderState.sale:
-            confirmedCount++;
-            totalAmount += order.amountTotal;
-          case SaleOrderState.done:
-            doneCount++;
-            totalAmount += order.amountTotal;
-          case SaleOrderState.cancel:
-            cancelledCount++;
-        }
-      }
-
-      return DailySaleMetrics(
-        totalOrders: todayOrders.length,
-        totalAmount: totalAmount,
-        draftCount: draftCount,
-        confirmedCount: confirmedCount,
-        doneCount: doneCount,
-        cancelledCount: cancelledCount,
-      );
-    },
-    loading: () => const DailySaleMetrics(),
-    error: (_, _) => const DailySaleMetrics(),
-  );
+  return saleOrderManager
+      .watchPeriodMetrics(startInclusive: startOfDay, endExclusive: endOfDay)
+      .map(_toDailySaleMetrics)
+      .distinct();
 });
 
-// ============================================================================
-// SESIONES ACTIVAS
-// ============================================================================
-
-/// Resumen de una sesion de caja activa
-class ActiveSessionSummary {
-  final bool hasActiveSession;
-  final String? configName;
-  final SessionState? sessionState;
-  final String? userName;
-
-  const ActiveSessionSummary({
-    this.hasActiveSession = false,
-    this.configName,
-    this.sessionState,
-    this.userName,
-  });
+DailySaleMetrics _toDailySaleMetrics(SaleOrderPeriodMetrics metrics) {
+  return DailySaleMetrics(
+    totalOrders: metrics.totalOrders,
+    totalAmount: metrics.totalAmount,
+    draftCount: metrics.draftCount,
+    confirmedCount: metrics.confirmedCount,
+    doneCount: metrics.doneCount,
+    cancelledCount: metrics.cancelledCount,
+  );
 }
-
-/// Resumen de la sesion de caja activa para el dashboard.
-/// Reactivo via activeSessionsProvider.
-final activeSessionSummaryProvider = Provider<ActiveSessionSummary>((ref) {
-  final sessionsAsync = ref.watch(activeSessionsProvider);
-  return sessionsAsync.when(
-    data: (sessions) {
-      final active =
-          sessions.where((s) => s.state != SessionState.closed).toList();
-
-      if (active.isEmpty) {
-        return const ActiveSessionSummary(hasActiveSession: false);
-      }
-
-      final session = active.first;
-      return ActiveSessionSummary(
-        hasActiveSession: true,
-        configName: session.configName,
-        sessionState: session.state,
-        userName: session.userName,
-      );
-    },
-    loading: () => const ActiveSessionSummary(),
-    error: (_, _) => const ActiveSessionSummary(),
-  );
-});
-
-/// Todas las sesiones activas para el dashboard multi-sesion del supervisor.
-final allActiveSessionsProvider = Provider<List<CollectionSession>>((ref) {
-  final sessionsAsync = ref.watch(activeSessionsProvider);
-  return sessionsAsync.when(
-    data: (sessions) =>
-        sessions.where((s) => s.state != SessionState.closed).toList(),
-    loading: () => [],
-    error: (_, _) => [],
-  );
-});
 
 /// Ultimo sync exitoso — fecha del item de sync mas reciente con estado success.
 final lastSuccessfulSyncProvider = Provider<DateTime?>((ref) {
-  final syncState = ref.watch(syncProvider);
+  // Sync progress and global flags change frequently while itemStates often
+  // retain the same map. Selecting only this field prevents an O(n) scan of
+  // all sync items for unrelated progress ticks.
+  final itemStates = ref.watch(
+    syncProvider.select((state) => state.itemStates),
+  );
 
   DateTime? latest;
-  for (final itemState in syncState.itemStates.values) {
+  for (final itemState in itemStates.values) {
     if (itemState.status == SyncStatus.success &&
         itemState.lastSyncDate != null) {
       if (latest == null || itemState.lastSyncDate!.isAfter(latest)) {

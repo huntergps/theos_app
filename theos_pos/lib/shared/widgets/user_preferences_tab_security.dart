@@ -368,8 +368,7 @@ extension _UserPreferencesSecurityTab on _UserPreferencesDialogState {
           ref.showErrorNotification(
             context,
             title: 'Error al cambiar contraseña',
-            message:
-                'No se pudo cambiar la contraseña. Verifica tu contraseña actual',
+            message: 'No se pudo cambiar la contraseña. Verifica tu contraseña actual',
           );
         }
       }
@@ -530,21 +529,29 @@ extension _UserPreferencesSecurityTab on _UserPreferencesDialogState {
                       width: 8,
                       height: 8,
                       decoration: BoxDecoration(
-                        color: device.revoked ? AppColors.textSecondary : AppColors.success,
+                        color: device.revoked
+                            ? AppColors.textSecondary
+                            : AppColors.success,
                         shape: BoxShape.circle,
                       ),
                     ),
                     const SizedBox(width: 4),
                     Text(
                       device.getRelativeTime(),
-                      style: TextStyle(color: AppColors.textSecondary, fontSize: 12),
+                      style: TextStyle(
+                        color: AppColors.textSecondary,
+                        fontSize: 12,
+                      ),
                     ),
                   ],
                 ),
                 const SizedBox(height: 4),
                 Text(
                   device.location,
-                  style: TextStyle(color: AppColors.textSecondary, fontSize: 12),
+                  style: TextStyle(
+                    color: AppColors.textSecondary,
+                    fontSize: 12,
+                  ),
                 ),
               ],
             ),

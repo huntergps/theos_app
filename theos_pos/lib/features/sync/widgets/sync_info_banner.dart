@@ -28,9 +28,7 @@ class SyncInfoBanner extends StatelessWidget {
   factory SyncInfoBanner.syncing({String? currentItem}) {
     return SyncInfoBanner(
       title: 'Sincronizacion en progreso',
-      content: currentItem != null
-          ? 'Sincronizando: $currentItem'
-          : 'Puede navegar a otras pantallas, la sincronizacion continuara en segundo plano',
+      content: currentItem != null ? 'Sincronizando: $currentItem' : 'Puede navegar a otras pantallas, la sincronizacion continuara en segundo plano',
       severity: InfoBarSeverity.info,
     );
   }
@@ -74,7 +72,8 @@ class SyncStatusBanners extends StatelessWidget {
         // Banner de sincronización en progreso
         if (isAnySyncing)
           SyncInfoBanner.syncing(
-            currentItem: currentSyncingItem != null && getItemDescription != null
+            currentItem:
+                currentSyncingItem != null && getItemDescription != null
                 ? getItemDescription!(currentSyncingItem!)
                 : null,
           ),

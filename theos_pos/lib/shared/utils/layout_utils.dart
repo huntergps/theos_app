@@ -72,25 +72,21 @@ class LayoutUtils {
       child: Row(
         children: [
           if (icon != null) ...[
-            Icon(
-              icon,
-              size: 14,
-              color: iconColor ?? theme.inactiveColor,
-            ),
+            Icon(icon, size: 14, color: iconColor ?? theme.inactiveColor),
             const SizedBox(width: 8),
           ],
           Text(
             '$label:',
-            style: labelStyle ??
-                theme.typography.caption?.copyWith(
-                  color: theme.inactiveColor,
-                ),
+            style:
+                labelStyle ??
+                theme.typography.caption?.copyWith(color: theme.inactiveColor),
           ),
           const SizedBox(width: 8),
           Expanded(
             child: Text(
               value,
-              style: valueStyle ??
+              style:
+                  valueStyle ??
                   (isHighlighted
                       ? theme.typography.bodyStrong
                       : theme.typography.body),
@@ -120,11 +116,7 @@ class LayoutUtils {
           mainAxisSize: MainAxisSize.min,
           children: [
             if (icon != null) ...[
-              Icon(
-                icon,
-                size: 12,
-                color: iconColor ?? theme.inactiveColor,
-              ),
+              Icon(icon, size: 12, color: iconColor ?? theme.inactiveColor),
               const SizedBox(width: 4),
             ],
             Text(
@@ -165,10 +157,7 @@ class LayoutUtils {
         ],
         SizedBox(
           width: labelWidth,
-          child: Text(
-            '$label:',
-            style: theme.typography.caption,
-          ),
+          child: Text('$label:', style: theme.typography.caption),
         ),
         Expanded(child: child),
       ],
@@ -195,17 +184,12 @@ class LayoutUtils {
               Icon(icon, size: 14, color: theme.inactiveColor),
               const SizedBox(width: 6),
             ],
-            Text(
-              label,
-              style: theme.typography.caption,
-            ),
+            Text(label, style: theme.typography.caption),
             if (isRequired) ...[
               const SizedBox(width: 4),
               Text(
                 '*',
-                style: theme.typography.caption?.copyWith(
-                  color: Colors.red,
-                ),
+                style: theme.typography.caption?.copyWith(color: Colors.red),
               ),
             ],
           ],
@@ -247,12 +231,7 @@ class LayoutUtils {
                 ),
                 const SizedBox(width: 10),
               ],
-              Expanded(
-                child: Text(
-                  title,
-                  style: theme.typography.subtitle,
-                ),
-              ),
+              Expanded(child: Text(title, style: theme.typography.subtitle)),
               ...?actions,
             ],
           ),
@@ -313,10 +292,7 @@ class LayoutUtils {
                   ),
                 ),
                 const SizedBox(height: 2),
-                Text(
-                  value,
-                  style: theme.typography.bodyStrong,
-                ),
+                Text(value, style: theme.typography.bodyStrong),
               ],
             ),
           ),
@@ -331,10 +307,7 @@ class LayoutUtils {
     );
 
     if (onTap != null) {
-      return GestureDetector(
-        onTap: onTap,
-        child: content,
-      );
+      return GestureDetector(onTap: onTap, child: content);
     }
 
     return content;
@@ -382,9 +355,7 @@ class LayoutUtils {
       decoration: BoxDecoration(
         color: outlined ? Colors.transparent : color.withValues(alpha: 0.15),
         borderRadius: BorderRadius.circular(4),
-        border: outlined
-            ? Border.all(color: color, width: 1)
-            : null,
+        border: outlined ? Border.all(color: color, width: 1) : null,
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
@@ -410,10 +381,7 @@ class LayoutUtils {
   // =============================================================================
 
   /// Construye un divider con label centrado
-  static Widget buildLabeledDivider(
-    BuildContext context,
-    String label,
-  ) {
+  static Widget buildLabeledDivider(BuildContext context, String label) {
     final theme = FluentTheme.of(context);
 
     return Row(
@@ -453,11 +421,7 @@ class LayoutUtils {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(
-              icon,
-              size: 48,
-              color: theme.inactiveColor,
-            ),
+            Icon(icon, size: 48, color: theme.inactiveColor),
             const SizedBox(height: 16),
             Text(
               message,
@@ -468,10 +432,7 @@ class LayoutUtils {
             ),
             if (actionLabel != null && onAction != null) ...[
               const SizedBox(height: 16),
-              FilledButton(
-                onPressed: onAction,
-                child: Text(actionLabel),
-              ),
+              FilledButton(onPressed: onAction, child: Text(actionLabel)),
             ],
           ],
         ),

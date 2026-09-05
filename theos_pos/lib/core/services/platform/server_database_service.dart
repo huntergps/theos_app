@@ -11,17 +11,15 @@ import 'package:shared_preferences/shared_preferences.dart';
 // Import package with alias to avoid ServerConfig conflict
 import 'package:odoo_sdk/odoo_sdk.dart' as pkg;
 
-import '../logger_service.dart';
+import 'package:odoo_sdk/odoo_sdk.dart' show logger;
+
 import 'device_service.dart';
 import '../../../features/authentication/services/server_service.dart';
 
 // Conditional import for file system lock
 import 'file_system_lock_stub.dart'
-    if (dart.library.io) 'file_system_lock_native.dart' as lock_impl;
-
-// Re-export package types for external use (except ServerConfig)
-export 'package:odoo_sdk/odoo_sdk.dart'
-    show ServerLockPersistence;
+    if (dart.library.io) 'file_system_lock_native.dart'
+    as lock_impl;
 
 // ============================================================================
 // APP SERVER DATABASE SERVICE
@@ -46,11 +44,6 @@ class AppServerDatabaseService {
           ? pkg.NoOpServerLockPersistence()
           : lock_impl.FileSystemLockPersistence(),
     );
-  }
-
-  /// Generate a unique, filesystem-safe database name for a server
-  String generateDatabaseName(ServerConfig server) {
-    return _service.generateDatabaseName(_toPackageConfig(server));
   }
 
   /// Get the server identifier (for keys and locks)
@@ -81,7 +74,10 @@ class AppServerDatabaseService {
           final running = await lock_impl.isProcessRunning(pid);
           if (!running) {
             // Process not running, release the stale lock
-            logger.d('[ServerDbService]', 'Process $pid not running, removing lock');
+            logger.d(
+              '[ServerDbService]',
+              'Process $pid not running, removing lock',
+            );
             await _service.releaseLock(_toPackageConfig(server));
             return null;
           }

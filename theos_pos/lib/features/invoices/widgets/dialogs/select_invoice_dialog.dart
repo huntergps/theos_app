@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../core/database/repositories/repository_providers.dart';
 import '../../../../shared/utils/formatting_utils.dart';
 import '../../../../shared/widgets/dialogs/base_search_dialog.dart';
+
 import 'package:theos_pos_core/theos_pos_core.dart';
 
 /// Dialog for searching and selecting an invoice
@@ -28,20 +29,17 @@ class SelectInvoiceDialog extends BaseSearchDialog<AccountMove> {
   /// If provided, the dialog will search immediately and select all text
   final String? initialQuery;
 
-  const SelectInvoiceDialog({
-    super.key,
-    this.initialQuery,
-  });
+  const SelectInvoiceDialog({super.key, this.initialQuery});
 
   @override
   SearchDialogConfig get config => SearchDialogConfig(
-        title: 'Buscar Factura',
-        searchPlaceholder: 'Buscar por número o cliente...',
-        emptySearchMessage: 'Escriba para buscar facturas',
-        noResultsMessage: 'No se encontraron facturas',
-        minSearchLength: 2,
-        initialSearch: initialQuery,
-      );
+    title: 'Buscar Factura',
+    searchPlaceholder: 'Buscar por número o cliente...',
+    emptySearchMessage: 'Escriba para buscar facturas',
+    noResultsMessage: 'No se encontraron facturas',
+    minSearchLength: 2,
+    initialSearch: initialQuery,
+  );
 
   @override
   Future<List<AccountMove>> performSearch(WidgetRef ref, String query) async {
@@ -83,7 +81,9 @@ class SelectInvoiceDialog extends BaseSearchDialog<AccountMove> {
         child: Container(
           padding: const EdgeInsets.all(12),
           decoration: BoxDecoration(
-            border: Border.all(color: theme.resources.controlStrokeColorDefault),
+            border: Border.all(
+              color: theme.resources.controlStrokeColorDefault,
+            ),
             borderRadius: BorderRadius.circular(4),
           ),
           child: Column(
@@ -94,12 +94,17 @@ class SelectInvoiceDialog extends BaseSearchDialog<AccountMove> {
                 children: [
                   Expanded(
                     child: Text(
-                      invoice.name.isNotEmpty ? invoice.name : 'Factura ${invoice.id}',
+                      invoice.name.isNotEmpty
+                          ? invoice.name
+                          : 'Factura ${invoice.id}',
                       style: theme.typography.bodyStrong,
                     ),
                   ),
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 2,
+                    ),
                     decoration: BoxDecoration(
                       color: statusColor.withValues(alpha: 0.1),
                       borderRadius: BorderRadius.circular(4),
@@ -186,8 +191,6 @@ Future<AccountMove?> showSelectInvoiceDialog(
 }) {
   return showDialog<AccountMove>(
     context: context,
-    builder: (_) => SelectInvoiceDialog(
-      initialQuery: initialQuery,
-    ),
+    builder: (_) => SelectInvoiceDialog(initialQuery: initialQuery),
   );
 }

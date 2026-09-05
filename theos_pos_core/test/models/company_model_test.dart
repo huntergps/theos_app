@@ -31,7 +31,7 @@ void main() {
         'layout_background': 'Geometric',
         'external_report_layout_id': [3, 'Standard Layout'],
         'tax_calculation_rounding_method': 'round_globally',
-        'pedir_end_customer_data': true,
+        'pedir_datos_consumidor_final': true,
         'pedir_sale_referrer': false,
         'pedir_tipo_canal_cliente': true,
         'sale_customer_invoice_limit_sri': 200.0,
@@ -111,10 +111,7 @@ void main() {
     });
 
     test('defaults for missing numeric fields', () {
-      final json = {
-        'id': 1,
-        'name': 'Minimal Co',
-      };
+      final json = {'id': 1, 'name': 'Minimal Co'};
 
       final company = companyManager.fromOdoo(json);
 
@@ -149,15 +146,24 @@ void main() {
 
   group('Company - Convenience Getters', () {
     test('hasAddress checks street or city', () {
-      expect(const Company(id: 1, name: 'T', street: 'Main St').hasAddress, isTrue);
+      expect(
+        const Company(id: 1, name: 'T', street: 'Main St').hasAddress,
+        isTrue,
+      );
       expect(const Company(id: 1, name: 'T', city: 'Quito').hasAddress, isTrue);
       expect(const Company(id: 1, name: 'T').hasAddress, isFalse);
       expect(const Company(id: 1, name: 'T', street: '').hasAddress, isFalse);
     });
 
     test('hasContactInfo checks phone or email', () {
-      expect(const Company(id: 1, name: 'T', phone: '042000000').hasContactInfo, isTrue);
-      expect(const Company(id: 1, name: 'T', email: 'a@b.c').hasContactInfo, isTrue);
+      expect(
+        const Company(id: 1, name: 'T', phone: '042000000').hasContactInfo,
+        isTrue,
+      );
+      expect(
+        const Company(id: 1, name: 'T', email: 'a@b.c').hasContactInfo,
+        isTrue,
+      );
       expect(const Company(id: 1, name: 'T').hasContactInfo, isFalse);
     });
 

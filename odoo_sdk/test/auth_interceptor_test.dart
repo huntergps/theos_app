@@ -12,7 +12,7 @@ class MockTokenRefreshHandler implements TokenRefreshHandler {
   Object? lastFailedError;
 
   MockTokenRefreshHandler({TokenRefreshResult? result})
-      : _refreshCompleter = Completer() {
+    : _refreshCompleter = Completer() {
     if (result != null) {
       _refreshCompleter.complete(result);
     }
@@ -48,10 +48,7 @@ class DelayedMockTokenRefreshHandler implements TokenRefreshHandler {
   final TokenRefreshResult result;
   int refreshCallCount = 0;
 
-  DelayedMockTokenRefreshHandler({
-    required this.delay,
-    required this.result,
-  });
+  DelayedMockTokenRefreshHandler({required this.delay, required this.result});
 
   @override
   Future<TokenRefreshResult> refreshToken() async {
@@ -86,16 +83,18 @@ void main() {
       expect(result.error, equals(error));
     });
 
-    test('toString() masks token in success result', () {
+    test('toString() fully redacts token in success result', () {
       final result = TokenRefreshResult.success('new-token-123');
-      expect(result.toString(), contains('****'));
+      expect(result.toString(), contains('[REDACTED]'));
+      expect(result.toString(), isNot(contains('new-')));
       expect(result.toString(), isNot(contains('new-token-123')));
     });
 
-    test('toString() shows error in failed result', () {
+    test('toString() only shows the error type in failed result', () {
       final result = TokenRefreshResult.failed('Auth failed');
       expect(result.toString(), contains('failed'));
-      expect(result.toString(), contains('Auth failed'));
+      expect(result.toString(), contains('String'));
+      expect(result.toString(), isNot(contains('Auth failed')));
     });
   });
 
@@ -149,10 +148,12 @@ void main() {
         result: TokenRefreshResult.success('new-token'),
       );
 
-      dio.interceptors.add(AuthInterceptor(
-        dio: dio,
-        config: AuthInterceptorConfig(refreshHandler: mockHandler),
-      ));
+      dio.interceptors.add(
+        AuthInterceptor(
+          dio: dio,
+          config: AuthInterceptorConfig(refreshHandler: mockHandler),
+        ),
+      );
 
       // Simulate a 500 error
       dio.httpClientAdapter = _MockAdapter(statusCode: 500);
@@ -174,10 +175,12 @@ void main() {
         result: TokenRefreshResult.success('new-token'),
       );
 
-      dio.interceptors.add(AuthInterceptor(
-        dio: dio,
-        config: AuthInterceptorConfig(refreshHandler: mockHandler),
-      ));
+      dio.interceptors.add(
+        AuthInterceptor(
+          dio: dio,
+          config: AuthInterceptorConfig(refreshHandler: mockHandler),
+        ),
+      );
 
       final cancelToken = CancelToken();
       cancelToken.cancel('User cancelled');
@@ -200,10 +203,12 @@ void main() {
         result: TokenRefreshResult.failed(error),
       );
 
-      dio.interceptors.add(AuthInterceptor(
-        dio: dio,
-        config: AuthInterceptorConfig(refreshHandler: mockHandler),
-      ));
+      dio.interceptors.add(
+        AuthInterceptor(
+          dio: dio,
+          config: AuthInterceptorConfig(refreshHandler: mockHandler),
+        ),
+      );
 
       dio.httpClientAdapter = _MockAdapter(statusCode: 401);
 
@@ -262,10 +267,12 @@ void main() {
         result: TokenRefreshResult.success('brand-new-token'),
       );
 
-      dio.interceptors.add(AuthInterceptor(
-        dio: dio,
-        config: AuthInterceptorConfig(refreshHandler: mockHandler),
-      ));
+      dio.interceptors.add(
+        AuthInterceptor(
+          dio: dio,
+          config: AuthInterceptorConfig(refreshHandler: mockHandler),
+        ),
+      );
 
       // First request fails with 401, retry succeeds
       var callCount = 0;
@@ -301,10 +308,7 @@ void main() {
 
       dio.enableTokenRefresh(handler);
 
-      expect(
-        dio.interceptors.whereType<AuthInterceptor>().length,
-        equals(1),
-      );
+      expect(dio.interceptors.whereType<AuthInterceptor>().length, equals(1));
     });
 
     test('enableTokenRefresh accepts custom config', () {
@@ -385,10 +389,7 @@ class _MockAdapter implements HttpClientAdapter {
   final int statusCode;
   final int? Function()? onRequest;
 
-  _MockAdapter({
-    required this.statusCode,
-    this.onRequest,
-  });
+  _MockAdapter({required this.statusCode, this.onRequest});
 
   @override
   Future<ResponseBody> fetch(

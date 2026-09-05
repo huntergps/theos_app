@@ -33,6 +33,7 @@ _CollectionConfig _$CollectionConfigFromJson(
   userIds: (json['userIds'] as List<dynamic>?)
       ?.map((e) => (e as num).toInt())
       .toList(),
+  posAppCapabilitiesJson: json['posAppCapabilitiesJson'] as String?,
   currentSessionId: (json['currentSessionId'] as num?)?.toInt(),
   currentSessionState: json['currentSessionState'] as String?,
   currentSessionName: json['currentSessionName'] as String?,
@@ -67,6 +68,7 @@ Map<String, dynamic> _$CollectionConfigToJson(
   'setMaximumDifference': instance.setMaximumDifference,
   'amountAuthorizedDiff': instance.amountAuthorizedDiff,
   'userIds': instance.userIds,
+  'posAppCapabilitiesJson': instance.posAppCapabilitiesJson,
   'currentSessionId': instance.currentSessionId,
   'currentSessionState': instance.currentSessionState,
   'currentSessionName': instance.currentSessionName,
@@ -220,6 +222,7 @@ class CollectionConfigManager extends OdooModelManager<CollectionConfig>
       currencyName: row.currencyName as String?,
       setMaximumDifference: row.setMaximumDifference as bool,
       amountAuthorizedDiff: row.amountAuthorizedDiff as double,
+      posAppCapabilitiesJson: row.posAppCapabilitiesJson as String?,
       currentSessionId: row.currentSessionId as int?,
       currentSessionState: row.currentSessionState as String?,
       currentSessionName: row.currentSessionName as String?,
@@ -349,6 +352,9 @@ class CollectionConfigManager extends OdooModelManager<CollectionConfig>
         record.currentSessionStateDisplay,
       ),
       'number_of_rescue_session': Variable<int>(record.numberOfRescueSession),
+      'pos_app_capabilities_json': driftVar<String>(
+        record.posAppCapabilitiesJson,
+      ),
     });
   }
 
@@ -399,6 +405,7 @@ class CollectionConfigManager extends OdooModelManager<CollectionConfig>
     'setMaximumDifference': 'Set Maximum Difference',
     'amountAuthorizedDiff': 'Amount Authorized Diff',
     'userIds': 'User Ids',
+    'posAppCapabilitiesJson': 'Pos App Capabilities Json',
     'currentSessionId': 'Current Session Id',
     'currentSessionState': 'Current Session State',
     'currentSessionName': 'Current Session Name',
@@ -476,6 +483,8 @@ class CollectionConfigManager extends OdooModelManager<CollectionConfig>
         return record.amountAuthorizedDiff;
       case 'userIds':
         return record.userIds;
+      case 'posAppCapabilitiesJson':
+        return record.posAppCapabilitiesJson;
       case 'currentSessionId':
         return record.currentSessionId;
       case 'currentSessionState':
@@ -508,6 +517,10 @@ class CollectionConfigManager extends OdooModelManager<CollectionConfig>
     current.addAll(changes);
     current['id'] = getId(record);
     var updated = fromOdoo(current);
+    // Preserve local-only fields from original record
+    updated = updated.copyWith(
+      posAppCapabilitiesJson: record.posAppCapabilitiesJson,
+    );
     return updated;
   }
 
@@ -548,6 +561,8 @@ class CollectionConfigManager extends OdooModelManager<CollectionConfig>
         return (obj as dynamic).amountAuthorizedDiff;
       case 'userIds':
         return (obj as dynamic).userIds;
+      case 'posAppCapabilitiesJson':
+        return (obj as dynamic).posAppCapabilitiesJson;
       case 'currentSessionId':
         return (obj as dynamic).currentSessionId;
       case 'currentSessionState':
@@ -601,6 +616,7 @@ class CollectionConfigManager extends OdooModelManager<CollectionConfig>
     'setMaximumDifference',
     'amountAuthorizedDiff',
     'userIds',
+    'posAppCapabilitiesJson',
     'currentSessionId',
     'currentSessionState',
     'currentSessionName',

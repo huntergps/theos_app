@@ -8,11 +8,16 @@ import 'package:theos_pos_core/theos_pos_core.dart'
 
 import '../../core/database/repositories/base_repository.dart';
 import '../../core/database/repositories/repository_providers.dart';
-import '../../core/managers/model_registry_integration.dart';
+import '../../core/navigation/app_router.dart';
+import '../../core/managers/manager_providers.dart'
+    show resetModelManagersSession;
 import '../../core/services/auth_event_service.dart';
-import '../../core/services/logger_service.dart';
+import '../../core/services/app_initializer.dart';
+import '../../core/session/session_cleanup_sequence.dart';
+
+import 'package:odoo_sdk/odoo_sdk.dart' show logger;
+
 import '../../core/services/platform/server_connectivity_service.dart';
-import '../../core/services/websocket/odoo_websocket_service.dart';
 import '../../features/authentication/services/server_service.dart';
 import '../../features/sync/services/connectivity_sync_orchestrator.dart';
 import '../../features/products/providers/product_providers.dart';
@@ -43,6 +48,7 @@ class AuthGuard extends ConsumerStatefulWidget {
 
 class _AuthGuardState extends ConsumerState<AuthGuard> {
   StreamSubscription<AuthEvent>? _subscription;
+  bool _isHandlingExpiry = false;
 
   @override
   void initState() {
@@ -60,6 +66,7 @@ class _AuthGuardState extends ConsumerState<AuthGuard> {
   Future<void> _handleAuthEvent(AuthEvent event) async {
     if (event != AuthEvent.sessionExpired) return;
     if (!mounted) return;
+    if (_isHandlingExpiry) return;
 
     // Skip if already on login or splash
     // GoRouter may not be in context when the app is still initializing
@@ -74,64 +81,93 @@ class _AuthGuardState extends ConsumerState<AuthGuard> {
     if (currentLocation == '/login' || currentLocation == '/splash') {
       return;
     }
-
-    logger.w('[AuthGuard] Session expired detected, performing logout...');
-
-    // Tear down background services BEFORE clearing session
-    // (stops WebSocket, health polling, sync orchestrator from talking to old server)
+    _isHandlingExpiry = true;
     try {
-      ref.read(odooWebSocketServiceProvider).disconnect();
-      ref.invalidate(serverHealthServiceProvider);
-      ref.invalidate(serverInfoProvider);
-      ref.invalidate(notificationCounterProvider);
-      ref.invalidate(connectivitySyncOrchestratorProvider);
-      ref.invalidate(modelRegistryIntegrationProvider);
+      logger.w('[AuthGuard] Session expired detected, performing logout...');
 
-      // Invalidate data-layer providers that cache DB/server-specific state
-      ref.invalidate(offlineSyncServiceProvider);
-      ref.invalidate(catalogServiceProvider);
-      ref.invalidate(fastSaleProvider);
-      ref.invalidate(orderCacheProvider);
-      ref.invalidate(imStatusProvider);
+      final offlineSync = ref.read(offlineSyncServiceProvider);
+      final serverService = ref.read(serverServiceProvider.notifier);
+      final currentServer = serverService.currentSession;
+      final currentUserId = ref.read(userProvider)?.id;
+      await runBestEffortSessionCleanup(
+        [
+          SessionCleanupStep('connectivity sync cancellation', () {
+            ref.invalidate(connectivitySyncOrchestratorProvider);
+          }),
+          SessionCleanupStep(
+            'foreground sync cancellation',
+            ref.read(syncProvider.notifier).cancelAndWait,
+          ),
+          if (offlineSync != null)
+            SessionCleanupStep('offline sync shutdown', offlineSync.shutdown),
+          SessionCleanupStep('provider invalidation', () {
+            ref.invalidate(serverHealthServiceProvider);
+            ref.invalidate(serverInfoProvider);
+            ref.invalidate(notificationCounterProvider);
+            ref.invalidate(offlineSyncServiceProvider);
+            ref.invalidate(catalogServiceProvider);
+            ref.invalidate(fastSaleProvider);
+            ref.invalidate(orderCacheProvider);
+            ref.invalidate(imStatusProvider);
+            ref.invalidate(syncProvider);
+            ref.invalidate(currentSessionProvider);
+            ref.invalidate(saleOrderFormProvider);
+          }),
+          // This marker belongs to the scoped DB and must be cleared before it.
+          SessionCleanupStep(
+            'current user marker',
+            userManager.clearCurrentUser,
+          ),
+          SessionCleanupStep('model manager scope', resetModelManagersSession),
+          SessionCleanupStep('repository session handles', () {
+            ref.read(odooClientProvider.notifier).set(null);
+            ref.read(databaseHelperProvider.notifier).set(null);
+          }),
+          SessionCleanupStep('session info cache', SessionInfoCache.clearCache),
+          if (currentServer != null && currentUserId != null)
+            SessionCleanupStep(
+              'revoked offline credential',
+              () => serverService.removeStoredCredential(
+                serverUrl: currentServer.url,
+                database: currentServer.database,
+                userId: currentUserId,
+              ),
+            ),
+          SessionCleanupStep('secure credentials', serverService.clearSession),
+          SessionCleanupStep(
+            'session database',
+            AppInitializer.deactivateSessionScope,
+          ),
+        ],
+        onError: (step, error, stackTrace) => logger.e(
+          '[AuthGuard]',
+          'Expired-session cleanup failed at $step',
+          error,
+          stackTrace,
+        ),
+      );
 
-      // Invalidate sync, session, and form state
-      ref.invalidate(syncProvider);
-      ref.invalidate(currentSessionProvider);
-      ref.invalidate(saleOrderFormProvider);
-      SyncNotifier.resetSyncFlag();
-    } catch (e) {
-      logger.e('[AuthGuard] Error during session teardown: $e');
-    }
-
-    // Perform logout cleanup (same as MainScreen logout)
-    try {
-      // Clear user state in provider
       ref.read(userProvider.notifier).clearUser();
+      AppRouter.session.value = const RouteSessionSnapshot();
 
-      // Clear current user flag in database
-      await userManager.clearCurrentUser();
+      if (!mounted) return;
 
-      // Clear session info cache (prevents stale user data on re-login)
-      SessionInfoCache.clearCache();
-
-      // Clear server session
-      await ref.read(serverServiceProvider.notifier).clearSession();
-    } catch (e) {
-      logger.e('[AuthGuard] Error during logout cleanup: $e');
+      CopyableInfoBar.showError(
+        context,
+        title: 'Sesión expirada',
+        message: 'Tu clave API ha expirado o fue revocada. Inicia sesión nuevamente.',
+      );
+      context.go('/login');
+    } catch (error, stackTrace) {
+      logger.e(
+        '[AuthGuard]',
+        'Unexpected expired-session handling failure',
+        error,
+        stackTrace,
+      );
+    } finally {
+      _isHandlingExpiry = false;
     }
-
-    if (!mounted) return;
-
-    // Show error notification
-    CopyableInfoBar.showError(
-      context,
-      title: 'Sesión expirada',
-      message:
-          'Tu clave API ha expirado o fue revocada. Inicia sesión nuevamente.',
-    );
-
-    // Navigate to login
-    context.go('/login');
   }
 
   @override

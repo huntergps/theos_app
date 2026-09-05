@@ -3,11 +3,15 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:theos_pos_core/theos_pos_core.dart'
     show CollectionSession, SessionState, SessionStateExtension;
 
+import '../../../core/adaptive/adaptive_layout_policy.dart';
 import '../../../core/constants/app_colors.dart';
-import '../../../core/services/logger_service.dart';
-import '../../../core/services/odoo_service.dart';
+
+import 'package:odoo_sdk/odoo_sdk.dart' show logger;
+
+import '../../../core/database/repositories/repository_providers.dart';
 import '../../../core/theme/spacing.dart';
 import '../../../shared/utils/formatting_utils.dart';
+import '../../../shared/widgets/reactive/reactive_cash_count_field.dart';
 
 /// Resultado de la validación de sesión
 class SessionValidationResult {
@@ -25,18 +29,42 @@ class SessionValidationResult {
 /// - Agregar notas
 /// - Validar el cierre
 class SessionValidationDialog extends ConsumerStatefulWidget {
-  final CollectionSession session;
+  static const compactPresentationKey = Key(
+    'session-validation-dialog-compact',
+  );
+  static const modalPresentationKey = Key('session-validation-dialog-modal');
+  static const stackedInformationKey = Key(
+    'session-validation-information-stacked',
+  );
+  static const splitInformationKey = Key(
+    'session-validation-information-split',
+  );
+  static const transactionGridKey = Key('session-validation-transaction-grid');
+  static const stackedActionsKey = Key('session-validation-actions-stacked');
+  static const inlineActionsKey = Key('session-validation-actions-inline');
 
-  const SessionValidationDialog({super.key, required this.session});
+  final CollectionSession session;
+  final AdaptiveInputCapabilities inputCapabilities;
+
+  const SessionValidationDialog({
+    super.key,
+    required this.session,
+    this.inputCapabilities = const AdaptiveInputCapabilities(touch: true),
+  });
 
   /// Muestra el diálogo de validación
   static Future<SessionValidationResult?> show({
     required BuildContext context,
     required CollectionSession session,
+    AdaptiveInputCapabilities inputCapabilities =
+        const AdaptiveInputCapabilities(touch: true),
   }) {
     return showDialog<SessionValidationResult>(
       context: context,
-      builder: (context) => SessionValidationDialog(session: session),
+      builder: (context) => SessionValidationDialog(
+        session: session,
+        inputCapabilities: inputCapabilities,
+      ),
     );
   }
 
@@ -59,103 +87,211 @@ class _SessionValidationDialogState
 
   @override
   Widget build(BuildContext context) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final mediaSize = MediaQuery.sizeOf(context);
+        final windowSize = Size(
+          constraints.maxWidth.isFinite
+              ? constraints.maxWidth
+              : mediaSize.width,
+          constraints.maxHeight.isFinite
+              ? constraints.maxHeight
+              : mediaSize.height,
+        );
+        return _buildDialog(context, windowSize);
+      },
+    );
+  }
+
+  Widget _buildDialog(BuildContext context, Size windowSize) {
     final theme = FluentTheme.of(context);
     final session = widget.session;
+    final policy = CashCountLayoutPolicy.fromWidth(
+      windowSize.width,
+      inputs: widget.inputCapabilities,
+    );
+    final isCompact = policy.usesFullScreenDialog;
 
     // Calculate difference
-    final difference = session.cashRegisterBalanceEndReal -
-        session.cashRegisterBalanceEnd;
+    final difference =
+        session.cashRegisterBalanceEndReal - session.cashRegisterBalanceEnd;
     final hasDifference = difference.abs() > 0.01;
 
     return ContentDialog(
-      constraints: const BoxConstraints(maxWidth: 500, maxHeight: 700),
+      key: isCompact
+          ? SessionValidationDialog.compactPresentationKey
+          : SessionValidationDialog.modalPresentationKey,
+      constraints: isCompact
+          ? BoxConstraints.tightFor(
+              width: windowSize.width,
+              height: windowSize.height,
+            )
+          : BoxConstraints(maxWidth: 720, maxHeight: windowSize.height * 0.9),
       title: Row(
         children: [
           Icon(FluentIcons.check_list, color: theme.accentColor),
           const SizedBox(width: Spacing.sm),
-          const Text('Validar Cierre de Sesión'),
+          const Expanded(child: Text('Validar Cierre de Sesión')),
         ],
       ),
-      content: SingleChildScrollView(
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            // Session info
-            _buildSessionInfoCard(theme, session),
-            const SizedBox(height: Spacing.md),
+      content: LayoutBuilder(
+        builder: (context, constraints) {
+          final availableWidth = constraints.hasBoundedWidth
+              ? constraints.maxWidth
+              : windowSize.width;
+          final contentPolicy = CashCountLayoutPolicy.fromWidth(availableWidth);
+          return SingleChildScrollView(
+            child: _buildContent(
+              theme,
+              session,
+              difference,
+              hasDifference,
+              contentPolicy,
+            ),
+          );
+        },
+      ),
+      actions: _buildActions(policy),
+    );
+  }
 
-            // Cash summary
-            _buildCashSummaryCard(theme, session, difference, hasDifference),
-            const SizedBox(height: Spacing.md),
+  Widget _buildContent(
+    FluentThemeData theme,
+    CollectionSession session,
+    double difference,
+    bool hasDifference,
+    CashCountLayoutPolicy policy,
+  ) {
+    final information = policy.stacksInformation
+        ? Column(
+            key: SessionValidationDialog.stackedInformationKey,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              _buildSessionInfoCard(theme, session),
+              const SizedBox(height: Spacing.md),
+              _buildCashSummaryCard(theme, session, difference, hasDifference),
+            ],
+          )
+        : Row(
+            key: SessionValidationDialog.splitInformationKey,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(child: _buildSessionInfoCard(theme, session)),
+              const SizedBox(width: Spacing.md),
+              Expanded(
+                child: _buildCashSummaryCard(
+                  theme,
+                  session,
+                  difference,
+                  hasDifference,
+                ),
+              ),
+            ],
+          );
 
-            // Transactions summary
-            _buildTransactionsSummary(theme, session),
-            const SizedBox(height: Spacing.md),
-
-            // Supervisor notes
-            InfoLabel(
-              label: 'Notas del Supervisor',
-              child: TextBox(
-                controller: _notesController,
-                placeholder: 'Comentarios opcionales sobre el cierre...',
-                maxLines: 3,
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        information,
+        const SizedBox(height: Spacing.md),
+        _buildTransactionsSummary(theme, session),
+        const SizedBox(height: Spacing.md),
+        InfoLabel(
+          label: 'Notas del Supervisor',
+          child: TextBox(
+            controller: _notesController,
+            placeholder: 'Comentarios opcionales sobre el cierre...',
+            maxLines: 3,
+          ),
+        ),
+        if (hasDifference) ...[
+          const SizedBox(height: Spacing.md),
+          _buildDifferenceWarning(theme, difference),
+        ],
+        if (_errorMessage != null) ...[
+          const SizedBox(height: Spacing.md),
+          Container(
+            padding: const EdgeInsets.all(Spacing.sm),
+            decoration: BoxDecoration(
+              color: AppColors.danger.withValues(alpha: 0.1),
+              borderRadius: BorderRadius.circular(6),
+              border: Border.all(
+                color: AppColors.danger.withValues(alpha: 0.3),
               ),
             ),
-
-            // Warning for difference
-            if (hasDifference) ...[
-              const SizedBox(height: Spacing.md),
-              _buildDifferenceWarning(theme, difference),
-            ],
-
-            // Error message
-            if (_errorMessage != null) ...[
-              const SizedBox(height: Spacing.md),
-              Container(
-                padding: const EdgeInsets.all(Spacing.sm),
-                decoration: BoxDecoration(
-                  color: AppColors.danger.withValues(alpha: 0.1),
-                  borderRadius: BorderRadius.circular(6),
-                  border: Border.all(color: AppColors.danger.withValues(alpha: 0.3)),
-                ),
-                child: Row(
-                  children: [
-                    Icon(FluentIcons.error, size: 16, color: AppColors.danger),
-                    const SizedBox(width: Spacing.xs),
-                    Expanded(
-                      child: Text(
-                        _errorMessage!,
-                        style: theme.typography.body?.copyWith(color: AppColors.danger),
-                      ),
+            child: Row(
+              children: [
+                Icon(FluentIcons.error, size: 16, color: AppColors.danger),
+                const SizedBox(width: Spacing.xs),
+                Expanded(
+                  child: Text(
+                    _errorMessage!,
+                    style: theme.typography.body?.copyWith(
+                      color: AppColors.danger,
                     ),
-                  ],
+                  ),
                 ),
-              ),
-            ],
-          ],
-        ),
-      ),
-      actions: [
-        Button(
-          onPressed: _isValidating ? null : () => Navigator.of(context).pop(),
-          child: const Text('Cancelar'),
-        ),
-        FilledButton(
-          onPressed: _isValidating ? null : _validateSession,
-          child: _isValidating
-              ? const SizedBox(
-                  width: 16,
-                  height: 16,
-                  child: ProgressRing(strokeWidth: 2),
-                )
-              : const Text('Validar y Cerrar'),
-        ),
+              ],
+            ),
+          ),
+        ],
       ],
     );
   }
 
-  Widget _buildSessionInfoCard(FluentThemeData theme, CollectionSession session) {
+  List<Widget> _buildActions(CashCountLayoutPolicy policy) {
+    final cancel = SizedBox(
+      height: policy.minimumInteractiveExtent,
+      child: Button(
+        onPressed: _isValidating ? null : () => Navigator.of(context).pop(),
+        child: const Text('Cancelar'),
+      ),
+    );
+    final validate = SizedBox(
+      height: policy.minimumInteractiveExtent,
+      child: FilledButton(
+        onPressed: _isValidating ? null : _validateSession,
+        child: _isValidating
+            ? const SizedBox(
+                width: 16,
+                height: 16,
+                child: ProgressRing(strokeWidth: 2),
+              )
+            : const Text('Validar y Cerrar'),
+      ),
+    );
+
+    if (policy.stacksActions) {
+      return [
+        SizedBox(
+          key: SessionValidationDialog.stackedActionsKey,
+          width: double.infinity,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              validate,
+              const SizedBox(height: Spacing.sm),
+              cancel,
+            ],
+          ),
+        ),
+      ];
+    }
+
+    return [
+      KeyedSubtree(
+        key: SessionValidationDialog.inlineActionsKey,
+        child: cancel,
+      ),
+      validate,
+    ];
+  }
+
+  Widget _buildSessionInfoCard(
+    FluentThemeData theme,
+    CollectionSession session,
+  ) {
     return Container(
       padding: const EdgeInsets.all(Spacing.sm),
       decoration: BoxDecoration(
@@ -273,17 +409,60 @@ class _SessionValidationDialogState
             ],
           ),
           const SizedBox(height: Spacing.sm),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceAround,
-            children: [
-              _buildCountItem(theme, 'Órdenes', session.orderCount, Colors.blue),
-              _buildCountItem(
-                  theme, 'Cobros', session.paymentCount, Colors.green),
-              _buildCountItem(
-                  theme, 'Anticipos', session.advanceCount, Colors.magenta),
-              _buildCountItem(
-                  theme, 'Cheques', session.chequeRecibidoCount, Colors.orange),
-            ],
+          LayoutBuilder(
+            builder: (context, constraints) {
+              final policy = CashCountLayoutPolicy.fromWidth(
+                constraints.maxWidth,
+              );
+              const spacing = Spacing.sm;
+              final columns = policy.transactionColumns;
+              final itemWidth =
+                  (constraints.maxWidth - (spacing * (columns - 1))) / columns;
+
+              return Wrap(
+                key: SessionValidationDialog.transactionGridKey,
+                spacing: spacing,
+                runSpacing: spacing,
+                children: [
+                  SizedBox(
+                    width: itemWidth,
+                    child: _buildCountItem(
+                      theme,
+                      'Órdenes',
+                      session.orderCount,
+                      Colors.blue,
+                    ),
+                  ),
+                  SizedBox(
+                    width: itemWidth,
+                    child: _buildCountItem(
+                      theme,
+                      'Cobros',
+                      session.paymentCount,
+                      Colors.green,
+                    ),
+                  ),
+                  SizedBox(
+                    width: itemWidth,
+                    child: _buildCountItem(
+                      theme,
+                      'Anticipos',
+                      session.advanceCount,
+                      Colors.magenta,
+                    ),
+                  ),
+                  SizedBox(
+                    width: itemWidth,
+                    child: _buildCountItem(
+                      theme,
+                      'Cheques',
+                      session.chequeRecibidoCount,
+                      Colors.orange,
+                    ),
+                  ),
+                ],
+              );
+            },
           ),
         ],
       ),
@@ -361,18 +540,39 @@ class _SessionValidationDialogState
     Color? valueColor,
     bool bold = false,
   }) {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-      children: [
-        Text(label, style: theme.typography.body),
-        Text(
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final policy = CashCountLayoutPolicy.fromWidth(constraints.maxWidth);
+        final valueText = Text(
           value,
+          textAlign: policy.stacksInformation
+              ? TextAlign.left
+              : TextAlign.right,
           style: theme.typography.body?.copyWith(
             color: valueColor,
             fontWeight: bold ? FontWeight.bold : null,
           ),
-        ),
-      ],
+        );
+
+        if (policy.stacksInformation) {
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(label, style: theme.typography.body),
+              const SizedBox(height: 2),
+              valueText,
+            ],
+          );
+        }
+
+        return Row(
+          children: [
+            Expanded(child: Text(label, style: theme.typography.body)),
+            const SizedBox(width: Spacing.sm),
+            Flexible(child: valueText),
+          ],
+        );
+      },
     );
   }
 
@@ -382,6 +582,8 @@ class _SessionValidationDialogState
         return AppColors.textSecondary;
       case SessionState.opened:
         return AppColors.success;
+      case SessionState.paused:
+        return Colors.orange;
       case SessionState.closingControl:
         return AppColors.warning;
       case SessionState.closed:
@@ -396,41 +598,27 @@ class _SessionValidationDialogState
     });
 
     try {
-      final odoo = ref.read(odooServiceProvider);
-
-      // action_session_validate(self) no acepta parametros (ver
-      // l10n_ec_collection_box/models/collection_session.py) — las notas del
-      // supervisor son un campo normal del modelo (supervisor_notes), asi
-      // que se guardan con write() ANTES de validar. Antes esto se enviaba
-      // como args:[id] + kwargs:{supervisor_notes:...}, lo cual siempre
-      // fallaba con HTTP 422 porque el dispatcher JSON-2 no trata "args"
-      // como posicionales (ver OdooClient.call).
-      if (_notesController.text.isNotEmpty) {
-        await odoo.call(
-          model: 'collection.session',
-          method: 'write',
-          kwargs: {
-            'ids': [widget.session.id],
-            'vals': {'supervisor_notes': _notesController.text},
-          },
-        );
+      final repository = ref.read(collectionRepositoryProvider);
+      if (repository == null) {
+        throw StateError('Repositorio de sesiones no disponible');
       }
-
-      // Call Odoo to validate and close session (metodo de recordset: usa ids)
-      await odoo.call(
-        model: 'collection.session',
-        method: 'action_session_validate',
-        ids: [widget.session.id],
+      await repository.validateSession(
+        widget.session.id,
+        supervisorNotes: _notesController.text,
       );
 
-      logger.i('[SessionValidation]',
-          'Session ${widget.session.name} validated successfully');
+      logger.i(
+        '[SessionValidation]',
+        'Session ${widget.session.name} validated successfully',
+      );
 
       if (mounted) {
-        Navigator.of(context).pop(SessionValidationResult(
-          success: true,
-          message: 'Sesión cerrada correctamente',
-        ));
+        Navigator.of(context).pop(
+          SessionValidationResult(
+            success: true,
+            message: 'Sesión cerrada correctamente',
+          ),
+        );
       }
     } catch (e) {
       logger.e('[SessionValidation]', 'Error validating session', e);

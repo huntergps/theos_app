@@ -4,7 +4,7 @@
 - `lib/` holds the Flutter application code (features, core utilities, state, UI).
 - `test/` contains unit and widget tests (with subfolders like `core/` and `features/`).
 - `assets/` stores bundled images, icons, and other Flutter assets.
-- `docs/` contains project documentation.
+- `../docs/` contains the living specifications and operational runbooks.
 - `android/`, `ios/`, `web/`, `macos/`, `linux/`, `windows/` are platform shells.
 - `build/` is generated output; do not edit or commit changes here.
 
@@ -30,42 +30,42 @@
 ## Commit & Pull Request Guidelines
 - Commit messages follow Conventional Commits with scopes (examples: `feat(core): ...`, `docs: ...`).
 - PRs should include a brief summary, linked issues (if any), and screenshots or recordings for UI changes.
-- Call out any migrations or generated-code updates in the PR description.
+- Call out schema or generated-code updates in the PR description.
 
 ## Configuration & Local Setup Notes
 - This repo uses Flutter; ensure the correct SDK is installed and on PATH.
 - If you update dependencies, commit `pubspec.lock`.
 
-## Model Manager Architecture (odoo_model_manager integration)
+## Model Manager Architecture (`odoo_sdk` integration)
 
 ### Overview
-The app uses `OdooModelManager<T>` from the `odoo_model_manager` package for unified model management. Each Odoo model has a concrete manager that bridges the annotated model with existing Drift tables.
+The app uses `OdooModelManager<T>` exported by the local `odoo_sdk` package.
+Concrete managers and annotated domain models live in `theos_pos_core`; the
+Flutter app owns Riverpod providers and registry/lifecycle composition.
 
 ### Files Structure
 ```
 lib/core/managers/
 ├── managers.dart                    # Barrel export
-├── manager_providers.dart           # Riverpod providers for managers
-├── model_registry_integration.dart  # WebSocket integration
-├── product_manager.dart             # ProductManager implementation
-├── partner_manager.dart             # PartnerManager implementation
-└── tax_manager.dart                 # TaxManager implementation
+└── manager_providers.dart           # Providers, binding and teardown
+
+../theos_pos_core/lib/src/
+├── models/                         # Annotated domain models
+└── managers/                       # Concrete model managers
 ```
 
 ### Usage Example
 
 ```dart
-// In app startup (e.g., SplashScreen or main.dart)
+// After activating the user scope and publishing DB/client providers.
 import 'package:theos_pos/core/managers/managers.dart';
 
-// Initialize managers (call once after database is ready)
-initializeModelManagers();
-
-// Or use the provider
-ref.read(modelRegistryInitializerProvider);
-
-// Connect WebSocket events to ModelRegistry
-ref.read(modelRegistryIntegrationProvider);
+final queueStore = ref.read(offlineQueueDataSourceProvider);
+await initializeModelManagers(
+  client: ref.read(odooClientProvider), // null only for explicit offline login
+  db: ref.read(appDatabaseProvider),
+  queueStore: queueStore!,
+);
 ```
 
 ### Accessing Managers via Providers
@@ -89,8 +89,28 @@ final tax = await taxManager.readLocal(1);
 
 ### Adding a New Model Manager
 
-1. Create the model class in `odoo_model_manager/lib/models/`
-2. Create `{model}_manager.dart` in `lib/core/managers/`
-3. Implement all abstract methods from `OdooModelManager<T>`
-4. Add provider in `manager_providers.dart`
-5. Register in `initializeModelManagers()`
+1. Create the annotated model under `../theos_pos_core/lib/src/models/`.
+2. Create the concrete manager under `../theos_pos_core/lib/src/managers/`.
+3. Implement the `OdooModelManager<T>` contract exported by `odoo_sdk`.
+4. Export the manager from `theos_pos_core` and add its provider in
+   `manager_providers.dart` when the Flutter layer needs direct access.
+5. Register it in `initializeModelManagers()` and add focused tests.
+
+### Session and synchronization invariants
+
+- Authentication is API-key Bearer over `/json/2`; do not introduce
+  `/web/session/authenticate`, cookies, `withCredentials` or XML-RPC call sites.
+- Native session restoration uses non-secret metadata plus a credential
+  reference into the platform secure store. Web credentials are intentionally
+  memory-only and require login after a page refresh.
+- Online login, offline login and cold-start restoration must all activate the
+  `SessionScope` before exposing Drift, then call `initializeModelManagers`.
+- `initializeModelManagers` rebinds every singleton manager to the active
+  client, scoped database and offline queue. Logout, expiration and server/user
+  changes call `resetModelManagersSession` before closing Drift.
+- The application runtime does not use WebSocket. Remote reconciliation is
+  HTTP JSON-2: queue-first recovery plus incremental polling; Drift streams
+  propagate committed local changes to the UI.
+- Writes that are explicitly offline-capable enter the durable scoped queue.
+  Preserve command dependencies, idempotency keys, conflict checks, retry
+  backoff and dead-letter evidence when extending it.

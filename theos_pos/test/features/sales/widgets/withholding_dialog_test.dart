@@ -128,11 +128,36 @@ void main() {
     group('Withholding type classification', () {
       test('should classify IVA withholdings by code starting with 1', () {
         final types = [
-          WithholdingType(id: 1, name: 'Ret IVA 30%', percentage: 30.0, code: '1'),
-          WithholdingType(id: 2, name: 'Ret IVA 70%', percentage: 70.0, code: '1'),
-          WithholdingType(id: 3, name: 'Ret IVA 100%', percentage: 100.0, code: '1'),
-          WithholdingType(id: 4, name: 'Ret Renta 1%', percentage: 1.0, code: '303'),
-          WithholdingType(id: 5, name: 'Ret Renta 2%', percentage: 2.0, code: '304'),
+          WithholdingType(
+            id: 1,
+            name: 'Ret IVA 30%',
+            percentage: 30.0,
+            code: '1',
+          ),
+          WithholdingType(
+            id: 2,
+            name: 'Ret IVA 70%',
+            percentage: 70.0,
+            code: '1',
+          ),
+          WithholdingType(
+            id: 3,
+            name: 'Ret IVA 100%',
+            percentage: 100.0,
+            code: '1',
+          ),
+          WithholdingType(
+            id: 4,
+            name: 'Ret Renta 1%',
+            percentage: 1.0,
+            code: '303',
+          ),
+          WithholdingType(
+            id: 5,
+            name: 'Ret Renta 2%',
+            percentage: 2.0,
+            code: '304',
+          ),
         ];
 
         final ivaTypes = types.where((t) => t.code.startsWith('1')).toList();
@@ -191,11 +216,9 @@ void main() {
       test('should add new withholding line', () {
         final lines = <_WithholdingEntry>[];
 
-        lines.add(_WithholdingEntry(
-          type: 'IVA 30%',
-          base: 100.0,
-          percentage: 30.0,
-        ));
+        lines.add(
+          _WithholdingEntry(type: 'IVA 30%', base: 100.0, percentage: 30.0),
+        );
 
         expect(lines.length, 1);
         expect(lines.first.amount, 30.0);

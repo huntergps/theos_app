@@ -64,12 +64,12 @@ abstract class ResDevice with _$ResDevice, OdooRecord<ResDevice> {
       userId: json['user_id'] is int ? json['user_id'] as int : null,
       firstActivity:
           json['first_activity'] != null && json['first_activity'] != false
-              ? DateTime.tryParse('${json['first_activity']}Z')
-              : null,
+          ? DateTime.tryParse('${json['first_activity']}Z')
+          : null,
       lastActivity:
           json['last_activity'] != null && json['last_activity'] != false
-              ? DateTime.tryParse('${json['last_activity']}Z')
-              : null,
+          ? DateTime.tryParse('${json['last_activity']}Z')
+          : null,
       revoked: json['revoked'] == true,
     );
   }

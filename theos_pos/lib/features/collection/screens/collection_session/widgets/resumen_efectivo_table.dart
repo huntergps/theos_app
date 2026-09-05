@@ -1,12 +1,15 @@
 import 'package:fluent_ui/fluent_ui.dart';
 
-import 'package:odoo_widgets/odoo_widgets.dart' show ReactiveSummaryCard, ReactiveSummaryRow;
+import 'package:odoo_widgets/odoo_widgets.dart'
+    show OdooSummaryCard, OdooSummaryRow;
+
 import '../../../../../core/constants/app_colors.dart';
 import '../../../../../shared/utils/formatting_utils.dart';
+
 import 'package:theos_pos_core/theos_pos_core.dart';
 
 /// Tabla de resumen de efectivo de la sesion
-/// Refactorizado para usar ReactiveSummaryCard
+/// Refactorizado para usar OdooSummaryCard
 class ResumenEfectivoTable extends StatelessWidget {
   final CollectionSession session;
 
@@ -17,7 +20,7 @@ class ResumenEfectivoTable extends StatelessWidget {
     final theme = FluentTheme.of(context);
     final difference = session.cashRegisterDifference;
 
-    return ReactiveSummaryCard(
+    return OdooSummaryCard(
       title: 'Resumen de Efectivo',
       titleIcon: FluentIcons.money,
       footer: _buildFooterTotal(theme, difference),
@@ -25,13 +28,13 @@ class ResumenEfectivoTable extends StatelessWidget {
         // Entradas
         _buildSectionHeader(theme, 'Entradas', AppColors.success),
         const SizedBox(height: 8),
-        ReactiveSummaryRow(
+        OdooSummaryRow(
           icon: FluentIcons.add,
           iconColor: AppColors.success,
           label: 'Cobros en Efectivo',
           amount: session.totalCash,
         ),
-        ReactiveSummaryRow(
+        OdooSummaryRow(
           icon: FluentIcons.pinned,
           iconColor: Colors.orange,
           label: 'Anticipos en Efectivo',
@@ -43,7 +46,7 @@ class ResumenEfectivoTable extends StatelessWidget {
         // Salidas
         _buildSectionHeader(theme, 'Salidas', AppColors.danger),
         const SizedBox(height: 8),
-        ReactiveSummaryRow(
+        OdooSummaryRow(
           icon: FluentIcons.remove,
           iconColor: AppColors.danger,
           label: 'Retiros Efectivo',
@@ -58,14 +61,14 @@ class ResumenEfectivoTable extends StatelessWidget {
         // Balance calculado
         _buildSectionHeader(theme, 'Balance', theme.accentColor),
         const SizedBox(height: 8),
-        ReactiveSummaryRow(
+        OdooSummaryRow(
           icon: FluentIcons.money,
           iconColor: theme.accentColor,
           label: 'Dinero Registrado (En Caja)',
           amount: session.cashRegisterBalanceEndReal,
           amountStyle: theme.typography.bodyStrong,
         ),
-        ReactiveSummaryRow(
+        OdooSummaryRow(
           icon: FluentIcons.calculator,
           iconColor: AppColors.textSecondary,
           label: 'Diferencia',
@@ -73,7 +76,7 @@ class ResumenEfectivoTable extends StatelessWidget {
           highlightPositive: difference > 0,
           highlightNegative: difference < 0,
         ),
-        ReactiveSummaryRow(
+        OdooSummaryRow(
           icon: FluentIcons.bank,
           iconColor: Colors.blue,
           label: 'Fondo de Caja',
@@ -112,8 +115,8 @@ class ResumenEfectivoTable extends StatelessWidget {
     final Color amountColor = difference > 0
         ? AppColors.success
         : difference < 0
-            ? AppColors.danger
-            : theme.accentColor;
+        ? AppColors.danger
+        : theme.accentColor;
 
     return Container(
       padding: const EdgeInsets.all(12),

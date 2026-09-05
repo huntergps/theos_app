@@ -1,17 +1,13 @@
 import 'package:freezed_annotation/freezed_annotation.dart';
 
 import '../../../core/providers/base_feature_state.dart';
+
 import 'package:theos_pos_core/theos_pos_core.dart' show MailActivity;
 
 part 'activities_state.freezed.dart';
 
 /// Filter options for activities list
-enum ActivityFilter {
-  all,
-  overdue,
-  today,
-  planned,
-}
+enum ActivityFilter { all, overdue, today, planned }
 
 extension ActivityFilterExtension on ActivityFilter {
   String get label {
@@ -46,7 +42,9 @@ extension ActivityFilterExtension on ActivityFilter {
 ///
 /// Implements [BaseFeatureState] for standardized loading/error handling.
 @freezed
-abstract class ActivitiesState with _$ActivitiesState implements BaseFeatureState {
+abstract class ActivitiesState
+    with _$ActivitiesState
+    implements BaseFeatureState {
   const factory ActivitiesState({
     @Default([]) List<MailActivity> activities,
     @Default(ActivityFilter.all) ActivityFilter filter,
@@ -58,9 +56,6 @@ abstract class ActivitiesState with _$ActivitiesState implements BaseFeatureStat
   }) = _ActivitiesState;
 
   const ActivitiesState._();
-
-  /// Whether syncing is in progress (alias for isSaving for backwards compat)
-  bool get isSyncing => isSaving;
 
   @override
   bool get hasError => errorMessage != null;

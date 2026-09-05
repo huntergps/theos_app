@@ -47,7 +47,8 @@ class ActivitiesDataSource extends DataGridSource {
           DataGridCell<MailActivity>(columnName: 'status', value: activity),
           DataGridCell<String>(
             columnName: 'summary',
-            value: activity.summary ?? activity.activityTypeName ?? 'Sin titulo',
+            value:
+                activity.summary ?? activity.activityTypeName ?? 'Sin titulo',
           ),
           DataGridCell<String>(
             columnName: 'resName',
@@ -63,10 +64,7 @@ class ActivitiesDataSource extends DataGridSource {
             value: activity.dateDeadline,
           ),
           DataGridCell<String>(columnName: 'state', value: activity.state),
-          DataGridCell<MailActivity>(
-            columnName: 'reschedule',
-            value: activity,
-          ),
+          DataGridCell<MailActivity>(columnName: 'reschedule', value: activity),
           DataGridCell<MailActivity>(columnName: 'done', value: activity),
           DataGridCell<MailActivity>(columnName: 'cancel', value: activity),
         ],
@@ -123,10 +121,7 @@ class ActivitiesDataSource extends DataGridSource {
       child: Container(
         width: 12,
         height: 12,
-        decoration: BoxDecoration(
-          color: stateColor,
-          shape: BoxShape.circle,
-        ),
+        decoration: BoxDecoration(color: stateColor, shape: BoxShape.circle),
       ),
     );
   }
@@ -258,8 +253,9 @@ class ActivitiesDataSource extends DataGridSource {
             }),
             foregroundColor: WidgetStateProperty.all(Colors.green),
           ),
-          onPressed:
-              onMarkAsDone != null ? () => onMarkAsDone!(activity.id) : null,
+          onPressed: onMarkAsDone != null
+              ? () => onMarkAsDone!(activity.id)
+              : null,
         ),
       ),
     );

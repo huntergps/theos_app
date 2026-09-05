@@ -8,16 +8,20 @@ import '../../models/config/currency.model.dart';
 
 /// Extension methods for CurrencyManager
 extension CurrencyManagerBusiness on CurrencyManager {
-  /// Get a currency by Odoo ID (alias for readLocal)
-  Future<Currency?> getById(int odooId) => readLocal(odooId);
-
   /// Get all active currencies
   Future<List<Currency>> getActiveCurrencies() async {
-    return searchLocal(domain: [['active', '=', true]]);
+    return searchLocal(
+      domain: [
+        ['active', '=', true],
+      ],
+    );
   }
 
   /// Search currencies by name or symbol
-  Future<List<Currency>> searchCurrencies(String query, {int limit = 50}) async {
+  Future<List<Currency>> searchCurrencies(
+    String query, {
+    int limit = 50,
+  }) async {
     if (query.trim().isEmpty) return [];
     return searchLocal(
       domain: [
@@ -35,7 +39,12 @@ extension CurrencyManagerBusiness on CurrencyManager {
 extension DecimalPrecisionManagerBusiness on DecimalPrecisionManager {
   /// Get precision by name
   Future<DecimalPrecision?> getByName(String name) async {
-    final results = await searchLocal(domain: [['name', '=', name]], limit: 1);
+    final results = await searchLocal(
+      domain: [
+        ['name', '=', name],
+      ],
+      limit: 1,
+    );
     return results.firstOrNull;
   }
 

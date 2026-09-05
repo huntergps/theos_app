@@ -1,5 +1,6 @@
 import 'package:fluent_ui/fluent_ui.dart';
 import 'package:theos_pos_core/theos_pos_core.dart';
+
 import '../../../../core/constants/app_colors.dart';
 
 /// Badge that displays credit status with appropriate styling
@@ -44,11 +45,7 @@ class CreditStatusBadge extends StatelessWidget {
     if (compact) {
       return Tooltip(
         message: config.label,
-        child: Icon(
-          config.icon,
-          color: config.color,
-          size: 16,
-        ),
+        child: Icon(config.icon, color: config.color, size: 16),
       );
     }
 
@@ -62,11 +59,7 @@ class CreditStatusBadge extends StatelessWidget {
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(
-            config.icon,
-            color: config.color,
-            size: 14,
-          ),
+          Icon(config.icon, color: config.color, size: 14),
           if (showLabel) ...[
             const SizedBox(width: 4),
             Text(

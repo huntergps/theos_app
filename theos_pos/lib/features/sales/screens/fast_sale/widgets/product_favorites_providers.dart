@@ -1,12 +1,15 @@
 import 'package:drift/drift.dart' show Variable;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:theos_pos_core/theos_pos_core.dart'
-    hide DatabaseHelper, CreditIssue, PartnerBank;
+    hide DatabaseHelper, PartnerBank;
 
 import '../../../../../core/managers/manager_providers.dart'
     show appDatabaseProvider;
 import '../../../../products/providers/product_providers.dart'
-    show catalogChangesProvider, catalogServiceProvider;
+    show
+        categoryCatalogChangesProvider,
+        catalogServiceProvider,
+        productCatalogChangesProvider;
 import '../../../../products/services/catalog_service.dart';
 
 // ============================================================================
@@ -58,8 +61,9 @@ class FavoritesSelectedCategoryNotifier
 }
 
 final favoritesSelectedCategoryProvider =
-    NotifierProvider<FavoritesSelectedCategoryNotifier,
-        FavoriteFilterCategory>(() => FavoritesSelectedCategoryNotifier());
+    NotifierProvider<FavoritesSelectedCategoryNotifier, FavoriteFilterCategory>(
+      () => FavoritesSelectedCategoryNotifier(),
+    );
 
 // ============================================================================
 // Provider: Conteos de productos frecuentes desde Drift (stream reactivo)
@@ -72,11 +76,11 @@ final favoritesSelectedCategoryProvider =
 /// (porque Drift observa la tabla `sale_order_line`).
 final frequentProductCountsProvider =
     StreamProvider<List<({int productId, int count})>>((ref) {
-  final db = ref.watch(appDatabaseProvider);
-  final cutoff = DateTime.now().subtract(const Duration(days: 30));
+      final db = ref.watch(appDatabaseProvider);
+      final cutoff = DateTime.now().subtract(const Duration(days: 30));
 
-  final query = db.customSelect(
-    '''
+      final query = db.customSelect(
+        '''
     SELECT product_id, COUNT(*) AS cnt
     FROM sale_order_line
     WHERE product_id IS NOT NULL
@@ -86,19 +90,21 @@ final frequentProductCountsProvider =
     ORDER BY cnt DESC
     LIMIT 20
     ''',
-    variables: [Variable.withDateTime(cutoff)],
-    readsFrom: {db.saleOrderLine},
-  );
+        variables: [Variable.withDateTime(cutoff)],
+        readsFrom: {db.saleOrderLine},
+      );
 
-  return query.watch().map((rows) {
-    return rows
-        .map((row) => (
-              productId: row.read<int>('product_id'),
-              count: row.read<int>('cnt'),
-            ))
-        .toList();
-  });
-});
+      return query.watch().map((rows) {
+        return rows
+            .map(
+              (row) => (
+                productId: row.read<int>('product_id'),
+                count: row.read<int>('cnt'),
+              ),
+            )
+            .toList();
+      });
+    });
 
 // ============================================================================
 // Provider: Productos frecuentes resueltos desde el catálogo local
@@ -110,7 +116,7 @@ final frequentProductCountsProvider =
 /// Fallback: si hay menos de 8 productos en el historial, completa hasta 20
 /// con los primeros productos activos vendibles del catálogo (orden alfabético).
 final frequentProductsProvider = Provider<List<Product>>((ref) {
-  ref.watch(catalogChangesProvider);
+  ref.watch(productCatalogChangesProvider);
   final catalog = ref.watch(catalogServiceProvider);
   final countsAsync = ref.watch(frequentProductCountsProvider);
 
@@ -131,7 +137,11 @@ final frequentProductsProvider = Provider<List<Product>>((ref) {
 
   // 2. Fallback: completar con productos activos si no hay suficiente historial
   if (result.length < 8) {
-    final fallback = _searchCatalogFallback(catalog, seenIds, 20 - result.length);
+    final fallback = _searchCatalogFallback(
+      catalog,
+      seenIds,
+      20 - result.length,
+    );
     result.addAll(fallback);
   }
 
@@ -185,13 +195,12 @@ final favoriteGridProductsProvider = Provider<List<Product>>((ref) {
   final categoryId = selected.id;
   if (categoryId == null) return frequent;
 
-  ref.watch(catalogChangesProvider);
+  ref.watch(productCatalogChangesProvider);
   final catalog = ref.watch(catalogServiceProvider);
   if (!catalog.isLoaded) return [];
 
   // Primero los frecuentes de esta categoría
-  final fromFrequent =
-      frequent.where((p) => p.categId == categoryId).toList();
+  final fromFrequent = frequent.where((p) => p.categId == categoryId).toList();
 
   // Luego completar con otros productos de la categoría del catálogo
   final existingIds = fromFrequent.map((p) => p.id).toSet();
@@ -225,29 +234,30 @@ final favoriteGridProductsProvider = Provider<List<Product>>((ref) {
 ///
 /// Siempre incluye "Frecuentes" como primer elemento, seguido de las
 /// categorías de los productos frecuentes (en orden de aparición).
-final favoriteFilterCategoriesProvider =
-    Provider<List<FavoriteFilterCategory>>((ref) {
-  ref.watch(catalogChangesProvider);
-  final catalog = ref.watch(catalogServiceProvider);
-  final frequent = ref.watch(frequentProductsProvider);
+final favoriteFilterCategoriesProvider = Provider<List<FavoriteFilterCategory>>(
+  (ref) {
+    ref.watch(categoryCatalogChangesProvider);
+    final catalog = ref.watch(catalogServiceProvider);
+    final frequent = ref.watch(frequentProductsProvider);
 
-  final categories = <FavoriteFilterCategory>[
-    FavoriteFilterCategory.frecuentes,
-  ];
+    final categories = <FavoriteFilterCategory>[
+      FavoriteFilterCategory.frecuentes,
+    ];
 
-  final seenCategIds = <int>{};
-  for (final product in frequent) {
-    final categId = product.categId;
-    if (categId != null && !seenCategIds.contains(categId)) {
-      seenCategIds.add(categId);
-      final category = catalog.getCategory(categId);
-      if (category != null) {
-        categories.add(
-          FavoriteFilterCategory(id: categId, name: category.name),
-        );
+    final seenCategIds = <int>{};
+    for (final product in frequent) {
+      final categId = product.categId;
+      if (categId != null && !seenCategIds.contains(categId)) {
+        seenCategIds.add(categId);
+        final category = catalog.getCategory(categId);
+        if (category != null) {
+          categories.add(
+            FavoriteFilterCategory(id: categId, name: category.name),
+          );
+        }
       }
     }
-  }
 
-  return categories;
-});
+    return categories;
+  },
+);

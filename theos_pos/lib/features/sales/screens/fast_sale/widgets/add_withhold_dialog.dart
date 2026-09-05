@@ -1,7 +1,10 @@
 import 'package:fluent_ui/fluent_ui.dart';
 
 import '../../../../../core/theme/spacing.dart';
-import 'package:theos_pos_core/theos_pos_core.dart' hide DatabaseHelper, PartnerBank, CreditIssue;
+
+import 'package:theos_pos_core/theos_pos_core.dart'
+    hide DatabaseHelper, PartnerBank;
+
 import '../../../../../shared/utils/formatting_utils.dart';
 import '../../../../../shared/widgets/dialogs/copyable_info_bar.dart';
 
@@ -30,7 +33,8 @@ class AddWithholdDialogContent extends StatefulWidget {
   });
 
   @override
-  State<AddWithholdDialogContent> createState() => AddWithholdDialogContentState();
+  State<AddWithholdDialogContent> createState() =>
+      AddWithholdDialogContentState();
 }
 
 class AddWithholdDialogContentState extends State<AddWithholdDialogContent> {
@@ -73,7 +77,11 @@ class AddWithholdDialogContentState extends State<AddWithholdDialogContent> {
     return ContentDialog(
       title: Row(
         children: [
-          Icon(FluentIcons.calculator_percentage, size: 20, color: Colors.orange),
+          Icon(
+            FluentIcons.calculator_percentage,
+            size: 20,
+            color: Colors.orange,
+          ),
           const SizedBox(width: Spacing.sm),
           const Text('Registrar Retención'),
         ],
@@ -90,16 +98,36 @@ class AddWithholdDialogContentState extends State<AddWithholdDialogContent> {
               decoration: BoxDecoration(
                 color: theme.cardColor,
                 borderRadius: BorderRadius.circular(6),
-                border: Border.all(color: theme.resources.dividerStrokeColorDefault),
+                border: Border.all(
+                  color: theme.resources.dividerStrokeColorDefault,
+                ),
               ),
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceAround,
                 children: [
                   _buildInfoChip(theme, 'Subtotal', widget.orderSubtotal),
-                  Container(width: 1, height: 30, color: theme.resources.dividerStrokeColorDefault),
-                  _buildInfoChip(theme, 'IVA', widget.orderTax, color: Colors.blue),
-                  Container(width: 1, height: 30, color: theme.resources.dividerStrokeColorDefault),
-                  _buildInfoChip(theme, 'Total', widget.orderTotal, isBold: true),
+                  Container(
+                    width: 1,
+                    height: 30,
+                    color: theme.resources.dividerStrokeColorDefault,
+                  ),
+                  _buildInfoChip(
+                    theme,
+                    'IVA',
+                    widget.orderTax,
+                    color: Colors.blue,
+                  ),
+                  Container(
+                    width: 1,
+                    height: 30,
+                    color: theme.resources.dividerStrokeColorDefault,
+                  ),
+                  _buildInfoChip(
+                    theme,
+                    'Total',
+                    widget.orderTotal,
+                    isBold: true,
+                  ),
                 ],
               ),
             ),
@@ -120,7 +148,9 @@ class AddWithholdDialogContentState extends State<AddWithholdDialogContent> {
                   Expanded(
                     child: Text(
                       'Puede ingresar una base personalizada si la retención aplica sobre un monto diferente al total.',
-                      style: theme.typography.caption?.copyWith(color: Colors.blue),
+                      style: theme.typography.caption?.copyWith(
+                        color: Colors.blue,
+                      ),
                     ),
                   ),
                 ],
@@ -138,7 +168,8 @@ class AddWithholdDialogContentState extends State<AddWithholdDialogContent> {
                 defaultBase: widget.orderTax,
                 baseController: _vatBaseController,
                 useCustomBase: _useCustomVatBase,
-                onCustomBaseChanged: (val) => setState(() => _useCustomVatBase = val),
+                onCustomBaseChanged: (val) =>
+                    setState(() => _useCustomVatBase = val),
                 taxes: widget.vatTaxes,
                 selectedTax: _selectedVatTax,
                 onTaxChanged: (tax) => setState(() => _selectedVatTax = tax),
@@ -158,7 +189,8 @@ class AddWithholdDialogContentState extends State<AddWithholdDialogContent> {
                 defaultBase: widget.orderSubtotal,
                 baseController: _incomeBaseController,
                 useCustomBase: _useCustomIncomeBase,
-                onCustomBaseChanged: (val) => setState(() => _useCustomIncomeBase = val),
+                onCustomBaseChanged: (val) =>
+                    setState(() => _useCustomIncomeBase = val),
                 taxes: widget.incomeTaxes,
                 selectedTax: _selectedIncomeTax,
                 onTaxChanged: (tax) => setState(() => _selectedIncomeTax = tax),
@@ -179,14 +211,24 @@ class AddWithholdDialogContentState extends State<AddWithholdDialogContent> {
     );
   }
 
-  Widget _buildInfoChip(FluentThemeData theme, String label, double value, {Color? color, bool isBold = false}) {
+  Widget _buildInfoChip(
+    FluentThemeData theme,
+    String label,
+    double value, {
+    Color? color,
+    bool isBold = false,
+  }) {
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
-        Text(label, style: theme.typography.caption?.copyWith(color: theme.inactiveColor)),
+        Text(
+          label,
+          style: theme.typography.caption?.copyWith(color: theme.inactiveColor),
+        ),
         Text(
           value.toCurrency(),
-          style: (isBold ? theme.typography.bodyStrong : theme.typography.body)?.copyWith(color: color),
+          style: (isBold ? theme.typography.bodyStrong : theme.typography.body)
+              ?.copyWith(color: color),
         ),
       ],
     );
@@ -224,11 +266,25 @@ class AddWithholdDialogContentState extends State<AddWithholdDialogContent> {
           // Header
           Row(
             children: [
-              Icon(FluentIcons.calculator_percentage, size: 16, color: accentColor),
+              Icon(
+                FluentIcons.calculator_percentage,
+                size: 16,
+                color: accentColor,
+              ),
               const SizedBox(width: Spacing.xs),
-              Text(title, style: theme.typography.bodyStrong?.copyWith(color: accentColor)),
+              Text(
+                title,
+                style: theme.typography.bodyStrong?.copyWith(
+                  color: accentColor,
+                ),
+              ),
               const Spacer(),
-              Text(subtitle, style: theme.typography.caption?.copyWith(color: theme.inactiveColor)),
+              Text(
+                subtitle,
+                style: theme.typography.caption?.copyWith(
+                  color: theme.inactiveColor,
+                ),
+              ),
             ],
           ),
           const SizedBox(height: Spacing.sm),
@@ -245,7 +301,10 @@ class AddWithholdDialogContentState extends State<AddWithholdDialogContent> {
                     baseController.text = defaultBase.toFixed(2);
                   }
                 },
-                content: Text('Base personalizada', style: theme.typography.caption),
+                content: Text(
+                  'Base personalizada',
+                  style: theme.typography.caption,
+                ),
               ),
               const SizedBox(width: Spacing.sm),
               // Base input
@@ -254,7 +313,9 @@ class AddWithholdDialogContentState extends State<AddWithholdDialogContent> {
                 child: TextBox(
                   controller: baseController,
                   enabled: useCustomBase,
-                  keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                  keyboardType: const TextInputType.numberWithOptions(
+                    decimal: true,
+                  ),
                   prefix: const Padding(
                     padding: EdgeInsets.only(left: 8),
                     child: Text('\$'),
@@ -274,17 +335,26 @@ class AddWithholdDialogContentState extends State<AddWithholdDialogContent> {
               Expanded(
                 child: ComboBox<AvailableWithholdTax>(
                   isExpanded: true,
-                  placeholder: Text('Seleccione el porcentaje de retención...', style: theme.typography.caption),
+                  placeholder: Text(
+                    'Seleccione el porcentaje de retención...',
+                    style: theme.typography.caption,
+                  ),
                   value: selectedTax,
                   items: taxes.map((tax) {
-                    final amount = WithholdLine.calculateAmount(currentBase, tax.percent);
+                    final amount = WithholdLine.calculateAmount(
+                      currentBase,
+                      tax.percent,
+                    );
                     return ComboBoxItem(
                       value: tax,
                       child: Row(
                         children: [
                           // Percentage badge
                           Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 6,
+                              vertical: 2,
+                            ),
                             decoration: BoxDecoration(
                               color: accentColor.withValues(alpha: 0.15),
                               borderRadius: BorderRadius.circular(4),
@@ -309,7 +379,9 @@ class AddWithholdDialogContentState extends State<AddWithholdDialogContent> {
                           // Calculated amount
                           Text(
                             '= ${amount.toCurrency()}',
-                            style: theme.typography.bodyStrong?.copyWith(color: accentColor),
+                            style: theme.typography.bodyStrong?.copyWith(
+                              color: accentColor,
+                            ),
                           ),
                         ],
                       ),
@@ -349,21 +421,36 @@ class AddWithholdDialogContentState extends State<AddWithholdDialogContent> {
                 children: [
                   Text(currentBase.toCurrency(), style: theme.typography.body),
                   const SizedBox(width: Spacing.xs),
-                  Text('\u00d7', style: theme.typography.body?.copyWith(color: theme.inactiveColor)),
+                  Text(
+                    '\u00d7',
+                    style: theme.typography.body?.copyWith(
+                      color: theme.inactiveColor,
+                    ),
+                  ),
                   const SizedBox(width: Spacing.xs),
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 6,
+                      vertical: 2,
+                    ),
                     decoration: BoxDecoration(
                       color: accentColor.withValues(alpha: 0.2),
                       borderRadius: BorderRadius.circular(4),
                     ),
                     child: Text(
                       '${selectedTax.percent.toFixed(0)}%',
-                      style: theme.typography.bodyStrong?.copyWith(color: accentColor),
+                      style: theme.typography.bodyStrong?.copyWith(
+                        color: accentColor,
+                      ),
                     ),
                   ),
                   const SizedBox(width: Spacing.xs),
-                  Text('=', style: theme.typography.body?.copyWith(color: theme.inactiveColor)),
+                  Text(
+                    '=',
+                    style: theme.typography.body?.copyWith(
+                      color: theme.inactiveColor,
+                    ),
+                  ),
                   const SizedBox(width: Spacing.xs),
                   Text(
                     calculatedAmount.toCurrency(),
@@ -404,7 +491,8 @@ class AddWithholdDialogContentState extends State<AddWithholdDialogContent> {
     CopyableInfoBar.showSuccess(
       context,
       title: 'Retención IVA agregada',
-      message: '${base.toCurrency()} \u00d7 ${tax.percent.toFixed(0)}% = ${amount.toCurrency()}',
+      message:
+          '${base.toCurrency()} \u00d7 ${tax.percent.toFixed(0)}% = ${amount.toCurrency()}',
     );
   }
 
@@ -431,7 +519,8 @@ class AddWithholdDialogContentState extends State<AddWithholdDialogContent> {
     CopyableInfoBar.showSuccess(
       context,
       title: 'Retención Renta agregada',
-      message: '${base.toCurrency()} \u00d7 ${tax.percent.toFixed(0)}% = ${amount.toCurrency()}',
+      message:
+          '${base.toCurrency()} \u00d7 ${tax.percent.toFixed(0)}% = ${amount.toCurrency()}',
     );
   }
 }

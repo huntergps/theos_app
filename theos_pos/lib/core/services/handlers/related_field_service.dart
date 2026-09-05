@@ -21,14 +21,14 @@ export 'package:odoo_sdk/odoo_sdk.dart'
 class DriftRelatedRecordCacheStore implements core.RelatedRecordCacheStore {
   final AppDatabase _db;
 
-  DriftRelatedRecordCacheStore({required AppDatabase db})
-      : _db = db;
+  DriftRelatedRecordCacheStore({required this._db});
 
   @override
   Future<core.RelatedRecordCacheEntry?> get(String model, int odooId) async {
-    final row = await (_db.select(_db.relatedRecordCache)
-          ..where((t) => t.model.equals(model) & t.odooId.equals(odooId)))
-        .getSingleOrNull();
+    final row =
+        await (_db.select(_db.relatedRecordCache)
+              ..where((t) => t.model.equals(model) & t.odooId.equals(odooId)))
+            .getSingleOrNull();
 
     if (row == null) return null;
 
@@ -55,39 +55,41 @@ class DriftRelatedRecordCacheStore implements core.RelatedRecordCacheStore {
       writeDate: Value(entry.writeDate),
     );
 
-    final existing = await (_db.select(_db.relatedRecordCache)
-          ..where((t) => t.model.equals(entry.model) &
-              t.odooId.equals(entry.odooId)))
-        .getSingleOrNull();
+    final existing =
+        await (_db.select(_db.relatedRecordCache)..where(
+              (t) =>
+                  t.model.equals(entry.model) & t.odooId.equals(entry.odooId),
+            ))
+            .getSingleOrNull();
 
     if (existing == null) {
       await _db.into(_db.relatedRecordCache).insert(companion);
     } else {
-      await (_db.update(_db.relatedRecordCache)
-            ..where((t) =>
-                t.model.equals(entry.model) & t.odooId.equals(entry.odooId)))
+      await (_db.update(_db.relatedRecordCache)..where(
+            (t) => t.model.equals(entry.model) & t.odooId.equals(entry.odooId),
+          ))
           .write(companion);
     }
   }
 
   @override
   Future<int> deleteByModel(String model) async {
-    return (_db.delete(_db.relatedRecordCache)
-          ..where((t) => t.model.equals(model)))
-        .go();
+    return (_db.delete(
+      _db.relatedRecordCache,
+    )..where((t) => t.model.equals(model))).go();
   }
 
   @override
   Future<int> deleteRecord(String model, int odooId) async {
-    return (_db.delete(_db.relatedRecordCache)
-          ..where((t) => t.model.equals(model) & t.odooId.equals(odooId)))
-        .go();
+    return (_db.delete(
+      _db.relatedRecordCache,
+    )..where((t) => t.model.equals(model) & t.odooId.equals(odooId))).go();
   }
 
   @override
   Future<int> deleteOlderThan(DateTime cutoff) async {
-    return (_db.delete(_db.relatedRecordCache)
-          ..where((t) => t.cachedAt.isSmallerThanValue(cutoff)))
-        .go();
+    return (_db.delete(
+      _db.relatedRecordCache,
+    )..where((t) => t.cachedAt.isSmallerThanValue(cutoff))).go();
   }
 }

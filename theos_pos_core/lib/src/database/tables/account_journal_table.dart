@@ -26,6 +26,8 @@ class AccountJournal extends Table {
   IntColumn get currencyId => integer().nullable()();
   TextColumn get currencyName => text().nullable()();
   IntColumn get sequence => integer().withDefault(const Constant(10))();
+  BoolColumn get numberedByClient =>
+      boolean().withDefault(const Constant(false))();
 
   // Card payment fields
   BoolColumn get isCardJournal =>

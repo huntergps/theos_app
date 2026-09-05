@@ -1,5 +1,7 @@
 import 'package:uuid/uuid.dart';
+
 import '../../../core/database/database_helper.dart';
+
 // Datasources - using interfaces for Dependency Inversion
 import 'package:theos_pos_core/theos_pos_core.dart' hide DatabaseHelper;
 
@@ -13,28 +15,11 @@ class SessionService {
 
   SessionService(
     DatabaseHelper dbHelper, {
-    required CollectionSessionManager sessionManager,
-    required AccountPaymentManager paymentManager,
-    required CashOutManager cashOutManager,
-    required CollectionSessionDepositManager depositManager,
-  })  : _sessionManager = sessionManager,
-        _paymentManager = paymentManager,
-        _cashOutManager = cashOutManager,
-        _depositManager = depositManager;
-
-  // Singleton instance - now requires datasources to be injected
-  // Consider using provider pattern instead of singleton
-  static SessionService? _instance;
-  static SessionService get instance {
-    if (_instance == null) {
-      throw StateError('SessionService not initialized. Use provider instead.');
-    }
-    return _instance!;
-  }
-
-  static void initialize(SessionService service) {
-    _instance = service;
-  }
+    required this._sessionManager,
+    required this._paymentManager,
+    required this._cashOutManager,
+    required this._depositManager,
+  });
 
   Future<List<CollectionConfig>> getConfigs() async {
     return collectionConfigManager.searchLocal();
@@ -62,8 +47,7 @@ class SessionService {
     final newSession = CollectionSession(
       id: tempId, // Unique temporary local ID (will be replaced with Odoo ID after sync)
       sessionUuid: sessionUuid,
-      name:
-          '${config.name}/$sessionUuid', // Temporary name (will be replaced with Odoo sequence)
+      name: '${config.name}/$sessionUuid', // Temporary name (will be replaced with Odoo sequence)
       state: SessionState.openingControl,
       configId: config.id,
       configName: config.name,

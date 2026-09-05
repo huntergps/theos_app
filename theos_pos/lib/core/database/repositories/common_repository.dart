@@ -10,6 +10,7 @@ import 'package:theos_pos_core/theos_pos_core.dart'
         resLangManager,
         resourceCalendarManager,
         warehouseManager;
+
 import 'base_repository.dart';
 // Datasources (only FieldSelection remains — no generated manager)
 import '../datasources/datasources.dart';
@@ -24,8 +25,8 @@ class CommonRepository extends BaseRepository with OfflineSupport {
   CommonRepository({
     required super.odooClient,
     required super.db,
-    required FieldSelectionDatasource fieldSelectionDatasource,
-  }) : _fieldSelectionDatasource = fieldSelectionDatasource;
+    required this._fieldSelectionDatasource,
+  });
 
   // ============ Countries ============
 
@@ -52,7 +53,9 @@ class CommonRepository extends BaseRepository with OfflineSupport {
       forceRefresh: false,
       getFromCache: () => countryId != null
           ? resCountryStateManager.searchLocal(
-              domain: [['country_id', '=', countryId]],
+              domain: [
+                ['country_id', '=', countryId],
+              ],
               orderBy: 'name asc',
             )
           : resCountryStateManager.searchLocal(orderBy: 'name asc'),
@@ -78,9 +81,11 @@ class CommonRepository extends BaseRepository with OfflineSupport {
     return fetchWithCache<ResLang>(
       forceRefresh: forceRefresh,
       getFromCache: () => resLangManager.searchLocal(
-            domain: [['active', '=', true]],
-            orderBy: 'name asc',
-          ),
+        domain: [
+          ['active', '=', true],
+        ],
+        orderBy: 'name asc',
+      ),
       fetchFromRemote: () => odooClient!.searchRead(
         model: 'res.lang',
         fields: resLangManager.odooFields,
@@ -97,9 +102,7 @@ class CommonRepository extends BaseRepository with OfflineSupport {
   // ============ Warehouses ============
 
   /// Get all warehouses (cached)
-  Future<List<Warehouse>> getWarehouses({
-    bool forceRefresh = false,
-  }) async {
+  Future<List<Warehouse>> getWarehouses({bool forceRefresh = false}) async {
     return fetchWithCache<Warehouse>(
       forceRefresh: forceRefresh,
       getFromCache: () => warehouseManager.searchLocal(),
@@ -121,7 +124,8 @@ class CommonRepository extends BaseRepository with OfflineSupport {
   }) async {
     return fetchWithCache<ResourceCalendar>(
       forceRefresh: forceRefresh,
-      getFromCache: () => resourceCalendarManager.searchLocal(orderBy: 'name asc'),
+      getFromCache: () =>
+          resourceCalendarManager.searchLocal(orderBy: 'name asc'),
       fetchFromRemote: () => odooClient!.searchRead(
         model: 'resource.calendar',
         fields: resourceCalendarManager.odooFields,
@@ -142,13 +146,19 @@ class CommonRepository extends BaseRepository with OfflineSupport {
     bool forceRefresh = false,
   }) async {
     if (!forceRefresh) {
-      final cached = await _fieldSelectionDatasource.getFieldSelection(model, field);
+      final cached = await _fieldSelectionDatasource.getFieldSelection(
+        model,
+        field,
+      );
       if (cached != null) return cached;
     }
 
     // If offline, return cached data only
     if (!isOnline) {
-      final cached = await _fieldSelectionDatasource.getFieldSelection(model, field);
+      final cached = await _fieldSelectionDatasource.getFieldSelection(
+        model,
+        field,
+      );
       return cached ?? [];
     }
 
@@ -167,13 +177,20 @@ class CommonRepository extends BaseRepository with OfflineSupport {
         if (fieldData.containsKey('selection')) {
           final selection = fieldData['selection'];
           if (selection is List) {
-            await _fieldSelectionDatasource.upsertFieldSelection(model, field, selection);
+            await _fieldSelectionDatasource.upsertFieldSelection(
+              model,
+              field,
+              selection,
+            );
             return selection;
           }
         }
       }
     } catch (e) {
-      final cached = await _fieldSelectionDatasource.getFieldSelection(model, field);
+      final cached = await _fieldSelectionDatasource.getFieldSelection(
+        model,
+        field,
+      );
       if (cached != null) return cached;
     }
 

@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="utf-8"?>
+<data-extraction-rules>
+    <cloud-backup>
+        <!-- flutter_secure_storage 10.3.1 and 11.0.0 default data stores. -->
+        <exclude domain="sharedpref" path="FlutterSecureStorage.xml" />
+        <exclude domain="sharedpref" path="FlutterSecureKeyStorage.xml" />
+
+        <!-- Namespaced and legacy cipher/migration configuration stores. -->
+        <exclude domain="sharedpref" path="FlutterSecureStorageConfiguration:FlutterSecureStorage.xml" />
+        <exclude domain="sharedpref" path="FlutterSecureStorageConfiguration.xml" />
+        <exclude domain="sharedpref" path="theos_pos_credentials.xml" />
+        <exclude domain="sharedpref" path="FlutterSecureKeyStorage:theos_pos_credentials.xml" />
+        <exclude domain="sharedpref" path="FlutterSecureStorageConfiguration:theos_pos_credentials.xml" />
+    </cloud-backup>
+    <device-transfer>
+        <exclude domain="sharedpref" path="FlutterSecureStorage.xml" />
+        <exclude domain="sharedpref" path="FlutterSecureKeyStorage.xml" />
+        <exclude domain="sharedpref" path="FlutterSecureStorageConfiguration:FlutterSecureStorage.xml" />
+        <exclude domain="sharedpref" path="FlutterSecureStorageConfiguration.xml" />
+        <exclude domain="sharedpref" path="theos_pos_credentials.xml" />
+        <exclude domain="sharedpref" path="FlutterSecureKeyStorage:theos_pos_credentials.xml" />
+        <exclude domain="sharedpref" path="FlutterSecureStorageConfiguration:theos_pos_credentials.xml" />
+    </device-transfer>
+</data-extraction-rules>

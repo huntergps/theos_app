@@ -1,6 +1,6 @@
 // GENERATED CODE - DO NOT MODIFY BY HAND
 // coverage:ignore-file
-// ignore_for_file: type=lint
+// ignore_for_file: type=lint, type=warning, deprecated_member_use, deprecated_member_use_from_same_package
 // ignore_for_file: unused_element, deprecated_member_use, deprecated_member_use_from_same_package, use_function_type_syntax_for_parameters, unnecessary_const, avoid_init_to_null, invalid_override_different_default_values_named, prefer_expression_function_bodies, annotate_overrides, invalid_annotation_target, unnecessary_question_mark
 
 part of 'account_payment.model.dart';
@@ -9,37 +9,14 @@ part of 'account_payment.model.dart';
 // FreezedGenerator
 // **************************************************************************
 
+// GENERATED CODE - DO NOT MODIFY BY HAND
 // dart format off
 T _$identity<T>(T value) => value;
 
 /// @nodoc
 mixin _$AccountPayment {
 
-// ============ Identifiers ============
-@OdooId() int get id;@OdooLocalOnly() String? get paymentUuid;@OdooLocalOnly() bool get isSynced;// ============ Relations ============
-@OdooMany2One('collection.session', odooName: 'collection_session_id') int? get collectionSessionId;// reconciled_invoice_ids es Many2many en Odoo, se extrae el primer ID manualmente
-@OdooLocalOnly() int? get invoiceId;@OdooMany2One('res.partner', odooName: 'partner_id') int? get partnerId;@OdooMany2OneName(sourceField: 'partner_id') String? get partnerName;@OdooMany2One('account.journal', odooName: 'journal_id') int? get journalId;@OdooMany2OneName(sourceField: 'journal_id') String? get journalName;@OdooMany2One('account.payment.method.line', odooName: 'payment_method_line_id') int? get paymentMethodLineId;@OdooMany2OneName(sourceField: 'payment_method_line_id') String? get paymentMethodLineName;// ============ Economic Data ============
-@OdooFloat() double get amount;@OdooSelection(odooName: 'payment_type') String get paymentType;@OdooSelection() String get state;// ============ Classification ============
-@OdooSelection(odooName: 'payment_origin_type') String? get paymentOriginType;@OdooSelection(odooName: 'payment_method_category') String? get paymentMethodCategory;// ============ Bank (res.bank) ============
-// bank_id (Many2one res.bank) fue reemplazado por bank_name_ec (Char) en
-// los modelos de pago l10n_ec — ver
-// working/l10n_ec_collection_box/models/sale_order_payment.py. Se marca
-// @OdooLocalOnly para evitar que toOdoo()/syncFromOdoo() envien/pidan un
-// campo que puede no existir segun version del servidor; resolver el
-// campo correcto (bank_id o bank_name_ec) manualmente antes de sync si
-// este modelo llega a sincronizarse de forma generica.
-@OdooLocalOnly() int? get bankId;@OdooLocalOnly() String? get bankName;// ============ Check Fields (l10n_ec_collection_box) ============
-@OdooString(odooName: 'check_number') String? get checkNumber;@OdooString(odooName: 'check_amount_in_words') String? get checkAmountInWords;@OdooDate(odooName: 'bank_reference_date') DateTime? get bankReferenceDate;@OdooBoolean(odooName: 'es_posfechado') bool get esPosfechado;@OdooMany2One('account.cheque.recibido', odooName: 'cheque_recibido_id') int? get chequeRecibidoId;// ============ Card Fields (l10n_ec_collection_box) ============
-@OdooMany2One('account.card.brand', odooName: 'card_brand_id') int? get cardBrandId;@OdooMany2OneName(sourceField: 'card_brand_id') String? get cardBrandName;@OdooSelection(odooName: 'card_type') String? get cardType;@OdooMany2One('account.card.lote', odooName: 'lote_id') int? get loteId;// Odoo 19.5 (erp1): card_holder_name/card_last_4/authorization_code ya
-// no existen en el servidor (smoke fields_get, julio 2026). Tampoco en
-// 19.2 local ni en los módulos fuente.
-@OdooLocalOnly() String? get cardHolderName;@OdooLocalOnly() String? get cardLast4;@OdooLocalOnly() String? get authorizationCode;// ============ Payment Classification (computed flags) ============
-@OdooBoolean(odooName: 'is_card_payment') bool get isCardPayment;@OdooBoolean(odooName: 'is_transfer_payment') bool get isTransferPayment;@OdooBoolean(odooName: 'is_check_payment') bool get isCheckPayment;// Odoo 19.5 (erp1): is_cash_payment ya no existe en el servidor.
-@OdooLocalOnly() bool get isCashPayment;// ============ Sale Order Link ============
-@OdooMany2One('sale.order', odooName: 'sale_id') int? get saleId;@OdooMany2One('account.payment', odooName: 'advance_id') int? get advanceId;@OdooMany2One('res.users', odooName: 'collection_user_id') int? get collectionUserId;// ============ Metadata ============
-@OdooDate() DateTime? get date;@OdooString() String? get name;// Odoo 19.5 (erp1): 'ref' ya no existe en account.payment del servidor.
-@OdooLocalOnly() String? get ref;// ============ Sync ============
-@OdooLocalOnly() DateTime? get lastSyncDate;@OdooDateTime(odooName: 'write_date') DateTime? get writeDate;
+@OdooId() int get id;@OdooLocalOnly() String? get paymentUuid;@OdooLocalOnly() bool get isSynced;@OdooMany2One('collection.session', odooName: 'collection_session_id') int? get collectionSessionId;@OdooLocalOnly() int? get invoiceId;@OdooMany2One('res.partner', odooName: 'partner_id') int? get partnerId;@OdooMany2OneName(sourceField: 'partner_id') String? get partnerName;@OdooMany2One('account.journal', odooName: 'journal_id') int? get journalId;@OdooMany2OneName(sourceField: 'journal_id') String? get journalName;@OdooMany2One('account.payment.method.line', odooName: 'payment_method_line_id') int? get paymentMethodLineId;@OdooMany2OneName(sourceField: 'payment_method_line_id') String? get paymentMethodLineName;@OdooFloat() double get amount;@OdooSelection(odooName: 'payment_type') String get paymentType;@OdooSelection() String get state;@OdooSelection(odooName: 'payment_origin_type') String? get paymentOriginType;@OdooSelection(odooName: 'payment_method_category') String? get paymentMethodCategory;@OdooLocalOnly() int? get bankId;@OdooLocalOnly() String? get bankName;@OdooString(odooName: 'check_number') String? get checkNumber;@OdooString(odooName: 'check_amount_in_words') String? get checkAmountInWords;@OdooDate(odooName: 'bank_reference_date') DateTime? get bankReferenceDate;@OdooBoolean(odooName: 'es_posfechado') bool get esPosfechado;@OdooMany2One('account.cheque.recibido', odooName: 'cheque_recibido_id') int? get chequeRecibidoId;@OdooMany2One('account.card.brand', odooName: 'card_brand_id') int? get cardBrandId;@OdooMany2OneName(sourceField: 'card_brand_id') String? get cardBrandName;@OdooSelection(odooName: 'card_type') String? get cardType;@OdooMany2One('account.card.lote', odooName: 'lote_id') int? get loteId;@OdooLocalOnly() String? get cardHolderName;@OdooLocalOnly() String? get cardLast4;@OdooLocalOnly() String? get authorizationCode;@OdooBoolean(odooName: 'is_card_payment') bool get isCardPayment;@OdooBoolean(odooName: 'is_transfer_payment') bool get isTransferPayment;@OdooBoolean(odooName: 'is_check_payment') bool get isCheckPayment;@OdooLocalOnly() bool get isCashPayment;@OdooMany2One('sale.order', odooName: 'sale_id') int? get saleId;@OdooMany2One('account.payment', odooName: 'advance_id') int? get advanceId;@OdooMany2One('res.users', odooName: 'collection_user_id') int? get collectionUserId;@OdooDate() DateTime? get date;@OdooString() String? get name;@OdooLocalOnly() String? get ref;@OdooLocalOnly() DateTime? get lastSyncDate;@OdooDateTime(odooName: 'write_date') DateTime? get writeDate;
 /// Create a copy of AccountPayment
 /// with the given fields replaced by the non-null parameter values.
 @JsonKey(includeFromJson: false, includeToJson: false)
@@ -90,7 +67,7 @@ class _$AccountPaymentCopyWithImpl<$Res>
 /// Create a copy of AccountPayment
 /// with the given fields replaced by the non-null parameter values.
 @pragma('vm:prefer-inline') @override $Res call({Object? id = null,Object? paymentUuid = freezed,Object? isSynced = null,Object? collectionSessionId = freezed,Object? invoiceId = freezed,Object? partnerId = freezed,Object? partnerName = freezed,Object? journalId = freezed,Object? journalName = freezed,Object? paymentMethodLineId = freezed,Object? paymentMethodLineName = freezed,Object? amount = null,Object? paymentType = null,Object? state = null,Object? paymentOriginType = freezed,Object? paymentMethodCategory = freezed,Object? bankId = freezed,Object? bankName = freezed,Object? checkNumber = freezed,Object? checkAmountInWords = freezed,Object? bankReferenceDate = freezed,Object? esPosfechado = null,Object? chequeRecibidoId = freezed,Object? cardBrandId = freezed,Object? cardBrandName = freezed,Object? cardType = freezed,Object? loteId = freezed,Object? cardHolderName = freezed,Object? cardLast4 = freezed,Object? authorizationCode = freezed,Object? isCardPayment = null,Object? isTransferPayment = null,Object? isCheckPayment = null,Object? isCashPayment = null,Object? saleId = freezed,Object? advanceId = freezed,Object? collectionUserId = freezed,Object? date = freezed,Object? name = freezed,Object? ref = freezed,Object? lastSyncDate = freezed,Object? writeDate = freezed,}) {
-  return _then(_self.copyWith(
+  return _then(AccountPayment(
 id: null == id ? _self.id : id // ignore: cast_nullable_to_non_nullable
 as int,paymentUuid: freezed == paymentUuid ? _self.paymentUuid : paymentUuid // ignore: cast_nullable_to_non_nullable
 as String?,isSynced: null == isSynced ? _self.isSynced : isSynced // ignore: cast_nullable_to_non_nullable
@@ -277,13 +254,10 @@ class _AccountPayment extends AccountPayment {
   const _AccountPayment({@OdooId() required this.id, @OdooLocalOnly() this.paymentUuid, @OdooLocalOnly() this.isSynced = false, @OdooMany2One('collection.session', odooName: 'collection_session_id') this.collectionSessionId, @OdooLocalOnly() this.invoiceId, @OdooMany2One('res.partner', odooName: 'partner_id') this.partnerId, @OdooMany2OneName(sourceField: 'partner_id') this.partnerName, @OdooMany2One('account.journal', odooName: 'journal_id') this.journalId, @OdooMany2OneName(sourceField: 'journal_id') this.journalName, @OdooMany2One('account.payment.method.line', odooName: 'payment_method_line_id') this.paymentMethodLineId, @OdooMany2OneName(sourceField: 'payment_method_line_id') this.paymentMethodLineName, @OdooFloat() this.amount = 0.0, @OdooSelection(odooName: 'payment_type') this.paymentType = 'inbound', @OdooSelection() this.state = 'draft', @OdooSelection(odooName: 'payment_origin_type') this.paymentOriginType, @OdooSelection(odooName: 'payment_method_category') this.paymentMethodCategory, @OdooLocalOnly() this.bankId, @OdooLocalOnly() this.bankName, @OdooString(odooName: 'check_number') this.checkNumber, @OdooString(odooName: 'check_amount_in_words') this.checkAmountInWords, @OdooDate(odooName: 'bank_reference_date') this.bankReferenceDate, @OdooBoolean(odooName: 'es_posfechado') this.esPosfechado = false, @OdooMany2One('account.cheque.recibido', odooName: 'cheque_recibido_id') this.chequeRecibidoId, @OdooMany2One('account.card.brand', odooName: 'card_brand_id') this.cardBrandId, @OdooMany2OneName(sourceField: 'card_brand_id') this.cardBrandName, @OdooSelection(odooName: 'card_type') this.cardType, @OdooMany2One('account.card.lote', odooName: 'lote_id') this.loteId, @OdooLocalOnly() this.cardHolderName, @OdooLocalOnly() this.cardLast4, @OdooLocalOnly() this.authorizationCode, @OdooBoolean(odooName: 'is_card_payment') this.isCardPayment = false, @OdooBoolean(odooName: 'is_transfer_payment') this.isTransferPayment = false, @OdooBoolean(odooName: 'is_check_payment') this.isCheckPayment = false, @OdooLocalOnly() this.isCashPayment = false, @OdooMany2One('sale.order', odooName: 'sale_id') this.saleId, @OdooMany2One('account.payment', odooName: 'advance_id') this.advanceId, @OdooMany2One('res.users', odooName: 'collection_user_id') this.collectionUserId, @OdooDate() this.date, @OdooString() this.name, @OdooLocalOnly() this.ref, @OdooLocalOnly() this.lastSyncDate, @OdooDateTime(odooName: 'write_date') this.writeDate}): super._();
   factory _AccountPayment.fromJson(Map<String, dynamic> json) => _$AccountPaymentFromJson(json);
 
-// ============ Identifiers ============
 @override@OdooId() final  int id;
 @override@OdooLocalOnly() final  String? paymentUuid;
 @override@JsonKey()@OdooLocalOnly() final  bool isSynced;
-// ============ Relations ============
 @override@OdooMany2One('collection.session', odooName: 'collection_session_id') final  int? collectionSessionId;
-// reconciled_invoice_ids es Many2many en Odoo, se extrae el primer ID manualmente
 @override@OdooLocalOnly() final  int? invoiceId;
 @override@OdooMany2One('res.partner', odooName: 'partner_id') final  int? partnerId;
 @override@OdooMany2OneName(sourceField: 'partner_id') final  String? partnerName;
@@ -291,56 +265,35 @@ class _AccountPayment extends AccountPayment {
 @override@OdooMany2OneName(sourceField: 'journal_id') final  String? journalName;
 @override@OdooMany2One('account.payment.method.line', odooName: 'payment_method_line_id') final  int? paymentMethodLineId;
 @override@OdooMany2OneName(sourceField: 'payment_method_line_id') final  String? paymentMethodLineName;
-// ============ Economic Data ============
 @override@JsonKey()@OdooFloat() final  double amount;
 @override@JsonKey()@OdooSelection(odooName: 'payment_type') final  String paymentType;
 @override@JsonKey()@OdooSelection() final  String state;
-// ============ Classification ============
 @override@OdooSelection(odooName: 'payment_origin_type') final  String? paymentOriginType;
 @override@OdooSelection(odooName: 'payment_method_category') final  String? paymentMethodCategory;
-// ============ Bank (res.bank) ============
-// bank_id (Many2one res.bank) fue reemplazado por bank_name_ec (Char) en
-// los modelos de pago l10n_ec — ver
-// working/l10n_ec_collection_box/models/sale_order_payment.py. Se marca
-// @OdooLocalOnly para evitar que toOdoo()/syncFromOdoo() envien/pidan un
-// campo que puede no existir segun version del servidor; resolver el
-// campo correcto (bank_id o bank_name_ec) manualmente antes de sync si
-// este modelo llega a sincronizarse de forma generica.
 @override@OdooLocalOnly() final  int? bankId;
 @override@OdooLocalOnly() final  String? bankName;
-// ============ Check Fields (l10n_ec_collection_box) ============
 @override@OdooString(odooName: 'check_number') final  String? checkNumber;
 @override@OdooString(odooName: 'check_amount_in_words') final  String? checkAmountInWords;
 @override@OdooDate(odooName: 'bank_reference_date') final  DateTime? bankReferenceDate;
 @override@JsonKey()@OdooBoolean(odooName: 'es_posfechado') final  bool esPosfechado;
 @override@OdooMany2One('account.cheque.recibido', odooName: 'cheque_recibido_id') final  int? chequeRecibidoId;
-// ============ Card Fields (l10n_ec_collection_box) ============
 @override@OdooMany2One('account.card.brand', odooName: 'card_brand_id') final  int? cardBrandId;
 @override@OdooMany2OneName(sourceField: 'card_brand_id') final  String? cardBrandName;
 @override@OdooSelection(odooName: 'card_type') final  String? cardType;
 @override@OdooMany2One('account.card.lote', odooName: 'lote_id') final  int? loteId;
-// Odoo 19.5 (erp1): card_holder_name/card_last_4/authorization_code ya
-// no existen en el servidor (smoke fields_get, julio 2026). Tampoco en
-// 19.2 local ni en los módulos fuente.
 @override@OdooLocalOnly() final  String? cardHolderName;
 @override@OdooLocalOnly() final  String? cardLast4;
 @override@OdooLocalOnly() final  String? authorizationCode;
-// ============ Payment Classification (computed flags) ============
 @override@JsonKey()@OdooBoolean(odooName: 'is_card_payment') final  bool isCardPayment;
 @override@JsonKey()@OdooBoolean(odooName: 'is_transfer_payment') final  bool isTransferPayment;
 @override@JsonKey()@OdooBoolean(odooName: 'is_check_payment') final  bool isCheckPayment;
-// Odoo 19.5 (erp1): is_cash_payment ya no existe en el servidor.
 @override@JsonKey()@OdooLocalOnly() final  bool isCashPayment;
-// ============ Sale Order Link ============
 @override@OdooMany2One('sale.order', odooName: 'sale_id') final  int? saleId;
 @override@OdooMany2One('account.payment', odooName: 'advance_id') final  int? advanceId;
 @override@OdooMany2One('res.users', odooName: 'collection_user_id') final  int? collectionUserId;
-// ============ Metadata ============
 @override@OdooDate() final  DateTime? date;
 @override@OdooString() final  String? name;
-// Odoo 19.5 (erp1): 'ref' ya no existe en account.payment del servidor.
 @override@OdooLocalOnly() final  String? ref;
-// ============ Sync ============
 @override@OdooLocalOnly() final  DateTime? lastSyncDate;
 @override@OdooDateTime(odooName: 'write_date') final  DateTime? writeDate;
 

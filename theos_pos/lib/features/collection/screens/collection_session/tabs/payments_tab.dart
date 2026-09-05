@@ -6,7 +6,9 @@ import '../../../../../core/constants/app_colors.dart';
 import '../../../../../core/theme/spacing.dart';
 import '../../../../../shared/utils/formatting_utils.dart';
 import '../../../../sales/services/payment_service.dart';
+
 import 'package:theos_pos_core/theos_pos_core.dart' hide PaymentState;
+
 import '../../../widgets/payment_detail_dialog.dart';
 
 /// Reactive stream of session payments from local DB.
@@ -15,32 +17,44 @@ import '../../../widgets/payment_detail_dialog.dart';
 /// journalName, paymentMethodCategory, paymentOriginType) locally, so we
 /// can use `accountPaymentManager.watchLocalSearch()` for real-time updates
 /// and map each AccountPayment -> SessionPayment for the existing UI.
-final sessionPaymentsMappedProvider =
-    StreamProvider.family<List<SessionPayment>, int>((ref, sessionId) {
-  return accountPaymentManager.watchLocalSearch(
-    domain: [
-      ['collection_session_id', '=', sessionId],
-    ],
-    orderBy: 'date desc',
-  ).map((payments) => payments.map((p) => SessionPayment(
-    id: p.id,
-    name: p.name,
-    partnerId: p.partnerId,
-    partnerName: p.partnerName,
-    journalId: p.journalId,
-    journalName: p.journalName,
-    paymentMethodLineId: p.paymentMethodLineId,
-    paymentMethodLineName: p.paymentMethodLineName,
-    amount: p.amount,
-    paymentType: p.paymentType,
-    state: PaymentState.fromString(p.state),
-    date: p.date,
-    ref: p.ref,
-    originType: PaymentOriginType.fromString(p.paymentOriginType),
-    methodCategory: PaymentMethodCategory.fromString(p.paymentMethodCategory),
-    collectionSessionId: p.collectionSessionId,
-  )).toList());
-});
+final sessionPaymentsMappedProvider = StreamProvider.autoDispose
+    .family<List<SessionPayment>, int>((ref, sessionId) {
+      return accountPaymentManager
+          .watchLocalSearch(
+            domain: [
+              ['collection_session_id', '=', sessionId],
+            ],
+            orderBy: 'date desc',
+          )
+          .map(
+            (payments) => payments
+                .map(
+                  (p) => SessionPayment(
+                    id: p.id,
+                    name: p.name,
+                    partnerId: p.partnerId,
+                    partnerName: p.partnerName,
+                    journalId: p.journalId,
+                    journalName: p.journalName,
+                    paymentMethodLineId: p.paymentMethodLineId,
+                    paymentMethodLineName: p.paymentMethodLineName,
+                    amount: p.amount,
+                    paymentType: p.paymentType,
+                    state: PaymentState.fromString(p.state),
+                    date: p.date,
+                    ref: p.ref,
+                    originType: PaymentOriginType.fromString(
+                      p.paymentOriginType,
+                    ),
+                    methodCategory: PaymentMethodCategory.fromString(
+                      p.paymentMethodCategory,
+                    ),
+                    collectionSessionId: p.collectionSessionId,
+                  ),
+                )
+                .toList(),
+          );
+    });
 
 /// Tab de cobros de la sesión de cobranza
 ///
@@ -67,7 +81,9 @@ class _PaymentsTabState extends ConsumerState<PaymentsTab> {
   @override
   Widget build(BuildContext context) {
     final theme = FluentTheme.of(context);
-    final paymentsAsync = ref.watch(sessionPaymentsMappedProvider(widget.session.id));
+    final paymentsAsync = ref.watch(
+      sessionPaymentsMappedProvider(widget.session.id),
+    );
 
     return Column(
       children: [
@@ -117,13 +133,15 @@ class _PaymentsTabState extends ConsumerState<PaymentsTab> {
               if (_searchText.isNotEmpty) {
                 final search = _searchText.toLowerCase();
                 filtered = filtered
-                    .where((p) =>
-                        (p.name?.toLowerCase().contains(search) ?? false) ||
-                        (p.partnerName?.toLowerCase().contains(search) ??
-                            false) ||
-                        (p.ref?.toLowerCase().contains(search) ?? false) ||
-                        (p.journalName?.toLowerCase().contains(search) ??
-                            false))
+                    .where(
+                      (p) =>
+                          (p.name?.toLowerCase().contains(search) ?? false) ||
+                          (p.partnerName?.toLowerCase().contains(search) ??
+                              false) ||
+                          (p.ref?.toLowerCase().contains(search) ?? false) ||
+                          (p.journalName?.toLowerCase().contains(search) ??
+                              false),
+                    )
                     .toList();
               }
 
@@ -187,10 +205,7 @@ class _PaymentsTabState extends ConsumerState<PaymentsTab> {
             items: [
               const ComboBoxItem(value: null, child: Text('Todos')),
               ...PaymentState.values.map(
-                (s) => ComboBoxItem(
-                  value: s,
-                  child: Text(s.label),
-                ),
+                (s) => ComboBoxItem(value: s, child: Text(s.label)),
               ),
             ],
             onChanged: (v) => setState(() => _filterState = v),
@@ -203,10 +218,7 @@ class _PaymentsTabState extends ConsumerState<PaymentsTab> {
             items: [
               const ComboBoxItem(value: null, child: Text('Todos')),
               ...PaymentMethodCategory.values.map(
-                (c) => ComboBoxItem(
-                  value: c,
-                  child: Text(c.label),
-                ),
+                (c) => ComboBoxItem(value: c, child: Text(c.label)),
               ),
             ],
             onChanged: (v) => setState(() => _filterCategory = v),
@@ -219,10 +231,7 @@ class _PaymentsTabState extends ConsumerState<PaymentsTab> {
             items: [
               const ComboBoxItem(value: null, child: Text('Todos')),
               ...PaymentOriginType.values.map(
-                (o) => ComboBoxItem(
-                  value: o,
-                  child: Text(o.label),
-                ),
+                (o) => ComboBoxItem(value: o, child: Text(o.label)),
               ),
             ],
             onChanged: (v) => setState(() => _filterOrigin = v),
@@ -231,8 +240,9 @@ class _PaymentsTabState extends ConsumerState<PaymentsTab> {
           // Botón refrescar
           IconButton(
             icon: const Icon(FluentIcons.refresh),
-            onPressed: () =>
-                ref.invalidate(sessionPaymentsMappedProvider(widget.session.id)),
+            onPressed: () => ref.invalidate(
+              sessionPaymentsMappedProvider(widget.session.id),
+            ),
           ),
         ],
       ),
@@ -247,15 +257,19 @@ class _PaymentsTabState extends ConsumerState<PaymentsTab> {
         .where((p) => p.methodCategory == PaymentMethodCategory.cash)
         .fold(0.0, (sum, p) => sum + p.amount);
     final cardTotal = payments
-        .where((p) =>
-            p.methodCategory == PaymentMethodCategory.cardCredit ||
-            p.methodCategory == PaymentMethodCategory.cardDebit)
+        .where(
+          (p) =>
+              p.methodCategory == PaymentMethodCategory.cardCredit ||
+              p.methodCategory == PaymentMethodCategory.cardDebit,
+        )
         .fold(0.0, (sum, p) => sum + p.amount);
     final otherTotal = payments
-        .where((p) =>
-            p.methodCategory != PaymentMethodCategory.cash &&
-            p.methodCategory != PaymentMethodCategory.cardCredit &&
-            p.methodCategory != PaymentMethodCategory.cardDebit)
+        .where(
+          (p) =>
+              p.methodCategory != PaymentMethodCategory.cash &&
+              p.methodCategory != PaymentMethodCategory.cardCredit &&
+              p.methodCategory != PaymentMethodCategory.cardDebit,
+        )
         .fold(0.0, (sum, p) => sum + p.amount);
 
     return Container(
@@ -348,19 +362,13 @@ class _PaymentsTabState extends ConsumerState<PaymentsTab> {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(
-            FluentIcons.payment_card,
-            size: 64,
-            color: theme.inactiveColor,
-          ),
+          Icon(FluentIcons.payment_card, size: 64, color: theme.inactiveColor),
           const SizedBox(height: Spacing.md),
           Text(
             noData
                 ? 'No hay cobros registrados en esta sesión'
                 : 'No hay cobros que coincidan con el filtro',
-            style: theme.typography.body?.copyWith(
-              color: theme.inactiveColor,
-            ),
+            style: theme.typography.body?.copyWith(color: theme.inactiveColor),
           ),
           if (noData) ...[
             const SizedBox(height: Spacing.md),
@@ -472,7 +480,11 @@ class _PaymentsTabState extends ConsumerState<PaymentsTab> {
                   ),
                 ],
                 const SizedBox(width: Spacing.sm),
-                Icon(FluentIcons.calendar, size: 12, color: theme.inactiveColor),
+                Icon(
+                  FluentIcons.calendar,
+                  size: 12,
+                  color: theme.inactiveColor,
+                ),
                 const SizedBox(width: 4),
                 Text(
                   payment.date != null
@@ -565,10 +577,7 @@ class _PaymentsTabState extends ConsumerState<PaymentsTab> {
   }
 
   Future<void> _showPaymentDetail(SessionPayment payment) async {
-    await PaymentDetailDialog.show(
-      context: context,
-      paymentId: payment.id,
-    );
+    await PaymentDetailDialog.show(context: context, paymentId: payment.id);
     // Refrescar después de cerrar el diálogo
     ref.invalidate(sessionPaymentsMappedProvider(widget.session.id));
   }

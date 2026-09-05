@@ -29,7 +29,7 @@ extension _OfflineSyncPayment on OfflineSyncService {
   ///
   /// ## Compatibilidad Odoo 19.5 (hallazgo verificado en vivo, julio 2026)
   ///
-  /// Contra `erp1.tecnosmart.com.ec` (19.5a1+e), `fields_get` confirmó que
+  /// Contra Odoo 19.5a1+e, `fields_get` confirmó que
   /// `account.payment.ref` YA NO EXISTE en el servidor — el campo real es
   /// `memo` (mismo dato, otro nombre). También se confirmó que
   /// `payment_uuid` NUNCA existió como campo de `account.payment` (ni en
@@ -61,16 +61,12 @@ extension _OfflineSyncPayment on OfflineSyncService {
       'payment_origin_type': op.values['payment_origin_type'],
       'date': op.values['date'],
     };
+    if (paymentUuid != null && paymentUuid.isNotEmpty) {
+      odooValues['payment_reference'] = 'THEOS:$paymentUuid';
+    }
 
-    // 'memo' reemplaza a 'ref' en account.payment (eliminado en Odoo 19.5,
-    // ver nota de compatibilidad arriba). El valor viene bajo la clave
-    // 'memo' desde collection_repository.dart::createPaymentOffline. Se
-    // acepta también la clave legacy 'ref' como fallback — operaciones
-    // encoladas ANTES de este fix (ya persistidas en el OfflineQueue local
-    // de un usuario, pendientes de retry) todavía traen esa clave; sin este
-    // fallback esos pagos pendientes perderían silenciosamente su
-    // referencia al reprocesarse tras actualizar la app.
-    final memo = op.values['memo'] ?? op.values['ref'];
+    // Odoo JSON-2 account.payment uses `memo`; `ref` is not accepted.
+    final memo = op.values['memo'];
     if (memo != null) {
       odooValues['memo'] = memo;
     }
@@ -84,7 +80,19 @@ extension _OfflineSyncPayment on OfflineSyncService {
       'Creating account.payment: uuid=$paymentUuid, localId=$localId',
     );
 
-    final remoteId = await _odooClient!.create(
+    int? remoteId;
+    if (paymentUuid != null && paymentUuid.isNotEmpty) {
+      final existing = await _odooClient!.searchRead(
+        model: 'account.payment',
+        domain: [
+          ['payment_reference', '=', 'THEOS:$paymentUuid'],
+        ],
+        fields: ['id'],
+        limit: 1,
+      );
+      if (existing.isNotEmpty) remoteId = existing.first['id'] as int?;
+    }
+    remoteId ??= await _odooClient!.create(
       model: 'account.payment',
       values: odooValues,
     );
@@ -116,7 +124,10 @@ extension _OfflineSyncPayment on OfflineSyncService {
   /// - payment_lines: List<Map> with payment line data
   ///
   /// Returns the created invoice ID if successful.
-  Future<int?> _processInvoiceWithPayments(OfflineOperation op) async {
+  Future<ConflictInfo?> _processInvoiceWithPayments(OfflineOperation op) async {
+    if (_odooClient == null) {
+      throw StateError('No hay conexión Odoo configurada para sincronizar.');
+    }
     final saleId = op.values['sale_id'] as int?;
     final collectionSessionId = op.values['collection_session_id'] as int?;
     final paymentLines = op.values['payment_lines'] as List?;
@@ -124,45 +135,109 @@ extension _OfflineSyncPayment on OfflineSyncService {
     if (saleId == null) {
       throw Exception('sale_id is required for invoice_create_with_payments');
     }
+    var remoteSaleId = saleId;
+    if (saleId < 0) {
+      final orderUuid = op.values['order_uuid'] as String?;
+      final order = orderUuid == null
+          ? await _orderManager.getSaleOrder(saleId)
+          : await _orderManager.getSaleOrderByUuid(orderUuid);
+      if (order == null || order.id <= 0) {
+        throw StateError(
+          'Cannot invoice until local sale $saleId has a remote ID',
+        );
+      }
+      remoteSaleId = order.id;
+    }
+    final orderUuid = op.values['order_uuid'] as String?;
+    final accessKey =
+        (op.values['offline_access_key'] ?? op.values['access_key']) as String?;
+    if (orderUuid == null || accessKey == null || accessKey.isEmpty) {
+      throw StateError(
+        'invoice_create_with_payments is non-retryable without '
+        'order_uuid and offline_access_key idempotency marker',
+      );
+    }
+    if (!RegExp(r'^[0-9]{49}$').hasMatch(accessKey)) {
+      throw StateError('La clave fiscal offline debe contener 49 dígitos.');
+    }
+    final day = int.parse(accessKey.substring(0, 2));
+    final month = int.parse(accessKey.substring(2, 4));
+    final year = int.parse(accessKey.substring(4, 8));
+    final fiscalDate = DateTime(year, month, day);
+    final emissionDate =
+        '${year.toString().padLeft(4, '0')}-'
+        '${month.toString().padLeft(2, '0')}-'
+        '${day.toString().padLeft(2, '0')}';
+    final sequence = int.parse(accessKey.substring(30, 39));
+    if (fiscalDate.year != year ||
+        fiscalDate.month != month ||
+        fiscalDate.day != day ||
+        sequence == 0 ||
+        (op.values['sequential'] != null &&
+            op.values['sequential'] != sequence) ||
+        (op.values['emission_date'] != null &&
+            op.values['emission_date'] != emissionDate)) {
+      throw StateError(
+        'La fecha o secuencia no coincide con la clave offline.',
+      );
+    }
+    final operationUuid = op.values['client_op_uuid'] ?? orderUuid;
+    if (operationUuid is! String || operationUuid.trim().isEmpty) {
+      throw StateError('Falta la identidad de la operación fiscal offline.');
+    }
+    // A linked invoice is not proof of a completed payment. The canonical
+    // wizard verifies the durable fiscal receipt and handles committed retries.
+
+    // A supervisor choosing "Mantener local" on an overpayment conflict is
+    // explicit approval to continue the intermediate advance wizard. Resume
+    // the stored action instead of creating a second payment wizard.
+    final approvedInvoiceId = await _resumeApprovedOverpayment(
+      op,
+      fallbackSaleId: remoteSaleId,
+    );
+    if (approvedInvoiceId != null) {
+      _lastInvoiceCreated = approvedInvoiceId;
+      await _markOrderPaymentsAsSynced(saleId);
+      return null;
+    }
 
     logger.d(
       '[OfflineSyncService]',
       'Creating invoice with payments for sale $saleId',
     );
 
-    // Prepare line values for wizard
-    final lineVals = (paymentLines ?? []).map((line) {
-      final lineMap = line as Map<String, dynamic>;
-      return [0, 0, lineMap];
-    }).toList();
-
-    // Create the payment wizard
-    final wizardId = await _odooClient!.call(
+    final lineCommands = await adaptPaymentWizardCommands(
+      _odooClient,
+      _paymentWizardLineCommands(paymentLines),
+    );
+    final wizardResult = await _odooClient.call(
       model: 'l10n_ec_collection_box.sale.order.payment.wizard',
       method: 'create',
       kwargs: {
         'vals_list': [
           {
-            'sale_id': saleId,
+            'sale_id': remoteSaleId,
             'collection_session_id': ?collectionSessionId,
-            'line_ids': lineVals,
+            'pos_client_sequential': sequence,
+            'pos_emission_date': emissionDate,
+            'pos_access_key': accessKey,
+            'pos_client_op_uuid': operationUuid,
+            if (lineCommands.isNotEmpty) 'line_ids': lineCommands,
           },
         ],
       },
     );
-
-    if (wizardId == null) {
-      throw Exception('Failed to create payment wizard');
+    final wizardId = wizardResult is List && wizardResult.isNotEmpty
+        ? wizardResult.first
+        : wizardResult;
+    if (wizardId is! int) {
+      throw StateError('Odoo did not return the payment wizard ID');
     }
 
-    // Execute action_apply_and_create_invoice
-    final actualId = wizardId is List ? wizardId[0] : wizardId;
     final result = await _odooClient.call(
       model: 'l10n_ec_collection_box.sale.order.payment.wizard',
       method: 'action_apply_and_create_invoice',
-      kwargs: {
-        'ids': [actualId],
-      },
+      ids: [wizardId],
     );
 
     logger.i(
@@ -171,111 +246,42 @@ extension _OfflineSyncPayment on OfflineSyncService {
     );
 
     // Update local order state if needed
-    int? invoiceId;
-    if (result is Map && result.containsKey('res_id')) {
-      invoiceId = result['res_id'] as int?;
-      if (invoiceId != null) {
-        // Mark local payments as synced
-        await _markOrderPaymentsAsSynced(saleId);
-        // Store for result feedback
-        _lastInvoiceCreated = invoiceId;
-        logger.d(
-          '[OfflineSyncService]',
-          'Marked payments as synced for sale $saleId, invoice $invoiceId',
-        );
-      }
+    if (result is! Map) {
+      throw StateError('Odoo returned an invalid invoice action');
     }
-    return invoiceId;
-  }
-
-  /// Process SRI Offline Invoice Sync
-  ///
-  /// Sends the pre-generated offline invoice data (Access Key, Name, etc.) to Odoo.
-  /// Requires the order to be already synced (to have a remote ID).
-  ///
-  /// Values expected:
-  /// - order_local_id: int
-  /// - order_uuid: String
-  /// - access_key: String
-  /// - invoice_name: String
-  /// - invoice_date: String
-  /// - amount_total: double
-  Future<void> _processSyncOfflineInvoice(OfflineOperation op) async {
-    final orderLocalId = op.values['order_local_id'] as int?;
-    final orderUuid = op.values['order_uuid'] as String?;
-    final accessKey = op.values['access_key'] as String?;
-    final invoiceName = op.values['invoice_name'] as String?;
-
-    if (orderLocalId == null || accessKey == null) {
-      throw Exception('Missing required fields for offline invoice sync');
+    final action = Map<String, dynamic>.from(result);
+    if (action['res_model'] ==
+        'l10n_ec_collection_box.confirm.advance.wizard') {
+      final now = DateTime.now().toUtc();
+      return ConflictInfo(
+        operationId: op.id,
+        model: op.model,
+        recordId: remoteSaleId,
+        localWriteDate: op.createdAt.toUtc(),
+        serverWriteDate: now,
+        localValues: {
+          ...op.values,
+          'resolution_required': 'confirm_overpayment_advance',
+        },
+        serverValues: action,
+      );
     }
 
+    final invoiceId = _invoiceIdFromAction(action);
+    if (invoiceId == null) {
+      throw StateError('Odoo invoice action returned no account.move ID');
+    }
+    await _markOrderPaymentsAsSynced(saleId);
+    _lastInvoiceCreated = invoiceId;
     logger.d(
       '[OfflineSyncService]',
-      'Syncing offline invoice $invoiceName (Key: $accessKey) for order $orderLocalId',
+      'Marked payments as synced for sale $saleId, invoice $invoiceId',
     );
-
-    // 1. Resolve Remote Order ID
-    int? remoteOrderId;
-    // Check if local order has been updated with remote ID
-    final order = await _orderManager.getSaleOrder(orderLocalId);
-    if (order != null && order.isSynced) {
-      remoteOrderId = order.id;
-    } else if (orderUuid != null) {
-      // Try to find by UUID in case ID link is missing
-      final syncedOrder = await _orderManager.getSaleOrderByUuid(orderUuid);
-      if (syncedOrder != null && syncedOrder.id > 0) {
-        remoteOrderId = syncedOrder.id;
-      }
-    }
-
-    if (remoteOrderId == null || remoteOrderId <= 0) {
-      // Order not synced yet. Throw exception to retry later.
-      // Since FIFO applies, this should happen rarely if queued after order sync.
-      throw Exception(
-        'Order $orderLocalId not yet synced to Odoo. Cannot sync invoice.',
-      );
-    }
-
-    // 2. Call Odoo Method
-    // We assume 'account.move' has a method 'action_sync_offline_invoice'
-    // Payload:
-    // - order_id: Remote Order ID
-    // - access_key: SRI Access Key
-    // - invoice_number: '001-001-000000001'
-    // - invoice_date: '2023-10-25'
-    // - amount_total: 100.0 (optional validation)
-    final result = await _odooClient!.call(
-      model: 'account.move',
-      method: 'action_sync_offline_invoice',
-      kwargs: {
-        'vals': {
-          'order_id': remoteOrderId,
-          'access_key': accessKey,
-          'invoice_number': invoiceName,
-          'invoice_date': op.values['invoice_date'],
-          'amount_total': op.values['amount_total'],
-        },
-      },
-    );
-
-    if (result == null || result == false) {
-      throw Exception(
-        'Failed to sync offline invoice (Odoo returned false/null)',
-      );
-    }
-
-    logger.i(
-      '[OfflineSyncService]',
-      'Successfully synced offline invoice $invoiceName. Result: $result',
-    );
-
-    // Optional: Update OfflineInvoice table status to 'synced' here if needed.
-    // For now, removing from queue is sufficient.
+    return null;
   }
 
   /// Process payment wizard operation (l10n_ec_collection_box.sale.order.payment.wizard)
-  Future<void> _processPaymentWizard(OfflineOperation op) async {
+  Future<ConflictInfo?> _processPaymentWizard(OfflineOperation op) async {
     final saleId = op.values['sale_id'] as int?;
     final collectionSessionId = op.values['collection_session_id'] as int?;
     final paymentLines = op.values['line_ids'] ?? op.values['payment_lines'];
@@ -301,6 +307,29 @@ extension _OfflineSyncPayment on OfflineSyncService {
       'Processing payment wizard for sale $actualSaleId (original: $saleId)',
     );
 
+    // Wizard records are transient and have no durable idempotency key. If
+    // this operation carries the same invoice marker used by the invoice
+    // path, resolve an already-created invoice and do not recreate the
+    // transient wizard after an indeterminate timeout.
+    final wizardMarker = op.values['l10n_ec_pos_client_op_uuid'] as String?;
+    if (op.method == 'action_apply_and_create_invoice' &&
+        wizardMarker != null &&
+        wizardMarker.isNotEmpty) {
+      final existingInvoice = await _odooClient!.searchRead(
+        model: 'account.move',
+        domain: [
+          ['l10n_ec_pos_client_op_uuid', '=', wizardMarker],
+        ],
+        fields: ['id'],
+        limit: 1,
+      );
+      if (existingInvoice.isNotEmpty) {
+        _lastInvoiceCreated = existingInvoice.first['id'] as int?;
+        await _markOrderPaymentsAsSynced(actualSaleId);
+        return null;
+      }
+    }
+
     // Prepare line values for wizard
     List<dynamic> lineVals = [];
     if (paymentLines is List) {
@@ -312,8 +341,10 @@ extension _OfflineSyncPayment on OfflineSyncService {
       }).toList();
     }
 
+    lineVals = await adaptPaymentWizardCommands(_odooClient!, lineVals);
+
     // Create the payment wizard
-    final wizardId = await _odooClient!.call(
+    final wizardId = await _odooClient.call(
       model: 'l10n_ec_collection_box.sale.order.payment.wizard',
       method: 'create',
       kwargs: {
@@ -338,27 +369,43 @@ extension _OfflineSyncPayment on OfflineSyncService {
       final result = await _odooClient.call(
         model: 'l10n_ec_collection_box.sale.order.payment.wizard',
         method: 'action_apply_and_create_invoice',
-        kwargs: {
-          'ids': [actualId],
-        },
+        ids: [actualId],
       );
-      // Capture invoice ID from result
-      if (result is Map && result.containsKey('res_id')) {
-        _lastInvoiceCreated = result['res_id'] as int?;
-        // Mark local payments as synced
-        await _markOrderPaymentsAsSynced(actualSaleId);
+      if (result is! Map) {
+        throw StateError('Odoo returned an invalid payment wizard action');
       }
+      final action = Map<String, dynamic>.from(result);
+      if (action['res_model'] ==
+          'l10n_ec_collection_box.confirm.advance.wizard') {
+        final now = DateTime.now().toUtc();
+        return ConflictInfo(
+          operationId: op.id,
+          model: op.model,
+          recordId: actualSaleId,
+          localWriteDate: op.createdAt.toUtc(),
+          serverWriteDate: now,
+          localValues: {
+            ...op.values,
+            'resolution_required': 'confirm_overpayment_advance',
+          },
+          serverValues: action,
+        );
+      }
+      _lastInvoiceCreated = _invoiceIdFromAction(action);
+      if (_lastInvoiceCreated == null) {
+        throw StateError('Odoo invoice action returned no account.move ID');
+      }
+      await _markOrderPaymentsAsSynced(actualSaleId);
       logger.i(
         '[OfflineSyncService]',
         'Payment wizard: invoice created for sale $actualSaleId (invoice: $_lastInvoiceCreated)',
       );
-    } else if (op.method == 'action_apply') {
+    } else if (op.method == 'action_apply' ||
+        op.method == OfflineLocalCommand.paymentWizardApply.storageName) {
       await _odooClient.call(
         model: 'l10n_ec_collection_box.sale.order.payment.wizard',
         method: 'action_apply',
-        kwargs: {
-          'ids': [actualId],
-        },
+        ids: [actualId],
       );
       logger.i(
         '[OfflineSyncService]',
@@ -371,16 +418,316 @@ extension _OfflineSyncPayment on OfflineSyncService {
         'Payment wizard created for sale $actualSaleId (id=$actualId)',
       );
     }
+    return null;
+  }
+
+  List<dynamic> _paymentWizardLineCommands(List? paymentLines) {
+    if (paymentLines == null) return const [];
+    return paymentLines
+        .map((raw) {
+          if (raw is List) return raw;
+          if (raw is! Map) {
+            throw StateError('Invalid offline payment line payload');
+          }
+          final values = Map<String, dynamic>.from(raw);
+          values.removeWhere((_, value) => value == null);
+          for (final localField in const [
+            'id',
+            'uuid',
+            'line_uuid',
+            'is_synced',
+            'order_id',
+            'state',
+          ]) {
+            values.remove(localField);
+          }
+          values.putIfAbsent(
+            'line_type',
+            () => values.containsKey('advance_id')
+                ? 'advance'
+                : values.containsKey('credit_note_id')
+                ? 'credit_note'
+                : 'payment',
+          );
+          return [0, 0, values];
+        })
+        .toList(growable: false);
+  }
+
+  int? _invoiceIdFromAction(Map<String, dynamic> action) {
+    // Caja can return a print action whose continuation opens the invoice.
+    // Follow only that explicit native continuation, with a bounded depth.
+    for (var depth = 0; depth < 8; depth++) {
+      if (action['type'] != 'ir.actions.client') break;
+      final params = action['params'];
+      final next = params is Map ? params['next_action'] : null;
+      if (next is! Map) return null;
+      action = Map<String, dynamic>.from(next);
+    }
+    if (action['res_model'] != 'account.move') return null;
+    final resId = action['res_id'];
+    if (resId is int) return resId;
+    final invoiceId = action['invoice_id'];
+    if (invoiceId is int) return invoiceId;
+    final domain = action['domain'];
+    if (domain is List) {
+      for (final term in domain) {
+        if (term is List &&
+            term.length >= 3 &&
+            term[0] == 'id' &&
+            term[1] == 'in') {
+          final ids = term[2];
+          if (ids is List && ids.length == 1 && ids.first is int) {
+            return ids.first as int;
+          }
+        }
+      }
+    }
+    return null;
+  }
+
+  Future<ConflictInfo?> _processExistingInvoiceCollection(
+    OfflineOperation op,
+  ) async {
+    final client = _odooClient;
+    if (client == null) throw StateError('No hay conexión Odoo configurada.');
+    final saleId = op.values['sale_id'];
+    final invoiceId = op.values['invoice_id'];
+    final sessionId = op.values['collection_session_id'];
+    final operationUuid = op.values['collection_op_uuid'];
+    final paymentLines = op.values['payment_lines'];
+    final lineUuids = op.values['payment_line_uuids'];
+    if (saleId is! int ||
+        saleId <= 0 ||
+        invoiceId is! int ||
+        invoiceId <= 0 ||
+        sessionId is! int ||
+        sessionId <= 0 ||
+        operationUuid is! String ||
+        operationUuid.trim().isEmpty ||
+        paymentLines is! List ||
+        paymentLines.isEmpty ||
+        lineUuids is! List ||
+        lineUuids.length != paymentLines.length ||
+        lineUuids.any((uuid) => uuid is! String || uuid.isEmpty)) {
+      throw StateError(
+        'El cobro requiere factura, venta y turno sincronizados e identidad durable.',
+      );
+    }
+    final commands = await adaptPaymentWizardCommands(
+      client,
+      _paymentWizardLineCommands(paymentLines),
+    );
+    final created = await client.call(
+      model: 'l10n_ec_collection_box.sale.order.payment.wizard',
+      method: 'create',
+      kwargs: {
+        'vals_list': [
+          {
+            'sale_id': saleId,
+            'collection_session_id': sessionId,
+            'pos_existing_invoice_id': invoiceId,
+            'pos_collection_op_uuid': operationUuid,
+            'line_ids': commands,
+          },
+        ],
+      },
+    );
+    final wizardId = created is List && created.length == 1
+        ? created.single
+        : created;
+    if (wizardId is! int || wizardId <= 0) {
+      throw StateError('Odoo no devolvió el asistente de cobro.');
+    }
+    final result = await client.call(
+      model: 'l10n_ec_collection_box.sale.order.payment.wizard',
+      method: 'action_apply_existing_invoice',
+      ids: [wizardId],
+    );
+    if (result is! Map ||
+        result['success'] != true ||
+        result['invoice_id'] != invoiceId ||
+        result['receipt_id'] is! int ||
+        (result['receipt_id'] as int) <= 0) {
+      throw StateError('Odoo no acreditó el recibo completo de este cobro.');
+    }
+    final remoteLines = result['payment_line_ids'];
+    if (remoteLines is! List ||
+        remoteLines.length != lineUuids.length ||
+        remoteLines.any((id) => id is! int || id <= 0) ||
+        remoteLines.toSet().length != remoteLines.length) {
+      throw StateError('El recibo no identifica todas las líneas del cobro.');
+    }
+    final remotePayments = result['payments'];
+    if (remotePayments is! List ||
+        remotePayments.length != lineUuids.length ||
+        remotePayments.any(
+          (item) =>
+              item is! Map ||
+              item['payment_line_id'] is! int ||
+              (item['payment_line_id'] as int) <= 0 ||
+              item['payment_id'] is! int ||
+              (item['payment_id'] as int) <= 0 ||
+              item['move_id'] is! int ||
+              (item['move_id'] as int) <= 0,
+        ) ||
+        remotePayments.asMap().entries.any(
+          (entry) =>
+              (entry.value as Map)['payment_line_id'] != remoteLines[entry.key],
+        )) {
+      throw StateError(
+        'El recibo no devuelve la contabilidad completa del cobro.',
+      );
+    }
+    await _appDb.transaction(() async {
+      for (var i = 0; i < lineUuids.length; i++) {
+        final localLine =
+            await (_appDb.select(_appDb.saleOrderPaymentLine)..where(
+                  (row) =>
+                      row.orderId.equals(saleId) &
+                      row.lineUuid.equals(lineUuids[i] as String),
+                ))
+                .getSingleOrNull();
+        if (localLine == null) {
+          throw StateError('Falta la línea local del cobro.');
+        }
+        final paymentUuid = '$operationUuid:${lineUuids[i]}';
+        final localPayment =
+            await (_appDb.select(_appDb.accountPaymentTable)..where(
+                  (row) =>
+                      row.paymentUuid.equals(paymentUuid) &
+                      row.saleId.equals(saleId) &
+                      row.invoiceId.equals(invoiceId),
+                ))
+                .getSingleOrNull();
+        if (localPayment == null) {
+          throw StateError('Falta el pago local correlacionado del cobro.');
+        }
+        await (_appDb.update(_appDb.saleOrderPaymentLine)..where(
+              (row) =>
+                  row.orderId.equals(saleId) &
+                  row.lineUuid.equals(lineUuids[i] as String),
+            ))
+            .write(
+              SaleOrderPaymentLineCompanion(
+                odooId: drift.Value(remoteLines[i] as int),
+                state: const drift.Value('posted'),
+                isSynced: const drift.Value(true),
+              ),
+            );
+        final remote = remotePayments[i] as Map;
+        final paymentId = remote['payment_id'] as int;
+        final updated =
+            await (_appDb.update(
+              _appDb.accountPaymentTable,
+            )..where((row) => row.paymentUuid.equals(paymentUuid))).write(
+              AccountPaymentCompanion(
+                odooId: drift.Value(paymentId),
+                state: const drift.Value('posted'),
+                isSynced: const drift.Value(true),
+                invoiceId: drift.Value(invoiceId),
+              ),
+            );
+        if (updated != 1) {
+          throw StateError('El pago local no pudo reconciliarse exactamente.');
+        }
+      }
+    });
+    return null;
+  }
+
+  Future<int?> _resumeApprovedOverpayment(
+    OfflineOperation op, {
+    required int fallbackSaleId,
+  }) async {
+    final approved =
+        await (_appDb.select(_appDb.syncConflict)
+              ..where(
+                (row) =>
+                    row.operationId.equals(op.id) &
+                    row.isResolved.equals(true) &
+                    row.resolution.equals('local_wins'),
+              )
+              ..orderBy([(row) => drift.OrderingTerm.desc(row.resolvedAt)])
+              ..limit(1))
+            .getSingleOrNull();
+    if (approved == null) return null;
+
+    final wrapper = jsonDecode(approved.remoteData);
+    if (wrapper is! Map) return null;
+    final encodedAction = wrapper['value'];
+    final decodedAction = encodedAction is String
+        ? jsonDecode(encodedAction)
+        : encodedAction;
+    if (decodedAction is! Map) return null;
+    final action = Map<String, dynamic>.from(decodedAction);
+    if (action['res_model'] !=
+        'l10n_ec_collection_box.confirm.advance.wizard') {
+      return null;
+    }
+    final context = action['context'] is Map
+        ? Map<String, dynamic>.from(action['context'] as Map)
+        : const <String, dynamic>{};
+    final paymentWizardId = context['default_payment_wizard_id'];
+    if (paymentWizardId is! int) {
+      throw StateError('Approved overpayment has no payment wizard ID');
+    }
+    final saleId = context['default_sale_id'] is int
+        ? context['default_sale_id'] as int
+        : fallbackSaleId;
+    final rawAmount = context['default_overpayment_amount'];
+    final overpaymentAmount = rawAmount is num
+        ? rawAmount.toDouble()
+        : double.tryParse(rawAmount?.toString() ?? '');
+    if (overpaymentAmount == null) {
+      throw StateError('Approved overpayment has no valid amount');
+    }
+
+    final createResult = await _odooClient!.call(
+      model: 'l10n_ec_collection_box.confirm.advance.wizard',
+      method: 'create',
+      kwargs: {
+        'vals_list': [
+          {
+            'payment_wizard_id': paymentWizardId,
+            'sale_id': saleId,
+            'overpayment_amount': overpaymentAmount,
+          },
+        ],
+      },
+    );
+    final confirmationId = createResult is List && createResult.isNotEmpty
+        ? createResult.first
+        : createResult;
+    if (confirmationId is! int) {
+      throw StateError('Odoo did not return the advance confirmation ID');
+    }
+
+    final result = await _odooClient.call(
+      model: 'l10n_ec_collection_box.confirm.advance.wizard',
+      method: 'action_create_advance',
+      ids: [confirmationId],
+    );
+    if (result is! Map) {
+      throw StateError('Odoo returned an invalid advance confirmation action');
+    }
+    final invoiceId = _invoiceIdFromAction(Map<String, dynamic>.from(result));
+    if (invoiceId == null) {
+      throw StateError('Advance confirmation returned no account.move ID');
+    }
+    return invoiceId;
   }
 
   /// Process individual payment line
   Future<void> _processPaymentLine(OfflineOperation op) async {
     final values = Map<String, dynamic>.from(op.values);
+    final localId = values['local_id'] as int?;
 
     // Remove local-only fields
     values.remove('local_id');
     values.remove('uuid');
     values.remove('_uuid');
+    values.remove(OfflineQueueDataSource.remoteCreateIdKey);
 
     // Resolve local IDs to remote IDs if needed
     if (values['sale_id'] != null && (values['sale_id'] as int) < 0) {
@@ -392,9 +739,20 @@ extension _OfflineSyncPayment on OfflineSyncService {
     }
 
     if (op.method == 'create') {
-      final remoteId = await _odooClient!.create(
+      var remoteId =
+          op.values[OfflineQueueDataSource.remoteCreateIdKey] as int?;
+      remoteId ??= await _findExistingSaleChildCreate(op.model, values);
+      remoteId ??= await _odooClient!.create(model: op.model, values: values);
+      if (remoteId == null || localId == null) {
+        throw StateError(
+          'Payment create has no durable local/remote ID (local=$localId, remote=$remoteId)',
+        );
+      }
+      await _offlineQueue.persistRemoteCreateId(op.id, remoteId);
+      await _reconcileSaleChildCreate(
         model: op.model,
-        values: values,
+        localId: localId,
+        remoteId: remoteId,
       );
       logger.d('[OfflineSyncService]', 'Payment line created: $remoteId');
     } else if (op.method == 'write' && op.recordId != null) {
@@ -428,11 +786,13 @@ extension _OfflineSyncPayment on OfflineSyncService {
   /// Process withhold line
   Future<void> _processWithholdLine(OfflineOperation op) async {
     final values = Map<String, dynamic>.from(op.values);
+    final localId = values['local_id'] as int?;
 
     // Remove local-only fields
     values.remove('local_id');
     values.remove('uuid');
     values.remove('_uuid');
+    values.remove(OfflineQueueDataSource.remoteCreateIdKey);
 
     // Resolve local sale_id to remote if needed
     if (values['sale_id'] != null && (values['sale_id'] as int) < 0) {
@@ -444,9 +804,20 @@ extension _OfflineSyncPayment on OfflineSyncService {
     }
 
     if (op.method == 'create') {
-      final remoteId = await _odooClient!.create(
+      var remoteId =
+          op.values[OfflineQueueDataSource.remoteCreateIdKey] as int?;
+      remoteId ??= await _findExistingSaleChildCreate(op.model, values);
+      remoteId ??= await _odooClient!.create(model: op.model, values: values);
+      if (remoteId == null || localId == null) {
+        throw StateError(
+          'Withhold create has no durable local/remote ID (local=$localId, remote=$remoteId)',
+        );
+      }
+      await _offlineQueue.persistRemoteCreateId(op.id, remoteId);
+      await _reconcileSaleChildCreate(
         model: op.model,
-        values: values,
+        localId: localId,
+        remoteId: remoteId,
       );
       logger.d('[OfflineSyncService]', 'Withhold line created: $remoteId');
     } else if (op.method == 'write' && op.recordId != null) {
@@ -475,6 +846,120 @@ extension _OfflineSyncPayment on OfflineSyncService {
         rethrow;
       }
     }
+  }
+
+  /// Finds the remote result of an interrupted child create before retrying.
+  ///
+  /// These two Odoo models do not expose the local UUID. Their complete
+  /// business signature is therefore queued and used as a natural key. The UI
+  /// stores one line per signature; exact duplicates are collapsed locally.
+  Future<int?> _findExistingSaleChildCreate(
+    String model,
+    Map<String, dynamic> values,
+  ) async {
+    final identityFields = switch (model) {
+      'sale.order.withhold.line' => const [
+        'sale_id',
+        'tax_id',
+        'base',
+        'amount',
+        'taxsupport_code',
+        'notes',
+      ],
+      'l10n_ec_collection_box.sale.order.payment' => const [
+        'sale_id',
+        'amount',
+        'date',
+        'journal_id',
+        'payment_method_line_id',
+        'payment_reference',
+        'credit_note_id',
+        'advance_id',
+        'card_type',
+        'card_brand_id',
+        'card_deadline_id',
+        'lote_id',
+        'l10n_ec_bank_id',
+        'bank_name_ec',
+        'bank_reference_date',
+        'partner_bank_id',
+        'effective_date',
+        'collection_session_id',
+      ],
+      _ => const <String>[],
+    };
+    if (identityFields.isEmpty || values['sale_id'] is! int) return null;
+
+    final domain = <dynamic>[];
+    for (final field in identityFields) {
+      if (values.containsKey(field)) {
+        domain.add([field, '=', values[field]]);
+      }
+    }
+    final existing = await _odooClient!.searchRead(
+      model: model,
+      domain: domain,
+      fields: const ['id'],
+      order: 'id desc',
+      limit: 1,
+    );
+    return existing.isEmpty ? null : existing.first['id'] as int?;
+  }
+
+  /// Finishes the local ID hand-off without exposing a half-synchronized row.
+  Future<void> _reconcileSaleChildCreate({
+    required String model,
+    required int localId,
+    required int remoteId,
+  }) async {
+    final syncedAt = DateTime.now().toUtc();
+    await _appDb.transaction(() async {
+      if (model == 'sale.order.withhold.line') {
+        final local = await (_appDb.select(
+          _appDb.saleOrderWithholdLine,
+        )..where((table) => table.id.equals(localId))).getSingleOrNull();
+        final remote = await (_appDb.select(
+          _appDb.saleOrderWithholdLine,
+        )..where((table) => table.odooId.equals(remoteId))).getSingleOrNull();
+        if (local != null && remote != null && local.id != remote.id) {
+          await (_appDb.delete(
+            _appDb.saleOrderWithholdLine,
+          )..where((table) => table.id.equals(local.id))).go();
+        } else if (local != null) {
+          await (_appDb.update(
+            _appDb.saleOrderWithholdLine,
+          )..where((table) => table.id.equals(local.id))).write(
+            SaleOrderWithholdLineCompanion(
+              odooId: drift.Value(remoteId),
+              isSynced: const drift.Value(true),
+              lastSyncDate: drift.Value(syncedAt),
+            ),
+          );
+        }
+      } else if (model == 'l10n_ec_collection_box.sale.order.payment') {
+        final local = await (_appDb.select(
+          _appDb.saleOrderPaymentLine,
+        )..where((table) => table.id.equals(localId))).getSingleOrNull();
+        final remote = await (_appDb.select(
+          _appDb.saleOrderPaymentLine,
+        )..where((table) => table.odooId.equals(remoteId))).getSingleOrNull();
+        if (local != null && remote != null && local.id != remote.id) {
+          await (_appDb.delete(
+            _appDb.saleOrderPaymentLine,
+          )..where((table) => table.id.equals(local.id))).go();
+        } else if (local != null) {
+          await (_appDb.update(
+            _appDb.saleOrderPaymentLine,
+          )..where((table) => table.id.equals(local.id))).write(
+            SaleOrderPaymentLineCompanion(
+              odooId: drift.Value(remoteId),
+              isSynced: const drift.Value(true),
+              lastSyncDate: drift.Value(syncedAt),
+            ),
+          );
+        }
+      }
+    });
   }
 
   /// Process advance line
@@ -536,11 +1021,16 @@ extension _OfflineSyncPayment on OfflineSyncService {
   /// Update local payment with Odoo ID after sync (by UUID)
   Future<void> _updatePaymentIdByUuid(String paymentUuid, int newOdooId) async {
     final existing = (await _paymentManager.searchLocal(
-      domain: [['payment_uuid', '=', paymentUuid]],
+      domain: [
+        ['payment_uuid', '=', paymentUuid],
+      ],
       limit: 1,
     )).firstOrNull;
     if (existing == null) {
-      logger.w('[OfflineSyncService]', 'No payment found with UUID=$paymentUuid');
+      logger.w(
+        '[OfflineSyncService]',
+        'No payment found with UUID=$paymentUuid',
+      );
       return;
     }
     final updated = existing.copyWith(
@@ -557,12 +1047,10 @@ extension _OfflineSyncPayment on OfflineSyncService {
   /// so it uses direct Drift access rather than a manager.
   Future<void> _markOrderPaymentsAsSynced(int orderId) async {
     final db = _appDb;
-    await (db.update(db.saleOrderPaymentLine)
-          ..where((tbl) => tbl.orderId.equals(orderId)))
-        .write(
-      const SaleOrderPaymentLineCompanion(
-        isSynced: drift.Value(true),
-      ),
+    await (db.update(
+      db.saleOrderPaymentLine,
+    )..where((tbl) => tbl.orderId.equals(orderId))).write(
+      const SaleOrderPaymentLineCompanion(isSynced: drift.Value(true)),
     );
     logger.d(
       '[OfflineSyncService]',

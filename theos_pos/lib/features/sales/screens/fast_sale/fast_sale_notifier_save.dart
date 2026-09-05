@@ -26,8 +26,7 @@ extension FastSaleNotifierSave on FastSaleNotifier {
         (order.endCustomerName == null ||
             order.endCustomerName!.trim().isEmpty)) {
       state = state.copyWith(
-        error:
-            'El nombre del consumidor final es obligatorio cuando el cliente es Consumidor Final.',
+        error: 'El nombre del consumidor final es obligatorio cuando el cliente es Consumidor Final.',
       );
       return false;
     }
@@ -57,7 +56,7 @@ extension FastSaleNotifierSave on FastSaleNotifier {
           if (order.fiscalPositionId != null)
             'fiscal_position_id': order.fiscalPositionId,
           if (order.dateOrder != null)
-            'date_order': order.dateOrder!.toIso8601String(),
+            'date_order': formatOdooDateTime(order.dateOrder!),
           if (order.note != null) 'note': order.note,
           if (order.clientOrderRef != null)
             'client_order_ref': order.clientOrderRef,
@@ -75,12 +74,20 @@ extension FastSaleNotifierSave on FastSaleNotifier {
         };
 
         if (headerVals.isNotEmpty) {
-          salesRepo.update(orderId, headerVals).then((_) {
-            logger.d('[FastSale]', 'Header synced to Odoo for order $orderId');
-          }).catchError((e) {
-            logger.w('[FastSale]',
-                'Background header sync failed (will retry later): $e');
-          });
+          salesRepo
+              .update(orderId, headerVals)
+              .then((_) {
+                logger.d(
+                  '[FastSale]',
+                  'Header synced to Odoo for order $orderId',
+                );
+              })
+              .catchError((e) {
+                logger.w(
+                  '[FastSale]',
+                  'Background header sync failed (will retry later): $e',
+                );
+              });
         }
       }
 
@@ -104,8 +111,10 @@ extension FastSaleNotifierSave on FastSaleNotifier {
               recordId: orderId,
               values: {
                 'partner_id': order.partnerId,
-                if (order.warehouseId != null) 'warehouse_id': order.warehouseId,
-                if (order.pricelistId != null) 'pricelist_id': order.pricelistId,
+                if (order.warehouseId != null)
+                  'warehouse_id': order.warehouseId,
+                if (order.pricelistId != null)
+                  'pricelist_id': order.pricelistId,
                 if (order.paymentTermId != null)
                   'payment_term_id': order.paymentTermId,
                 // Campos de consumidor final
@@ -162,9 +171,15 @@ extension FastSaleNotifierSave on FastSaleNotifier {
       // the product was added. Using addLine here would create duplicates because
       // addLine generates new IDs and UUIDs. Instead, we use upsertSaleOrderLine
       // which updates if exists or creates if not.
-      logger.d('[FastSale]', '=== SAVE: Saving ${activeTab.lines.length} lines for orderId=$orderId ===');
+      logger.d(
+        '[FastSale]',
+        '=== SAVE: Saving ${activeTab.lines.length} lines for orderId=$orderId ===',
+      );
       for (final line in activeTab.lines) {
-        logger.d('[FastSale]', '  Processing line: id=${line.id}, orderId=${line.orderId}, product=${line.productName}');
+        logger.d(
+          '[FastSale]',
+          '  Processing line: id=${line.id}, orderId=${line.orderId}, product=${line.productName}',
+        );
         final lineWithOrderId = line.copyWith(orderId: orderId);
         // Use upsert to avoid creating duplicate lines
         // This handles both new lines (id < 0) and existing lines (id >= 0)
@@ -175,31 +190,49 @@ extension FastSaleNotifierSave on FastSaleNotifier {
       // Handle deleted lines (lines that were in DB but not in current state)
       logger.d('[FastSale]', '=== SAVE: Checking for deleted lines ===');
       final dbLines = await saleOrderLineManager.getSaleOrderLines(orderId);
-      logger.d('[FastSale]', '  DB has ${dbLines.length} lines for orderId=$orderId');
+      logger.d(
+        '[FastSale]',
+        '  DB has ${dbLines.length} lines for orderId=$orderId',
+      );
       for (final dbLine in dbLines) {
-        logger.d('[FastSale]', '    DB Line: id=${dbLine.id}, orderId=${dbLine.orderId}');
+        logger.d(
+          '[FastSale]',
+          '    DB Line: id=${dbLine.id}, orderId=${dbLine.orderId}',
+        );
       }
       final currentLineIds = activeTab.lines.map((l) => l.id).toSet();
       logger.d('[FastSale]', '  State has line IDs: $currentLineIds');
       for (final dbLine in dbLines) {
         if (!currentLineIds.contains(dbLine.id)) {
-          logger.d('[FastSale]', '  Deleting line ${dbLine.id} (not in current state)');
+          logger.d(
+            '[FastSale]',
+            '  Deleting line ${dbLine.id} (not in current state)',
+          );
           await salesRepo.deleteLine(dbLine.id);
         }
       }
 
       // Reload lines from database (order header is already updated in memory)
       // NOTE: We do NOT reload the order header to avoid race conditions with
-      // WebSocket notifications that may contain stale partner data.
+      // sync notifications that may contain stale partner data.
       // The order header we just saved is the source of truth.
-      logger.d('[FastSale]', '=== SAVE: Reloading lines from database for orderId=$orderId ===');
+      logger.d(
+        '[FastSale]',
+        '=== SAVE: Reloading lines from database for orderId=$orderId ===',
+      );
       final (_, savedLines) = await salesRepo.getWithLines(
         orderId,
         forceRefresh: false,
       );
-      logger.d('[FastSale]', '=== SAVE: Loaded ${savedLines.length} lines from DB ===');
+      logger.d(
+        '[FastSale]',
+        '=== SAVE: Loaded ${savedLines.length} lines from DB ===',
+      );
       for (final line in savedLines) {
-        logger.d('[FastSale]', '  DB Line: id=${line.id}, orderId=${line.orderId}, displayType=${line.displayType}, product=${line.productName}');
+        logger.d(
+          '[FastSale]',
+          '  DB Line: id=${line.id}, orderId=${line.orderId}, displayType=${line.displayType}, product=${line.productName}',
+        );
       }
 
       // Preserve the order header we just saved (including the partner we just set)
@@ -207,10 +240,7 @@ extension FastSaleNotifierSave on FastSaleNotifier {
       final savedTab = FastSaleTabState(
         orderId: orderId,
         orderName: order.name,
-        order: order.copyWith(
-          isSynced: false,
-          writeDate: DateTime.now(),
-        ),
+        order: order.copyWith(isSynced: false, writeDate: DateTime.now()),
         lines: savedLines,
         hasChanges: false,
         // Preserve the authorized payment term IDs
@@ -224,7 +254,10 @@ extension FastSaleNotifierSave on FastSaleNotifier {
       ref.invalidate(saleOrderFormProvider);
       ref.invalidate(saleOrderWithLinesProvider(orderId));
 
-      logger.i('[FastSale]', 'Order saved: $orderId with ${savedLines.length} lines');
+      logger.i(
+        '[FastSale]',
+        'Order saved: $orderId with ${savedLines.length} lines',
+      );
       return true;
     } catch (e, stack) {
       logger.e('[FastSale]', 'Error saving order', e, stack);
@@ -248,18 +281,30 @@ extension FastSaleNotifierSave on FastSaleNotifier {
       try {
         final syncService = ref.read(offlineSyncServiceProvider);
         if (syncService == null || !syncService.canSync) {
-          logger.d('[FastSale]', 'Queue processing skipped: no sync service or offline');
+          logger.d(
+            '[FastSale]',
+            'Queue processing skipped: no sync service or offline',
+          );
           return;
         }
         if (syncService.isSyncing) {
           logger.d('[FastSale]', 'Queue processing skipped: already syncing');
           return;
         }
-        logger.d('[FastSale]', 'Triggering queue processing after new queue entry');
+        logger.d(
+          '[FastSale]',
+          'Triggering queue processing after new queue entry',
+        );
         final result = await syncService.processQueue();
-        logger.i('[FastSale]', 'Queue processing result: ${result.synced} synced, ${result.failed} failed');
+        logger.i(
+          '[FastSale]',
+          'Queue processing result: ${result.synced} synced, ${result.failed} failed',
+        );
       } catch (e) {
-        logger.w('[FastSale]', 'Queue processing failed (will retry later): $e');
+        logger.w(
+          '[FastSale]',
+          'Queue processing failed (will retry later): $e',
+        );
       }
     });
   }

@@ -1,6 +1,8 @@
 import 'dart:typed_data';
+
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
+
 import 'paper_format.dart';
 import 'report_locale.dart';
 
@@ -75,16 +77,16 @@ class RenderOptions {
   /// Date format pattern
   final String dateFormat;
 
-  /// Regular font (defaults to Helvetica if null)
+  /// Regular font (defaults to bundled Noto Sans if null)
   final pw.Font? font;
 
-  /// Bold font (defaults to Helvetica-Bold if null)
+  /// Bold font (defaults to bundled Noto Sans Bold if null)
   final pw.Font? boldFont;
 
-  /// Italic font (defaults to Helvetica-Oblique if null)
+  /// Italic font (defaults to bundled Noto Sans Italic if null)
   final pw.Font? italicFont;
 
-  /// Bold Italic font (defaults to Helvetica-BoldOblique if null)
+  /// Bold Italic font (defaults to bundled Noto Sans Bold Italic if null)
   final pw.Font? boldItalicFont;
 
   /// Report locale for number/currency formatting and translatable labels.
@@ -242,15 +244,9 @@ class RenderOptions {
       );
 
   /// Create options for thermal receipt (80mm width)
-  factory RenderOptions.receipt80mm({
-    Uint8List? logoBytes,
-    pw.Font? font,
-  }) =>
+  factory RenderOptions.receipt80mm({Uint8List? logoBytes, pw.Font? font}) =>
       RenderOptions(
-        pageFormat: PdfPageFormat(
-          80 * PdfPageFormat.mm,
-          double.infinity,
-        ),
+        pageFormat: PdfPageFormat(80 * PdfPageFormat.mm, double.infinity),
         marginTop: 10,
         marginBottom: 10,
         marginLeft: 5,
@@ -264,15 +260,9 @@ class RenderOptions {
       );
 
   /// Create options for thermal receipt (58mm width)
-  factory RenderOptions.receipt58mm({
-    Uint8List? logoBytes,
-    pw.Font? font,
-  }) =>
+  factory RenderOptions.receipt58mm({Uint8List? logoBytes, pw.Font? font}) =>
       RenderOptions(
-        pageFormat: PdfPageFormat(
-          58 * PdfPageFormat.mm,
-          double.infinity,
-        ),
+        pageFormat: PdfPageFormat(58 * PdfPageFormat.mm, double.infinity),
         marginTop: 5,
         marginBottom: 5,
         marginLeft: 3,

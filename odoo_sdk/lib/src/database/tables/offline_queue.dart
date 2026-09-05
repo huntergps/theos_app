@@ -41,11 +41,21 @@ class OfflineQueue extends Table {
   /// Device ID that created this operation (for multi-device tracking)
   TextColumn get deviceId => text().nullable()();
 
+  /// Stable local idempotency key. Null is allowed for non-create operations.
+  TextColumn get operationKey => text().nullable().unique()();
+
+  /// Version of the local command payload contract.
+  IntColumn get commandVersion => integer().withDefault(const Constant(1))();
+
+  /// Retry behavior after an ambiguous network failure.
+  TextColumn get replayPolicy =>
+      text().withDefault(const Constant('manual_after_ambiguous'))();
+
   /// Estado de la operación: 'pending', 'processing', 'completed', 'failed'
   TextColumn get status => text().withDefault(const Constant('pending'))();
 
   /// Número máximo de reintentos
-  IntColumn get maxRetries => integer().withDefault(const Constant(3))();
+  IntColumn get maxRetries => integer().withDefault(const Constant(10))();
 
   /// Indica si la operación requiere conexión de red
   BoolColumn get requiresNetwork => boolean().withDefault(const Constant(true))();

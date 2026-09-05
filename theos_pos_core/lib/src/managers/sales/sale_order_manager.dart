@@ -8,12 +8,242 @@ library;
 import 'package:drift/drift.dart' as drift;
 
 import '../../database/database.dart';
+import '../../models/sales/sale_order_enums.dart';
 import '../../models/sales/sale_order.model.dart';
+
+/// Aggregated sale-order metrics for a bounded period.
+///
+/// This value is intentionally independent from presentation concerns so the
+/// dashboard can observe a handful of grouped rows instead of materializing
+/// every cached sale order on each database update.
+class SaleOrderPeriodMetrics {
+  final int totalOrders;
+  final double totalAmount;
+  final int draftCount;
+  final int confirmedCount;
+  final int doneCount;
+  final int cancelledCount;
+
+  const SaleOrderPeriodMetrics({
+    this.totalOrders = 0,
+    this.totalAmount = 0,
+    this.draftCount = 0,
+    this.confirmedCount = 0,
+    this.doneCount = 0,
+    this.cancelledCount = 0,
+  });
+}
+
+/// One database-backed page for the sales list and its matching facets.
+///
+/// Rows are bounded by [pageSize]. Counts are calculated by SQLite from the
+/// same filter revision, so opening the list never materializes the complete
+/// sales history in Dart.
+class SaleOrderListPage {
+  final List<SaleOrder> rows;
+  final Map<String, int> countsByState;
+  final int totalCount;
+  final int unsyncedCount;
+  final int pageIndex;
+  final int pageSize;
+
+  const SaleOrderListPage({
+    required this.rows,
+    required this.countsByState,
+    required this.totalCount,
+    required this.unsyncedCount,
+    required this.pageIndex,
+    required this.pageSize,
+  });
+}
 
 /// Extension methods for SaleOrderManager
 extension SaleOrderManagerBusiness on SaleOrderManager {
   /// Cast database to AppDatabase for direct Drift queries
   AppDatabase get _db => database as AppDatabase;
+
+  /// Watches a state count without materializing matching orders.
+  Stream<int> watchStateCount(String state) {
+    final countExpression = _db.saleOrder.id.count();
+    final query = _db.selectOnly(_db.saleOrder)
+      ..addColumns([countExpression])
+      ..where(_db.saleOrder.state.equals(state));
+    return query.watchSingle().map((row) => row.read(countExpression) ?? 0);
+  }
+
+  /// Watches a bounded page of orders plus SQL aggregate counts.
+  Stream<SaleOrderListPage> watchListPage({
+    String searchQuery = '',
+    String state = 'all',
+    int? userId,
+    int pageIndex = 0,
+    int pageSize = 80,
+  }) {
+    if (pageIndex < 0) {
+      throw ArgumentError.value(pageIndex, 'pageIndex', 'Must not be negative');
+    }
+    if (pageSize <= 0) {
+      throw ArgumentError.value(pageSize, 'pageSize', 'Must be positive');
+    }
+
+    // The aggregate is a cheap invalidation signal for any table mutation.
+    // Each emission is then projected inside one read transaction.
+    final revisionCount = _db.saleOrder.id.count();
+    final revision = _db.selectOnly(_db.saleOrder)..addColumns([revisionCount]);
+
+    return revision.watchSingle().asyncMap((_) {
+      return _db.transaction(() async {
+        final normalizedQuery = searchQuery.trim().toLowerCase();
+        final pattern = '%$normalizedQuery%';
+
+        drift.Expression<bool> scopePredicate({required bool includeState}) {
+          drift.Expression<bool> predicate = const drift.Constant(true);
+          if (normalizedQuery.isNotEmpty) {
+            predicate =
+                predicate &
+                (_db.saleOrder.name.lower().like(pattern) |
+                    _db.saleOrder.partnerName.lower().like(pattern) |
+                    _db.saleOrder.clientOrderRef.lower().like(pattern));
+          }
+          if (userId != null) {
+            predicate = predicate & _db.saleOrder.userId.equals(userId);
+          }
+          if (includeState && state != 'all') {
+            predicate = predicate & _db.saleOrder.state.equals(state);
+          }
+          return predicate;
+        }
+
+        final rowsQuery = _db.select(_db.saleOrder)
+          ..where((_) => scopePredicate(includeState: true));
+        rowsQuery
+          ..orderBy([(table) => drift.OrderingTerm.desc(table.dateOrder)])
+          ..limit(pageSize, offset: pageIndex * pageSize);
+        final driftRows = await rowsQuery.get();
+
+        final stateExpression = _db.saleOrder.state;
+        final countExpression = _db.saleOrder.id.count();
+        final countsQuery = _db.selectOnly(_db.saleOrder)
+          ..addColumns([stateExpression, countExpression])
+          ..where(scopePredicate(includeState: false));
+        countsQuery.groupBy([stateExpression]);
+        final groupedRows = await countsQuery.get();
+
+        final counts = <String, int>{
+          'all': 0,
+          'draft': 0,
+          'sent': 0,
+          'waiting': 0,
+          'approved': 0,
+          'rejected': 0,
+          'sale': 0,
+          'cancel': 0,
+        };
+        for (final row in groupedRows) {
+          final count = row.read(countExpression) ?? 0;
+          final rowState = row.read(stateExpression) ?? '';
+          counts['all'] = counts['all']! + count;
+          counts[rowState] = (counts[rowState] ?? 0) + count;
+        }
+
+        final filteredCountExpression = _db.saleOrder.id.count();
+        final filteredCountQuery = _db.selectOnly(_db.saleOrder)
+          ..addColumns([filteredCountExpression])
+          ..where(scopePredicate(includeState: true));
+        final filteredCountRow = await filteredCountQuery.getSingle();
+
+        final unsyncedExpression = _db.saleOrder.id.count();
+        final unsyncedQuery = _db.selectOnly(_db.saleOrder)
+          ..addColumns([unsyncedExpression])
+          ..where(_db.saleOrder.isSynced.equals(false));
+        final unsyncedRow = await unsyncedQuery.getSingle();
+
+        return SaleOrderListPage(
+          rows: driftRows.map(fromDrift).toList(growable: false),
+          countsByState: counts,
+          totalCount: filteredCountRow.read(filteredCountExpression) ?? 0,
+          unsyncedCount: unsyncedRow.read(unsyncedExpression) ?? 0,
+          pageIndex: pageIndex,
+          pageSize: pageSize,
+        );
+      });
+    });
+  }
+
+  /// Watches grouped sales metrics inside the half-open interval
+  /// `[startInclusive, endExclusive)`.
+  ///
+  /// SQLite performs the grouping and aggregation. The stream emits at most
+  /// one row per sale-order state, avoiding the previous dashboard path that
+  /// loaded and filtered the complete local order catalog in Dart.
+  Stream<SaleOrderPeriodMetrics> watchPeriodMetrics({
+    required DateTime startInclusive,
+    required DateTime endExclusive,
+  }) {
+    if (!startInclusive.isBefore(endExclusive)) {
+      return Stream.error(
+        ArgumentError.value(
+          endExclusive,
+          'endExclusive',
+          'Must be after startInclusive',
+        ),
+      );
+    }
+
+    final countExpression = _db.saleOrder.id.count();
+    final amountExpression = _db.saleOrder.amountTotal.sum();
+    final query = _db.selectOnly(_db.saleOrder)
+      ..addColumns([_db.saleOrder.state, countExpression, amountExpression])
+      ..where(
+        _db.saleOrder.dateOrder.isBiggerOrEqualValue(startInclusive) &
+            _db.saleOrder.dateOrder.isSmallerThanValue(endExclusive),
+      )
+      ..groupBy([_db.saleOrder.state]);
+
+    return query.watch().map((rows) {
+      var totalOrders = 0;
+      var totalAmount = 0.0;
+      var draftCount = 0;
+      var confirmedCount = 0;
+      var doneCount = 0;
+      var cancelledCount = 0;
+
+      for (final row in rows) {
+        final count = row.read(countExpression) ?? 0;
+        final amount = row.read(amountExpression) ?? 0.0;
+        final state = SaleOrderStateExtension.fromString(
+          row.read(_db.saleOrder.state),
+        );
+
+        totalOrders += count;
+        switch (state) {
+          case SaleOrderState.draft:
+          case SaleOrderState.sent:
+          case SaleOrderState.waitingApproval:
+          case SaleOrderState.approved:
+          case SaleOrderState.rejected:
+            draftCount += count;
+          case SaleOrderState.sale:
+            confirmedCount += count;
+            totalAmount += amount;
+          case SaleOrderState.done:
+            doneCount += count;
+            totalAmount += amount;
+          case SaleOrderState.cancel:
+            cancelledCount += count;
+        }
+      }
+
+      return SaleOrderPeriodMetrics(
+        totalOrders: totalOrders,
+        totalAmount: totalAmount,
+        draftCount: draftCount,
+        confirmedCount: confirmedCount,
+        doneCount: doneCount,
+        cancelledCount: cancelledCount,
+      );
+    });
+  }
 
   // ═══════════════════════════════════════════════════════════════════════════
   // Convenience Methods (Replaces SaleOrderDatasource)
@@ -50,7 +280,7 @@ extension SaleOrderManagerBusiness on SaleOrderManager {
     int limit = 10,
     int offset = 0,
   }) async {
-    const allowedStates = ['draft', 'sent', 'waiting_approval', 'approved', 'sale'];
+    const allowedStates = ['draft', 'sent', 'waiting', 'approved', 'sale'];
 
     final query = _db.select(_db.saleOrder)
       ..where((t) => t.userId.equals(userId))
@@ -65,7 +295,7 @@ extension SaleOrderManagerBusiness on SaleOrderManager {
 
   /// Count total sale orders for POS
   Future<int> countSaleOrdersForPOS({required int userId}) async {
-    const allowedStates = ['draft', 'sent', 'waiting_approval', 'approved', 'sale'];
+    const allowedStates = ['draft', 'sent', 'waiting', 'approved', 'sale'];
 
     final query = _db.selectOnly(_db.saleOrder)
       ..addColumns([_db.saleOrder.id.count()])
@@ -83,7 +313,7 @@ extension SaleOrderManagerBusiness on SaleOrderManager {
     required String query,
     int limit = 20,
   }) async {
-    const allowedStates = ['draft', 'sent', 'waiting_approval', 'approved', 'sale'];
+    const allowedStates = ['draft', 'sent', 'waiting', 'approved', 'sale'];
     final searchPattern = '%$query%';
 
     final selectQuery = _db.select(_db.saleOrder)
@@ -102,15 +332,17 @@ extension SaleOrderManagerBusiness on SaleOrderManager {
 
     final results = await selectQuery.get();
     return results
-        .map((row) => {
-              'id': row.odooId,
-              'name': row.name,
-              'partner_name': row.partnerName,
-              'partner_vat': row.partnerVat,
-              'state': row.state,
-              'amount_total': row.amountTotal,
-              'date_order': row.dateOrder?.toIso8601String(),
-            })
+        .map(
+          (row) => {
+            'id': row.odooId,
+            'name': row.name,
+            'partner_name': row.partnerName,
+            'partner_vat': row.partnerVat,
+            'state': row.state,
+            'amount_total': row.amountTotal,
+            'date_order': row.dateOrder?.toIso8601String(),
+          },
+        )
         .toList();
   }
 
@@ -124,7 +356,7 @@ extension SaleOrderManagerBusiness on SaleOrderManager {
     bool includeCancelled = false,
     bool allUsers = false,
   }) async {
-    final states = <String>['draft', 'sent', 'waiting_approval', 'approved'];
+    final states = <String>['draft', 'sent', 'waiting', 'approved'];
     if (includeConfirmed || includeInvoiced) states.add('sale');
     if (includeCancelled) states.add('cancel');
 
@@ -161,16 +393,18 @@ extension SaleOrderManagerBusiness on SaleOrderManager {
 
     final results = await selectQuery.get();
     return results
-        .map((row) => {
-              'id': row.odooId,
-              'name': row.name,
-              'partner_name': row.partnerName,
-              'partner_vat': row.partnerVat,
-              'state': row.state,
-              'invoice_status': row.invoiceStatus,
-              'amount_total': row.amountTotal,
-              'date_order': row.dateOrder?.toIso8601String(),
-            })
+        .map(
+          (row) => {
+            'id': row.odooId,
+            'name': row.name,
+            'partner_name': row.partnerName,
+            'partner_vat': row.partnerVat,
+            'state': row.state,
+            'invoice_status': row.invoiceStatus,
+            'amount_total': row.amountTotal,
+            'date_order': row.dateOrder?.toIso8601String(),
+          },
+        )
         .toList();
   }
 
@@ -184,9 +418,9 @@ extension SaleOrderManagerBusiness on SaleOrderManager {
     required String state,
     bool? pendingConfirm,
   }) async {
-    await (_db.update(_db.saleOrder)
-          ..where((t) => t.odooId.equals(orderId)))
-        .write(
+    await (_db.update(
+      _db.saleOrder,
+    )..where((t) => t.odooId.equals(orderId))).write(
       SaleOrderCompanion(
         state: drift.Value(state),
         pendingConfirm: pendingConfirm != null
@@ -198,8 +432,7 @@ extension SaleOrderManagerBusiness on SaleOrderManager {
 
   /// Clear pendingConfirm flag after successful sync
   Future<void> clearSaleOrderPendingConfirm(int orderId) async {
-    await (_db.update(_db.saleOrder)
-          ..where((t) => t.odooId.equals(orderId)))
+    await (_db.update(_db.saleOrder)..where((t) => t.odooId.equals(orderId)))
         .write(const SaleOrderCompanion(pendingConfirm: drift.Value(false)));
   }
 
@@ -209,9 +442,9 @@ extension SaleOrderManagerBusiness on SaleOrderManager {
     required bool locked,
     bool isSynced = false,
   }) async {
-    await (_db.update(_db.saleOrder)
-          ..where((t) => t.odooId.equals(orderId)))
-        .write(
+    await (_db.update(
+      _db.saleOrder,
+    )..where((t) => t.odooId.equals(orderId))).write(
       SaleOrderCompanion(
         locked: drift.Value(locked),
         isSynced: drift.Value(isSynced),
@@ -257,9 +490,11 @@ extension SaleOrderManagerBusiness on SaleOrderManager {
           .write(SaleOrderPaymentLineCompanion(orderId: drift.Value(remoteId)));
 
       // Update order_id in pending withhold lines (mismo FK huérfano si se omite)
-      await (_db.update(_db.saleOrderWithholdLine)
-            ..where((t) => t.orderId.equals(localId)))
-          .write(SaleOrderWithholdLineCompanion(orderId: drift.Value(remoteId)));
+      await (_db.update(
+        _db.saleOrderWithholdLine,
+      )..where((t) => t.orderId.equals(localId))).write(
+        SaleOrderWithholdLineCompanion(orderId: drift.Value(remoteId)),
+      );
     });
   }
 
@@ -270,9 +505,9 @@ extension SaleOrderManagerBusiness on SaleOrderManager {
   Future<void> deleteSaleOrderWithLines(int odooId) async {
     await _db.transaction(() async {
       // Delete lines first (FK dependency)
-      await (_db.delete(_db.saleOrderLine)
-            ..where((t) => t.orderId.equals(odooId)))
-          .go();
+      await (_db.delete(
+        _db.saleOrderLine,
+      )..where((t) => t.orderId.equals(odooId))).go();
       // Then delete order
       await deleteLocal(odooId);
     });

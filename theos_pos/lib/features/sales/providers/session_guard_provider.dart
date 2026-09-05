@@ -6,7 +6,7 @@ import '../../../core/database/providers.dart' show currentSessionProvider;
 /// Provider that checks if there's an active collection session.
 ///
 /// Returns `true` when the current session is in an active state
-/// (`openingControl`, `opened`, or `closingControl`).
+/// (`openingControl`, `opened`, `paused`, or `closingControl`).
 /// Returns `false` when there is no session, or when the session is `closed`.
 ///
 /// Usage in widgets:
@@ -26,6 +26,8 @@ final hasActiveCollectionSessionProvider = Provider<bool>((ref) {
   if (session == null) return false;
 
   // Closed sessions are not considered active for POS operations.
-  // openingControl, opened, and closingControl all allow payment registration.
+  // This is a route/session-existence guard. Transaction controls separately
+  // require `canRegisterTransactions`, so a paused session remains visible but
+  // cannot accept payments, cash outs or advances.
   return session.state != SessionState.closed;
 });

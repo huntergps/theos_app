@@ -17,7 +17,7 @@ import 'reactive_field_base.dart';
 /// Usage:
 /// ```dart
 /// ReactiveMasterSelector<Warehouse>(
-///   config: ReactiveFieldConfig(
+///   config: OdooFieldConfig(
 ///     label: 'Bodega',
 ///     isEditing: isEditMode,
 ///     prefixIcon: FluentIcons.warehouse,
@@ -32,7 +32,7 @@ import 'reactive_field_base.dart';
 /// ```
 class ReactiveMasterSelector<T> extends ConsumerWidget {
   /// Field configuration
-  final ReactiveFieldConfig config;
+  final OdooFieldConfig config;
 
   /// Currently selected ID
   final int? value;
@@ -482,7 +482,7 @@ class _SelectionDialogState<T> extends State<_SelectionDialog<T>> {
 /// A master selector that uses a provider with Map data
 /// (for backward compatibility with existing providers that return List<Map>)
 class ReactiveMasterSelectorMap extends ConsumerWidget {
-  final ReactiveFieldConfig config;
+  final OdooFieldConfig config;
   final int? value;
   final String? displayValue;
   final Provider<List<Map<String, dynamic>>> itemsProvider;
@@ -638,7 +638,7 @@ class ReactiveMasterSelectorMap extends ConsumerWidget {
 ///
 /// For selecting from large datasets like partners, products
 class ReactiveRelatedField<T> extends ConsumerWidget {
-  final ReactiveFieldConfig config;
+  final OdooFieldConfig config;
   final int? value;
   final String? displayValue;
   final Future<List<T>> Function(String query) searchFunction;

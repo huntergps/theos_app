@@ -39,9 +39,7 @@ class ModelStatusBar<T> extends StatelessWidget {
     // If width > 600 (or other value preferred for "desktop"), use 30, else 23.
     // Or check if user provided a specific height override.
     final screenWidth = MediaQuery.of(context).size.width;
-    final isDesktop =
-        screenWidth >
-        600; // Using 600 as simplified breakpoint or import constants if available
+    final isDesktop = screenWidth > 600; // Using 600 as simplified breakpoint or import constants if available
     final responsiveHeight = isDesktop ? 30.0 : 23.0;
 
     return Container(

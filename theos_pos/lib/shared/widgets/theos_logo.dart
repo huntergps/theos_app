@@ -142,9 +142,8 @@ class TheosNameSvg extends StatelessWidget {
     final resolvedErp = erpColor ?? theme.accentColor;
 
     return FutureBuilder<String>(
-      future: DefaultAssetBundle.of(
-        context,
-      ).loadString('assets/images/nombre.svg'),
+      future: DefaultAssetBundle.of(context)
+          .loadString('assets/images/nombre.svg'),
       builder: (context, snapshot) {
         if (!snapshot.hasData) {
           return SizedBox(height: height);

@@ -47,9 +47,7 @@ import 'package:theos_pos_core/theos_pos_core.dart' hide DatabaseHelper;
 class ProductRepository {
   final AppDatabase _db;
 
-  ProductRepository({
-    required AppDatabase db,
-  }) : _db = db;
+  ProductRepository({required this._db});
 
   /// Indica si hay conexión con Odoo
   bool get isOnline => productManager.isOnline;
@@ -95,42 +93,55 @@ class ProductRepository {
             return merged;
           }
         } catch (e) {
-          logger.w('[ProductRepository]', 'Odoo search failed, using local: $e');
+          logger.w(
+            '[ProductRepository]',
+            'Odoo search failed, using local: $e',
+          );
         }
       }
 
       return localResults;
     } catch (e, stack) {
       logger.e('[ProductRepository]', 'Error searching products: $e', e, stack);
-      return [];
+      rethrow;
     }
   }
 
   /// Búsqueda local pura en Drift
-  Future<List<Product>> _searchProductsLocal(String query, {int limit = 50}) async {
+  Future<List<Product>> _searchProductsLocal(
+    String query, {
+    int limit = 50,
+  }) async {
     final pattern = '%${query.toLowerCase()}%';
 
-    final results = await (_db.select(_db.productProduct)
-          ..where((t) => t.active.equals(true))
-          ..where((t) => t.saleOk.equals(true))
-          ..where(
-            (t) =>
-                t.name.lower().like(pattern) |
-                t.displayName.lower().like(pattern) |
-                t.defaultCode.lower().like(pattern) |
-                t.barcode.like(pattern),
-          )
-          ..orderBy([(t) => OrderingTerm.asc(t.name)])
-          ..limit(limit))
-        .get();
+    final results =
+        await (_db.select(_db.productProduct)
+              ..where((t) => t.active.equals(true))
+              ..where((t) => t.saleOk.equals(true))
+              ..where(
+                (t) =>
+                    t.name.lower().like(pattern) |
+                    t.displayName.lower().like(pattern) |
+                    t.defaultCode.lower().like(pattern) |
+                    t.barcode.like(pattern),
+              )
+              ..orderBy([(t) => OrderingTerm.asc(t.name)])
+              ..limit(limit))
+            .get();
 
     final products = results.map((p) => productManager.fromDrift(p)).toList();
-    logger.d('[ProductRepository]', 'Found ${products.length} products (local)');
+    logger.d(
+      '[ProductRepository]',
+      'Found ${products.length} products (local)',
+    );
     return products;
   }
 
   /// Búsqueda en Odoo — retorna productos parseados
-  Future<List<Product>> _searchProductsOdoo(String query, {int limit = 50}) async {
+  Future<List<Product>> _searchProductsOdoo(
+    String query, {
+    int limit = 50,
+  }) async {
     final response = await productManager.client.searchRead(
       model: 'product.product',
       fields: _productSearchFields,
@@ -138,7 +149,9 @@ class ProductRepository {
         '&',
         ['active', '=', true],
         ['sale_ok', '=', true],
-        '|', '|', '|',
+        '|',
+        '|',
+        '|',
         ['name', 'ilike', query],
         ['display_name', 'ilike', query],
         ['default_code', 'ilike', query],
@@ -153,10 +166,24 @@ class ProductRepository {
 
   /// Campos para búsqueda de productos en Odoo
   static const _productSearchFields = [
-    'id', 'name', 'display_name', 'default_code', 'barcode',
-    'list_price', 'standard_price', 'qty_available', 'free_qty',
-    'type', 'tracking', 'is_storable', 'uom_id', 'categ_id',
-    'taxes_id', 'description_sale', 'sale_ok', 'active',
+    'id',
+    'name',
+    'display_name',
+    'default_code',
+    'barcode',
+    'list_price',
+    'standard_price',
+    'qty_available',
+    'free_qty',
+    'type',
+    'tracking',
+    'is_storable',
+    'uom_id',
+    'categ_id',
+    'taxes_id',
+    'description_sale',
+    'sale_ok',
+    'active',
     'product_tmpl_id',
   ];
 
@@ -181,12 +208,15 @@ class ProductRepository {
       if (query.isEmpty) return [];
 
       // Obtener todos los productos activos y vendibles
-      final allProducts = await (_db.select(_db.productProduct)
-            ..where((t) => t.active.equals(true))
-            ..where((t) => t.saleOk.equals(true)))
-          .get();
+      final allProducts =
+          await (_db.select(_db.productProduct)
+                ..where((t) => t.active.equals(true))
+                ..where((t) => t.saleOk.equals(true)))
+              .get();
 
-      final products = allProducts.map((p) => productManager.fromDrift(p)).toList();
+      final products = allProducts
+          .map((p) => productManager.fromDrift(p))
+          .toList();
 
       // Aplicar búsqueda fuzzy
       final results = FuzzySearch.search<Product>(
@@ -210,12 +240,7 @@ class ProductRepository {
 
       return results;
     } catch (e, stack) {
-      logger.e(
-        '[ProductRepository]',
-        'Error in fuzzy search: $e',
-        e,
-        stack,
-      );
+      logger.e('[ProductRepository]', 'Error in fuzzy search: $e', e, stack);
       return [];
     }
   }
@@ -280,9 +305,9 @@ class ProductRepository {
       final taxMap = <int, AccountTaxData>{};
       if (allTaxIds.isNotEmpty) {
         try {
-          final taxes = await (_db.select(_db.accountTax)
-                ..where((t) => t.odooId.isIn(allTaxIds.toList())))
-              .get();
+          final taxes = await (_db.select(
+            _db.accountTax,
+          )..where((t) => t.odooId.isIn(allTaxIds.toList()))).get();
           for (final tax in taxes) {
             taxMap[tax.odooId] = tax;
           }
@@ -323,7 +348,9 @@ class ProductRepository {
           'standard_price': p.standardPrice,
           'type': p.type.name,
           'uom_id': p.uomId != null ? [p.uomId, p.uomName ?? ''] : false,
-          'categ_id': p.categId != null ? [p.categId, p.categName ?? ''] : false,
+          'categ_id': p.categId != null
+              ? [p.categId, p.categName ?? '']
+              : false,
           'taxes_id': p.taxIdsList,
           'tax_info': taxInfoList,
           'tax_names': taxNames.join(', '),
@@ -352,7 +379,12 @@ class ProductRepository {
     try {
       return await productManager.readLocal(productId);
     } catch (e, stack) {
-      logger.e('[ProductRepository]', 'Error getting product $productId', e, stack);
+      logger.e(
+        '[ProductRepository]',
+        'Error getting product $productId',
+        e,
+        stack,
+      );
       return null;
     }
   }
@@ -369,7 +401,12 @@ class ProductRepository {
       }
       return results;
     } catch (e, stack) {
-      logger.e('[ProductRepository]', 'Error getting products by IDs', e, stack);
+      logger.e(
+        '[ProductRepository]',
+        'Error getting products by IDs',
+        e,
+        stack,
+      );
       return [];
     }
   }
@@ -381,17 +418,23 @@ class ProductRepository {
     if (barcode.isEmpty) return null;
 
     try {
-      final result = await (_db.select(_db.productProduct)
-            ..where((t) => t.barcode.equals(barcode))
-            ..where((t) => t.active.equals(true)))
-          .getSingleOrNull();
+      final result =
+          await (_db.select(_db.productProduct)
+                ..where((t) => t.barcode.equals(barcode))
+                ..where((t) => t.active.equals(true)))
+              .getSingleOrNull();
 
       if (result != null) {
         return productManager.fromDrift(result);
       }
       return null;
     } catch (e, stack) {
-      logger.e('[ProductRepository]', 'Error getting product by barcode', e, stack);
+      logger.e(
+        '[ProductRepository]',
+        'Error getting product by barcode',
+        e,
+        stack,
+      );
       return null;
     }
   }
@@ -401,17 +444,23 @@ class ProductRepository {
     if (code.isEmpty) return null;
 
     try {
-      final result = await (_db.select(_db.productProduct)
-            ..where((t) => t.defaultCode.lower().equals(code.toLowerCase()))
-            ..where((t) => t.active.equals(true)))
-          .getSingleOrNull();
+      final result =
+          await (_db.select(_db.productProduct)
+                ..where((t) => t.defaultCode.lower().equals(code.toLowerCase()))
+                ..where((t) => t.active.equals(true)))
+              .getSingleOrNull();
 
       if (result != null) {
         return productManager.fromDrift(result);
       }
       return null;
     } catch (e, stack) {
-      logger.e('[ProductRepository]', 'Error getting product by code', e, stack);
+      logger.e(
+        '[ProductRepository]',
+        'Error getting product by code',
+        e,
+        stack,
+      );
       return null;
     }
   }
@@ -528,7 +577,8 @@ class ProductRepository {
       return {
         'id': row.read<int>('id'),
         'name': row.read<String>('name'),
-        'display_name': row.read<String?>('display_name') ?? row.read<String>('name'),
+        'display_name':
+            row.read<String?>('display_name') ?? row.read<String>('name'),
         'default_code': row.read<String?>('default_code'),
         'barcode': row.read<String?>('barcode'),
         'list_price': row.read<double?>('list_price') ?? 0.0,
@@ -550,7 +600,12 @@ class ProductRepository {
         'uom_ids': uomIds,
       };
     } catch (e, stack) {
-      logger.e('[ProductRepository]', 'Error getting product from local DB', e, stack);
+      logger.e(
+        '[ProductRepository]',
+        'Error getting product from local DB',
+        e,
+        stack,
+      );
       return null;
     }
   }
@@ -561,7 +616,9 @@ class ProductRepository {
   Future<List<ProductUom>> getProductUoms(int productId) async {
     try {
       return await productUomManager.searchLocal(
-        domain: [['product_id', '=', productId]],
+        domain: [
+          ['product_id', '=', productId],
+        ],
       );
     } catch (e, stack) {
       logger.e('[ProductRepository]', 'Error getting product UoMs', e, stack);
@@ -579,17 +636,24 @@ class ProductRepository {
       if (localUoms.isNotEmpty) {
         final localMaps = localUoms
             .where((u) => u.barcode.isNotEmpty)
-            .map((u) => <String, dynamic>{
-                  'id': u.id,
-                  'uom_id': u.uomId,
-                  'name': u.uomName ?? '',
-                  'barcode': u.barcode,
-                })
+            .map(
+              (u) => <String, dynamic>{
+                'id': u.id,
+                'uom_id': u.uomId,
+                'name': u.uomName ?? '',
+                'barcode': u.barcode,
+              },
+            )
             .toList();
-        if (localMaps.isNotEmpty || !productUomManager.isOnline) return localMaps;
+        if (localMaps.isNotEmpty || !productUomManager.isOnline) {
+          return localMaps;
+        }
       }
     } catch (e) {
-      logger.w('[ProductRepository]', 'Error getting local packaging barcodes: $e');
+      logger.w(
+        '[ProductRepository]',
+        'Error getting local packaging barcodes: $e',
+      );
     }
 
     if (!productUomManager.isOnline) return [];
@@ -631,7 +695,12 @@ class ProductRepository {
 
       return result;
     } catch (e, stack) {
-      logger.e('[ProductRepository]', 'Error getting packaging barcodes', e, stack);
+      logger.e(
+        '[ProductRepository]',
+        'Error getting packaging barcodes',
+        e,
+        stack,
+      );
       return [];
     }
   }
@@ -705,7 +774,12 @@ class ProductRepository {
 
       return [];
     } catch (e, stack) {
-      logger.e('[ProductRepository]', 'Error getting stock by warehouse', e, stack);
+      logger.e(
+        '[ProductRepository]',
+        'Error getting stock by warehouse',
+        e,
+        stack,
+      );
       // Fallback to cached per-warehouse data on server error
       return _getStockFromCache(productId);
     }
@@ -734,9 +808,9 @@ class ProductRepository {
   Future<List<Map<String, dynamic>>> _getStockFromCache(int productId) async {
     try {
       final key = '$_stockCachePrefix$productId';
-      final row = await (_db.select(_db.syncMetadata)
-            ..where((tbl) => tbl.key.equals(key)))
-          .getSingleOrNull();
+      final row = await (_db.select(
+        _db.syncMetadata,
+      )..where((tbl) => tbl.key.equals(key))).getSingleOrNull();
 
       if (row != null) {
         final decoded = jsonDecode(row.value);
@@ -753,7 +827,7 @@ class ProductRepository {
             logger.d(
               '[ProductRepository]',
               'Returning cached stock for product $productId: '
-              '${list.length} warehouses',
+                  '${list.length} warehouses',
             );
             return list;
           }
@@ -808,13 +882,22 @@ class ProductRepository {
         domain: [
           ['product_id', '=', productId],
           ['order_partner_id', '=', partnerId],
-          ['state', 'in', ['sale', 'done']],
+          [
+            'state',
+            'in',
+            ['sale', 'done'],
+          ],
         ],
         order: 'create_date desc',
         limit: 10,
       );
     } catch (e, stack) {
-      logger.e('[ProductRepository]', 'Error getting product history', e, stack);
+      logger.e(
+        '[ProductRepository]',
+        'Error getting product history',
+        e,
+        stack,
+      );
       return [];
     }
   }
@@ -829,9 +912,9 @@ class ProductRepository {
 
     // Try local first
     try {
-      final localTaxes = await (_db.select(_db.accountTax)
-            ..where((t) => t.odooId.isIn(taxIds)))
-          .get();
+      final localTaxes = await (_db.select(
+        _db.accountTax,
+      )..where((t) => t.odooId.isIn(taxIds))).get();
       if (localTaxes.isNotEmpty) {
         return localTaxes.map((t) => t.name).toList();
       }
@@ -866,16 +949,20 @@ class ProductRepository {
 
     // Try local first
     try {
-      final localUoms = await (_db.select(_db.uomUom)
-            ..where((t) => t.odooId.isIn(uomIds)))
-          .get();
+      final localUoms = await (_db.select(
+        _db.uomUom,
+      )..where((t) => t.odooId.isIn(uomIds))).get();
       if (localUoms.isNotEmpty) {
-        return localUoms.map((u) => <String, dynamic>{
-          'id': u.odooId,
-          'name': u.name,
-          'factor': u.factor,
-          'relative_factor': u.factorInv,
-        }).toList();
+        return localUoms
+            .map(
+              (u) => <String, dynamic>{
+                'id': u.odooId,
+                'name': u.name,
+                'factor': u.factor,
+                'relative_factor': u.factorInv,
+              },
+            )
+            .toList();
       }
     } catch (e) {
       logger.w('[ProductRepository]', 'Error getting local UoMs: $e');
@@ -893,7 +980,10 @@ class ProductRepository {
         ],
       );
 
-      logger.d('[ProductRepository]', 'Fetched ${result.length} UoMs from Odoo');
+      logger.d(
+        '[ProductRepository]',
+        'Fetched ${result.length} UoMs from Odoo',
+      );
       return result;
     } catch (e, stack) {
       logger.e('[ProductRepository]', 'Error getting UoMs from Odoo', e, stack);
@@ -957,7 +1047,10 @@ class ProductRepository {
     try {
       final product = await productManager.readLocal(productId);
       if (product == null) {
-        logger.w('[ProductRepository]', 'Product $productId not found locally for onchange fallback');
+        logger.w(
+          '[ProductRepository]',
+          'Product $productId not found locally for onchange fallback',
+        );
         return null;
       }
 
@@ -976,7 +1069,12 @@ class ProductRepository {
         'tax_id': product.taxIdsList,
       };
     } catch (e, stack) {
-      logger.e('[ProductRepository]', 'Error in local onchange fallback', e, stack);
+      logger.e(
+        '[ProductRepository]',
+        'Error in local onchange fallback',
+        e,
+        stack,
+      );
     }
     return null;
   }
@@ -1036,7 +1134,10 @@ class ProductRepository {
     try {
       final product = await productManager.readLocal(productId);
       if (product == null) {
-        logger.w('[ProductRepository]', 'Product $productId not found locally for UoM onchange fallback');
+        logger.w(
+          '[ProductRepository]',
+          'Product $productId not found locally for UoM onchange fallback',
+        );
         return null;
       }
 
@@ -1051,7 +1152,8 @@ class ProductRepository {
           // Convert: product price is per product UoM
           // New price = listPrice * (productUom.conversionFactor / newUom.conversionFactor)
           if (newUom.conversionFactor != 0) {
-            priceUnit = product.listPrice *
+            priceUnit =
+                product.listPrice *
                 (productUom.conversionFactor / newUom.conversionFactor);
           }
           logger.d(
@@ -1061,11 +1163,14 @@ class ProductRepository {
         }
       }
 
-      return {
-        'price_unit': priceUnit,
-      };
+      return {'price_unit': priceUnit};
     } catch (e, stack) {
-      logger.e('[ProductRepository]', 'Error in local UoM onchange fallback', e, stack);
+      logger.e(
+        '[ProductRepository]',
+        'Error in local UoM onchange fallback',
+        e,
+        stack,
+      );
     }
     return null;
   }
@@ -1077,7 +1182,9 @@ class ProductRepository {
     if (str == null || str.isEmpty) return [];
     try {
       // Handle both JSON array format "[1,2,3]" and CSV format "1,2,3"
-      final cleaned = str.startsWith('[') ? str.substring(1, str.length - 1) : str;
+      final cleaned = str.startsWith('[')
+          ? str.substring(1, str.length - 1)
+          : str;
       return cleaned
           .split(',')
           .where((s) => s.trim().isNotEmpty)

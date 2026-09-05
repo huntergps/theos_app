@@ -4,16 +4,19 @@ version: 0.1.0
 publish_to: none
 
 environment:
-  sdk: ^3.10.0
-  flutter: ">=3.10.0"
+  sdk: ">=3.13.0 <4.0.0"
+  flutter: ">=3.47.0"
 
 dependencies:
   flutter:
     sdk: flutter
-  fluent_ui: ^4.15.0
-  intl: ^0.20.2
+  fluent_ui: ^4.16.1
+  intl: ^0.20.3
 
 dev_dependencies:
   flutter_test:
     sdk: flutter
-  flutter_lints: ^5.0.0
+  flutter_lints: ^6.0.0
+
+flutter:
+  uses-material-design: true

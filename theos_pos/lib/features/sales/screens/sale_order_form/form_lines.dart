@@ -293,33 +293,33 @@ class SaleOrderFormLinesState extends ConsumerState<SaleOrderFormLines>
           // Desktop/Tablet: Use grid
           // Focus entry point is now in _buildActionLinks after "Agregar nota" button
           return SalesOrderLinesGrid(
-              key: _gridKey,
-              lines: lines,
-              isEditable: widget.isEditing,
-              storageKey: 'sale_order_form_lines',
-              onVisibilityChanged: () {
-                if (mounted) setState(() {});
-              },
-              // Edit callbacks - delegate to mixin methods
-              onUpdateQty: updateLineQty,
-              onUpdatePrice: updateLinePrice,
-              onUpdateDiscount: updateLineDiscount,
-              onUpdateName: updateLineName,
-              onUpdateCode: (line, code) =>
-                  updateLineProductByCode(context, line, code),
-              onCodeEscape: _handleCodeEscape,
-              onUpdateUom: updateLineUom,
-              onDeleteLine: (line) => _deleteLineWithFocus(context, line),
-              onMoveUp: moveLineUp,
-              onMoveDown: moveLineDown,
-              onDuplicate: duplicateLine,
-              onSelectProduct: (line) => selectProductForLine(context, line),
-              onSelectUom: (line) => selectUomForLine(context, line),
-              onShowProductInfo: (line) => showProductInfo(context, line),
-              onToggleHidePrices: toggleHidePrices,
-              onToggleHideComposition: toggleHideComposition,
-              onToggleOptional: toggleOptional,
-              onTabOnLastLine: (lineId) => _onTabOnLastLine(context, lineId),
+            key: _gridKey,
+            lines: lines,
+            isEditable: widget.isEditing,
+            storageKey: 'sale_order_form_lines',
+            onVisibilityChanged: () {
+              if (mounted) setState(() {});
+            },
+            // Edit callbacks - delegate to mixin methods
+            onUpdateQty: updateLineQty,
+            onUpdatePrice: updateLinePrice,
+            onUpdateDiscount: updateLineDiscount,
+            onUpdateName: updateLineName,
+            onUpdateCode: (line, code) =>
+                updateLineProductByCode(context, line, code),
+            onCodeEscape: _handleCodeEscape,
+            onUpdateUom: updateLineUom,
+            onDeleteLine: (line) => _deleteLineWithFocus(context, line),
+            onMoveUp: moveLineUp,
+            onMoveDown: moveLineDown,
+            onDuplicate: duplicateLine,
+            onSelectProduct: (line) => selectProductForLine(context, line),
+            onSelectUom: (line) => selectUomForLine(context, line),
+            onShowProductInfo: (line) => showProductInfo(context, line),
+            onToggleHidePrices: toggleHidePrices,
+            onToggleHideComposition: toggleHideComposition,
+            onToggleOptional: toggleOptional,
+            onTabOnLastLine: (lineId) => _onTabOnLastLine(context, lineId),
           );
         }
 
@@ -455,16 +455,19 @@ class SaleOrderFormLinesState extends ConsumerState<SaleOrderFormLines>
     if (!widget.isEditing) return;
 
     // Check if this is an empty line (no product selected)
-    final isEmptyLine = line.productId == null &&
-                        (line.productCode == null || line.productCode!.isEmpty) &&
-                        line.name.isEmpty;
+    final isEmptyLine =
+        line.productId == null &&
+        (line.productCode == null || line.productCode!.isEmpty) &&
+        line.name.isEmpty;
 
     if (isEmptyLine) {
       // Find position and adjacent lines before deleting
       final lines = ref.read(saleOrderFormVisibleLinesProvider);
       final productLines = lines.where((l) => l.isProductLine).toList();
       final currentIndex = productLines.indexWhere((l) => l.id == line.id);
-      final previousLine = currentIndex > 0 ? productLines[currentIndex - 1] : null;
+      final previousLine = currentIndex > 0
+          ? productLines[currentIndex - 1]
+          : null;
       final nextLine = currentIndex < productLines.length - 1
           ? productLines[currentIndex + 1]
           : null;
@@ -500,7 +503,10 @@ class SaleOrderFormLinesState extends ConsumerState<SaleOrderFormLines>
   /// 1. Previous line's code cell (if exists)
   /// 2. Next line's code cell (if first line deleted but others remain)
   /// 3. "Add product" button (if all lines deleted)
-  Future<void> _deleteLineWithFocus(BuildContext context, SaleOrderLine line) async {
+  Future<void> _deleteLineWithFocus(
+    BuildContext context,
+    SaleOrderLine line,
+  ) async {
     if (!widget.isEditing) return;
 
     // Get current lines and find position before deletion
@@ -509,7 +515,9 @@ class SaleOrderFormLinesState extends ConsumerState<SaleOrderFormLines>
     final currentIndex = productLines.indexWhere((l) => l.id == line.id);
 
     // Determine where to focus after deletion
-    final previousLine = currentIndex > 0 ? productLines[currentIndex - 1] : null;
+    final previousLine = currentIndex > 0
+        ? productLines[currentIndex - 1]
+        : null;
     final nextLine = currentIndex < productLines.length - 1
         ? productLines[currentIndex + 1]
         : null;

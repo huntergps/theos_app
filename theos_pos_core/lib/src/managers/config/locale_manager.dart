@@ -1,13 +1,8 @@
-/// LocaleManager - Managers for res.country, res.country.state, res.lang models
+/// Locale managers for res.country, res.country.state, and res.lang.
 ///
-/// Read-only managers for locale data synced from Odoo.
-///
-/// @deprecated Use generated managers instead:
-/// - resCountryManager (from res_country.model.g.dart)
-/// - resCountryStateManager (from res_country_state.model.g.dart)
-/// - resLangManager (from res_lang.model.g.dart)
-/// These manual managers are kept for backward compatibility but should be
-/// migrated to the generated OdooModelManager equivalents.
+/// These typed managers implement the batch-upsert and lookup operations used
+/// by the locale catalog sync. Generated managers cover generic CRUD, while
+/// this library owns the specialized Drift queries needed by that workflow.
 library;
 
 import 'package:drift/drift.dart';
@@ -42,12 +37,7 @@ class CountryManager {
 
   String get odooModel => 'res.country';
 
-  List<String> get odooFields => [
-        'id',
-        'name',
-        'code',
-        'write_date',
-      ];
+  List<String> get odooFields => ['id', 'name', 'code', 'write_date'];
 
   /// Convert Odoo data to domain model
   Country fromOdoo(Map<String, dynamic> data) {
@@ -68,14 +58,14 @@ class CountryManager {
       writeDate: Value(record.writeDate),
     );
 
-    final existing = await (_db.select(_db.resCountry)
-          ..where((t) => t.odooId.equals(record.odooId)))
-        .getSingleOrNull();
+    final existing = await (_db.select(
+      _db.resCountry,
+    )..where((t) => t.odooId.equals(record.odooId))).getSingleOrNull();
 
     if (existing != null) {
-      await (_db.update(_db.resCountry)
-            ..where((t) => t.odooId.equals(record.odooId)))
-          .write(companion);
+      await (_db.update(
+        _db.resCountry,
+      )..where((t) => t.odooId.equals(record.odooId))).write(companion);
     } else {
       await _db.into(_db.resCountry).insert(companion);
     }
@@ -111,21 +101,23 @@ class CountryManager {
 
   /// Get country by Odoo ID
   Future<ResCountryData?> getById(int odooId) async {
-    return (_db.select(_db.resCountry)..where((t) => t.odooId.equals(odooId)))
-        .getSingleOrNull();
+    return (_db.select(
+      _db.resCountry,
+    )..where((t) => t.odooId.equals(odooId))).getSingleOrNull();
   }
 
   /// Get country by code
   Future<ResCountryData?> getByCode(String code) async {
-    return (_db.select(_db.resCountry)..where((t) => t.code.equals(code)))
-        .getSingleOrNull();
+    return (_db.select(
+      _db.resCountry,
+    )..where((t) => t.code.equals(code))).getSingleOrNull();
   }
 
   /// Get all countries
   Future<List<ResCountryData>> getAll() async {
-    return (_db.select(_db.resCountry)
-          ..orderBy([(t) => OrderingTerm.asc(t.name)]))
-        .get();
+    return (_db.select(
+      _db.resCountry,
+    )..orderBy([(t) => OrderingTerm.asc(t.name)])).get();
   }
 }
 
@@ -159,12 +151,12 @@ class CountryStateManager {
   String get odooModel => 'res.country.state';
 
   List<String> get odooFields => [
-        'id',
-        'name',
-        'code',
-        'country_id',
-        'write_date',
-      ];
+    'id',
+    'name',
+    'code',
+    'country_id',
+    'write_date',
+  ];
 
   /// Convert Odoo data to domain model
   CountryState fromOdoo(Map<String, dynamic> data) {
@@ -191,14 +183,14 @@ class CountryStateManager {
       writeDate: Value(record.writeDate),
     );
 
-    final existing = await (_db.select(_db.resCountryState)
-          ..where((t) => t.odooId.equals(record.odooId)))
-        .getSingleOrNull();
+    final existing = await (_db.select(
+      _db.resCountryState,
+    )..where((t) => t.odooId.equals(record.odooId))).getSingleOrNull();
 
     if (existing != null) {
-      await (_db.update(_db.resCountryState)
-            ..where((t) => t.odooId.equals(record.odooId)))
-          .write(companion);
+      await (_db.update(
+        _db.resCountryState,
+      )..where((t) => t.odooId.equals(record.odooId))).write(companion);
     } else {
       await _db.into(_db.resCountryState).insert(companion);
     }
@@ -252,9 +244,9 @@ class CountryStateManager {
 
   /// Get all states
   Future<List<ResCountryStateData>> getAll() async {
-    return (_db.select(_db.resCountryState)
-          ..orderBy([(t) => OrderingTerm.asc(t.name)]))
-        .get();
+    return (_db.select(
+      _db.resCountryState,
+    )..orderBy([(t) => OrderingTerm.asc(t.name)])).get();
   }
 }
 
@@ -287,13 +279,7 @@ class LanguageManager {
 
   String get odooModel => 'res.lang';
 
-  List<String> get odooFields => [
-        'id',
-        'name',
-        'code',
-        'active',
-        'write_date',
-      ];
+  List<String> get odooFields => ['id', 'name', 'code', 'active', 'write_date'];
 
   /// Convert Odoo data to domain model
   Language fromOdoo(Map<String, dynamic> data) {
@@ -316,14 +302,14 @@ class LanguageManager {
       writeDate: Value(record.writeDate),
     );
 
-    final existing = await (_db.select(_db.resLang)
-          ..where((t) => t.odooId.equals(record.odooId)))
-        .getSingleOrNull();
+    final existing = await (_db.select(
+      _db.resLang,
+    )..where((t) => t.odooId.equals(record.odooId))).getSingleOrNull();
 
     if (existing != null) {
-      await (_db.update(_db.resLang)
-            ..where((t) => t.odooId.equals(record.odooId)))
-          .write(companion);
+      await (_db.update(
+        _db.resLang,
+      )..where((t) => t.odooId.equals(record.odooId))).write(companion);
     } else {
       await _db.into(_db.resLang).insert(companion);
     }
@@ -331,8 +317,9 @@ class LanguageManager {
 
   /// Get language by code
   Future<ResLangData?> getByCode(String code) async {
-    return (_db.select(_db.resLang)..where((t) => t.code.equals(code)))
-        .getSingleOrNull();
+    return (_db.select(
+      _db.resLang,
+    )..where((t) => t.code.equals(code))).getSingleOrNull();
   }
 
   /// Get all active languages

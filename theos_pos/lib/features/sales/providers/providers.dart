@@ -9,9 +9,7 @@
 /// - [saleOrderLinesProvider] -> delegates to [saleOrderLinesStreamProvider]
 /// - [unsyncedSaleOrdersProvider] -> delegates to [unsyncedSaleOrdersStreamProvider]
 ///
-/// **Future-based (one-shot)** - server sync triggers, kept for invalidate() pattern:
-/// - [saleOrdersProvider] - sync trigger (invalidated by sync/websocket code)
-/// - [saleOrdersByPartnerProvider] - sync trigger by partner
+/// **Future-based (one-shot)** - enriched local reads:
 /// - [saleOrderWithLinesProvider] - reads local but enriches with repository logic
 /// - [saleOrderSearchProvider] - local search with repository enrichment
 ///
@@ -22,7 +20,10 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
 import '../../../core/database/repositories/repository_providers.dart';
+import '../repositories/sales_repository.dart';
+
 import 'package:theos_pos_core/theos_pos_core.dart';
+
 import 'sale_order_form_notifier.dart';
 import 'sale_order_stream_providers.dart';
 
@@ -47,33 +48,6 @@ export 'session_guard_provider.dart';
 
 part 'providers.g.dart';
 
-// ============ Sale Order Providers (Server Sync - FutureProvider) ============
-// These providers trigger server sync and cache results. They exist solely for
-// invalidate()/refresh() calls from sync/websocket code. For reactive UI data,
-// use the StreamProviders from [sale_order_stream_providers.dart] instead.
-
-/// Server sync trigger — fetches sale orders from Odoo and caches locally.
-///
-/// **NOT for UI consumption.** This provider is invalidated by sync/websocket
-/// code to trigger re-fetch from the server. The stream equivalent
-/// [saleOrdersStreamProvider] auto-updates the UI when local DB changes.
-@Riverpod(keepAlive: true)
-Future<List<SaleOrder>> saleOrders(Ref ref) async {
-  final repo = ref.watch(catalogSyncRepositoryProvider);
-  if (repo == null) return [];
-  final dataList = await repo.fetchSaleOrdersWithLines();
-  return dataList.map((r) => saleOrderManager.fromDrift(r)).toList();
-}
-
-/// Server sync trigger — fetches sale orders by partner from Odoo.
-@Riverpod(keepAlive: true)
-Future<List<SaleOrder>> saleOrdersByPartner(Ref ref, int partnerId) async {
-  final repo = ref.watch(catalogSyncRepositoryProvider);
-  if (repo == null) return [];
-  final dataList = await repo.fetchSaleOrdersWithLines(partnerId: partnerId);
-  return dataList.map((r) => saleOrderManager.fromDrift(r)).toList();
-}
-
 // ============ Sale Order Providers (Local DB - delegates to Streams) ============
 // These providers read from local DB only. They now delegate to the reactive
 // stream providers so the UI auto-updates when local DB changes.
@@ -81,7 +55,7 @@ Future<List<SaleOrder>> saleOrdersByPartner(Ref ref, int partnerId) async {
 /// Single order by ID - reactive via [saleOrderStreamProvider]
 ///
 /// Returns the latest value from the stream. Consumers using `.when()` will
-/// auto-update when the order changes in the local DB (sync, WebSocket, etc).
+/// auto-update when the order changes in the local DB.
 @Riverpod(keepAlive: true)
 Future<SaleOrder?> saleOrderById(Ref ref, int orderId) async {
   // Delegate to stream provider - this makes the provider reactive
@@ -94,7 +68,10 @@ Future<SaleOrder?> saleOrderById(Ref ref, int orderId) async {
 ///
 /// For reactive line-only watching, use [saleOrderLinesStreamProvider].
 @Riverpod(keepAlive: true)
-Future<(SaleOrder?, List<SaleOrderLine>)> saleOrderWithLines(Ref ref, int orderId) async {
+Future<(SaleOrder?, List<SaleOrderLine>)> saleOrderWithLines(
+  Ref ref,
+  int orderId,
+) async {
   final repo = ref.watch(salesRepositoryProvider);
   if (repo == null) return (null, <SaleOrderLine>[]);
   return repo.getWithLines(orderId, forceRefresh: false);
@@ -126,16 +103,26 @@ Future<List<SaleOrder>> saleOrderSearch(Ref ref, String query) async {
 
 // ============ Sale Order Form Providers ============
 
-// TODO: These selectors compare List/Map with == which always triggers rebuild
-// Consider using a primitive selector (e.g., hashCode or length) for better performance
 @Riverpod(keepAlive: true)
 List<SaleOrderLine> saleOrderFormVisibleLines(Ref ref) {
-  final notifier = ref.watch(saleOrderFormProvider.notifier);
-  ref.watch(saleOrderFormProvider.select((state) => state.linesVersion));
-  ref.watch(
-    saleOrderFormProvider.select((state) => state.deletedLineIds.length),
+  final lineState = ref.watch(
+    saleOrderFormProvider.select(
+      (state) => (
+        lines: state.lines,
+        deletedIds: state.deletedLineIds,
+        updated: state.updatedLines,
+        added: state.newLines,
+      ),
+    ),
   );
-  ref.watch(saleOrderFormProvider.select((state) => state.updatedLines));
-  ref.watch(saleOrderFormProvider.select((state) => state.newLines));
-  return notifier.getVisibleLines();
+
+  final deletedIds = lineState.deletedIds.toSet();
+  final updatedById = {for (final line in lineState.updated) line.id: line};
+  final visible = <SaleOrderLine>[
+    for (final line in lineState.lines)
+      if (!deletedIds.contains(line.id)) updatedById[line.id] ?? line,
+    ...lineState.added,
+  ]..sort((a, b) => a.sequence.compareTo(b.sequence));
+
+  return visible;
 }

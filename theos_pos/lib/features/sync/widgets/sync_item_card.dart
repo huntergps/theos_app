@@ -1,7 +1,7 @@
 import 'package:fluent_ui/fluent_ui.dart';
 import 'package:intl/intl.dart';
+import 'package:odoo_sdk/odoo_sdk.dart' show SyncProgress;
 
-import '../repositories/sync_models.dart' show SyncProgress;
 import '../providers/sync_provider.dart';
 import '../../../core/constants/app_colors.dart';
 
@@ -43,11 +43,7 @@ class SyncItemCard extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             // Header con icono, título y estado
-            _SyncItemHeader(
-              icon: icon,
-              description: description,
-              state: state,
-            ),
+            _SyncItemHeader(icon: icon, description: description, state: state),
             const SizedBox(height: 12),
 
             // Info de conteo local y última sincronización
@@ -95,12 +91,7 @@ class _SyncItemHeader extends StatelessWidget {
       children: [
         Icon(icon, size: 24),
         const SizedBox(width: 12),
-        Expanded(
-          child: Text(
-            description,
-            style: theme.typography.bodyStrong,
-          ),
-        ),
+        Expanded(child: Text(description, style: theme.typography.bodyStrong)),
         _SyncStatusIcon(state: state),
       ],
     );
@@ -242,11 +233,7 @@ class _InfoRow extends StatelessWidget {
 
     return Row(
       children: [
-        Icon(
-          icon,
-          size: 12,
-          color: theme.resources.textFillColorSecondary,
-        ),
+        Icon(icon, size: 12, color: theme.resources.textFillColorSecondary),
         const SizedBox(width: 6),
         Text(
           label,
@@ -279,7 +266,10 @@ class _SyncStatusDisplay extends StatelessWidget {
     switch (state.status) {
       case SyncStatus.success:
         if (state.count != null) {
-          return _SuccessStatus(count: state.count!, wasIncremental: state.wasIncremental);
+          return _SuccessStatus(
+            count: state.count!,
+            wasIncremental: state.wasIncremental,
+          );
         }
         return _IdleStatus(lastSyncDate: state.lastSyncDate);
       case SyncStatus.error:
@@ -297,10 +287,7 @@ class _SuccessStatus extends StatelessWidget {
   final int count;
   final bool wasIncremental;
 
-  const _SuccessStatus({
-    required this.count,
-    required this.wasIncremental,
-  });
+  const _SuccessStatus({required this.count, required this.wasIncremental});
 
   @override
   Widget build(BuildContext context) {
@@ -312,9 +299,7 @@ class _SuccessStatus extends StatelessWidget {
         const SizedBox(width: 4),
         Text(
           '$count registros sincronizados',
-          style: theme.typography.caption?.copyWith(
-            color: AppColors.success,
-          ),
+          style: theme.typography.caption?.copyWith(color: AppColors.success),
         ),
         if (wasIncremental) ...[
           const SizedBox(width: 8),
@@ -399,9 +384,7 @@ class _IdleStatus extends StatelessWidget {
 
     return Text(
       'Nunca sincronizado - se requiere sync completo',
-      style: theme.typography.caption?.copyWith(
-        color: AppColors.warning,
-      ),
+      style: theme.typography.caption?.copyWith(color: AppColors.warning),
     );
   }
 }
@@ -436,7 +419,9 @@ class _SyncingProgress extends StatelessWidget {
     }
 
     final percentage = progress!.percentage;
-    final progressValue = progress!.total > 0 ? progress!.synced / progress!.total : 0.0;
+    final progressValue = progress!.total > 0
+        ? progress!.synced / progress!.total
+        : 0.0;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -616,7 +601,9 @@ class _SyncActionButtons extends StatelessWidget {
           message: 'Forzar sincronizacion completa',
           child: IconButton(
             icon: const Icon(FluentIcons.refresh, size: 16),
-            onPressed: isOnline && !isSyncing && !isSyncingAll ? onForceSync : null,
+            onPressed: isOnline && !isSyncing && !isSyncingAll
+                ? onForceSync
+                : null,
           ),
         ),
         const SizedBox(width: 4),

@@ -7,26 +7,24 @@ library;
 
 import 'dart:typed_data';
 
-import 'package:flutter/services.dart' show rootBundle;
 import 'package:printing/printing.dart';
 import 'package:pdf/widgets.dart' as pw;
 
 import 'report_file_native.dart'
-    if (dart.library.js_interop) 'report_file_web.dart'
-    as platform_file;
+    if (dart.library.js_interop) 'report_file_web.dart' as platform_file;
 
 import '../models/render_options.dart';
+import 'pdf_font_loader.dart';
 
 /// Manages font loading, PDF file saving, opening, and printing.
 class ReportFileManager {
+  final PdfFontLoader _fontLoader = PdfFontLoader();
+
   /// Cached fonts for PDF generation
   pw.Font? _regularFont;
   pw.Font? _boldFont;
   pw.Font? _italicFont;
   pw.Font? _boldItalicFont;
-
-  /// Whether fonts are currently being loaded
-  bool _fontsLoading = false;
 
   /// Get cached regular font.
   pw.Font? get regularFont => _regularFont;
@@ -40,42 +38,15 @@ class ReportFileManager {
   /// Get cached bold italic font.
   pw.Font? get boldItalicFont => _boldItalicFont;
 
-  /// Load a font from assets.
-  Future<pw.Font> _loadFontFromAssets(String assetPath) async {
-    final fontData = await rootBundle.load(assetPath);
-    return pw.Font.ttf(fontData);
-  }
-
   /// Ensure suitable fonts are loaded from LOCAL ASSETS (no internet required).
-  /// Loads all fonts in PARALLEL for faster startup.
+  /// Concurrent calls share one cached future.
   Future<void> ensurePdfFontsLoaded() async {
     if (_regularFont != null) return;
-    if (_fontsLoading) {
-      // Wait for ongoing font loading to complete
-      while (_fontsLoading) {
-        await Future.delayed(const Duration(milliseconds: 50));
-      }
-      return;
-    }
-    _fontsLoading = true;
-
-    try {
-      final results = await Future.wait([
-        _loadFontFromAssets('assets/fonts/NotoSans-Regular.ttf'),
-        _loadFontFromAssets('assets/fonts/NotoSans-Bold.ttf'),
-        _loadFontFromAssets('assets/fonts/NotoSans-Italic.ttf'),
-        _loadFontFromAssets('assets/fonts/NotoSans-BoldItalic.ttf'),
-      ]);
-
-      _regularFont = results[0];
-      _boldFont = results[1];
-      _italicFont = results[2];
-      _boldItalicFont = results[3];
-    } catch (e) {
-      // If fonts fail to load, fall back to default (Helvetica)
-    } finally {
-      _fontsLoading = false;
-    }
+    final fonts = await _fontLoader.load();
+    _regularFont = fonts.regular;
+    _boldFont = fonts.bold;
+    _italicFont = fonts.italic;
+    _boldItalicFont = fonts.boldItalic;
   }
 
   /// Pre-load fonts at app startup.

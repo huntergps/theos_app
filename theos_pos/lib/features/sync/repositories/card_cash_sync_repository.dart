@@ -1,14 +1,30 @@
-/// CardCashSyncRepository - Sync de tarjetas de crédito, cash out y grupos de usuario
-///
-/// Extraído de CatalogSyncRepository (Fase E2). Nota histórica del archivo
-/// original: hay overlap conocido con el sync de Card Brands/Deadlines/Lotes
-/// en `payment_service.dart` — NO se consolida en este refactor (señalado en
-/// el plan de descomposición para auditoría aparte con integration-engineer).
+/// Sync de catálogos de tarjetas, retiros de caja y permisos del usuario.
 library;
 
 import 'package:drift/drift.dart';
 import 'package:odoo_sdk/odoo_sdk.dart';
 import 'package:theos_pos_core/theos_pos_core.dart' hide DatabaseHelper;
+
+import '../../../shared/constants/user_groups.dart';
+import 'sync_scope_domains.dart';
+
+/// A permission snapshot could not be resolved completely.
+///
+/// No local membership is published when this exception is thrown.
+class PermissionSnapshotSyncException implements Exception {
+  final int userId;
+  final String message;
+  final Object? cause;
+
+  const PermissionSnapshotSyncException({
+    required this.userId,
+    required this.message,
+    this.cause,
+  });
+
+  @override
+  String toString() => 'Permission snapshot for user $userId failed: $message';
+}
 
 /// Repository for card brand/deadline/lote catalogs, cash-out types
 /// (no-op, hardcoded), and per-user group sync.
@@ -16,17 +32,7 @@ class CardCashSyncRepository {
   final AppDatabase _appDb;
   final OdooClient? odooClient;
 
-  /// Callback al facade — `syncGroups` sigue siendo un wrapper de una línea
-  /// en `CatalogSyncRepository` (delega a `UserSyncRepository`), fuera del
-  /// alcance de este split. `syncUserGroups` necesita poblar la tabla de
-  /// grupos ANTES de resolver las membresías del usuario.
-  final Future<int> Function({int batchSize, DateTime? sinceDate}) syncGroups;
-
-  CardCashSyncRepository({
-    required AppDatabase appDb,
-    required this.odooClient,
-    required this.syncGroups,
-  }) : _appDb = appDb;
+  CardCashSyncRepository({required this._appDb, required this.odooClient});
 
   /// Sync card brands (account.credit.card.brand) from Odoo to local DB.
   ///
@@ -57,7 +63,11 @@ class CardCashSyncRepository {
         },
       );
 
-      if (result == null || result is! List) return 0;
+      if (result is! List) {
+        throw FormatException(
+          'account.credit.card.brand.search_read returned ${result.runtimeType}',
+        );
+      }
 
       int count = 0;
       for (final b in result) {
@@ -74,14 +84,14 @@ class CardCashSyncRepository {
           writeDate: Value(writeDate ?? DateTime.now()),
         );
 
-        final existing = await (_appDb.select(_appDb.accountCreditCardBrand)
-              ..where((t) => t.odooId.equals(odooId)))
-            .getSingleOrNull();
+        final existing = await (_appDb.select(
+          _appDb.accountCreditCardBrand,
+        )..where((t) => t.odooId.equals(odooId))).getSingleOrNull();
 
         if (existing != null) {
-          await (_appDb.update(_appDb.accountCreditCardBrand)
-                ..where((t) => t.id.equals(existing.id)))
-              .write(companion);
+          await (_appDb.update(
+            _appDb.accountCreditCardBrand,
+          )..where((t) => t.id.equals(existing.id))).write(companion);
         } else {
           await _appDb.into(_appDb.accountCreditCardBrand).insert(companion);
         }
@@ -89,11 +99,18 @@ class CardCashSyncRepository {
       }
 
       logger.d('[CatalogSync]', 'Synced $count card brands');
-      onProgress?.call(SyncProgress(model: 'account.credit.card.brand', total: count, synced: count, phase: SyncPhase.completed));
+      onProgress?.call(
+        SyncProgress(
+          model: 'account.credit.card.brand',
+          total: count,
+          synced: count,
+          phase: SyncPhase.completed,
+        ),
+      );
       return count;
     } catch (e) {
       logger.e('[CatalogSync]', 'Error syncing card brands: $e');
-      return 0;
+      rethrow;
     }
   }
 
@@ -125,7 +142,11 @@ class CardCashSyncRepository {
         },
       );
 
-      if (result == null || result is! List) return 0;
+      if (result is! List) {
+        throw FormatException(
+          'account.credit.card.deadline.search_read returned ${result.runtimeType}',
+        );
+      }
 
       int count = 0;
       for (final d in result) {
@@ -142,14 +163,14 @@ class CardCashSyncRepository {
           writeDate: Value(writeDate ?? DateTime.now()),
         );
 
-        final existing = await (_appDb.select(_appDb.accountCreditCardDeadline)
-              ..where((t) => t.odooId.equals(odooId)))
-            .getSingleOrNull();
+        final existing = await (_appDb.select(
+          _appDb.accountCreditCardDeadline,
+        )..where((t) => t.odooId.equals(odooId))).getSingleOrNull();
 
         if (existing != null) {
-          await (_appDb.update(_appDb.accountCreditCardDeadline)
-                ..where((t) => t.id.equals(existing.id)))
-              .write(companion);
+          await (_appDb.update(
+            _appDb.accountCreditCardDeadline,
+          )..where((t) => t.id.equals(existing.id))).write(companion);
         } else {
           await _appDb.into(_appDb.accountCreditCardDeadline).insert(companion);
         }
@@ -157,11 +178,18 @@ class CardCashSyncRepository {
       }
 
       logger.d('[CatalogSync]', 'Synced $count card deadlines');
-      onProgress?.call(SyncProgress(model: 'account.credit.card.deadline', total: count, synced: count, phase: SyncPhase.completed));
+      onProgress?.call(
+        SyncProgress(
+          model: 'account.credit.card.deadline',
+          total: count,
+          synced: count,
+          phase: SyncPhase.completed,
+        ),
+      );
       return count;
     } catch (e) {
       logger.e('[CatalogSync]', 'Error syncing card deadlines: $e');
-      return 0;
+      rethrow;
     }
   }
 
@@ -176,9 +204,7 @@ class CardCashSyncRepository {
   }) async {
     if (odooClient == null) return 0;
     try {
-      final domain = <List<dynamic>>[
-        ['state', '=', 'open'],
-      ];
+      final domain = cardLoteSyncScope();
       if (sinceDate != null) {
         domain.add(['write_date', '>=', sinceDate.toIso8601String()]);
       }
@@ -194,7 +220,11 @@ class CardCashSyncRepository {
         },
       );
 
-      if (result == null || result is! List) return 0;
+      if (result is! List) {
+        throw FormatException(
+          'account.card.lote.search_read returned ${result.runtimeType}',
+        );
+      }
 
       int count = 0;
       for (final data in result) {
@@ -204,11 +234,18 @@ class CardCashSyncRepository {
       }
 
       logger.d('[CatalogSync]', 'Synced $count card lotes');
-      onProgress?.call(SyncProgress(model: 'account.card.lote', total: count, synced: count, phase: SyncPhase.completed));
+      onProgress?.call(
+        SyncProgress(
+          model: 'account.card.lote',
+          total: count,
+          synced: count,
+          phase: SyncPhase.completed,
+        ),
+      );
       return count;
     } catch (e) {
       logger.e('[CatalogSync]', 'Error syncing card lotes: $e');
-      return 0;
+      rethrow;
     }
   }
 
@@ -239,73 +276,233 @@ class CardCashSyncRepository {
     SyncProgressCallback? onProgress,
     DateTime? sinceDate,
   ]) async {
-    // First ensure groups table is populated
-    await syncGroups(batchSize: batchSize, sinceDate: sinceDate);
-
-    // Then fetch the specific user's group memberships from Odoo.
     // groups_id on res.users is restricted via external API (both read and
     // search_read return HTTP 500). Use has_group() as the reliable approach.
-    if (userId != null && odooClient != null) {
-      await _syncUserGroupsViaHasGroup(userId);
-    }
-    return 0;
+    if (userId == null || odooClient == null) return 0;
+    return _syncUserGroupsViaHasGroup(userId);
   }
 
-  /// Check each known group XML ID via has_group() method.
-  /// This works even when groups_id field is restricted via external API.
-  /// In JSON-2 API, kwargs are spread into the body, so group_ext_id
-  /// becomes a top-level parameter as Odoo expects.
-  Future<void> _syncUserGroupsViaHasGroup(int userId) async {
-    const knownGroups = [
-      'base.group_system',
-      'base.group_user',
-      'account.group_account_manager',
-      'sales_team.group_sale_salesman',
-      'sales_team.group_sale_manager',
-      'l10n_ec_collection_box.group_collection_user',
-      'l10n_ec_collection_box.group_collection_manager',
-    ];
-
-    try {
-      final matchedXmlIds = <String>[];
-      final matchedGroupIds = <int>[];
-      final appDb = _appDb;
-
-      for (final xmlId in knownGroups) {
+  /// Resolves every known membership before publishing one local snapshot.
+  ///
+  /// `res.users.has_group` is a read-only recordset method in Odoo 19/20, so
+  /// [userId] is sent through JSON-2 `ids` and `group_ext_id` as a kwarg.
+  Future<int> _syncUserGroupsViaHasGroup(int userId) async {
+    final membershipResults = await Future.wait(
+      kKnownTheosUserGroups.map((xmlId) async {
+        final dynamic result;
         try {
-          final result = await odooClient!.call(
+          result = await odooClient!.call(
             model: 'res.users',
             method: 'has_group',
             ids: [userId],
             kwargs: {'group_ext_id': xmlId},
           );
-          if (result == true) {
-            matchedXmlIds.add(xmlId);
-            // Find local group ID by xml_id
-            final localGroup = await (appDb.select(appDb.resGroups)
-                  ..where((t) => t.xmlId.equals(xmlId))
-                  ..limit(1))
-                .getSingleOrNull();
-            if (localGroup != null) {
-              matchedGroupIds.add(localGroup.odooId);
-            }
-          }
-        } catch (e) {
-          logger.w('[CatalogSync] has_group check failed for $xmlId: $e');
+        } catch (error) {
+          throw PermissionSnapshotSyncException(
+            userId: userId,
+            message: 'could not resolve $xmlId',
+            cause: error,
+          );
+        }
+        if (result is! bool) {
+          throw PermissionSnapshotSyncException(
+            userId: userId,
+            message: '$xmlId returned ${result.runtimeType}, expected bool',
+          );
+        }
+        return (xmlId: xmlId, isMember: result);
+      }),
+    );
+    final matchedXmlIds = membershipResults
+        .where((entry) => entry.isMember)
+        .map((entry) => entry.xmlId)
+        .toList(growable: false);
+    final remoteGroups = await _fetchKnownGroups(userId, matchedXmlIds);
+    final matchedGroupIds = matchedXmlIds
+        .map((xmlId) => remoteGroups[xmlId]!['id']! as int)
+        .toList(growable: false);
+
+    await _appDb.transaction(() async {
+      for (final xmlId in matchedXmlIds) {
+        final group = remoteGroups[xmlId]!;
+        final odooId = group['id']! as int;
+        final companion = ResGroupsCompanion(
+          odooId: Value(odooId),
+          name: Value(group['name'] as String? ?? xmlId),
+          fullName: Value(group['full_name'] as String?),
+          xmlId: Value(xmlId),
+          share: Value(group['share'] as bool? ?? false),
+        );
+        final updatedGroup = await (_appDb.update(
+          _appDb.resGroups,
+        )..where((table) => table.odooId.equals(odooId))).write(companion);
+        if (updatedGroup == 0) {
+          await _appDb.into(_appDb.resGroups).insert(companion);
         }
       }
-
-      if (matchedGroupIds.isNotEmpty) {
-        final groupIdsStr = matchedGroupIds.join(',');
-        await (appDb.update(appDb.resUsers)
-              ..where((t) => t.odooId.equals(userId)))
-            .write(ResUsersCompanion(groupIds: Value(groupIdsStr)));
-        logger.d('[CatalogSync] Updated user $userId with ${matchedGroupIds.length} groups: $matchedXmlIds');
-      } else {
-        logger.w('[CatalogSync] No groups matched for user $userId');
+      final updated =
+          await (_appDb.update(
+            _appDb.resUsers,
+          )..where((table) => table.odooId.equals(userId))).write(
+            ResUsersCompanion(groupIds: Value(matchedGroupIds.join(','))),
+          );
+      if (updated != 1) {
+        throw PermissionSnapshotSyncException(
+          userId: userId,
+          message: 'local user was not found',
+        );
       }
-    } catch (e) {
-      logger.e('[CatalogSync] has_group sync failed: $e');
+    });
+
+    logger.d(
+      '[CatalogSync] Published ${matchedGroupIds.length} groups for user '
+      '$userId: $matchedXmlIds',
+    );
+    return matchedGroupIds.length;
+  }
+
+  /// Loads only the security groups consumed by the app. Login must not wait
+  /// for Odoo's complete group catalog.
+  Future<Map<String, Map<String, dynamic>>> _fetchKnownGroups(
+    int userId,
+    List<String> xmlIds,
+  ) async {
+    if (xmlIds.isEmpty) return const {};
+
+    final localGroups = await (_appDb.select(
+      _appDb.resGroups,
+    )..where((table) => table.xmlId.isIn(xmlIds))).get();
+    final resultByXmlId = <String, Map<String, dynamic>>{
+      for (final group in localGroups)
+        if (group.xmlId != null)
+          group.xmlId!: {
+            'id': group.odooId,
+            'name': group.name,
+            'full_name': group.fullName,
+            'share': group.share,
+          },
+    };
+    final unresolvedXmlIds = xmlIds
+        .where((xmlId) => !resultByXmlId.containsKey(xmlId))
+        .toList(growable: false);
+    if (unresolvedXmlIds.isEmpty) return resultByXmlId;
+
+    // A normal user cannot read ir.model.data in Odoo 19.5. Resolve only the
+    // effective groups of this exact user, then ask res.groups for their
+    // external IDs through the public recordset API.
+    final dynamic userRows = await odooClient!.read(
+      model: 'res.users',
+      ids: [userId],
+      fields: ['id', 'all_group_ids'],
+    );
+    if (userRows is! List || userRows.length != 1) {
+      throw PermissionSnapshotSyncException(
+        userId: userId,
+        message: 'res.users/read returned an invalid identity response',
+      );
     }
+    final userRow = userRows.single;
+    if (userRow is! Map || userRow['id'] != userId) {
+      throw PermissionSnapshotSyncException(
+        userId: userId,
+        message: 'res.users/read returned a different user identity',
+      );
+    }
+    final rawGroupIds = userRow['all_group_ids'];
+    if (rawGroupIds is! List) {
+      throw PermissionSnapshotSyncException(
+        userId: userId,
+        message: 'res.users/read returned invalid all_group_ids',
+      );
+    }
+    final effectiveGroupIds = <int>{};
+    for (final rawGroupId in rawGroupIds) {
+      if (rawGroupId is! int || rawGroupId <= 0) {
+        throw PermissionSnapshotSyncException(
+          userId: userId,
+          message: 'res.users/read returned invalid group IDs',
+        );
+      }
+      effectiveGroupIds.add(rawGroupId);
+    }
+    if (effectiveGroupIds.isEmpty) {
+      throw PermissionSnapshotSyncException(
+        userId: userId,
+        message: 'res.users/read returned no effective groups',
+      );
+    }
+
+    final externalIds = await odooClient!.call(
+      model: 'res.groups',
+      method: 'get_external_id',
+      ids: effectiveGroupIds.toList(growable: false),
+      kwargs: const <String, dynamic>{},
+    );
+    if (externalIds is! Map) {
+      throw PermissionSnapshotSyncException(
+        userId: userId,
+        message: 'res.groups/get_external_id returned invalid data',
+      );
+    }
+    final groupIdByXmlId = <String, int>{};
+    for (final entry in externalIds.entries) {
+      final groupId = entry.key is int
+          ? entry.key as int
+          : int.tryParse(entry.key.toString());
+      final xmlId = entry.value;
+      if (groupId == null || groupId <= 0 || xmlId is! String) {
+        throw PermissionSnapshotSyncException(
+          userId: userId,
+          message: 'res.groups/get_external_id returned invalid IDs',
+        );
+      }
+      if (unresolvedXmlIds.contains(xmlId)) {
+        groupIdByXmlId[xmlId] = groupId;
+      }
+    }
+
+    final missingExternalIds = unresolvedXmlIds
+        .where((xmlId) => !groupIdByXmlId.containsKey(xmlId))
+        .toList();
+    if (missingExternalIds.isNotEmpty) {
+      throw PermissionSnapshotSyncException(
+        userId: userId,
+        message: 'missing Odoo groups: ${missingExternalIds.join(', ')}',
+      );
+    }
+
+    final dynamic groups = await odooClient!.searchRead(
+      model: 'res.groups',
+      domain: [
+        ['id', 'in', groupIdByXmlId.values.toList()],
+      ],
+      fields: ['id', 'name', 'full_name', 'share'],
+      limit: groupIdByXmlId.length,
+    );
+    if (groups is! List) {
+      throw PermissionSnapshotSyncException(
+        userId: userId,
+        message: 'res.groups/search_read returned invalid data',
+      );
+    }
+    final groupById = {
+      for (final group in groups)
+        if (group['id'] is int) group['id']! as int: group,
+    };
+    final missingGroups = groupIdByXmlId.entries
+        .where((entry) => !groupById.containsKey(entry.value))
+        .map((entry) => entry.key)
+        .toList();
+    if (missingGroups.isNotEmpty) {
+      throw PermissionSnapshotSyncException(
+        userId: userId,
+        message: 'unreadable Odoo groups: ${missingGroups.join(', ')}',
+      );
+    }
+    resultByXmlId.addAll({
+      for (final entry in groupIdByXmlId.entries)
+        entry.key: groupById[entry.value]!,
+    });
+    return resultByXmlId;
   }
 }

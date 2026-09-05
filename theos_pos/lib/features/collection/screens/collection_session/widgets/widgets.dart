@@ -14,4 +14,5 @@ export 'facturas_emitidas_table.dart';
 export 'payment_detail_row.dart';
 export 'resumen_efectivo_table.dart';
 export 'summary_row.dart';
+
 // section_card is in shared/widgets/cards/

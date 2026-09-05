@@ -1,4 +1,5 @@
-import 'package:drift/drift.dart' show GeneratedDatabase, RawValuesInsertable, TableInfo, Value, Variable;
+import 'package:drift/drift.dart'
+    show GeneratedDatabase, RawValuesInsertable, TableInfo, Value, Variable;
 import 'package:freezed_annotation/freezed_annotation.dart';
 import 'package:odoo_sdk/odoo_sdk.dart';
 
@@ -52,7 +53,8 @@ abstract class FiscalPosition with _$FiscalPosition {
 }
 
 /// NOTE: FiscalPositionTax intentionally does NOT use @OdooModel.
-/// Uses dual id/odooId pattern (legacy) with manual fromOdoo()/toCompanion().
+/// Uses an explicit local/remote ID mapping with manual
+/// fromOdoo()/toCompanion().
 /// Managed by FiscalPositionTaxManager without code generation.
 ///
 /// Fiscal Position Tax Mapping model — filas LOCALES SINTETIZADAS que
@@ -62,8 +64,8 @@ abstract class FiscalPosition with _$FiscalPosition {
 /// ## Compatibilidad Odoo >= 18.3 (hallazgo verificado en vivo, julio 2026)
 ///
 /// El modelo `account.fiscal.position.tax` fue ELIMINADO del core de Odoo
-/// desde la 18.3 — confirmado con `fields_get` en vivo contra
-/// `erp1.tecnosmart.com.ec` (19.5a1+e): "the model does not exist". Esto
+/// desde la 18.3 — confirmado con `fields_get` en Odoo 19.5a1+e: "the model
+/// does not exist". Esto
 /// significa que este modelo NO EXISTE ni en Odoo 19.1 ni en 19.2 ni en
 /// 19.5 — la sync de este mapeo llevaba meses fallando en silencio dejando
 /// la tabla local `account_fiscal_position_tax` permanentemente vacía (ver
@@ -78,7 +80,7 @@ abstract class FiscalPosition with _$FiscalPosition {
 /// - `original_tax_ids` (M2M account.tax) — qué taxes FUENTE se sustituyen
 ///   por este tax bajo esas posiciones.
 ///
-/// Verificado en vivo (read-only, erp1.tecnosmart.com.ec, julio 2026): los
+/// Verificado en vivo (read-only, Odoo 19.5a1+e, julio 2026): los
 /// campos M2M llegan como lista PLANA de enteros — ej.
 /// `fiscal_position_ids: [4]`, `original_tax_ids: [5, 6, 14, 15]`, o `[]`
 /// si está vacío — NUNCA como pares `[id, name]` (eso es sólo
@@ -168,17 +170,20 @@ abstract class FiscalPositionTax with _$FiscalPositionTax {
     for (final positionId in positionIds) {
       for (final taxSrcId in sourceTaxIds) {
         final syntheticId = syntheticOdooId(positionId, taxSrcId, taxDestId);
-        if (syntheticId == null) continue; // fuera de rango, ver syntheticOdooId
-        rows.add(FiscalPositionTax(
-          id: 0, // lo asigna Drift (autoincrement) al insertar
-          odooId: syntheticId,
-          positionId: positionId,
-          taxSrcId: taxSrcId,
-          taxSrcName: null,
-          taxDestId: taxDestId,
-          taxDestName: null,
-          writeDate: writeDate,
-        ));
+        if (syntheticId == null)
+          continue; // fuera de rango, ver syntheticOdooId
+        rows.add(
+          FiscalPositionTax(
+            id: 0, // lo asigna Drift (autoincrement) al insertar
+            odooId: syntheticId,
+            positionId: positionId,
+            taxSrcId: taxSrcId,
+            taxSrcName: null,
+            taxDestId: taxDestId,
+            taxDestName: null,
+            writeDate: writeDate,
+          ),
+        );
       }
     }
     return rows;
@@ -186,7 +191,7 @@ abstract class FiscalPositionTax with _$FiscalPositionTax {
 
   /// Parsea un campo Many2many de la respuesta JSON-2 de Odoo.
   ///
-  /// Verificado en vivo (erp1.tecnosmart.com.ec, 19.5a1+e, julio 2026): los
+  /// Verificado en vivo (Odoo 19.5a1+e, julio 2026): los
   /// M2M llegan como lista plana de enteros (`[3]`, `[5, 6, 14, 15]`, `[]`
   /// si vacío) — nunca como pares `[id, name]` anidados (eso es sólo
   /// Many2one).

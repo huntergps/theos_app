@@ -255,9 +255,21 @@ class ErrorSanitizer {
     RegExp(r'\b\d{3}[-\s]?\d{2}[-\s]?\d{4}\b'),
     // API keys / tokens (long alphanumeric strings)
     RegExp(r'\b[A-Za-z0-9]{32,}\b'),
+    // Authorization and credential headers, including short/base64url tokens.
+    RegExp(
+      r'authorization\s*[:=]\s*(?:bearer|basic)\s+[^\s,;]+',
+      caseSensitive: false,
+    ),
+    // Some HTTP/Dio exceptions stringify only the scheme and token, without
+    // the `Authorization:` header name.
+    RegExp(r'\bbearer\s+[^\s,;]+', caseSensitive: false),
+    RegExp(r'x-api-key\s*[:=]\s*[^\s,;]+', caseSensitive: false),
+    RegExp(r'(?:set-)?cookie\s*[:=]\s*[^\s,]+', caseSensitive: false),
+    RegExp(r'session_id\s*[:=]\s*[^\s,;]+', caseSensitive: false),
     // UUID patterns
     RegExp(
-        r'\b[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}\b'),
+      r'\b[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}\b',
+    ),
     // IP addresses
     RegExp(r'\b\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}\b'),
     // Passwords in common formats (simplified patterns)
@@ -301,11 +313,15 @@ class ErrorSanitizer {
   /// system structure.
   static String sanitizeStackTrace(StackTrace stackTrace) {
     final lines = stackTrace.toString().split('\n');
-    final sanitized = lines.map((line) {
-      // Remove absolute paths, keep relative
-      return line.replaceAll(RegExp(r'/[A-Za-z]:/|/home/[^/]+/|/Users/[^/]+/'),
-          '/[PATH]/');
-    }).join('\n');
+    final sanitized = lines
+        .map((line) {
+          // Remove absolute paths, keep relative
+          return line.replaceAll(
+            RegExp(r'/[A-Za-z]:/|/home/[^/]+/|/Users/[^/]+/'),
+            '/[PATH]/',
+          );
+        })
+        .join('\n');
     return sanitized;
   }
 }
@@ -349,29 +365,13 @@ class CredentialMasker {
   /// Completely hidden placeholder for highly sensitive data.
   static const String hiddenPlaceholder = '********';
 
-  /// Masks a credential string, showing only first and last characters.
+  /// Completely masks a credential string.
   ///
-  /// For short strings (≤4 chars), returns all asterisks.
-  /// For longer strings, shows first 2 and last 2 characters.
-  ///
-  /// Example:
-  /// - 'abc' → '***'
-  /// - 'abcd' → '****'
-  /// - 'my-secret-key' → 'my*********ey'
+  /// Credential prefixes, suffixes and lengths are unnecessary identifiers in
+  /// logs and can materially reduce the search space of a leaked secret.
   static String mask(String value) {
     if (value.isEmpty) return '';
-
-    if (value.length <= 4) {
-      return maskChar * value.length;
-    }
-
-    const visibleStart = 2;
-    const visibleEnd = 2;
-    final maskedLength = value.length - visibleStart - visibleEnd;
-
-    return '${value.substring(0, visibleStart)}'
-        '${maskChar * maskedLength}'
-        '${value.substring(value.length - visibleEnd)}';
+    return hiddenPlaceholder;
   }
 
   /// Masks a nullable credential string.
@@ -397,19 +397,12 @@ class CredentialMasker {
     return hide(value);
   }
 
-  /// Masks showing only the first N characters.
+  /// Completely masks a credential.
   ///
-  /// Example with prefixLength=4:
-  /// - 'my-secret-api-key' → 'my-s*************'
+  /// [prefixLength] is retained for source compatibility only. Prefixes are no
+  /// longer exposed because they can identify the credential or its provider.
   static String maskWithPrefix(String value, {int prefixLength = 4}) {
-    if (value.isEmpty) return '';
-
-    if (value.length <= prefixLength) {
-      return maskChar * value.length;
-    }
-
-    return '${value.substring(0, prefixLength)}'
-        '${maskChar * (value.length - prefixLength)}';
+    return hide(value);
   }
 
   /// Masks a URL, hiding credentials but keeping the structure visible.
@@ -442,7 +435,7 @@ class CredentialMasker {
   /// ```dart
   /// final config = {'apiKey': 'secret123', 'name': 'Test'};
   /// print(CredentialMasker.maskMap(config));
-  /// // {apiKey: se*****23, name: Test}
+  /// // {apiKey: ********, name: Test}
   /// ```
   static String maskMap(
     Map<String, dynamic> map, {
@@ -493,10 +486,12 @@ class CredentialMasker {
       if (isSensitive && entry.value is String) {
         buffer.write(mask(entry.value as String));
       } else if (entry.value is Map<String, dynamic>) {
-        buffer.write(maskMap(
-          entry.value as Map<String, dynamic>,
-          additionalSensitiveKeys: additionalSensitiveKeys,
-        ));
+        buffer.write(
+          maskMap(
+            entry.value as Map<String, dynamic>,
+            additionalSensitiveKeys: additionalSensitiveKeys,
+          ),
+        );
       } else {
         buffer.write(entry.value);
       }

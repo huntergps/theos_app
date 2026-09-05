@@ -8,4 +8,5 @@ import 'package:odoo_sdk/odoo_sdk.dart' as core;
 import 'package:theos_pos_core/theos_pos_core.dart' show AppDatabase;
 
 typedef ModelRecordHandler = core.ModelRecordHandler<AppDatabase>;
-typedef ModelRecordHandlerRegistry = core.ModelRecordHandlerRegistry<AppDatabase>;
+typedef ModelRecordHandlerRegistry =
+    core.ModelRecordHandlerRegistry<AppDatabase>;

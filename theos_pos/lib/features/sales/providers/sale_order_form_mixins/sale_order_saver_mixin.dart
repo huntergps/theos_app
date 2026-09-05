@@ -3,6 +3,7 @@ import 'package:riverpod_annotation/riverpod_annotation.dart';
 import 'package:theos_pos_core/theos_pos_core.dart' hide SaleOrderLineManager;
 
 import '../../../../core/database/repositories/repository_providers.dart';
+import '../../repositories/sales_repository.dart';
 import '../../../clients/clients.dart' show CreditValidationResult;
 import '../sale_order_form_state.dart';
 
@@ -49,8 +50,7 @@ mixin SaleOrderSaverMixin {
         (state.endCustomerName == null ||
             state.endCustomerName!.trim().isEmpty)) {
       state = state.copyWith(
-        errorMessage:
-            'El nombre del consumidor final es obligatorio cuando se marca como Consumidor Final.',
+        errorMessage: 'El nombre del consumidor final es obligatorio cuando se marca como Consumidor Final.',
       );
       return null;
     }
@@ -59,8 +59,7 @@ mixin SaleOrderSaverMixin {
     if (state.emitirFacturaFechaPosterior) {
       if (state.fechaFacturar == null) {
         state = state.copyWith(
-          errorMessage:
-              'Debe especificar la fecha de facturación cuando se activa facturación postfechada.',
+          errorMessage: 'Debe especificar la fecha de facturación cuando se activa facturación postfechada.',
         );
         return null;
       }
@@ -104,15 +103,13 @@ mixin SaleOrderSaverMixin {
     if (state.companyRequiresTipoCanalCliente) {
       if (state.tipoCliente == null || state.tipoCliente!.isEmpty) {
         state = state.copyWith(
-          errorMessage:
-              'El tipo de cliente es obligatorio según la configuración de la empresa.',
+          errorMessage: 'El tipo de cliente es obligatorio según la configuración de la empresa.',
         );
         return null;
       }
       if (state.canalCliente == null || state.canalCliente!.isEmpty) {
         state = state.copyWith(
-          errorMessage:
-              'El canal de cliente es obligatorio según la configuración de la empresa.',
+          errorMessage: 'El canal de cliente es obligatorio según la configuración de la empresa.',
         );
         return null;
       }
@@ -263,24 +260,41 @@ mixin SaleOrderSaverMixin {
       await salesRepo.deleteLine(lineId);
     }
 
-    // Actualizar lineas modificadas
+    // Actualizar lineas modificadas and keep their real persisted sync status.
+    // If the immediate write fails, confirmation must see isSynced=false and
+    // flush the line before changing the order state.
+    final persistedUpdatedLines = <SaleOrderLine>[];
     for (final line in state.updatedLines) {
       // Use saleOrderLineManager.toOdoo() to include calculated fields (price_subtotal, price_tax, price_total)
       // The repository will exclude these when syncing to Odoo
       final lineVals = saleOrderLineManager.toOdoo(line);
       logger.d('[SaleOrderForm]', 'Updating line ${line.id}: $lineVals');
-      await salesRepo.updateLine(line.id, lineVals);
+      await salesRepo.updateLine(line.id, lineVals, localLine: line);
+      persistedUpdatedLines.add(
+        await saleOrderLineManager.readLocal(line.id) ?? line,
+      );
     }
+    state = state.copyWith(updatedLines: persistedUpdatedLines);
 
-    // Crear nuevas lineas
+    // Crear nuevas lineas and replace their temporary in-memory identity with
+    // the persisted row (UUID and possibly the positive Odoo ID included).
+    final persistedNewLines = <SaleOrderLine>[];
     for (final line in state.newLines) {
       final lineWithOrderId = line.copyWith(orderId: orderId);
       logger.d(
         '[SaleOrderForm]',
         'Creating new line: productId=${line.productId}, qty=${line.productUomQty}',
       );
-      await salesRepo.addLine(orderId, lineWithOrderId);
+      final persistedId = await salesRepo.addLine(orderId, lineWithOrderId);
+      final persisted = persistedId == null
+          ? null
+          : await saleOrderLineManager.readLocal(persistedId);
+      persistedNewLines.add(
+        persisted ??
+            lineWithOrderId.copyWith(id: persistedId ?? lineWithOrderId.id),
+      );
     }
+    state = state.copyWith(newLines: persistedNewLines);
 
     return orderId;
   }
@@ -330,6 +344,8 @@ mixin SaleOrderSaverMixin {
       partnerEmail: state.partnerEmail,
       paymentTermId: state.paymentTermId,
       paymentTermName: state.paymentTermName,
+      isCash: state.isCash,
+      isCredit: state.isCredit,
       pricelistId: state.pricelistId,
       pricelistName: state.pricelistName,
       warehouseId: state.warehouseId,
@@ -341,6 +357,16 @@ mixin SaleOrderSaverMixin {
       commitmentDate: state.commitmentDate,
       clientOrderRef: state.clientOrderRef,
       note: state.note,
+      isFinalConsumer: state.isFinalConsumer,
+      endCustomerName: state.endCustomerName,
+      endCustomerPhone: state.endCustomerPhone,
+      endCustomerEmail: state.endCustomerEmail,
+      emitirFacturaFechaPosterior: state.emitirFacturaFechaPosterior,
+      fechaFacturar: state.fechaFacturar,
+      referrerId: state.referrerId,
+      referrerName: state.referrerName,
+      tipoCliente: state.tipoCliente,
+      canalCliente: state.canalCliente,
       isSynced: isSynced,
     );
 
@@ -412,9 +438,7 @@ mixin SaleOrderSaverMixin {
           break;
         case 'commitment_date':
           if (newValue != null) {
-            vals['commitment_date'] = formatOdooDateTime(
-              newValue as DateTime,
-            );
+            vals['commitment_date'] = formatOdooDateTime(newValue as DateTime);
           } else {
             vals['commitment_date'] = false;
           }

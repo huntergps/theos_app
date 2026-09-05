@@ -4,9 +4,10 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/database/datasources/datasources.dart';
 import '../../core/database/repositories/repository_providers.dart';
-import '../../core/services/logger_service.dart';
-import '../../features/sync/services/offline_sync_service.dart'
-    show SyncOperationStatus, SyncProgressEvent, SyncResult, SyncStatus;
+
+import 'package:odoo_sdk/odoo_sdk.dart'
+    show logger, SyncOperationStatus, SyncProgressEvent, SyncResult, SyncStatus;
+
 import '../utils/error_utils.dart';
 
 /// Progress info for a single operation being synced
@@ -77,10 +78,14 @@ class OfflineQueueState {
       syncProgress[operationId];
 
   /// Get count of operations by priority
-  int get criticalCount => operations.where((op) => op.priority == OfflinePriority.critical).length;
-  int get highCount => operations.where((op) => op.priority == OfflinePriority.high).length;
-  int get normalCount => operations.where((op) => op.priority == OfflinePriority.normal).length;
-  int get lowCount => operations.where((op) => op.priority == OfflinePriority.low).length;
+  int get criticalCount =>
+      operations.where((op) => op.priority == OfflinePriority.critical).length;
+  int get highCount =>
+      operations.where((op) => op.priority == OfflinePriority.high).length;
+  int get normalCount =>
+      operations.where((op) => op.priority == OfflinePriority.normal).length;
+  int get lowCount =>
+      operations.where((op) => op.priority == OfflinePriority.low).length;
 
   /// Total pending count
   int get totalCount => operations.length;
@@ -118,7 +123,9 @@ class OfflineQueueNotifier extends Notifier<OfflineQueueState> {
 
       // Include ALL operations (including those waiting for retry)
       // so users can see the full queue status
-      final operations = await offlineQueue.getPendingOperations(includeNotReady: true);
+      final operations = await offlineQueue.getPendingOperations(
+        includeNotReady: true,
+      );
       state = OfflineQueueState(operations: operations);
       logger.d('[OfflineQueue] Loaded ${operations.length} pending operations');
     } catch (e) {
@@ -151,7 +158,9 @@ class OfflineQueueNotifier extends Notifier<OfflineQueueState> {
     );
 
     // Subscribe to progress events
-    final subscription = offlineSyncService.progressStream.listen((SyncProgressEvent event) {
+    final subscription = offlineSyncService.progressStream.listen((
+      SyncProgressEvent event,
+    ) {
       final progress = OperationSyncProgress(
         operationId: event.operationId,
         current: event.current,
@@ -161,7 +170,9 @@ class OfflineQueueNotifier extends Notifier<OfflineQueueState> {
       );
 
       // Update the sync progress map
-      final newProgress = Map<int, OperationSyncProgress>.from(state.syncProgress);
+      final newProgress = Map<int, OperationSyncProgress>.from(
+        state.syncProgress,
+      );
       newProgress[event.operationId] = progress;
 
       state = state.copyWith(
@@ -182,7 +193,10 @@ class OfflineQueueNotifier extends Notifier<OfflineQueueState> {
       return result;
     } catch (e) {
       logger.e('[OfflineQueue] Error processing queue: $e');
-      state = state.copyWith(error: friendlyErrorMessage(e), isProcessing: false);
+      state = state.copyWith(
+        error: friendlyErrorMessage(e),
+        isProcessing: false,
+      );
       return SyncResult(
         model: 'queue',
         status: SyncStatus.error,
@@ -233,9 +247,10 @@ class OfflineQueueNotifier extends Notifier<OfflineQueueState> {
 }
 
 /// Provider for offline queue state
-final offlineQueueProvider = NotifierProvider<OfflineQueueNotifier, OfflineQueueState>(
-  OfflineQueueNotifier.new,
-);
+final offlineQueueProvider =
+    NotifierProvider<OfflineQueueNotifier, OfflineQueueState>(
+      OfflineQueueNotifier.new,
+    );
 
 /// Helper extensions for OfflineOperation display
 extension OfflineOperationDisplay on OfflineOperation {

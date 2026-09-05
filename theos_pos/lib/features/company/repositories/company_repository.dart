@@ -1,6 +1,8 @@
 import 'package:odoo_sdk/odoo_sdk.dart'
     hide BaseRepository, SessionInfoCache, OfflineSupport;
-import 'package:theos_pos_core/theos_pos_core.dart' show companyManager, userManager, UserManagerBusiness, Company;
+import 'package:theos_pos_core/theos_pos_core.dart'
+    show companyManager, userManager, UserManagerBusiness, Company;
+
 import '../../../core/database/repositories/base_repository.dart';
 
 /// Repository for company configuration data
@@ -13,11 +15,7 @@ import '../../../core/database/repositories/base_repository.dart';
 /// based on write_date comparison.
 class CompanyRepository extends BaseRepository
     with SessionInfoCache, OfflineSupport {
-
-  CompanyRepository({
-    required super.odooClient,
-    required super.db,
-  });
+  CompanyRepository({required super.odooClient, required super.db});
 
   /// Get company by ID with cache-first strategy
   ///
@@ -63,20 +61,11 @@ class CompanyRepository extends BaseRepository
   /// Auto-refreshes from Odoo if SRI limit is missing (0) and we're online.
   Future<Company?> getCurrentUserCompany() async {
     try {
-      // Try to get from session_info first (most up to date)
-      final sessionInfo = await getSessionInfoCached();
-      if (sessionInfo != null && sessionInfo['company_id'] != null) {
-        int companyId;
-        if (sessionInfo['company_id'] is int) {
-          companyId = sessionInfo['company_id'] as int;
-        } else if (sessionInfo['company_id'] is List) {
-          companyId = (sessionInfo['company_id'] as List).first as int;
-        } else {
-          final currentUser = await userManager.getCurrentUser();
-          if (currentUser?.companyId == null) return null;
-          return await companyManager.readLocal(currentUser!.companyId!);
-        }
-
+      // JSON-2 uses bearer authentication and has no browser session_info.
+      // Resolve the company through the cached/current res.users record.
+      final currentUser = await userManager.getCurrentUser();
+      final companyId = currentUser?.companyId;
+      if (companyId != null) {
         // 1. First read from local DB
         var company = await getCompany(companyId);
 
@@ -98,7 +87,7 @@ class CompanyRepository extends BaseRepository
         return company;
       }
     } catch (e) {
-      // Error getting company from session, trying cache
+      // Error getting company, trying cached user's company below.
     }
 
     // Fallback to cached user's company
@@ -200,11 +189,16 @@ class CompanyRepository extends BaseRepository
       final sriLimitResponse = await odooClient!.call(
         model: 'ir.config_parameter',
         method: 'get_float',
-        kwargs: {'key': 'sale.sale_customer_invoice_limit_sri', 'default': 50.0},
+        kwargs: {
+          'key': 'sale.sale_customer_invoice_limit_sri',
+          'default': 50.0,
+        },
       );
       if (sriLimitResponse != null && sriLimitResponse != false) {
         companyData['sale_customer_invoice_limit_sri'] =
-            (sriLimitResponse is int) ? sriLimitResponse.toDouble() : (sriLimitResponse as num).toDouble();
+            (sriLimitResponse is int)
+            ? sriLimitResponse.toDouble()
+            : (sriLimitResponse as num).toDouble();
       } else {
         companyData['sale_customer_invoice_limit_sri'] = 50.0;
       }
@@ -322,25 +316,10 @@ class CompanyRepository extends BaseRepository
     if (!isOnline) return;
 
     try {
-      final sessionInfo = await odooClient!.call(
-        model: 'ir.http',
-        method: 'session_info',
-        kwargs: {},
-      );
-
-      if (sessionInfo is Map<String, dynamic>) {
-        int? companyId;
-        if (sessionInfo['company_id'] is int) {
-          companyId = sessionInfo['company_id'] as int;
-        } else if (sessionInfo['company_id'] is List &&
-            (sessionInfo['company_id'] as List).isNotEmpty) {
-          companyId = (sessionInfo['company_id'] as List).first as int;
-        }
-
-        if (companyId != null) {
-          await _fetchAndCacheCompany(companyId);
-        }
-      }
+      // JSON-2 has no browser session_info; use the bearer-authenticated user.
+      final currentUser = await userManager.getCurrentUser();
+      final companyId = currentUser?.companyId;
+      if (companyId != null) await _fetchAndCacheCompany(companyId);
     } catch (e) {
       // Non-fatal - we can work with cached data
     }

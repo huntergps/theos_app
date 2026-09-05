@@ -26,8 +26,5 @@ Future<void> sharePdf(Uint8List pdfBytes, String filename) async {
   await file.writeAsBytes(pdfBytes);
 
   // ignore: deprecated_member_use
-  await Share.shareXFiles(
-    [XFile(file.path)],
-    subject: filename,
-  );
+  await Share.shareXFiles([XFile(file.path)], subject: filename);
 }

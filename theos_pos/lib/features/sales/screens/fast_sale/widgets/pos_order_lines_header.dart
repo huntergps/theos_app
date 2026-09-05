@@ -26,8 +26,7 @@ class _OrderLinesHeader extends ConsumerWidget {
     final paymentsTabLabel = isCreditSale ? 'Credito' : 'Pagos';
 
     // Etiqueta de la pestaña Lineas: muestra el contador cuando hay líneas
-    final linesTabLabel =
-        linesCount > 0 ? 'Lineas ($linesCount)' : 'Lineas';
+    final linesTabLabel = linesCount > 0 ? 'Lineas ($linesCount)' : 'Lineas';
 
     return Container(
       height: 36,
@@ -50,8 +49,7 @@ class _OrderLinesHeader extends ConsumerWidget {
           _SubTabButton(
             label: linesTabLabel,
             isActive: currentPanelTab == OrderPanelTab.lines,
-            onTap: () =>
-                ref.read(orderPanelTabProvider.notifier).goToLines(),
+            onTap: () => ref.read(orderPanelTabProvider.notifier).goToLines(),
           ),
           // Pestaña: Pagos/Crédito (condicional)
           if (showPayments)

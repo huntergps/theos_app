@@ -1,6 +1,6 @@
 // GENERATED CODE - DO NOT MODIFY BY HAND
 // coverage:ignore-file
-// ignore_for_file: type=lint
+// ignore_for_file: type=lint, type=warning, deprecated_member_use, deprecated_member_use_from_same_package
 // ignore_for_file: unused_element, deprecated_member_use, deprecated_member_use_from_same_package, use_function_type_syntax_for_parameters, unnecessary_const, avoid_init_to_null, invalid_override_different_default_values_named, prefer_expression_function_bodies, annotate_overrides, invalid_annotation_target, unnecessary_question_mark
 
 part of 'sale_order_line.model.dart';
@@ -9,38 +9,14 @@ part of 'sale_order_line.model.dart';
 // FreezedGenerator
 // **************************************************************************
 
+// GENERATED CODE - DO NOT MODIFY BY HAND
 // dart format off
 T _$identity<T>(T value) => value;
 
 /// @nodoc
 mixin _$SaleOrderLine {
 
-@OdooId() int get id;@OdooLocalOnly() String? get lineUuid;// UUID local para sincronizacion offline-first
-@OdooMany2One('sale.order', odooName: 'order_id') int get orderId;@OdooInteger() int get sequence;// Tipo de linea
-@OdooSelection(odooName: 'display_type') LineDisplayType get displayType;@OdooBoolean(odooName: 'is_downpayment') bool get isDownpayment;// Producto
-@OdooMany2One('product.product', odooName: 'product_id') int? get productId;@OdooMany2OneName(sourceField: 'product_id') String? get productName;// No existe en sale.order.line, se llena desde producto
-@OdooLocalOnly() String? get productCode;@OdooMany2One('product.template', odooName: 'product_template_id') int? get productTemplateId;@OdooMany2OneName(sourceField: 'product_template_id') String? get productTemplateName;// No existe en sale.order.line, se llena desde producto
-@OdooLocalOnly() String? get productType;// No existe en sale.order.line, se llena desde producto
-@OdooLocalOnly() int? get categId;// No existe en sale.order.line, se llena desde producto
-@OdooLocalOnly() String? get categName;// Descripcion
-@OdooString() String get name;// Descripcion de la linea
-// Cantidad y UoM
-@OdooFloat(odooName: 'product_uom_qty') double get productUomQty;@OdooMany2One('uom.uom', odooName: 'product_uom_id') int? get productUomId;@OdooMany2OneName(sourceField: 'product_uom_id') String? get productUomName;// Precios
-@OdooFloat(odooName: 'price_unit') double get priceUnit;@OdooFloat() double get discount;@OdooFloat(odooName: 'discount_amount') double get discountAmount;// Monto de descuento (campo computado de Odoo)
-@OdooFloat(odooName: 'price_subtotal') double get priceSubtotal;@OdooFloat(odooName: 'price_tax') double get priceTax;@OdooFloat(odooName: 'price_total') double get priceTotal;@OdooFloat(odooName: 'price_reduce_taxexcl') double get priceReduce;// Precio con descuento
-// Many2many en Odoo, se maneja como CSV string localmente
-@OdooLocalOnly() String? get taxIds;// Nombres de impuestos (para mostrar en UI)
-@OdooLocalOnly() String? get taxNames;// Entrega
-@OdooFloat(odooName: 'qty_delivered') double get qtyDelivered;@OdooFloat(odooName: 'customer_lead') double get customerLead;// Lead time en dias
-// Facturacion
-@OdooFloat(odooName: 'qty_invoiced') double get qtyInvoiced;@OdooFloat(odooName: 'qty_to_invoice') double get qtyToInvoice;@OdooSelection(odooName: 'invoice_status') LineInvoiceStatus get invoiceStatus;// Estado de la orden (related)
-@OdooString(odooName: 'state') String? get orderState;// Section settings (Odoo 19)
-@OdooBoolean(odooName: 'collapse_prices') bool get collapsePrices;// Ocultar precios de lineas en esta seccion
-@OdooBoolean(odooName: 'collapse_composition') bool get collapseComposition;// Ocultar lineas hijas (solo mostrar seccion)
-@OdooBoolean(odooName: 'is_optional') bool get isOptional;// Linea opcional (cliente puede elegir en portal)
-// Sync
-@OdooLocalOnly() bool get isSynced;@OdooLocalOnly() DateTime? get lastSyncDate;@OdooDateTime(odooName: 'write_date', writable: false) DateTime? get writeDate;// Product flags from catalog (for display purposes)
-@OdooLocalOnly() bool get isUnitProduct;
+@OdooId() int get id;@OdooLocalOnly() String? get lineUuid;@OdooMany2One('sale.order', odooName: 'order_id') int get orderId;@OdooInteger() int get sequence;@OdooSelection(odooName: 'display_type') LineDisplayType get displayType;@OdooBoolean(odooName: 'is_downpayment') bool get isDownpayment;@OdooMany2One('product.product', odooName: 'product_id') int? get productId;@OdooMany2OneName(sourceField: 'product_id') String? get productName;@OdooLocalOnly() String? get productCode;@OdooMany2One('product.template', odooName: 'product_template_id') int? get productTemplateId;@OdooMany2OneName(sourceField: 'product_template_id') String? get productTemplateName;@OdooLocalOnly() String? get productType;@OdooLocalOnly() int? get categId;@OdooLocalOnly() String? get categName;@OdooString() String get name;@OdooFloat(odooName: 'product_uom_qty') double get productUomQty;@OdooMany2One('uom.uom', odooName: 'product_uom_id') int? get productUomId;@OdooMany2OneName(sourceField: 'product_uom_id') String? get productUomName;@OdooFloat(odooName: 'price_unit') double get priceUnit;@OdooFloat() double get discount;@OdooFloat(odooName: 'discount_amount') double get discountAmount;@OdooFloat(odooName: 'price_subtotal') double get priceSubtotal;@OdooFloat(odooName: 'price_tax') double get priceTax;@OdooFloat(odooName: 'price_total') double get priceTotal;@OdooFloat(odooName: 'price_reduce_taxexcl') double get priceReduce;@OdooLocalOnly() String? get taxIds;@OdooLocalOnly() String? get taxNames;@OdooFloat(odooName: 'qty_delivered') double get qtyDelivered;@OdooFloat(odooName: 'customer_lead') double get customerLead;@OdooFloat(odooName: 'qty_invoiced') double get qtyInvoiced;@OdooFloat(odooName: 'qty_to_invoice') double get qtyToInvoice;@OdooSelection(odooName: 'invoice_status') LineInvoiceStatus get invoiceStatus;@OdooString(odooName: 'state') String? get orderState;@OdooBoolean(odooName: 'collapse_prices') bool get collapsePrices;@OdooBoolean(odooName: 'collapse_composition') bool get collapseComposition;@OdooBoolean(odooName: 'is_optional') bool get isOptional;@OdooLocalOnly() bool get isSynced;@OdooLocalOnly() DateTime? get lastSyncDate;@OdooDateTime(odooName: 'write_date', writable: false) DateTime? get writeDate;@OdooLocalOnly() bool get isUnitProduct;
 /// Create a copy of SaleOrderLine
 /// with the given fields replaced by the non-null parameter values.
 @JsonKey(includeFromJson: false, includeToJson: false)
@@ -91,7 +67,7 @@ class _$SaleOrderLineCopyWithImpl<$Res>
 /// Create a copy of SaleOrderLine
 /// with the given fields replaced by the non-null parameter values.
 @pragma('vm:prefer-inline') @override $Res call({Object? id = null,Object? lineUuid = freezed,Object? orderId = null,Object? sequence = null,Object? displayType = null,Object? isDownpayment = null,Object? productId = freezed,Object? productName = freezed,Object? productCode = freezed,Object? productTemplateId = freezed,Object? productTemplateName = freezed,Object? productType = freezed,Object? categId = freezed,Object? categName = freezed,Object? name = null,Object? productUomQty = null,Object? productUomId = freezed,Object? productUomName = freezed,Object? priceUnit = null,Object? discount = null,Object? discountAmount = null,Object? priceSubtotal = null,Object? priceTax = null,Object? priceTotal = null,Object? priceReduce = null,Object? taxIds = freezed,Object? taxNames = freezed,Object? qtyDelivered = null,Object? customerLead = null,Object? qtyInvoiced = null,Object? qtyToInvoice = null,Object? invoiceStatus = null,Object? orderState = freezed,Object? collapsePrices = null,Object? collapseComposition = null,Object? isOptional = null,Object? isSynced = null,Object? lastSyncDate = freezed,Object? writeDate = freezed,Object? isUnitProduct = null,}) {
-  return _then(_self.copyWith(
+  return _then(SaleOrderLine(
 id: null == id ? _self.id : id // ignore: cast_nullable_to_non_nullable
 as int,lineUuid: freezed == lineUuid ? _self.lineUuid : lineUuid // ignore: cast_nullable_to_non_nullable
 as String?,orderId: null == orderId ? _self.orderId : orderId // ignore: cast_nullable_to_non_nullable
@@ -278,68 +254,43 @@ class _SaleOrderLine extends SaleOrderLine {
 
 @override@OdooId() final  int id;
 @override@OdooLocalOnly() final  String? lineUuid;
-// UUID local para sincronizacion offline-first
 @override@OdooMany2One('sale.order', odooName: 'order_id') final  int orderId;
 @override@JsonKey()@OdooInteger() final  int sequence;
-// Tipo de linea
 @override@JsonKey()@OdooSelection(odooName: 'display_type') final  LineDisplayType displayType;
 @override@JsonKey()@OdooBoolean(odooName: 'is_downpayment') final  bool isDownpayment;
-// Producto
 @override@OdooMany2One('product.product', odooName: 'product_id') final  int? productId;
 @override@OdooMany2OneName(sourceField: 'product_id') final  String? productName;
-// No existe en sale.order.line, se llena desde producto
 @override@OdooLocalOnly() final  String? productCode;
 @override@OdooMany2One('product.template', odooName: 'product_template_id') final  int? productTemplateId;
 @override@OdooMany2OneName(sourceField: 'product_template_id') final  String? productTemplateName;
-// No existe en sale.order.line, se llena desde producto
 @override@OdooLocalOnly() final  String? productType;
-// No existe en sale.order.line, se llena desde producto
 @override@OdooLocalOnly() final  int? categId;
-// No existe en sale.order.line, se llena desde producto
 @override@OdooLocalOnly() final  String? categName;
-// Descripcion
 @override@OdooString() final  String name;
-// Descripcion de la linea
-// Cantidad y UoM
 @override@JsonKey()@OdooFloat(odooName: 'product_uom_qty') final  double productUomQty;
 @override@OdooMany2One('uom.uom', odooName: 'product_uom_id') final  int? productUomId;
 @override@OdooMany2OneName(sourceField: 'product_uom_id') final  String? productUomName;
-// Precios
 @override@JsonKey()@OdooFloat(odooName: 'price_unit') final  double priceUnit;
 @override@JsonKey()@OdooFloat() final  double discount;
 @override@JsonKey()@OdooFloat(odooName: 'discount_amount') final  double discountAmount;
-// Monto de descuento (campo computado de Odoo)
 @override@JsonKey()@OdooFloat(odooName: 'price_subtotal') final  double priceSubtotal;
 @override@JsonKey()@OdooFloat(odooName: 'price_tax') final  double priceTax;
 @override@JsonKey()@OdooFloat(odooName: 'price_total') final  double priceTotal;
 @override@JsonKey()@OdooFloat(odooName: 'price_reduce_taxexcl') final  double priceReduce;
-// Precio con descuento
-// Many2many en Odoo, se maneja como CSV string localmente
 @override@OdooLocalOnly() final  String? taxIds;
-// Nombres de impuestos (para mostrar en UI)
 @override@OdooLocalOnly() final  String? taxNames;
-// Entrega
 @override@JsonKey()@OdooFloat(odooName: 'qty_delivered') final  double qtyDelivered;
 @override@JsonKey()@OdooFloat(odooName: 'customer_lead') final  double customerLead;
-// Lead time en dias
-// Facturacion
 @override@JsonKey()@OdooFloat(odooName: 'qty_invoiced') final  double qtyInvoiced;
 @override@JsonKey()@OdooFloat(odooName: 'qty_to_invoice') final  double qtyToInvoice;
 @override@JsonKey()@OdooSelection(odooName: 'invoice_status') final  LineInvoiceStatus invoiceStatus;
-// Estado de la orden (related)
 @override@OdooString(odooName: 'state') final  String? orderState;
-// Section settings (Odoo 19)
 @override@JsonKey()@OdooBoolean(odooName: 'collapse_prices') final  bool collapsePrices;
-// Ocultar precios de lineas en esta seccion
 @override@JsonKey()@OdooBoolean(odooName: 'collapse_composition') final  bool collapseComposition;
-// Ocultar lineas hijas (solo mostrar seccion)
 @override@JsonKey()@OdooBoolean(odooName: 'is_optional') final  bool isOptional;
-// Linea opcional (cliente puede elegir en portal)
-// Sync
 @override@JsonKey()@OdooLocalOnly() final  bool isSynced;
 @override@OdooLocalOnly() final  DateTime? lastSyncDate;
 @override@OdooDateTime(odooName: 'write_date', writable: false) final  DateTime? writeDate;
-// Product flags from catalog (for display purposes)
 @override@JsonKey()@OdooLocalOnly() final  bool isUnitProduct;
 
 /// Create a copy of SaleOrderLine

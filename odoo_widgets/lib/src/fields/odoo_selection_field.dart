@@ -624,7 +624,3 @@ class OdooStatusField<T> extends StatelessWidget {
     );
   }
 }
-
-/// Backward-compatible aliases.
-typedef ReactiveSelectionField<T> = OdooSelectionField<T>;
-typedef ReactiveStatusField<T> = OdooStatusField<T>;

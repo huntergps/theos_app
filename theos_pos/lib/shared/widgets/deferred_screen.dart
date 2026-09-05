@@ -1,6 +1,9 @@
 import 'package:fluent_ui/fluent_ui.dart';
 
 class DeferredScreen extends StatefulWidget {
+  static const loadedKey = ValueKey<String>('deferred-screen.loaded');
+  static const errorKey = ValueKey<String>('deferred-screen.error');
+
   final Future<void> Function() loader;
   final Widget Function() builder;
 
@@ -31,6 +34,7 @@ class _DeferredScreenState extends State<DeferredScreen> {
         if (snapshot.connectionState == ConnectionState.done) {
           if (snapshot.hasError) {
             return Center(
+              key: DeferredScreen.errorKey,
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
@@ -48,7 +52,10 @@ class _DeferredScreenState extends State<DeferredScreen> {
               ),
             );
           }
-          return widget.builder();
+          return KeyedSubtree(
+            key: DeferredScreen.loadedKey,
+            child: widget.builder(),
+          );
         }
         return const _ShimmerLoadingPlaceholder();
       },
@@ -128,15 +135,9 @@ class _ShimmerLoadingPlaceholderState extends State<_ShimmerLoadingPlaceholder>
               for (int i = 0; i < 6; i++) ...[
                 Row(
                   children: [
-                    Expanded(
-                      flex: 2,
-                      child: _shimmerBox(color, height: 16),
-                    ),
+                    Expanded(flex: 2, child: _shimmerBox(color, height: 16)),
                     const SizedBox(width: 16),
-                    Expanded(
-                      flex: 3,
-                      child: _shimmerBox(color, height: 16),
-                    ),
+                    Expanded(flex: 3, child: _shimmerBox(color, height: 16)),
                     const SizedBox(width: 16),
                     Expanded(child: _shimmerBox(color, height: 16)),
                   ],

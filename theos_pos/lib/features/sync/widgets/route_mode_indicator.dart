@@ -7,7 +7,6 @@ library;
 import 'package:fluent_ui/fluent_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../../core/services/websocket/odoo_websocket_service.dart';
 import '../providers/route_mode_provider.dart';
 import '../providers/sync_provider.dart';
 
@@ -34,8 +33,9 @@ class RouteModeIndicatorBadge extends ConsumerWidget {
     final accentColor = FluentTheme.of(context).accentColor;
 
     return Tooltip(
-      message: 'Modo Ruta activo${durationText != null ? " ($durationText)" : ""}.\n'
-          'El WebSocket y la cola offline estan suspendidos.\n'
+      message:
+          'Modo Ruta activo${durationText != null ? " ($durationText)" : ""}.\n'
+          'La sincronizacion remota esta suspendida.\n'
           'Pulsa para desactivar y sincronizar.',
       child: GestureDetector(
         onTap: () => _showDeactivateDialog(context, ref),
@@ -46,19 +46,12 @@ class RouteModeIndicatorBadge extends ConsumerWidget {
             decoration: BoxDecoration(
               color: accentColor.withValues(alpha: 0.2),
               borderRadius: BorderRadius.circular(4),
-              border: Border.all(
-                color: accentColor,
-                width: 1,
-              ),
+              border: Border.all(color: accentColor, width: 1),
             ),
             child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                Icon(
-                  FluentIcons.car,
-                  size: 14,
-                  color: accentColor,
-                ),
+                Icon(FluentIcons.car, size: 14, color: accentColor),
                 const SizedBox(width: 4),
                 Text(
                   durationText != null
@@ -93,15 +86,12 @@ class RouteModeIndicatorBadge extends ConsumerWidget {
 /// Toggle que activa/desactiva el Modo Ruta.
 ///
 /// Al activar: muestra confirmacion y explica las consecuencias.
-/// Al desactivar: reconecta WebSocket y dispara sync incremental.
+/// Al desactivar dispara la reconciliacion incremental.
 class RouteModeToggle extends ConsumerWidget {
   /// Si true, muestra texto descriptivo ademas del toggle
   final bool showDescription;
 
-  const RouteModeToggle({
-    super.key,
-    this.showDescription = true,
-  });
+  const RouteModeToggle({super.key, this.showDescription = true});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -140,21 +130,20 @@ class RouteModeToggle extends ConsumerWidget {
                 children: [
                   Text(
                     'Modo Ruta',
-                    style: FluentTheme.of(context).typography.body?.copyWith(
-                          fontWeight: FontWeight.w600,
-                        ),
+                    style: FluentTheme.of(context).typography.body
+                        ?.copyWith(fontWeight: FontWeight.w600),
                   ),
                   if (isActive && durationText != null)
                     Text(
                       'Activo hace $durationText',
-                      style: FluentTheme.of(context).typography.caption?.copyWith(
-                            color: accentColor,
-                          ),
+                      style: FluentTheme.of(context).typography.caption
+                          ?.copyWith(color: accentColor),
                     )
                   else if (!isActive)
                     Text(
                       'Inactivo',
-                      style: FluentTheme.of(context).typography.caption?.copyWith(
+                      style: FluentTheme.of(context).typography.caption
+                          ?.copyWith(
                             color: FluentTheme.of(context).inactiveColor,
                           ),
                     ),
@@ -179,13 +168,12 @@ class RouteModeToggle extends ConsumerWidget {
             padding: const EdgeInsets.only(left: 48),
             child: Text(
               isActive
-                  ? 'WebSocket y cola offline suspendidos. '
-                    'Al desactivar se sincronizara automaticamente.'
+                  ? 'Sincronizacion remota suspendida. '
+                        'Al desactivar se sincronizara automaticamente.'
                   : 'Activa para trabajar sin internet. '
-                    'Suspende reconexion WiFi y ahorra bateria.',
-              style: FluentTheme.of(context).typography.caption?.copyWith(
-                    color: FluentTheme.of(context).inactiveColor,
-                  ),
+                        'Suspende reconexion WiFi y ahorra bateria.',
+              style: FluentTheme.of(context).typography.caption
+                  ?.copyWith(color: FluentTheme.of(context).inactiveColor),
             ),
           ),
         ],
@@ -241,7 +229,7 @@ class _RouteModeActivateDialog extends ConsumerWidget {
           const SizedBox(height: 12),
           _BulletItem(
             icon: FluentIcons.plug_disconnected,
-            text: 'Suspende los intentos de reconexion al WebSocket',
+            text: 'Suspende los intentos de conexion remota',
             accentColor: accentColor,
           ),
           const SizedBox(height: 6),
@@ -280,9 +268,6 @@ class _RouteModeActivateDialog extends ConsumerWidget {
           onPressed: () async {
             Navigator.pop(context);
             await ref.read(routeModeProvider.notifier).activate();
-            // Suspender WebSocket auto-reconnect
-            final wsService = ref.read(odooWebSocketServiceProvider);
-            wsService.autoReconnectEnabled = false;
           },
         ),
       ],
@@ -296,7 +281,7 @@ class _RouteModeActivateDialog extends ConsumerWidget {
 
 /// Dialogo de confirmacion para desactivar el Modo Ruta.
 ///
-/// Al confirmar: desactiva modo ruta, rehabilita WebSocket y dispara sync.
+/// Al confirmar desactiva modo ruta y dispara la reconciliacion.
 /// No recibe WidgetRef por constructor: es ConsumerWidget y usa su propio ref.
 class _RouteModeDeactivateDialog extends ConsumerWidget {
   const _RouteModeDeactivateDialog();
@@ -322,7 +307,7 @@ class _RouteModeDeactivateDialog extends ConsumerWidget {
           const SizedBox(height: 12),
           _BulletItem(
             icon: FluentIcons.plug_connected,
-            text: 'Reconectara al WebSocket de Odoo',
+            text: 'Reanudara la conexion autenticada con Odoo',
             accentColor: accentColor,
           ),
           const SizedBox(height: 6),
@@ -366,12 +351,8 @@ class _RouteModeDeactivateDialog extends ConsumerWidget {
     // 1. Desactivar modo ruta
     await ref.read(routeModeProvider.notifier).deactivate();
 
-    // 2. Rehabilitar WebSocket auto-reconnect y reconectar
-    final wsService = ref.read(odooWebSocketServiceProvider);
-    wsService.autoReconnectEnabled = true;
-    await wsService.manualReconnect();
-
-    // 3. Disparar sync incremental de catalogos criticos
+    // 2. Disparar sync incremental de catalogos criticos. El orquestador
+    // drenara primero las escrituras duraderas pendientes.
     try {
       await ref.read(syncProvider.notifier).syncCriticalData();
     } catch (e) {
@@ -402,9 +383,7 @@ class _BulletItem extends StatelessWidget {
       children: [
         Icon(icon, size: 16, color: accentColor),
         const SizedBox(width: 8),
-        Expanded(
-          child: Text(text),
-        ),
+        Expanded(child: Text(text)),
       ],
     );
   }

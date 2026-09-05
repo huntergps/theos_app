@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:fluent_ui/fluent_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
@@ -7,7 +9,9 @@ import 'package:theos_pos_core/theos_pos_core.dart'
 
 import '../../../../core/constants/app_colors.dart';
 import '../../../../core/database/repositories/repository_providers.dart';
-import '../../../../core/services/logger_service.dart';
+
+import 'package:odoo_sdk/odoo_sdk.dart' show logger;
+
 import '../../../../shared/widgets/dialogs/copyable_info_bar.dart';
 import '../../../../shared/widgets/common_grid_widgets.dart';
 import '../../../../shared/widgets/reactive/reactive_search_bar.dart';
@@ -35,13 +39,6 @@ class _SaleOrdersScreenState extends ConsumerState<SaleOrdersScreen> {
   bool _isLoading = false;
   final GlobalKey<SfDataGridState> _gridKey = GlobalKey<SfDataGridState>();
 
-  @override
-  void initState() {
-    super.initState();
-    // Initial sync on first load
-    _syncOrders();
-  }
-
   Future<void> _syncOrders() async {
     if (_isLoading) return;
     setState(() => _isLoading = true);
@@ -50,8 +47,11 @@ class _SaleOrdersScreenState extends ConsumerState<SaleOrdersScreen> {
       logger.d('[SaleOrdersScreen] 🔄 Syncing sale orders...');
       final catalogRepo = ref.read(catalogSyncRepositoryProvider);
       if (catalogRepo != null) {
-        await catalogRepo.syncSaleOrders();
-        logger.d('[SaleOrdersScreen] ✅ Sale orders synced');
+        // Navigation is local-first. Network work happens only when the user
+        // explicitly requests refresh, so reopening the screen is instant and
+        // fully usable offline.
+        await catalogRepo.syncSaleOrders(batchSize: 200);
+        logger.d('[SaleOrdersScreen] ✅ Sale orders refreshed');
       }
     } catch (e) {
       logger.d('[SaleOrdersScreen] ❌ Error syncing orders: $e');
@@ -59,7 +59,8 @@ class _SaleOrdersScreenState extends ConsumerState<SaleOrdersScreen> {
         CopyableInfoBar.showError(
           context,
           title: 'Error de sincronización',
-          message: 'No se pudieron sincronizar las ordenes. Intente nuevamente.',
+          message:
+              'No se pudieron sincronizar las ordenes. Intente nuevamente.',
         );
       }
     } finally {
@@ -83,6 +84,17 @@ class _SaleOrdersScreenState extends ConsumerState<SaleOrdersScreen> {
     logger.d('[SaleOrdersScreen] Filter selected: $filterId = $value');
   }
 
+  void _onSearch(String query) {
+    final normalized = query.trim();
+    if (normalized.length < 2) return;
+    final catalogRepo = ref.read(catalogSyncRepositoryProvider);
+    if (catalogRepo == null) return;
+
+    // The list paints immediately from Drift. Search remote in the background
+    // so records outside the initial page are upserted into the same stream.
+    unawaited(catalogRepo.searchSaleOrdersWithLines(normalized, limit: 50));
+  }
+
   Future<void> _exportToExcel() async {
     final grid = TheosDataGrid(
       gridKey: _gridKey,
@@ -96,18 +108,29 @@ class _SaleOrdersScreenState extends ConsumerState<SaleOrdersScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final ordersCount = ref.watch(saleOrdersCountProvider);
-    final unsyncedCount = ref.watch(unsyncedOrdersCountProvider);
+    final ordersCountAsync = ref.watch(saleOrdersCountProvider);
+    final unsyncedCountAsync = ref.watch(unsyncedOrdersCountProvider);
+    final countsError = ordersCountAsync.when<Object?>(
+      data: (_) => null,
+      loading: () => null,
+      error: (error, _) => error,
+    );
 
     return ScaffoldPage(
       header: PageHeader(
         title: Row(
           children: [
             const Text('Órdenes de Venta'),
-            if (unsyncedCount > 0) ...[
-              const SizedBox(width: 8),
-              _SyncBadge(count: unsyncedCount),
-            ],
+            ...unsyncedCountAsync.when(
+              data: (count) => count > 0
+                  ? [const SizedBox(width: 8), _SyncBadge(count: count)]
+                  : const <Widget>[],
+              loading: () => const <Widget>[],
+              error: (error, _) => [
+                const SizedBox(width: 8),
+                _SyncBadge(error: error),
+              ],
+            ),
           ],
         ),
         commandBar: CommandBar(
@@ -171,6 +194,27 @@ class _SaleOrdersScreenState extends ConsumerState<SaleOrdersScreen> {
                     facetLabel: 'Estado',
                   ),
                   FilterOption(
+                    id: 'waiting',
+                    label: 'Esperando aprobación',
+                    value: 'waiting',
+                    icon: FluentIcons.clock,
+                    facetLabel: 'Estado',
+                  ),
+                  FilterOption(
+                    id: 'approved',
+                    label: 'Aprobado',
+                    value: 'approved',
+                    icon: FluentIcons.completed,
+                    facetLabel: 'Estado',
+                  ),
+                  FilterOption(
+                    id: 'rejected',
+                    label: 'Rechazado',
+                    value: 'rejected',
+                    icon: FluentIcons.status_error_full,
+                    facetLabel: 'Estado',
+                  ),
+                  FilterOption(
                     id: 'sale',
                     label: 'Orden de venta',
                     value: 'sale',
@@ -195,19 +239,39 @@ class _SaleOrdersScreenState extends ConsumerState<SaleOrdersScreen> {
               ),
               QuickFilter(
                 id: 'draft',
-                label: 'Cotizaciones (${ordersCount['draft'] ?? 0})',
+                label:
+                    'Cotizaciones (${_formatOrderCount(ordersCountAsync, 'draft')})',
                 icon: FluentIcons.document,
               ),
               QuickFilter(
                 id: 'sale',
-                label: 'Confirmadas (${ordersCount['sale'] ?? 0})',
+                label:
+                    'Confirmadas (${_formatOrderCount(ordersCountAsync, 'sale')})',
                 icon: FluentIcons.accept,
                 color: Colors.green,
+              ),
+              QuickFilter(
+                id: 'waiting',
+                label:
+                    'Por aprobar (${_formatOrderCount(ordersCountAsync, 'waiting')})',
+                icon: FluentIcons.clock,
+                color: Colors.orange,
               ),
             ],
             onFilterChanged: _onFilterChanged,
             onFilterSelected: _onFilterSelected,
+            onSearch: _onSearch,
           ),
+
+          if (countsError != null)
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 12),
+              child: InfoBar(
+                title: const Text('No se pudieron calcular los contadores'),
+                content: Text(countsError.toString()),
+                severity: InfoBarSeverity.error,
+              ),
+            ),
 
           // Responsive content: DataGrid or Cards
           Expanded(
@@ -250,11 +314,23 @@ class _DesktopDataGrid extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final snapshot = ref.watch(saleOrdersListSnapshotProvider).value;
     return ReactiveDataGrid<SaleOrder>(
+      gridKey: gridKey,
       dataProvider: filteredSaleOrdersProvider,
       storageKey: 'sale_orders',
       showPager: true,
-      rowsPerPage: 80,
+      rowsPerPage: salesListPageSize,
+      totalRowCount: snapshot?.totalCount,
+      currentPageIndex: snapshot?.pageIndex ?? 0,
+      onPageChanged: (pageIndex) async {
+        ref.read(salesListPageIndexProvider.notifier).setPage(pageIndex);
+        return true;
+      },
+      // Database paging is ordered by date. Sorting only the visible page
+      // would be misleading, so column sorting remains disabled until a sort
+      // key is explicitly part of the SQL query.
+      allowSorting: false,
       emptyMessage: 'No hay órdenes',
       emptySubMessage: 'Crea una nueva orden para comenzar',
       emptyIcon: FluentIcons.receipt_processing,
@@ -345,7 +421,47 @@ class _MobileList extends ConsumerWidget {
             ),
           );
         }
-        return SaleOrdersMobile(orders: orders, onOrderTap: onOrderTap);
+        final snapshot = ref.watch(saleOrdersListSnapshotProvider).value;
+        final pageIndex = snapshot?.pageIndex ?? 0;
+        final totalCount = snapshot?.totalCount ?? orders.length;
+        final hasPrevious = pageIndex > 0;
+        final hasNext = (pageIndex + 1) * salesListPageSize < totalCount;
+        return Column(
+          children: [
+            Expanded(
+              child: SaleOrdersMobile(orders: orders, onOrderTap: onOrderTap),
+            ),
+            if (hasPrevious || hasNext)
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Button(
+                      onPressed: hasPrevious
+                          ? () => ref
+                                .read(salesListPageIndexProvider.notifier)
+                                .setPage(pageIndex - 1)
+                          : null,
+                      child: const Text('Anterior'),
+                    ),
+                    Text(
+                      '${pageIndex + 1} / '
+                      '${(totalCount / salesListPageSize).ceil()}',
+                    ),
+                    Button(
+                      onPressed: hasNext
+                          ? () => ref
+                                .read(salesListPageIndexProvider.notifier)
+                                .setPage(pageIndex + 1)
+                          : null,
+                      child: const Text('Siguiente'),
+                    ),
+                  ],
+                ),
+              ),
+          ],
+        );
       },
       loading: () => const Center(child: ProgressRing()),
       error: (error, _) => Center(
@@ -364,30 +480,42 @@ class _MobileList extends ConsumerWidget {
 
 /// Badge showing unsynced orders count
 class _SyncBadge extends StatelessWidget {
-  final int count;
+  final int? count;
+  final Object? error;
 
-  const _SyncBadge({required this.count});
+  const _SyncBadge({this.count, this.error})
+    : assert(count != null || error != null);
 
   @override
   Widget build(BuildContext context) {
     return Tooltip(
-      message: '$count órdenes pendientes de sincronizar',
+      message: error == null
+          ? '$count órdenes pendientes de sincronizar'
+          : 'No se pudo leer el estado de sincronización: $error',
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
         decoration: BoxDecoration(
-          color: Colors.orange.withValues(alpha: 0.2),
+          color: (error == null ? Colors.orange : Colors.red).withValues(
+            alpha: 0.2,
+          ),
           borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: Colors.orange),
+          border: Border.all(color: error == null ? Colors.orange : Colors.red),
         ),
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(FluentIcons.cloud_upload, size: 12, color: Colors.orange),
+            Icon(
+              error == null
+                  ? FluentIcons.cloud_upload
+                  : FluentIcons.error_badge,
+              size: 12,
+              color: error == null ? Colors.orange : Colors.red,
+            ),
             const SizedBox(width: 4),
             Text(
-              '$count',
+              error == null ? '$count' : '!',
               style: TextStyle(
-                color: Colors.orange,
+                color: error == null ? Colors.orange : Colors.red,
                 fontSize: 12,
                 fontWeight: FontWeight.bold,
               ),
@@ -397,6 +525,14 @@ class _SyncBadge extends StatelessWidget {
       ),
     );
   }
+}
+
+String _formatOrderCount(AsyncValue<Map<String, int>> counts, String state) {
+  return counts.when(
+    data: (value) => '${value[state] ?? 0}',
+    loading: () => '…',
+    error: (_, _) => '!',
+  );
 }
 
 // ============================================================================

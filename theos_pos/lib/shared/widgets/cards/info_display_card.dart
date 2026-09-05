@@ -1,4 +1,5 @@
 import 'package:fluent_ui/fluent_ui.dart';
+
 import '../../../core/theme/spacing.dart';
 
 /// Card para mostrar informacion con icono destacado.
@@ -283,7 +284,10 @@ class StatCard extends StatelessWidget {
     final icon = isPositive ? FluentIcons.up : FluentIcons.down;
 
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: Spacing.sm, vertical: Spacing.xs),
+      padding: const EdgeInsets.symmetric(
+        horizontal: Spacing.sm,
+        vertical: Spacing.xs,
+      ),
       decoration: BoxDecoration(
         color: color.withValues(alpha: 0.1),
         borderRadius: BorderRadius.circular(Spacing.xs),

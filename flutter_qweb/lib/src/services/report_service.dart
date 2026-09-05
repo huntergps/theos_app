@@ -268,7 +268,7 @@ class ReportService {
         user: user,
         options: options,
       );
-      return _fileManager.saveAndOpen(pdfBytes, filename);
+      return await _fileManager.saveAndOpen(pdfBytes, filename);
     } catch (e) {
       rethrow;
     }
@@ -291,7 +291,7 @@ class ReportService {
         user: user,
         options: options,
       );
-      return _fileManager.printPdf(pdfBytes, filename);
+      return await _fileManager.printPdf(pdfBytes, filename);
     } catch (e) {
       rethrow;
     }

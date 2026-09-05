@@ -15,7 +15,10 @@ import '../../../../../features/sync/services/offline_sync_service.dart'
     show SyncResultAppExtension;
 import '../../../../../core/theme/spacing.dart';
 import '../../../../invoices/invoices.dart';
-import 'package:theos_pos_core/theos_pos_core.dart' hide DatabaseHelper, PartnerBank, CreditIssue;
+
+import 'package:theos_pos_core/theos_pos_core.dart'
+    hide DatabaseHelper, PartnerBank;
+
 import '../../../ui/sale_order_ui_extensions.dart';
 import '../../../../../shared/utils/formatting_utils.dart';
 import '../../../../../shared/widgets/dialogs/copyable_info_bar.dart';
@@ -66,13 +69,16 @@ class _POSOrderLinesPanelState extends ConsumerState<POSOrderLinesPanel> {
   Widget build(BuildContext context) {
     final activeTab = ref.watch(fastSaleActiveTabProvider);
     final currentPanelTab = ref.watch(orderPanelTabProvider);
-    final hasCollectionPermissions = ref.watch(hasCollectionPermissionsProvider);
+    final hasCollectionPermissions = ref.watch(
+      hasCollectionPermissionsProvider,
+    );
 
     final order = activeTab?.order;
     final lines = activeTab?.lines ?? [];
     final isCreditSale = order?.isCreditSale ?? false;
 
-    final hasInvoice = order?.hasQueuedInvoice == true || order?.isFullyInvoiced == true;
+    final hasInvoice =
+        order?.hasQueuedInvoice == true || order?.isFullyInvoiced == true;
     final canConfirm =
         order != null &&
         order.canConfirm &&
@@ -93,11 +99,17 @@ class _POSOrderLinesPanelState extends ConsumerState<POSOrderLinesPanel> {
           canEdit: order?.isEditable ?? true,
         );
       case OrderPanelTab.payments:
-        contentArea = _OrderLinesPaymentsContent(order: order);
+        // A restored tab or a permission change must not expose cashier UI.
+        contentArea = hasCollectionPermissions
+            ? _OrderLinesPaymentsContent(order: order)
+            : const Center(
+                child: Text('El cobro de esta venta corresponde al cajero.'),
+              );
     }
 
     // Mostrar totales sólo cuando estamos en la pestaña de líneas
-    final showTotals = currentPanelTab == OrderPanelTab.lines ||
+    final showTotals =
+        currentPanelTab == OrderPanelTab.lines ||
         currentPanelTab == OrderPanelTab.products;
 
     return Column(
@@ -126,12 +138,9 @@ class _POSOrderLinesPanelState extends ConsumerState<POSOrderLinesPanel> {
     );
   }
 
-
-
   /// Delega al handler centralizado que incluye validación de crédito,
   /// diálogo de bypass, indicador de carga y mensaje de resultado.
   Future<void> _handleConfirmOrder(BuildContext context) async {
     await confirmOrderWithCreditCheck(context, ref);
   }
-
 }

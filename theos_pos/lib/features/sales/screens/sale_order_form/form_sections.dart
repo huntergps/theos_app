@@ -1,10 +1,13 @@
 import 'package:fluent_ui/fluent_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:odoo_widgets/odoo_widgets.dart' show OdooFieldConfig, OdooMultilineField;
+import 'package:odoo_widgets/odoo_widgets.dart'
+    show OdooFieldConfig, OdooMultilineField;
 
 import '../../../../core/constants/app_constants.dart';
 import '../../../../core/theme/spacing.dart';
+
 import 'package:theos_pos_core/theos_pos_core.dart';
+
 import '../../widgets/totals/sales_order_totals.dart';
 
 /// Section 2: Client Info + Credit Info + Dates/Configuration
@@ -49,10 +52,7 @@ class FormSection2Info extends ConsumerWidget {
           return Column(
             children: [
               clientCard,
-              if (creditCard != null) ...[
-                spacing.vertical.md,
-                creditCard!,
-              ],
+              if (creditCard != null) ...[spacing.vertical.md, creditCard!],
               spacing.vertical.md,
               datesCard,
             ],
@@ -85,10 +85,7 @@ class FormSection4Totals extends StatelessWidget {
       children: [
         SizedBox(
           width: width,
-          child: SalesOrderTotals(
-            order: order,
-            lines: lines,
-          ),
+          child: SalesOrderTotals(order: order, lines: lines),
         ),
       ],
     );

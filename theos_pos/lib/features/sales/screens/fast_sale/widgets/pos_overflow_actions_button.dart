@@ -76,10 +76,7 @@ class _OverflowActionsButtonState extends State<_OverflowActionsButton> {
               children: [
                 const Icon(FluentIcons.more, size: 16),
                 const SizedBox(width: 4),
-                Text(
-                  'Más',
-                  style: theme.typography.caption,
-                ),
+                Text('Más', style: theme.typography.caption),
               ],
             ),
           ),

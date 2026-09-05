@@ -2,12 +2,13 @@ import 'package:fluent_ui/fluent_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
-import 'package:theos_pos_core/theos_pos_core.dart' show CollectionSession, SessionState;
+import 'package:theos_pos_core/theos_pos_core.dart'
+    show CollectionSession, SessionState;
 
 import '../../../../core/constants/app_colors.dart';
 import '../../../../core/database/providers.dart';
-import '../../../../shared/providers/menu_provider.dart';
 import '../../../../shared/providers/user_provider.dart';
+import '../../../../shared/constants/user_groups.dart';
 import '../../../../shared/utils/error_utils.dart';
 import '../../../../shared/utils/formatting_utils.dart';
 import '../../../../shared/widgets/common/theos_info_bars.dart';
@@ -22,8 +23,6 @@ import '../state_chip.dart';
 class ActiveSessionsSection extends ConsumerWidget {
   const ActiveSessionsSection({super.key});
 
-  static const _managerGroup = 'l10n_ec_collection_box.group_collection_manager';
-
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final user = ref.watch(userProvider);
@@ -31,8 +30,8 @@ class ActiveSessionsSection extends ConsumerWidget {
 
     // Only visible to managers / admins
     final isManager =
-        permissions.contains(_managerGroup) ||
-        adminGroups.any(permissions.contains);
+        permissions.contains(OdooUserGroup.collectionManager) ||
+        kAdministratorGroups.any(permissions.contains);
 
     if (!isManager) return const SizedBox.shrink();
 
@@ -55,7 +54,8 @@ class ActiveSessionsSection extends ConsumerWidget {
             if (sessions.isEmpty) {
               return TheosInfoBars.info(
                 title: 'Sin sesiones activas',
-                message: 'No hay cajeros con sesiones abiertas en este momento.',
+                message:
+                    'No hay cajeros con sesiones abiertas en este momento.',
               );
             }
 
@@ -111,8 +111,8 @@ class _ActiveSessionCard extends ConsumerWidget {
                 color: hasMismatch
                     ? AppColors.danger.withValues(alpha: 0.6)
                     : hovered
-                        ? theme.accentColor.defaultBrushFor(theme.brightness)
-                        : theme.resources.cardStrokeColorDefault,
+                    ? theme.accentColor.defaultBrushFor(theme.brightness)
+                    : theme.resources.cardStrokeColorDefault,
                 width: hasMismatch ? 1.5 : 1,
               ),
             ),
@@ -193,7 +193,9 @@ class _ActiveSessionCard extends ConsumerWidget {
 
                   // Descuadre de caja (si aplica)
                   if (hasMismatch) ...[
-                    _CashMismatchBadge(difference: session.cashRegisterDifference),
+                    _CashMismatchBadge(
+                      difference: session.cashRegisterDifference,
+                    ),
                     const SizedBox(width: 8),
                   ],
 
@@ -222,6 +224,8 @@ class _ActiveSessionCard extends ConsumerWidget {
         return 'opening_control';
       case SessionState.opened:
         return 'opened';
+      case SessionState.paused:
+        return 'paused';
       case SessionState.closingControl:
         return 'closing_control';
       case SessionState.closed:
@@ -239,19 +243,17 @@ class _StateDot extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final color = switch (state) {
-      SessionState.opened => const Color(0xFF107C10),          // green
-      SessionState.openingControl => const Color(0xFFCA5010),  // orange
-      SessionState.closingControl => const Color(0xFF0078D4),  // blue
-      SessionState.closed => const Color(0xFF767676),           // grey
+      SessionState.opened => const Color(0xFF107C10), // green
+      SessionState.paused => const Color(0xFFFFB900), // yellow
+      SessionState.openingControl => const Color(0xFFCA5010), // orange
+      SessionState.closingControl => const Color(0xFF0078D4), // blue
+      SessionState.closed => const Color(0xFF767676), // grey
     };
 
     return Container(
       width: 10,
       height: 10,
-      decoration: BoxDecoration(
-        color: color,
-        shape: BoxShape.circle,
-      ),
+      decoration: BoxDecoration(color: color, shape: BoxShape.circle),
     );
   }
 }

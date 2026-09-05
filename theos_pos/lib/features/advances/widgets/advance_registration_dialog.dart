@@ -12,7 +12,9 @@ import 'package:theos_pos_core/theos_pos_core.dart'
         AvailableBank;
 
 import '../../../core/constants/app_colors.dart';
-import '../../../core/services/logger_service.dart';
+
+import 'package:odoo_sdk/odoo_sdk.dart' show logger;
+
 import '../../../core/theme/spacing.dart';
 import '../../../shared/widgets/dialogs/copyable_info_bar.dart';
 import '../../../shared/utils/formatting_utils.dart';
@@ -128,7 +130,6 @@ class _AdvanceRegistrationDialogState
   Future<void> _loadCatalogs() async {
     try {
       final advanceService = ref.read(advanceServiceProvider);
-      if (advanceService == null) return;
       final paymentService = ref.read(paymentServiceProvider);
 
       // Cargar en paralelo
@@ -194,7 +195,6 @@ class _AdvanceRegistrationDialogState
   Future<void> _loadCardBrandsForJournal(int journalId) async {
     try {
       final advanceService = ref.read(advanceServiceProvider);
-      if (advanceService == null) return;
       final brands = await advanceService.getCardBrands(journalId);
       if (mounted) {
         setState(() {
@@ -251,7 +251,6 @@ class _AdvanceRegistrationDialogState
 
     try {
       final advanceService = ref.read(advanceServiceProvider);
-      if (advanceService == null) return;
 
       // Construir líneas de anticipo
       final advanceLines = _paymentLines.map((line) {
@@ -313,7 +312,11 @@ class _AdvanceRegistrationDialogState
   }
 
   void _showError(String message) {
-    CopyableInfoBar.showError(context, title: 'Error de anticipo', message: message);
+    CopyableInfoBar.showError(
+      context,
+      title: 'Error de anticipo',
+      message: message,
+    );
   }
 
   @override
@@ -471,7 +474,11 @@ class _AdvanceRegistrationDialogState
                 const Spacer(),
                 if (_paymentLines.length > 1)
                   IconButton(
-                    icon: Icon(FluentIcons.delete, size: 14, color: AppColors.danger),
+                    icon: Icon(
+                      FluentIcons.delete,
+                      size: 14,
+                      color: AppColors.danger,
+                    ),
                     onPressed: () => _removePaymentLine(index),
                   ),
               ],

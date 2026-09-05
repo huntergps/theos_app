@@ -3,6 +3,7 @@ import 'package:fluent_ui/fluent_ui.dart';
 import '../../../../../shared/utils/formatting_utils.dart';
 
 import 'check_row.dart';
+
 import 'package:theos_pos_core/theos_pos_core.dart';
 
 /// Tabla de cheques recibidos

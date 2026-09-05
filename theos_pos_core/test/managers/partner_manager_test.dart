@@ -52,6 +52,11 @@ void main() {
     test('odooFields contains write_date for sync', () {
       expect(manager.odooFields, contains('write_date'));
     });
+
+    test('odooFields excludes local-only overdue aggregates', () {
+      expect(manager.odooFields, isNot(contains('unpaid_invoices_count')));
+      expect(manager.odooFields, isNot(contains('oldest_overdue_days')));
+    });
   });
 
   // ===========================================================================
@@ -217,22 +222,19 @@ void main() {
       expect(client.writeDate!.isUtc, isTrue);
     });
 
-    test('marks record as unsynced from fromOdoo (sync managed separately)', () {
-      final odooJson = <String, dynamic>{
-        'id': 10,
-        'name': 'Test',
-      };
+    test(
+      'marks record as unsynced from fromOdoo (sync managed separately)',
+      () {
+        final odooJson = <String, dynamic>{'id': 10, 'name': 'Test'};
 
-      final client = manager.fromOdoo(odooJson);
+        final client = manager.fromOdoo(odooJson);
 
-      expect(client.isSynced, isFalse);
-    });
+        expect(client.isSynced, isFalse);
+      },
+    );
 
     test('handles minimal JSON with only id and name', () {
-      final odooJson = <String, dynamic>{
-        'id': 1,
-        'name': 'Minimal Partner',
-      };
+      final odooJson = <String, dynamic>{'id': 1, 'name': 'Minimal Partner'};
 
       final client = manager.fromOdoo(odooJson);
 
@@ -280,10 +282,7 @@ void main() {
     });
 
     test('includes all fields in output (null or not)', () {
-      const client = Client(
-        id: 1,
-        name: 'Simple Partner',
-      );
+      const client = Client(id: 1, name: 'Simple Partner');
 
       final map = manager.toOdoo(client);
 

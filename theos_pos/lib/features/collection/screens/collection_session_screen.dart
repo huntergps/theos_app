@@ -7,8 +7,11 @@ import 'package:theos_pos_core/theos_pos_core.dart'
 
 import '../../../../core/constants/app_colors.dart';
 import '../../../../core/database/providers.dart';
+import '../../../../core/providers/base_notifier.dart' show OperationSuccess;
 import '../../../../core/services/config_service.dart';
-import '../../../../core/services/logger_service.dart';
+
+import 'package:odoo_sdk/odoo_sdk.dart' show logger;
+
 import '../../../../core/services/platform/global_notification_service.dart';
 import '../providers/collection_session_provider.dart';
 import '../../../../shared/widgets/common/chip_is_local.dart';
@@ -46,18 +49,30 @@ class CollectionSessionScreen extends ConsumerStatefulWidget {
 class _CollectionSessionScreenState
     extends ConsumerState<CollectionSessionScreen> {
   int _selectedTab = 0;
+  late final ProviderSubscription<CollectionSessionScreenState>
+  _sessionStateSubscription;
 
   @override
   void initState() {
     super.initState();
+    // Register once: registering ref.listen in build accumulated listeners
+    // after every rebuild and could trigger duplicate redirects/toasts.
+    _sessionStateSubscription = ref.listenManual<CollectionSessionScreenState>(
+      collectionSessionProvider,
+      (previous, next) => _handleStateChanges(previous, next),
+    );
     logger.d(_tag, 'Initializing screen for session: ${widget.sessionId}');
     // Inicializar el notifier con el sessionId
     Future.microtask(() {
       if (!mounted) return;
-      ref
-          .read(collectionSessionProvider.notifier)
-          .initialize(widget.sessionId);
+      ref.read(collectionSessionProvider.notifier).initialize(widget.sessionId);
     });
+  }
+
+  @override
+  void dispose() {
+    _sessionStateSubscription.close();
+    super.dispose();
   }
 
   @override
@@ -77,14 +92,6 @@ class _CollectionSessionScreenState
 
     // Observar la sesion actual del provider global (para mantener compatibilidad)
     final currentSession = ref.watch(currentSessionProvider);
-
-    // Escuchar cambios para manejar redirecciones y mensajes
-    ref.listen<CollectionSessionScreenState>(
-      collectionSessionProvider,
-      (previous, next) {
-        _handleStateChanges(previous, next);
-      },
-    );
 
     // Mostrar loading mientras se carga
     if (sessionState.isLoading && sessionState.session == null) {
@@ -162,9 +169,7 @@ class _CollectionSessionScreenState
     // Mostrar mensaje de exito
     if (next.operationSuccess && next.successMessage != null) {
       _showSuccessMessage(next.successMessage!);
-      ref
-          .read(collectionSessionProvider.notifier)
-          .clearSuccessMessage();
+      ref.read(collectionSessionProvider.notifier).clearSuccessMessage();
     }
 
     // Mostrar mensaje de error
@@ -182,7 +187,6 @@ class _CollectionSessionScreenState
       if (next.session != null) {
         ref.read(currentSessionProvider.notifier).set(next.session);
       }
-      ref.invalidate(sessionByIdProvider(widget.sessionId));
       ref.invalidate(collectionConfigsProvider);
 
       context.go('/collection/session/$newId');
@@ -200,7 +204,11 @@ class _CollectionSessionScreenState
   void _showErrorMessage(String message) {
     if (!mounted) return;
 
-    ref.showErrorNotification(context, title: 'Error de cobranza', message: message);
+    ref.showErrorNotification(
+      context,
+      title: 'Error de cobranza',
+      message: message,
+    );
   }
 
   /// Construye la pantalla de error
@@ -298,18 +306,46 @@ class _CollectionSessionScreenState
 
     return ScaffoldPage(
       header: _buildHeader(context, theme, session, sessionState),
-      content: SingleChildScrollView(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            SessionInfoCard(session: session, dateFormat: dateFormat),
-            const SizedBox(height: 6),
-            StatButtonsRow(session: session),
-            const SizedBox(height: 16),
-            _buildTabView(session),
-          ],
-        ),
+      content: LayoutBuilder(
+        builder: (context, constraints) {
+          final compactLandscape =
+              MediaQuery.orientationOf(context) == Orientation.landscape &&
+              MediaQuery.sizeOf(context).height <= 560;
+          // In short landscape the page itself owns the scroll. The tab body
+          // gets the remaining viewport instead of a fixed 400px minimum.
+          final padding = compactLandscape ? 8.0 : 16.0;
+          final content = Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              SessionInfoCard(session: session, dateFormat: dateFormat),
+              SizedBox(height: compactLandscape ? 4 : 6),
+              StatButtonsRow(session: session),
+              SizedBox(height: compactLandscape ? 8 : 16),
+              if (compactLandscape)
+                Expanded(
+                  child: LayoutBuilder(
+                    builder: (context, tabConstraints) => _buildTabView(
+                      session,
+                      compactLandscape: true,
+                      availableHeight: tabConstraints.maxHeight,
+                    ),
+                  ),
+                )
+              else
+                _buildTabView(session),
+            ],
+          );
+          if (compactLandscape) {
+            return Padding(
+              padding: EdgeInsets.all(padding),
+              child: SizedBox(height: constraints.maxHeight, child: content),
+            );
+          }
+          return SingleChildScrollView(
+            padding: EdgeInsets.all(padding),
+            child: content,
+          );
+        },
       ),
     );
   }
@@ -388,7 +424,23 @@ class _CollectionSessionScreenState
           label: const Text('Actualizar'),
           onPressed: sessionState.isProcessing ? null : _handleRefresh,
         ),
-        if (session.state != SessionState.closed)
+        if (session.state == SessionState.opened ||
+            session.state == SessionState.paused)
+          CommandBarButton(
+            icon: Icon(
+              session.state == SessionState.paused
+                  ? FluentIcons.play
+                  : FluentIcons.pause,
+            ),
+            label: Text(
+              session.state == SessionState.paused ? 'Reanudar' : 'Pausar',
+            ),
+            onPressed: sessionState.isProcessing
+                ? null
+                : () => _handleTogglePause(session),
+          ),
+        if (session.state == SessionState.openingControl ||
+            session.state == SessionState.opened)
           CommandBarButton(
             icon: sessionState.isRegisteringOpeningCash
                 ? const SizedBox(
@@ -417,19 +469,21 @@ class _CollectionSessionScreenState
                 ? null
                 : () => _handleRegisterClosingCash(session),
           ),
-        CommandBarButton(
-          icon: sessionState.isClosingSession
-              ? const SizedBox(
-                  width: 16,
-                  height: 16,
-                  child: ProgressRing(strokeWidth: 2),
-                )
-              : const Icon(FluentIcons.completed),
-          label: const Text('Cerrar Sesión'),
-          onPressed: sessionState.isProcessing
-              ? null
-              : () => _handleCloseSession(session),
-        ),
+        if (session.state == SessionState.opened ||
+            session.state == SessionState.closingControl)
+          CommandBarButton(
+            icon: sessionState.isClosingSession
+                ? const SizedBox(
+                    width: 16,
+                    height: 16,
+                    child: ProgressRing(strokeWidth: 2),
+                  )
+                : const Icon(FluentIcons.completed),
+            label: const Text('Cerrar Sesión'),
+            onPressed: sessionState.isProcessing
+                ? null
+                : () => _handleCloseSession(session),
+          ),
       ],
     );
   }
@@ -438,10 +492,18 @@ class _CollectionSessionScreenState
   ///   1. Efectivo  — Resumen de cierre + Contar billetes y monedas + Retiros
   ///   2. Cobros    — Anticipos + Cobros + Cheques + Depositos
   ///   3. Documentos y Notas — Documentos + Notas
-  Widget _buildTabView(CollectionSession session) {
-    final screenHeight = MediaQuery.of(context).size.height;
-    // Altura total del TabView (header ~280 px + padding)
-    final tabViewHeight = (screenHeight - 280).clamp(400.0, double.infinity);
+  Widget _buildTabView(
+    CollectionSession session, {
+    bool compactLandscape = false,
+    double? availableHeight,
+  }) {
+    final screenHeight = MediaQuery.sizeOf(context).height;
+    // Keep the tab within the page viewport in short landscape. The previous
+    // 400px floor caused an overflow on 480px/landscape windows.
+    final reservedHeight = compactLandscape ? 150.0 : 280.0;
+    final minimumHeight = compactLandscape ? 160.0 : 400.0;
+    final calculatedHeight = availableHeight ?? (screenHeight - reservedHeight);
+    final tabViewHeight = calculatedHeight.clamp(minimumHeight, 900.0);
     // Altura disponible para el cuerpo de cada tab (menos la barra de tabs ~42 px)
     final tabBodyHeight = tabViewHeight - 42;
 
@@ -520,7 +582,6 @@ class _CollectionSessionScreenState
         final syncedSession = result.data;
         if (syncedSession != null) {
           ref.read(currentSessionProvider.notifier).set(syncedSession);
-          ref.invalidate(sessionByIdProvider(widget.sessionId));
           ref.invalidate(collectionConfigsProvider);
         }
         return true;
@@ -541,7 +602,6 @@ class _CollectionSessionScreenState
 
     await notifier.refreshSession();
 
-    ref.invalidate(sessionByIdProvider(widget.sessionId));
     ref.invalidate(collectionConfigsProvider);
   }
 
@@ -578,7 +638,6 @@ class _CollectionSessionScreenState
           if (currentSession?.id == session.id) {
             ref.read(currentSessionProvider.notifier).set(updatedSession);
           }
-          ref.invalidate(sessionByIdProvider(session.id));
         }
       }
     }
@@ -617,9 +676,21 @@ class _CollectionSessionScreenState
           if (currentSession?.id == session.id) {
             ref.read(currentSessionProvider.notifier).set(updatedSession);
           }
-          ref.invalidate(sessionByIdProvider(session.id));
         }
       }
+    }
+  }
+
+  Future<void> _handleTogglePause(CollectionSession session) async {
+    final result = await ref
+        .read(collectionSessionProvider.notifier)
+        .togglePause();
+    if (!mounted || result is! OperationSuccess<CollectionSession>) return;
+    final updated = result.data;
+    if (updated == null) return;
+    final currentSession = ref.read(currentSessionProvider);
+    if (currentSession?.id == session.id) {
+      ref.read(currentSessionProvider.notifier).set(updated);
     }
   }
 
@@ -631,7 +702,9 @@ class _CollectionSessionScreenState
     if (session.state == SessionState.opened ||
         session.state == SessionState.closingControl) {
       final notifier = ref.read(collectionSessionProvider.notifier);
-      final closingCash = await notifier.getExistingCashDetails(CashType.closing);
+      final closingCash = await notifier.getExistingCashDetails(
+        CashType.closing,
+      );
 
       if (closingCash == null && mounted) {
         // No se ha registrado efectivo de cierre — advertir al supervisor
@@ -671,15 +744,12 @@ class _CollectionSessionScreenState
       session: session,
     );
 
-    if (validationResult != null &&
-        validationResult.success &&
-        mounted) {
+    if (validationResult != null && validationResult.success && mounted) {
       // La sesión fue cerrada por el diálogo de validación
       final currentSession = ref.read(currentSessionProvider);
       if (currentSession?.id == session.id) {
         ref.read(currentSessionProvider.notifier).set(null);
       }
-      ref.invalidate(sessionByIdProvider(session.id));
       ref.invalidate(collectionConfigsProvider);
 
       ref.showSuccessNotification(
@@ -1074,25 +1144,22 @@ class _NoClosingCashDialog extends StatelessWidget {
             severity: InfoBarSeverity.warning,
           ),
           const SizedBox(height: 12),
-          Text(
-            '¿Cómo deseas continuar?',
-            style: theme.typography.bodyStrong,
-          ),
+          Text('¿Cómo deseas continuar?', style: theme.typography.bodyStrong),
         ],
       ),
       actions: [
         // Opción 1: Ir a registrar el efectivo
         FilledButton(
-          onPressed: () => Navigator.of(context).pop(
-            _CloseWithoutCountDecision.registerCash,
-          ),
+          onPressed: () =>
+              Navigator.of(context)
+                  .pop(_CloseWithoutCountDecision.registerCash),
           child: const Text('Registrar efectivo'),
         ),
         // Opción 2: Cerrar sin conteo (acción secundaria / menos prominente)
         Button(
-          onPressed: () => Navigator.of(context).pop(
-            _CloseWithoutCountDecision.continueWithoutCount,
-          ),
+          onPressed: () =>
+              Navigator.of(context)
+                  .pop(_CloseWithoutCountDecision.continueWithoutCount),
           child: const Text('Cerrar sin conteo'),
         ),
         // Cancelar todo

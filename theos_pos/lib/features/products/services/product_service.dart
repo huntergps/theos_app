@@ -1,6 +1,6 @@
-
 import '../repositories/product_repository.dart';
 import 'catalog_service.dart';
+
 import 'package:theos_pos_core/theos_pos_core.dart';
 
 /// Servicio unificado de productos - API de alto nivel
@@ -28,11 +28,7 @@ class ProductService {
   final CatalogService _catalog;
   final ProductRepository _repository;
 
-  ProductService({
-    required CatalogService catalog,
-    required ProductRepository repository,
-  })  : _catalog = catalog,
-        _repository = repository;
+  ProductService({required this._catalog, required this._repository});
 
   /// Indica si el cache está cargado
   bool get isCacheLoaded => _catalog.isLoaded;

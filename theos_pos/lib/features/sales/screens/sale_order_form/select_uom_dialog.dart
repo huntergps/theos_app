@@ -2,9 +2,13 @@ import 'package:fluent_ui/fluent_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../core/database/providers.dart';
-import '../../../../core/services/logger_service.dart';
+
+import 'package:odoo_sdk/odoo_sdk.dart' show logger;
+
 import '../../../../shared/utils/formatting_utils.dart';
-import 'package:theos_pos_core/theos_pos_core.dart' show Uom, productManager, uomManager;
+
+import 'package:theos_pos_core/theos_pos_core.dart'
+    show Uom, productManager, uomManager;
 
 // ============================================================================
 // DIALOGO DE SELECCION DE UOM
@@ -146,11 +150,11 @@ class _SelectUomDialogState extends ConsumerState<SelectUomDialog> {
 
   /// Convert a [Uom] model to the map format used by the dialog.
   Map<String, dynamic> _uomToMap(Uom uom) => {
-        'id': uom.id,
-        'name': uom.name,
-        'factor': uom.factor,
-        'uom_type': uom.uomType.name,
-      };
+    'id': uom.id,
+    'name': uom.name,
+    'factor': uom.factor,
+    'uom_type': uom.uomType.name,
+  };
 
   Future<List<Map<String, dynamic>>> _loadUomsFromLocalDb() async {
     List<Map<String, dynamic>> uomList = [];
@@ -163,7 +167,9 @@ class _SelectUomDialogState extends ConsumerState<SelectUomDialog> {
         'Using strict allowedUomIds filter (Odoo 19 compatible): ${widget.allowedUomIds}',
       );
       final uoms = await uomManager.searchLocal(
-        domain: [['id', 'in', widget.allowedUomIds]],
+        domain: [
+          ['id', 'in', widget.allowedUomIds],
+        ],
         orderBy: 'factor asc',
       );
       uomList = uoms.map(_uomToMap).toList();
@@ -190,7 +196,9 @@ class _SelectUomDialogState extends ConsumerState<SelectUomDialog> {
             'Product has allowed UoMs: $uomIdsList',
           );
           final uoms = await uomManager.searchLocal(
-            domain: [['id', 'in', uomIdsList]],
+            domain: [
+              ['id', 'in', uomIdsList],
+            ],
             orderBy: 'factor asc',
           );
           uomList = uoms.map(_uomToMap).toList();
@@ -206,7 +214,9 @@ class _SelectUomDialogState extends ConsumerState<SelectUomDialog> {
 
         if (baseUom != null && baseUom.categoryId != null) {
           final uoms = await uomManager.searchLocal(
-            domain: [['category_id', '=', baseUom.categoryId]],
+            domain: [
+              ['category_id', '=', baseUom.categoryId],
+            ],
             orderBy: 'factor asc',
           );
           uomList = uoms.map(_uomToMap).toList();
@@ -405,15 +415,20 @@ class _SelectUomDialogState extends ConsumerState<SelectUomDialog> {
             ),
           ),
           // Dynamic tax columns
-          ..._taxes.map((tax) => SizedBox(
-                width: 70,
-                child: Text(
-                  tax.shortName,
-                  style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 11),
-                  textAlign: TextAlign.right,
-                  overflow: TextOverflow.ellipsis,
+          ..._taxes.map(
+            (tax) => SizedBox(
+              width: 70,
+              child: Text(
+                tax.shortName,
+                style: const TextStyle(
+                  fontWeight: FontWeight.bold,
+                  fontSize: 11,
                 ),
-              )),
+                textAlign: TextAlign.right,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+          ),
           // If no taxes, show placeholder
           if (_taxes.isEmpty)
             const SizedBox(
@@ -571,27 +586,23 @@ class _SelectUomDialogState extends ConsumerState<SelectUomDialog> {
           ),
         ),
         // Dynamic tax amount columns - one per tax
-        ..._taxes.map((tax) => SizedBox(
-              width: 70,
-              child: Text(
-                (taxAmounts[tax.shortName] ?? 0.0).toCurrency(),
-                style: TextStyle(
-                  fontSize: 12,
-                  color: theme.inactiveColor,
-                ),
-                textAlign: TextAlign.right,
-              ),
-            )),
+        ..._taxes.map(
+          (tax) => SizedBox(
+            width: 70,
+            child: Text(
+              (taxAmounts[tax.shortName] ?? 0.0).toCurrency(),
+              style: TextStyle(fontSize: 12, color: theme.inactiveColor),
+              textAlign: TextAlign.right,
+            ),
+          ),
+        ),
         // If no taxes defined, show placeholder with total
         if (_taxes.isEmpty)
           SizedBox(
             width: 70,
             child: Text(
               totalTax.toCurrency(),
-              style: TextStyle(
-                fontSize: 12,
-                color: theme.inactiveColor,
-              ),
+              style: TextStyle(fontSize: 12, color: theme.inactiveColor),
               textAlign: TextAlign.right,
             ),
           ),

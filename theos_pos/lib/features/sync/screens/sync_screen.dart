@@ -30,7 +30,6 @@ class SyncScreen extends ConsumerStatefulWidget {
   ConsumerState<SyncScreen> createState() => _SyncScreenState();
 }
 
-
 class _SyncScreenState extends ConsumerState<SyncScreen> {
   /// Database path (loaded asynchronously)
   String? _databasePath;
@@ -129,7 +128,8 @@ class _SyncScreenState extends ConsumerState<SyncScreen> {
     try {
       final directory = await getApplicationDocumentsDirectory();
       // Use the actual database name from DatabaseHelper
-      final currentDbName = DatabaseHelper.currentDatabaseName ?? 'theos_pos_db';
+      final currentDbName =
+          DatabaseHelper.currentDatabaseName ?? 'theos_pos_db';
       final dbPath = '${directory.path}/$currentDbName.sqlite';
       if (mounted) {
         setState(() {
@@ -155,7 +155,9 @@ class _SyncScreenState extends ConsumerState<SyncScreen> {
   }
 
   Future<void> _openDatabaseFolder() async {
-    if (!kIsWeb && _databasePath != null && defaultTargetPlatform == TargetPlatform.macOS) {
+    if (!kIsWeb &&
+        _databasePath != null &&
+        defaultTargetPlatform == TargetPlatform.macOS) {
       final directory = _databasePath!.substring(
         0,
         _databasePath!.lastIndexOf('/'),
@@ -275,7 +277,9 @@ class _SyncScreenState extends ConsumerState<SyncScreen> {
             onPressed: () => Navigator.pop(context, false),
           ),
           FilledButton(
-            style: ButtonStyle(backgroundColor: WidgetStatePropertyAll(AppColors.danger)),
+            style: ButtonStyle(
+              backgroundColor: WidgetStatePropertyAll(AppColors.danger),
+            ),
             child: const Text('Eliminar Todo'),
             onPressed: () => Navigator.pop(context, true),
           ),
@@ -284,6 +288,12 @@ class _SyncScreenState extends ConsumerState<SyncScreen> {
     );
 
     if (confirmed != true || !mounted) return;
+
+    final activeDatabaseName = DatabaseHelper.currentDatabaseName;
+    if (activeDatabaseName == null || activeDatabaseName.isEmpty) {
+      context.showSyncError('No hay una base activa para reinicializar.');
+      return;
+    }
 
     try {
       if (mounted) {
@@ -308,7 +318,7 @@ class _SyncScreenState extends ConsumerState<SyncScreen> {
       }
 
       // Re-initialize database and providers
-      await DatabaseHelper.initialize();
+      await DatabaseHelper.initializeForServer(activeDatabaseName);
       if (mounted) {
         ref.read(databaseHelperProvider.notifier).set(DatabaseHelper.instance);
       }
@@ -353,7 +363,7 @@ class _SyncScreenState extends ConsumerState<SyncScreen> {
 
         // Try to recover by re-initializing anyway
         try {
-          await DatabaseHelper.initialize();
+          await DatabaseHelper.initializeForServer(activeDatabaseName);
           ref
               .read(databaseHelperProvider.notifier)
               .set(DatabaseHelper.instance);
@@ -702,7 +712,9 @@ class _DatabasePathDisplay extends StatelessWidget {
               ),
             ),
             if (!kIsWeb &&
-                (defaultTargetPlatform == TargetPlatform.macOS || defaultTargetPlatform == TargetPlatform.windows || defaultTargetPlatform == TargetPlatform.linux))
+                (defaultTargetPlatform == TargetPlatform.macOS ||
+                    defaultTargetPlatform == TargetPlatform.windows ||
+                    defaultTargetPlatform == TargetPlatform.linux))
               Tooltip(
                 message: 'Abrir carpeta',
                 child: IconButton(
@@ -730,4 +742,3 @@ class _DatabasePathDisplay extends StatelessWidget {
     );
   }
 }
-

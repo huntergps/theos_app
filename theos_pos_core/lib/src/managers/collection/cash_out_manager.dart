@@ -47,8 +47,7 @@ extension CashOutManagerBusiness on CashOutManager {
       lastSyncDate: DateTime.now(),
     );
 
-    final companion = createDriftCompanion(synced) as drift.Insertable<CashOutData>;
-    await _db.into(_db.cashOut).insertOnConflictUpdate(companion);
+    await upsertLocal(synced);
   }
 
   /// Upsert multiple cash outs from Odoo
@@ -60,8 +59,7 @@ extension CashOutManagerBusiness on CashOutManager {
 
   /// Upsert a single cash out (for local operations)
   Future<void> upsertCashOut(CashOut cashOut) async {
-    final companion = createDriftCompanion(cashOut) as drift.Insertable<CashOutData>;
-    await _db.into(_db.cashOut).insertOnConflictUpdate(companion);
+    await upsertLocal(cashOut);
   }
 
   // ═══════════════════════════════════════════════════════════════════════════

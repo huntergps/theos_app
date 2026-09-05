@@ -28,10 +28,8 @@
 	<string>MainMenu</string>
 	<key>NSPrincipalClass</key>
 	<string>NSApplication</string>
-	<key>NSAppTransportSecurity</key>
-	<dict>
-		<key>NSAllowsArbitraryLoads</key>
-		<true/>
-	</dict>
+	<!-- Skia/Metal is currently more stable than Impeller on the supported macOS GPUs. -->
+	<key>FLTEnableImpeller</key>
+	<false/>
 </dict>
 </plist>

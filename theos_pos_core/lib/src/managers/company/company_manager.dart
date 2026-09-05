@@ -8,9 +8,6 @@ import '../../models/company/company.model.dart';
 
 /// Extension methods for CompanyManager (generated)
 extension CompanyManagerBusiness on CompanyManager {
-  /// Get a company by Odoo ID (alias for readLocal)
-  Future<Company?> getById(int odooId) => readLocal(odooId);
-
   /// Get the first (main) company
   Future<Company?> getMain() async {
     final companies = await searchLocal(limit: 1);
@@ -63,12 +60,10 @@ extension CompanyManagerBusiness on CompanyManager {
       'max_discount_percentage': 'max_discount_percentage',
       'credit_overdue_days_threshold': 'credit_overdue_days_threshold',
       'credit_overdue_invoices_threshold': 'credit_overdue_invoices_threshold',
-      'pedir_end_customer_data': 'pedir_end_customer_data',
+      'pedir_datos_consumidor_final': 'pedir_end_customer_data',
       'pedir_sale_referrer': 'pedir_sale_referrer',
       'pedir_tipo_canal_cliente': 'pedir_tipo_canal_cliente',
       'reservation_expiry_days': 'reservation_expiry_days',
-      'reservation_warehouse_id': 'reservation_warehouse_id',
-      'reservation_warehouse_name': 'reservation_warehouse_name',
       'reservation_location_id': 'reservation_location_id',
       'reservation_location_name': 'reservation_location_name',
       'reserve_from_quotation': 'reserve_from_quotation',
@@ -130,7 +125,8 @@ extension CompanyManagerBusiness on CompanyManager {
 
     sqlValues.add(companyId);
 
-    final sql = '''
+    final sql =
+        '''
       UPDATE res_company
       SET ${setParts.join(', ')}
       WHERE odoo_id = ?

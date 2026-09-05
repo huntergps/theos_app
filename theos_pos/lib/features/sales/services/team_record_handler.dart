@@ -2,6 +2,7 @@ import 'package:drift/drift.dart';
 
 import 'package:theos_pos_core/theos_pos_core.dart';
 import 'package:odoo_sdk/odoo_sdk.dart' as odoo;
+
 import '../../../core/services/handlers/model_record_handler.dart';
 
 /// Handler for crm.team records
@@ -22,9 +23,9 @@ class TeamRecordHandler extends ModelRecordHandler {
 
   @override
   Future<bool> exists(AppDatabase db, int odooId) async {
-    final result = await (db.select(db.crmTeam)
-          ..where((t) => t.odooId.equals(odooId)))
-        .getSingleOrNull();
+    final result = await (db.select(
+      db.crmTeam,
+    )..where((t) => t.odooId.equals(odooId))).getSingleOrNull();
     return result != null;
   }
 
@@ -32,9 +33,9 @@ class TeamRecordHandler extends ModelRecordHandler {
   Future<void> upsert(AppDatabase db, Map<String, dynamic> data) async {
     final id = data['id'] as int;
 
-    final existing = await (db.select(db.crmTeam)
-          ..where((t) => t.odooId.equals(id)))
-        .getSingleOrNull();
+    final existing = await (db.select(
+      db.crmTeam,
+    )..where((t) => t.odooId.equals(id))).getSingleOrNull();
 
     final companion = CrmTeamCompanion(
       odooId: Value(id),
@@ -49,8 +50,9 @@ class TeamRecordHandler extends ModelRecordHandler {
     );
 
     if (existing != null) {
-      await (db.update(db.crmTeam)..where((t) => t.odooId.equals(id)))
-          .write(companion);
+      await (db.update(
+        db.crmTeam,
+      )..where((t) => t.odooId.equals(id))).write(companion);
     } else {
       await db.into(db.crmTeam).insert(companion);
     }

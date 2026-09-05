@@ -1,6 +1,11 @@
 import 'package:web_socket_channel/web_socket_channel.dart';
 
 /// Web implementation - creates WebSocket without custom headers
-Future<WebSocketChannel> createWebSocketChannel(Uri uri, String baseUrl) async {
+Future<WebSocketChannel> createWebSocketChannel(
+  Uri uri,
+  String baseUrl, {
+  String? apiKey,
+  String? database,
+}) async {
   return WebSocketChannel.connect(uri);
 }

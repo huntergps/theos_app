@@ -1,8 +1,10 @@
-import 'package:test/test.dart';
+import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter_qweb/src/qweb_report_engine.dart';
 import 'package:flutter_qweb/src/models/template_context.dart';
 
 void main() {
+  TestWidgetsFlutterBinding.ensureInitialized();
+
   group('PDF report generation', () {
     late QWebReportEngine engine;
     late Map<String, dynamic> saleOrder;
@@ -99,10 +101,7 @@ void main() {
           'street': 'Av. Principal 123',
           'city': 'Quito',
         },
-        'user_id': {
-          'id': 2,
-          'name': 'Vendedor Test',
-        },
+        'user_id': {'id': 2, 'name': 'Vendedor Test'},
         'order_line': [
           {
             'id': 1,
@@ -111,7 +110,7 @@ void main() {
               'id': 1,
               'name': 'Producto de Prueba',
               'barcode': 'PROD001',
-              'default_code': 'PROD001'
+              'default_code': 'PROD001',
             },
             'product_uom_qty': 5.0,
             'price_unit': 100.00,
@@ -119,7 +118,7 @@ void main() {
             'price_subtotal': 450.00,
             'price_total': 540.00,
             'tax_ids': [
-              {'id': 1, 'tax_label': 'IVA 12%'}
+              {'id': 1, 'tax_label': 'IVA 12%'},
             ],
             'display_type': false,
             'is_downpayment': false,
@@ -132,7 +131,7 @@ void main() {
               'id': 2,
               'name': 'Segundo Producto',
               'barcode': 'PROD002',
-              'default_code': 'PROD002'
+              'default_code': 'PROD002',
             },
             'product_uom_qty': 10.0,
             'price_unit': 105.00,
@@ -140,7 +139,7 @@ void main() {
             'price_subtotal': 1050.00,
             'price_total': 1140.00,
             'tax_ids': [
-              {'id': 1, 'tax_label': 'IVA 12%'}
+              {'id': 1, 'tax_label': 'IVA 12%'},
             ],
             'display_type': false,
             'is_downpayment': false,
@@ -164,8 +163,7 @@ void main() {
         l['is_downpayment'] ??= false;
         if (l['discount_amount'] == null) {
           final priceUnit = (l['price_unit'] as num?)?.toDouble() ?? 0.0;
-          final qty =
-              (l['product_uom_qty'] as num?)?.toDouble() ?? 0.0;
+          final qty = (l['product_uom_qty'] as num?)?.toDouble() ?? 0.0;
           final discount = (l['discount'] as num?)?.toDouble() ?? 0.0;
           l['discount_amount'] = priceUnit * qty * discount / 100.0;
         }
@@ -206,14 +204,12 @@ void main() {
     });
 
     test('has discount detection works', () {
-      final hasDiscounts =
-          orderLines.any((l) => (l['discount'] as num) > 0);
+      final hasDiscounts = orderLines.any((l) => (l['discount'] as num) > 0);
       expect(hasDiscounts, isTrue);
     });
 
     test('_get_order_lines_to_report returns all lines', () {
-      final getFunc =
-          saleOrder['_get_order_lines_to_report'] as Function;
+      final getFunc = saleOrder['_get_order_lines_to_report'] as Function;
       final linesToReport = getFunc() as List;
       expect(linesToReport.length, equals(2));
     });

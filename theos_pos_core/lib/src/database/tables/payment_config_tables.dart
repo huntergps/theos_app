@@ -244,6 +244,8 @@ class AdvanceLinesTable extends Table {
   String get tableName => 'advance_lines';
   IntColumn get id => integer().autoIncrement()();
   IntColumn get odooId => integer().unique()();
+  /// Local parent relation used to rebuild Advance.lines after restart.
+  IntColumn get advanceId => integer().nullable()();
   TextColumn get lineUuid => text().nullable()(); // UUID local para sync
   IntColumn get journalId => integer()();
   TextColumn get journalName => text().nullable()();

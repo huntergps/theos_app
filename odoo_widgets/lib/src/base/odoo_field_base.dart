@@ -268,6 +268,3 @@ abstract class OdooFieldBase<T> extends StatelessWidget {
     );
   }
 }
-
-/// Backward-compatible alias.
-typedef ReactiveFieldBase<T> = OdooFieldBase<T>;

@@ -1,5 +1,5 @@
 name: theos_pos
-description: "A new Flutter project."
+description: "Orbi ERP: cliente Flutter offline-first para Odoo JSON-2."
 # The following line prevents the package from being accidentally published to
 # pub.dev using `flutter pub publish`. This is preferred for private packages.
 publish_to: 'none' # Remove this line if you wish to publish to pub.dev
@@ -19,7 +19,8 @@ publish_to: 'none' # Remove this line if you wish to publish to pub.dev
 version: 1.0.0+1
 
 environment:
-  sdk: ^3.10.0
+  sdk: ">=3.13.0 <4.0.0"
+  flutter: ">=3.47.0"
 
 # Dependencies specify other packages that your package needs in order to work.
 # To automatically upgrade your package dependencies to the latest versions
@@ -32,74 +33,63 @@ dependencies:
     sdk: flutter
   flutter_qweb:
     path: ../flutter_qweb
-  fluent_ui: ^4.15.0
-  flutter_riverpod: ^3.0.0
-  riverpod_annotation: ^4.0.0
-  dio: ^5.7.0
+  fluent_ui: ^4.16.1
+  flutter_riverpod: ^3.4.2
+  riverpod_annotation: ^4.0.6
+  dio: ^5.11.0
   odoo_sdk:
     path: ../odoo_sdk
   odoo_widgets:
     path: ../odoo_widgets
-  shared_preferences: ^2.2.2
-  system_theme: ^3.1.2
-  window_manager: ^0.5.0
-  flutter_acrylic: ^1.0.0+2
-  url_launcher: ^6.1.7
-  go_router: ^17.0.1
-  google_fonts: ^8.0.0
-  intl: ^0.20.2
+  shared_preferences: ^2.5.5
+  flutter_secure_storage: ^11.0.0
+  system_theme: ^3.3.0
+  window_manager: ^0.5.2
+  flutter_acrylic: ^1.1.4
+  go_router: ^18.0.0
+  intl: ^0.20.3
 
-  # The following adds the Cupertino Icons font to your application.
-  # Use with the CupertinoIcons class for iOS style icons.
-  cupertino_icons: ^1.0.8
-  uuid: ^4.5.2
-  collection: ^1.18.0
+  # Fluent UI and platform plugins reference Cupertino icon glyphs.
+  cupertino_icons: ^1.0.9
+  uuid: ^4.6.0
+  collection: ^1.19.1
   flutter_html: ^3.0.0
-  file_picker: ^10.3.7
-  image: ^4.5.4
+  file_picker: ^12.1.0
+  image: ^4.9.2
 
   # Offline-first data layer with Drift
-  drift: ^2.20.3
-  drift_flutter: ^0.2.8
-  sqlite3_flutter_libs: ^0.5.0
-  path: ^1.9.0
-  path_provider: ^2.1.0
-  freezed_annotation: ^3.0.0
-  json_annotation: ^4.9.0
+  drift: ^2.34.3
+  drift_flutter: ^0.3.1
+  path: ^1.9.1
+  path_provider: ^2.1.6
+  freezed_annotation: ^3.1.0
+  json_annotation: ^4.12.0
 
   # Syncfusion DataGrid for professional tables
-  syncfusion_flutter_datagrid: ^32.1.23
-  syncfusion_flutter_core: ^32.1.23
-  syncfusion_flutter_xlsio: ^32.1.23
-  syncfusion_flutter_datagrid_export: ^32.1.23
-  share_plus: ^12.0.1
+  syncfusion_flutter_datagrid: ^34.2.5
+  syncfusion_flutter_core: ^34.2.5
+  syncfusion_flutter_datagrid_export: ^34.2.5
+  share_plus: ^13.3.0
   dartz: ^0.10.1
 
-  # PDF generation and printing
-  pdf: ^3.11.1
-  printing: ^5.13.3
-  html: ^0.15.5
-  xml: ^6.5.0
-
   # Syncfusion PDF (generation and viewing)
-  syncfusion_flutter_pdf: ^32.1.23
-  syncfusion_flutter_pdfviewer: ^32.1.23
-  open_file: ^3.5.10
+  syncfusion_flutter_pdfviewer: ^34.2.5
+  open_file: ^4.0.0
   theos_pos_core:
     path: ../theos_pos_core
-  flutter_svg: ^2.2.3
-  connectivity_plus: ^7.0.0
-  web: ^1.1.0
+  flutter_svg: ^2.3.0
+  connectivity_plus: ^7.3.1
+  web: ^1.1.1
 
 dev_dependencies:
   flutter_test:
     sdk: flutter
-  riverpod_generator: ^4.0.0+1
-  build_runner: ^2.10.5
-  analyzer: ^8.4.0
-  custom_lint: ^0.8.1
-  riverpod_lint: ^3.0.0
-  drift_dev: ^2.20.3
+  integration_test:
+    sdk: flutter
+  riverpod_generator: ^4.0.8
+  build_runner: ^2.16.0
+  analyzer: ^13.3.0
+  drift_dev: ^2.34.5
 
   # The "flutter_lints" package below contains a set of recommended lints to
   # encourage good coding practices. The lint set provided by the package is
@@ -107,9 +97,9 @@ dev_dependencies:
   # package. See that file for information about deactivating specific lint
   # rules and activating additional ones.
   flutter_lints: ^6.0.0
-  freezed: ^3.0.0
-  json_serializable: ^6.8.0
-  mocktail: ^1.0.0
+  freezed: ^4.0.0
+  json_serializable: ^6.14.1
+  mocktail: ^1.0.5
   flutter_launcher_icons: ^0.14.4
 # For information on the generic Dart part of this file, see the
 # following page: https://dart.dev/tools/pub/pubspec
@@ -124,7 +114,6 @@ flutter:
 
   assets:
     - assets/images/
-    - assets/fonts/
 
   # To add assets to your application, add an assets section, like this:
   # assets:

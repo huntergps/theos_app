@@ -82,6 +82,7 @@ const _$AdvanceTypeEnumMap = {
 _AdvanceLine _$AdvanceLineFromJson(Map<String, dynamic> json) => _AdvanceLine(
   id: (json['id'] as num?)?.toInt() ?? 0,
   lineUuid: json['lineUuid'] as String?,
+  advanceId: (json['advanceId'] as num?)?.toInt(),
   journalId: (json['journalId'] as num).toInt(),
   journalName: json['journalName'] as String?,
   journalType: json['journalType'] as String?,
@@ -107,6 +108,7 @@ Map<String, dynamic> _$AdvanceLineToJson(_AdvanceLine instance) =>
     <String, dynamic>{
       'id': instance.id,
       'lineUuid': instance.lineUuid,
+      'advanceId': instance.advanceId,
       'journalId': instance.journalId,
       'journalName': instance.journalName,
       'journalType': instance.journalType,
@@ -630,7 +632,6 @@ class AdvanceLineManager extends OdooModelManager<AdvanceLine>
   List<String> get odooFields => [
     'id',
     'journal_id',
-    'journal_type',
     'advance_method_line_id',
     'amount',
     'nro_document',
@@ -651,7 +652,6 @@ class AdvanceLineManager extends OdooModelManager<AdvanceLine>
       id: data['id'] as int? ?? 0,
       journalId: extractMany2oneId(data['journal_id']) ?? 0,
       journalName: extractMany2oneName(data['journal_id']),
-      journalType: parseOdooString(data['journal_type']),
       advanceMethodLineId: extractMany2oneId(data['advance_method_line_id']),
       advanceMethodName: extractMany2oneName(data['advance_method_line_id']),
       amount: parseOdooDouble(data['amount']) ?? 0.0,
@@ -674,7 +674,6 @@ class AdvanceLineManager extends OdooModelManager<AdvanceLine>
   Map<String, dynamic> toOdoo(AdvanceLine record) {
     return {
       'journal_id': record.journalId,
-      'journal_type': record.journalType,
       'advance_method_line_id': record.advanceMethodLineId,
       'amount': record.amount,
       'nro_document': record.documentNumber,
@@ -691,6 +690,7 @@ class AdvanceLineManager extends OdooModelManager<AdvanceLine>
     return AdvanceLine(
       id: row.odooId as int,
       lineUuid: row.lineUuid as String?,
+      advanceId: row.advanceId as int?,
       journalId: row.journalId as int,
       journalName: row.journalName as String?,
       journalType: row.journalType as String?,
@@ -734,7 +734,6 @@ class AdvanceLineManager extends OdooModelManager<AdvanceLine>
   static const Map<String, String> fieldMappings = {
     'id': 'id',
     'journal_id': 'journalId',
-    'journal_type': 'journalType',
     'advance_method_line_id': 'advanceMethodLineId',
     'amount': 'amount',
     'nro_document': 'documentNumber',
@@ -784,7 +783,6 @@ class AdvanceLineManager extends OdooModelManager<AdvanceLine>
       'odoo_id': Variable<int>(record.id),
       'journal_id': Variable<int>(record.journalId),
       'journal_name': driftVar<String>(record.journalName),
-      'journal_type': driftVar<String>(record.journalType),
       'advance_method_line_id': driftVar<int>(record.advanceMethodLineId),
       'advance_method_name': driftVar<String>(record.advanceMethodName),
       'amount': Variable<double>(record.amount),
@@ -798,13 +796,14 @@ class AdvanceLineManager extends OdooModelManager<AdvanceLine>
       'card_deadline_id': driftVar<int>(record.cardDeadlineId),
       'card_deadline_name': driftVar<String>(record.cardDeadlineName),
       'line_uuid': driftVar<String>(record.lineUuid),
+      'advance_id': driftVar<int>(record.advanceId),
+      'journal_type': driftVar<String>(record.journalType),
     });
   }
 
   /// List of writable fields for partial updates.
   static const List<String> writableFields = [
     'journalId',
-    'journalType',
     'advanceMethodLineId',
     'amount',
     'documentNumber',
@@ -822,6 +821,7 @@ class AdvanceLineManager extends OdooModelManager<AdvanceLine>
   static const Map<String, String> fieldLabels = {
     'id': 'Id',
     'lineUuid': 'Line Uuid',
+    'advanceId': 'Advance Id',
     'journalId': 'Journal Id',
     'journalName': 'Journal Name',
     'journalType': 'Journal Type',
@@ -875,6 +875,8 @@ class AdvanceLineManager extends OdooModelManager<AdvanceLine>
         return record.id;
       case 'lineUuid':
         return record.lineUuid;
+      case 'advanceId':
+        return record.advanceId;
       case 'journalId':
         return record.journalId;
       case 'journalName':
@@ -920,7 +922,11 @@ class AdvanceLineManager extends OdooModelManager<AdvanceLine>
     current['id'] = getId(record);
     var updated = fromOdoo(current);
     // Preserve local-only fields from original record
-    updated = updated.copyWith(lineUuid: record.lineUuid);
+    updated = updated.copyWith(
+      lineUuid: record.lineUuid,
+      advanceId: record.advanceId,
+      journalType: record.journalType,
+    );
     return updated;
   }
 
@@ -931,6 +937,8 @@ class AdvanceLineManager extends OdooModelManager<AdvanceLine>
         return (obj as dynamic).odooId;
       case 'lineUuid':
         return (obj as dynamic).lineUuid;
+      case 'advanceId':
+        return (obj as dynamic).advanceId;
       case 'journalId':
         return (obj as dynamic).journalId;
       case 'journalName':
@@ -981,6 +989,7 @@ class AdvanceLineManager extends OdooModelManager<AdvanceLine>
   List<String> get storedFieldNames => const [
     'id',
     'lineUuid',
+    'advanceId',
     'journalId',
     'journalName',
     'journalType',
@@ -1001,7 +1010,6 @@ class AdvanceLineManager extends OdooModelManager<AdvanceLine>
   @override
   List<String> get writableFieldNames => const [
     'journalId',
-    'journalType',
     'advanceMethodLineId',
     'amount',
     'documentNumber',

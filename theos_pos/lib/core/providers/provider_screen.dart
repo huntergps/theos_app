@@ -38,7 +38,9 @@ abstract class ProviderInitializedScreen extends ConsumerStatefulWidget {
   ProviderInitializedScreenState createState();
 }
 
-abstract class ProviderInitializedScreenState<T extends ProviderInitializedScreen>
+abstract class ProviderInitializedScreenState<
+  T extends ProviderInitializedScreen
+>
     extends ConsumerState<T> {
   bool _initialized = false;
 

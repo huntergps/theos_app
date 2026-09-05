@@ -5,16 +5,9 @@
 ///
 /// ## Primitive Widgets (from odoo_widgets)
 ///
-/// - [ReactiveTextField] / [OdooTextField]
-/// - [ReactiveNumberField] / [OdooNumberField]
-/// - [ReactiveMoneyField] / [OdooMoneyField]
-/// - [ReactivePercentField] / [OdooPercentField]
-/// - [ReactiveDateField] / [OdooDateField]
-/// - [ReactiveBooleanField] / [OdooBooleanField]
-/// - [ReactiveSelectionField] / [OdooSelectionField]
-/// - [ReactiveMultilineField] / [OdooMultilineField]
-/// - [ReactiveStatusField] / [OdooStatusField]
-/// - [ReactiveSummaryRow] / [OdooSummaryRow]
+/// - [OdooTextField], [OdooNumberField], [OdooDateField]
+/// - [OdooBooleanField], [OdooSelectionField], [OdooMultilineField]
+/// - [OdooStatusField], [OdooSummaryRow]
 /// - [NumberInputBase] — low-level number input
 ///
 /// ## Domain Widgets (local, Riverpod-based)
@@ -30,56 +23,38 @@ library;
 // Config + local theme
 export 'reactive_field_base.dart';
 
-// Primitive widgets from odoo_widgets (with backward-compatible Reactive* typedefs)
-// NOTE: ReactiveMasterSelector / ReactiveRelatedField NOT exported here
-// because the local versions (Riverpod-based) take precedence.
+// Primitive widgets from odoo_widgets. Domain-specific local widgets keep
+// their Reactive* names because they represent Riverpod behavior, not aliases.
 export 'package:odoo_widgets/odoo_widgets.dart'
     show
         // Base
         OdooFieldBase,
         // Text
         OdooTextField,
-        ReactiveTextField,
         OdooInlineTextField,
-        ReactiveInlineTextField,
         // Numbers
         OdooNumberField,
-        ReactiveNumberField,
         OdooMoneyField,
-        ReactiveMoneyField,
         OdooPercentField,
-        ReactivePercentField,
         OdooNumberInput,
-        ReactiveNumberInput,
         NumberInputBase,
         // Date
         OdooDateField,
-        ReactiveDateField,
         OdooDateRangeField,
-        ReactiveDateRangeField,
         // Boolean
         OdooBooleanField,
-        ReactiveBooleanField,
         OdooTristateBooleanField,
-        ReactiveTristateBooleanField,
         // Selection
         OdooSelectionField,
-        ReactiveSelectionField,
         SelectionOption,
         OdooStatusField,
-        ReactiveStatusField,
         // Multiline
         OdooMultilineField,
-        ReactiveMultilineField,
         OdooCollapsibleTextField,
-        ReactiveCollapsibleTextField,
         // Summary
         OdooSummaryRow,
-        ReactiveSummaryRow,
         OdooSummaryHeader,
-        ReactiveSummaryHeader,
         OdooSummaryCard,
-        ReactiveSummaryCard,
         // Builders
         OdooContentBuilder,
         OdooRecordBuilder;

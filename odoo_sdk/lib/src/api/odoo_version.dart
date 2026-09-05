@@ -10,7 +10,8 @@ class OdooVersion implements Comparable<OdooVersion> {
     required this.raw,
   });
 
-  /// Parse from server_version string like "saas-19.2", "19.1", "19.0"
+  /// Parse from server version strings such as `saas-19.2`, `19.1+e`, or
+  /// `Odoo Server 20.0+e`.
   factory OdooVersion.parse(String versionString) {
     final raw = versionString;
     // Remove "saas-" prefix if present
@@ -51,6 +52,18 @@ class OdooVersion implements Comparable<OdooVersion> {
   static const unknown = OdooVersion(major: 0, minor: 0, raw: 'unknown');
 
   bool get isUnknown => major == 0 && minor == 0;
+
+  /// Whether this is an Odoo 19.x release supported by this SDK.
+  bool get isOdoo19 => major == 19;
+
+  /// Whether this is an Odoo 20.x release supported by this SDK.
+  bool get isOdoo20 => major == 20;
+
+  /// The SDK's explicitly supported major versions.
+  ///
+  /// A future version is not accepted implicitly: it needs its own contract
+  /// fixtures and capability evidence before becoming supported.
+  bool get isSupported => isOdoo19 || isOdoo20;
 
   /// Check if this version is at least the given version
   bool isAtLeast(int major, [int minor = 0]) {

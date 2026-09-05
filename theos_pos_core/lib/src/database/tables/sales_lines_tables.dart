@@ -19,7 +19,8 @@ class SaleOrderLine extends Table {
   // Product
   IntColumn get productId => integer().nullable()();
   TextColumn get productName => text().nullable()();
-  TextColumn get productCode => text().nullable()(); // default_code from product (local-only field)
+  TextColumn get productCode =>
+      text().nullable()(); // default_code from product (local-only field)
   IntColumn get productTemplateId => integer().nullable()();
   TextColumn get productTemplateName => text().nullable()();
   TextColumn get productType =>
@@ -43,7 +44,8 @@ class SaleOrderLine extends Table {
   RealColumn get priceSubtotal => real().withDefault(const Constant(0.0))();
   RealColumn get priceTax => real().withDefault(const Constant(0.0))();
   RealColumn get priceTotal => real().withDefault(const Constant(0.0))();
-  RealColumn get priceReduceTaxexcl => real().withDefault(const Constant(0.0))();
+  RealColumn get priceReduceTaxexcl =>
+      real().withDefault(const Constant(0.0))();
 
   // Taxes (JSON array of IDs)
   TextColumn get taxIds => text().nullable()();
@@ -61,20 +63,36 @@ class SaleOrderLine extends Table {
   TextColumn get state => text().nullable()();
 
   // Section settings (Odoo 19)
-  BoolColumn get collapsePrices => boolean().withDefault(const Constant(false))();
-  BoolColumn get collapseComposition => boolean().withDefault(const Constant(false))();
+  BoolColumn get collapsePrices =>
+      boolean().withDefault(const Constant(false))();
+  BoolColumn get collapseComposition =>
+      boolean().withDefault(const Constant(false))();
   BoolColumn get isOptional => boolean().withDefault(const Constant(false))();
 
   // Margin (sale_margin)
-  RealColumn get margin => real().withDefault(const Constant(0.0))(); // Local computed field — updated via SQL, not via model
-  RealColumn get marginPercent => real().withDefault(const Constant(0.0))(); // Local computed field — updated via SQL, not via model
-  RealColumn get purchasePrice => real().withDefault(const Constant(0.0))(); // Local computed field — updated via SQL, not via model
-  RealColumn get lastPurchaseCost => real().withDefault(const Constant(0.0))(); // Local computed field — updated via SQL, not via model
+  RealColumn get margin => real().withDefault(
+    const Constant(0.0),
+  )(); // Local computed field — updated via SQL, not via model
+  RealColumn get marginPercent => real().withDefault(
+    const Constant(0.0),
+  )(); // Local computed field — updated via SQL, not via model
+  RealColumn get purchasePrice => real().withDefault(
+    const Constant(0.0),
+  )(); // Local computed field — updated via SQL, not via model
+  RealColumn get lastPurchaseCost => real().withDefault(
+    const Constant(0.0),
+  )(); // Local computed field — updated via SQL, not via model
 
   // Cost (l10n_ec_sale_base)
-  RealColumn get totalCostLine => real().withDefault(const Constant(0.0))(); // Local computed field — updated via SQL, not via model
-  RealColumn get taxAmount => real().withDefault(const Constant(0.0))(); // Local computed field — updated via SQL, not via model
-  RealColumn get amountUndiscounted => real().withDefault(const Constant(0.0))(); // Local computed field — updated via SQL, not via model
+  RealColumn get totalCostLine => real().withDefault(
+    const Constant(0.0),
+  )(); // Local computed field — updated via SQL, not via model
+  RealColumn get taxAmount => real().withDefault(
+    const Constant(0.0),
+  )(); // Local computed field — updated via SQL, not via model
+  RealColumn get amountUndiscounted => real().withDefault(
+    const Constant(0.0),
+  )(); // Local computed field — updated via SQL, not via model
 
   // Tax names (for display)
   TextColumn get taxNames => text().nullable()();
@@ -99,7 +117,8 @@ class SaleOrderLine extends Table {
 class SaleOrderWithholdLine extends Table {
   IntColumn get id => integer().autoIncrement()();
   IntColumn get odooId => integer().unique().nullable()();
-  TextColumn get lineUuid => text().unique().nullable()(); // Local UUID for offline sync
+  TextColumn get lineUuid =>
+      text().unique().nullable()(); // Local UUID for offline sync
 
   // Reference to sale order
   IntColumn get orderId => integer()(); // FK to SaleOrder.odooId
@@ -108,20 +127,18 @@ class SaleOrderWithholdLine extends Table {
   // Tax information
   IntColumn get taxId => integer()();
   TextColumn get taxName => text()();
-  RealColumn get taxPercent => real().withDefault(const Constant(0.0))(); // e.g., 0.30 for 30%
-  TextColumn get withholdType => text()(); // 'withhold_vat_sale' or 'withhold_income_sale'
+  RealColumn get taxPercent =>
+      real().withDefault(const Constant(0.0))(); // e.g., 0.30 for 30%
+  TextColumn get withholdType =>
+      text()(); // 'withhold_vat_sale' or 'withhold_income_sale'
 
   // Tax support code (Ecuador SRI)
-  TextColumn get taxsupportCode => text().nullable()(); // '01', '02', '03', '04', '05'
+  TextColumn get taxsupportCode =>
+      text().nullable()(); // '01', '02', '03', '04', '05'
 
   // Amounts
   RealColumn get base => real().withDefault(const Constant(0.0))();
   RealColumn get amount => real().withDefault(const Constant(0.0))();
-
-  // Legacy aliases (for backwards compatibility)
-  RealColumn get baseAmount => real().withDefault(const Constant(0.0))();
-  RealColumn get taxAmount => real().withDefault(const Constant(0.0))();
-  RealColumn get percentage => real().withDefault(const Constant(0.0))();
 
   // Notes
   TextColumn get notes => text().nullable()();
@@ -136,15 +153,18 @@ class SaleOrderWithholdLine extends Table {
 class SaleOrderPaymentLine extends Table {
   IntColumn get id => integer().autoIncrement()();
   IntColumn get odooId => integer().unique().nullable()();
-  TextColumn get lineUuid => text().unique().nullable()(); // Local UUID for offline sync
+  TextColumn get lineUuid =>
+      text().unique().nullable()(); // Local UUID for offline sync
 
   // Local identifiers
   TextColumn get uuid => text().nullable()();
-  TextColumn get type => text().nullable()(); // cash, card, transfer, check, advance, credit_note
+  TextColumn get type =>
+      text().nullable()(); // cash, card, transfer, check, advance, credit_note
 
   // References
   IntColumn get orderId => integer()(); // FK to SaleOrder.odooId
-  TextColumn get paymentType => text().withDefault(const Constant('inbound'))(); // inbound, outbound
+  TextColumn get paymentType =>
+      text().withDefault(const Constant('inbound'))(); // inbound, outbound
   IntColumn get journalId => integer().nullable()();
   TextColumn get journalName => text().nullable()();
   TextColumn get journalType => text().nullable()(); // cash, bank, card, etc.
@@ -185,7 +205,8 @@ class SaleOrderPaymentLine extends Table {
 
   // Advance/Credit note availability
   RealColumn get advanceAvailable => real().withDefault(const Constant(0.0))();
-  RealColumn get creditNoteAvailable => real().withDefault(const Constant(0.0))();
+  RealColumn get creditNoteAvailable =>
+      real().withDefault(const Constant(0.0))();
 
   // Sync Status
   BoolColumn get isSynced => boolean().withDefault(const Constant(false))();

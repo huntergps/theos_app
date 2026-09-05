@@ -693,7 +693,7 @@ class ExpressionValueFormatter {
         if (func is Function) {
           try {
             return Function.apply(func, args);
-          } catch (e, _) {
+          } catch (e) {
             return null;
           }
         }

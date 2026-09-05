@@ -14,9 +14,6 @@ import '../../models/taxes/fiscal_position.model.dart';
 
 /// Extension methods for FiscalPositionManager (generated)
 extension FiscalPositionManagerBusiness on FiscalPositionManager {
-  /// Get fiscal position by Odoo ID (alias for readLocal)
-  Future<FiscalPosition?> getById(int odooId) => readLocal(odooId);
-
   /// Get all active fiscal positions ordered by name
   Future<List<FiscalPosition>> getAll() async {
     return searchLocal(
@@ -34,7 +31,7 @@ extension FiscalPositionManagerBusiness on FiscalPositionManager {
 /// Manager manual (sin @OdooModel/generador) porque [FiscalPositionTax] no
 /// se sincroniza 1:1 desde un modelo de Odoo — desde Odoo >= 18.3 el modelo
 /// `account.fiscal.position.tax` fue ELIMINADO del core (verificado en vivo
-/// contra erp1.tecnosmart.com.ec, 19.5a1+e, julio 2026), así que las filas
+/// contra Odoo 19.5a1+e, julio 2026), así que las filas
 /// se SINTETIZAN localmente a partir de `account.tax.fiscal_position_ids` +
 /// `account.tax.original_tax_ids` (ver la documentación completa en
 /// `FiscalPositionTax.synthesizeFromAccountTax` en
@@ -54,14 +51,14 @@ class FiscalPositionTaxManager {
 
     final companion = record.toCompanion();
 
-    final existing = await (_db.select(_db.accountFiscalPositionTax)
-          ..where((t) => t.odooId.equals(record.odooId)))
-        .getSingleOrNull();
+    final existing = await (_db.select(
+      _db.accountFiscalPositionTax,
+    )..where((t) => t.odooId.equals(record.odooId))).getSingleOrNull();
 
     if (existing != null) {
-      await (_db.update(_db.accountFiscalPositionTax)
-            ..where((t) => t.odooId.equals(record.odooId)))
-          .write(companion);
+      await (_db.update(
+        _db.accountFiscalPositionTax,
+      )..where((t) => t.odooId.equals(record.odooId))).write(companion);
     } else {
       await _db.into(_db.accountFiscalPositionTax).insert(companion);
     }
@@ -79,8 +76,9 @@ class FiscalPositionTaxManager {
   /// actualiza la fila existente (ej. refresca `write_date`) en vez de
   /// duplicarla.
   Future<void> upsertLocalBatch(List<FiscalPositionTax> records) async {
-    final valid =
-        records.where((r) => r.positionId != 0 && r.taxSrcId != 0).toList();
+    final valid = records
+        .where((r) => r.positionId != 0 && r.taxSrcId != 0)
+        .toList();
     if (valid.isEmpty) return;
 
     await _db.batch((batch) {
@@ -119,8 +117,9 @@ class FiscalPositionTaxManager {
   /// (`tax_calculator_service` o cualquier `.watch()`) — el delete y el
   /// insert se confirman juntos como una sola unidad atómica.
   Future<void> replaceAllLocal(List<FiscalPositionTax> records) async {
-    final valid =
-        records.where((r) => r.positionId != 0 && r.taxSrcId != 0).toList();
+    final valid = records
+        .where((r) => r.positionId != 0 && r.taxSrcId != 0)
+        .toList();
 
     await _db.transaction(() async {
       await _db.delete(_db.accountFiscalPositionTax).go();
@@ -136,9 +135,10 @@ class FiscalPositionTaxManager {
 
   /// Get tax mappings for a fiscal position
   Future<List<AccountFiscalPositionTaxData>> getByPositionId(
-      int positionId) async {
-    return (_db.select(_db.accountFiscalPositionTax)
-          ..where((t) => t.positionId.equals(positionId)))
-        .get();
+    int positionId,
+  ) async {
+    return (_db.select(
+      _db.accountFiscalPositionTax,
+    )..where((t) => t.positionId.equals(positionId))).get();
   }
 }

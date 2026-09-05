@@ -1,6 +1,6 @@
 // GENERATED CODE - DO NOT MODIFY BY HAND
 // coverage:ignore-file
-// ignore_for_file: type=lint
+// ignore_for_file: type=lint, type=warning, deprecated_member_use, deprecated_member_use_from_same_package
 // ignore_for_file: unused_element, deprecated_member_use, deprecated_member_use_from_same_package, use_function_type_syntax_for_parameters, unnecessary_const, avoid_init_to_null, invalid_override_different_default_values_named, prefer_expression_function_bodies, annotate_overrides, invalid_annotation_target, unnecessary_question_mark
 
 part of 'client.model.dart';
@@ -9,35 +9,13 @@ part of 'client.model.dart';
 // FreezedGenerator
 // **************************************************************************
 
+// GENERATED CODE - DO NOT MODIFY BY HAND
 // dart format off
 T _$identity<T>(T value) => value;
 /// @nodoc
 mixin _$Client {
 
-// ============ Identifiers ============
-@OdooId() int get id;@OdooLocalOnly(driftName: 'partnerUuid') String? get uuid;@OdooLocalOnly() bool get isSynced;// ============ Basic Data ============
-@OdooString() String get name;@OdooString(odooName: 'display_name') String? get displayName;@OdooString() String? get ref;@OdooString() String? get vat;@OdooString() String? get email;@OdooString() String? get phone;// Odoo 19.5 (erp1): el campo 'mobile' ya no existe en res.partner (smoke
-// fields_get contra erp1.tecnosmart.com.ec, julio 2026). Tampoco existe
-// en 19.2 local ni en los módulos fuente — no es diferencia de versión,
-// se quitó de Odoo. Pasa a local-only (columna Drift se conserva igual).
-@OdooLocalOnly() String? get mobile;@OdooString() String? get street;@OdooString() String? get street2;@OdooString() String? get city;@OdooString() String? get zip;@OdooMany2One('res.country', odooName: 'country_id') int? get countryId;@OdooMany2OneName(sourceField: 'country_id') String? get countryName;@OdooMany2One('res.country.state', odooName: 'state_id') int? get stateId;@OdooMany2OneName(sourceField: 'state_id') String? get stateName;@OdooString(odooName: 'avatar_128') String? get avatar128;@OdooBoolean(odooName: 'is_company') bool get isCompany;@OdooBoolean() bool get active;// ============ Relations ============
-@OdooMany2One('res.partner', odooName: 'parent_id') int? get parentId;@OdooMany2OneName(sourceField: 'parent_id') String? get parentName;@OdooMany2One('res.partner', odooName: 'commercial_partner_id') int? get commercialPartnerId;@OdooMany2OneName(sourceField: 'commercial_partner_id') String? get commercialPartnerName;@OdooMany2One('product.pricelist', odooName: 'property_product_pricelist') int? get propertyProductPricelistId;@OdooMany2OneName(sourceField: 'property_product_pricelist') String? get propertyProductPricelistName;@OdooMany2One('account.payment.term', odooName: 'property_payment_term_id') int? get propertyPaymentTermId;@OdooMany2OneName(sourceField: 'property_payment_term_id') String? get propertyPaymentTermName;@OdooString() String? get lang;@OdooString() String? get comment;// ============ Credit Control Fields (l10n_ec_sale_credit) ============
-@OdooFloat(odooName: 'credit_limit') double? get creditLimit;@OdooFloat() double? get credit;@OdooFloat(odooName: 'credit_to_invoice') double? get creditToInvoice;@OdooBoolean(odooName: 'allow_over_credit') bool get allowOverCredit;@OdooBoolean(odooName: 'use_partner_credit_limit') bool get usePartnerCreditLimit;// ============ Overdue Debt Fields ============
-@OdooFloat(odooName: 'total_overdue') double? get totalOverdue;// Odoo 19.5 (erp1): 'unpaid_invoices_count' no existe en el servidor.
-// driftName explícito porque dartName (overdueInvoicesCount) no
-// camelCase-matchea la columna real (unpaidInvoicesCount) — no se
-// renombra la columna Drift, no hay migración de esquema.
-@OdooLocalOnly(driftName: 'unpaidInvoicesCount') int? get overdueInvoicesCount;// Odoo 19.5 (erp1): 'oldest_overdue_days' tampoco existe en el servidor.
-@OdooLocalOnly() int? get oldestOverdueDays;// ============ Ecuador Fields ============
-@OdooInteger(odooName: 'dias_max_factura_posterior') int? get diasMaxFacturaPosterior;// ============ Customer Classification (l10n_ec_sale_base) ============
-@OdooSelection(odooName: 'tipo_cliente') String? get tipoCliente;@OdooSelection(odooName: 'canal_cliente') String? get canalCliente;// ============ Ranking ============
-@OdooInteger(odooName: 'customer_rank') int? get customerRank;@OdooInteger(odooName: 'supplier_rank') int? get supplierRank;// ============ Check Acceptance ============
-@OdooBoolean(odooName: 'acepta_cheques') bool get aceptaCheques;// ============ Invoice Configuration ============
-@OdooBoolean(odooName: 'emitir_factura_fecha_posterior') bool get emitirFacturaFechaPosterior;@OdooBoolean(odooName: 'no_invoice') bool get noInvoice;@OdooInteger(odooName: 'last_day_to_invoice') int? get lastDayToInvoice;// ============ External ID ============
-@OdooString(odooName: 'external_id') String? get externalId;// ============ Geolocation ============
-@OdooFloat(odooName: 'partner_latitude') double? get partnerLatitude;@OdooFloat(odooName: 'partner_longitude') double? get partnerLongitude;// ============ Custom Payments ============
-@OdooBoolean(odooName: 'can_use_custom_payments') bool get canUseCustomPayments;// ============ Metadata ============
-@OdooDateTime(odooName: 'write_date') DateTime? get writeDate;@OdooLocalOnly() DateTime? get creditLastSyncDate;
+@OdooId() int get id;@OdooLocalOnly(driftName: 'partnerUuid') String? get uuid;@OdooLocalOnly() bool get isSynced;@OdooString() String get name;@OdooString(odooName: 'display_name') String? get displayName;@OdooString() String? get ref;@OdooString() String? get vat;@OdooString() String? get email;@OdooString() String? get phone;@OdooLocalOnly() String? get mobile;@OdooString() String? get street;@OdooString() String? get street2;@OdooString() String? get city;@OdooString() String? get zip;@OdooMany2One('res.country', odooName: 'country_id') int? get countryId;@OdooMany2OneName(sourceField: 'country_id') String? get countryName;@OdooMany2One('res.country.state', odooName: 'state_id') int? get stateId;@OdooMany2OneName(sourceField: 'state_id') String? get stateName;@OdooString(odooName: 'avatar_128') String? get avatar128;@OdooBoolean(odooName: 'is_company') bool get isCompany;@OdooBoolean() bool get active;@OdooMany2One('res.partner', odooName: 'parent_id') int? get parentId;@OdooMany2OneName(sourceField: 'parent_id') String? get parentName;@OdooMany2One('res.partner', odooName: 'commercial_partner_id') int? get commercialPartnerId;@OdooMany2OneName(sourceField: 'commercial_partner_id') String? get commercialPartnerName;@OdooMany2One('product.pricelist', odooName: 'property_product_pricelist') int? get propertyProductPricelistId;@OdooMany2OneName(sourceField: 'property_product_pricelist') String? get propertyProductPricelistName;@OdooMany2One('account.payment.term', odooName: 'property_payment_term_id') int? get propertyPaymentTermId;@OdooMany2OneName(sourceField: 'property_payment_term_id') String? get propertyPaymentTermName;@OdooString() String? get lang;@OdooString() String? get comment;@OdooFloat(odooName: 'credit_limit') double? get creditLimit;@OdooFloat() double? get credit;@OdooFloat(odooName: 'credit_to_invoice') double? get creditToInvoice;@OdooBoolean(odooName: 'allow_over_credit') bool get allowOverCredit;@OdooBoolean(odooName: 'use_partner_credit_limit') bool get usePartnerCreditLimit;@OdooFloat(odooName: 'total_overdue') double? get totalOverdue;@OdooLocalOnly(driftName: 'unpaidInvoicesCount') int? get overdueInvoicesCount;@OdooLocalOnly() int? get oldestOverdueDays;@OdooInteger(odooName: 'dias_max_factura_posterior') int? get diasMaxFacturaPosterior;@OdooSelection(odooName: 'tipo_cliente') String? get tipoCliente;@OdooSelection(odooName: 'canal_cliente') String? get canalCliente;@OdooInteger(odooName: 'customer_rank') int? get customerRank;@OdooInteger(odooName: 'supplier_rank') int? get supplierRank;@OdooBoolean(odooName: 'acepta_cheques') bool get aceptaCheques;@OdooBoolean(odooName: 'emitir_factura_fecha_posterior') bool get emitirFacturaFechaPosterior;@OdooBoolean(odooName: 'no_invoice') bool get noInvoice;@OdooInteger(odooName: 'last_day_to_invoice') int? get lastDayToInvoice;@OdooString(odooName: 'external_id') String? get externalId;@OdooFloat(odooName: 'partner_latitude') double? get partnerLatitude;@OdooFloat(odooName: 'partner_longitude') double? get partnerLongitude;@OdooBoolean(odooName: 'can_use_custom_payments') bool get canUseCustomPayments;@OdooDateTime(odooName: 'write_date') DateTime? get writeDate;@OdooLocalOnly() DateTime? get creditLastSyncDate;
 /// Create a copy of Client
 /// with the given fields replaced by the non-null parameter values.
 @JsonKey(includeFromJson: false, includeToJson: false)
@@ -86,7 +64,7 @@ class _$ClientCopyWithImpl<$Res>
 /// Create a copy of Client
 /// with the given fields replaced by the non-null parameter values.
 @pragma('vm:prefer-inline') @override $Res call({Object? id = null,Object? uuid = freezed,Object? isSynced = null,Object? name = null,Object? displayName = freezed,Object? ref = freezed,Object? vat = freezed,Object? email = freezed,Object? phone = freezed,Object? mobile = freezed,Object? street = freezed,Object? street2 = freezed,Object? city = freezed,Object? zip = freezed,Object? countryId = freezed,Object? countryName = freezed,Object? stateId = freezed,Object? stateName = freezed,Object? avatar128 = freezed,Object? isCompany = null,Object? active = null,Object? parentId = freezed,Object? parentName = freezed,Object? commercialPartnerId = freezed,Object? commercialPartnerName = freezed,Object? propertyProductPricelistId = freezed,Object? propertyProductPricelistName = freezed,Object? propertyPaymentTermId = freezed,Object? propertyPaymentTermName = freezed,Object? lang = freezed,Object? comment = freezed,Object? creditLimit = freezed,Object? credit = freezed,Object? creditToInvoice = freezed,Object? allowOverCredit = null,Object? usePartnerCreditLimit = null,Object? totalOverdue = freezed,Object? overdueInvoicesCount = freezed,Object? oldestOverdueDays = freezed,Object? diasMaxFacturaPosterior = freezed,Object? tipoCliente = freezed,Object? canalCliente = freezed,Object? customerRank = freezed,Object? supplierRank = freezed,Object? aceptaCheques = null,Object? emitirFacturaFechaPosterior = null,Object? noInvoice = null,Object? lastDayToInvoice = freezed,Object? externalId = freezed,Object? partnerLatitude = freezed,Object? partnerLongitude = freezed,Object? canUseCustomPayments = null,Object? writeDate = freezed,Object? creditLastSyncDate = freezed,}) {
-  return _then(_self.copyWith(
+  return _then(Client(
 id: null == id ? _self.id : id // ignore: cast_nullable_to_non_nullable
 as int,uuid: freezed == uuid ? _self.uuid : uuid // ignore: cast_nullable_to_non_nullable
 as String?,isSynced: null == isSynced ? _self.isSynced : isSynced // ignore: cast_nullable_to_non_nullable
@@ -285,21 +263,15 @@ class _Client extends Client {
   const _Client({@OdooId() required this.id, @OdooLocalOnly(driftName: 'partnerUuid') this.uuid, @OdooLocalOnly() this.isSynced = true, @OdooString() required this.name, @OdooString(odooName: 'display_name') this.displayName, @OdooString() this.ref, @OdooString() this.vat, @OdooString() this.email, @OdooString() this.phone, @OdooLocalOnly() this.mobile, @OdooString() this.street, @OdooString() this.street2, @OdooString() this.city, @OdooString() this.zip, @OdooMany2One('res.country', odooName: 'country_id') this.countryId, @OdooMany2OneName(sourceField: 'country_id') this.countryName, @OdooMany2One('res.country.state', odooName: 'state_id') this.stateId, @OdooMany2OneName(sourceField: 'state_id') this.stateName, @OdooString(odooName: 'avatar_128') this.avatar128, @OdooBoolean(odooName: 'is_company') this.isCompany = false, @OdooBoolean() this.active = true, @OdooMany2One('res.partner', odooName: 'parent_id') this.parentId, @OdooMany2OneName(sourceField: 'parent_id') this.parentName, @OdooMany2One('res.partner', odooName: 'commercial_partner_id') this.commercialPartnerId, @OdooMany2OneName(sourceField: 'commercial_partner_id') this.commercialPartnerName, @OdooMany2One('product.pricelist', odooName: 'property_product_pricelist') this.propertyProductPricelistId, @OdooMany2OneName(sourceField: 'property_product_pricelist') this.propertyProductPricelistName, @OdooMany2One('account.payment.term', odooName: 'property_payment_term_id') this.propertyPaymentTermId, @OdooMany2OneName(sourceField: 'property_payment_term_id') this.propertyPaymentTermName, @OdooString() this.lang, @OdooString() this.comment, @OdooFloat(odooName: 'credit_limit') this.creditLimit, @OdooFloat() this.credit, @OdooFloat(odooName: 'credit_to_invoice') this.creditToInvoice, @OdooBoolean(odooName: 'allow_over_credit') this.allowOverCredit = false, @OdooBoolean(odooName: 'use_partner_credit_limit') this.usePartnerCreditLimit = false, @OdooFloat(odooName: 'total_overdue') this.totalOverdue, @OdooLocalOnly(driftName: 'unpaidInvoicesCount') this.overdueInvoicesCount, @OdooLocalOnly() this.oldestOverdueDays, @OdooInteger(odooName: 'dias_max_factura_posterior') this.diasMaxFacturaPosterior, @OdooSelection(odooName: 'tipo_cliente') this.tipoCliente, @OdooSelection(odooName: 'canal_cliente') this.canalCliente, @OdooInteger(odooName: 'customer_rank') this.customerRank, @OdooInteger(odooName: 'supplier_rank') this.supplierRank, @OdooBoolean(odooName: 'acepta_cheques') this.aceptaCheques = true, @OdooBoolean(odooName: 'emitir_factura_fecha_posterior') this.emitirFacturaFechaPosterior = false, @OdooBoolean(odooName: 'no_invoice') this.noInvoice = false, @OdooInteger(odooName: 'last_day_to_invoice') this.lastDayToInvoice, @OdooString(odooName: 'external_id') this.externalId, @OdooFloat(odooName: 'partner_latitude') this.partnerLatitude, @OdooFloat(odooName: 'partner_longitude') this.partnerLongitude, @OdooBoolean(odooName: 'can_use_custom_payments') this.canUseCustomPayments = true, @OdooDateTime(odooName: 'write_date') this.writeDate, @OdooLocalOnly() this.creditLastSyncDate}): super._();
   
 
-// ============ Identifiers ============
 @override@OdooId() final  int id;
 @override@OdooLocalOnly(driftName: 'partnerUuid') final  String? uuid;
 @override@JsonKey()@OdooLocalOnly() final  bool isSynced;
-// ============ Basic Data ============
 @override@OdooString() final  String name;
 @override@OdooString(odooName: 'display_name') final  String? displayName;
 @override@OdooString() final  String? ref;
 @override@OdooString() final  String? vat;
 @override@OdooString() final  String? email;
 @override@OdooString() final  String? phone;
-// Odoo 19.5 (erp1): el campo 'mobile' ya no existe en res.partner (smoke
-// fields_get contra erp1.tecnosmart.com.ec, julio 2026). Tampoco existe
-// en 19.2 local ni en los módulos fuente — no es diferencia de versión,
-// se quitó de Odoo. Pasa a local-only (columna Drift se conserva igual).
 @override@OdooLocalOnly() final  String? mobile;
 @override@OdooString() final  String? street;
 @override@OdooString() final  String? street2;
@@ -312,7 +284,6 @@ class _Client extends Client {
 @override@OdooString(odooName: 'avatar_128') final  String? avatar128;
 @override@JsonKey()@OdooBoolean(odooName: 'is_company') final  bool isCompany;
 @override@JsonKey()@OdooBoolean() final  bool active;
-// ============ Relations ============
 @override@OdooMany2One('res.partner', odooName: 'parent_id') final  int? parentId;
 @override@OdooMany2OneName(sourceField: 'parent_id') final  String? parentName;
 @override@OdooMany2One('res.partner', odooName: 'commercial_partner_id') final  int? commercialPartnerId;
@@ -323,43 +294,27 @@ class _Client extends Client {
 @override@OdooMany2OneName(sourceField: 'property_payment_term_id') final  String? propertyPaymentTermName;
 @override@OdooString() final  String? lang;
 @override@OdooString() final  String? comment;
-// ============ Credit Control Fields (l10n_ec_sale_credit) ============
 @override@OdooFloat(odooName: 'credit_limit') final  double? creditLimit;
 @override@OdooFloat() final  double? credit;
 @override@OdooFloat(odooName: 'credit_to_invoice') final  double? creditToInvoice;
 @override@JsonKey()@OdooBoolean(odooName: 'allow_over_credit') final  bool allowOverCredit;
 @override@JsonKey()@OdooBoolean(odooName: 'use_partner_credit_limit') final  bool usePartnerCreditLimit;
-// ============ Overdue Debt Fields ============
 @override@OdooFloat(odooName: 'total_overdue') final  double? totalOverdue;
-// Odoo 19.5 (erp1): 'unpaid_invoices_count' no existe en el servidor.
-// driftName explícito porque dartName (overdueInvoicesCount) no
-// camelCase-matchea la columna real (unpaidInvoicesCount) — no se
-// renombra la columna Drift, no hay migración de esquema.
 @override@OdooLocalOnly(driftName: 'unpaidInvoicesCount') final  int? overdueInvoicesCount;
-// Odoo 19.5 (erp1): 'oldest_overdue_days' tampoco existe en el servidor.
 @override@OdooLocalOnly() final  int? oldestOverdueDays;
-// ============ Ecuador Fields ============
 @override@OdooInteger(odooName: 'dias_max_factura_posterior') final  int? diasMaxFacturaPosterior;
-// ============ Customer Classification (l10n_ec_sale_base) ============
 @override@OdooSelection(odooName: 'tipo_cliente') final  String? tipoCliente;
 @override@OdooSelection(odooName: 'canal_cliente') final  String? canalCliente;
-// ============ Ranking ============
 @override@OdooInteger(odooName: 'customer_rank') final  int? customerRank;
 @override@OdooInteger(odooName: 'supplier_rank') final  int? supplierRank;
-// ============ Check Acceptance ============
 @override@JsonKey()@OdooBoolean(odooName: 'acepta_cheques') final  bool aceptaCheques;
-// ============ Invoice Configuration ============
 @override@JsonKey()@OdooBoolean(odooName: 'emitir_factura_fecha_posterior') final  bool emitirFacturaFechaPosterior;
 @override@JsonKey()@OdooBoolean(odooName: 'no_invoice') final  bool noInvoice;
 @override@OdooInteger(odooName: 'last_day_to_invoice') final  int? lastDayToInvoice;
-// ============ External ID ============
 @override@OdooString(odooName: 'external_id') final  String? externalId;
-// ============ Geolocation ============
 @override@OdooFloat(odooName: 'partner_latitude') final  double? partnerLatitude;
 @override@OdooFloat(odooName: 'partner_longitude') final  double? partnerLongitude;
-// ============ Custom Payments ============
 @override@JsonKey()@OdooBoolean(odooName: 'can_use_custom_payments') final  bool canUseCustomPayments;
-// ============ Metadata ============
 @override@OdooDateTime(odooName: 'write_date') final  DateTime? writeDate;
 @override@OdooLocalOnly() final  DateTime? creditLastSyncDate;
 

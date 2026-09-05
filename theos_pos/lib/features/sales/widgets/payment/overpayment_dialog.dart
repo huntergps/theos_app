@@ -7,8 +7,10 @@ import '../../../../shared/utils/formatting_utils.dart';
 enum OverpaymentAction {
   /// Crear anticipo con el excedente
   createAdvance,
+
   /// Dar cambio en efectivo
   giveChange,
+
   /// Cancelar (ajustar monto)
   cancel,
 }
@@ -189,9 +191,7 @@ class OverpaymentDialog extends StatelessWidget {
         return Container(
           padding: const EdgeInsets.all(Spacing.sm),
           decoration: BoxDecoration(
-            color: isHovered
-                ? color.withValues(alpha: 0.1)
-                : theme.cardColor,
+            color: isHovered ? color.withValues(alpha: 0.1) : theme.cardColor,
             borderRadius: BorderRadius.circular(8),
             border: Border.all(
               color: isHovered

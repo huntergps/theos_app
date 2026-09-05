@@ -240,8 +240,11 @@ void main() {
         }
 
         for (final order in orders) {
-          expect(order.id, isNegative,
-              reason: 'Temp ID ${order.id} should be negative');
+          expect(
+            order.id,
+            isNegative,
+            reason: 'Temp ID ${order.id} should be negative',
+          );
         }
       });
     });

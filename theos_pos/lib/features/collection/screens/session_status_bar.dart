@@ -1,5 +1,6 @@
 import 'package:fluent_ui/fluent_ui.dart';
 import 'package:theos_pos_core/theos_pos_core.dart' show SessionState;
+
 import '../../../../shared/widgets/model_status_bar.dart';
 
 /// Status bar specifically for Collection Sessions
@@ -13,11 +14,9 @@ class SessionStatusBar extends StatelessWidget {
     return ModelStatusBar<SessionState>(
       currentValue: state,
       steps: const [
-        StatusStep(
-          label: 'Apertura',
-          value: SessionState.openingControl,
-        ),
+        StatusStep(label: 'Apertura', value: SessionState.openingControl),
         StatusStep(label: 'En Proceso', value: SessionState.opened),
+        StatusStep(label: 'Pausada', value: SessionState.paused),
         StatusStep(
           label: 'Control de Cierre',
           value: SessionState.closingControl,

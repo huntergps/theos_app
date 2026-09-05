@@ -1,6 +1,6 @@
 // GENERATED CODE - DO NOT MODIFY BY HAND
 // coverage:ignore-file
-// ignore_for_file: type=lint
+// ignore_for_file: type=lint, type=warning, deprecated_member_use, deprecated_member_use_from_same_package
 // ignore_for_file: unused_element, deprecated_member_use, deprecated_member_use_from_same_package, use_function_type_syntax_for_parameters, unnecessary_const, avoid_init_to_null, invalid_override_different_default_values_named, prefer_expression_function_bodies, annotate_overrides, invalid_annotation_target, unnecessary_question_mark
 
 part of 'withhold_line.model.dart';
@@ -9,34 +9,14 @@ part of 'withhold_line.model.dart';
 // FreezedGenerator
 // **************************************************************************
 
+// GENERATED CODE - DO NOT MODIFY BY HAND
 // dart format off
 T _$identity<T>(T value) => value;
 
 /// @nodoc
 mixin _$WithholdLine {
 
-@OdooId() int get id;@OdooLocalOnly() String get lineUuid;// FK a la orden dueña (sale_order.odooId). Igual que en PaymentLine —
-// el manager genérico (upsertLocal/fromDrift) necesita este campo para
-// poder poblar la columna real `order_id` (NOT NULL en la tabla Drift).
-// Antes no existía acá: WithholdLineManager.upsertLocal() fallaba
-// siempre con NOT NULL constraint failed (nunca se usa hoy en
-// producción — sales_repository_sync.dart/withhold_line_local_service
-// .dart construyen el Companion a mano con el orderId real). Encontrado
-// por el roundtrip test genérico — julio 2026.
-@OdooLocalOnly() int? get orderId;@OdooMany2One('account.tax', odooName: 'tax_id') int get taxId;// Odoo 19.5 (erp1): tax_name/tax_percent/withhold_type ya NO existen en
-// sale.order.withhold.line del servidor (smoke fields_get, julio 2026)
-// — tax_id, base, amount, taxsupport_code y notes sí siguen existiendo.
-// Coincide con lo que ya hacía sales_repository_sync.dart en la
-// práctica: taxName/withholdType nunca venían de un campo real del
-// servidor, se derivaban del nombre del impuesto (tax_id) a mano
-// (ver syncWithholdLinesFromOdoo). withholdType es un enum con
-// @OdooSelection — el generador YA maneja enums LocalOnly escribiendo
-// `.code` en createDriftCompanion() y reconstruyendo con
-// `.firstWhere(code == valor, orElse: () => .values.first)` en
-// fromDrift() (mismo mapeo que tenía antes, ver
-// odoo_model_generator.dart _generateFromDriftBody/createDriftCompanion,
-// rama isLocalOnly + isEnumType) — el roundtrip local no cambia.
-@OdooLocalOnly() String get taxName;@OdooLocalOnly() double get taxPercent;@OdooLocalOnly() WithholdType get withholdType;@OdooSelection(odooName: 'taxsupport_code') TaxSupportCode? get taxSupportCode;@OdooFloat() double get base;@OdooFloat() double get amount;@OdooString() String? get notes;
+@OdooId() int get id;@OdooLocalOnly() String get lineUuid;@OdooLocalOnly() int? get orderId;@OdooMany2One('account.tax', odooName: 'tax_id') int get taxId;@OdooLocalOnly() String get taxName;@OdooLocalOnly() double get taxPercent;@OdooLocalOnly() WithholdType get withholdType;@OdooSelection(odooName: 'taxsupport_code') TaxSupportCode? get taxSupportCode;@OdooFloat() double get base;@OdooFloat() double get amount;@OdooString() String? get notes;
 /// Create a copy of WithholdLine
 /// with the given fields replaced by the non-null parameter values.
 @JsonKey(includeFromJson: false, includeToJson: false)
@@ -87,7 +67,7 @@ class _$WithholdLineCopyWithImpl<$Res>
 /// Create a copy of WithholdLine
 /// with the given fields replaced by the non-null parameter values.
 @pragma('vm:prefer-inline') @override $Res call({Object? id = null,Object? lineUuid = null,Object? orderId = freezed,Object? taxId = null,Object? taxName = null,Object? taxPercent = null,Object? withholdType = null,Object? taxSupportCode = freezed,Object? base = null,Object? amount = null,Object? notes = freezed,}) {
-  return _then(_self.copyWith(
+  return _then(WithholdLine(
 id: null == id ? _self.id : id // ignore: cast_nullable_to_non_nullable
 as int,lineUuid: null == lineUuid ? _self.lineUuid : lineUuid // ignore: cast_nullable_to_non_nullable
 as String,orderId: freezed == orderId ? _self.orderId : orderId // ignore: cast_nullable_to_non_nullable
@@ -245,29 +225,8 @@ class _WithholdLine extends WithholdLine {
 
 @override@JsonKey()@OdooId() final  int id;
 @override@JsonKey()@OdooLocalOnly() final  String lineUuid;
-// FK a la orden dueña (sale_order.odooId). Igual que en PaymentLine —
-// el manager genérico (upsertLocal/fromDrift) necesita este campo para
-// poder poblar la columna real `order_id` (NOT NULL en la tabla Drift).
-// Antes no existía acá: WithholdLineManager.upsertLocal() fallaba
-// siempre con NOT NULL constraint failed (nunca se usa hoy en
-// producción — sales_repository_sync.dart/withhold_line_local_service
-// .dart construyen el Companion a mano con el orderId real). Encontrado
-// por el roundtrip test genérico — julio 2026.
 @override@OdooLocalOnly() final  int? orderId;
 @override@OdooMany2One('account.tax', odooName: 'tax_id') final  int taxId;
-// Odoo 19.5 (erp1): tax_name/tax_percent/withhold_type ya NO existen en
-// sale.order.withhold.line del servidor (smoke fields_get, julio 2026)
-// — tax_id, base, amount, taxsupport_code y notes sí siguen existiendo.
-// Coincide con lo que ya hacía sales_repository_sync.dart en la
-// práctica: taxName/withholdType nunca venían de un campo real del
-// servidor, se derivaban del nombre del impuesto (tax_id) a mano
-// (ver syncWithholdLinesFromOdoo). withholdType es un enum con
-// @OdooSelection — el generador YA maneja enums LocalOnly escribiendo
-// `.code` en createDriftCompanion() y reconstruyendo con
-// `.firstWhere(code == valor, orElse: () => .values.first)` en
-// fromDrift() (mismo mapeo que tenía antes, ver
-// odoo_model_generator.dart _generateFromDriftBody/createDriftCompanion,
-// rama isLocalOnly + isEnumType) — el roundtrip local no cambia.
 @override@OdooLocalOnly() final  String taxName;
 @override@OdooLocalOnly() final  double taxPercent;
 @override@OdooLocalOnly() final  WithholdType withholdType;
@@ -401,7 +360,7 @@ class _$AvailableWithholdTaxCopyWithImpl<$Res>
 /// Create a copy of AvailableWithholdTax
 /// with the given fields replaced by the non-null parameter values.
 @pragma('vm:prefer-inline') @override $Res call({Object? id = null,Object? name = null,Object? spanishName = freezed,Object? amount = null,Object? withholdType = null,}) {
-  return _then(_self.copyWith(
+  return _then(AvailableWithholdTax(
 id: null == id ? _self.id : id // ignore: cast_nullable_to_non_nullable
 as int,name: null == name ? _self.name : name // ignore: cast_nullable_to_non_nullable
 as String,spanishName: freezed == spanishName ? _self.spanishName : spanishName // ignore: cast_nullable_to_non_nullable

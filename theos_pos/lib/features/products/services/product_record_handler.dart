@@ -1,7 +1,9 @@
 import 'package:drift/drift.dart';
 
 import 'package:theos_pos_core/theos_pos_core.dart';
+
 import '../../../core/services/handlers/model_record_handler.dart';
+
 import 'package:odoo_sdk/odoo_sdk.dart' as odoo;
 
 /// Handler for product.product records
@@ -37,9 +39,9 @@ class ProductRecordHandler extends ModelRecordHandler {
 
   @override
   Future<bool> exists(AppDatabase db, int odooId) async {
-    final result = await (db.select(db.productProduct)
-          ..where((t) => t.odooId.equals(odooId)))
-        .getSingleOrNull();
+    final result = await (db.select(
+      db.productProduct,
+    )..where((t) => t.odooId.equals(odooId))).getSingleOrNull();
     return result != null;
   }
 
@@ -47,9 +49,9 @@ class ProductRecordHandler extends ModelRecordHandler {
   Future<void> upsert(AppDatabase db, Map<String, dynamic> data) async {
     final id = data['id'] as int;
 
-    final existing = await (db.select(db.productProduct)
-          ..where((t) => t.odooId.equals(id)))
-        .getSingleOrNull();
+    final existing = await (db.select(
+      db.productProduct,
+    )..where((t) => t.odooId.equals(id))).getSingleOrNull();
 
     final companion = ProductProductCompanion(
       odooId: Value(id),
@@ -89,9 +91,9 @@ class ProductRecordHandler extends ModelRecordHandler {
     );
 
     if (existing != null) {
-      await (db.update(db.productProduct)
-            ..where((t) => t.odooId.equals(id)))
-          .write(companion);
+      await (db.update(
+        db.productProduct,
+      )..where((t) => t.odooId.equals(id))).write(companion);
     } else {
       await db.into(db.productProduct).insert(companion);
     }
@@ -115,9 +117,9 @@ class UomRecordHandler extends ModelRecordHandler {
 
   @override
   Future<bool> exists(AppDatabase db, int odooId) async {
-    final result = await (db.select(db.uomUom)
-          ..where((t) => t.odooId.equals(odooId)))
-        .getSingleOrNull();
+    final result = await (db.select(
+      db.uomUom,
+    )..where((t) => t.odooId.equals(odooId))).getSingleOrNull();
     return result != null;
   }
 
@@ -125,9 +127,9 @@ class UomRecordHandler extends ModelRecordHandler {
   Future<void> upsert(AppDatabase db, Map<String, dynamic> data) async {
     final id = data['id'] as int;
 
-    final existing = await (db.select(db.uomUom)
-          ..where((t) => t.odooId.equals(id)))
-        .getSingleOrNull();
+    final existing = await (db.select(
+      db.uomUom,
+    )..where((t) => t.odooId.equals(id))).getSingleOrNull();
 
     final companion = UomUomCompanion(
       odooId: Value(id),
@@ -139,8 +141,9 @@ class UomRecordHandler extends ModelRecordHandler {
     );
 
     if (existing != null) {
-      await (db.update(db.uomUom)..where((t) => t.odooId.equals(id)))
-          .write(companion);
+      await (db.update(
+        db.uomUom,
+      )..where((t) => t.odooId.equals(id))).write(companion);
     } else {
       await db.into(db.uomUom).insert(companion);
     }

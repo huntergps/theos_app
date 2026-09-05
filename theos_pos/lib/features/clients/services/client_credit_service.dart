@@ -1,4 +1,5 @@
 import 'package:theos_pos_core/theos_pos_core.dart';
+
 import 'client_validation_types.dart';
 import '../repositories/client_repository.dart';
 import 'client_calculator_service.dart';
@@ -37,12 +38,10 @@ class ClientCreditService {
   final ClientRepository _repository;
 
   ClientCreditService({
-    required ClientCalculatorService calculator,
-    required ClientValidationService validator,
-    required ClientRepository repository,
-  })  : _calculator = calculator,
-        _validator = validator,
-        _repository = repository;
+    required this._calculator,
+    required this._validator,
+    required this._repository,
+  });
 
   // ============ CREDIT INFO OPERATIONS ============
 
@@ -64,7 +63,8 @@ class ClientCreditService {
     final isOnline = _repository.isOnline;
 
     // Refresh if forced or data is stale and we're online
-    if (isOnline && (forceRefresh || await _calculator.isCreditDataStale(client))) {
+    if (isOnline &&
+        (forceRefresh || await _calculator.isCreditDataStale(client))) {
       try {
         return await _repository.refreshCreditData(clientId);
       } catch (e) {

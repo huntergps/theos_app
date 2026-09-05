@@ -67,6 +67,3 @@ class OdooFieldConfig {
     );
   }
 }
-
-/// Backward-compatible alias.
-typedef ReactiveFieldConfig = OdooFieldConfig;

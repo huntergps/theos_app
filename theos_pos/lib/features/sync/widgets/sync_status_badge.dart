@@ -65,10 +65,7 @@ class SyncStatusBadge extends ConsumerWidget {
     if (onTap != null) {
       badge = GestureDetector(
         onTap: onTap,
-        child: MouseRegion(
-          cursor: SystemMouseCursors.click,
-          child: badge,
-        ),
+        child: MouseRegion(cursor: SystemMouseCursors.click, child: badge),
       );
     }
 
@@ -118,9 +115,7 @@ class SyncStatusBadge extends ConsumerWidget {
           if (size >= 32 && progressText.isNotEmpty)
             Text(
               progressText,
-              style: theme.typography.caption?.copyWith(
-                fontSize: 8,
-              ),
+              style: theme.typography.caption?.copyWith(fontSize: 8),
             ),
         ],
       ),
@@ -146,11 +141,7 @@ class SyncStatusBadge extends ConsumerWidget {
       ),
       child: Center(
         child: count > 99
-            ? Icon(
-                FluentIcons.more,
-                size: size * 0.6,
-                color: Colors.white,
-              )
+            ? Icon(FluentIcons.more, size: size * 0.6, color: Colors.white)
             : Text(
                 count.toString(),
                 style: theme.typography.caption?.copyWith(
@@ -228,12 +219,12 @@ class SyncStatusIndicator extends ConsumerWidget {
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       decoration: BoxDecoration(
         color: isSyncing
-            ? Colors.blue.withValues(alpha: 0.2) // TODO: agregar AppColors.info cuando esté disponible
+            ? AppColors.info.withValues(alpha: 0.2)
             : AppColors.warning.withValues(alpha: 0.2),
         borderRadius: BorderRadius.circular(12),
         border: Border.all(
           color: isSyncing
-              ? Colors.blue.withValues(alpha: 0.5) // TODO: agregar AppColors.info cuando esté disponible
+              ? AppColors.info.withValues(alpha: 0.5)
               : AppColors.warning.withValues(alpha: 0.5),
         ),
       ),
@@ -247,11 +238,7 @@ class SyncStatusIndicator extends ConsumerWidget {
               child: ProgressRing(strokeWidth: 2),
             )
           else
-            Icon(
-              FluentIcons.cloud_upload,
-              size: 14,
-              color: AppColors.warning,
-            ),
+            Icon(FluentIcons.cloud_upload, size: 14, color: AppColors.warning),
           const SizedBox(width: 6),
           Text(
             isSyncing
@@ -292,8 +279,8 @@ class SyncProgressDetail extends ConsumerWidget {
             children: [
               Expanded(
                 child: ProgressBar(
-                  value: (itemState.progress!.synced /
-                          itemState.progress!.total) *
+                  value:
+                      (itemState.progress!.synced / itemState.progress!.total) *
                       100,
                 ),
               ),
@@ -346,9 +333,7 @@ class SyncProgressDetail extends ConsumerWidget {
           const SizedBox(height: 4),
           Text(
             itemState.error!,
-            style: theme.typography.caption?.copyWith(
-              color: AppColors.danger,
-            ),
+            style: theme.typography.caption?.copyWith(color: AppColors.danger),
             maxLines: 2,
             overflow: TextOverflow.ellipsis,
           ),
@@ -380,8 +365,8 @@ class SyncProgressDetail extends ConsumerWidget {
         return 'Pendiente';
       case SyncStatus.syncing:
         if (state.progress != null) {
-          final percent =
-              (state.progress!.synced / state.progress!.total * 100).toInt();
+          final percent = (state.progress!.synced / state.progress!.total * 100)
+              .toInt();
           return 'Sincronizando... $percent%';
         }
         return 'Sincronizando...';
@@ -397,7 +382,7 @@ class SyncProgressDetail extends ConsumerWidget {
       case SyncStatus.idle:
         return Colors.grey;
       case SyncStatus.syncing:
-        return Colors.blue; // TODO: agregar AppColors.info cuando esté disponible
+        return AppColors.info;
       case SyncStatus.success:
         return AppColors.success;
       case SyncStatus.error:

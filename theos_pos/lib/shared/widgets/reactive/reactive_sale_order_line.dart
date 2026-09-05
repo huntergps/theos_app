@@ -2,6 +2,7 @@ import 'package:fluent_ui/fluent_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:theos_pos_core/theos_pos_core.dart';
+
 import '../../../features/sales/providers/sale_order_stream_providers.dart';
 import '../../utils/formatting_utils.dart';
 

@@ -1,12 +1,18 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../../core/database/repositories/repository_providers.dart';
-import '../../../../../core/managers/manager_providers.dart' show appDatabaseProvider;
-import 'package:theos_pos_core/theos_pos_core.dart' hide DatabaseHelper, PartnerBank, CreditIssue;
+import '../../../../../core/managers/manager_providers.dart'
+    show appDatabaseProvider;
+
+import 'package:theos_pos_core/theos_pos_core.dart'
+    hide DatabaseHelper, PartnerBank;
+
 import '../../../services/payment_line_local_service.dart';
+import '../../../repositories/sales_repository.dart';
 
 /// Notifier for managing payment lines by order
-class POSPaymentLinesByOrderNotifier extends Notifier<Map<int, List<PaymentLine>>> {
+class POSPaymentLinesByOrderNotifier
+    extends Notifier<Map<int, List<PaymentLine>>> {
   /// Counter for generating temporary negative IDs (like SaleOrderLine)
   static int _tempIdCounter = -1;
 
@@ -22,7 +28,10 @@ class POSPaymentLinesByOrderNotifier extends Notifier<Map<int, List<PaymentLine>
   /// Add a payment line for a specific order (also persists to DB and syncs to Odoo)
   Future<void> addLine(int orderId, PaymentLine line) async {
     final currentLines = state[orderId] ?? [];
-    state = {...state, orderId: [...currentLines, line]};
+    state = {
+      ...state,
+      orderId: [...currentLines, line],
+    };
 
     // Use SalesRepository for offline-first sync (same as sale.order.line)
     final salesRepo = ref.read(salesRepositoryProvider);
@@ -74,7 +83,10 @@ class POSPaymentLinesByOrderNotifier extends Notifier<Map<int, List<PaymentLine>
     final lineToRemove = currentLines.where((l) => l.id == lineId).firstOrNull;
 
     // Update state immediately for responsive UI
-    state = {...state, orderId: currentLines.where((l) => l.id != lineId).toList()};
+    state = {
+      ...state,
+      orderId: currentLines.where((l) => l.id != lineId).toList(),
+    };
 
     // Use SalesRepository for offline-first sync (same as sale.order.line)
     final salesRepo = ref.read(salesRepositoryProvider);
@@ -115,7 +127,10 @@ class POSPaymentLinesByOrderNotifier extends Notifier<Map<int, List<PaymentLine>
         );
       }
       // El contador de pendientes se actualiza automáticamente via Drift watch
-      logger.d('[PaymentProvider]', 'Cleared ${linesToRemove.length} payment lines (synced to Odoo) for order $orderId');
+      logger.d(
+        '[PaymentProvider]',
+        'Cleared ${linesToRemove.length} payment lines (synced to Odoo) for order $orderId',
+      );
     } else {
       // Fallback to local-only clear if repository not available
       await _localService.clearLinesFromDb(orderId);
@@ -149,11 +164,6 @@ class POSPaymentLinesByOrderNotifier extends Notifier<Map<int, List<PaymentLine>
   double totalPaid(int orderId) =>
       (state[orderId] ?? []).fold(0.0, (sum, l) => sum + l.amount);
 
-  /// Set all payment lines for an order from server (WebSocket sync)
-  void setLinesFromServer(int orderId, List<PaymentLine> lines) {
-    state = {...state, orderId: lines};
-  }
-
   /// Load payment lines from local database for an order
   Future<void> loadFromDb(int orderId) async {
     final lines = await _localService.loadFromDb(orderId);
@@ -165,12 +175,18 @@ class POSPaymentLinesByOrderNotifier extends Notifier<Map<int, List<PaymentLine>
       if (state[orderId]?.isEmpty ?? true) {
         state = {...state, orderId: <PaymentLine>[]};
       }
-      logger.d('[PaymentProvider]', 'No payment lines in DB for order $orderId');
+      logger.d(
+        '[PaymentProvider]',
+        'No payment lines in DB for order $orderId',
+      );
       return;
     }
 
     state = {...state, orderId: lines};
-    logger.i('[PaymentProvider]', 'Loaded ${lines.length} payment lines from DB for order $orderId');
+    logger.i(
+      '[PaymentProvider]',
+      'Loaded ${lines.length} payment lines from DB for order $orderId',
+    );
   }
 
   /// Sync payment lines from Odoo (if online) and then load from local DB
@@ -181,9 +197,15 @@ class POSPaymentLinesByOrderNotifier extends Notifier<Map<int, List<PaymentLine>
     if (salesRepo != null && salesRepo.isOnline) {
       try {
         await salesRepo.syncPaymentLinesFromOdoo(orderId);
-        logger.d('[PaymentProvider]', 'Synced payment lines from Odoo for order $orderId');
+        logger.d(
+          '[PaymentProvider]',
+          'Synced payment lines from Odoo for order $orderId',
+        );
       } catch (e) {
-        logger.w('[PaymentProvider]', 'Failed to sync from Odoo (will use local): $e');
+        logger.w(
+          '[PaymentProvider]',
+          'Failed to sync from Odoo (will use local): $e',
+        );
       }
     }
     // Then load from local DB (includes synced data if sync succeeded)

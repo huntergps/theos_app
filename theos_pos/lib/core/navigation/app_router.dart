@@ -6,6 +6,7 @@ import '../../features/authentication/screens/login_screen.dart';
 import '../../shared/screens/main_screen.dart';
 import '../../shared/screens/splash_screen.dart';
 import '../../shared/widgets/deferred_screen.dart';
+import 'route_access_policy.dart';
 
 // Deferred imports - loaded on navigation
 import '../../features/activities/screens/activities_screen.dart'
@@ -18,14 +19,10 @@ import '../../features/sales/screens/fast_sale/fast_sale_screen.dart'
     deferred as fast_sale;
 import '../../features/sales/screens/sales_tabbed_screen.dart'
     deferred as sales_tabbed;
-import '../../shared/screens/settings_screen.dart'
-    deferred as settings_screen;
-import '../../features/sync/screens/sync_screen.dart'
-    deferred as sync_screen;
+import '../../shared/screens/settings_screen.dart' deferred as settings_screen;
+import '../../features/sync/screens/sync_screen.dart' deferred as sync_screen;
 import '../../features/sync/screens/offline_sync_management_screen.dart'
     deferred as offline_sync;
-import '../../shared/screens/websocket_debug_screen.dart'
-    deferred as ws_debug;
 import '../../shared/screens/conflict_resolution_screen.dart'
     deferred as conflicts_screen;
 import '../../shared/screens/dead_letter_queue_screen.dart'
@@ -49,30 +46,72 @@ class AppRouter {
   static const String collectionSession = '/collection/session/:id';
   static const String activities = '/activities';
   static const String sales = '/sales';
-  static const String pos = '/pos';
   static const String fastSale = '/fast-sale';
-  static const String salesNew = '/sales/new';
-  static const String salesDetail = '/sales/:id';
-  static const String salesEdit = '/sales/:id/edit';
   static const String settings = '/settings';
   static const String sync = '/sync';
   static const String offlineSync = '/offline-sync';
-  static const String websocketDebug = '/websocket-debug';
   static const String conflicts = '/conflicts';
   static const String deadLetterQueue = '/dead-letter-queue';
+
+  /// Snapshot used by GoRouter redirects. It is deliberately free of
+  /// credentials and only contains the identity/permissions needed for route
+  /// authorization. Riverpod updates it from the composition root.
+  static final ValueNotifier<RouteSessionSnapshot> session =
+      ValueNotifier<RouteSessionSnapshot>(const RouteSessionSnapshot());
 
   /// Build collection session path with ID
   static String collectionSessionPath(int id) => '/collection/session/$id';
 
-  /// Build sales detail path with ID
-  static String salesDetailPath(int id) => '/sales/$id';
-
-  /// Build sales edit path with ID
-  static String salesEditPath(int id) => '/sales/$id/edit';
+  /// Parses a collection-session route ID. Remote IDs are positive and local
+  /// offline sessions may be negative, but zero is never a valid identity.
+  static int? parseCollectionSessionId(String? rawId) {
+    final id = int.tryParse(rawId ?? '');
+    return id == null || id == 0 ? null : id;
+  }
 
   /// Create the router instance
   static GoRouter createRouter() {
-    return GoRouter(initialLocation: initialPath, routes: _routes);
+    return GoRouter(
+      initialLocation: initialPath,
+      refreshListenable: session,
+      redirect: _redirect,
+      routes: _routes,
+    );
+  }
+
+  static String? _redirect(BuildContext context, GoRouterState state) {
+    // Route policy matches paths, not query strings. Using toString() here
+    // made guarded routes with parameters/returnTo queries look unknown and
+    // sent authenticated users back to login.
+    final path = state.uri.path;
+    final snapshot = session.value;
+    final rule = RouteAccessPolicy.ruleFor(path);
+    if (rule == null) return login;
+    if (!rule.requiresAuthentication) {
+      if (snapshot.isAuthenticated && path == login) {
+        return RouteAccessPolicy.destinationAfterLogin(
+          returnTo: state.uri.queryParameters['returnTo'],
+          permissions: snapshot.permissions,
+          developerMode: snapshot.developerMode,
+        );
+      }
+      return null;
+    }
+    if (!snapshot.isAuthenticated) {
+      return Uri(
+        path: login,
+        queryParameters: {'returnTo': state.uri.toString()},
+      ).toString();
+    }
+    if (!RouteAccessPolicy.allows(
+      path: path,
+      isAuthenticated: true,
+      permissions: snapshot.permissions,
+      developerMode: snapshot.developerMode,
+    )) {
+      return home;
+    }
+    return null;
   }
 
   /// Helper to wrap a widget in a fade transition page
@@ -86,7 +125,8 @@ class AppRouter {
       transitionsBuilder: (context, animation, secondaryAnimation, child) {
         return FadeTransition(opacity: animation, child: child);
       },
-      transitionDuration: const Duration(milliseconds: 200),
+      transitionDuration: const Duration(milliseconds: 120),
+      reverseTransitionDuration: const Duration(milliseconds: 80),
     );
   }
 
@@ -114,8 +154,12 @@ class AppRouter {
         ),
         GoRoute(
           path: collectionSession,
+          redirect: (context, state) =>
+              parseCollectionSessionId(state.pathParameters['id']) == null
+              ? collection
+              : null,
           pageBuilder: (context, state) {
-            final id = int.tryParse(state.pathParameters['id'] ?? '') ?? 0;
+            final id = parseCollectionSessionId(state.pathParameters['id'])!;
             return _fadePage(
               state: state,
               child: DeferredScreen(
@@ -136,8 +180,7 @@ class AppRouter {
             ),
           ),
         ),
-        // Sales module con sistema de pestañas como Odoo 19.0
-        // Todas las sub-rutas redirigen al contenedor con pestañas
+        // Canonical sales route with its internal tab navigation.
         GoRoute(
           path: sales,
           pageBuilder: (context, state) => _fadePage(
@@ -159,10 +202,6 @@ class AppRouter {
             ),
           ),
         ),
-        // Mantener rutas por compatibilidad pero redirigen a /sales
-        GoRoute(path: salesNew, redirect: (context, state) => sales),
-        GoRoute(path: salesDetail, redirect: (context, state) => sales),
-        GoRoute(path: salesEdit, redirect: (context, state) => sales),
         GoRoute(
           path: settings,
           pageBuilder: (context, state) => _fadePage(
@@ -194,16 +233,6 @@ class AppRouter {
           ),
         ),
         GoRoute(
-          path: websocketDebug,
-          pageBuilder: (context, state) => _fadePage(
-            state: state,
-            child: DeferredScreen(
-              loader: ws_debug.loadLibrary,
-              builder: () => ws_debug.WebSocketDebugScreen(),
-            ),
-          ),
-        ),
-        GoRoute(
           path: conflicts,
           pageBuilder: (context, state) => _fadePage(
             state: state,
@@ -226,4 +255,19 @@ class AppRouter {
       ],
     ),
   ];
+}
+
+/// Minimal reactive route authorization state. No token or API key is kept.
+@immutable
+class RouteSessionSnapshot {
+  const RouteSessionSnapshot({
+    this.userId,
+    this.permissions = const <String>[],
+    this.developerMode = false,
+  });
+
+  final int? userId;
+  final List<String> permissions;
+  final bool developerMode;
+  bool get isAuthenticated => userId != null && userId! > 0;
 }

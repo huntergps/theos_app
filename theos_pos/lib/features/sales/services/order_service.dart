@@ -1,5 +1,6 @@
 import 'package:odoo_sdk/odoo_sdk.dart' as odoo;
 import 'package:theos_pos_core/theos_pos_core.dart' hide DatabaseHelper;
+
 import '../repositories/sales_repository.dart';
 import 'order_defaults_service.dart';
 
@@ -24,11 +25,7 @@ class OrderService {
   final SalesRepository? _salesRepo;
   static const _tag = '[OrderService]';
 
-  OrderService({
-    required OrderDefaultsService defaultsService,
-    required SalesRepository? salesRepo,
-  })  : _defaultsService = defaultsService,
-        _salesRepo = salesRepo;
+  OrderService({required this._defaultsService, required this._salesRepo});
 
   /// Create a new order with offline-first defaults
   ///
@@ -123,7 +120,9 @@ class OrderService {
 
       // Apply pricelist if local was null
       if (order.pricelistId == null && odooDefaults['pricelist_id'] != null) {
-        final pricelistId = odoo.extractMany2oneId(odooDefaults['pricelist_id']);
+        final pricelistId = odoo.extractMany2oneId(
+          odooDefaults['pricelist_id'],
+        );
         if (pricelistId != null) {
           final pricelistName = await _lookupName(
             'product_pricelist',
@@ -141,7 +140,9 @@ class OrderService {
       // Apply payment term if local was null
       if (order.paymentTermId == null &&
           odooDefaults['payment_term_id'] != null) {
-        final paymentTermId = odoo.extractMany2oneId(odooDefaults['payment_term_id']);
+        final paymentTermId = odoo.extractMany2oneId(
+          odooDefaults['payment_term_id'],
+        );
         if (paymentTermId != null) {
           final paymentTermName = await _lookupName(
             'account_payment_term',

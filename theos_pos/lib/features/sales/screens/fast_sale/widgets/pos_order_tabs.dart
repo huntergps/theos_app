@@ -2,7 +2,10 @@ import 'package:fluent_ui/fluent_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../../core/database/repositories/repository_providers.dart';
-import 'package:theos_pos_core/theos_pos_core.dart' show saleOrderManager, SaleOrderManagerBusiness;
+
+import 'package:theos_pos_core/theos_pos_core.dart'
+    show saleOrderManager, SaleOrderManagerBusiness;
+
 import '../../../../../core/theme/spacing.dart';
 import '../../../../../shared/providers/user_provider.dart';
 import '../../../../../shared/utils/formatting_utils.dart';
@@ -13,7 +16,10 @@ import '../fast_sale_providers.dart';
 /// Usa Drift .watch() vía [OfflineQueueDataSource.watchPendingCountForSaleOrder]
 /// para que las pestañas de órdenes se actualicen automáticamente sin invalidación
 /// manual. Reemplaza el antiguo FutureProvider.family + ref.invalidate en 4 sitios.
-final orderPendingSyncProvider = StreamProvider.family<int, int>((ref, orderId) {
+final orderPendingSyncProvider = StreamProvider.autoDispose.family<int, int>((
+  ref,
+  orderId,
+) {
   final offlineQueue = ref.watch(offlineQueueDataSourceProvider);
   if (offlineQueue == null) {
     return Stream.value(0);
@@ -22,7 +28,10 @@ final orderPendingSyncProvider = StreamProvider.family<int, int>((ref, orderId) 
 });
 
 /// Provider to sync a specific order
-final syncOrderProvider = FutureProvider.family<bool, int>((ref, orderId) async {
+final syncOrderProvider = FutureProvider.autoDispose.family<bool, int>((
+  ref,
+  orderId,
+) async {
   final offlineSyncService = ref.read(offlineSyncServiceProvider);
   if (offlineSyncService == null) return false;
 
@@ -80,7 +89,10 @@ class POSOrderTabs extends ConsumerWidget {
         children: [
           // "Ordenes" label
           Container(
-            padding: EdgeInsets.symmetric(horizontal: Spacing.sm, vertical: Spacing.xs),
+            padding: EdgeInsets.symmetric(
+              horizontal: Spacing.sm,
+              vertical: Spacing.xs,
+            ),
             child: Text(
               'Ordenes',
               style: theme.typography.body?.copyWith(
@@ -93,14 +105,20 @@ class POSOrderTabs extends ConsumerWidget {
           Tooltip(
             message: 'Nueva orden',
             child: Container(
-              margin: EdgeInsets.symmetric(horizontal: Spacing.xxs, vertical: Spacing.xxs),
+              margin: EdgeInsets.symmetric(
+                horizontal: Spacing.xxs,
+                vertical: Spacing.xxs,
+              ),
               child: IconButton(
                 style: ButtonStyle(
                   backgroundColor: WidgetStatePropertyAll(
                     theme.accentColor.withValues(alpha: 0.15),
                   ),
                   padding: WidgetStatePropertyAll(
-                    EdgeInsets.symmetric(horizontal: Spacing.sm, vertical: Spacing.xs),
+                    EdgeInsets.symmetric(
+                      horizontal: Spacing.sm,
+                      vertical: Spacing.xs,
+                    ),
                   ),
                   shape: WidgetStatePropertyAll(
                     RoundedRectangleBorder(
@@ -111,11 +129,7 @@ class POSOrderTabs extends ConsumerWidget {
                     ),
                   ),
                 ),
-                icon: Icon(
-                  FluentIcons.add,
-                  size: 18,
-                  color: theme.accentColor,
-                ),
+                icon: Icon(FluentIcons.add, size: 18, color: theme.accentColor),
                 onPressed: () => notifier.addNewTab(),
               ),
             ),
@@ -144,7 +158,8 @@ class POSOrderTabs extends ConsumerWidget {
                   isActive: isActive,
                   hasChanges: tab.hasChanges,
                   onTap: () => notifier.switchToTab(index),
-                  onClose: () => _confirmCloseTab(context, ref, index, tab.hasChanges),
+                  onClose: () =>
+                      _confirmCloseTab(context, ref, index, tab.hasChanges),
                 );
               },
             ),
@@ -161,11 +176,17 @@ class POSOrderTabs extends ConsumerWidget {
             Tooltip(
               message: 'Buscar en $totalOrdersCount órdenes',
               child: Padding(
-                padding: EdgeInsets.symmetric(horizontal: Spacing.xxs, vertical: Spacing.xxs),
+                padding: EdgeInsets.symmetric(
+                  horizontal: Spacing.xxs,
+                  vertical: Spacing.xxs,
+                ),
                 child: Button(
                   style: ButtonStyle(
                     padding: WidgetStatePropertyAll(
-                      EdgeInsets.symmetric(horizontal: Spacing.sm, vertical: Spacing.xs),
+                      EdgeInsets.symmetric(
+                        horizontal: Spacing.sm,
+                        vertical: Spacing.xs,
+                      ),
                     ),
                     backgroundColor: WidgetStatePropertyAll(
                       theme.accentColor.withValues(alpha: 0.1),
@@ -175,7 +196,11 @@ class POSOrderTabs extends ConsumerWidget {
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      Icon(FluentIcons.search, size: 16, color: theme.accentColor),
+                      Icon(
+                        FluentIcons.search,
+                        size: 16,
+                        color: theme.accentColor,
+                      ),
                       SizedBox(width: Spacing.xs),
                       Text(
                         '+${totalOrdersCount - tabs.length}',
@@ -260,7 +285,8 @@ class _SearchOrdersDialog extends ConsumerStatefulWidget {
   const _SearchOrdersDialog();
 
   @override
-  ConsumerState<_SearchOrdersDialog> createState() => _SearchOrdersDialogState();
+  ConsumerState<_SearchOrdersDialog> createState() =>
+      _SearchOrdersDialogState();
 }
 
 class _SearchOrdersDialogState extends ConsumerState<_SearchOrdersDialog> {
@@ -286,7 +312,7 @@ class _SearchOrdersDialogState extends ConsumerState<_SearchOrdersDialog> {
   }
 
   /// Load pre-filtered orders for salespeople:
-  /// - Orders NOT in 'sale' state (only editable: draft, sent, waiting_approval, approved)
+  /// - Orders NOT in 'sale' state (only editable: draft, sent, waiting, approved)
   /// - Belonging to current user
   /// - Ordered by date_order DESC (newest first)
   Future<void> _loadInitialResults() async {
@@ -324,7 +350,7 @@ class _SearchOrdersDialogState extends ConsumerState<_SearchOrdersDialog> {
         return 'Borrador';
       case 'sent':
         return 'Enviado';
-      case 'waiting_approval':
+      case 'waiting':
         return 'Esperando aprobación';
       case 'approved':
         return 'Aprobado';
@@ -461,7 +487,11 @@ class _SearchOrdersDialogState extends ConsumerState<_SearchOrdersDialog> {
                           Text(order['name'] ?? 'Sin nombre'),
                           if (isInvoiced) ...[
                             SizedBox(width: Spacing.xs),
-                            Icon(FluentIcons.completed_solid, size: 12, color: Colors.green),
+                            Icon(
+                              FluentIcons.completed_solid,
+                              size: 12,
+                              color: Colors.green,
+                            ),
                           ],
                         ],
                       ),
@@ -521,6 +551,7 @@ class _OrderTab extends ConsumerWidget {
 
     // Watch pending sync count for this order
     final pendingSyncAsync = ref.watch(orderPendingSyncProvider(orderId));
+    final pendingSyncError = pendingSyncAsync.hasError;
     final pendingCount = pendingSyncAsync.when(
       data: (count) => count,
       loading: () => 0,
@@ -531,8 +562,14 @@ class _OrderTab extends ConsumerWidget {
     return GestureDetector(
       onTap: onTap,
       child: Container(
-        margin: EdgeInsets.symmetric(horizontal: Spacing.xxs, vertical: Spacing.xxs),
-        padding: EdgeInsets.symmetric(horizontal: Spacing.sm, vertical: Spacing.xxs),
+        margin: EdgeInsets.symmetric(
+          horizontal: Spacing.xxs,
+          vertical: Spacing.xxs,
+        ),
+        padding: EdgeInsets.symmetric(
+          horizontal: Spacing.sm,
+          vertical: Spacing.xxs,
+        ),
         decoration: BoxDecoration(
           color: isActive
               ? theme.accentColor.withValues(alpha: 0.15)
@@ -560,8 +597,16 @@ class _OrderTab extends ConsumerWidget {
               SizedBox(width: Spacing.xxs),
               Tooltip(
                 message: '$pendingCount pendientes',
+                child: Icon(FluentIcons.sync, size: 11, color: Colors.orange),
+              ),
+            ],
+
+            if (pendingSyncError) ...[
+              SizedBox(width: Spacing.xxs),
+              Tooltip(
+                message: 'No se pudo consultar la cola de sincronización',
                 child: Icon(
-                  FluentIcons.sync,
+                  FluentIcons.warning,
                   size: 11,
                   color: Colors.orange,
                 ),

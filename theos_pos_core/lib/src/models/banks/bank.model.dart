@@ -4,12 +4,12 @@ import 'package:odoo_sdk/odoo_sdk.dart';
 part 'bank.model.freezed.dart';
 part 'bank.model.g.dart';
 
-/// Bank model representing res.bank in Odoo
+/// Bank model representing the Ecuadorian bank catalog in Odoo.
 ///
-/// NOTE: res.bank model ONLY EXISTS in Odoo 19.1.
-/// In Odoo 19.2 this model was ELIMINATED.
-/// Use hasBankModel flag (OdooVersion) before syncing this model.
-@OdooModel('res.bank', tableName: 'res_bank')
+/// Odoo 19.5 uses the custom `l10n.ec.bank` catalog. The existing local
+/// BIC/country API is kept as local-only compatibility data; the backend's SPI
+/// `code` is not a BIC and is therefore not mapped into it.
+@OdooModel('l10n.ec.bank', tableName: 'res_bank')
 @freezed
 abstract class Bank with _$Bank {
   const Bank._();
@@ -17,8 +17,8 @@ abstract class Bank with _$Bank {
   const factory Bank({
     @OdooId() required int id,
     @OdooString() required String name,
-    @OdooString() String? bic,
-    @OdooMany2One('res.country', odooName: 'country') int? countryId,
+    @OdooLocalOnly() String? bic,
+    @OdooLocalOnly(driftName: 'country') int? countryId,
     @OdooBoolean() @Default(true) bool active,
     @OdooDateTime(odooName: 'write_date', writable: false) DateTime? writeDate,
   }) = _Bank;
@@ -61,6 +61,8 @@ abstract class PartnerBank with _$PartnerBank {
     @OdooMany2One('res.partner', odooName: 'partner_id') required int partnerId,
     // Removed in 19.2, use bank_name/bank_bic (flat fields on res.partner.bank)
     @OdooLocalOnly() int? bankId,
+    // Odoo 19.5 stores the institution as text on res.partner.bank.
+    @OdooString(odooName: 'bank_name') String? bankName,
     // Odoo 19.5/19.2: 'acc_number' fue renombrado a 'account_number' en
     // res.partner.bank (verificado en vivo contra erp1 y en el código
     // fuente de ambas versiones, julio 2026). driftName explícito porque

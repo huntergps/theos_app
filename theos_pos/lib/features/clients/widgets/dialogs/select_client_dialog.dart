@@ -1,9 +1,11 @@
 import 'package:fluent_ui/fluent_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+
 import '../../../../shared/widgets/dialogs/base_search_dialog.dart';
 
 import '../../providers/client_providers.dart';
 import '../client_card.dart';
+
 import 'package:theos_pos_core/theos_pos_core.dart';
 
 /// Dialog for searching and selecting a client
@@ -38,13 +40,13 @@ class SelectClientDialog extends BaseSearchDialog<Client> {
 
   @override
   SearchDialogConfig get config => SearchDialogConfig(
-        title: 'Seleccionar Cliente',
-        searchPlaceholder: 'Buscar por nombre, RUC o email...',
-        emptySearchMessage: 'Escriba para buscar clientes',
-        noResultsMessage: 'No se encontraron clientes',
-        minSearchLength: 2,
-        initialSearch: initialQuery,
-      );
+    title: 'Seleccionar Cliente',
+    searchPlaceholder: 'Buscar por nombre, RUC o email...',
+    emptySearchMessage: 'Escriba para buscar clientes',
+    noResultsMessage: 'No se encontraron clientes',
+    minSearchLength: 2,
+    initialSearch: initialQuery,
+  );
 
   @override
   Future<List<Client>> performSearch(WidgetRef ref, String query) async {

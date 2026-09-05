@@ -74,12 +74,13 @@ mixin GenericDriftOperations<T> on OdooModelManager<T> {
     final tbl = table;
     final query = database.select(tbl);
 
-    final result = await (query
-          ..where((tbl) {
-            final column = (tbl as dynamic).odooId as drift.GeneratedColumn<int>;
-            return column.equals(id);
-          }))
-        .getSingleOrNull();
+    final result =
+        await (query..where((tbl) {
+              final column =
+                  (tbl as dynamic).odooId as drift.GeneratedColumn<int>;
+              return column.equals(id);
+            }))
+            .getSingleOrNull();
 
     return result != null ? fromDrift(result) : null;
   }
@@ -177,8 +178,7 @@ mixin GenericDriftOperations<T> on OdooModelManager<T> {
 
     final colNames = validEntries.keys.toList();
     final placeholders = List.filled(colNames.length, '?').join(', ');
-    final updateSet =
-        colNames.map((c) => '"$c" = excluded."$c"').join(', ');
+    final updateSet = colNames.map((c) => '"$c" = excluded."$c"').join(', ');
     final values = colNames.map((c) => validEntries[c]).toList();
 
     // Determine the conflict-resolution key.
@@ -207,15 +207,15 @@ mixin GenericDriftOperations<T> on OdooModelManager<T> {
       conflictClause = 'ON CONFLICT ("odoo_id") DO UPDATE SET $updateSet';
     } else {
       // Local record (odoo_id IS NULL): pick best available UNIQUE key.
-      final hasLineUuid = keyToSqlName.containsKey('line_uuid') &&
+      final hasLineUuid =
+          keyToSqlName.containsKey('line_uuid') &&
           validEntries['line_uuid'] != null;
       final hasUuid =
           keyToSqlName.containsKey('uuid') && validEntries['uuid'] != null;
 
       if (hasLineUuid) {
         // Tables: SaleOrderLine, SaleOrderWithholdLine, SaleOrderPaymentLine
-        conflictClause =
-            'ON CONFLICT ("line_uuid") DO UPDATE SET $updateSet';
+        conflictClause = 'ON CONFLICT ("line_uuid") DO UPDATE SET $updateSet';
       } else if (hasUuid) {
         // Tables: SaleOrder (orderUuid stored in "uuid"), CollectionSessionDeposit
         conflictClause = 'ON CONFLICT ("uuid") DO UPDATE SET $updateSet';
@@ -285,8 +285,9 @@ mixin GenericDriftOperations<T> on OdooModelManager<T> {
 
         final colNames = validEntries.keys.toList();
         final placeholders = List.filled(colNames.length, '?').join(', ');
-        final updateSet =
-            colNames.map((c) => '"$c" = excluded."$c"').join(', ');
+        final updateSet = colNames
+            .map((c) => '"$c" = excluded."$c"')
+            .join(', ');
         final values = colNames.map((c) => validEntries[c]).toList();
 
         // Same NULL-safe conflict resolution as upsertLocal (see comment there).
@@ -294,14 +295,11 @@ mixin GenericDriftOperations<T> on OdooModelManager<T> {
         String conflictClause;
 
         if (odooIdValue != null) {
-          conflictClause =
-              'ON CONFLICT ("odoo_id") DO UPDATE SET $updateSet';
+          conflictClause = 'ON CONFLICT ("odoo_id") DO UPDATE SET $updateSet';
         } else if (tableHasLineUuid && validEntries['line_uuid'] != null) {
-          conflictClause =
-              'ON CONFLICT ("line_uuid") DO UPDATE SET $updateSet';
+          conflictClause = 'ON CONFLICT ("line_uuid") DO UPDATE SET $updateSet';
         } else if (tableHasUuid && validEntries['uuid'] != null) {
-          conflictClause =
-              'ON CONFLICT ("uuid") DO UPDATE SET $updateSet';
+          conflictClause = 'ON CONFLICT ("uuid") DO UPDATE SET $updateSet';
         } else {
           conflictClause = '';
         }
@@ -311,8 +309,7 @@ mixin GenericDriftOperations<T> on OdooModelManager<T> {
             'VALUES ($placeholders) '
             '$conflictClause';
 
-        batch.customStatement(
-            sql, values, [drift.TableUpdate.onTable(tbl)]);
+        batch.customStatement(sql, values, [drift.TableUpdate.onTable(tbl)]);
       }
     });
   }
@@ -320,11 +317,10 @@ mixin GenericDriftOperations<T> on OdooModelManager<T> {
   @override
   Future<void> deleteLocal(int id) async {
     final tbl = table;
-    await (database.delete(tbl)
-          ..where((t) {
-            final column = (t as dynamic).odooId as drift.GeneratedColumn<int>;
-            return column.equals(id);
-          }))
+    await (database.delete(tbl)..where((t) {
+          final column = (t as dynamic).odooId as drift.GeneratedColumn<int>;
+          return column.equals(id);
+        }))
         .go();
   }
 
@@ -351,13 +347,13 @@ mixin GenericDriftOperations<T> on OdooModelManager<T> {
     final tbl = table;
     try {
       final query = database.select(tbl);
-      final result = await (query
-            ..where((tbl) {
-              final column =
-                  (tbl as dynamic).uuid as drift.GeneratedColumn<String>;
-              return column.equals(uuid);
-            }))
-          .getSingleOrNull();
+      final result =
+          await (query..where((tbl) {
+                final column =
+                    (tbl as dynamic).uuid as drift.GeneratedColumn<String>;
+                return column.equals(uuid);
+              }))
+              .getSingleOrNull();
       return result != null ? fromDrift(result) : null;
     } catch (_) {
       // Table may not have a uuid column
@@ -370,13 +366,13 @@ mixin GenericDriftOperations<T> on OdooModelManager<T> {
     final tbl = table;
     try {
       final query = database.select(tbl);
-      final results = await (query
-            ..where((tbl) {
-              final column =
-                  (tbl as dynamic).isSynced as drift.GeneratedColumn<bool>;
-              return column.equals(false);
-            }))
-          .get();
+      final results =
+          await (query..where((tbl) {
+                final column =
+                    (tbl as dynamic).isSynced as drift.GeneratedColumn<bool>;
+                return column.equals(false);
+              }))
+              .get();
       return results.map((row) => fromDrift(row)).toList();
     } catch (_) {
       // Table may not have an isSynced column
@@ -414,9 +410,9 @@ mixin GenericDriftOperations<T> on OdooModelManager<T> {
         final column = (tbl as dynamic).odooId as drift.GeneratedColumn<int>;
         return column.equals(id);
       });
-    return query
-        .watchSingleOrNull()
-        .map((row) => row != null ? fromDrift(row) : null);
+    return query.watchSingleOrNull().map(
+      (row) => row != null ? fromDrift(row) : null,
+    );
   }
 
   @override
@@ -442,8 +438,8 @@ mixin GenericDriftOperations<T> on OdooModelManager<T> {
     }
 
     return query.watch().map(
-          (rows) => rows.map((row) => fromDrift(row)).toList(),
-        );
+      (rows) => rows.map((row) => fromDrift(row)).toList(),
+    );
   }
 
   // ═══════════════════════════════════════════════════════════════════════════
@@ -472,7 +468,9 @@ mixin GenericDriftOperations<T> on OdooModelManager<T> {
   /// Build a combined domain expression from Odoo Polish notation domain.
   ///
   /// Returns a function that takes a table reference and produces an Expression<bool>.
-  drift.Expression<bool> Function(dynamic)? _buildDomainExpression(List<dynamic> domain) {
+  drift.Expression<bool> Function(dynamic)? _buildDomainExpression(
+    List<dynamic> domain,
+  ) {
     if (domain.isEmpty) return null;
 
     // Stack-based Polish notation parser
@@ -517,7 +515,9 @@ mixin GenericDriftOperations<T> on OdooModelManager<T> {
       final bot = stack[stack.length - 3];
 
       // Check if bot is an operator and top/mid are resolved (non-operator) nodes
-      if (bot is _OperatorNode && mid is! _OperatorNode && top is! _OperatorNode) {
+      if (bot is _OperatorNode &&
+          mid is! _OperatorNode &&
+          top is! _OperatorNode) {
         stack.removeRange(stack.length - 3, stack.length);
         stack.add(_CombinedNode(bot.op, mid, top));
       } else {
@@ -540,7 +540,11 @@ mixin GenericDriftOperations<T> on OdooModelManager<T> {
 
   /// Resolve a single leaf condition to a Drift expression.
   drift.Expression<bool> _resolveLeafCondition(
-      dynamic t, String field, String op, dynamic value) {
+    dynamic t,
+    String field,
+    String op,
+    dynamic value,
+  ) {
     final columnName = field == 'id' ? 'odooId' : snakeToCamel(field);
     try {
       final column = getColumnDynamic(t, columnName);
@@ -548,38 +552,6 @@ mixin GenericDriftOperations<T> on OdooModelManager<T> {
       return applyOperator(column, op, value);
     } catch (_) {
       return const drift.CustomExpression<bool>('1=1');
-    }
-  }
-
-  /// Apply single domain condition (legacy compatibility).
-  dynamic applyDomainCondition(dynamic query, List<dynamic> condition) {
-    final field = condition[0] as String;
-    final op = condition[1] as String;
-    final value = condition[2];
-    return applyFieldCondition(query, field, op, value);
-  }
-
-  /// Apply field-specific condition.
-  /// Override in subclasses for custom field handling.
-  ///
-  /// Uses dynamic access to get the column by field name from the table.
-  /// Falls back to well-known fields for common cases.
-  dynamic applyFieldCondition(
-      dynamic query, String field, String op, dynamic value) {
-    // Map common Odoo field names to Drift column names
-    final columnName = field == 'id' ? 'odooId' : snakeToCamel(field);
-
-    try {
-      // Try dynamic access for any column
-      return query
-        ..where((t) {
-          final column = getColumnDynamic(t, columnName);
-          if (column == null) return const drift.CustomExpression<bool>('1=1');
-          return applyOperator(column, op, value);
-        });
-    } catch (_) {
-      // If dynamic access fails, return query unchanged
-      return query;
     }
   }
 
@@ -637,7 +609,10 @@ mixin GenericDriftOperations<T> on OdooModelManager<T> {
   /// Comparison operators (`>`, `<`, `>=`, `<=`) work with int, double,
   /// and DateTime columns.
   drift.Expression<bool> applyOperator(
-      drift.GeneratedColumn column, String op, dynamic value) {
+    drift.GeneratedColumn column,
+    String op,
+    dynamic value,
+  ) {
     switch (op) {
       case '=':
         if (value == false) {
@@ -713,7 +688,10 @@ mixin GenericDriftOperations<T> on OdooModelManager<T> {
 
   /// Apply a comparison operator that supports int, double, and DateTime.
   drift.Expression<bool> _applyComparison(
-      drift.GeneratedColumn column, dynamic value, _CompOp comp) {
+    drift.GeneratedColumn column,
+    dynamic value,
+    _CompOp comp,
+  ) {
     if (column is drift.GeneratedColumn<int>) {
       final v = value is int ? value : int.tryParse(value.toString()) ?? 0;
       return switch (comp) {
@@ -753,7 +731,10 @@ mixin GenericDriftOperations<T> on OdooModelManager<T> {
     final parts = input.split('_');
     if (parts.length == 1) return input;
     return parts.first +
-        parts.skip(1).map((p) => p.isEmpty ? '' : p[0].toUpperCase() + p.substring(1)).join();
+        parts
+            .skip(1)
+            .map((p) => p.isEmpty ? '' : p[0].toUpperCase() + p.substring(1))
+            .join();
   }
 
   /// Parse orderBy string into OrderingTerms.
@@ -772,8 +753,10 @@ mixin GenericDriftOperations<T> on OdooModelManager<T> {
   }
 
   /// Get ordering term for field.
-  drift.OrderingTerm Function(dynamic) getOrderingTerm(String field,
-      {required bool ascending}) {
+  drift.OrderingTerm Function(dynamic) getOrderingTerm(
+    String field, {
+    required bool ascending,
+  }) {
     final columnName = field == 'id' ? 'odooId' : snakeToCamel(field);
     return (t) {
       try {

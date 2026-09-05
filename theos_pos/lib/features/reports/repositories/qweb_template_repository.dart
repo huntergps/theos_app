@@ -15,9 +15,11 @@ class DriftQwebTemplateStore {
   DriftQwebTemplateStore(this._db);
 
   Future<CachedTemplate?> getTemplate(String templateKey) async {
-    final row = await (_db.select(_db.qwebReportTemplate)
-          ..where((t) => t.templateKey.equals(templateKey)))
-        .getSingleOrNull();
+    final row =
+        await (_db.select(_db.qwebReportTemplate)..where(
+              (t) => t.templateKey.equals(templateKey) & t.active.equals(true),
+            ))
+            .getSingleOrNull();
 
     if (row == null) return null;
 
@@ -26,7 +28,7 @@ class DriftQwebTemplateStore {
       odooId: row.odooId,
       name: row.name,
       model: row.model,
-      xmlContent: row.xmlContent ?? row.templateContent,
+      xmlContent: row.xmlContent,
       requiredFields: _decodeJsonList(row.requiredFields ?? '[]'),
       dependencies: _decodeJsonList(row.dependencies ?? '[]'),
       lastSynced: row.lastSynced ?? DateTime.now(),
@@ -35,32 +37,36 @@ class DriftQwebTemplateStore {
   }
 
   Future<List<CachedTemplate>> getTemplatesForModel(String model) async {
-    final rows = await (_db.select(_db.qwebReportTemplate)
-          ..where((t) => t.model.equals(model)))
-        .get();
+    final rows = await (_db.select(
+      _db.qwebReportTemplate,
+    )..where((t) => t.model.equals(model) & t.active.equals(true))).get();
 
     return rows
-        .map((row) => CachedTemplate(
-              templateKey: row.templateKey,
-              odooId: row.odooId,
-              name: row.name,
-              model: row.model,
-              xmlContent: row.xmlContent ?? row.templateContent,
-              requiredFields: _decodeJsonList(row.requiredFields ?? '[]'),
-              dependencies: _decodeJsonList(row.dependencies ?? '[]'),
-              lastSynced: row.lastSynced ?? DateTime.now(),
-              checksum: row.checksum ?? '',
-            ))
+        .map(
+          (row) => CachedTemplate(
+            templateKey: row.templateKey,
+            odooId: row.odooId,
+            name: row.name,
+            model: row.model,
+            xmlContent: row.xmlContent,
+            requiredFields: _decodeJsonList(row.requiredFields ?? '[]'),
+            dependencies: _decodeJsonList(row.dependencies ?? '[]'),
+            lastSynced: row.lastSynced ?? DateTime.now(),
+            checksum: row.checksum ?? '',
+          ),
+        )
         .toList();
   }
 
   Future<void> saveTemplate(CachedTemplate template) async {
     await _db.transaction(() async {
-      await (_db.delete(_db.qwebReportTemplate)
-            ..where((t) => t.templateKey.equals(template.templateKey)))
-          .go();
+      await (_db.delete(
+        _db.qwebReportTemplate,
+      )..where((t) => t.templateKey.equals(template.templateKey))).go();
 
-      await _db.into(_db.qwebReportTemplate).insert(
+      await _db
+          .into(_db.qwebReportTemplate)
+          .insert(
             QwebReportTemplateCompanion.insert(
               templateKey: template.templateKey,
               odooId: template.odooId,
@@ -68,12 +74,12 @@ class DriftQwebTemplateStore {
               model: template.model ?? '',
               reportType: 'pdf', // Default to PDF reports
               reportName: template.templateKey, // Use templateKey as reportName
-              templateContent: template.xmlContent,
-              xmlContent: Value(template.xmlContent),
+              xmlContent: template.xmlContent,
               requiredFields: Value(jsonEncode(template.requiredFields)),
               dependencies: Value(jsonEncode(template.dependencies)),
               checksum: Value(template.checksum),
               lastSynced: Value(template.lastSynced),
+              active: const Value(true),
               writeDate: Value(DateTime.now()),
             ),
           );
@@ -81,9 +87,9 @@ class DriftQwebTemplateStore {
   }
 
   Future<void> deleteTemplate(String templateKey) async {
-    await (_db.delete(_db.qwebReportTemplate)
-          ..where((t) => t.templateKey.equals(templateKey)))
-        .go();
+    await (_db.delete(
+      _db.qwebReportTemplate,
+    )..where((t) => t.templateKey.equals(templateKey))).go();
   }
 
   Future<void> saveTemplates(List<CachedTemplate> templates) async {
@@ -98,88 +104,160 @@ class DriftQwebTemplateStore {
             model: template.model ?? '',
             reportType: 'pdf', // Default to PDF reports
             reportName: template.templateKey, // Use templateKey as reportName
-            templateContent: template.xmlContent,
-            xmlContent: Value(template.xmlContent),
+            xmlContent: template.xmlContent,
             requiredFields: Value(jsonEncode(template.requiredFields)),
             dependencies: Value(jsonEncode(template.dependencies)),
             checksum: Value(template.checksum),
             lastSynced: Value(template.lastSynced),
+            active: const Value(true),
             writeDate: Value(DateTime.now()),
           ),
-          onConflict: DoUpdate((old) => QwebReportTemplateCompanion(
-                odooId: Value(template.odooId),
-                name: Value(template.name ?? ''),
-                model: Value(template.model ?? ''),
-                xmlContent: Value(template.xmlContent),
-                requiredFields: Value(jsonEncode(template.requiredFields)),
-                dependencies: Value(jsonEncode(template.dependencies)),
-                checksum: Value(template.checksum),
-                lastSynced: Value(template.lastSynced),
-                writeDate: Value(DateTime.now()),
-              )),
+          onConflict: DoUpdate(
+            (old) => QwebReportTemplateCompanion(
+              odooId: Value(template.odooId),
+              name: Value(template.name ?? ''),
+              model: Value(template.model ?? ''),
+              xmlContent: Value(template.xmlContent),
+              requiredFields: Value(jsonEncode(template.requiredFields)),
+              dependencies: Value(jsonEncode(template.dependencies)),
+              checksum: Value(template.checksum),
+              lastSynced: Value(template.lastSynced),
+              active: const Value(true),
+              writeDate: Value(DateTime.now()),
+            ),
+          ),
         );
       }
     });
   }
 
   Future<List<CachedTemplate>> getAllTemplates() async {
-    final rows = await _db.select(_db.qwebReportTemplate).get();
+    final rows = await (_db.select(
+      _db.qwebReportTemplate,
+    )..where((table) => table.active.equals(true))).get();
 
     return rows
-        .map((row) => CachedTemplate(
-              templateKey: row.templateKey,
-              odooId: row.odooId,
-              name: row.name,
-              model: row.model,
-              xmlContent: row.xmlContent ?? row.templateContent,
-              requiredFields: _decodeJsonList(row.requiredFields ?? '[]'),
-              dependencies: _decodeJsonList(row.dependencies ?? '[]'),
-              lastSynced: row.lastSynced ?? DateTime.now(),
-              checksum: row.checksum ?? '',
-            ))
+        .map(
+          (row) => CachedTemplate(
+            templateKey: row.templateKey,
+            odooId: row.odooId,
+            name: row.name,
+            model: row.model,
+            xmlContent: row.xmlContent,
+            requiredFields: _decodeJsonList(row.requiredFields ?? '[]'),
+            dependencies: _decodeJsonList(row.dependencies ?? '[]'),
+            lastSynced: row.lastSynced ?? DateTime.now(),
+            checksum: row.checksum ?? '',
+          ),
+        )
         .toList();
   }
 
   Future<bool> templateExists(String templateKey) async {
-    final count = await (_db.selectOnly(_db.qwebReportTemplate)
-          ..addColumns([_db.qwebReportTemplate.id.count()])
-          ..where(_db.qwebReportTemplate.templateKey.equals(templateKey)))
-        .map((row) => row.read(_db.qwebReportTemplate.id.count()))
-        .getSingle();
+    final count =
+        await (_db.selectOnly(_db.qwebReportTemplate)
+              ..addColumns([_db.qwebReportTemplate.id.count()])
+              ..where(
+                _db.qwebReportTemplate.templateKey.equals(templateKey) &
+                    _db.qwebReportTemplate.active.equals(true),
+              ))
+            .map((row) => row.read(_db.qwebReportTemplate.id.count()))
+            .getSingle();
 
     return (count ?? 0) > 0;
   }
 
   Future<int> getTemplateCount() async {
-    final count = await (_db.selectOnly(_db.qwebReportTemplate)
-          ..addColumns([_db.qwebReportTemplate.id.count()]))
-        .map((row) => row.read(_db.qwebReportTemplate.id.count()))
-        .getSingle();
+    final count =
+        await (_db.selectOnly(_db.qwebReportTemplate)
+              ..addColumns([_db.qwebReportTemplate.id.count()])
+              ..where(_db.qwebReportTemplate.active.equals(true)))
+            .map((row) => row.read(_db.qwebReportTemplate.id.count()))
+            .getSingle();
 
     return count ?? 0;
   }
 
   Future<Map<String, String>> getTemplateChecksums() async {
-    final rows = await (_db.selectOnly(_db.qwebReportTemplate)
-          ..addColumns([
-            _db.qwebReportTemplate.templateKey,
-            _db.qwebReportTemplate.checksum
-          ]))
-        .get();
+    final rows =
+        await (_db.selectOnly(_db.qwebReportTemplate)
+              ..addColumns([
+                _db.qwebReportTemplate.templateKey,
+                _db.qwebReportTemplate.checksum,
+              ])
+              ..where(_db.qwebReportTemplate.active.equals(true)))
+            .get();
 
-    return Map.fromEntries(rows.map((row) => MapEntry(
+    return Map.fromEntries(
+      rows.map(
+        (row) => MapEntry(
           row.read(_db.qwebReportTemplate.templateKey)!,
           row.read(_db.qwebReportTemplate.checksum)!,
-        )));
+        ),
+      ),
+    );
   }
 
   Future<String?> getTemplateChecksum(String templateKey) async {
-    final row = await (_db.selectOnly(_db.qwebReportTemplate)
-          ..addColumns([_db.qwebReportTemplate.checksum])
-          ..where(_db.qwebReportTemplate.templateKey.equals(templateKey)))
-        .getSingleOrNull();
+    final row =
+        await (_db.selectOnly(_db.qwebReportTemplate)
+              ..addColumns([_db.qwebReportTemplate.checksum])
+              ..where(
+                _db.qwebReportTemplate.templateKey.equals(templateKey) &
+                    _db.qwebReportTemplate.active.equals(true),
+              ))
+            .getSingleOrNull();
 
     return row?.read(_db.qwebReportTemplate.checksum);
+  }
+
+  /// Tombstones a server-owned template that is no longer visible remotely.
+  ///
+  /// Rows without a completed server sync (`last_synced IS NULL`) or with a
+  /// non-positive Odoo ID are local drafts and must never be removed by
+  /// reconciliation.
+  Future<int> tombstoneRemoteTemplate(String templateKey) {
+    return (_db.update(_db.qwebReportTemplate)..where(
+          (table) =>
+              table.templateKey.equals(templateKey) &
+              table.active.equals(true) &
+              table.odooId.isBiggerThanValue(0) &
+              table.lastSynced.isNotNull(),
+        ))
+        .write(
+          QwebReportTemplateCompanion(
+            active: const Value(false),
+            writeDate: Value(DateTime.now().toUtc()),
+          ),
+        );
+  }
+
+  /// Tombstones server-owned templates that left a complete model scope.
+  /// Explicit base/dependency templates can be protected because they are not
+  /// necessarily roots returned by `ir.actions.report` for the model.
+  Future<int> tombstoneMissingRemoteTemplatesForModel(
+    String model, {
+    required Set<String> activeTemplateKeys,
+    Set<String> protectedTemplateKeys = const {},
+  }) {
+    final retainedKeys = {...activeTemplateKeys, ...protectedTemplateKeys};
+    return (_db.update(_db.qwebReportTemplate)..where((table) {
+          var expression =
+              table.model.equals(model) &
+              table.active.equals(true) &
+              table.odooId.isBiggerThanValue(0) &
+              table.lastSynced.isNotNull();
+          if (retainedKeys.isNotEmpty) {
+            expression = expression & table.templateKey.isNotIn(retainedKeys);
+          }
+          return expression;
+        }))
+        .write(
+          QwebReportTemplateCompanion(
+            active: const Value(false),
+            writeDate: Value(DateTime.now().toUtc()),
+          ),
+        );
   }
 
   // ============ Paper Format Operations ============
@@ -187,9 +265,9 @@ class DriftQwebTemplateStore {
   Future<PaperFormat?> getPaperFormat(String templateKey) async {
     // Note: QwebPaperFormat doesn't have templateKey field
     // Using first available format as default
-    final row = await (_db.select(_db.qwebPaperFormat)
-          ..limit(1))
-        .getSingleOrNull();
+    final row = await (_db.select(
+      _db.qwebPaperFormat,
+    )..limit(1)).getSingleOrNull();
 
     if (row == null) return null;
 
@@ -211,14 +289,18 @@ class DriftQwebTemplateStore {
     // Note: QwebPaperFormat doesn't have templateKey field
     // This is a simplified implementation that creates/updates a default format
     await _db.transaction(() async {
-      await _db.into(_db.qwebPaperFormat).insert(
+      await _db
+          .into(_db.qwebPaperFormat)
+          .insert(
             QwebPaperFormatCompanion.insert(
               odooId: 1, // Use fixed ID for default format
               name: 'Default Format',
               format: Value(format.format),
-              orientation: Value(format.orientation == PageOrientation.landscape
-                  ? 'landscape'
-                  : 'portrait'),
+              orientation: Value(
+                format.orientation == PageOrientation.landscape
+                    ? 'landscape'
+                    : 'portrait',
+              ),
               marginTop: Value(format.marginTop),
               marginBottom: Value(format.marginBottom),
               marginLeft: Value(format.marginLeft),
@@ -233,7 +315,9 @@ class DriftQwebTemplateStore {
   Future<Map<String, PaperFormat>> getAllPaperFormats() async {
     final rows = await _db.select(_db.qwebPaperFormat).get();
 
-    return Map.fromEntries(rows.map((row) => MapEntry(
+    return Map.fromEntries(
+      rows.map(
+        (row) => MapEntry(
           row.name, // Use name as key since templateKey doesn't exist
           PaperFormat(
             format: row.format ?? 'A4',
@@ -247,7 +331,9 @@ class DriftQwebTemplateStore {
             headerSpacing: 0.0, // Default value (field doesn't exist)
             dpi: 96, // Default DPI (field doesn't exist)
           ),
-        )));
+        ),
+      ),
+    );
   }
 
   Future<void> clearAll() async {
@@ -301,6 +387,19 @@ class QwebTemplateRepository implements QwebTemplateProvider {
 
   Future<void> deleteTemplate(String templateKey) =>
       _store.deleteTemplate(templateKey);
+
+  Future<int> tombstoneRemoteTemplate(String templateKey) =>
+      _store.tombstoneRemoteTemplate(templateKey);
+
+  Future<int> tombstoneMissingRemoteTemplatesForModel(
+    String model, {
+    required Set<String> activeTemplateKeys,
+    Set<String> protectedTemplateKeys = const {},
+  }) => _store.tombstoneMissingRemoteTemplatesForModel(
+    model,
+    activeTemplateKeys: activeTemplateKeys,
+    protectedTemplateKeys: protectedTemplateKeys,
+  );
 
   Future<bool> templateExists(String templateKey) =>
       _store.templateExists(templateKey);

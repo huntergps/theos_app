@@ -109,8 +109,8 @@ class NoOpServerLockPersistence implements ServerLockPersistence {
 /// `theos_pos_{host_sanitized}_{db_sanitized}.sqlite`
 ///
 /// Example:
-/// - URL: https://erp1.tecnosmart.com.ec, DB: empresa_a
-/// - Result: theos_pos_erp1_tecnosmart_com_ec_empresa_a.sqlite
+/// - URL: https://erp.example.com, DB: empresa_a
+/// - Result: theos_pos_erp_example_com_empresa_a.sqlite
 class ServerDatabaseService {
   final DeviceService _deviceService;
   final ServerLockPersistence _lockPersistence;

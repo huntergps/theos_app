@@ -46,10 +46,11 @@ extension SalesRepositorySync on SalesRepository {
       final appDb = _db;
 
       // Check for local unsynced withholds before any deletion
-      final localUnsyncedWithholds = await (appDb.select(appDb.saleOrderWithholdLine)
-            ..where((t) => t.orderId.equals(orderId))
-            ..where((t) => t.isSynced.equals(false)))
-          .get();
+      final localUnsyncedWithholds =
+          await (appDb.select(appDb.saleOrderWithholdLine)
+                ..where((t) => t.orderId.equals(orderId))
+                ..where((t) => t.isSynced.equals(false)))
+              .get();
 
       if (response.isEmpty) {
         // No withhold lines in Odoo
@@ -76,9 +77,10 @@ extension SalesRepositorySync on SalesRepository {
       // borraron sin haber insertado las nuevas de Odoo.
       await appDb.transaction(() async {
         // Delete only SYNCED local lines for this order (preserve unsynced)
-        await (appDb.delete(
-          appDb.saleOrderWithholdLine,
-        )..where((t) => t.orderId.equals(orderId) & t.isSynced.equals(true))).go();
+        await (appDb.delete(appDb.saleOrderWithholdLine)..where(
+              (t) => t.orderId.equals(orderId) & t.isSynced.equals(true),
+            ))
+            .go();
 
         // Insert new lines from Odoo
         for (final lineData in response) {
@@ -97,9 +99,8 @@ extension SalesRepositorySync on SalesRepository {
             withholdType = 'withhold_vat_sale';
           }
           // Extract percentage from tax name if present (e.g., "10% WTH" -> 0.10)
-          final percentMatch = RegExp(
-            r'(\d+(?:[.,]\d+)?)\s*%',
-          ).firstMatch(taxName);
+          final percentMatch = RegExp(r'(\d+(?:[.,]\d+)?)\s*%')
+              .firstMatch(taxName);
           if (percentMatch != null) {
             taxPercent =
                 (double.tryParse(percentMatch.group(1)!.replaceAll(',', '.')) ??
@@ -121,7 +122,9 @@ extension SalesRepositorySync on SalesRepository {
                   : null,
             ),
             base: drift.Value((lineData['base'] as num?)?.toDouble() ?? 0.0),
-            amount: drift.Value((lineData['amount'] as num?)?.toDouble() ?? 0.0),
+            amount: drift.Value(
+              (lineData['amount'] as num?)?.toDouble() ?? 0.0,
+            ),
             notes: drift.Value(
               lineData['notes'] is String ? lineData['notes'] : null,
             ),
@@ -208,12 +211,6 @@ extension SalesRepositorySync on SalesRepository {
     }
 
     try {
-      // FIX 4: bank_id (Many2one res.bank) existe en Odoo 19.1 pero fue eliminado
-      // en 19.2. En 19.2 el campo equivalente es bank_name_ec (Char).
-      // Pedimos el campo correcto según la versión del servidor.
-      final hasBankModel = paymentLineManager.client.version.hasBankModel;
-      final bankField = hasBankModel ? 'bank_id' : 'bank_name_ec';
-
       // F6: @OdooModel de PaymentLine ya corregido a
       // 'l10n_ec_collection_box.sale.order.payment' — usa
       // paymentLineManager.odooModel directamente.
@@ -238,7 +235,8 @@ extension SalesRepositorySync on SalesRepository {
           'card_brand_id',
           'card_deadline_id',
           'lote_id',
-          bankField, // 19.1: bank_id (Many2one), 19.2: bank_name_ec (Char)
+          'l10n_ec_bank_id',
+          'bank_name_ec',
           'partner_bank_id',
           'effective_date',
           'bank_reference_date',
@@ -252,10 +250,11 @@ extension SalesRepositorySync on SalesRepository {
       final appDb = _db;
 
       // Check for local unsynced payments before any deletion
-      final localUnsyncedPayments = await (appDb.select(appDb.saleOrderPaymentLine)
-            ..where((t) => t.orderId.equals(orderId))
-            ..where((t) => t.isSynced.equals(false)))
-          .get();
+      final localUnsyncedPayments =
+          await (appDb.select(appDb.saleOrderPaymentLine)
+                ..where((t) => t.orderId.equals(orderId))
+                ..where((t) => t.isSynced.equals(false)))
+              .get();
 
       if (response.isEmpty) {
         // No payment lines in Odoo
@@ -282,9 +281,10 @@ extension SalesRepositorySync on SalesRepository {
       // borraron sin haber insertado las nuevas de Odoo.
       await appDb.transaction(() async {
         // Delete only SYNCED local lines for this order (preserve unsynced)
-        await (appDb.delete(
-          appDb.saleOrderPaymentLine,
-        )..where((t) => t.orderId.equals(orderId) & t.isSynced.equals(true))).go();
+        await (appDb.delete(appDb.saleOrderPaymentLine)..where(
+              (t) => t.orderId.equals(orderId) & t.isSynced.equals(true),
+            ))
+            .go();
 
         // Insert new lines from Odoo
         for (final lineData in response) {
@@ -299,7 +299,9 @@ extension SalesRepositorySync on SalesRepository {
           final paymentMethodName = odoo.extractMany2oneName(
             lineData['payment_method_line_id'],
           );
-          final creditNoteId = odoo.extractMany2oneId(lineData['credit_note_id']);
+          final creditNoteId = odoo.extractMany2oneId(
+            lineData['credit_note_id'],
+          );
           final creditNoteName = odoo.extractMany2oneName(
             lineData['credit_note_id'],
           );
@@ -317,19 +319,12 @@ extension SalesRepositorySync on SalesRepository {
           );
           final loteId = odoo.extractMany2oneId(lineData['lote_id']);
           final loteName = odoo.extractMany2oneName(lineData['lote_id']);
-          // FIX 4: Extraer bank según versión del servidor.
-          // En 19.1: bank_id es Many2one → [id, name]; en 19.2: bank_name_ec es Char.
-          int? bankId;
-          String? bankName;
-          if (hasBankModel) {
-            // Odoo 19.1: bank_id = [id, name] o false
-            bankId = odoo.extractMany2oneId(lineData['bank_id']);
-            bankName = odoo.extractMany2oneName(lineData['bank_id']);
-          } else {
-            // Odoo 19.2: bank_name_ec = String o false
-            bankName = lineData['bank_name_ec'] is String ? lineData['bank_name_ec'] as String : null;
-            bankId = null; // No existe ID en 19.2
-          }
+          final bankId = odoo.extractMany2oneId(lineData['l10n_ec_bank_id']);
+          final bankName =
+              odoo.extractMany2oneName(lineData['l10n_ec_bank_id']) ??
+              (lineData['bank_name_ec'] is String
+                  ? lineData['bank_name_ec'] as String
+                  : null);
           final partnerBankId = odoo.extractMany2oneId(
             lineData['partner_bank_id'],
           );
@@ -382,7 +377,9 @@ extension SalesRepositorySync on SalesRepository {
             journalType: drift.Value(journalType),
             paymentMethodLineId: drift.Value(paymentMethodLineId),
             paymentMethodName: drift.Value(paymentMethodName),
-            amount: drift.Value((lineData['amount'] as num?)?.toDouble() ?? 0.0),
+            amount: drift.Value(
+              (lineData['amount'] as num?)?.toDouble() ?? 0.0,
+            ),
             date: drift.Value(date),
             paymentReference: drift.Value(
               lineData['payment_reference'] is String

@@ -27,16 +27,16 @@ library;
 
 export 'src/api/odoo_client.dart';
 export 'src/api/odoo_exception.dart';
+export 'src/api/odoo_error_mapper.dart';
 export 'src/api/odoo_version.dart';
+export 'src/api/odoo_capabilities.dart';
+export 'src/api/odoo_capabilities_detector.dart';
 export 'src/api/odoo_response_parser.dart';
 export 'src/api/multi_tenant_manager.dart';
 export 'src/api/client/odoo_http_client.dart';
 export 'src/api/client/odoo_crud_api.dart';
-export 'src/api/auth/odoo_auth_strategy.dart';
-export 'src/api/auth/json_rpc_auth_strategy.dart';
-export 'src/api/auth/mobile_auth_strategy.dart';
-export 'src/api/session/odoo_session_manager.dart';
-export 'src/api/session/session_persistence.dart';
+export 'src/api/client/odoo_transport.dart';
+export 'src/api/client/json2_transport.dart';
 export 'src/api/interceptors/auth_interceptor.dart';
 export 'src/api/interceptors/cache_interceptor.dart';
 export 'src/api/interceptors/compression_interceptor.dart';
@@ -77,7 +77,6 @@ export 'src/websocket/websocket_heartbeat_manager.dart';
 export 'src/websocket/websocket_message_deduplicator.dart';
 export 'src/websocket/websocket_model_registry.dart';
 export 'src/websocket/websocket_reconnection_manager.dart';
-export 'src/websocket/browser_session_helper.dart';
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // Services

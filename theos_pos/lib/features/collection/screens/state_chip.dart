@@ -1,4 +1,5 @@
 import 'package:fluent_ui/fluent_ui.dart';
+
 import '../../../../core/constants/app_colors.dart';
 import '../../../../shared/widgets/common/theos_state_chip.dart';
 
@@ -20,8 +21,7 @@ class StateChip extends StatelessWidget {
     return switch (state) {
       'openingControl' || 'opening_control' => (AppColors.warning, 'Apertura'),
       'opened' => (AppColors.success, 'Abierta'),
-      // TODO: AppColors no tiene un azul informativo independiente de contexto; usar accentColor via TheosTheme si se refactoriza a ConsumerWidget
-      'closingControl' || 'closing_control' => (Colors.blue, 'Cerrando'),
+      'closingControl' || 'closing_control' => (AppColors.info, 'Cerrando'),
       'closed' => (AppColors.textSecondary, 'Cerrada'),
       _ => (AppColors.textSecondary, state),
     };

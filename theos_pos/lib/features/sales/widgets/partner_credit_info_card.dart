@@ -4,7 +4,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/database/repositories/repository_providers.dart'
     show salesRepositoryProvider;
 import '../repositories/sales_repository.dart'; // Extension methods (getWithLines, etc.)
-import '../../../core/services/logger_service.dart';
+
+import 'package:odoo_sdk/odoo_sdk.dart' show logger;
+
 import '../../../shared/utils/error_utils.dart';
 import '../../../shared/widgets/dialogs/copyable_info_bar.dart';
 import '../../clients/clients.dart'
@@ -65,8 +67,7 @@ class _PartnerCreditInfoCardState extends ConsumerState<PartnerCreditInfoCard> {
       return _buildNoPartnerState(context);
     }
 
-    final clientAsync =
-        ref.watch(clientWithCreditProvider(widget.partnerId!));
+    final clientAsync = ref.watch(clientWithCreditProvider(widget.partnerId!));
 
     return clientAsync.when(
       loading: () => _buildLoadingState(context),
@@ -77,7 +78,9 @@ class _PartnerCreditInfoCardState extends ConsumerState<PartnerCreditInfoCard> {
           client: client,
           isCompact: widget.isCompact,
           // Hide sync button when hideSyncButton is true (fast_sale uses POSActionsPanel)
-          onRefresh: widget.hideSyncButton ? null : (_isSyncing ? null : _syncAllData),
+          onRefresh: widget.hideSyncButton
+              ? null
+              : (_isSyncing ? null : _syncAllData),
         );
       },
     );
@@ -93,7 +96,10 @@ class _PartnerCreditInfoCardState extends ConsumerState<PartnerCreditInfoCard> {
     final errors = <String>[];
 
     try {
-      logger.i('[PartnerCreditInfoCard]', 'Starting full sync for partner ${widget.partnerId}, order ${widget.orderId}');
+      logger.i(
+        '[PartnerCreditInfoCard]',
+        'Starting full sync for partner ${widget.partnerId}, order ${widget.orderId}',
+      );
 
       // 1. Sync partner/client data
       try {
@@ -107,7 +113,13 @@ class _PartnerCreditInfoCardState extends ConsumerState<PartnerCreditInfoCard> {
       if (widget.orderId != null && widget.orderId! > 0) {
         try {
           await _syncSaleOrderData();
-          syncedItems.addAll(['Orden', 'Líneas', 'Pagos', 'Retenciones', 'Facturas']);
+          syncedItems.addAll([
+            'Orden',
+            'Líneas',
+            'Pagos',
+            'Retenciones',
+            'Facturas',
+          ]);
         } catch (e) {
           errors.add('Orden: $e');
         }
@@ -121,7 +133,10 @@ class _PartnerCreditInfoCardState extends ConsumerState<PartnerCreditInfoCard> {
         errors.add('Crédito: $e');
       }
 
-      logger.i('[PartnerCreditInfoCard]', 'Sync completed. Items: ${syncedItems.join(", ")}. Errors: ${errors.length}');
+      logger.i(
+        '[PartnerCreditInfoCard]',
+        'Sync completed. Items: ${syncedItems.join(", ")}. Errors: ${errors.length}',
+      );
 
       // Show result message
       if (mounted) {
@@ -151,7 +166,8 @@ class _PartnerCreditInfoCardState extends ConsumerState<PartnerCreditInfoCard> {
         CopyableInfoBar.showError(
           context,
           title: 'Error de sincronización',
-          message: 'No se pudieron actualizar los datos: ${friendlyErrorMessage(e)}',
+          message:
+              'No se pudieron actualizar los datos: ${friendlyErrorMessage(e)}',
         );
       }
     } finally {
@@ -182,7 +198,10 @@ class _PartnerCreditInfoCardState extends ConsumerState<PartnerCreditInfoCard> {
     final salesRepo = ref.read(salesRepositoryProvider);
     if (salesRepo == null) throw Exception('Sin conexión');
 
-    logger.d('[PartnerCreditInfoCard]', 'Syncing sale order ${widget.orderId} with all related data');
+    logger.d(
+      '[PartnerCreditInfoCard]',
+      'Syncing sale order ${widget.orderId} with all related data',
+    );
 
     // getWithLines with forceRefresh=true syncs:
     // - Order and lines from Odoo
@@ -197,10 +216,16 @@ class _PartnerCreditInfoCardState extends ConsumerState<PartnerCreditInfoCard> {
     final creditService = ref.read(clientCreditServiceProvider);
     if (creditService == null) throw Exception('Sin conexión');
 
-    logger.d('[PartnerCreditInfoCard]', 'Syncing credit info for partner ${widget.partnerId}');
+    logger.d(
+      '[PartnerCreditInfoCard]',
+      'Syncing credit info for partner ${widget.partnerId}',
+    );
 
     // Force refresh credit data from Odoo
-    await creditService.getClientWithCredit(widget.partnerId!, forceRefresh: true);
+    await creditService.getClientWithCredit(
+      widget.partnerId!,
+      forceRefresh: true,
+    );
 
     // Invalidate the provider to reload UI
     ref.invalidate(clientWithCreditProvider(widget.partnerId!));
@@ -292,11 +317,7 @@ class _PartnerCreditInfoCardState extends ConsumerState<PartnerCreditInfoCard> {
       padding: const EdgeInsets.all(12),
       child: Row(
         children: [
-          SizedBox(
-            width: 16,
-            height: 16,
-            child: ProgressRing(strokeWidth: 2),
-          ),
+          SizedBox(width: 16, height: 16, child: ProgressRing(strokeWidth: 2)),
           const SizedBox(width: 8),
           Text(
             'Crédito',

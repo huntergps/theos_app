@@ -6,6 +6,7 @@ import '../widgets/facturas_emitidas_table.dart';
 import '../widgets/detalle_retiros_table.dart';
 import '../widgets/control_depositos_table.dart';
 import '../widgets/cheques_recibidos_table.dart';
+
 import 'package:theos_pos_core/theos_pos_core.dart';
 
 /// Tab de resumen de cierre de la sesion de cobranza

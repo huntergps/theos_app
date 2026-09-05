@@ -1,13 +1,23 @@
 import 'package:fluent_ui/fluent_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:odoo_widgets/odoo_widgets.dart'
-    show OdooFieldConfig, OdooTextField, OdooSelectionField, OdooMultilineField, SelectionOption;
+    show
+        OdooFieldConfig,
+        OdooTextField,
+        OdooSelectionField,
+        OdooMultilineField,
+        SelectionOption;
 import 'package:uuid/uuid.dart';
 
 import '../../../../core/database/repositories/repository_providers.dart';
-import '../../../../core/services/logger_service.dart';
+
+import 'package:odoo_sdk/odoo_sdk.dart' show logger;
 import 'package:theos_pos_core/theos_pos_core.dart'
-    show clientManager, ClientManagerBusiness, resCountryManager, resCountryStateManager;
+    show
+        clientManager,
+        ClientManagerBusiness,
+        resCountryManager,
+        resCountryStateManager;
 import 'package:odoo_sdk/latam.dart' show EcuadorVatValidator;
 
 /// Dialog for creating a client offline
@@ -65,13 +75,11 @@ class _CreateClientOfflineDialogState
   Future<void> _loadMasterData() async {
     try {
       // Load countries via manager, then sort Ecuador first
-      final countries = await resCountryManager.searchLocal(orderBy: 'name asc');
+      final countries = await resCountryManager.searchLocal(
+        orderBy: 'name asc',
+      );
       _countries = countries
-          .map((c) => {
-                'id': c.id,
-                'name': c.name,
-                'code': c.code,
-              })
+          .map((c) => {'id': c.id, 'name': c.name, 'code': c.code})
           .toList();
       // Sort Ecuador first
       _countries.sort((a, b) {
@@ -82,18 +90,23 @@ class _CreateClientOfflineDialogState
       });
 
       // Load all states via manager
-      final states = await resCountryStateManager.searchLocal(orderBy: 'name asc');
+      final states = await resCountryStateManager.searchLocal(
+        orderBy: 'name asc',
+      );
       _states = states
-          .map((s) => {
-                'id': s.id,
-                'name': s.name,
-                'code': s.code,
-                'country_id': s.countryId,
-              })
+          .map(
+            (s) => {
+              'id': s.id,
+              'name': s.name,
+              'code': s.code,
+              'country_id': s.countryId,
+            },
+          )
           .toList();
 
-      final ecuadorCountry =
-          _countries.where((c) => c['code'] == 'EC').firstOrNull;
+      final ecuadorCountry = _countries
+          .where((c) => c['code'] == 'EC')
+          .firstOrNull;
       if (ecuadorCountry != null) {
         _selectedCountryId = ecuadorCountry['id'] as int;
         _filterStatesByCountry(_selectedCountryId!);
@@ -112,26 +125,27 @@ class _CreateClientOfflineDialogState
   }
 
   void _filterStatesByCountry(int countryId) {
-    _filteredStates =
-        _states.where((s) => s['country_id'] == countryId).toList();
+    _filteredStates = _states
+        .where((s) => s['country_id'] == countryId)
+        .toList();
     _selectedStateId = null;
   }
 
   String _getVatLabel() => switch (_selectedIdType) {
-        EcuadorVatValidator.typeCedula => 'Cedula',
-        EcuadorVatValidator.typeRucNatural => 'RUC',
-        EcuadorVatValidator.typePassport => 'Numero de Pasaporte',
-        EcuadorVatValidator.typeForeignId => 'Numero de ID Extranjero',
-        _ => 'Identificacion',
-      };
+    EcuadorVatValidator.typeCedula => 'Cedula',
+    EcuadorVatValidator.typeRucNatural => 'RUC',
+    EcuadorVatValidator.typePassport => 'Numero de Pasaporte',
+    EcuadorVatValidator.typeForeignId => 'Numero de ID Extranjero',
+    _ => 'Identificacion',
+  };
 
   String _getVatPlaceholder() => switch (_selectedIdType) {
-        EcuadorVatValidator.typeCedula => 'Ej: 1234567890',
-        EcuadorVatValidator.typeRucNatural => 'Ej: 1234567890001',
-        EcuadorVatValidator.typePassport => 'Ej: AB123456',
-        EcuadorVatValidator.typeForeignId => 'Ej: E12345678',
-        _ => 'Numero de identificacion',
-      };
+    EcuadorVatValidator.typeCedula => 'Ej: 1234567890',
+    EcuadorVatValidator.typeRucNatural => 'Ej: 1234567890001',
+    EcuadorVatValidator.typePassport => 'Ej: AB123456',
+    EcuadorVatValidator.typeForeignId => 'Ej: E12345678',
+    _ => 'Numero de identificacion',
+  };
 
   Future<void> _createClient() async {
     if (_name.trim().isEmpty) {
@@ -150,14 +164,16 @@ class _CreateClientOfflineDialogState
 
     String? stateName, stateCode, countryName, countryCode;
     if (_selectedStateId != null) {
-      final state =
-          _filteredStates.where((s) => s['id'] == _selectedStateId).firstOrNull;
+      final state = _filteredStates
+          .where((s) => s['id'] == _selectedStateId)
+          .firstOrNull;
       stateName = state?['name'] as String?;
       stateCode = state?['code'] as String?;
     }
     if (_selectedCountryId != null) {
-      final country =
-          _countries.where((c) => c['id'] == _selectedCountryId).firstOrNull;
+      final country = _countries
+          .where((c) => c['id'] == _selectedCountryId)
+          .firstOrNull;
       countryName = country?['name'] as String?;
       countryCode = country?['code'] as String?;
     }
@@ -331,9 +347,7 @@ class _CreateClientOfflineDialogState
               Expanded(
                 child: Text(
                   'El cliente se creara localmente y se sincronizara cuando haya conexion.',
-                  style: theme.typography.caption?.copyWith(
-                    color: Colors.blue,
-                  ),
+                  style: theme.typography.caption?.copyWith(color: Colors.blue),
                 ),
               ),
             ],
@@ -514,12 +528,11 @@ class _CreateClientOfflineDialogState
 
         // Country
         OdooSelectionField<int>(
-          config: const OdooFieldConfig(
-            label: 'Pais',
-            isEditing: true,
-          ),
+          config: const OdooFieldConfig(label: 'Pais', isEditing: true),
           value: _selectedCountryId,
-          placeholder: _countries.isEmpty ? 'Cargando paises...' : 'Seleccione pais',
+          placeholder: _countries.isEmpty
+              ? 'Cargando paises...'
+              : 'Seleccione pais',
           options: _countries
               .map(
                 (country) => SelectionOption<int>(

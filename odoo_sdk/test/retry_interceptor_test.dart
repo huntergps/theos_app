@@ -94,16 +94,17 @@ void main() {
       const config = RetryConfig();
       expect(config.retryableStatusCodes, contains(408)); // Request Timeout
       expect(config.retryableStatusCodes, contains(429)); // Too Many Requests
-      expect(config.retryableStatusCodes, contains(500)); // Internal Server Error
+      expect(
+        config.retryableStatusCodes,
+        contains(500),
+      ); // Internal Server Error
       expect(config.retryableStatusCodes, contains(502)); // Bad Gateway
       expect(config.retryableStatusCodes, contains(503)); // Service Unavailable
       expect(config.retryableStatusCodes, contains(504)); // Gateway Timeout
     });
 
     test('custom retryable status codes', () {
-      const config = RetryConfig(
-        retryableStatusCodes: {500, 502},
-      );
+      const config = RetryConfig(retryableStatusCodes: {500, 502});
       expect(config.retryableStatusCodes, hasLength(2));
       expect(config.retryableStatusCodes, contains(500));
       expect(config.retryableStatusCodes, contains(502));
@@ -176,6 +177,61 @@ void main() {
       );
       expect(copied.enableRetry, false);
       expect(copied.retryConfig.maxRetries, 2);
+    });
+  });
+
+  group('OdooRetryPolicy', () {
+    test('allows only explicitly safe Odoo read methods', () {
+      for (final method in [
+        'search',
+        'read',
+        'search_read',
+        'search_count',
+        'fields_get',
+        'context_get',
+        'name_get',
+        'name_search',
+      ]) {
+        expect(
+          OdooRetryPolicy.isSafeReadMethod(method),
+          isTrue,
+          reason: method,
+        );
+      }
+    });
+
+    test(
+      'fails closed for mutations, actions, wizards and unknown methods',
+      () {
+        for (final method in [
+          'create',
+          'write',
+          'unlink',
+          'action_confirm',
+          'action_apply_and_create_invoice',
+          'create_invoices',
+          'custom_method',
+        ]) {
+          expect(
+            OdooRetryPolicy.isSafeReadMethod(method),
+            isFalse,
+            reason: method,
+          );
+        }
+      },
+    );
+
+    test('JSON-2 metadata contains method and safety only', () {
+      final metadata = OdooRetryPolicy.metadataForJson2Path(
+        '/sale.order/create',
+      );
+
+      expect(metadata, {
+        OdooRetryPolicy.retrySafeExtraKey: false,
+        OdooRetryPolicy.methodExtraKey: 'create',
+      });
+      expect(metadata.toString(), isNot(contains('Authorization')));
+      expect(metadata.toString(), isNot(contains('apiKey')));
     });
   });
 }

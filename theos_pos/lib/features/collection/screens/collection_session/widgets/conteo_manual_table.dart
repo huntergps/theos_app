@@ -1,12 +1,15 @@
 import 'package:fluent_ui/fluent_ui.dart';
 
-import 'package:odoo_widgets/odoo_widgets.dart' show ReactiveSummaryCard, ReactiveSummaryRow, ReactiveSummaryHeader;
+import 'package:odoo_widgets/odoo_widgets.dart'
+    show OdooSummaryCard, OdooSummaryRow, OdooSummaryHeader;
+
 import '../../../../../core/constants/app_colors.dart';
 import '../../../../../shared/utils/formatting_utils.dart';
+
 import 'package:theos_pos_core/theos_pos_core.dart';
 
 /// Tabla de conteo manual de la sesion
-/// Refactorizado para usar ReactiveSummaryRow.comparison
+/// Refactorizado para usar OdooSummaryRow.comparison
 class ConteoManualTable extends StatelessWidget {
   final CollectionSession session;
 
@@ -16,13 +19,13 @@ class ConteoManualTable extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = FluentTheme.of(context);
 
-    return ReactiveSummaryCard(
+    return OdooSummaryCard(
       title: 'Conteo Manual',
       titleIcon: FluentIcons.edit,
       footer: _buildTotalRow(theme),
       children: [
         // Header
-        const ReactiveSummaryHeader(
+        const OdooSummaryHeader(
           systemLabel: 'Sistema',
           manualLabel: 'Manual',
           differenceLabel: 'Diferencia',
@@ -31,55 +34,55 @@ class ConteoManualTable extends StatelessWidget {
         const SizedBox(height: 8),
 
         // Comparison rows
-        ReactiveSummaryRow.comparison(
+        OdooSummaryRow.comparison(
           icon: FluentIcons.check_list,
           label: 'Cheques al Día',
           systemAmount: session.systemChecksOnDay,
           manualAmount: session.manualChecksOnDay,
         ),
-        ReactiveSummaryRow.comparison(
+        OdooSummaryRow.comparison(
           icon: FluentIcons.calendar,
           label: 'Cheques Postfechados',
           systemAmount: session.systemChecksPostdated,
           manualAmount: session.manualChecksPostdated,
         ),
-        ReactiveSummaryRow.comparison(
+        OdooSummaryRow.comparison(
           icon: FluentIcons.payment_card,
           label: 'Tarjetas de Crédito',
           systemAmount: session.systemCardsTotal,
           manualAmount: session.manualCardsTotal,
         ),
-        ReactiveSummaryRow.comparison(
+        OdooSummaryRow.comparison(
           icon: FluentIcons.switch_widget,
           label: 'Transferencias',
           systemAmount: session.systemTransfersTotal,
           manualAmount: session.manualTransfersTotal,
         ),
-        ReactiveSummaryRow.comparison(
+        OdooSummaryRow.comparison(
           icon: FluentIcons.money,
           label: 'Depósitos Efectivo',
           systemAmount: session.systemDepositsCashTotal,
           manualAmount: session.manualDepositsCashTotal,
         ),
-        ReactiveSummaryRow.comparison(
+        OdooSummaryRow.comparison(
           icon: FluentIcons.bank,
           label: 'Depósitos Cheques',
           systemAmount: session.systemDepositsChecksTotal,
           manualAmount: session.manualDepositsChecksTotal,
         ),
-        ReactiveSummaryRow.comparison(
+        OdooSummaryRow.comparison(
           icon: FluentIcons.pinned,
           label: 'Anticipos de Clientes',
           systemAmount: session.systemAdvancesTotal,
           manualAmount: session.manualAdvancesTotal,
         ),
-        ReactiveSummaryRow.comparison(
+        OdooSummaryRow.comparison(
           icon: FluentIcons.return_key,
           label: 'Notas de Crédito',
           systemAmount: session.systemCreditNotesTotal,
           manualAmount: session.manualCreditNotesTotal,
         ),
-        ReactiveSummaryRow.comparison(
+        OdooSummaryRow.comparison(
           icon: FluentIcons.list,
           label: 'Retenciones Cruzadas',
           systemAmount: session.totalWithholdAmount,
@@ -107,10 +110,7 @@ class ConteoManualTable extends StatelessWidget {
           // Label
           Expanded(
             flex: 3,
-            child: Text(
-              'TOTAL',
-              style: theme.typography.bodyStrong,
-            ),
+            child: Text('TOTAL', style: theme.typography.bodyStrong),
           ),
           // System total
           Expanded(

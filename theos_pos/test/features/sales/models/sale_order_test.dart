@@ -1,5 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:theos_pos_core/theos_pos_core.dart' show InvoiceStatus, SaleOrderState;
+import 'package:theos_pos_core/theos_pos_core.dart'
+    show InvoiceStatus, SaleOrderState;
 
 import '../../../helpers/test_model_factory.dart';
 
@@ -243,21 +244,16 @@ void main() {
     });
 
     test('credit sale when isCredit is true', () {
-      final order = SaleOrderFactory.draft(partnerId: 1).copyWith(
-        isCash: false,
-        isCredit: true,
-        paymentTermId: 5,
-      );
+      final order = SaleOrderFactory.draft(partnerId: 1)
+          .copyWith(isCash: false, isCredit: true, paymentTermId: 5);
 
       expect(order.isCashSale, isFalse);
       expect(order.isCreditSale, isTrue);
     });
 
     test('cash sale when no payment term', () {
-      final order = SaleOrderFactory.draft(partnerId: 1).copyWith(
-        isCash: false,
-        paymentTermId: null,
-      );
+      final order = SaleOrderFactory.draft(partnerId: 1)
+          .copyWith(isCash: false, paymentTermId: null);
 
       // isCashSale checks isCash || paymentTermId == null
       expect(order.isCashSale, isTrue);
@@ -351,9 +347,8 @@ void main() {
     });
 
     test('validate() rejects negative total', () {
-      final order = SaleOrderFactory.draft(partnerId: 1).copyWith(
-        amountTotal: -10.0,
-      );
+      final order = SaleOrderFactory.draft(partnerId: 1)
+          .copyWith(amountTotal: -10.0);
       final errors = order.validate();
 
       expect(errors, contains('amount_total'));
@@ -394,18 +389,9 @@ void main() {
 
   group('Display names', () {
     test('stateDisplayName returns correct label for each state', () {
-      expect(
-        SaleOrderFactory.draft().stateDisplayName,
-        'Cotizacion',
-      );
-      expect(
-        SaleOrderFactory.confirmed().stateDisplayName,
-        'Orden de Venta',
-      );
-      expect(
-        SaleOrderFactory.cancelled().stateDisplayName,
-        'Cancelado',
-      );
+      expect(SaleOrderFactory.draft().stateDisplayName, 'Cotizacion');
+      expect(SaleOrderFactory.confirmed().stateDisplayName, 'Orden de Venta');
+      expect(SaleOrderFactory.cancelled().stateDisplayName, 'Cancelado');
     });
 
     test('displayState is alias for stateDisplayName', () {

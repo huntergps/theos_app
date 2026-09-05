@@ -27,14 +27,20 @@ extension FastSaleNotifierInit on FastSaleNotifier {
     for (final tab in state.tabs) {
       // Skip new orders (negative IDs) - they're not in the cache yet
       if (tab.isNewOrder) {
-        logger.d('[FastSale]', '>>> _syncFromCache: Skipping new order ${tab.orderId}');
+        logger.d(
+          '[FastSale]',
+          '>>> _syncFromCache: Skipping new order ${tab.orderId}',
+        );
         newTabs.add(tab);
         continue;
       }
 
       final cachedOrder = cache.orders[tab.orderId];
       if (cachedOrder == null) {
-        logger.d('[FastSale]', '>>> _syncFromCache: No cached order for ${tab.orderId}');
+        logger.d(
+          '[FastSale]',
+          '>>> _syncFromCache: No cached order for ${tab.orderId}',
+        );
         newTabs.add(tab);
         continue;
       }
@@ -44,8 +50,8 @@ extension FastSaleNotifierInit on FastSaleNotifier {
         logger.w(
           '[FastSale]',
           '>>> _syncFromCache: SYNCING order ${tab.orderId}! '
-          'Tab partner: ${tab.order?.partnerId}/${tab.order?.partnerName}, '
-          'Cache partner: ${cachedOrder.partnerId}/${cachedOrder.partnerName}',
+              'Tab partner: ${tab.order?.partnerId}/${tab.order?.partnerName}, '
+              'Cache partner: ${cachedOrder.partnerId}/${cachedOrder.partnerName}',
         );
 
         // Sync partner and other fields from cache
@@ -71,13 +77,19 @@ extension FastSaleNotifierInit on FastSaleNotifier {
           'Synced order ${tab.orderId} from cache: partner=${cachedOrder.partnerName}',
         );
       } else {
-        logger.d('[FastSale]', '>>> _syncFromCache: Order ${tab.orderId} is up-to-date');
+        logger.d(
+          '[FastSale]',
+          '>>> _syncFromCache: Order ${tab.orderId} is up-to-date',
+        );
         newTabs.add(tab);
       }
     }
 
     if (hasChanges) {
-      logger.d('[FastSale]', '>>> _syncFromCache: Applying ${newTabs.length} updated tabs');
+      logger.d(
+        '[FastSale]',
+        '>>> _syncFromCache: Applying ${newTabs.length} updated tabs',
+      );
       state = state.copyWith(tabs: newTabs);
     } else {
       logger.d('[FastSale]', '>>> _syncFromCache: No changes needed');
@@ -178,7 +190,9 @@ extension FastSaleNotifierInit on FastSaleNotifier {
       final userId = currentUser.id;
 
       // Get total count of available orders
-      final totalCount = await saleOrderManager.countSaleOrdersForPOS(userId: userId);
+      final totalCount = await saleOrderManager.countSaleOrdersForPOS(
+        userId: userId,
+      );
 
       // Load orders (limited to maxTabs)
       final orders = await saleOrderManager.getSaleOrdersForPOS(
@@ -242,13 +256,20 @@ extension FastSaleNotifierInit on FastSaleNotifier {
       // Sync and load withhold, payment lines, and invoices for all initial orders
       // This syncs from Odoo if online, then loads from local DB (offline-first pattern)
       for (final tab in tabs) {
-        ref.read(posWithholdLinesByOrderProvider.notifier).syncAndLoad(tab.orderId);
-        ref.read(posPaymentLinesByOrderProvider.notifier).syncAndLoad(tab.orderId);
+        ref
+            .read(posWithholdLinesByOrderProvider.notifier)
+            .syncAndLoad(tab.orderId);
+        ref
+            .read(posPaymentLinesByOrderProvider.notifier)
+            .syncAndLoad(tab.orderId);
         // Sync invoices for this order (similar to payment lines)
         final salesRepo = ref.read(salesRepositoryProvider);
         if (salesRepo != null && salesRepo.isOnline) {
           salesRepo.syncInvoicesForOrder(tab.orderId).catchError((e) {
-            logger.w('[FastSale]', 'Failed to sync invoices for order ${tab.orderId}: $e');
+            logger.w(
+              '[FastSale]',
+              'Failed to sync invoices for order ${tab.orderId}: $e',
+            );
           });
         }
       }

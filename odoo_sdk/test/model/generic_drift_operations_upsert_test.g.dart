@@ -356,22 +356,20 @@ abstract class _$FakeThingsDb extends GeneratedDatabase {
   List<DatabaseSchemaEntity> get allSchemaEntities => [fakeThings];
 }
 
-typedef $$FakeThingsTableCreateCompanionBuilder =
-    FakeThingsCompanion Function({
-      Value<int> id,
-      Value<int?> odooId,
-      Value<String?> lineUuid,
-      required String name,
-      Value<double> price,
-    });
-typedef $$FakeThingsTableUpdateCompanionBuilder =
-    FakeThingsCompanion Function({
-      Value<int> id,
-      Value<int?> odooId,
-      Value<String?> lineUuid,
-      Value<String> name,
-      Value<double> price,
-    });
+typedef $$FakeThingsTableCreateCompanionBuilder = FakeThingsCompanion Function({
+  Value<int> id,
+  Value<int?> odooId,
+  Value<String?> lineUuid,
+  required String name,
+  Value<double> price,
+});
+typedef $$FakeThingsTableUpdateCompanionBuilder = FakeThingsCompanion Function({
+  Value<int> id,
+  Value<int?> odooId,
+  Value<String?> lineUuid,
+  Value<String> name,
+  Value<double> price,
+});
 
 class $$FakeThingsTableFilterComposer
     extends Composer<_$FakeThingsDb, $FakeThingsTable> {

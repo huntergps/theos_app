@@ -1,4 +1,5 @@
 import 'package:fluent_ui/fluent_ui.dart';
+
 import '../../core/constants/app_colors.dart';
 
 /// User presence/IM status matching Odoo 19.0 implementation
@@ -51,9 +52,8 @@ enum ImStatus {
       case ImStatus.busy:
         return AppColors.danger; // text-danger red
       case ImStatus.offline:
-        return const Color(
-          0xFF6C757D,
-        ).withValues(alpha: 0.75); // text-700 opacity-75 gray
+        return const Color(0xFF6C757D)
+            .withValues(alpha: 0.75); // text-700 opacity-75 gray
     }
   }
 

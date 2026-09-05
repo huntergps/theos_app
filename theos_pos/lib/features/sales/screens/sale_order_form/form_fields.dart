@@ -1,14 +1,16 @@
 import 'package:fluent_ui/fluent_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../../clients/clients.dart' show Client, SelectClientDialog;
+import '../../../clients/clients.dart'
+    show Client, CreateClientOfflineDialog, SelectClientDialog;
 import '../../../../core/database/providers.dart' show partnerProvider;
 import '../../../../shared/widgets/order_config_card.dart';
 import '../../../../shared/widgets/reactive/reactive_widgets.dart';
+
 import 'package:theos_pos_core/theos_pos_core.dart';
+
 import '../../providers/providers.dart';
 import '../../widgets/partner_credit_info_card.dart';
-import 'edit_dialogs.dart';
 import 'form_sections.dart';
 
 // ============================================================================
@@ -87,24 +89,20 @@ class SaleOrderFormFields extends ConsumerWidget {
     final partner = partnerAsync?.value;
 
     // Preferir datos de la BD local, fallback a datos del form/order
-    final partnerName = partner?.name ?? _selectField(
-      ref,
-      isEditing,
-      (s) => s.partnerName,
-      order?.partnerName,
-    );
-    final partnerVat = partner?.vat ?? _selectField(
-      ref,
-      isEditing,
-      (s) => s.partnerVat,
-      order?.partnerVat,
-    );
-    final partnerStreet = partner?.street ?? _selectField(
-      ref,
-      isEditing,
-      (s) => s.partnerStreet,
-      order?.partnerStreet,
-    );
+    final partnerName =
+        partner?.name ??
+        _selectField(ref, isEditing, (s) => s.partnerName, order?.partnerName);
+    final partnerVat =
+        partner?.vat ??
+        _selectField(ref, isEditing, (s) => s.partnerVat, order?.partnerVat);
+    final partnerStreet =
+        partner?.street ??
+        _selectField(
+          ref,
+          isEditing,
+          (s) => s.partnerStreet,
+          order?.partnerStreet,
+        );
     final effectivePhone = partner?.effectivePhone;
     final partnerPhone = (effectivePhone != null && effectivePhone.isNotEmpty)
         ? effectivePhone
@@ -122,13 +120,15 @@ class SaleOrderFormFields extends ConsumerWidget {
             isEditing,
             (s) => s.partnerEmail,
             order?.partnerEmail,
-    );
-    final partnerAvatar = partner?.avatar128 ?? _selectField(
-      ref,
-      isEditing,
-      (s) => s.partnerAvatar,
-      order?.partnerAvatar,
-    );
+          );
+    final partnerAvatar =
+        partner?.avatar128 ??
+        _selectField(
+          ref,
+          isEditing,
+          (s) => s.partnerAvatar,
+          order?.partnerAvatar,
+        );
     final isFinalConsumer =
         _selectField(
           ref,
@@ -203,7 +203,7 @@ class SaleOrderFormFields extends ConsumerWidget {
         // Section2Info con widgets reactivos unificados
         FormSection2Info(
           clientCard: ReactivePartnerCard(
-            config: ReactiveFieldConfig(label: 'Cliente', isEditing: isEditing),
+            config: OdooFieldConfig(label: 'Cliente', isEditing: isEditing),
             partner: PartnerInfo(
               id: partnerId,
               name: partnerName,
@@ -296,7 +296,9 @@ class SaleOrderFormFields extends ConsumerWidget {
         '>>> State BEFORE update: partnerId=${stateBefore.partnerId}, partnerName=${stateBefore.partnerName}',
       );
 
-      ref.read(saleOrderFormProvider.notifier).updatePartner(
+      ref
+          .read(saleOrderFormProvider.notifier)
+          .updatePartner(
             client.id,
             client.name,
             vat: client.vat,
@@ -658,7 +660,7 @@ class ReactiveCustomerTypeChannelFields extends ConsumerWidget {
             children: [
               Expanded(
                 child: OdooSelectionField<String>(
-                  config: ReactiveFieldConfig(
+                  config: OdooFieldConfig(
                     label: 'Tipo de Cliente',
                     isEditing: isEditing,
                     isRequired: true,
@@ -673,7 +675,7 @@ class ReactiveCustomerTypeChannelFields extends ConsumerWidget {
               const SizedBox(width: 12),
               Expanded(
                 child: OdooSelectionField<String>(
-                  config: ReactiveFieldConfig(
+                  config: OdooFieldConfig(
                     label: 'Canal de Cliente',
                     isEditing: isEditing,
                     isRequired: true,

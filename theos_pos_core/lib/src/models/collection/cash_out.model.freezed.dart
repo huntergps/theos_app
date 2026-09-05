@@ -1,6 +1,6 @@
 // GENERATED CODE - DO NOT MODIFY BY HAND
 // coverage:ignore-file
-// ignore_for_file: type=lint
+// ignore_for_file: type=lint, type=warning, deprecated_member_use, deprecated_member_use_from_same_package
 // ignore_for_file: unused_element, deprecated_member_use, deprecated_member_use_from_same_package, use_function_type_syntax_for_parameters, unnecessary_const, avoid_init_to_null, invalid_override_different_default_values_named, prefer_expression_function_bodies, annotate_overrides, invalid_annotation_target, unnecessary_question_mark
 
 part of 'cash_out.model.dart';
@@ -9,21 +9,14 @@ part of 'cash_out.model.dart';
 // FreezedGenerator
 // **************************************************************************
 
+// GENERATED CODE - DO NOT MODIFY BY HAND
 // dart format off
 T _$identity<T>(T value) => value;
 
 /// @nodoc
 mixin _$CashOut {
 
-// ============ Identifiers ============
-@OdooId() int get id;@OdooLocalOnly() String? get uuid;@OdooLocalOnly() bool get isSynced;@OdooLocalOnly() DateTime? get lastSyncDate;// ============ Basic Data ============
-@OdooString() String? get name;@OdooDate() DateTime get date;@OdooSelection() CashOutState get state;@OdooSelection(odooName: 'cash_flow') CashFlow get cashFlow;// ============ Relations ============
-@OdooMany2One('account.journal', odooName: 'journal_id') int get journalId;@OdooMany2OneName(sourceField: 'journal_id') String? get journalName;@OdooMany2One('res.partner', odooName: 'partner_id') int? get partnerId;@OdooMany2OneName(sourceField: 'partner_id') String? get partnerName;@OdooMany2One('account.account', odooName: 'account_id_manual') int? get accountIdManual;@OdooMany2One('collection.session', odooName: 'collection_session_id') int? get collectionSessionId;@OdooMany2One('account.move', odooName: 'move_id') int? get moveId;// ============ Amount ============
-@OdooFloat() double get amount;// ============ Notes ============
-@OdooString() String? get note;// ============ Type Info ============
-@OdooSelection(odooName: 'cash_out_type') String get typeCode;// Mismo fix: el modelo real es 'l10n_ec.cash.out.type', no
-// 'l10n_ec_collection_box.cash_out_type'.
-@OdooMany2One('l10n_ec.cash.out.type', odooName: 'cash_out_type_id') int? get typeId;@OdooMany2OneName(sourceField: 'cash_out_type_id') String? get typeName;
+@OdooId() int get id;@OdooLocalOnly() String? get uuid;@OdooLocalOnly() bool get isSynced;@OdooLocalOnly() DateTime? get lastSyncDate;@OdooString() String? get name;@OdooDate() DateTime get date;@OdooSelection() CashOutState get state;@OdooSelection(odooName: 'cash_flow') CashFlow get cashFlow;@OdooMany2One('account.journal', odooName: 'journal_id') int get journalId;@OdooMany2OneName(sourceField: 'journal_id') String? get journalName;@OdooMany2One('res.partner', odooName: 'partner_id') int? get partnerId;@OdooMany2OneName(sourceField: 'partner_id') String? get partnerName;@OdooMany2One('account.account', odooName: 'account_id_manual') int? get accountIdManual;@OdooMany2One('collection.session', odooName: 'collection_session_id') int? get collectionSessionId;@OdooMany2One('account.move', odooName: 'move_id') int? get moveId;@OdooFloat() double get amount;@OdooString() String? get note;@OdooSelection(odooName: 'cash_out_type') String get typeCode;@OdooMany2One('l10n_ec.cash.out.type', odooName: 'cash_out_type_id') int? get typeId;@OdooMany2OneName(sourceField: 'cash_out_type_id') String? get typeName;
 /// Create a copy of CashOut
 /// with the given fields replaced by the non-null parameter values.
 @JsonKey(includeFromJson: false, includeToJson: false)
@@ -74,7 +67,7 @@ class _$CashOutCopyWithImpl<$Res>
 /// Create a copy of CashOut
 /// with the given fields replaced by the non-null parameter values.
 @pragma('vm:prefer-inline') @override $Res call({Object? id = null,Object? uuid = freezed,Object? isSynced = null,Object? lastSyncDate = freezed,Object? name = freezed,Object? date = null,Object? state = null,Object? cashFlow = null,Object? journalId = null,Object? journalName = freezed,Object? partnerId = freezed,Object? partnerName = freezed,Object? accountIdManual = freezed,Object? collectionSessionId = freezed,Object? moveId = freezed,Object? amount = null,Object? note = freezed,Object? typeCode = null,Object? typeId = freezed,Object? typeName = freezed,}) {
-  return _then(_self.copyWith(
+  return _then(CashOut(
 id: null == id ? _self.id : id // ignore: cast_nullable_to_non_nullable
 as int,uuid: freezed == uuid ? _self.uuid : uuid // ignore: cast_nullable_to_non_nullable
 as String?,isSynced: null == isSynced ? _self.isSynced : isSynced // ignore: cast_nullable_to_non_nullable
@@ -239,17 +232,14 @@ class _CashOut extends CashOut {
   const _CashOut({@OdooId() this.id = 0, @OdooLocalOnly() this.uuid, @OdooLocalOnly() this.isSynced = false, @OdooLocalOnly() this.lastSyncDate, @OdooString() this.name, @OdooDate() required this.date, @OdooSelection() this.state = CashOutState.draft, @OdooSelection(odooName: 'cash_flow') this.cashFlow = CashFlow.out, @OdooMany2One('account.journal', odooName: 'journal_id') required this.journalId, @OdooMany2OneName(sourceField: 'journal_id') this.journalName, @OdooMany2One('res.partner', odooName: 'partner_id') this.partnerId, @OdooMany2OneName(sourceField: 'partner_id') this.partnerName, @OdooMany2One('account.account', odooName: 'account_id_manual') this.accountIdManual, @OdooMany2One('collection.session', odooName: 'collection_session_id') this.collectionSessionId, @OdooMany2One('account.move', odooName: 'move_id') this.moveId, @OdooFloat() this.amount = 0.0, @OdooString() this.note, @OdooSelection(odooName: 'cash_out_type') this.typeCode = 'other', @OdooMany2One('l10n_ec.cash.out.type', odooName: 'cash_out_type_id') this.typeId, @OdooMany2OneName(sourceField: 'cash_out_type_id') this.typeName}): super._();
   factory _CashOut.fromJson(Map<String, dynamic> json) => _$CashOutFromJson(json);
 
-// ============ Identifiers ============
 @override@JsonKey()@OdooId() final  int id;
 @override@OdooLocalOnly() final  String? uuid;
 @override@JsonKey()@OdooLocalOnly() final  bool isSynced;
 @override@OdooLocalOnly() final  DateTime? lastSyncDate;
-// ============ Basic Data ============
 @override@OdooString() final  String? name;
 @override@OdooDate() final  DateTime date;
 @override@JsonKey()@OdooSelection() final  CashOutState state;
 @override@JsonKey()@OdooSelection(odooName: 'cash_flow') final  CashFlow cashFlow;
-// ============ Relations ============
 @override@OdooMany2One('account.journal', odooName: 'journal_id') final  int journalId;
 @override@OdooMany2OneName(sourceField: 'journal_id') final  String? journalName;
 @override@OdooMany2One('res.partner', odooName: 'partner_id') final  int? partnerId;
@@ -257,14 +247,9 @@ class _CashOut extends CashOut {
 @override@OdooMany2One('account.account', odooName: 'account_id_manual') final  int? accountIdManual;
 @override@OdooMany2One('collection.session', odooName: 'collection_session_id') final  int? collectionSessionId;
 @override@OdooMany2One('account.move', odooName: 'move_id') final  int? moveId;
-// ============ Amount ============
 @override@JsonKey()@OdooFloat() final  double amount;
-// ============ Notes ============
 @override@OdooString() final  String? note;
-// ============ Type Info ============
 @override@JsonKey()@OdooSelection(odooName: 'cash_out_type') final  String typeCode;
-// Mismo fix: el modelo real es 'l10n_ec.cash.out.type', no
-// 'l10n_ec_collection_box.cash_out_type'.
 @override@OdooMany2One('l10n_ec.cash.out.type', odooName: 'cash_out_type_id') final  int? typeId;
 @override@OdooMany2OneName(sourceField: 'cash_out_type_id') final  String? typeName;
 

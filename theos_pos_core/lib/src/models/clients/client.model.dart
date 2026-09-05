@@ -95,7 +95,8 @@ abstract class Client with _$Client {
         }
         // No puede ser consumidor final para facturas
         if (isFinalConsumer) {
-          errors['vat'] = 'No se puede facturar a consumidor final (usa nota de venta)';
+          errors['vat'] =
+              'No se puede facturar a consumidor final (usa nota de venta)';
         }
         break;
 
@@ -202,10 +203,7 @@ abstract class Client with _$Client {
     @OdooString() String? vat,
     @OdooString() String? email,
     @OdooString() String? phone,
-    // Odoo 19.5 (erp1): el campo 'mobile' ya no existe en res.partner (smoke
-    // fields_get contra erp1.tecnosmart.com.ec, julio 2026). Tampoco existe
-    // en 19.2 local ni en los módulos fuente — no es diferencia de versión,
-    // se quitó de Odoo. Pasa a local-only (columna Drift se conserva igual).
+    // ERP2 no expone `mobile`; se conserva como dato local opcional.
     @OdooLocalOnly() String? mobile,
     @OdooString() String? street,
     @OdooString() String? street2,
@@ -222,12 +220,18 @@ abstract class Client with _$Client {
     // ============ Relations ============
     @OdooMany2One('res.partner', odooName: 'parent_id') int? parentId,
     @OdooMany2OneName(sourceField: 'parent_id') String? parentName,
-    @OdooMany2One('res.partner', odooName: 'commercial_partner_id') int? commercialPartnerId,
-    @OdooMany2OneName(sourceField: 'commercial_partner_id') String? commercialPartnerName,
-    @OdooMany2One('product.pricelist', odooName: 'property_product_pricelist') int? propertyProductPricelistId,
-    @OdooMany2OneName(sourceField: 'property_product_pricelist') String? propertyProductPricelistName,
-    @OdooMany2One('account.payment.term', odooName: 'property_payment_term_id') int? propertyPaymentTermId,
-    @OdooMany2OneName(sourceField: 'property_payment_term_id') String? propertyPaymentTermName,
+    @OdooMany2One('res.partner', odooName: 'commercial_partner_id')
+    int? commercialPartnerId,
+    @OdooMany2OneName(sourceField: 'commercial_partner_id')
+    String? commercialPartnerName,
+    @OdooMany2One('product.pricelist', odooName: 'property_product_pricelist')
+    int? propertyProductPricelistId,
+    @OdooMany2OneName(sourceField: 'property_product_pricelist')
+    String? propertyProductPricelistName,
+    @OdooMany2One('account.payment.term', odooName: 'property_payment_term_id')
+    int? propertyPaymentTermId,
+    @OdooMany2OneName(sourceField: 'property_payment_term_id')
+    String? propertyPaymentTermName,
     @OdooString() String? lang,
     @OdooString() String? comment,
 
@@ -235,21 +239,24 @@ abstract class Client with _$Client {
     @OdooFloat(odooName: 'credit_limit') double? creditLimit,
     @OdooFloat() double? credit,
     @OdooFloat(odooName: 'credit_to_invoice') double? creditToInvoice,
-    @OdooBoolean(odooName: 'allow_over_credit') @Default(false) bool allowOverCredit,
-    @OdooBoolean(odooName: 'use_partner_credit_limit') @Default(false) bool usePartnerCreditLimit,
+    @OdooBoolean(odooName: 'allow_over_credit')
+    @Default(false)
+    bool allowOverCredit,
+    @OdooBoolean(odooName: 'use_partner_credit_limit')
+    @Default(false)
+    bool usePartnerCreditLimit,
 
     // ============ Overdue Debt Fields ============
     @OdooFloat(odooName: 'total_overdue') double? totalOverdue,
-    // Odoo 19.5 (erp1): 'unpaid_invoices_count' no existe en el servidor.
-    // driftName explícito porque dartName (overdueInvoicesCount) no
-    // camelCase-matchea la columna real (unpaidInvoicesCount) — no se
-    // renombra la columna Drift, no hay migración de esquema.
+    // ERP2 no expone un contador de facturas impagas. La columna local se
+    // conserva para un agregado offline futuro y usa cero/null por defecto.
     @OdooLocalOnly(driftName: 'unpaidInvoicesCount') int? overdueInvoicesCount,
-    // Odoo 19.5 (erp1): 'oldest_overdue_days' tampoco existe en el servidor.
+    // ERP2 tampoco expone la antigüedad de la factura vencida más antigua.
     @OdooLocalOnly() int? oldestOverdueDays,
 
     // ============ Ecuador Fields ============
-    @OdooInteger(odooName: 'dias_max_factura_posterior') int? diasMaxFacturaPosterior,
+    @OdooInteger(odooName: 'dias_max_factura_posterior')
+    int? diasMaxFacturaPosterior,
 
     // ============ Customer Classification (l10n_ec_sale_base) ============
     @OdooSelection(odooName: 'tipo_cliente') String? tipoCliente,
@@ -263,7 +270,9 @@ abstract class Client with _$Client {
     @OdooBoolean(odooName: 'acepta_cheques') @Default(true) bool aceptaCheques,
 
     // ============ Invoice Configuration ============
-    @OdooBoolean(odooName: 'emitir_factura_fecha_posterior') @Default(false) bool emitirFacturaFechaPosterior,
+    @OdooBoolean(odooName: 'emitir_factura_fecha_posterior')
+    @Default(false)
+    bool emitirFacturaFechaPosterior,
     @OdooBoolean(odooName: 'no_invoice') @Default(false) bool noInvoice,
     @OdooInteger(odooName: 'last_day_to_invoice') int? lastDayToInvoice,
 
@@ -275,7 +284,9 @@ abstract class Client with _$Client {
     @OdooFloat(odooName: 'partner_longitude') double? partnerLongitude,
 
     // ============ Custom Payments ============
-    @OdooBoolean(odooName: 'can_use_custom_payments') @Default(true) bool canUseCustomPayments,
+    @OdooBoolean(odooName: 'can_use_custom_payments')
+    @Default(true)
+    bool canUseCustomPayments,
 
     // ============ Metadata ============
     @OdooDateTime(odooName: 'write_date') DateTime? writeDate,
@@ -362,14 +373,14 @@ abstract class Client with _$Client {
 
   /// Convert to form state fields for SaleOrderFormState compatibility
   Map<String, dynamic> toFormStateFields() => {
-        'partnerId': id,
-        'partnerName': name,
-        'partnerVat': vat,
-        'partnerStreet': street,
-        'partnerPhone': effectivePhone,
-        'partnerEmail': email,
-        'partnerAvatar': avatar128,
-      };
+    'partnerId': id,
+    'partnerName': name,
+    'partnerVat': vat,
+    'partnerStreet': street,
+    'partnerPhone': effectivePhone,
+    'partnerEmail': email,
+    'partnerAvatar': avatar128,
+  };
 
   /// Verifica si el cliente puede comprar a crédito con el monto dado.
   ///
@@ -403,11 +414,7 @@ abstract class Client with _$Client {
 
     if (newIsCompany) {
       // Convertir a empresa: limpiar campos de persona natural
-      return copyWith(
-        isCompany: true,
-        parentId: null,
-        parentName: null,
-      );
+      return copyWith(isCompany: true, parentId: null, parentName: null);
     } else {
       // Convertir a persona: mantener datos
       return copyWith(isCompany: false);

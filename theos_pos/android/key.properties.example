@@ -1,0 +1,6 @@
+# Copy this file to android/key.properties and keep the real file private.
+# Relative storeFile paths are resolved from the android/ directory.
+storeFile=keystores/orbi-release.jks
+storePassword=replace-with-keystore-password
+keyAlias=orbi-release
+keyPassword=replace-with-key-password

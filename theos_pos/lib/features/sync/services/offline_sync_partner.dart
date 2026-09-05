@@ -83,11 +83,13 @@ extension _OfflineSyncPartner on OfflineSyncService {
           return;
         }
       } catch (e) {
-        logger.w(
+        logger.e(
           '[OfflineSyncService]',
-          'Could not check VAT existence in Odoo, proceeding with create: $e',
+          'Could not reconcile VAT before partner create: $e',
         );
-        // Continue with create attempt - Odoo will validate
+        // A failed lookup is not proof that the partner does not exist. Going
+        // on to create here could duplicate a partner after a lost response.
+        rethrow;
       }
     }
 

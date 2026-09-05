@@ -1,23 +1,26 @@
-import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:odoo_sdk/odoo_sdk.dart';
 
-/// Allow insecure HTTP connections in debug mode or for local addresses.
-bool _shouldAllowInsecure(String url) {
-  if (kDebugMode) return true;
-  final uri = Uri.tryParse(url);
-  if (uri == null) return false;
-  final host = uri.host.toLowerCase();
-  return host == 'localhost' || host == '127.0.0.1' || host == '::1';
-}
+import '../database/repositories/repository_providers.dart';
+import '../security/transport_security.dart';
 
-final odooServiceProvider = Provider((ref) => OdooService());
+/// Facade over the single client owned by [odooClientProvider].
+///
+/// The facade remains for feature-specific convenience methods, but it no
+/// longer owns a second client instance. This is important for auth/session
+/// state: every Odoo call must use the same JSON-2/Bearer client.
+final odooServiceProvider = Provider<OdooService>((ref) {
+  return OdooService(
+    clientReader: () => ref.read(odooClientProvider),
+    clientWriter: (client) => ref.read(odooClientProvider.notifier).set(client),
+  );
+});
 
 /// Servicio principal para comunicación con Odoo
 ///
 /// Envuelve [OdooClient] del paquete odoo_offline_core para:
 /// - Mantener una API compatible con el resto de la app
-/// - Agregar métodos específicos de la app (writeUser, getLanguages, etc.)
+/// - Agregar operaciones específicas todavía usadas por la app
 /// - Proporcionar el estado de conexión via [isLoggedIn]
 ///
 /// Uso:
@@ -27,7 +30,14 @@ final odooServiceProvider = Provider((ref) => OdooService());
 /// final result = await odoo.call(model: 'res.partner', method: 'search_read', kwargs: {...});
 /// ```
 class OdooService {
-  OdooClient? _client;
+  OdooService({OdooClient? client, this._clientReader, this._clientWriter})
+    : _localClient = client;
+
+  final OdooClient? _localClient;
+  final OdooClient? Function()? _clientReader;
+  final void Function(OdooClient?)? _clientWriter;
+
+  OdooClient? get _client => _clientReader?.call() ?? _localClient;
 
   /// Whether the service has valid credentials configured
   bool get isLoggedIn => _client?.isConfigured ?? false;
@@ -35,32 +45,26 @@ class OdooService {
   /// Get the underlying OdooClient (for advanced use cases)
   OdooClient? get client => _client;
 
-  /// Current base URL
-  String? get baseUrl => _client?.config.baseUrl;
-
-  /// Current API key
-  String? get apiKey => _client?.apiKey;
-
-  /// Current database
-  String? get database => _client?.config.database;
-
   /// Configure credentials for Odoo connection
   void setCredentials(String baseUrl, String apiKey, String database) {
     final normalizedUrl = baseUrl.endsWith('/')
         ? baseUrl.substring(0, baseUrl.length - 1)
         : baseUrl;
 
-    _client = OdooClient(
+    final client = OdooClient(
       config: OdooClientConfig(
         baseUrl: normalizedUrl,
         apiKey: apiKey,
         database: database,
-        allowInsecure: _shouldAllowInsecure(normalizedUrl),
-        isWeb: kIsWeb,
+        allowInsecure: allowsInsecureLoopbackTransport(normalizedUrl),
       ),
     );
+    _clientWriter?.call(client);
 
-    logger.d('[OdooService]', 'Credentials set for $normalizedUrl (db: $database)');
+    logger.d(
+      '[OdooService]',
+      'Credentials set for $normalizedUrl (db: $database)',
+    );
   }
 
   /// Test connection to Odoo server
@@ -70,7 +74,10 @@ class OdooService {
       return false;
     }
 
-    logger.d('[OdooService]', 'Testing connection to ${_client!.config.baseUrl}');
+    logger.d(
+      '[OdooService]',
+      'Testing connection to ${_client!.config.baseUrl}',
+    );
 
     try {
       final response = await _client!.searchRead(
@@ -85,6 +92,22 @@ class OdooService {
       logger.e('[OdooService]', 'Connection failed', e, st);
       rethrow;
     }
+  }
+
+  /// Validates the bearer credential and returns the identity attached to it.
+  /// Login reuses this UID for database scoping and user loading, avoiding
+  /// repeated `context_get` calls during startup.
+  Future<int> resolveCurrentUserId() async {
+    if (_client == null) {
+      throw StateError('OdooService not configured');
+    }
+    final context = await _client!.call(
+      model: 'res.users',
+      method: 'context_get',
+    );
+    final uid = context is Map ? context['uid'] : null;
+    if (uid is num && uid.toInt() > 0) return uid.toInt();
+    throw StateError('Odoo did not return a valid current user UID');
   }
 
   /// Generic Odoo method call
@@ -117,7 +140,9 @@ class OdooService {
     logger.d('[OdooService]', 'POST /$model/$method');
 
     // Merge context into kwargs if provided
-    final effectiveKwargs = kwargs != null ? Map<String, dynamic>.from(kwargs) : <String, dynamic>{};
+    final effectiveKwargs = kwargs != null
+        ? Map<String, dynamic>.from(kwargs)
+        : <String, dynamic>{};
     if (context != null) {
       effectiveKwargs['context'] = context;
     }
@@ -152,160 +177,13 @@ class OdooService {
       final result = await call(
         model: 'res.users',
         method: 'write',
-        kwargs: {
-          'ids': [userId],
-          'vals': values,
-        },
+        ids: [userId],
+        kwargs: {'vals': values},
       );
       return result == true;
     } catch (e, st) {
       logger.e('[OdooService]', 'Failed to write user', e, st);
       return false;
     }
-  }
-
-  /// Get available languages
-  Future<List<Map<String, dynamic>>> getLanguages() async {
-    if (!isLoggedIn) return [];
-
-    try {
-      final response = await call(
-        model: 'res.lang',
-        method: 'search_read',
-        kwargs: {
-          'domain': [],
-          'fields': ['code', 'name'],
-        },
-      );
-
-      if (response is List) {
-        return List<Map<String, dynamic>>.from(response);
-      }
-    } catch (e, st) {
-      logger.e('[OdooService]', 'Failed to get languages', e, st);
-    }
-    return [];
-  }
-
-  /// Get model field definitions
-  Future<Map<String, dynamic>> getModelFields(
-    String model,
-    List<String> fields,
-  ) async {
-    if (!isLoggedIn) return {};
-
-    try {
-      final response = await call(
-        model: model,
-        method: 'fields_get',
-        kwargs: {
-          'allfields': fields,
-          'attributes': ['selection', 'string'],
-        },
-      );
-
-      if (response is Map) {
-        return Map<String, dynamic>.from(response);
-      }
-    } catch (e, st) {
-      logger.e('[OdooService]', 'Failed to get model fields for $model', e, st);
-    }
-    return {};
-  }
-
-  /// Get available work schedules
-  Future<List<Map<String, dynamic>>> getWorkSchedules() async {
-    if (!isLoggedIn) return [];
-
-    try {
-      final response = await call(
-        model: 'resource.calendar',
-        method: 'search_read',
-        kwargs: {
-          'domain': [],
-          'fields': ['id', 'name'],
-        },
-      );
-
-      if (response is List) {
-        return List<Map<String, dynamic>>.from(response);
-      }
-    } catch (e, st) {
-      logger.e('[OdooService]', 'Failed to get work schedules', e, st);
-    }
-    return [];
-  }
-
-  /// Get available warehouses
-  Future<List<Map<String, dynamic>>> getWarehouses() async {
-    if (!isLoggedIn) return [];
-
-    try {
-      final response = await call(
-        model: 'stock.warehouse',
-        method: 'search_read',
-        kwargs: {
-          'domain': [],
-          'fields': ['id', 'name'],
-        },
-      );
-
-      if (response is List) {
-        return List<Map<String, dynamic>>.from(response);
-      }
-    } catch (e, st) {
-      logger.e('[OdooService]', 'Failed to get warehouses', e, st);
-    }
-    return [];
-  }
-
-  /// Get available countries
-  Future<List<Map<String, dynamic>>> getCountries() async {
-    if (!isLoggedIn) return [];
-
-    try {
-      final response = await call(
-        model: 'res.country',
-        method: 'search_read',
-        kwargs: {
-          'domain': [],
-          'fields': ['id', 'name'],
-        },
-      );
-
-      if (response is List) {
-        return List<Map<String, dynamic>>.from(response);
-      }
-    } catch (e, st) {
-      logger.e('[OdooService]', 'Failed to get countries', e, st);
-    }
-    return [];
-  }
-
-  /// Get states for a country
-  Future<List<Map<String, dynamic>>> getStates(int? countryId) async {
-    if (!isLoggedIn) return [];
-
-    try {
-      final domain = countryId != null
-          ? [['country_id', '=', countryId]]
-          : [];
-
-      final response = await call(
-        model: 'res.country.state',
-        method: 'search_read',
-        kwargs: {
-          'domain': domain,
-          'fields': ['id', 'name', 'country_id'],
-        },
-      );
-
-      if (response is List) {
-        return List<Map<String, dynamic>>.from(response);
-      }
-    } catch (e, st) {
-      logger.e('[OdooService]', 'Failed to get states', e, st);
-    }
-    return [];
   }
 }

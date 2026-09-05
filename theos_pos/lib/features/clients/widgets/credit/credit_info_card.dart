@@ -2,7 +2,9 @@ import 'package:fluent_ui/fluent_ui.dart';
 import 'package:intl/intl.dart';
 
 import 'credit_status_badge.dart';
+
 import 'package:theos_pos_core/theos_pos_core.dart';
+
 import '../../../../core/constants/app_colors.dart';
 
 /// Card showing detailed credit information for a client
@@ -62,7 +64,6 @@ class CreditInfoCard extends StatelessWidget {
             ],
           ] else
             _buildNoLimitMessage(theme),
-
         ],
       ),
     );
@@ -184,7 +185,9 @@ class CreditInfoCard extends StatelessWidget {
               _currencyFormat.format(client.creditAvailable ?? 0),
               style: theme.typography.body?.copyWith(
                 fontWeight: FontWeight.bold,
-                color: client.creditExceeded ? AppColors.danger : AppColors.success,
+                color: client.creditExceeded
+                    ? AppColors.danger
+                    : AppColors.success,
               ),
             ),
           ],
@@ -231,10 +234,7 @@ class CreditInfoCard extends StatelessWidget {
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            Text(
-              'Uso del crédito',
-              style: theme.typography.caption,
-            ),
+            Text('Uso del crédito', style: theme.typography.caption),
             Text(
               '${usagePercent.toStringAsFixed(1)}%',
               style: theme.typography.caption?.copyWith(
@@ -245,10 +245,7 @@ class CreditInfoCard extends StatelessWidget {
           ],
         ),
         const SizedBox(height: 4),
-        ProgressBar(
-          value: percentage * 100,
-          activeColor: color,
-        ),
+        ProgressBar(value: percentage * 100, activeColor: color),
       ],
     );
   }
@@ -262,17 +259,11 @@ class CreditInfoCard extends StatelessWidget {
       ),
       child: Row(
         children: [
-          Icon(
-            FluentIcons.info,
-            size: 16,
-            color: Colors.grey,
-          ),
+          Icon(FluentIcons.info, size: 16, color: Colors.grey),
           const SizedBox(width: 8),
           Text(
             'Este cliente no tiene límite de crédito configurado',
-            style: theme.typography.body?.copyWith(
-              color: Colors.grey,
-            ),
+            style: theme.typography.body?.copyWith(color: Colors.grey),
           ),
         ],
       ),

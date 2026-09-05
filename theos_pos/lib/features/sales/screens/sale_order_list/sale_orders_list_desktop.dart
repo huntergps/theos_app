@@ -1,6 +1,8 @@
 import 'package:fluent_ui/fluent_ui.dart';
 import 'package:syncfusion_flutter_datagrid/datagrid.dart';
+
 import '../../../../../shared/widgets/common_grid_widgets.dart';
+
 import 'package:theos_pos_core/theos_pos_core.dart';
 
 class SaleOrdersDesktop extends StatelessWidget {

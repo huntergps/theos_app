@@ -5,9 +5,11 @@ import '../../../../core/database/providers.dart';
 import '../../../../core/database/repositories/repository_providers.dart';
 import '../../../../core/theme/spacing.dart';
 import '../../../../shared/providers/company_config_provider.dart';
+import '../../../products/products.dart' show SelectProductDialog;
+
 import 'package:theos_pos_core/theos_pos_core.dart' hide DatabaseHelper;
+
 import '../../providers/providers.dart';
-import 'edit_dialogs.dart';
 
 /// Mixin providing dialog actions for SaleOrderFormLines
 ///

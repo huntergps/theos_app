@@ -2,7 +2,9 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:theos_pos_core/theos_pos_core.dart';
 import 'package:theos_pos/features/sales/services/conflict_detection_service.dart';
 import 'package:theos_pos/features/sales/providers/base_order_state.dart'
-    show ConflictDetail;
+    as base;
+import 'package:theos_pos/features/sales/providers/sale_order_form_state.dart'
+    show SaleOrderFormState;
 
 void main() {
   late ConflictDetectionService service;
@@ -136,10 +138,7 @@ void main() {
       final result = service.detectOrderConflicts(
         localOrder: local,
         serverOrder: server,
-        changedFields: {
-          'partner_id': 10,
-          'note': 'local note',
-        },
+        changedFields: {'partner_id': 10, 'note': 'local note'},
       );
 
       expect(result.hasConflicts, isTrue);
@@ -181,7 +180,9 @@ void main() {
       final result = service.detectOrderConflicts(
         localOrder: local,
         serverOrder: server,
-        changedFields: {'note': 'test'}, // local changed, but server same as local original
+        changedFields: {
+          'note': 'test',
+        }, // local changed, but server same as local original
       );
 
       // Since local and server both have null, no conflict even though local changed it
@@ -346,12 +347,8 @@ void main() {
   // ============================================================
   group('hasServerChanges()', () {
     test('returns true when server writeDate is newer', () {
-      final local = makeOrder(
-        writeDate: DateTime(2025, 1, 1, 10, 0),
-      );
-      final server = makeOrder(
-        writeDate: DateTime(2025, 1, 1, 11, 0),
-      );
+      final local = makeOrder(writeDate: DateTime(2025, 1, 1, 10, 0));
+      final server = makeOrder(writeDate: DateTime(2025, 1, 1, 11, 0));
 
       expect(
         service.hasServerChanges(localOrder: local, serverOrder: server),
@@ -360,12 +357,8 @@ void main() {
     });
 
     test('returns false when server writeDate is older', () {
-      final local = makeOrder(
-        writeDate: DateTime(2025, 1, 1, 11, 0),
-      );
-      final server = makeOrder(
-        writeDate: DateTime(2025, 1, 1, 10, 0),
-      );
+      final local = makeOrder(writeDate: DateTime(2025, 1, 1, 11, 0));
+      final server = makeOrder(writeDate: DateTime(2025, 1, 1, 10, 0));
 
       expect(
         service.hasServerChanges(localOrder: local, serverOrder: server),
@@ -449,7 +442,7 @@ void main() {
 
     test('withConflicts factory', () {
       final conflicts = [
-        const ConflictDetail(
+        const base.ConflictDetail(
           fieldName: 'Cliente',
           localValue: 5,
           serverValue: 10,
@@ -464,6 +457,21 @@ void main() {
       expect(result.hasConflicts, isTrue);
       expect(result.conflicts.length, 1);
       expect(result.conflictMessage, 'Conflict!');
+    });
+
+    test('form state reuses the canonical conflict detail type', () {
+      const conflict = base.ConflictDetail(
+        fieldName: 'Cliente',
+        localValue: 5,
+        serverValue: 10,
+      );
+
+      const state = SaleOrderFormState(
+        hasConflict: true,
+        conflicts: {'partnerId': conflict},
+      );
+
+      expect(state.conflicts?['partnerId'], same(conflict));
     });
   });
 
@@ -545,7 +553,14 @@ void main() {
         name: 'SO001',
         state: SaleOrderState.draft,
         dateOrder: DateTime(2025, 6, 15, 10, 30, 45), // 45 seconds difference
-        commitmentDate: DateTime(2025, 6, 20, 14, 0, 30), // 30 seconds difference
+        commitmentDate: DateTime(
+          2025,
+          6,
+          20,
+          14,
+          0,
+          30,
+        ), // 30 seconds difference
       );
 
       final result = service.detectOrderConflicts(

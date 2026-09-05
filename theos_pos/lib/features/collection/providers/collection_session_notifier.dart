@@ -2,7 +2,11 @@ import 'package:riverpod_annotation/riverpod_annotation.dart';
 
 import '../repositories/collection_repository.dart';
 import '../../../core/database/repositories/repository_providers.dart';
+import '../../../core/providers/base_notifier.dart'
+    show OperationFailure, OperationResult, OperationSuccess;
+
 import 'package:theos_pos_core/theos_pos_core.dart';
+
 import '../../../shared/utils/formatting_utils.dart';
 import 'collection_session_state.dart';
 
@@ -102,7 +106,7 @@ class CollectionSessionNotifier extends _$CollectionSessionNotifier {
     logger.d(_tag, 'Manual sync triggered for session: ${session.name}');
 
     state = state.copyWith(
-      isSyncing: true,
+      isSaving: true,
       errorMessage: null,
       errorCode: null,
       operationSuccess: false,
@@ -116,11 +120,11 @@ class CollectionSessionNotifier extends _$CollectionSessionNotifier {
         config: config,
       );
 
-      return result.fold(
+      return await result.fold(
         (failure) {
           logger.e(_tag, 'Sync failed: ${failure.message}');
           state = state.copyWith(
-            isSyncing: false,
+            isSaving: false,
             errorMessage: failure.message,
             errorCode: failure.code,
           );
@@ -136,7 +140,7 @@ class CollectionSessionNotifier extends _$CollectionSessionNotifier {
           final needsRedirect = syncedSession.id != session.id;
 
           state = state.copyWith(
-            isSyncing: false,
+            isSaving: false,
             session: syncedSession,
             operationSuccess: true,
             successMessage:
@@ -153,7 +157,7 @@ class CollectionSessionNotifier extends _$CollectionSessionNotifier {
     } catch (e) {
       logger.e(_tag, 'Unexpected error during sync', e);
       state = state.copyWith(
-        isSyncing: false,
+        isSaving: false,
         errorMessage: 'Error inesperado al sincronizar: $e',
         errorCode: 'SYNC_ERROR',
       );
@@ -202,7 +206,7 @@ class CollectionSessionNotifier extends _$CollectionSessionNotifier {
         cash: cash,
       );
 
-      return result.fold(
+      return await result.fold(
         (failure) {
           logger.e(_tag, 'Failed to register opening cash: ${failure.message}');
           state = state.copyWith(
@@ -285,7 +289,7 @@ class CollectionSessionNotifier extends _$CollectionSessionNotifier {
         cash: cash,
       );
 
-      return result.fold(
+      return await result.fold(
         (failure) {
           logger.e(_tag, 'Failed to register closing cash: ${failure.message}');
           state = state.copyWith(
@@ -326,6 +330,58 @@ class CollectionSessionNotifier extends _$CollectionSessionNotifier {
       return OperationFailure(
         message: 'Error al registrar efectivo: $e',
         code: 'CLOSING_CASH_ERROR',
+      );
+    }
+  }
+
+  /// Pauses or resumes the current cash session through Odoo.
+  Future<OperationResult<CollectionSession>> togglePause() async {
+    final repository = _repository;
+    final session = state.session;
+    if (repository == null || session == null) {
+      return const OperationFailure(
+        message: 'No hay una sesión disponible',
+        code: 'NO_SESSION',
+      );
+    }
+    if (session.state != SessionState.opened &&
+        session.state != SessionState.paused) {
+      return const OperationFailure(
+        message: 'Solo una sesión abierta o pausada puede cambiar de estado',
+        code: 'INVALID_STATE',
+      );
+    }
+
+    state = state.copyWith(
+      isLoading: true,
+      errorMessage: null,
+      errorCode: null,
+      operationSuccess: false,
+      successMessage: null,
+    );
+    try {
+      final wasPaused = session.state == SessionState.paused;
+      final updated = wasPaused
+          ? await repository.resumeCollectionSession(session.id)
+          : await repository.pauseCollectionSession(session.id);
+      final message = wasPaused ? 'Sesión reanudada' : 'Sesión pausada';
+      state = state.copyWith(
+        isLoading: false,
+        session: updated,
+        operationSuccess: true,
+        successMessage: message,
+      );
+      return OperationSuccess(data: updated, message: message);
+    } catch (e) {
+      logger.e(_tag, 'Error changing pause state', e);
+      state = state.copyWith(
+        isLoading: false,
+        errorMessage: 'No se pudo cambiar el estado de la sesión: $e',
+        errorCode: 'PAUSE_ERROR',
+      );
+      return OperationFailure(
+        message: 'No se pudo cambiar el estado de la sesión: $e',
+        code: 'PAUSE_ERROR',
       );
     }
   }

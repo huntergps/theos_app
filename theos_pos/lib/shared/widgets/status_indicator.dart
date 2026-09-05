@@ -134,10 +134,7 @@ class StatusIndicator extends StatelessWidget {
   }
 
   /// Constructor conveniente para badge de bloqueado
-  factory StatusIndicator.locked({
-    Key? key,
-    bool isCompact = false,
-  }) {
+  factory StatusIndicator.locked({Key? key, bool isCompact = false}) {
     return StatusIndicator(
       key: key,
       type: StatusIndicatorType.neutral,
@@ -268,10 +265,7 @@ class StatusIndicator extends StatelessWidget {
           onPressed: isLoading ? null : onTap,
           style: ButtonStyle(
             padding: WidgetStateProperty.all(
-              EdgeInsets.symmetric(
-                horizontal: isCompact ? 4 : 8,
-                vertical: 4,
-              ),
+              EdgeInsets.symmetric(horizontal: isCompact ? 4 : 8, vertical: 4),
             ),
             backgroundColor: WidgetStateProperty.all(
               color.withValues(alpha: 0.15),
@@ -289,10 +283,7 @@ class StatusIndicator extends StatelessWidget {
     }
 
     return Container(
-      padding: EdgeInsets.symmetric(
-        horizontal: isCompact ? 4 : 8,
-        vertical: 4,
-      ),
+      padding: EdgeInsets.symmetric(horizontal: isCompact ? 4 : 8, vertical: 4),
       decoration: BoxDecoration(
         color: color.withValues(alpha: 0.2),
         borderRadius: BorderRadius.circular(4),
@@ -330,8 +321,8 @@ class StatusIndicator extends StatelessWidget {
               ],
             )
           : message != null
-              ? Text(message!)
-              : null,
+          ? Text(message!)
+          : null,
       severity: _getSeverity(),
       isLong: hasDetails || (message != null && message!.length > 80),
     );
@@ -368,10 +359,7 @@ class StatusIndicator extends StatelessWidget {
     if (onTap != null) {
       content = GestureDetector(
         onTap: isLoading ? null : onTap,
-        child: MouseRegion(
-          cursor: SystemMouseCursors.click,
-          child: content,
-        ),
+        child: MouseRegion(cursor: SystemMouseCursors.click, child: content),
       );
     }
 

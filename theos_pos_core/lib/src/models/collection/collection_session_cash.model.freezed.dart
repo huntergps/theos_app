@@ -1,6 +1,6 @@
 // GENERATED CODE - DO NOT MODIFY BY HAND
 // coverage:ignore-file
-// ignore_for_file: type=lint
+// ignore_for_file: type=lint, type=warning, deprecated_member_use, deprecated_member_use_from_same_package
 // ignore_for_file: unused_element, deprecated_member_use, deprecated_member_use_from_same_package, use_function_type_syntax_for_parameters, unnecessary_const, avoid_init_to_null, invalid_override_different_default_values_named, prefer_expression_function_bodies, annotate_overrides, invalid_annotation_target, unnecessary_question_mark
 
 part of 'collection_session_cash.model.dart';
@@ -9,19 +9,14 @@ part of 'collection_session_cash.model.dart';
 // FreezedGenerator
 // **************************************************************************
 
+// GENERATED CODE - DO NOT MODIFY BY HAND
 // dart format off
 T _$identity<T>(T value) => value;
 
 /// @nodoc
 mixin _$CollectionSessionCash {
 
-// ============ Identifiers ============
-@OdooId() int get id;@OdooLocalOnly() bool get isSynced;@OdooLocalOnly() DateTime? get lastSyncDate;// ============ Relations ============
-@OdooMany2One('collection.session', odooName: 'collection_session_id') int? get collectionSessionId;// ============ Type ============
-@OdooSelection(odooName: 'cash_type') CashType get cashType;// ============ Bills (quantities) ============
-@OdooInteger(odooName: 'bills_100') int get bills100;@OdooInteger(odooName: 'bills_50') int get bills50;@OdooInteger(odooName: 'bills_20') int get bills20;@OdooInteger(odooName: 'bills_10') int get bills10;@OdooInteger(odooName: 'bills_5') int get bills5;@OdooInteger(odooName: 'bills_1') int get bills1;// ============ Coins (quantities) ============
-@OdooInteger(odooName: 'coins_1') int get coins1;@OdooInteger(odooName: 'coins_50') int get coins50;@OdooInteger(odooName: 'coins_25') int get coins25;@OdooInteger(odooName: 'coins_10') int get coins10;@OdooInteger(odooName: 'coins_5') int get coins5;@OdooInteger(odooName: 'coins_1_cent') int get coins1Cent;// ============ Notes ============
-@OdooString() String? get notes;
+@OdooId() int get id;@OdooLocalOnly() bool get isSynced;@OdooLocalOnly() DateTime? get lastSyncDate;@OdooMany2One('collection.session', odooName: 'collection_session_id') int? get collectionSessionId;@OdooSelection(odooName: 'cash_type') CashType get cashType;@OdooInteger(odooName: 'bills_100') int get bills100;@OdooInteger(odooName: 'bills_50') int get bills50;@OdooInteger(odooName: 'bills_20') int get bills20;@OdooInteger(odooName: 'bills_10') int get bills10;@OdooInteger(odooName: 'bills_5') int get bills5;@OdooInteger(odooName: 'bills_1') int get bills1;@OdooInteger(odooName: 'coins_1') int get coins1;@OdooInteger(odooName: 'coins_50') int get coins50;@OdooInteger(odooName: 'coins_25') int get coins25;@OdooInteger(odooName: 'coins_10') int get coins10;@OdooInteger(odooName: 'coins_5') int get coins5;@OdooInteger(odooName: 'coins_1_cent') int get coins1Cent;@OdooString() String? get notes;
 /// Create a copy of CollectionSessionCash
 /// with the given fields replaced by the non-null parameter values.
 @JsonKey(includeFromJson: false, includeToJson: false)
@@ -72,7 +67,7 @@ class _$CollectionSessionCashCopyWithImpl<$Res>
 /// Create a copy of CollectionSessionCash
 /// with the given fields replaced by the non-null parameter values.
 @pragma('vm:prefer-inline') @override $Res call({Object? id = null,Object? isSynced = null,Object? lastSyncDate = freezed,Object? collectionSessionId = freezed,Object? cashType = null,Object? bills100 = null,Object? bills50 = null,Object? bills20 = null,Object? bills10 = null,Object? bills5 = null,Object? bills1 = null,Object? coins1 = null,Object? coins50 = null,Object? coins25 = null,Object? coins10 = null,Object? coins5 = null,Object? coins1Cent = null,Object? notes = freezed,}) {
-  return _then(_self.copyWith(
+  return _then(CollectionSessionCash(
 id: null == id ? _self.id : id // ignore: cast_nullable_to_non_nullable
 as int,isSynced: null == isSynced ? _self.isSynced : isSynced // ignore: cast_nullable_to_non_nullable
 as bool,lastSyncDate: freezed == lastSyncDate ? _self.lastSyncDate : lastSyncDate // ignore: cast_nullable_to_non_nullable
@@ -235,29 +230,23 @@ class _CollectionSessionCash extends CollectionSessionCash {
   const _CollectionSessionCash({@OdooId() this.id = 0, @OdooLocalOnly() this.isSynced = false, @OdooLocalOnly() this.lastSyncDate, @OdooMany2One('collection.session', odooName: 'collection_session_id') this.collectionSessionId, @OdooSelection(odooName: 'cash_type') this.cashType = CashType.opening, @OdooInteger(odooName: 'bills_100') this.bills100 = 0, @OdooInteger(odooName: 'bills_50') this.bills50 = 0, @OdooInteger(odooName: 'bills_20') this.bills20 = 0, @OdooInteger(odooName: 'bills_10') this.bills10 = 0, @OdooInteger(odooName: 'bills_5') this.bills5 = 0, @OdooInteger(odooName: 'bills_1') this.bills1 = 0, @OdooInteger(odooName: 'coins_1') this.coins1 = 0, @OdooInteger(odooName: 'coins_50') this.coins50 = 0, @OdooInteger(odooName: 'coins_25') this.coins25 = 0, @OdooInteger(odooName: 'coins_10') this.coins10 = 0, @OdooInteger(odooName: 'coins_5') this.coins5 = 0, @OdooInteger(odooName: 'coins_1_cent') this.coins1Cent = 0, @OdooString() this.notes}): super._();
   factory _CollectionSessionCash.fromJson(Map<String, dynamic> json) => _$CollectionSessionCashFromJson(json);
 
-// ============ Identifiers ============
 @override@JsonKey()@OdooId() final  int id;
 @override@JsonKey()@OdooLocalOnly() final  bool isSynced;
 @override@OdooLocalOnly() final  DateTime? lastSyncDate;
-// ============ Relations ============
 @override@OdooMany2One('collection.session', odooName: 'collection_session_id') final  int? collectionSessionId;
-// ============ Type ============
 @override@JsonKey()@OdooSelection(odooName: 'cash_type') final  CashType cashType;
-// ============ Bills (quantities) ============
 @override@JsonKey()@OdooInteger(odooName: 'bills_100') final  int bills100;
 @override@JsonKey()@OdooInteger(odooName: 'bills_50') final  int bills50;
 @override@JsonKey()@OdooInteger(odooName: 'bills_20') final  int bills20;
 @override@JsonKey()@OdooInteger(odooName: 'bills_10') final  int bills10;
 @override@JsonKey()@OdooInteger(odooName: 'bills_5') final  int bills5;
 @override@JsonKey()@OdooInteger(odooName: 'bills_1') final  int bills1;
-// ============ Coins (quantities) ============
 @override@JsonKey()@OdooInteger(odooName: 'coins_1') final  int coins1;
 @override@JsonKey()@OdooInteger(odooName: 'coins_50') final  int coins50;
 @override@JsonKey()@OdooInteger(odooName: 'coins_25') final  int coins25;
 @override@JsonKey()@OdooInteger(odooName: 'coins_10') final  int coins10;
 @override@JsonKey()@OdooInteger(odooName: 'coins_5') final  int coins5;
 @override@JsonKey()@OdooInteger(odooName: 'coins_1_cent') final  int coins1Cent;
-// ============ Notes ============
 @override@OdooString() final  String? notes;
 
 /// Create a copy of CollectionSessionCash

@@ -1,6 +1,8 @@
 import 'package:drift/drift.dart';
 
 import 'package:theos_pos_core/theos_pos_core.dart' hide DatabaseHelper;
+
+import '../../../shared/constants/user_groups.dart';
 import '../../users/repositories/user_repository.dart';
 
 /// Result of a purge operation
@@ -23,23 +25,20 @@ class PurgeResult {
     int ordersDeleted = 0,
     int linesDeleted = 0,
     int operationsCleared = 0,
-  }) =>
-      PurgeResult(
-        success: true,
-        ordersDeleted: ordersDeleted,
-        linesDeleted: linesDeleted,
-        operationsCleared: operationsCleared,
-      );
+  }) => PurgeResult(
+    success: true,
+    ordersDeleted: ordersDeleted,
+    linesDeleted: linesDeleted,
+    operationsCleared: operationsCleared,
+  );
 
-  factory PurgeResult.error(String message) => PurgeResult(
-        success: false,
-        error: message,
-      );
+  factory PurgeResult.error(String message) =>
+      PurgeResult(success: false, error: message);
 
   factory PurgeResult.permissionDenied() => const PurgeResult(
-        success: false,
-        error: 'No tiene permisos para eliminar registros',
-      );
+    success: false,
+    error: 'No tiene permisos para eliminar registros',
+  );
 
   @override
   String toString() => success
@@ -49,10 +48,9 @@ class PurgeResult {
 
 /// Service for purging local data and pending sync operations
 ///
-/// Requires permission: l10n_ec_base.group_allow_delete_records
+/// Requires [OdooUserGroup.allowDeleteRecords].
 class DataPurgeService {
   static const _tag = '[DataPurge]';
-  static const _requiredPermission = 'l10n_ec_base.group_allow_delete_records';
 
   final AppDatabase _db;
   final OfflineQueueDataSource _offlineQueue;
@@ -63,14 +61,16 @@ class DataPurgeService {
   /// Check if current user has permission to purge data
   Future<bool> hasPermission() async {
     if (_userRepository == null) return false;
-    return await _userRepository.hasGroup(_requiredPermission);
+    return await _userRepository.hasGroup(OdooUserGroup.allowDeleteRecords);
   }
 
   /// Get count of local (unsync) orders
   Future<int> getLocalOrdersCount() async {
     // Count unsynced orders (covers both negative IDs and is_synced = false)
     return await saleOrderManager.countLocal(
-      domain: [['is_synced', '=', false]],
+      domain: [
+        ['is_synced', '=', false],
+      ],
     );
   }
 
@@ -90,8 +90,12 @@ class DataPurgeService {
 
   /// Get count of operations waiting for retry (failed but not yet dead letter)
   Future<int> getRetryWaitingCount() async {
-    final allOps = await _offlineQueue.getPendingOperations(includeNotReady: true);
-    return allOps.where((op) => !op.isReadyForRetry && !op.hasExceededMaxRetries).length;
+    final allOps = await _offlineQueue.getPendingOperations(
+      includeNotReady: true,
+    );
+    return allOps
+        .where((op) => !op.isReadyForRetry && !op.hasExceededMaxRetries)
+        .length;
   }
 
   /// Purge all local (unsync) orders and their lines
@@ -110,9 +114,11 @@ class DataPurgeService {
       logger.i(_tag, 'Purging local orders...');
 
       // Get local orders (not synced)
-      final localOrders = await (_db.select(_db.saleOrder)
-            ..where((t) => t.id.isSmallerThanValue(0) | t.isSynced.equals(false)))
-          .get();
+      final localOrders =
+          await (_db.select(_db.saleOrder)..where(
+                (t) => t.id.isSmallerThanValue(0) | t.isSynced.equals(false),
+              ))
+              .get();
 
       if (localOrders.isEmpty) {
         logger.i(_tag, 'No local orders to purge');
@@ -124,17 +130,21 @@ class DataPurgeService {
 
       for (final order in localOrders) {
         // Delete lines first
-        final deletedLines = await (_db.delete(_db.saleOrderLine)
-              ..where((t) => t.orderId.equals(order.id)))
-            .go();
+        final deletedLines = await (_db.delete(
+          _db.saleOrderLine,
+        )..where((t) => t.orderId.equals(order.id))).go();
         linesDeleted += deletedLines;
 
         // Delete order
-        await (_db.delete(_db.saleOrder)..where((t) => t.id.equals(order.id)))
-            .go();
+        await (_db.delete(
+          _db.saleOrder,
+        )..where((t) => t.id.equals(order.id))).go();
         ordersDeleted++;
 
-        logger.d(_tag, 'Deleted order ${order.id} (${order.name}) with $deletedLines lines');
+        logger.d(
+          _tag,
+          'Deleted order ${order.id} (${order.name}) with $deletedLines lines',
+        );
       }
 
       logger.i(_tag, 'Purged $ordersDeleted orders, $linesDeleted lines');
@@ -206,21 +216,24 @@ class DataPurgeService {
       await _offlineQueue.clearAll();
 
       // Then delete local orders and lines
-      final localOrders = await (_db.select(_db.saleOrder)
-            ..where((t) => t.id.isSmallerThanValue(0) | t.isSynced.equals(false)))
-          .get();
+      final localOrders =
+          await (_db.select(_db.saleOrder)..where(
+                (t) => t.id.isSmallerThanValue(0) | t.isSynced.equals(false),
+              ))
+              .get();
 
       int ordersDeleted = 0;
       int linesDeleted = 0;
 
       for (final order in localOrders) {
-        final deletedLines = await (_db.delete(_db.saleOrderLine)
-              ..where((t) => t.orderId.equals(order.id)))
-            .go();
+        final deletedLines = await (_db.delete(
+          _db.saleOrderLine,
+        )..where((t) => t.orderId.equals(order.id))).go();
         linesDeleted += deletedLines;
 
-        await (_db.delete(_db.saleOrder)..where((t) => t.id.equals(order.id)))
-            .go();
+        await (_db.delete(
+          _db.saleOrder,
+        )..where((t) => t.id.equals(order.id))).go();
         ordersDeleted++;
       }
 
@@ -250,7 +263,10 @@ class DataPurgeService {
       logger.i(_tag, 'Deleting order $orderId...');
 
       // Clear pending operations for this order
-      final opsCleared = await _offlineQueue.removeOperationsForRecord('sale.order', orderId);
+      final opsCleared = await _offlineQueue.removeOperationsForRecord(
+        'sale.order',
+        orderId,
+      );
 
       // Also clear line operations
       await _db.customStatement(
@@ -259,15 +275,19 @@ class DataPurgeService {
       );
 
       // Delete lines
-      final linesDeleted = await (_db.delete(_db.saleOrderLine)
-            ..where((t) => t.orderId.equals(orderId)))
-          .go();
+      final linesDeleted = await (_db.delete(
+        _db.saleOrderLine,
+      )..where((t) => t.orderId.equals(orderId))).go();
 
       // Delete order
-      await (_db.delete(_db.saleOrder)..where((t) => t.id.equals(orderId)))
-          .go();
+      await (_db.delete(
+        _db.saleOrder,
+      )..where((t) => t.id.equals(orderId))).go();
 
-      logger.i(_tag, 'Deleted order $orderId with $linesDeleted lines, $opsCleared operations');
+      logger.i(
+        _tag,
+        'Deleted order $orderId with $linesDeleted lines, $opsCleared operations',
+      );
 
       return PurgeResult.success(
         ordersDeleted: 1,

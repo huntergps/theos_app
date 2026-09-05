@@ -1,6 +1,6 @@
 // GENERATED CODE - DO NOT MODIFY BY HAND
 // coverage:ignore-file
-// ignore_for_file: type=lint
+// ignore_for_file: type=lint, type=warning, deprecated_member_use, deprecated_member_use_from_same_package
 // ignore_for_file: unused_element, deprecated_member_use, deprecated_member_use_from_same_package, use_function_type_syntax_for_parameters, unnecessary_const, avoid_init_to_null, invalid_override_different_default_values_named, prefer_expression_function_bodies, annotate_overrides, invalid_annotation_target, unnecessary_question_mark
 
 part of 'payment_term.model.dart';
@@ -9,14 +9,13 @@ part of 'payment_term.model.dart';
 // FreezedGenerator
 // **************************************************************************
 
+// GENERATED CODE - DO NOT MODIFY BY HAND
 // dart format off
 T _$identity<T>(T value) => value;
 /// @nodoc
 mixin _$PaymentTerm {
 
-@OdooId() int get id;@OdooString() String get name;@OdooBoolean() bool get active;@OdooString() String? get note;@OdooMany2One('res.company', odooName: 'company_id') int? get companyId;@OdooInteger() int get sequence;@OdooBoolean(odooName: 'is_cash') bool get isCash;@OdooBoolean(odooName: 'is_credit') bool get isCredit;// Odoo 19.5 (erp1): 'due_days' ya no existe en account.payment.term del
-// servidor (smoke fields_get, julio 2026).
-@OdooLocalOnly() int get dueDays;@OdooDateTime(odooName: 'write_date', writable: false) DateTime? get writeDate;
+@OdooId() int get id;@OdooString() String get name;@OdooBoolean() bool get active;@OdooString() String? get note;@OdooMany2One('res.company', odooName: 'company_id') int? get companyId;@OdooInteger() int get sequence;@OdooBoolean(odooName: 'is_cash') bool get isCash;@OdooBoolean(odooName: 'is_credit') bool get isCredit;@OdooLocalOnly() int get dueDays;@OdooDateTime(odooName: 'write_date', writable: false) DateTime? get writeDate;
 /// Create a copy of PaymentTerm
 /// with the given fields replaced by the non-null parameter values.
 @JsonKey(includeFromJson: false, includeToJson: false)
@@ -65,7 +64,7 @@ class _$PaymentTermCopyWithImpl<$Res>
 /// Create a copy of PaymentTerm
 /// with the given fields replaced by the non-null parameter values.
 @pragma('vm:prefer-inline') @override $Res call({Object? id = null,Object? name = null,Object? active = null,Object? note = freezed,Object? companyId = freezed,Object? sequence = null,Object? isCash = null,Object? isCredit = null,Object? dueDays = null,Object? writeDate = freezed,}) {
-  return _then(_self.copyWith(
+  return _then(PaymentTerm(
 id: null == id ? _self.id : id // ignore: cast_nullable_to_non_nullable
 as int,name: null == name ? _self.name : name // ignore: cast_nullable_to_non_nullable
 as String,active: null == active ? _self.active : active // ignore: cast_nullable_to_non_nullable
@@ -228,8 +227,6 @@ class _PaymentTerm extends PaymentTerm {
 @override@JsonKey()@OdooInteger() final  int sequence;
 @override@JsonKey()@OdooBoolean(odooName: 'is_cash') final  bool isCash;
 @override@JsonKey()@OdooBoolean(odooName: 'is_credit') final  bool isCredit;
-// Odoo 19.5 (erp1): 'due_days' ya no existe en account.payment.term del
-// servidor (smoke fields_get, julio 2026).
 @override@JsonKey()@OdooLocalOnly() final  int dueDays;
 @override@OdooDateTime(odooName: 'write_date', writable: false) final  DateTime? writeDate;
 

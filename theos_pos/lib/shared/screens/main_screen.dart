@@ -5,16 +5,16 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:window_manager/window_manager.dart';
+
 import 'dart:convert';
 import 'dart:math';
+
 import '../../core/constants/app_constants.dart';
 import '../../core/database/repositories/base_repository.dart';
 import '../../features/authentication/services/server_service.dart';
 import '../../core/services/config_service.dart';
-import '../../core/services/websocket/odoo_websocket_service.dart';
 import '../../core/services/platform/server_connectivity_service.dart';
 import '../../features/sync/services/connectivity_sync_orchestrator.dart';
-import '../providers/report_provider.dart';
 import '../widgets/server_info_bar.dart';
 import '../widgets/server_status_widget.dart';
 import '../widgets/theos_logo.dart';
@@ -24,12 +24,15 @@ import '../providers/im_status_provider.dart';
 import '../providers/notification_provider.dart';
 import '../providers/server_info_provider.dart';
 import '../../core/database/repositories/repository_providers.dart';
+import '../../core/navigation/app_router.dart';
 import '../../features/products/providers/product_providers.dart';
 import '../../features/sales/screens/fast_sale/fast_sale_providers.dart';
 import '../../features/sales/providers/order_cache_provider.dart';
 import '../../features/sales/providers/sale_order_form_notifier.dart';
 import '../../features/sync/providers/sync_provider.dart';
 import '../../core/database/providers.dart';
+import '../../core/services/app_initializer.dart';
+import '../../core/session/session_cleanup_sequence.dart';
 import '../models/im_status.dart';
 import '../widgets/user_preferences_dialog.dart';
 import '../constants/user_groups.dart';
@@ -40,7 +43,14 @@ import '../providers/offline_queue_provider.dart';
 import '../../core/managers/managers.dart';
 import '../../features/dashboard/widgets/supervisor_dashboard.dart';
 import '../widgets/credit_approval_notification.dart';
+
 import 'package:theos_pos_core/theos_pos_core.dart';
+
+/// Allows integration harnesses to render the real authenticated shell while
+/// keeping every automatic synchronization writer disabled.
+///
+/// Production containers use `true`; read-only tests override it with `false`.
+final sessionBackgroundServicesEnabledProvider = Provider<bool>((ref) => true);
 
 class MainScreen extends ConsumerStatefulWidget {
   const MainScreen({super.key, required this.child});
@@ -53,6 +63,7 @@ class MainScreen extends ConsumerStatefulWidget {
 
 class _MainScreenState extends ConsumerState<MainScreen> with WindowListener {
   Timer? _saveDebounceTimer;
+  Timer? _startupTimer;
   bool _isMaximized = false;
 
   bool get _isDesktop {
@@ -66,52 +77,32 @@ class _MainScreenState extends ConsumerState<MainScreen> with WindowListener {
 
   @override
   void initState() {
+    super.initState();
     if (_isDesktop) {
       windowManager.addListener(this);
       // Get initial maximized state
       windowManager.isMaximized().then((value) => _isMaximized = value);
     }
-    super.initState();
-    Future.microtask(() {
-      if (!mounted) return;
-      ref.read(userProvider.notifier).fetchUser();
-
-      // Connect WebSocket automatically when session is ready
-      _initializeWebSocket();
-
-      // Pre-load PDF fonts in background (for faster PDF generation later)
-      _preloadPdfFonts();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      // Let the first interactive frame settle before opening network streams
+      // and starting connectivity/sync observers.
+      _startupTimer = Timer(const Duration(seconds: 1), () {
+        if (!mounted) return;
+        unawaited(_initializeBackgroundServices());
+      });
     });
   }
 
-  /// Pre-load PDF fonts in background for faster PDF generation
-  Future<void> _preloadPdfFonts() async {
-    try {
-      final reportService = ref.read(reportServiceProvider);
-      await reportService.preloadFonts();
-      logger.d('[MainScreen] ✅ PDF fonts pre-loaded');
-    } catch (e) {
-      logger.w('[MainScreen] ⚠️ Failed to pre-load PDF fonts: $e');
+  /// Starts connectivity services after Home has rendered. None of this work
+  /// is required to paint or navigate through locally available data.
+  Future<void> _initializeBackgroundServices() async {
+    if (!ref.read(sessionBackgroundServicesEnabledProvider)) {
+      logger.d('[MainScreen] Background session services disabled');
+      return;
     }
-  }
-
-  /// Initialize WebSocket connection and connectivity services when session is available
-  Future<void> _initializeWebSocket() async {
     final serverService = ref.read(serverServiceProvider.notifier);
-    if (serverService.currentSession != null) {
-      // Initialize WebSocket
-      final wsService = ref.read(odooWebSocketServiceProvider);
-      await wsService.connect();
-      logger.d('[MainScreen] ✅ WebSocket connection initiated');
-
-      // Connect ModelRegistry to WebSocket events for real-time updates
-      try {
-        ref.read(modelRegistryIntegrationProvider);
-        logger.d('[MainScreen] ✅ ModelRegistry WebSocket integration active');
-      } catch (e) {
-        logger.w('[MainScreen] ⚠️ ModelRegistry integration failed: $e');
-      }
-
+    final currentSession = serverService.currentSession;
+    if (currentSession != null) {
       // Initialize server health monitoring (reads the provider to trigger initialization)
       ref.read(serverHealthServiceProvider);
       logger.d('[MainScreen] ✅ Server health monitoring started');
@@ -120,43 +111,61 @@ class _MainScreenState extends ConsumerState<MainScreen> with WindowListener {
       ref.read(connectivitySyncOrchestratorProvider);
       logger.d('[MainScreen] ✅ Connectivity sync orchestrator initialized');
     } else {
-      logger.d('[MainScreen] ⚠️ No session available, WebSocket not connected');
+      logger.d('[MainScreen] ⚠️ No authenticated session available');
     }
   }
 
-  /// Tear down all background services that hold references to the current
-  /// server/database. Must be called BEFORE clearing user/session state so
-  /// that WebSocket, health polling, sync orchestrator, etc. stop talking to
-  /// the old server.
-  void _teardownSession() {
-    // 1. Disconnect WebSocket (stops auto-reconnect to old server)
-    ref.read(odooWebSocketServiceProvider).disconnect();
+  /// Stops every background consumer that can still access the current
+  /// server/database. The Drift scope remains open so logout can finish its
+  /// local cleanup before [AppInitializer.deactivateSessionScope] closes it.
+  Future<void> _stopSessionServices() async {
+    final offlineSync = ref.read(offlineSyncServiceProvider);
+    await runBestEffortSessionCleanup(
+      [
+        // Invalidate the scheduler first. An in-flight queue drain is allowed
+        // to finish, but its disposed-scope guard prevents it from starting a
+        // catalog read while the session is being torn down.
+        SessionCleanupStep('connectivity sync cancellation', () {
+          ref.invalidate(connectivitySyncOrchestratorProvider);
+        }),
+        // Synchronization cancellation is cooperative. Wait for its active
+        // writer before shutting down the second queue consumer.
+        SessionCleanupStep(
+          'foreground sync cancellation',
+          ref.read(syncProvider.notifier).cancelAndWait,
+        ),
+        if (offlineSync != null)
+          SessionCleanupStep('offline sync shutdown', offlineSync.shutdown),
+        SessionCleanupStep('provider invalidation', () {
+          // Background services are recreated with the next session.
+          ref.invalidate(serverHealthServiceProvider);
+          ref.invalidate(serverInfoProvider);
+          ref.invalidate(notificationCounterProvider);
+          // Data-layer providers cache DB/server-specific state.
+          ref.invalidate(offlineSyncServiceProvider);
+          ref.invalidate(catalogServiceProvider);
+          ref.invalidate(fastSaleProvider);
+          ref.invalidate(orderCacheProvider);
+          ref.invalidate(imStatusProvider);
 
-    // 2. Invalidate all background-service providers so they are recreated
-    //    with fresh state on next login.
-    ref.invalidate(serverHealthServiceProvider);
-    ref.invalidate(serverInfoProvider);
-    ref.invalidate(notificationCounterProvider);
-    ref.invalidate(connectivitySyncOrchestratorProvider);
-    ref.invalidate(modelRegistryIntegrationProvider);
-
-    // Invalidate data-layer providers that cache DB/server-specific state
-    ref.invalidate(offlineSyncServiceProvider);
-    ref.invalidate(catalogServiceProvider);
-    ref.invalidate(fastSaleProvider);
-    ref.invalidate(orderCacheProvider);
-    ref.invalidate(imStatusProvider);
-
-    // Invalidate sync, session, and form state
-    ref.invalidate(syncProvider);
-    ref.invalidate(currentSessionProvider);
-    ref.invalidate(saleOrderFormProvider);
-    SyncNotifier.resetSyncFlag();
+          ref.invalidate(syncProvider);
+          ref.invalidate(currentSessionProvider);
+          ref.invalidate(saleOrderFormProvider);
+        }),
+      ],
+      onError: (step, error, stackTrace) => logger.e(
+        '[MainScreen]',
+        'Session service cleanup failed at $step',
+        error,
+        stackTrace,
+      ),
+    );
   }
 
   @override
   void dispose() {
     _saveDebounceTimer?.cancel();
+    _startupTimer?.cancel();
     if (_isDesktop) {
       windowManager.removeListener(this);
     }
@@ -257,7 +266,38 @@ class _MainScreenState extends ConsumerState<MainScreen> with WindowListener {
                         isMaximized: isMaximized,
                       );
 
-                  windowManager.destroy();
+                  // Closing the window is not logout: retain the secure
+                  // session, but finish every local writer and close Drift
+                  // cleanly before terminating the process. A failed service
+                  // stop must never skip the database close.
+                  await runBestEffortSessionCleanup(
+                    [
+                      SessionCleanupStep(
+                        'session services',
+                        _stopSessionServices,
+                      ),
+                      SessionCleanupStep(
+                        'model manager scope',
+                        resetModelManagersSession,
+                      ),
+                      SessionCleanupStep('repository session handles', () {
+                        ref.read(odooClientProvider.notifier).set(null);
+                        ref.read(databaseHelperProvider.notifier).set(null);
+                      }),
+                      SessionCleanupStep(
+                        'session database',
+                        AppInitializer.deactivateSessionScope,
+                      ),
+                    ],
+                    onError: (step, error, stackTrace) => logger.e(
+                      '[MainScreen]',
+                      'Application close cleanup failed at $step',
+                      error,
+                      stackTrace,
+                    ),
+                  );
+
+                  await windowManager.destroy();
                 },
               ),
             ],
@@ -268,28 +308,15 @@ class _MainScreenState extends ConsumerState<MainScreen> with WindowListener {
   }
 
   /// Calculate selected index based on current route and filtered menu items
-  int _calculateSelectedIndex(
+  int? _calculateSelectedIndex(
     BuildContext context,
-    List<NavigationPaneItem> navItems,
-    List<NavigationPaneItem> footerItems,
-  ) {
-    final location = GoRouterState.of(context).uri.path;
-    int index = 0;
-    for (final item in navItems) {
-      if (item.key is ValueKey && (item.key as ValueKey).value == location) {
-        return index;
-      }
-      index++;
-    }
-    // Check footer items
-    for (final item in footerItems) {
-      if (item.key is ValueKey && (item.key as ValueKey).value == location) {
-        return index;
-      }
-      index++;
-    }
-    return 0;
-  }
+    List<MenuItemDefinition> navItems,
+    List<MenuItemDefinition> footerItems,
+  ) => selectedMenuIndex(
+    currentPath: GoRouterState.of(context).uri.path,
+    navItems: navItems,
+    footerItems: footerItems,
+  );
 
   /// Build navigation pane items from menu definitions
   List<NavigationPaneItem> _buildNavItems(List<MenuItemDefinition> items) {
@@ -300,17 +327,14 @@ class _MainScreenState extends ConsumerState<MainScreen> with WindowListener {
           ? SalesBadgeIcon(baseIcon: item.icon)
           : Icon(item.icon);
 
-      result.add(PaneItem(
-        key: ValueKey(item.path),
-        icon: icon,
-        title: Text(item.title),
-        body: const SizedBox.shrink(),
-        onTap: () {
-          if (GoRouterState.of(context).uri.path != item.path) {
-            context.go(item.path);
-          }
-        },
-      ));
+      result.add(
+        PaneItem(
+          key: ValueKey(item.path),
+          icon: icon,
+          title: Text(item.title),
+          body: const SizedBox.shrink(),
+        ),
+      );
     }
     return result;
   }
@@ -319,44 +343,80 @@ class _MainScreenState extends ConsumerState<MainScreen> with WindowListener {
   List<NavigationPaneItem> _buildFooterItems(List<MenuItemDefinition> items) {
     final List<NavigationPaneItem> result = [];
     for (final item in items) {
-      if (item.isAction && item.path == '/logout') {
-        result.add(PaneItemAction(
-          key: ValueKey(item.path),
-          icon: Icon(item.icon),
-          title: Text(item.title),
-          onTap: () async {
-            final navigator = GoRouter.of(context);
+      if (item.isAction) {
+        result.add(
+          PaneItemAction(
+            key: ValueKey(item.path),
+            icon: Icon(item.icon),
+            title: Text(item.title),
+            onTap: () async {
+              final navigator = GoRouter.of(context);
 
-            // Tear down background services BEFORE clearing session
-            _teardownSession();
+              final serverService = ref.read(serverServiceProvider.notifier);
+              final currentServer = serverService.currentSession;
+              final currentUserId = ref.read(userProvider)?.id;
+              await runBestEffortSessionCleanup(
+                [
+                  // Stop writers first, but keep Drift open for local cleanup.
+                  SessionCleanupStep('session services', _stopSessionServices),
+                  SessionCleanupStep(
+                    'current user marker',
+                    userManager.clearCurrentUser,
+                  ),
+                  SessionCleanupStep(
+                    'model manager scope',
+                    resetModelManagersSession,
+                  ),
+                  SessionCleanupStep('repository session handles', () {
+                    ref.read(odooClientProvider.notifier).set(null);
+                    ref.read(databaseHelperProvider.notifier).set(null);
+                  }),
+                  SessionCleanupStep('session info cache', () {
+                    SessionInfoCache.clearCache();
+                  }),
+                  if (currentServer != null && currentUserId != null)
+                    SessionCleanupStep(
+                      'remembered offline credential',
+                      () => serverService.removeStoredCredential(
+                        serverUrl: currentServer.url,
+                        database: currentServer.database,
+                        userId: currentUserId,
+                      ),
+                    ),
+                  SessionCleanupStep(
+                    'secure credentials',
+                    serverService.clearSession,
+                  ),
+                  // The scoped database is always the final session resource.
+                  SessionCleanupStep(
+                    'session database',
+                    AppInitializer.deactivateSessionScope,
+                  ),
+                ],
+                onError: (step, error, stackTrace) => logger.e(
+                  '[MainScreen]',
+                  'Logout cleanup failed at $step',
+                  error,
+                  stackTrace,
+                ),
+              );
 
-            // Clear user state in provider
-            ref.read(userProvider.notifier).clearUser();
+              ref.read(userProvider.notifier).clearUser();
+              AppRouter.session.value = const RouteSessionSnapshot();
 
-            // Clear current user flag in database
-            await userManager.clearCurrentUser();
-
-            // Clear session info cache (prevents stale user data on re-login)
-            SessionInfoCache.clearCache();
-
-            // Clear server session
-            await ref.read(serverServiceProvider.notifier).clearSession();
-
-            navigator.go('/login');
-          },
-        ));
+              navigator.go('/login');
+            },
+          ),
+        );
       } else {
-        result.add(PaneItem(
-          key: ValueKey(item.path),
-          icon: Icon(item.icon),
-          title: Text(item.title),
-          body: const SizedBox.shrink(),
-          onTap: () {
-            if (GoRouterState.of(context).uri.path != item.path) {
-              context.go(item.path);
-            }
-          },
-        ));
+        result.add(
+          PaneItem(
+            key: ValueKey(item.path),
+            icon: Icon(item.icon),
+            title: Text(item.title),
+            body: const SizedBox.shrink(),
+          ),
+        );
       }
     }
     return result;
@@ -366,6 +426,13 @@ class _MainScreenState extends ConsumerState<MainScreen> with WindowListener {
   Widget build(BuildContext context) {
     final config = ref.watch(configServiceProvider);
     final spacing = ref.watch(themedSpacingProvider);
+    final canAccessOfflineSync = ref.watch(
+      hasRouteAccessProvider(AppRouter.offlineSync),
+    );
+    final canAccessSync = ref.watch(hasRouteAccessProvider(AppRouter.sync));
+    final canAccessActivities = ref.watch(
+      hasRouteAccessProvider(AppRouter.activities),
+    );
 
     // Get filtered menu items based on user permissions
     final filteredMenu = ref.watch(filteredMenuItemsProvider);
@@ -391,276 +458,307 @@ class _MainScreenState extends ConsumerState<MainScreen> with WindowListener {
 
     return CreditApprovalNotificationListener(
       child: Column(
-      children: [
-      Expanded(child: NavigationView(
-      titleBar: DragToMoveArea(
-        child: Row(
-          children: [
-            const Padding(
-              padding: EdgeInsets.symmetric(horizontal: 12.0),
-              child: Text('Orbi ERP'),
-            ),
-            const Spacer(),
-            // Route Mode Badge — aparece cuando el vendedor activa Modo Ruta
-            Padding(
-              padding: EdgeInsets.only(right: spacing.sm),
-              child: const RouteModeIndicatorBadge(),
-            ),
-
-            // Offline Mode Indicator
-            Consumer(
-              builder: (context, ref, child) {
-                final isOffline = ref.watch(isOfflineModeProvider);
-                if (!isOffline) return const SizedBox.shrink();
-
-                return Padding(
-                  padding: EdgeInsets.only(right: spacing.sm),
-                  child: Tooltip(
-                    message: 'Sin internet — Sus ventas están seguras y se enviarán cuando vuelva la conexión',
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 8,
-                        vertical: 4,
-                      ),
-                      decoration: BoxDecoration(
-                        color: Colors.orange.withValues(alpha: 0.2),
-                        borderRadius: BorderRadius.circular(4),
-                        border: Border.all(color: Colors.orange, width: 1),
-                      ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Icon(
-                            FluentIcons.cloud_not_synced,
-                            size: 14,
-                            color: Colors.orange,
-                          ),
-                          const SizedBox(width: 4),
-                          Text(
-                            'Sin internet',
-                            style: TextStyle(
-                              fontSize: 11,
-                              fontWeight: FontWeight.bold,
-                              color: Colors.orange,
-                            ),
-                          ),
-                        ],
-                      ),
+        children: [
+          Expanded(
+            child: NavigationView(
+              titleBar: DragToMoveArea(
+                child: Row(
+                  children: [
+                    const Padding(
+                      padding: EdgeInsets.symmetric(horizontal: 12.0),
+                      child: Text('Orbi ERP'),
                     ),
-                  ),
-                );
-              },
-            ),
+                    const Spacer(),
+                    // Route Mode Badge — aparece cuando el vendedor activa Modo Ruta
+                    Padding(
+                      padding: EdgeInsets.only(right: spacing.sm),
+                      child: const RouteModeIndicatorBadge(),
+                    ),
 
-            // Pending offline operations badge — always visible when there are ops queued
-            Consumer(
-              builder: (context, ref, child) {
-                final offlineState = ref.watch(offlineQueueProvider);
-                final pendingCount = offlineState.totalCount;
-                if (pendingCount == 0) return const SizedBox.shrink();
+                    // Offline Mode Indicator
+                    Consumer(
+                      builder: (context, ref, child) {
+                        final isOffline = ref.watch(isOfflineModeProvider);
+                        if (!isOffline) return const SizedBox.shrink();
 
-                final label = pendingCount == 1
-                    ? '1 pendiente'
-                    : '$pendingCount pendientes';
-
-                return Padding(
-                  padding: EdgeInsets.only(right: spacing.sm),
-                  child: Tooltip(
-                    message: '$pendingCount ${pendingCount == 1 ? 'operación pendiente' : 'operaciones pendientes'} de enviar al servidor',
-                    child: GestureDetector(
-                      onTap: () => context.go('/offline-sync'),
-                      child: MouseRegion(
-                        cursor: SystemMouseCursors.click,
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 8,
-                            vertical: 4,
-                          ),
-                          decoration: BoxDecoration(
-                            color: Colors.orange.withValues(alpha: 0.2),
-                            borderRadius: BorderRadius.circular(4),
-                            border: Border.all(
-                              color: Colors.orange,
-                              width: 1,
+                        return Padding(
+                          padding: EdgeInsets.only(right: spacing.sm),
+                          child: Tooltip(
+                            message: 'Sin internet — Sus ventas están seguras y se enviarán cuando vuelva la conexión',
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 8,
+                                vertical: 4,
+                              ),
+                              decoration: BoxDecoration(
+                                color: Colors.orange.withValues(alpha: 0.2),
+                                borderRadius: BorderRadius.circular(4),
+                                border: Border.all(
+                                  color: Colors.orange,
+                                  width: 1,
+                                ),
+                              ),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Icon(
+                                    FluentIcons.cloud_not_synced,
+                                    size: 14,
+                                    color: Colors.orange,
+                                  ),
+                                  const SizedBox(width: 4),
+                                  Text(
+                                    'Sin internet',
+                                    style: TextStyle(
+                                      fontSize: 11,
+                                      fontWeight: FontWeight.bold,
+                                      color: Colors.orange,
+                                    ),
+                                  ),
+                                ],
+                              ),
                             ),
                           ),
-                          child: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Icon(
-                                FluentIcons.cloud_upload,
-                                size: 14,
-                                color: Colors.orange,
+                        );
+                      },
+                    ),
+
+                    // Pending offline operations badge — always visible when there are ops queued
+                    Consumer(
+                      builder: (context, ref, child) {
+                        final offlineState = ref.watch(offlineQueueProvider);
+                        final pendingCount = offlineState.totalCount;
+                        if (pendingCount == 0 || !canAccessOfflineSync) {
+                          return const SizedBox.shrink();
+                        }
+
+                        final label = pendingCount == 1
+                            ? '1 pendiente'
+                            : '$pendingCount pendientes';
+
+                        return Padding(
+                          padding: EdgeInsets.only(right: spacing.sm),
+                          child: Tooltip(
+                            message:
+                                '$pendingCount ${pendingCount == 1 ? 'operación pendiente' : 'operaciones pendientes'} de enviar al servidor',
+                            child: GestureDetector(
+                              onTap: () => context.go(AppRouter.offlineSync),
+                              child: MouseRegion(
+                                cursor: SystemMouseCursors.click,
+                                child: Container(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 8,
+                                    vertical: 4,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    color: Colors.orange.withValues(alpha: 0.2),
+                                    borderRadius: BorderRadius.circular(4),
+                                    border: Border.all(
+                                      color: Colors.orange,
+                                      width: 1,
+                                    ),
+                                  ),
+                                  child: Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      Icon(
+                                        FluentIcons.cloud_upload,
+                                        size: 14,
+                                        color: Colors.orange,
+                                      ),
+                                      const SizedBox(width: 4),
+                                      Text(
+                                        label,
+                                        style: TextStyle(
+                                          fontSize: 11,
+                                          fontWeight: FontWeight.bold,
+                                          color: Colors.orange,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
                               ),
+                            ),
+                          ),
+                        );
+                      },
+                    ),
+
+                    // Sync Status Badge - shows sync progress and errors
+                    if (canAccessSync)
+                      Padding(
+                        padding: EdgeInsets.only(right: spacing.sm),
+                        child: SyncStatusBadge(
+                          size: 24,
+                          showTooltip: true,
+                          onTap: () => context.go(AppRouter.sync),
+                        ),
+                      ),
+
+                    // Activities
+                    if (canAccessActivities)
+                      Consumer(
+                        builder: (context, ref, child) {
+                          final counters = ref.watch(
+                            notificationCounterProvider,
+                          );
+                          final activityCount = counters.activityCounter;
+
+                          return Tooltip(
+                            message: 'Actividades pendientes',
+                            child: IconButton(
+                              icon: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Stack(
+                                    clipBehavior: Clip.none,
+                                    children: [
+                                      const Icon(FluentIcons.clock, size: 20),
+                                      if (activityCount > 0)
+                                        Positioned(
+                                          top: -4,
+                                          right: -4,
+                                          child: Container(
+                                            padding: const EdgeInsets.all(2),
+                                            decoration: BoxDecoration(
+                                              color: Colors.red,
+                                              shape: BoxShape.circle,
+                                            ),
+                                            constraints: const BoxConstraints(
+                                              minWidth: 14,
+                                              minHeight: 14,
+                                            ),
+                                            child: Text(
+                                              activityCount > 99
+                                                  ? '99+'
+                                                  : '$activityCount',
+                                              style: const TextStyle(
+                                                color: Colors.white,
+                                                fontSize: 9,
+                                                fontWeight: FontWeight.bold,
+                                              ),
+                                              textAlign: TextAlign.center,
+                                            ),
+                                          ),
+                                        ),
+                                    ],
+                                  ),
+                                  if (screenWidth >=
+                                      ScreenBreakpoints.tabletMaxWidth) ...[
+                                    const SizedBox(width: 4),
+                                    const Text(
+                                      'Actividades',
+                                      style: TextStyle(fontSize: 11),
+                                    ),
+                                  ],
+                                ],
+                              ),
+                              onPressed: () {
+                                context.go(AppRouter.activities);
+                              },
+                            ),
+                          );
+                        },
+                      ),
+                    spacing.horizontal.sm,
+
+                    // Server Status Indicator
+                    const ServerStatusWidget(showLatency: true),
+                    spacing.horizontal.sm,
+
+                    // Theme Toggle
+                    Tooltip(
+                      message: 'Cambiar Tema',
+                      child: IconButton(
+                        icon: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(
+                              FluentTheme.of(context).brightness ==
+                                      Brightness.dark
+                                  ? FluentIcons.sunny
+                                  : FluentIcons.clear_night,
+                              size: 20,
+                            ),
+                            if (screenWidth >=
+                                ScreenBreakpoints.tabletMaxWidth) ...[
                               const SizedBox(width: 4),
                               Text(
-                                label,
-                                style: TextStyle(
-                                  fontSize: 11,
-                                  fontWeight: FontWeight.bold,
-                                  color: Colors.orange,
-                                ),
+                                FluentTheme.of(context).brightness ==
+                                        Brightness.dark
+                                    ? 'Claro'
+                                    : 'Oscuro',
+                                style: const TextStyle(fontSize: 11),
                               ),
                             ],
-                          ),
-                        ),
-                      ),
-                    ),
-                  ),
-                );
-              },
-            ),
-
-            // Sync Status Badge - shows sync progress and errors
-            Padding(
-              padding: EdgeInsets.only(right: spacing.sm),
-              child: SyncStatusBadge(
-                size: 24,
-                showTooltip: true,
-                onTap: () => context.go('/sync'),
-              ),
-            ),
-
-            // Activities
-            Consumer(
-              builder: (context, ref, child) {
-                final counters = ref.watch(notificationCounterProvider);
-                final activityCount = counters.activityCounter;
-
-                return Tooltip(
-                  message: 'Actividades pendientes',
-                  child: IconButton(
-                    icon: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Stack(
-                          clipBehavior: Clip.none,
-                          children: [
-                            const Icon(FluentIcons.clock, size: 20),
-                            if (activityCount > 0)
-                              Positioned(
-                                top: -4,
-                                right: -4,
-                                child: Container(
-                                  padding: const EdgeInsets.all(2),
-                                  decoration: BoxDecoration(
-                                    color: Colors.red,
-                                    shape: BoxShape.circle,
-                                  ),
-                                  constraints: const BoxConstraints(
-                                    minWidth: 14,
-                                    minHeight: 14,
-                                  ),
-                                  child: Text(
-                                    activityCount > 99
-                                        ? '99+'
-                                        : '$activityCount',
-                                    style: const TextStyle(
-                                      color: Colors.white,
-                                      fontSize: 9,
-                                      fontWeight: FontWeight.bold,
-                                    ),
-                                    textAlign: TextAlign.center,
-                                  ),
-                                ),
-                              ),
                           ],
                         ),
-                        if (screenWidth >= ScreenBreakpoints.tabletMaxWidth) ...[
-                          const SizedBox(width: 4),
-                          const Text(
-                            'Actividades',
-                            style: TextStyle(fontSize: 11),
-                          ),
-                        ],
-                      ],
-                    ),
-                    onPressed: () {
-                      context.go('/activities');
-                    },
-                  ),
-                );
-              },
-            ),
-            spacing.horizontal.sm,
-
-            // Server Status Indicator
-            const ServerStatusWidget(showLatency: true),
-            spacing.horizontal.sm,
-
-            // Theme Toggle
-            Tooltip(
-              message: 'Cambiar Tema',
-              child: IconButton(
-                icon: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(
-                      FluentTheme.of(context).brightness == Brightness.dark
-                          ? FluentIcons.sunny
-                          : FluentIcons.clear_night,
-                      size: 20,
-                    ),
-                    if (screenWidth >= ScreenBreakpoints.tabletMaxWidth) ...[
-                      const SizedBox(width: 4),
-                      Text(
-                        FluentTheme.of(context).brightness == Brightness.dark
-                            ? 'Claro'
-                            : 'Oscuro',
-                        style: const TextStyle(fontSize: 11),
+                        onPressed: () {
+                          final currentMode = ref
+                              .read(configServiceProvider)
+                              .themeMode;
+                          final newMode = currentMode == ThemeMode.dark
+                              ? ThemeMode.light
+                              : ThemeMode.dark;
+                          ref
+                              .read(configServiceProvider.notifier)
+                              .setThemeMode(newMode);
+                        },
                       ),
-                    ],
+                    ),
+                    spacing.horizontal.md,
+
+                    // User Profile
+                    UserProfileBar(spacing: spacing),
+
+                    if (!kIsWeb &&
+                        (defaultTargetPlatform == TargetPlatform.windows ||
+                            defaultTargetPlatform == TargetPlatform.macOS ||
+                            defaultTargetPlatform == TargetPlatform.linux))
+                      SizedBox(
+                        width: 138,
+                        height: 50,
+                        child: WindowCaption(
+                          brightness: FluentTheme.of(context).brightness,
+                          backgroundColor: Colors.transparent,
+                        ),
+                      ),
                   ],
                 ),
-                onPressed: () {
-                  final currentMode = ref.read(configServiceProvider).themeMode;
-                  final newMode = currentMode == ThemeMode.dark
-                      ? ThemeMode.light
-                      : ThemeMode.dark;
-                  ref
-                      .read(configServiceProvider.notifier)
-                      .setThemeMode(newMode);
-                },
               ),
-            ),
-            spacing.horizontal.md,
-
-            // User Profile
-            UserProfileBar(spacing: spacing),
-
-            if (!kIsWeb &&
-                (defaultTargetPlatform == TargetPlatform.windows ||
-                    defaultTargetPlatform == TargetPlatform.macOS ||
-                    defaultTargetPlatform == TargetPlatform.linux))
-              SizedBox(
-                width: 138,
-                height: 50,
-                child: WindowCaption(
-                  brightness: FluentTheme.of(context).brightness,
-                  backgroundColor: Colors.transparent,
+              pane: NavigationPane(
+                header: Padding(
+                  padding: EdgeInsets.only(left: spacing.sm),
+                  child: TheosLogoName(height: 32),
                 ),
+                selected: _calculateSelectedIndex(
+                  context,
+                  filteredMenu.navItems,
+                  filteredMenu.footerItems,
+                ),
+                onChanged: (index) {
+                  final allItems = <MenuItemDefinition>[
+                    ...filteredMenu.navItems.where((item) => !item.isAction),
+                    ...filteredMenu.footerItems.where((item) => !item.isAction),
+                  ];
+                  if (index < 0 || index >= allItems.length) return;
+                  final item = allItems[index];
+                  if (!item.isAction &&
+                      GoRouterState.of(context).uri.path != item.path) {
+                    context.go(item.path);
+                  }
+                },
+                displayMode: displayMode,
+                items: navItems,
+                footerItems: footerItems,
               ),
-          ],
-        ),
+              paneBodyBuilder: (item, body) => widget.child,
+            ),
+          ),
+          const ServerInfoBar(),
+        ],
       ),
-      pane: NavigationPane(
-        header: Padding(
-          padding: EdgeInsets.only(left: spacing.sm),
-          child: TheosLogoName(height: 32),
-        ),
-        selected: _calculateSelectedIndex(context, navItems, footerItems),
-        onChanged: (index) {
-          // Navigation is handled by onTap of items
-        },
-        displayMode: displayMode,
-        items: navItems,
-        footerItems: footerItems,
-      ),
-      paneBodyBuilder: (item, body) => widget.child,
-    )),
-      const ServerInfoBar(),
-      ],
-    ),
     );
   }
 }
@@ -678,7 +776,7 @@ class UserProfileBar extends ConsumerWidget {
       child: Row(
         children: [
           if (MediaQuery.of(context).size.width >=
-              ScreenBreakpoints.mobileMaxWidth) ...[
+              ScreenBreakpoints.tabletMaxWidth) ...[
             Column(
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.end,
@@ -706,6 +804,8 @@ class UserProfileBar extends ConsumerWidget {
 }
 
 class HomeScreen extends ConsumerWidget {
+  static const startSaleKey = ValueKey<String>('home.start-sale');
+
   const HomeScreen({super.key});
 
   /// Returns true when the user has supervisor-level permissions:
@@ -722,23 +822,20 @@ class HomeScreen extends ConsumerWidget {
 
     final permissions = user?.permissions ?? [];
     final isSupervisor = _isSupervisor(permissions);
+    final canStartFastSale = ref.watch(
+      hasRouteAccessProvider(AppRouter.fastSale),
+    );
 
     if (isSupervisor) {
       return ScaffoldPage.scrollable(
-        header: PageHeader(
-          title: Text('Hola, ${user?.name ?? 'Usuario'}'),
-        ),
-        children: [
-          const SupervisorDashboard(),
-        ],
+        header: PageHeader(title: Text('Hola, ${user?.name ?? 'Usuario'}')),
+        children: [const SupervisorDashboard()],
       );
     }
 
     // Vista de cajero basico: boton unico para empezar a vender
     return ScaffoldPage.scrollable(
-      header: PageHeader(
-        title: Text('Hola, ${user?.name ?? 'Usuario'}'),
-      ),
+      header: PageHeader(title: Text('Hola, ${user?.name ?? 'Usuario'}')),
       children: [
         Center(
           child: ConstrainedBox(
@@ -752,10 +849,7 @@ class HomeScreen extends ConsumerWidget {
                   color: theme.accentColor,
                 ),
                 spacing.vertical.md,
-                Text(
-                  'Listo para vender',
-                  style: theme.typography.subtitle,
-                ),
+                Text('Listo para vender', style: theme.typography.subtitle),
                 spacing.vertical.sm,
                 Text(
                   'Selecciona una opcion del menu o empieza una venta rapida',
@@ -765,24 +859,26 @@ class HomeScreen extends ConsumerWidget {
                   textAlign: TextAlign.center,
                 ),
                 spacing.vertical.lg,
-                SizedBox(
-                  width: 280,
-                  height: 48,
-                  child: FilledButton(
-                    onPressed: () => context.go('/fast-sale'),
-                    child: const Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Icon(FluentIcons.shopping_cart, size: 20),
-                        SizedBox(width: 8),
-                        Text(
-                          'Empezar a Vender',
-                          style: TextStyle(fontSize: 16),
-                        ),
-                      ],
+                if (canStartFastSale)
+                  SizedBox(
+                    width: 280,
+                    height: 48,
+                    child: FilledButton(
+                      key: startSaleKey,
+                      onPressed: () => context.go(AppRouter.fastSale),
+                      child: const Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(FluentIcons.shopping_cart, size: 20),
+                          SizedBox(width: 8),
+                          Text(
+                            'Empezar a Vender',
+                            style: TextStyle(fontSize: 16),
+                          ),
+                        ],
+                      ),
                     ),
                   ),
-                ),
                 spacing.vertical.xl,
               ],
             ),

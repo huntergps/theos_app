@@ -2,6 +2,7 @@ import 'package:fluent_ui/fluent_ui.dart';
 
 import '../../../../../core/constants/app_colors.dart';
 import 'summary_row.dart';
+
 import 'package:theos_pos_core/theos_pos_core.dart';
 
 /// Tabla de facturas emitidas en el cierre
@@ -106,8 +107,9 @@ class FacturasEmitidasTable extends StatelessWidget {
             iconColor: AppColors.textSecondary,
             label: 'Diferencia Ventas Crédito',
             amount: session.creditSalesDifference,
-            amountColor:
-                session.creditSalesDifference != 0 ? AppColors.danger : null,
+            amountColor: session.creditSalesDifference != 0
+                ? AppColors.danger
+                : null,
           ),
         ],
       ),

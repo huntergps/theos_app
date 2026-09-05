@@ -5,19 +5,28 @@
 library;
 
 import 'dart:async';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:odoo_sdk/odoo_sdk.dart' show OdooConnectionEvent;
 
-import '../../../core/database/datasources/datasources.dart' show OfflineQueueDataSource;
-import '../../../core/services/logger_service.dart' show logger;
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:odoo_sdk/odoo_sdk.dart'
+    show ConnectivityStatus, ServerConnectionState, ServerHealthService;
+
+import '../../../core/database/datasources/datasources.dart'
+    show OfflineQueueDataSource;
+
+import 'package:odoo_sdk/odoo_sdk.dart' show logger;
+
 import '../../../core/services/platform/server_connectivity_service.dart';
-import '../../../core/services/websocket/odoo_websocket_service.dart'
-    show odooWebSocketServiceProvider;
-import '../providers/offline_mode_providers.dart' show offlineModeConfigProvider;
+import '../providers/offline_mode_providers.dart'
+    show offlineModeConfigProvider;
 import '../providers/route_mode_provider.dart' show isRouteModeActiveProvider;
 import '../../../core/database/repositories/repository_providers.dart';
 import '../providers/sync_provider.dart';
 import 'offline_sync_service.dart';
+
+typedef PeriodicTimerFactory = Timer Function(
+  Duration interval,
+  void Function(Timer timer) callback,
+);
 
 /// Orchestrator that triggers automatic sync when server recovers.
 ///
@@ -28,6 +37,7 @@ import 'offline_sync_service.dart';
 /// - Respects app lifecycle (background vs foreground)
 class ConnectivitySyncOrchestrator {
   final ServerHealthService _healthService;
+  final bool Function() _isAuthenticatedFn;
   final bool Function() _isOfflineModeEnabledFn;
 
   /// Callback que devuelve true si el Modo Ruta esta activo.
@@ -38,21 +48,11 @@ class ConnectivitySyncOrchestrator {
   final OfflineQueueDataSource? Function() _getOfflineQueue;
   final Future<void> Function() _syncCriticalData;
 
-  /// Stream de eventos de conexión del WebSocket (opcional).
-  ///
-  /// Fase B, tarea 3: antes, `OdooWebSocketService` solo LOGUEABA la
-  /// intención de "triggering offline sync" al reconectar
-  /// (odoo_websocket_service.dart, ver comentario histórico ahí) pero nunca
-  /// disparaba nada — el único catch-up real dependía de la ventana de
-  /// retención de `bus.bus` en Odoo (normalmente corta) más el chequeo de
-  /// salud HTTP por separado. Ahora este stream nos deja reaccionar
-  /// directamente al evento de reconexión del WS, sin pasar por
-  /// notification_provider.dart (que no debe tocarse — ver reglas de esta
-  /// fase).
-  final Stream<OdooConnectionEvent>? _webSocketEvents;
+  final Duration _pollingInterval;
+  final PeriodicTimerFactory periodicTimerFactory;
   StreamSubscription<ConnectivityStatus>? _statusSubscription;
-  StreamSubscription<OdooConnectionEvent>? _wsEventSubscription;
   Timer? _stabilityTimer;
+  Timer? _pollingTimer;
 
   bool _isSyncing = false;
   bool _isInitialized = false;
@@ -60,80 +60,125 @@ class ConnectivitySyncOrchestrator {
 
   // Configuration
   static const Duration _stabilityWait = Duration(seconds: 5);
-  static const Duration _batchDelay = Duration(seconds: 2);
+  static const Duration defaultPollingInterval = Duration(minutes: 5);
 
   ConnectivitySyncOrchestrator({
-    required ServerHealthService healthService,
+    required this._healthService,
+    required bool Function() isAuthenticated,
     required bool Function() isOfflineModeEnabled,
     bool Function()? isRouteModeActive,
-    required OfflineSyncService? Function() getOfflineSyncService,
-    required OfflineQueueDataSource? Function() getOfflineQueue,
-    required Future<void> Function() syncCriticalData,
-    Stream<OdooConnectionEvent>? webSocketReconnectionEvents,
-  })  : _healthService = healthService,
-        _isOfflineModeEnabledFn = isOfflineModeEnabled,
-        _isRouteModeActiveFn = isRouteModeActive,
-        _getOfflineSyncService = getOfflineSyncService,
-        _getOfflineQueue = getOfflineQueue,
-        _syncCriticalData = syncCriticalData,
-        _webSocketEvents = webSocketReconnectionEvents;
+    required this._getOfflineSyncService,
+    required this._getOfflineQueue,
+    required this._syncCriticalData,
+    Duration pollingInterval = defaultPollingInterval,
+    this.periodicTimerFactory = Timer.periodic,
+  }) : _isOfflineModeEnabledFn = isOfflineModeEnabled,
+       _isAuthenticatedFn = isAuthenticated,
+       _isRouteModeActiveFn = isRouteModeActive,
+       _pollingInterval = pollingInterval {
+    if (pollingInterval <= Duration.zero) {
+      throw ArgumentError.value(
+        pollingInterval,
+        'pollingInterval',
+        'Must be greater than zero',
+      );
+    }
+  }
 
   /// Initialize the orchestrator and start listening to connectivity changes
   void initialize() {
     if (_isInitialized) return;
     _isInitialized = true;
 
-    logger.i('[SyncOrchestrator]', 'Initializing connectivity sync orchestrator');
+    logger.i(
+      '[SyncOrchestrator]',
+      'Initializing connectivity sync orchestrator',
+    );
 
     // Store initial state
     _previousState = _healthService.status.serverState;
 
     // Listen to connectivity status changes
-    _statusSubscription = _healthService.statusStream.listen(_onConnectivityChanged);
-
-    // Listen to WebSocket reconnection events (tarea 3, Fase B)
-    _wsEventSubscription = _webSocketEvents?.listen(_onWebSocketReconnected);
+    _statusSubscription = _healthService.statusStream.listen(
+      _onConnectivityChanged,
+    );
+    _pollingTimer = periodicTimerFactory(
+      _pollingInterval,
+      (_) => unawaited(_performPeriodicPoll()),
+    );
+    // Reconcile immediately as well as periodically. A cold start that is
+    // already online produces no connectivity transition, and durable writes
+    // must not sit untouched until the first five-minute timer tick.
+    unawaited(_performPeriodicPoll());
   }
 
-  /// Reacciona a una reconexión exitosa del WebSocket disparando la MISMA
-  /// reconciliación que usa la recuperación por HTTP (cola offline +
-  /// incremental de catálogo) — ver [_scheduleRecoverySync].
+  /// Periodically drains durable local writes before reconciling catalogs.
   ///
-  /// El WS puede reconectar antes, después, o al mismo tiempo que el health
-  /// check HTTP detecta la recuperación; reusar `_scheduleRecoverySync()`
-  /// (que cancela cualquier timer pendiente y reprograma) evita disparar la
-  /// reconciliación dos veces si ambas señales llegan casi juntas, y
-  /// `_performRecoverySync()` ya está protegido por `_isSyncing`.
-  void _onWebSocketReconnected(OdooConnectionEvent event) {
-    if (!event.isConnected || !event.isReconnection) return;
-
-    if (_isOfflineModeEnabledFn()) {
+  /// This path intentionally mirrors recovery sync ordering. A device can
+  /// start and remain online for its entire lifetime, so relying only on a
+  /// connectivity transition would otherwise leave operations queued while
+  /// already online forever. The authenticated/online gates are evaluated on
+  /// every tick so a timer created while online cannot leak work into route or
+  /// manual-offline mode.
+  Future<void> _performPeriodicPoll() async {
+    if (!_isInitialized || !_isAuthenticatedFn()) return;
+    final status = _healthService.status;
+    if (!status.isFullyOnline ||
+        status.isManualOffline ||
+        _isOfflineModeEnabledFn() ||
+        _isRouteModeActiveFn?.call() == true) {
+      return;
+    }
+    if (_isSyncing) {
       logger.d(
         '[SyncOrchestrator]',
-        'WebSocket reconectado pero offline mode está activo - skip',
+        'Periodic poll skipped because a sync is already in progress',
       );
       return;
     }
-    if (_isRouteModeActiveFn?.call() == true) {
-      logger.d(
-        '[SyncOrchestrator]',
-        'WebSocket reconectado pero Modo Ruta está activo - skip',
-      );
-      return;
-    }
 
-    logger.i(
-      '[SyncOrchestrator]',
-      'WebSocket reconectado tras una caída — programando reconciliación '
-          '(cola offline + incremental de catálogo)...',
-    );
-    _scheduleRecoverySync();
+    _isSyncing = true;
+    try {
+      logger.d('[SyncOrchestrator]', 'Starting periodic incremental poll...');
+      await _processOfflineQueue();
+      // Provider disposal is the session-boundary cancellation signal. The
+      // queue writer may have been active while logout waited for it; never
+      // continue into a catalog sync after that old scope was invalidated.
+      if (!_isInitialized) {
+        logger.d(
+          '[SyncOrchestrator]',
+          'Periodic poll stopped at disposed session boundary',
+        );
+        return;
+      }
+      if (_healthService.status.serverState != ServerConnectionState.online) {
+        logger.w(
+          '[SyncOrchestrator]',
+          'Connection lost while draining queue - skipping catalog poll',
+        );
+        return;
+      }
+      await _performIncrementalSync();
+    } catch (error, stackTrace) {
+      // Timer callbacks are intentionally unawaited. Contain failures here so
+      // one transient queue/database error does not escape the zone or prevent
+      // a later periodic retry.
+      logger.e(
+        '[SyncOrchestrator]',
+        'Periodic queue/catalog poll failed',
+        error,
+        stackTrace,
+      );
+    } finally {
+      _isSyncing = false;
+    }
   }
 
   /// Handle connectivity status changes
   void _onConnectivityChanged(ConnectivityStatus status) {
     final currentState = status.serverState;
-    final wasOffline = _previousState == ServerConnectionState.unreachable ||
+    final wasOffline =
+        _previousState == ServerConnectionState.unreachable ||
         _previousState == ServerConnectionState.maintenance ||
         _previousState == ServerConnectionState.unknown;
     final isNowOnline = currentState == ServerConnectionState.online;
@@ -147,14 +192,20 @@ class ConnectivitySyncOrchestrator {
     if (wasOffline && isNowOnline) {
       // Don't auto-sync if offline mode is manually enabled
       if (_isOfflineModeEnabledFn()) {
-        logger.d('[SyncOrchestrator]', 'Server recovered but offline mode is enabled - skipping auto-sync');
+        logger.d(
+          '[SyncOrchestrator]',
+          'Server recovered but offline mode is enabled - skipping auto-sync',
+        );
         _previousState = currentState;
         return;
       }
       // Don't auto-sync if Route Mode is active.
       // The user explicitly chose to work disconnected — honor that decision.
       if (_isRouteModeActiveFn?.call() == true) {
-        logger.d('[SyncOrchestrator]', 'Server recovered but Modo Ruta is active - skipping auto-sync');
+        logger.d(
+          '[SyncOrchestrator]',
+          'Server recovered but Modo Ruta is active - skipping auto-sync',
+        );
         _previousState = currentState;
         return;
       }
@@ -174,7 +225,10 @@ class ConnectivitySyncOrchestrator {
     _stabilityTimer = Timer(_stabilityWait, () async {
       // Verify still online
       if (_healthService.status.serverState != ServerConnectionState.online) {
-        logger.w('[SyncOrchestrator]', 'Connection lost during stability wait - aborting sync');
+        logger.w(
+          '[SyncOrchestrator]',
+          'Connection lost during stability wait - aborting sync',
+        );
         return;
       }
 
@@ -197,9 +251,20 @@ class ConnectivitySyncOrchestrator {
       // 1. Process offline queue first (highest priority)
       await _processOfflineQueue();
 
+      if (!_isInitialized) {
+        logger.d(
+          '[SyncOrchestrator]',
+          'Recovery sync stopped at disposed session boundary',
+        );
+        return;
+      }
+
       // 2. Check if still online
       if (_healthService.status.serverState != ServerConnectionState.online) {
-        logger.w('[SyncOrchestrator]', 'Connection lost during sync - stopping');
+        logger.w(
+          '[SyncOrchestrator]',
+          'Connection lost during sync - stopping',
+        );
         return;
       }
 
@@ -231,55 +296,35 @@ class ConnectivitySyncOrchestrator {
       return;
     }
 
-    logger.i('[SyncOrchestrator]', 'Processing $pendingCount pending operations');
+    logger.i(
+      '[SyncOrchestrator]',
+      'Processing $pendingCount pending operations',
+    );
 
-    // Process in batches driven by actual results — not a fixed counter.
-    // Each call to processQueue() processes one batch internally; we keep
-    // looping until either (a) nothing was processed (queue exhausted) or
-    // (b) connectivity is lost.
-    int totalProcessed = 0;
-    while (true) {
-      // Verify connectivity before each batch
-      if (_healthService.status.serverState != ServerConnectionState.online) {
-        logger.w('[SyncOrchestrator]', 'Connection lost - pausing queue processing');
-        break;
-      }
+    // OfflineSyncService already claims and processes the complete ready
+    // snapshot. Calling it again immediately is unsafe: when a parent fails,
+    // its dependants are deliberately released to pending while the parent is
+    // placed in backoff. A second same-cycle snapshot could otherwise dispatch
+    // those dependants without their parent.
+    final result = await offlineSyncService.processQueue();
 
-      final result = await offlineSyncService.processQueue();
-
-      // synced == 0 means the queue is empty or every item failed and the
-      // processor has nothing left to attempt — stop looping.
-      if (result.synced == 0) {
-        logger.d('[SyncOrchestrator]', 'Queue exhausted or no progress — stopping batch loop');
-        break;
-      }
-
-      totalProcessed += result.synced;
-      logger.d(
-        '[SyncOrchestrator]',
-        'Batch done: ${result.synced} synced, ${result.failed} failed '
-        '(total so far: $totalProcessed)',
-      );
-
-      // Rate-limiting delay between batches
-      await Future.delayed(_batchDelay);
-    }
-
-    logger.i('[SyncOrchestrator]', 'Queue processing complete — total synced: $totalProcessed');
+    logger.i(
+      '[SyncOrchestrator]',
+      'Queue processing complete — ${result.synced} synced, '
+          '${result.failed} failed, ${result.conflicts.length} conflicts',
+    );
   }
 
   /// Get count of pending operations
   Future<int> _getPendingOperationsCount() async {
-    try {
-      final offlineQueue = _getOfflineQueue();
-      if (offlineQueue == null) return 0;
+    final offlineQueue = _getOfflineQueue();
+    if (offlineQueue == null) return 0;
 
-      final operations = await offlineQueue.getPendingOperations();
-      return operations.length;
-    } catch (e) {
-      logger.w('[SyncOrchestrator]', 'Error getting pending count: $e');
-      return 0;
-    }
+    // A queue read failure is not equivalent to an empty queue. Let it reach
+    // the reconciliation boundary so catalog sync is skipped and the durable
+    // writes are retried on the next poll instead of being silently bypassed.
+    final operations = await offlineQueue.getPendingOperations();
+    return operations.length;
   }
 
   /// Perform incremental catalog sync
@@ -307,8 +352,8 @@ class ConnectivitySyncOrchestrator {
   /// Dispose resources
   void dispose() {
     _stabilityTimer?.cancel();
+    _pollingTimer?.cancel();
     _statusSubscription?.cancel();
-    _wsEventSubscription?.cancel();
     _isInitialized = false;
   }
 }
@@ -318,43 +363,41 @@ class ConnectivitySyncOrchestrator {
 // ============================================================================
 
 /// Provider for ConnectivitySyncOrchestrator
-final connectivitySyncOrchestratorProvider = Provider<ConnectivitySyncOrchestrator>((ref) {
-  final healthService = ref.read(serverHealthServiceProvider);
-  final syncNotifier = ref.read(syncProvider.notifier);
-  // Solo se usa para obtener el stream de eventos (no dispara connect/disconnect
-  // desde acá — la conexión WS la maneja main_screen.dart / notification_provider.dart).
-  final wsService = ref.read(odooWebSocketServiceProvider);
+final connectivitySyncOrchestratorProvider =
+    Provider<ConnectivitySyncOrchestrator>((ref) {
+      final healthService = ref.read(serverHealthServiceProvider);
+      final syncNotifier = ref.read(syncProvider.notifier);
 
-  final orchestrator = ConnectivitySyncOrchestrator(
-    healthService: healthService,
-    webSocketReconnectionEvents: wsService.eventsOfType<OdooConnectionEvent>(),
-    isOfflineModeEnabled: () {
-      try {
-        final offlineConfig = ref.read(offlineModeConfigProvider);
-        return offlineConfig.maybeWhen(
-          data: (config) => config.isEnabled,
-          orElse: () => false,
-        );
-      } catch (_) {
-        return false;
-      }
-    },
-    isRouteModeActive: () {
-      try {
-        return ref.read(isRouteModeActiveProvider);
-      } catch (_) {
-        return false;
-      }
-    },
-    getOfflineSyncService: () => ref.read(offlineSyncServiceProvider),
-    getOfflineQueue: () => ref.read(offlineQueueDataSourceProvider),
-    syncCriticalData: () => syncNotifier.syncCriticalData(),
-  );
+      final orchestrator = ConnectivitySyncOrchestrator(
+        healthService: healthService,
+        isAuthenticated: () => ref.read(odooClientProvider) != null,
+        isOfflineModeEnabled: () {
+          try {
+            final offlineConfig = ref.read(offlineModeConfigProvider);
+            return offlineConfig.maybeWhen(
+              data: (config) => config.isEnabled,
+              orElse: () => false,
+            );
+          } catch (_) {
+            return false;
+          }
+        },
+        isRouteModeActive: () {
+          try {
+            return ref.read(isRouteModeActiveProvider);
+          } catch (_) {
+            return false;
+          }
+        },
+        getOfflineSyncService: () => ref.read(offlineSyncServiceProvider),
+        getOfflineQueue: () => ref.read(offlineQueueDataSourceProvider),
+        syncCriticalData: () => syncNotifier.syncCriticalData(),
+      );
 
-  // Initialize when provider is first accessed
-  orchestrator.initialize();
+      // Initialize when provider is first accessed
+      orchestrator.initialize();
 
-  ref.onDispose(() => orchestrator.dispose());
+      ref.onDispose(() => orchestrator.dispose());
 
-  return orchestrator;
-});
+      return orchestrator;
+    });

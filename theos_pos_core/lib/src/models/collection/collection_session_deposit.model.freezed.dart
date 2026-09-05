@@ -1,6 +1,6 @@
 // GENERATED CODE - DO NOT MODIFY BY HAND
 // coverage:ignore-file
-// ignore_for_file: type=lint
+// ignore_for_file: type=lint, type=warning, deprecated_member_use, deprecated_member_use_from_same_package
 // ignore_for_file: unused_element, deprecated_member_use, deprecated_member_use_from_same_package, use_function_type_syntax_for_parameters, unnecessary_const, avoid_init_to_null, invalid_override_different_default_values_named, prefer_expression_function_bodies, annotate_overrides, invalid_annotation_target, unnecessary_question_mark
 
 part of 'collection_session_deposit.model.dart';
@@ -9,33 +9,15 @@ part of 'collection_session_deposit.model.dart';
 // FreezedGenerator
 // **************************************************************************
 
+// GENERATED CODE - DO NOT MODIFY BY HAND
 // dart format off
 T _$identity<T>(T value) => value;
 
 /// @nodoc
 mixin _$CollectionSessionDeposit {
 
-// ============ Identifiers ============
-@OdooId() int get id;@OdooLocalOnly() String? get uuid;@OdooLocalOnly() bool get isSynced;@OdooLocalOnly() DateTime? get lastSyncDate;// ============ Basic Data ============
-@OdooString() String? get name;@OdooString() String? get number;// ============ Relations ============
-@OdooMany2One('collection.session', odooName: 'collection_session_id') int? get collectionSessionId;/// UUID of the parent session (for offline linking)
-// Odoo 19.5 (erp1): 'session_uuid' ya no existe en
-// collection.session.deposit del servidor (smoke fields_get, julio
-// 2026) — a diferencia de collection.session, donde SÍ existe.
-@OdooLocalOnly() String? get sessionUuid;@OdooMany2One('res.users', odooName: 'user_id') int? get userId;@OdooMany2OneName(sourceField: 'user_id') String? get userName;// ============ Date Fields ============
-@OdooDateTime(odooName: 'deposit_date') DateTime? get depositDate;@OdooDate(odooName: 'accounting_date') DateTime? get accountingDate;// ============ Amount Fields ============
-@OdooFloat() double get amount;@OdooSelection(odooName: 'deposit_type') DepositType get depositType;@OdooFloat(odooName: 'cash_amount') double get cashAmount;@OdooFloat(odooName: 'check_amount') double get checkAmount;@OdooInteger(odooName: 'check_count') int get checkCount;// ============ Bank Fields ============
-@OdooMany2One('account.journal', odooName: 'bank_journal_id') int? get bankJournalId;@OdooMany2OneName(sourceField: 'bank_journal_id') String? get bankJournalName;// Alias fields for table compatibility
-// bank_id (Many2one res.bank) fue reemplazado por bank_name_ec (Char) en
-// los modelos de pago l10n_ec — ver
-// working/l10n_ec_collection_box/models/sale_order_payment.py. Se marca
-// @OdooLocalOnly para evitar romper sync generico contra Odoo 19.2;
-// resolver el campo correcto segun version del servidor si este modelo
-// llega a sincronizarse con Odoo directamente.
-@OdooLocalOnly() int? get bankId;@OdooLocalOnly() String? get bankName;// ============ State & References ============
-// Odoo 19.5 (erp1): 'state' ya no existe en collection.session.deposit
-// del servidor (smoke fields_get, julio 2026).
-@OdooLocalOnly() String? get state;@OdooDateTime(odooName: 'write_date') DateTime? get writeDate;@OdooString(odooName: 'deposit_slip_number') String? get depositSlipNumber;@OdooString(odooName: 'bank_reference') String? get bankReference;@OdooMany2One('account.move', odooName: 'move_id') int? get moveId;@OdooString(odooName: 'depositor_name') String? get depositorName;@OdooString() String? get notes;
+@OdooId() int get id;@OdooLocalOnly() String? get uuid;@OdooLocalOnly() bool get isSynced;@OdooLocalOnly() DateTime? get lastSyncDate;@OdooString() String? get name;@OdooString() String? get number;@OdooMany2One('collection.session', odooName: 'collection_session_id') int? get collectionSessionId;/// UUID of the parent session (for offline linking)
+@OdooLocalOnly() String? get sessionUuid;@OdooMany2One('res.users', odooName: 'user_id') int? get userId;@OdooMany2OneName(sourceField: 'user_id') String? get userName;@OdooDateTime(odooName: 'deposit_date') DateTime? get depositDate;@OdooDate(odooName: 'accounting_date') DateTime? get accountingDate;@OdooFloat() double get amount;@OdooSelection(odooName: 'deposit_type') DepositType get depositType;@OdooFloat(odooName: 'cash_amount') double get cashAmount;@OdooFloat(odooName: 'check_amount') double get checkAmount;@OdooInteger(odooName: 'check_count') int get checkCount;@OdooMany2One('account.journal', odooName: 'bank_journal_id') int? get bankJournalId;@OdooMany2OneName(sourceField: 'bank_journal_id') String? get bankJournalName;@OdooLocalOnly() int? get bankId;@OdooLocalOnly() String? get bankName;@OdooLocalOnly() String get state;@OdooDateTime(odooName: 'write_date') DateTime? get writeDate;@OdooString(odooName: 'deposit_slip_number') String? get depositSlipNumber;@OdooString(odooName: 'bank_reference') String? get bankReference;@OdooMany2One('account.move', odooName: 'move_id') int? get moveId;@OdooString(odooName: 'depositor_name') String? get depositorName;@OdooString() String? get notes;
 /// Create a copy of CollectionSessionDeposit
 /// with the given fields replaced by the non-null parameter values.
 @JsonKey(includeFromJson: false, includeToJson: false)
@@ -68,7 +50,7 @@ abstract mixin class $CollectionSessionDepositCopyWith<$Res>  {
   factory $CollectionSessionDepositCopyWith(CollectionSessionDeposit value, $Res Function(CollectionSessionDeposit) _then) = _$CollectionSessionDepositCopyWithImpl;
 @useResult
 $Res call({
-@OdooId() int id,@OdooLocalOnly() String? uuid,@OdooLocalOnly() bool isSynced,@OdooLocalOnly() DateTime? lastSyncDate,@OdooString() String? name,@OdooString() String? number,@OdooMany2One('collection.session', odooName: 'collection_session_id') int? collectionSessionId,@OdooLocalOnly() String? sessionUuid,@OdooMany2One('res.users', odooName: 'user_id') int? userId,@OdooMany2OneName(sourceField: 'user_id') String? userName,@OdooDateTime(odooName: 'deposit_date') DateTime? depositDate,@OdooDate(odooName: 'accounting_date') DateTime? accountingDate,@OdooFloat() double amount,@OdooSelection(odooName: 'deposit_type') DepositType depositType,@OdooFloat(odooName: 'cash_amount') double cashAmount,@OdooFloat(odooName: 'check_amount') double checkAmount,@OdooInteger(odooName: 'check_count') int checkCount,@OdooMany2One('account.journal', odooName: 'bank_journal_id') int? bankJournalId,@OdooMany2OneName(sourceField: 'bank_journal_id') String? bankJournalName,@OdooLocalOnly() int? bankId,@OdooLocalOnly() String? bankName,@OdooLocalOnly() String? state,@OdooDateTime(odooName: 'write_date') DateTime? writeDate,@OdooString(odooName: 'deposit_slip_number') String? depositSlipNumber,@OdooString(odooName: 'bank_reference') String? bankReference,@OdooMany2One('account.move', odooName: 'move_id') int? moveId,@OdooString(odooName: 'depositor_name') String? depositorName,@OdooString() String? notes
+@OdooId() int id,@OdooLocalOnly() String? uuid,@OdooLocalOnly() bool isSynced,@OdooLocalOnly() DateTime? lastSyncDate,@OdooString() String? name,@OdooString() String? number,@OdooMany2One('collection.session', odooName: 'collection_session_id') int? collectionSessionId,@OdooLocalOnly() String? sessionUuid,@OdooMany2One('res.users', odooName: 'user_id') int? userId,@OdooMany2OneName(sourceField: 'user_id') String? userName,@OdooDateTime(odooName: 'deposit_date') DateTime? depositDate,@OdooDate(odooName: 'accounting_date') DateTime? accountingDate,@OdooFloat() double amount,@OdooSelection(odooName: 'deposit_type') DepositType depositType,@OdooFloat(odooName: 'cash_amount') double cashAmount,@OdooFloat(odooName: 'check_amount') double checkAmount,@OdooInteger(odooName: 'check_count') int checkCount,@OdooMany2One('account.journal', odooName: 'bank_journal_id') int? bankJournalId,@OdooMany2OneName(sourceField: 'bank_journal_id') String? bankJournalName,@OdooLocalOnly() int? bankId,@OdooLocalOnly() String? bankName,@OdooLocalOnly() String state,@OdooDateTime(odooName: 'write_date') DateTime? writeDate,@OdooString(odooName: 'deposit_slip_number') String? depositSlipNumber,@OdooString(odooName: 'bank_reference') String? bankReference,@OdooMany2One('account.move', odooName: 'move_id') int? moveId,@OdooString(odooName: 'depositor_name') String? depositorName,@OdooString() String? notes
 });
 
 
@@ -85,8 +67,8 @@ class _$CollectionSessionDepositCopyWithImpl<$Res>
 
 /// Create a copy of CollectionSessionDeposit
 /// with the given fields replaced by the non-null parameter values.
-@pragma('vm:prefer-inline') @override $Res call({Object? id = null,Object? uuid = freezed,Object? isSynced = null,Object? lastSyncDate = freezed,Object? name = freezed,Object? number = freezed,Object? collectionSessionId = freezed,Object? sessionUuid = freezed,Object? userId = freezed,Object? userName = freezed,Object? depositDate = freezed,Object? accountingDate = freezed,Object? amount = null,Object? depositType = null,Object? cashAmount = null,Object? checkAmount = null,Object? checkCount = null,Object? bankJournalId = freezed,Object? bankJournalName = freezed,Object? bankId = freezed,Object? bankName = freezed,Object? state = freezed,Object? writeDate = freezed,Object? depositSlipNumber = freezed,Object? bankReference = freezed,Object? moveId = freezed,Object? depositorName = freezed,Object? notes = freezed,}) {
-  return _then(_self.copyWith(
+@pragma('vm:prefer-inline') @override $Res call({Object? id = null,Object? uuid = freezed,Object? isSynced = null,Object? lastSyncDate = freezed,Object? name = freezed,Object? number = freezed,Object? collectionSessionId = freezed,Object? sessionUuid = freezed,Object? userId = freezed,Object? userName = freezed,Object? depositDate = freezed,Object? accountingDate = freezed,Object? amount = null,Object? depositType = null,Object? cashAmount = null,Object? checkAmount = null,Object? checkCount = null,Object? bankJournalId = freezed,Object? bankJournalName = freezed,Object? bankId = freezed,Object? bankName = freezed,Object? state = null,Object? writeDate = freezed,Object? depositSlipNumber = freezed,Object? bankReference = freezed,Object? moveId = freezed,Object? depositorName = freezed,Object? notes = freezed,}) {
+  return _then(CollectionSessionDeposit(
 id: null == id ? _self.id : id // ignore: cast_nullable_to_non_nullable
 as int,uuid: freezed == uuid ? _self.uuid : uuid // ignore: cast_nullable_to_non_nullable
 as String?,isSynced: null == isSynced ? _self.isSynced : isSynced // ignore: cast_nullable_to_non_nullable
@@ -108,8 +90,8 @@ as int,bankJournalId: freezed == bankJournalId ? _self.bankJournalId : bankJourn
 as int?,bankJournalName: freezed == bankJournalName ? _self.bankJournalName : bankJournalName // ignore: cast_nullable_to_non_nullable
 as String?,bankId: freezed == bankId ? _self.bankId : bankId // ignore: cast_nullable_to_non_nullable
 as int?,bankName: freezed == bankName ? _self.bankName : bankName // ignore: cast_nullable_to_non_nullable
-as String?,state: freezed == state ? _self.state : state // ignore: cast_nullable_to_non_nullable
-as String?,writeDate: freezed == writeDate ? _self.writeDate : writeDate // ignore: cast_nullable_to_non_nullable
+as String?,state: null == state ? _self.state : state // ignore: cast_nullable_to_non_nullable
+as String,writeDate: freezed == writeDate ? _self.writeDate : writeDate // ignore: cast_nullable_to_non_nullable
 as DateTime?,depositSlipNumber: freezed == depositSlipNumber ? _self.depositSlipNumber : depositSlipNumber // ignore: cast_nullable_to_non_nullable
 as String?,bankReference: freezed == bankReference ? _self.bankReference : bankReference // ignore: cast_nullable_to_non_nullable
 as String?,moveId: freezed == moveId ? _self.moveId : moveId // ignore: cast_nullable_to_non_nullable
@@ -200,7 +182,7 @@ return $default(_that);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function(@OdooId()  int id, @OdooLocalOnly()  String? uuid, @OdooLocalOnly()  bool isSynced, @OdooLocalOnly()  DateTime? lastSyncDate, @OdooString()  String? name, @OdooString()  String? number, @OdooMany2One('collection.session', odooName: 'collection_session_id')  int? collectionSessionId, @OdooLocalOnly()  String? sessionUuid, @OdooMany2One('res.users', odooName: 'user_id')  int? userId, @OdooMany2OneName(sourceField: 'user_id')  String? userName, @OdooDateTime(odooName: 'deposit_date')  DateTime? depositDate, @OdooDate(odooName: 'accounting_date')  DateTime? accountingDate, @OdooFloat()  double amount, @OdooSelection(odooName: 'deposit_type')  DepositType depositType, @OdooFloat(odooName: 'cash_amount')  double cashAmount, @OdooFloat(odooName: 'check_amount')  double checkAmount, @OdooInteger(odooName: 'check_count')  int checkCount, @OdooMany2One('account.journal', odooName: 'bank_journal_id')  int? bankJournalId, @OdooMany2OneName(sourceField: 'bank_journal_id')  String? bankJournalName, @OdooLocalOnly()  int? bankId, @OdooLocalOnly()  String? bankName, @OdooLocalOnly()  String? state, @OdooDateTime(odooName: 'write_date')  DateTime? writeDate, @OdooString(odooName: 'deposit_slip_number')  String? depositSlipNumber, @OdooString(odooName: 'bank_reference')  String? bankReference, @OdooMany2One('account.move', odooName: 'move_id')  int? moveId, @OdooString(odooName: 'depositor_name')  String? depositorName, @OdooString()  String? notes)?  $default,{required TResult orElse(),}) {final _that = this;
+@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function(@OdooId()  int id, @OdooLocalOnly()  String? uuid, @OdooLocalOnly()  bool isSynced, @OdooLocalOnly()  DateTime? lastSyncDate, @OdooString()  String? name, @OdooString()  String? number, @OdooMany2One('collection.session', odooName: 'collection_session_id')  int? collectionSessionId, @OdooLocalOnly()  String? sessionUuid, @OdooMany2One('res.users', odooName: 'user_id')  int? userId, @OdooMany2OneName(sourceField: 'user_id')  String? userName, @OdooDateTime(odooName: 'deposit_date')  DateTime? depositDate, @OdooDate(odooName: 'accounting_date')  DateTime? accountingDate, @OdooFloat()  double amount, @OdooSelection(odooName: 'deposit_type')  DepositType depositType, @OdooFloat(odooName: 'cash_amount')  double cashAmount, @OdooFloat(odooName: 'check_amount')  double checkAmount, @OdooInteger(odooName: 'check_count')  int checkCount, @OdooMany2One('account.journal', odooName: 'bank_journal_id')  int? bankJournalId, @OdooMany2OneName(sourceField: 'bank_journal_id')  String? bankJournalName, @OdooLocalOnly()  int? bankId, @OdooLocalOnly()  String? bankName, @OdooLocalOnly()  String state, @OdooDateTime(odooName: 'write_date')  DateTime? writeDate, @OdooString(odooName: 'deposit_slip_number')  String? depositSlipNumber, @OdooString(odooName: 'bank_reference')  String? bankReference, @OdooMany2One('account.move', odooName: 'move_id')  int? moveId, @OdooString(odooName: 'depositor_name')  String? depositorName, @OdooString()  String? notes)?  $default,{required TResult orElse(),}) {final _that = this;
 switch (_that) {
 case _CollectionSessionDeposit() when $default != null:
 return $default(_that.id,_that.uuid,_that.isSynced,_that.lastSyncDate,_that.name,_that.number,_that.collectionSessionId,_that.sessionUuid,_that.userId,_that.userName,_that.depositDate,_that.accountingDate,_that.amount,_that.depositType,_that.cashAmount,_that.checkAmount,_that.checkCount,_that.bankJournalId,_that.bankJournalName,_that.bankId,_that.bankName,_that.state,_that.writeDate,_that.depositSlipNumber,_that.bankReference,_that.moveId,_that.depositorName,_that.notes);case _:
@@ -221,7 +203,7 @@ return $default(_that.id,_that.uuid,_that.isSynced,_that.lastSyncDate,_that.name
 /// }
 /// ```
 
-@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function(@OdooId()  int id, @OdooLocalOnly()  String? uuid, @OdooLocalOnly()  bool isSynced, @OdooLocalOnly()  DateTime? lastSyncDate, @OdooString()  String? name, @OdooString()  String? number, @OdooMany2One('collection.session', odooName: 'collection_session_id')  int? collectionSessionId, @OdooLocalOnly()  String? sessionUuid, @OdooMany2One('res.users', odooName: 'user_id')  int? userId, @OdooMany2OneName(sourceField: 'user_id')  String? userName, @OdooDateTime(odooName: 'deposit_date')  DateTime? depositDate, @OdooDate(odooName: 'accounting_date')  DateTime? accountingDate, @OdooFloat()  double amount, @OdooSelection(odooName: 'deposit_type')  DepositType depositType, @OdooFloat(odooName: 'cash_amount')  double cashAmount, @OdooFloat(odooName: 'check_amount')  double checkAmount, @OdooInteger(odooName: 'check_count')  int checkCount, @OdooMany2One('account.journal', odooName: 'bank_journal_id')  int? bankJournalId, @OdooMany2OneName(sourceField: 'bank_journal_id')  String? bankJournalName, @OdooLocalOnly()  int? bankId, @OdooLocalOnly()  String? bankName, @OdooLocalOnly()  String? state, @OdooDateTime(odooName: 'write_date')  DateTime? writeDate, @OdooString(odooName: 'deposit_slip_number')  String? depositSlipNumber, @OdooString(odooName: 'bank_reference')  String? bankReference, @OdooMany2One('account.move', odooName: 'move_id')  int? moveId, @OdooString(odooName: 'depositor_name')  String? depositorName, @OdooString()  String? notes)  $default,) {final _that = this;
+@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function(@OdooId()  int id, @OdooLocalOnly()  String? uuid, @OdooLocalOnly()  bool isSynced, @OdooLocalOnly()  DateTime? lastSyncDate, @OdooString()  String? name, @OdooString()  String? number, @OdooMany2One('collection.session', odooName: 'collection_session_id')  int? collectionSessionId, @OdooLocalOnly()  String? sessionUuid, @OdooMany2One('res.users', odooName: 'user_id')  int? userId, @OdooMany2OneName(sourceField: 'user_id')  String? userName, @OdooDateTime(odooName: 'deposit_date')  DateTime? depositDate, @OdooDate(odooName: 'accounting_date')  DateTime? accountingDate, @OdooFloat()  double amount, @OdooSelection(odooName: 'deposit_type')  DepositType depositType, @OdooFloat(odooName: 'cash_amount')  double cashAmount, @OdooFloat(odooName: 'check_amount')  double checkAmount, @OdooInteger(odooName: 'check_count')  int checkCount, @OdooMany2One('account.journal', odooName: 'bank_journal_id')  int? bankJournalId, @OdooMany2OneName(sourceField: 'bank_journal_id')  String? bankJournalName, @OdooLocalOnly()  int? bankId, @OdooLocalOnly()  String? bankName, @OdooLocalOnly()  String state, @OdooDateTime(odooName: 'write_date')  DateTime? writeDate, @OdooString(odooName: 'deposit_slip_number')  String? depositSlipNumber, @OdooString(odooName: 'bank_reference')  String? bankReference, @OdooMany2One('account.move', odooName: 'move_id')  int? moveId, @OdooString(odooName: 'depositor_name')  String? depositorName, @OdooString()  String? notes)  $default,) {final _that = this;
 switch (_that) {
 case _CollectionSessionDeposit():
 return $default(_that.id,_that.uuid,_that.isSynced,_that.lastSyncDate,_that.name,_that.number,_that.collectionSessionId,_that.sessionUuid,_that.userId,_that.userName,_that.depositDate,_that.accountingDate,_that.amount,_that.depositType,_that.cashAmount,_that.checkAmount,_that.checkCount,_that.bankJournalId,_that.bankJournalName,_that.bankId,_that.bankName,_that.state,_that.writeDate,_that.depositSlipNumber,_that.bankReference,_that.moveId,_that.depositorName,_that.notes);case _:
@@ -241,7 +223,7 @@ return $default(_that.id,_that.uuid,_that.isSynced,_that.lastSyncDate,_that.name
 /// }
 /// ```
 
-@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function(@OdooId()  int id, @OdooLocalOnly()  String? uuid, @OdooLocalOnly()  bool isSynced, @OdooLocalOnly()  DateTime? lastSyncDate, @OdooString()  String? name, @OdooString()  String? number, @OdooMany2One('collection.session', odooName: 'collection_session_id')  int? collectionSessionId, @OdooLocalOnly()  String? sessionUuid, @OdooMany2One('res.users', odooName: 'user_id')  int? userId, @OdooMany2OneName(sourceField: 'user_id')  String? userName, @OdooDateTime(odooName: 'deposit_date')  DateTime? depositDate, @OdooDate(odooName: 'accounting_date')  DateTime? accountingDate, @OdooFloat()  double amount, @OdooSelection(odooName: 'deposit_type')  DepositType depositType, @OdooFloat(odooName: 'cash_amount')  double cashAmount, @OdooFloat(odooName: 'check_amount')  double checkAmount, @OdooInteger(odooName: 'check_count')  int checkCount, @OdooMany2One('account.journal', odooName: 'bank_journal_id')  int? bankJournalId, @OdooMany2OneName(sourceField: 'bank_journal_id')  String? bankJournalName, @OdooLocalOnly()  int? bankId, @OdooLocalOnly()  String? bankName, @OdooLocalOnly()  String? state, @OdooDateTime(odooName: 'write_date')  DateTime? writeDate, @OdooString(odooName: 'deposit_slip_number')  String? depositSlipNumber, @OdooString(odooName: 'bank_reference')  String? bankReference, @OdooMany2One('account.move', odooName: 'move_id')  int? moveId, @OdooString(odooName: 'depositor_name')  String? depositorName, @OdooString()  String? notes)?  $default,) {final _that = this;
+@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function(@OdooId()  int id, @OdooLocalOnly()  String? uuid, @OdooLocalOnly()  bool isSynced, @OdooLocalOnly()  DateTime? lastSyncDate, @OdooString()  String? name, @OdooString()  String? number, @OdooMany2One('collection.session', odooName: 'collection_session_id')  int? collectionSessionId, @OdooLocalOnly()  String? sessionUuid, @OdooMany2One('res.users', odooName: 'user_id')  int? userId, @OdooMany2OneName(sourceField: 'user_id')  String? userName, @OdooDateTime(odooName: 'deposit_date')  DateTime? depositDate, @OdooDate(odooName: 'accounting_date')  DateTime? accountingDate, @OdooFloat()  double amount, @OdooSelection(odooName: 'deposit_type')  DepositType depositType, @OdooFloat(odooName: 'cash_amount')  double cashAmount, @OdooFloat(odooName: 'check_amount')  double checkAmount, @OdooInteger(odooName: 'check_count')  int checkCount, @OdooMany2One('account.journal', odooName: 'bank_journal_id')  int? bankJournalId, @OdooMany2OneName(sourceField: 'bank_journal_id')  String? bankJournalName, @OdooLocalOnly()  int? bankId, @OdooLocalOnly()  String? bankName, @OdooLocalOnly()  String state, @OdooDateTime(odooName: 'write_date')  DateTime? writeDate, @OdooString(odooName: 'deposit_slip_number')  String? depositSlipNumber, @OdooString(odooName: 'bank_reference')  String? bankReference, @OdooMany2One('account.move', odooName: 'move_id')  int? moveId, @OdooString(odooName: 'depositor_name')  String? depositorName, @OdooString()  String? notes)?  $default,) {final _that = this;
 switch (_that) {
 case _CollectionSessionDeposit() when $default != null:
 return $default(_that.id,_that.uuid,_that.isSynced,_that.lastSyncDate,_that.name,_that.number,_that.collectionSessionId,_that.sessionUuid,_that.userId,_that.userName,_that.depositDate,_that.accountingDate,_that.amount,_that.depositType,_that.cashAmount,_that.checkAmount,_that.checkCount,_that.bankJournalId,_that.bankJournalName,_that.bankId,_that.bankName,_that.state,_that.writeDate,_that.depositSlipNumber,_that.bankReference,_that.moveId,_that.depositorName,_that.notes);case _:
@@ -256,51 +238,32 @@ return $default(_that.id,_that.uuid,_that.isSynced,_that.lastSyncDate,_that.name
 @JsonSerializable()
 
 class _CollectionSessionDeposit extends CollectionSessionDeposit {
-  const _CollectionSessionDeposit({@OdooId() this.id = 0, @OdooLocalOnly() this.uuid, @OdooLocalOnly() this.isSynced = false, @OdooLocalOnly() this.lastSyncDate, @OdooString() this.name, @OdooString() this.number, @OdooMany2One('collection.session', odooName: 'collection_session_id') this.collectionSessionId, @OdooLocalOnly() this.sessionUuid, @OdooMany2One('res.users', odooName: 'user_id') this.userId, @OdooMany2OneName(sourceField: 'user_id') this.userName, @OdooDateTime(odooName: 'deposit_date') this.depositDate, @OdooDate(odooName: 'accounting_date') this.accountingDate, @OdooFloat() this.amount = 0.0, @OdooSelection(odooName: 'deposit_type') this.depositType = DepositType.cash, @OdooFloat(odooName: 'cash_amount') this.cashAmount = 0.0, @OdooFloat(odooName: 'check_amount') this.checkAmount = 0.0, @OdooInteger(odooName: 'check_count') this.checkCount = 0, @OdooMany2One('account.journal', odooName: 'bank_journal_id') this.bankJournalId, @OdooMany2OneName(sourceField: 'bank_journal_id') this.bankJournalName, @OdooLocalOnly() this.bankId, @OdooLocalOnly() this.bankName, @OdooLocalOnly() this.state, @OdooDateTime(odooName: 'write_date') this.writeDate, @OdooString(odooName: 'deposit_slip_number') this.depositSlipNumber, @OdooString(odooName: 'bank_reference') this.bankReference, @OdooMany2One('account.move', odooName: 'move_id') this.moveId, @OdooString(odooName: 'depositor_name') this.depositorName, @OdooString() this.notes}): super._();
+  const _CollectionSessionDeposit({@OdooId() this.id = 0, @OdooLocalOnly() this.uuid, @OdooLocalOnly() this.isSynced = false, @OdooLocalOnly() this.lastSyncDate, @OdooString() this.name, @OdooString() this.number, @OdooMany2One('collection.session', odooName: 'collection_session_id') this.collectionSessionId, @OdooLocalOnly() this.sessionUuid, @OdooMany2One('res.users', odooName: 'user_id') this.userId, @OdooMany2OneName(sourceField: 'user_id') this.userName, @OdooDateTime(odooName: 'deposit_date') this.depositDate, @OdooDate(odooName: 'accounting_date') this.accountingDate, @OdooFloat() this.amount = 0.0, @OdooSelection(odooName: 'deposit_type') this.depositType = DepositType.cash, @OdooFloat(odooName: 'cash_amount') this.cashAmount = 0.0, @OdooFloat(odooName: 'check_amount') this.checkAmount = 0.0, @OdooInteger(odooName: 'check_count') this.checkCount = 0, @OdooMany2One('account.journal', odooName: 'bank_journal_id') this.bankJournalId, @OdooMany2OneName(sourceField: 'bank_journal_id') this.bankJournalName, @OdooLocalOnly() this.bankId, @OdooLocalOnly() this.bankName, @OdooLocalOnly() this.state = 'draft', @OdooDateTime(odooName: 'write_date') this.writeDate, @OdooString(odooName: 'deposit_slip_number') this.depositSlipNumber, @OdooString(odooName: 'bank_reference') this.bankReference, @OdooMany2One('account.move', odooName: 'move_id') this.moveId, @OdooString(odooName: 'depositor_name') this.depositorName, @OdooString() this.notes}): super._();
   factory _CollectionSessionDeposit.fromJson(Map<String, dynamic> json) => _$CollectionSessionDepositFromJson(json);
 
-// ============ Identifiers ============
 @override@JsonKey()@OdooId() final  int id;
 @override@OdooLocalOnly() final  String? uuid;
 @override@JsonKey()@OdooLocalOnly() final  bool isSynced;
 @override@OdooLocalOnly() final  DateTime? lastSyncDate;
-// ============ Basic Data ============
 @override@OdooString() final  String? name;
 @override@OdooString() final  String? number;
-// ============ Relations ============
 @override@OdooMany2One('collection.session', odooName: 'collection_session_id') final  int? collectionSessionId;
 /// UUID of the parent session (for offline linking)
-// Odoo 19.5 (erp1): 'session_uuid' ya no existe en
-// collection.session.deposit del servidor (smoke fields_get, julio
-// 2026) — a diferencia de collection.session, donde SÍ existe.
 @override@OdooLocalOnly() final  String? sessionUuid;
 @override@OdooMany2One('res.users', odooName: 'user_id') final  int? userId;
 @override@OdooMany2OneName(sourceField: 'user_id') final  String? userName;
-// ============ Date Fields ============
 @override@OdooDateTime(odooName: 'deposit_date') final  DateTime? depositDate;
 @override@OdooDate(odooName: 'accounting_date') final  DateTime? accountingDate;
-// ============ Amount Fields ============
 @override@JsonKey()@OdooFloat() final  double amount;
 @override@JsonKey()@OdooSelection(odooName: 'deposit_type') final  DepositType depositType;
 @override@JsonKey()@OdooFloat(odooName: 'cash_amount') final  double cashAmount;
 @override@JsonKey()@OdooFloat(odooName: 'check_amount') final  double checkAmount;
 @override@JsonKey()@OdooInteger(odooName: 'check_count') final  int checkCount;
-// ============ Bank Fields ============
 @override@OdooMany2One('account.journal', odooName: 'bank_journal_id') final  int? bankJournalId;
 @override@OdooMany2OneName(sourceField: 'bank_journal_id') final  String? bankJournalName;
-// Alias fields for table compatibility
-// bank_id (Many2one res.bank) fue reemplazado por bank_name_ec (Char) en
-// los modelos de pago l10n_ec — ver
-// working/l10n_ec_collection_box/models/sale_order_payment.py. Se marca
-// @OdooLocalOnly para evitar romper sync generico contra Odoo 19.2;
-// resolver el campo correcto segun version del servidor si este modelo
-// llega a sincronizarse con Odoo directamente.
 @override@OdooLocalOnly() final  int? bankId;
 @override@OdooLocalOnly() final  String? bankName;
-// ============ State & References ============
-// Odoo 19.5 (erp1): 'state' ya no existe en collection.session.deposit
-// del servidor (smoke fields_get, julio 2026).
-@override@OdooLocalOnly() final  String? state;
+@override@JsonKey()@OdooLocalOnly() final  String state;
 @override@OdooDateTime(odooName: 'write_date') final  DateTime? writeDate;
 @override@OdooString(odooName: 'deposit_slip_number') final  String? depositSlipNumber;
 @override@OdooString(odooName: 'bank_reference') final  String? bankReference;
@@ -341,7 +304,7 @@ abstract mixin class _$CollectionSessionDepositCopyWith<$Res> implements $Collec
   factory _$CollectionSessionDepositCopyWith(_CollectionSessionDeposit value, $Res Function(_CollectionSessionDeposit) _then) = __$CollectionSessionDepositCopyWithImpl;
 @override @useResult
 $Res call({
-@OdooId() int id,@OdooLocalOnly() String? uuid,@OdooLocalOnly() bool isSynced,@OdooLocalOnly() DateTime? lastSyncDate,@OdooString() String? name,@OdooString() String? number,@OdooMany2One('collection.session', odooName: 'collection_session_id') int? collectionSessionId,@OdooLocalOnly() String? sessionUuid,@OdooMany2One('res.users', odooName: 'user_id') int? userId,@OdooMany2OneName(sourceField: 'user_id') String? userName,@OdooDateTime(odooName: 'deposit_date') DateTime? depositDate,@OdooDate(odooName: 'accounting_date') DateTime? accountingDate,@OdooFloat() double amount,@OdooSelection(odooName: 'deposit_type') DepositType depositType,@OdooFloat(odooName: 'cash_amount') double cashAmount,@OdooFloat(odooName: 'check_amount') double checkAmount,@OdooInteger(odooName: 'check_count') int checkCount,@OdooMany2One('account.journal', odooName: 'bank_journal_id') int? bankJournalId,@OdooMany2OneName(sourceField: 'bank_journal_id') String? bankJournalName,@OdooLocalOnly() int? bankId,@OdooLocalOnly() String? bankName,@OdooLocalOnly() String? state,@OdooDateTime(odooName: 'write_date') DateTime? writeDate,@OdooString(odooName: 'deposit_slip_number') String? depositSlipNumber,@OdooString(odooName: 'bank_reference') String? bankReference,@OdooMany2One('account.move', odooName: 'move_id') int? moveId,@OdooString(odooName: 'depositor_name') String? depositorName,@OdooString() String? notes
+@OdooId() int id,@OdooLocalOnly() String? uuid,@OdooLocalOnly() bool isSynced,@OdooLocalOnly() DateTime? lastSyncDate,@OdooString() String? name,@OdooString() String? number,@OdooMany2One('collection.session', odooName: 'collection_session_id') int? collectionSessionId,@OdooLocalOnly() String? sessionUuid,@OdooMany2One('res.users', odooName: 'user_id') int? userId,@OdooMany2OneName(sourceField: 'user_id') String? userName,@OdooDateTime(odooName: 'deposit_date') DateTime? depositDate,@OdooDate(odooName: 'accounting_date') DateTime? accountingDate,@OdooFloat() double amount,@OdooSelection(odooName: 'deposit_type') DepositType depositType,@OdooFloat(odooName: 'cash_amount') double cashAmount,@OdooFloat(odooName: 'check_amount') double checkAmount,@OdooInteger(odooName: 'check_count') int checkCount,@OdooMany2One('account.journal', odooName: 'bank_journal_id') int? bankJournalId,@OdooMany2OneName(sourceField: 'bank_journal_id') String? bankJournalName,@OdooLocalOnly() int? bankId,@OdooLocalOnly() String? bankName,@OdooLocalOnly() String state,@OdooDateTime(odooName: 'write_date') DateTime? writeDate,@OdooString(odooName: 'deposit_slip_number') String? depositSlipNumber,@OdooString(odooName: 'bank_reference') String? bankReference,@OdooMany2One('account.move', odooName: 'move_id') int? moveId,@OdooString(odooName: 'depositor_name') String? depositorName,@OdooString() String? notes
 });
 
 
@@ -358,7 +321,7 @@ class __$CollectionSessionDepositCopyWithImpl<$Res>
 
 /// Create a copy of CollectionSessionDeposit
 /// with the given fields replaced by the non-null parameter values.
-@override @pragma('vm:prefer-inline') $Res call({Object? id = null,Object? uuid = freezed,Object? isSynced = null,Object? lastSyncDate = freezed,Object? name = freezed,Object? number = freezed,Object? collectionSessionId = freezed,Object? sessionUuid = freezed,Object? userId = freezed,Object? userName = freezed,Object? depositDate = freezed,Object? accountingDate = freezed,Object? amount = null,Object? depositType = null,Object? cashAmount = null,Object? checkAmount = null,Object? checkCount = null,Object? bankJournalId = freezed,Object? bankJournalName = freezed,Object? bankId = freezed,Object? bankName = freezed,Object? state = freezed,Object? writeDate = freezed,Object? depositSlipNumber = freezed,Object? bankReference = freezed,Object? moveId = freezed,Object? depositorName = freezed,Object? notes = freezed,}) {
+@override @pragma('vm:prefer-inline') $Res call({Object? id = null,Object? uuid = freezed,Object? isSynced = null,Object? lastSyncDate = freezed,Object? name = freezed,Object? number = freezed,Object? collectionSessionId = freezed,Object? sessionUuid = freezed,Object? userId = freezed,Object? userName = freezed,Object? depositDate = freezed,Object? accountingDate = freezed,Object? amount = null,Object? depositType = null,Object? cashAmount = null,Object? checkAmount = null,Object? checkCount = null,Object? bankJournalId = freezed,Object? bankJournalName = freezed,Object? bankId = freezed,Object? bankName = freezed,Object? state = null,Object? writeDate = freezed,Object? depositSlipNumber = freezed,Object? bankReference = freezed,Object? moveId = freezed,Object? depositorName = freezed,Object? notes = freezed,}) {
   return _then(_CollectionSessionDeposit(
 id: null == id ? _self.id : id // ignore: cast_nullable_to_non_nullable
 as int,uuid: freezed == uuid ? _self.uuid : uuid // ignore: cast_nullable_to_non_nullable
@@ -381,8 +344,8 @@ as int,bankJournalId: freezed == bankJournalId ? _self.bankJournalId : bankJourn
 as int?,bankJournalName: freezed == bankJournalName ? _self.bankJournalName : bankJournalName // ignore: cast_nullable_to_non_nullable
 as String?,bankId: freezed == bankId ? _self.bankId : bankId // ignore: cast_nullable_to_non_nullable
 as int?,bankName: freezed == bankName ? _self.bankName : bankName // ignore: cast_nullable_to_non_nullable
-as String?,state: freezed == state ? _self.state : state // ignore: cast_nullable_to_non_nullable
-as String?,writeDate: freezed == writeDate ? _self.writeDate : writeDate // ignore: cast_nullable_to_non_nullable
+as String?,state: null == state ? _self.state : state // ignore: cast_nullable_to_non_nullable
+as String,writeDate: freezed == writeDate ? _self.writeDate : writeDate // ignore: cast_nullable_to_non_nullable
 as DateTime?,depositSlipNumber: freezed == depositSlipNumber ? _self.depositSlipNumber : depositSlipNumber // ignore: cast_nullable_to_non_nullable
 as String?,bankReference: freezed == bankReference ? _self.bankReference : bankReference // ignore: cast_nullable_to_non_nullable
 as String?,moveId: freezed == moveId ? _self.moveId : moveId // ignore: cast_nullable_to_non_nullable

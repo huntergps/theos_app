@@ -442,16 +442,3 @@ class OdooSummaryCard extends StatelessWidget {
     );
   }
 }
-
-// ---------------------------------------------------------------------------
-// Backward-compatible aliases
-// ---------------------------------------------------------------------------
-
-/// @nodoc Deprecated: use [OdooSummaryRow] instead.
-typedef ReactiveSummaryRow = OdooSummaryRow;
-
-/// @nodoc Deprecated: use [OdooSummaryHeader] instead.
-typedef ReactiveSummaryHeader = OdooSummaryHeader;
-
-/// @nodoc Deprecated: use [OdooSummaryCard] instead.
-typedef ReactiveSummaryCard = OdooSummaryCard;

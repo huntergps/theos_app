@@ -13,7 +13,9 @@ void main() {
   group('shouldShowPrice', () {
     test('returns true for a product line with no parent section', () {
       final line = SaleOrderLineFactory.create(
-        id: 1, orderId: 1, name: 'Product',
+        id: 1,
+        orderId: 1,
+        name: 'Product',
       ).copyWith(sequence: 10);
       final lines = [line];
 
@@ -22,7 +24,9 @@ void main() {
 
     test('returns false for a section line', () {
       final section = SaleOrderLineFactory.section(
-        id: 1, orderId: 1, name: 'Section',
+        id: 1,
+        orderId: 1,
+        name: 'Section',
       ).copyWith(sequence: 10);
       final lines = [section];
 
@@ -31,7 +35,9 @@ void main() {
 
     test('returns false for a subsection line', () {
       final subsection = SaleOrderLineFactory.create(
-        id: 1, orderId: 1, name: 'Subsection',
+        id: 1,
+        orderId: 1,
+        name: 'Subsection',
         displayType: LineDisplayType.lineSubsection,
       ).copyWith(sequence: 10);
       final lines = [subsection];
@@ -41,7 +47,9 @@ void main() {
 
     test('returns false for a note line', () {
       final note = SaleOrderLineFactory.note(
-        id: 1, orderId: 1, name: 'Note',
+        id: 1,
+        orderId: 1,
+        name: 'Note',
       ).copyWith(sequence: 10);
       final lines = [note];
 
@@ -50,10 +58,14 @@ void main() {
 
     test('returns true when parent section does NOT have collapsePrices', () {
       final section = SaleOrderLineFactory.section(
-        id: 1, orderId: 1, name: 'Section',
+        id: 1,
+        orderId: 1,
+        name: 'Section',
       ).copyWith(sequence: 10, collapsePrices: false);
       final line = SaleOrderLineFactory.create(
-        id: 2, orderId: 1, name: 'Product',
+        id: 2,
+        orderId: 1,
+        name: 'Product',
       ).copyWith(sequence: 20);
       final lines = [section, line];
 
@@ -62,10 +74,14 @@ void main() {
 
     test('returns false when parent section has collapsePrices', () {
       final section = SaleOrderLineFactory.section(
-        id: 1, orderId: 1, name: 'Section',
+        id: 1,
+        orderId: 1,
+        name: 'Section',
       ).copyWith(sequence: 10, collapsePrices: true);
       final line = SaleOrderLineFactory.create(
-        id: 2, orderId: 1, name: 'Product',
+        id: 2,
+        orderId: 1,
+        name: 'Product',
       ).copyWith(sequence: 20);
       final lines = [section, line];
 
@@ -74,14 +90,20 @@ void main() {
 
     test('returns false when grandparent section has collapsePrices', () {
       final section = SaleOrderLineFactory.section(
-        id: 1, orderId: 1, name: 'Section',
+        id: 1,
+        orderId: 1,
+        name: 'Section',
       ).copyWith(sequence: 10, collapsePrices: true);
       final subsection = SaleOrderLineFactory.create(
-        id: 2, orderId: 1, name: 'Subsection',
+        id: 2,
+        orderId: 1,
+        name: 'Subsection',
         displayType: LineDisplayType.lineSubsection,
       ).copyWith(sequence: 20, collapsePrices: false);
       final line = SaleOrderLineFactory.create(
-        id: 3, orderId: 1, name: 'Product',
+        id: 3,
+        orderId: 1,
+        name: 'Product',
       ).copyWith(sequence: 30);
       final lines = [section, subsection, line];
 
@@ -92,14 +114,20 @@ void main() {
 
     test('returns false when subsection parent has collapsePrices', () {
       final section = SaleOrderLineFactory.section(
-        id: 1, orderId: 1, name: 'Section',
+        id: 1,
+        orderId: 1,
+        name: 'Section',
       ).copyWith(sequence: 10, collapsePrices: false);
       final subsection = SaleOrderLineFactory.create(
-        id: 2, orderId: 1, name: 'Subsection',
+        id: 2,
+        orderId: 1,
+        name: 'Subsection',
         displayType: LineDisplayType.lineSubsection,
       ).copyWith(sequence: 20, collapsePrices: true);
       final line = SaleOrderLineFactory.create(
-        id: 3, orderId: 1, name: 'Product',
+        id: 3,
+        orderId: 1,
+        name: 'Product',
       ).copyWith(sequence: 30);
       final lines = [section, subsection, line];
 
@@ -107,21 +135,30 @@ void main() {
       expect(lines.shouldShowPrice(line), isFalse);
     });
 
-    test('returns true when neither subsection nor section has collapsePrices', () {
-      final section = SaleOrderLineFactory.section(
-        id: 1, orderId: 1, name: 'Section',
-      ).copyWith(sequence: 10, collapsePrices: false);
-      final subsection = SaleOrderLineFactory.create(
-        id: 2, orderId: 1, name: 'Subsection',
-        displayType: LineDisplayType.lineSubsection,
-      ).copyWith(sequence: 20, collapsePrices: false);
-      final line = SaleOrderLineFactory.create(
-        id: 3, orderId: 1, name: 'Product',
-      ).copyWith(sequence: 30);
-      final lines = [section, subsection, line];
+    test(
+      'returns true when neither subsection nor section has collapsePrices',
+      () {
+        final section = SaleOrderLineFactory.section(
+          id: 1,
+          orderId: 1,
+          name: 'Section',
+        ).copyWith(sequence: 10, collapsePrices: false);
+        final subsection = SaleOrderLineFactory.create(
+          id: 2,
+          orderId: 1,
+          name: 'Subsection',
+          displayType: LineDisplayType.lineSubsection,
+        ).copyWith(sequence: 20, collapsePrices: false);
+        final line = SaleOrderLineFactory.create(
+          id: 3,
+          orderId: 1,
+          name: 'Product',
+        ).copyWith(sequence: 30);
+        final lines = [section, subsection, line];
 
-      expect(lines.shouldShowPrice(line), isTrue);
-    });
+        expect(lines.shouldShowPrice(line), isTrue);
+      },
+    );
   });
 
   // ===========================================================================
@@ -130,7 +167,9 @@ void main() {
   group('shouldShowLine', () {
     test('sections always show', () {
       final section = SaleOrderLineFactory.section(
-        id: 1, orderId: 1, name: 'Section',
+        id: 1,
+        orderId: 1,
+        name: 'Section',
       ).copyWith(sequence: 10);
       final lines = [section];
 
@@ -139,7 +178,9 @@ void main() {
 
     test('product line with no parent always shows', () {
       final line = SaleOrderLineFactory.create(
-        id: 1, orderId: 1, name: 'Product',
+        id: 1,
+        orderId: 1,
+        name: 'Product',
       ).copyWith(sequence: 10);
       final lines = [line];
 
@@ -148,10 +189,14 @@ void main() {
 
     test('returns false when parent has collapseComposition', () {
       final section = SaleOrderLineFactory.section(
-        id: 1, orderId: 1, name: 'Section',
+        id: 1,
+        orderId: 1,
+        name: 'Section',
       ).copyWith(sequence: 10, collapseComposition: true);
       final line = SaleOrderLineFactory.create(
-        id: 2, orderId: 1, name: 'Product',
+        id: 2,
+        orderId: 1,
+        name: 'Product',
       ).copyWith(sequence: 20);
       final lines = [section, line];
 
@@ -160,10 +205,14 @@ void main() {
 
     test('returns true when parent does NOT have collapseComposition', () {
       final section = SaleOrderLineFactory.section(
-        id: 1, orderId: 1, name: 'Section',
+        id: 1,
+        orderId: 1,
+        name: 'Section',
       ).copyWith(sequence: 10, collapseComposition: false);
       final line = SaleOrderLineFactory.create(
-        id: 2, orderId: 1, name: 'Product',
+        id: 2,
+        orderId: 1,
+        name: 'Product',
       ).copyWith(sequence: 20);
       final lines = [section, line];
 
@@ -172,14 +221,20 @@ void main() {
 
     test('returns false when grandparent section has collapseComposition', () {
       final section = SaleOrderLineFactory.section(
-        id: 1, orderId: 1, name: 'Section',
+        id: 1,
+        orderId: 1,
+        name: 'Section',
       ).copyWith(sequence: 10, collapseComposition: true);
       final subsection = SaleOrderLineFactory.create(
-        id: 2, orderId: 1, name: 'Subsection',
+        id: 2,
+        orderId: 1,
+        name: 'Subsection',
         displayType: LineDisplayType.lineSubsection,
       ).copyWith(sequence: 20);
       final line = SaleOrderLineFactory.create(
-        id: 3, orderId: 1, name: 'Product',
+        id: 3,
+        orderId: 1,
+        name: 'Product',
       ).copyWith(sequence: 30);
       final lines = [section, subsection, line];
 
@@ -188,29 +243,40 @@ void main() {
 
     test('note line hidden when parent has collapseComposition', () {
       final section = SaleOrderLineFactory.section(
-        id: 1, orderId: 1, name: 'Section',
+        id: 1,
+        orderId: 1,
+        name: 'Section',
       ).copyWith(sequence: 10, collapseComposition: true);
       final note = SaleOrderLineFactory.note(
-        id: 2, orderId: 1, name: 'A note',
+        id: 2,
+        orderId: 1,
+        name: 'A note',
       ).copyWith(sequence: 20);
       final lines = [section, note];
 
       expect(lines.shouldShowLine(note), isFalse);
     });
 
-    test('subsection line hidden when parent section has collapseComposition', () {
-      final section = SaleOrderLineFactory.section(
-        id: 1, orderId: 1, name: 'Section',
-      ).copyWith(sequence: 10, collapseComposition: true);
-      final subsection = SaleOrderLineFactory.create(
-        id: 2, orderId: 1, name: 'Subsection',
-        displayType: LineDisplayType.lineSubsection,
-      ).copyWith(sequence: 20);
-      final lines = [section, subsection];
+    test(
+      'subsection line hidden when parent section has collapseComposition',
+      () {
+        final section = SaleOrderLineFactory.section(
+          id: 1,
+          orderId: 1,
+          name: 'Section',
+        ).copyWith(sequence: 10, collapseComposition: true);
+        final subsection = SaleOrderLineFactory.create(
+          id: 2,
+          orderId: 1,
+          name: 'Subsection',
+          displayType: LineDisplayType.lineSubsection,
+        ).copyWith(sequence: 20);
+        final lines = [section, subsection];
 
-      // Subsection's parent is the section with collapseComposition=true
-      expect(lines.shouldShowLine(subsection), isFalse);
-    });
+        // Subsection's parent is the section with collapseComposition=true
+        expect(lines.shouldShowLine(subsection), isFalse);
+      },
+    );
   });
 
   // ===========================================================================
@@ -219,7 +285,9 @@ void main() {
   group('getParentSection', () {
     test('returns null for a section (sections have no parent section)', () {
       final section = SaleOrderLineFactory.section(
-        id: 1, orderId: 1, name: 'Section',
+        id: 1,
+        orderId: 1,
+        name: 'Section',
       ).copyWith(sequence: 10);
       final lines = [section];
 
@@ -228,7 +296,9 @@ void main() {
 
     test('returns null for a product line with no preceding section', () {
       final line = SaleOrderLineFactory.create(
-        id: 1, orderId: 1, name: 'Orphan Product',
+        id: 1,
+        orderId: 1,
+        name: 'Orphan Product',
       ).copyWith(sequence: 10);
       final lines = [line];
 
@@ -237,10 +307,14 @@ void main() {
 
     test('returns section for a product line after a section', () {
       final section = SaleOrderLineFactory.section(
-        id: 1, orderId: 1, name: 'Section',
+        id: 1,
+        orderId: 1,
+        name: 'Section',
       ).copyWith(sequence: 10);
       final line = SaleOrderLineFactory.create(
-        id: 2, orderId: 1, name: 'Product',
+        id: 2,
+        orderId: 1,
+        name: 'Product',
       ).copyWith(sequence: 20);
       final lines = [section, line];
 
@@ -251,14 +325,20 @@ void main() {
 
     test('returns subsection when product follows subsection', () {
       final section = SaleOrderLineFactory.section(
-        id: 1, orderId: 1, name: 'Section',
+        id: 1,
+        orderId: 1,
+        name: 'Section',
       ).copyWith(sequence: 10);
       final subsection = SaleOrderLineFactory.create(
-        id: 2, orderId: 1, name: 'Subsection',
+        id: 2,
+        orderId: 1,
+        name: 'Subsection',
         displayType: LineDisplayType.lineSubsection,
       ).copyWith(sequence: 20);
       final line = SaleOrderLineFactory.create(
-        id: 3, orderId: 1, name: 'Product',
+        id: 3,
+        orderId: 1,
+        name: 'Product',
       ).copyWith(sequence: 30);
       final lines = [section, subsection, line];
 
@@ -269,10 +349,14 @@ void main() {
 
     test('returns section for a subsection', () {
       final section = SaleOrderLineFactory.section(
-        id: 1, orderId: 1, name: 'Section',
+        id: 1,
+        orderId: 1,
+        name: 'Section',
       ).copyWith(sequence: 10);
       final subsection = SaleOrderLineFactory.create(
-        id: 2, orderId: 1, name: 'Subsection',
+        id: 2,
+        orderId: 1,
+        name: 'Subsection',
         displayType: LineDisplayType.lineSubsection,
       ).copyWith(sequence: 20);
       final lines = [section, subsection];
@@ -284,10 +368,14 @@ void main() {
 
     test('returns null for a line not in the list', () {
       final section = SaleOrderLineFactory.section(
-        id: 1, orderId: 1, name: 'Section',
+        id: 1,
+        orderId: 1,
+        name: 'Section',
       ).copyWith(sequence: 10);
       final ghostLine = SaleOrderLineFactory.create(
-        id: 99, orderId: 1, name: 'Ghost',
+        id: 99,
+        orderId: 1,
+        name: 'Ghost',
       ).copyWith(sequence: 50);
       final lines = [section];
 
@@ -296,13 +384,19 @@ void main() {
 
     test('returns latest section when multiple sections precede a line', () {
       final section1 = SaleOrderLineFactory.section(
-        id: 1, orderId: 1, name: 'Section 1',
+        id: 1,
+        orderId: 1,
+        name: 'Section 1',
       ).copyWith(sequence: 10);
       final section2 = SaleOrderLineFactory.section(
-        id: 2, orderId: 1, name: 'Section 2',
+        id: 2,
+        orderId: 1,
+        name: 'Section 2',
       ).copyWith(sequence: 20);
       final line = SaleOrderLineFactory.create(
-        id: 3, orderId: 1, name: 'Product',
+        id: 3,
+        orderId: 1,
+        name: 'Product',
       ).copyWith(sequence: 30);
       final lines = [section1, section2, line];
 
@@ -312,17 +406,25 @@ void main() {
 
     test('resets subsection tracking when new section encountered', () {
       final section1 = SaleOrderLineFactory.section(
-        id: 1, orderId: 1, name: 'Section 1',
+        id: 1,
+        orderId: 1,
+        name: 'Section 1',
       ).copyWith(sequence: 10);
       final subsection = SaleOrderLineFactory.create(
-        id: 2, orderId: 1, name: 'Subsection',
+        id: 2,
+        orderId: 1,
+        name: 'Subsection',
         displayType: LineDisplayType.lineSubsection,
       ).copyWith(sequence: 20);
       final section2 = SaleOrderLineFactory.section(
-        id: 3, orderId: 1, name: 'Section 2',
+        id: 3,
+        orderId: 1,
+        name: 'Section 2',
       ).copyWith(sequence: 30);
       final line = SaleOrderLineFactory.create(
-        id: 4, orderId: 1, name: 'Product',
+        id: 4,
+        orderId: 1,
+        name: 'Product',
       ).copyWith(sequence: 40);
       final lines = [section1, subsection, section2, line];
 
@@ -333,10 +435,14 @@ void main() {
 
     test('returns section for note line inside a section', () {
       final section = SaleOrderLineFactory.section(
-        id: 1, orderId: 1, name: 'Section',
+        id: 1,
+        orderId: 1,
+        name: 'Section',
       ).copyWith(sequence: 10);
       final note = SaleOrderLineFactory.note(
-        id: 2, orderId: 1, name: 'Important note',
+        id: 2,
+        orderId: 1,
+        name: 'Important note',
       ).copyWith(sequence: 20);
       final lines = [section, note];
 
@@ -352,13 +458,19 @@ void main() {
   group('getSectionTotal', () {
     test('sums priceTotal of product lines in section', () {
       final section = SaleOrderLineFactory.section(
-        id: 1, orderId: 1, name: 'Section',
+        id: 1,
+        orderId: 1,
+        name: 'Section',
       ).copyWith(sequence: 10);
       final line1 = SaleOrderLineFactory.create(
-        id: 2, orderId: 1, name: 'P1',
+        id: 2,
+        orderId: 1,
+        name: 'P1',
       ).copyWith(sequence: 20, priceTotal: 115.0);
       final line2 = SaleOrderLineFactory.create(
-        id: 3, orderId: 1, name: 'P2',
+        id: 3,
+        orderId: 1,
+        name: 'P2',
       ).copyWith(sequence: 30, priceTotal: 230.0);
       final lines = [section, line1, line2];
 
@@ -367,13 +479,19 @@ void main() {
 
     test('excludes note lines from total', () {
       final section = SaleOrderLineFactory.section(
-        id: 1, orderId: 1, name: 'Section',
+        id: 1,
+        orderId: 1,
+        name: 'Section',
       ).copyWith(sequence: 10);
       final line = SaleOrderLineFactory.create(
-        id: 2, orderId: 1, name: 'P1',
+        id: 2,
+        orderId: 1,
+        name: 'P1',
       ).copyWith(sequence: 20, priceTotal: 100.0);
       final note = SaleOrderLineFactory.note(
-        id: 3, orderId: 1, name: 'Note',
+        id: 3,
+        orderId: 1,
+        name: 'Note',
       ).copyWith(sequence: 25);
       final lines = [section, line, note];
 
@@ -382,10 +500,14 @@ void main() {
 
     test('returns 0.0 for empty section', () {
       final section = SaleOrderLineFactory.section(
-        id: 1, orderId: 1, name: 'Empty',
+        id: 1,
+        orderId: 1,
+        name: 'Empty',
       ).copyWith(sequence: 10);
       final section2 = SaleOrderLineFactory.section(
-        id: 2, orderId: 1, name: 'Next',
+        id: 2,
+        orderId: 1,
+        name: 'Next',
       ).copyWith(sequence: 20);
       final lines = [section, section2];
 
@@ -394,16 +516,24 @@ void main() {
 
     test('stops at the next section', () {
       final sec1 = SaleOrderLineFactory.section(
-        id: 1, orderId: 1, name: 'Sec 1',
+        id: 1,
+        orderId: 1,
+        name: 'Sec 1',
       ).copyWith(sequence: 10);
       final line1 = SaleOrderLineFactory.create(
-        id: 2, orderId: 1, name: 'P1',
+        id: 2,
+        orderId: 1,
+        name: 'P1',
       ).copyWith(sequence: 20, priceTotal: 50.0);
       final sec2 = SaleOrderLineFactory.section(
-        id: 3, orderId: 1, name: 'Sec 2',
+        id: 3,
+        orderId: 1,
+        name: 'Sec 2',
       ).copyWith(sequence: 30);
       final line2 = SaleOrderLineFactory.create(
-        id: 4, orderId: 1, name: 'P2',
+        id: 4,
+        orderId: 1,
+        name: 'P2',
       ).copyWith(sequence: 40, priceTotal: 200.0);
       final lines = [sec1, line1, sec2, line2];
 
@@ -418,13 +548,19 @@ void main() {
   group('getSectionTax', () {
     test('sums priceTax of product lines in section', () {
       final section = SaleOrderLineFactory.section(
-        id: 1, orderId: 1, name: 'Section',
+        id: 1,
+        orderId: 1,
+        name: 'Section',
       ).copyWith(sequence: 10);
       final line1 = SaleOrderLineFactory.create(
-        id: 2, orderId: 1, name: 'P1',
+        id: 2,
+        orderId: 1,
+        name: 'P1',
       ).copyWith(sequence: 20, priceTax: 15.0);
       final line2 = SaleOrderLineFactory.create(
-        id: 3, orderId: 1, name: 'P2',
+        id: 3,
+        orderId: 1,
+        name: 'P2',
       ).copyWith(sequence: 30, priceTax: 7.5);
       final lines = [section, line1, line2];
 
@@ -433,13 +569,19 @@ void main() {
 
     test('excludes note lines from tax sum', () {
       final section = SaleOrderLineFactory.section(
-        id: 1, orderId: 1, name: 'Section',
+        id: 1,
+        orderId: 1,
+        name: 'Section',
       ).copyWith(sequence: 10);
       final line = SaleOrderLineFactory.create(
-        id: 2, orderId: 1, name: 'P1',
+        id: 2,
+        orderId: 1,
+        name: 'P1',
       ).copyWith(sequence: 20, priceTax: 12.0);
       final note = SaleOrderLineFactory.note(
-        id: 3, orderId: 1, name: 'Note',
+        id: 3,
+        orderId: 1,
+        name: 'Note',
       ).copyWith(sequence: 25);
       final lines = [section, line, note];
 
@@ -448,10 +590,14 @@ void main() {
 
     test('returns 0.0 for section with no product lines', () {
       final section = SaleOrderLineFactory.section(
-        id: 1, orderId: 1, name: 'Empty',
+        id: 1,
+        orderId: 1,
+        name: 'Empty',
       ).copyWith(sequence: 10);
       final note = SaleOrderLineFactory.note(
-        id: 2, orderId: 1, name: 'Note',
+        id: 2,
+        orderId: 1,
+        name: 'Note',
       ).copyWith(sequence: 20);
       final lines = [section, note];
 
@@ -460,16 +606,24 @@ void main() {
 
     test('stops at the next section', () {
       final sec1 = SaleOrderLineFactory.section(
-        id: 1, orderId: 1, name: 'Sec 1',
+        id: 1,
+        orderId: 1,
+        name: 'Sec 1',
       ).copyWith(sequence: 10);
       final line1 = SaleOrderLineFactory.create(
-        id: 2, orderId: 1, name: 'P1',
+        id: 2,
+        orderId: 1,
+        name: 'P1',
       ).copyWith(sequence: 20, priceTax: 10.0);
       final sec2 = SaleOrderLineFactory.section(
-        id: 3, orderId: 1, name: 'Sec 2',
+        id: 3,
+        orderId: 1,
+        name: 'Sec 2',
       ).copyWith(sequence: 30);
       final line2 = SaleOrderLineFactory.create(
-        id: 4, orderId: 1, name: 'P2',
+        id: 4,
+        orderId: 1,
+        name: 'P2',
       ).copyWith(sequence: 40, priceTax: 25.0);
       final lines = [sec1, line1, sec2, line2];
 
@@ -484,17 +638,25 @@ void main() {
   group('getLinesInSection (additional)', () {
     test('subsection lines are skipped in parent section listing', () {
       final section = SaleOrderLineFactory.section(
-        id: 1, orderId: 1, name: 'Section',
+        id: 1,
+        orderId: 1,
+        name: 'Section',
       ).copyWith(sequence: 10);
       final line1 = SaleOrderLineFactory.create(
-        id: 2, orderId: 1, name: 'P1',
+        id: 2,
+        orderId: 1,
+        name: 'P1',
       ).copyWith(sequence: 20);
       final subsection = SaleOrderLineFactory.create(
-        id: 3, orderId: 1, name: 'Subsection',
+        id: 3,
+        orderId: 1,
+        name: 'Subsection',
         displayType: LineDisplayType.lineSubsection,
       ).copyWith(sequence: 30);
       final line2 = SaleOrderLineFactory.create(
-        id: 4, orderId: 1, name: 'P2',
+        id: 4,
+        orderId: 1,
+        name: 'P2',
       ).copyWith(sequence: 40);
       final lines = [section, line1, subsection, line2];
 
@@ -507,21 +669,31 @@ void main() {
 
     test('subsection collects its own product lines until next subsection', () {
       final section = SaleOrderLineFactory.section(
-        id: 1, orderId: 1, name: 'Section',
+        id: 1,
+        orderId: 1,
+        name: 'Section',
       ).copyWith(sequence: 10);
       final sub1 = SaleOrderLineFactory.create(
-        id: 2, orderId: 1, name: 'Sub 1',
+        id: 2,
+        orderId: 1,
+        name: 'Sub 1',
         displayType: LineDisplayType.lineSubsection,
       ).copyWith(sequence: 20);
       final line1 = SaleOrderLineFactory.create(
-        id: 3, orderId: 1, name: 'P1',
+        id: 3,
+        orderId: 1,
+        name: 'P1',
       ).copyWith(sequence: 30);
       final sub2 = SaleOrderLineFactory.create(
-        id: 4, orderId: 1, name: 'Sub 2',
+        id: 4,
+        orderId: 1,
+        name: 'Sub 2',
         displayType: LineDisplayType.lineSubsection,
       ).copyWith(sequence: 40);
       final line2 = SaleOrderLineFactory.create(
-        id: 5, orderId: 1, name: 'P2',
+        id: 5,
+        orderId: 1,
+        name: 'P2',
       ).copyWith(sequence: 50);
       final lines = [section, sub1, line1, sub2, line2];
 
@@ -536,20 +708,30 @@ void main() {
 
     test('subsection stops at next section boundary', () {
       final section1 = SaleOrderLineFactory.section(
-        id: 1, orderId: 1, name: 'Section 1',
+        id: 1,
+        orderId: 1,
+        name: 'Section 1',
       ).copyWith(sequence: 10);
       final sub = SaleOrderLineFactory.create(
-        id: 2, orderId: 1, name: 'Sub',
+        id: 2,
+        orderId: 1,
+        name: 'Sub',
         displayType: LineDisplayType.lineSubsection,
       ).copyWith(sequence: 20);
       final line = SaleOrderLineFactory.create(
-        id: 3, orderId: 1, name: 'P1',
+        id: 3,
+        orderId: 1,
+        name: 'P1',
       ).copyWith(sequence: 30);
       final section2 = SaleOrderLineFactory.section(
-        id: 4, orderId: 1, name: 'Section 2',
+        id: 4,
+        orderId: 1,
+        name: 'Section 2',
       ).copyWith(sequence: 40);
       final line2 = SaleOrderLineFactory.create(
-        id: 5, orderId: 1, name: 'P2',
+        id: 5,
+        orderId: 1,
+        name: 'P2',
       ).copyWith(sequence: 50);
       final lines = [section1, sub, line, section2, line2];
 

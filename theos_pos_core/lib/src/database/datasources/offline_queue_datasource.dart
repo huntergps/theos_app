@@ -1,20 +1,22 @@
 import 'dart:convert';
+
 import 'package:drift/drift.dart' as drift;
 import 'package:odoo_sdk/odoo_sdk.dart' as core;
 
 import '../database.dart';
+
 import 'package:odoo_sdk/odoo_sdk.dart' show logger;
 
 export 'package:odoo_sdk/odoo_sdk.dart'
     show OfflinePriority, RetryBackoff, OfflineOperation, OfflineQueueStore;
-
-typedef OfflineOperation = core.OfflineOperation;
 
 /// DataSource for offline operation queue
 ///
 /// Handles queuing operations when offline and retrieving
 /// them for sync when connection is restored.
 class OfflineQueueDataSource implements core.OfflineQueueStore {
+  static const String remoteCreateIdKey = '_remote_create_id';
+
   final AppDatabase _db;
 
   OfflineQueueDataSource(this._db);
@@ -35,30 +37,168 @@ class OfflineQueueDataSource implements core.OfflineQueueStore {
     int? parentOrderId,
     int priority = core.OfflinePriority.normal,
     String? deviceId,
+    String? operationKey,
+    int commandVersion = 1,
+    core.OfflineReplayPolicy? replayPolicy,
   }) async {
     final now = DateTime.now().toUtc();
     final valuesJson = jsonEncode(values);
-
-    final id = await _db.into(_db.offlineQueue).insert(
-          OfflineQueueCompanion.insert(
-            model: model,
-            values: valuesJson,
-            createdAt: now,
-            operation: drift.Value(method),
-            method: drift.Value(method),
-            recordId: drift.Value(recordId),
-            baseWriteDate: drift.Value(baseWriteDate),
-            parentOrderId: drift.Value(parentOrderId),
-            priority: drift.Value(priority),
-            deviceId: drift.Value(deviceId),
-          ),
+    final resolvedKey =
+        operationKey ??
+        _deriveOperationKey(
+          model: model,
+          method: method,
+          recordId: recordId,
+          values: values,
+          commandVersion: commandVersion,
         );
+    final resolvedReplayPolicy =
+        replayPolicy ??
+        _deriveReplayPolicy(model: model, method: method, values: values);
+
+    final id = await _db.transaction(() async {
+      if (resolvedKey != null) {
+        final existing =
+            await (_db.select(_db.offlineQueue)
+                  ..where((table) => table.operationKey.equals(resolvedKey)))
+                .getSingleOrNull();
+        if (existing != null) {
+          logger.d(
+            '[OfflineQueue]',
+            'Duplicate enqueue collapsed for $model.$method (op=${existing.id})',
+          );
+          return existing.id;
+        }
+      }
+
+      return _db
+          .into(_db.offlineQueue)
+          .insert(
+            OfflineQueueCompanion.insert(
+              model: model,
+              values: valuesJson,
+              createdAt: now,
+              operation: drift.Value(method),
+              method: drift.Value(method),
+              recordId: drift.Value(recordId),
+              baseWriteDate: drift.Value(baseWriteDate),
+              parentOrderId: drift.Value(parentOrderId),
+              priority: drift.Value(priority),
+              deviceId: drift.Value(deviceId),
+              operationKey: drift.Value(resolvedKey),
+              commandVersion: drift.Value(commandVersion),
+              replayPolicy: drift.Value(resolvedReplayPolicy.storageValue),
+            ),
+          );
+    });
 
     logger.d(
       '[OfflineQueue]',
       '📥 Queued $method $model (id=$id, recordId=$recordId, priority=$priority)',
     );
     return id;
+  }
+
+  String? _deriveOperationKey({
+    required String model,
+    required String method,
+    required int? recordId,
+    required Map<String, dynamic> values,
+    required int commandVersion,
+  }) {
+    final explicit = values['_operation_key'];
+    if (explicit is String && explicit.trim().isNotEmpty) {
+      return explicit.trim();
+    }
+
+    // Writes/unlinks are intentionally not deduplicated by record UUID: two
+    // offline edits to different fields are distinct patches and collapsing
+    // them here would keep the stale first payload. The queue compressor may
+    // merge writes later while preserving every field.
+    if (method == 'write' || method == 'unlink') return null;
+
+    const markerFields = <String>[
+      'payment_uuid',
+      'session_uuid',
+      'partner_uuid',
+      'order_uuid',
+      'line_uuid',
+      'uuid',
+      '_uuid',
+      'offline_access_key',
+      'client_op_uuid',
+      'l10n_ec_pos_client_op_uuid',
+    ];
+    final markers = <String>[];
+    for (final field in markerFields) {
+      final value = values[field];
+      if (value is String && value.trim().isNotEmpty) {
+        markers.add('$field=${value.trim()}');
+      }
+    }
+    if (markers.isNotEmpty) {
+      return 'v$commandVersion:$model:$method:${markers.join('|')}';
+    }
+    if (method == 'create' && recordId != null && recordId < 0) {
+      return 'v$commandVersion:$model:$method:local=$recordId';
+    }
+    return null;
+  }
+
+  core.OfflineReplayPolicy _deriveReplayPolicy({
+    required String model,
+    required String method,
+    required Map<String, dynamic> values,
+  }) {
+    if (method == 'write' || method == 'unlink') {
+      return core.OfflineReplayPolicy.retrySafe;
+    }
+    if (model == 'sale.order' &&
+        method == 'create' &&
+        _hasStringMarker(values, const ['uuid', '_uuid', 'order_uuid'])) {
+      return core.OfflineReplayPolicy.retrySafe;
+    }
+    if (model == 'sale.order.line' &&
+        method == 'create' &&
+        _hasStringMarker(values, const ['uuid', 'line_uuid'])) {
+      return core.OfflineReplayPolicy.retrySafe;
+    }
+    if (method == core.OfflineLocalCommand.partnerCreate.storageName &&
+        _hasStringMarker(values, const ['vat'])) {
+      return core.OfflineReplayPolicy.retrySafe;
+    }
+    if (method == core.OfflineLocalCommand.paymentCreate.storageName &&
+        _hasStringMarker(values, const ['payment_uuid'])) {
+      return core.OfflineReplayPolicy.retrySafe;
+    }
+    if (method == core.OfflineLocalCommand.sessionCreateAndOpen.storageName &&
+        _hasStringMarker(values, const ['session_uuid'])) {
+      return core.OfflineReplayPolicy.retrySafe;
+    }
+    if (method ==
+            core.OfflineLocalCommand.invoiceCreateWithPayments.storageName &&
+        _hasStringMarker(values, const ['order_uuid']) &&
+        _hasStringMarker(values, const ['offline_access_key', 'access_key'])) {
+      return core.OfflineReplayPolicy.retrySafe;
+    }
+    if (method == core.OfflineLocalCommand.sessionOpen.storageName ||
+        method == core.OfflineLocalCommand.sessionClosingControl.storageName ||
+        method == core.OfflineLocalCommand.sessionClose.storageName ||
+        method == core.OfflineLocalCommand.orderConfirm.storageName) {
+      return core.OfflineReplayPolicy.retrySafe;
+    }
+    if (method == core.OfflineLocalCommand.invoiceCollectExisting.storageName &&
+        _hasStringMarker(values, const ['collection_op_uuid'])) {
+      return core.OfflineReplayPolicy.retrySafe;
+    }
+    return core.OfflineReplayPolicy.manualAfterAmbiguous;
+  }
+
+  bool _hasStringMarker(Map<String, dynamic> values, List<String> fields) {
+    return fields.any((field) {
+      final value = values[field];
+      return value is String && value.trim().isNotEmpty;
+    });
   }
 
   /// Get all pending operations ordered by priority (asc), then createdAt (asc)
@@ -74,18 +214,25 @@ class OfflineQueueDataSource implements core.OfflineQueueStore {
   /// registros duplicados en Odoo. Este filtro es lo que hace que
   /// markOperationProcessing() realmente sirva de algo.
   @override
-  Future<List<OfflineOperation>> getPendingOperations({
+  Future<List<core.OfflineOperation>> getPendingOperations({
     bool includeNotReady = false,
   }) async {
     final now = DateTime.now().toUtc();
     final query = _db.select(_db.offlineQueue)
-      ..where((tbl) => tbl.status.equals('pending') | tbl.status.isNull());
+      ..where(
+        (tbl) =>
+            (tbl.status.equals('pending') |
+                tbl.status.equals('recovery_pending') |
+                tbl.status.isNull()) &
+            tbl.retryCount.isSmallerThanValue(core.RetryBackoff.maxRetries),
+      );
 
     if (!includeNotReady) {
       // Only return operations ready for retry
       query.where(
         (tbl) =>
-            tbl.nextRetryAt.isNull() | tbl.nextRetryAt.isSmallerOrEqualValue(now),
+            tbl.nextRetryAt.isNull() |
+            tbl.nextRetryAt.isSmallerOrEqualValue(now),
       );
     }
 
@@ -99,10 +246,10 @@ class OfflineQueueDataSource implements core.OfflineQueueStore {
   }
 
   /// Convert database row to OfflineOperation
-  OfflineOperation _operationFromRow(OfflineQueueData r) {
+  core.OfflineOperation _operationFromRow(OfflineQueueData r) {
     final valuesStr = r.values;
 
-    return OfflineOperation(
+    return core.OfflineOperation(
       id: r.id,
       model: r.model,
       method: r.method ?? r.operation,
@@ -117,25 +264,27 @@ class OfflineQueueDataSource implements core.OfflineQueueStore {
       lastRetryAt: r.lastRetryAt,
       nextRetryAt: r.nextRetryAt,
       lastError: r.lastError,
+      operationKey: r.operationKey,
+      commandVersion: r.commandVersion,
+      status: core.OfflineOperationStatus.fromStorage(r.status),
+      replayPolicy: core.OfflineReplayPolicy.fromStorage(r.replayPolicy),
     );
-  }
-
-  /// Get pending operations as raw maps (for backwards compatibility)
-  Future<List<Map<String, dynamic>>> getPendingOperationMaps() async {
-    final ops = await getPendingOperations();
-    return ops.map((op) => op.toMap()).toList();
   }
 
   /// Get pending operation count
   @override
   Future<int> getPendingCount() async {
-    final now = DateTime.now().toUtc();
-    final count = await (_db.select(_db.offlineQueue)
-          ..where(
-            (tbl) =>
-                tbl.nextRetryAt.isNull() | tbl.nextRetryAt.isSmallerOrEqualValue(now),
-          ))
-        .get();
+    final count =
+        await (_db.select(_db.offlineQueue)..where(
+              (tbl) =>
+                  (tbl.status.equals('pending') |
+                      tbl.status.equals('recovery_pending') |
+                      tbl.status.isNull()) &
+                  tbl.retryCount.isSmallerThanValue(
+                    core.RetryBackoff.maxRetries,
+                  ),
+            ))
+            .get();
     return count.length;
   }
 
@@ -143,13 +292,24 @@ class OfflineQueueDataSource implements core.OfflineQueueStore {
   ///
   /// Excluye filas 'processing' (ver nota en [getPendingOperations]).
   @override
-  Future<List<OfflineOperation>> getOperationsForModel(String model) async {
+  Future<List<core.OfflineOperation>> getOperationsForModel(
+    String model,
+  ) async {
     final now = DateTime.now().toUtc();
     final results =
         await (_db.select(_db.offlineQueue)
-              ..where((tbl) => tbl.model.equals(model) &
-                  (tbl.status.equals('pending') | tbl.status.isNull()) &
-                  (tbl.nextRetryAt.isNull() | tbl.nextRetryAt.isSmallerOrEqualValue(now)))
+              ..where(
+                (tbl) =>
+                    tbl.model.equals(model) &
+                    (tbl.status.equals('pending') |
+                        tbl.status.equals('recovery_pending') |
+                        tbl.status.isNull()) &
+                    tbl.retryCount.isSmallerThanValue(
+                      core.RetryBackoff.maxRetries,
+                    ) &
+                    (tbl.nextRetryAt.isNull() |
+                        tbl.nextRetryAt.isSmallerOrEqualValue(now)),
+              )
               ..orderBy([
                 (tbl) => drift.OrderingTerm.asc(tbl.priority),
                 (tbl) => drift.OrderingTerm.asc(tbl.createdAt),
@@ -161,10 +321,10 @@ class OfflineQueueDataSource implements core.OfflineQueueStore {
 
   /// Get a single operation by ID
   @override
-  Future<OfflineOperation?> getOperationById(int id) async {
-    final result = await (_db.select(_db.offlineQueue)
-          ..where((tbl) => tbl.id.equals(id)))
-        .getSingleOrNull();
+  Future<core.OfflineOperation?> getOperationById(int id) async {
+    final result = await (_db.select(
+      _db.offlineQueue,
+    )..where((tbl) => tbl.id.equals(id))).getSingleOrNull();
 
     return result != null ? _operationFromRow(result) : null;
   }
@@ -179,49 +339,62 @@ class OfflineQueueDataSource implements core.OfflineQueueStore {
   /// nextRetryAt indique que ya está lista.
   @override
   Future<void> markOperationFailed(int id, String errorMessage) async {
-    final op = await (_db.select(_db.offlineQueue)
-          ..where((tbl) => tbl.id.equals(id)))
-        .getSingleOrNull();
+    final op = await (_db.select(
+      _db.offlineQueue,
+    )..where((tbl) => tbl.id.equals(id))).getSingleOrNull();
 
     if (op == null) return;
 
     final newRetryCount = op.retryCount + 1;
     final now = DateTime.now().toUtc();
-    final nextDelay = core.RetryBackoff.getNextRetryDelay(newRetryCount);
-    final nextRetry = now.add(nextDelay);
+    final exhausted = !core.RetryBackoff.shouldRetry(newRetryCount);
+    final nextRetry = exhausted
+        ? null
+        : now.add(core.RetryBackoff.getNextRetryDelay(newRetryCount));
 
-    await (_db.update(_db.offlineQueue)
-          ..where((tbl) => tbl.id.equals(id)))
-        .write(OfflineQueueCompanion(
-      status: const drift.Value('pending'),
-      retryCount: drift.Value(newRetryCount),
-      lastRetryAt: drift.Value(now),
-      nextRetryAt: drift.Value(nextRetry),
-      lastError: drift.Value(errorMessage),
-    ));
+    await (_db.update(
+      _db.offlineQueue,
+    )..where((tbl) => tbl.id.equals(id))).write(
+      OfflineQueueCompanion(
+        status: drift.Value(exhausted ? 'dead_letter' : 'pending'),
+        retryCount: drift.Value(newRetryCount),
+        lastRetryAt: drift.Value(now),
+        nextRetryAt: drift.Value(nextRetry),
+        lastError: drift.Value(core.ErrorSanitizer.sanitize(errorMessage)),
+      ),
+    );
   }
 
   /// Reset retry count for an operation (e.g., after manual intervention)
   @override
   Future<void> resetOperationRetry(int id) async {
-    await (_db.update(_db.offlineQueue)
-          ..where((tbl) => tbl.id.equals(id)))
-        .write(const OfflineQueueCompanion(
-      retryCount: drift.Value(0),
-      lastRetryAt: drift.Value(null),
-      nextRetryAt: drift.Value(null),
-      lastError: drift.Value(null),
-    ));
+    await (_db.update(
+      _db.offlineQueue,
+    )..where((tbl) => tbl.id.equals(id))).write(
+      const OfflineQueueCompanion(
+        status: drift.Value('pending'),
+        retryCount: drift.Value(0),
+        lastRetryAt: drift.Value(null),
+        nextRetryAt: drift.Value(null),
+        lastError: drift.Value(null),
+      ),
+    );
   }
 
   /// Get operations that have exceeded max retries (dead letter queue)
   @override
-  Future<List<OfflineOperation>> getDeadLetterOperations() async {
-    final results = await (_db.select(_db.offlineQueue)
-          ..where((tbl) =>
-              tbl.retryCount.isBiggerOrEqualValue(core.RetryBackoff.maxRetries))
-          ..orderBy([(tbl) => drift.OrderingTerm.desc(tbl.lastRetryAt)]))
-        .get();
+  Future<List<core.OfflineOperation>> getDeadLetterOperations() async {
+    final results =
+        await (_db.select(_db.offlineQueue)
+              ..where(
+                (tbl) =>
+                    tbl.status.equals('dead_letter') |
+                    tbl.retryCount.isBiggerOrEqualValue(
+                      core.RetryBackoff.maxRetries,
+                    ),
+              )
+              ..orderBy([(tbl) => drift.OrderingTerm.desc(tbl.lastRetryAt)]))
+            .get();
 
     return results.map((r) => _operationFromRow(r)).toList();
   }
@@ -229,19 +402,28 @@ class OfflineQueueDataSource implements core.OfflineQueueStore {
   /// Get count of operations waiting for retry (scheduled for future)
   Future<int> getScheduledRetryCount() async {
     final now = DateTime.now().toUtc();
-    final results = await (_db.select(_db.offlineQueue)
-          ..where((tbl) => tbl.nextRetryAt.isBiggerThanValue(now)))
-        .get();
+    final results =
+        await (_db.select(_db.offlineQueue)..where(
+              (tbl) =>
+                  tbl.status.equals('pending') &
+                  tbl.retryCount.isSmallerThanValue(
+                    core.RetryBackoff.maxRetries,
+                  ) &
+                  tbl.nextRetryAt.isBiggerThanValue(now),
+            ))
+            .get();
     return results.length;
   }
 
   /// Get retry statistics
   @override
   Future<Map<String, dynamic>> getRetryStats() async {
-    final all = await getPendingOperations(includeNotReady: true);
-    final ready = all.where((op) => op.isReadyForRetry).length;
-    final scheduled = all.where((op) => !op.isReadyForRetry && !op.hasExceededMaxRetries).length;
-    final deadLetter = all.where((op) => op.hasExceededMaxRetries).length;
+    final pending = await getPendingOperations(includeNotReady: true);
+    final deadLetters = await getDeadLetterOperations();
+    final ready = pending.where((op) => op.isReadyForRetry).length;
+    final scheduled = pending.where((op) => !op.isReadyForRetry).length;
+    final deadLetter = deadLetters.length;
+    final all = [...pending, ...deadLetters];
 
     final avgRetries = all.isNotEmpty
         ? all.map((op) => op.retryCount).reduce((a, b) => a + b) / all.length
@@ -306,7 +488,9 @@ class OfflineQueueDataSource implements core.OfflineQueueStore {
   /// de [getPendingOperations] (incluye no-listas-para-retry pero excluye
   /// 'processing') — sin esto, ambos caminos de despacho podrían tomar la
   /// misma operación al mismo tiempo y enviarla dos veces a Odoo.
-  Future<List<OfflineOperation>> getOperationsForSaleOrder(int orderId) async {
+  Future<List<core.OfflineOperation>> getOperationsForSaleOrder(
+    int orderId,
+  ) async {
     // Include ALL operations (even those waiting for retry, but NOT those
     // already 'processing') so user can see pending sync status.
     final allOps = await getPendingOperations(includeNotReady: true);
@@ -328,7 +512,7 @@ class OfflineQueueDataSource implements core.OfflineQueueStore {
         return true;
       }
 
-      // Check for order_id in values (legacy compatibility)
+      // sale.order.line creates carry their parent in the payload.
       final orderIdInValues = op.values['order_id'];
       if (orderIdInValues == orderId) {
         return true;
@@ -343,11 +527,9 @@ class OfflineQueueDataSource implements core.OfflineQueueStore {
   /// Remove all pending operations for a specific model and record ID
   Future<int> removeOperationsForRecord(String model, int recordId) async {
     final operations =
-        await (_db.select(_db.offlineQueue)
-              ..where(
-                (tbl) =>
-                    tbl.model.equals(model) & tbl.recordId.equals(recordId),
-              ))
+        await (_db.select(_db.offlineQueue)..where(
+              (tbl) => tbl.model.equals(model) & tbl.recordId.equals(recordId),
+            ))
             .get();
 
     for (final op in operations) {
@@ -357,11 +539,12 @@ class OfflineQueueDataSource implements core.OfflineQueueStore {
     return operations.length;
   }
 
-  /// Update order_id in pending line operations when order gets synced
+  /// Update references to a local order ID when the order gets synced.
   ///
   /// When a sale.order is synced and gets a new Odoo ID, we need to update
-  /// the order_id in all pending sale.order.line operations that reference
-  /// the old local ID.
+  /// both `order_id` and `sale_id` in every child/workflow operation that
+  /// references the old local ID. Payment, withholding and invoice commands
+  /// use `sale_id`, while sale lines use `order_id`.
   Future<void> updateOrderIdInPendingOperations(
     int oldOrderId,
     int newOrderId,
@@ -371,24 +554,143 @@ class OfflineQueueDataSource implements core.OfflineQueueStore {
           ..where((tbl) => tbl.parentOrderId.equals(oldOrderId)))
         .write(OfflineQueueCompanion(parentOrderId: drift.Value(newOrderId)));
 
-    // Also update order_id inside the JSON values for line operations
-    final lineOps = await (_db.select(_db.offlineQueue)
-          ..where(
-            (tbl) =>
-                tbl.model.equals('sale.order.line') &
-                tbl.parentOrderId.equals(newOrderId),
-          ))
-        .get();
+    // Also update the local parent reference inside every child payload. The
+    // parent column was rewritten above, so it is the safest bounded scope.
+    final childOps = await (_db.select(
+      _db.offlineQueue,
+    )..where((tbl) => tbl.parentOrderId.equals(newOrderId))).get();
 
-    for (final op in lineOps) {
+    for (final op in childOps) {
       final currentValues = _parseJsonValues(op.values);
+      var changed = false;
       if (currentValues['order_id'] == oldOrderId) {
         currentValues['order_id'] = newOrderId;
-        await (_db.update(_db.offlineQueue)
-              ..where((tbl) => tbl.id.equals(op.id)))
-            .write(OfflineQueueCompanion(values: drift.Value(jsonEncode(currentValues))));
+        changed = true;
+      }
+      if (currentValues['sale_id'] == oldOrderId) {
+        currentValues['sale_id'] = newOrderId;
+        changed = true;
+      }
+      if (changed) {
+        await (_db.update(
+          _db.offlineQueue,
+        )..where((tbl) => tbl.id.equals(op.id))).write(
+          OfflineQueueCompanion(values: drift.Value(jsonEncode(currentValues))),
+        );
       }
     }
+  }
+
+  /// Rewrites queued operations for a generic record after its offline create
+  /// receives the definitive Odoo ID.
+  ///
+  /// Composite workflows such as `account.advance create -> action_post` and
+  /// `l10n_ec.cash.out create -> action_confirm` store the local negative ID in
+  /// [OfflineQueue.recordId]. Without this durable rewrite the create succeeds
+  /// but the following action is sent to the obsolete negative ID.
+  Future<int> updateRecordIdInPendingOperations(
+    String model,
+    int oldRecordId,
+    int newRecordId,
+  ) {
+    if (oldRecordId == newRecordId) return Future.value(0);
+    return (_db.update(_db.offlineQueue)..where(
+          (table) =>
+              table.model.equals(model) & table.recordId.equals(oldRecordId),
+        ))
+        .write(OfflineQueueCompanion(recordId: drift.Value(newRecordId)));
+  }
+
+  /// Rewrites the temporary collection-session identity everywhere it can be
+  /// referenced by a queued child operation.
+  ///
+  /// A collection session is created with a negative local ID. Deposits,
+  /// payments and other financial records may be queued against that ID before
+  /// the server assigns the definitive one. Keeping both the indexed
+  /// [OfflineQueue.recordId] and JSON payload in sync makes the hand-off
+  /// restart-safe and prevents later requests from reaching Odoo with a local
+  /// foreign key.
+  Future<int> updateCollectionSessionIdInPendingOperations(
+    int oldSessionId,
+    int newSessionId,
+  ) async {
+    if (oldSessionId == newSessionId) return 0;
+
+    var updated = 0;
+    final operations = await _db.select(_db.offlineQueue).get();
+    for (final operation in operations) {
+      final values = _parseJsonValues(operation.values);
+      var changed = false;
+
+      for (final key in const ['session_id', 'collection_session_id']) {
+        if (values[key] == oldSessionId) {
+          values[key] = newSessionId;
+          changed = true;
+        }
+      }
+
+      final rewritesRecordId =
+          operation.model == 'collection.session' &&
+          operation.recordId == oldSessionId;
+      if (!changed && !rewritesRecordId) continue;
+
+      await (_db.update(
+        _db.offlineQueue,
+      )..where((table) => table.id.equals(operation.id))).write(
+        OfflineQueueCompanion(
+          recordId: rewritesRecordId
+              ? drift.Value(newSessionId)
+              : const drift.Value.absent(),
+          values: changed
+              ? drift.Value(jsonEncode(values))
+              : const drift.Value.absent(),
+        ),
+      );
+      updated++;
+    }
+    return updated;
+  }
+
+  /// Persists the definitive server ID returned by a generic create before
+  /// the local hand-off is attempted.
+  ///
+  /// A process can be terminated after Odoo commits the create but before the
+  /// local row is updated. Storing the result on the queue row closes that
+  /// crash window: startup recovery can finish the local reconciliation
+  /// without sending the create to Odoo a second time. Once the server result
+  /// is known, replay is safe because the dispatcher only consumes this
+  /// marker and does not repeat the remote mutation.
+  Future<void> persistRemoteCreateId(int operationId, int remoteId) async {
+    if (remoteId <= 0) {
+      throw ArgumentError.value(remoteId, 'remoteId', 'must be positive');
+    }
+
+    await _db.transaction(() async {
+      final row = await (_db.select(
+        _db.offlineQueue,
+      )..where((table) => table.id.equals(operationId))).getSingleOrNull();
+      if (row == null) return;
+
+      final values = _parseJsonValues(row.values);
+      final persisted = values[remoteCreateIdKey];
+      if (persisted is int && persisted != remoteId) {
+        throw StateError(
+          'Operation $operationId already has a different remote create ID',
+        );
+      }
+      values[remoteCreateIdKey] = remoteId;
+
+      await (_db.update(
+        _db.offlineQueue,
+      )..where((table) => table.id.equals(operationId))).write(
+        OfflineQueueCompanion(
+          values: drift.Value(jsonEncode(values)),
+          replayPolicy: drift.Value(
+            core.OfflineReplayPolicy.retrySafe.storageValue,
+          ),
+        ),
+      );
+    });
   }
 
   /// Update partner_id in pending queue operations when a partner gets synced
@@ -417,9 +719,9 @@ class OfflineQueueDataSource implements core.OfflineQueueStore {
       final values = _parseJsonValues(row.values);
       if (values['partner_id'] == oldPartnerId) {
         values['partner_id'] = newPartnerId;
-        await (_db.update(_db.offlineQueue)
-              ..where((tbl) => tbl.id.equals(row.id)))
-            .write(
+        await (_db.update(
+          _db.offlineQueue,
+        )..where((tbl) => tbl.id.equals(row.id))).write(
           OfflineQueueCompanion(values: drift.Value(jsonEncode(values))),
         );
         updated++;
@@ -454,7 +756,14 @@ class OfflineQueueDataSource implements core.OfflineQueueStore {
   /// emita en cada cambio. El filtrado adicional (parentOrderId, valores JSON)
   /// se hace en Dart sobre el stream resultante.
   Stream<int> watchPendingCountForSaleOrder(int orderId) {
-    final query = _db.select(_db.offlineQueue);
+    final query = _db.select(_db.offlineQueue)
+      ..where(
+        (table) =>
+            (table.status.equals('pending') |
+                table.status.equals('recovery_pending') |
+                table.status.isNull()) &
+            table.retryCount.isSmallerThanValue(core.RetryBackoff.maxRetries),
+      );
     return query.watch().map((rows) {
       return rows.where((r) {
         // Operaciones directas de la orden
@@ -478,15 +787,14 @@ class OfflineQueueDataSource implements core.OfflineQueueStore {
   /// We already sent all current values in the create, so subsequent
   /// writes for the same fields are redundant.
   Future<int> removePendingWritesForOrder(int orderId) async {
-
-    final writeOps = await (_db.select(_db.offlineQueue)
-          ..where(
-            (tbl) =>
-                tbl.model.equals('sale.order') &
-                tbl.method.equals('write') &
-                tbl.recordId.equals(orderId),
-          ))
-        .get();
+    final writeOps =
+        await (_db.select(_db.offlineQueue)..where(
+              (tbl) =>
+                  tbl.model.equals('sale.order') &
+                  tbl.method.equals('write') &
+                  tbl.recordId.equals(orderId),
+            ))
+            .get();
 
     for (final op in writeOps) {
       await removeOperation(op.id);
@@ -505,16 +813,15 @@ class OfflineQueueDataSource implements core.OfflineQueueStore {
     int orderId,
     Map<String, dynamic> newValues,
   ) async {
-
     // Find the pending create operation for this order
-    final createOps = await (_db.select(_db.offlineQueue)
-          ..where(
-            (tbl) =>
-                tbl.model.equals('sale.order') &
-                tbl.method.equals('create') &
-                tbl.recordId.equals(orderId),
-          ))
-        .get();
+    final createOps =
+        await (_db.select(_db.offlineQueue)..where(
+              (tbl) =>
+                  tbl.model.equals('sale.order') &
+                  tbl.method.equals('create') &
+                  tbl.recordId.equals(orderId),
+            ))
+            .get();
 
     if (createOps.isEmpty) {
       return false;
@@ -527,20 +834,22 @@ class OfflineQueueDataSource implements core.OfflineQueueStore {
     currentValues.addAll(newValues);
 
     // Update the operation with merged values
-    await (_db.update(_db.offlineQueue)
-          ..where((tbl) => tbl.id.equals(createOp.id)))
-        .write(OfflineQueueCompanion(values: drift.Value(jsonEncode(currentValues))));
+    await (_db.update(
+      _db.offlineQueue,
+    )..where((tbl) => tbl.id.equals(createOp.id))).write(
+      OfflineQueueCompanion(values: drift.Value(jsonEncode(currentValues))),
+    );
 
     // Also remove any redundant write operations for the same fields
     // since they're now in the create operation
-    final writeOps = await (_db.select(_db.offlineQueue)
-          ..where(
-            (tbl) =>
-                tbl.model.equals('sale.order') &
-                tbl.method.equals('write') &
-                tbl.recordId.equals(orderId),
-          ))
-        .get();
+    final writeOps =
+        await (_db.select(_db.offlineQueue)..where(
+              (tbl) =>
+                  tbl.model.equals('sale.order') &
+                  tbl.method.equals('write') &
+                  tbl.recordId.equals(orderId),
+            ))
+            .get();
 
     for (final writeOp in writeOps) {
       await removeOperation(writeOp.id);
@@ -555,19 +864,14 @@ class OfflineQueueDataSource implements core.OfflineQueueStore {
   /// [getOperationsForSaleOrder] en OfflineSyncService) antes de enviar la
   /// operación a Odoo.
   ///
-  /// Recovery de huérfanos: si la app crashea con filas en 'processing', NO
-  /// hace falta ningún reset aquí — `AppDatabase`'s `beforeOpen` callback
-  /// (theos_pos_core/lib/src/database/database.dart) ya ejecuta
-  /// `UPDATE offline_queue SET status='pending' WHERE status='processing'`
-  /// en CADA apertura de la base de datos (no solo en upgrades de esquema),
-  /// así que las filas huérfanas se auto-sanan al siguiente arranque de la
-  /// app sin necesidad de duplicar esa lógica acá.
+  /// Recovery de huérfanos: `AppDatabase.beforeOpen` mueve filas
+  /// `processing` a `recovery_pending`. Ese estado obliga al procesador a
+  /// reconciliar primero o enviar a revisión manual; nunca asume que una
+  /// petición interrumpida no llegó al servidor.
   @override
   Future<void> markOperationProcessing(int id) async {
     await (_db.update(_db.offlineQueue)..where((tbl) => tbl.id.equals(id)))
-        .write(const OfflineQueueCompanion(
-      status: drift.Value('processing'),
-    ));
+        .write(const OfflineQueueCompanion(status: drift.Value('processing')));
   }
 
   /// Revierte una operación de 'processing' a 'pending' sin tocar retry/backoff.
@@ -576,27 +880,81 @@ class OfflineQueueDataSource implements core.OfflineQueueStore {
   @override
   Future<void> markOperationPending(int id) async {
     await (_db.update(_db.offlineQueue)..where((tbl) => tbl.id.equals(id)))
-        .write(const OfflineQueueCompanion(
-      status: drift.Value('pending'),
-    ));
+        .write(const OfflineQueueCompanion(status: drift.Value('pending')));
+  }
+
+  @override
+  Future<void> markOperationCompleted(int id) async {
+    await (_db.update(
+      _db.offlineQueue,
+    )..where((tbl) => tbl.id.equals(id))).write(
+      const OfflineQueueCompanion(
+        status: drift.Value('completed'),
+        nextRetryAt: drift.Value(null),
+        lastError: drift.Value(null),
+      ),
+    );
+  }
+
+  @override
+  Future<void> markOperationConflict(int id) async {
+    await (_db.update(
+      _db.offlineQueue,
+    )..where((tbl) => tbl.id.equals(id))).write(
+      const OfflineQueueCompanion(
+        status: drift.Value('conflict'),
+        nextRetryAt: drift.Value(null),
+      ),
+    );
+  }
+
+  @override
+  Future<void> markOperationDeadLetter(int id, String errorMessage) async {
+    await (_db.update(
+      _db.offlineQueue,
+    )..where((tbl) => tbl.id.equals(id))).write(
+      OfflineQueueCompanion(
+        status: const drift.Value('dead_letter'),
+        nextRetryAt: const drift.Value(null),
+        lastError: drift.Value(core.ErrorSanitizer.sanitize(errorMessage)),
+      ),
+    );
+  }
+
+  @override
+  Future<void> replaceOperationValues(
+    int id,
+    Map<String, dynamic> values,
+  ) async {
+    await (_db.update(_db.offlineQueue)..where((tbl) => tbl.id.equals(id)))
+        .write(OfflineQueueCompanion(values: drift.Value(jsonEncode(values))));
   }
 
   /// Remove operations created before the given date
   @override
   Future<int> removeOperationsBefore(DateTime date) async {
-    final count = await (_db.delete(_db.offlineQueue)
-          ..where((tbl) => tbl.createdAt.isSmallerThanValue(date)))
-        .go();
+    final count =
+        await (_db.delete(_db.offlineQueue)..where(
+              (tbl) =>
+                  tbl.status.equals('completed') &
+                  tbl.createdAt.isSmallerThanValue(date),
+            ))
+            .go();
     return count;
   }
 
   /// Remove all dead letter operations (exceeded max retries)
   @override
   Future<int> removeDeadLetterOperations() async {
-    final count = await (_db.delete(_db.offlineQueue)
-          ..where((tbl) =>
-              tbl.retryCount.isBiggerOrEqualValue(core.RetryBackoff.maxRetries)))
-        .go();
+    final count =
+        await (_db.delete(_db.offlineQueue)..where(
+              (tbl) =>
+                  tbl.status.equals('dead_letter') |
+                  tbl.retryCount.isBiggerOrEqualValue(
+                    core.RetryBackoff.maxRetries,
+                  ),
+            ))
+            .go();
     return count;
   }
 
@@ -604,20 +962,28 @@ class OfflineQueueDataSource implements core.OfflineQueueStore {
   ///
   /// Excluye filas 'processing' (ver nota en [getPendingOperations]).
   @override
-  Future<List<OfflineOperation>> getOperationsForRecord(
+  Future<List<core.OfflineOperation>> getOperationsForRecord(
     String model,
     int recordId,
   ) async {
-    final results = await (_db.select(_db.offlineQueue)
-          ..where((tbl) =>
-              tbl.model.equals(model) &
-              tbl.recordId.equals(recordId) &
-              (tbl.status.equals('pending') | tbl.status.isNull()))
-          ..orderBy([
-            (tbl) => drift.OrderingTerm.asc(tbl.priority),
-            (tbl) => drift.OrderingTerm.asc(tbl.createdAt),
-          ]))
-        .get();
+    final results =
+        await (_db.select(_db.offlineQueue)
+              ..where(
+                (tbl) =>
+                    tbl.model.equals(model) &
+                    tbl.recordId.equals(recordId) &
+                    (tbl.status.equals('pending') |
+                        tbl.status.equals('recovery_pending') |
+                        tbl.status.isNull()) &
+                    tbl.retryCount.isSmallerThanValue(
+                      core.RetryBackoff.maxRetries,
+                    ),
+              )
+              ..orderBy([
+                (tbl) => drift.OrderingTerm.asc(tbl.priority),
+                (tbl) => drift.OrderingTerm.asc(tbl.createdAt),
+              ]))
+            .get();
 
     return results.map((r) => _operationFromRow(r)).toList();
   }

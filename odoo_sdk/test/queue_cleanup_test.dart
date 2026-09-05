@@ -14,9 +14,9 @@ void main() {
       expect(config.maxQueueSize, 10000);
     });
 
-    test('maxOperationAge defaults to 30 days', () {
+    test('maxOperationAge defaults to disabled to preserve evidence', () {
       const config = OfflineQueueConfig();
-      expect(config.maxOperationAge, const Duration(days: 30));
+      expect(config.maxOperationAge, isNull);
     });
 
     test('custom maxQueueSize and maxOperationAge', () {
@@ -51,29 +51,32 @@ void main() {
       test('removes operations older than maxOperationAge', () async {
         queue = OfflineQueueWrapper(
           store,
-          config: const OfflineQueueConfig(
-            maxOperationAge: Duration(days: 7),
-          ),
+          config: const OfflineQueueConfig(maxOperationAge: Duration(days: 7)),
         );
         await queue.initialize();
 
         // Add old operation (10 days ago)
-        store.addOperation(OfflineOperation(
-          id: 1,
-          model: 'sale.order',
-          method: 'write',
-          values: {'name': 'old'},
-          createdAt: DateTime.now().subtract(const Duration(days: 10)),
-        ));
+        store.addOperation(
+          OfflineOperation(
+            id: 1,
+            model: 'sale.order',
+            method: 'write',
+            values: {'name': 'old'},
+            createdAt: DateTime.now().subtract(const Duration(days: 10)),
+            status: OfflineOperationStatus.completed,
+          ),
+        );
 
         // Add recent operation (1 day ago)
-        store.addOperation(OfflineOperation(
-          id: 2,
-          model: 'sale.order',
-          method: 'write',
-          values: {'name': 'recent'},
-          createdAt: DateTime.now().subtract(const Duration(days: 1)),
-        ));
+        store.addOperation(
+          OfflineOperation(
+            id: 2,
+            model: 'sale.order',
+            method: 'write',
+            values: {'name': 'recent'},
+            createdAt: DateTime.now().subtract(const Duration(days: 1)),
+          ),
+        );
 
         final removed = await queue.cleanupStaleOperations();
         expect(removed, 1);
@@ -88,13 +91,15 @@ void main() {
         );
         await queue.initialize();
 
-        store.addOperation(OfflineOperation(
-          id: 1,
-          model: 'sale.order',
-          method: 'write',
-          values: {'name': 'old'},
-          createdAt: DateTime.now().subtract(const Duration(days: 365)),
-        ));
+        store.addOperation(
+          OfflineOperation(
+            id: 1,
+            model: 'sale.order',
+            method: 'write',
+            values: {'name': 'old'},
+            createdAt: DateTime.now().subtract(const Duration(days: 365)),
+          ),
+        );
 
         final removed = await queue.cleanupStaleOperations();
         expect(removed, 0);
@@ -104,19 +109,19 @@ void main() {
       test('returns 0 when no stale operations exist', () async {
         queue = OfflineQueueWrapper(
           store,
-          config: const OfflineQueueConfig(
-            maxOperationAge: Duration(days: 30),
-          ),
+          config: const OfflineQueueConfig(maxOperationAge: Duration(days: 30)),
         );
         await queue.initialize();
 
-        store.addOperation(OfflineOperation(
-          id: 1,
-          model: 'sale.order',
-          method: 'write',
-          values: {'name': 'recent'},
-          createdAt: DateTime.now().subtract(const Duration(days: 1)),
-        ));
+        store.addOperation(
+          OfflineOperation(
+            id: 1,
+            model: 'sale.order',
+            method: 'write',
+            values: {'name': 'recent'},
+            createdAt: DateTime.now().subtract(const Duration(days: 1)),
+          ),
+        );
 
         final removed = await queue.cleanupStaleOperations();
         expect(removed, 0);
@@ -132,27 +137,35 @@ void main() {
         final now = DateTime.now();
 
         // Two writes to same record
-        store.addOperation(OfflineOperation(
-          id: 1,
-          model: 'sale.order',
-          method: 'write',
-          recordId: 10,
-          values: {'name': 'first'},
-          createdAt: now.subtract(const Duration(minutes: 5)),
-        ));
-        store.addOperation(OfflineOperation(
-          id: 2,
-          model: 'sale.order',
-          method: 'write',
-          recordId: 10,
-          values: {'name': 'second'},
-          createdAt: now.subtract(const Duration(minutes: 2)),
-        ));
+        store.addOperation(
+          OfflineOperation(
+            id: 1,
+            model: 'sale.order',
+            method: 'write',
+            recordId: 10,
+            values: {'name': 'first'},
+            createdAt: now.subtract(const Duration(minutes: 5)),
+          ),
+        );
+        store.addOperation(
+          OfflineOperation(
+            id: 2,
+            model: 'sale.order',
+            method: 'write',
+            recordId: 10,
+            values: {'phone': 'second'},
+            createdAt: now.subtract(const Duration(minutes: 2)),
+          ),
+        );
 
         final removed = await queue.compressQueue();
         expect(removed, 1);
         expect(store.allOperations.length, 1);
         expect(store.allOperations.first.id, 2); // kept the latest
+        expect(store.allOperations.first.values, {
+          'name': 'first',
+          'phone': 'second',
+        });
       });
 
       test('does not merge writes to different records', () async {
@@ -161,22 +174,26 @@ void main() {
 
         final now = DateTime.now();
 
-        store.addOperation(OfflineOperation(
-          id: 1,
-          model: 'sale.order',
-          method: 'write',
-          recordId: 10,
-          values: {'name': 'order 10'},
-          createdAt: now.subtract(const Duration(minutes: 5)),
-        ));
-        store.addOperation(OfflineOperation(
-          id: 2,
-          model: 'sale.order',
-          method: 'write',
-          recordId: 20,
-          values: {'name': 'order 20'},
-          createdAt: now.subtract(const Duration(minutes: 2)),
-        ));
+        store.addOperation(
+          OfflineOperation(
+            id: 1,
+            model: 'sale.order',
+            method: 'write',
+            recordId: 10,
+            values: {'name': 'order 10'},
+            createdAt: now.subtract(const Duration(minutes: 5)),
+          ),
+        );
+        store.addOperation(
+          OfflineOperation(
+            id: 2,
+            model: 'sale.order',
+            method: 'write',
+            recordId: 20,
+            values: {'name': 'order 20'},
+            createdAt: now.subtract(const Duration(minutes: 2)),
+          ),
+        );
 
         final removed = await queue.compressQueue();
         expect(removed, 0);
@@ -189,22 +206,26 @@ void main() {
 
         final now = DateTime.now();
 
-        store.addOperation(OfflineOperation(
-          id: 1,
-          model: 'sale.order',
-          method: 'create',
-          recordId: 10,
-          values: {'name': 'first'},
-          createdAt: now.subtract(const Duration(minutes: 5)),
-        ));
-        store.addOperation(OfflineOperation(
-          id: 2,
-          model: 'sale.order',
-          method: 'create',
-          recordId: 10,
-          values: {'name': 'second'},
-          createdAt: now.subtract(const Duration(minutes: 2)),
-        ));
+        store.addOperation(
+          OfflineOperation(
+            id: 1,
+            model: 'sale.order',
+            method: 'create',
+            recordId: 10,
+            values: {'name': 'first'},
+            createdAt: now.subtract(const Duration(minutes: 5)),
+          ),
+        );
+        store.addOperation(
+          OfflineOperation(
+            id: 2,
+            model: 'sale.order',
+            method: 'create',
+            recordId: 10,
+            values: {'name': 'second'},
+            createdAt: now.subtract(const Duration(minutes: 2)),
+          ),
+        );
 
         final removed = await queue.compressQueue();
         expect(removed, 0);
@@ -217,20 +238,24 @@ void main() {
 
         final now = DateTime.now();
 
-        store.addOperation(OfflineOperation(
-          id: 1,
-          model: 'sale.order',
-          method: 'write',
-          values: {'name': 'first'},
-          createdAt: now.subtract(const Duration(minutes: 5)),
-        ));
-        store.addOperation(OfflineOperation(
-          id: 2,
-          model: 'sale.order',
-          method: 'write',
-          values: {'name': 'second'},
-          createdAt: now.subtract(const Duration(minutes: 2)),
-        ));
+        store.addOperation(
+          OfflineOperation(
+            id: 1,
+            model: 'sale.order',
+            method: 'write',
+            values: {'name': 'first'},
+            createdAt: now.subtract(const Duration(minutes: 5)),
+          ),
+        );
+        store.addOperation(
+          OfflineOperation(
+            id: 2,
+            model: 'sale.order',
+            method: 'write',
+            values: {'name': 'second'},
+            createdAt: now.subtract(const Duration(minutes: 2)),
+          ),
+        );
 
         final removed = await queue.compressQueue();
         expect(removed, 0);
@@ -243,30 +268,36 @@ void main() {
 
         final now = DateTime.now();
 
-        store.addOperation(OfflineOperation(
-          id: 1,
-          model: 'product.product',
-          method: 'write',
-          recordId: 5,
-          values: {'name': 'v1'},
-          createdAt: now.subtract(const Duration(minutes: 10)),
-        ));
-        store.addOperation(OfflineOperation(
-          id: 2,
-          model: 'product.product',
-          method: 'write',
-          recordId: 5,
-          values: {'name': 'v2'},
-          createdAt: now.subtract(const Duration(minutes: 5)),
-        ));
-        store.addOperation(OfflineOperation(
-          id: 3,
-          model: 'product.product',
-          method: 'write',
-          recordId: 5,
-          values: {'name': 'v3'},
-          createdAt: now,
-        ));
+        store.addOperation(
+          OfflineOperation(
+            id: 1,
+            model: 'product.product',
+            method: 'write',
+            recordId: 5,
+            values: {'name': 'v1'},
+            createdAt: now.subtract(const Duration(minutes: 10)),
+          ),
+        );
+        store.addOperation(
+          OfflineOperation(
+            id: 2,
+            model: 'product.product',
+            method: 'write',
+            recordId: 5,
+            values: {'name': 'v2'},
+            createdAt: now.subtract(const Duration(minutes: 5)),
+          ),
+        );
+        store.addOperation(
+          OfflineOperation(
+            id: 3,
+            model: 'product.product',
+            method: 'write',
+            recordId: 5,
+            values: {'name': 'v3'},
+            createdAt: now,
+          ),
+        );
 
         final removed = await queue.compressQueue();
         expect(removed, 2);
@@ -281,35 +312,41 @@ void main() {
         await queue.initialize();
 
         // Add normal operation
-        store.addOperation(OfflineOperation(
-          id: 1,
-          model: 'sale.order',
-          method: 'write',
-          values: {'name': 'pending'},
-          createdAt: DateTime.now(),
-          retryCount: 0,
-        ));
+        store.addOperation(
+          OfflineOperation(
+            id: 1,
+            model: 'sale.order',
+            method: 'write',
+            values: {'name': 'pending'},
+            createdAt: DateTime.now(),
+            retryCount: 0,
+          ),
+        );
 
         // Add dead letter operation (exceeds maxRetries of 5)
-        store.addOperation(OfflineOperation(
-          id: 2,
-          model: 'sale.order',
-          method: 'write',
-          values: {'name': 'dead'},
-          createdAt: DateTime.now(),
-          retryCount: 5,
-          lastError: 'some error',
-        ));
+        store.addOperation(
+          OfflineOperation(
+            id: 2,
+            model: 'sale.order',
+            method: 'write',
+            values: {'name': 'dead'},
+            createdAt: DateTime.now(),
+            retryCount: 5,
+            lastError: 'some error',
+          ),
+        );
 
-        store.addOperation(OfflineOperation(
-          id: 3,
-          model: 'product.product',
-          method: 'create',
-          values: {'name': 'also dead'},
-          createdAt: DateTime.now(),
-          retryCount: 10,
-          lastError: 'another error',
-        ));
+        store.addOperation(
+          OfflineOperation(
+            id: 3,
+            model: 'product.product',
+            method: 'create',
+            values: {'name': 'also dead'},
+            createdAt: DateTime.now(),
+            retryCount: 10,
+            lastError: 'another error',
+          ),
+        );
 
         final removed = await queue.purgeDeadLetterQueue();
         expect(removed, 2);
@@ -321,14 +358,16 @@ void main() {
         queue = OfflineQueueWrapper(store);
         await queue.initialize();
 
-        store.addOperation(OfflineOperation(
-          id: 1,
-          model: 'sale.order',
-          method: 'write',
-          values: {'name': 'pending'},
-          createdAt: DateTime.now(),
-          retryCount: 0,
-        ));
+        store.addOperation(
+          OfflineOperation(
+            id: 1,
+            model: 'sale.order',
+            method: 'write',
+            values: {'name': 'pending'},
+            createdAt: DateTime.now(),
+            retryCount: 0,
+          ),
+        );
 
         final removed = await queue.purgeDeadLetterQueue();
         expect(removed, 0);
@@ -337,7 +376,7 @@ void main() {
     });
 
     group('enforceMaxSize', () {
-      test('removes lowest priority oldest operations when over limit', () async {
+      test('does not erase pending evidence when over soft limit', () async {
         queue = OfflineQueueWrapper(
           store,
           config: const OfflineQueueConfig(maxQueueSize: 2),
@@ -347,47 +386,50 @@ void main() {
         final now = DateTime.now();
 
         // Add 4 operations with different priorities
-        store.addOperation(OfflineOperation(
-          id: 1,
-          model: 'sale.order',
-          method: 'write',
-          values: {'name': 'critical'},
-          createdAt: now.subtract(const Duration(minutes: 10)),
-          priority: OfflinePriority.critical,
-        ));
-        store.addOperation(OfflineOperation(
-          id: 2,
-          model: 'sale.order',
-          method: 'write',
-          values: {'name': 'low'},
-          createdAt: now.subtract(const Duration(minutes: 5)),
-          priority: OfflinePriority.low,
-        ));
-        store.addOperation(OfflineOperation(
-          id: 3,
-          model: 'sale.order',
-          method: 'write',
-          values: {'name': 'normal'},
-          createdAt: now.subtract(const Duration(minutes: 3)),
-          priority: OfflinePriority.normal,
-        ));
-        store.addOperation(OfflineOperation(
-          id: 4,
-          model: 'sale.order',
-          method: 'write',
-          values: {'name': 'high'},
-          createdAt: now,
-          priority: OfflinePriority.high,
-        ));
+        store.addOperation(
+          OfflineOperation(
+            id: 1,
+            model: 'sale.order',
+            method: 'write',
+            values: {'name': 'critical'},
+            createdAt: now.subtract(const Duration(minutes: 10)),
+            priority: OfflinePriority.critical,
+          ),
+        );
+        store.addOperation(
+          OfflineOperation(
+            id: 2,
+            model: 'sale.order',
+            method: 'write',
+            values: {'name': 'low'},
+            createdAt: now.subtract(const Duration(minutes: 5)),
+            priority: OfflinePriority.low,
+          ),
+        );
+        store.addOperation(
+          OfflineOperation(
+            id: 3,
+            model: 'sale.order',
+            method: 'write',
+            values: {'name': 'normal'},
+            createdAt: now.subtract(const Duration(minutes: 3)),
+            priority: OfflinePriority.normal,
+          ),
+        );
+        store.addOperation(
+          OfflineOperation(
+            id: 4,
+            model: 'sale.order',
+            method: 'write',
+            values: {'name': 'high'},
+            createdAt: now,
+            priority: OfflinePriority.high,
+          ),
+        );
 
         final removed = await queue.enforceMaxSize();
-        expect(removed, 2);
-        expect(store.allOperations.length, 2);
-
-        // Should keep critical (id=1) and high (id=4)
-        final remaining = store.allOperations.map((o) => o.id).toSet();
-        expect(remaining.contains(1), isTrue); // critical priority
-        expect(remaining.contains(4), isTrue); // high priority
+        expect(removed, 0);
+        expect(store.allOperations.length, 4);
       });
 
       test('returns 0 when maxQueueSize is 0 (unlimited)', () async {
@@ -397,13 +439,15 @@ void main() {
         );
         await queue.initialize();
 
-        store.addOperation(OfflineOperation(
-          id: 1,
-          model: 'sale.order',
-          method: 'write',
-          values: {},
-          createdAt: DateTime.now(),
-        ));
+        store.addOperation(
+          OfflineOperation(
+            id: 1,
+            model: 'sale.order',
+            method: 'write',
+            values: {},
+            createdAt: DateTime.now(),
+          ),
+        );
 
         final removed = await queue.enforceMaxSize();
         expect(removed, 0);
@@ -416,13 +460,15 @@ void main() {
         );
         await queue.initialize();
 
-        store.addOperation(OfflineOperation(
-          id: 1,
-          model: 'sale.order',
-          method: 'write',
-          values: {},
-          createdAt: DateTime.now(),
-        ));
+        store.addOperation(
+          OfflineOperation(
+            id: 1,
+            model: 'sale.order',
+            method: 'write',
+            values: {},
+            createdAt: DateTime.now(),
+          ),
+        );
 
         final removed = await queue.enforceMaxSize();
         expect(removed, 0);
@@ -437,48 +483,60 @@ void main() {
       store = InMemoryOfflineQueueStore();
     });
 
-    test('removeOperationsBefore removes old operations', () async {
-      final now = DateTime.now();
-      store.addOperation(OfflineOperation(
-        id: 1,
-        model: 'sale.order',
-        method: 'write',
-        values: {},
-        createdAt: now.subtract(const Duration(days: 10)),
-      ));
-      store.addOperation(OfflineOperation(
-        id: 2,
-        model: 'sale.order',
-        method: 'write',
-        values: {},
-        createdAt: now.subtract(const Duration(days: 1)),
-      ));
+    test(
+      'removeOperationsBefore removes only old completed evidence',
+      () async {
+        final now = DateTime.now();
+        store.addOperation(
+          OfflineOperation(
+            id: 1,
+            model: 'sale.order',
+            method: 'write',
+            values: {},
+            createdAt: now.subtract(const Duration(days: 10)),
+            status: OfflineOperationStatus.completed,
+          ),
+        );
+        store.addOperation(
+          OfflineOperation(
+            id: 2,
+            model: 'sale.order',
+            method: 'write',
+            values: {},
+            createdAt: now.subtract(const Duration(days: 1)),
+          ),
+        );
 
-      final removed = await store.removeOperationsBefore(
-        now.subtract(const Duration(days: 5)),
-      );
-      expect(removed, 1);
-      expect(store.allOperations.length, 1);
-      expect(store.allOperations.first.id, 2);
-    });
+        final removed = await store.removeOperationsBefore(
+          now.subtract(const Duration(days: 5)),
+        );
+        expect(removed, 1);
+        expect(store.allOperations.length, 1);
+        expect(store.allOperations.first.id, 2);
+      },
+    );
 
     test('removeDeadLetterOperations removes only dead letters', () async {
-      store.addOperation(OfflineOperation(
-        id: 1,
-        model: 'sale.order',
-        method: 'write',
-        values: {},
-        createdAt: DateTime.now(),
-        retryCount: 0,
-      ));
-      store.addOperation(OfflineOperation(
-        id: 2,
-        model: 'sale.order',
-        method: 'write',
-        values: {},
-        createdAt: DateTime.now(),
-        retryCount: 10,
-      ));
+      store.addOperation(
+        OfflineOperation(
+          id: 1,
+          model: 'sale.order',
+          method: 'write',
+          values: {},
+          createdAt: DateTime.now(),
+          retryCount: 0,
+        ),
+      );
+      store.addOperation(
+        OfflineOperation(
+          id: 2,
+          model: 'sale.order',
+          method: 'write',
+          values: {},
+          createdAt: DateTime.now(),
+          retryCount: 10,
+        ),
+      );
 
       final removed = await store.removeDeadLetterOperations();
       expect(removed, 1);
@@ -487,30 +545,36 @@ void main() {
     });
 
     test('getOperationsForRecord returns matching operations', () async {
-      store.addOperation(OfflineOperation(
-        id: 1,
-        model: 'sale.order',
-        method: 'write',
-        recordId: 10,
-        values: {},
-        createdAt: DateTime.now(),
-      ));
-      store.addOperation(OfflineOperation(
-        id: 2,
-        model: 'sale.order',
-        method: 'write',
-        recordId: 20,
-        values: {},
-        createdAt: DateTime.now(),
-      ));
-      store.addOperation(OfflineOperation(
-        id: 3,
-        model: 'product.product',
-        method: 'write',
-        recordId: 10,
-        values: {},
-        createdAt: DateTime.now(),
-      ));
+      store.addOperation(
+        OfflineOperation(
+          id: 1,
+          model: 'sale.order',
+          method: 'write',
+          recordId: 10,
+          values: {},
+          createdAt: DateTime.now(),
+        ),
+      );
+      store.addOperation(
+        OfflineOperation(
+          id: 2,
+          model: 'sale.order',
+          method: 'write',
+          recordId: 20,
+          values: {},
+          createdAt: DateTime.now(),
+        ),
+      );
+      store.addOperation(
+        OfflineOperation(
+          id: 3,
+          model: 'product.product',
+          method: 'write',
+          recordId: 10,
+          values: {},
+          createdAt: DateTime.now(),
+        ),
+      );
 
       final ops = await store.getOperationsForRecord('sale.order', 10);
       expect(ops.length, 1);
@@ -560,9 +624,11 @@ void main() {
       final ctx = DataContext(session);
 
       // Setup mock store for syncModel
-      when(() => mockStore.getPendingOperations(
-            includeNotReady: any(named: 'includeNotReady'),
-          )).thenAnswer((_) async => []);
+      when(
+        () => mockStore.getPendingOperations(
+          includeNotReady: any(named: 'includeNotReady'),
+        ),
+      ).thenAnswer((_) async => []);
       when(() => mockStore.removeOperationsBefore(any()))
           .thenAnswer((_) async => 0);
       when(() => mockStore.removeDeadLetterOperations())

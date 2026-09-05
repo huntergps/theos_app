@@ -18,7 +18,7 @@ enum SaleOrderState {
   draft('draft'),
   @JsonValue('sent')
   sent('sent'),
-  @JsonValue('waiting_approval')
+  @JsonValue('waiting')
   waitingApproval('waiting'),
   @JsonValue('approved')
   approved('approved'),
@@ -109,7 +109,6 @@ extension SaleOrderStateExtension on SaleOrderState {
       case 'enviado':
         return SaleOrderState.sent;
       case 'waiting':
-      case 'waiting_approval':
       case 'esperando aprobación':
       case 'esperando aprobacion':
       case 'espera aprobación':

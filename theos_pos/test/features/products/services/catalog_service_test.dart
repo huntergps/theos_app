@@ -6,6 +6,7 @@ void main() {
 
   setUp(() {
     service = CatalogService();
+    addTearDown(service.dispose);
   });
 
   group('General / initial state', () {
@@ -114,7 +115,10 @@ void main() {
     });
 
     test('resolveProductDisplayName(null, fallback) returns fallback', () {
-      expect(service.resolveProductDisplayName(null, 'My Product'), 'My Product');
+      expect(
+        service.resolveProductDisplayName(null, 'My Product'),
+        'My Product',
+      );
     });
 
     test('resolveProductCode(null, null) returns null', () {
@@ -129,9 +133,12 @@ void main() {
       expect(service.searchProducts(''), isEmpty);
     });
 
-    test('searchProducts with non-empty query on empty cache returns empty list', () {
-      expect(service.searchProducts('test'), isEmpty);
-    });
+    test(
+      'searchProducts with non-empty query on empty cache returns empty list',
+      () {
+        expect(service.searchProducts('test'), isEmpty);
+      },
+    );
   });
 
   group('UoMs', () {
@@ -223,9 +230,12 @@ void main() {
       expect(service.resolveTaxNames('999,888', 'fallback'), 'fallback');
     });
 
-    test('resolveTaxNames with non-existent IDs and no fallback returns empty', () {
-      expect(service.resolveTaxNames('999,888', null), '');
-    });
+    test(
+      'resolveTaxNames with non-existent IDs and no fallback returns empty',
+      () {
+        expect(service.resolveTaxNames('999,888', null), '');
+      },
+    );
 
     test('resolveTaxNames with invalid string returns fallback', () {
       expect(service.resolveTaxNames('abc,def', 'fallback'), 'fallback');
@@ -247,9 +257,12 @@ void main() {
       expect(service.resolveTaxGroupName('999', 'VAT 15%'), 'VAT 15%');
     });
 
-    test('resolveTaxGroupName with non-existent IDs and no fallback returns empty', () {
-      expect(service.resolveTaxGroupName('999', null), '');
-    });
+    test(
+      'resolveTaxGroupName with non-existent IDs and no fallback returns empty',
+      () {
+        expect(service.resolveTaxGroupName('999', null), '');
+      },
+    );
 
     test('allTaxes is empty on creation', () {
       expect(service.allTaxes, isEmpty);

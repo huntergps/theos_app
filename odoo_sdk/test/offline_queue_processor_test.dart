@@ -33,20 +33,28 @@ class InMemoryQueueStore implements OfflineQueueStore {
     int? parentOrderId,
     int priority = OfflinePriority.normal,
     String? deviceId,
+    String? operationKey,
+    int commandVersion = 1,
+    OfflineReplayPolicy? replayPolicy,
   }) async {
     final id = _nextId++;
-    _operations.add(OfflineOperation(
-      id: id,
-      model: model,
-      method: method,
-      recordId: recordId,
-      values: values,
-      createdAt: DateTime.now(),
-      baseWriteDate: baseWriteDate,
-      parentOrderId: parentOrderId,
-      priority: priority,
-      deviceId: deviceId,
-    ));
+    _operations.add(
+      OfflineOperation(
+        id: id,
+        model: model,
+        method: method,
+        recordId: recordId,
+        values: values,
+        createdAt: DateTime.now(),
+        baseWriteDate: baseWriteDate,
+        parentOrderId: parentOrderId,
+        priority: priority,
+        deviceId: deviceId,
+        operationKey: operationKey,
+        commandVersion: commandVersion,
+        replayPolicy: replayPolicy ?? OfflineReplayPolicy.manualAfterAmbiguous,
+      ),
+    );
     _status[id] = 'pending';
     methodCalls.add('queueOperation:$id');
     return id;
@@ -58,7 +66,11 @@ class InMemoryQueueStore implements OfflineQueueStore {
   }) async {
     methodCalls.add('getPendingOperations');
     return _operations
-        .where((op) => (_status[op.id] ?? 'pending') == 'pending')
+        .where(
+          (op) =>
+              (_status[op.id] ?? 'pending') == 'pending' ||
+              _status[op.id] == 'recovery_pending',
+        )
         .where((op) => includeNotReady || op.isReadyForRetry)
         .toList()
       ..sort((a, b) => a.priority.compareTo(b.priority));
@@ -67,13 +79,26 @@ class InMemoryQueueStore implements OfflineQueueStore {
   @override
   Future<int> getPendingCount() async {
     methodCalls.add('getPendingCount');
-    return _operations.length;
+    return _operations
+        .where(
+          (op) =>
+              (_status[op.id] ?? 'pending') == 'pending' ||
+              _status[op.id] == 'recovery_pending',
+        )
+        .length;
   }
 
   @override
   Future<List<OfflineOperation>> getOperationsForModel(String model) async {
     methodCalls.add('getOperationsForModel:$model');
-    return _operations.where((op) => op.model == model).toList();
+    return _operations
+        .where(
+          (op) =>
+              op.model == model &&
+              ((_status[op.id] ?? 'pending') == 'pending' ||
+                  _status[op.id] == 'recovery_pending'),
+        )
+        .toList();
   }
 
   @override
@@ -101,20 +126,11 @@ class InMemoryQueueStore implements OfflineQueueStore {
     final index = _operations.indexWhere((op) => op.id == id);
     if (index >= 0) {
       final op = _operations[index];
-      _operations[index] = OfflineOperation(
-        id: op.id,
-        model: op.model,
-        method: op.method,
-        recordId: op.recordId,
-        values: op.values,
-        createdAt: op.createdAt,
-        baseWriteDate: op.baseWriteDate,
-        parentOrderId: op.parentOrderId,
-        priority: op.priority,
-        deviceId: op.deviceId,
+      _operations[index] = op.copyWith(
         retryCount: op.retryCount + 1,
         lastRetryAt: DateTime.now(),
         lastError: errorMessage,
+        status: OfflineOperationStatus.pending,
       );
     }
     // Igual que en el datasource real: un fallo revierte 'processing' ->
@@ -126,6 +142,16 @@ class InMemoryQueueStore implements OfflineQueueStore {
   Future<void> resetOperationRetry(int id) async {
     methodCalls.add('resetOperationRetry:$id');
     failedOperations.remove(id);
+    final index = _operations.indexWhere((op) => op.id == id);
+    if (index >= 0) {
+      _operations[index] = _operations[index].copyWith(
+        retryCount: 0,
+        status: OfflineOperationStatus.pending,
+        clearLastRetryAt: true,
+        clearNextRetryAt: true,
+        clearLastError: true,
+      );
+    }
   }
 
   @override
@@ -137,16 +163,15 @@ class InMemoryQueueStore implements OfflineQueueStore {
   @override
   Future<Map<String, dynamic>> getRetryStats() async {
     methodCalls.add('getRetryStats');
-    return {
-      'total': _operations.length,
-      'failed': failedOperations.length,
-    };
+    return {'total': _operations.length, 'failed': failedOperations.length};
   }
 
   @override
   Future<int> removeOperationsBefore(DateTime date) async {
     methodCalls.add('removeOperationsBefore');
-    final before = _operations.where((op) => op.createdAt.isBefore(date)).toList();
+    final before = _operations
+        .where((op) => op.createdAt.isBefore(date))
+        .toList();
     _operations.removeWhere((op) => op.createdAt.isBefore(date));
     return before.length;
   }
@@ -182,6 +207,37 @@ class InMemoryQueueStore implements OfflineQueueStore {
     _status[id] = 'pending';
   }
 
+  @override
+  Future<void> markOperationCompleted(int id) async {
+    methodCalls.add('markOperationCompleted:$id');
+    _status[id] = 'completed';
+  }
+
+  @override
+  Future<void> markOperationConflict(int id) async {
+    methodCalls.add('markOperationConflict:$id');
+    _status[id] = 'conflict';
+  }
+
+  @override
+  Future<void> markOperationDeadLetter(int id, String errorMessage) async {
+    methodCalls.add('markOperationDeadLetter:$id');
+    failedOperations[id] = errorMessage;
+    _status[id] = 'dead_letter';
+  }
+
+  @override
+  Future<void> replaceOperationValues(
+    int id,
+    Map<String, dynamic> values,
+  ) async {
+    methodCalls.add('replaceOperationValues:$id');
+    final index = _operations.indexWhere((op) => op.id == id);
+    if (index >= 0) {
+      _operations[index] = _operations[index].copyWith(values: values);
+    }
+  }
+
   /// Simula la recuperación de huérfanos que hace `AppDatabase.beforeOpen`
   /// en cada arranque de la app: cualquier fila que haya quedado en
   /// 'processing' (ej. porque la app crasheó a mitad de un processQueue())
@@ -189,7 +245,13 @@ class InMemoryQueueStore implements OfflineQueueStore {
   void simulateAppRestartRecovery() {
     for (final id in _status.keys.toList()) {
       if (_status[id] == 'processing') {
-        _status[id] = 'pending';
+        _status[id] = 'recovery_pending';
+        final index = _operations.indexWhere((op) => op.id == id);
+        if (index >= 0) {
+          _operations[index] = _operations[index].copyWith(
+            status: OfflineOperationStatus.recoveryPending,
+          );
+        }
       }
     }
   }
@@ -200,7 +262,7 @@ class InMemoryQueueStore implements OfflineQueueStore {
   /// Helper to add operations directly for testing
   void addOperation(OfflineOperation op) {
     _operations.add(op);
-    _status[op.id] = 'pending';
+    _status[op.id] = op.status.storageValue;
   }
 
   /// Clear all operations
@@ -216,6 +278,17 @@ class InMemoryQueueStore implements OfflineQueueStore {
 /// Mock audit logger for testing
 class MockAuditLogger implements OfflineQueueAuditLogger {
   final List<Map<String, dynamic>> logs = [];
+
+  @override
+  Future<void> logConflict(OfflineOperation op, ConflictInfo conflict) async {
+    logs.add({
+      'operationId': op.id,
+      'model': op.model,
+      'method': op.method,
+      'result': 'conflict',
+      'conflict': conflict,
+    });
+  }
 
   @override
   Future<void> logOperation(
@@ -332,8 +405,9 @@ void main() {
         expect(result.conflicts, hasLength(1));
         expect(result.conflicts.first.model, equals('res.partner'));
 
-        // Operation should NOT be removed (removeOnConflict: false)
-        expect(await store.getPendingCount(), equals(1));
+        // Evidence is retained, but held outside automatic retries.
+        expect(await store.getPendingCount(), equals(0));
+        expect(store.statusOf(1), 'conflict');
 
         processor.dispose();
       });
@@ -415,8 +489,9 @@ void main() {
 
         await processor.processQueue();
 
-        // Operation should NOT be removed
-        expect(await store.getPendingCount(), equals(1));
+        // Evidence is retained as completed, not reprocessed forever.
+        expect(await store.getPendingCount(), equals(0));
+        expect(store.statusOf(1), 'completed');
 
         processor.dispose();
       });
@@ -450,30 +525,36 @@ void main() {
 
       test('processes operations in priority order', () async {
         // Add operations in reverse priority order
-        store.addOperation(OfflineOperation(
-          id: 1,
-          model: 'low.priority',
-          method: 'write',
-          values: {},
-          createdAt: DateTime.now(),
-          priority: OfflinePriority.low,
-        ));
-        store.addOperation(OfflineOperation(
-          id: 2,
-          model: 'critical',
-          method: 'write',
-          values: {},
-          createdAt: DateTime.now(),
-          priority: OfflinePriority.critical,
-        ));
-        store.addOperation(OfflineOperation(
-          id: 3,
-          model: 'normal',
-          method: 'write',
-          values: {},
-          createdAt: DateTime.now(),
-          priority: OfflinePriority.normal,
-        ));
+        store.addOperation(
+          OfflineOperation(
+            id: 1,
+            model: 'low.priority',
+            method: 'write',
+            values: {},
+            createdAt: DateTime.now(),
+            priority: OfflinePriority.low,
+          ),
+        );
+        store.addOperation(
+          OfflineOperation(
+            id: 2,
+            model: 'critical',
+            method: 'write',
+            values: {},
+            createdAt: DateTime.now(),
+            priority: OfflinePriority.critical,
+          ),
+        );
+        store.addOperation(
+          OfflineOperation(
+            id: 3,
+            model: 'normal',
+            method: 'write',
+            values: {},
+            createdAt: DateTime.now(),
+            priority: OfflinePriority.normal,
+          ),
+        );
 
         final processedOrder = <String>[];
 
@@ -491,6 +572,217 @@ void main() {
         expect(processedOrder, equals(['critical', 'normal', 'low.priority']));
 
         processor.dispose();
+      });
+
+      test('dependency order wins over numeric priority', () async {
+        final now = DateTime.now();
+        store.addOperation(
+          OfflineOperation(
+            id: 1,
+            model: 'account.payment',
+            method: OfflineLocalCommand.paymentCreate.storageName,
+            parentOrderId: -10,
+            values: const {'payment_uuid': 'pay-1'},
+            createdAt: now,
+            priority: OfflinePriority.critical,
+          ),
+        );
+        store.addOperation(
+          OfflineOperation(
+            id: 2,
+            model: 'sale.order.line',
+            method: 'create',
+            parentOrderId: -10,
+            values: const {'uuid': 'line-1'},
+            createdAt: now,
+            priority: OfflinePriority.high,
+          ),
+        );
+        store.addOperation(
+          OfflineOperation(
+            id: 3,
+            model: 'sale.order',
+            method: 'create',
+            recordId: -10,
+            values: const {'_uuid': 'order-1'},
+            createdAt: now,
+            priority: OfflinePriority.low,
+          ),
+        );
+
+        final dispatched = <int>[];
+        final processor = OfflineQueueProcessor(
+          queue: store,
+          handler: (op) async {
+            dispatched.add(op.id);
+            return null;
+          },
+        );
+
+        await processor.processQueue();
+
+        expect(dispatched, [3, 2, 1]);
+        await processor.shutdown();
+      });
+
+      test('refetches child payload after parent rewrites local IDs', () async {
+        final now = DateTime.now();
+        store.addOperation(
+          OfflineOperation(
+            id: 1,
+            model: 'sale.order',
+            method: 'create',
+            recordId: -10,
+            values: const {'_uuid': 'order-1'},
+            createdAt: now,
+          ),
+        );
+        store.addOperation(
+          OfflineOperation(
+            id: 2,
+            model: 'sale.order.line',
+            method: 'create',
+            parentOrderId: -10,
+            values: const {'uuid': 'line-1', 'order_id': -10},
+            createdAt: now,
+          ),
+        );
+
+        int? dispatchedOrderId;
+        final processor = OfflineQueueProcessor(
+          queue: store,
+          handler: (op) async {
+            if (op.id == 1) {
+              await store.replaceOperationValues(2, const {
+                'uuid': 'line-1',
+                'order_id': 88,
+              });
+            } else {
+              dispatchedOrderId = op.values['order_id'] as int?;
+            }
+            return null;
+          },
+        );
+
+        await processor.processQueue();
+
+        expect(dispatchedOrderId, 88);
+        await processor.shutdown();
+      });
+
+      test('parent failure blocks lines and financial dependants without spending their retries', () async {
+        final now = DateTime.now();
+        final operations = [
+          OfflineOperation(
+            id: 1,
+            model: 'sale.order',
+            method: 'create',
+            recordId: -10,
+            values: const {'uuid': 'order-1', 'local_id': -10},
+            createdAt: now,
+            replayPolicy: OfflineReplayPolicy.retrySafe,
+          ),
+          OfflineOperation(
+            id: 2,
+            model: 'sale.order.line',
+            method: 'create',
+            parentOrderId: -10,
+            values: const {'uuid': 'line-1', 'order_id': -10},
+            createdAt: now,
+            replayPolicy: OfflineReplayPolicy.retrySafe,
+          ),
+          OfflineOperation(
+            id: 3,
+            model: 'sale.order',
+            method: OfflineLocalCommand.orderConfirm.storageName,
+            parentOrderId: -10,
+            values: const {'local_id': -10, 'order_uuid': 'order-1'},
+            createdAt: now,
+            replayPolicy: OfflineReplayPolicy.retrySafe,
+          ),
+          OfflineOperation(
+            id: 4,
+            model: 'account.payment',
+            method: OfflineLocalCommand.paymentCreate.storageName,
+            parentOrderId: -10,
+            values: const {'sale_id': -10, 'payment_uuid': 'payment-1'},
+            createdAt: now,
+            replayPolicy: OfflineReplayPolicy.retrySafe,
+          ),
+        ];
+        for (final operation in operations) {
+          store.addOperation(operation);
+        }
+
+        final dispatched = <int>[];
+        final processor = OfflineQueueProcessor(
+          queue: store,
+          handler: (op) async {
+            dispatched.add(op.id);
+            if (op.id == 1) throw StateError('parent failed');
+            return null;
+          },
+        );
+
+        final result = await processor.processQueue();
+
+        expect(dispatched, [1]);
+        expect(result.failed, 1);
+        expect(result.skipped, 3);
+        expect(store.statusOf(1), 'pending');
+        expect(store.statusOf(2), 'pending');
+        expect(store.statusOf(3), 'pending');
+        expect(store.statusOf(4), 'pending');
+        expect((await store.getOperationById(1))!.retryCount, 1);
+        expect((await store.getOperationById(2))!.retryCount, 0);
+        expect((await store.getOperationById(3))!.retryCount, 0);
+        expect((await store.getOperationById(4))!.retryCount, 0);
+        await processor.shutdown();
+      });
+
+      test('generic create failure blocks its action without spending the action retry', () async {
+        final now = DateTime.now();
+        store.addOperation(
+          OfflineOperation(
+            id: 1,
+            model: 'account.advance',
+            method: 'create',
+            recordId: -9,
+            values: const {'local_id': -9, 'amount': 20.0},
+            createdAt: now,
+            replayPolicy: OfflineReplayPolicy.retrySafe,
+          ),
+        );
+        store.addOperation(
+          OfflineOperation(
+            id: 2,
+            model: 'account.advance',
+            method: 'action_post',
+            recordId: -9,
+            values: const {},
+            createdAt: now,
+            replayPolicy: OfflineReplayPolicy.retrySafe,
+          ),
+        );
+        final dispatched = <int>[];
+        final processor = OfflineQueueProcessor(
+          queue: store,
+          handler: (operation) async {
+            dispatched.add(operation.id);
+            if (operation.id == 1) throw StateError('create failed');
+            return null;
+          },
+        );
+
+        final result = await processor.processQueue();
+
+        expect(dispatched, [1]);
+        expect(result.failed, 1);
+        expect(result.skipped, 1);
+        expect((await store.getOperationById(1))?.retryCount, 1);
+        expect((await store.getOperationById(2))?.retryCount, 0);
+        expect(store.statusOf(2), 'pending');
+        await processor.shutdown();
       });
 
       test('can process specific operations list', () async {
@@ -540,152 +832,208 @@ void main() {
     });
 
     group('concurrency / double-dispatch protection', () {
+      test('two concurrent processQueue() calls do not double-process the same operation', () async {
+        // Regresión del bug crítico: getPendingOperations() no filtraba
+        // por status, así que markOperationProcessing() no evitaba nada.
+        // Este test simula dos llamadas paralelas a processQueue() sobre
+        // el MISMO store (ej. dos instancias de OfflineSyncService, o
+        // ConnectivitySyncOrchestrator + WebSocket reconnection disparando
+        // sync al mismo tiempo) y verifica que cada operación se procese
+        // exactamente una vez.
+        await store.queueOperation(
+          model: 'sale.order',
+          method: 'create',
+          values: {'partner_id': 1},
+        );
+        await store.queueOperation(
+          model: 'res.partner',
+          method: 'create',
+          values: {'name': 'Cliente'},
+        );
+
+        final handlerCalls = <int>[];
+
+        final processorA = OfflineQueueProcessor(
+          queue: store,
+          handler: (op) async {
+            // Simula latencia de red: le da tiempo a la segunda llamada
+            // de tomar el snapshot de getPendingOperations() ANTES de
+            // que la primera termine y remueva la operación.
+            await Future.delayed(const Duration(milliseconds: 20));
+            handlerCalls.add(op.id);
+            return null;
+          },
+        );
+        final processorB = OfflineQueueProcessor(
+          queue: store,
+          handler: (op) async {
+            await Future.delayed(const Duration(milliseconds: 20));
+            handlerCalls.add(op.id);
+            return null;
+          },
+        );
+
+        final results = await Future.wait([
+          processorA.processQueue(),
+          processorB.processQueue(),
+        ]);
+
+        // Entre las dos llamadas, cada operación se procesó UNA sola vez.
+        expect(handlerCalls.length, equals(2));
+        expect(handlerCalls.toSet().length, equals(2));
+        expect(results.map((r) => r.synced).reduce((a, b) => a + b), equals(2));
+        expect(await store.getPendingCount(), equals(0));
+
+        processorA.dispose();
+        processorB.dispose();
+      });
+
+      test('a retry-safe failed operation returns to pending', () async {
+        final id = await store.queueOperation(
+          model: 'sale.order',
+          method: 'create',
+          values: {},
+          replayPolicy: OfflineReplayPolicy.retrySafe,
+        );
+
+        var attempts = 0;
+        final processor = OfflineQueueProcessor(
+          queue: store,
+          handler: (op) async {
+            attempts++;
+            throw Exception('Network error');
+          },
+        );
+
+        await processor.processQueue();
+
+        // Tras el fallo, la operación debe quedar 'pending' de nuevo
+        // (no 'processing' para siempre) para que el próximo ciclo la
+        // reintente cuando nextRetryAt lo permita.
+        expect(store.statusOf(id), equals('pending'));
+        expect(attempts, equals(1));
+
+        processor.dispose();
+      });
+
+      test('a kept conflict is held outside automatic retries', () async {
+        final id = await store.queueOperation(
+          model: 'res.partner',
+          method: 'write',
+          recordId: 1,
+          values: {},
+        );
+
+        final processor = OfflineQueueProcessor(
+          queue: store,
+          handler: (op) async => ConflictInfo(
+            operationId: op.id,
+            model: op.model,
+            recordId: op.recordId,
+            localWriteDate: DateTime.now(),
+            serverWriteDate: DateTime.now(),
+            localValues: {},
+          ),
+          removeOnConflict: false,
+        );
+
+        await processor.processQueue();
+
+        expect(store.statusOf(id), equals('conflict'));
+
+        processor.dispose();
+      });
+
+      test('orphaned processing operations become visible again after simulated app restart recovery', () async {
+        // Simula el escenario de crash: una operación quedó marcada
+        // 'processing' porque la app murió a mitad de un processQueue().
+        final id = await store.queueOperation(
+          model: 'sale.order',
+          method: 'create',
+          values: {},
+        );
+        await store.markOperationProcessing(id);
+
+        // Mientras está 'processing', no debe aparecer como pendiente.
+        expect(await store.getPendingOperations(), isEmpty);
+
+        // AppDatabase.beforeOpen (database.dart) hace este mismo reset en
+        // cada apertura de la BD real; acá lo simulamos para el store en
+        // memoria.
+        store.simulateAppRestartRecovery();
+
+        final pending = await store.getPendingOperations();
+        expect(pending, hasLength(1));
+        expect(pending.first.id, equals(id));
+      });
+
       test(
-        'two concurrent processQueue() calls do not double-process the same operation',
-        () async {
-          // Regresión del bug crítico: getPendingOperations() no filtraba
-          // por status, así que markOperationProcessing() no evitaba nada.
-          // Este test simula dos llamadas paralelas a processQueue() sobre
-          // el MISMO store (ej. dos instancias de OfflineSyncService, o
-          // ConnectivitySyncOrchestrator + WebSocket reconnection disparando
-          // sync al mismo tiempo) y verifica que cada operación se procese
-          // exactamente una vez.
-          await store.queueOperation(
-            model: 'sale.order',
-            method: 'create',
-            values: {'partner_id': 1},
-          );
-          await store.queueOperation(
-            model: 'res.partner',
-            method: 'create',
-            values: {'name': 'Cliente'},
-          );
-
-          final handlerCalls = <int>[];
-
-          final processorA = OfflineQueueProcessor(
-            queue: store,
-            handler: (op) async {
-              // Simula latencia de red: le da tiempo a la segunda llamada
-              // de tomar el snapshot de getPendingOperations() ANTES de
-              // que la primera termine y remueva la operación.
-              await Future.delayed(const Duration(milliseconds: 20));
-              handlerCalls.add(op.id);
-              return null;
-            },
-          );
-          final processorB = OfflineQueueProcessor(
-            queue: store,
-            handler: (op) async {
-              await Future.delayed(const Duration(milliseconds: 20));
-              handlerCalls.add(op.id);
-              return null;
-            },
-          );
-
-          final results = await Future.wait([
-            processorA.processQueue(),
-            processorB.processQueue(),
-          ]);
-
-          // Entre las dos llamadas, cada operación se procesó UNA sola vez.
-          expect(handlerCalls.length, equals(2));
-          expect(handlerCalls.toSet().length, equals(2));
-          expect(
-            results.map((r) => r.synced).reduce((a, b) => a + b),
-            equals(2),
-          );
-          expect(await store.getPendingCount(), equals(0));
-
-          processorA.dispose();
-          processorB.dispose();
-        },
-      );
-
-      test(
-        'a failed operation reverts to pending status (not stuck in processing)',
+        'recovered unsafe create is dead-lettered without dispatch',
         () async {
           final id = await store.queueOperation(
-            model: 'sale.order',
+            model: 'test.model',
             method: 'create',
-            values: {},
-          );
-
-          var attempts = 0;
-          final processor = OfflineQueueProcessor(
-            queue: store,
-            handler: (op) async {
-              attempts++;
-              throw Exception('Network error');
-            },
-          );
-
-          await processor.processQueue();
-
-          // Tras el fallo, la operación debe quedar 'pending' de nuevo
-          // (no 'processing' para siempre) para que el próximo ciclo la
-          // reintente cuando nextRetryAt lo permita.
-          expect(store.statusOf(id), equals('pending'));
-          expect(attempts, equals(1));
-
-          processor.dispose();
-        },
-      );
-
-      test(
-        'a kept conflict reverts to pending status instead of staying processing',
-        () async {
-          final id = await store.queueOperation(
-            model: 'res.partner',
-            method: 'write',
-            recordId: 1,
-            values: {},
-          );
-
-          final processor = OfflineQueueProcessor(
-            queue: store,
-            handler: (op) async => ConflictInfo(
-              operationId: op.id,
-              model: op.model,
-              recordId: op.recordId,
-              localWriteDate: DateTime.now(),
-              serverWriteDate: DateTime.now(),
-              localValues: {},
-            ),
-            removeOnConflict: false,
-          );
-
-          await processor.processQueue();
-
-          expect(store.statusOf(id), equals('pending'));
-
-          processor.dispose();
-        },
-      );
-
-      test(
-        'orphaned processing operations become visible again after simulated app restart recovery',
-        () async {
-          // Simula el escenario de crash: una operación quedó marcada
-          // 'processing' porque la app murió a mitad de un processQueue().
-          final id = await store.queueOperation(
-            model: 'sale.order',
-            method: 'create',
-            values: {},
+            values: const {},
+            replayPolicy: OfflineReplayPolicy.manualAfterAmbiguous,
           );
           await store.markOperationProcessing(id);
-
-          // Mientras está 'processing', no debe aparecer como pendiente.
-          expect(await store.getPendingOperations(), isEmpty);
-
-          // AppDatabase.beforeOpen (database.dart) hace este mismo reset en
-          // cada apertura de la BD real; acá lo simulamos para el store en
-          // memoria.
           store.simulateAppRestartRecovery();
 
-          final pending = await store.getPendingOperations();
-          expect(pending, hasLength(1));
-          expect(pending.first.id, equals(id));
+          var handlerCalls = 0;
+          final processor = OfflineQueueProcessor(
+            queue: store,
+            handler: (_) async {
+              handlerCalls++;
+              return null;
+            },
+          );
+
+          final result = await processor.processQueue();
+
+          expect(handlerCalls, 0);
+          expect(result.failed, 1);
+          expect(store.statusOf(id), 'dead_letter');
+          await processor.shutdown();
+        },
+      );
+
+      test(
+        'shutdown waits for the active writer and rejects new work',
+        () async {
+          await store.queueOperation(
+            model: 'sale.order',
+            method: 'write',
+            recordId: 7,
+            values: const {'name': 'SO7'},
+            replayPolicy: OfflineReplayPolicy.retrySafe,
+          );
+          final entered = Completer<void>();
+          final release = Completer<void>();
+          final processor = OfflineQueueProcessor(
+            queue: store,
+            handler: (_) async {
+              entered.complete();
+              await release.future;
+              return null;
+            },
+          );
+
+          final run = processor.processQueue();
+          await entered.future;
+          var shutdownFinished = false;
+          final shutdown = processor.shutdown().then((_) {
+            shutdownFinished = true;
+          });
+          await Future<void>.delayed(Duration.zero);
+          expect(shutdownFinished, isFalse);
+
+          release.complete();
+          await Future.wait([run, shutdown]);
+          expect(shutdownFinished, isTrue);
+          await expectLater(
+            processor.processQueue(),
+            throwsA(isA<StateError>()),
+          );
         },
       );
     });
@@ -765,17 +1113,16 @@ void main() {
 
         await subscription.cancel();
 
-        expect(events.any((e) => e.status == SyncOperationStatus.conflict), isTrue);
+        expect(
+          events.any((e) => e.status == SyncOperationStatus.conflict),
+          isTrue,
+        );
 
         processor.dispose();
       });
 
       test('emits failed event with error message', () async {
-        await store.queueOperation(
-          model: 'test',
-          method: 'create',
-          values: {},
-        );
+        await store.queueOperation(model: 'test', method: 'create', values: {});
 
         final processor = OfflineQueueProcessor(
           queue: store,
@@ -935,7 +1282,10 @@ void main() {
 
         expect(auditLogger.logs, hasLength(1));
         expect(auditLogger.logs.first['result'], equals('skipped'));
-        expect(auditLogger.logs.first['errorMessage'], contains('Record deleted'));
+        expect(
+          auditLogger.logs.first['errorMessage'],
+          contains('Record deleted'),
+        );
 
         processor.dispose();
       });
@@ -945,6 +1295,7 @@ void main() {
           model: 'test',
           method: 'create',
           values: {},
+          replayPolicy: OfflineReplayPolicy.retrySafe,
         );
 
         final processor = OfflineQueueProcessor(
@@ -959,7 +1310,10 @@ void main() {
 
         expect(auditLogger.logs, hasLength(1));
         expect(auditLogger.logs.first['result'], equals('error'));
-        expect(auditLogger.logs.first['errorMessage'], contains('Database error'));
+        expect(
+          auditLogger.logs.first['errorMessage'],
+          contains('Database error'),
+        );
 
         processor.dispose();
       });
@@ -967,11 +1321,7 @@ void main() {
 
     group('configuration options', () {
       test('removeOnSuccess defaults to true', () async {
-        await store.queueOperation(
-          model: 'test',
-          method: 'create',
-          values: {},
-        );
+        await store.queueOperation(model: 'test', method: 'create', values: {});
 
         final processor = OfflineQueueProcessor(
           queue: store,
@@ -986,11 +1336,7 @@ void main() {
       });
 
       test('removeOnSuccess=false keeps operations', () async {
-        await store.queueOperation(
-          model: 'test',
-          method: 'create',
-          values: {},
-        );
+        await store.queueOperation(model: 'test', method: 'create', values: {});
 
         final processor = OfflineQueueProcessor(
           queue: store,
@@ -1000,7 +1346,8 @@ void main() {
 
         await processor.processQueue();
 
-        expect(await store.getPendingCount(), equals(1));
+        expect(await store.getPendingCount(), equals(0));
+        expect(store.statusOf(1), 'completed');
 
         processor.dispose();
       });
@@ -1107,12 +1454,30 @@ void main() {
   group('RetryBackoff', () {
     test('getNextRetryDelay returns correct delays', () {
       expect(RetryBackoff.getNextRetryDelay(0), equals(Duration.zero));
-      expect(RetryBackoff.getNextRetryDelay(1), equals(const Duration(seconds: 30)));
-      expect(RetryBackoff.getNextRetryDelay(2), equals(const Duration(minutes: 2)));
-      expect(RetryBackoff.getNextRetryDelay(3), equals(const Duration(minutes: 10)));
-      expect(RetryBackoff.getNextRetryDelay(4), equals(const Duration(minutes: 30)));
-      expect(RetryBackoff.getNextRetryDelay(5), equals(const Duration(hours: 1)));
-      expect(RetryBackoff.getNextRetryDelay(10), equals(const Duration(hours: 1)));
+      expect(
+        RetryBackoff.getNextRetryDelay(1),
+        equals(const Duration(seconds: 30)),
+      );
+      expect(
+        RetryBackoff.getNextRetryDelay(2),
+        equals(const Duration(minutes: 2)),
+      );
+      expect(
+        RetryBackoff.getNextRetryDelay(3),
+        equals(const Duration(minutes: 10)),
+      );
+      expect(
+        RetryBackoff.getNextRetryDelay(4),
+        equals(const Duration(minutes: 30)),
+      );
+      expect(
+        RetryBackoff.getNextRetryDelay(5),
+        equals(const Duration(hours: 1)),
+      );
+      expect(
+        RetryBackoff.getNextRetryDelay(10),
+        equals(const Duration(hours: 1)),
+      );
     });
 
     test('shouldRetry returns correct values', () {

@@ -1,4 +1,3 @@
-import 'package:odoo_sdk/odoo_sdk.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 import 'package:theos_pos_core/theos_pos_core.dart';
 
@@ -8,9 +7,9 @@ import '../../../clients/clients.dart'
         CreditCheckType,
         clientCreditServiceProvider,
         clientRepositoryProvider,
-        clientValidationProvider,
         CreditValidationResult;
-import '../../services/credit_validation_ui_service.dart' show UnifiedCreditResult;
+import '../../services/credit_validation_ui_service.dart'
+    show UnifiedCreditResult;
 import '../sale_order_form_state.dart';
 
 /// Mixin de validación de crédito para [SaleOrderFormNotifier]
@@ -142,8 +141,8 @@ mixin SaleOrderCreditValidationMixin {
   /// - Si online: sincroniza datos frescos del partner antes de validar
   /// - Si offline: aplica margen de seguridad y verifica TTL de datos
   ///
-  /// Usa ClientCreditService del módulo clients cuando está disponible,
-  /// con fallback al CreditValidationService original.
+  /// Usa exclusivamente ClientCreditService, que es la única ruta de
+  /// validación soportada por la aplicación nueva.
   ///
   /// Retorna CreditValidationResult con el resultado de la validación.
   /// Si hay problemas de crédito, establece errorMessage en el estado.
@@ -162,8 +161,8 @@ mixin SaleOrderCreditValidationMixin {
         return await _validateCreditWithClientService(clientCreditService);
       }
 
-      // Fallback al método original si ClientCreditService no está disponible
-      return await _validateCreditLegacy();
+      logger.w('[SaleOrderForm]', 'ClientCreditService not available');
+      return null;
     } catch (e, stack) {
       logger.e('[SaleOrderForm]', 'Error validating credit', e, stack);
       // En caso de error, permitir continuar para no bloquear ventas
@@ -203,122 +202,6 @@ mixin SaleOrderCreditValidationMixin {
     }
 
     return result;
-  }
-
-  /// Método legacy de validación de crédito (fallback)
-  ///
-  /// Usa ClientRepository y ClientValidationService directamente
-  /// cuando ClientCreditService no está disponible.
-  Future<CreditValidationResult?> _validateCreditLegacy() async {
-    // 1. Obtener cliente desde ClientRepository
-    final clientRepo = ref.read(clientRepositoryProvider);
-    if (clientRepo == null) {
-      logger.w('[SaleOrderForm]', 'ClientRepository not available (legacy)');
-      return null;
-    }
-
-    Client? client = await clientRepo.getById(state.partnerId!);
-
-    if (client == null) {
-      logger.w(
-        '[SaleOrderForm]',
-        'Client ${state.partnerId} not found in local DB (legacy)',
-      );
-      return null;
-    }
-
-    // 2. Verificar si hay límite de crédito configurado
-    if (!client.hasCreditLimit) {
-      logger.d(
-        '[SaleOrderForm]',
-        'Client ${client.name} has no credit limit configured (legacy)',
-      );
-      return CreditValidationResult.noLimit();
-    }
-
-    // 3. Determinar si estamos online
-    final isOnline = clientRepo.isOnline;
-
-    // 4. Si online y datos desactualizados, sincronizar
-    if (isOnline && client.isCreditDataStale(1)) {
-      try {
-        client = await clientRepo.refreshCreditData(state.partnerId!);
-        logger.d(
-          '[SaleOrderForm]',
-          'Credit data refreshed for ${client.name} (legacy): '
-              'limit=${client.creditLimit}, '
-              'available=${client.creditAvailable}',
-        );
-      } catch (e) {
-        logger.w(
-          '[SaleOrderForm]',
-          'Failed to refresh credit data, using local (legacy): $e',
-        );
-      }
-    }
-
-    if (client == null) {
-      return null;
-    }
-
-    // 5. Calcular monto de la orden
-    final orderAmount = state.calculatedSubtotal;
-
-    // 6. Usar ClientValidationService para validar
-    final validationService = ref.read(clientValidationProvider);
-
-    final result = await validationService.validateCreditForOrder(
-      client: client,
-      orderAmount: orderAmount,
-      isOnline: isOnline,
-      bypassCheck: state.creditCheckBypassed,
-    );
-
-    // 7. Procesar resultado
-    if (!result.isValid) {
-      final errorMsg = _buildCreditErrorMessage(result, client);
-      state = state.copyWith(errorMessage: errorMsg);
-      logger.w(
-        '[SaleOrderForm]',
-        'Credit validation failed (legacy): ${result.type} - ${result.message}',
-      );
-    } else if (result.type == CreditCheckType.warning) {
-      state = state.copyWith(creditWarningMessage: result.message);
-      logger.i(
-        '[SaleOrderForm]',
-        'Credit warning (legacy): ${result.message}',
-      );
-    }
-
-    return result;
-  }
-
-  /// Construir mensaje de error detallado para problemas de crédito
-  String _buildCreditErrorMessage(
-    CreditValidationResult result,
-    Client client,
-  ) {
-    switch (result.type) {
-      case CreditCheckType.creditLimitExceeded:
-        final exceeded = result.creditExceededAmount ?? 0;
-        return 'El cliente ${client.name} ha excedido su límite de crédito '
-            'por ${exceeded.toCurrency()}. '
-            'Disponible: ${(result.creditAvailable ?? 0).toCurrency()}';
-
-      case CreditCheckType.overdueDebt:
-        return 'El cliente ${client.name} tiene deudas vencidas. '
-            '${result.message ?? "Se requiere aprobación para continuar."}';
-
-      case CreditCheckType.staleData:
-        return 'Los datos de crédito del cliente ${client.name} están '
-            'desactualizados. Conecte a internet para actualizar antes de '
-            'procesar ventas a crédito.';
-
-      case CreditCheckType.none:
-      case CreditCheckType.noLimit:
-      case CreditCheckType.warning:
-        return result.message ?? 'Problema de crédito detectado';
-    }
   }
 
   /// Bypass de verificación de crédito (después de aprobación)

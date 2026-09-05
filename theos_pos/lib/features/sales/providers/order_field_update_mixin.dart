@@ -1,7 +1,9 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/database/repositories/repository_providers.dart';
-import '../../../core/services/logger_service.dart';
+
+import 'package:odoo_sdk/odoo_sdk.dart' show logger;
+
 import '../utils/partner_utils.dart' as partner_utils;
 
 /// Mixin providing shared field update logic for order notifiers

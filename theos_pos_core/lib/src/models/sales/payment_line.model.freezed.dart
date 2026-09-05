@@ -1,6 +1,6 @@
 // GENERATED CODE - DO NOT MODIFY BY HAND
 // coverage:ignore-file
-// ignore_for_file: type=lint
+// ignore_for_file: type=lint, type=warning, deprecated_member_use, deprecated_member_use_from_same_package
 // ignore_for_file: unused_element, deprecated_member_use, deprecated_member_use_from_same_package, use_function_type_syntax_for_parameters, unnecessary_const, avoid_init_to_null, invalid_override_different_default_values_named, prefer_expression_function_bodies, annotate_overrides, invalid_annotation_target, unnecessary_question_mark
 
 part of 'payment_line.model.dart';
@@ -9,29 +9,14 @@ part of 'payment_line.model.dart';
 // FreezedGenerator
 // **************************************************************************
 
+// GENERATED CODE - DO NOT MODIFY BY HAND
 // dart format off
 T _$identity<T>(T value) => value;
 
 /// @nodoc
 mixin _$PaymentLine {
 
-// ============ Identifiers ============
-@OdooId() int get id;@OdooLocalOnly() String? get lineUuid;@OdooLocalOnly() String? get uuid;@OdooLocalOnly() bool get isSynced;// ============ Core Fields ============
-@OdooLocalOnly() PaymentLineType get type;@OdooDate() DateTime get date;@OdooFloat() double get amount;@OdooString(odooName: 'payment_reference') String? get reference;// ============ Order Reference ============
-@OdooLocalOnly() int? get orderId;@OdooSelection() String get state;// ============ Payment Journal ============
-@OdooMany2One('account.journal', odooName: 'journal_id') int? get journalId;@OdooMany2OneName(sourceField: 'journal_id') String? get journalName;@OdooLocalOnly() String? get journalType;@OdooLocalOnly() int? get paymentMethodId;@OdooMany2One('account.payment.method.line', odooName: 'payment_method_line_id') int? get paymentMethodLineId;@OdooLocalOnly() String? get paymentMethodCode;@OdooLocalOnly() String? get paymentMethodName;// ============ Card Fields ============
-// bank_id (Many2one res.bank) existia en el modelo real
-// (l10n_ec_collection_box.sale.order.payment) en versiones anteriores,
-// pero fue reemplazado por bank_name_ec (Char) — ver
-// working/l10n_ec_collection_box/models/sale_order_payment.py. Se marca
-// @OdooLocalOnly para que el generador NO lo incluya en el payload de
-// toOdoo(): el campo correcto (bank_id o bank_name_ec) se resuelve segun
-// version del servidor en PaymentService antes de enviarlo (mismo patron
-// que sales_repository_sync.dart usa en lectura).
-@OdooLocalOnly() int? get bankId;@OdooLocalOnly() String? get bankName;@OdooLocalOnly() CardType? get cardType;@OdooMany2One('account.card.brand', odooName: 'card_brand_id') int? get cardBrandId;@OdooMany2OneName(sourceField: 'card_brand_id') String? get cardBrandName;@OdooMany2One('account.card.deadline', odooName: 'card_deadline_id') int? get cardDeadlineId;@OdooMany2OneName(sourceField: 'card_deadline_id') String? get cardDeadlineName;@OdooMany2One('account.card.lote', odooName: 'lote_id') int? get loteId;@OdooMany2OneName(sourceField: 'lote_id') String? get loteName;@OdooDate(odooName: 'bank_reference_date') DateTime? get voucherDate;// ============ Check Fields ============
-@OdooMany2One('res.partner.bank', odooName: 'partner_bank_id') int? get partnerBankId;@OdooMany2OneName(sourceField: 'partner_bank_id') String? get partnerBankName;@OdooDate(odooName: 'effective_date') DateTime? get effectiveDate;// ============ Advance Fields ============
-@OdooMany2One('account.payment', odooName: 'advance_id') int? get advanceId;@OdooMany2OneName(sourceField: 'advance_id') String? get advanceName;@OdooLocalOnly() double? get advanceAvailable;// ============ Credit Note Fields ============
-@OdooMany2One('account.move', odooName: 'credit_note_id') int? get creditNoteId;@OdooMany2OneName(sourceField: 'credit_note_id') String? get creditNoteName;@OdooLocalOnly() double? get creditNoteAvailable;
+@OdooId() int get id;@OdooLocalOnly() String? get lineUuid;@OdooLocalOnly() String? get uuid;@OdooLocalOnly() bool get isSynced;@OdooLocalOnly() PaymentLineType get type;@OdooDate() DateTime get date;@OdooFloat() double get amount;@OdooString(odooName: 'payment_reference') String? get reference;@OdooLocalOnly() int? get orderId;@OdooSelection() String get state;@OdooMany2One('account.journal', odooName: 'journal_id') int? get journalId;@OdooMany2OneName(sourceField: 'journal_id') String? get journalName;@OdooLocalOnly() String? get journalType;@OdooLocalOnly() int? get paymentMethodId;@OdooMany2One('account.payment.method.line', odooName: 'payment_method_line_id') int? get paymentMethodLineId;@OdooLocalOnly() String? get paymentMethodCode;@OdooLocalOnly() String? get paymentMethodName;@OdooLocalOnly() int? get bankId;@OdooLocalOnly() String? get bankName;@OdooLocalOnly() CardType? get cardType;@OdooMany2One('account.card.brand', odooName: 'card_brand_id') int? get cardBrandId;@OdooMany2OneName(sourceField: 'card_brand_id') String? get cardBrandName;@OdooMany2One('account.card.deadline', odooName: 'card_deadline_id') int? get cardDeadlineId;@OdooMany2OneName(sourceField: 'card_deadline_id') String? get cardDeadlineName;@OdooMany2One('account.card.lote', odooName: 'lote_id') int? get loteId;@OdooMany2OneName(sourceField: 'lote_id') String? get loteName;@OdooDate(odooName: 'bank_reference_date') DateTime? get voucherDate;@OdooMany2One('res.partner.bank', odooName: 'partner_bank_id') int? get partnerBankId;@OdooMany2OneName(sourceField: 'partner_bank_id') String? get partnerBankName;@OdooDate(odooName: 'effective_date') DateTime? get effectiveDate;@OdooMany2One('account.payment', odooName: 'advance_id') int? get advanceId;@OdooMany2OneName(sourceField: 'advance_id') String? get advanceName;@OdooLocalOnly() double? get advanceAvailable;@OdooMany2One('account.move', odooName: 'credit_note_id') int? get creditNoteId;@OdooMany2OneName(sourceField: 'credit_note_id') String? get creditNoteName;@OdooLocalOnly() double? get creditNoteAvailable;
 /// Create a copy of PaymentLine
 /// with the given fields replaced by the non-null parameter values.
 @JsonKey(includeFromJson: false, includeToJson: false)
@@ -82,7 +67,7 @@ class _$PaymentLineCopyWithImpl<$Res>
 /// Create a copy of PaymentLine
 /// with the given fields replaced by the non-null parameter values.
 @pragma('vm:prefer-inline') @override $Res call({Object? id = null,Object? lineUuid = freezed,Object? uuid = freezed,Object? isSynced = null,Object? type = null,Object? date = null,Object? amount = null,Object? reference = freezed,Object? orderId = freezed,Object? state = null,Object? journalId = freezed,Object? journalName = freezed,Object? journalType = freezed,Object? paymentMethodId = freezed,Object? paymentMethodLineId = freezed,Object? paymentMethodCode = freezed,Object? paymentMethodName = freezed,Object? bankId = freezed,Object? bankName = freezed,Object? cardType = freezed,Object? cardBrandId = freezed,Object? cardBrandName = freezed,Object? cardDeadlineId = freezed,Object? cardDeadlineName = freezed,Object? loteId = freezed,Object? loteName = freezed,Object? voucherDate = freezed,Object? partnerBankId = freezed,Object? partnerBankName = freezed,Object? effectiveDate = freezed,Object? advanceId = freezed,Object? advanceName = freezed,Object? advanceAvailable = freezed,Object? creditNoteId = freezed,Object? creditNoteName = freezed,Object? creditNoteAvailable = freezed,}) {
-  return _then(_self.copyWith(
+  return _then(PaymentLine(
 id: null == id ? _self.id : id // ignore: cast_nullable_to_non_nullable
 as int,lineUuid: freezed == lineUuid ? _self.lineUuid : lineUuid // ignore: cast_nullable_to_non_nullable
 as String?,uuid: freezed == uuid ? _self.uuid : uuid // ignore: cast_nullable_to_non_nullable
@@ -263,20 +248,16 @@ class _PaymentLine extends PaymentLine {
   const _PaymentLine({@OdooId() this.id = 0, @OdooLocalOnly() this.lineUuid, @OdooLocalOnly() this.uuid, @OdooLocalOnly() this.isSynced = false, @OdooLocalOnly() required this.type, @OdooDate() required this.date, @OdooFloat() required this.amount, @OdooString(odooName: 'payment_reference') this.reference, @OdooLocalOnly() this.orderId, @OdooSelection() this.state = 'draft', @OdooMany2One('account.journal', odooName: 'journal_id') this.journalId, @OdooMany2OneName(sourceField: 'journal_id') this.journalName, @OdooLocalOnly() this.journalType, @OdooLocalOnly() this.paymentMethodId, @OdooMany2One('account.payment.method.line', odooName: 'payment_method_line_id') this.paymentMethodLineId, @OdooLocalOnly() this.paymentMethodCode, @OdooLocalOnly() this.paymentMethodName, @OdooLocalOnly() this.bankId, @OdooLocalOnly() this.bankName, @OdooLocalOnly() this.cardType, @OdooMany2One('account.card.brand', odooName: 'card_brand_id') this.cardBrandId, @OdooMany2OneName(sourceField: 'card_brand_id') this.cardBrandName, @OdooMany2One('account.card.deadline', odooName: 'card_deadline_id') this.cardDeadlineId, @OdooMany2OneName(sourceField: 'card_deadline_id') this.cardDeadlineName, @OdooMany2One('account.card.lote', odooName: 'lote_id') this.loteId, @OdooMany2OneName(sourceField: 'lote_id') this.loteName, @OdooDate(odooName: 'bank_reference_date') this.voucherDate, @OdooMany2One('res.partner.bank', odooName: 'partner_bank_id') this.partnerBankId, @OdooMany2OneName(sourceField: 'partner_bank_id') this.partnerBankName, @OdooDate(odooName: 'effective_date') this.effectiveDate, @OdooMany2One('account.payment', odooName: 'advance_id') this.advanceId, @OdooMany2OneName(sourceField: 'advance_id') this.advanceName, @OdooLocalOnly() this.advanceAvailable, @OdooMany2One('account.move', odooName: 'credit_note_id') this.creditNoteId, @OdooMany2OneName(sourceField: 'credit_note_id') this.creditNoteName, @OdooLocalOnly() this.creditNoteAvailable}): super._();
   factory _PaymentLine.fromJson(Map<String, dynamic> json) => _$PaymentLineFromJson(json);
 
-// ============ Identifiers ============
 @override@JsonKey()@OdooId() final  int id;
 @override@OdooLocalOnly() final  String? lineUuid;
 @override@OdooLocalOnly() final  String? uuid;
 @override@JsonKey()@OdooLocalOnly() final  bool isSynced;
-// ============ Core Fields ============
 @override@OdooLocalOnly() final  PaymentLineType type;
 @override@OdooDate() final  DateTime date;
 @override@OdooFloat() final  double amount;
 @override@OdooString(odooName: 'payment_reference') final  String? reference;
-// ============ Order Reference ============
 @override@OdooLocalOnly() final  int? orderId;
 @override@JsonKey()@OdooSelection() final  String state;
-// ============ Payment Journal ============
 @override@OdooMany2One('account.journal', odooName: 'journal_id') final  int? journalId;
 @override@OdooMany2OneName(sourceField: 'journal_id') final  String? journalName;
 @override@OdooLocalOnly() final  String? journalType;
@@ -284,15 +265,6 @@ class _PaymentLine extends PaymentLine {
 @override@OdooMany2One('account.payment.method.line', odooName: 'payment_method_line_id') final  int? paymentMethodLineId;
 @override@OdooLocalOnly() final  String? paymentMethodCode;
 @override@OdooLocalOnly() final  String? paymentMethodName;
-// ============ Card Fields ============
-// bank_id (Many2one res.bank) existia en el modelo real
-// (l10n_ec_collection_box.sale.order.payment) en versiones anteriores,
-// pero fue reemplazado por bank_name_ec (Char) — ver
-// working/l10n_ec_collection_box/models/sale_order_payment.py. Se marca
-// @OdooLocalOnly para que el generador NO lo incluya en el payload de
-// toOdoo(): el campo correcto (bank_id o bank_name_ec) se resuelve segun
-// version del servidor en PaymentService antes de enviarlo (mismo patron
-// que sales_repository_sync.dart usa en lectura).
 @override@OdooLocalOnly() final  int? bankId;
 @override@OdooLocalOnly() final  String? bankName;
 @override@OdooLocalOnly() final  CardType? cardType;
@@ -303,15 +275,12 @@ class _PaymentLine extends PaymentLine {
 @override@OdooMany2One('account.card.lote', odooName: 'lote_id') final  int? loteId;
 @override@OdooMany2OneName(sourceField: 'lote_id') final  String? loteName;
 @override@OdooDate(odooName: 'bank_reference_date') final  DateTime? voucherDate;
-// ============ Check Fields ============
 @override@OdooMany2One('res.partner.bank', odooName: 'partner_bank_id') final  int? partnerBankId;
 @override@OdooMany2OneName(sourceField: 'partner_bank_id') final  String? partnerBankName;
 @override@OdooDate(odooName: 'effective_date') final  DateTime? effectiveDate;
-// ============ Advance Fields ============
 @override@OdooMany2One('account.payment', odooName: 'advance_id') final  int? advanceId;
 @override@OdooMany2OneName(sourceField: 'advance_id') final  String? advanceName;
 @override@OdooLocalOnly() final  double? advanceAvailable;
-// ============ Credit Note Fields ============
 @override@OdooMany2One('account.move', odooName: 'credit_note_id') final  int? creditNoteId;
 @override@OdooMany2OneName(sourceField: 'credit_note_id') final  String? creditNoteName;
 @override@OdooLocalOnly() final  double? creditNoteAvailable;
@@ -466,7 +435,7 @@ class _$AvailableJournalCopyWithImpl<$Res>
 /// Create a copy of AvailableJournal
 /// with the given fields replaced by the non-null parameter values.
 @pragma('vm:prefer-inline') @override $Res call({Object? id = null,Object? name = null,Object? type = null,Object? isCardJournal = null,Object? paymentMethods = null,Object? cardBrandIds = null,Object? defaultCardBrandId = freezed,Object? deadlineCreditIds = null,Object? deadlineDebitIds = null,Object? defaultDeadlineCreditId = freezed,Object? defaultDeadlineDebitId = freezed,}) {
-  return _then(_self.copyWith(
+  return _then(AvailableJournal(
 id: null == id ? _self.id : id // ignore: cast_nullable_to_non_nullable
 as int,name: null == name ? _self.name : name // ignore: cast_nullable_to_non_nullable
 as String,type: null == type ? _self.type : type // ignore: cast_nullable_to_non_nullable
@@ -619,7 +588,7 @@ return $default(_that.id,_that.name,_that.type,_that.isCardJournal,_that.payment
 @JsonSerializable()
 
 class _AvailableJournal extends AvailableJournal {
-  const _AvailableJournal({required this.id, required this.name, required this.type, this.isCardJournal = false, final  List<PaymentMethod> paymentMethods = const [], final  List<int> cardBrandIds = const [], this.defaultCardBrandId, final  List<int> deadlineCreditIds = const [], final  List<int> deadlineDebitIds = const [], this.defaultDeadlineCreditId, this.defaultDeadlineDebitId}): _paymentMethods = paymentMethods,_cardBrandIds = cardBrandIds,_deadlineCreditIds = deadlineCreditIds,_deadlineDebitIds = deadlineDebitIds,super._();
+  const _AvailableJournal({required this.id, required this.name, required this.type, this.isCardJournal = false,  List<PaymentMethod> paymentMethods = const [],  List<int> cardBrandIds = const [], this.defaultCardBrandId,  List<int> deadlineCreditIds = const [],  List<int> deadlineDebitIds = const [], this.defaultDeadlineCreditId, this.defaultDeadlineDebitId}): _paymentMethods = paymentMethods,_cardBrandIds = cardBrandIds,_deadlineCreditIds = deadlineCreditIds,_deadlineDebitIds = deadlineDebitIds,super._();
   factory _AvailableJournal.fromJson(Map<String, dynamic> json) => _$AvailableJournalFromJson(json);
 
 @override final  int id;
@@ -783,7 +752,7 @@ class _$PaymentMethodCopyWithImpl<$Res>
 /// Create a copy of PaymentMethod
 /// with the given fields replaced by the non-null parameter values.
 @pragma('vm:prefer-inline') @override $Res call({Object? id = null,Object? name = null,Object? spanishName = freezed,Object? code = null,}) {
-  return _then(_self.copyWith(
+  return _then(PaymentMethod(
 id: null == id ? _self.id : id // ignore: cast_nullable_to_non_nullable
 as int,name: null == name ? _self.name : name // ignore: cast_nullable_to_non_nullable
 as String,spanishName: freezed == spanishName ? _self.spanishName : spanishName // ignore: cast_nullable_to_non_nullable
@@ -1055,7 +1024,7 @@ class _$AvailableAdvanceCopyWithImpl<$Res>
 /// Create a copy of AvailableAdvance
 /// with the given fields replaced by the non-null parameter values.
 @pragma('vm:prefer-inline') @override $Res call({Object? id = null,Object? name = null,Object? amountAvailable = null,Object? date = null,Object? reference = freezed,}) {
-  return _then(_self.copyWith(
+  return _then(AvailableAdvance(
 id: null == id ? _self.id : id // ignore: cast_nullable_to_non_nullable
 as int,name: null == name ? _self.name : name // ignore: cast_nullable_to_non_nullable
 as String,amountAvailable: null == amountAvailable ? _self.amountAvailable : amountAvailable // ignore: cast_nullable_to_non_nullable
@@ -1330,7 +1299,7 @@ class _$AvailableCreditNoteCopyWithImpl<$Res>
 /// Create a copy of AvailableCreditNote
 /// with the given fields replaced by the non-null parameter values.
 @pragma('vm:prefer-inline') @override $Res call({Object? id = null,Object? name = null,Object? amountResidual = null,Object? invoiceDate = freezed,Object? ref = freezed,}) {
-  return _then(_self.copyWith(
+  return _then(AvailableCreditNote(
 id: null == id ? _self.id : id // ignore: cast_nullable_to_non_nullable
 as int,name: null == name ? _self.name : name // ignore: cast_nullable_to_non_nullable
 as String,amountResidual: null == amountResidual ? _self.amountResidual : amountResidual // ignore: cast_nullable_to_non_nullable
@@ -1605,7 +1574,7 @@ class _$AvailableBankCopyWithImpl<$Res>
 /// Create a copy of AvailableBank
 /// with the given fields replaced by the non-null parameter values.
 @pragma('vm:prefer-inline') @override $Res call({Object? id = null,Object? name = null,}) {
-  return _then(_self.copyWith(
+  return _then(AvailableBank(
 id: null == id ? _self.id : id // ignore: cast_nullable_to_non_nullable
 as int,name: null == name ? _self.name : name // ignore: cast_nullable_to_non_nullable
 as String,
@@ -1871,7 +1840,7 @@ class _$CardBrandCopyWithImpl<$Res>
 /// Create a copy of CardBrand
 /// with the given fields replaced by the non-null parameter values.
 @pragma('vm:prefer-inline') @override $Res call({Object? id = null,Object? name = null,}) {
-  return _then(_self.copyWith(
+  return _then(CardBrand(
 id: null == id ? _self.id : id // ignore: cast_nullable_to_non_nullable
 as int,name: null == name ? _self.name : name // ignore: cast_nullable_to_non_nullable
 as String,
@@ -2137,7 +2106,7 @@ class _$CardDeadlineCopyWithImpl<$Res>
 /// Create a copy of CardDeadline
 /// with the given fields replaced by the non-null parameter values.
 @pragma('vm:prefer-inline') @override $Res call({Object? id = null,Object? name = null,Object? deadlineDays = null,Object? percentage = null,}) {
-  return _then(_self.copyWith(
+  return _then(CardDeadline(
 id: null == id ? _self.id : id // ignore: cast_nullable_to_non_nullable
 as int,name: null == name ? _self.name : name // ignore: cast_nullable_to_non_nullable
 as String,deadlineDays: null == deadlineDays ? _self.deadlineDays : deadlineDays // ignore: cast_nullable_to_non_nullable
@@ -2358,11 +2327,7 @@ as double,
 /// @nodoc
 mixin _$CardLote {
 
-// ============ Identifiers ============
-@OdooId() int get id;@OdooLocalOnly() int? get localId;@OdooLocalOnly() String? get loteUuid;// ============ Basic Data ============
-@OdooString() String get name;@OdooMany2One('account.journal', odooName: 'journal_id') int get journalId;@OdooMany2OneName(sourceField: 'journal_id') String? get journalName;@OdooSelection() String get state;@OdooDate() DateTime? get date;@OdooString(odooName: 'numero_lote') String? get numeroLote;// ============ Amounts ============
-@OdooFloat(odooName: 'amount_total') double get amountTotal;@OdooFloat(odooName: 'amount_balance') double get amountBalance;@OdooInteger(odooName: 'payment_count') int get paymentCount;// ============ Flags ============
-@OdooBoolean(odooName: 'is_pos_lote') bool get isPosLote;
+@OdooId() int get id;@OdooLocalOnly() int? get localId;@OdooLocalOnly() String? get loteUuid;@OdooString() String get name;@OdooMany2One('account.journal', odooName: 'journal_id') int get journalId;@OdooMany2OneName(sourceField: 'journal_id') String? get journalName;@OdooSelection() String get state;@OdooDate() DateTime? get date;@OdooString(odooName: 'numero_lote') String? get numeroLote;@OdooFloat(odooName: 'amount_total') double get amountTotal;@OdooFloat(odooName: 'amount_balance') double get amountBalance;@OdooInteger(odooName: 'payment_count') int get paymentCount;@OdooBoolean(odooName: 'is_pos_lote') bool get isPosLote;
 /// Create a copy of CardLote
 /// with the given fields replaced by the non-null parameter values.
 @JsonKey(includeFromJson: false, includeToJson: false)
@@ -2413,7 +2378,7 @@ class _$CardLoteCopyWithImpl<$Res>
 /// Create a copy of CardLote
 /// with the given fields replaced by the non-null parameter values.
 @pragma('vm:prefer-inline') @override $Res call({Object? id = null,Object? localId = freezed,Object? loteUuid = freezed,Object? name = null,Object? journalId = null,Object? journalName = freezed,Object? state = null,Object? date = freezed,Object? numeroLote = freezed,Object? amountTotal = null,Object? amountBalance = null,Object? paymentCount = null,Object? isPosLote = null,}) {
-  return _then(_self.copyWith(
+  return _then(CardLote(
 id: null == id ? _self.id : id // ignore: cast_nullable_to_non_nullable
 as int,localId: freezed == localId ? _self.localId : localId // ignore: cast_nullable_to_non_nullable
 as int?,loteUuid: freezed == loteUuid ? _self.loteUuid : loteUuid // ignore: cast_nullable_to_non_nullable
@@ -2571,22 +2536,18 @@ class _CardLote extends CardLote {
   const _CardLote({@OdooId() this.id = 0, @OdooLocalOnly() this.localId, @OdooLocalOnly() this.loteUuid, @OdooString() required this.name, @OdooMany2One('account.journal', odooName: 'journal_id') required this.journalId, @OdooMany2OneName(sourceField: 'journal_id') this.journalName, @OdooSelection() this.state = 'open', @OdooDate() this.date, @OdooString(odooName: 'numero_lote') this.numeroLote, @OdooFloat(odooName: 'amount_total') this.amountTotal = 0, @OdooFloat(odooName: 'amount_balance') this.amountBalance = 0, @OdooInteger(odooName: 'payment_count') this.paymentCount = 0, @OdooBoolean(odooName: 'is_pos_lote') this.isPosLote = false}): super._();
   factory _CardLote.fromJson(Map<String, dynamic> json) => _$CardLoteFromJson(json);
 
-// ============ Identifiers ============
 @override@JsonKey()@OdooId() final  int id;
 @override@OdooLocalOnly() final  int? localId;
 @override@OdooLocalOnly() final  String? loteUuid;
-// ============ Basic Data ============
 @override@OdooString() final  String name;
 @override@OdooMany2One('account.journal', odooName: 'journal_id') final  int journalId;
 @override@OdooMany2OneName(sourceField: 'journal_id') final  String? journalName;
 @override@JsonKey()@OdooSelection() final  String state;
 @override@OdooDate() final  DateTime? date;
 @override@OdooString(odooName: 'numero_lote') final  String? numeroLote;
-// ============ Amounts ============
 @override@JsonKey()@OdooFloat(odooName: 'amount_total') final  double amountTotal;
 @override@JsonKey()@OdooFloat(odooName: 'amount_balance') final  double amountBalance;
 @override@JsonKey()@OdooInteger(odooName: 'payment_count') final  int paymentCount;
-// ============ Flags ============
 @override@JsonKey()@OdooBoolean(odooName: 'is_pos_lote') final  bool isPosLote;
 
 /// Create a copy of CardLote

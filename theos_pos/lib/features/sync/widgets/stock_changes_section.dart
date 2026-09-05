@@ -18,6 +18,30 @@ class StockChangesSection extends ConsumerWidget {
     final stockChangesAsync = ref.watch(pendingStockChangesCountProvider);
     final theme = FluentTheme.of(context);
 
+    final loadError =
+        priceChangesAsync.whenOrNull<Object?>(error: (error, _) => error) ??
+        stockChangesAsync.whenOrNull<Object?>(error: (error, _) => error);
+    if (loadError != null) {
+      return Card(
+        child: Row(
+          children: [
+            Icon(FluentIcons.error_badge, color: Colors.orange),
+            const SizedBox(width: 8),
+            const Expanded(
+              child: Text('No se pudieron consultar los cambios de inventario'),
+            ),
+            Button(
+              onPressed: () {
+                ref.invalidate(pendingPriceChangesCountProvider);
+                ref.invalidate(pendingStockChangesCountProvider);
+              },
+              child: const Text('Reintentar'),
+            ),
+          ],
+        ),
+      );
+    }
+
     final priceCount = priceChangesAsync.when(
       data: (count) => count,
       loading: () => 0,
@@ -51,10 +75,7 @@ class StockChangesSection extends ConsumerWidget {
                   : theme.resources.textFillColorSecondary,
             ),
             const SizedBox(width: 8),
-            Text(
-              'Cambios Detectados',
-              style: theme.typography.subtitle,
-            ),
+            Text('Cambios Detectados', style: theme.typography.subtitle),
             const SizedBox(width: 8),
             if (priceChangesAsync.isLoading || stockChangesAsync.isLoading)
               const SizedBox(
@@ -117,11 +138,7 @@ class StockChangesSection extends ConsumerWidget {
               padding: const EdgeInsets.all(16),
               child: Column(
                 children: [
-                  Icon(
-                    FluentIcons.completed,
-                    size: 32,
-                    color: Colors.green,
-                  ),
+                  Icon(FluentIcons.completed, size: 32, color: Colors.green),
                   const SizedBox(height: 8),
                   Text(
                     'Sin cambios pendientes',
@@ -168,12 +185,7 @@ class _ChangeChip extends StatelessWidget {
         children: [
           Icon(icon, size: 16, color: color),
           const SizedBox(width: 8),
-          Text(
-            label,
-            style: theme.typography.body?.copyWith(
-              color: color,
-            ),
-          ),
+          Text(label, style: theme.typography.body?.copyWith(color: color)),
           const SizedBox(width: 8),
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),

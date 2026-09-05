@@ -171,7 +171,10 @@ void main() {
         ));
         await tester.pumpAndSettle();
 
-        expect(find.byType(RadioButton), findsNWidgets(testOptions.length));
+        expect(
+          find.byWidgetPredicate((widget) => widget is RadioButton),
+          findsNWidgets(testOptions.length),
+        );
         expect(find.text('Draft'), findsOneWidget);
         expect(find.text('Confirmed'), findsOneWidget);
         expect(find.text('Done'), findsOneWidget);

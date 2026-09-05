@@ -1,6 +1,6 @@
 // GENERATED CODE - DO NOT MODIFY BY HAND
 // coverage:ignore-file
-// ignore_for_file: type=lint
+// ignore_for_file: type=lint, type=warning, deprecated_member_use, deprecated_member_use_from_same_package
 // ignore_for_file: unused_element, deprecated_member_use, deprecated_member_use_from_same_package, use_function_type_syntax_for_parameters, unnecessary_const, avoid_init_to_null, invalid_override_different_default_values_named, prefer_expression_function_bodies, annotate_overrides, invalid_annotation_target, unnecessary_question_mark
 
 part of 'account_move.model.dart';
@@ -9,25 +9,14 @@ part of 'account_move.model.dart';
 // FreezedGenerator
 // **************************************************************************
 
+// GENERATED CODE - DO NOT MODIFY BY HAND
 // dart format off
 T _$identity<T>(T value) => value;
 
 /// @nodoc
 mixin _$AccountMove {
 
-// ============ Identifiers ============
-@OdooId() int get id;// ============ Basic Data ============
-@OdooString() String get name;@OdooSelection(odooName: 'move_type') String get moveType;// ============ Ecuador SRI Fields ============
-@OdooString(odooName: 'l10n_ec_authorization_number') String? get l10nEcAuthorizationNumber;@OdooDateTime(odooName: 'l10n_ec_authorization_date') DateTime? get l10nEcAuthorizationDate;@OdooString(odooName: 'l10n_latam_document_number') String? get l10nLatamDocumentNumber;@OdooMany2One('l10n_latam.document.type', odooName: 'l10n_latam_document_type_id') int? get l10nLatamDocumentTypeId;@OdooMany2OneName(sourceField: 'l10n_latam_document_type_id') String? get l10nLatamDocumentTypeName;@OdooMany2One('l10n.ec.sri.payment', odooName: 'l10n_ec_sri_payment_id') int? get l10nEcSriPaymentId;@OdooMany2OneName(sourceField: 'l10n_ec_sri_payment_id') String? get l10nEcSriPaymentName;// ============ State ============
-@OdooSelection() String get state;@OdooSelection(odooName: 'payment_state') String? get paymentState;// ============ Dates ============
-@OdooDate(odooName: 'invoice_date') DateTime? get invoiceDate;@OdooDate(odooName: 'invoice_date_due') DateTime? get invoiceDateDue;@OdooDate() DateTime? get date;// ============ Partner ============
-@OdooMany2One('res.partner', odooName: 'partner_id') int? get partnerId;@OdooMany2OneName(sourceField: 'partner_id') String? get partnerName;@OdooLocalOnly() String? get partnerVat;@OdooLocalOnly() String? get partnerStreet;@OdooLocalOnly() String? get partnerCity;@OdooLocalOnly() String? get partnerPhone;@OdooLocalOnly() String? get partnerEmail;// ============ Journal ============
-@OdooMany2One('account.journal', odooName: 'journal_id') int? get journalId;@OdooMany2OneName(sourceField: 'journal_id') String? get journalName;// ============ Amounts ============
-@OdooFloat(odooName: 'amount_untaxed') double get amountUntaxed;@OdooFloat(odooName: 'amount_tax') double get amountTax;@OdooFloat(odooName: 'amount_total') double get amountTotal;@OdooFloat(odooName: 'amount_residual') double get amountResidual;// ============ Company and Currency ============
-@OdooMany2One('res.company', odooName: 'company_id') int? get companyId;@OdooMany2One('res.currency', odooName: 'currency_id') int? get currencyId;@OdooMany2OneName(sourceField: 'currency_id') String? get currencySymbol;// ============ Origin and Reference ============
-@OdooString(odooName: 'invoice_origin') String? get invoiceOrigin;@OdooString() String? get ref;@OdooLocalOnly() int? get saleOrderId;// ============ Invoice Lines ============
-@OdooLocalOnly() List<AccountMoveLine> get lines;// ============ Sync ============
-@OdooDateTime(odooName: 'write_date', writable: false) DateTime? get writeDate;@OdooLocalOnly() DateTime? get lastSyncDate;
+@OdooId() int get id;@OdooString() String get name;@OdooSelection(odooName: 'move_type') String get moveType;@OdooString(odooName: 'l10n_ec_authorization_number') String? get l10nEcAuthorizationNumber;@OdooDateTime(odooName: 'l10n_ec_authorization_date') DateTime? get l10nEcAuthorizationDate;@OdooString(odooName: 'l10n_latam_document_number') String? get l10nLatamDocumentNumber;@OdooMany2One('l10n_latam.document.type', odooName: 'l10n_latam_document_type_id') int? get l10nLatamDocumentTypeId;@OdooMany2OneName(sourceField: 'l10n_latam_document_type_id') String? get l10nLatamDocumentTypeName;@OdooMany2One('l10n.ec.sri.payment', odooName: 'l10n_ec_sri_payment_id') int? get l10nEcSriPaymentId;@OdooMany2OneName(sourceField: 'l10n_ec_sri_payment_id') String? get l10nEcSriPaymentName;@OdooSelection() String get state;@OdooSelection(odooName: 'payment_state') String? get paymentState;@OdooDate(odooName: 'invoice_date') DateTime? get invoiceDate;@OdooDate(odooName: 'invoice_date_due') DateTime? get invoiceDateDue;@OdooDate() DateTime? get date;@OdooMany2One('res.partner', odooName: 'partner_id') int? get partnerId;@OdooMany2OneName(sourceField: 'partner_id') String? get partnerName;@OdooLocalOnly() String? get partnerVat;@OdooLocalOnly() String? get partnerStreet;@OdooLocalOnly() String? get partnerCity;@OdooLocalOnly() String? get partnerPhone;@OdooLocalOnly() String? get partnerEmail;@OdooMany2One('account.journal', odooName: 'journal_id') int? get journalId;@OdooMany2OneName(sourceField: 'journal_id') String? get journalName;@OdooFloat(odooName: 'amount_untaxed') double get amountUntaxed;@OdooFloat(odooName: 'amount_tax') double get amountTax;@OdooFloat(odooName: 'amount_total') double get amountTotal;@OdooFloat(odooName: 'amount_residual') double get amountResidual;@OdooMany2One('res.company', odooName: 'company_id') int? get companyId;@OdooMany2One('res.currency', odooName: 'currency_id') int? get currencyId;@OdooMany2OneName(sourceField: 'currency_id') String? get currencySymbol;@OdooString(odooName: 'invoice_origin') String? get invoiceOrigin;@OdooString() String? get ref;@OdooLocalOnly() int? get saleOrderId;@OdooLocalOnly() List<AccountMoveLine> get lines;@OdooDateTime(odooName: 'write_date', writable: false) DateTime? get writeDate;@OdooLocalOnly() DateTime? get lastSyncDate;
 /// Create a copy of AccountMove
 /// with the given fields replaced by the non-null parameter values.
 @JsonKey(includeFromJson: false, includeToJson: false)
@@ -78,7 +67,7 @@ class _$AccountMoveCopyWithImpl<$Res>
 /// Create a copy of AccountMove
 /// with the given fields replaced by the non-null parameter values.
 @pragma('vm:prefer-inline') @override $Res call({Object? id = null,Object? name = null,Object? moveType = null,Object? l10nEcAuthorizationNumber = freezed,Object? l10nEcAuthorizationDate = freezed,Object? l10nLatamDocumentNumber = freezed,Object? l10nLatamDocumentTypeId = freezed,Object? l10nLatamDocumentTypeName = freezed,Object? l10nEcSriPaymentId = freezed,Object? l10nEcSriPaymentName = freezed,Object? state = null,Object? paymentState = freezed,Object? invoiceDate = freezed,Object? invoiceDateDue = freezed,Object? date = freezed,Object? partnerId = freezed,Object? partnerName = freezed,Object? partnerVat = freezed,Object? partnerStreet = freezed,Object? partnerCity = freezed,Object? partnerPhone = freezed,Object? partnerEmail = freezed,Object? journalId = freezed,Object? journalName = freezed,Object? amountUntaxed = null,Object? amountTax = null,Object? amountTotal = null,Object? amountResidual = null,Object? companyId = freezed,Object? currencyId = freezed,Object? currencySymbol = freezed,Object? invoiceOrigin = freezed,Object? ref = freezed,Object? saleOrderId = freezed,Object? lines = null,Object? writeDate = freezed,Object? lastSyncDate = freezed,}) {
-  return _then(_self.copyWith(
+  return _then(AccountMove(
 id: null == id ? _self.id : id // ignore: cast_nullable_to_non_nullable
 as int,name: null == name ? _self.name : name // ignore: cast_nullable_to_non_nullable
 as String,moveType: null == moveType ? _self.moveType : moveType // ignore: cast_nullable_to_non_nullable
@@ -257,15 +246,12 @@ return $default(_that.id,_that.name,_that.moveType,_that.l10nEcAuthorizationNumb
 @JsonSerializable()
 
 class _AccountMove extends AccountMove {
-  const _AccountMove({@OdooId() this.id = 0, @OdooString() this.name = '', @OdooSelection(odooName: 'move_type') this.moveType = 'out_invoice', @OdooString(odooName: 'l10n_ec_authorization_number') this.l10nEcAuthorizationNumber, @OdooDateTime(odooName: 'l10n_ec_authorization_date') this.l10nEcAuthorizationDate, @OdooString(odooName: 'l10n_latam_document_number') this.l10nLatamDocumentNumber, @OdooMany2One('l10n_latam.document.type', odooName: 'l10n_latam_document_type_id') this.l10nLatamDocumentTypeId, @OdooMany2OneName(sourceField: 'l10n_latam_document_type_id') this.l10nLatamDocumentTypeName, @OdooMany2One('l10n.ec.sri.payment', odooName: 'l10n_ec_sri_payment_id') this.l10nEcSriPaymentId, @OdooMany2OneName(sourceField: 'l10n_ec_sri_payment_id') this.l10nEcSriPaymentName, @OdooSelection() this.state = 'draft', @OdooSelection(odooName: 'payment_state') this.paymentState, @OdooDate(odooName: 'invoice_date') this.invoiceDate, @OdooDate(odooName: 'invoice_date_due') this.invoiceDateDue, @OdooDate() this.date, @OdooMany2One('res.partner', odooName: 'partner_id') this.partnerId, @OdooMany2OneName(sourceField: 'partner_id') this.partnerName, @OdooLocalOnly() this.partnerVat, @OdooLocalOnly() this.partnerStreet, @OdooLocalOnly() this.partnerCity, @OdooLocalOnly() this.partnerPhone, @OdooLocalOnly() this.partnerEmail, @OdooMany2One('account.journal', odooName: 'journal_id') this.journalId, @OdooMany2OneName(sourceField: 'journal_id') this.journalName, @OdooFloat(odooName: 'amount_untaxed') this.amountUntaxed = 0.0, @OdooFloat(odooName: 'amount_tax') this.amountTax = 0.0, @OdooFloat(odooName: 'amount_total') this.amountTotal = 0.0, @OdooFloat(odooName: 'amount_residual') this.amountResidual = 0.0, @OdooMany2One('res.company', odooName: 'company_id') this.companyId, @OdooMany2One('res.currency', odooName: 'currency_id') this.currencyId, @OdooMany2OneName(sourceField: 'currency_id') this.currencySymbol, @OdooString(odooName: 'invoice_origin') this.invoiceOrigin, @OdooString() this.ref, @OdooLocalOnly() this.saleOrderId, @OdooLocalOnly() final  List<AccountMoveLine> lines = const [], @OdooDateTime(odooName: 'write_date', writable: false) this.writeDate, @OdooLocalOnly() this.lastSyncDate}): _lines = lines,super._();
+  const _AccountMove({@OdooId() this.id = 0, @OdooString() this.name = '', @OdooSelection(odooName: 'move_type') this.moveType = 'out_invoice', @OdooString(odooName: 'l10n_ec_authorization_number') this.l10nEcAuthorizationNumber, @OdooDateTime(odooName: 'l10n_ec_authorization_date') this.l10nEcAuthorizationDate, @OdooString(odooName: 'l10n_latam_document_number') this.l10nLatamDocumentNumber, @OdooMany2One('l10n_latam.document.type', odooName: 'l10n_latam_document_type_id') this.l10nLatamDocumentTypeId, @OdooMany2OneName(sourceField: 'l10n_latam_document_type_id') this.l10nLatamDocumentTypeName, @OdooMany2One('l10n.ec.sri.payment', odooName: 'l10n_ec_sri_payment_id') this.l10nEcSriPaymentId, @OdooMany2OneName(sourceField: 'l10n_ec_sri_payment_id') this.l10nEcSriPaymentName, @OdooSelection() this.state = 'draft', @OdooSelection(odooName: 'payment_state') this.paymentState, @OdooDate(odooName: 'invoice_date') this.invoiceDate, @OdooDate(odooName: 'invoice_date_due') this.invoiceDateDue, @OdooDate() this.date, @OdooMany2One('res.partner', odooName: 'partner_id') this.partnerId, @OdooMany2OneName(sourceField: 'partner_id') this.partnerName, @OdooLocalOnly() this.partnerVat, @OdooLocalOnly() this.partnerStreet, @OdooLocalOnly() this.partnerCity, @OdooLocalOnly() this.partnerPhone, @OdooLocalOnly() this.partnerEmail, @OdooMany2One('account.journal', odooName: 'journal_id') this.journalId, @OdooMany2OneName(sourceField: 'journal_id') this.journalName, @OdooFloat(odooName: 'amount_untaxed') this.amountUntaxed = 0.0, @OdooFloat(odooName: 'amount_tax') this.amountTax = 0.0, @OdooFloat(odooName: 'amount_total') this.amountTotal = 0.0, @OdooFloat(odooName: 'amount_residual') this.amountResidual = 0.0, @OdooMany2One('res.company', odooName: 'company_id') this.companyId, @OdooMany2One('res.currency', odooName: 'currency_id') this.currencyId, @OdooMany2OneName(sourceField: 'currency_id') this.currencySymbol, @OdooString(odooName: 'invoice_origin') this.invoiceOrigin, @OdooString() this.ref, @OdooLocalOnly() this.saleOrderId, @OdooLocalOnly()  List<AccountMoveLine> lines = const [], @OdooDateTime(odooName: 'write_date', writable: false) this.writeDate, @OdooLocalOnly() this.lastSyncDate}): _lines = lines,super._();
   factory _AccountMove.fromJson(Map<String, dynamic> json) => _$AccountMoveFromJson(json);
 
-// ============ Identifiers ============
 @override@JsonKey()@OdooId() final  int id;
-// ============ Basic Data ============
 @override@JsonKey()@OdooString() final  String name;
 @override@JsonKey()@OdooSelection(odooName: 'move_type') final  String moveType;
-// ============ Ecuador SRI Fields ============
 @override@OdooString(odooName: 'l10n_ec_authorization_number') final  String? l10nEcAuthorizationNumber;
 @override@OdooDateTime(odooName: 'l10n_ec_authorization_date') final  DateTime? l10nEcAuthorizationDate;
 @override@OdooString(odooName: 'l10n_latam_document_number') final  String? l10nLatamDocumentNumber;
@@ -273,14 +259,11 @@ class _AccountMove extends AccountMove {
 @override@OdooMany2OneName(sourceField: 'l10n_latam_document_type_id') final  String? l10nLatamDocumentTypeName;
 @override@OdooMany2One('l10n.ec.sri.payment', odooName: 'l10n_ec_sri_payment_id') final  int? l10nEcSriPaymentId;
 @override@OdooMany2OneName(sourceField: 'l10n_ec_sri_payment_id') final  String? l10nEcSriPaymentName;
-// ============ State ============
 @override@JsonKey()@OdooSelection() final  String state;
 @override@OdooSelection(odooName: 'payment_state') final  String? paymentState;
-// ============ Dates ============
 @override@OdooDate(odooName: 'invoice_date') final  DateTime? invoiceDate;
 @override@OdooDate(odooName: 'invoice_date_due') final  DateTime? invoiceDateDue;
 @override@OdooDate() final  DateTime? date;
-// ============ Partner ============
 @override@OdooMany2One('res.partner', odooName: 'partner_id') final  int? partnerId;
 @override@OdooMany2OneName(sourceField: 'partner_id') final  String? partnerName;
 @override@OdooLocalOnly() final  String? partnerVat;
@@ -288,32 +271,25 @@ class _AccountMove extends AccountMove {
 @override@OdooLocalOnly() final  String? partnerCity;
 @override@OdooLocalOnly() final  String? partnerPhone;
 @override@OdooLocalOnly() final  String? partnerEmail;
-// ============ Journal ============
 @override@OdooMany2One('account.journal', odooName: 'journal_id') final  int? journalId;
 @override@OdooMany2OneName(sourceField: 'journal_id') final  String? journalName;
-// ============ Amounts ============
 @override@JsonKey()@OdooFloat(odooName: 'amount_untaxed') final  double amountUntaxed;
 @override@JsonKey()@OdooFloat(odooName: 'amount_tax') final  double amountTax;
 @override@JsonKey()@OdooFloat(odooName: 'amount_total') final  double amountTotal;
 @override@JsonKey()@OdooFloat(odooName: 'amount_residual') final  double amountResidual;
-// ============ Company and Currency ============
 @override@OdooMany2One('res.company', odooName: 'company_id') final  int? companyId;
 @override@OdooMany2One('res.currency', odooName: 'currency_id') final  int? currencyId;
 @override@OdooMany2OneName(sourceField: 'currency_id') final  String? currencySymbol;
-// ============ Origin and Reference ============
 @override@OdooString(odooName: 'invoice_origin') final  String? invoiceOrigin;
 @override@OdooString() final  String? ref;
 @override@OdooLocalOnly() final  int? saleOrderId;
-// ============ Invoice Lines ============
  final  List<AccountMoveLine> _lines;
-// ============ Invoice Lines ============
 @override@JsonKey()@OdooLocalOnly() List<AccountMoveLine> get lines {
   if (_lines is EqualUnmodifiableListView) return _lines;
   // ignore: implicit_dynamic_type
   return EqualUnmodifiableListView(_lines);
 }
 
-// ============ Sync ============
 @override@OdooDateTime(odooName: 'write_date', writable: false) final  DateTime? writeDate;
 @override@OdooLocalOnly() final  DateTime? lastSyncDate;
 

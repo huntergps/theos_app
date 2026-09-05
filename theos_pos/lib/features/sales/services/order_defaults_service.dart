@@ -41,7 +41,8 @@ class OrderDefaults {
       partnerId != null && warehouseId != null && pricelistId != null;
 
   @override
-  String toString() => 'OrderDefaults('
+  String toString() =>
+      'OrderDefaults('
       'partner=$partnerId ($partnerName), '
       'warehouse=$warehouseId ($warehouseName), '
       'pricelist=$pricelistId ($pricelistName), '
@@ -70,9 +71,7 @@ class OrderDefaultsService {
   final AppDatabase _db;
   final SalesRepository? _salesRepo;
 
-  OrderDefaultsService({required AppDatabase db, SalesRepository? salesRepo})
-      : _db = db,
-        _salesRepo = salesRepo;
+  OrderDefaultsService({required this._db, this._salesRepo});
 
   /// Get defaults from local database only (fastest)
   ///
@@ -139,9 +138,7 @@ class OrderDefaultsService {
   ///
   /// If [syncWithOdoo] is true, will try to fetch fresh defaults from Odoo
   /// and merge with local values. If Odoo call fails, returns local defaults.
-  Future<OrderDefaults> getDefaults({
-    bool syncWithOdoo = false,
-  }) async {
+  Future<OrderDefaults> getDefaults({bool syncWithOdoo = false}) async {
     // Always start with local defaults (instant)
     final localDefaults = await getLocalDefaults();
 
@@ -196,16 +193,14 @@ class OrderDefaultsService {
   /// Merge local defaults with Odoo defaults
   ///
   /// Odoo values take priority for fields that are set
-  OrderDefaults _mergeDefaults(
-    OrderDefaults local,
-    Map<String, dynamic> odoo,
-  ) {
+  OrderDefaults _mergeDefaults(OrderDefaults local, Map<String, dynamic> odoo) {
     int? partnerId = local.partnerId;
     String? partnerName = local.partnerName;
 
     // Extract partner from Odoo
     if (odoo['partner_id'] != null) {
-      if (odoo['partner_id'] is List && (odoo['partner_id'] as List).isNotEmpty) {
+      if (odoo['partner_id'] is List &&
+          (odoo['partner_id'] as List).isNotEmpty) {
         partnerId = (odoo['partner_id'] as List)[0] as int?;
         if ((odoo['partner_id'] as List).length > 1) {
           partnerName = (odoo['partner_id'] as List)[1] as String?;
@@ -218,7 +213,8 @@ class OrderDefaultsService {
     // Extract warehouse
     int? warehouseId = local.warehouseId;
     if (odoo['warehouse_id'] != null) {
-      if (odoo['warehouse_id'] is List && (odoo['warehouse_id'] as List).isNotEmpty) {
+      if (odoo['warehouse_id'] is List &&
+          (odoo['warehouse_id'] as List).isNotEmpty) {
         warehouseId = (odoo['warehouse_id'] as List)[0] as int?;
       } else if (odoo['warehouse_id'] is int) {
         warehouseId = odoo['warehouse_id'] as int;
@@ -228,7 +224,8 @@ class OrderDefaultsService {
     // Extract pricelist
     int? pricelistId = local.pricelistId;
     if (odoo['pricelist_id'] != null) {
-      if (odoo['pricelist_id'] is List && (odoo['pricelist_id'] as List).isNotEmpty) {
+      if (odoo['pricelist_id'] is List &&
+          (odoo['pricelist_id'] as List).isNotEmpty) {
         pricelistId = (odoo['pricelist_id'] as List)[0] as int?;
       } else if (odoo['pricelist_id'] is int) {
         pricelistId = odoo['pricelist_id'] as int;
@@ -238,7 +235,8 @@ class OrderDefaultsService {
     // Extract payment term
     int? paymentTermId = local.paymentTermId;
     if (odoo['payment_term_id'] != null) {
-      if (odoo['payment_term_id'] is List && (odoo['payment_term_id'] as List).isNotEmpty) {
+      if (odoo['payment_term_id'] is List &&
+          (odoo['payment_term_id'] as List).isNotEmpty) {
         paymentTermId = (odoo['payment_term_id'] as List)[0] as int?;
       } else if (odoo['payment_term_id'] is int) {
         paymentTermId = odoo['payment_term_id'] as int;

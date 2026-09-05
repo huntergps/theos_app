@@ -3,7 +3,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../core/constants/app_constants.dart';
 import '../../../../core/database/repositories/repository_providers.dart';
-import '../../../../core/services/logger_service.dart';
+
+import 'package:odoo_sdk/odoo_sdk.dart' show logger;
+
 import '../../../../shared/utils/formatting_utils.dart';
 import '../../../../shared/widgets/dialogs/base_search_dialog.dart';
 
@@ -30,14 +32,14 @@ class SelectProductDialog extends BaseSearchDialog<Map<String, dynamic>> {
 
   @override
   SearchDialogConfig get config => SearchDialogConfig(
-        title: 'Agregar Producto',
-        searchPlaceholder: 'Buscar por nombre, codigo o codigo de barras...',
-        emptySearchMessage: 'Escriba para buscar productos',
-        noResultsMessage: 'No se encontraron productos',
-        maxWidth: DialogSizes.mediumWidth,
-        maxHeight: DialogSizes.mediumHeight,
-        initialSearch: initialSearch,
-      );
+    title: 'Agregar Producto',
+    searchPlaceholder: 'Buscar por nombre, codigo o codigo de barras...',
+    emptySearchMessage: 'Escriba para buscar productos',
+    noResultsMessage: 'No se encontraron productos',
+    maxWidth: DialogSizes.mediumWidth,
+    maxHeight: DialogSizes.mediumHeight,
+    initialSearch: initialSearch,
+  );
 
   @override
   Future<List<Map<String, dynamic>>> performSearch(

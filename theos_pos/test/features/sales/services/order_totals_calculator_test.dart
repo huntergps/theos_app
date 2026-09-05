@@ -29,11 +29,7 @@ void main() {
           orderId: orderId,
           priceUnit: 25.0,
           productUomQty: 2.0,
-        ).copyWith(
-          priceSubtotal: 50.0,
-          priceTax: 0.0,
-          priceTotal: 50.0,
-        );
+        ).copyWith(priceSubtotal: 50.0, priceTax: 0.0, priceTotal: 50.0);
 
         final result = calculator.calculate(lines: [line]);
 
@@ -59,11 +55,7 @@ void main() {
           priceUnit: 100.0,
           productUomQty: 1.0,
           discount: 10.0,
-        ).copyWith(
-          priceSubtotal: 90.0,
-          priceTax: 0.0,
-          priceTotal: 90.0,
-        );
+        ).copyWith(priceSubtotal: 90.0, priceTax: 0.0, priceTotal: 90.0);
 
         final result = calculator.calculate(lines: [line]);
 
@@ -82,11 +74,7 @@ void main() {
           priceUnit: 50.0,
           productUomQty: 1.0,
           discount: 5.0,
-        ).copyWith(
-          priceSubtotal: 47.5,
-          priceTax: 0.0,
-          priceTotal: 47.5,
-        );
+        ).copyWith(priceSubtotal: 47.5, priceTax: 0.0, priceTotal: 47.5);
 
         final result = calculator.calculate(lines: [line]);
         expect(result.hasDiscount, isTrue);
@@ -97,16 +85,17 @@ void main() {
     group('tax handling', () {
       test('single line with tax (priceTax > 0)', () {
         // priceUnit=100, qty=1, no discount, 15% tax
-        final line = SaleOrderLineFactory.create(
-          orderId: orderId,
-          priceUnit: 100.0,
-          productUomQty: 1.0,
-        ).copyWith(
-          priceSubtotal: 100.0,
-          priceTax: 15.0,
-          priceTotal: 115.0,
-          taxNames: 'IVA 15%',
-        );
+        final line =
+            SaleOrderLineFactory.create(
+              orderId: orderId,
+              priceUnit: 100.0,
+              productUomQty: 1.0,
+            ).copyWith(
+              priceSubtotal: 100.0,
+              priceTax: 15.0,
+              priceTotal: 115.0,
+              taxNames: 'IVA 15%',
+            );
 
         final result = calculator.calculate(lines: [line]);
 
@@ -124,61 +113,62 @@ void main() {
           orderId: orderId,
           priceUnit: 0.0,
           productUomQty: 1.0,
-        ).copyWith(
-          priceSubtotal: 0.0,
-          priceTax: 0.0,
-          priceTotal: 0.0,
-        );
+        ).copyWith(priceSubtotal: 0.0, priceTax: 0.0, priceTotal: 0.0);
 
         final result = calculator.calculate(lines: [line]);
 
         expect(result.taxGroups, isEmpty);
       });
 
-      test('tax group defaults to "Impuestos" when no taxNames but priceTax > 0',
-          () {
-        final line = SaleOrderLineFactory.create(
-          orderId: orderId,
-          priceUnit: 100.0,
-          productUomQty: 1.0,
-        ).copyWith(
-          priceSubtotal: 100.0,
-          priceTax: 12.0,
-          priceTotal: 112.0,
-          // taxNames is null by default
-        );
+      test(
+        'tax group defaults to "Impuestos" when no taxNames but priceTax > 0',
+        () {
+          final line =
+              SaleOrderLineFactory.create(
+                orderId: orderId,
+                priceUnit: 100.0,
+                productUomQty: 1.0,
+              ).copyWith(
+                priceSubtotal: 100.0,
+                priceTax: 12.0,
+                priceTotal: 112.0,
+                // taxNames is null by default
+              );
 
-        final result = calculator.calculate(lines: [line]);
+          final result = calculator.calculate(lines: [line]);
 
-        expect(result.taxGroups, hasLength(1));
-        expect(result.taxGroups.first.name, 'Impuestos');
-      });
+          expect(result.taxGroups, hasLength(1));
+          expect(result.taxGroups.first.name, 'Impuestos');
+        },
+      );
     });
 
     group('multiple lines aggregation', () {
       test('multiple lines are summed correctly', () {
-        final line1 = SaleOrderLineFactory.create(
-          orderId: orderId,
-          priceUnit: 30.0,
-          productUomQty: 2.0,
-        ).copyWith(
-          priceSubtotal: 60.0,
-          priceTax: 9.0,
-          priceTotal: 69.0,
-          taxNames: 'IVA 15%',
-        );
+        final line1 =
+            SaleOrderLineFactory.create(
+              orderId: orderId,
+              priceUnit: 30.0,
+              productUomQty: 2.0,
+            ).copyWith(
+              priceSubtotal: 60.0,
+              priceTax: 9.0,
+              priceTotal: 69.0,
+              taxNames: 'IVA 15%',
+            );
 
-        final line2 = SaleOrderLineFactory.create(
-          orderId: orderId,
-          priceUnit: 50.0,
-          productUomQty: 3.0,
-          discount: 10.0,
-        ).copyWith(
-          priceSubtotal: 135.0,
-          priceTax: 20.25,
-          priceTotal: 155.25,
-          taxNames: 'IVA 15%',
-        );
+        final line2 =
+            SaleOrderLineFactory.create(
+              orderId: orderId,
+              priceUnit: 50.0,
+              productUomQty: 3.0,
+              discount: 10.0,
+            ).copyWith(
+              priceSubtotal: 135.0,
+              priceTax: 20.25,
+              priceTotal: 155.25,
+              taxNames: 'IVA 15%',
+            );
 
         final result = calculator.calculate(lines: [line1, line2]);
 
@@ -197,11 +187,7 @@ void main() {
           orderId: orderId,
           priceUnit: 40.0,
           productUomQty: 1.0,
-        ).copyWith(
-          priceSubtotal: 40.0,
-          priceTax: 0.0,
-          priceTotal: 40.0,
-        );
+        ).copyWith(priceSubtotal: 40.0, priceTax: 0.0, priceTotal: 40.0);
 
         final sectionLine = SaleOrderLineFactory.section(orderId: orderId);
 
@@ -217,11 +203,7 @@ void main() {
           orderId: orderId,
           priceUnit: 20.0,
           productUomQty: 2.0,
-        ).copyWith(
-          priceSubtotal: 40.0,
-          priceTax: 0.0,
-          priceTotal: 40.0,
-        );
+        ).copyWith(priceSubtotal: 40.0, priceTax: 0.0, priceTotal: 40.0);
 
         final noteLine = SaleOrderLineFactory.note(orderId: orderId);
 
@@ -234,27 +216,29 @@ void main() {
 
     group('tax grouping', () {
       test('lines with same tax name merge into one group', () {
-        final line1 = SaleOrderLineFactory.create(
-          orderId: orderId,
-          priceUnit: 100.0,
-          productUomQty: 1.0,
-        ).copyWith(
-          priceSubtotal: 100.0,
-          priceTax: 15.0,
-          priceTotal: 115.0,
-          taxNames: 'IVA 15%',
-        );
+        final line1 =
+            SaleOrderLineFactory.create(
+              orderId: orderId,
+              priceUnit: 100.0,
+              productUomQty: 1.0,
+            ).copyWith(
+              priceSubtotal: 100.0,
+              priceTax: 15.0,
+              priceTotal: 115.0,
+              taxNames: 'IVA 15%',
+            );
 
-        final line2 = SaleOrderLineFactory.create(
-          orderId: orderId,
-          priceUnit: 200.0,
-          productUomQty: 1.0,
-        ).copyWith(
-          priceSubtotal: 200.0,
-          priceTax: 30.0,
-          priceTotal: 230.0,
-          taxNames: 'IVA 15%',
-        );
+        final line2 =
+            SaleOrderLineFactory.create(
+              orderId: orderId,
+              priceUnit: 200.0,
+              productUomQty: 1.0,
+            ).copyWith(
+              priceSubtotal: 200.0,
+              priceTax: 30.0,
+              priceTotal: 230.0,
+              taxNames: 'IVA 15%',
+            );
 
         final result = calculator.calculate(lines: [line1, line2]);
 
@@ -265,39 +249,41 @@ void main() {
       });
 
       test('lines with different tax names create separate groups', () {
-        final line15 = SaleOrderLineFactory.create(
-          orderId: orderId,
-          priceUnit: 100.0,
-          productUomQty: 1.0,
-        ).copyWith(
-          priceSubtotal: 100.0,
-          priceTax: 15.0,
-          priceTotal: 115.0,
-          taxNames: 'IVA 15%',
-        );
+        final line15 =
+            SaleOrderLineFactory.create(
+              orderId: orderId,
+              priceUnit: 100.0,
+              productUomQty: 1.0,
+            ).copyWith(
+              priceSubtotal: 100.0,
+              priceTax: 15.0,
+              priceTotal: 115.0,
+              taxNames: 'IVA 15%',
+            );
 
-        final line0 = SaleOrderLineFactory.create(
-          orderId: orderId,
-          priceUnit: 80.0,
-          productUomQty: 1.0,
-        ).copyWith(
-          priceSubtotal: 80.0,
-          priceTax: 0.0,
-          priceTotal: 80.0,
-          taxNames: 'IVA 0%',
-        );
+        final line0 =
+            SaleOrderLineFactory.create(
+              orderId: orderId,
+              priceUnit: 80.0,
+              productUomQty: 1.0,
+            ).copyWith(
+              priceSubtotal: 80.0,
+              priceTax: 0.0,
+              priceTotal: 80.0,
+              taxNames: 'IVA 0%',
+            );
 
         final result = calculator.calculate(lines: [line15, line0]);
 
         expect(result.taxGroups, hasLength(2));
 
-        final group15 =
-            result.taxGroups.where((g) => g.name == 'IVA 15%').first;
+        final group15 = result.taxGroups
+            .where((g) => g.name == 'IVA 15%')
+            .first;
         expect(group15.base, closeTo(100.0, 0.001));
         expect(group15.amount, closeTo(15.0, 0.001));
 
-        final group0 =
-            result.taxGroups.where((g) => g.name == 'IVA 0%').first;
+        final group0 = result.taxGroups.where((g) => g.name == 'IVA 0%').first;
         expect(group0.base, closeTo(80.0, 0.001));
         expect(group0.amount, closeTo(0.0, 0.001));
       });
@@ -305,17 +291,18 @@ void main() {
 
     group('taxNameResolver', () {
       test('taxNameResolver is used when taxNames is null', () {
-        final line = SaleOrderLineFactory.create(
-          orderId: orderId,
-          priceUnit: 100.0,
-          productUomQty: 1.0,
-        ).copyWith(
-          priceSubtotal: 100.0,
-          priceTax: 15.0,
-          priceTotal: 115.0,
-          taxIds: '3',
-          // taxNames is null
-        );
+        final line =
+            SaleOrderLineFactory.create(
+              orderId: orderId,
+              priceUnit: 100.0,
+              productUomQty: 1.0,
+            ).copyWith(
+              priceSubtotal: 100.0,
+              priceTax: 15.0,
+              priceTotal: 115.0,
+              taxIds: '3',
+              // taxNames is null
+            );
 
         String resolver(String? taxIds, String? taxNames) {
           if (taxIds == '3') return 'IVA 15%';
@@ -336,16 +323,17 @@ void main() {
       test('taxNameResolver is not called when taxNames is present', () {
         bool resolverCalled = false;
 
-        final line = SaleOrderLineFactory.create(
-          orderId: orderId,
-          priceUnit: 100.0,
-          productUomQty: 1.0,
-        ).copyWith(
-          priceSubtotal: 100.0,
-          priceTax: 15.0,
-          priceTotal: 115.0,
-          taxNames: 'IVA 15%',
-        );
+        final line =
+            SaleOrderLineFactory.create(
+              orderId: orderId,
+              priceUnit: 100.0,
+              productUomQty: 1.0,
+            ).copyWith(
+              priceSubtotal: 100.0,
+              priceTax: 15.0,
+              priceTotal: 115.0,
+              taxNames: 'IVA 15%',
+            );
 
         String resolver(String? taxIds, String? taxNames) {
           resolverCalled = true;
@@ -366,11 +354,7 @@ void main() {
           orderId: orderId,
           priceUnit: 100.0,
           productUomQty: 1.0,
-        ).copyWith(
-          priceSubtotal: 100.0,
-          priceTax: 12.0,
-          priceTotal: 112.0,
-        );
+        ).copyWith(priceSubtotal: 100.0, priceTax: 12.0, priceTotal: 112.0);
 
         String resolver(String? taxIds, String? taxNames) => '';
 

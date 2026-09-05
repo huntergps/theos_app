@@ -82,7 +82,9 @@ class TestDatabaseManager<T extends GeneratedDatabase> {
   /// Get the current database instance.
   T get database {
     if (_database == null) {
-      throw StateError('Database not created. Call createInMemory() or createFile() first.');
+      throw StateError(
+        'Database not created. Call createInMemory() or createFile() first.',
+      );
     }
     return _database!;
   }
@@ -132,10 +134,15 @@ class DatabaseMatchers {
   }
 
   /// Verify table is not empty.
-  static Future<void> expectNotEmpty(GeneratedDatabase db, TableInfo table) async {
+  static Future<void> expectNotEmpty(
+    GeneratedDatabase db,
+    TableInfo table,
+  ) async {
     final count = await db.countRows(table);
     if (count == 0) {
-      throw TestFailure('Expected ${table.actualTableName} to have rows, but was empty');
+      throw TestFailure(
+        'Expected ${table.actualTableName} to have rows, but was empty',
+      );
     }
   }
 }

@@ -21,7 +21,10 @@ class Journal {
   final String type;
   final int? companyId;
   final int? currencyId;
+  final String? l10nEcEntity;
+  final String? l10nEcEmission;
   final bool active;
+  final bool numberedByClient;
   final DateTime? writeDate;
 
   const Journal({
@@ -31,7 +34,10 @@ class Journal {
     required this.type,
     this.companyId,
     this.currencyId,
+    this.l10nEcEntity,
+    this.l10nEcEmission,
     this.active = true,
+    this.numberedByClient = false,
     this.writeDate,
   });
 }
@@ -45,15 +51,18 @@ class JournalManager {
   String get odooModel => 'account.journal';
 
   List<String> get odooFields => [
-        'id',
-        'name',
-        'code',
-        'type',
-        'company_id',
-        'currency_id',
-        'active',
-        'write_date',
-      ];
+    'id',
+    'name',
+    'code',
+    'type',
+    'company_id',
+    'currency_id',
+    'l10n_ec_entity',
+    'l10n_ec_emission',
+    'active',
+    'numbered_by_client',
+    'write_date',
+  ];
 
   /// Convert Odoo data to domain model
   Journal fromOdoo(Map<String, dynamic> data) {
@@ -64,7 +73,10 @@ class JournalManager {
       type: data['type'] as String? ?? 'general',
       companyId: odoo.extractMany2oneId(data['company_id']),
       currencyId: odoo.extractMany2oneId(data['currency_id']),
+      l10nEcEntity: _nullableString(data['l10n_ec_entity']),
+      l10nEcEmission: _nullableString(data['l10n_ec_emission']),
       active: data['active'] as bool? ?? true,
+      numberedByClient: data['numbered_by_client'] as bool? ?? false,
       writeDate: odoo.parseOdooDateTime(data['write_date']),
     );
   }
@@ -78,28 +90,34 @@ class JournalManager {
       type: Value(record.type),
       companyId: Value(record.companyId),
       currencyId: Value(record.currencyId),
+      l10nEcEntity: Value(record.l10nEcEntity),
+      l10nEcEmission: Value(record.l10nEcEmission),
       active: Value(record.active),
+      numberedByClient: Value(record.numberedByClient),
       writeDate: Value(record.writeDate),
     );
 
-    final existing = await (_db.select(_db.accountJournal)
-          ..where((t) => t.odooId.equals(record.odooId)))
-        .getSingleOrNull();
+    final existing = await (_db.select(
+      _db.accountJournal,
+    )..where((t) => t.odooId.equals(record.odooId))).getSingleOrNull();
 
     if (existing != null) {
-      await (_db.update(_db.accountJournal)
-            ..where((t) => t.odooId.equals(record.odooId)))
-          .write(companion);
+      await (_db.update(
+        _db.accountJournal,
+      )..where((t) => t.odooId.equals(record.odooId))).write(companion);
     } else {
       await _db.into(_db.accountJournal).insert(companion);
     }
   }
 
+  String? _nullableString(Object? value) =>
+      value is String && value.isNotEmpty ? value : null;
+
   /// Get journal by Odoo ID
   Future<AccountJournalData?> getById(int odooId) async {
-    return (_db.select(_db.accountJournal)
-          ..where((t) => t.odooId.equals(odooId)))
-        .getSingleOrNull();
+    return (_db.select(
+      _db.accountJournal,
+    )..where((t) => t.odooId.equals(odooId))).getSingleOrNull();
   }
 
   /// Get journals by type (cash, bank, sale, purchase, general)
@@ -155,14 +173,14 @@ class PaymentMethodLineManager {
   String get odooModel => 'account.payment.method.line';
 
   List<String> get odooFields => [
-        'id',
-        'journal_id',
-        'payment_method_id',
-        'name',
-        'code',
-        'payment_type',
-        'write_date',
-      ];
+    'id',
+    'journal_id',
+    'payment_method_id',
+    'name',
+    'code',
+    'payment_type',
+    'write_date',
+  ];
 
   /// Convert Odoo data to domain model
   PaymentMethodLine fromOdoo(Map<String, dynamic> data) {
@@ -176,13 +194,13 @@ class PaymentMethodLineManager {
     final paymentMethodId = odoo.extractMany2oneId(paymentMethodIdRaw);
     final paymentMethodName =
         paymentMethodIdRaw is List && paymentMethodIdRaw.length > 1
-            ? paymentMethodIdRaw[1] as String?
-            : null;
+        ? paymentMethodIdRaw[1] as String?
+        : null;
 
     // payment_type comes from related field payment_method_id.payment_type
     // In Odoo response it may be: 'payment_method_id.payment_type' or nested
-    final paymentTypeRaw = data['payment_method_id.payment_type'] ??
-                           data['payment_type'];
+    final paymentTypeRaw =
+        data['payment_method_id.payment_type'] ?? data['payment_type'];
     final paymentType = paymentTypeRaw is String ? paymentTypeRaw : 'inbound';
 
     // code comes from related field payment_method_id.code
@@ -220,14 +238,14 @@ class PaymentMethodLineManager {
       writeDate: Value(record.writeDate),
     );
 
-    final existing = await (_db.select(_db.accountPaymentMethodLine)
-          ..where((t) => t.odooId.equals(record.odooId)))
-        .getSingleOrNull();
+    final existing = await (_db.select(
+      _db.accountPaymentMethodLine,
+    )..where((t) => t.odooId.equals(record.odooId))).getSingleOrNull();
 
     if (existing != null) {
-      await (_db.update(_db.accountPaymentMethodLine)
-            ..where((t) => t.odooId.equals(record.odooId)))
-          .write(companion);
+      await (_db.update(
+        _db.accountPaymentMethodLine,
+      )..where((t) => t.odooId.equals(record.odooId))).write(companion);
     } else {
       await _db.into(_db.accountPaymentMethodLine).insert(companion);
     }
@@ -235,9 +253,10 @@ class PaymentMethodLineManager {
 
   /// Get payment method lines by journal
   Future<List<AccountPaymentMethodLineData>> getByJournalId(
-      int journalId) async {
-    return (_db.select(_db.accountPaymentMethodLine)
-          ..where((t) => t.journalId.equals(journalId)))
-        .get();
+    int journalId,
+  ) async {
+    return (_db.select(
+      _db.accountPaymentMethodLine,
+    )..where((t) => t.journalId.equals(journalId))).get();
   }
 }

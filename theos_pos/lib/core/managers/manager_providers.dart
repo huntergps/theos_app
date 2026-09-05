@@ -39,6 +39,7 @@ import 'package:theos_pos_core/theos_pos_core.dart'
         resourceCalendarManager,
         warehouseManager,
         pricelistManager,
+        pricelistItemManager,
         paymentTermManager,
         advanceManager,
         mailActivityManager,
@@ -53,7 +54,8 @@ import 'package:theos_pos_core/theos_pos_core.dart'
         paymentLineManager,
         cardLoteManager,
         advanceLineManager;
-import 'package:theos_pos_core/theos_pos_core.dart' show AppDatabase, currencyManager, decimalPrecisionManager;
+import 'package:theos_pos_core/theos_pos_core.dart'
+    show AppDatabase, currencyManager, decimalPrecisionManager;
 
 import '../database/database_helper.dart';
 import '../database/repositories/repository_providers.dart';
@@ -70,8 +72,7 @@ import '../database/repositories/repository_providers.dart';
 final appDatabaseProvider = Provider<AppDatabase>((ref) {
   // Watch databaseHelperProvider to trigger rebuild when DB changes
   ref.watch(databaseHelperProvider);
-  // ignore: deprecated_member_use_from_same_package
-  return DatabaseHelper.db;
+  return DatabaseHelper.database;
 });
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -104,8 +105,9 @@ final saleOrderLineManagerProvider = Provider<SaleOrderLineManager>((ref) {
 });
 
 /// Provider for CollectionSessionManager (generated singleton)
-final collectionSessionManagerProvider =
-    Provider<CollectionSessionManager>((ref) {
+final collectionSessionManagerProvider = Provider<CollectionSessionManager>((
+  ref,
+) {
   return collectionSessionManager;
 });
 
@@ -127,14 +129,14 @@ final cashOutManagerProvider = Provider<CashOutManager>((ref) {
 /// Provider for CollectionSessionCashManager (generated singleton)
 final collectionSessionCashManagerProvider =
     Provider<CollectionSessionCashManager>((ref) {
-  return collectionSessionCashManager;
-});
+      return collectionSessionCashManager;
+    });
 
 /// Provider for CollectionSessionDepositManager (generated singleton)
 final collectionSessionDepositManagerProvider =
     Provider<CollectionSessionDepositManager>((ref) {
-  return collectionSessionDepositManager;
-});
+      return collectionSessionDepositManager;
+    });
 
 // ═══════════════════════════════════════════════════════════════════════════
 // Model Registry Initialization
@@ -167,6 +169,7 @@ List<OdooModelManager> _getAllManagers() {
     resourceCalendarManager,
     warehouseManager,
     pricelistManager,
+    pricelistItemManager,
     paymentTermManager,
     advanceManager,
     mailActivityManager,
@@ -189,15 +192,39 @@ List<OdooModelManager> _getAllManagers() {
 /// Initializes all model managers with database access and registry registration.
 /// Call once during app startup after database is ready.
 ///
-/// Uses global manager singletons directly — no Ref or WidgetRef needed.
-/// [db] is the AppDatabase instance to use for all managers.
-void initializeModelManagers({AppDatabase? db}) {
-  // ignore: deprecated_member_use_from_same_package
-  final appDb = db ?? DatabaseHelper.db;
+/// The application has exactly one active user scope. Every entry path
+/// (online login, offline login and cold-start restoration) must call this
+/// same function so managers never retain a client, queue or memory cache from
+/// another scope.
+OfflineQueueWrapper? _activeManagerQueue;
+
+Future<void> initializeModelManagers({
+  required OfflineQueueStore queueStore,
+  OdooClient? client,
+  AppDatabase? db,
+}) async {
+  final appDb = db ?? DatabaseHelper.database;
   final managers = _getAllManagers();
+  final queue = OfflineQueueWrapper(queueStore);
+  await queue.initialize();
 
   for (final manager in managers) {
-    manager.initDb(appDb);
+    manager.bindSession(client: client, db: appDb, queue: queue);
     ModelRegistry.register(manager);
   }
+
+  final previousQueue = _activeManagerQueue;
+  _activeManagerQueue = queue;
+  previousQueue?.dispose();
+}
+
+/// Removes every dependency and in-memory record from the active manager
+/// scope. This is intentionally synchronous and must run before Drift closes.
+void resetModelManagersSession() {
+  for (final manager in _getAllManagers()) {
+    manager.resetSession();
+  }
+  ModelRegistry.resetSession();
+  _activeManagerQueue?.dispose();
+  _activeManagerQueue = null;
 }

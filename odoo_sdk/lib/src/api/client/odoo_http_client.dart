@@ -3,6 +3,7 @@ import 'package:dio/dio.dart';
 import '../interceptors/auth_interceptor.dart';
 import '../interceptors/retry_interceptor.dart';
 import '../interceptors/compression_interceptor.dart';
+import '../../utils/security_utils.dart';
 
 import 'native_helpers.dart'
     if (dart.library.js_interop) 'web_helpers.dart'
@@ -104,12 +105,6 @@ class OdooClientConfig {
   /// Ignored on web (browsers manage their own certificate validation).
   final CertificatePinningConfig? certificatePinning;
 
-  /// Whether the app is running on a web platform.
-  ///
-  /// Used to skip cookie management on web (browsers handle cookies natively).
-  /// Pass `true` when running on web, `false` otherwise.
-  final bool isWeb;
-
   /// Whether to enable request payload compression.
   ///
   /// When enabled, large request payloads are automatically compressed
@@ -134,7 +129,6 @@ class OdooClientConfig {
     this.onApiKeyRefreshed,
     this.allowInsecure = false,
     this.certificatePinning,
-    this.isWeb = false,
     this.enableCompression = false,
     this.compressionConfig = CompressionConfig.standard,
   });
@@ -197,7 +191,6 @@ class OdooClientConfig {
     void Function(String newApiKey)? onApiKeyRefreshed,
     bool? allowInsecure,
     CertificatePinningConfig? certificatePinning,
-    bool? isWeb,
     bool? enableCompression,
     CompressionConfig? compressionConfig,
   }) {
@@ -214,7 +207,6 @@ class OdooClientConfig {
       onApiKeyRefreshed: onApiKeyRefreshed ?? this.onApiKeyRefreshed,
       allowInsecure: allowInsecure ?? this.allowInsecure,
       certificatePinning: certificatePinning ?? this.certificatePinning,
-      isWeb: isWeb ?? this.isWeb,
       enableCompression: enableCompression ?? this.enableCompression,
       compressionConfig: compressionConfig ?? this.compressionConfig,
     );
@@ -226,9 +218,7 @@ class OdooClientConfig {
   /// accidental exposure in logs, error messages, or stack traces.
   @override
   String toString() {
-    final maskedKey = apiKey.length > 4
-        ? '${apiKey.substring(0, 2)}${'*' * (apiKey.length - 4)}${apiKey.substring(apiKey.length - 2)}'
-        : '****';
+    final maskedKey = CredentialMasker.hide(apiKey);
     return 'OdooClientConfig(baseUrl: $baseUrl, apiKey: $maskedKey, '
         'database: $database, language: $defaultLanguage, secure: ${!allowInsecure}, '
         'certificatePinning: ${certificatePinning != null ? 'enabled (${certificatePinning!.sha256Pins.length} pins)' : 'disabled'})';
@@ -239,17 +229,14 @@ class OdooClientConfig {
 ///
 /// Handles:
 /// - Dio configuration and interceptors
-/// - Cookie management (native platforms)
 /// - Request/response logging
 /// - Generic POST/GET operations
 class OdooHttpClient {
   final Dio _dio;
-  final Object _cookieJar;
   OdooClientConfig _config;
 
   OdooHttpClient({required OdooClientConfig config})
     : _config = config,
-      _cookieJar = platform_helpers.createCookieJar(),
       _dio = Dio() {
     _initialize();
   }
@@ -263,40 +250,36 @@ class OdooHttpClient {
       _configureCertificatePinning(_config.certificatePinning!);
     }
 
-    // Add cookie manager only on native platforms
-    if (!_config.isWeb) {
-      platform_helpers.addCookieManager(_dio, _cookieJar);
-    }
-
     // SEC-02: Add auth interceptor for token refresh if handler provided
     if (_config.tokenRefreshHandler != null) {
-      _dio.interceptors.add(AuthInterceptor(
-        dio: _dio,
-        config: AuthInterceptorConfig(
-          refreshHandler: _config.tokenRefreshHandler!,
-          onRetry: (options, newToken) {
-            // Update stored API key
-            _config.onApiKeyRefreshed?.call(newToken);
-            // Update default headers for future requests
-            _dio.options.headers['Authorization'] = 'bearer $newToken';
-          },
+      _dio.interceptors.add(
+        AuthInterceptor(
+          dio: _dio,
+          config: AuthInterceptorConfig(
+            refreshHandler: _config.tokenRefreshHandler!,
+            onRetry: (options, newToken) {
+              // Update stored API key
+              _config.onApiKeyRefreshed?.call(newToken);
+              // Update default headers for future requests
+              _dio.options.headers['Authorization'] = 'Bearer $newToken';
+            },
+          ),
         ),
-      ));
+      );
     }
 
     // Add retry interceptor if enabled (after auth to not retry 401s)
     if (_config.enableRetry) {
-      _dio.interceptors.add(RetryInterceptor(
-        dio: _dio,
-        config: _config.retryConfig,
-      ));
+      _dio.interceptors.add(
+        RetryInterceptor(dio: _dio, config: _config.retryConfig),
+      );
     }
 
     // Add compression interceptor if enabled
     if (_config.enableCompression) {
-      _dio.interceptors.add(CompressionInterceptor(
-        config: _config.compressionConfig,
-      ));
+      _dio.interceptors.add(
+        CompressionInterceptor(config: _config.compressionConfig),
+      );
     }
 
     _applyConfig();
@@ -307,13 +290,11 @@ class OdooHttpClient {
       ..baseUrl = _config.json2Endpoint
       ..headers = {
         'Content-Type': 'application/json',
-        'Authorization': 'bearer ${_config.apiKey}',
-        // On web, X-Odoo-Database triggers CORS preflight that standard Odoo
-        // doesn't allow. Omit the header on web — Odoo's monodb detection or
-        // a CORS module on the server handles it. On native, always send it.
-        if (!_config.isWeb &&
-            _config.database != null &&
-            _config.database!.isNotEmpty)
+        'Authorization': 'Bearer ${_config.apiKey}',
+        // JSON-2 CORS explicitly allows X-Odoo-Database. Odoo needs this
+        // header to select the requested database when the host serves more
+        // than one database, including browser requests.
+        if (_config.database != null && _config.database!.isNotEmpty)
           'X-Odoo-Database': _config.database!,
       }
       ..connectTimeout = const Duration(seconds: 15)
@@ -341,8 +322,9 @@ class OdooHttpClient {
   /// Current configuration
   OdooClientConfig get config => _config;
 
-  /// Cookie jar for session management (Object on web, CookieJar on native)
-  Object get cookieJar => _cookieJar;
+  /// Underlying Dio instance for advanced integrations and HTTP test
+  /// adapters. Normal application code should use [OdooClient] methods.
+  Dio get dio => _dio;
 
   /// Whether the client has valid credentials
   bool get isConfigured => _config.apiKey.isNotEmpty;
@@ -356,7 +338,12 @@ class OdooHttpClient {
     CancelToken? cancelToken,
   }) async {
     try {
-      return await _dio.post(path, data: data, cancelToken: cancelToken);
+      return await _dio.post(
+        path,
+        data: data,
+        options: Options(extra: OdooRetryPolicy.metadataForJson2Path(path)),
+        cancelToken: cancelToken,
+      );
     } on DioException {
       rethrow;
     }
@@ -400,10 +387,5 @@ class OdooHttpClient {
     } on DioException {
       rethrow;
     }
-  }
-
-  /// Load cookies for a given URL (returns Cookie list on native, empty on web)
-  Future<List<dynamic>> loadCookies(Uri uri) async {
-    return platform_helpers.loadCookies(_cookieJar, uri);
   }
 }

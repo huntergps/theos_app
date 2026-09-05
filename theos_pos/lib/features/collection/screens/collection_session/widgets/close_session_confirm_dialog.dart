@@ -4,10 +4,11 @@ import '../../../../../core/constants/app_colors.dart';
 import '../../../../../shared/utils/formatting_utils.dart';
 import '../../../../../shared/widgets/common/theos_info_bars.dart';
 import '../../../../../shared/widgets/dialogs/confirm_action_dialog.dart';
+
 import 'package:theos_pos_core/theos_pos_core.dart';
 
 /// Diálogo de confirmación para cerrar una sesión de cobranza.
-/// 
+///
 /// Migrado a usar [ConfirmActionDialog] para mantener consistencia
 /// con otros diálogos de confirmación.
 class CloseSessionConfirmDialog extends StatelessWidget {
@@ -16,7 +17,10 @@ class CloseSessionConfirmDialog extends StatelessWidget {
   const CloseSessionConfirmDialog({super.key, required this.session});
 
   /// Muestra el diálogo y retorna true si el usuario confirma.
-  static Future<bool> show(BuildContext context, CollectionSession session) async {
+  static Future<bool> show(
+    BuildContext context,
+    CollectionSession session,
+  ) async {
     final value = await showDialog<bool>(
       context: context,
       barrierDismissible: false,
@@ -37,10 +41,7 @@ class CloseSessionConfirmDialog extends StatelessWidget {
       icon: FluentIcons.lock,
       iconColor: theme.accentColor,
       isDestructive: hasDifference && session.cashRegisterDifference < 0,
-      additionalContent: _SessionBalanceSummary(
-        session: session,
-        theme: theme,
-      ),
+      additionalContent: _SessionBalanceSummary(session: session, theme: theme),
     );
   }
 }
@@ -50,10 +51,7 @@ class _SessionBalanceSummary extends StatelessWidget {
   final CollectionSession session;
   final FluentThemeData theme;
 
-  const _SessionBalanceSummary({
-    required this.session,
-    required this.theme,
-  });
+  const _SessionBalanceSummary({required this.session, required this.theme});
 
   @override
   Widget build(BuildContext context) {
@@ -89,10 +87,7 @@ class _SessionBalanceSummary extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(label, style: theme.typography.caption),
-        Text(
-          value.toCurrency(),
-          style: theme.typography.bodyStrong,
-        ),
+        Text(value.toCurrency(), style: theme.typography.bodyStrong),
       ],
     );
   }

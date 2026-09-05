@@ -1,5 +1,6 @@
 import 'package:test/test.dart';
 import 'package:theos_pos_core/src/models/invoices/account_move.model.dart';
+import 'package:theos_pos_core/src/models/invoices/account_move_line.model.dart';
 
 void main() {
   group('AccountMove - fromOdoo', () {
@@ -24,7 +25,8 @@ void main() {
         'currency_id': [2, 'USD'],
         'invoice_origin': 'SO001',
         'ref': 'REF001',
-        'l10n_ec_authorization_number': '1234567890123456789012345678901234567890123456789',
+        'l10n_ec_authorization_number':
+            '1234567890123456789012345678901234567890123456789',
         'l10n_latam_document_number': '001-001-000000001',
         'l10n_latam_document_type_id': [10, 'Factura'],
         'write_date': '2024-06-15 10:30:00',
@@ -54,7 +56,10 @@ void main() {
       expect(move.currencySymbol, equals('USD'));
       expect(move.invoiceOrigin, equals('SO001'));
       expect(move.ref, equals('REF001'));
-      expect(move.l10nEcAuthorizationNumber, equals('1234567890123456789012345678901234567890123456789'));
+      expect(
+        move.l10nEcAuthorizationNumber,
+        equals('1234567890123456789012345678901234567890123456789'),
+      );
       expect(move.l10nLatamDocumentNumber, equals('001-001-000000001'));
       expect(move.l10nLatamDocumentTypeId, equals(10));
       expect(move.l10nLatamDocumentTypeName, equals('Factura'));
@@ -93,11 +98,7 @@ void main() {
     });
 
     test('handles partner_id as integer (not Many2one)', () {
-      final json = {
-        'id': 1,
-        'name': 'INV/001',
-        'partner_id': 42,
-      };
+      final json = {'id': 1, 'name': 'INV/001', 'partner_id': 42};
 
       final move = accountMoveManager.fromOdoo(json);
       expect(move.partnerId, equals(42));
@@ -108,13 +109,19 @@ void main() {
       final json = {
         'id': 1,
         'name': 'INV/001',
-        'l10n_latam_document_type_id': [10, {'es_EC': 'Factura', 'en_US': 'Invoice'}],
+        'l10n_latam_document_type_id': [
+          10,
+          {'es_EC': 'Factura', 'en_US': 'Invoice'},
+        ],
       };
 
       final move = accountMoveManager.fromOdoo(json);
       expect(move.l10nLatamDocumentTypeId, equals(10));
       // extractMany2oneName returns the map's toString when name is a Map
-      expect(move.l10nLatamDocumentTypeName, equals('{es_EC: Factura, en_US: Invoice}'));
+      expect(
+        move.l10nLatamDocumentTypeName,
+        equals('{es_EC: Factura, en_US: Invoice}'),
+      );
     });
   });
 
@@ -152,10 +159,7 @@ void main() {
         const AccountMove(state: 'posted', paymentState: 'paid').canCancel,
         isFalse,
       );
-      expect(
-        const AccountMove(state: 'draft').canCancel,
-        isFalse,
-      );
+      expect(const AccountMove(state: 'draft').canCancel, isFalse);
     });
 
     test('canPrint only when posted', () {
@@ -182,9 +186,18 @@ void main() {
     });
 
     test('stateDisplay returns Spanish labels', () {
-      expect(const AccountMove(state: 'draft').stateDisplay, equals('Borrador'));
-      expect(const AccountMove(state: 'posted').stateDisplay, equals('Publicada'));
-      expect(const AccountMove(state: 'cancel').stateDisplay, equals('Cancelada'));
+      expect(
+        const AccountMove(state: 'draft').stateDisplay,
+        equals('Borrador'),
+      );
+      expect(
+        const AccountMove(state: 'posted').stateDisplay,
+        equals('Publicada'),
+      );
+      expect(
+        const AccountMove(state: 'cancel').stateDisplay,
+        equals('Cancelada'),
+      );
     });
 
     test('paymentStateDisplay returns Spanish labels', () {
@@ -233,16 +246,15 @@ void main() {
   group('AccountMove - SRI Authorization', () {
     test('isSriAuthorized requires 49 character authorization', () {
       const authorized = AccountMove(
-        l10nEcAuthorizationNumber: '1234567890123456789012345678901234567890123456789',
+        l10nEcAuthorizationNumber:
+            '1234567890123456789012345678901234567890123456789',
       );
       expect(authorized.isSriAuthorized, isTrue);
       expect(authorized.l10nEcAuthorizationNumber!.length, equals(49));
     });
 
     test('isSriAuthorized false for short authorization', () {
-      const notAuthorized = AccountMove(
-        l10nEcAuthorizationNumber: '12345',
-      );
+      const notAuthorized = AccountMove(l10nEcAuthorizationNumber: '12345');
       expect(notAuthorized.isSriAuthorized, isFalse);
     });
 

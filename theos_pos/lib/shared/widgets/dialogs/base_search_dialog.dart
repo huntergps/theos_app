@@ -3,8 +3,10 @@ import 'dart:async';
 import 'package:fluent_ui/fluent_ui.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:theos_pos_core/theos_pos_core.dart' show logger;
 
 import '../../../core/constants/app_constants.dart';
+import '../../utils/error_utils.dart';
 
 /// Configuración para BaseSearchDialog
 class SearchDialogConfig {
@@ -111,7 +113,9 @@ class _BaseSearchDialogState<T> extends ConsumerState<BaseSearchDialog<T>> {
   final _scrollController = ScrollController();
   List<T> _results = [];
   bool _isLoading = false;
+  String? _searchError;
   String _lastQuery = '';
+  int _searchGeneration = 0;
   Timer? _debounceTimer;
   int _selectedIndex = -1;
 
@@ -187,17 +191,23 @@ class _BaseSearchDialogState<T> extends ConsumerState<BaseSearchDialog<T>> {
     });
   }
 
-  Future<void> _search(String query) async {
-    // Cancelar timer anterior
-    _debounceTimer?.cancel();
-
+  Future<void> _search(String query, {bool force = false}) async {
     // Si la query es igual a la anterior, no hacer nada
-    if (query == _lastQuery) return;
+    if (!force && query == _lastQuery) return;
+
+    // Cancelar timer anterior solo cuando esta llamada realmente lo reemplaza.
+    _debounceTimer?.cancel();
     _lastQuery = query;
+    final generation = ++_searchGeneration;
 
     // Si la query es muy corta, limpiar resultados
     if (query.length < widget.config.minSearchLength) {
-      setState(() => _results = []);
+      setState(() {
+        _results = [];
+        _selectedIndex = -1;
+        _isLoading = false;
+        _searchError = null;
+      });
       return;
     }
 
@@ -205,23 +215,34 @@ class _BaseSearchDialogState<T> extends ConsumerState<BaseSearchDialog<T>> {
     _debounceTimer = Timer(
       Duration(milliseconds: widget.config.debounceMs),
       () async {
-        if (!mounted) return;
+        if (!mounted || generation != _searchGeneration) return;
 
-        setState(() => _isLoading = true);
+        setState(() {
+          _isLoading = true;
+          _searchError = null;
+        });
 
         try {
           final results = await widget.performSearch(ref, query);
-          if (mounted && query == _lastQuery) {
+          if (mounted && generation == _searchGeneration) {
             setState(() {
               _results = results;
               _selectedIndex = results.isNotEmpty ? 0 : -1;
               _itemKeys.clear(); // Clear keys for new results
             });
           }
-        } catch (e) {
-          // Search failed, ignore silently
+        } catch (e, stackTrace) {
+          logger.e('[SearchDialog]', 'Search failed', e, stackTrace);
+          if (mounted && generation == _searchGeneration) {
+            setState(() {
+              _results = [];
+              _selectedIndex = -1;
+              _itemKeys.clear();
+              _searchError = friendlyErrorMessage(e);
+            });
+          }
         } finally {
-          if (mounted) {
+          if (mounted && generation == _searchGeneration) {
             setState(() => _isLoading = false);
           }
         }
@@ -308,6 +329,24 @@ class _BaseSearchDialogState<T> extends ConsumerState<BaseSearchDialog<T>> {
       return const Center(child: ProgressRing());
     }
 
+    if (_searchError case final error?) {
+      return Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(FluentIcons.error, size: 32),
+            const SizedBox(height: 8),
+            Text(error, textAlign: TextAlign.center),
+            const SizedBox(height: 12),
+            Button(
+              onPressed: () => _search(_lastQuery, force: true),
+              child: const Text('Reintentar'),
+            ),
+          ],
+        ),
+      );
+    }
+
     if (_results.isEmpty) {
       return Center(
         child: Text(
@@ -359,7 +398,7 @@ class SimpleSearchDialog<T> extends BaseSearchDialog<T> {
 
   const SimpleSearchDialog({
     super.key,
-    required SearchDialogConfig config,
+    required this._config,
     required Future<List<T>> Function(WidgetRef ref, String query) onSearch,
     required Widget Function(
       BuildContext context,
@@ -368,8 +407,7 @@ class SimpleSearchDialog<T> extends BaseSearchDialog<T> {
     )
     buildItem,
     dynamic Function(T item)? getReturnValue,
-  }) : _config = config,
-       _searchFn = onSearch,
+  }) : _searchFn = onSearch,
        _buildItemFn = buildItem,
        _getReturnValueFn = getReturnValue;
 

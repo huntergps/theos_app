@@ -26,35 +26,32 @@ class ValidationResult {
   });
 
   /// No validation error
-  factory ValidationResult.ok() => const ValidationResult._(
-        severity: ValidationSeverity.ok,
-      );
+  factory ValidationResult.ok() =>
+      const ValidationResult._(severity: ValidationSeverity.ok);
 
   /// Validation error (blocks save)
   factory ValidationResult.error({
     String? field,
     required String message,
     String? code,
-  }) =>
-      ValidationResult._(
-        field: field,
-        message: message,
-        code: code,
-        severity: ValidationSeverity.error,
-      );
+  }) => ValidationResult._(
+    field: field,
+    message: message,
+    code: code,
+    severity: ValidationSeverity.error,
+  );
 
   /// Validation warning (doesn't block save)
   factory ValidationResult.warning({
     String? field,
     required String message,
     String? code,
-  }) =>
-      ValidationResult._(
-        field: field,
-        message: message,
-        code: code,
-        severity: ValidationSeverity.warning,
-      );
+  }) => ValidationResult._(
+    field: field,
+    message: message,
+    code: code,
+    severity: ValidationSeverity.warning,
+  );
 
   bool get isValid => severity == ValidationSeverity.ok;
   bool get isError => severity == ValidationSeverity.error;
@@ -62,11 +59,7 @@ class ValidationResult {
 }
 
 /// Severity level for validation results
-enum ValidationSeverity {
-  ok,
-  warning,
-  error,
-}
+enum ValidationSeverity { ok, warning, error }
 
 /// Result of a credit validation check
 ///
@@ -92,49 +85,43 @@ class CreditValidationResult {
   });
 
   /// No issues found
-  factory CreditValidationResult.ok() => const CreditValidationResult(
-        type: CreditCheckType.none,
-        isValid: true,
-      );
+  factory CreditValidationResult.ok() =>
+      const CreditValidationResult(type: CreditCheckType.none, isValid: true);
 
   /// No credit limit configured
   factory CreditValidationResult.noLimit() => const CreditValidationResult(
-        type: CreditCheckType.noLimit,
-        isValid: true,
-        message: 'Sin límite de crédito configurado',
-      );
+    type: CreditCheckType.noLimit,
+    isValid: true,
+    message: 'Sin límite de crédito configurado',
+  );
 
   /// Credit limit exceeded
   factory CreditValidationResult.creditExceeded({
     required double creditAvailable,
     required double exceededAmount,
     bool isOffline = false,
-  }) =>
-      CreditValidationResult(
-        type: CreditCheckType.creditLimitExceeded,
-        isValid: false,
-        message: 'Límite de crédito excedido',
-        creditAvailable: creditAvailable,
-        creditExceededAmount: exceededAmount,
-        isOffline: isOffline,
-      );
+  }) => CreditValidationResult(
+    type: CreditCheckType.creditLimitExceeded,
+    isValid: false,
+    message: 'Límite de crédito excedido',
+    creditAvailable: creditAvailable,
+    creditExceededAmount: exceededAmount,
+    isOffline: isOffline,
+  );
 
   /// Overdue debt issues
   factory CreditValidationResult.overdueDebt({
     required String message,
     bool isOffline = false,
-  }) =>
-      CreditValidationResult(
-        type: CreditCheckType.overdueDebt,
-        isValid: false,
-        message: message,
-        isOffline: isOffline,
-      );
+  }) => CreditValidationResult(
+    type: CreditCheckType.overdueDebt,
+    isValid: false,
+    message: message,
+    isOffline: isOffline,
+  );
 
   /// Data is stale (too old to trust)
-  factory CreditValidationResult.staleData({
-    required int hoursOld,
-  }) =>
+  factory CreditValidationResult.staleData({required int hoursOld}) =>
       CreditValidationResult(
         type: CreditCheckType.staleData,
         isValid: false,
@@ -147,13 +134,12 @@ class CreditValidationResult {
   factory CreditValidationResult.warning({
     required String message,
     double? creditAvailable,
-  }) =>
-      CreditValidationResult(
-        type: CreditCheckType.warning,
-        isValid: true,
-        message: message,
-        creditAvailable: creditAvailable,
-      );
+  }) => CreditValidationResult(
+    type: CreditCheckType.warning,
+    isValid: true,
+    message: message,
+    creditAvailable: creditAvailable,
+  );
 
   /// Check if this result requires user confirmation
   bool get requiresConfirmation =>

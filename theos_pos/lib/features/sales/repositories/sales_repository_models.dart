@@ -9,6 +9,8 @@ class PosConfirmResult {
   final String? orderName;
   final String? orderState;
   final CreditIssue? creditIssue;
+  final Map<String, dynamic>? approvalAction;
+
   /// True if the order was confirmed offline (queued for sync)
   final bool confirmedOffline;
 
@@ -19,14 +21,17 @@ class PosConfirmResult {
     this.orderName,
     this.orderState,
     this.creditIssue,
+    this.approvalAction,
     this.confirmedOffline = false,
   });
 
   bool get hasCreditIssue => creditIssue != null;
+  bool get requiresApproval => approvalAction != null;
 }
 
 /// Credit validation issue details from Odoo
 class CreditIssue {
+  final Map<String, dynamic>? approvalAction;
   final String
   type; // 'pending_requests', 'overdue_debt', 'credit_limit_exceeded'
   final String message;
@@ -51,6 +56,7 @@ class CreditIssue {
   final double? orderAmount;
 
   const CreditIssue({
+    this.approvalAction,
     required this.type,
     required this.message,
     required this.partnerId,

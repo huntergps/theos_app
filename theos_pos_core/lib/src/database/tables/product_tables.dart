@@ -48,15 +48,9 @@ class UomUom extends Table {
   RealColumn get factorInv => real().withDefault(const Constant(1.0))();
   RealColumn get rounding => real().withDefault(const Constant(0.01))();
   BoolColumn get active => boolean().withDefault(const Constant(true))();
-  IntColumn get sequence => integer().withDefault(const Constant(1))(); // Note: no field in Uom model — populated manually
-  DateTimeColumn get writeDate => dateTime().nullable()();
-}
-
-/// UomCategory - Categorías de unidades de medida
-class UomCategory extends Table {
-  IntColumn get id => integer().autoIncrement()();
-  IntColumn get odooId => integer().unique()();
-  TextColumn get name => text()();
+  IntColumn get sequence => integer().withDefault(
+    const Constant(1),
+  )(); // Note: no field in Uom model — populated manually
   DateTimeColumn get writeDate => dateTime().nullable()();
 }
 

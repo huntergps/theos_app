@@ -89,8 +89,7 @@ class StockSyncService {
           'warehouse_ids': warehouseIds,
           'include_zero': false,
           // Pass since date for incremental sync (Odoo method must support this)
-          if (isIncrementalSync)
-            'since_date': lastSyncTime.toIso8601String(),
+          if (isIncrementalSync) 'since_date': lastSyncTime.toIso8601String(),
         },
       );
 
@@ -448,8 +447,12 @@ class StockSyncService {
             productName: drift.Value(productName),
             defaultCode: drift.Value(defaultCode),
             changeType: drift.Value(changeType),
-            oldPrice: changeType == 'list_price' ? oldListPrice : oldStandardPrice,
-            newPrice: changeType == 'list_price' ? newListPrice : newStandardPrice,
+            oldPrice: changeType == 'list_price'
+                ? oldListPrice
+                : oldStandardPrice,
+            newPrice: changeType == 'list_price'
+                ? newListPrice
+                : newStandardPrice,
             changeDate: DateTime.now().toUtc(),
             oldListPrice: drift.Value(oldListPrice),
             newListPrice: drift.Value(newListPrice),

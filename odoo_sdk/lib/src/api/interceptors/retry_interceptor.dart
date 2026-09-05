@@ -9,6 +9,70 @@ import 'dart:math';
 
 import 'package:dio/dio.dart';
 
+/// Retry metadata and classification for Odoo JSON-2 requests.
+///
+/// JSON-2 uses HTTP POST for both reads and mutations, so the HTTP verb alone
+/// cannot establish whether replaying a request is safe. Only the explicitly
+/// listed, side-effect-free Odoo methods are eligible for automatic retry.
+/// Unknown methods are deliberately treated as mutations.
+abstract final class OdooRetryPolicy {
+  /// Request extra set by the transport after classifying the Odoo method.
+  static const retrySafeExtraKey = 'odooRetrySafe';
+
+  /// Non-sensitive diagnostic metadata used by metrics/tests.
+  static const methodExtraKey = 'odooMethod';
+
+  static const Set<String> _safeReadMethods = {
+    'search',
+    'read',
+    'search_read',
+    'search_count',
+    'fields_get',
+    // Standard read-only identity/display helpers.
+    'context_get',
+    'name_get',
+    'name_search',
+  };
+
+  /// Whether an Odoo model method is safe to replay automatically.
+  static bool isSafeReadMethod(String method) =>
+      _safeReadMethods.contains(method.trim().toLowerCase());
+
+  /// Extract the model method from a JSON-2 path (`/<model>/<method>`).
+  static String? methodFromJson2Path(String path) {
+    final uri = Uri.tryParse(path);
+    final segments = uri?.pathSegments
+        .where((segment) => segment.isNotEmpty)
+        .toList(growable: false);
+    if (segments == null || segments.length < 2) return null;
+    return segments.last;
+  }
+
+  /// Metadata attached to a JSON-2 request without credentials or payloads.
+  static Map<String, Object> metadataForJson2Path(String path) {
+    final method = methodFromJson2Path(path);
+    return {
+      retrySafeExtraKey: method != null && isSafeReadMethod(method),
+      if (method != null) methodExtraKey: method,
+    };
+  }
+
+  /// Whether a Dio request may be replayed.
+  ///
+  /// JSON-2 POSTs must carry an explicit safe classification. Ordinary GET,
+  /// HEAD and OPTIONS requests remain retryable because their HTTP semantics
+  /// are idempotent; every other unclassified request is fail-closed.
+  static bool isRequestRetrySafe(RequestOptions options) {
+    final classified = options.extra[retrySafeExtraKey];
+    if (classified is bool) return classified;
+
+    return switch (options.method.toUpperCase()) {
+      'GET' || 'HEAD' || 'OPTIONS' => true,
+      _ => false,
+    };
+  }
+}
+
 /// Configuration for retry behavior.
 class RetryConfig {
   /// Maximum number of retry attempts.
@@ -67,7 +131,8 @@ class RetryConfig {
   /// Calculate delay for a specific retry attempt (1-indexed).
   Duration getDelayForAttempt(int attempt) {
     // Exponential backoff: initialDelay * (multiplier ^ (attempt - 1))
-    final exponentialDelay = initialDelay.inMilliseconds *
+    final exponentialDelay =
+        initialDelay.inMilliseconds *
         pow(backoffMultiplier, attempt - 1).toInt();
 
     // Cap at maxDelay
@@ -100,10 +165,8 @@ class RetryInterceptor extends Interceptor {
   ///
   /// The [dio] parameter should be the Dio instance this interceptor is added to.
   /// This is needed to retry requests.
-  RetryInterceptor({
-    required Dio dio,
-    this.config = const RetryConfig(),
-  }) : _dio = dio;
+  RetryInterceptor({required Dio dio, this.config = const RetryConfig()})
+    : _dio = dio;
 
   @override
   Future<void> onError(
@@ -147,6 +210,12 @@ class RetryInterceptor extends Interceptor {
 
   /// Determine if a request should be retried based on the error.
   bool _shouldRetry(DioException err) {
+    // JSON-2 sends every operation as POST. Never replay a request unless the
+    // transport classified it as a side-effect-free read.
+    if (!OdooRetryPolicy.isRequestRetrySafe(err.requestOptions)) {
+      return false;
+    }
+
     // Don't retry if request was cancelled
     if (err.type == DioExceptionType.cancel) {
       return false;
@@ -212,17 +281,19 @@ extension DioRetryExtension on Dio {
     RetryConfig? config,
   }) {
     final effectiveConfig = config ?? const RetryConfig();
-    interceptors.add(RetryInterceptor(
-      dio: this,
-      config: RetryConfig(
-        maxRetries: effectiveConfig.maxRetries,
-        initialDelay: effectiveConfig.initialDelay,
-        maxDelay: effectiveConfig.maxDelay,
-        backoffMultiplier: effectiveConfig.backoffMultiplier,
-        retryableStatusCodes: effectiveConfig.retryableStatusCodes,
-        useJitter: effectiveConfig.useJitter,
-        onRetry: onRetry,
+    interceptors.add(
+      RetryInterceptor(
+        dio: this,
+        config: RetryConfig(
+          maxRetries: effectiveConfig.maxRetries,
+          initialDelay: effectiveConfig.initialDelay,
+          maxDelay: effectiveConfig.maxDelay,
+          backoffMultiplier: effectiveConfig.backoffMultiplier,
+          retryableStatusCodes: effectiveConfig.retryableStatusCodes,
+          useJitter: effectiveConfig.useJitter,
+          onRetry: onRetry,
+        ),
       ),
-    ));
+    );
   }
 }

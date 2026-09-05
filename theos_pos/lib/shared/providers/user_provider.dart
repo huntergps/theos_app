@@ -1,12 +1,66 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+
 import '../../features/users/users.dart';
 import '../../core/services/odoo_service.dart';
 import '../../core/database/repositories/repository_providers.dart';
+
 import 'package:theos_pos_core/theos_pos_core.dart';
 
 final userProvider = NotifierProvider<UserNotifier, User?>(
   () => UserNotifier(),
 );
+
+enum PermissionSnapshotPhase { idle, loading, ready, failed }
+
+/// Observable state of the permission snapshot independently from identity.
+///
+/// [PermissionSnapshotPhase.ready] with an empty list means the synchronized
+/// user has no application permissions. [PermissionSnapshotPhase.failed]
+/// means the snapshot could not be read and authorization remains fail-closed.
+class PermissionSnapshotState {
+  final PermissionSnapshotPhase phase;
+  final List<String> permissions;
+  final Object? error;
+
+  const PermissionSnapshotState._(
+    this.phase, {
+    this.permissions = const [],
+    this.error,
+  });
+
+  const PermissionSnapshotState.idle() : this._(PermissionSnapshotPhase.idle);
+
+  const PermissionSnapshotState.loading()
+    : this._(PermissionSnapshotPhase.loading);
+
+  PermissionSnapshotState.ready(Iterable<String> permissions)
+    : this._(
+        PermissionSnapshotPhase.ready,
+        permissions: List.unmodifiable(permissions),
+      );
+
+  PermissionSnapshotState.failed(Object error)
+    : this._(PermissionSnapshotPhase.failed, error: error);
+}
+
+final permissionSnapshotProvider =
+    NotifierProvider<PermissionSnapshotNotifier, PermissionSnapshotState>(
+      PermissionSnapshotNotifier.new,
+    );
+
+class PermissionSnapshotNotifier extends Notifier<PermissionSnapshotState> {
+  @override
+  PermissionSnapshotState build() => const PermissionSnapshotState.idle();
+
+  void markLoading() => state = const PermissionSnapshotState.loading();
+
+  void publish(Iterable<String> permissions) =>
+      state = PermissionSnapshotState.ready(permissions);
+
+  void fail(Object error) => state = PermissionSnapshotState.failed(error);
+
+  void reset() => state = const PermissionSnapshotState.idle();
+}
 
 /// Notifier to track if the current session is in offline mode
 class OfflineModeNotifier extends Notifier<bool> {
@@ -22,6 +76,8 @@ final isOfflineModeProvider = NotifierProvider<OfflineModeNotifier, bool>(
 );
 
 class UserNotifier extends Notifier<User?> {
+  int _permissionSnapshotGeneration = 0;
+
   @override
   User? build() => null;
 
@@ -30,16 +86,73 @@ class UserNotifier extends Notifier<User?> {
   /// Get UserRepository if available
   UserRepository? get _repository => ref.read(userRepositoryProvider);
 
+  Future<List<String>> _loadPermissionSnapshot(
+    UserRepository repository,
+    int generation,
+  ) async {
+    final snapshot = ref.read(permissionSnapshotProvider.notifier);
+    if (generation == _permissionSnapshotGeneration) {
+      snapshot.markLoading();
+    }
+    try {
+      final permissions = await repository.getCurrentUserGroups();
+      if (generation == _permissionSnapshotGeneration) {
+        snapshot.publish(permissions);
+      }
+      return permissions;
+    } catch (error) {
+      if (generation == _permissionSnapshotGeneration) {
+        snapshot.fail(error);
+      }
+      rethrow;
+    }
+  }
+
+  /// Restores the current user exclusively from the active local database.
+  ///
+  /// This is the fast path used while resuming a committed session. It avoids
+  /// waiting for Odoo before the router and navigation menu can be published.
+  Future<User?> restoreCachedUser({bool isOffline = true}) async {
+    final generation = ++_permissionSnapshotGeneration;
+    final repository = _repository;
+    if (repository == null) return null;
+
+    try {
+      final user = await repository.getCachedCurrentUser();
+      if (user == null) return null;
+      final permissions = await _loadPermissionSnapshot(repository, generation);
+      if (generation != _permissionSnapshotGeneration) return state;
+
+      state = user.copyWith(permissions: permissions);
+      ref.read(isOfflineModeProvider.notifier).setOffline(isOffline);
+      return state;
+    } catch (error) {
+      logger.d('[UserProvider] Cached user restore failed: $error');
+      return null;
+    }
+  }
+
   Future<void> fetchUser() async {
+    final generation = ++_permissionSnapshotGeneration;
+    final repository = _repository;
+
     // Try offline-first repository first
-    if (_repository != null) {
+    if (repository != null) {
       try {
-        final user = await _repository!.getCurrentUser();
+        final user = await repository.getCurrentUser();
         if (user != null) {
           // Fetch permissions from local repository
-          logger.d('[UserProvider] Fetching permissions for user ${user.id}...');
-          final permissions = await _repository!.getCurrentUserGroups();
-          logger.d('[UserProvider] Got ${permissions.length} permissions: ${permissions.take(5).join(', ')}${permissions.length > 5 ? '...' : ''}');
+          logger.d(
+            '[UserProvider] Fetching permissions for user ${user.id}...',
+          );
+          final permissions = await _loadPermissionSnapshot(
+            repository,
+            generation,
+          );
+          logger.d(
+            '[UserProvider] Got ${permissions.length} permissions: ${permissions.take(5).join(', ')}${permissions.length > 5 ? '...' : ''}',
+          );
+          if (generation != _permissionSnapshotGeneration) return;
           state = user.copyWith(permissions: permissions);
           return;
         }
@@ -59,29 +172,40 @@ class UserNotifier extends Notifier<User?> {
         if (user != null) {
           // Try to fetch permissions from local repository if available
           List<String> permissions = [];
-          if (_repository != null) {
+          if (repository != null) {
             try {
-              permissions = await _repository!.getCurrentUserGroups();
+              permissions = await _loadPermissionSnapshot(
+                repository,
+                generation,
+              );
             } catch (e) {
               logger.d('[UserProvider] Failed to load local permissions: $e');
             }
           }
-          logger.d('[UserProvider] Using user from Odoo with ${permissions.length} local permissions');
+          logger.d(
+            '[UserProvider] Using user from Odoo with ${permissions.length} local permissions',
+          );
+          if (generation != _permissionSnapshotGeneration) return;
           state = user.copyWith(permissions: permissions);
         } else {
+          if (generation != _permissionSnapshotGeneration) return;
           state = null;
         }
       } catch (e) {
         logger.d('[UserProvider] userManager fallback error: $e');
+        if (generation != _permissionSnapshotGeneration) return;
         state = null;
       }
     } else {
+      if (generation != _permissionSnapshotGeneration) return;
       state = null;
     }
   }
 
   void clearUser() {
+    _permissionSnapshotGeneration++;
     state = null;
+    ref.read(permissionSnapshotProvider.notifier).reset();
     // Also reset offline mode when clearing user
     ref.read(isOfflineModeProvider.notifier).setOffline(false);
   }
@@ -91,16 +215,23 @@ class UserNotifier extends Notifier<User?> {
   /// [user] - The User model from local database
   /// [isOffline] - Whether this is an offline login session
   Future<void> setUser(User user, {bool isOffline = false}) async {
+    final generation = ++_permissionSnapshotGeneration;
+    final repository = _repository;
+
     // Load permissions from local database
     List<String> permissions = [];
-    if (_repository != null) {
+    if (repository != null) {
       try {
-        permissions = await _repository!.getCurrentUserGroups();
-        logger.d('[UserProvider] Loaded ${permissions.length} permissions from local DB');
+        permissions = await _loadPermissionSnapshot(repository, generation);
+        logger.d(
+          '[UserProvider] Loaded ${permissions.length} permissions from local DB',
+        );
       } catch (e) {
         logger.d('[UserProvider] Failed to load local permissions: $e');
       }
     }
+
+    if (generation != _permissionSnapshotGeneration) return;
 
     // Set the user state with permissions
     state = user.copyWith(permissions: permissions);

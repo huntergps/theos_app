@@ -24,9 +24,12 @@ ios/Flutter/ephemeral/
 # Android
 android/.gradle/
 android/local.properties
+**/android/key.properties
+**/android/*.jks
+**/android/*.keystore
 
-# Generated files (keep tracked, but ignore lock conflicts)
-pubspec.lock
+# Dependency resolutions are versioned so Flutter 3.47.1 resolves the same
+# package graph locally and in CI.
 
 # Environment
 .env

@@ -1284,147 +1284,6 @@ class $ResUsersTable extends ResUsers with TableInfo<$ResUsersTable, ResUser> {
         type: DriftSqlType.string,
         requiredDuringInsert: false,
       );
-  static const VerificationMeta _pinMeta = const VerificationMeta('pin');
-  @override
-  late final GeneratedColumn<String> pin = GeneratedColumn<String>(
-    'pin',
-    aliasedName,
-    true,
-    type: DriftSqlType.string,
-    requiredDuringInsert: false,
-  );
-  static const VerificationMeta _privateStreetMeta = const VerificationMeta(
-    'privateStreet',
-  );
-  @override
-  late final GeneratedColumn<String> privateStreet = GeneratedColumn<String>(
-    'private_street',
-    aliasedName,
-    true,
-    type: DriftSqlType.string,
-    requiredDuringInsert: false,
-  );
-  static const VerificationMeta _privateStreet2Meta = const VerificationMeta(
-    'privateStreet2',
-  );
-  @override
-  late final GeneratedColumn<String> privateStreet2 = GeneratedColumn<String>(
-    'private_street2',
-    aliasedName,
-    true,
-    type: DriftSqlType.string,
-    requiredDuringInsert: false,
-  );
-  static const VerificationMeta _privateCityMeta = const VerificationMeta(
-    'privateCity',
-  );
-  @override
-  late final GeneratedColumn<String> privateCity = GeneratedColumn<String>(
-    'private_city',
-    aliasedName,
-    true,
-    type: DriftSqlType.string,
-    requiredDuringInsert: false,
-  );
-  static const VerificationMeta _privateZipMeta = const VerificationMeta(
-    'privateZip',
-  );
-  @override
-  late final GeneratedColumn<String> privateZip = GeneratedColumn<String>(
-    'private_zip',
-    aliasedName,
-    true,
-    type: DriftSqlType.string,
-    requiredDuringInsert: false,
-  );
-  static const VerificationMeta _privateStateIdMeta = const VerificationMeta(
-    'privateStateId',
-  );
-  @override
-  late final GeneratedColumn<int> privateStateId = GeneratedColumn<int>(
-    'private_state_id',
-    aliasedName,
-    true,
-    type: DriftSqlType.int,
-    requiredDuringInsert: false,
-  );
-  static const VerificationMeta _privateStateNameMeta = const VerificationMeta(
-    'privateStateName',
-  );
-  @override
-  late final GeneratedColumn<String> privateStateName = GeneratedColumn<String>(
-    'private_state_name',
-    aliasedName,
-    true,
-    type: DriftSqlType.string,
-    requiredDuringInsert: false,
-  );
-  static const VerificationMeta _privateCountryIdMeta = const VerificationMeta(
-    'privateCountryId',
-  );
-  @override
-  late final GeneratedColumn<int> privateCountryId = GeneratedColumn<int>(
-    'private_country_id',
-    aliasedName,
-    true,
-    type: DriftSqlType.int,
-    requiredDuringInsert: false,
-  );
-  static const VerificationMeta _privateCountryNameMeta =
-      const VerificationMeta('privateCountryName');
-  @override
-  late final GeneratedColumn<String> privateCountryName =
-      GeneratedColumn<String>(
-        'private_country_name',
-        aliasedName,
-        true,
-        type: DriftSqlType.string,
-        requiredDuringInsert: false,
-      );
-  static const VerificationMeta _privateEmailMeta = const VerificationMeta(
-    'privateEmail',
-  );
-  @override
-  late final GeneratedColumn<String> privateEmail = GeneratedColumn<String>(
-    'private_email',
-    aliasedName,
-    true,
-    type: DriftSqlType.string,
-    requiredDuringInsert: false,
-  );
-  static const VerificationMeta _privatePhoneMeta = const VerificationMeta(
-    'privatePhone',
-  );
-  @override
-  late final GeneratedColumn<String> privatePhone = GeneratedColumn<String>(
-    'private_phone',
-    aliasedName,
-    true,
-    type: DriftSqlType.string,
-    requiredDuringInsert: false,
-  );
-  static const VerificationMeta _emergencyContactMeta = const VerificationMeta(
-    'emergencyContact',
-  );
-  @override
-  late final GeneratedColumn<String> emergencyContact = GeneratedColumn<String>(
-    'emergency_contact',
-    aliasedName,
-    true,
-    type: DriftSqlType.string,
-    requiredDuringInsert: false,
-  );
-  static const VerificationMeta _emergencyPhoneMeta = const VerificationMeta(
-    'emergencyPhone',
-  );
-  @override
-  late final GeneratedColumn<String> emergencyPhone = GeneratedColumn<String>(
-    'emergency_phone',
-    aliasedName,
-    true,
-    type: DriftSqlType.string,
-    requiredDuringInsert: false,
-  );
   @override
   List<GeneratedColumn> get $columns => [
     id,
@@ -1458,19 +1317,6 @@ class $ResUsersTable extends ResUsers with TableInfo<$ResUsersTable, ResUser> {
     workLocationName,
     resourceCalendarId,
     resourceCalendarName,
-    pin,
-    privateStreet,
-    privateStreet2,
-    privateCity,
-    privateZip,
-    privateStateId,
-    privateStateName,
-    privateCountryId,
-    privateCountryName,
-    privateEmail,
-    privatePhone,
-    emergencyContact,
-    emergencyPhone,
   ];
   @override
   String get aliasedName => _alias ?? actualTableName;
@@ -1718,117 +1564,6 @@ class $ResUsersTable extends ResUsers with TableInfo<$ResUsersTable, ResUser> {
         ),
       );
     }
-    if (data.containsKey('pin')) {
-      context.handle(
-        _pinMeta,
-        pin.isAcceptableOrUnknown(data['pin']!, _pinMeta),
-      );
-    }
-    if (data.containsKey('private_street')) {
-      context.handle(
-        _privateStreetMeta,
-        privateStreet.isAcceptableOrUnknown(
-          data['private_street']!,
-          _privateStreetMeta,
-        ),
-      );
-    }
-    if (data.containsKey('private_street2')) {
-      context.handle(
-        _privateStreet2Meta,
-        privateStreet2.isAcceptableOrUnknown(
-          data['private_street2']!,
-          _privateStreet2Meta,
-        ),
-      );
-    }
-    if (data.containsKey('private_city')) {
-      context.handle(
-        _privateCityMeta,
-        privateCity.isAcceptableOrUnknown(
-          data['private_city']!,
-          _privateCityMeta,
-        ),
-      );
-    }
-    if (data.containsKey('private_zip')) {
-      context.handle(
-        _privateZipMeta,
-        privateZip.isAcceptableOrUnknown(data['private_zip']!, _privateZipMeta),
-      );
-    }
-    if (data.containsKey('private_state_id')) {
-      context.handle(
-        _privateStateIdMeta,
-        privateStateId.isAcceptableOrUnknown(
-          data['private_state_id']!,
-          _privateStateIdMeta,
-        ),
-      );
-    }
-    if (data.containsKey('private_state_name')) {
-      context.handle(
-        _privateStateNameMeta,
-        privateStateName.isAcceptableOrUnknown(
-          data['private_state_name']!,
-          _privateStateNameMeta,
-        ),
-      );
-    }
-    if (data.containsKey('private_country_id')) {
-      context.handle(
-        _privateCountryIdMeta,
-        privateCountryId.isAcceptableOrUnknown(
-          data['private_country_id']!,
-          _privateCountryIdMeta,
-        ),
-      );
-    }
-    if (data.containsKey('private_country_name')) {
-      context.handle(
-        _privateCountryNameMeta,
-        privateCountryName.isAcceptableOrUnknown(
-          data['private_country_name']!,
-          _privateCountryNameMeta,
-        ),
-      );
-    }
-    if (data.containsKey('private_email')) {
-      context.handle(
-        _privateEmailMeta,
-        privateEmail.isAcceptableOrUnknown(
-          data['private_email']!,
-          _privateEmailMeta,
-        ),
-      );
-    }
-    if (data.containsKey('private_phone')) {
-      context.handle(
-        _privatePhoneMeta,
-        privatePhone.isAcceptableOrUnknown(
-          data['private_phone']!,
-          _privatePhoneMeta,
-        ),
-      );
-    }
-    if (data.containsKey('emergency_contact')) {
-      context.handle(
-        _emergencyContactMeta,
-        emergencyContact.isAcceptableOrUnknown(
-          data['emergency_contact']!,
-          _emergencyContactMeta,
-        ),
-      );
-    }
-    if (data.containsKey('emergency_phone')) {
-      context.handle(
-        _emergencyPhoneMeta,
-        emergencyPhone.isAcceptableOrUnknown(
-          data['emergency_phone']!,
-          _emergencyPhoneMeta,
-        ),
-      );
-    }
     return context;
   }
 
@@ -1962,58 +1697,6 @@ class $ResUsersTable extends ResUsers with TableInfo<$ResUsersTable, ResUser> {
         DriftSqlType.string,
         data['${effectivePrefix}resource_calendar_name'],
       ),
-      pin: attachedDatabase.typeMapping.read(
-        DriftSqlType.string,
-        data['${effectivePrefix}pin'],
-      ),
-      privateStreet: attachedDatabase.typeMapping.read(
-        DriftSqlType.string,
-        data['${effectivePrefix}private_street'],
-      ),
-      privateStreet2: attachedDatabase.typeMapping.read(
-        DriftSqlType.string,
-        data['${effectivePrefix}private_street2'],
-      ),
-      privateCity: attachedDatabase.typeMapping.read(
-        DriftSqlType.string,
-        data['${effectivePrefix}private_city'],
-      ),
-      privateZip: attachedDatabase.typeMapping.read(
-        DriftSqlType.string,
-        data['${effectivePrefix}private_zip'],
-      ),
-      privateStateId: attachedDatabase.typeMapping.read(
-        DriftSqlType.int,
-        data['${effectivePrefix}private_state_id'],
-      ),
-      privateStateName: attachedDatabase.typeMapping.read(
-        DriftSqlType.string,
-        data['${effectivePrefix}private_state_name'],
-      ),
-      privateCountryId: attachedDatabase.typeMapping.read(
-        DriftSqlType.int,
-        data['${effectivePrefix}private_country_id'],
-      ),
-      privateCountryName: attachedDatabase.typeMapping.read(
-        DriftSqlType.string,
-        data['${effectivePrefix}private_country_name'],
-      ),
-      privateEmail: attachedDatabase.typeMapping.read(
-        DriftSqlType.string,
-        data['${effectivePrefix}private_email'],
-      ),
-      privatePhone: attachedDatabase.typeMapping.read(
-        DriftSqlType.string,
-        data['${effectivePrefix}private_phone'],
-      ),
-      emergencyContact: attachedDatabase.typeMapping.read(
-        DriftSqlType.string,
-        data['${effectivePrefix}emergency_contact'],
-      ),
-      emergencyPhone: attachedDatabase.typeMapping.read(
-        DriftSqlType.string,
-        data['${effectivePrefix}emergency_phone'],
-      ),
     );
   }
 
@@ -2055,19 +1738,6 @@ class ResUser extends DataClass implements Insertable<ResUser> {
   final String? workLocationName;
   final int? resourceCalendarId;
   final String? resourceCalendarName;
-  final String? pin;
-  final String? privateStreet;
-  final String? privateStreet2;
-  final String? privateCity;
-  final String? privateZip;
-  final int? privateStateId;
-  final String? privateStateName;
-  final int? privateCountryId;
-  final String? privateCountryName;
-  final String? privateEmail;
-  final String? privatePhone;
-  final String? emergencyContact;
-  final String? emergencyPhone;
   const ResUser({
     required this.id,
     required this.odooId,
@@ -2100,19 +1770,6 @@ class ResUser extends DataClass implements Insertable<ResUser> {
     this.workLocationName,
     this.resourceCalendarId,
     this.resourceCalendarName,
-    this.pin,
-    this.privateStreet,
-    this.privateStreet2,
-    this.privateCity,
-    this.privateZip,
-    this.privateStateId,
-    this.privateStateName,
-    this.privateCountryId,
-    this.privateCountryName,
-    this.privateEmail,
-    this.privatePhone,
-    this.emergencyContact,
-    this.emergencyPhone,
   });
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
@@ -2202,45 +1859,6 @@ class ResUser extends DataClass implements Insertable<ResUser> {
     if (!nullToAbsent || resourceCalendarName != null) {
       map['resource_calendar_name'] = Variable<String>(resourceCalendarName);
     }
-    if (!nullToAbsent || pin != null) {
-      map['pin'] = Variable<String>(pin);
-    }
-    if (!nullToAbsent || privateStreet != null) {
-      map['private_street'] = Variable<String>(privateStreet);
-    }
-    if (!nullToAbsent || privateStreet2 != null) {
-      map['private_street2'] = Variable<String>(privateStreet2);
-    }
-    if (!nullToAbsent || privateCity != null) {
-      map['private_city'] = Variable<String>(privateCity);
-    }
-    if (!nullToAbsent || privateZip != null) {
-      map['private_zip'] = Variable<String>(privateZip);
-    }
-    if (!nullToAbsent || privateStateId != null) {
-      map['private_state_id'] = Variable<int>(privateStateId);
-    }
-    if (!nullToAbsent || privateStateName != null) {
-      map['private_state_name'] = Variable<String>(privateStateName);
-    }
-    if (!nullToAbsent || privateCountryId != null) {
-      map['private_country_id'] = Variable<int>(privateCountryId);
-    }
-    if (!nullToAbsent || privateCountryName != null) {
-      map['private_country_name'] = Variable<String>(privateCountryName);
-    }
-    if (!nullToAbsent || privateEmail != null) {
-      map['private_email'] = Variable<String>(privateEmail);
-    }
-    if (!nullToAbsent || privatePhone != null) {
-      map['private_phone'] = Variable<String>(privatePhone);
-    }
-    if (!nullToAbsent || emergencyContact != null) {
-      map['emergency_contact'] = Variable<String>(emergencyContact);
-    }
-    if (!nullToAbsent || emergencyPhone != null) {
-      map['emergency_phone'] = Variable<String>(emergencyPhone);
-    }
     return map;
   }
 
@@ -2325,43 +1943,6 @@ class ResUser extends DataClass implements Insertable<ResUser> {
       resourceCalendarName: resourceCalendarName == null && nullToAbsent
           ? const Value.absent()
           : Value(resourceCalendarName),
-      pin: pin == null && nullToAbsent ? const Value.absent() : Value(pin),
-      privateStreet: privateStreet == null && nullToAbsent
-          ? const Value.absent()
-          : Value(privateStreet),
-      privateStreet2: privateStreet2 == null && nullToAbsent
-          ? const Value.absent()
-          : Value(privateStreet2),
-      privateCity: privateCity == null && nullToAbsent
-          ? const Value.absent()
-          : Value(privateCity),
-      privateZip: privateZip == null && nullToAbsent
-          ? const Value.absent()
-          : Value(privateZip),
-      privateStateId: privateStateId == null && nullToAbsent
-          ? const Value.absent()
-          : Value(privateStateId),
-      privateStateName: privateStateName == null && nullToAbsent
-          ? const Value.absent()
-          : Value(privateStateName),
-      privateCountryId: privateCountryId == null && nullToAbsent
-          ? const Value.absent()
-          : Value(privateCountryId),
-      privateCountryName: privateCountryName == null && nullToAbsent
-          ? const Value.absent()
-          : Value(privateCountryName),
-      privateEmail: privateEmail == null && nullToAbsent
-          ? const Value.absent()
-          : Value(privateEmail),
-      privatePhone: privatePhone == null && nullToAbsent
-          ? const Value.absent()
-          : Value(privatePhone),
-      emergencyContact: emergencyContact == null && nullToAbsent
-          ? const Value.absent()
-          : Value(emergencyContact),
-      emergencyPhone: emergencyPhone == null && nullToAbsent
-          ? const Value.absent()
-          : Value(emergencyPhone),
     );
   }
 
@@ -2410,21 +1991,6 @@ class ResUser extends DataClass implements Insertable<ResUser> {
       resourceCalendarName: serializer.fromJson<String?>(
         json['resourceCalendarName'],
       ),
-      pin: serializer.fromJson<String?>(json['pin']),
-      privateStreet: serializer.fromJson<String?>(json['privateStreet']),
-      privateStreet2: serializer.fromJson<String?>(json['privateStreet2']),
-      privateCity: serializer.fromJson<String?>(json['privateCity']),
-      privateZip: serializer.fromJson<String?>(json['privateZip']),
-      privateStateId: serializer.fromJson<int?>(json['privateStateId']),
-      privateStateName: serializer.fromJson<String?>(json['privateStateName']),
-      privateCountryId: serializer.fromJson<int?>(json['privateCountryId']),
-      privateCountryName: serializer.fromJson<String?>(
-        json['privateCountryName'],
-      ),
-      privateEmail: serializer.fromJson<String?>(json['privateEmail']),
-      privatePhone: serializer.fromJson<String?>(json['privatePhone']),
-      emergencyContact: serializer.fromJson<String?>(json['emergencyContact']),
-      emergencyPhone: serializer.fromJson<String?>(json['emergencyPhone']),
     );
   }
   @override
@@ -2464,19 +2030,6 @@ class ResUser extends DataClass implements Insertable<ResUser> {
       'workLocationName': serializer.toJson<String?>(workLocationName),
       'resourceCalendarId': serializer.toJson<int?>(resourceCalendarId),
       'resourceCalendarName': serializer.toJson<String?>(resourceCalendarName),
-      'pin': serializer.toJson<String?>(pin),
-      'privateStreet': serializer.toJson<String?>(privateStreet),
-      'privateStreet2': serializer.toJson<String?>(privateStreet2),
-      'privateCity': serializer.toJson<String?>(privateCity),
-      'privateZip': serializer.toJson<String?>(privateZip),
-      'privateStateId': serializer.toJson<int?>(privateStateId),
-      'privateStateName': serializer.toJson<String?>(privateStateName),
-      'privateCountryId': serializer.toJson<int?>(privateCountryId),
-      'privateCountryName': serializer.toJson<String?>(privateCountryName),
-      'privateEmail': serializer.toJson<String?>(privateEmail),
-      'privatePhone': serializer.toJson<String?>(privatePhone),
-      'emergencyContact': serializer.toJson<String?>(emergencyContact),
-      'emergencyPhone': serializer.toJson<String?>(emergencyPhone),
     };
   }
 
@@ -2512,19 +2065,6 @@ class ResUser extends DataClass implements Insertable<ResUser> {
     Value<String?> workLocationName = const Value.absent(),
     Value<int?> resourceCalendarId = const Value.absent(),
     Value<String?> resourceCalendarName = const Value.absent(),
-    Value<String?> pin = const Value.absent(),
-    Value<String?> privateStreet = const Value.absent(),
-    Value<String?> privateStreet2 = const Value.absent(),
-    Value<String?> privateCity = const Value.absent(),
-    Value<String?> privateZip = const Value.absent(),
-    Value<int?> privateStateId = const Value.absent(),
-    Value<String?> privateStateName = const Value.absent(),
-    Value<int?> privateCountryId = const Value.absent(),
-    Value<String?> privateCountryName = const Value.absent(),
-    Value<String?> privateEmail = const Value.absent(),
-    Value<String?> privatePhone = const Value.absent(),
-    Value<String?> emergencyContact = const Value.absent(),
-    Value<String?> emergencyPhone = const Value.absent(),
   }) => ResUser(
     id: id ?? this.id,
     odooId: odooId ?? this.odooId,
@@ -2579,35 +2119,6 @@ class ResUser extends DataClass implements Insertable<ResUser> {
     resourceCalendarName: resourceCalendarName.present
         ? resourceCalendarName.value
         : this.resourceCalendarName,
-    pin: pin.present ? pin.value : this.pin,
-    privateStreet: privateStreet.present
-        ? privateStreet.value
-        : this.privateStreet,
-    privateStreet2: privateStreet2.present
-        ? privateStreet2.value
-        : this.privateStreet2,
-    privateCity: privateCity.present ? privateCity.value : this.privateCity,
-    privateZip: privateZip.present ? privateZip.value : this.privateZip,
-    privateStateId: privateStateId.present
-        ? privateStateId.value
-        : this.privateStateId,
-    privateStateName: privateStateName.present
-        ? privateStateName.value
-        : this.privateStateName,
-    privateCountryId: privateCountryId.present
-        ? privateCountryId.value
-        : this.privateCountryId,
-    privateCountryName: privateCountryName.present
-        ? privateCountryName.value
-        : this.privateCountryName,
-    privateEmail: privateEmail.present ? privateEmail.value : this.privateEmail,
-    privatePhone: privatePhone.present ? privatePhone.value : this.privatePhone,
-    emergencyContact: emergencyContact.present
-        ? emergencyContact.value
-        : this.emergencyContact,
-    emergencyPhone: emergencyPhone.present
-        ? emergencyPhone.value
-        : this.emergencyPhone,
   );
   ResUser copyWithCompanion(ResUsersCompanion data) {
     return ResUser(
@@ -2674,43 +2185,6 @@ class ResUser extends DataClass implements Insertable<ResUser> {
       resourceCalendarName: data.resourceCalendarName.present
           ? data.resourceCalendarName.value
           : this.resourceCalendarName,
-      pin: data.pin.present ? data.pin.value : this.pin,
-      privateStreet: data.privateStreet.present
-          ? data.privateStreet.value
-          : this.privateStreet,
-      privateStreet2: data.privateStreet2.present
-          ? data.privateStreet2.value
-          : this.privateStreet2,
-      privateCity: data.privateCity.present
-          ? data.privateCity.value
-          : this.privateCity,
-      privateZip: data.privateZip.present
-          ? data.privateZip.value
-          : this.privateZip,
-      privateStateId: data.privateStateId.present
-          ? data.privateStateId.value
-          : this.privateStateId,
-      privateStateName: data.privateStateName.present
-          ? data.privateStateName.value
-          : this.privateStateName,
-      privateCountryId: data.privateCountryId.present
-          ? data.privateCountryId.value
-          : this.privateCountryId,
-      privateCountryName: data.privateCountryName.present
-          ? data.privateCountryName.value
-          : this.privateCountryName,
-      privateEmail: data.privateEmail.present
-          ? data.privateEmail.value
-          : this.privateEmail,
-      privatePhone: data.privatePhone.present
-          ? data.privatePhone.value
-          : this.privatePhone,
-      emergencyContact: data.emergencyContact.present
-          ? data.emergencyContact.value
-          : this.emergencyContact,
-      emergencyPhone: data.emergencyPhone.present
-          ? data.emergencyPhone.value
-          : this.emergencyPhone,
     );
   }
 
@@ -2747,20 +2221,7 @@ class ResUser extends DataClass implements Insertable<ResUser> {
           ..write('workLocationId: $workLocationId, ')
           ..write('workLocationName: $workLocationName, ')
           ..write('resourceCalendarId: $resourceCalendarId, ')
-          ..write('resourceCalendarName: $resourceCalendarName, ')
-          ..write('pin: $pin, ')
-          ..write('privateStreet: $privateStreet, ')
-          ..write('privateStreet2: $privateStreet2, ')
-          ..write('privateCity: $privateCity, ')
-          ..write('privateZip: $privateZip, ')
-          ..write('privateStateId: $privateStateId, ')
-          ..write('privateStateName: $privateStateName, ')
-          ..write('privateCountryId: $privateCountryId, ')
-          ..write('privateCountryName: $privateCountryName, ')
-          ..write('privateEmail: $privateEmail, ')
-          ..write('privatePhone: $privatePhone, ')
-          ..write('emergencyContact: $emergencyContact, ')
-          ..write('emergencyPhone: $emergencyPhone')
+          ..write('resourceCalendarName: $resourceCalendarName')
           ..write(')'))
         .toString();
   }
@@ -2798,19 +2259,6 @@ class ResUser extends DataClass implements Insertable<ResUser> {
     workLocationName,
     resourceCalendarId,
     resourceCalendarName,
-    pin,
-    privateStreet,
-    privateStreet2,
-    privateCity,
-    privateZip,
-    privateStateId,
-    privateStateName,
-    privateCountryId,
-    privateCountryName,
-    privateEmail,
-    privatePhone,
-    emergencyContact,
-    emergencyPhone,
   ]);
   @override
   bool operator ==(Object other) =>
@@ -2846,20 +2294,7 @@ class ResUser extends DataClass implements Insertable<ResUser> {
           other.workLocationId == this.workLocationId &&
           other.workLocationName == this.workLocationName &&
           other.resourceCalendarId == this.resourceCalendarId &&
-          other.resourceCalendarName == this.resourceCalendarName &&
-          other.pin == this.pin &&
-          other.privateStreet == this.privateStreet &&
-          other.privateStreet2 == this.privateStreet2 &&
-          other.privateCity == this.privateCity &&
-          other.privateZip == this.privateZip &&
-          other.privateStateId == this.privateStateId &&
-          other.privateStateName == this.privateStateName &&
-          other.privateCountryId == this.privateCountryId &&
-          other.privateCountryName == this.privateCountryName &&
-          other.privateEmail == this.privateEmail &&
-          other.privatePhone == this.privatePhone &&
-          other.emergencyContact == this.emergencyContact &&
-          other.emergencyPhone == this.emergencyPhone);
+          other.resourceCalendarName == this.resourceCalendarName);
 }
 
 class ResUsersCompanion extends UpdateCompanion<ResUser> {
@@ -2894,19 +2329,6 @@ class ResUsersCompanion extends UpdateCompanion<ResUser> {
   final Value<String?> workLocationName;
   final Value<int?> resourceCalendarId;
   final Value<String?> resourceCalendarName;
-  final Value<String?> pin;
-  final Value<String?> privateStreet;
-  final Value<String?> privateStreet2;
-  final Value<String?> privateCity;
-  final Value<String?> privateZip;
-  final Value<int?> privateStateId;
-  final Value<String?> privateStateName;
-  final Value<int?> privateCountryId;
-  final Value<String?> privateCountryName;
-  final Value<String?> privateEmail;
-  final Value<String?> privatePhone;
-  final Value<String?> emergencyContact;
-  final Value<String?> emergencyPhone;
   const ResUsersCompanion({
     this.id = const Value.absent(),
     this.odooId = const Value.absent(),
@@ -2939,19 +2361,6 @@ class ResUsersCompanion extends UpdateCompanion<ResUser> {
     this.workLocationName = const Value.absent(),
     this.resourceCalendarId = const Value.absent(),
     this.resourceCalendarName = const Value.absent(),
-    this.pin = const Value.absent(),
-    this.privateStreet = const Value.absent(),
-    this.privateStreet2 = const Value.absent(),
-    this.privateCity = const Value.absent(),
-    this.privateZip = const Value.absent(),
-    this.privateStateId = const Value.absent(),
-    this.privateStateName = const Value.absent(),
-    this.privateCountryId = const Value.absent(),
-    this.privateCountryName = const Value.absent(),
-    this.privateEmail = const Value.absent(),
-    this.privatePhone = const Value.absent(),
-    this.emergencyContact = const Value.absent(),
-    this.emergencyPhone = const Value.absent(),
   });
   ResUsersCompanion.insert({
     this.id = const Value.absent(),
@@ -2985,19 +2394,6 @@ class ResUsersCompanion extends UpdateCompanion<ResUser> {
     this.workLocationName = const Value.absent(),
     this.resourceCalendarId = const Value.absent(),
     this.resourceCalendarName = const Value.absent(),
-    this.pin = const Value.absent(),
-    this.privateStreet = const Value.absent(),
-    this.privateStreet2 = const Value.absent(),
-    this.privateCity = const Value.absent(),
-    this.privateZip = const Value.absent(),
-    this.privateStateId = const Value.absent(),
-    this.privateStateName = const Value.absent(),
-    this.privateCountryId = const Value.absent(),
-    this.privateCountryName = const Value.absent(),
-    this.privateEmail = const Value.absent(),
-    this.privatePhone = const Value.absent(),
-    this.emergencyContact = const Value.absent(),
-    this.emergencyPhone = const Value.absent(),
   }) : odooId = Value(odooId),
        name = Value(name),
        login = Value(login);
@@ -3033,19 +2429,6 @@ class ResUsersCompanion extends UpdateCompanion<ResUser> {
     Expression<String>? workLocationName,
     Expression<int>? resourceCalendarId,
     Expression<String>? resourceCalendarName,
-    Expression<String>? pin,
-    Expression<String>? privateStreet,
-    Expression<String>? privateStreet2,
-    Expression<String>? privateCity,
-    Expression<String>? privateZip,
-    Expression<int>? privateStateId,
-    Expression<String>? privateStateName,
-    Expression<int>? privateCountryId,
-    Expression<String>? privateCountryName,
-    Expression<String>? privateEmail,
-    Expression<String>? privatePhone,
-    Expression<String>? emergencyContact,
-    Expression<String>? emergencyPhone,
   }) {
     return RawValuesInsertable({
       if (id != null) 'id': id,
@@ -3084,20 +2467,6 @@ class ResUsersCompanion extends UpdateCompanion<ResUser> {
         'resource_calendar_id': resourceCalendarId,
       if (resourceCalendarName != null)
         'resource_calendar_name': resourceCalendarName,
-      if (pin != null) 'pin': pin,
-      if (privateStreet != null) 'private_street': privateStreet,
-      if (privateStreet2 != null) 'private_street2': privateStreet2,
-      if (privateCity != null) 'private_city': privateCity,
-      if (privateZip != null) 'private_zip': privateZip,
-      if (privateStateId != null) 'private_state_id': privateStateId,
-      if (privateStateName != null) 'private_state_name': privateStateName,
-      if (privateCountryId != null) 'private_country_id': privateCountryId,
-      if (privateCountryName != null)
-        'private_country_name': privateCountryName,
-      if (privateEmail != null) 'private_email': privateEmail,
-      if (privatePhone != null) 'private_phone': privatePhone,
-      if (emergencyContact != null) 'emergency_contact': emergencyContact,
-      if (emergencyPhone != null) 'emergency_phone': emergencyPhone,
     });
   }
 
@@ -3133,19 +2502,6 @@ class ResUsersCompanion extends UpdateCompanion<ResUser> {
     Value<String?>? workLocationName,
     Value<int?>? resourceCalendarId,
     Value<String?>? resourceCalendarName,
-    Value<String?>? pin,
-    Value<String?>? privateStreet,
-    Value<String?>? privateStreet2,
-    Value<String?>? privateCity,
-    Value<String?>? privateZip,
-    Value<int?>? privateStateId,
-    Value<String?>? privateStateName,
-    Value<int?>? privateCountryId,
-    Value<String?>? privateCountryName,
-    Value<String?>? privateEmail,
-    Value<String?>? privatePhone,
-    Value<String?>? emergencyContact,
-    Value<String?>? emergencyPhone,
   }) {
     return ResUsersCompanion(
       id: id ?? this.id,
@@ -3180,19 +2536,6 @@ class ResUsersCompanion extends UpdateCompanion<ResUser> {
       workLocationName: workLocationName ?? this.workLocationName,
       resourceCalendarId: resourceCalendarId ?? this.resourceCalendarId,
       resourceCalendarName: resourceCalendarName ?? this.resourceCalendarName,
-      pin: pin ?? this.pin,
-      privateStreet: privateStreet ?? this.privateStreet,
-      privateStreet2: privateStreet2 ?? this.privateStreet2,
-      privateCity: privateCity ?? this.privateCity,
-      privateZip: privateZip ?? this.privateZip,
-      privateStateId: privateStateId ?? this.privateStateId,
-      privateStateName: privateStateName ?? this.privateStateName,
-      privateCountryId: privateCountryId ?? this.privateCountryId,
-      privateCountryName: privateCountryName ?? this.privateCountryName,
-      privateEmail: privateEmail ?? this.privateEmail,
-      privatePhone: privatePhone ?? this.privatePhone,
-      emergencyContact: emergencyContact ?? this.emergencyContact,
-      emergencyPhone: emergencyPhone ?? this.emergencyPhone,
     );
   }
 
@@ -3296,45 +2639,6 @@ class ResUsersCompanion extends UpdateCompanion<ResUser> {
         resourceCalendarName.value,
       );
     }
-    if (pin.present) {
-      map['pin'] = Variable<String>(pin.value);
-    }
-    if (privateStreet.present) {
-      map['private_street'] = Variable<String>(privateStreet.value);
-    }
-    if (privateStreet2.present) {
-      map['private_street2'] = Variable<String>(privateStreet2.value);
-    }
-    if (privateCity.present) {
-      map['private_city'] = Variable<String>(privateCity.value);
-    }
-    if (privateZip.present) {
-      map['private_zip'] = Variable<String>(privateZip.value);
-    }
-    if (privateStateId.present) {
-      map['private_state_id'] = Variable<int>(privateStateId.value);
-    }
-    if (privateStateName.present) {
-      map['private_state_name'] = Variable<String>(privateStateName.value);
-    }
-    if (privateCountryId.present) {
-      map['private_country_id'] = Variable<int>(privateCountryId.value);
-    }
-    if (privateCountryName.present) {
-      map['private_country_name'] = Variable<String>(privateCountryName.value);
-    }
-    if (privateEmail.present) {
-      map['private_email'] = Variable<String>(privateEmail.value);
-    }
-    if (privatePhone.present) {
-      map['private_phone'] = Variable<String>(privatePhone.value);
-    }
-    if (emergencyContact.present) {
-      map['emergency_contact'] = Variable<String>(emergencyContact.value);
-    }
-    if (emergencyPhone.present) {
-      map['emergency_phone'] = Variable<String>(emergencyPhone.value);
-    }
     return map;
   }
 
@@ -3371,20 +2675,7 @@ class ResUsersCompanion extends UpdateCompanion<ResUser> {
           ..write('workLocationId: $workLocationId, ')
           ..write('workLocationName: $workLocationName, ')
           ..write('resourceCalendarId: $resourceCalendarId, ')
-          ..write('resourceCalendarName: $resourceCalendarName, ')
-          ..write('pin: $pin, ')
-          ..write('privateStreet: $privateStreet, ')
-          ..write('privateStreet2: $privateStreet2, ')
-          ..write('privateCity: $privateCity, ')
-          ..write('privateZip: $privateZip, ')
-          ..write('privateStateId: $privateStateId, ')
-          ..write('privateStateName: $privateStateName, ')
-          ..write('privateCountryId: $privateCountryId, ')
-          ..write('privateCountryName: $privateCountryName, ')
-          ..write('privateEmail: $privateEmail, ')
-          ..write('privatePhone: $privatePhone, ')
-          ..write('emergencyContact: $emergencyContact, ')
-          ..write('emergencyPhone: $emergencyPhone')
+          ..write('resourceCalendarName: $resourceCalendarName')
           ..write(')'))
         .toString();
   }
@@ -10316,7 +9607,7 @@ class $ResCompanyTableTable extends ResCompanyTable
         false,
         type: DriftSqlType.double,
         requiredDuringInsert: false,
-        defaultValue: const Constant(100.0),
+        defaultValue: const Constant(0.0),
       );
   static const VerificationMeta _creditOverdueDaysThresholdMeta =
       const VerificationMeta('creditOverdueDaysThreshold');
@@ -14560,6 +13851,42 @@ class $OfflineQueueTable extends OfflineQueue
     type: DriftSqlType.string,
     requiredDuringInsert: false,
   );
+  static const VerificationMeta _operationKeyMeta = const VerificationMeta(
+    'operationKey',
+  );
+  @override
+  late final GeneratedColumn<String> operationKey = GeneratedColumn<String>(
+    'operation_key',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways('UNIQUE'),
+  );
+  static const VerificationMeta _commandVersionMeta = const VerificationMeta(
+    'commandVersion',
+  );
+  @override
+  late final GeneratedColumn<int> commandVersion = GeneratedColumn<int>(
+    'command_version',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(1),
+  );
+  static const VerificationMeta _replayPolicyMeta = const VerificationMeta(
+    'replayPolicy',
+  );
+  @override
+  late final GeneratedColumn<String> replayPolicy = GeneratedColumn<String>(
+    'replay_policy',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant('manual_after_ambiguous'),
+  );
   static const VerificationMeta _statusMeta = const VerificationMeta('status');
   @override
   late final GeneratedColumn<String> status = GeneratedColumn<String>(
@@ -14580,7 +13907,7 @@ class $OfflineQueueTable extends OfflineQueue
     false,
     type: DriftSqlType.int,
     requiredDuringInsert: false,
-    defaultValue: const Constant(3),
+    defaultValue: const Constant(10),
   );
   static const VerificationMeta _requiresNetworkMeta = const VerificationMeta(
     'requiresNetwork',
@@ -14655,6 +13982,9 @@ class $OfflineQueueTable extends OfflineQueue
     parentOrderId,
     priority,
     deviceId,
+    operationKey,
+    commandVersion,
+    replayPolicy,
     status,
     maxRetries,
     requiresNetwork,
@@ -14748,6 +14078,33 @@ class $OfflineQueueTable extends OfflineQueue
       context.handle(
         _deviceIdMeta,
         deviceId.isAcceptableOrUnknown(data['device_id']!, _deviceIdMeta),
+      );
+    }
+    if (data.containsKey('operation_key')) {
+      context.handle(
+        _operationKeyMeta,
+        operationKey.isAcceptableOrUnknown(
+          data['operation_key']!,
+          _operationKeyMeta,
+        ),
+      );
+    }
+    if (data.containsKey('command_version')) {
+      context.handle(
+        _commandVersionMeta,
+        commandVersion.isAcceptableOrUnknown(
+          data['command_version']!,
+          _commandVersionMeta,
+        ),
+      );
+    }
+    if (data.containsKey('replay_policy')) {
+      context.handle(
+        _replayPolicyMeta,
+        replayPolicy.isAcceptableOrUnknown(
+          data['replay_policy']!,
+          _replayPolicyMeta,
+        ),
       );
     }
     if (data.containsKey('status')) {
@@ -14854,6 +14211,18 @@ class $OfflineQueueTable extends OfflineQueue
         DriftSqlType.string,
         data['${effectivePrefix}device_id'],
       ),
+      operationKey: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}operation_key'],
+      ),
+      commandVersion: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}command_version'],
+      )!,
+      replayPolicy: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}replay_policy'],
+      )!,
       status: attachedDatabase.typeMapping.read(
         DriftSqlType.string,
         data['${effectivePrefix}status'],
@@ -14925,6 +14294,15 @@ class OfflineQueueData extends DataClass
   /// Device ID that created this operation (for multi-device tracking)
   final String? deviceId;
 
+  /// Stable local idempotency key. Null is allowed for non-create operations.
+  final String? operationKey;
+
+  /// Version of the local command payload contract.
+  final int commandVersion;
+
+  /// Retry behavior after an ambiguous network failure.
+  final String replayPolicy;
+
   /// Estado de la operación: 'pending', 'processing', 'completed', 'failed'
   final String status;
 
@@ -14957,6 +14335,9 @@ class OfflineQueueData extends DataClass
     this.parentOrderId,
     required this.priority,
     this.deviceId,
+    this.operationKey,
+    required this.commandVersion,
+    required this.replayPolicy,
     required this.status,
     required this.maxRetries,
     required this.requiresNetwork,
@@ -14989,6 +14370,11 @@ class OfflineQueueData extends DataClass
     if (!nullToAbsent || deviceId != null) {
       map['device_id'] = Variable<String>(deviceId);
     }
+    if (!nullToAbsent || operationKey != null) {
+      map['operation_key'] = Variable<String>(operationKey);
+    }
+    map['command_version'] = Variable<int>(commandVersion);
+    map['replay_policy'] = Variable<String>(replayPolicy);
     map['status'] = Variable<String>(status);
     map['max_retries'] = Variable<int>(maxRetries);
     map['requires_network'] = Variable<bool>(requiresNetwork);
@@ -15028,6 +14414,11 @@ class OfflineQueueData extends DataClass
       deviceId: deviceId == null && nullToAbsent
           ? const Value.absent()
           : Value(deviceId),
+      operationKey: operationKey == null && nullToAbsent
+          ? const Value.absent()
+          : Value(operationKey),
+      commandVersion: Value(commandVersion),
+      replayPolicy: Value(replayPolicy),
       status: Value(status),
       maxRetries: Value(maxRetries),
       requiresNetwork: Value(requiresNetwork),
@@ -15061,6 +14452,9 @@ class OfflineQueueData extends DataClass
       parentOrderId: serializer.fromJson<int?>(json['parentOrderId']),
       priority: serializer.fromJson<int>(json['priority']),
       deviceId: serializer.fromJson<String?>(json['deviceId']),
+      operationKey: serializer.fromJson<String?>(json['operationKey']),
+      commandVersion: serializer.fromJson<int>(json['commandVersion']),
+      replayPolicy: serializer.fromJson<String>(json['replayPolicy']),
       status: serializer.fromJson<String>(json['status']),
       maxRetries: serializer.fromJson<int>(json['maxRetries']),
       requiresNetwork: serializer.fromJson<bool>(json['requiresNetwork']),
@@ -15085,6 +14479,9 @@ class OfflineQueueData extends DataClass
       'parentOrderId': serializer.toJson<int?>(parentOrderId),
       'priority': serializer.toJson<int>(priority),
       'deviceId': serializer.toJson<String?>(deviceId),
+      'operationKey': serializer.toJson<String?>(operationKey),
+      'commandVersion': serializer.toJson<int>(commandVersion),
+      'replayPolicy': serializer.toJson<String>(replayPolicy),
       'status': serializer.toJson<String>(status),
       'maxRetries': serializer.toJson<int>(maxRetries),
       'requiresNetwork': serializer.toJson<bool>(requiresNetwork),
@@ -15107,6 +14504,9 @@ class OfflineQueueData extends DataClass
     Value<int?> parentOrderId = const Value.absent(),
     int? priority,
     Value<String?> deviceId = const Value.absent(),
+    Value<String?> operationKey = const Value.absent(),
+    int? commandVersion,
+    String? replayPolicy,
     String? status,
     int? maxRetries,
     bool? requiresNetwork,
@@ -15130,6 +14530,9 @@ class OfflineQueueData extends DataClass
         : this.parentOrderId,
     priority: priority ?? this.priority,
     deviceId: deviceId.present ? deviceId.value : this.deviceId,
+    operationKey: operationKey.present ? operationKey.value : this.operationKey,
+    commandVersion: commandVersion ?? this.commandVersion,
+    replayPolicy: replayPolicy ?? this.replayPolicy,
     status: status ?? this.status,
     maxRetries: maxRetries ?? this.maxRetries,
     requiresNetwork: requiresNetwork ?? this.requiresNetwork,
@@ -15155,6 +14558,15 @@ class OfflineQueueData extends DataClass
           : this.parentOrderId,
       priority: data.priority.present ? data.priority.value : this.priority,
       deviceId: data.deviceId.present ? data.deviceId.value : this.deviceId,
+      operationKey: data.operationKey.present
+          ? data.operationKey.value
+          : this.operationKey,
+      commandVersion: data.commandVersion.present
+          ? data.commandVersion.value
+          : this.commandVersion,
+      replayPolicy: data.replayPolicy.present
+          ? data.replayPolicy.value
+          : this.replayPolicy,
       status: data.status.present ? data.status.value : this.status,
       maxRetries: data.maxRetries.present
           ? data.maxRetries.value
@@ -15189,6 +14601,9 @@ class OfflineQueueData extends DataClass
           ..write('parentOrderId: $parentOrderId, ')
           ..write('priority: $priority, ')
           ..write('deviceId: $deviceId, ')
+          ..write('operationKey: $operationKey, ')
+          ..write('commandVersion: $commandVersion, ')
+          ..write('replayPolicy: $replayPolicy, ')
           ..write('status: $status, ')
           ..write('maxRetries: $maxRetries, ')
           ..write('requiresNetwork: $requiresNetwork, ')
@@ -15201,7 +14616,7 @@ class OfflineQueueData extends DataClass
   }
 
   @override
-  int get hashCode => Object.hash(
+  int get hashCode => Object.hashAll([
     id,
     operation,
     model,
@@ -15213,6 +14628,9 @@ class OfflineQueueData extends DataClass
     parentOrderId,
     priority,
     deviceId,
+    operationKey,
+    commandVersion,
+    replayPolicy,
     status,
     maxRetries,
     requiresNetwork,
@@ -15220,7 +14638,7 @@ class OfflineQueueData extends DataClass
     lastRetryAt,
     nextRetryAt,
     lastError,
-  );
+  ]);
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
@@ -15236,6 +14654,9 @@ class OfflineQueueData extends DataClass
           other.parentOrderId == this.parentOrderId &&
           other.priority == this.priority &&
           other.deviceId == this.deviceId &&
+          other.operationKey == this.operationKey &&
+          other.commandVersion == this.commandVersion &&
+          other.replayPolicy == this.replayPolicy &&
           other.status == this.status &&
           other.maxRetries == this.maxRetries &&
           other.requiresNetwork == this.requiresNetwork &&
@@ -15257,6 +14678,9 @@ class OfflineQueueCompanion extends UpdateCompanion<OfflineQueueData> {
   final Value<int?> parentOrderId;
   final Value<int> priority;
   final Value<String?> deviceId;
+  final Value<String?> operationKey;
+  final Value<int> commandVersion;
+  final Value<String> replayPolicy;
   final Value<String> status;
   final Value<int> maxRetries;
   final Value<bool> requiresNetwork;
@@ -15276,6 +14700,9 @@ class OfflineQueueCompanion extends UpdateCompanion<OfflineQueueData> {
     this.parentOrderId = const Value.absent(),
     this.priority = const Value.absent(),
     this.deviceId = const Value.absent(),
+    this.operationKey = const Value.absent(),
+    this.commandVersion = const Value.absent(),
+    this.replayPolicy = const Value.absent(),
     this.status = const Value.absent(),
     this.maxRetries = const Value.absent(),
     this.requiresNetwork = const Value.absent(),
@@ -15296,6 +14723,9 @@ class OfflineQueueCompanion extends UpdateCompanion<OfflineQueueData> {
     this.parentOrderId = const Value.absent(),
     this.priority = const Value.absent(),
     this.deviceId = const Value.absent(),
+    this.operationKey = const Value.absent(),
+    this.commandVersion = const Value.absent(),
+    this.replayPolicy = const Value.absent(),
     this.status = const Value.absent(),
     this.maxRetries = const Value.absent(),
     this.requiresNetwork = const Value.absent(),
@@ -15318,6 +14748,9 @@ class OfflineQueueCompanion extends UpdateCompanion<OfflineQueueData> {
     Expression<int>? parentOrderId,
     Expression<int>? priority,
     Expression<String>? deviceId,
+    Expression<String>? operationKey,
+    Expression<int>? commandVersion,
+    Expression<String>? replayPolicy,
     Expression<String>? status,
     Expression<int>? maxRetries,
     Expression<bool>? requiresNetwork,
@@ -15338,6 +14771,9 @@ class OfflineQueueCompanion extends UpdateCompanion<OfflineQueueData> {
       if (parentOrderId != null) 'parent_order_id': parentOrderId,
       if (priority != null) 'priority': priority,
       if (deviceId != null) 'device_id': deviceId,
+      if (operationKey != null) 'operation_key': operationKey,
+      if (commandVersion != null) 'command_version': commandVersion,
+      if (replayPolicy != null) 'replay_policy': replayPolicy,
       if (status != null) 'status': status,
       if (maxRetries != null) 'max_retries': maxRetries,
       if (requiresNetwork != null) 'requires_network': requiresNetwork,
@@ -15360,6 +14796,9 @@ class OfflineQueueCompanion extends UpdateCompanion<OfflineQueueData> {
     Value<int?>? parentOrderId,
     Value<int>? priority,
     Value<String?>? deviceId,
+    Value<String?>? operationKey,
+    Value<int>? commandVersion,
+    Value<String>? replayPolicy,
     Value<String>? status,
     Value<int>? maxRetries,
     Value<bool>? requiresNetwork,
@@ -15380,6 +14819,9 @@ class OfflineQueueCompanion extends UpdateCompanion<OfflineQueueData> {
       parentOrderId: parentOrderId ?? this.parentOrderId,
       priority: priority ?? this.priority,
       deviceId: deviceId ?? this.deviceId,
+      operationKey: operationKey ?? this.operationKey,
+      commandVersion: commandVersion ?? this.commandVersion,
+      replayPolicy: replayPolicy ?? this.replayPolicy,
       status: status ?? this.status,
       maxRetries: maxRetries ?? this.maxRetries,
       requiresNetwork: requiresNetwork ?? this.requiresNetwork,
@@ -15426,6 +14868,15 @@ class OfflineQueueCompanion extends UpdateCompanion<OfflineQueueData> {
     if (deviceId.present) {
       map['device_id'] = Variable<String>(deviceId.value);
     }
+    if (operationKey.present) {
+      map['operation_key'] = Variable<String>(operationKey.value);
+    }
+    if (commandVersion.present) {
+      map['command_version'] = Variable<int>(commandVersion.value);
+    }
+    if (replayPolicy.present) {
+      map['replay_policy'] = Variable<String>(replayPolicy.value);
+    }
     if (status.present) {
       map['status'] = Variable<String>(status.value);
     }
@@ -15464,6 +14915,9 @@ class OfflineQueueCompanion extends UpdateCompanion<OfflineQueueData> {
           ..write('parentOrderId: $parentOrderId, ')
           ..write('priority: $priority, ')
           ..write('deviceId: $deviceId, ')
+          ..write('operationKey: $operationKey, ')
+          ..write('commandVersion: $commandVersion, ')
+          ..write('replayPolicy: $replayPolicy, ')
           ..write('status: $status, ')
           ..write('maxRetries: $maxRetries, ')
           ..write('requiresNetwork: $requiresNetwork, ')
@@ -18401,6 +17855,17 @@ class $CollectionConfigTable extends CollectionConfig
     type: DriftSqlType.string,
     requiredDuringInsert: false,
   );
+  static const VerificationMeta _posAppCapabilitiesJsonMeta =
+      const VerificationMeta('posAppCapabilitiesJson');
+  @override
+  late final GeneratedColumn<String> posAppCapabilitiesJson =
+      GeneratedColumn<String>(
+        'pos_app_capabilities_json',
+        aliasedName,
+        true,
+        type: DriftSqlType.string,
+        requiredDuringInsert: false,
+      );
   static const VerificationMeta _currentSessionIdMeta = const VerificationMeta(
     'currentSessionId',
   );
@@ -18554,6 +18019,7 @@ class $CollectionConfigTable extends CollectionConfig
     setMaximumDifference,
     amountAuthorizedDiff,
     userIds,
+    posAppCapabilitiesJson,
     currentSessionId,
     currentSessionState,
     currentSessionName,
@@ -18709,6 +18175,15 @@ class $CollectionConfigTable extends CollectionConfig
       context.handle(
         _userIdsMeta,
         userIds.isAcceptableOrUnknown(data['user_ids']!, _userIdsMeta),
+      );
+    }
+    if (data.containsKey('pos_app_capabilities_json')) {
+      context.handle(
+        _posAppCapabilitiesJsonMeta,
+        posAppCapabilitiesJson.isAcceptableOrUnknown(
+          data['pos_app_capabilities_json']!,
+          _posAppCapabilitiesJsonMeta,
+        ),
       );
     }
     if (data.containsKey('current_session_id')) {
@@ -18887,6 +18362,10 @@ class $CollectionConfigTable extends CollectionConfig
         DriftSqlType.string,
         data['${effectivePrefix}user_ids'],
       ),
+      posAppCapabilitiesJson: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}pos_app_capabilities_json'],
+      ),
       currentSessionId: attachedDatabase.typeMapping.read(
         DriftSqlType.int,
         data['${effectivePrefix}current_session_id'],
@@ -18963,6 +18442,7 @@ class CollectionConfigData extends DataClass
   final bool setMaximumDifference;
   final double amountAuthorizedDiff;
   final String? userIds;
+  final String? posAppCapabilitiesJson;
   final int? currentSessionId;
   final String? currentSessionState;
   final String? currentSessionName;
@@ -18993,6 +18473,7 @@ class CollectionConfigData extends DataClass
     required this.setMaximumDifference,
     required this.amountAuthorizedDiff,
     this.userIds,
+    this.posAppCapabilitiesJson,
     this.currentSessionId,
     this.currentSessionState,
     this.currentSessionName,
@@ -19049,6 +18530,11 @@ class CollectionConfigData extends DataClass
     map['amount_authorized_diff'] = Variable<double>(amountAuthorizedDiff);
     if (!nullToAbsent || userIds != null) {
       map['user_ids'] = Variable<String>(userIds);
+    }
+    if (!nullToAbsent || posAppCapabilitiesJson != null) {
+      map['pos_app_capabilities_json'] = Variable<String>(
+        posAppCapabilitiesJson,
+      );
     }
     if (!nullToAbsent || currentSessionId != null) {
       map['current_session_id'] = Variable<int>(currentSessionId);
@@ -19124,6 +18610,9 @@ class CollectionConfigData extends DataClass
       userIds: userIds == null && nullToAbsent
           ? const Value.absent()
           : Value(userIds),
+      posAppCapabilitiesJson: posAppCapabilitiesJson == null && nullToAbsent
+          ? const Value.absent()
+          : Value(posAppCapabilitiesJson),
       currentSessionId: currentSessionId == null && nullToAbsent
           ? const Value.absent()
           : Value(currentSessionId),
@@ -19186,6 +18675,9 @@ class CollectionConfigData extends DataClass
         json['amountAuthorizedDiff'],
       ),
       userIds: serializer.fromJson<String?>(json['userIds']),
+      posAppCapabilitiesJson: serializer.fromJson<String?>(
+        json['posAppCapabilitiesJson'],
+      ),
       currentSessionId: serializer.fromJson<int?>(json['currentSessionId']),
       currentSessionState: serializer.fromJson<String?>(
         json['currentSessionState'],
@@ -19239,6 +18731,9 @@ class CollectionConfigData extends DataClass
       'setMaximumDifference': serializer.toJson<bool>(setMaximumDifference),
       'amountAuthorizedDiff': serializer.toJson<double>(amountAuthorizedDiff),
       'userIds': serializer.toJson<String?>(userIds),
+      'posAppCapabilitiesJson': serializer.toJson<String?>(
+        posAppCapabilitiesJson,
+      ),
       'currentSessionId': serializer.toJson<int?>(currentSessionId),
       'currentSessionState': serializer.toJson<String?>(currentSessionState),
       'currentSessionName': serializer.toJson<String?>(currentSessionName),
@@ -19280,6 +18775,7 @@ class CollectionConfigData extends DataClass
     bool? setMaximumDifference,
     double? amountAuthorizedDiff,
     Value<String?> userIds = const Value.absent(),
+    Value<String?> posAppCapabilitiesJson = const Value.absent(),
     Value<int?> currentSessionId = const Value.absent(),
     Value<String?> currentSessionState = const Value.absent(),
     Value<String?> currentSessionName = const Value.absent(),
@@ -19318,6 +18814,9 @@ class CollectionConfigData extends DataClass
     setMaximumDifference: setMaximumDifference ?? this.setMaximumDifference,
     amountAuthorizedDiff: amountAuthorizedDiff ?? this.amountAuthorizedDiff,
     userIds: userIds.present ? userIds.value : this.userIds,
+    posAppCapabilitiesJson: posAppCapabilitiesJson.present
+        ? posAppCapabilitiesJson.value
+        : this.posAppCapabilitiesJson,
     currentSessionId: currentSessionId.present
         ? currentSessionId.value
         : this.currentSessionId,
@@ -19383,6 +18882,9 @@ class CollectionConfigData extends DataClass
           ? data.amountAuthorizedDiff.value
           : this.amountAuthorizedDiff,
       userIds: data.userIds.present ? data.userIds.value : this.userIds,
+      posAppCapabilitiesJson: data.posAppCapabilitiesJson.present
+          ? data.posAppCapabilitiesJson.value
+          : this.posAppCapabilitiesJson,
       currentSessionId: data.currentSessionId.present
           ? data.currentSessionId.value
           : this.currentSessionId,
@@ -19436,6 +18938,7 @@ class CollectionConfigData extends DataClass
           ..write('setMaximumDifference: $setMaximumDifference, ')
           ..write('amountAuthorizedDiff: $amountAuthorizedDiff, ')
           ..write('userIds: $userIds, ')
+          ..write('posAppCapabilitiesJson: $posAppCapabilitiesJson, ')
           ..write('currentSessionId: $currentSessionId, ')
           ..write('currentSessionState: $currentSessionState, ')
           ..write('currentSessionName: $currentSessionName, ')
@@ -19471,6 +18974,7 @@ class CollectionConfigData extends DataClass
     setMaximumDifference,
     amountAuthorizedDiff,
     userIds,
+    posAppCapabilitiesJson,
     currentSessionId,
     currentSessionState,
     currentSessionName,
@@ -19505,6 +19009,7 @@ class CollectionConfigData extends DataClass
           other.setMaximumDifference == this.setMaximumDifference &&
           other.amountAuthorizedDiff == this.amountAuthorizedDiff &&
           other.userIds == this.userIds &&
+          other.posAppCapabilitiesJson == this.posAppCapabilitiesJson &&
           other.currentSessionId == this.currentSessionId &&
           other.currentSessionState == this.currentSessionState &&
           other.currentSessionName == this.currentSessionName &&
@@ -19537,6 +19042,7 @@ class CollectionConfigCompanion extends UpdateCompanion<CollectionConfigData> {
   final Value<bool> setMaximumDifference;
   final Value<double> amountAuthorizedDiff;
   final Value<String?> userIds;
+  final Value<String?> posAppCapabilitiesJson;
   final Value<int?> currentSessionId;
   final Value<String?> currentSessionState;
   final Value<String?> currentSessionName;
@@ -19567,6 +19073,7 @@ class CollectionConfigCompanion extends UpdateCompanion<CollectionConfigData> {
     this.setMaximumDifference = const Value.absent(),
     this.amountAuthorizedDiff = const Value.absent(),
     this.userIds = const Value.absent(),
+    this.posAppCapabilitiesJson = const Value.absent(),
     this.currentSessionId = const Value.absent(),
     this.currentSessionState = const Value.absent(),
     this.currentSessionName = const Value.absent(),
@@ -19598,6 +19105,7 @@ class CollectionConfigCompanion extends UpdateCompanion<CollectionConfigData> {
     this.setMaximumDifference = const Value.absent(),
     this.amountAuthorizedDiff = const Value.absent(),
     this.userIds = const Value.absent(),
+    this.posAppCapabilitiesJson = const Value.absent(),
     this.currentSessionId = const Value.absent(),
     this.currentSessionState = const Value.absent(),
     this.currentSessionName = const Value.absent(),
@@ -19631,6 +19139,7 @@ class CollectionConfigCompanion extends UpdateCompanion<CollectionConfigData> {
     Expression<bool>? setMaximumDifference,
     Expression<double>? amountAuthorizedDiff,
     Expression<String>? userIds,
+    Expression<String>? posAppCapabilitiesJson,
     Expression<int>? currentSessionId,
     Expression<String>? currentSessionState,
     Expression<String>? currentSessionName,
@@ -19665,6 +19174,8 @@ class CollectionConfigCompanion extends UpdateCompanion<CollectionConfigData> {
       if (amountAuthorizedDiff != null)
         'amount_authorized_diff': amountAuthorizedDiff,
       if (userIds != null) 'user_ids': userIds,
+      if (posAppCapabilitiesJson != null)
+        'pos_app_capabilities_json': posAppCapabilitiesJson,
       if (currentSessionId != null) 'current_session_id': currentSessionId,
       if (currentSessionState != null)
         'current_session_state': currentSessionState,
@@ -19706,6 +19217,7 @@ class CollectionConfigCompanion extends UpdateCompanion<CollectionConfigData> {
     Value<bool>? setMaximumDifference,
     Value<double>? amountAuthorizedDiff,
     Value<String?>? userIds,
+    Value<String?>? posAppCapabilitiesJson,
     Value<int?>? currentSessionId,
     Value<String?>? currentSessionState,
     Value<String?>? currentSessionName,
@@ -19738,6 +19250,8 @@ class CollectionConfigCompanion extends UpdateCompanion<CollectionConfigData> {
       setMaximumDifference: setMaximumDifference ?? this.setMaximumDifference,
       amountAuthorizedDiff: amountAuthorizedDiff ?? this.amountAuthorizedDiff,
       userIds: userIds ?? this.userIds,
+      posAppCapabilitiesJson:
+          posAppCapabilitiesJson ?? this.posAppCapabilitiesJson,
       currentSessionId: currentSessionId ?? this.currentSessionId,
       currentSessionState: currentSessionState ?? this.currentSessionState,
       currentSessionName: currentSessionName ?? this.currentSessionName,
@@ -19819,6 +19333,11 @@ class CollectionConfigCompanion extends UpdateCompanion<CollectionConfigData> {
     if (userIds.present) {
       map['user_ids'] = Variable<String>(userIds.value);
     }
+    if (posAppCapabilitiesJson.present) {
+      map['pos_app_capabilities_json'] = Variable<String>(
+        posAppCapabilitiesJson.value,
+      );
+    }
     if (currentSessionId.present) {
       map['current_session_id'] = Variable<int>(currentSessionId.value);
     }
@@ -19892,6 +19411,7 @@ class CollectionConfigCompanion extends UpdateCompanion<CollectionConfigData> {
           ..write('setMaximumDifference: $setMaximumDifference, ')
           ..write('amountAuthorizedDiff: $amountAuthorizedDiff, ')
           ..write('userIds: $userIds, ')
+          ..write('posAppCapabilitiesJson: $posAppCapabilitiesJson, ')
           ..write('currentSessionId: $currentSessionId, ')
           ..write('currentSessionState: $currentSessionState, ')
           ..write('currentSessionName: $currentSessionName, ')
@@ -26817,17 +26337,6 @@ class $CollectionSessionCashTable extends CollectionSessionCash
     type: DriftSqlType.int,
     requiredDuringInsert: true,
   );
-  static const VerificationMeta _denominationMeta = const VerificationMeta(
-    'denomination',
-  );
-  @override
-  late final GeneratedColumn<String> denomination = GeneratedColumn<String>(
-    'denomination',
-    aliasedName,
-    true,
-    type: DriftSqlType.string,
-    requiredDuringInsert: false,
-  );
   static const VerificationMeta _cashTypeMeta = const VerificationMeta(
     'cashType',
   );
@@ -26835,29 +26344,9 @@ class $CollectionSessionCashTable extends CollectionSessionCash
   late final GeneratedColumn<String> cashType = GeneratedColumn<String>(
     'cash_type',
     aliasedName,
-    true,
+    false,
     type: DriftSqlType.string,
-    requiredDuringInsert: false,
-  );
-  static const VerificationMeta _countMeta = const VerificationMeta('count');
-  @override
-  late final GeneratedColumn<int> count = GeneratedColumn<int>(
-    'count',
-    aliasedName,
-    false,
-    type: DriftSqlType.int,
-    requiredDuringInsert: false,
-    defaultValue: const Constant(0),
-  );
-  static const VerificationMeta _amountMeta = const VerificationMeta('amount');
-  @override
-  late final GeneratedColumn<double> amount = GeneratedColumn<double>(
-    'amount',
-    aliasedName,
-    false,
-    type: DriftSqlType.double,
-    requiredDuringInsert: false,
-    defaultValue: const Constant(0.0),
+    requiredDuringInsert: true,
   );
   static const VerificationMeta _bills100Meta = const VerificationMeta(
     'bills100',
@@ -27046,10 +26535,7 @@ class $CollectionSessionCashTable extends CollectionSessionCash
     id,
     odooId,
     collectionSessionId,
-    denomination,
     cashType,
-    count,
-    amount,
     bills100,
     bills50,
     bills20,
@@ -27101,32 +26587,13 @@ class $CollectionSessionCashTable extends CollectionSessionCash
     } else if (isInserting) {
       context.missing(_collectionSessionIdMeta);
     }
-    if (data.containsKey('denomination')) {
-      context.handle(
-        _denominationMeta,
-        denomination.isAcceptableOrUnknown(
-          data['denomination']!,
-          _denominationMeta,
-        ),
-      );
-    }
     if (data.containsKey('cash_type')) {
       context.handle(
         _cashTypeMeta,
         cashType.isAcceptableOrUnknown(data['cash_type']!, _cashTypeMeta),
       );
-    }
-    if (data.containsKey('count')) {
-      context.handle(
-        _countMeta,
-        count.isAcceptableOrUnknown(data['count']!, _countMeta),
-      );
-    }
-    if (data.containsKey('amount')) {
-      context.handle(
-        _amountMeta,
-        amount.isAcceptableOrUnknown(data['amount']!, _amountMeta),
-      );
+    } else if (isInserting) {
+      context.missing(_cashTypeMeta);
     }
     if (data.containsKey('bills100')) {
       context.handle(
@@ -27251,21 +26718,9 @@ class $CollectionSessionCashTable extends CollectionSessionCash
         DriftSqlType.int,
         data['${effectivePrefix}collection_session_id'],
       )!,
-      denomination: attachedDatabase.typeMapping.read(
-        DriftSqlType.string,
-        data['${effectivePrefix}denomination'],
-      ),
       cashType: attachedDatabase.typeMapping.read(
         DriftSqlType.string,
         data['${effectivePrefix}cash_type'],
-      ),
-      count: attachedDatabase.typeMapping.read(
-        DriftSqlType.int,
-        data['${effectivePrefix}count'],
-      )!,
-      amount: attachedDatabase.typeMapping.read(
-        DriftSqlType.double,
-        data['${effectivePrefix}amount'],
       )!,
       bills100: attachedDatabase.typeMapping.read(
         DriftSqlType.int,
@@ -27345,10 +26800,7 @@ class CollectionSessionCashData extends DataClass
   final int id;
   final int odooId;
   final int collectionSessionId;
-  final String? denomination;
-  final String? cashType;
-  final int count;
-  final double amount;
+  final String cashType;
   final int bills100;
   final int bills50;
   final int bills20;
@@ -27369,10 +26821,7 @@ class CollectionSessionCashData extends DataClass
     required this.id,
     required this.odooId,
     required this.collectionSessionId,
-    this.denomination,
-    this.cashType,
-    required this.count,
-    required this.amount,
+    required this.cashType,
     required this.bills100,
     required this.bills50,
     required this.bills20,
@@ -27396,14 +26845,7 @@ class CollectionSessionCashData extends DataClass
     map['id'] = Variable<int>(id);
     map['odoo_id'] = Variable<int>(odooId);
     map['collection_session_id'] = Variable<int>(collectionSessionId);
-    if (!nullToAbsent || denomination != null) {
-      map['denomination'] = Variable<String>(denomination);
-    }
-    if (!nullToAbsent || cashType != null) {
-      map['cash_type'] = Variable<String>(cashType);
-    }
-    map['count'] = Variable<int>(count);
-    map['amount'] = Variable<double>(amount);
+    map['cash_type'] = Variable<String>(cashType);
     map['bills100'] = Variable<int>(bills100);
     map['bills50'] = Variable<int>(bills50);
     map['bills20'] = Variable<int>(bills20);
@@ -27434,14 +26876,7 @@ class CollectionSessionCashData extends DataClass
       id: Value(id),
       odooId: Value(odooId),
       collectionSessionId: Value(collectionSessionId),
-      denomination: denomination == null && nullToAbsent
-          ? const Value.absent()
-          : Value(denomination),
-      cashType: cashType == null && nullToAbsent
-          ? const Value.absent()
-          : Value(cashType),
-      count: Value(count),
-      amount: Value(amount),
+      cashType: Value(cashType),
       bills100: Value(bills100),
       bills50: Value(bills50),
       bills20: Value(bills20),
@@ -27478,10 +26913,7 @@ class CollectionSessionCashData extends DataClass
       collectionSessionId: serializer.fromJson<int>(
         json['collectionSessionId'],
       ),
-      denomination: serializer.fromJson<String?>(json['denomination']),
-      cashType: serializer.fromJson<String?>(json['cashType']),
-      count: serializer.fromJson<int>(json['count']),
-      amount: serializer.fromJson<double>(json['amount']),
+      cashType: serializer.fromJson<String>(json['cashType']),
       bills100: serializer.fromJson<int>(json['bills100']),
       bills50: serializer.fromJson<int>(json['bills50']),
       bills20: serializer.fromJson<int>(json['bills20']),
@@ -27507,10 +26939,7 @@ class CollectionSessionCashData extends DataClass
       'id': serializer.toJson<int>(id),
       'odooId': serializer.toJson<int>(odooId),
       'collectionSessionId': serializer.toJson<int>(collectionSessionId),
-      'denomination': serializer.toJson<String?>(denomination),
-      'cashType': serializer.toJson<String?>(cashType),
-      'count': serializer.toJson<int>(count),
-      'amount': serializer.toJson<double>(amount),
+      'cashType': serializer.toJson<String>(cashType),
       'bills100': serializer.toJson<int>(bills100),
       'bills50': serializer.toJson<int>(bills50),
       'bills20': serializer.toJson<int>(bills20),
@@ -27534,10 +26963,7 @@ class CollectionSessionCashData extends DataClass
     int? id,
     int? odooId,
     int? collectionSessionId,
-    Value<String?> denomination = const Value.absent(),
-    Value<String?> cashType = const Value.absent(),
-    int? count,
-    double? amount,
+    String? cashType,
     int? bills100,
     int? bills50,
     int? bills20,
@@ -27558,10 +26984,7 @@ class CollectionSessionCashData extends DataClass
     id: id ?? this.id,
     odooId: odooId ?? this.odooId,
     collectionSessionId: collectionSessionId ?? this.collectionSessionId,
-    denomination: denomination.present ? denomination.value : this.denomination,
-    cashType: cashType.present ? cashType.value : this.cashType,
-    count: count ?? this.count,
-    amount: amount ?? this.amount,
+    cashType: cashType ?? this.cashType,
     bills100: bills100 ?? this.bills100,
     bills50: bills50 ?? this.bills50,
     bills20: bills20 ?? this.bills20,
@@ -27588,12 +27011,7 @@ class CollectionSessionCashData extends DataClass
       collectionSessionId: data.collectionSessionId.present
           ? data.collectionSessionId.value
           : this.collectionSessionId,
-      denomination: data.denomination.present
-          ? data.denomination.value
-          : this.denomination,
       cashType: data.cashType.present ? data.cashType.value : this.cashType,
-      count: data.count.present ? data.count.value : this.count,
-      amount: data.amount.present ? data.amount.value : this.amount,
       bills100: data.bills100.present ? data.bills100.value : this.bills100,
       bills50: data.bills50.present ? data.bills50.value : this.bills50,
       bills20: data.bills20.present ? data.bills20.value : this.bills20,
@@ -27623,10 +27041,7 @@ class CollectionSessionCashData extends DataClass
           ..write('id: $id, ')
           ..write('odooId: $odooId, ')
           ..write('collectionSessionId: $collectionSessionId, ')
-          ..write('denomination: $denomination, ')
           ..write('cashType: $cashType, ')
-          ..write('count: $count, ')
-          ..write('amount: $amount, ')
           ..write('bills100: $bills100, ')
           ..write('bills50: $bills50, ')
           ..write('bills20: $bills20, ')
@@ -27648,14 +27063,11 @@ class CollectionSessionCashData extends DataClass
   }
 
   @override
-  int get hashCode => Object.hashAll([
+  int get hashCode => Object.hash(
     id,
     odooId,
     collectionSessionId,
-    denomination,
     cashType,
-    count,
-    amount,
     bills100,
     bills50,
     bills20,
@@ -27672,7 +27084,7 @@ class CollectionSessionCashData extends DataClass
     isSynced,
     lastSyncDate,
     writeDate,
-  ]);
+  );
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
@@ -27680,10 +27092,7 @@ class CollectionSessionCashData extends DataClass
           other.id == this.id &&
           other.odooId == this.odooId &&
           other.collectionSessionId == this.collectionSessionId &&
-          other.denomination == this.denomination &&
           other.cashType == this.cashType &&
-          other.count == this.count &&
-          other.amount == this.amount &&
           other.bills100 == this.bills100 &&
           other.bills50 == this.bills50 &&
           other.bills20 == this.bills20 &&
@@ -27707,10 +27116,7 @@ class CollectionSessionCashCompanion
   final Value<int> id;
   final Value<int> odooId;
   final Value<int> collectionSessionId;
-  final Value<String?> denomination;
-  final Value<String?> cashType;
-  final Value<int> count;
-  final Value<double> amount;
+  final Value<String> cashType;
   final Value<int> bills100;
   final Value<int> bills50;
   final Value<int> bills20;
@@ -27731,10 +27137,7 @@ class CollectionSessionCashCompanion
     this.id = const Value.absent(),
     this.odooId = const Value.absent(),
     this.collectionSessionId = const Value.absent(),
-    this.denomination = const Value.absent(),
     this.cashType = const Value.absent(),
-    this.count = const Value.absent(),
-    this.amount = const Value.absent(),
     this.bills100 = const Value.absent(),
     this.bills50 = const Value.absent(),
     this.bills20 = const Value.absent(),
@@ -27756,10 +27159,7 @@ class CollectionSessionCashCompanion
     this.id = const Value.absent(),
     required int odooId,
     required int collectionSessionId,
-    this.denomination = const Value.absent(),
-    this.cashType = const Value.absent(),
-    this.count = const Value.absent(),
-    this.amount = const Value.absent(),
+    required String cashType,
     this.bills100 = const Value.absent(),
     this.bills50 = const Value.absent(),
     this.bills20 = const Value.absent(),
@@ -27777,15 +27177,13 @@ class CollectionSessionCashCompanion
     this.lastSyncDate = const Value.absent(),
     this.writeDate = const Value.absent(),
   }) : odooId = Value(odooId),
-       collectionSessionId = Value(collectionSessionId);
+       collectionSessionId = Value(collectionSessionId),
+       cashType = Value(cashType);
   static Insertable<CollectionSessionCashData> custom({
     Expression<int>? id,
     Expression<int>? odooId,
     Expression<int>? collectionSessionId,
-    Expression<String>? denomination,
     Expression<String>? cashType,
-    Expression<int>? count,
-    Expression<double>? amount,
     Expression<int>? bills100,
     Expression<int>? bills50,
     Expression<int>? bills20,
@@ -27808,10 +27206,7 @@ class CollectionSessionCashCompanion
       if (odooId != null) 'odoo_id': odooId,
       if (collectionSessionId != null)
         'collection_session_id': collectionSessionId,
-      if (denomination != null) 'denomination': denomination,
       if (cashType != null) 'cash_type': cashType,
-      if (count != null) 'count': count,
-      if (amount != null) 'amount': amount,
       if (bills100 != null) 'bills100': bills100,
       if (bills50 != null) 'bills50': bills50,
       if (bills20 != null) 'bills20': bills20,
@@ -27835,10 +27230,7 @@ class CollectionSessionCashCompanion
     Value<int>? id,
     Value<int>? odooId,
     Value<int>? collectionSessionId,
-    Value<String?>? denomination,
-    Value<String?>? cashType,
-    Value<int>? count,
-    Value<double>? amount,
+    Value<String>? cashType,
     Value<int>? bills100,
     Value<int>? bills50,
     Value<int>? bills20,
@@ -27860,10 +27252,7 @@ class CollectionSessionCashCompanion
       id: id ?? this.id,
       odooId: odooId ?? this.odooId,
       collectionSessionId: collectionSessionId ?? this.collectionSessionId,
-      denomination: denomination ?? this.denomination,
       cashType: cashType ?? this.cashType,
-      count: count ?? this.count,
-      amount: amount ?? this.amount,
       bills100: bills100 ?? this.bills100,
       bills50: bills50 ?? this.bills50,
       bills20: bills20 ?? this.bills20,
@@ -27895,17 +27284,8 @@ class CollectionSessionCashCompanion
     if (collectionSessionId.present) {
       map['collection_session_id'] = Variable<int>(collectionSessionId.value);
     }
-    if (denomination.present) {
-      map['denomination'] = Variable<String>(denomination.value);
-    }
     if (cashType.present) {
       map['cash_type'] = Variable<String>(cashType.value);
-    }
-    if (count.present) {
-      map['count'] = Variable<int>(count.value);
-    }
-    if (amount.present) {
-      map['amount'] = Variable<double>(amount.value);
     }
     if (bills100.present) {
       map['bills100'] = Variable<int>(bills100.value);
@@ -27964,10 +27344,7 @@ class CollectionSessionCashCompanion
           ..write('id: $id, ')
           ..write('odooId: $odooId, ')
           ..write('collectionSessionId: $collectionSessionId, ')
-          ..write('denomination: $denomination, ')
           ..write('cashType: $cashType, ')
-          ..write('count: $count, ')
-          ..write('amount: $amount, ')
           ..write('bills100: $bills100, ')
           ..write('bills50: $bills50, ')
           ..write('bills20: $bills20, ')
@@ -38473,9 +37850,10 @@ class $SaleOrderTable extends SaleOrder
   late final GeneratedColumn<double> amountUntaxed = GeneratedColumn<double>(
     'amount_untaxed',
     aliasedName,
-    true,
+    false,
     type: DriftSqlType.double,
     requiredDuringInsert: false,
+    defaultValue: const Constant(0.0),
   );
   static const VerificationMeta _amountTaxMeta = const VerificationMeta(
     'amountTax',
@@ -38484,9 +37862,10 @@ class $SaleOrderTable extends SaleOrder
   late final GeneratedColumn<double> amountTax = GeneratedColumn<double>(
     'amount_tax',
     aliasedName,
-    true,
+    false,
     type: DriftSqlType.double,
     requiredDuringInsert: false,
+    defaultValue: const Constant(0.0),
   );
   static const VerificationMeta _amountTotalMeta = const VerificationMeta(
     'amountTotal',
@@ -38495,9 +37874,10 @@ class $SaleOrderTable extends SaleOrder
   late final GeneratedColumn<double> amountTotal = GeneratedColumn<double>(
     'amount_total',
     aliasedName,
-    true,
+    false,
     type: DriftSqlType.double,
     requiredDuringInsert: false,
+    defaultValue: const Constant(0.0),
   );
   static const VerificationMeta _amountPaidMeta = const VerificationMeta(
     'amountPaid',
@@ -40838,15 +40218,15 @@ class $SaleOrderTable extends SaleOrder
       amountUntaxed: attachedDatabase.typeMapping.read(
         DriftSqlType.double,
         data['${effectivePrefix}amount_untaxed'],
-      ),
+      )!,
       amountTax: attachedDatabase.typeMapping.read(
         DriftSqlType.double,
         data['${effectivePrefix}amount_tax'],
-      ),
+      )!,
       amountTotal: attachedDatabase.typeMapping.read(
         DriftSqlType.double,
         data['${effectivePrefix}amount_total'],
-      ),
+      )!,
       amountPaid: attachedDatabase.typeMapping.read(
         DriftSqlType.double,
         data['${effectivePrefix}amount_paid'],
@@ -41261,9 +40641,9 @@ class SaleOrderData extends DataClass implements Insertable<SaleOrderData> {
   final int? warehouseId;
   final String? warehouseName;
   final int? currencyId;
-  final double? amountUntaxed;
-  final double? amountTax;
-  final double? amountTotal;
+  final double amountUntaxed;
+  final double amountTax;
+  final double amountTotal;
   final double? amountPaid;
   final double? amountResidual;
   final String? paymentState;
@@ -41384,9 +40764,9 @@ class SaleOrderData extends DataClass implements Insertable<SaleOrderData> {
     this.warehouseId,
     this.warehouseName,
     this.currencyId,
-    this.amountUntaxed,
-    this.amountTax,
-    this.amountTotal,
+    required this.amountUntaxed,
+    required this.amountTax,
+    required this.amountTotal,
     this.amountPaid,
     this.amountResidual,
     this.paymentState,
@@ -41552,15 +40932,9 @@ class SaleOrderData extends DataClass implements Insertable<SaleOrderData> {
     if (!nullToAbsent || currencyId != null) {
       map['currency_id'] = Variable<int>(currencyId);
     }
-    if (!nullToAbsent || amountUntaxed != null) {
-      map['amount_untaxed'] = Variable<double>(amountUntaxed);
-    }
-    if (!nullToAbsent || amountTax != null) {
-      map['amount_tax'] = Variable<double>(amountTax);
-    }
-    if (!nullToAbsent || amountTotal != null) {
-      map['amount_total'] = Variable<double>(amountTotal);
-    }
+    map['amount_untaxed'] = Variable<double>(amountUntaxed);
+    map['amount_tax'] = Variable<double>(amountTax);
+    map['amount_total'] = Variable<double>(amountTotal);
     if (!nullToAbsent || amountPaid != null) {
       map['amount_paid'] = Variable<double>(amountPaid);
     }
@@ -41863,15 +41237,9 @@ class SaleOrderData extends DataClass implements Insertable<SaleOrderData> {
       currencyId: currencyId == null && nullToAbsent
           ? const Value.absent()
           : Value(currencyId),
-      amountUntaxed: amountUntaxed == null && nullToAbsent
-          ? const Value.absent()
-          : Value(amountUntaxed),
-      amountTax: amountTax == null && nullToAbsent
-          ? const Value.absent()
-          : Value(amountTax),
-      amountTotal: amountTotal == null && nullToAbsent
-          ? const Value.absent()
-          : Value(amountTotal),
+      amountUntaxed: Value(amountUntaxed),
+      amountTax: Value(amountTax),
+      amountTotal: Value(amountTotal),
       amountPaid: amountPaid == null && nullToAbsent
           ? const Value.absent()
           : Value(amountPaid),
@@ -42124,9 +41492,9 @@ class SaleOrderData extends DataClass implements Insertable<SaleOrderData> {
       warehouseId: serializer.fromJson<int?>(json['warehouseId']),
       warehouseName: serializer.fromJson<String?>(json['warehouseName']),
       currencyId: serializer.fromJson<int?>(json['currencyId']),
-      amountUntaxed: serializer.fromJson<double?>(json['amountUntaxed']),
-      amountTax: serializer.fromJson<double?>(json['amountTax']),
-      amountTotal: serializer.fromJson<double?>(json['amountTotal']),
+      amountUntaxed: serializer.fromJson<double>(json['amountUntaxed']),
+      amountTax: serializer.fromJson<double>(json['amountTax']),
+      amountTotal: serializer.fromJson<double>(json['amountTotal']),
       amountPaid: serializer.fromJson<double?>(json['amountPaid']),
       amountResidual: serializer.fromJson<double?>(json['amountResidual']),
       paymentState: serializer.fromJson<String?>(json['paymentState']),
@@ -42280,9 +41648,9 @@ class SaleOrderData extends DataClass implements Insertable<SaleOrderData> {
       'warehouseId': serializer.toJson<int?>(warehouseId),
       'warehouseName': serializer.toJson<String?>(warehouseName),
       'currencyId': serializer.toJson<int?>(currencyId),
-      'amountUntaxed': serializer.toJson<double?>(amountUntaxed),
-      'amountTax': serializer.toJson<double?>(amountTax),
-      'amountTotal': serializer.toJson<double?>(amountTotal),
+      'amountUntaxed': serializer.toJson<double>(amountUntaxed),
+      'amountTax': serializer.toJson<double>(amountTax),
+      'amountTotal': serializer.toJson<double>(amountTotal),
       'amountPaid': serializer.toJson<double?>(amountPaid),
       'amountResidual': serializer.toJson<double?>(amountResidual),
       'paymentState': serializer.toJson<String?>(paymentState),
@@ -42418,9 +41786,9 @@ class SaleOrderData extends DataClass implements Insertable<SaleOrderData> {
     Value<int?> warehouseId = const Value.absent(),
     Value<String?> warehouseName = const Value.absent(),
     Value<int?> currencyId = const Value.absent(),
-    Value<double?> amountUntaxed = const Value.absent(),
-    Value<double?> amountTax = const Value.absent(),
-    Value<double?> amountTotal = const Value.absent(),
+    double? amountUntaxed,
+    double? amountTax,
+    double? amountTotal,
     Value<double?> amountPaid = const Value.absent(),
     Value<double?> amountResidual = const Value.absent(),
     Value<String?> paymentState = const Value.absent(),
@@ -42555,11 +41923,9 @@ class SaleOrderData extends DataClass implements Insertable<SaleOrderData> {
         ? warehouseName.value
         : this.warehouseName,
     currencyId: currencyId.present ? currencyId.value : this.currencyId,
-    amountUntaxed: amountUntaxed.present
-        ? amountUntaxed.value
-        : this.amountUntaxed,
-    amountTax: amountTax.present ? amountTax.value : this.amountTax,
-    amountTotal: amountTotal.present ? amountTotal.value : this.amountTotal,
+    amountUntaxed: amountUntaxed ?? this.amountUntaxed,
+    amountTax: amountTax ?? this.amountTax,
+    amountTotal: amountTotal ?? this.amountTotal,
     amountPaid: amountPaid.present ? amountPaid.value : this.amountPaid,
     amountResidual: amountResidual.present
         ? amountResidual.value
@@ -43440,9 +42806,9 @@ class SaleOrderCompanion extends UpdateCompanion<SaleOrderData> {
   final Value<int?> warehouseId;
   final Value<String?> warehouseName;
   final Value<int?> currencyId;
-  final Value<double?> amountUntaxed;
-  final Value<double?> amountTax;
-  final Value<double?> amountTotal;
+  final Value<double> amountUntaxed;
+  final Value<double> amountTax;
+  final Value<double> amountTotal;
   final Value<double?> amountPaid;
   final Value<double?> amountResidual;
   final Value<String?> paymentState;
@@ -44076,9 +43442,9 @@ class SaleOrderCompanion extends UpdateCompanion<SaleOrderData> {
     Value<int?>? warehouseId,
     Value<String?>? warehouseName,
     Value<int?>? currencyId,
-    Value<double?>? amountUntaxed,
-    Value<double?>? amountTax,
-    Value<double?>? amountTotal,
+    Value<double>? amountUntaxed,
+    Value<double>? amountTax,
+    Value<double>? amountTotal,
     Value<double?>? amountPaid,
     Value<double?>? amountResidual,
     Value<String?>? paymentState,
@@ -47677,42 +47043,6 @@ class $SaleOrderWithholdLineTable extends SaleOrderWithholdLine
     requiredDuringInsert: false,
     defaultValue: const Constant(0.0),
   );
-  static const VerificationMeta _baseAmountMeta = const VerificationMeta(
-    'baseAmount',
-  );
-  @override
-  late final GeneratedColumn<double> baseAmount = GeneratedColumn<double>(
-    'base_amount',
-    aliasedName,
-    false,
-    type: DriftSqlType.double,
-    requiredDuringInsert: false,
-    defaultValue: const Constant(0.0),
-  );
-  static const VerificationMeta _taxAmountMeta = const VerificationMeta(
-    'taxAmount',
-  );
-  @override
-  late final GeneratedColumn<double> taxAmount = GeneratedColumn<double>(
-    'tax_amount',
-    aliasedName,
-    false,
-    type: DriftSqlType.double,
-    requiredDuringInsert: false,
-    defaultValue: const Constant(0.0),
-  );
-  static const VerificationMeta _percentageMeta = const VerificationMeta(
-    'percentage',
-  );
-  @override
-  late final GeneratedColumn<double> percentage = GeneratedColumn<double>(
-    'percentage',
-    aliasedName,
-    false,
-    type: DriftSqlType.double,
-    requiredDuringInsert: false,
-    defaultValue: const Constant(0.0),
-  );
   static const VerificationMeta _notesMeta = const VerificationMeta('notes');
   @override
   late final GeneratedColumn<String> notes = GeneratedColumn<String>(
@@ -47773,9 +47103,6 @@ class $SaleOrderWithholdLineTable extends SaleOrderWithholdLine
     taxsupportCode,
     base,
     amount,
-    baseAmount,
-    taxAmount,
-    percentage,
     notes,
     isSynced,
     lastSyncDate,
@@ -47876,24 +47203,6 @@ class $SaleOrderWithholdLineTable extends SaleOrderWithholdLine
         amount.isAcceptableOrUnknown(data['amount']!, _amountMeta),
       );
     }
-    if (data.containsKey('base_amount')) {
-      context.handle(
-        _baseAmountMeta,
-        baseAmount.isAcceptableOrUnknown(data['base_amount']!, _baseAmountMeta),
-      );
-    }
-    if (data.containsKey('tax_amount')) {
-      context.handle(
-        _taxAmountMeta,
-        taxAmount.isAcceptableOrUnknown(data['tax_amount']!, _taxAmountMeta),
-      );
-    }
-    if (data.containsKey('percentage')) {
-      context.handle(
-        _percentageMeta,
-        percentage.isAcceptableOrUnknown(data['percentage']!, _percentageMeta),
-      );
-    }
     if (data.containsKey('notes')) {
       context.handle(
         _notesMeta,
@@ -47981,18 +47290,6 @@ class $SaleOrderWithholdLineTable extends SaleOrderWithholdLine
         DriftSqlType.double,
         data['${effectivePrefix}amount'],
       )!,
-      baseAmount: attachedDatabase.typeMapping.read(
-        DriftSqlType.double,
-        data['${effectivePrefix}base_amount'],
-      )!,
-      taxAmount: attachedDatabase.typeMapping.read(
-        DriftSqlType.double,
-        data['${effectivePrefix}tax_amount'],
-      )!,
-      percentage: attachedDatabase.typeMapping.read(
-        DriftSqlType.double,
-        data['${effectivePrefix}percentage'],
-      )!,
       notes: attachedDatabase.typeMapping.read(
         DriftSqlType.string,
         data['${effectivePrefix}notes'],
@@ -48032,9 +47329,6 @@ class SaleOrderWithholdLineData extends DataClass
   final String? taxsupportCode;
   final double base;
   final double amount;
-  final double baseAmount;
-  final double taxAmount;
-  final double percentage;
   final String? notes;
   final bool isSynced;
   final DateTime? lastSyncDate;
@@ -48052,9 +47346,6 @@ class SaleOrderWithholdLineData extends DataClass
     this.taxsupportCode,
     required this.base,
     required this.amount,
-    required this.baseAmount,
-    required this.taxAmount,
-    required this.percentage,
     this.notes,
     required this.isSynced,
     this.lastSyncDate,
@@ -48081,9 +47372,6 @@ class SaleOrderWithholdLineData extends DataClass
     }
     map['base'] = Variable<double>(base);
     map['amount'] = Variable<double>(amount);
-    map['base_amount'] = Variable<double>(baseAmount);
-    map['tax_amount'] = Variable<double>(taxAmount);
-    map['percentage'] = Variable<double>(percentage);
     if (!nullToAbsent || notes != null) {
       map['notes'] = Variable<String>(notes);
     }
@@ -48117,9 +47405,6 @@ class SaleOrderWithholdLineData extends DataClass
           : Value(taxsupportCode),
       base: Value(base),
       amount: Value(amount),
-      baseAmount: Value(baseAmount),
-      taxAmount: Value(taxAmount),
-      percentage: Value(percentage),
       notes: notes == null && nullToAbsent
           ? const Value.absent()
           : Value(notes),
@@ -48151,9 +47436,6 @@ class SaleOrderWithholdLineData extends DataClass
       taxsupportCode: serializer.fromJson<String?>(json['taxsupportCode']),
       base: serializer.fromJson<double>(json['base']),
       amount: serializer.fromJson<double>(json['amount']),
-      baseAmount: serializer.fromJson<double>(json['baseAmount']),
-      taxAmount: serializer.fromJson<double>(json['taxAmount']),
-      percentage: serializer.fromJson<double>(json['percentage']),
       notes: serializer.fromJson<String?>(json['notes']),
       isSynced: serializer.fromJson<bool>(json['isSynced']),
       lastSyncDate: serializer.fromJson<DateTime?>(json['lastSyncDate']),
@@ -48176,9 +47458,6 @@ class SaleOrderWithholdLineData extends DataClass
       'taxsupportCode': serializer.toJson<String?>(taxsupportCode),
       'base': serializer.toJson<double>(base),
       'amount': serializer.toJson<double>(amount),
-      'baseAmount': serializer.toJson<double>(baseAmount),
-      'taxAmount': serializer.toJson<double>(taxAmount),
-      'percentage': serializer.toJson<double>(percentage),
       'notes': serializer.toJson<String?>(notes),
       'isSynced': serializer.toJson<bool>(isSynced),
       'lastSyncDate': serializer.toJson<DateTime?>(lastSyncDate),
@@ -48199,9 +47478,6 @@ class SaleOrderWithholdLineData extends DataClass
     Value<String?> taxsupportCode = const Value.absent(),
     double? base,
     double? amount,
-    double? baseAmount,
-    double? taxAmount,
-    double? percentage,
     Value<String?> notes = const Value.absent(),
     bool? isSynced,
     Value<DateTime?> lastSyncDate = const Value.absent(),
@@ -48221,9 +47497,6 @@ class SaleOrderWithholdLineData extends DataClass
         : this.taxsupportCode,
     base: base ?? this.base,
     amount: amount ?? this.amount,
-    baseAmount: baseAmount ?? this.baseAmount,
-    taxAmount: taxAmount ?? this.taxAmount,
-    percentage: percentage ?? this.percentage,
     notes: notes.present ? notes.value : this.notes,
     isSynced: isSynced ?? this.isSynced,
     lastSyncDate: lastSyncDate.present ? lastSyncDate.value : this.lastSyncDate,
@@ -48251,13 +47524,6 @@ class SaleOrderWithholdLineData extends DataClass
           : this.taxsupportCode,
       base: data.base.present ? data.base.value : this.base,
       amount: data.amount.present ? data.amount.value : this.amount,
-      baseAmount: data.baseAmount.present
-          ? data.baseAmount.value
-          : this.baseAmount,
-      taxAmount: data.taxAmount.present ? data.taxAmount.value : this.taxAmount,
-      percentage: data.percentage.present
-          ? data.percentage.value
-          : this.percentage,
       notes: data.notes.present ? data.notes.value : this.notes,
       isSynced: data.isSynced.present ? data.isSynced.value : this.isSynced,
       lastSyncDate: data.lastSyncDate.present
@@ -48282,9 +47548,6 @@ class SaleOrderWithholdLineData extends DataClass
           ..write('taxsupportCode: $taxsupportCode, ')
           ..write('base: $base, ')
           ..write('amount: $amount, ')
-          ..write('baseAmount: $baseAmount, ')
-          ..write('taxAmount: $taxAmount, ')
-          ..write('percentage: $percentage, ')
           ..write('notes: $notes, ')
           ..write('isSynced: $isSynced, ')
           ..write('lastSyncDate: $lastSyncDate, ')
@@ -48307,9 +47570,6 @@ class SaleOrderWithholdLineData extends DataClass
     taxsupportCode,
     base,
     amount,
-    baseAmount,
-    taxAmount,
-    percentage,
     notes,
     isSynced,
     lastSyncDate,
@@ -48331,9 +47591,6 @@ class SaleOrderWithholdLineData extends DataClass
           other.taxsupportCode == this.taxsupportCode &&
           other.base == this.base &&
           other.amount == this.amount &&
-          other.baseAmount == this.baseAmount &&
-          other.taxAmount == this.taxAmount &&
-          other.percentage == this.percentage &&
           other.notes == this.notes &&
           other.isSynced == this.isSynced &&
           other.lastSyncDate == this.lastSyncDate &&
@@ -48354,9 +47611,6 @@ class SaleOrderWithholdLineCompanion
   final Value<String?> taxsupportCode;
   final Value<double> base;
   final Value<double> amount;
-  final Value<double> baseAmount;
-  final Value<double> taxAmount;
-  final Value<double> percentage;
   final Value<String?> notes;
   final Value<bool> isSynced;
   final Value<DateTime?> lastSyncDate;
@@ -48374,9 +47628,6 @@ class SaleOrderWithholdLineCompanion
     this.taxsupportCode = const Value.absent(),
     this.base = const Value.absent(),
     this.amount = const Value.absent(),
-    this.baseAmount = const Value.absent(),
-    this.taxAmount = const Value.absent(),
-    this.percentage = const Value.absent(),
     this.notes = const Value.absent(),
     this.isSynced = const Value.absent(),
     this.lastSyncDate = const Value.absent(),
@@ -48395,9 +47646,6 @@ class SaleOrderWithholdLineCompanion
     this.taxsupportCode = const Value.absent(),
     this.base = const Value.absent(),
     this.amount = const Value.absent(),
-    this.baseAmount = const Value.absent(),
-    this.taxAmount = const Value.absent(),
-    this.percentage = const Value.absent(),
     this.notes = const Value.absent(),
     this.isSynced = const Value.absent(),
     this.lastSyncDate = const Value.absent(),
@@ -48419,9 +47667,6 @@ class SaleOrderWithholdLineCompanion
     Expression<String>? taxsupportCode,
     Expression<double>? base,
     Expression<double>? amount,
-    Expression<double>? baseAmount,
-    Expression<double>? taxAmount,
-    Expression<double>? percentage,
     Expression<String>? notes,
     Expression<bool>? isSynced,
     Expression<DateTime>? lastSyncDate,
@@ -48440,9 +47685,6 @@ class SaleOrderWithholdLineCompanion
       if (taxsupportCode != null) 'taxsupport_code': taxsupportCode,
       if (base != null) 'base': base,
       if (amount != null) 'amount': amount,
-      if (baseAmount != null) 'base_amount': baseAmount,
-      if (taxAmount != null) 'tax_amount': taxAmount,
-      if (percentage != null) 'percentage': percentage,
       if (notes != null) 'notes': notes,
       if (isSynced != null) 'is_synced': isSynced,
       if (lastSyncDate != null) 'last_sync_date': lastSyncDate,
@@ -48463,9 +47705,6 @@ class SaleOrderWithholdLineCompanion
     Value<String?>? taxsupportCode,
     Value<double>? base,
     Value<double>? amount,
-    Value<double>? baseAmount,
-    Value<double>? taxAmount,
-    Value<double>? percentage,
     Value<String?>? notes,
     Value<bool>? isSynced,
     Value<DateTime?>? lastSyncDate,
@@ -48484,9 +47723,6 @@ class SaleOrderWithholdLineCompanion
       taxsupportCode: taxsupportCode ?? this.taxsupportCode,
       base: base ?? this.base,
       amount: amount ?? this.amount,
-      baseAmount: baseAmount ?? this.baseAmount,
-      taxAmount: taxAmount ?? this.taxAmount,
-      percentage: percentage ?? this.percentage,
       notes: notes ?? this.notes,
       isSynced: isSynced ?? this.isSynced,
       lastSyncDate: lastSyncDate ?? this.lastSyncDate,
@@ -48533,15 +47769,6 @@ class SaleOrderWithholdLineCompanion
     if (amount.present) {
       map['amount'] = Variable<double>(amount.value);
     }
-    if (baseAmount.present) {
-      map['base_amount'] = Variable<double>(baseAmount.value);
-    }
-    if (taxAmount.present) {
-      map['tax_amount'] = Variable<double>(taxAmount.value);
-    }
-    if (percentage.present) {
-      map['percentage'] = Variable<double>(percentage.value);
-    }
     if (notes.present) {
       map['notes'] = Variable<String>(notes.value);
     }
@@ -48572,9 +47799,6 @@ class SaleOrderWithholdLineCompanion
           ..write('taxsupportCode: $taxsupportCode, ')
           ..write('base: $base, ')
           ..write('amount: $amount, ')
-          ..write('baseAmount: $baseAmount, ')
-          ..write('taxAmount: $taxAmount, ')
-          ..write('percentage: $percentage, ')
           ..write('notes: $notes, ')
           ..write('isSynced: $isSynced, ')
           ..write('lastSyncDate: $lastSyncDate, ')
@@ -55538,304 +54762,6 @@ class UomUomCompanion extends UpdateCompanion<UomUomData> {
   }
 }
 
-class $UomCategoryTable extends UomCategory
-    with TableInfo<$UomCategoryTable, UomCategoryData> {
-  @override
-  final GeneratedDatabase attachedDatabase;
-  final String? _alias;
-  $UomCategoryTable(this.attachedDatabase, [this._alias]);
-  static const VerificationMeta _idMeta = const VerificationMeta('id');
-  @override
-  late final GeneratedColumn<int> id = GeneratedColumn<int>(
-    'id',
-    aliasedName,
-    false,
-    hasAutoIncrement: true,
-    type: DriftSqlType.int,
-    requiredDuringInsert: false,
-    defaultConstraints: GeneratedColumn.constraintIsAlways(
-      'PRIMARY KEY AUTOINCREMENT',
-    ),
-  );
-  static const VerificationMeta _odooIdMeta = const VerificationMeta('odooId');
-  @override
-  late final GeneratedColumn<int> odooId = GeneratedColumn<int>(
-    'odoo_id',
-    aliasedName,
-    false,
-    type: DriftSqlType.int,
-    requiredDuringInsert: true,
-    defaultConstraints: GeneratedColumn.constraintIsAlways('UNIQUE'),
-  );
-  static const VerificationMeta _nameMeta = const VerificationMeta('name');
-  @override
-  late final GeneratedColumn<String> name = GeneratedColumn<String>(
-    'name',
-    aliasedName,
-    false,
-    type: DriftSqlType.string,
-    requiredDuringInsert: true,
-  );
-  static const VerificationMeta _writeDateMeta = const VerificationMeta(
-    'writeDate',
-  );
-  @override
-  late final GeneratedColumn<DateTime> writeDate = GeneratedColumn<DateTime>(
-    'write_date',
-    aliasedName,
-    true,
-    type: DriftSqlType.dateTime,
-    requiredDuringInsert: false,
-  );
-  @override
-  List<GeneratedColumn> get $columns => [id, odooId, name, writeDate];
-  @override
-  String get aliasedName => _alias ?? actualTableName;
-  @override
-  String get actualTableName => $name;
-  static const String $name = 'uom_category';
-  @override
-  VerificationContext validateIntegrity(
-    Insertable<UomCategoryData> instance, {
-    bool isInserting = false,
-  }) {
-    final context = VerificationContext();
-    final data = instance.toColumns(true);
-    if (data.containsKey('id')) {
-      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
-    }
-    if (data.containsKey('odoo_id')) {
-      context.handle(
-        _odooIdMeta,
-        odooId.isAcceptableOrUnknown(data['odoo_id']!, _odooIdMeta),
-      );
-    } else if (isInserting) {
-      context.missing(_odooIdMeta);
-    }
-    if (data.containsKey('name')) {
-      context.handle(
-        _nameMeta,
-        name.isAcceptableOrUnknown(data['name']!, _nameMeta),
-      );
-    } else if (isInserting) {
-      context.missing(_nameMeta);
-    }
-    if (data.containsKey('write_date')) {
-      context.handle(
-        _writeDateMeta,
-        writeDate.isAcceptableOrUnknown(data['write_date']!, _writeDateMeta),
-      );
-    }
-    return context;
-  }
-
-  @override
-  Set<GeneratedColumn> get $primaryKey => {id};
-  @override
-  UomCategoryData map(Map<String, dynamic> data, {String? tablePrefix}) {
-    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
-    return UomCategoryData(
-      id: attachedDatabase.typeMapping.read(
-        DriftSqlType.int,
-        data['${effectivePrefix}id'],
-      )!,
-      odooId: attachedDatabase.typeMapping.read(
-        DriftSqlType.int,
-        data['${effectivePrefix}odoo_id'],
-      )!,
-      name: attachedDatabase.typeMapping.read(
-        DriftSqlType.string,
-        data['${effectivePrefix}name'],
-      )!,
-      writeDate: attachedDatabase.typeMapping.read(
-        DriftSqlType.dateTime,
-        data['${effectivePrefix}write_date'],
-      ),
-    );
-  }
-
-  @override
-  $UomCategoryTable createAlias(String alias) {
-    return $UomCategoryTable(attachedDatabase, alias);
-  }
-}
-
-class UomCategoryData extends DataClass implements Insertable<UomCategoryData> {
-  final int id;
-  final int odooId;
-  final String name;
-  final DateTime? writeDate;
-  const UomCategoryData({
-    required this.id,
-    required this.odooId,
-    required this.name,
-    this.writeDate,
-  });
-  @override
-  Map<String, Expression> toColumns(bool nullToAbsent) {
-    final map = <String, Expression>{};
-    map['id'] = Variable<int>(id);
-    map['odoo_id'] = Variable<int>(odooId);
-    map['name'] = Variable<String>(name);
-    if (!nullToAbsent || writeDate != null) {
-      map['write_date'] = Variable<DateTime>(writeDate);
-    }
-    return map;
-  }
-
-  UomCategoryCompanion toCompanion(bool nullToAbsent) {
-    return UomCategoryCompanion(
-      id: Value(id),
-      odooId: Value(odooId),
-      name: Value(name),
-      writeDate: writeDate == null && nullToAbsent
-          ? const Value.absent()
-          : Value(writeDate),
-    );
-  }
-
-  factory UomCategoryData.fromJson(
-    Map<String, dynamic> json, {
-    ValueSerializer? serializer,
-  }) {
-    serializer ??= driftRuntimeOptions.defaultSerializer;
-    return UomCategoryData(
-      id: serializer.fromJson<int>(json['id']),
-      odooId: serializer.fromJson<int>(json['odooId']),
-      name: serializer.fromJson<String>(json['name']),
-      writeDate: serializer.fromJson<DateTime?>(json['writeDate']),
-    );
-  }
-  @override
-  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
-    serializer ??= driftRuntimeOptions.defaultSerializer;
-    return <String, dynamic>{
-      'id': serializer.toJson<int>(id),
-      'odooId': serializer.toJson<int>(odooId),
-      'name': serializer.toJson<String>(name),
-      'writeDate': serializer.toJson<DateTime?>(writeDate),
-    };
-  }
-
-  UomCategoryData copyWith({
-    int? id,
-    int? odooId,
-    String? name,
-    Value<DateTime?> writeDate = const Value.absent(),
-  }) => UomCategoryData(
-    id: id ?? this.id,
-    odooId: odooId ?? this.odooId,
-    name: name ?? this.name,
-    writeDate: writeDate.present ? writeDate.value : this.writeDate,
-  );
-  UomCategoryData copyWithCompanion(UomCategoryCompanion data) {
-    return UomCategoryData(
-      id: data.id.present ? data.id.value : this.id,
-      odooId: data.odooId.present ? data.odooId.value : this.odooId,
-      name: data.name.present ? data.name.value : this.name,
-      writeDate: data.writeDate.present ? data.writeDate.value : this.writeDate,
-    );
-  }
-
-  @override
-  String toString() {
-    return (StringBuffer('UomCategoryData(')
-          ..write('id: $id, ')
-          ..write('odooId: $odooId, ')
-          ..write('name: $name, ')
-          ..write('writeDate: $writeDate')
-          ..write(')'))
-        .toString();
-  }
-
-  @override
-  int get hashCode => Object.hash(id, odooId, name, writeDate);
-  @override
-  bool operator ==(Object other) =>
-      identical(this, other) ||
-      (other is UomCategoryData &&
-          other.id == this.id &&
-          other.odooId == this.odooId &&
-          other.name == this.name &&
-          other.writeDate == this.writeDate);
-}
-
-class UomCategoryCompanion extends UpdateCompanion<UomCategoryData> {
-  final Value<int> id;
-  final Value<int> odooId;
-  final Value<String> name;
-  final Value<DateTime?> writeDate;
-  const UomCategoryCompanion({
-    this.id = const Value.absent(),
-    this.odooId = const Value.absent(),
-    this.name = const Value.absent(),
-    this.writeDate = const Value.absent(),
-  });
-  UomCategoryCompanion.insert({
-    this.id = const Value.absent(),
-    required int odooId,
-    required String name,
-    this.writeDate = const Value.absent(),
-  }) : odooId = Value(odooId),
-       name = Value(name);
-  static Insertable<UomCategoryData> custom({
-    Expression<int>? id,
-    Expression<int>? odooId,
-    Expression<String>? name,
-    Expression<DateTime>? writeDate,
-  }) {
-    return RawValuesInsertable({
-      if (id != null) 'id': id,
-      if (odooId != null) 'odoo_id': odooId,
-      if (name != null) 'name': name,
-      if (writeDate != null) 'write_date': writeDate,
-    });
-  }
-
-  UomCategoryCompanion copyWith({
-    Value<int>? id,
-    Value<int>? odooId,
-    Value<String>? name,
-    Value<DateTime?>? writeDate,
-  }) {
-    return UomCategoryCompanion(
-      id: id ?? this.id,
-      odooId: odooId ?? this.odooId,
-      name: name ?? this.name,
-      writeDate: writeDate ?? this.writeDate,
-    );
-  }
-
-  @override
-  Map<String, Expression> toColumns(bool nullToAbsent) {
-    final map = <String, Expression>{};
-    if (id.present) {
-      map['id'] = Variable<int>(id.value);
-    }
-    if (odooId.present) {
-      map['odoo_id'] = Variable<int>(odooId.value);
-    }
-    if (name.present) {
-      map['name'] = Variable<String>(name.value);
-    }
-    if (writeDate.present) {
-      map['write_date'] = Variable<DateTime>(writeDate.value);
-    }
-    return map;
-  }
-
-  @override
-  String toString() {
-    return (StringBuffer('UomCategoryCompanion(')
-          ..write('id: $id, ')
-          ..write('odooId: $odooId, ')
-          ..write('name: $name, ')
-          ..write('writeDate: $writeDate')
-          ..write(')'))
-        .toString();
-  }
-}
-
 class $ProductUomTable extends ProductUom
     with TableInfo<$ProductUomTable, ProductUomData> {
   @override
@@ -61699,6 +60625,21 @@ class $AccountJournalTable extends AccountJournal
     requiredDuringInsert: false,
     defaultValue: const Constant(10),
   );
+  static const VerificationMeta _numberedByClientMeta = const VerificationMeta(
+    'numberedByClient',
+  );
+  @override
+  late final GeneratedColumn<bool> numberedByClient = GeneratedColumn<bool>(
+    'numbered_by_client',
+    aliasedName,
+    false,
+    type: DriftSqlType.bool,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'CHECK ("numbered_by_client" IN (0, 1))',
+    ),
+    defaultValue: const Constant(false),
+  );
   static const VerificationMeta _isCardJournalMeta = const VerificationMeta(
     'isCardJournal',
   );
@@ -61841,6 +60782,7 @@ class $AccountJournalTable extends AccountJournal
     currencyId,
     currencyName,
     sequence,
+    numberedByClient,
     isCardJournal,
     disponibleVentas,
     disponiblePagos,
@@ -61984,6 +60926,15 @@ class $AccountJournalTable extends AccountJournal
       context.handle(
         _sequenceMeta,
         sequence.isAcceptableOrUnknown(data['sequence']!, _sequenceMeta),
+      );
+    }
+    if (data.containsKey('numbered_by_client')) {
+      context.handle(
+        _numberedByClientMeta,
+        numberedByClient.isAcceptableOrUnknown(
+          data['numbered_by_client']!,
+          _numberedByClientMeta,
+        ),
       );
     }
     if (data.containsKey('is_card_journal')) {
@@ -62146,6 +61097,10 @@ class $AccountJournalTable extends AccountJournal
         DriftSqlType.int,
         data['${effectivePrefix}sequence'],
       )!,
+      numberedByClient: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}numbered_by_client'],
+      )!,
       isCardJournal: attachedDatabase.typeMapping.read(
         DriftSqlType.bool,
         data['${effectivePrefix}is_card_journal'],
@@ -62213,6 +61168,7 @@ class AccountJournalData extends DataClass
   final int? currencyId;
   final String? currencyName;
   final int sequence;
+  final bool numberedByClient;
   final bool isCardJournal;
   final bool disponibleVentas;
   final bool disponiblePagos;
@@ -62240,6 +61196,7 @@ class AccountJournalData extends DataClass
     this.currencyId,
     this.currencyName,
     required this.sequence,
+    required this.numberedByClient,
     required this.isCardJournal,
     required this.disponibleVentas,
     required this.disponiblePagos,
@@ -62282,6 +61239,7 @@ class AccountJournalData extends DataClass
       map['currency_name'] = Variable<String>(currencyName);
     }
     map['sequence'] = Variable<int>(sequence);
+    map['numbered_by_client'] = Variable<bool>(numberedByClient);
     map['is_card_journal'] = Variable<bool>(isCardJournal);
     map['disponible_ventas'] = Variable<bool>(disponibleVentas);
     map['disponible_pagos'] = Variable<bool>(disponiblePagos);
@@ -62337,6 +61295,7 @@ class AccountJournalData extends DataClass
           ? const Value.absent()
           : Value(currencyName),
       sequence: Value(sequence),
+      numberedByClient: Value(numberedByClient),
       isCardJournal: Value(isCardJournal),
       disponibleVentas: Value(disponibleVentas),
       disponiblePagos: Value(disponiblePagos),
@@ -62388,6 +61347,7 @@ class AccountJournalData extends DataClass
       currencyId: serializer.fromJson<int?>(json['currencyId']),
       currencyName: serializer.fromJson<String?>(json['currencyName']),
       sequence: serializer.fromJson<int>(json['sequence']),
+      numberedByClient: serializer.fromJson<bool>(json['numberedByClient']),
       isCardJournal: serializer.fromJson<bool>(json['isCardJournal']),
       disponibleVentas: serializer.fromJson<bool>(json['disponibleVentas']),
       disponiblePagos: serializer.fromJson<bool>(json['disponiblePagos']),
@@ -62428,6 +61388,7 @@ class AccountJournalData extends DataClass
       'currencyId': serializer.toJson<int?>(currencyId),
       'currencyName': serializer.toJson<String?>(currencyName),
       'sequence': serializer.toJson<int>(sequence),
+      'numberedByClient': serializer.toJson<bool>(numberedByClient),
       'isCardJournal': serializer.toJson<bool>(isCardJournal),
       'disponibleVentas': serializer.toJson<bool>(disponibleVentas),
       'disponiblePagos': serializer.toJson<bool>(disponiblePagos),
@@ -62462,6 +61423,7 @@ class AccountJournalData extends DataClass
     Value<int?> currencyId = const Value.absent(),
     Value<String?> currencyName = const Value.absent(),
     int? sequence,
+    bool? numberedByClient,
     bool? isCardJournal,
     bool? disponibleVentas,
     bool? disponiblePagos,
@@ -62492,6 +61454,7 @@ class AccountJournalData extends DataClass
     currencyId: currencyId.present ? currencyId.value : this.currencyId,
     currencyName: currencyName.present ? currencyName.value : this.currencyName,
     sequence: sequence ?? this.sequence,
+    numberedByClient: numberedByClient ?? this.numberedByClient,
     isCardJournal: isCardJournal ?? this.isCardJournal,
     disponibleVentas: disponibleVentas ?? this.disponibleVentas,
     disponiblePagos: disponiblePagos ?? this.disponiblePagos,
@@ -62543,6 +61506,9 @@ class AccountJournalData extends DataClass
           ? data.currencyName.value
           : this.currencyName,
       sequence: data.sequence.present ? data.sequence.value : this.sequence,
+      numberedByClient: data.numberedByClient.present
+          ? data.numberedByClient.value
+          : this.numberedByClient,
       isCardJournal: data.isCardJournal.present
           ? data.isCardJournal.value
           : this.isCardJournal,
@@ -62593,6 +61559,7 @@ class AccountJournalData extends DataClass
           ..write('currencyId: $currencyId, ')
           ..write('currencyName: $currencyName, ')
           ..write('sequence: $sequence, ')
+          ..write('numberedByClient: $numberedByClient, ')
           ..write('isCardJournal: $isCardJournal, ')
           ..write('disponibleVentas: $disponibleVentas, ')
           ..write('disponiblePagos: $disponiblePagos, ')
@@ -62625,6 +61592,7 @@ class AccountJournalData extends DataClass
     currencyId,
     currencyName,
     sequence,
+    numberedByClient,
     isCardJournal,
     disponibleVentas,
     disponiblePagos,
@@ -62656,6 +61624,7 @@ class AccountJournalData extends DataClass
           other.currencyId == this.currencyId &&
           other.currencyName == this.currencyName &&
           other.sequence == this.sequence &&
+          other.numberedByClient == this.numberedByClient &&
           other.isCardJournal == this.isCardJournal &&
           other.disponibleVentas == this.disponibleVentas &&
           other.disponiblePagos == this.disponiblePagos &&
@@ -62686,6 +61655,7 @@ class AccountJournalCompanion extends UpdateCompanion<AccountJournalData> {
   final Value<int?> currencyId;
   final Value<String?> currencyName;
   final Value<int> sequence;
+  final Value<bool> numberedByClient;
   final Value<bool> isCardJournal;
   final Value<bool> disponibleVentas;
   final Value<bool> disponiblePagos;
@@ -62713,6 +61683,7 @@ class AccountJournalCompanion extends UpdateCompanion<AccountJournalData> {
     this.currencyId = const Value.absent(),
     this.currencyName = const Value.absent(),
     this.sequence = const Value.absent(),
+    this.numberedByClient = const Value.absent(),
     this.isCardJournal = const Value.absent(),
     this.disponibleVentas = const Value.absent(),
     this.disponiblePagos = const Value.absent(),
@@ -62741,6 +61712,7 @@ class AccountJournalCompanion extends UpdateCompanion<AccountJournalData> {
     this.currencyId = const Value.absent(),
     this.currencyName = const Value.absent(),
     this.sequence = const Value.absent(),
+    this.numberedByClient = const Value.absent(),
     this.isCardJournal = const Value.absent(),
     this.disponibleVentas = const Value.absent(),
     this.disponiblePagos = const Value.absent(),
@@ -62772,6 +61744,7 @@ class AccountJournalCompanion extends UpdateCompanion<AccountJournalData> {
     Expression<int>? currencyId,
     Expression<String>? currencyName,
     Expression<int>? sequence,
+    Expression<bool>? numberedByClient,
     Expression<bool>? isCardJournal,
     Expression<bool>? disponibleVentas,
     Expression<bool>? disponiblePagos,
@@ -62803,6 +61776,7 @@ class AccountJournalCompanion extends UpdateCompanion<AccountJournalData> {
       if (currencyId != null) 'currency_id': currencyId,
       if (currencyName != null) 'currency_name': currencyName,
       if (sequence != null) 'sequence': sequence,
+      if (numberedByClient != null) 'numbered_by_client': numberedByClient,
       if (isCardJournal != null) 'is_card_journal': isCardJournal,
       if (disponibleVentas != null) 'disponible_ventas': disponibleVentas,
       if (disponiblePagos != null) 'disponible_pagos': disponiblePagos,
@@ -62838,6 +61812,7 @@ class AccountJournalCompanion extends UpdateCompanion<AccountJournalData> {
     Value<int?>? currencyId,
     Value<String?>? currencyName,
     Value<int>? sequence,
+    Value<bool>? numberedByClient,
     Value<bool>? isCardJournal,
     Value<bool>? disponibleVentas,
     Value<bool>? disponiblePagos,
@@ -62868,6 +61843,7 @@ class AccountJournalCompanion extends UpdateCompanion<AccountJournalData> {
       currencyId: currencyId ?? this.currencyId,
       currencyName: currencyName ?? this.currencyName,
       sequence: sequence ?? this.sequence,
+      numberedByClient: numberedByClient ?? this.numberedByClient,
       isCardJournal: isCardJournal ?? this.isCardJournal,
       disponibleVentas: disponibleVentas ?? this.disponibleVentas,
       disponiblePagos: disponiblePagos ?? this.disponiblePagos,
@@ -62939,6 +61915,9 @@ class AccountJournalCompanion extends UpdateCompanion<AccountJournalData> {
     if (sequence.present) {
       map['sequence'] = Variable<int>(sequence.value);
     }
+    if (numberedByClient.present) {
+      map['numbered_by_client'] = Variable<bool>(numberedByClient.value);
+    }
     if (isCardJournal.present) {
       map['is_card_journal'] = Variable<bool>(isCardJournal.value);
     }
@@ -62999,6 +61978,7 @@ class AccountJournalCompanion extends UpdateCompanion<AccountJournalData> {
           ..write('currencyId: $currencyId, ')
           ..write('currencyName: $currencyName, ')
           ..write('sequence: $sequence, ')
+          ..write('numberedByClient: $numberedByClient, ')
           ..write('isCardJournal: $isCardJournal, ')
           ..write('disponibleVentas: $disponibleVentas, ')
           ..write('disponiblePagos: $disponiblePagos, ')
@@ -67312,6 +66292,17 @@ class $AdvanceLinesTableTable extends AdvanceLinesTable
     requiredDuringInsert: true,
     defaultConstraints: GeneratedColumn.constraintIsAlways('UNIQUE'),
   );
+  static const VerificationMeta _advanceIdMeta = const VerificationMeta(
+    'advanceId',
+  );
+  @override
+  late final GeneratedColumn<int> advanceId = GeneratedColumn<int>(
+    'advance_id',
+    aliasedName,
+    true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+  );
   static const VerificationMeta _lineUuidMeta = const VerificationMeta(
     'lineUuid',
   );
@@ -67502,6 +66493,7 @@ class $AdvanceLinesTableTable extends AdvanceLinesTable
   List<GeneratedColumn> get $columns => [
     id,
     odooId,
+    advanceId,
     lineUuid,
     journalId,
     journalName,
@@ -67542,6 +66534,12 @@ class $AdvanceLinesTableTable extends AdvanceLinesTable
       );
     } else if (isInserting) {
       context.missing(_odooIdMeta);
+    }
+    if (data.containsKey('advance_id')) {
+      context.handle(
+        _advanceIdMeta,
+        advanceId.isAcceptableOrUnknown(data['advance_id']!, _advanceIdMeta),
+      );
     }
     if (data.containsKey('line_uuid')) {
       context.handle(
@@ -67703,6 +66701,10 @@ class $AdvanceLinesTableTable extends AdvanceLinesTable
         DriftSqlType.int,
         data['${effectivePrefix}odoo_id'],
       )!,
+      advanceId: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}advance_id'],
+      ),
       lineUuid: attachedDatabase.typeMapping.read(
         DriftSqlType.string,
         data['${effectivePrefix}line_uuid'],
@@ -67784,6 +66786,9 @@ class AdvanceLinesTableData extends DataClass
     implements Insertable<AdvanceLinesTableData> {
   final int id;
   final int odooId;
+
+  /// Local parent relation used to rebuild Advance.lines after restart.
+  final int? advanceId;
   final String? lineUuid;
   final int journalId;
   final String? journalName;
@@ -67804,6 +66809,7 @@ class AdvanceLinesTableData extends DataClass
   const AdvanceLinesTableData({
     required this.id,
     required this.odooId,
+    this.advanceId,
     this.lineUuid,
     required this.journalId,
     this.journalName,
@@ -67827,6 +66833,9 @@ class AdvanceLinesTableData extends DataClass
     final map = <String, Expression>{};
     map['id'] = Variable<int>(id);
     map['odoo_id'] = Variable<int>(odooId);
+    if (!nullToAbsent || advanceId != null) {
+      map['advance_id'] = Variable<int>(advanceId);
+    }
     if (!nullToAbsent || lineUuid != null) {
       map['line_uuid'] = Variable<String>(lineUuid);
     }
@@ -67881,6 +66890,9 @@ class AdvanceLinesTableData extends DataClass
     return AdvanceLinesTableCompanion(
       id: Value(id),
       odooId: Value(odooId),
+      advanceId: advanceId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(advanceId),
       lineUuid: lineUuid == null && nullToAbsent
           ? const Value.absent()
           : Value(lineUuid),
@@ -67939,6 +66951,7 @@ class AdvanceLinesTableData extends DataClass
     return AdvanceLinesTableData(
       id: serializer.fromJson<int>(json['id']),
       odooId: serializer.fromJson<int>(json['odooId']),
+      advanceId: serializer.fromJson<int?>(json['advanceId']),
       lineUuid: serializer.fromJson<String?>(json['lineUuid']),
       journalId: serializer.fromJson<int>(json['journalId']),
       journalName: serializer.fromJson<String?>(json['journalName']),
@@ -67968,6 +66981,7 @@ class AdvanceLinesTableData extends DataClass
     return <String, dynamic>{
       'id': serializer.toJson<int>(id),
       'odooId': serializer.toJson<int>(odooId),
+      'advanceId': serializer.toJson<int?>(advanceId),
       'lineUuid': serializer.toJson<String?>(lineUuid),
       'journalId': serializer.toJson<int>(journalId),
       'journalName': serializer.toJson<String?>(journalName),
@@ -67991,6 +67005,7 @@ class AdvanceLinesTableData extends DataClass
   AdvanceLinesTableData copyWith({
     int? id,
     int? odooId,
+    Value<int?> advanceId = const Value.absent(),
     Value<String?> lineUuid = const Value.absent(),
     int? journalId,
     Value<String?> journalName = const Value.absent(),
@@ -68011,6 +67026,7 @@ class AdvanceLinesTableData extends DataClass
   }) => AdvanceLinesTableData(
     id: id ?? this.id,
     odooId: odooId ?? this.odooId,
+    advanceId: advanceId.present ? advanceId.value : this.advanceId,
     lineUuid: lineUuid.present ? lineUuid.value : this.lineUuid,
     journalId: journalId ?? this.journalId,
     journalName: journalName.present ? journalName.value : this.journalName,
@@ -68047,6 +67063,7 @@ class AdvanceLinesTableData extends DataClass
     return AdvanceLinesTableData(
       id: data.id.present ? data.id.value : this.id,
       odooId: data.odooId.present ? data.odooId.value : this.odooId,
+      advanceId: data.advanceId.present ? data.advanceId.value : this.advanceId,
       lineUuid: data.lineUuid.present ? data.lineUuid.value : this.lineUuid,
       journalId: data.journalId.present ? data.journalId.value : this.journalId,
       journalName: data.journalName.present
@@ -68098,6 +67115,7 @@ class AdvanceLinesTableData extends DataClass
     return (StringBuffer('AdvanceLinesTableData(')
           ..write('id: $id, ')
           ..write('odooId: $odooId, ')
+          ..write('advanceId: $advanceId, ')
           ..write('lineUuid: $lineUuid, ')
           ..write('journalId: $journalId, ')
           ..write('journalName: $journalName, ')
@@ -68123,6 +67141,7 @@ class AdvanceLinesTableData extends DataClass
   int get hashCode => Object.hash(
     id,
     odooId,
+    advanceId,
     lineUuid,
     journalId,
     journalName,
@@ -68147,6 +67166,7 @@ class AdvanceLinesTableData extends DataClass
       (other is AdvanceLinesTableData &&
           other.id == this.id &&
           other.odooId == this.odooId &&
+          other.advanceId == this.advanceId &&
           other.lineUuid == this.lineUuid &&
           other.journalId == this.journalId &&
           other.journalName == this.journalName &&
@@ -68170,6 +67190,7 @@ class AdvanceLinesTableCompanion
     extends UpdateCompanion<AdvanceLinesTableData> {
   final Value<int> id;
   final Value<int> odooId;
+  final Value<int?> advanceId;
   final Value<String?> lineUuid;
   final Value<int> journalId;
   final Value<String?> journalName;
@@ -68190,6 +67211,7 @@ class AdvanceLinesTableCompanion
   const AdvanceLinesTableCompanion({
     this.id = const Value.absent(),
     this.odooId = const Value.absent(),
+    this.advanceId = const Value.absent(),
     this.lineUuid = const Value.absent(),
     this.journalId = const Value.absent(),
     this.journalName = const Value.absent(),
@@ -68211,6 +67233,7 @@ class AdvanceLinesTableCompanion
   AdvanceLinesTableCompanion.insert({
     this.id = const Value.absent(),
     required int odooId,
+    this.advanceId = const Value.absent(),
     this.lineUuid = const Value.absent(),
     required int journalId,
     this.journalName = const Value.absent(),
@@ -68233,6 +67256,7 @@ class AdvanceLinesTableCompanion
   static Insertable<AdvanceLinesTableData> custom({
     Expression<int>? id,
     Expression<int>? odooId,
+    Expression<int>? advanceId,
     Expression<String>? lineUuid,
     Expression<int>? journalId,
     Expression<String>? journalName,
@@ -68254,6 +67278,7 @@ class AdvanceLinesTableCompanion
     return RawValuesInsertable({
       if (id != null) 'id': id,
       if (odooId != null) 'odoo_id': odooId,
+      if (advanceId != null) 'advance_id': advanceId,
       if (lineUuid != null) 'line_uuid': lineUuid,
       if (journalId != null) 'journal_id': journalId,
       if (journalName != null) 'journal_name': journalName,
@@ -68278,6 +67303,7 @@ class AdvanceLinesTableCompanion
   AdvanceLinesTableCompanion copyWith({
     Value<int>? id,
     Value<int>? odooId,
+    Value<int?>? advanceId,
     Value<String?>? lineUuid,
     Value<int>? journalId,
     Value<String?>? journalName,
@@ -68299,6 +67325,7 @@ class AdvanceLinesTableCompanion
     return AdvanceLinesTableCompanion(
       id: id ?? this.id,
       odooId: odooId ?? this.odooId,
+      advanceId: advanceId ?? this.advanceId,
       lineUuid: lineUuid ?? this.lineUuid,
       journalId: journalId ?? this.journalId,
       journalName: journalName ?? this.journalName,
@@ -68327,6 +67354,9 @@ class AdvanceLinesTableCompanion
     }
     if (odooId.present) {
       map['odoo_id'] = Variable<int>(odooId.value);
+    }
+    if (advanceId.present) {
+      map['advance_id'] = Variable<int>(advanceId.value);
     }
     if (lineUuid.present) {
       map['line_uuid'] = Variable<String>(lineUuid.value);
@@ -68387,6 +67417,7 @@ class AdvanceLinesTableCompanion
     return (StringBuffer('AdvanceLinesTableCompanion(')
           ..write('id: $id, ')
           ..write('odooId: $odooId, ')
+          ..write('advanceId: $advanceId, ')
           ..write('lineUuid: $lineUuid, ')
           ..write('journalId: $journalId, ')
           ..write('journalName: $journalName, ')
@@ -73770,6 +72801,17 @@ class $SyncConflictTable extends SyncConflict
       'PRIMARY KEY AUTOINCREMENT',
     ),
   );
+  static const VerificationMeta _operationIdMeta = const VerificationMeta(
+    'operationId',
+  );
+  @override
+  late final GeneratedColumn<int> operationId = GeneratedColumn<int>(
+    'operation_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+  );
   static const VerificationMeta _modelMeta = const VerificationMeta('model');
   @override
   late final GeneratedColumn<String> model = GeneratedColumn<String>(
@@ -73885,6 +72927,7 @@ class $SyncConflictTable extends SyncConflict
   @override
   List<GeneratedColumn> get $columns => [
     id,
+    operationId,
     model,
     localId,
     remoteId,
@@ -73910,6 +72953,17 @@ class $SyncConflictTable extends SyncConflict
     final data = instance.toColumns(true);
     if (data.containsKey('id')) {
       context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    }
+    if (data.containsKey('operation_id')) {
+      context.handle(
+        _operationIdMeta,
+        operationId.isAcceptableOrUnknown(
+          data['operation_id']!,
+          _operationIdMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_operationIdMeta);
     }
     if (data.containsKey('model')) {
       context.handle(
@@ -74001,6 +73055,10 @@ class $SyncConflictTable extends SyncConflict
         DriftSqlType.int,
         data['${effectivePrefix}id'],
       )!,
+      operationId: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}operation_id'],
+      )!,
       model: attachedDatabase.typeMapping.read(
         DriftSqlType.string,
         data['${effectivePrefix}model'],
@@ -74053,6 +73111,7 @@ class $SyncConflictTable extends SyncConflict
 class SyncConflictData extends DataClass
     implements Insertable<SyncConflictData> {
   final int id;
+  final int operationId;
   final String model;
   final int localId;
   final int remoteId;
@@ -74065,6 +73124,7 @@ class SyncConflictData extends DataClass
   final bool isResolved;
   const SyncConflictData({
     required this.id,
+    required this.operationId,
     required this.model,
     required this.localId,
     required this.remoteId,
@@ -74080,6 +73140,7 @@ class SyncConflictData extends DataClass
   Map<String, Expression> toColumns(bool nullToAbsent) {
     final map = <String, Expression>{};
     map['id'] = Variable<int>(id);
+    map['operation_id'] = Variable<int>(operationId);
     map['model'] = Variable<String>(model);
     map['local_id'] = Variable<int>(localId);
     map['remote_id'] = Variable<int>(remoteId);
@@ -74100,6 +73161,7 @@ class SyncConflictData extends DataClass
   SyncConflictCompanion toCompanion(bool nullToAbsent) {
     return SyncConflictCompanion(
       id: Value(id),
+      operationId: Value(operationId),
       model: Value(model),
       localId: Value(localId),
       remoteId: Value(remoteId),
@@ -74124,6 +73186,7 @@ class SyncConflictData extends DataClass
     serializer ??= driftRuntimeOptions.defaultSerializer;
     return SyncConflictData(
       id: serializer.fromJson<int>(json['id']),
+      operationId: serializer.fromJson<int>(json['operationId']),
       model: serializer.fromJson<String>(json['model']),
       localId: serializer.fromJson<int>(json['localId']),
       remoteId: serializer.fromJson<int>(json['remoteId']),
@@ -74141,6 +73204,7 @@ class SyncConflictData extends DataClass
     serializer ??= driftRuntimeOptions.defaultSerializer;
     return <String, dynamic>{
       'id': serializer.toJson<int>(id),
+      'operationId': serializer.toJson<int>(operationId),
       'model': serializer.toJson<String>(model),
       'localId': serializer.toJson<int>(localId),
       'remoteId': serializer.toJson<int>(remoteId),
@@ -74156,6 +73220,7 @@ class SyncConflictData extends DataClass
 
   SyncConflictData copyWith({
     int? id,
+    int? operationId,
     String? model,
     int? localId,
     int? remoteId,
@@ -74168,6 +73233,7 @@ class SyncConflictData extends DataClass
     bool? isResolved,
   }) => SyncConflictData(
     id: id ?? this.id,
+    operationId: operationId ?? this.operationId,
     model: model ?? this.model,
     localId: localId ?? this.localId,
     remoteId: remoteId ?? this.remoteId,
@@ -74182,6 +73248,9 @@ class SyncConflictData extends DataClass
   SyncConflictData copyWithCompanion(SyncConflictCompanion data) {
     return SyncConflictData(
       id: data.id.present ? data.id.value : this.id,
+      operationId: data.operationId.present
+          ? data.operationId.value
+          : this.operationId,
       model: data.model.present ? data.model.value : this.model,
       localId: data.localId.present ? data.localId.value : this.localId,
       remoteId: data.remoteId.present ? data.remoteId.value : this.remoteId,
@@ -74211,6 +73280,7 @@ class SyncConflictData extends DataClass
   String toString() {
     return (StringBuffer('SyncConflictData(')
           ..write('id: $id, ')
+          ..write('operationId: $operationId, ')
           ..write('model: $model, ')
           ..write('localId: $localId, ')
           ..write('remoteId: $remoteId, ')
@@ -74228,6 +73298,7 @@ class SyncConflictData extends DataClass
   @override
   int get hashCode => Object.hash(
     id,
+    operationId,
     model,
     localId,
     remoteId,
@@ -74244,6 +73315,7 @@ class SyncConflictData extends DataClass
       identical(this, other) ||
       (other is SyncConflictData &&
           other.id == this.id &&
+          other.operationId == this.operationId &&
           other.model == this.model &&
           other.localId == this.localId &&
           other.remoteId == this.remoteId &&
@@ -74258,6 +73330,7 @@ class SyncConflictData extends DataClass
 
 class SyncConflictCompanion extends UpdateCompanion<SyncConflictData> {
   final Value<int> id;
+  final Value<int> operationId;
   final Value<String> model;
   final Value<int> localId;
   final Value<int> remoteId;
@@ -74270,6 +73343,7 @@ class SyncConflictCompanion extends UpdateCompanion<SyncConflictData> {
   final Value<bool> isResolved;
   const SyncConflictCompanion({
     this.id = const Value.absent(),
+    this.operationId = const Value.absent(),
     this.model = const Value.absent(),
     this.localId = const Value.absent(),
     this.remoteId = const Value.absent(),
@@ -74283,6 +73357,7 @@ class SyncConflictCompanion extends UpdateCompanion<SyncConflictData> {
   });
   SyncConflictCompanion.insert({
     this.id = const Value.absent(),
+    required int operationId,
     required String model,
     required int localId,
     required int remoteId,
@@ -74293,7 +73368,8 @@ class SyncConflictCompanion extends UpdateCompanion<SyncConflictData> {
     required DateTime detectedAt,
     this.resolvedAt = const Value.absent(),
     this.isResolved = const Value.absent(),
-  }) : model = Value(model),
+  }) : operationId = Value(operationId),
+       model = Value(model),
        localId = Value(localId),
        remoteId = Value(remoteId),
        conflictType = Value(conflictType),
@@ -74302,6 +73378,7 @@ class SyncConflictCompanion extends UpdateCompanion<SyncConflictData> {
        detectedAt = Value(detectedAt);
   static Insertable<SyncConflictData> custom({
     Expression<int>? id,
+    Expression<int>? operationId,
     Expression<String>? model,
     Expression<int>? localId,
     Expression<int>? remoteId,
@@ -74315,6 +73392,7 @@ class SyncConflictCompanion extends UpdateCompanion<SyncConflictData> {
   }) {
     return RawValuesInsertable({
       if (id != null) 'id': id,
+      if (operationId != null) 'operation_id': operationId,
       if (model != null) 'model': model,
       if (localId != null) 'local_id': localId,
       if (remoteId != null) 'remote_id': remoteId,
@@ -74330,6 +73408,7 @@ class SyncConflictCompanion extends UpdateCompanion<SyncConflictData> {
 
   SyncConflictCompanion copyWith({
     Value<int>? id,
+    Value<int>? operationId,
     Value<String>? model,
     Value<int>? localId,
     Value<int>? remoteId,
@@ -74343,6 +73422,7 @@ class SyncConflictCompanion extends UpdateCompanion<SyncConflictData> {
   }) {
     return SyncConflictCompanion(
       id: id ?? this.id,
+      operationId: operationId ?? this.operationId,
       model: model ?? this.model,
       localId: localId ?? this.localId,
       remoteId: remoteId ?? this.remoteId,
@@ -74361,6 +73441,9 @@ class SyncConflictCompanion extends UpdateCompanion<SyncConflictData> {
     final map = <String, Expression>{};
     if (id.present) {
       map['id'] = Variable<int>(id.value);
+    }
+    if (operationId.present) {
+      map['operation_id'] = Variable<int>(operationId.value);
     }
     if (model.present) {
       map['model'] = Variable<String>(model.value);
@@ -74399,6 +73482,7 @@ class SyncConflictCompanion extends UpdateCompanion<SyncConflictData> {
   String toString() {
     return (StringBuffer('SyncConflictCompanion(')
           ..write('id: $id, ')
+          ..write('operationId: $operationId, ')
           ..write('model: $model, ')
           ..write('localId: $localId, ')
           ..write('remoteId: $remoteId, ')
@@ -74532,17 +73616,6 @@ class $QwebReportTemplateTable extends QwebReportTemplate
     type: DriftSqlType.string,
     requiredDuringInsert: false,
   );
-  static const VerificationMeta _templateContentMeta = const VerificationMeta(
-    'templateContent',
-  );
-  @override
-  late final GeneratedColumn<String> templateContent = GeneratedColumn<String>(
-    'template_content',
-    aliasedName,
-    false,
-    type: DriftSqlType.string,
-    requiredDuringInsert: true,
-  );
   static const VerificationMeta _xmlContentMeta = const VerificationMeta(
     'xmlContent',
   );
@@ -74550,9 +73623,9 @@ class $QwebReportTemplateTable extends QwebReportTemplate
   late final GeneratedColumn<String> xmlContent = GeneratedColumn<String>(
     'xml_content',
     aliasedName,
-    true,
+    false,
     type: DriftSqlType.string,
-    requiredDuringInsert: false,
+    requiredDuringInsert: true,
   );
   static const VerificationMeta _requiredFieldsMeta = const VerificationMeta(
     'requiredFields',
@@ -74634,7 +73707,6 @@ class $QwebReportTemplateTable extends QwebReportTemplate
     attachment,
     attachmentUse,
     paperformatId,
-    templateContent,
     xmlContent,
     requiredFields,
     dependencies,
@@ -74733,22 +73805,13 @@ class $QwebReportTemplateTable extends QwebReportTemplate
         ),
       );
     }
-    if (data.containsKey('template_content')) {
-      context.handle(
-        _templateContentMeta,
-        templateContent.isAcceptableOrUnknown(
-          data['template_content']!,
-          _templateContentMeta,
-        ),
-      );
-    } else if (isInserting) {
-      context.missing(_templateContentMeta);
-    }
     if (data.containsKey('xml_content')) {
       context.handle(
         _xmlContentMeta,
         xmlContent.isAcceptableOrUnknown(data['xml_content']!, _xmlContentMeta),
       );
+    } else if (isInserting) {
+      context.missing(_xmlContentMeta);
     }
     if (data.containsKey('required_fields')) {
       context.handle(
@@ -74841,14 +73904,10 @@ class $QwebReportTemplateTable extends QwebReportTemplate
         DriftSqlType.string,
         data['${effectivePrefix}paperformat_id'],
       ),
-      templateContent: attachedDatabase.typeMapping.read(
-        DriftSqlType.string,
-        data['${effectivePrefix}template_content'],
-      )!,
       xmlContent: attachedDatabase.typeMapping.read(
         DriftSqlType.string,
         data['${effectivePrefix}xml_content'],
-      ),
+      )!,
       requiredFields: attachedDatabase.typeMapping.read(
         DriftSqlType.string,
         data['${effectivePrefix}required_fields'],
@@ -74894,8 +73953,7 @@ class QwebReportTemplateData extends DataClass
   final String? attachment;
   final bool attachmentUse;
   final String? paperformatId;
-  final String templateContent;
-  final String? xmlContent;
+  final String xmlContent;
   final String? requiredFields;
   final String? dependencies;
   final DateTime? lastSynced;
@@ -74913,8 +73971,7 @@ class QwebReportTemplateData extends DataClass
     this.attachment,
     required this.attachmentUse,
     this.paperformatId,
-    required this.templateContent,
-    this.xmlContent,
+    required this.xmlContent,
     this.requiredFields,
     this.dependencies,
     this.lastSynced,
@@ -74939,10 +73996,7 @@ class QwebReportTemplateData extends DataClass
     if (!nullToAbsent || paperformatId != null) {
       map['paperformat_id'] = Variable<String>(paperformatId);
     }
-    map['template_content'] = Variable<String>(templateContent);
-    if (!nullToAbsent || xmlContent != null) {
-      map['xml_content'] = Variable<String>(xmlContent);
-    }
+    map['xml_content'] = Variable<String>(xmlContent);
     if (!nullToAbsent || requiredFields != null) {
       map['required_fields'] = Variable<String>(requiredFields);
     }
@@ -74978,10 +74032,7 @@ class QwebReportTemplateData extends DataClass
       paperformatId: paperformatId == null && nullToAbsent
           ? const Value.absent()
           : Value(paperformatId),
-      templateContent: Value(templateContent),
-      xmlContent: xmlContent == null && nullToAbsent
-          ? const Value.absent()
-          : Value(xmlContent),
+      xmlContent: Value(xmlContent),
       requiredFields: requiredFields == null && nullToAbsent
           ? const Value.absent()
           : Value(requiredFields),
@@ -75017,8 +74068,7 @@ class QwebReportTemplateData extends DataClass
       attachment: serializer.fromJson<String?>(json['attachment']),
       attachmentUse: serializer.fromJson<bool>(json['attachmentUse']),
       paperformatId: serializer.fromJson<String?>(json['paperformatId']),
-      templateContent: serializer.fromJson<String>(json['templateContent']),
-      xmlContent: serializer.fromJson<String?>(json['xmlContent']),
+      xmlContent: serializer.fromJson<String>(json['xmlContent']),
       requiredFields: serializer.fromJson<String?>(json['requiredFields']),
       dependencies: serializer.fromJson<String?>(json['dependencies']),
       lastSynced: serializer.fromJson<DateTime?>(json['lastSynced']),
@@ -75041,8 +74091,7 @@ class QwebReportTemplateData extends DataClass
       'attachment': serializer.toJson<String?>(attachment),
       'attachmentUse': serializer.toJson<bool>(attachmentUse),
       'paperformatId': serializer.toJson<String?>(paperformatId),
-      'templateContent': serializer.toJson<String>(templateContent),
-      'xmlContent': serializer.toJson<String?>(xmlContent),
+      'xmlContent': serializer.toJson<String>(xmlContent),
       'requiredFields': serializer.toJson<String?>(requiredFields),
       'dependencies': serializer.toJson<String?>(dependencies),
       'lastSynced': serializer.toJson<DateTime?>(lastSynced),
@@ -75063,8 +74112,7 @@ class QwebReportTemplateData extends DataClass
     Value<String?> attachment = const Value.absent(),
     bool? attachmentUse,
     Value<String?> paperformatId = const Value.absent(),
-    String? templateContent,
-    Value<String?> xmlContent = const Value.absent(),
+    String? xmlContent,
     Value<String?> requiredFields = const Value.absent(),
     Value<String?> dependencies = const Value.absent(),
     Value<DateTime?> lastSynced = const Value.absent(),
@@ -75084,8 +74132,7 @@ class QwebReportTemplateData extends DataClass
     paperformatId: paperformatId.present
         ? paperformatId.value
         : this.paperformatId,
-    templateContent: templateContent ?? this.templateContent,
-    xmlContent: xmlContent.present ? xmlContent.value : this.xmlContent,
+    xmlContent: xmlContent ?? this.xmlContent,
     requiredFields: requiredFields.present
         ? requiredFields.value
         : this.requiredFields,
@@ -75119,9 +74166,6 @@ class QwebReportTemplateData extends DataClass
       paperformatId: data.paperformatId.present
           ? data.paperformatId.value
           : this.paperformatId,
-      templateContent: data.templateContent.present
-          ? data.templateContent.value
-          : this.templateContent,
       xmlContent: data.xmlContent.present
           ? data.xmlContent.value
           : this.xmlContent,
@@ -75153,7 +74197,6 @@ class QwebReportTemplateData extends DataClass
           ..write('attachment: $attachment, ')
           ..write('attachmentUse: $attachmentUse, ')
           ..write('paperformatId: $paperformatId, ')
-          ..write('templateContent: $templateContent, ')
           ..write('xmlContent: $xmlContent, ')
           ..write('requiredFields: $requiredFields, ')
           ..write('dependencies: $dependencies, ')
@@ -75177,7 +74220,6 @@ class QwebReportTemplateData extends DataClass
     attachment,
     attachmentUse,
     paperformatId,
-    templateContent,
     xmlContent,
     requiredFields,
     dependencies,
@@ -75200,7 +74242,6 @@ class QwebReportTemplateData extends DataClass
           other.attachment == this.attachment &&
           other.attachmentUse == this.attachmentUse &&
           other.paperformatId == this.paperformatId &&
-          other.templateContent == this.templateContent &&
           other.xmlContent == this.xmlContent &&
           other.requiredFields == this.requiredFields &&
           other.dependencies == this.dependencies &&
@@ -75222,8 +74263,7 @@ class QwebReportTemplateCompanion
   final Value<String?> attachment;
   final Value<bool> attachmentUse;
   final Value<String?> paperformatId;
-  final Value<String> templateContent;
-  final Value<String?> xmlContent;
+  final Value<String> xmlContent;
   final Value<String?> requiredFields;
   final Value<String?> dependencies;
   final Value<DateTime?> lastSynced;
@@ -75241,7 +74281,6 @@ class QwebReportTemplateCompanion
     this.attachment = const Value.absent(),
     this.attachmentUse = const Value.absent(),
     this.paperformatId = const Value.absent(),
-    this.templateContent = const Value.absent(),
     this.xmlContent = const Value.absent(),
     this.requiredFields = const Value.absent(),
     this.dependencies = const Value.absent(),
@@ -75261,8 +74300,7 @@ class QwebReportTemplateCompanion
     this.attachment = const Value.absent(),
     this.attachmentUse = const Value.absent(),
     this.paperformatId = const Value.absent(),
-    required String templateContent,
-    this.xmlContent = const Value.absent(),
+    required String xmlContent,
     this.requiredFields = const Value.absent(),
     this.dependencies = const Value.absent(),
     this.lastSynced = const Value.absent(),
@@ -75275,7 +74313,7 @@ class QwebReportTemplateCompanion
        model = Value(model),
        reportType = Value(reportType),
        reportName = Value(reportName),
-       templateContent = Value(templateContent);
+       xmlContent = Value(xmlContent);
   static Insertable<QwebReportTemplateData> custom({
     Expression<int>? id,
     Expression<int>? odooId,
@@ -75287,7 +74325,6 @@ class QwebReportTemplateCompanion
     Expression<String>? attachment,
     Expression<bool>? attachmentUse,
     Expression<String>? paperformatId,
-    Expression<String>? templateContent,
     Expression<String>? xmlContent,
     Expression<String>? requiredFields,
     Expression<String>? dependencies,
@@ -75307,7 +74344,6 @@ class QwebReportTemplateCompanion
       if (attachment != null) 'attachment': attachment,
       if (attachmentUse != null) 'attachment_use': attachmentUse,
       if (paperformatId != null) 'paperformat_id': paperformatId,
-      if (templateContent != null) 'template_content': templateContent,
       if (xmlContent != null) 'xml_content': xmlContent,
       if (requiredFields != null) 'required_fields': requiredFields,
       if (dependencies != null) 'dependencies': dependencies,
@@ -75329,8 +74365,7 @@ class QwebReportTemplateCompanion
     Value<String?>? attachment,
     Value<bool>? attachmentUse,
     Value<String?>? paperformatId,
-    Value<String>? templateContent,
-    Value<String?>? xmlContent,
+    Value<String>? xmlContent,
     Value<String?>? requiredFields,
     Value<String?>? dependencies,
     Value<DateTime?>? lastSynced,
@@ -75349,7 +74384,6 @@ class QwebReportTemplateCompanion
       attachment: attachment ?? this.attachment,
       attachmentUse: attachmentUse ?? this.attachmentUse,
       paperformatId: paperformatId ?? this.paperformatId,
-      templateContent: templateContent ?? this.templateContent,
       xmlContent: xmlContent ?? this.xmlContent,
       requiredFields: requiredFields ?? this.requiredFields,
       dependencies: dependencies ?? this.dependencies,
@@ -75393,9 +74427,6 @@ class QwebReportTemplateCompanion
     if (paperformatId.present) {
       map['paperformat_id'] = Variable<String>(paperformatId.value);
     }
-    if (templateContent.present) {
-      map['template_content'] = Variable<String>(templateContent.value);
-    }
     if (xmlContent.present) {
       map['xml_content'] = Variable<String>(xmlContent.value);
     }
@@ -75433,7 +74464,6 @@ class QwebReportTemplateCompanion
           ..write('attachment: $attachment, ')
           ..write('attachmentUse: $attachmentUse, ')
           ..write('paperformatId: $paperformatId, ')
-          ..write('templateContent: $templateContent, ')
           ..write('xmlContent: $xmlContent, ')
           ..write('requiredFields: $requiredFields, ')
           ..write('dependencies: $dependencies, ')
@@ -76258,7 +75288,6 @@ abstract class _$AppDatabase extends GeneratedDatabase {
   );
   late final $AccountTaxTable accountTax = $AccountTaxTable(this);
   late final $UomUomTable uomUom = $UomUomTable(this);
-  late final $UomCategoryTable uomCategory = $UomCategoryTable(this);
   late final $ProductUomTable productUom = $ProductUomTable(this);
   late final $ProductPricelistTable productPricelist = $ProductPricelistTable(
     this,
@@ -76342,7 +75371,6 @@ abstract class _$AppDatabase extends GeneratedDatabase {
     productCategory,
     accountTax,
     uomUom,
-    uomCategory,
     productUom,
     productPricelist,
     productPricelistItem,
@@ -76864,100 +75892,72 @@ typedef $$ResCurrencyTableProcessedTableManager =
       ResCurrencyData,
       PrefetchHooks Function()
     >;
-typedef $$ResUsersTableCreateCompanionBuilder =
-    ResUsersCompanion Function({
-      Value<int> id,
-      required int odooId,
-      required String name,
-      required String login,
-      Value<String?> email,
-      Value<String?> lang,
-      Value<String?> tz,
-      Value<String?> signature,
-      Value<int?> partnerId,
-      Value<String?> partnerName,
-      Value<int?> companyId,
-      Value<String?> companyName,
-      Value<int?> propertyWarehouseId,
-      Value<String?> warehouseName,
-      Value<String?> avatar128,
-      Value<String?> notificationType,
-      Value<String?> workEmail,
-      Value<String?> workPhone,
-      Value<String?> mobilePhone,
-      Value<String?> groupIds,
-      Value<String?> permissions,
-      Value<bool> isCurrentUser,
-      Value<DateTime?> writeDate,
-      Value<DateTime?> outOfOfficeFrom,
-      Value<DateTime?> outOfOfficeTo,
-      Value<String?> outOfOfficeMessage,
-      Value<String?> calendarDefaultPrivacy,
-      Value<int?> workLocationId,
-      Value<String?> workLocationName,
-      Value<int?> resourceCalendarId,
-      Value<String?> resourceCalendarName,
-      Value<String?> pin,
-      Value<String?> privateStreet,
-      Value<String?> privateStreet2,
-      Value<String?> privateCity,
-      Value<String?> privateZip,
-      Value<int?> privateStateId,
-      Value<String?> privateStateName,
-      Value<int?> privateCountryId,
-      Value<String?> privateCountryName,
-      Value<String?> privateEmail,
-      Value<String?> privatePhone,
-      Value<String?> emergencyContact,
-      Value<String?> emergencyPhone,
-    });
-typedef $$ResUsersTableUpdateCompanionBuilder =
-    ResUsersCompanion Function({
-      Value<int> id,
-      Value<int> odooId,
-      Value<String> name,
-      Value<String> login,
-      Value<String?> email,
-      Value<String?> lang,
-      Value<String?> tz,
-      Value<String?> signature,
-      Value<int?> partnerId,
-      Value<String?> partnerName,
-      Value<int?> companyId,
-      Value<String?> companyName,
-      Value<int?> propertyWarehouseId,
-      Value<String?> warehouseName,
-      Value<String?> avatar128,
-      Value<String?> notificationType,
-      Value<String?> workEmail,
-      Value<String?> workPhone,
-      Value<String?> mobilePhone,
-      Value<String?> groupIds,
-      Value<String?> permissions,
-      Value<bool> isCurrentUser,
-      Value<DateTime?> writeDate,
-      Value<DateTime?> outOfOfficeFrom,
-      Value<DateTime?> outOfOfficeTo,
-      Value<String?> outOfOfficeMessage,
-      Value<String?> calendarDefaultPrivacy,
-      Value<int?> workLocationId,
-      Value<String?> workLocationName,
-      Value<int?> resourceCalendarId,
-      Value<String?> resourceCalendarName,
-      Value<String?> pin,
-      Value<String?> privateStreet,
-      Value<String?> privateStreet2,
-      Value<String?> privateCity,
-      Value<String?> privateZip,
-      Value<int?> privateStateId,
-      Value<String?> privateStateName,
-      Value<int?> privateCountryId,
-      Value<String?> privateCountryName,
-      Value<String?> privateEmail,
-      Value<String?> privatePhone,
-      Value<String?> emergencyContact,
-      Value<String?> emergencyPhone,
-    });
+typedef $$ResUsersTableCreateCompanionBuilder = ResUsersCompanion Function({
+  Value<int> id,
+  required int odooId,
+  required String name,
+  required String login,
+  Value<String?> email,
+  Value<String?> lang,
+  Value<String?> tz,
+  Value<String?> signature,
+  Value<int?> partnerId,
+  Value<String?> partnerName,
+  Value<int?> companyId,
+  Value<String?> companyName,
+  Value<int?> propertyWarehouseId,
+  Value<String?> warehouseName,
+  Value<String?> avatar128,
+  Value<String?> notificationType,
+  Value<String?> workEmail,
+  Value<String?> workPhone,
+  Value<String?> mobilePhone,
+  Value<String?> groupIds,
+  Value<String?> permissions,
+  Value<bool> isCurrentUser,
+  Value<DateTime?> writeDate,
+  Value<DateTime?> outOfOfficeFrom,
+  Value<DateTime?> outOfOfficeTo,
+  Value<String?> outOfOfficeMessage,
+  Value<String?> calendarDefaultPrivacy,
+  Value<int?> workLocationId,
+  Value<String?> workLocationName,
+  Value<int?> resourceCalendarId,
+  Value<String?> resourceCalendarName,
+});
+typedef $$ResUsersTableUpdateCompanionBuilder = ResUsersCompanion Function({
+  Value<int> id,
+  Value<int> odooId,
+  Value<String> name,
+  Value<String> login,
+  Value<String?> email,
+  Value<String?> lang,
+  Value<String?> tz,
+  Value<String?> signature,
+  Value<int?> partnerId,
+  Value<String?> partnerName,
+  Value<int?> companyId,
+  Value<String?> companyName,
+  Value<int?> propertyWarehouseId,
+  Value<String?> warehouseName,
+  Value<String?> avatar128,
+  Value<String?> notificationType,
+  Value<String?> workEmail,
+  Value<String?> workPhone,
+  Value<String?> mobilePhone,
+  Value<String?> groupIds,
+  Value<String?> permissions,
+  Value<bool> isCurrentUser,
+  Value<DateTime?> writeDate,
+  Value<DateTime?> outOfOfficeFrom,
+  Value<DateTime?> outOfOfficeTo,
+  Value<String?> outOfOfficeMessage,
+  Value<String?> calendarDefaultPrivacy,
+  Value<int?> workLocationId,
+  Value<String?> workLocationName,
+  Value<int?> resourceCalendarId,
+  Value<String?> resourceCalendarName,
+});
 
 class $$ResUsersTableFilterComposer
     extends Composer<_$AppDatabase, $ResUsersTable> {
@@ -77120,71 +76120,6 @@ class $$ResUsersTableFilterComposer
 
   ColumnFilters<String> get resourceCalendarName => $composableBuilder(
     column: $table.resourceCalendarName,
-    builder: (column) => ColumnFilters(column),
-  );
-
-  ColumnFilters<String> get pin => $composableBuilder(
-    column: $table.pin,
-    builder: (column) => ColumnFilters(column),
-  );
-
-  ColumnFilters<String> get privateStreet => $composableBuilder(
-    column: $table.privateStreet,
-    builder: (column) => ColumnFilters(column),
-  );
-
-  ColumnFilters<String> get privateStreet2 => $composableBuilder(
-    column: $table.privateStreet2,
-    builder: (column) => ColumnFilters(column),
-  );
-
-  ColumnFilters<String> get privateCity => $composableBuilder(
-    column: $table.privateCity,
-    builder: (column) => ColumnFilters(column),
-  );
-
-  ColumnFilters<String> get privateZip => $composableBuilder(
-    column: $table.privateZip,
-    builder: (column) => ColumnFilters(column),
-  );
-
-  ColumnFilters<int> get privateStateId => $composableBuilder(
-    column: $table.privateStateId,
-    builder: (column) => ColumnFilters(column),
-  );
-
-  ColumnFilters<String> get privateStateName => $composableBuilder(
-    column: $table.privateStateName,
-    builder: (column) => ColumnFilters(column),
-  );
-
-  ColumnFilters<int> get privateCountryId => $composableBuilder(
-    column: $table.privateCountryId,
-    builder: (column) => ColumnFilters(column),
-  );
-
-  ColumnFilters<String> get privateCountryName => $composableBuilder(
-    column: $table.privateCountryName,
-    builder: (column) => ColumnFilters(column),
-  );
-
-  ColumnFilters<String> get privateEmail => $composableBuilder(
-    column: $table.privateEmail,
-    builder: (column) => ColumnFilters(column),
-  );
-
-  ColumnFilters<String> get privatePhone => $composableBuilder(
-    column: $table.privatePhone,
-    builder: (column) => ColumnFilters(column),
-  );
-
-  ColumnFilters<String> get emergencyContact => $composableBuilder(
-    column: $table.emergencyContact,
-    builder: (column) => ColumnFilters(column),
-  );
-
-  ColumnFilters<String> get emergencyPhone => $composableBuilder(
-    column: $table.emergencyPhone,
     builder: (column) => ColumnFilters(column),
   );
 }
@@ -77352,71 +76287,6 @@ class $$ResUsersTableOrderingComposer
     column: $table.resourceCalendarName,
     builder: (column) => ColumnOrderings(column),
   );
-
-  ColumnOrderings<String> get pin => $composableBuilder(
-    column: $table.pin,
-    builder: (column) => ColumnOrderings(column),
-  );
-
-  ColumnOrderings<String> get privateStreet => $composableBuilder(
-    column: $table.privateStreet,
-    builder: (column) => ColumnOrderings(column),
-  );
-
-  ColumnOrderings<String> get privateStreet2 => $composableBuilder(
-    column: $table.privateStreet2,
-    builder: (column) => ColumnOrderings(column),
-  );
-
-  ColumnOrderings<String> get privateCity => $composableBuilder(
-    column: $table.privateCity,
-    builder: (column) => ColumnOrderings(column),
-  );
-
-  ColumnOrderings<String> get privateZip => $composableBuilder(
-    column: $table.privateZip,
-    builder: (column) => ColumnOrderings(column),
-  );
-
-  ColumnOrderings<int> get privateStateId => $composableBuilder(
-    column: $table.privateStateId,
-    builder: (column) => ColumnOrderings(column),
-  );
-
-  ColumnOrderings<String> get privateStateName => $composableBuilder(
-    column: $table.privateStateName,
-    builder: (column) => ColumnOrderings(column),
-  );
-
-  ColumnOrderings<int> get privateCountryId => $composableBuilder(
-    column: $table.privateCountryId,
-    builder: (column) => ColumnOrderings(column),
-  );
-
-  ColumnOrderings<String> get privateCountryName => $composableBuilder(
-    column: $table.privateCountryName,
-    builder: (column) => ColumnOrderings(column),
-  );
-
-  ColumnOrderings<String> get privateEmail => $composableBuilder(
-    column: $table.privateEmail,
-    builder: (column) => ColumnOrderings(column),
-  );
-
-  ColumnOrderings<String> get privatePhone => $composableBuilder(
-    column: $table.privatePhone,
-    builder: (column) => ColumnOrderings(column),
-  );
-
-  ColumnOrderings<String> get emergencyContact => $composableBuilder(
-    column: $table.emergencyContact,
-    builder: (column) => ColumnOrderings(column),
-  );
-
-  ColumnOrderings<String> get emergencyPhone => $composableBuilder(
-    column: $table.emergencyPhone,
-    builder: (column) => ColumnOrderings(column),
-  );
 }
 
 class $$ResUsersTableAnnotationComposer
@@ -77552,69 +76422,6 @@ class $$ResUsersTableAnnotationComposer
     column: $table.resourceCalendarName,
     builder: (column) => column,
   );
-
-  GeneratedColumn<String> get pin =>
-      $composableBuilder(column: $table.pin, builder: (column) => column);
-
-  GeneratedColumn<String> get privateStreet => $composableBuilder(
-    column: $table.privateStreet,
-    builder: (column) => column,
-  );
-
-  GeneratedColumn<String> get privateStreet2 => $composableBuilder(
-    column: $table.privateStreet2,
-    builder: (column) => column,
-  );
-
-  GeneratedColumn<String> get privateCity => $composableBuilder(
-    column: $table.privateCity,
-    builder: (column) => column,
-  );
-
-  GeneratedColumn<String> get privateZip => $composableBuilder(
-    column: $table.privateZip,
-    builder: (column) => column,
-  );
-
-  GeneratedColumn<int> get privateStateId => $composableBuilder(
-    column: $table.privateStateId,
-    builder: (column) => column,
-  );
-
-  GeneratedColumn<String> get privateStateName => $composableBuilder(
-    column: $table.privateStateName,
-    builder: (column) => column,
-  );
-
-  GeneratedColumn<int> get privateCountryId => $composableBuilder(
-    column: $table.privateCountryId,
-    builder: (column) => column,
-  );
-
-  GeneratedColumn<String> get privateCountryName => $composableBuilder(
-    column: $table.privateCountryName,
-    builder: (column) => column,
-  );
-
-  GeneratedColumn<String> get privateEmail => $composableBuilder(
-    column: $table.privateEmail,
-    builder: (column) => column,
-  );
-
-  GeneratedColumn<String> get privatePhone => $composableBuilder(
-    column: $table.privatePhone,
-    builder: (column) => column,
-  );
-
-  GeneratedColumn<String> get emergencyContact => $composableBuilder(
-    column: $table.emergencyContact,
-    builder: (column) => column,
-  );
-
-  GeneratedColumn<String> get emergencyPhone => $composableBuilder(
-    column: $table.emergencyPhone,
-    builder: (column) => column,
-  );
 }
 
 class $$ResUsersTableTableManager
@@ -77676,19 +76483,6 @@ class $$ResUsersTableTableManager
                 Value<String?> workLocationName = const Value.absent(),
                 Value<int?> resourceCalendarId = const Value.absent(),
                 Value<String?> resourceCalendarName = const Value.absent(),
-                Value<String?> pin = const Value.absent(),
-                Value<String?> privateStreet = const Value.absent(),
-                Value<String?> privateStreet2 = const Value.absent(),
-                Value<String?> privateCity = const Value.absent(),
-                Value<String?> privateZip = const Value.absent(),
-                Value<int?> privateStateId = const Value.absent(),
-                Value<String?> privateStateName = const Value.absent(),
-                Value<int?> privateCountryId = const Value.absent(),
-                Value<String?> privateCountryName = const Value.absent(),
-                Value<String?> privateEmail = const Value.absent(),
-                Value<String?> privatePhone = const Value.absent(),
-                Value<String?> emergencyContact = const Value.absent(),
-                Value<String?> emergencyPhone = const Value.absent(),
               }) => ResUsersCompanion(
                 id: id,
                 odooId: odooId,
@@ -77721,19 +76515,6 @@ class $$ResUsersTableTableManager
                 workLocationName: workLocationName,
                 resourceCalendarId: resourceCalendarId,
                 resourceCalendarName: resourceCalendarName,
-                pin: pin,
-                privateStreet: privateStreet,
-                privateStreet2: privateStreet2,
-                privateCity: privateCity,
-                privateZip: privateZip,
-                privateStateId: privateStateId,
-                privateStateName: privateStateName,
-                privateCountryId: privateCountryId,
-                privateCountryName: privateCountryName,
-                privateEmail: privateEmail,
-                privatePhone: privatePhone,
-                emergencyContact: emergencyContact,
-                emergencyPhone: emergencyPhone,
               ),
           createCompanionCallback:
               ({
@@ -77768,19 +76549,6 @@ class $$ResUsersTableTableManager
                 Value<String?> workLocationName = const Value.absent(),
                 Value<int?> resourceCalendarId = const Value.absent(),
                 Value<String?> resourceCalendarName = const Value.absent(),
-                Value<String?> pin = const Value.absent(),
-                Value<String?> privateStreet = const Value.absent(),
-                Value<String?> privateStreet2 = const Value.absent(),
-                Value<String?> privateCity = const Value.absent(),
-                Value<String?> privateZip = const Value.absent(),
-                Value<int?> privateStateId = const Value.absent(),
-                Value<String?> privateStateName = const Value.absent(),
-                Value<int?> privateCountryId = const Value.absent(),
-                Value<String?> privateCountryName = const Value.absent(),
-                Value<String?> privateEmail = const Value.absent(),
-                Value<String?> privatePhone = const Value.absent(),
-                Value<String?> emergencyContact = const Value.absent(),
-                Value<String?> emergencyPhone = const Value.absent(),
               }) => ResUsersCompanion.insert(
                 id: id,
                 odooId: odooId,
@@ -77813,19 +76581,6 @@ class $$ResUsersTableTableManager
                 workLocationName: workLocationName,
                 resourceCalendarId: resourceCalendarId,
                 resourceCalendarName: resourceCalendarName,
-                pin: pin,
-                privateStreet: privateStreet,
-                privateStreet2: privateStreet2,
-                privateCity: privateCity,
-                privateZip: privateZip,
-                privateStateId: privateStateId,
-                privateStateName: privateStateName,
-                privateCountryId: privateCountryId,
-                privateCountryName: privateCountryName,
-                privateEmail: privateEmail,
-                privatePhone: privatePhone,
-                emergencyContact: emergencyContact,
-                emergencyPhone: emergencyPhone,
               ),
           withReferenceMapper: (p0) => p0
               .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
@@ -77849,34 +76604,32 @@ typedef $$ResUsersTableProcessedTableManager =
       ResUser,
       PrefetchHooks Function()
     >;
-typedef $$ResGroupsTableCreateCompanionBuilder =
-    ResGroupsCompanion Function({
-      Value<int> id,
-      required int odooId,
-      required String name,
-      Value<String?> fullName,
-      Value<String?> xmlId,
-      Value<int?> categoryId,
-      Value<String?> categoryName,
-      Value<String?> comment,
-      Value<String?> impliedIds,
-      Value<bool> share,
-      Value<DateTime?> writeDate,
-    });
-typedef $$ResGroupsTableUpdateCompanionBuilder =
-    ResGroupsCompanion Function({
-      Value<int> id,
-      Value<int> odooId,
-      Value<String> name,
-      Value<String?> fullName,
-      Value<String?> xmlId,
-      Value<int?> categoryId,
-      Value<String?> categoryName,
-      Value<String?> comment,
-      Value<String?> impliedIds,
-      Value<bool> share,
-      Value<DateTime?> writeDate,
-    });
+typedef $$ResGroupsTableCreateCompanionBuilder = ResGroupsCompanion Function({
+  Value<int> id,
+  required int odooId,
+  required String name,
+  Value<String?> fullName,
+  Value<String?> xmlId,
+  Value<int?> categoryId,
+  Value<String?> categoryName,
+  Value<String?> comment,
+  Value<String?> impliedIds,
+  Value<bool> share,
+  Value<DateTime?> writeDate,
+});
+typedef $$ResGroupsTableUpdateCompanionBuilder = ResGroupsCompanion Function({
+  Value<int> id,
+  Value<int> odooId,
+  Value<String> name,
+  Value<String?> fullName,
+  Value<String?> xmlId,
+  Value<int?> categoryId,
+  Value<String?> categoryName,
+  Value<String?> comment,
+  Value<String?> impliedIds,
+  Value<bool> share,
+  Value<DateTime?> writeDate,
+});
 
 class $$ResGroupsTableFilterComposer
     extends Composer<_$AppDatabase, $ResGroupsTable> {
@@ -78157,128 +76910,126 @@ typedef $$ResGroupsTableProcessedTableManager =
       ResGroup,
       PrefetchHooks Function()
     >;
-typedef $$ResPartnerTableCreateCompanionBuilder =
-    ResPartnerCompanion Function({
-      Value<int> id,
-      required int odooId,
-      required String name,
-      Value<String?> displayName,
-      Value<String?> ref,
-      Value<String?> vat,
-      Value<String?> email,
-      Value<String?> phone,
-      Value<String?> mobile,
-      Value<String?> street,
-      Value<String?> street2,
-      Value<String?> city,
-      Value<String?> zip,
-      Value<int?> countryId,
-      Value<String?> countryName,
-      Value<int?> stateId,
-      Value<String?> stateName,
-      Value<String?> avatar128,
-      Value<bool> isCompany,
-      Value<bool> active,
-      Value<int?> parentId,
-      Value<String?> parentName,
-      Value<int?> commercialPartnerId,
-      Value<String?> commercialPartnerName,
-      Value<int?> propertyProductPricelist,
-      Value<String?> propertyProductPricelistName,
-      Value<int?> propertyPaymentTermId,
-      Value<String?> propertyPaymentTermName,
-      Value<String?> lang,
-      Value<String?> comment,
-      Value<double> creditLimit,
-      Value<double> credit,
-      Value<double> creditToInvoice,
-      Value<double> totalOverdue,
-      Value<bool> allowOverCredit,
-      Value<bool> usePartnerCreditLimit,
-      Value<int> unpaidInvoicesCount,
-      Value<int> oldestOverdueDays,
-      Value<int?> diasMaxFacturaPosterior,
-      Value<String?> tipoCliente,
-      Value<String?> canalCliente,
-      Value<int> customerRank,
-      Value<int> supplierRank,
-      Value<bool> aceptaCheques,
-      Value<bool> emitirFacturaFechaPosterior,
-      Value<bool> noInvoice,
-      Value<int?> lastDayToInvoice,
-      Value<String?> externalId,
-      Value<double?> partnerLatitude,
-      Value<double?> partnerLongitude,
-      Value<bool> canUseCustomPayments,
-      Value<String?> partnerUuid,
-      Value<bool> isSynced,
-      Value<DateTime?> writeDate,
-      Value<DateTime?> creditLastSyncDate,
-      Value<double?> creditAvailable,
-      Value<double?> creditUsagePercentage,
-      Value<bool?> creditExceeded,
-    });
-typedef $$ResPartnerTableUpdateCompanionBuilder =
-    ResPartnerCompanion Function({
-      Value<int> id,
-      Value<int> odooId,
-      Value<String> name,
-      Value<String?> displayName,
-      Value<String?> ref,
-      Value<String?> vat,
-      Value<String?> email,
-      Value<String?> phone,
-      Value<String?> mobile,
-      Value<String?> street,
-      Value<String?> street2,
-      Value<String?> city,
-      Value<String?> zip,
-      Value<int?> countryId,
-      Value<String?> countryName,
-      Value<int?> stateId,
-      Value<String?> stateName,
-      Value<String?> avatar128,
-      Value<bool> isCompany,
-      Value<bool> active,
-      Value<int?> parentId,
-      Value<String?> parentName,
-      Value<int?> commercialPartnerId,
-      Value<String?> commercialPartnerName,
-      Value<int?> propertyProductPricelist,
-      Value<String?> propertyProductPricelistName,
-      Value<int?> propertyPaymentTermId,
-      Value<String?> propertyPaymentTermName,
-      Value<String?> lang,
-      Value<String?> comment,
-      Value<double> creditLimit,
-      Value<double> credit,
-      Value<double> creditToInvoice,
-      Value<double> totalOverdue,
-      Value<bool> allowOverCredit,
-      Value<bool> usePartnerCreditLimit,
-      Value<int> unpaidInvoicesCount,
-      Value<int> oldestOverdueDays,
-      Value<int?> diasMaxFacturaPosterior,
-      Value<String?> tipoCliente,
-      Value<String?> canalCliente,
-      Value<int> customerRank,
-      Value<int> supplierRank,
-      Value<bool> aceptaCheques,
-      Value<bool> emitirFacturaFechaPosterior,
-      Value<bool> noInvoice,
-      Value<int?> lastDayToInvoice,
-      Value<String?> externalId,
-      Value<double?> partnerLatitude,
-      Value<double?> partnerLongitude,
-      Value<bool> canUseCustomPayments,
-      Value<String?> partnerUuid,
-      Value<bool> isSynced,
-      Value<DateTime?> writeDate,
-      Value<DateTime?> creditLastSyncDate,
-      Value<double?> creditAvailable,
-      Value<double?> creditUsagePercentage,
-      Value<bool?> creditExceeded,
-    });
+typedef $$ResPartnerTableCreateCompanionBuilder = ResPartnerCompanion Function({
+  Value<int> id,
+  required int odooId,
+  required String name,
+  Value<String?> displayName,
+  Value<String?> ref,
+  Value<String?> vat,
+  Value<String?> email,
+  Value<String?> phone,
+  Value<String?> mobile,
+  Value<String?> street,
+  Value<String?> street2,
+  Value<String?> city,
+  Value<String?> zip,
+  Value<int?> countryId,
+  Value<String?> countryName,
+  Value<int?> stateId,
+  Value<String?> stateName,
+  Value<String?> avatar128,
+  Value<bool> isCompany,
+  Value<bool> active,
+  Value<int?> parentId,
+  Value<String?> parentName,
+  Value<int?> commercialPartnerId,
+  Value<String?> commercialPartnerName,
+  Value<int?> propertyProductPricelist,
+  Value<String?> propertyProductPricelistName,
+  Value<int?> propertyPaymentTermId,
+  Value<String?> propertyPaymentTermName,
+  Value<String?> lang,
+  Value<String?> comment,
+  Value<double> creditLimit,
+  Value<double> credit,
+  Value<double> creditToInvoice,
+  Value<double> totalOverdue,
+  Value<bool> allowOverCredit,
+  Value<bool> usePartnerCreditLimit,
+  Value<int> unpaidInvoicesCount,
+  Value<int> oldestOverdueDays,
+  Value<int?> diasMaxFacturaPosterior,
+  Value<String?> tipoCliente,
+  Value<String?> canalCliente,
+  Value<int> customerRank,
+  Value<int> supplierRank,
+  Value<bool> aceptaCheques,
+  Value<bool> emitirFacturaFechaPosterior,
+  Value<bool> noInvoice,
+  Value<int?> lastDayToInvoice,
+  Value<String?> externalId,
+  Value<double?> partnerLatitude,
+  Value<double?> partnerLongitude,
+  Value<bool> canUseCustomPayments,
+  Value<String?> partnerUuid,
+  Value<bool> isSynced,
+  Value<DateTime?> writeDate,
+  Value<DateTime?> creditLastSyncDate,
+  Value<double?> creditAvailable,
+  Value<double?> creditUsagePercentage,
+  Value<bool?> creditExceeded,
+});
+typedef $$ResPartnerTableUpdateCompanionBuilder = ResPartnerCompanion Function({
+  Value<int> id,
+  Value<int> odooId,
+  Value<String> name,
+  Value<String?> displayName,
+  Value<String?> ref,
+  Value<String?> vat,
+  Value<String?> email,
+  Value<String?> phone,
+  Value<String?> mobile,
+  Value<String?> street,
+  Value<String?> street2,
+  Value<String?> city,
+  Value<String?> zip,
+  Value<int?> countryId,
+  Value<String?> countryName,
+  Value<int?> stateId,
+  Value<String?> stateName,
+  Value<String?> avatar128,
+  Value<bool> isCompany,
+  Value<bool> active,
+  Value<int?> parentId,
+  Value<String?> parentName,
+  Value<int?> commercialPartnerId,
+  Value<String?> commercialPartnerName,
+  Value<int?> propertyProductPricelist,
+  Value<String?> propertyProductPricelistName,
+  Value<int?> propertyPaymentTermId,
+  Value<String?> propertyPaymentTermName,
+  Value<String?> lang,
+  Value<String?> comment,
+  Value<double> creditLimit,
+  Value<double> credit,
+  Value<double> creditToInvoice,
+  Value<double> totalOverdue,
+  Value<bool> allowOverCredit,
+  Value<bool> usePartnerCreditLimit,
+  Value<int> unpaidInvoicesCount,
+  Value<int> oldestOverdueDays,
+  Value<int?> diasMaxFacturaPosterior,
+  Value<String?> tipoCliente,
+  Value<String?> canalCliente,
+  Value<int> customerRank,
+  Value<int> supplierRank,
+  Value<bool> aceptaCheques,
+  Value<bool> emitirFacturaFechaPosterior,
+  Value<bool> noInvoice,
+  Value<int?> lastDayToInvoice,
+  Value<String?> externalId,
+  Value<double?> partnerLatitude,
+  Value<double?> partnerLongitude,
+  Value<bool> canUseCustomPayments,
+  Value<String?> partnerUuid,
+  Value<bool> isSynced,
+  Value<DateTime?> writeDate,
+  Value<DateTime?> creditLastSyncDate,
+  Value<double?> creditAvailable,
+  Value<double?> creditUsagePercentage,
+  Value<bool?> creditExceeded,
+});
 
 class $$ResPartnerTableFilterComposer
     extends Composer<_$AppDatabase, $ResPartnerTable> {
@@ -79428,22 +78179,20 @@ typedef $$ResPartnerTableProcessedTableManager =
       ResPartnerData,
       PrefetchHooks Function()
     >;
-typedef $$ResCountryTableCreateCompanionBuilder =
-    ResCountryCompanion Function({
-      Value<int> id,
-      required int odooId,
-      required String name,
-      Value<String?> code,
-      Value<DateTime?> writeDate,
-    });
-typedef $$ResCountryTableUpdateCompanionBuilder =
-    ResCountryCompanion Function({
-      Value<int> id,
-      Value<int> odooId,
-      Value<String> name,
-      Value<String?> code,
-      Value<DateTime?> writeDate,
-    });
+typedef $$ResCountryTableCreateCompanionBuilder = ResCountryCompanion Function({
+  Value<int> id,
+  required int odooId,
+  required String name,
+  Value<String?> code,
+  Value<DateTime?> writeDate,
+});
+typedef $$ResCountryTableUpdateCompanionBuilder = ResCountryCompanion Function({
+  Value<int> id,
+  Value<int> odooId,
+  Value<String> name,
+  Value<String?> code,
+  Value<DateTime?> writeDate,
+});
 
 class $$ResCountryTableFilterComposer
     extends Composer<_$AppDatabase, $ResCountryTable> {
@@ -79866,26 +78615,24 @@ typedef $$ResCountryStateTableProcessedTableManager =
       ResCountryStateData,
       PrefetchHooks Function()
     >;
-typedef $$ResLangTableCreateCompanionBuilder =
-    ResLangCompanion Function({
-      Value<int> id,
-      required int odooId,
-      required String name,
-      required String code,
-      Value<bool> active,
-      Value<bool> translatable,
-      Value<DateTime?> writeDate,
-    });
-typedef $$ResLangTableUpdateCompanionBuilder =
-    ResLangCompanion Function({
-      Value<int> id,
-      Value<int> odooId,
-      Value<String> name,
-      Value<String> code,
-      Value<bool> active,
-      Value<bool> translatable,
-      Value<DateTime?> writeDate,
-    });
+typedef $$ResLangTableCreateCompanionBuilder = ResLangCompanion Function({
+  Value<int> id,
+  required int odooId,
+  required String name,
+  required String code,
+  Value<bool> active,
+  Value<bool> translatable,
+  Value<DateTime?> writeDate,
+});
+typedef $$ResLangTableUpdateCompanionBuilder = ResLangCompanion Function({
+  Value<int> id,
+  Value<int> odooId,
+  Value<String> name,
+  Value<String> code,
+  Value<bool> active,
+  Value<bool> translatable,
+  Value<DateTime?> writeDate,
+});
 
 class $$ResLangTableFilterComposer
     extends Composer<_$AppDatabase, $ResLangTable> {
@@ -80097,28 +78844,26 @@ typedef $$ResLangTableProcessedTableManager =
       ResLangData,
       PrefetchHooks Function()
     >;
-typedef $$ResBankTableCreateCompanionBuilder =
-    ResBankCompanion Function({
-      Value<int> id,
-      required int odooId,
-      required String name,
-      Value<String?> bic,
-      Value<int?> country,
-      Value<String?> countryName,
-      Value<bool> active,
-      Value<DateTime?> writeDate,
-    });
-typedef $$ResBankTableUpdateCompanionBuilder =
-    ResBankCompanion Function({
-      Value<int> id,
-      Value<int> odooId,
-      Value<String> name,
-      Value<String?> bic,
-      Value<int?> country,
-      Value<String?> countryName,
-      Value<bool> active,
-      Value<DateTime?> writeDate,
-    });
+typedef $$ResBankTableCreateCompanionBuilder = ResBankCompanion Function({
+  Value<int> id,
+  required int odooId,
+  required String name,
+  Value<String?> bic,
+  Value<int?> country,
+  Value<String?> countryName,
+  Value<bool> active,
+  Value<DateTime?> writeDate,
+});
+typedef $$ResBankTableUpdateCompanionBuilder = ResBankCompanion Function({
+  Value<int> id,
+  Value<int> odooId,
+  Value<String> name,
+  Value<String?> bic,
+  Value<int?> country,
+  Value<String?> countryName,
+  Value<bool> active,
+  Value<DateTime?> writeDate,
+});
 
 class $$ResBankTableFilterComposer
     extends Composer<_$AppDatabase, $ResBankTable> {
@@ -82680,6 +81425,9 @@ typedef $$OfflineQueueTableCreateCompanionBuilder =
       Value<int?> parentOrderId,
       Value<int> priority,
       Value<String?> deviceId,
+      Value<String?> operationKey,
+      Value<int> commandVersion,
+      Value<String> replayPolicy,
       Value<String> status,
       Value<int> maxRetries,
       Value<bool> requiresNetwork,
@@ -82701,6 +81449,9 @@ typedef $$OfflineQueueTableUpdateCompanionBuilder =
       Value<int?> parentOrderId,
       Value<int> priority,
       Value<String?> deviceId,
+      Value<String?> operationKey,
+      Value<int> commandVersion,
+      Value<String> replayPolicy,
       Value<String> status,
       Value<int> maxRetries,
       Value<bool> requiresNetwork,
@@ -82771,6 +81522,21 @@ class $$OfflineQueueTableFilterComposer
 
   ColumnFilters<String> get deviceId => $composableBuilder(
     column: $table.deviceId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get operationKey => $composableBuilder(
+    column: $table.operationKey,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get commandVersion => $composableBuilder(
+    column: $table.commandVersion,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get replayPolicy => $composableBuilder(
+    column: $table.replayPolicy,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -82874,6 +81640,21 @@ class $$OfflineQueueTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<String> get operationKey => $composableBuilder(
+    column: $table.operationKey,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get commandVersion => $composableBuilder(
+    column: $table.commandVersion,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get replayPolicy => $composableBuilder(
+    column: $table.replayPolicy,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<String> get status => $composableBuilder(
     column: $table.status,
     builder: (column) => ColumnOrderings(column),
@@ -82956,6 +81737,21 @@ class $$OfflineQueueTableAnnotationComposer
   GeneratedColumn<String> get deviceId =>
       $composableBuilder(column: $table.deviceId, builder: (column) => column);
 
+  GeneratedColumn<String> get operationKey => $composableBuilder(
+    column: $table.operationKey,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get commandVersion => $composableBuilder(
+    column: $table.commandVersion,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get replayPolicy => $composableBuilder(
+    column: $table.replayPolicy,
+    builder: (column) => column,
+  );
+
   GeneratedColumn<String> get status =>
       $composableBuilder(column: $table.status, builder: (column) => column);
 
@@ -83030,6 +81826,9 @@ class $$OfflineQueueTableTableManager
                 Value<int?> parentOrderId = const Value.absent(),
                 Value<int> priority = const Value.absent(),
                 Value<String?> deviceId = const Value.absent(),
+                Value<String?> operationKey = const Value.absent(),
+                Value<int> commandVersion = const Value.absent(),
+                Value<String> replayPolicy = const Value.absent(),
                 Value<String> status = const Value.absent(),
                 Value<int> maxRetries = const Value.absent(),
                 Value<bool> requiresNetwork = const Value.absent(),
@@ -83049,6 +81848,9 @@ class $$OfflineQueueTableTableManager
                 parentOrderId: parentOrderId,
                 priority: priority,
                 deviceId: deviceId,
+                operationKey: operationKey,
+                commandVersion: commandVersion,
+                replayPolicy: replayPolicy,
                 status: status,
                 maxRetries: maxRetries,
                 requiresNetwork: requiresNetwork,
@@ -83070,6 +81872,9 @@ class $$OfflineQueueTableTableManager
                 Value<int?> parentOrderId = const Value.absent(),
                 Value<int> priority = const Value.absent(),
                 Value<String?> deviceId = const Value.absent(),
+                Value<String?> operationKey = const Value.absent(),
+                Value<int> commandVersion = const Value.absent(),
+                Value<String> replayPolicy = const Value.absent(),
                 Value<String> status = const Value.absent(),
                 Value<int> maxRetries = const Value.absent(),
                 Value<bool> requiresNetwork = const Value.absent(),
@@ -83089,6 +81894,9 @@ class $$OfflineQueueTableTableManager
                 parentOrderId: parentOrderId,
                 priority: priority,
                 deviceId: deviceId,
+                operationKey: operationKey,
+                commandVersion: commandVersion,
+                replayPolicy: replayPolicy,
                 status: status,
                 maxRetries: maxRetries,
                 requiresNetwork: requiresNetwork,
@@ -83574,12 +82382,11 @@ class $$SyncMetadataTableTableManager
               $$SyncMetadataTableOrderingComposer($db: db, $table: table),
           createComputedFieldComposer: () =>
               $$SyncMetadataTableAnnotationComposer($db: db, $table: table),
-          updateCompanionCallback:
-              ({
-                Value<String> key = const Value.absent(),
-                Value<String> value = const Value.absent(),
-                Value<int> rowid = const Value.absent(),
-              }) => SyncMetadataCompanion(key: key, value: value, rowid: rowid),
+          updateCompanionCallback: ({
+            Value<String> key = const Value.absent(),
+            Value<String> value = const Value.absent(),
+            Value<int> rowid = const Value.absent(),
+          }) => SyncMetadataCompanion(key: key, value: value, rowid: rowid),
           createCompanionCallback:
               ({
                 required String key,
@@ -84524,6 +83331,7 @@ typedef $$CollectionConfigTableCreateCompanionBuilder =
       Value<bool> setMaximumDifference,
       Value<double> amountAuthorizedDiff,
       Value<String?> userIds,
+      Value<String?> posAppCapabilitiesJson,
       Value<int?> currentSessionId,
       Value<String?> currentSessionState,
       Value<String?> currentSessionName,
@@ -84556,6 +83364,7 @@ typedef $$CollectionConfigTableUpdateCompanionBuilder =
       Value<bool> setMaximumDifference,
       Value<double> amountAuthorizedDiff,
       Value<String?> userIds,
+      Value<String?> posAppCapabilitiesJson,
       Value<int?> currentSessionId,
       Value<String?> currentSessionState,
       Value<String?> currentSessionName,
@@ -84661,6 +83470,11 @@ class $$CollectionConfigTableFilterComposer
 
   ColumnFilters<String> get userIds => $composableBuilder(
     column: $table.userIds,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get posAppCapabilitiesJson => $composableBuilder(
+    column: $table.posAppCapabilitiesJson,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -84819,6 +83633,11 @@ class $$CollectionConfigTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<String> get posAppCapabilitiesJson => $composableBuilder(
+    column: $table.posAppCapabilitiesJson,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<int> get currentSessionId => $composableBuilder(
     column: $table.currentSessionId,
     builder: (column) => ColumnOrderings(column),
@@ -84960,6 +83779,11 @@ class $$CollectionConfigTableAnnotationComposer
   GeneratedColumn<String> get userIds =>
       $composableBuilder(column: $table.userIds, builder: (column) => column);
 
+  GeneratedColumn<String> get posAppCapabilitiesJson => $composableBuilder(
+    column: $table.posAppCapabilitiesJson,
+    builder: (column) => column,
+  );
+
   GeneratedColumn<int> get currentSessionId => $composableBuilder(
     column: $table.currentSessionId,
     builder: (column) => column,
@@ -85069,6 +83893,7 @@ class $$CollectionConfigTableTableManager
                 Value<bool> setMaximumDifference = const Value.absent(),
                 Value<double> amountAuthorizedDiff = const Value.absent(),
                 Value<String?> userIds = const Value.absent(),
+                Value<String?> posAppCapabilitiesJson = const Value.absent(),
                 Value<int?> currentSessionId = const Value.absent(),
                 Value<String?> currentSessionState = const Value.absent(),
                 Value<String?> currentSessionName = const Value.absent(),
@@ -85100,6 +83925,7 @@ class $$CollectionConfigTableTableManager
                 setMaximumDifference: setMaximumDifference,
                 amountAuthorizedDiff: amountAuthorizedDiff,
                 userIds: userIds,
+                posAppCapabilitiesJson: posAppCapabilitiesJson,
                 currentSessionId: currentSessionId,
                 currentSessionState: currentSessionState,
                 currentSessionName: currentSessionName,
@@ -85132,6 +83958,7 @@ class $$CollectionConfigTableTableManager
                 Value<bool> setMaximumDifference = const Value.absent(),
                 Value<double> amountAuthorizedDiff = const Value.absent(),
                 Value<String?> userIds = const Value.absent(),
+                Value<String?> posAppCapabilitiesJson = const Value.absent(),
                 Value<int?> currentSessionId = const Value.absent(),
                 Value<String?> currentSessionState = const Value.absent(),
                 Value<String?> currentSessionName = const Value.absent(),
@@ -85163,6 +83990,7 @@ class $$CollectionConfigTableTableManager
                 setMaximumDifference: setMaximumDifference,
                 amountAuthorizedDiff: amountAuthorizedDiff,
                 userIds: userIds,
+                posAppCapabilitiesJson: posAppCapabilitiesJson,
                 currentSessionId: currentSessionId,
                 currentSessionState: currentSessionState,
                 currentSessionName: currentSessionName,
@@ -87919,10 +86747,7 @@ typedef $$CollectionSessionCashTableCreateCompanionBuilder =
       Value<int> id,
       required int odooId,
       required int collectionSessionId,
-      Value<String?> denomination,
-      Value<String?> cashType,
-      Value<int> count,
-      Value<double> amount,
+      required String cashType,
       Value<int> bills100,
       Value<int> bills50,
       Value<int> bills20,
@@ -87945,10 +86770,7 @@ typedef $$CollectionSessionCashTableUpdateCompanionBuilder =
       Value<int> id,
       Value<int> odooId,
       Value<int> collectionSessionId,
-      Value<String?> denomination,
-      Value<String?> cashType,
-      Value<int> count,
-      Value<double> amount,
+      Value<String> cashType,
       Value<int> bills100,
       Value<int> bills50,
       Value<int> bills20,
@@ -87991,23 +86813,8 @@ class $$CollectionSessionCashTableFilterComposer
     builder: (column) => ColumnFilters(column),
   );
 
-  ColumnFilters<String> get denomination => $composableBuilder(
-    column: $table.denomination,
-    builder: (column) => ColumnFilters(column),
-  );
-
   ColumnFilters<String> get cashType => $composableBuilder(
     column: $table.cashType,
-    builder: (column) => ColumnFilters(column),
-  );
-
-  ColumnFilters<int> get count => $composableBuilder(
-    column: $table.count,
-    builder: (column) => ColumnFilters(column),
-  );
-
-  ColumnFilters<double> get amount => $composableBuilder(
-    column: $table.amount,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -88116,23 +86923,8 @@ class $$CollectionSessionCashTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
-  ColumnOrderings<String> get denomination => $composableBuilder(
-    column: $table.denomination,
-    builder: (column) => ColumnOrderings(column),
-  );
-
   ColumnOrderings<String> get cashType => $composableBuilder(
     column: $table.cashType,
-    builder: (column) => ColumnOrderings(column),
-  );
-
-  ColumnOrderings<int> get count => $composableBuilder(
-    column: $table.count,
-    builder: (column) => ColumnOrderings(column),
-  );
-
-  ColumnOrderings<double> get amount => $composableBuilder(
-    column: $table.amount,
     builder: (column) => ColumnOrderings(column),
   );
 
@@ -88237,19 +87029,8 @@ class $$CollectionSessionCashTableAnnotationComposer
     builder: (column) => column,
   );
 
-  GeneratedColumn<String> get denomination => $composableBuilder(
-    column: $table.denomination,
-    builder: (column) => column,
-  );
-
   GeneratedColumn<String> get cashType =>
       $composableBuilder(column: $table.cashType, builder: (column) => column);
-
-  GeneratedColumn<int> get count =>
-      $composableBuilder(column: $table.count, builder: (column) => column);
-
-  GeneratedColumn<double> get amount =>
-      $composableBuilder(column: $table.amount, builder: (column) => column);
 
   GeneratedColumn<int> get bills100 =>
       $composableBuilder(column: $table.bills100, builder: (column) => column);
@@ -88353,10 +87134,7 @@ class $$CollectionSessionCashTableTableManager
                 Value<int> id = const Value.absent(),
                 Value<int> odooId = const Value.absent(),
                 Value<int> collectionSessionId = const Value.absent(),
-                Value<String?> denomination = const Value.absent(),
-                Value<String?> cashType = const Value.absent(),
-                Value<int> count = const Value.absent(),
-                Value<double> amount = const Value.absent(),
+                Value<String> cashType = const Value.absent(),
                 Value<int> bills100 = const Value.absent(),
                 Value<int> bills50 = const Value.absent(),
                 Value<int> bills20 = const Value.absent(),
@@ -88377,10 +87155,7 @@ class $$CollectionSessionCashTableTableManager
                 id: id,
                 odooId: odooId,
                 collectionSessionId: collectionSessionId,
-                denomination: denomination,
                 cashType: cashType,
-                count: count,
-                amount: amount,
                 bills100: bills100,
                 bills50: bills50,
                 bills20: bills20,
@@ -88403,10 +87178,7 @@ class $$CollectionSessionCashTableTableManager
                 Value<int> id = const Value.absent(),
                 required int odooId,
                 required int collectionSessionId,
-                Value<String?> denomination = const Value.absent(),
-                Value<String?> cashType = const Value.absent(),
-                Value<int> count = const Value.absent(),
-                Value<double> amount = const Value.absent(),
+                required String cashType,
                 Value<int> bills100 = const Value.absent(),
                 Value<int> bills50 = const Value.absent(),
                 Value<int> bills20 = const Value.absent(),
@@ -88427,10 +87199,7 @@ class $$CollectionSessionCashTableTableManager
                 id: id,
                 odooId: odooId,
                 collectionSessionId: collectionSessionId,
-                denomination: denomination,
                 cashType: cashType,
-                count: count,
-                amount: amount,
                 bills100: bills100,
                 bills50: bills50,
                 bills20: bills20,
@@ -89231,66 +88000,64 @@ typedef $$CollectionSessionDepositTableProcessedTableManager =
       CollectionSessionDepositData,
       PrefetchHooks Function()
     >;
-typedef $$CashOutTableCreateCompanionBuilder =
-    CashOutCompanion Function({
-      Value<int> id,
-      Value<int?> odooId,
-      required int collectionSessionId,
-      required String cashOutType,
-      Value<String?> type,
-      Value<String> cashFlow,
-      Value<int> journalId,
-      Value<String?> journalName,
-      Value<int?> partnerId,
-      Value<String?> partnerName,
-      Value<int?> accountIdManual,
-      Value<double> amount,
-      Value<String?> description,
-      Value<String?> name,
-      Value<String?> note,
-      Value<DateTime?> date,
-      Value<String?> uuid,
-      Value<int?> approvedById,
-      Value<String?> approvedByName,
-      Value<DateTime?> approvedAt,
-      Value<int?> moveId,
-      Value<int?> cashOutTypeId,
-      Value<String?> typeName,
-      Value<String> state,
-      Value<bool> isSynced,
-      Value<DateTime?> lastSyncDate,
-      Value<DateTime?> writeDate,
-    });
-typedef $$CashOutTableUpdateCompanionBuilder =
-    CashOutCompanion Function({
-      Value<int> id,
-      Value<int?> odooId,
-      Value<int> collectionSessionId,
-      Value<String> cashOutType,
-      Value<String?> type,
-      Value<String> cashFlow,
-      Value<int> journalId,
-      Value<String?> journalName,
-      Value<int?> partnerId,
-      Value<String?> partnerName,
-      Value<int?> accountIdManual,
-      Value<double> amount,
-      Value<String?> description,
-      Value<String?> name,
-      Value<String?> note,
-      Value<DateTime?> date,
-      Value<String?> uuid,
-      Value<int?> approvedById,
-      Value<String?> approvedByName,
-      Value<DateTime?> approvedAt,
-      Value<int?> moveId,
-      Value<int?> cashOutTypeId,
-      Value<String?> typeName,
-      Value<String> state,
-      Value<bool> isSynced,
-      Value<DateTime?> lastSyncDate,
-      Value<DateTime?> writeDate,
-    });
+typedef $$CashOutTableCreateCompanionBuilder = CashOutCompanion Function({
+  Value<int> id,
+  Value<int?> odooId,
+  required int collectionSessionId,
+  required String cashOutType,
+  Value<String?> type,
+  Value<String> cashFlow,
+  Value<int> journalId,
+  Value<String?> journalName,
+  Value<int?> partnerId,
+  Value<String?> partnerName,
+  Value<int?> accountIdManual,
+  Value<double> amount,
+  Value<String?> description,
+  Value<String?> name,
+  Value<String?> note,
+  Value<DateTime?> date,
+  Value<String?> uuid,
+  Value<int?> approvedById,
+  Value<String?> approvedByName,
+  Value<DateTime?> approvedAt,
+  Value<int?> moveId,
+  Value<int?> cashOutTypeId,
+  Value<String?> typeName,
+  Value<String> state,
+  Value<bool> isSynced,
+  Value<DateTime?> lastSyncDate,
+  Value<DateTime?> writeDate,
+});
+typedef $$CashOutTableUpdateCompanionBuilder = CashOutCompanion Function({
+  Value<int> id,
+  Value<int?> odooId,
+  Value<int> collectionSessionId,
+  Value<String> cashOutType,
+  Value<String?> type,
+  Value<String> cashFlow,
+  Value<int> journalId,
+  Value<String?> journalName,
+  Value<int?> partnerId,
+  Value<String?> partnerName,
+  Value<int?> accountIdManual,
+  Value<double> amount,
+  Value<String?> description,
+  Value<String?> name,
+  Value<String?> note,
+  Value<DateTime?> date,
+  Value<String?> uuid,
+  Value<int?> approvedById,
+  Value<String?> approvedByName,
+  Value<DateTime?> approvedAt,
+  Value<int?> moveId,
+  Value<int?> cashOutTypeId,
+  Value<String?> typeName,
+  Value<String> state,
+  Value<bool> isSynced,
+  Value<DateTime?> lastSyncDate,
+  Value<DateTime?> writeDate,
+});
 
 class $$CashOutTableFilterComposer
     extends Composer<_$AppDatabase, $CashOutTable> {
@@ -92765,256 +91532,254 @@ typedef $$AccountMoveLineTableProcessedTableManager =
       AccountMoveLineData,
       PrefetchHooks Function()
     >;
-typedef $$SaleOrderTableCreateCompanionBuilder =
-    SaleOrderCompanion Function({
-      Value<int> id,
-      required int odooId,
-      required String name,
-      Value<String?> state,
-      Value<DateTime?> dateOrder,
-      Value<DateTime?> validityDate,
-      Value<DateTime?> dateConfirmed,
-      Value<int?> partnerId,
-      Value<String?> partnerName,
-      Value<int?> partnerInvoiceId,
-      Value<int?> partnerShippingId,
-      Value<int?> pricelistId,
-      Value<String?> pricelistName,
-      Value<int?> paymentTermId,
-      Value<String?> paymentTermName,
-      Value<int?> userId,
-      Value<String?> userName,
-      Value<int?> teamId,
-      Value<String?> teamName,
-      Value<int?> companyId,
-      Value<String?> companyName,
-      Value<int?> warehouseId,
-      Value<String?> warehouseName,
-      Value<int?> currencyId,
-      Value<double?> amountUntaxed,
-      Value<double?> amountTax,
-      Value<double?> amountTotal,
-      Value<double?> amountPaid,
-      Value<double?> amountResidual,
-      Value<String?> paymentState,
-      Value<String?> invoiceStatus,
-      Value<String?> deliveryStatus,
-      Value<String?> note,
-      Value<String?> origin,
-      Value<String?> clientOrderRef,
-      Value<int?> fiscalPositionId,
-      Value<String?> fiscalPositionName,
-      Value<bool> requireSignature,
-      Value<bool> requirePayment,
-      Value<String?> signedBy,
-      Value<DateTime?> signedOn,
-      Value<DateTime?> commitmentDate,
-      Value<DateTime?> expectedDate,
-      Value<bool> isExpired,
-      Value<String?> showUpdatePricelist,
-      Value<int?> analyticAccountId,
-      Value<String?> analyticAccountName,
-      Value<int?> campaignId,
-      Value<String?> campaignName,
-      Value<int?> sourceId,
-      Value<String?> sourceName,
-      Value<int?> mediumId,
-      Value<String?> mediumName,
-      Value<String?> websiteMessageIds,
-      Value<String?> accessToken,
-      Value<String?> accessWarning,
-      Value<int?> collectionSessionId,
-      Value<String?> collectionSessionName,
-      Value<int?> collectionUserId,
-      Value<String?> collectionUserName,
-      Value<int?> saleCreatedUserId,
-      Value<String?> partnerVat,
-      Value<String?> partnerStreet,
-      Value<String?> partnerPhone,
-      Value<String?> partnerEmail,
-      Value<String?> partnerAvatar,
-      Value<String?> partnerInvoiceAddress,
-      Value<String?> partnerShippingAddress,
-      Value<String?> currencySymbol,
-      Value<double> currencyRate,
-      Value<bool> isCash,
-      Value<bool> isCredit,
-      Value<double> amountToInvoice,
-      Value<double> amountInvoiced,
-      Value<int> invoiceCount,
-      Value<String?> signature,
-      Value<double> prepaymentPercent,
-      Value<bool> locked,
-      Value<double> totalDiscountAmount,
-      Value<double> totalAmountUndiscounted,
-      Value<bool> isFinalConsumer,
-      Value<String?> endCustomerName,
-      Value<String?> endCustomerPhone,
-      Value<String?> endCustomerEmail,
-      Value<bool> exceedsFinalConsumerLimit,
-      Value<bool> emitirFacturaFechaPosterior,
-      Value<DateTime?> fechaFacturar,
-      Value<int?> referrerId,
-      Value<String?> referrerName,
-      Value<String?> tipoCliente,
-      Value<String?> canalCliente,
-      Value<String?> pickingIds,
-      Value<String?> taxTotals,
-      Value<bool> creditExceeded,
-      Value<bool> creditCheckBypassed,
-      Value<double> amountCash,
-      Value<double> amountUnpaid,
-      Value<double> totalCostAmount,
-      Value<double> margin,
-      Value<double> marginPercent,
-      Value<double> retenidoAmount,
-      Value<int> approvalCount,
-      Value<DateTime?> approvedDate,
-      Value<DateTime?> rejectedDate,
-      Value<String?> rejectedReason,
-      Value<bool> entregarSoloPagado,
-      Value<bool> esParaDespacho,
-      Value<String?> notaAdicional,
-      Value<String?> orderUuid,
-      Value<String?> xUuid,
-      Value<bool> isSynced,
-      Value<bool> pendingConfirm,
-      Value<DateTime?> writeDate,
-      Value<String?> uuid,
-      Value<DateTime?> lastSyncDate,
-      Value<int> syncRetryCount,
-      Value<DateTime?> lastSyncAttempt,
-      Value<bool> hasQueuedInvoice,
-      Value<double?> totalQuantity,
-      Value<int?> lineCount,
-      Value<String?> displayAmount,
-      Value<bool?> hasUnsyncedLines,
-    });
-typedef $$SaleOrderTableUpdateCompanionBuilder =
-    SaleOrderCompanion Function({
-      Value<int> id,
-      Value<int> odooId,
-      Value<String> name,
-      Value<String?> state,
-      Value<DateTime?> dateOrder,
-      Value<DateTime?> validityDate,
-      Value<DateTime?> dateConfirmed,
-      Value<int?> partnerId,
-      Value<String?> partnerName,
-      Value<int?> partnerInvoiceId,
-      Value<int?> partnerShippingId,
-      Value<int?> pricelistId,
-      Value<String?> pricelistName,
-      Value<int?> paymentTermId,
-      Value<String?> paymentTermName,
-      Value<int?> userId,
-      Value<String?> userName,
-      Value<int?> teamId,
-      Value<String?> teamName,
-      Value<int?> companyId,
-      Value<String?> companyName,
-      Value<int?> warehouseId,
-      Value<String?> warehouseName,
-      Value<int?> currencyId,
-      Value<double?> amountUntaxed,
-      Value<double?> amountTax,
-      Value<double?> amountTotal,
-      Value<double?> amountPaid,
-      Value<double?> amountResidual,
-      Value<String?> paymentState,
-      Value<String?> invoiceStatus,
-      Value<String?> deliveryStatus,
-      Value<String?> note,
-      Value<String?> origin,
-      Value<String?> clientOrderRef,
-      Value<int?> fiscalPositionId,
-      Value<String?> fiscalPositionName,
-      Value<bool> requireSignature,
-      Value<bool> requirePayment,
-      Value<String?> signedBy,
-      Value<DateTime?> signedOn,
-      Value<DateTime?> commitmentDate,
-      Value<DateTime?> expectedDate,
-      Value<bool> isExpired,
-      Value<String?> showUpdatePricelist,
-      Value<int?> analyticAccountId,
-      Value<String?> analyticAccountName,
-      Value<int?> campaignId,
-      Value<String?> campaignName,
-      Value<int?> sourceId,
-      Value<String?> sourceName,
-      Value<int?> mediumId,
-      Value<String?> mediumName,
-      Value<String?> websiteMessageIds,
-      Value<String?> accessToken,
-      Value<String?> accessWarning,
-      Value<int?> collectionSessionId,
-      Value<String?> collectionSessionName,
-      Value<int?> collectionUserId,
-      Value<String?> collectionUserName,
-      Value<int?> saleCreatedUserId,
-      Value<String?> partnerVat,
-      Value<String?> partnerStreet,
-      Value<String?> partnerPhone,
-      Value<String?> partnerEmail,
-      Value<String?> partnerAvatar,
-      Value<String?> partnerInvoiceAddress,
-      Value<String?> partnerShippingAddress,
-      Value<String?> currencySymbol,
-      Value<double> currencyRate,
-      Value<bool> isCash,
-      Value<bool> isCredit,
-      Value<double> amountToInvoice,
-      Value<double> amountInvoiced,
-      Value<int> invoiceCount,
-      Value<String?> signature,
-      Value<double> prepaymentPercent,
-      Value<bool> locked,
-      Value<double> totalDiscountAmount,
-      Value<double> totalAmountUndiscounted,
-      Value<bool> isFinalConsumer,
-      Value<String?> endCustomerName,
-      Value<String?> endCustomerPhone,
-      Value<String?> endCustomerEmail,
-      Value<bool> exceedsFinalConsumerLimit,
-      Value<bool> emitirFacturaFechaPosterior,
-      Value<DateTime?> fechaFacturar,
-      Value<int?> referrerId,
-      Value<String?> referrerName,
-      Value<String?> tipoCliente,
-      Value<String?> canalCliente,
-      Value<String?> pickingIds,
-      Value<String?> taxTotals,
-      Value<bool> creditExceeded,
-      Value<bool> creditCheckBypassed,
-      Value<double> amountCash,
-      Value<double> amountUnpaid,
-      Value<double> totalCostAmount,
-      Value<double> margin,
-      Value<double> marginPercent,
-      Value<double> retenidoAmount,
-      Value<int> approvalCount,
-      Value<DateTime?> approvedDate,
-      Value<DateTime?> rejectedDate,
-      Value<String?> rejectedReason,
-      Value<bool> entregarSoloPagado,
-      Value<bool> esParaDespacho,
-      Value<String?> notaAdicional,
-      Value<String?> orderUuid,
-      Value<String?> xUuid,
-      Value<bool> isSynced,
-      Value<bool> pendingConfirm,
-      Value<DateTime?> writeDate,
-      Value<String?> uuid,
-      Value<DateTime?> lastSyncDate,
-      Value<int> syncRetryCount,
-      Value<DateTime?> lastSyncAttempt,
-      Value<bool> hasQueuedInvoice,
-      Value<double?> totalQuantity,
-      Value<int?> lineCount,
-      Value<String?> displayAmount,
-      Value<bool?> hasUnsyncedLines,
-    });
+typedef $$SaleOrderTableCreateCompanionBuilder = SaleOrderCompanion Function({
+  Value<int> id,
+  required int odooId,
+  required String name,
+  Value<String?> state,
+  Value<DateTime?> dateOrder,
+  Value<DateTime?> validityDate,
+  Value<DateTime?> dateConfirmed,
+  Value<int?> partnerId,
+  Value<String?> partnerName,
+  Value<int?> partnerInvoiceId,
+  Value<int?> partnerShippingId,
+  Value<int?> pricelistId,
+  Value<String?> pricelistName,
+  Value<int?> paymentTermId,
+  Value<String?> paymentTermName,
+  Value<int?> userId,
+  Value<String?> userName,
+  Value<int?> teamId,
+  Value<String?> teamName,
+  Value<int?> companyId,
+  Value<String?> companyName,
+  Value<int?> warehouseId,
+  Value<String?> warehouseName,
+  Value<int?> currencyId,
+  Value<double> amountUntaxed,
+  Value<double> amountTax,
+  Value<double> amountTotal,
+  Value<double?> amountPaid,
+  Value<double?> amountResidual,
+  Value<String?> paymentState,
+  Value<String?> invoiceStatus,
+  Value<String?> deliveryStatus,
+  Value<String?> note,
+  Value<String?> origin,
+  Value<String?> clientOrderRef,
+  Value<int?> fiscalPositionId,
+  Value<String?> fiscalPositionName,
+  Value<bool> requireSignature,
+  Value<bool> requirePayment,
+  Value<String?> signedBy,
+  Value<DateTime?> signedOn,
+  Value<DateTime?> commitmentDate,
+  Value<DateTime?> expectedDate,
+  Value<bool> isExpired,
+  Value<String?> showUpdatePricelist,
+  Value<int?> analyticAccountId,
+  Value<String?> analyticAccountName,
+  Value<int?> campaignId,
+  Value<String?> campaignName,
+  Value<int?> sourceId,
+  Value<String?> sourceName,
+  Value<int?> mediumId,
+  Value<String?> mediumName,
+  Value<String?> websiteMessageIds,
+  Value<String?> accessToken,
+  Value<String?> accessWarning,
+  Value<int?> collectionSessionId,
+  Value<String?> collectionSessionName,
+  Value<int?> collectionUserId,
+  Value<String?> collectionUserName,
+  Value<int?> saleCreatedUserId,
+  Value<String?> partnerVat,
+  Value<String?> partnerStreet,
+  Value<String?> partnerPhone,
+  Value<String?> partnerEmail,
+  Value<String?> partnerAvatar,
+  Value<String?> partnerInvoiceAddress,
+  Value<String?> partnerShippingAddress,
+  Value<String?> currencySymbol,
+  Value<double> currencyRate,
+  Value<bool> isCash,
+  Value<bool> isCredit,
+  Value<double> amountToInvoice,
+  Value<double> amountInvoiced,
+  Value<int> invoiceCount,
+  Value<String?> signature,
+  Value<double> prepaymentPercent,
+  Value<bool> locked,
+  Value<double> totalDiscountAmount,
+  Value<double> totalAmountUndiscounted,
+  Value<bool> isFinalConsumer,
+  Value<String?> endCustomerName,
+  Value<String?> endCustomerPhone,
+  Value<String?> endCustomerEmail,
+  Value<bool> exceedsFinalConsumerLimit,
+  Value<bool> emitirFacturaFechaPosterior,
+  Value<DateTime?> fechaFacturar,
+  Value<int?> referrerId,
+  Value<String?> referrerName,
+  Value<String?> tipoCliente,
+  Value<String?> canalCliente,
+  Value<String?> pickingIds,
+  Value<String?> taxTotals,
+  Value<bool> creditExceeded,
+  Value<bool> creditCheckBypassed,
+  Value<double> amountCash,
+  Value<double> amountUnpaid,
+  Value<double> totalCostAmount,
+  Value<double> margin,
+  Value<double> marginPercent,
+  Value<double> retenidoAmount,
+  Value<int> approvalCount,
+  Value<DateTime?> approvedDate,
+  Value<DateTime?> rejectedDate,
+  Value<String?> rejectedReason,
+  Value<bool> entregarSoloPagado,
+  Value<bool> esParaDespacho,
+  Value<String?> notaAdicional,
+  Value<String?> orderUuid,
+  Value<String?> xUuid,
+  Value<bool> isSynced,
+  Value<bool> pendingConfirm,
+  Value<DateTime?> writeDate,
+  Value<String?> uuid,
+  Value<DateTime?> lastSyncDate,
+  Value<int> syncRetryCount,
+  Value<DateTime?> lastSyncAttempt,
+  Value<bool> hasQueuedInvoice,
+  Value<double?> totalQuantity,
+  Value<int?> lineCount,
+  Value<String?> displayAmount,
+  Value<bool?> hasUnsyncedLines,
+});
+typedef $$SaleOrderTableUpdateCompanionBuilder = SaleOrderCompanion Function({
+  Value<int> id,
+  Value<int> odooId,
+  Value<String> name,
+  Value<String?> state,
+  Value<DateTime?> dateOrder,
+  Value<DateTime?> validityDate,
+  Value<DateTime?> dateConfirmed,
+  Value<int?> partnerId,
+  Value<String?> partnerName,
+  Value<int?> partnerInvoiceId,
+  Value<int?> partnerShippingId,
+  Value<int?> pricelistId,
+  Value<String?> pricelistName,
+  Value<int?> paymentTermId,
+  Value<String?> paymentTermName,
+  Value<int?> userId,
+  Value<String?> userName,
+  Value<int?> teamId,
+  Value<String?> teamName,
+  Value<int?> companyId,
+  Value<String?> companyName,
+  Value<int?> warehouseId,
+  Value<String?> warehouseName,
+  Value<int?> currencyId,
+  Value<double> amountUntaxed,
+  Value<double> amountTax,
+  Value<double> amountTotal,
+  Value<double?> amountPaid,
+  Value<double?> amountResidual,
+  Value<String?> paymentState,
+  Value<String?> invoiceStatus,
+  Value<String?> deliveryStatus,
+  Value<String?> note,
+  Value<String?> origin,
+  Value<String?> clientOrderRef,
+  Value<int?> fiscalPositionId,
+  Value<String?> fiscalPositionName,
+  Value<bool> requireSignature,
+  Value<bool> requirePayment,
+  Value<String?> signedBy,
+  Value<DateTime?> signedOn,
+  Value<DateTime?> commitmentDate,
+  Value<DateTime?> expectedDate,
+  Value<bool> isExpired,
+  Value<String?> showUpdatePricelist,
+  Value<int?> analyticAccountId,
+  Value<String?> analyticAccountName,
+  Value<int?> campaignId,
+  Value<String?> campaignName,
+  Value<int?> sourceId,
+  Value<String?> sourceName,
+  Value<int?> mediumId,
+  Value<String?> mediumName,
+  Value<String?> websiteMessageIds,
+  Value<String?> accessToken,
+  Value<String?> accessWarning,
+  Value<int?> collectionSessionId,
+  Value<String?> collectionSessionName,
+  Value<int?> collectionUserId,
+  Value<String?> collectionUserName,
+  Value<int?> saleCreatedUserId,
+  Value<String?> partnerVat,
+  Value<String?> partnerStreet,
+  Value<String?> partnerPhone,
+  Value<String?> partnerEmail,
+  Value<String?> partnerAvatar,
+  Value<String?> partnerInvoiceAddress,
+  Value<String?> partnerShippingAddress,
+  Value<String?> currencySymbol,
+  Value<double> currencyRate,
+  Value<bool> isCash,
+  Value<bool> isCredit,
+  Value<double> amountToInvoice,
+  Value<double> amountInvoiced,
+  Value<int> invoiceCount,
+  Value<String?> signature,
+  Value<double> prepaymentPercent,
+  Value<bool> locked,
+  Value<double> totalDiscountAmount,
+  Value<double> totalAmountUndiscounted,
+  Value<bool> isFinalConsumer,
+  Value<String?> endCustomerName,
+  Value<String?> endCustomerPhone,
+  Value<String?> endCustomerEmail,
+  Value<bool> exceedsFinalConsumerLimit,
+  Value<bool> emitirFacturaFechaPosterior,
+  Value<DateTime?> fechaFacturar,
+  Value<int?> referrerId,
+  Value<String?> referrerName,
+  Value<String?> tipoCliente,
+  Value<String?> canalCliente,
+  Value<String?> pickingIds,
+  Value<String?> taxTotals,
+  Value<bool> creditExceeded,
+  Value<bool> creditCheckBypassed,
+  Value<double> amountCash,
+  Value<double> amountUnpaid,
+  Value<double> totalCostAmount,
+  Value<double> margin,
+  Value<double> marginPercent,
+  Value<double> retenidoAmount,
+  Value<int> approvalCount,
+  Value<DateTime?> approvedDate,
+  Value<DateTime?> rejectedDate,
+  Value<String?> rejectedReason,
+  Value<bool> entregarSoloPagado,
+  Value<bool> esParaDespacho,
+  Value<String?> notaAdicional,
+  Value<String?> orderUuid,
+  Value<String?> xUuid,
+  Value<bool> isSynced,
+  Value<bool> pendingConfirm,
+  Value<DateTime?> writeDate,
+  Value<String?> uuid,
+  Value<DateTime?> lastSyncDate,
+  Value<int> syncRetryCount,
+  Value<DateTime?> lastSyncAttempt,
+  Value<bool> hasQueuedInvoice,
+  Value<double?> totalQuantity,
+  Value<int?> lineCount,
+  Value<String?> displayAmount,
+  Value<bool?> hasUnsyncedLines,
+});
 
 class $$SaleOrderTableFilterComposer
     extends Composer<_$AppDatabase, $SaleOrderTable> {
@@ -94869,9 +93634,9 @@ class $$SaleOrderTableTableManager
                 Value<int?> warehouseId = const Value.absent(),
                 Value<String?> warehouseName = const Value.absent(),
                 Value<int?> currencyId = const Value.absent(),
-                Value<double?> amountUntaxed = const Value.absent(),
-                Value<double?> amountTax = const Value.absent(),
-                Value<double?> amountTotal = const Value.absent(),
+                Value<double> amountUntaxed = const Value.absent(),
+                Value<double> amountTax = const Value.absent(),
+                Value<double> amountTotal = const Value.absent(),
                 Value<double?> amountPaid = const Value.absent(),
                 Value<double?> amountResidual = const Value.absent(),
                 Value<String?> paymentState = const Value.absent(),
@@ -95117,9 +93882,9 @@ class $$SaleOrderTableTableManager
                 Value<int?> warehouseId = const Value.absent(),
                 Value<String?> warehouseName = const Value.absent(),
                 Value<int?> currencyId = const Value.absent(),
-                Value<double?> amountUntaxed = const Value.absent(),
-                Value<double?> amountTax = const Value.absent(),
-                Value<double?> amountTotal = const Value.absent(),
+                Value<double> amountUntaxed = const Value.absent(),
+                Value<double> amountTax = const Value.absent(),
+                Value<double> amountTotal = const Value.absent(),
                 Value<double?> amountPaid = const Value.absent(),
                 Value<double?> amountResidual = const Value.absent(),
                 Value<String?> paymentState = const Value.absent(),
@@ -96512,9 +95277,6 @@ typedef $$SaleOrderWithholdLineTableCreateCompanionBuilder =
       Value<String?> taxsupportCode,
       Value<double> base,
       Value<double> amount,
-      Value<double> baseAmount,
-      Value<double> taxAmount,
-      Value<double> percentage,
       Value<String?> notes,
       Value<bool> isSynced,
       Value<DateTime?> lastSyncDate,
@@ -96534,9 +95296,6 @@ typedef $$SaleOrderWithholdLineTableUpdateCompanionBuilder =
       Value<String?> taxsupportCode,
       Value<double> base,
       Value<double> amount,
-      Value<double> baseAmount,
-      Value<double> taxAmount,
-      Value<double> percentage,
       Value<String?> notes,
       Value<bool> isSynced,
       Value<DateTime?> lastSyncDate,
@@ -96609,21 +95368,6 @@ class $$SaleOrderWithholdLineTableFilterComposer
 
   ColumnFilters<double> get amount => $composableBuilder(
     column: $table.amount,
-    builder: (column) => ColumnFilters(column),
-  );
-
-  ColumnFilters<double> get baseAmount => $composableBuilder(
-    column: $table.baseAmount,
-    builder: (column) => ColumnFilters(column),
-  );
-
-  ColumnFilters<double> get taxAmount => $composableBuilder(
-    column: $table.taxAmount,
-    builder: (column) => ColumnFilters(column),
-  );
-
-  ColumnFilters<double> get percentage => $composableBuilder(
-    column: $table.percentage,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -96717,21 +95461,6 @@ class $$SaleOrderWithholdLineTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
-  ColumnOrderings<double> get baseAmount => $composableBuilder(
-    column: $table.baseAmount,
-    builder: (column) => ColumnOrderings(column),
-  );
-
-  ColumnOrderings<double> get taxAmount => $composableBuilder(
-    column: $table.taxAmount,
-    builder: (column) => ColumnOrderings(column),
-  );
-
-  ColumnOrderings<double> get percentage => $composableBuilder(
-    column: $table.percentage,
-    builder: (column) => ColumnOrderings(column),
-  );
-
   ColumnOrderings<String> get notes => $composableBuilder(
     column: $table.notes,
     builder: (column) => ColumnOrderings(column),
@@ -96803,19 +95532,6 @@ class $$SaleOrderWithholdLineTableAnnotationComposer
 
   GeneratedColumn<double> get amount =>
       $composableBuilder(column: $table.amount, builder: (column) => column);
-
-  GeneratedColumn<double> get baseAmount => $composableBuilder(
-    column: $table.baseAmount,
-    builder: (column) => column,
-  );
-
-  GeneratedColumn<double> get taxAmount =>
-      $composableBuilder(column: $table.taxAmount, builder: (column) => column);
-
-  GeneratedColumn<double> get percentage => $composableBuilder(
-    column: $table.percentage,
-    builder: (column) => column,
-  );
 
   GeneratedColumn<String> get notes =>
       $composableBuilder(column: $table.notes, builder: (column) => column);
@@ -96890,9 +95606,6 @@ class $$SaleOrderWithholdLineTableTableManager
                 Value<String?> taxsupportCode = const Value.absent(),
                 Value<double> base = const Value.absent(),
                 Value<double> amount = const Value.absent(),
-                Value<double> baseAmount = const Value.absent(),
-                Value<double> taxAmount = const Value.absent(),
-                Value<double> percentage = const Value.absent(),
                 Value<String?> notes = const Value.absent(),
                 Value<bool> isSynced = const Value.absent(),
                 Value<DateTime?> lastSyncDate = const Value.absent(),
@@ -96910,9 +95623,6 @@ class $$SaleOrderWithholdLineTableTableManager
                 taxsupportCode: taxsupportCode,
                 base: base,
                 amount: amount,
-                baseAmount: baseAmount,
-                taxAmount: taxAmount,
-                percentage: percentage,
                 notes: notes,
                 isSynced: isSynced,
                 lastSyncDate: lastSyncDate,
@@ -96932,9 +95642,6 @@ class $$SaleOrderWithholdLineTableTableManager
                 Value<String?> taxsupportCode = const Value.absent(),
                 Value<double> base = const Value.absent(),
                 Value<double> amount = const Value.absent(),
-                Value<double> baseAmount = const Value.absent(),
-                Value<double> taxAmount = const Value.absent(),
-                Value<double> percentage = const Value.absent(),
                 Value<String?> notes = const Value.absent(),
                 Value<bool> isSynced = const Value.absent(),
                 Value<DateTime?> lastSyncDate = const Value.absent(),
@@ -96952,9 +95659,6 @@ class $$SaleOrderWithholdLineTableTableManager
                 taxsupportCode: taxsupportCode,
                 base: base,
                 amount: amount,
-                baseAmount: baseAmount,
-                taxAmount: taxAmount,
-                percentage: percentage,
                 notes: notes,
                 isSynced: isSynced,
                 lastSyncDate: lastSyncDate,
@@ -99234,46 +97938,44 @@ typedef $$ProductCategoryTableProcessedTableManager =
       ProductCategoryData,
       PrefetchHooks Function()
     >;
-typedef $$AccountTaxTableCreateCompanionBuilder =
-    AccountTaxCompanion Function({
-      Value<int> id,
-      required int odooId,
-      required String name,
-      Value<String?> description,
-      Value<String> typeTaxUse,
-      Value<String> amountType,
-      Value<double> amount,
-      Value<bool> active,
-      Value<bool> priceInclude,
-      Value<bool> includeBaseAmount,
-      Value<int> sequence,
-      Value<int?> companyId,
-      Value<String?> companyName,
-      Value<int?> taxGroupId,
-      Value<String?> taxGroupName,
-      Value<String?> taxGroupL10nEcType,
-      Value<DateTime?> writeDate,
-    });
-typedef $$AccountTaxTableUpdateCompanionBuilder =
-    AccountTaxCompanion Function({
-      Value<int> id,
-      Value<int> odooId,
-      Value<String> name,
-      Value<String?> description,
-      Value<String> typeTaxUse,
-      Value<String> amountType,
-      Value<double> amount,
-      Value<bool> active,
-      Value<bool> priceInclude,
-      Value<bool> includeBaseAmount,
-      Value<int> sequence,
-      Value<int?> companyId,
-      Value<String?> companyName,
-      Value<int?> taxGroupId,
-      Value<String?> taxGroupName,
-      Value<String?> taxGroupL10nEcType,
-      Value<DateTime?> writeDate,
-    });
+typedef $$AccountTaxTableCreateCompanionBuilder = AccountTaxCompanion Function({
+  Value<int> id,
+  required int odooId,
+  required String name,
+  Value<String?> description,
+  Value<String> typeTaxUse,
+  Value<String> amountType,
+  Value<double> amount,
+  Value<bool> active,
+  Value<bool> priceInclude,
+  Value<bool> includeBaseAmount,
+  Value<int> sequence,
+  Value<int?> companyId,
+  Value<String?> companyName,
+  Value<int?> taxGroupId,
+  Value<String?> taxGroupName,
+  Value<String?> taxGroupL10nEcType,
+  Value<DateTime?> writeDate,
+});
+typedef $$AccountTaxTableUpdateCompanionBuilder = AccountTaxCompanion Function({
+  Value<int> id,
+  Value<int> odooId,
+  Value<String> name,
+  Value<String?> description,
+  Value<String> typeTaxUse,
+  Value<String> amountType,
+  Value<double> amount,
+  Value<bool> active,
+  Value<bool> priceInclude,
+  Value<bool> includeBaseAmount,
+  Value<int> sequence,
+  Value<int?> companyId,
+  Value<String?> companyName,
+  Value<int?> taxGroupId,
+  Value<String?> taxGroupName,
+  Value<String?> taxGroupL10nEcType,
+  Value<DateTime?> writeDate,
+});
 
 class $$AccountTaxTableFilterComposer
     extends Composer<_$AppDatabase, $AccountTaxTable> {
@@ -99674,36 +98376,34 @@ typedef $$AccountTaxTableProcessedTableManager =
       AccountTaxData,
       PrefetchHooks Function()
     >;
-typedef $$UomUomTableCreateCompanionBuilder =
-    UomUomCompanion Function({
-      Value<int> id,
-      required int odooId,
-      required String name,
-      Value<int?> categoryId,
-      Value<String?> categoryName,
-      Value<String?> uomType,
-      Value<double> factor,
-      Value<double> factorInv,
-      Value<double> rounding,
-      Value<bool> active,
-      Value<int> sequence,
-      Value<DateTime?> writeDate,
-    });
-typedef $$UomUomTableUpdateCompanionBuilder =
-    UomUomCompanion Function({
-      Value<int> id,
-      Value<int> odooId,
-      Value<String> name,
-      Value<int?> categoryId,
-      Value<String?> categoryName,
-      Value<String?> uomType,
-      Value<double> factor,
-      Value<double> factorInv,
-      Value<double> rounding,
-      Value<bool> active,
-      Value<int> sequence,
-      Value<DateTime?> writeDate,
-    });
+typedef $$UomUomTableCreateCompanionBuilder = UomUomCompanion Function({
+  Value<int> id,
+  required int odooId,
+  required String name,
+  Value<int?> categoryId,
+  Value<String?> categoryName,
+  Value<String?> uomType,
+  Value<double> factor,
+  Value<double> factorInv,
+  Value<double> rounding,
+  Value<bool> active,
+  Value<int> sequence,
+  Value<DateTime?> writeDate,
+});
+typedef $$UomUomTableUpdateCompanionBuilder = UomUomCompanion Function({
+  Value<int> id,
+  Value<int> odooId,
+  Value<String> name,
+  Value<int?> categoryId,
+  Value<String?> categoryName,
+  Value<String?> uomType,
+  Value<double> factor,
+  Value<double> factorInv,
+  Value<double> rounding,
+  Value<bool> active,
+  Value<int> sequence,
+  Value<DateTime?> writeDate,
+});
 
 class $$UomUomTableFilterComposer
     extends Composer<_$AppDatabase, $UomUomTable> {
@@ -99999,209 +98699,32 @@ typedef $$UomUomTableProcessedTableManager =
       UomUomData,
       PrefetchHooks Function()
     >;
-typedef $$UomCategoryTableCreateCompanionBuilder =
-    UomCategoryCompanion Function({
-      Value<int> id,
-      required int odooId,
-      required String name,
-      Value<DateTime?> writeDate,
-    });
-typedef $$UomCategoryTableUpdateCompanionBuilder =
-    UomCategoryCompanion Function({
-      Value<int> id,
-      Value<int> odooId,
-      Value<String> name,
-      Value<DateTime?> writeDate,
-    });
-
-class $$UomCategoryTableFilterComposer
-    extends Composer<_$AppDatabase, $UomCategoryTable> {
-  $$UomCategoryTableFilterComposer({
-    required super.$db,
-    required super.$table,
-    super.joinBuilder,
-    super.$addJoinBuilderToRootComposer,
-    super.$removeJoinBuilderFromRootComposer,
-  });
-  ColumnFilters<int> get id => $composableBuilder(
-    column: $table.id,
-    builder: (column) => ColumnFilters(column),
-  );
-
-  ColumnFilters<int> get odooId => $composableBuilder(
-    column: $table.odooId,
-    builder: (column) => ColumnFilters(column),
-  );
-
-  ColumnFilters<String> get name => $composableBuilder(
-    column: $table.name,
-    builder: (column) => ColumnFilters(column),
-  );
-
-  ColumnFilters<DateTime> get writeDate => $composableBuilder(
-    column: $table.writeDate,
-    builder: (column) => ColumnFilters(column),
-  );
-}
-
-class $$UomCategoryTableOrderingComposer
-    extends Composer<_$AppDatabase, $UomCategoryTable> {
-  $$UomCategoryTableOrderingComposer({
-    required super.$db,
-    required super.$table,
-    super.joinBuilder,
-    super.$addJoinBuilderToRootComposer,
-    super.$removeJoinBuilderFromRootComposer,
-  });
-  ColumnOrderings<int> get id => $composableBuilder(
-    column: $table.id,
-    builder: (column) => ColumnOrderings(column),
-  );
-
-  ColumnOrderings<int> get odooId => $composableBuilder(
-    column: $table.odooId,
-    builder: (column) => ColumnOrderings(column),
-  );
-
-  ColumnOrderings<String> get name => $composableBuilder(
-    column: $table.name,
-    builder: (column) => ColumnOrderings(column),
-  );
-
-  ColumnOrderings<DateTime> get writeDate => $composableBuilder(
-    column: $table.writeDate,
-    builder: (column) => ColumnOrderings(column),
-  );
-}
-
-class $$UomCategoryTableAnnotationComposer
-    extends Composer<_$AppDatabase, $UomCategoryTable> {
-  $$UomCategoryTableAnnotationComposer({
-    required super.$db,
-    required super.$table,
-    super.joinBuilder,
-    super.$addJoinBuilderToRootComposer,
-    super.$removeJoinBuilderFromRootComposer,
-  });
-  GeneratedColumn<int> get id =>
-      $composableBuilder(column: $table.id, builder: (column) => column);
-
-  GeneratedColumn<int> get odooId =>
-      $composableBuilder(column: $table.odooId, builder: (column) => column);
-
-  GeneratedColumn<String> get name =>
-      $composableBuilder(column: $table.name, builder: (column) => column);
-
-  GeneratedColumn<DateTime> get writeDate =>
-      $composableBuilder(column: $table.writeDate, builder: (column) => column);
-}
-
-class $$UomCategoryTableTableManager
-    extends
-        RootTableManager<
-          _$AppDatabase,
-          $UomCategoryTable,
-          UomCategoryData,
-          $$UomCategoryTableFilterComposer,
-          $$UomCategoryTableOrderingComposer,
-          $$UomCategoryTableAnnotationComposer,
-          $$UomCategoryTableCreateCompanionBuilder,
-          $$UomCategoryTableUpdateCompanionBuilder,
-          (
-            UomCategoryData,
-            BaseReferences<_$AppDatabase, $UomCategoryTable, UomCategoryData>,
-          ),
-          UomCategoryData,
-          PrefetchHooks Function()
-        > {
-  $$UomCategoryTableTableManager(_$AppDatabase db, $UomCategoryTable table)
-    : super(
-        TableManagerState(
-          db: db,
-          table: table,
-          createFilteringComposer: () =>
-              $$UomCategoryTableFilterComposer($db: db, $table: table),
-          createOrderingComposer: () =>
-              $$UomCategoryTableOrderingComposer($db: db, $table: table),
-          createComputedFieldComposer: () =>
-              $$UomCategoryTableAnnotationComposer($db: db, $table: table),
-          updateCompanionCallback:
-              ({
-                Value<int> id = const Value.absent(),
-                Value<int> odooId = const Value.absent(),
-                Value<String> name = const Value.absent(),
-                Value<DateTime?> writeDate = const Value.absent(),
-              }) => UomCategoryCompanion(
-                id: id,
-                odooId: odooId,
-                name: name,
-                writeDate: writeDate,
-              ),
-          createCompanionCallback:
-              ({
-                Value<int> id = const Value.absent(),
-                required int odooId,
-                required String name,
-                Value<DateTime?> writeDate = const Value.absent(),
-              }) => UomCategoryCompanion.insert(
-                id: id,
-                odooId: odooId,
-                name: name,
-                writeDate: writeDate,
-              ),
-          withReferenceMapper: (p0) => p0
-              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
-              .toList(),
-          prefetchHooksCallback: null,
-        ),
-      );
-}
-
-typedef $$UomCategoryTableProcessedTableManager =
-    ProcessedTableManager<
-      _$AppDatabase,
-      $UomCategoryTable,
-      UomCategoryData,
-      $$UomCategoryTableFilterComposer,
-      $$UomCategoryTableOrderingComposer,
-      $$UomCategoryTableAnnotationComposer,
-      $$UomCategoryTableCreateCompanionBuilder,
-      $$UomCategoryTableUpdateCompanionBuilder,
-      (
-        UomCategoryData,
-        BaseReferences<_$AppDatabase, $UomCategoryTable, UomCategoryData>,
-      ),
-      UomCategoryData,
-      PrefetchHooks Function()
-    >;
-typedef $$ProductUomTableCreateCompanionBuilder =
-    ProductUomCompanion Function({
-      Value<int> id,
-      required int odooId,
-      required int productId,
-      Value<String?> productName,
-      required int uomId,
-      Value<String?> uomName,
-      Value<double> factor,
-      Value<double> factorInv,
-      Value<String?> barcode,
-      Value<int?> companyId,
-      Value<DateTime?> writeDate,
-    });
-typedef $$ProductUomTableUpdateCompanionBuilder =
-    ProductUomCompanion Function({
-      Value<int> id,
-      Value<int> odooId,
-      Value<int> productId,
-      Value<String?> productName,
-      Value<int> uomId,
-      Value<String?> uomName,
-      Value<double> factor,
-      Value<double> factorInv,
-      Value<String?> barcode,
-      Value<int?> companyId,
-      Value<DateTime?> writeDate,
-    });
+typedef $$ProductUomTableCreateCompanionBuilder = ProductUomCompanion Function({
+  Value<int> id,
+  required int odooId,
+  required int productId,
+  Value<String?> productName,
+  required int uomId,
+  Value<String?> uomName,
+  Value<double> factor,
+  Value<double> factorInv,
+  Value<String?> barcode,
+  Value<int?> companyId,
+  Value<DateTime?> writeDate,
+});
+typedef $$ProductUomTableUpdateCompanionBuilder = ProductUomCompanion Function({
+  Value<int> id,
+  Value<int> odooId,
+  Value<int> productId,
+  Value<String?> productName,
+  Value<int> uomId,
+  Value<String?> uomName,
+  Value<double> factor,
+  Value<double> factorInv,
+  Value<String?> barcode,
+  Value<int?> companyId,
+  Value<DateTime?> writeDate,
+});
 
 class $$ProductUomTableFilterComposer
     extends Composer<_$AppDatabase, $ProductUomTable> {
@@ -101911,32 +100434,30 @@ typedef $$AccountPaymentTermTableProcessedTableManager =
       AccountPaymentTermData,
       PrefetchHooks Function()
     >;
-typedef $$CrmTeamTableCreateCompanionBuilder =
-    CrmTeamCompanion Function({
-      Value<int> id,
-      required int odooId,
-      required String name,
-      Value<bool> active,
-      Value<int?> companyId,
-      Value<String?> companyName,
-      Value<int?> userId,
-      Value<String?> userName,
-      Value<int> sequence,
-      Value<DateTime?> writeDate,
-    });
-typedef $$CrmTeamTableUpdateCompanionBuilder =
-    CrmTeamCompanion Function({
-      Value<int> id,
-      Value<int> odooId,
-      Value<String> name,
-      Value<bool> active,
-      Value<int?> companyId,
-      Value<String?> companyName,
-      Value<int?> userId,
-      Value<String?> userName,
-      Value<int> sequence,
-      Value<DateTime?> writeDate,
-    });
+typedef $$CrmTeamTableCreateCompanionBuilder = CrmTeamCompanion Function({
+  Value<int> id,
+  required int odooId,
+  required String name,
+  Value<bool> active,
+  Value<int?> companyId,
+  Value<String?> companyName,
+  Value<int?> userId,
+  Value<String?> userName,
+  Value<int> sequence,
+  Value<DateTime?> writeDate,
+});
+typedef $$CrmTeamTableUpdateCompanionBuilder = CrmTeamCompanion Function({
+  Value<int> id,
+  Value<int> odooId,
+  Value<String> name,
+  Value<bool> active,
+  Value<int?> companyId,
+  Value<String?> companyName,
+  Value<int?> userId,
+  Value<String?> userName,
+  Value<int> sequence,
+  Value<DateTime?> writeDate,
+});
 
 class $$CrmTeamTableFilterComposer
     extends Composer<_$AppDatabase, $CrmTeamTable> {
@@ -102883,6 +101404,7 @@ typedef $$AccountJournalTableCreateCompanionBuilder =
       Value<int?> currencyId,
       Value<String?> currencyName,
       Value<int> sequence,
+      Value<bool> numberedByClient,
       Value<bool> isCardJournal,
       Value<bool> disponibleVentas,
       Value<bool> disponiblePagos,
@@ -102912,6 +101434,7 @@ typedef $$AccountJournalTableUpdateCompanionBuilder =
       Value<int?> currencyId,
       Value<String?> currencyName,
       Value<int> sequence,
+      Value<bool> numberedByClient,
       Value<bool> isCardJournal,
       Value<bool> disponibleVentas,
       Value<bool> disponiblePagos,
@@ -103010,6 +101533,11 @@ class $$AccountJournalTableFilterComposer
 
   ColumnFilters<int> get sequence => $composableBuilder(
     column: $table.sequence,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<bool> get numberedByClient => $composableBuilder(
+    column: $table.numberedByClient,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -103153,6 +101681,11 @@ class $$AccountJournalTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<bool> get numberedByClient => $composableBuilder(
+    column: $table.numberedByClient,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<bool> get isCardJournal => $composableBuilder(
     column: $table.isCardJournal,
     builder: (column) => ColumnOrderings(column),
@@ -103277,6 +101810,11 @@ class $$AccountJournalTableAnnotationComposer
   GeneratedColumn<int> get sequence =>
       $composableBuilder(column: $table.sequence, builder: (column) => column);
 
+  GeneratedColumn<bool> get numberedByClient => $composableBuilder(
+    column: $table.numberedByClient,
+    builder: (column) => column,
+  );
+
   GeneratedColumn<bool> get isCardJournal => $composableBuilder(
     column: $table.isCardJournal,
     builder: (column) => column,
@@ -103379,6 +101917,7 @@ class $$AccountJournalTableTableManager
                 Value<int?> currencyId = const Value.absent(),
                 Value<String?> currencyName = const Value.absent(),
                 Value<int> sequence = const Value.absent(),
+                Value<bool> numberedByClient = const Value.absent(),
                 Value<bool> isCardJournal = const Value.absent(),
                 Value<bool> disponibleVentas = const Value.absent(),
                 Value<bool> disponiblePagos = const Value.absent(),
@@ -103406,6 +101945,7 @@ class $$AccountJournalTableTableManager
                 currencyId: currencyId,
                 currencyName: currencyName,
                 sequence: sequence,
+                numberedByClient: numberedByClient,
                 isCardJournal: isCardJournal,
                 disponibleVentas: disponibleVentas,
                 disponiblePagos: disponiblePagos,
@@ -103435,6 +101975,7 @@ class $$AccountJournalTableTableManager
                 Value<int?> currencyId = const Value.absent(),
                 Value<String?> currencyName = const Value.absent(),
                 Value<int> sequence = const Value.absent(),
+                Value<bool> numberedByClient = const Value.absent(),
                 Value<bool> isCardJournal = const Value.absent(),
                 Value<bool> disponibleVentas = const Value.absent(),
                 Value<bool> disponiblePagos = const Value.absent(),
@@ -103462,6 +102003,7 @@ class $$AccountJournalTableTableManager
                 currencyId: currencyId,
                 currencyName: currencyName,
                 sequence: sequence,
+                numberedByClient: numberedByClient,
                 isCardJournal: isCardJournal,
                 disponibleVentas: disponibleVentas,
                 disponiblePagos: disponiblePagos,
@@ -105534,6 +104076,7 @@ typedef $$AdvanceLinesTableTableCreateCompanionBuilder =
     AdvanceLinesTableCompanion Function({
       Value<int> id,
       required int odooId,
+      Value<int?> advanceId,
       Value<String?> lineUuid,
       required int journalId,
       Value<String?> journalName,
@@ -105556,6 +104099,7 @@ typedef $$AdvanceLinesTableTableUpdateCompanionBuilder =
     AdvanceLinesTableCompanion Function({
       Value<int> id,
       Value<int> odooId,
+      Value<int?> advanceId,
       Value<String?> lineUuid,
       Value<int> journalId,
       Value<String?> journalName,
@@ -105591,6 +104135,11 @@ class $$AdvanceLinesTableTableFilterComposer
 
   ColumnFilters<int> get odooId => $composableBuilder(
     column: $table.odooId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get advanceId => $composableBuilder(
+    column: $table.advanceId,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -105699,6 +104248,11 @@ class $$AdvanceLinesTableTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<int> get advanceId => $composableBuilder(
+    column: $table.advanceId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<String> get lineUuid => $composableBuilder(
     column: $table.lineUuid,
     builder: (column) => ColumnOrderings(column),
@@ -105799,6 +104353,9 @@ class $$AdvanceLinesTableTableAnnotationComposer
 
   GeneratedColumn<int> get odooId =>
       $composableBuilder(column: $table.odooId, builder: (column) => column);
+
+  GeneratedColumn<int> get advanceId =>
+      $composableBuilder(column: $table.advanceId, builder: (column) => column);
 
   GeneratedColumn<String> get lineUuid =>
       $composableBuilder(column: $table.lineUuid, builder: (column) => column);
@@ -105920,6 +104477,7 @@ class $$AdvanceLinesTableTableTableManager
               ({
                 Value<int> id = const Value.absent(),
                 Value<int> odooId = const Value.absent(),
+                Value<int?> advanceId = const Value.absent(),
                 Value<String?> lineUuid = const Value.absent(),
                 Value<int> journalId = const Value.absent(),
                 Value<String?> journalName = const Value.absent(),
@@ -105940,6 +104498,7 @@ class $$AdvanceLinesTableTableTableManager
               }) => AdvanceLinesTableCompanion(
                 id: id,
                 odooId: odooId,
+                advanceId: advanceId,
                 lineUuid: lineUuid,
                 journalId: journalId,
                 journalName: journalName,
@@ -105962,6 +104521,7 @@ class $$AdvanceLinesTableTableTableManager
               ({
                 Value<int> id = const Value.absent(),
                 required int odooId,
+                Value<int?> advanceId = const Value.absent(),
                 Value<String?> lineUuid = const Value.absent(),
                 required int journalId,
                 Value<String?> journalName = const Value.absent(),
@@ -105982,6 +104542,7 @@ class $$AdvanceLinesTableTableTableManager
               }) => AdvanceLinesTableCompanion.insert(
                 id: id,
                 odooId: odooId,
+                advanceId: advanceId,
                 lineUuid: lineUuid,
                 journalId: journalId,
                 journalName: journalName,
@@ -108518,6 +107079,7 @@ typedef $$StockQuantityChangeTableProcessedTableManager =
 typedef $$SyncConflictTableCreateCompanionBuilder =
     SyncConflictCompanion Function({
       Value<int> id,
+      required int operationId,
       required String model,
       required int localId,
       required int remoteId,
@@ -108532,6 +107094,7 @@ typedef $$SyncConflictTableCreateCompanionBuilder =
 typedef $$SyncConflictTableUpdateCompanionBuilder =
     SyncConflictCompanion Function({
       Value<int> id,
+      Value<int> operationId,
       Value<String> model,
       Value<int> localId,
       Value<int> remoteId,
@@ -108555,6 +107118,11 @@ class $$SyncConflictTableFilterComposer
   });
   ColumnFilters<int> get id => $composableBuilder(
     column: $table.id,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get operationId => $composableBuilder(
+    column: $table.operationId,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -108623,6 +107191,11 @@ class $$SyncConflictTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<int> get operationId => $composableBuilder(
+    column: $table.operationId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<String> get model => $composableBuilder(
     column: $table.model,
     builder: (column) => ColumnOrderings(column),
@@ -108685,6 +107258,11 @@ class $$SyncConflictTableAnnotationComposer
   });
   GeneratedColumn<int> get id =>
       $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<int> get operationId => $composableBuilder(
+    column: $table.operationId,
+    builder: (column) => column,
+  );
 
   GeneratedColumn<String> get model =>
       $composableBuilder(column: $table.model, builder: (column) => column);
@@ -108761,6 +107339,7 @@ class $$SyncConflictTableTableManager
           updateCompanionCallback:
               ({
                 Value<int> id = const Value.absent(),
+                Value<int> operationId = const Value.absent(),
                 Value<String> model = const Value.absent(),
                 Value<int> localId = const Value.absent(),
                 Value<int> remoteId = const Value.absent(),
@@ -108773,6 +107352,7 @@ class $$SyncConflictTableTableManager
                 Value<bool> isResolved = const Value.absent(),
               }) => SyncConflictCompanion(
                 id: id,
+                operationId: operationId,
                 model: model,
                 localId: localId,
                 remoteId: remoteId,
@@ -108787,6 +107367,7 @@ class $$SyncConflictTableTableManager
           createCompanionCallback:
               ({
                 Value<int> id = const Value.absent(),
+                required int operationId,
                 required String model,
                 required int localId,
                 required int remoteId,
@@ -108799,6 +107380,7 @@ class $$SyncConflictTableTableManager
                 Value<bool> isResolved = const Value.absent(),
               }) => SyncConflictCompanion.insert(
                 id: id,
+                operationId: operationId,
                 model: model,
                 localId: localId,
                 remoteId: remoteId,
@@ -108847,8 +107429,7 @@ typedef $$QwebReportTemplateTableCreateCompanionBuilder =
       Value<String?> attachment,
       Value<bool> attachmentUse,
       Value<String?> paperformatId,
-      required String templateContent,
-      Value<String?> xmlContent,
+      required String xmlContent,
       Value<String?> requiredFields,
       Value<String?> dependencies,
       Value<DateTime?> lastSynced,
@@ -108868,8 +107449,7 @@ typedef $$QwebReportTemplateTableUpdateCompanionBuilder =
       Value<String?> attachment,
       Value<bool> attachmentUse,
       Value<String?> paperformatId,
-      Value<String> templateContent,
-      Value<String?> xmlContent,
+      Value<String> xmlContent,
       Value<String?> requiredFields,
       Value<String?> dependencies,
       Value<DateTime?> lastSynced,
@@ -108934,11 +107514,6 @@ class $$QwebReportTemplateTableFilterComposer
 
   ColumnFilters<String> get paperformatId => $composableBuilder(
     column: $table.paperformatId,
-    builder: (column) => ColumnFilters(column),
-  );
-
-  ColumnFilters<String> get templateContent => $composableBuilder(
-    column: $table.templateContent,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -109037,11 +107612,6 @@ class $$QwebReportTemplateTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
-  ColumnOrderings<String> get templateContent => $composableBuilder(
-    column: $table.templateContent,
-    builder: (column) => ColumnOrderings(column),
-  );
-
   ColumnOrderings<String> get xmlContent => $composableBuilder(
     column: $table.xmlContent,
     builder: (column) => ColumnOrderings(column),
@@ -109129,11 +107699,6 @@ class $$QwebReportTemplateTableAnnotationComposer
     builder: (column) => column,
   );
 
-  GeneratedColumn<String> get templateContent => $composableBuilder(
-    column: $table.templateContent,
-    builder: (column) => column,
-  );
-
   GeneratedColumn<String> get xmlContent => $composableBuilder(
     column: $table.xmlContent,
     builder: (column) => column,
@@ -109214,8 +107779,7 @@ class $$QwebReportTemplateTableTableManager
                 Value<String?> attachment = const Value.absent(),
                 Value<bool> attachmentUse = const Value.absent(),
                 Value<String?> paperformatId = const Value.absent(),
-                Value<String> templateContent = const Value.absent(),
-                Value<String?> xmlContent = const Value.absent(),
+                Value<String> xmlContent = const Value.absent(),
                 Value<String?> requiredFields = const Value.absent(),
                 Value<String?> dependencies = const Value.absent(),
                 Value<DateTime?> lastSynced = const Value.absent(),
@@ -109233,7 +107797,6 @@ class $$QwebReportTemplateTableTableManager
                 attachment: attachment,
                 attachmentUse: attachmentUse,
                 paperformatId: paperformatId,
-                templateContent: templateContent,
                 xmlContent: xmlContent,
                 requiredFields: requiredFields,
                 dependencies: dependencies,
@@ -109254,8 +107817,7 @@ class $$QwebReportTemplateTableTableManager
                 Value<String?> attachment = const Value.absent(),
                 Value<bool> attachmentUse = const Value.absent(),
                 Value<String?> paperformatId = const Value.absent(),
-                required String templateContent,
-                Value<String?> xmlContent = const Value.absent(),
+                required String xmlContent,
                 Value<String?> requiredFields = const Value.absent(),
                 Value<String?> dependencies = const Value.absent(),
                 Value<DateTime?> lastSynced = const Value.absent(),
@@ -109273,7 +107835,6 @@ class $$QwebReportTemplateTableTableManager
                 attachment: attachment,
                 attachmentUse: attachmentUse,
                 paperformatId: paperformatId,
-                templateContent: templateContent,
                 xmlContent: xmlContent,
                 requiredFields: requiredFields,
                 dependencies: dependencies,
@@ -109754,8 +108315,6 @@ class $AppDatabaseManager {
       $$AccountTaxTableTableManager(_db, _db.accountTax);
   $$UomUomTableTableManager get uomUom =>
       $$UomUomTableTableManager(_db, _db.uomUom);
-  $$UomCategoryTableTableManager get uomCategory =>
-      $$UomCategoryTableTableManager(_db, _db.uomCategory);
   $$ProductUomTableTableManager get productUom =>
       $$ProductUomTableTableManager(_db, _db.productUom);
   $$ProductPricelistTableTableManager get productPricelist =>

@@ -1,6 +1,8 @@
 import 'package:fluent_ui/fluent_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_riverpod/misc.dart' show ProviderListenable;
 import 'package:syncfusion_flutter_datagrid/datagrid.dart';
+
 import '../grid/theos_data_grid.dart';
 import '../grid/theos_data_grid_source.dart';
 import '../../../core/theme/spacing.dart';
@@ -79,8 +81,14 @@ class DataGridColumnConfig {
 /// )
 /// ```
 class ReactiveDataGrid<T> extends ConsumerStatefulWidget {
-  /// Provider that supplies the list data (e.g., `Provider.autoDispose<AsyncValue<List<T>>>`)
-  final dynamic dataProvider;
+  /// Optional external key used by callers that need to export the live grid.
+  final GlobalKey<SfDataGridState>? gridKey;
+
+  /// Provider that supplies the list data.
+  ///
+  /// Keeping this typed prevents accidentally wiring a provider with an
+  /// incompatible state shape and removes a runtime cast from every build.
+  final ProviderListenable<AsyncValue<List<T>>> dataProvider;
 
   /// Column configurations
   final List<DataGridColumnConfig> columns;
@@ -90,7 +98,7 @@ class ReactiveDataGrid<T> extends ConsumerStatefulWidget {
 
   /// Custom cell builders for specific columns
   final Map<String, Widget Function(BuildContext context, DataGridCell cell)>?
-      cellBuilders;
+  cellBuilders;
 
   /// Callback when a row is tapped
   final void Function(T item)? onRowTap;
@@ -116,6 +124,14 @@ class ReactiveDataGrid<T> extends ConsumerStatefulWidget {
   /// Rows per page for pagination
   final int rowsPerPage;
 
+  /// Total rows in the backing query for database/server-side pagination.
+  /// When null, pagination is performed over [dataProvider] in memory.
+  final int? totalRowCount;
+
+  /// Loads a database-backed page. Supplying this disables local row slicing.
+  final Future<bool> Function(int pageIndex)? onPageChanged;
+  final int currentPageIndex;
+
   /// Whether to allow sorting
   final bool allowSorting;
 
@@ -124,6 +140,7 @@ class ReactiveDataGrid<T> extends ConsumerStatefulWidget {
 
   const ReactiveDataGrid({
     super.key,
+    this.gridKey,
     required this.dataProvider,
     required this.columns,
     required this.rowBuilder,
@@ -136,6 +153,9 @@ class ReactiveDataGrid<T> extends ConsumerStatefulWidget {
     this.emptyIcon = FluentIcons.info,
     this.showPager = true,
     this.rowsPerPage = 80,
+    this.totalRowCount,
+    this.onPageChanged,
+    this.currentPageIndex = 0,
     this.allowSorting = true,
     this.onRefresh,
   });
@@ -148,6 +168,7 @@ class ReactiveDataGrid<T> extends ConsumerStatefulWidget {
 class _ReactiveDataGridState<T> extends ConsumerState<ReactiveDataGrid<T>> {
   final GlobalKey<SfDataGridState> _gridKey = GlobalKey<SfDataGridState>();
   late TheosDataGridSource<T> _dataSource;
+  bool _dataNotificationScheduled = false;
 
   @override
   void initState() {
@@ -161,31 +182,57 @@ class _ReactiveDataGridState<T> extends ConsumerState<ReactiveDataGrid<T>> {
       rowBuilder: widget.rowBuilder,
       cellBuilders: widget.cellBuilders,
     );
-    // Configure pagination settings
-    _dataSource.setRowsPerPage(widget.rowsPerPage);
+    _dataSource.onExternalPageChange = widget.onPageChanged;
+    _configurePagination();
+  }
+
+  void _configurePagination() {
+    _dataSource.configurePagination(
+      enabled: widget.showPager && widget.onPageChanged == null,
+      rowsPerPage: widget.rowsPerPage,
+    );
+  }
+
+  @override
+  void didUpdateWidget(covariant ReactiveDataGrid<T> oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.rowsPerPage != widget.rowsPerPage ||
+        oldWidget.showPager != widget.showPager ||
+        oldWidget.onPageChanged != widget.onPageChanged) {
+      _dataSource.onExternalPageChange = widget.onPageChanged;
+      _configurePagination();
+    }
+  }
+
+  @override
+  void dispose() {
+    _dataSource.dispose();
+    super.dispose();
+  }
+
+  void _updateDataAfterBuild(List<T> items) {
+    final changed = _dataSource.updateData(items, notify: false);
+    if (!changed || _dataNotificationScheduled) return;
+    _dataNotificationScheduled = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _dataNotificationScheduled = false;
+      if (mounted) _dataSource.notifyDataChanged();
+    });
   }
 
   @override
   Widget build(BuildContext context) {
-    final watchedValue = ref.watch(widget.dataProvider);
+    final asyncData = ref.watch(widget.dataProvider);
     final spacing = ref.watch(themedSpacingProvider);
-
-    // Handle both StreamProvider (returns AsyncValue) and
-    // Provider<AsyncValue<...>> (returns AsyncValue directly)
-    final AsyncValue<List<T>> asyncData;
-    if (watchedValue is AsyncValue<List<T>>) {
-      asyncData = watchedValue;
-    } else {
-      // Assume it's a provider that returns AsyncValue when watched
-      asyncData = watchedValue as AsyncValue<List<T>>;
-    }
 
     return asyncData.when(
       data: (items) {
         // Update data source when data changes
-        _dataSource.updateData(items);
-        // Ensure pagination settings are current
-        _dataSource.setRowsPerPage(widget.rowsPerPage);
+        // Mutating a ChangeNotifier while Flutter is building can notify the
+        // previous SfDataGrid subtree and trigger build-during-build errors.
+        // Update rows synchronously, then publish one batched notification.
+        _updateDataAfterBuild(items);
+        _configurePagination();
 
         if (items.isEmpty) {
           return _EmptyState(
@@ -198,11 +245,13 @@ class _ReactiveDataGridState<T> extends ConsumerState<ReactiveDataGrid<T>> {
         }
 
         return TheosDataGrid(
-          gridKey: _gridKey,
+          gridKey: widget.gridKey ?? _gridKey,
           source: _dataSource,
           columns: widget.columns.map((c) => c.toGridColumn(context)).toList(),
           showPager: widget.showPager,
           rowsPerPage: widget.rowsPerPage,
+          totalRowCount: widget.totalRowCount,
+          currentPageIndex: widget.currentPageIndex,
           allowSorting: widget.allowSorting,
           storageKey: widget.storageKey,
           onExport: widget.onExport,
@@ -232,7 +281,7 @@ class _ReactiveDataGridState<T> extends ConsumerState<ReactiveDataGrid<T>> {
   /// Export grid to Excel
   Future<void> exportToExcel(String fileName) async {
     final grid = TheosDataGrid(
-      gridKey: _gridKey,
+      gridKey: widget.gridKey ?? _gridKey,
       source: _dataSource,
       columns: widget.columns.map((c) => c.toGridColumn(context)).toList(),
     );
@@ -273,10 +322,7 @@ class _EmptyState extends StatelessWidget {
           ],
           if (onRefresh != null) ...[
             spacing.vertical.md,
-            FilledButton(
-              onPressed: onRefresh,
-              child: const Text('Actualizar'),
-            ),
+            FilledButton(onPressed: onRefresh, child: const Text('Actualizar')),
           ],
         ],
       ),
@@ -290,11 +336,7 @@ class _ErrorState extends StatelessWidget {
   final Future<void> Function()? onRetry;
   final ThemedSpacing spacing;
 
-  const _ErrorState({
-    required this.error,
-    this.onRetry,
-    required this.spacing,
-  });
+  const _ErrorState({required this.error, this.onRetry, required this.spacing});
 
   @override
   Widget build(BuildContext context) {
@@ -315,10 +357,7 @@ class _ErrorState extends StatelessWidget {
           ),
           if (onRetry != null) ...[
             spacing.vertical.md,
-            FilledButton(
-              onPressed: onRetry,
-              child: const Text('Reintentar'),
-            ),
+            FilledButton(onPressed: onRetry, child: const Text('Reintentar')),
           ],
         ],
       ),

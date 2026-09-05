@@ -1,6 +1,6 @@
 // GENERATED CODE - DO NOT MODIFY BY HAND
 // coverage:ignore-file
-// ignore_for_file: type=lint
+// ignore_for_file: type=lint, type=warning, deprecated_member_use, deprecated_member_use_from_same_package
 // ignore_for_file: unused_element, deprecated_member_use, deprecated_member_use_from_same_package, use_function_type_syntax_for_parameters, unnecessary_const, avoid_init_to_null, invalid_override_different_default_values_named, prefer_expression_function_bodies, annotate_overrides, invalid_annotation_target, unnecessary_question_mark
 
 part of 'product_category.dart';
@@ -9,16 +9,13 @@ part of 'product_category.dart';
 // FreezedGenerator
 // **************************************************************************
 
+// GENERATED CODE - DO NOT MODIFY BY HAND
 // dart format off
 T _$identity<T>(T value) => value;
 /// @nodoc
 mixin _$ProductCategory {
 
-// ============ Identifiers ============
-@OdooId() int get id;@OdooLocalOnly() String? get uuid;// ============ Basic Data ============
-@OdooString() String get name;@OdooString(odooName: 'complete_name') String? get completeName;// ============ Hierarchy ============
-@OdooMany2One('product.category', odooName: 'parent_id') int? get parentId;@OdooMany2OneName(sourceField: 'parent_id') String? get parentName;// ============ Sync Metadata ============
-@OdooDateTime(odooName: 'write_date', writable: false) DateTime? get writeDate;@OdooLocalOnly() bool get isSynced;@OdooLocalOnly() DateTime? get localModifiedAt;
+@OdooId() int get id;@OdooLocalOnly() String? get uuid;@OdooString() String get name;@OdooString(odooName: 'complete_name') String? get completeName;@OdooMany2One('product.category', odooName: 'parent_id') int? get parentId;@OdooMany2OneName(sourceField: 'parent_id') String? get parentName;@OdooDateTime(odooName: 'write_date', writable: false) DateTime? get writeDate;@OdooLocalOnly() bool get isSynced;@OdooLocalOnly() DateTime? get localModifiedAt;
 /// Create a copy of ProductCategory
 /// with the given fields replaced by the non-null parameter values.
 @JsonKey(includeFromJson: false, includeToJson: false)
@@ -67,7 +64,7 @@ class _$ProductCategoryCopyWithImpl<$Res>
 /// Create a copy of ProductCategory
 /// with the given fields replaced by the non-null parameter values.
 @pragma('vm:prefer-inline') @override $Res call({Object? id = null,Object? uuid = freezed,Object? name = null,Object? completeName = freezed,Object? parentId = freezed,Object? parentName = freezed,Object? writeDate = freezed,Object? isSynced = null,Object? localModifiedAt = freezed,}) {
-  return _then(_self.copyWith(
+  return _then(ProductCategory(
 id: null == id ? _self.id : id // ignore: cast_nullable_to_non_nullable
 as int,uuid: freezed == uuid ? _self.uuid : uuid // ignore: cast_nullable_to_non_nullable
 as String?,name: null == name ? _self.name : name // ignore: cast_nullable_to_non_nullable
@@ -221,16 +218,12 @@ class _ProductCategory extends ProductCategory {
   const _ProductCategory({@OdooId() required this.id, @OdooLocalOnly() this.uuid, @OdooString() required this.name, @OdooString(odooName: 'complete_name') this.completeName, @OdooMany2One('product.category', odooName: 'parent_id') this.parentId, @OdooMany2OneName(sourceField: 'parent_id') this.parentName, @OdooDateTime(odooName: 'write_date', writable: false) this.writeDate, @OdooLocalOnly() this.isSynced = false, @OdooLocalOnly() this.localModifiedAt}): super._();
   
 
-// ============ Identifiers ============
 @override@OdooId() final  int id;
 @override@OdooLocalOnly() final  String? uuid;
-// ============ Basic Data ============
 @override@OdooString() final  String name;
 @override@OdooString(odooName: 'complete_name') final  String? completeName;
-// ============ Hierarchy ============
 @override@OdooMany2One('product.category', odooName: 'parent_id') final  int? parentId;
 @override@OdooMany2OneName(sourceField: 'parent_id') final  String? parentName;
-// ============ Sync Metadata ============
 @override@OdooDateTime(odooName: 'write_date', writable: false) final  DateTime? writeDate;
 @override@JsonKey()@OdooLocalOnly() final  bool isSynced;
 @override@OdooLocalOnly() final  DateTime? localModifiedAt;

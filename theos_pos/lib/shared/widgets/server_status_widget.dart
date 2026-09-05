@@ -1,9 +1,12 @@
 import 'package:fluent_ui/fluent_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:odoo_sdk/odoo_sdk.dart'
+    show ConnectivityStatus, ServerConnectionState;
 
 import '../../core/constants/app_colors.dart';
 import '../../core/services/platform/server_connectivity_service.dart';
-import '../../features/sync/providers/offline_mode_providers.dart' show offlineModeConfigProvider;
+import '../../features/sync/providers/offline_mode_providers.dart'
+    show offlineModeConfigProvider;
 
 /// Widget que muestra el estado de conexión del servidor Odoo
 /// Puede mostrarse en modo compacto (para barra de estado) o detallado
@@ -175,13 +178,6 @@ class ServerStatusWidget extends ConsumerWidget {
           const SizedBox(height: 8),
           _buildDetailRow(
             context,
-            'WebSocket',
-            status.webSocketConnected ? 'Conectado' : 'Desconectado',
-            status.webSocketConnected ? AppColors.success : AppColors.textSecondary,
-          ),
-          const SizedBox(height: 8),
-          _buildDetailRow(
-            context,
             'Sesión',
             status.sessionValid ? 'Válida' : 'Expirada',
             status.sessionValid ? AppColors.success : AppColors.danger,
@@ -225,16 +221,15 @@ class ServerStatusWidget extends ConsumerWidget {
               decoration: BoxDecoration(
                 color: AppColors.danger.withValues(alpha: 0.1),
                 borderRadius: BorderRadius.circular(4),
-                border: Border.all(color: AppColors.danger.withValues(alpha: 0.3)),
+                border: Border.all(
+                  color: AppColors.danger.withValues(alpha: 0.3),
+                ),
               ),
               child: Text(
                 status.lastError!.length > 100
                     ? '${status.lastError!.substring(0, 100)}...'
                     : status.lastError!,
-                style: TextStyle(
-                  fontSize: 11,
-                  color: AppColors.danger,
-                ),
+                style: TextStyle(fontSize: 11, color: AppColors.danger),
               ),
             ),
           ],
@@ -278,35 +273,35 @@ class ServerStatusWidget extends ConsumerWidget {
 
     return switch (status.serverState) {
       ServerConnectionState.online => (
-          AppColors.success,
-          FluentIcons.cloud,
-          'Online'
-        ),
+        AppColors.success,
+        FluentIcons.cloud,
+        'Online',
+      ),
       ServerConnectionState.degraded => (
-          AppColors.warning,
-          FluentIcons.warning,
-          'Degradado'
-        ),
+        AppColors.warning,
+        FluentIcons.warning,
+        'Degradado',
+      ),
       ServerConnectionState.unreachable => (
-          AppColors.danger,
-          FluentIcons.cloud_not_synced,
-          'Inalcanzable'
-        ),
+        AppColors.danger,
+        FluentIcons.cloud_not_synced,
+        'Inalcanzable',
+      ),
       ServerConnectionState.maintenance => (
-          AppColors.warning,
-          FluentIcons.repair,
-          'Mantenimiento'
-        ),
+        AppColors.warning,
+        FluentIcons.repair,
+        'Mantenimiento',
+      ),
       ServerConnectionState.sessionExpired => (
-          AppColors.danger,
-          FluentIcons.lock,
-          'Sesión Expirada'
-        ),
+        AppColors.danger,
+        FluentIcons.lock,
+        'Sesión Expirada',
+      ),
       ServerConnectionState.unknown => (
-          AppColors.textSecondary,
-          FluentIcons.sync,
-          'Verificando...'
-        ),
+        AppColors.textSecondary,
+        FluentIcons.sync,
+        'Verificando...',
+      ),
     };
   }
 
@@ -342,8 +337,6 @@ class ServerStatusWidget extends ConsumerWidget {
     final buffer = StringBuffer();
 
     buffer.writeln('Servidor: ${_getServerStateText(status.serverState)}');
-    buffer.writeln('WebSocket: ${status.webSocketConnected ? "Conectado" : "Desconectado"}');
-
     if (status.latencyMs != null) {
       buffer.writeln('Latencia: ${status.latencyMs}ms');
     }
@@ -371,7 +364,7 @@ class ServerStatusWidget extends ConsumerWidget {
   }
 }
 
-/// Widget combinado que muestra estado del servidor y WebSocket
+/// Widget combinado que muestra el estado autenticado del servidor.
 class ConnectionStatusBar extends ConsumerWidget {
   const ConnectionStatusBar({super.key});
 
@@ -379,11 +372,7 @@ class ConnectionStatusBar extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     return const Row(
       mainAxisSize: MainAxisSize.min,
-      children: [
-        ServerStatusWidget(showLatency: true),
-        SizedBox(width: 8),
-        // WebSocketStatusWidget is shown separately if needed
-      ],
+      children: [ServerStatusWidget(showLatency: true), SizedBox(width: 8)],
     );
   }
 }

@@ -1,6 +1,7 @@
 import 'package:uuid/uuid.dart';
 
 import '../../products/repositories/product_repository.dart';
+
 import 'package:theos_pos_core/theos_pos_core.dart' hide DatabaseHelper;
 
 /// Callback type for resolving max discount percentage asynchronously
@@ -58,16 +59,12 @@ class OrderLineCreationService {
   final MaxDiscountResolver _maxDiscountResolver;
 
   OrderLineCreationService({
-    required AppDatabase db,
-    required PricelistCalculatorService pricelistCalculator,
-    required ProductRepository? productRepository,
-    required TaxCalculatorService taxCalculator,
-    required MaxDiscountResolver maxDiscountResolver,
-  })  : _db = db,
-        _pricelistCalculator = pricelistCalculator,
-        _productRepository = productRepository,
-        _taxCalculator = taxCalculator,
-        _maxDiscountResolver = maxDiscountResolver;
+    required this._db,
+    required this._pricelistCalculator,
+    required this._productRepository,
+    required this._taxCalculator,
+    required this._maxDiscountResolver,
+  });
 
   /// Create a new order line with full calculation
   ///
@@ -109,14 +106,17 @@ class OrderLineCreationService {
     int sequence = 0,
   }) async {
     try {
-      logger.d(_tag, 'Creating line: product=$productId, qty=$quantity, '
-          'pricelist=$pricelistId, priceOverride=$priceUnit');
+      logger.d(
+        _tag,
+        'Creating line: product=$productId, qty=$quantity, '
+        'pricelist=$pricelistId, priceOverride=$priceUnit',
+      );
 
       // Get product data from local database
       final db = _db;
-      final product = await (db.select(db.productProduct)
-            ..where((t) => t.odooId.equals(productId)))
-          .getSingleOrNull();
+      final product = await (db.select(
+        db.productProduct,
+      )..where((t) => t.odooId.equals(productId))).getSingleOrNull();
 
       // Use product defaults if not provided
       final effectiveUomId = uomId ?? product?.uomId;
@@ -145,8 +145,11 @@ class OrderLineCreationService {
           finalPriceUnit = result.basePrice;
           finalDiscount = discount ?? result.discount;
           priceCalculated = true;
-          logger.d(_tag, 'Price from pricelist: $finalPriceUnit, '
-              'discount: $finalDiscount%, rule: ${result.ruleId}');
+          logger.d(
+            _tag,
+            'Price from pricelist: $finalPriceUnit, '
+            'discount: $finalDiscount%, rule: ${result.ruleId}',
+          );
         } catch (e) {
           logger.w(_tag, 'Local pricelist calc failed: $e');
         }
@@ -164,15 +167,19 @@ class OrderLineCreationService {
             );
 
             if (onchangeResult != null) {
-              finalPriceUnit = (onchangeResult['price_unit'] as num?)
-                      ?.toDouble() ??
+              finalPriceUnit =
+                  (onchangeResult['price_unit'] as num?)?.toDouble() ??
                   finalPriceUnit;
-              finalDiscount = discount ??
+              finalDiscount =
+                  discount ??
                   (onchangeResult['discount'] as num?)?.toDouble() ??
                   0.0;
               priceCalculated = true;
-              logger.d(_tag, 'Price from Odoo: $finalPriceUnit, '
-                  'discount: $finalDiscount%');
+              logger.d(
+                _tag,
+                'Price from Odoo: $finalPriceUnit, '
+                'discount: $finalDiscount%',
+              );
             }
           } catch (e) {
             logger.w(_tag, 'Odoo onchange failed: $e');
@@ -183,8 +190,11 @@ class OrderLineCreationService {
       // 3. Validate discount against company max
       final maxDiscount = await _maxDiscountResolver();
       if (finalDiscount > maxDiscount) {
-        logger.w(_tag, 'Discount $finalDiscount% exceeds max $maxDiscount%, '
-            'clamping to max');
+        logger.w(
+          _tag,
+          'Discount $finalDiscount% exceeds max $maxDiscount%, '
+          'clamping to max',
+        );
         finalDiscount = maxDiscount;
       }
 
@@ -201,8 +211,11 @@ class OrderLineCreationService {
           effectiveTaxPercent = taxInfo.taxPercent;
           effectiveTaxIds = taxInfo.taxIds;
           effectiveTaxNames = taxInfo.taxNames;
-          logger.d(_tag, 'Tax from DB: $effectiveTaxPercent%, '
-              'ids: $effectiveTaxIds');
+          logger.d(
+            _tag,
+            'Tax from DB: $effectiveTaxPercent%, '
+            'ids: $effectiveTaxIds',
+          );
         } catch (e) {
           logger.w(_tag, 'Tax lookup failed: $e');
         }
@@ -240,8 +253,11 @@ class OrderLineCreationService {
         isUnitProduct: product?.isUnitProduct ?? false,
       );
 
-      logger.i(_tag, 'Line created: ${line.productName} x${line.productUomQty} '
-          '@ ${line.priceUnit} - ${line.discount}% = ${line.priceTotal}');
+      logger.i(
+        _tag,
+        'Line created: ${line.productName} x${line.productUomQty} '
+        '@ ${line.priceUnit} - ${line.discount}% = ${line.priceTotal}',
+      );
 
       return OrderLineCreationResult.success(line);
     } catch (e, stack) {

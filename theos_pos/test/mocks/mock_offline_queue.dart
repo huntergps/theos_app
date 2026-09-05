@@ -8,42 +8,43 @@ class MockOfflineQueue extends Mock implements OfflineQueueWrapper {
   final List<MockQueuedOperation> _operations = [];
 
   /// Get all operations that have been enqueued.
-  List<MockQueuedOperation> get queuedOperations => List.unmodifiable(_operations);
+  List<MockQueuedOperation> get queuedOperations =>
+      List.unmodifiable(_operations);
 
   /// Create a mock with default behavior.
   factory MockOfflineQueue.withDefaults() {
     final mock = MockOfflineQueue._();
 
     // Setup default enqueue behavior
-    when(() => mock.enqueue(
-          model: any(named: 'model'),
-          method: any(named: 'method'),
-          recordId: any(named: 'recordId'),
-          values: any(named: 'values'),
-          priority: any(named: 'priority'),
-        )).thenAnswer((invocation) async {
+    when(
+      () => mock.enqueue(
+        model: any(named: 'model'),
+        method: any(named: 'method'),
+        recordId: any(named: 'recordId'),
+        values: any(named: 'values'),
+        priority: any(named: 'priority'),
+      ),
+    ).thenAnswer((invocation) async {
       final op = MockQueuedOperation(
         id: mock._operations.length + 1,
         model: invocation.namedArguments[#model] as String,
         method: invocation.namedArguments[#method] as String,
         recordId: invocation.namedArguments[#recordId] as int?,
-        values: invocation.namedArguments[#values] as Map<String, dynamic>? ?? {},
+        values:
+            invocation.namedArguments[#values] as Map<String, dynamic>? ?? {},
       );
       mock._operations.add(op);
       return op.id;
     });
 
     // Setup default getPendingForModel
-    when(() => mock.getPendingForModel(any()))
-        .thenAnswer((_) async => []);
+    when(() => mock.getPendingForModel(any())).thenAnswer((_) async => []);
 
     // Setup default markCompleted
-    when(() => mock.markCompleted(any()))
-        .thenAnswer((_) async {});
+    when(() => mock.markCompleted(any())).thenAnswer((_) async {});
 
     // Setup default markFailed
-    when(() => mock.markFailed(any(), any()))
-        .thenAnswer((_) async {});
+    when(() => mock.markFailed(any(), any())).thenAnswer((_) async {});
 
     return mock;
   }
@@ -95,8 +96,7 @@ class OfflineQueueMockHelper {
 
   /// Setup all pending operations.
   void setupAllPending(List<OfflineOperation> operations) {
-    when(() => queue.getPending())
-        .thenAnswer((_) async => operations);
+    when(() => queue.getPending()).thenAnswer((_) async => operations);
   }
 
   /// Verify that an operation was enqueued.
@@ -105,13 +105,15 @@ class OfflineQueueMockHelper {
     required String method,
     int? recordId,
   }) {
-    verify(() => queue.enqueue(
-          model: model,
-          method: method,
-          recordId: recordId,
-          values: any(named: 'values'),
-          priority: any(named: 'priority'),
-        )).called(1);
+    verify(
+      () => queue.enqueue(
+        model: model,
+        method: method,
+        recordId: recordId,
+        values: any(named: 'values'),
+        priority: any(named: 'priority'),
+      ),
+    ).called(1);
   }
 }
 

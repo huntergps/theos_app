@@ -1,27 +1,11 @@
 import 'package:fluent_ui/fluent_ui.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
+
 import 'user_provider.dart';
+import '../../core/navigation/route_access_policy.dart';
 import '../../core/services/config_service.dart';
 
 part 'menu_provider.g.dart';
-
-/// Groups that have access to ALL menu options
-const adminGroups = [
-  'account.group_account_manager',
-  'base.group_system',
-];
-
-/// Groups that have access to collection features
-const collectionGroups = [
-  'l10n_ec_collection_box.group_collection_user',
-  'l10n_ec_collection_box.group_collection_manager',
-];
-
-/// Groups that have access to sales features
-const salesGroups = [
-  'sales_team.group_sale_salesman',
-  'sales_team.group_sale_manager',
-];
 
 /// Definition of a menu item with permission requirements
 class MenuItemDefinition {
@@ -29,47 +13,40 @@ class MenuItemDefinition {
   final IconData icon;
   final String title;
 
-  /// List of group names that can access this item.
-  /// If empty, the item is visible to all users.
-  /// If not empty, user must belong to at least one of these groups.
-  final List<String> requiredGroups;
-
   /// Whether this item is in the footer section
   final bool isFooterItem;
 
   /// Whether this is an action item (like logout) vs navigation item
   final bool isAction;
 
-  /// Whether this item is only visible when developer mode is active.
-  /// Developer-only items are hidden by default in production environments.
-  final bool isDeveloperOnly;
-
   const MenuItemDefinition({
     required this.path,
     required this.icon,
     required this.title,
-    this.requiredGroups = const [],
     this.isFooterItem = false,
     this.isAction = false,
-    this.isDeveloperOnly = false,
   });
 
-  /// Check if user has permission to access this menu item
-  bool hasAccess(List<String> userPermissions) {
-    // If no required groups, always accessible
-    if (requiredGroups.isEmpty) return true;
+  List<String> get requiredGroups => RouteAccessPolicy.requiredGroupsFor(path);
 
-    // Check if user has any admin group (access to all)
-    for (final adminGroup in adminGroups) {
-      if (userPermissions.contains(adminGroup)) return true;
-    }
+  bool get isDeveloperOnly => RouteAccessPolicy.isDeveloperOnly(path);
 
-    // Check if user has any of the required groups
-    for (final group in requiredGroups) {
-      if (userPermissions.contains(group)) return true;
-    }
+  /// Check if user has permission to access this menu item.
+  bool hasAccess(
+    List<String> userPermissions, {
+    required bool isAuthenticated,
+    bool developerMode = false,
+  }) {
+    // Actions are not routes and therefore do not belong in the route matrix.
+    // They still require an authenticated shell before being rendered.
+    if (isAction) return isAuthenticated;
 
-    return false;
+    return RouteAccessPolicy.allows(
+      path: path,
+      isAuthenticated: isAuthenticated,
+      permissions: userPermissions,
+      developerMode: developerMode,
+    );
   }
 }
 
@@ -79,18 +56,13 @@ const allMenuItems = [
   // === Main Navigation Items ===
 
   // Always visible
-  MenuItemDefinition(
-    path: '/',
-    icon: FluentIcons.home,
-    title: 'Inicio',
-  ),
+  MenuItemDefinition(path: '/', icon: FluentIcons.home, title: 'Inicio'),
 
   // Collection groups only
   MenuItemDefinition(
     path: '/collection',
     icon: FluentIcons.money,
     title: 'Punto de Cobro',
-    requiredGroups: collectionGroups,
   ),
 
   // Always visible
@@ -105,7 +77,6 @@ const allMenuItems = [
     path: '/sales',
     icon: FluentIcons.bill,
     title: 'Órdenes de Venta',
-    requiredGroups: salesGroups,
   ),
 
   // Both collection and sales groups
@@ -113,17 +84,14 @@ const allMenuItems = [
     path: '/fast-sale',
     icon: FluentIcons.shopping_cart,
     title: 'Venta Rápida',
-    requiredGroups: [...collectionGroups, ...salesGroups],
   ),
 
   // === Footer Items (always visible) ===
-
   MenuItemDefinition(
     path: '/sync',
     icon: FluentIcons.sync,
     title: 'Sincronización',
     isFooterItem: true,
-    requiredGroups: adminGroups,
   ),
 
   MenuItemDefinition(
@@ -131,7 +99,6 @@ const allMenuItems = [
     icon: FluentIcons.cloud_upload,
     title: 'Cola Offline',
     isFooterItem: true,
-    requiredGroups: adminGroups,
   ),
 
   MenuItemDefinition(
@@ -139,8 +106,6 @@ const allMenuItems = [
     icon: FluentIcons.error,
     title: 'Conflictos de Sync',
     isFooterItem: true,
-    requiredGroups: adminGroups,
-    isDeveloperOnly: true,
   ),
 
   MenuItemDefinition(
@@ -148,17 +113,6 @@ const allMenuItems = [
     icon: FluentIcons.warning,
     title: 'Cola Fallida',
     isFooterItem: true,
-    requiredGroups: adminGroups,
-    isDeveloperOnly: true,
-  ),
-
-  MenuItemDefinition(
-    path: '/websocket-debug',
-    icon: FluentIcons.plug_connected,
-    title: 'WebSocket Debug',
-    isFooterItem: true,
-    requiredGroups: adminGroups,
-    isDeveloperOnly: true,
   ),
 
   MenuItemDefinition(
@@ -170,7 +124,7 @@ const allMenuItems = [
 
   // Logout action
   MenuItemDefinition(
-    path: '/logout',
+    path: 'logout',
     icon: FluentIcons.sign_out,
     title: 'Salir',
     isFooterItem: true,
@@ -183,10 +137,7 @@ class FilteredMenuItems {
   final List<MenuItemDefinition> navItems;
   final List<MenuItemDefinition> footerItems;
 
-  const FilteredMenuItems({
-    required this.navItems,
-    required this.footerItems,
-  });
+  const FilteredMenuItems({required this.navItems, required this.footerItems});
 }
 
 /// Provider that returns filtered menu items based on user permissions and developer mode
@@ -201,11 +152,13 @@ FilteredMenuItems filteredMenuItems(Ref ref) {
   final footerItems = <MenuItemDefinition>[];
 
   for (final item in allMenuItems) {
-    // Skip items that require permissions the user does not have
-    if (!item.hasAccess(permissions)) continue;
-
-    // Skip developer-only items unless developer mode is active
-    if (item.isDeveloperOnly && !isDeveloperMode) continue;
+    if (!item.hasAccess(
+      permissions,
+      isAuthenticated: user != null,
+      developerMode: isDeveloperMode,
+    )) {
+      continue;
+    }
 
     if (item.isFooterItem) {
       footerItems.add(item);
@@ -214,10 +167,39 @@ FilteredMenuItems filteredMenuItems(Ref ref) {
     }
   }
 
-  return FilteredMenuItems(
-    navItems: navItems,
-    footerItems: footerItems,
-  );
+  return FilteredMenuItems(navItems: navItems, footerItems: footerItems);
+}
+
+/// Resolves the Fluent navigation index for a route.
+///
+/// Nested destinations inherit the most-specific visible parent item. Action
+/// entries are excluded because Fluent UI does not include [PaneItemAction] in
+/// its effective navigation index.
+int? selectedMenuIndex({
+  required String currentPath,
+  required Iterable<MenuItemDefinition> navItems,
+  required Iterable<MenuItemDefinition> footerItems,
+}) {
+  final items = <MenuItemDefinition>[
+    ...navItems.where((item) => !item.isAction),
+    ...footerItems.where((item) => !item.isAction),
+  ];
+  if (items.isEmpty) return null;
+
+  var selected = -1;
+  var selectedPathLength = -1;
+  for (var index = 0; index < items.length; index++) {
+    final candidate = items[index].path;
+    final matches =
+        currentPath == candidate ||
+        (candidate != '/' && currentPath.startsWith('$candidate/'));
+    if (matches && candidate.length > selectedPathLength) {
+      selected = index;
+      selectedPathLength = candidate.length;
+    }
+  }
+
+  return selected >= 0 ? selected : 0;
 }
 
 /// Check if user has access to a specific route
@@ -228,10 +210,10 @@ bool hasRouteAccess(Ref ref, String path) {
   final config = ref.watch(configServiceProvider);
   final isDeveloperMode = config.developerMode;
 
-  final item = allMenuItems.where((m) => m.path == path).firstOrNull;
-  if (item == null) return true; // Unknown routes are accessible
-
-  if (item.isDeveloperOnly && !isDeveloperMode) return false;
-
-  return item.hasAccess(permissions);
+  return RouteAccessPolicy.allows(
+    path: path,
+    isAuthenticated: user != null,
+    permissions: permissions,
+    developerMode: isDeveloperMode,
+  );
 }

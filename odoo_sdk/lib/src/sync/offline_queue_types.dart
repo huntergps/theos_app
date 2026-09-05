@@ -40,6 +40,78 @@ class RetryBackoff {
   static bool shouldRetry(int retryCount) => retryCount < maxRetries;
 }
 
+/// Durable state of an offline operation.
+enum OfflineOperationStatus {
+  pending('pending'),
+  processing('processing'),
+  recoveryPending('recovery_pending'),
+  completed('completed'),
+  conflict('conflict'),
+  deadLetter('dead_letter');
+
+  const OfflineOperationStatus(this.storageValue);
+
+  final String storageValue;
+
+  static OfflineOperationStatus fromStorage(String? value) {
+    return OfflineOperationStatus.values.firstWhere(
+      (status) => status.storageValue == value,
+      orElse: () => OfflineOperationStatus.pending,
+    );
+  }
+}
+
+/// Retry policy used after a request may have reached the server.
+///
+/// [retrySafe] must only be used when the handler can reconcile the operation
+/// with a durable server-side marker before creating anything again. Unknown
+/// or synthetic commands default to [manualAfterAmbiguous] so a timeout cannot
+/// silently duplicate a financial document.
+enum OfflineReplayPolicy {
+  retrySafe('retry_safe'),
+  manualAfterAmbiguous('manual_after_ambiguous');
+
+  const OfflineReplayPolicy(this.storageValue);
+
+  final String storageValue;
+
+  static OfflineReplayPolicy fromStorage(String? value) {
+    return OfflineReplayPolicy.values.firstWhere(
+      (policy) => policy.storageValue == value,
+      orElse: () => OfflineReplayPolicy.manualAfterAmbiguous,
+    );
+  }
+}
+
+/// Versioned local commands understood by the offline dispatcher.
+///
+/// These names are queue commands, not Odoo method names. Keeping them typed
+/// prevents producers and handlers from silently drifting apart.
+enum OfflineLocalCommand {
+  sessionCreateAndOpen('session_create_and_open', version: 1),
+  sessionOpen('session_open', version: 1),
+  sessionClosingControl('session_closing_control', version: 1),
+  sessionClose('session_close', version: 1),
+  paymentCreate('payment_create', version: 1),
+  paymentWizardApply('payment_wizard_apply', version: 1),
+  partnerCreate('partner_create', version: 1),
+  orderConfirm('order_confirm', version: 1),
+  invoiceCreateWithPayments('invoice_create_with_payments', version: 1),
+  invoiceCollectExisting('invoice_collect_existing', version: 1);
+
+  const OfflineLocalCommand(this.storageName, {required this.version});
+
+  final String storageName;
+  final int version;
+
+  static OfflineLocalCommand? tryParse(String value) {
+    for (final command in values) {
+      if (command.storageName == value) return command;
+    }
+    return null;
+  }
+}
+
 /// Represents an offline operation pending sync
 class OfflineOperation {
   final int id;
@@ -73,6 +145,18 @@ class OfflineOperation {
   /// Last error message
   final String? lastError;
 
+  /// Stable local key used to collapse duplicate enqueue attempts.
+  final String? operationKey;
+
+  /// Version of the local command payload contract.
+  final int commandVersion;
+
+  /// Current durable queue state.
+  final OfflineOperationStatus status;
+
+  /// Whether a failed/ambiguous dispatch can be reconciled and retried safely.
+  final OfflineReplayPolicy replayPolicy;
+
   const OfflineOperation({
     required this.id,
     required this.model,
@@ -88,33 +172,93 @@ class OfflineOperation {
     this.lastRetryAt,
     this.nextRetryAt,
     this.lastError,
+    this.operationKey,
+    this.commandVersion = 1,
+    this.status = OfflineOperationStatus.pending,
+    this.replayPolicy = OfflineReplayPolicy.manualAfterAmbiguous,
   });
 
   /// Check if this operation is ready for retry
   bool get isReadyForRetry {
+    if (status == OfflineOperationStatus.processing ||
+        status == OfflineOperationStatus.completed ||
+        status == OfflineOperationStatus.deadLetter ||
+        status == OfflineOperationStatus.conflict ||
+        hasExceededMaxRetries) {
+      return false;
+    }
     if (nextRetryAt == null) return true;
-    return DateTime.now().isAfter(nextRetryAt!);
+    return !DateTime.now().toUtc().isBefore(nextRetryAt!.toUtc());
   }
 
   /// Check if this operation has exceeded max retries
   bool get hasExceededMaxRetries => !RetryBackoff.shouldRetry(retryCount);
 
   Map<String, dynamic> toMap() => {
-        'id': id,
-        'model': model,
-        'method': method,
-        'record_id': recordId,
-        'values': values,
-        'created_at': createdAt,
-        'base_write_date': baseWriteDate,
-        'parent_order_id': parentOrderId,
-        'priority': priority,
-        'device_id': deviceId,
-        'retry_count': retryCount,
-        'last_retry_at': lastRetryAt,
-        'next_retry_at': nextRetryAt,
-        'last_error': lastError,
-      };
+    'id': id,
+    'model': model,
+    'method': method,
+    'record_id': recordId,
+    'values': values,
+    'created_at': createdAt,
+    'base_write_date': baseWriteDate,
+    'parent_order_id': parentOrderId,
+    'priority': priority,
+    'device_id': deviceId,
+    'retry_count': retryCount,
+    'last_retry_at': lastRetryAt,
+    'next_retry_at': nextRetryAt,
+    'last_error': lastError,
+    'operation_key': operationKey,
+    'command_version': commandVersion,
+    'status': status.storageValue,
+    'replay_policy': replayPolicy.storageValue,
+  };
+
+  OfflineOperation copyWith({
+    int? id,
+    String? model,
+    String? method,
+    int? recordId,
+    Map<String, dynamic>? values,
+    DateTime? createdAt,
+    DateTime? baseWriteDate,
+    int? parentOrderId,
+    int? priority,
+    String? deviceId,
+    int? retryCount,
+    DateTime? lastRetryAt,
+    DateTime? nextRetryAt,
+    String? lastError,
+    String? operationKey,
+    int? commandVersion,
+    OfflineOperationStatus? status,
+    OfflineReplayPolicy? replayPolicy,
+    bool clearLastRetryAt = false,
+    bool clearNextRetryAt = false,
+    bool clearLastError = false,
+  }) {
+    return OfflineOperation(
+      id: id ?? this.id,
+      model: model ?? this.model,
+      method: method ?? this.method,
+      recordId: recordId ?? this.recordId,
+      values: values ?? this.values,
+      createdAt: createdAt ?? this.createdAt,
+      baseWriteDate: baseWriteDate ?? this.baseWriteDate,
+      parentOrderId: parentOrderId ?? this.parentOrderId,
+      priority: priority ?? this.priority,
+      deviceId: deviceId ?? this.deviceId,
+      retryCount: retryCount ?? this.retryCount,
+      lastRetryAt: clearLastRetryAt ? null : lastRetryAt ?? this.lastRetryAt,
+      nextRetryAt: clearNextRetryAt ? null : nextRetryAt ?? this.nextRetryAt,
+      lastError: clearLastError ? null : lastError ?? this.lastError,
+      operationKey: operationKey ?? this.operationKey,
+      commandVersion: commandVersion ?? this.commandVersion,
+      status: status ?? this.status,
+      replayPolicy: replayPolicy ?? this.replayPolicy,
+    );
+  }
 }
 
 /// Interface for offline queue data sources.
@@ -128,6 +272,9 @@ abstract class OfflineQueueStore {
     int? parentOrderId,
     int priority,
     String? deviceId,
+    String? operationKey,
+    int commandVersion = 1,
+    OfflineReplayPolicy? replayPolicy,
   });
 
   Future<List<OfflineOperation>> getPendingOperations({
@@ -184,4 +331,49 @@ abstract class OfflineQueueStore {
   /// operación vuelve a estar disponible de inmediato para
   /// [getPendingOperations] en el siguiente ciclo.
   Future<void> markOperationPending(int id);
+
+  /// Retains a successful/terminal operation as immutable audit evidence.
+  Future<void> markOperationCompleted(int id);
+
+  /// Holds an operation outside the automatic queue until a user resolves it.
+  Future<void> markOperationConflict(int id);
+
+  /// Moves an operation to dead letter without deleting its payload/audit trail.
+  Future<void> markOperationDeadLetter(int id, String errorMessage);
+
+  /// Replaces the payload while preserving identity/retry metadata.
+  ///
+  /// Used by queue compaction to merge consecutive writes without losing
+  /// fields from earlier patches.
+  Future<void> replaceOperationValues(int id, Map<String, dynamic> values);
+}
+
+/// Typed convenience API for local composite commands.
+extension OfflineQueueCommandStore on OfflineQueueStore {
+  Future<int> queueCommand({
+    required String model,
+    required OfflineLocalCommand command,
+    int? recordId,
+    required Map<String, dynamic> values,
+    DateTime? baseWriteDate,
+    int? parentOrderId,
+    int priority = OfflinePriority.normal,
+    String? deviceId,
+    String? operationKey,
+    OfflineReplayPolicy? replayPolicy,
+  }) {
+    return queueOperation(
+      model: model,
+      method: command.storageName,
+      recordId: recordId,
+      values: values,
+      baseWriteDate: baseWriteDate,
+      parentOrderId: parentOrderId,
+      priority: priority,
+      deviceId: deviceId,
+      operationKey: operationKey,
+      commandVersion: command.version,
+      replayPolicy: replayPolicy,
+    );
+  }
 }

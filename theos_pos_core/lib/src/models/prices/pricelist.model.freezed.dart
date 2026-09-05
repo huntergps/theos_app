@@ -1,6 +1,6 @@
 // GENERATED CODE - DO NOT MODIFY BY HAND
 // coverage:ignore-file
-// ignore_for_file: type=lint
+// ignore_for_file: type=lint, type=warning, deprecated_member_use, deprecated_member_use_from_same_package
 // ignore_for_file: unused_element, deprecated_member_use, deprecated_member_use_from_same_package, use_function_type_syntax_for_parameters, unnecessary_const, avoid_init_to_null, invalid_override_different_default_values_named, prefer_expression_function_bodies, annotate_overrides, invalid_annotation_target, unnecessary_question_mark
 
 part of 'pricelist.model.dart';
@@ -9,14 +9,13 @@ part of 'pricelist.model.dart';
 // FreezedGenerator
 // **************************************************************************
 
+// GENERATED CODE - DO NOT MODIFY BY HAND
 // dart format off
 T _$identity<T>(T value) => value;
 /// @nodoc
 mixin _$Pricelist {
 
-@OdooId() int get id;@OdooString() String get name;@OdooBoolean() bool get active;@OdooMany2One('res.currency', odooName: 'currency_id') int? get currencyId;@OdooMany2OneName(sourceField: 'currency_id') String? get currencyName;@OdooMany2One('res.company', odooName: 'company_id') int? get companyId;@OdooMany2OneName(sourceField: 'company_id') String? get companyName;@OdooInteger() int get sequence;// Odoo 19.5 (erp1): 'discount_policy' ya no existe en product.pricelist
-// del servidor (smoke fields_get, julio 2026).
-@OdooLocalOnly() String? get discountPolicy;@OdooDateTime(odooName: 'write_date', writable: false) DateTime? get writeDate;
+@OdooId() int get id;@OdooString() String get name;@OdooBoolean() bool get active;@OdooMany2One('res.currency', odooName: 'currency_id') int? get currencyId;@OdooMany2OneName(sourceField: 'currency_id') String? get currencyName;@OdooMany2One('res.company', odooName: 'company_id') int? get companyId;@OdooMany2OneName(sourceField: 'company_id') String? get companyName;@OdooInteger() int get sequence;@OdooLocalOnly() String? get discountPolicy;@OdooDateTime(odooName: 'write_date', writable: false) DateTime? get writeDate;
 /// Create a copy of Pricelist
 /// with the given fields replaced by the non-null parameter values.
 @JsonKey(includeFromJson: false, includeToJson: false)
@@ -65,7 +64,7 @@ class _$PricelistCopyWithImpl<$Res>
 /// Create a copy of Pricelist
 /// with the given fields replaced by the non-null parameter values.
 @pragma('vm:prefer-inline') @override $Res call({Object? id = null,Object? name = null,Object? active = null,Object? currencyId = freezed,Object? currencyName = freezed,Object? companyId = freezed,Object? companyName = freezed,Object? sequence = null,Object? discountPolicy = freezed,Object? writeDate = freezed,}) {
-  return _then(_self.copyWith(
+  return _then(Pricelist(
 id: null == id ? _self.id : id // ignore: cast_nullable_to_non_nullable
 as int,name: null == name ? _self.name : name // ignore: cast_nullable_to_non_nullable
 as String,active: null == active ? _self.active : active // ignore: cast_nullable_to_non_nullable
@@ -228,8 +227,6 @@ class _Pricelist extends Pricelist {
 @override@OdooMany2One('res.company', odooName: 'company_id') final  int? companyId;
 @override@OdooMany2OneName(sourceField: 'company_id') final  String? companyName;
 @override@JsonKey()@OdooInteger() final  int sequence;
-// Odoo 19.5 (erp1): 'discount_policy' ya no existe en product.pricelist
-// del servidor (smoke fields_get, julio 2026).
 @override@OdooLocalOnly() final  String? discountPolicy;
 @override@OdooDateTime(odooName: 'write_date', writable: false) final  DateTime? writeDate;
 
@@ -302,7 +299,7 @@ as DateTime?,
 /// @nodoc
 mixin _$PricelistItem {
 
- int get id; int get odooId; String? get uuid; int get pricelistId; int? get productTmplId; int? get productId; int? get categId; String get appliedOn; double get minQuantity; DateTime? get dateStart; DateTime? get dateEnd; String get computePrice; double get fixedPrice; double get percentPrice; int get sequence; int? get uomId; String get base; int? get basePricelistId; double get priceDiscount; double get priceSurcharge; double? get priceRound; double? get priceMinMargin; double? get priceMaxMargin; DateTime? get writeDate;
+@OdooId() int get id;@OdooMany2One('product.pricelist', odooName: 'pricelist_id') int get pricelistId;@OdooMany2One('product.template', odooName: 'product_tmpl_id') int? get productTmplId;@OdooMany2One('product.product', odooName: 'product_id') int? get productId;@OdooMany2One('product.category', odooName: 'categ_id') int? get categId;@OdooSelection() String get appliedOn;@OdooFloat() double get minQuantity;@OdooDateTime() DateTime? get dateStart;@OdooDateTime() DateTime? get dateEnd;@OdooSelection() String get computePrice;@OdooFloat() double get fixedPrice;@OdooFloat() double get percentPrice; int get sequence;@OdooLocalOnly() int? get uomId;@OdooSelection() String get base;@OdooMany2One('product.pricelist', odooName: 'base_pricelist_id') int? get basePricelistId;@OdooFloat() double get priceDiscount;@OdooFloat() double get priceSurcharge;@OdooFloat() double get priceRound;@OdooFloat() double get priceMinMargin;@OdooFloat() double get priceMaxMargin;@OdooDateTime(odooName: 'write_date', writable: false) DateTime? get writeDate;
 /// Create a copy of PricelistItem
 /// with the given fields replaced by the non-null parameter values.
 @JsonKey(includeFromJson: false, includeToJson: false)
@@ -313,16 +310,16 @@ $PricelistItemCopyWith<PricelistItem> get copyWith => _$PricelistItemCopyWithImp
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is PricelistItem&&(identical(other.id, id) || other.id == id)&&(identical(other.odooId, odooId) || other.odooId == odooId)&&(identical(other.uuid, uuid) || other.uuid == uuid)&&(identical(other.pricelistId, pricelistId) || other.pricelistId == pricelistId)&&(identical(other.productTmplId, productTmplId) || other.productTmplId == productTmplId)&&(identical(other.productId, productId) || other.productId == productId)&&(identical(other.categId, categId) || other.categId == categId)&&(identical(other.appliedOn, appliedOn) || other.appliedOn == appliedOn)&&(identical(other.minQuantity, minQuantity) || other.minQuantity == minQuantity)&&(identical(other.dateStart, dateStart) || other.dateStart == dateStart)&&(identical(other.dateEnd, dateEnd) || other.dateEnd == dateEnd)&&(identical(other.computePrice, computePrice) || other.computePrice == computePrice)&&(identical(other.fixedPrice, fixedPrice) || other.fixedPrice == fixedPrice)&&(identical(other.percentPrice, percentPrice) || other.percentPrice == percentPrice)&&(identical(other.sequence, sequence) || other.sequence == sequence)&&(identical(other.uomId, uomId) || other.uomId == uomId)&&(identical(other.base, base) || other.base == base)&&(identical(other.basePricelistId, basePricelistId) || other.basePricelistId == basePricelistId)&&(identical(other.priceDiscount, priceDiscount) || other.priceDiscount == priceDiscount)&&(identical(other.priceSurcharge, priceSurcharge) || other.priceSurcharge == priceSurcharge)&&(identical(other.priceRound, priceRound) || other.priceRound == priceRound)&&(identical(other.priceMinMargin, priceMinMargin) || other.priceMinMargin == priceMinMargin)&&(identical(other.priceMaxMargin, priceMaxMargin) || other.priceMaxMargin == priceMaxMargin)&&(identical(other.writeDate, writeDate) || other.writeDate == writeDate));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is PricelistItem&&(identical(other.id, id) || other.id == id)&&(identical(other.pricelistId, pricelistId) || other.pricelistId == pricelistId)&&(identical(other.productTmplId, productTmplId) || other.productTmplId == productTmplId)&&(identical(other.productId, productId) || other.productId == productId)&&(identical(other.categId, categId) || other.categId == categId)&&(identical(other.appliedOn, appliedOn) || other.appliedOn == appliedOn)&&(identical(other.minQuantity, minQuantity) || other.minQuantity == minQuantity)&&(identical(other.dateStart, dateStart) || other.dateStart == dateStart)&&(identical(other.dateEnd, dateEnd) || other.dateEnd == dateEnd)&&(identical(other.computePrice, computePrice) || other.computePrice == computePrice)&&(identical(other.fixedPrice, fixedPrice) || other.fixedPrice == fixedPrice)&&(identical(other.percentPrice, percentPrice) || other.percentPrice == percentPrice)&&(identical(other.sequence, sequence) || other.sequence == sequence)&&(identical(other.uomId, uomId) || other.uomId == uomId)&&(identical(other.base, base) || other.base == base)&&(identical(other.basePricelistId, basePricelistId) || other.basePricelistId == basePricelistId)&&(identical(other.priceDiscount, priceDiscount) || other.priceDiscount == priceDiscount)&&(identical(other.priceSurcharge, priceSurcharge) || other.priceSurcharge == priceSurcharge)&&(identical(other.priceRound, priceRound) || other.priceRound == priceRound)&&(identical(other.priceMinMargin, priceMinMargin) || other.priceMinMargin == priceMinMargin)&&(identical(other.priceMaxMargin, priceMaxMargin) || other.priceMaxMargin == priceMaxMargin)&&(identical(other.writeDate, writeDate) || other.writeDate == writeDate));
 }
 
 
 @override
-int get hashCode => Object.hashAll([runtimeType,id,odooId,uuid,pricelistId,productTmplId,productId,categId,appliedOn,minQuantity,dateStart,dateEnd,computePrice,fixedPrice,percentPrice,sequence,uomId,base,basePricelistId,priceDiscount,priceSurcharge,priceRound,priceMinMargin,priceMaxMargin,writeDate]);
+int get hashCode => Object.hashAll([runtimeType,id,pricelistId,productTmplId,productId,categId,appliedOn,minQuantity,dateStart,dateEnd,computePrice,fixedPrice,percentPrice,sequence,uomId,base,basePricelistId,priceDiscount,priceSurcharge,priceRound,priceMinMargin,priceMaxMargin,writeDate]);
 
 @override
 String toString() {
-  return 'PricelistItem(id: $id, odooId: $odooId, uuid: $uuid, pricelistId: $pricelistId, productTmplId: $productTmplId, productId: $productId, categId: $categId, appliedOn: $appliedOn, minQuantity: $minQuantity, dateStart: $dateStart, dateEnd: $dateEnd, computePrice: $computePrice, fixedPrice: $fixedPrice, percentPrice: $percentPrice, sequence: $sequence, uomId: $uomId, base: $base, basePricelistId: $basePricelistId, priceDiscount: $priceDiscount, priceSurcharge: $priceSurcharge, priceRound: $priceRound, priceMinMargin: $priceMinMargin, priceMaxMargin: $priceMaxMargin, writeDate: $writeDate)';
+  return 'PricelistItem(id: $id, pricelistId: $pricelistId, productTmplId: $productTmplId, productId: $productId, categId: $categId, appliedOn: $appliedOn, minQuantity: $minQuantity, dateStart: $dateStart, dateEnd: $dateEnd, computePrice: $computePrice, fixedPrice: $fixedPrice, percentPrice: $percentPrice, sequence: $sequence, uomId: $uomId, base: $base, basePricelistId: $basePricelistId, priceDiscount: $priceDiscount, priceSurcharge: $priceSurcharge, priceRound: $priceRound, priceMinMargin: $priceMinMargin, priceMaxMargin: $priceMaxMargin, writeDate: $writeDate)';
 }
 
 
@@ -333,7 +330,7 @@ abstract mixin class $PricelistItemCopyWith<$Res>  {
   factory $PricelistItemCopyWith(PricelistItem value, $Res Function(PricelistItem) _then) = _$PricelistItemCopyWithImpl;
 @useResult
 $Res call({
- int id, int odooId, String? uuid, int pricelistId, int? productTmplId, int? productId, int? categId, String appliedOn, double minQuantity, DateTime? dateStart, DateTime? dateEnd, String computePrice, double fixedPrice, double percentPrice, int sequence, int? uomId, String base, int? basePricelistId, double priceDiscount, double priceSurcharge, double? priceRound, double? priceMinMargin, double? priceMaxMargin, DateTime? writeDate
+@OdooId() int id,@OdooMany2One('product.pricelist', odooName: 'pricelist_id') int pricelistId,@OdooMany2One('product.template', odooName: 'product_tmpl_id') int? productTmplId,@OdooMany2One('product.product', odooName: 'product_id') int? productId,@OdooMany2One('product.category', odooName: 'categ_id') int? categId,@OdooSelection() String appliedOn,@OdooFloat() double minQuantity,@OdooDateTime() DateTime? dateStart,@OdooDateTime() DateTime? dateEnd,@OdooSelection() String computePrice,@OdooFloat() double fixedPrice,@OdooFloat() double percentPrice, int sequence,@OdooLocalOnly() int? uomId,@OdooSelection() String base,@OdooMany2One('product.pricelist', odooName: 'base_pricelist_id') int? basePricelistId,@OdooFloat() double priceDiscount,@OdooFloat() double priceSurcharge,@OdooFloat() double priceRound,@OdooFloat() double priceMinMargin,@OdooFloat() double priceMaxMargin,@OdooDateTime(odooName: 'write_date', writable: false) DateTime? writeDate
 });
 
 
@@ -350,12 +347,10 @@ class _$PricelistItemCopyWithImpl<$Res>
 
 /// Create a copy of PricelistItem
 /// with the given fields replaced by the non-null parameter values.
-@pragma('vm:prefer-inline') @override $Res call({Object? id = null,Object? odooId = null,Object? uuid = freezed,Object? pricelistId = null,Object? productTmplId = freezed,Object? productId = freezed,Object? categId = freezed,Object? appliedOn = null,Object? minQuantity = null,Object? dateStart = freezed,Object? dateEnd = freezed,Object? computePrice = null,Object? fixedPrice = null,Object? percentPrice = null,Object? sequence = null,Object? uomId = freezed,Object? base = null,Object? basePricelistId = freezed,Object? priceDiscount = null,Object? priceSurcharge = null,Object? priceRound = freezed,Object? priceMinMargin = freezed,Object? priceMaxMargin = freezed,Object? writeDate = freezed,}) {
-  return _then(_self.copyWith(
+@pragma('vm:prefer-inline') @override $Res call({Object? id = null,Object? pricelistId = null,Object? productTmplId = freezed,Object? productId = freezed,Object? categId = freezed,Object? appliedOn = null,Object? minQuantity = null,Object? dateStart = freezed,Object? dateEnd = freezed,Object? computePrice = null,Object? fixedPrice = null,Object? percentPrice = null,Object? sequence = null,Object? uomId = freezed,Object? base = null,Object? basePricelistId = freezed,Object? priceDiscount = null,Object? priceSurcharge = null,Object? priceRound = null,Object? priceMinMargin = null,Object? priceMaxMargin = null,Object? writeDate = freezed,}) {
+  return _then(PricelistItem(
 id: null == id ? _self.id : id // ignore: cast_nullable_to_non_nullable
-as int,odooId: null == odooId ? _self.odooId : odooId // ignore: cast_nullable_to_non_nullable
-as int,uuid: freezed == uuid ? _self.uuid : uuid // ignore: cast_nullable_to_non_nullable
-as String?,pricelistId: null == pricelistId ? _self.pricelistId : pricelistId // ignore: cast_nullable_to_non_nullable
+as int,pricelistId: null == pricelistId ? _self.pricelistId : pricelistId // ignore: cast_nullable_to_non_nullable
 as int,productTmplId: freezed == productTmplId ? _self.productTmplId : productTmplId // ignore: cast_nullable_to_non_nullable
 as int?,productId: freezed == productId ? _self.productId : productId // ignore: cast_nullable_to_non_nullable
 as int?,categId: freezed == categId ? _self.categId : categId // ignore: cast_nullable_to_non_nullable
@@ -372,10 +367,10 @@ as int?,base: null == base ? _self.base : base // ignore: cast_nullable_to_non_n
 as String,basePricelistId: freezed == basePricelistId ? _self.basePricelistId : basePricelistId // ignore: cast_nullable_to_non_nullable
 as int?,priceDiscount: null == priceDiscount ? _self.priceDiscount : priceDiscount // ignore: cast_nullable_to_non_nullable
 as double,priceSurcharge: null == priceSurcharge ? _self.priceSurcharge : priceSurcharge // ignore: cast_nullable_to_non_nullable
-as double,priceRound: freezed == priceRound ? _self.priceRound : priceRound // ignore: cast_nullable_to_non_nullable
-as double?,priceMinMargin: freezed == priceMinMargin ? _self.priceMinMargin : priceMinMargin // ignore: cast_nullable_to_non_nullable
-as double?,priceMaxMargin: freezed == priceMaxMargin ? _self.priceMaxMargin : priceMaxMargin // ignore: cast_nullable_to_non_nullable
-as double?,writeDate: freezed == writeDate ? _self.writeDate : writeDate // ignore: cast_nullable_to_non_nullable
+as double,priceRound: null == priceRound ? _self.priceRound : priceRound // ignore: cast_nullable_to_non_nullable
+as double,priceMinMargin: null == priceMinMargin ? _self.priceMinMargin : priceMinMargin // ignore: cast_nullable_to_non_nullable
+as double,priceMaxMargin: null == priceMaxMargin ? _self.priceMaxMargin : priceMaxMargin // ignore: cast_nullable_to_non_nullable
+as double,writeDate: freezed == writeDate ? _self.writeDate : writeDate // ignore: cast_nullable_to_non_nullable
 as DateTime?,
   ));
 }
@@ -461,10 +456,10 @@ return $default(_that);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( int id,  int odooId,  String? uuid,  int pricelistId,  int? productTmplId,  int? productId,  int? categId,  String appliedOn,  double minQuantity,  DateTime? dateStart,  DateTime? dateEnd,  String computePrice,  double fixedPrice,  double percentPrice,  int sequence,  int? uomId,  String base,  int? basePricelistId,  double priceDiscount,  double priceSurcharge,  double? priceRound,  double? priceMinMargin,  double? priceMaxMargin,  DateTime? writeDate)?  $default,{required TResult orElse(),}) {final _that = this;
+@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function(@OdooId()  int id, @OdooMany2One('product.pricelist', odooName: 'pricelist_id')  int pricelistId, @OdooMany2One('product.template', odooName: 'product_tmpl_id')  int? productTmplId, @OdooMany2One('product.product', odooName: 'product_id')  int? productId, @OdooMany2One('product.category', odooName: 'categ_id')  int? categId, @OdooSelection()  String appliedOn, @OdooFloat()  double minQuantity, @OdooDateTime()  DateTime? dateStart, @OdooDateTime()  DateTime? dateEnd, @OdooSelection()  String computePrice, @OdooFloat()  double fixedPrice, @OdooFloat()  double percentPrice,  int sequence, @OdooLocalOnly()  int? uomId, @OdooSelection()  String base, @OdooMany2One('product.pricelist', odooName: 'base_pricelist_id')  int? basePricelistId, @OdooFloat()  double priceDiscount, @OdooFloat()  double priceSurcharge, @OdooFloat()  double priceRound, @OdooFloat()  double priceMinMargin, @OdooFloat()  double priceMaxMargin, @OdooDateTime(odooName: 'write_date', writable: false)  DateTime? writeDate)?  $default,{required TResult orElse(),}) {final _that = this;
 switch (_that) {
 case _PricelistItem() when $default != null:
-return $default(_that.id,_that.odooId,_that.uuid,_that.pricelistId,_that.productTmplId,_that.productId,_that.categId,_that.appliedOn,_that.minQuantity,_that.dateStart,_that.dateEnd,_that.computePrice,_that.fixedPrice,_that.percentPrice,_that.sequence,_that.uomId,_that.base,_that.basePricelistId,_that.priceDiscount,_that.priceSurcharge,_that.priceRound,_that.priceMinMargin,_that.priceMaxMargin,_that.writeDate);case _:
+return $default(_that.id,_that.pricelistId,_that.productTmplId,_that.productId,_that.categId,_that.appliedOn,_that.minQuantity,_that.dateStart,_that.dateEnd,_that.computePrice,_that.fixedPrice,_that.percentPrice,_that.sequence,_that.uomId,_that.base,_that.basePricelistId,_that.priceDiscount,_that.priceSurcharge,_that.priceRound,_that.priceMinMargin,_that.priceMaxMargin,_that.writeDate);case _:
   return orElse();
 
 }
@@ -482,10 +477,10 @@ return $default(_that.id,_that.odooId,_that.uuid,_that.pricelistId,_that.product
 /// }
 /// ```
 
-@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( int id,  int odooId,  String? uuid,  int pricelistId,  int? productTmplId,  int? productId,  int? categId,  String appliedOn,  double minQuantity,  DateTime? dateStart,  DateTime? dateEnd,  String computePrice,  double fixedPrice,  double percentPrice,  int sequence,  int? uomId,  String base,  int? basePricelistId,  double priceDiscount,  double priceSurcharge,  double? priceRound,  double? priceMinMargin,  double? priceMaxMargin,  DateTime? writeDate)  $default,) {final _that = this;
+@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function(@OdooId()  int id, @OdooMany2One('product.pricelist', odooName: 'pricelist_id')  int pricelistId, @OdooMany2One('product.template', odooName: 'product_tmpl_id')  int? productTmplId, @OdooMany2One('product.product', odooName: 'product_id')  int? productId, @OdooMany2One('product.category', odooName: 'categ_id')  int? categId, @OdooSelection()  String appliedOn, @OdooFloat()  double minQuantity, @OdooDateTime()  DateTime? dateStart, @OdooDateTime()  DateTime? dateEnd, @OdooSelection()  String computePrice, @OdooFloat()  double fixedPrice, @OdooFloat()  double percentPrice,  int sequence, @OdooLocalOnly()  int? uomId, @OdooSelection()  String base, @OdooMany2One('product.pricelist', odooName: 'base_pricelist_id')  int? basePricelistId, @OdooFloat()  double priceDiscount, @OdooFloat()  double priceSurcharge, @OdooFloat()  double priceRound, @OdooFloat()  double priceMinMargin, @OdooFloat()  double priceMaxMargin, @OdooDateTime(odooName: 'write_date', writable: false)  DateTime? writeDate)  $default,) {final _that = this;
 switch (_that) {
 case _PricelistItem():
-return $default(_that.id,_that.odooId,_that.uuid,_that.pricelistId,_that.productTmplId,_that.productId,_that.categId,_that.appliedOn,_that.minQuantity,_that.dateStart,_that.dateEnd,_that.computePrice,_that.fixedPrice,_that.percentPrice,_that.sequence,_that.uomId,_that.base,_that.basePricelistId,_that.priceDiscount,_that.priceSurcharge,_that.priceRound,_that.priceMinMargin,_that.priceMaxMargin,_that.writeDate);case _:
+return $default(_that.id,_that.pricelistId,_that.productTmplId,_that.productId,_that.categId,_that.appliedOn,_that.minQuantity,_that.dateStart,_that.dateEnd,_that.computePrice,_that.fixedPrice,_that.percentPrice,_that.sequence,_that.uomId,_that.base,_that.basePricelistId,_that.priceDiscount,_that.priceSurcharge,_that.priceRound,_that.priceMinMargin,_that.priceMaxMargin,_that.writeDate);case _:
   throw StateError('Unexpected subclass');
 
 }
@@ -502,10 +497,10 @@ return $default(_that.id,_that.odooId,_that.uuid,_that.pricelistId,_that.product
 /// }
 /// ```
 
-@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( int id,  int odooId,  String? uuid,  int pricelistId,  int? productTmplId,  int? productId,  int? categId,  String appliedOn,  double minQuantity,  DateTime? dateStart,  DateTime? dateEnd,  String computePrice,  double fixedPrice,  double percentPrice,  int sequence,  int? uomId,  String base,  int? basePricelistId,  double priceDiscount,  double priceSurcharge,  double? priceRound,  double? priceMinMargin,  double? priceMaxMargin,  DateTime? writeDate)?  $default,) {final _that = this;
+@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function(@OdooId()  int id, @OdooMany2One('product.pricelist', odooName: 'pricelist_id')  int pricelistId, @OdooMany2One('product.template', odooName: 'product_tmpl_id')  int? productTmplId, @OdooMany2One('product.product', odooName: 'product_id')  int? productId, @OdooMany2One('product.category', odooName: 'categ_id')  int? categId, @OdooSelection()  String appliedOn, @OdooFloat()  double minQuantity, @OdooDateTime()  DateTime? dateStart, @OdooDateTime()  DateTime? dateEnd, @OdooSelection()  String computePrice, @OdooFloat()  double fixedPrice, @OdooFloat()  double percentPrice,  int sequence, @OdooLocalOnly()  int? uomId, @OdooSelection()  String base, @OdooMany2One('product.pricelist', odooName: 'base_pricelist_id')  int? basePricelistId, @OdooFloat()  double priceDiscount, @OdooFloat()  double priceSurcharge, @OdooFloat()  double priceRound, @OdooFloat()  double priceMinMargin, @OdooFloat()  double priceMaxMargin, @OdooDateTime(odooName: 'write_date', writable: false)  DateTime? writeDate)?  $default,) {final _that = this;
 switch (_that) {
 case _PricelistItem() when $default != null:
-return $default(_that.id,_that.odooId,_that.uuid,_that.pricelistId,_that.productTmplId,_that.productId,_that.categId,_that.appliedOn,_that.minQuantity,_that.dateStart,_that.dateEnd,_that.computePrice,_that.fixedPrice,_that.percentPrice,_that.sequence,_that.uomId,_that.base,_that.basePricelistId,_that.priceDiscount,_that.priceSurcharge,_that.priceRound,_that.priceMinMargin,_that.priceMaxMargin,_that.writeDate);case _:
+return $default(_that.id,_that.pricelistId,_that.productTmplId,_that.productId,_that.categId,_that.appliedOn,_that.minQuantity,_that.dateStart,_that.dateEnd,_that.computePrice,_that.fixedPrice,_that.percentPrice,_that.sequence,_that.uomId,_that.base,_that.basePricelistId,_that.priceDiscount,_that.priceSurcharge,_that.priceRound,_that.priceMinMargin,_that.priceMaxMargin,_that.writeDate);case _:
   return null;
 
 }
@@ -517,33 +512,31 @@ return $default(_that.id,_that.odooId,_that.uuid,_that.pricelistId,_that.product
 
 
 class _PricelistItem extends PricelistItem {
-  const _PricelistItem({required this.id, required this.odooId, this.uuid, required this.pricelistId, this.productTmplId, this.productId, this.categId, this.appliedOn = '3_global', this.minQuantity = 0.0, this.dateStart, this.dateEnd, this.computePrice = 'fixed', this.fixedPrice = 0.0, this.percentPrice = 0.0, this.sequence = 5, this.uomId, this.base = 'list_price', this.basePricelistId, this.priceDiscount = 0.0, this.priceSurcharge = 0.0, this.priceRound, this.priceMinMargin, this.priceMaxMargin, this.writeDate}): super._();
+  const _PricelistItem({@OdooId() required this.id, @OdooMany2One('product.pricelist', odooName: 'pricelist_id') required this.pricelistId, @OdooMany2One('product.template', odooName: 'product_tmpl_id') this.productTmplId, @OdooMany2One('product.product', odooName: 'product_id') this.productId, @OdooMany2One('product.category', odooName: 'categ_id') this.categId, @OdooSelection() this.appliedOn = '3_global', @OdooFloat() this.minQuantity = 0.0, @OdooDateTime() this.dateStart, @OdooDateTime() this.dateEnd, @OdooSelection() this.computePrice = 'fixed', @OdooFloat() this.fixedPrice = 0.0, @OdooFloat() this.percentPrice = 0.0, this.sequence = 5, @OdooLocalOnly() this.uomId, @OdooSelection() this.base = 'list_price', @OdooMany2One('product.pricelist', odooName: 'base_pricelist_id') this.basePricelistId, @OdooFloat() this.priceDiscount = 0.0, @OdooFloat() this.priceSurcharge = 0.0, @OdooFloat() this.priceRound = 0.0, @OdooFloat() this.priceMinMargin = 0.0, @OdooFloat() this.priceMaxMargin = 0.0, @OdooDateTime(odooName: 'write_date', writable: false) this.writeDate}): super._();
   
 
-@override final  int id;
-@override final  int odooId;
-@override final  String? uuid;
-@override final  int pricelistId;
-@override final  int? productTmplId;
-@override final  int? productId;
-@override final  int? categId;
-@override@JsonKey() final  String appliedOn;
-@override@JsonKey() final  double minQuantity;
-@override final  DateTime? dateStart;
-@override final  DateTime? dateEnd;
-@override@JsonKey() final  String computePrice;
-@override@JsonKey() final  double fixedPrice;
-@override@JsonKey() final  double percentPrice;
+@override@OdooId() final  int id;
+@override@OdooMany2One('product.pricelist', odooName: 'pricelist_id') final  int pricelistId;
+@override@OdooMany2One('product.template', odooName: 'product_tmpl_id') final  int? productTmplId;
+@override@OdooMany2One('product.product', odooName: 'product_id') final  int? productId;
+@override@OdooMany2One('product.category', odooName: 'categ_id') final  int? categId;
+@override@JsonKey()@OdooSelection() final  String appliedOn;
+@override@JsonKey()@OdooFloat() final  double minQuantity;
+@override@OdooDateTime() final  DateTime? dateStart;
+@override@OdooDateTime() final  DateTime? dateEnd;
+@override@JsonKey()@OdooSelection() final  String computePrice;
+@override@JsonKey()@OdooFloat() final  double fixedPrice;
+@override@JsonKey()@OdooFloat() final  double percentPrice;
 @override@JsonKey() final  int sequence;
-@override final  int? uomId;
-@override@JsonKey() final  String base;
-@override final  int? basePricelistId;
-@override@JsonKey() final  double priceDiscount;
-@override@JsonKey() final  double priceSurcharge;
-@override final  double? priceRound;
-@override final  double? priceMinMargin;
-@override final  double? priceMaxMargin;
-@override final  DateTime? writeDate;
+@override@OdooLocalOnly() final  int? uomId;
+@override@JsonKey()@OdooSelection() final  String base;
+@override@OdooMany2One('product.pricelist', odooName: 'base_pricelist_id') final  int? basePricelistId;
+@override@JsonKey()@OdooFloat() final  double priceDiscount;
+@override@JsonKey()@OdooFloat() final  double priceSurcharge;
+@override@JsonKey()@OdooFloat() final  double priceRound;
+@override@JsonKey()@OdooFloat() final  double priceMinMargin;
+@override@JsonKey()@OdooFloat() final  double priceMaxMargin;
+@override@OdooDateTime(odooName: 'write_date', writable: false) final  DateTime? writeDate;
 
 /// Create a copy of PricelistItem
 /// with the given fields replaced by the non-null parameter values.
@@ -555,16 +548,16 @@ _$PricelistItemCopyWith<_PricelistItem> get copyWith => __$PricelistItemCopyWith
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _PricelistItem&&(identical(other.id, id) || other.id == id)&&(identical(other.odooId, odooId) || other.odooId == odooId)&&(identical(other.uuid, uuid) || other.uuid == uuid)&&(identical(other.pricelistId, pricelistId) || other.pricelistId == pricelistId)&&(identical(other.productTmplId, productTmplId) || other.productTmplId == productTmplId)&&(identical(other.productId, productId) || other.productId == productId)&&(identical(other.categId, categId) || other.categId == categId)&&(identical(other.appliedOn, appliedOn) || other.appliedOn == appliedOn)&&(identical(other.minQuantity, minQuantity) || other.minQuantity == minQuantity)&&(identical(other.dateStart, dateStart) || other.dateStart == dateStart)&&(identical(other.dateEnd, dateEnd) || other.dateEnd == dateEnd)&&(identical(other.computePrice, computePrice) || other.computePrice == computePrice)&&(identical(other.fixedPrice, fixedPrice) || other.fixedPrice == fixedPrice)&&(identical(other.percentPrice, percentPrice) || other.percentPrice == percentPrice)&&(identical(other.sequence, sequence) || other.sequence == sequence)&&(identical(other.uomId, uomId) || other.uomId == uomId)&&(identical(other.base, base) || other.base == base)&&(identical(other.basePricelistId, basePricelistId) || other.basePricelistId == basePricelistId)&&(identical(other.priceDiscount, priceDiscount) || other.priceDiscount == priceDiscount)&&(identical(other.priceSurcharge, priceSurcharge) || other.priceSurcharge == priceSurcharge)&&(identical(other.priceRound, priceRound) || other.priceRound == priceRound)&&(identical(other.priceMinMargin, priceMinMargin) || other.priceMinMargin == priceMinMargin)&&(identical(other.priceMaxMargin, priceMaxMargin) || other.priceMaxMargin == priceMaxMargin)&&(identical(other.writeDate, writeDate) || other.writeDate == writeDate));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is _PricelistItem&&(identical(other.id, id) || other.id == id)&&(identical(other.pricelistId, pricelistId) || other.pricelistId == pricelistId)&&(identical(other.productTmplId, productTmplId) || other.productTmplId == productTmplId)&&(identical(other.productId, productId) || other.productId == productId)&&(identical(other.categId, categId) || other.categId == categId)&&(identical(other.appliedOn, appliedOn) || other.appliedOn == appliedOn)&&(identical(other.minQuantity, minQuantity) || other.minQuantity == minQuantity)&&(identical(other.dateStart, dateStart) || other.dateStart == dateStart)&&(identical(other.dateEnd, dateEnd) || other.dateEnd == dateEnd)&&(identical(other.computePrice, computePrice) || other.computePrice == computePrice)&&(identical(other.fixedPrice, fixedPrice) || other.fixedPrice == fixedPrice)&&(identical(other.percentPrice, percentPrice) || other.percentPrice == percentPrice)&&(identical(other.sequence, sequence) || other.sequence == sequence)&&(identical(other.uomId, uomId) || other.uomId == uomId)&&(identical(other.base, base) || other.base == base)&&(identical(other.basePricelistId, basePricelistId) || other.basePricelistId == basePricelistId)&&(identical(other.priceDiscount, priceDiscount) || other.priceDiscount == priceDiscount)&&(identical(other.priceSurcharge, priceSurcharge) || other.priceSurcharge == priceSurcharge)&&(identical(other.priceRound, priceRound) || other.priceRound == priceRound)&&(identical(other.priceMinMargin, priceMinMargin) || other.priceMinMargin == priceMinMargin)&&(identical(other.priceMaxMargin, priceMaxMargin) || other.priceMaxMargin == priceMaxMargin)&&(identical(other.writeDate, writeDate) || other.writeDate == writeDate));
 }
 
 
 @override
-int get hashCode => Object.hashAll([runtimeType,id,odooId,uuid,pricelistId,productTmplId,productId,categId,appliedOn,minQuantity,dateStart,dateEnd,computePrice,fixedPrice,percentPrice,sequence,uomId,base,basePricelistId,priceDiscount,priceSurcharge,priceRound,priceMinMargin,priceMaxMargin,writeDate]);
+int get hashCode => Object.hashAll([runtimeType,id,pricelistId,productTmplId,productId,categId,appliedOn,minQuantity,dateStart,dateEnd,computePrice,fixedPrice,percentPrice,sequence,uomId,base,basePricelistId,priceDiscount,priceSurcharge,priceRound,priceMinMargin,priceMaxMargin,writeDate]);
 
 @override
 String toString() {
-  return 'PricelistItem(id: $id, odooId: $odooId, uuid: $uuid, pricelistId: $pricelistId, productTmplId: $productTmplId, productId: $productId, categId: $categId, appliedOn: $appliedOn, minQuantity: $minQuantity, dateStart: $dateStart, dateEnd: $dateEnd, computePrice: $computePrice, fixedPrice: $fixedPrice, percentPrice: $percentPrice, sequence: $sequence, uomId: $uomId, base: $base, basePricelistId: $basePricelistId, priceDiscount: $priceDiscount, priceSurcharge: $priceSurcharge, priceRound: $priceRound, priceMinMargin: $priceMinMargin, priceMaxMargin: $priceMaxMargin, writeDate: $writeDate)';
+  return 'PricelistItem(id: $id, pricelistId: $pricelistId, productTmplId: $productTmplId, productId: $productId, categId: $categId, appliedOn: $appliedOn, minQuantity: $minQuantity, dateStart: $dateStart, dateEnd: $dateEnd, computePrice: $computePrice, fixedPrice: $fixedPrice, percentPrice: $percentPrice, sequence: $sequence, uomId: $uomId, base: $base, basePricelistId: $basePricelistId, priceDiscount: $priceDiscount, priceSurcharge: $priceSurcharge, priceRound: $priceRound, priceMinMargin: $priceMinMargin, priceMaxMargin: $priceMaxMargin, writeDate: $writeDate)';
 }
 
 
@@ -575,7 +568,7 @@ abstract mixin class _$PricelistItemCopyWith<$Res> implements $PricelistItemCopy
   factory _$PricelistItemCopyWith(_PricelistItem value, $Res Function(_PricelistItem) _then) = __$PricelistItemCopyWithImpl;
 @override @useResult
 $Res call({
- int id, int odooId, String? uuid, int pricelistId, int? productTmplId, int? productId, int? categId, String appliedOn, double minQuantity, DateTime? dateStart, DateTime? dateEnd, String computePrice, double fixedPrice, double percentPrice, int sequence, int? uomId, String base, int? basePricelistId, double priceDiscount, double priceSurcharge, double? priceRound, double? priceMinMargin, double? priceMaxMargin, DateTime? writeDate
+@OdooId() int id,@OdooMany2One('product.pricelist', odooName: 'pricelist_id') int pricelistId,@OdooMany2One('product.template', odooName: 'product_tmpl_id') int? productTmplId,@OdooMany2One('product.product', odooName: 'product_id') int? productId,@OdooMany2One('product.category', odooName: 'categ_id') int? categId,@OdooSelection() String appliedOn,@OdooFloat() double minQuantity,@OdooDateTime() DateTime? dateStart,@OdooDateTime() DateTime? dateEnd,@OdooSelection() String computePrice,@OdooFloat() double fixedPrice,@OdooFloat() double percentPrice, int sequence,@OdooLocalOnly() int? uomId,@OdooSelection() String base,@OdooMany2One('product.pricelist', odooName: 'base_pricelist_id') int? basePricelistId,@OdooFloat() double priceDiscount,@OdooFloat() double priceSurcharge,@OdooFloat() double priceRound,@OdooFloat() double priceMinMargin,@OdooFloat() double priceMaxMargin,@OdooDateTime(odooName: 'write_date', writable: false) DateTime? writeDate
 });
 
 
@@ -592,12 +585,10 @@ class __$PricelistItemCopyWithImpl<$Res>
 
 /// Create a copy of PricelistItem
 /// with the given fields replaced by the non-null parameter values.
-@override @pragma('vm:prefer-inline') $Res call({Object? id = null,Object? odooId = null,Object? uuid = freezed,Object? pricelistId = null,Object? productTmplId = freezed,Object? productId = freezed,Object? categId = freezed,Object? appliedOn = null,Object? minQuantity = null,Object? dateStart = freezed,Object? dateEnd = freezed,Object? computePrice = null,Object? fixedPrice = null,Object? percentPrice = null,Object? sequence = null,Object? uomId = freezed,Object? base = null,Object? basePricelistId = freezed,Object? priceDiscount = null,Object? priceSurcharge = null,Object? priceRound = freezed,Object? priceMinMargin = freezed,Object? priceMaxMargin = freezed,Object? writeDate = freezed,}) {
+@override @pragma('vm:prefer-inline') $Res call({Object? id = null,Object? pricelistId = null,Object? productTmplId = freezed,Object? productId = freezed,Object? categId = freezed,Object? appliedOn = null,Object? minQuantity = null,Object? dateStart = freezed,Object? dateEnd = freezed,Object? computePrice = null,Object? fixedPrice = null,Object? percentPrice = null,Object? sequence = null,Object? uomId = freezed,Object? base = null,Object? basePricelistId = freezed,Object? priceDiscount = null,Object? priceSurcharge = null,Object? priceRound = null,Object? priceMinMargin = null,Object? priceMaxMargin = null,Object? writeDate = freezed,}) {
   return _then(_PricelistItem(
 id: null == id ? _self.id : id // ignore: cast_nullable_to_non_nullable
-as int,odooId: null == odooId ? _self.odooId : odooId // ignore: cast_nullable_to_non_nullable
-as int,uuid: freezed == uuid ? _self.uuid : uuid // ignore: cast_nullable_to_non_nullable
-as String?,pricelistId: null == pricelistId ? _self.pricelistId : pricelistId // ignore: cast_nullable_to_non_nullable
+as int,pricelistId: null == pricelistId ? _self.pricelistId : pricelistId // ignore: cast_nullable_to_non_nullable
 as int,productTmplId: freezed == productTmplId ? _self.productTmplId : productTmplId // ignore: cast_nullable_to_non_nullable
 as int?,productId: freezed == productId ? _self.productId : productId // ignore: cast_nullable_to_non_nullable
 as int?,categId: freezed == categId ? _self.categId : categId // ignore: cast_nullable_to_non_nullable
@@ -614,10 +605,10 @@ as int?,base: null == base ? _self.base : base // ignore: cast_nullable_to_non_n
 as String,basePricelistId: freezed == basePricelistId ? _self.basePricelistId : basePricelistId // ignore: cast_nullable_to_non_nullable
 as int?,priceDiscount: null == priceDiscount ? _self.priceDiscount : priceDiscount // ignore: cast_nullable_to_non_nullable
 as double,priceSurcharge: null == priceSurcharge ? _self.priceSurcharge : priceSurcharge // ignore: cast_nullable_to_non_nullable
-as double,priceRound: freezed == priceRound ? _self.priceRound : priceRound // ignore: cast_nullable_to_non_nullable
-as double?,priceMinMargin: freezed == priceMinMargin ? _self.priceMinMargin : priceMinMargin // ignore: cast_nullable_to_non_nullable
-as double?,priceMaxMargin: freezed == priceMaxMargin ? _self.priceMaxMargin : priceMaxMargin // ignore: cast_nullable_to_non_nullable
-as double?,writeDate: freezed == writeDate ? _self.writeDate : writeDate // ignore: cast_nullable_to_non_nullable
+as double,priceRound: null == priceRound ? _self.priceRound : priceRound // ignore: cast_nullable_to_non_nullable
+as double,priceMinMargin: null == priceMinMargin ? _self.priceMinMargin : priceMinMargin // ignore: cast_nullable_to_non_nullable
+as double,priceMaxMargin: null == priceMaxMargin ? _self.priceMaxMargin : priceMaxMargin // ignore: cast_nullable_to_non_nullable
+as double,writeDate: freezed == writeDate ? _self.writeDate : writeDate // ignore: cast_nullable_to_non_nullable
 as DateTime?,
   ));
 }

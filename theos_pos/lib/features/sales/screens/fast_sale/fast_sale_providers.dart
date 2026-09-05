@@ -1,13 +1,20 @@
 import 'dart:async';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:freezed_annotation/freezed_annotation.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
+import 'package:odoo_sdk/odoo_sdk.dart' show formatOdooDateTime;
+
 import '../../../../core/database/providers.dart';
 import '../../../../core/database/repositories/repository_providers.dart';
-import '../../../../core/managers/manager_providers.dart' show appDatabaseProvider;
+import '../../../../core/managers/manager_providers.dart'
+    show appDatabaseProvider;
 import '../../../../shared/providers/company_config_provider.dart'
     show getMaxDiscountPercentage;
-import 'package:theos_pos_core/theos_pos_core.dart' hide DatabaseHelper, PartnerBank, CreditIssue;
+
+import 'package:theos_pos_core/theos_pos_core.dart'
+    hide DatabaseHelper, PartnerBank;
+
 import '../../providers/providers.dart' hide ConflictDetail;
 import '../../../clients/clients.dart'
     show
@@ -17,10 +24,11 @@ import '../../../clients/clients.dart'
         clientRepositoryProvider;
 import '../../utils/partner_utils.dart' as partner_utils;
 import '../../providers/base_order_state.dart' show ConflictDetail;
-import '../../services/conflict_detection_service.dart';
+import '../../repositories/sales_repository.dart';
+import '../../repositories/sales_repository_models.dart' show CreditIssue;
 import '../../services/credit_validation_ui_service.dart'
     show UnifiedCreditResult;
-import 'widgets/pos_payment_tab.dart'
+import 'widgets/pos_payment_providers.dart'
     show posWithholdLinesByOrderProvider, posPaymentLinesByOrderProvider;
 
 part 'fast_sale_providers.freezed.dart';
@@ -34,7 +42,7 @@ part 'fast_sale_notifier_lines.dart';
 part 'fast_sale_notifier_customer.dart';
 part 'fast_sale_notifier_save.dart';
 part 'fast_sale_notifier_confirm.dart';
-part 'fast_sale_notifier_websocket.dart';
+part 'fast_sale_notifier_state.dart';
 
 /// Sub-tab type for the order panel (Productos | Lineas | Pagos/Credito)
 enum OrderPanelTab { products, lines, payments }
@@ -55,9 +63,10 @@ class OrderPanelTabNotifier extends Notifier<OrderPanelTab> {
 
 /// Provider for the current panel tab (Lines | Payments)
 /// This allows external widgets (like POSActionsPanel) to switch tabs
-final orderPanelTabProvider = NotifierProvider<OrderPanelTabNotifier, OrderPanelTab>(
-  () => OrderPanelTabNotifier(),
-);
+final orderPanelTabProvider =
+    NotifierProvider<OrderPanelTabNotifier, OrderPanelTab>(
+      () => OrderPanelTabNotifier(),
+    );
 
 /// Input mode for the POS keypad
 enum KeypadInputMode {
@@ -125,7 +134,7 @@ abstract class FastSaleTabState with _$FastSaleTabState {
     /// Authorized payment term IDs for the current partner
     @Default([]) List<int> partnerPaymentTermIds,
 
-    /// Version counter for lines - incremented on WebSocket updates to force UI rebuild
+    /// Version counter for line mutations that require a derived-state refresh.
     @Default(0) int linesVersion,
 
     // ---- Conflict Detection State ----
@@ -242,7 +251,7 @@ abstract class FastSaleState with _$FastSaleState {
 /// - [FastSaleNotifierCustomer] - Customer management
 /// - [FastSaleNotifierSave] - Save operations
 /// - [FastSaleNotifierConfirm] - Confirmation and credit validation
-/// - [FastSaleNotifierWebSocket] - WebSocket updates, state management, conflict resolution
+/// - [FastSaleNotifierState] - Shared tab and lock state updates
 @Riverpod(keepAlive: true)
 class FastSaleNotifier extends _$FastSaleNotifier {
   /// Last deleted line for undo support (used by FastSaleNotifierLines extension)

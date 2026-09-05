@@ -9,9 +9,6 @@ export 'taxes/fiscal_position_manager.dart';
 export 'users/user_manager.dart';
 export 'users/groups_manager.dart';
 
-// Warehouses
-export 'warehouses/warehouse_manager.dart';
-
 // Company
 export 'company/company_manager.dart';
 
@@ -20,9 +17,6 @@ export 'banks/bank_manager.dart';
 
 // Advances
 export 'advances/advance_manager.dart';
-
-// Prices
-export 'prices/pricelist_manager.dart';
 
 // Payment Terms
 export 'payment_terms/payment_term_manager.dart';

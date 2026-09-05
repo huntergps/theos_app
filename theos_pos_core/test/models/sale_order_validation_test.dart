@@ -1,4 +1,5 @@
 import 'package:test/test.dart';
+import 'package:theos_pos_core/src/models/sales/sale_order_enums.dart';
 import 'package:theos_pos_core/src/models/sales/sale_order.model.dart';
 
 void main() {
@@ -39,33 +40,39 @@ void main() {
       expect(errors.containsKey('amount_total'), isTrue);
     });
 
-    test('fails for final consumer exceeding limit without end customer name', () {
-      const order = SaleOrder(
-        id: 1,
-        name: 'SO001',
-        state: SaleOrderState.draft,
-        partnerId: 1,
-        isFinalConsumer: true,
-        exceedsFinalConsumerLimit: true,
-        endCustomerName: null,
-      );
-      final errors = order.validate();
-      expect(errors.containsKey('end_customer_name'), isTrue);
-    });
+    test(
+      'fails for final consumer exceeding limit without end customer name',
+      () {
+        const order = SaleOrder(
+          id: 1,
+          name: 'SO001',
+          state: SaleOrderState.draft,
+          partnerId: 1,
+          isFinalConsumer: true,
+          exceedsFinalConsumerLimit: true,
+          endCustomerName: null,
+        );
+        final errors = order.validate();
+        expect(errors.containsKey('end_customer_name'), isTrue);
+      },
+    );
 
-    test('passes for final consumer exceeding limit with end customer name', () {
-      const order = SaleOrder(
-        id: 1,
-        name: 'SO001',
-        state: SaleOrderState.draft,
-        partnerId: 1,
-        isFinalConsumer: true,
-        exceedsFinalConsumerLimit: true,
-        endCustomerName: 'Juan Pérez',
-      );
-      final errors = order.validate();
-      expect(errors.containsKey('end_customer_name'), isFalse);
-    });
+    test(
+      'passes for final consumer exceeding limit with end customer name',
+      () {
+        const order = SaleOrder(
+          id: 1,
+          name: 'SO001',
+          state: SaleOrderState.draft,
+          partnerId: 1,
+          isFinalConsumer: true,
+          exceedsFinalConsumerLimit: true,
+          endCustomerName: 'Juan Pérez',
+        );
+        final errors = order.validate();
+        expect(errors.containsKey('end_customer_name'), isFalse);
+      },
+    );
 
     test('fails for postdated invoice without date', () {
       const order = SaleOrder(
@@ -226,10 +233,7 @@ void main() {
         validOrder(state: SaleOrderState.sale, locked: true).canLock,
         isFalse,
       );
-      expect(
-        validOrder(state: SaleOrderState.draft).canLock,
-        isFalse,
-      );
+      expect(validOrder(state: SaleOrderState.draft).canLock, isFalse);
     });
   });
 }

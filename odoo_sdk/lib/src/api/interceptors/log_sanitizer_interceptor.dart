@@ -1,12 +1,11 @@
 /// SEC-03: Dio interceptor that sanitizes sensitive data from request/response logs.
 ///
-/// Masks Authorization headers and other sensitive fields before they
-/// reach Dio's built-in LogInterceptor or any custom logging.
+/// Provides sanitized snapshots for custom logging without mutating requests.
 ///
 /// Usage:
 /// ```dart
-/// dio.interceptors.add(LogSanitizerInterceptor());
-/// dio.interceptors.add(LogInterceptor()); // Now safe to use
+/// final safeHeaders = LogSanitizerInterceptor.sanitizeHeaders(options.headers);
+/// final safeUrl = LogSanitizerInterceptor.sanitizeUrl(options.uri.toString());
 /// ```
 library;
 
@@ -16,9 +15,9 @@ import '../../utils/security_utils.dart';
 /// Dio interceptor that provides header and URL sanitization utilities
 /// for safe logging of HTTP requests and responses.
 ///
-/// The interceptor itself passes requests through unchanged (it does not
-/// modify actual request/response data). Its static methods are used by
-/// logging code to sanitize sensitive values before output.
+/// The interceptor itself passes requests through unchanged. Do not attach a
+/// raw Dio `LogInterceptor`; custom logging must call these helpers and never
+/// emit the original headers or URL.
 class LogSanitizerInterceptor extends Interceptor {
   /// Headers to sanitize (keys are case-insensitive).
   static const _sensitiveHeaders = {

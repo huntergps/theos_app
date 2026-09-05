@@ -49,7 +49,9 @@ class _SyncReadinessChecklistState
       isOk: (sync, _) => sync.getItemState('products').localCount > 0,
       detail: (sync, _) {
         final count = sync.getItemState('products').localCount;
-        if (count == 0) return 'Sin productos locales — sincronizar antes de salir';
+        if (count == 0) {
+          return 'Sin productos locales — sincronizar antes de salir';
+        }
         return '$count productos disponibles offline';
       },
     ),
@@ -59,7 +61,9 @@ class _SyncReadinessChecklistState
       isOk: (sync, _) => sync.getItemState('partners').localCount > 0,
       detail: (sync, _) {
         final count = sync.getItemState('partners').localCount;
-        if (count == 0) return 'Sin clientes locales — sincronizar antes de salir';
+        if (count == 0) {
+          return 'Sin clientes locales — sincronizar antes de salir';
+        }
         return '$count clientes disponibles offline';
       },
     ),
@@ -69,7 +73,9 @@ class _SyncReadinessChecklistState
       isOk: (sync, _) => sync.getItemState('taxes').localCount > 0,
       detail: (sync, _) {
         final count = sync.getItemState('taxes').localCount;
-        if (count == 0) return 'Sin impuestos — los calculos de precio fallaran';
+        if (count == 0) {
+          return 'Sin impuestos — los calculos de precio fallaran';
+        }
         return '$count impuestos cargados';
       },
     ),
@@ -79,7 +85,9 @@ class _SyncReadinessChecklistState
       isOk: (sync, _) => sync.getItemState('pricelists').localCount > 0,
       detail: (sync, _) {
         final count = sync.getItemState('pricelists').localCount;
-        if (count == 0) return 'Sin listas de precio — sincronizar antes de salir';
+        if (count == 0) {
+          return 'Sin listas de precio — sincronizar antes de salir';
+        }
         return '$count listas de precio disponibles';
       },
     ),
@@ -90,7 +98,9 @@ class _SyncReadinessChecklistState
           sync.getItemState('payment_method_lines').localCount > 0,
       detail: (sync, _) {
         final count = sync.getItemState('payment_method_lines').localCount;
-        if (count == 0) return 'Sin metodos de pago — no podra registrar cobros';
+        if (count == 0) {
+          return 'Sin metodos de pago — no podra registrar cobros';
+        }
         return '$count metodos de pago disponibles';
       },
     ),
@@ -99,7 +109,9 @@ class _SyncReadinessChecklistState
       icon: FluentIcons.send,
       isOk: (_, queue) => queue.totalCount == 0,
       detail: (_, queue) {
-        if (queue.totalCount == 0) return 'No hay operaciones pendientes de enviar';
+        if (queue.totalCount == 0) {
+          return 'No hay operaciones pendientes de enviar';
+        }
         return '${queue.totalCount} operacion(es) pendiente(s) — sincronizar antes de salir';
       },
     ),
@@ -354,7 +366,9 @@ class _ChecklistRow extends StatelessWidget {
           // Icono OK/error al final
           const SizedBox(width: 8),
           Icon(
-            ok ? FluentIcons.skype_circle_check : FluentIcons.status_circle_error_x,
+            ok
+                ? FluentIcons.skype_circle_check
+                : FluentIcons.status_circle_error_x,
             size: 16,
             color: dotColor,
           ),
@@ -421,11 +435,7 @@ class _ChecklistFooter extends StatelessWidget {
       ),
       child: Row(
         children: [
-          const Icon(
-            FluentIcons.warning,
-            size: 16,
-            color: Color(0xFFF7630C),
-          ),
+          const Icon(FluentIcons.warning, size: 16, color: Color(0xFFF7630C)),
           const SizedBox(width: 10),
           Expanded(
             child: Text(

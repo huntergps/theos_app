@@ -1,8 +1,10 @@
 import 'package:fluent_ui/fluent_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:odoo_widgets/odoo_widgets.dart' show OdooSummaryCard, OdooSummaryRow;
+import 'package:odoo_widgets/odoo_widgets.dart'
+    show OdooSummaryCard, OdooSummaryRow;
 
 import '../../../products/products.dart';
+
 import 'package:theos_pos_core/theos_pos_core.dart';
 
 // ==============================================================================
@@ -32,8 +34,9 @@ class SalesOrderTotals extends ConsumerWidget {
 
     // Calculate totals using the extracted service
     final taxNameResolver = catalogAsync.whenOrNull(
-      data: (catalog) => (String? taxIds, String? taxNames) =>
-          catalog.resolveTaxGroupName(taxIds, taxNames),
+      data: (catalog) =>
+          (String? taxIds, String? taxNames) =>
+              catalog.resolveTaxGroupName(taxIds, taxNames),
     );
 
     final totals = orderTotalsCalculator.calculate(
@@ -86,23 +89,21 @@ class _TaxTotalsBreakdown extends StatelessWidget {
             if (tGroups is List) {
               for (final group in tGroups) {
                 if (group is Map) {
-                  final name = group['group_name']?.toString() ??
+                  final name =
+                      group['group_name']?.toString() ??
                       group['tax_group_name']?.toString() ??
                       'Impuesto';
                   final amount = _toDouble(
-                    group['tax_amount_currency'] ??
-                        group['tax_group_amount'],
+                    group['tax_amount_currency'] ?? group['tax_group_amount'],
                   );
                   final base = _toDouble(
                     group['display_base_amount_currency'] ??
                         group['base_amount_currency'] ??
                         group['tax_group_base_amount'],
                   );
-                  taxGroups.add(TaxGroupTotal(
-                    name: name,
-                    base: base,
-                    amount: amount,
-                  ));
+                  taxGroups.add(
+                    TaxGroupTotal(name: name, base: base, amount: amount),
+                  );
                 }
               }
             }
@@ -121,17 +122,18 @@ class _TaxTotalsBreakdown extends StatelessWidget {
                 if (group is Map) {
                   final taxGroupName =
                       group['tax_group_name']?.toString() ?? 'Impuesto';
-                  final taxGroupAmount =
-                      _toDouble(group['tax_group_amount']);
+                  final taxGroupAmount = _toDouble(group['tax_group_amount']);
                   final taxGroupBase = _toDouble(
                     group['display_base_amount_currency'] ??
                         group['tax_group_base_amount'],
                   );
-                  taxGroups.add(TaxGroupTotal(
-                    name: taxGroupName,
-                    base: taxGroupBase,
-                    amount: taxGroupAmount,
-                  ));
+                  taxGroups.add(
+                    TaxGroupTotal(
+                      name: taxGroupName,
+                      base: taxGroupBase,
+                      amount: taxGroupAmount,
+                    ),
+                  );
                 }
               }
             }
@@ -192,7 +194,9 @@ class _OrderTotalsView extends StatelessWidget {
             label: 'Subtotal',
             amount: subtotalUndiscounted,
             prefix: currencySymbol,
-            amountStyle: theme.typography.body?.copyWith(fontWeight: FontWeight.bold),
+            amountStyle: theme.typography.body?.copyWith(
+              fontWeight: FontWeight.bold,
+            ),
           ),
           OdooSummaryRow(
             label: 'Descuento',
@@ -207,7 +211,9 @@ class _OrderTotalsView extends StatelessWidget {
           label: 'Subtotal Neto',
           amount: subtotalResult,
           prefix: currencySymbol,
-          amountStyle: theme.typography.body?.copyWith(fontWeight: FontWeight.bold),
+          amountStyle: theme.typography.body?.copyWith(
+            fontWeight: FontWeight.bold,
+          ),
         ),
 
         const Padding(
@@ -230,16 +236,14 @@ class _OrderTotalsView extends StatelessWidget {
                 label: group.name,
                 amount: group.amount,
                 prefix: currencySymbol,
-                amountStyle: theme.typography.body?.copyWith(fontWeight: FontWeight.bold),
+                amountStyle: theme.typography.body?.copyWith(
+                  fontWeight: FontWeight.bold,
+                ),
               ),
             ],
           )
         else
-          OdooSummaryRow(
-            label: 'Impuestos',
-            amount: 0,
-            prefix: currencySymbol,
-          ),
+          OdooSummaryRow(label: 'Impuestos', amount: 0, prefix: currencySymbol),
 
         Padding(
           padding: const EdgeInsets.symmetric(vertical: 4),

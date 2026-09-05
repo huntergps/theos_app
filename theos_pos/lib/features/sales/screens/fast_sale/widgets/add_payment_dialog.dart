@@ -3,15 +3,20 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/misc.dart' show ProviderListenable;
 import 'package:uuid/uuid.dart';
 
+import '../../../../../core/adaptive/adaptive_layout_policy.dart';
 import '../../../../../core/constants/app_colors.dart';
 import '../../../../../core/theme/spacing.dart';
-import 'package:theos_pos_core/theos_pos_core.dart' hide DatabaseHelper, PartnerBank, CreditIssue;
+
+import 'package:theos_pos_core/theos_pos_core.dart'
+    hide DatabaseHelper, PartnerBank;
+
 import '../../../../advances/providers/advance_providers.dart';
 import '../../../../advances/services/advance_service.dart';
 import '../../../providers/service_providers.dart';
 import '../../../../../shared/utils/formatting_utils.dart';
 import 'pos_payment_providers.dart';
 import 'quick_amount_button.dart';
+import 'touch_actions_fab.dart' show fastSaleInputCapabilitiesProvider;
 import '../../../../../shared/widgets/dialogs/copyable_info_bar.dart';
 
 // ============================================================
@@ -27,7 +32,8 @@ class AddPaymentDialogContent extends ConsumerStatefulWidget {
   final int? partnerId; // Partner ID for creating partner bank accounts
   final void Function(PaymentLine) onAddLine;
   final ProviderListenable<AsyncValue<List<AvailableAdvance>>> advancesProvider;
-  final ProviderListenable<AsyncValue<List<AvailableCreditNote>>> creditNotesProvider;
+  final ProviderListenable<AsyncValue<List<AvailableCreditNote>>>
+  creditNotesProvider;
   final ProviderListenable<AsyncValue<List<PartnerBank>>> partnerBanksProvider;
   final ProviderListenable<AsyncValue<List<AvailableBank>>> banksProvider;
   final WidgetRef ref;
@@ -48,10 +54,12 @@ class AddPaymentDialogContent extends ConsumerStatefulWidget {
   });
 
   @override
-  ConsumerState<AddPaymentDialogContent> createState() => AddPaymentDialogContentState();
+  ConsumerState<AddPaymentDialogContent> createState() =>
+      AddPaymentDialogContentState();
 }
 
-class AddPaymentDialogContentState extends ConsumerState<AddPaymentDialogContent> {
+class AddPaymentDialogContentState
+    extends ConsumerState<AddPaymentDialogContent> {
   // Controllers
   final _amountController = TextEditingController();
   final _referenceController = TextEditingController();
@@ -89,19 +97,46 @@ class AddPaymentDialogContentState extends ConsumerState<AddPaymentDialogContent
   bool get _isChequePayment => _selectedMethod?.isCheck ?? false;
   bool get _isDepositChequePayment => _selectedMethod?.isDepositCheque ?? false;
   bool get _isTransferPayment => _selectedMethod?.isTransfer ?? false;
-  bool get _isManualPayment => _selectedMethod?.isCash ?? false; // code == 'manual'
+  bool get _isManualPayment =>
+      _selectedMethod?.isCash ?? false; // code == 'manual'
   // Card fields (Lote, Marca, Plazo) only for card journals like DATAFAST
   // Banks with card payment methods don't need these details
-  bool get _showCardFields => _lineType == PaymentLineType.payment && _isCardPayment && _isCardJournal;
+  bool get _showCardFields =>
+      _lineType == PaymentLineType.payment && _isCardPayment && _isCardJournal;
   // Bank card payments (TC/TD on bank journals) - simpler form without Lote/Marca
-  bool get _showBankCardFields => _lineType == PaymentLineType.payment && _isCardPayment && !_isCardJournal;
-  bool get _showChequeFields => _lineType == PaymentLineType.payment && _isChequePayment;
+  bool get _showBankCardFields =>
+      _lineType == PaymentLineType.payment && _isCardPayment && !_isCardJournal;
+  bool get _showChequeFields =>
+      _lineType == PaymentLineType.payment && _isChequePayment;
   // Deposit with check - just needs reference number (like transfer)
-  bool get _showDepositChequeFields => _lineType == PaymentLineType.payment && _isDepositChequePayment;
-  bool get _showTransferFields => _lineType == PaymentLineType.payment && _isTransferPayment;
-  bool get _showCashFields => _lineType == PaymentLineType.payment && _isCashJournal && _isManualPayment;
+  bool get _showDepositChequeFields =>
+      _lineType == PaymentLineType.payment && _isDepositChequePayment;
+  bool get _showTransferFields =>
+      _lineType == PaymentLineType.payment && _isTransferPayment;
+  bool get _showCashFields =>
+      _lineType == PaymentLineType.payment &&
+      _isCashJournal &&
+      _isManualPayment;
   // Bank deposit (manual payment on bank journal) - requires date and reference
-  bool get _showBankDepositFields => _lineType == PaymentLineType.payment && _isBankJournal && _isManualPayment;
+  bool get _showBankDepositFields =>
+      _lineType == PaymentLineType.payment &&
+      _isBankJournal &&
+      _isManualPayment;
+
+  Widget _buildAdaptiveFieldPair({
+    required Widget first,
+    required Widget second,
+    int firstFlex = 1,
+    int secondFlex = 1,
+  }) {
+    return AdaptivePaymentFieldPair(
+      inputCapabilities: ref.watch(fastSaleInputCapabilitiesProvider),
+      first: first,
+      second: second,
+      firstFlex: firstFlex,
+      secondFlex: secondFlex,
+    );
+  }
 
   CardType? get _derivedCardType {
     final code = _selectedMethod?.code ?? '';
@@ -136,16 +171,17 @@ class AddPaymentDialogContentState extends ConsumerState<AddPaymentDialogContent
   Widget build(BuildContext context) {
     final advancesAsync = ref.watch(widget.advancesProvider);
     final creditNotesAsync = ref.watch(widget.creditNotesProvider);
+    final inputCapabilities = ref.watch(fastSaleInputCapabilitiesProvider);
 
-    return ContentDialog(
+    return AdaptivePaymentDialogSurface(
+      inputCapabilities: inputCapabilities,
       title: Row(
         children: [
           Icon(FluentIcons.money, size: 20, color: widget.theme.accentColor),
           const SizedBox(width: Spacing.sm),
-          const Text('Agregar Pago'),
+          const Expanded(child: Text('Agregar Pago')),
         ],
       ),
-      constraints: const BoxConstraints(maxWidth: 650, maxHeight: 700),
       content: SingleChildScrollView(
         child: Column(
           mainAxisSize: MainAxisSize.min,
@@ -164,7 +200,9 @@ class AddPaymentDialogContentState extends ConsumerState<AddPaymentDialogContent
                   Text('Pendiente:', style: widget.theme.typography.body),
                   Text(
                     widget.pendingAmount.toCurrency(),
-                    style: widget.theme.typography.bodyStrong?.copyWith(color: AppColors.info),
+                    style: widget.theme.typography.bodyStrong?.copyWith(
+                      color: AppColors.info,
+                    ),
                   ),
                 ],
               ),
@@ -237,14 +275,27 @@ class AddPaymentDialogContentState extends ConsumerState<AddPaymentDialogContent
             enabled: hasAdvances,
             child: Row(
               children: [
-                Icon(FluentIcons.circle_dollar, size: 14,
-                     color: hasAdvances ? AppColors.advance : widget.theme.inactiveColor),
+                Icon(
+                  FluentIcons.circle_dollar,
+                  size: 14,
+                  color: hasAdvances
+                      ? AppColors.advance
+                      : widget.theme.inactiveColor,
+                ),
                 const SizedBox(width: Spacing.xs),
-                Text('Anticipo',
-                     style: TextStyle(color: hasAdvances ? null : widget.theme.inactiveColor)),
+                Text(
+                  'Anticipo',
+                  style: TextStyle(
+                    color: hasAdvances ? null : widget.theme.inactiveColor,
+                  ),
+                ),
                 if (!hasAdvances)
-                  Text(' (sin disponibles)',
-                       style: widget.theme.typography.caption?.copyWith(color: widget.theme.inactiveColor)),
+                  Text(
+                    ' (sin disponibles)',
+                    style: widget.theme.typography.caption?.copyWith(
+                      color: widget.theme.inactiveColor,
+                    ),
+                  ),
               ],
             ),
           ),
@@ -253,14 +304,27 @@ class AddPaymentDialogContentState extends ConsumerState<AddPaymentDialogContent
             enabled: hasCreditNotes,
             child: Row(
               children: [
-                Icon(FluentIcons.page_list, size: 14,
-                     color: hasCreditNotes ? AppColors.creditNote : widget.theme.inactiveColor),
+                Icon(
+                  FluentIcons.page_list,
+                  size: 14,
+                  color: hasCreditNotes
+                      ? AppColors.creditNote
+                      : widget.theme.inactiveColor,
+                ),
                 const SizedBox(width: Spacing.xs),
-                Text('Nota de cr\u00e9dito',
-                     style: TextStyle(color: hasCreditNotes ? null : widget.theme.inactiveColor)),
+                Text(
+                  'Nota de cr\u00e9dito',
+                  style: TextStyle(
+                    color: hasCreditNotes ? null : widget.theme.inactiveColor,
+                  ),
+                ),
                 if (!hasCreditNotes)
-                  Text(' (sin disponibles)',
-                       style: widget.theme.typography.caption?.copyWith(color: widget.theme.inactiveColor)),
+                  Text(
+                    ' (sin disponibles)',
+                    style: widget.theme.typography.caption?.copyWith(
+                      color: widget.theme.inactiveColor,
+                    ),
+                  ),
               ],
             ),
           ),
@@ -282,7 +346,7 @@ class AddPaymentDialogContentState extends ConsumerState<AddPaymentDialogContent
   }
 
   Widget _buildPaymentFields() {
-    // Use reactive journals list from provider (updated via WebSocket)
+    // Use reactive journals list from provider (updated via HTTP sync)
     final journalsAsync = ref.watch(posAvailableJournalsProvider);
     final journals = journalsAsync.when(
       data: (data) => data,
@@ -293,12 +357,15 @@ class AddPaymentDialogContentState extends ConsumerState<AddPaymentDialogContent
     // Ensure _selectedJournal reference is from current journals list
     // This is needed because ComboBox uses object identity for value matching
     if (_selectedJournal != null && journals.isNotEmpty) {
-      final currentJournal = journals.where((j) => j.id == _selectedJournal!.id).firstOrNull;
+      final currentJournal = journals
+          .where((j) => j.id == _selectedJournal!.id)
+          .firstOrNull;
       if (currentJournal != null) {
         _selectedJournal = currentJournal;
         // Also update method reference
         if (_selectedMethod != null) {
-          _selectedMethod = currentJournal.paymentMethods
+          _selectedMethod =
+              currentJournal.paymentMethods
                   .where((m) => m.id == _selectedMethod!.id)
                   .firstOrNull ??
               (currentJournal.paymentMethods.isNotEmpty
@@ -329,20 +396,27 @@ class AddPaymentDialogContentState extends ConsumerState<AddPaymentDialogContent
           child: ComboBox<AvailableJournal>(
             isExpanded: true,
             value: _selectedJournal,
-            items: journals.map((j) => ComboBoxItem(
-              value: j,
-              child: Row(
-                children: [
-                  Icon(
-                    j.isCash ? FluentIcons.money :
-                    j.isCardJournal ? FluentIcons.payment_card : FluentIcons.bank,
-                    size: 14,
+            items: journals
+                .map(
+                  (j) => ComboBoxItem(
+                    value: j,
+                    child: Row(
+                      children: [
+                        Icon(
+                          j.isCash
+                              ? FluentIcons.money
+                              : j.isCardJournal
+                              ? FluentIcons.payment_card
+                              : FluentIcons.bank,
+                          size: 14,
+                        ),
+                        const SizedBox(width: Spacing.xs),
+                        Text(j.name),
+                      ],
+                    ),
                   ),
-                  const SizedBox(width: Spacing.xs),
-                  Text(j.name),
-                ],
-              ),
-            )).toList(),
+                )
+                .toList(),
             onChanged: (j) {
               setState(() {
                 _selectedJournal = j;
@@ -360,17 +434,19 @@ class AddPaymentDialogContentState extends ConsumerState<AddPaymentDialogContent
         ),
 
         // Payment method selector
-        if (_selectedJournal != null && _selectedJournal!.paymentMethods.length > 1) ...[
+        if (_selectedJournal != null &&
+            _selectedJournal!.paymentMethods.length > 1) ...[
           const SizedBox(height: Spacing.sm),
           InfoLabel(
             label: 'Forma de pago',
             child: ComboBox<PaymentMethod>(
               isExpanded: true,
               value: _selectedMethod,
-              items: _selectedJournal!.paymentMethods.map((m) => ComboBoxItem(
-                value: m,
-                child: Text(m.displayName),
-              )).toList(),
+              items: _selectedJournal!.paymentMethods
+                  .map(
+                    (m) => ComboBoxItem(value: m, child: Text(m.displayName)),
+                  )
+                  .toList(),
               onChanged: (m) {
                 setState(() {
                   _selectedMethod = m;
@@ -391,8 +467,11 @@ class AddPaymentDialogContentState extends ConsumerState<AddPaymentDialogContent
               Expanded(
                 child: TextBox(
                   controller: _amountController,
-                  keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                  placeholder: 'Pendiente: ${widget.pendingAmount.toCurrency()}',
+                  keyboardType: const TextInputType.numberWithOptions(
+                    decimal: true,
+                  ),
+                  placeholder:
+                      'Pendiente: ${widget.pendingAmount.toCurrency()}',
                   prefix: const Padding(
                     padding: EdgeInsets.only(left: 8),
                     child: Text('\$'),
@@ -458,7 +537,13 @@ class AddPaymentDialogContentState extends ConsumerState<AddPaymentDialogContent
         ],
 
         // Reference (for generic payments - not bank deposits which have their own section)
-        if (!_showCashFields && !_showCardFields && !_showBankCardFields && !_showChequeFields && !_showTransferFields && !_showDepositChequeFields && !_showBankDepositFields) ...[
+        if (!_showCashFields &&
+            !_showCardFields &&
+            !_showBankCardFields &&
+            !_showChequeFields &&
+            !_showTransferFields &&
+            !_showDepositChequeFields &&
+            !_showBankDepositFields) ...[
           const SizedBox(height: Spacing.sm),
           InfoLabel(
             label: 'Referencia (opcional)',
@@ -473,9 +558,11 @@ class AddPaymentDialogContentState extends ConsumerState<AddPaymentDialogContent
   }
 
   Widget _buildCashSection() {
-    final amount = double.tryParse(_amountController.text) ?? widget.pendingAmount;
+    final amount =
+        double.tryParse(_amountController.text) ?? widget.pendingAmount;
     final tendered = double.tryParse(_cashTenderedController.text) ?? 0;
     final change = tendered - amount;
+    final inputCapabilities = ref.watch(fastSaleInputCapabilitiesProvider);
 
     return Container(
       padding: const EdgeInsets.all(Spacing.sm),
@@ -487,76 +574,102 @@ class AddPaymentDialogContentState extends ConsumerState<AddPaymentDialogContent
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text('Efectivo', style: widget.theme.typography.bodyStrong?.copyWith(color: AppColors.success)),
+          Text(
+            'Efectivo',
+            style: widget.theme.typography.bodyStrong?.copyWith(
+              color: AppColors.success,
+            ),
+          ),
           const SizedBox(height: Spacing.sm),
           // Quick amounts - these ADD to the current tendered amount
           Wrap(
             spacing: Spacing.xs,
             runSpacing: Spacing.xs,
             children: [
-              QuickAmountButton(label: 'Exacto', amount: amount, isExact: true, onTap: () {
-                _cashTenderedController.text = amount.toFixed(2);
-                // Also set the payment amount to match
-                _amountController.text = amount.toFixed(2);
-                setState(() {});
-              }),
-              ...[1.0, 5.0, 10.0, 20.0, 50.0, 100.0].map((a) => QuickAmountButton(
-                label: '+\$${a.toInt()}',
-                amount: a,
+              QuickAmountButton(
+                label: 'Exacto',
+                amount: amount,
+                isExact: true,
+                inputCapabilities: inputCapabilities,
                 onTap: () {
-                  // SUM to existing tendered amount
-                  final currentTendered = double.tryParse(_cashTenderedController.text) ?? 0;
-                  final newTendered = currentTendered + a;
-                  _cashTenderedController.text = newTendered.toFixed(2);
-                  // Also update the payment amount (cap at pending)
-                  final cappedAmount = newTendered > widget.pendingAmount ? widget.pendingAmount : newTendered;
-                  _amountController.text = cappedAmount.toFixed(2);
+                  _cashTenderedController.text = amount.toFixed(2);
+                  // Also set the payment amount to match
+                  _amountController.text = amount.toFixed(2);
                   setState(() {});
                 },
-              )),
+              ),
+              ...[1.0, 5.0, 10.0, 20.0, 50.0, 100.0].map(
+                (a) => QuickAmountButton(
+                  label: '+\$${a.toInt()}',
+                  amount: a,
+                  inputCapabilities: inputCapabilities,
+                  onTap: () {
+                    // SUM to existing tendered amount
+                    final currentTendered =
+                        double.tryParse(_cashTenderedController.text) ?? 0;
+                    final newTendered = currentTendered + a;
+                    _cashTenderedController.text = newTendered.toFixed(2);
+                    // Also update the payment amount (cap at pending)
+                    final cappedAmount = newTendered > widget.pendingAmount
+                        ? widget.pendingAmount
+                        : newTendered;
+                    _amountController.text = cappedAmount.toFixed(2);
+                    setState(() {});
+                  },
+                ),
+              ),
               // Clear button
-              QuickAmountButton(label: 'C', amount: 0, isExact: false, onTap: () {
-                _cashTenderedController.text = '';
-                _amountController.text = '';
-                setState(() {});
-              }),
+              QuickAmountButton(
+                label: 'C',
+                amount: 0,
+                isExact: false,
+                inputCapabilities: inputCapabilities,
+                onTap: () {
+                  _cashTenderedController.text = '';
+                  _amountController.text = '';
+                  setState(() {});
+                },
+              ),
             ],
           ),
           const SizedBox(height: Spacing.sm),
-          Row(
-            children: [
-              Expanded(
-                child: InfoLabel(
-                  label: 'Recibido',
-                  child: TextBox(
-                    controller: _cashTenderedController,
-                    keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                    prefix: const Padding(padding: EdgeInsets.only(left: 8), child: Text('\$')),
-                    onChanged: (_) => setState(() {}),
+          _buildAdaptiveFieldPair(
+            first: InfoLabel(
+              label: 'Recibido',
+              child: TextBox(
+                controller: _cashTenderedController,
+                keyboardType: const TextInputType.numberWithOptions(
+                  decimal: true,
+                ),
+                prefix: const Padding(
+                  padding: EdgeInsets.only(left: 8),
+                  child: Text('\$'),
+                ),
+                onChanged: (_) => setState(() {}),
+              ),
+            ),
+            second: InfoLabel(
+              label: 'Cambio',
+              child: Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 10,
+                ),
+                decoration: BoxDecoration(
+                  color: change >= 0
+                      ? AppColors.success.withValues(alpha: 0.1)
+                      : AppColors.danger.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(4),
+                ),
+                child: Text(
+                  change.toCurrency(),
+                  style: widget.theme.typography.body?.copyWith(
+                    fontWeight: FontWeight.bold,
+                    color: change >= 0 ? AppColors.success : AppColors.danger,
                   ),
                 ),
               ),
-              const SizedBox(width: Spacing.sm),
-              Expanded(
-                child: InfoLabel(
-                  label: 'Cambio',
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                    decoration: BoxDecoration(
-                      color: change >= 0 ? AppColors.success.withValues(alpha: 0.1) : AppColors.danger.withValues(alpha: 0.1),
-                      borderRadius: BorderRadius.circular(4),
-                    ),
-                    child: Text(
-                      change.toCurrency(),
-                      style: widget.theme.typography.body?.copyWith(
-                        fontWeight: FontWeight.bold,
-                        color: change >= 0 ? AppColors.success : AppColors.danger,
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-            ],
+            ),
           ),
         ],
       ),
@@ -568,17 +681,27 @@ class AddPaymentDialogContentState extends ConsumerState<AddPaymentDialogContent
     if (journalId == null) return const SizedBox.shrink();
 
     final banksAsync = ref.watch(widget.banksProvider);
-    final brandsAsync = ref.watch(posCardBrandsByJournalProvider(journalId));
+    final brandsAsync = ref.watch(
+      posCardBrandsByJournalStreamProvider(journalId),
+    );
     final lotesAsync = ref.watch(posOpenLotesProvider(journalId));
     final cardType = _derivedCardType;
     final deadlinesAsync = cardType != null
-        ? ref.watch(posCardDeadlinesProvider((journalId: journalId, cardType: cardType)))
+        ? ref.watch(
+            posCardDeadlinesStreamProvider((
+              journalId: journalId,
+              cardType: cardType,
+            )),
+          )
         : const AsyncValue<List<CardDeadline>>.data([]);
 
     // Auto-select default card brand from journal
-    if (_selectedCardBrand == null && _selectedJournal?.defaultCardBrandId != null) {
+    if (_selectedCardBrand == null &&
+        _selectedJournal?.defaultCardBrandId != null) {
       brandsAsync.whenData((brands) {
-        final defaultBrand = brands.where((b) => b.id == _selectedJournal!.defaultCardBrandId).firstOrNull;
+        final defaultBrand = brands
+            .where((b) => b.id == _selectedJournal!.defaultCardBrandId)
+            .firstOrNull;
         if (defaultBrand != null && _selectedCardBrand == null) {
           WidgetsBinding.instance.addPostFrameCallback((_) {
             if (mounted) setState(() => _selectedCardBrand = defaultBrand);
@@ -589,13 +712,19 @@ class AddPaymentDialogContentState extends ConsumerState<AddPaymentDialogContent
 
     // Auto-select default deadline from journal
     if (_selectedCardDeadline == null && cardType != null) {
-      final defaultDeadlineId = _selectedJournal?.getDefaultDeadlineId(cardType);
+      final defaultDeadlineId = _selectedJournal?.getDefaultDeadlineId(
+        cardType,
+      );
       if (defaultDeadlineId != null) {
         deadlinesAsync.whenData((deadlines) {
-          final defaultDeadline = deadlines.where((d) => d.id == defaultDeadlineId).firstOrNull;
+          final defaultDeadline = deadlines
+              .where((d) => d.id == defaultDeadlineId)
+              .firstOrNull;
           if (defaultDeadline != null && _selectedCardDeadline == null) {
             WidgetsBinding.instance.addPostFrameCallback((_) {
-              if (mounted) setState(() => _selectedCardDeadline = defaultDeadline);
+              if (mounted) {
+                setState(() => _selectedCardDeadline = defaultDeadline);
+              }
             });
           }
         });
@@ -612,44 +741,50 @@ class AddPaymentDialogContentState extends ConsumerState<AddPaymentDialogContent
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text('Tarjeta ${cardType == CardType.credit ? 'Cr\u00e9dito' : 'D\u00e9bito'}',
-               style: widget.theme.typography.bodyStrong?.copyWith(color: AppColors.info)),
+          Text(
+            'Tarjeta ${cardType == CardType.credit ? 'Cr\u00e9dito' : 'D\u00e9bito'}',
+            style: widget.theme.typography.bodyStrong?.copyWith(
+              color: AppColors.info,
+            ),
+          ),
           const SizedBox(height: Spacing.sm),
           // Bank and voucher (bank is wider to fit long names)
-          Row(children: [
-            Expanded(
-              flex: 3,
-              child: banksAsync.when(
-                loading: () => const ProgressRing(),
-                error: (_, _) => const Text('Error'),
-                data: (banks) => InfoLabel(
-                  label: 'Banco emisor',
-                  child: ComboBox<AvailableBank>(
-                    isExpanded: true,
-                    placeholder: const Text('Seleccione...'),
-                    value: _selectedBank,
-                    items: banks.map((b) => ComboBoxItem(
-                      value: b,
-                      child: Text(b.name, overflow: TextOverflow.ellipsis),
-                    )).toList(),
-                    onChanged: (b) => setState(() => _selectedBank = b),
-                  ),
+          _buildAdaptiveFieldPair(
+            firstFlex: 3,
+            secondFlex: 2,
+            first: banksAsync.when(
+              loading: () => const ProgressRing(),
+              error: (_, _) => const Text('Error'),
+              data: (banks) => InfoLabel(
+                label: 'Banco emisor',
+                child: ComboBox<AvailableBank>(
+                  isExpanded: true,
+                  placeholder: const Text('Seleccione...'),
+                  value: _selectedBank,
+                  items: banks
+                      .map(
+                        (b) => ComboBoxItem(
+                          value: b,
+                          child: Text(b.name, overflow: TextOverflow.ellipsis),
+                        ),
+                      )
+                      .toList(),
+                  onChanged: (b) => setState(() => _selectedBank = b),
                 ),
               ),
             ),
-            const SizedBox(width: Spacing.sm),
-            Expanded(
-              flex: 2,
-              child: InfoLabel(
-                label: 'N\u00b0 Voucher *',
-                child: TextBox(controller: _referenceController, placeholder: 'Requerido'),
+            second: InfoLabel(
+              label: 'N\u00b0 Voucher *',
+              child: TextBox(
+                controller: _referenceController,
+                placeholder: 'Requerido',
               ),
             ),
-          ]),
+          ),
           const SizedBox(height: Spacing.sm),
           // Lote and date
-          Row(children: [
-            Expanded(child: lotesAsync.when(
+          _buildAdaptiveFieldPair(
+            first: lotesAsync.when(
               loading: () => const ProgressRing(),
               error: (_, _) => const Text('Error'),
               data: (lotes) => InfoLabel(
@@ -659,9 +794,18 @@ class AddPaymentDialogContentState extends ConsumerState<AddPaymentDialogContent
                     Expanded(
                       child: ComboBox<CardLote>(
                         isExpanded: true,
-                        placeholder: Text(lotes.isEmpty ? 'Crear nuevo...' : 'Seleccione...'),
+                        placeholder: Text(
+                          lotes.isEmpty ? 'Crear nuevo...' : 'Seleccione...',
+                        ),
                         value: _selectedLote,
-                        items: lotes.map((l) => ComboBoxItem(value: l, child: Text(l.displayName))).toList(),
+                        items: lotes
+                            .map(
+                              (l) => ComboBoxItem(
+                                value: l,
+                                child: Text(l.displayName),
+                              ),
+                            )
+                            .toList(),
                         onChanged: (l) => setState(() => _selectedLote = l),
                       ),
                     ),
@@ -671,8 +815,12 @@ class AddPaymentDialogContentState extends ConsumerState<AddPaymentDialogContent
                       child: IconButton(
                         icon: const Icon(FluentIcons.add, size: 14),
                         onPressed: () async {
-                          final paymentService = ref.read(paymentServiceProvider);
-                          final newLote = await paymentService.createLote(journalId);
+                          final paymentService = ref.read(
+                            paymentServiceProvider,
+                          );
+                          final newLote = await paymentService.createLote(
+                            journalId,
+                          );
                           if (!mounted) return;
                           if (newLote != null) {
                             // Refresh the lotes provider and select the new one
@@ -696,20 +844,19 @@ class AddPaymentDialogContentState extends ConsumerState<AddPaymentDialogContent
                   ],
                 ),
               ),
-            )),
-            const SizedBox(width: Spacing.sm),
-            Expanded(child: InfoLabel(
+            ),
+            second: InfoLabel(
               label: 'Fecha voucher *',
               child: DatePicker(
                 selected: _voucherDate,
                 onChanged: (d) => setState(() => _voucherDate = d),
               ),
-            )),
-          ]),
+            ),
+          ),
           const SizedBox(height: Spacing.sm),
           // Brand and deadline
-          Row(children: [
-            Expanded(child: brandsAsync.when(
+          _buildAdaptiveFieldPair(
+            first: brandsAsync.when(
               loading: () => const ProgressRing(),
               error: (_, _) => const Text('Error'),
               data: (brands) => InfoLabel(
@@ -718,30 +865,36 @@ class AddPaymentDialogContentState extends ConsumerState<AddPaymentDialogContent
                   isExpanded: true,
                   placeholder: const Text('Seleccione...'),
                   value: _selectedCardBrand,
-                  items: brands.map((b) => ComboBoxItem(value: b, child: Text(b.name))).toList(),
+                  items: brands
+                      .map((b) => ComboBoxItem(value: b, child: Text(b.name)))
+                      .toList(),
                   onChanged: (b) => setState(() => _selectedCardBrand = b),
                 ),
               ),
-            )),
-            const SizedBox(width: Spacing.sm),
-            if (cardType == CardType.credit)
-              Expanded(child: deadlinesAsync.when(
-                loading: () => const ProgressRing(),
-                error: (_, _) => const Text('Error'),
-                data: (deadlines) => InfoLabel(
-                  label: 'Plazo *',
-                  child: ComboBox<CardDeadline>(
-                    isExpanded: true,
-                    placeholder: const Text('Seleccione...'),
-                    value: _selectedCardDeadline,
-                    items: deadlines.map((d) => ComboBoxItem(value: d, child: Text(d.name))).toList(),
-                    onChanged: (d) => setState(() => _selectedCardDeadline = d),
-                  ),
-                ),
-              ))
-            else
-              const Expanded(child: SizedBox.shrink()),
-          ]),
+            ),
+            second: cardType == CardType.credit
+                ? deadlinesAsync.when(
+                    loading: () => const ProgressRing(),
+                    error: (_, _) => const Text('Error'),
+                    data: (deadlines) => InfoLabel(
+                      label: 'Plazo *',
+                      child: ComboBox<CardDeadline>(
+                        isExpanded: true,
+                        placeholder: const Text('Seleccione...'),
+                        value: _selectedCardDeadline,
+                        items: deadlines
+                            .map(
+                              (d) =>
+                                  ComboBoxItem(value: d, child: Text(d.name)),
+                            )
+                            .toList(),
+                        onChanged: (d) =>
+                            setState(() => _selectedCardDeadline = d),
+                      ),
+                    ),
+                  )
+                : const SizedBox.shrink(),
+          ),
         ],
       ),
     );
@@ -755,20 +908,29 @@ class AddPaymentDialogContentState extends ConsumerState<AddPaymentDialogContent
       decoration: BoxDecoration(
         color: AppColors.primaryBackground.withValues(alpha: 0.05),
         borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: AppColors.primaryBackground.withValues(alpha: 0.2)),
+        border: Border.all(
+          color: AppColors.primaryBackground.withValues(alpha: 0.2),
+        ),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text('Cheque', style: widget.theme.typography.bodyStrong?.copyWith(color: AppColors.primaryBackground)),
+          Text(
+            'Cheque',
+            style: widget.theme.typography.bodyStrong?.copyWith(
+              color: AppColors.primaryBackground,
+            ),
+          ),
           const SizedBox(height: Spacing.sm),
-          Row(children: [
-            Expanded(child: InfoLabel(
+          _buildAdaptiveFieldPair(
+            first: InfoLabel(
               label: 'N\u00b0 Cheque *',
-              child: TextBox(controller: _referenceController, placeholder: 'Requerido'),
-            )),
-            const SizedBox(width: Spacing.sm),
-            Expanded(child: partnerBanksAsync.when(
+              child: TextBox(
+                controller: _referenceController,
+                placeholder: 'Requerido',
+              ),
+            ),
+            second: partnerBanksAsync.when(
               loading: () => const ProgressRing(),
               error: (_, _) => const Text('Error'),
               data: (banks) => InfoLabel(
@@ -780,8 +942,16 @@ class AddPaymentDialogContentState extends ConsumerState<AddPaymentDialogContent
                         isExpanded: true,
                         placeholder: const Text('Seleccione...'),
                         value: _selectedPartnerBank,
-                        items: banks.map((b) => ComboBoxItem(value: b, child: Text(b.displayName))).toList(),
-                        onChanged: (b) => setState(() => _selectedPartnerBank = b),
+                        items: banks
+                            .map(
+                              (b) => ComboBoxItem(
+                                value: b,
+                                child: Text(b.displayName),
+                              ),
+                            )
+                            .toList(),
+                        onChanged: (b) =>
+                            setState(() => _selectedPartnerBank = b),
                       ),
                     ),
                     const SizedBox(width: Spacing.xs),
@@ -795,26 +965,25 @@ class AddPaymentDialogContentState extends ConsumerState<AddPaymentDialogContent
                   ],
                 ),
               ),
-            )),
-          ]),
+            ),
+          ),
           const SizedBox(height: Spacing.sm),
-          Row(children: [
-            Expanded(child: InfoLabel(
+          _buildAdaptiveFieldPair(
+            first: InfoLabel(
               label: 'Fecha cheque *',
               child: DatePicker(
                 selected: _chequeDate,
                 onChanged: (d) => setState(() => _chequeDate = d),
               ),
-            )),
-            const SizedBox(width: Spacing.sm),
-            Expanded(child: InfoLabel(
+            ),
+            second: InfoLabel(
               label: 'Fecha efectiva *',
               child: DatePicker(
                 selected: _effectiveDate,
                 onChanged: (d) => setState(() => _effectiveDate = d),
               ),
-            )),
-          ]),
+            ),
+          ),
           if (_effectiveDate.isAfter(_chequeDate)) ...[
             const SizedBox(height: Spacing.xs),
             Container(
@@ -823,11 +992,18 @@ class AddPaymentDialogContentState extends ConsumerState<AddPaymentDialogContent
                 color: AppColors.warning.withValues(alpha: 0.1),
                 borderRadius: BorderRadius.circular(4),
               ),
-              child: Row(children: [
-                Icon(FluentIcons.warning, size: 12, color: AppColors.warning),
-                const SizedBox(width: Spacing.xs),
-                Text('Cheque posfechado', style: widget.theme.typography.caption?.copyWith(color: AppColors.warning)),
-              ]),
+              child: Row(
+                children: [
+                  Icon(FluentIcons.warning, size: 12, color: AppColors.warning),
+                  const SizedBox(width: Spacing.xs),
+                  Text(
+                    'Cheque posfechado',
+                    style: widget.theme.typography.caption?.copyWith(
+                      color: AppColors.warning,
+                    ),
+                  ),
+                ],
+              ),
             ),
           ],
         ],
@@ -852,43 +1028,41 @@ class AddPaymentDialogContentState extends ConsumerState<AddPaymentDialogContent
 
     final banksAsync = ref.read(widget.banksProvider);
     final banks = banksAsync.value ?? [];
+    final inputCapabilities = ref.read(fastSaleInputCapabilitiesProvider);
 
     final result = await showDialog<PartnerBank?>(
       context: context,
-      builder: (context) => ContentDialog(
+      builder: (context) => AdaptivePaymentDialogSurface(
+        inputCapabilities: inputCapabilities,
         title: const Text('Nueva Cuenta Bancaria'),
-        content: SizedBox(
-          width: 400,
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              InfoLabel(
-                label: 'N\u00b0 Cuenta *',
-                child: TextBox(
-                  controller: accNumberController,
-                  placeholder: 'N\u00famero de cuenta',
-                  autofocus: true,
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            InfoLabel(
+              label: 'N\u00b0 Cuenta *',
+              child: TextBox(
+                controller: accNumberController,
+                placeholder: 'N\u00famero de cuenta',
+                autofocus: true,
+              ),
+            ),
+            const SizedBox(height: Spacing.sm),
+            InfoLabel(
+              label: 'Banco',
+              child: StatefulBuilder(
+                builder: (context, setDialogState) => ComboBox<AvailableBank>(
+                  isExpanded: true,
+                  placeholder: const Text('Seleccione banco...'),
+                  value: selectedBank,
+                  items: banks
+                      .map((b) => ComboBoxItem(value: b, child: Text(b.name)))
+                      .toList(),
+                  onChanged: (b) => setDialogState(() => selectedBank = b),
                 ),
               ),
-              const SizedBox(height: Spacing.sm),
-              InfoLabel(
-                label: 'Banco',
-                child: StatefulBuilder(
-                  builder: (context, setDialogState) => ComboBox<AvailableBank>(
-                    isExpanded: true,
-                    placeholder: const Text('Seleccione banco...'),
-                    value: selectedBank,
-                    items: banks.map((b) => ComboBoxItem(
-                      value: b,
-                      child: Text(b.name),
-                    )).toList(),
-                    onChanged: (b) => setDialogState(() => selectedBank = b),
-                  ),
-                ),
-              ),
-            ],
-          ),
+            ),
+          ],
         ),
         actions: [
           Button(
@@ -910,7 +1084,6 @@ class AddPaymentDialogContentState extends ConsumerState<AddPaymentDialogContent
 
               // Create the partner bank
               final advanceService = ref.read(advanceServiceProvider);
-              if (advanceService == null) return;
               final newBank = await advanceService.createPartnerBank(
                 partnerId: partnerId,
                 accNumber: accNumber,
@@ -930,7 +1103,7 @@ class AddPaymentDialogContentState extends ConsumerState<AddPaymentDialogContent
 
     if (result != null && mounted) {
       // Refresh the partner banks list and select the new one
-      ref.invalidate(posPartnerBanksProvider);
+      ref.invalidate(posPartnerBanksStreamProvider);
       setState(() {
         _selectedPartnerBank = result;
       });
@@ -954,22 +1127,29 @@ class AddPaymentDialogContentState extends ConsumerState<AddPaymentDialogContent
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text('Transferencia', style: widget.theme.typography.bodyStrong?.copyWith(color: AppColors.creditNote)),
+          Text(
+            'Transferencia',
+            style: widget.theme.typography.bodyStrong?.copyWith(
+              color: AppColors.creditNote,
+            ),
+          ),
           const SizedBox(height: Spacing.sm),
-          Row(children: [
-            Expanded(child: InfoLabel(
+          _buildAdaptiveFieldPair(
+            first: InfoLabel(
               label: 'Fecha *',
               child: DatePicker(
                 selected: _paymentDate,
                 onChanged: (d) => setState(() => _paymentDate = d),
               ),
-            )),
-            const SizedBox(width: Spacing.sm),
-            Expanded(child: InfoLabel(
+            ),
+            second: InfoLabel(
               label: 'N\u00b0 Referencia *',
-              child: TextBox(controller: _referenceController, placeholder: 'Requerido'),
-            )),
-          ]),
+              child: TextBox(
+                controller: _referenceController,
+                placeholder: 'Requerido',
+              ),
+            ),
+          ),
         ],
       ),
     );
@@ -983,27 +1163,36 @@ class AddPaymentDialogContentState extends ConsumerState<AddPaymentDialogContent
       decoration: BoxDecoration(
         color: AppColors.primaryBackground.withValues(alpha: 0.05),
         borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: AppColors.primaryBackground.withValues(alpha: 0.2)),
+        border: Border.all(
+          color: AppColors.primaryBackground.withValues(alpha: 0.2),
+        ),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text('Dep\u00f3sito Bancario Cheque', style: widget.theme.typography.bodyStrong?.copyWith(color: AppColors.primaryBackground)),
+          Text(
+            'Dep\u00f3sito Bancario Cheque',
+            style: widget.theme.typography.bodyStrong?.copyWith(
+              color: AppColors.primaryBackground,
+            ),
+          ),
           const SizedBox(height: Spacing.sm),
-          Row(children: [
-            Expanded(child: InfoLabel(
+          _buildAdaptiveFieldPair(
+            first: InfoLabel(
               label: 'Fecha *',
               child: DatePicker(
                 selected: _paymentDate,
                 onChanged: (d) => setState(() => _paymentDate = d),
               ),
-            )),
-            const SizedBox(width: Spacing.sm),
-            Expanded(child: InfoLabel(
+            ),
+            second: InfoLabel(
               label: 'N\u00b0 Dep\u00f3sito *',
-              child: TextBox(controller: _referenceController, placeholder: 'Requerido'),
-            )),
-          ]),
+              child: TextBox(
+                controller: _referenceController,
+                placeholder: 'Requerido',
+              ),
+            ),
+          ),
         ],
       ),
     );
@@ -1022,22 +1211,29 @@ class AddPaymentDialogContentState extends ConsumerState<AddPaymentDialogContent
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text('Dep\u00f3sito Bancario', style: widget.theme.typography.bodyStrong?.copyWith(color: AppColors.info)),
+          Text(
+            'Dep\u00f3sito Bancario',
+            style: widget.theme.typography.bodyStrong?.copyWith(
+              color: AppColors.info,
+            ),
+          ),
           const SizedBox(height: Spacing.sm),
-          Row(children: [
-            Expanded(child: InfoLabel(
+          _buildAdaptiveFieldPair(
+            first: InfoLabel(
               label: 'Fecha *',
               child: DatePicker(
                 selected: _paymentDate,
                 onChanged: (d) => setState(() => _paymentDate = d),
               ),
-            )),
-            const SizedBox(width: Spacing.sm),
-            Expanded(child: InfoLabel(
+            ),
+            second: InfoLabel(
               label: 'N\u00b0 Referencia *',
-              child: TextBox(controller: _referenceController, placeholder: 'Requerido'),
-            )),
-          ]),
+              child: TextBox(
+                controller: _referenceController,
+                placeholder: 'Requerido',
+              ),
+            ),
+          ),
         ],
       ),
     );
@@ -1047,7 +1243,9 @@ class AddPaymentDialogContentState extends ConsumerState<AddPaymentDialogContent
   /// Does not require Lote/Marca/Plazo like card journals (DATAFAST)
   Widget _buildBankCardSection() {
     final isCredit = _derivedCardType == CardType.credit;
-    final title = isCredit ? 'Tarjeta Cr\u00e9dito (Banco)' : 'Tarjeta D\u00e9bito (Banco)';
+    final title = isCredit
+        ? 'Tarjeta Cr\u00e9dito (Banco)'
+        : 'Tarjeta D\u00e9bito (Banco)';
 
     return Container(
       padding: const EdgeInsets.all(Spacing.sm),
@@ -1059,25 +1257,29 @@ class AddPaymentDialogContentState extends ConsumerState<AddPaymentDialogContent
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(title, style: widget.theme.typography.bodyStrong?.copyWith(color: AppColors.info)),
+          Text(
+            title,
+            style: widget.theme.typography.bodyStrong?.copyWith(
+              color: AppColors.info,
+            ),
+          ),
           const SizedBox(height: Spacing.sm),
-          Row(children: [
-            Expanded(child: InfoLabel(
+          _buildAdaptiveFieldPair(
+            first: InfoLabel(
               label: 'N\u00b0 Voucher *',
               child: TextBox(
                 controller: _referenceController,
                 placeholder: 'Requerido',
               ),
-            )),
-            const SizedBox(width: Spacing.sm),
-            Expanded(child: InfoLabel(
+            ),
+            second: InfoLabel(
               label: 'Fecha voucher *',
               child: DatePicker(
                 selected: _voucherDate,
                 onChanged: (d) => setState(() => _voucherDate = d),
               ),
-            )),
-          ]),
+            ),
+          ),
         ],
       ),
     );
@@ -1097,7 +1299,12 @@ class AddPaymentDialogContentState extends ConsumerState<AddPaymentDialogContent
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('Aplicar Anticipo', style: widget.theme.typography.bodyStrong?.copyWith(color: AppColors.advance)),
+            Text(
+              'Aplicar Anticipo',
+              style: widget.theme.typography.bodyStrong?.copyWith(
+                color: AppColors.advance,
+              ),
+            ),
             const SizedBox(height: Spacing.sm),
             InfoLabel(
               label: 'Anticipo disponible *',
@@ -1105,22 +1312,39 @@ class AddPaymentDialogContentState extends ConsumerState<AddPaymentDialogContent
                 isExpanded: true,
                 placeholder: const Text('Seleccione...'),
                 value: _selectedAdvance,
-                items: advances.map((a) => ComboBoxItem(
-                  value: a,
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Expanded(child: Text(a.name, overflow: TextOverflow.ellipsis)),
-                      Text(a.amountAvailable.toCurrency(),
-                           style: TextStyle(color: AppColors.success, fontWeight: FontWeight.bold)),
-                    ],
-                  ),
-                )).toList(),
+                items: advances
+                    .map(
+                      (a) => ComboBoxItem(
+                        value: a,
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Expanded(
+                              child: Text(
+                                a.name,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
+                            Text(
+                              a.amountAvailable.toCurrency(),
+                              style: TextStyle(
+                                color: AppColors.success,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    )
+                    .toList(),
                 onChanged: (a) {
                   setState(() {
                     _selectedAdvance = a;
                     if (a != null) {
-                      final autoAmount = a.amountAvailable < widget.pendingAmount ? a.amountAvailable : widget.pendingAmount;
+                      final autoAmount =
+                          a.amountAvailable < widget.pendingAmount
+                          ? a.amountAvailable
+                          : widget.pendingAmount;
                       _amountController.text = autoAmount.toFixed(2);
                     }
                   });
@@ -1129,27 +1353,44 @@ class AddPaymentDialogContentState extends ConsumerState<AddPaymentDialogContent
             ),
             if (_selectedAdvance != null) ...[
               const SizedBox(height: Spacing.sm),
-              Row(children: [
-                Expanded(child: Container(
+              _buildAdaptiveFieldPair(
+                first: Container(
                   padding: const EdgeInsets.all(Spacing.sm),
-                  decoration: BoxDecoration(color: AppColors.advance.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(4)),
-                  child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                    Text('Disponible', style: widget.theme.typography.caption),
-                    Text(_selectedAdvance!.amountAvailable.toCurrency(),
-                         style: widget.theme.typography.bodyStrong?.copyWith(color: AppColors.advance)),
-                  ]),
-                )),
-                const SizedBox(width: Spacing.sm),
-                Expanded(child: InfoLabel(
+                  decoration: BoxDecoration(
+                    color: AppColors.advance.withValues(alpha: 0.1),
+                    borderRadius: BorderRadius.circular(4),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Disponible',
+                        style: widget.theme.typography.caption,
+                      ),
+                      Text(
+                        _selectedAdvance!.amountAvailable.toCurrency(),
+                        style: widget.theme.typography.bodyStrong?.copyWith(
+                          color: AppColors.advance,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                second: InfoLabel(
                   label: 'Monto a aplicar',
                   child: TextBox(
                     controller: _amountController,
-                    keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                    prefix: const Padding(padding: EdgeInsets.only(left: 8), child: Text('\$')),
+                    keyboardType: const TextInputType.numberWithOptions(
+                      decimal: true,
+                    ),
+                    prefix: const Padding(
+                      padding: EdgeInsets.only(left: 8),
+                      child: Text('\$'),
+                    ),
                     onChanged: (_) => setState(() {}),
                   ),
-                )),
-              ]),
+                ),
+              ),
             ],
           ],
         ),
@@ -1157,7 +1398,9 @@ class AddPaymentDialogContentState extends ConsumerState<AddPaymentDialogContent
     );
   }
 
-  Widget _buildCreditNoteFields(AsyncValue<List<AvailableCreditNote>> creditNotesAsync) {
+  Widget _buildCreditNoteFields(
+    AsyncValue<List<AvailableCreditNote>> creditNotesAsync,
+  ) {
     return creditNotesAsync.when(
       loading: () => const Center(child: ProgressRing()),
       error: (e, _) => Text('Error: $e'),
@@ -1166,12 +1409,19 @@ class AddPaymentDialogContentState extends ConsumerState<AddPaymentDialogContent
         decoration: BoxDecoration(
           color: AppColors.creditNote.withValues(alpha: 0.05),
           borderRadius: BorderRadius.circular(8),
-          border: Border.all(color: AppColors.creditNote.withValues(alpha: 0.2)),
+          border: Border.all(
+            color: AppColors.creditNote.withValues(alpha: 0.2),
+          ),
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('Aplicar Nota de Cr\u00e9dito', style: widget.theme.typography.bodyStrong?.copyWith(color: AppColors.creditNote)),
+            Text(
+              'Aplicar Nota de Cr\u00e9dito',
+              style: widget.theme.typography.bodyStrong?.copyWith(
+                color: AppColors.creditNote,
+              ),
+            ),
             const SizedBox(height: Spacing.sm),
             InfoLabel(
               label: 'Nota de cr\u00e9dito *',
@@ -1179,22 +1429,39 @@ class AddPaymentDialogContentState extends ConsumerState<AddPaymentDialogContent
                 isExpanded: true,
                 placeholder: const Text('Seleccione...'),
                 value: _selectedCreditNote,
-                items: creditNotes.map((nc) => ComboBoxItem(
-                  value: nc,
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Expanded(child: Text(nc.name, overflow: TextOverflow.ellipsis)),
-                      Text(nc.amountResidual.toCurrency(),
-                           style: TextStyle(color: AppColors.success, fontWeight: FontWeight.bold)),
-                    ],
-                  ),
-                )).toList(),
+                items: creditNotes
+                    .map(
+                      (nc) => ComboBoxItem(
+                        value: nc,
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Expanded(
+                              child: Text(
+                                nc.name,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
+                            Text(
+                              nc.amountResidual.toCurrency(),
+                              style: TextStyle(
+                                color: AppColors.success,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    )
+                    .toList(),
                 onChanged: (nc) {
                   setState(() {
                     _selectedCreditNote = nc;
                     if (nc != null) {
-                      final autoAmount = nc.amountResidual < widget.pendingAmount ? nc.amountResidual : widget.pendingAmount;
+                      final autoAmount =
+                          nc.amountResidual < widget.pendingAmount
+                          ? nc.amountResidual
+                          : widget.pendingAmount;
                       _amountController.text = autoAmount.toFixed(2);
                     }
                   });
@@ -1203,27 +1470,41 @@ class AddPaymentDialogContentState extends ConsumerState<AddPaymentDialogContent
             ),
             if (_selectedCreditNote != null) ...[
               const SizedBox(height: Spacing.sm),
-              Row(children: [
-                Expanded(child: Container(
+              _buildAdaptiveFieldPair(
+                first: Container(
                   padding: const EdgeInsets.all(Spacing.sm),
-                  decoration: BoxDecoration(color: AppColors.creditNote.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(4)),
-                  child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                    Text('Saldo NC', style: widget.theme.typography.caption),
-                    Text(_selectedCreditNote!.amountResidual.toCurrency(),
-                         style: widget.theme.typography.bodyStrong?.copyWith(color: AppColors.creditNote)),
-                  ]),
-                )),
-                const SizedBox(width: Spacing.sm),
-                Expanded(child: InfoLabel(
+                  decoration: BoxDecoration(
+                    color: AppColors.creditNote.withValues(alpha: 0.1),
+                    borderRadius: BorderRadius.circular(4),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text('Saldo NC', style: widget.theme.typography.caption),
+                      Text(
+                        _selectedCreditNote!.amountResidual.toCurrency(),
+                        style: widget.theme.typography.bodyStrong?.copyWith(
+                          color: AppColors.creditNote,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                second: InfoLabel(
                   label: 'Monto a aplicar',
                   child: TextBox(
                     controller: _amountController,
-                    keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                    prefix: const Padding(padding: EdgeInsets.only(left: 8), child: Text('\$')),
+                    keyboardType: const TextInputType.numberWithOptions(
+                      decimal: true,
+                    ),
+                    prefix: const Padding(
+                      padding: EdgeInsets.only(left: 8),
+                      child: Text('\$'),
+                    ),
                     onChanged: (_) => setState(() {}),
                   ),
-                )),
-              ]),
+                ),
+              ),
             ],
           ],
         ),
@@ -1237,12 +1518,23 @@ class AddPaymentDialogContentState extends ConsumerState<AddPaymentDialogContent
 
     if (_lineType == PaymentLineType.advance && _selectedAdvance != null) {
       if (amount > _selectedAdvance!.amountAvailable) {
-        alerts.add(_buildAlert('El monto excede el disponible del anticipo', AppColors.warning));
+        alerts.add(
+          _buildAlert(
+            'El monto excede el disponible del anticipo',
+            AppColors.warning,
+          ),
+        );
       }
     }
-    if (_lineType == PaymentLineType.creditNote && _selectedCreditNote != null) {
+    if (_lineType == PaymentLineType.creditNote &&
+        _selectedCreditNote != null) {
       if (amount > _selectedCreditNote!.amountResidual) {
-        alerts.add(_buildAlert('El monto excede el saldo de la nota de cr\u00e9dito', AppColors.warning));
+        alerts.add(
+          _buildAlert(
+            'El monto excede el saldo de la nota de cr\u00e9dito',
+            AppColors.warning,
+          ),
+        );
       }
     }
 
@@ -1253,17 +1545,24 @@ class AddPaymentDialogContentState extends ConsumerState<AddPaymentDialogContent
     if (_lineType == PaymentLineType.payment && _showCashFields) {
       final tendered = double.tryParse(_cashTenderedController.text.trim());
       if (tendered != null && tendered < amount) {
-        alerts.add(_buildAlert(
-          'El monto recibido (${tendered.toCurrency()}) es menor al monto a '
-          'abonar (${amount.toCurrency()}). Ingresa un monto recibido mayor '
-          'o igual, o reduce el monto a abonar.',
-          AppColors.danger,
-        ));
+        alerts.add(
+          _buildAlert(
+            'El monto recibido (${tendered.toCurrency()}) es menor al monto a '
+            'abonar (${amount.toCurrency()}). Ingresa un monto recibido mayor '
+            'o igual, o reduce el monto a abonar.',
+            AppColors.danger,
+          ),
+        );
       }
     }
 
     if (alerts.isEmpty) return const SizedBox.shrink();
-    return Column(children: [const SizedBox(height: Spacing.sm), ...alerts]);
+    return Column(
+      children: [
+        const SizedBox(height: Spacing.sm),
+        ...alerts,
+      ],
+    );
   }
 
   Widget _buildAlert(String message, Color color) {
@@ -1275,11 +1574,18 @@ class AddPaymentDialogContentState extends ConsumerState<AddPaymentDialogContent
         borderRadius: BorderRadius.circular(4),
         border: Border.all(color: color.withValues(alpha: 0.3)),
       ),
-      child: Row(children: [
-        Icon(FluentIcons.warning, size: 14, color: color),
-        const SizedBox(width: Spacing.xs),
-        Expanded(child: Text(message, style: widget.theme.typography.caption?.copyWith(color: color))),
-      ]),
+      child: Row(
+        children: [
+          Icon(FluentIcons.warning, size: 14, color: color),
+          const SizedBox(width: Spacing.xs),
+          Expanded(
+            child: Text(
+              message,
+              style: widget.theme.typography.caption?.copyWith(color: color),
+            ),
+          ),
+        ],
+      ),
     );
   }
 
@@ -1300,15 +1606,28 @@ class AddPaymentDialogContentState extends ConsumerState<AddPaymentDialogContent
         }
         if (_showCardFields) {
           // Full card journal (DATAFAST) - requires Lote, Marca, Plazo
-          if (_referenceController.text.isEmpty || _selectedLote == null || _selectedCardBrand == null) return false;
-          if (_derivedCardType == CardType.credit && _selectedCardDeadline == null) return false;
+          if (_referenceController.text.isEmpty ||
+              _selectedLote == null ||
+              _selectedCardBrand == null) {
+            return false;
+          }
+          if (_derivedCardType == CardType.credit &&
+              _selectedCardDeadline == null) {
+            return false;
+          }
         } else if (_showBankCardFields) {
           // Bank card payment - only requires voucher number and date
-          if (_referenceController.text.isEmpty) return false;
+          if (_referenceController.text.isEmpty) {
+            return false;
+          }
         } else if (_showChequeFields) {
-          if (_referenceController.text.isEmpty) return false;
+          if (_referenceController.text.isEmpty) {
+            return false;
+          }
         } else if (_showTransferFields) {
-          if (_referenceController.text.isEmpty) return false;
+          if (_referenceController.text.isEmpty) {
+            return false;
+          }
         } else if (_showDepositChequeFields) {
           if (_referenceController.text.isEmpty) return false;
         } else if (_showBankDepositFields) {
@@ -1317,9 +1636,11 @@ class AddPaymentDialogContentState extends ConsumerState<AddPaymentDialogContent
         }
         return true;
       case PaymentLineType.advance:
-        return _selectedAdvance != null && amount <= _selectedAdvance!.amountAvailable;
+        return _selectedAdvance != null &&
+            amount <= _selectedAdvance!.amountAvailable;
       case PaymentLineType.creditNote:
-        return _selectedCreditNote != null && amount <= _selectedCreditNote!.amountResidual;
+        return _selectedCreditNote != null &&
+            amount <= _selectedCreditNote!.amountResidual;
     }
   }
 
@@ -1350,9 +1671,13 @@ class AddPaymentDialogContentState extends ConsumerState<AddPaymentDialogContent
           id: tempId,
           lineUuid: lineUuid,
           type: PaymentLineType.payment,
-          date: (_showTransferFields || _showDepositChequeFields) ? _paymentDate : (_showChequeFields ? _chequeDate : DateTime.now()),
+          date: (_showTransferFields || _showDepositChequeFields)
+              ? _paymentDate
+              : (_showChequeFields ? _chequeDate : DateTime.now()),
           amount: amount,
-          reference: _referenceController.text.isNotEmpty ? _referenceController.text : null,
+          reference: _referenceController.text.isNotEmpty
+              ? _referenceController.text
+              : null,
           journalId: _selectedJournal!.id,
           journalName: _selectedJournal!.name,
           journalType: _selectedJournal!.type,
@@ -1365,12 +1690,16 @@ class AddPaymentDialogContentState extends ConsumerState<AddPaymentDialogContent
           cardBrandId: _showCardFields ? _selectedCardBrand?.id : null,
           cardBrandName: _showCardFields ? _selectedCardBrand?.name : null,
           cardDeadlineId: _showCardFields ? _selectedCardDeadline?.id : null,
-          cardDeadlineName: _showCardFields ? _selectedCardDeadline?.name : null,
+          cardDeadlineName: _showCardFields
+              ? _selectedCardDeadline?.name
+              : null,
           loteId: _showCardFields ? _selectedLote?.id : null,
           loteName: _showCardFields ? _selectedLote?.name : null,
           voucherDate: _showCardFields ? _voucherDate : null,
           partnerBankId: _showChequeFields ? _selectedPartnerBank?.id : null,
-          partnerBankName: _showChequeFields ? _selectedPartnerBank?.displayName : null,
+          partnerBankName: _showChequeFields
+              ? _selectedPartnerBank?.displayName
+              : null,
           effectiveDate: _showChequeFields ? _effectiveDate : null,
         );
         break;
@@ -1404,5 +1733,143 @@ class AddPaymentDialogContentState extends ConsumerState<AddPaymentDialogContent
 
     widget.onAddLine(line);
     Navigator.of(context).pop();
+  }
+}
+
+/// Superficie adaptativa compartida por los formularios de cobro.
+class AdaptivePaymentDialogSurface extends StatelessWidget {
+  const AdaptivePaymentDialogSurface({
+    super.key,
+    required this.inputCapabilities,
+    required this.title,
+    required this.content,
+    required this.actions,
+  });
+
+  static const fullScreenKey = Key('payment-dialog-full-screen');
+  static const modalKey = Key('payment-dialog-modal');
+
+  final AdaptiveInputCapabilities inputCapabilities;
+  final Widget title;
+  final Widget content;
+  final List<Widget> actions;
+
+  @override
+  Widget build(BuildContext context) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final mediaSize = MediaQuery.sizeOf(context);
+        final width = constraints.maxWidth.isFinite
+            ? constraints.maxWidth
+            : mediaSize.width;
+        final height = constraints.maxHeight.isFinite
+            ? constraints.maxHeight
+            : mediaSize.height;
+        final policy = AdaptiveUiPolicy(
+          AdaptiveEnvironment(
+            width: width,
+            height: height,
+            inputs: inputCapabilities,
+          ),
+        );
+        final isFullScreen =
+            policy.dialogPresentation == AdaptiveDialogPresentation.fullScreen;
+        final minimumExtent = policy.minimumInteractiveExtent;
+
+        return ContentDialog(
+          key: isFullScreen ? fullScreenKey : modalKey,
+          constraints: isFullScreen
+              ? BoxConstraints.tightFor(width: width, height: height)
+              : BoxConstraints(
+                  maxWidth: 650,
+                  maxHeight: height < 700 ? height : 700,
+                ),
+          style: isFullScreen
+              ? ContentDialogThemeData(
+                  decoration: BoxDecoration(
+                    color: FluentTheme.of(context).menuColor,
+                  ),
+                  actionsDecoration: BoxDecoration(
+                    color: FluentTheme.of(context).micaBackgroundColor,
+                  ),
+                )
+              : null,
+          title: title,
+          content: content,
+          actions: [
+            for (final action in actions)
+              ConstrainedBox(
+                constraints: BoxConstraints(minHeight: minimumExtent),
+                child: action,
+              ),
+          ],
+        );
+      },
+    );
+  }
+}
+
+/// Par de campos que se apila en compact y comparte una fila en tamaños
+/// medium/expanded. La decisión usa el ancho local del formulario.
+class AdaptivePaymentFieldPair extends StatelessWidget {
+  const AdaptivePaymentFieldPair({
+    super.key,
+    required this.inputCapabilities,
+    required this.first,
+    required this.second,
+    this.firstFlex = 1,
+    this.secondFlex = 1,
+  });
+
+  static const stackedKey = Key('payment-fields-stacked');
+  static const inlineKey = Key('payment-fields-inline');
+
+  final AdaptiveInputCapabilities inputCapabilities;
+  final Widget first;
+  final Widget second;
+  final int firstFlex;
+  final int secondFlex;
+
+  @override
+  Widget build(BuildContext context) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final mediaSize = MediaQuery.sizeOf(context);
+        final width = constraints.maxWidth.isFinite
+            ? constraints.maxWidth
+            : mediaSize.width;
+        final policy = AdaptiveUiPolicy(
+          AdaptiveEnvironment(
+            width: width,
+            height: constraints.maxHeight.isFinite
+                ? constraints.maxHeight
+                : mediaSize.height,
+            inputs: inputCapabilities,
+          ),
+        );
+
+        if (policy.environment.sizeClass == AdaptiveSizeClass.compact) {
+          return Column(
+            key: stackedKey,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              first,
+              const SizedBox(height: Spacing.sm),
+              second,
+            ],
+          );
+        }
+
+        return Row(
+          key: inlineKey,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Expanded(flex: firstFlex, child: first),
+            const SizedBox(width: Spacing.sm),
+            Expanded(flex: secondFlex, child: second),
+          ],
+        );
+      },
+    );
   }
 }

@@ -317,11 +317,7 @@ void main() {
     });
 
     test('should handle empty payment methods', () {
-      final data = {
-        'id': 1,
-        'name': 'Banco',
-        'type': 'bank',
-      };
+      final data = {'id': 1, 'name': 'Banco', 'type': 'bank'};
 
       final journal = AvailableJournal.fromOdoo(data);
 
@@ -331,11 +327,7 @@ void main() {
 
   group('PaymentMethod', () {
     test('should parse from Odoo data', () {
-      final data = {
-        'id': 1,
-        'name': 'Manual',
-        'code': 'manual',
-      };
+      final data = {'id': 1, 'name': 'Manual', 'code': 'manual'};
 
       final method = PaymentMethod.fromOdoo(data);
 
@@ -347,7 +339,11 @@ void main() {
     });
 
     test('should detect card payment method', () {
-      final method = PaymentMethod(id: 1, name: 'Tarjeta', code: 'card_payment');
+      final method = PaymentMethod(
+        id: 1,
+        name: 'Tarjeta',
+        code: 'card_payment',
+      );
       expect(method.isCard, true);
       expect(method.isCash, false);
     });
@@ -359,7 +355,11 @@ void main() {
     });
 
     test('should detect transfer payment method', () {
-      final method = PaymentMethod(id: 1, name: 'Transferencia', code: 'transferencia');
+      final method = PaymentMethod(
+        id: 1,
+        name: 'Transferencia',
+        code: 'transferencia',
+      );
       expect(method.isTransfer, true);
       expect(method.isCash, false);
     });
@@ -416,10 +416,7 @@ void main() {
 
   group('CardBrand', () {
     test('should parse from Odoo data', () {
-      final data = {
-        'id': 1,
-        'name': 'Visa',
-      };
+      final data = {'id': 1, 'name': 'Visa'};
 
       final brand = CardBrand.fromOdoo(data);
 
@@ -446,10 +443,7 @@ void main() {
     });
 
     test('should handle missing deadline_days/percentage', () {
-      final data = {
-        'id': 1,
-        'name': 'Diferido',
-      };
+      final data = {'id': 1, 'name': 'Diferido'};
 
       final deadline = CardDeadline.fromOdoo(data);
 
@@ -474,11 +468,7 @@ void main() {
     });
 
     test('should parse from Odoo data with int journal_id', () {
-      final data = {
-        'id': 1,
-        'name': 'LOTE-001',
-        'journal_id': 5,
-      };
+      final data = {'id': 1, 'name': 'LOTE-001', 'journal_id': 5};
 
       final lote = cardLoteManager.fromOdoo(data);
 

@@ -1,6 +1,7 @@
 import 'package:fluent_ui/fluent_ui.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+
 import 'editable_cell_type.dart';
 
 /// Editable text cell widget that triggers callback on Enter or focus loss
@@ -78,9 +79,9 @@ class EditableTextCell extends ConsumerStatefulWidget {
     this.onFocusNodeCreated,
     this.onFocusNodeDisposed,
   }) : assert(
-          onChanged != null || onCodeSubmit != null,
-          'Either onChanged or onCodeSubmit must be provided',
-        );
+         onChanged != null || onCodeSubmit != null,
+         'Either onChanged or onCodeSubmit must be provided',
+       );
 
   @override
   ConsumerState<EditableTextCell> createState() => _EditableTextCellState();
@@ -268,7 +269,8 @@ class _EditableTextCellState extends ConsumerState<EditableTextCell> {
     }
 
     // Handle Tab key for navigation
-    if (event.logicalKey == LogicalKeyboardKey.tab && widget.onTabNext != null) {
+    if (event.logicalKey == LogicalKeyboardKey.tab &&
+        widget.onTabNext != null) {
       // Check for Shift+Tab
       final shiftPressed = HardwareKeyboard.instance.isShiftPressed;
       if (shiftPressed && widget.onTabPrevious != null) {

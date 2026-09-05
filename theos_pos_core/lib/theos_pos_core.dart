@@ -3,7 +3,7 @@
 /// Pure Dart package containing:
 /// - Models (Freezed classes for Odoo entities)
 /// - Managers (OdooModelManager implementations for CRUD + sync)
-/// - Database (Drift tables, datasources, repositories)
+/// - Database (Drift tables and datasources)
 /// - Services (Business logic without UI dependencies)
 ///
 /// This package has NO Flutter dependencies and can be used in:
@@ -20,14 +20,13 @@ export 'src/database/database_helper.dart';
 
 // Models exports
 export 'src/models/models.dart';
+export 'src/models/collection/pos_app_capabilities.dart';
 
 // Database datasources (concrete implementations)
 export 'src/database/datasources/datasources.dart';
 
-// Managers exports
-// NOTE: Managers depend on theos_pos_core's AppDatabase which is incompatible
-// with theos_pos's AppDatabase. Import individual managers directly if needed.
-// For theos_pos, use local manager wrappers instead.
+// Managers exports. Generated and domain-specific managers share this
+// package's single AppDatabase instance.
 export 'src/managers/managers.dart';
 
 // Services exports
@@ -43,18 +42,29 @@ export 'src/odoo_field_registry.dart';
 export 'package:odoo_sdk/odoo_sdk.dart'
     show
         // API
-        OdooClient, OdooClientConfig, SyncResult,
+        OdooClient,
+        OdooClientConfig,
+        SyncResult,
         // Logging
-        AppLogger, LogLevel, logger,
+        AppLogger,
+        LogLevel,
+        logger,
         // WebSocket
-        OdooWebSocketService, OdooWebSocketConnectionInfo,
+        OdooWebSocketService,
+        OdooWebSocketConnectionInfo,
         // Utilities
-        MoneyRounding, toStringOrNull,
-        extractMany2oneId, extractMany2oneName,
-        parseOdooDateTime, parseOdooDate, parseOdooBool,
+        MoneyRounding,
+        toStringOrNull,
+        extractMany2oneId,
+        extractMany2oneName,
+        parseOdooDateTime,
+        parseOdooDate,
+        parseOdooBool,
         // Database
         IOdooDatabase,
         // Connectivity
-        ServerHealthService, ConnectivityStatus, ServerConnectionState;
+        ServerHealthService,
+        ConnectivityStatus,
+        ServerConnectionState;
 export 'package:odoo_sdk/odoo_sdk.dart'
     show OdooModelManager, OdooRecord, SmartOdooModel;

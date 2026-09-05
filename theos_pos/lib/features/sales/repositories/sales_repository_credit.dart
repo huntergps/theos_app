@@ -65,34 +65,36 @@ extension SalesRepositoryCredit on SalesRepository {
     required String checkType,
     int? paymentTermId,
     bool skipDuplicateCheck = false,
+    Map<String, dynamic>? approvalAction,
   }) async {
-    // OFFLINE-FIRST: If offline, update local state and queue
+    // OFFLINE-FIRST: Commit the local state and its durable intent together.
     if (!_orderManager.isOnline) {
       logger.d('[SalesRepo]', 'Offline - queuing credit approval request');
+      final queue = _offlineQueue;
+      if (queue == null) return null;
 
-      // 1. Update local order state to 'waiting'
-      await _orderManager.updateSaleOrderState(orderId, state: 'waiting', pendingConfirm: true);
-
-      // 2. Queue the approval request creation
-      if (_offlineQueue != null) {
-        await _offlineQueue.queueOperation(
-          model: 'approval.request',
-          method: 'create_credit_approval',
-          recordId: orderId,
-          values: {
-            'order_id': orderId,
-            'partner_id': partnerId,
-            'amount': amount,
-            'reason': reason,
-            'check_type': checkType,
-            'payment_term_id': ?paymentTermId,
-          },
-          priority: OfflinePriority.high,
+      return _db.transaction(() async {
+        final localOrder = await _orderManager.getSaleOrder(orderId);
+        if (localOrder == null || localOrder.partnerId != partnerId) {
+          throw StateError('El pedido local no corresponde a este cliente.');
+        }
+        await _orderManager.updateSaleOrderState(
+          orderId,
+          state: 'waiting',
+          pendingConfirm: true,
         );
-      }
-
-      logger.i('[SalesRepo]', 'Credit approval queued for order $orderId');
-      return -1; // Indicates queued for offline processing
+        await CreditApprovalOfflineContract.enqueue(
+          queue: queue,
+          orderId: orderId,
+          partnerId: partnerId,
+          amount: amount,
+          checkType: checkType,
+          paymentTermId: paymentTermId,
+          orderUuid: localOrder.orderUuid,
+        );
+        logger.i('[SalesRepo]', 'Credit approval queued for order $orderId');
+        return -1; // Persisted locally; awaiting synchronization.
+      });
     }
 
     try {
@@ -115,74 +117,23 @@ extension SalesRepositoryCredit on SalesRepository {
         }
       }
 
-      // Intentar usar el wizard del módulo l10n_ec_sale_credit.
-      // Si el wizard existe, es el flujo preferido porque:
-      // - Maneja categoría, campos de auditoría y campos relacionados automáticamente
-      // - Llama action_confirm() internamente (pasa a 'pending')
-      // - Actualiza el estado de la orden a 'waiting' de forma nativa
-      // - Mantiene compatibilidad con cualquier personalización del módulo
-      int? approvalId;
-      bool usedWizard = false;
-
-      try {
-        approvalId = await _createApprovalViaWizard(
-          odooClient: _orderManager.client,
-          orderId: orderId,
-          partnerId: partnerId,
-          amount: amount,
-          checkType: checkType,
-          paymentTermId: paymentTermId,
-        );
-        usedWizard = true;
-        logger.i(
-          '[SalesRepository]',
-          'Approval request created via wizard for order $orderId',
-        );
-      } catch (wizardError) {
-        // El wizard no está disponible (módulo no instalado, versión diferente, etc.)
-        // Fallback: crear el approval.request directamente.
-        logger.w(
-          '[SalesRepository]',
-          'Wizard approach failed, using direct fallback: $wizardError',
-        );
-        approvalId = await _createApprovalDirect(
-          odooClient: _orderManager.client,
-          orderId: orderId,
-          partnerId: partnerId,
-          amount: amount,
-          reason: reason,
-          checkType: checkType,
-          paymentTermId: paymentTermId,
-        );
-      }
-
-      if (approvalId == null && !usedWizard) {
-        throw StateError('No se pudo crear la solicitud de aprobación');
-      }
-
-      if (approvalId != null) {
-        logger.i(
-          '[SalesRepository]',
-          'Approval request ID=$approvalId for order $orderId '
-          '(via ${usedWizard ? "wizard" : "direct"})',
-        );
-      }
-
-      // Si se usó el fallback directo, el estado de la orden no fue cambiado
-      // por el wizard. Actualizarlo manualmente.
-      if (!usedWizard) {
-        await _orderManager.client.write(
-          model: 'sale.order',
-          ids: [orderId],
-          values: {'state': 'waiting'},
-        );
-        logger.d('[SalesRepository]', 'Order $orderId state changed to waiting (direct fallback)');
-      }
+      // Un rechazo del asistente es un rechazo del negocio, no una señal para
+      // crear approval.request por otra vía ni escribir waiting a mano.
+      final approvalId = await _createApprovalViaWizard(
+        odooClient: _orderManager.client,
+        orderId: orderId,
+        partnerId: partnerId,
+        amount: amount,
+        checkType: checkType,
+        paymentTermId: paymentTermId,
+        approvalAction: approvalAction,
+      );
 
       // Refrescar la orden para obtener el nuevo estado (waiting)
       await getById(orderId, forceRefresh: true);
 
-      return approvalId ?? -2; // -2 indica que se usó el wizard sin ID de retorno
+      return approvalId ??
+          -2; // -2 indica que se usó el wizard sin ID de retorno
     } catch (e, stack) {
       logger.e(
         '[SalesRepository]',
@@ -211,7 +162,64 @@ extension SalesRepositoryCredit on SalesRepository {
     required double amount,
     required String checkType,
     int? paymentTermId,
+    Map<String, dynamic>? approvalAction,
   }) async {
+    if (approvalAction != null) {
+      final context = approvalAction['context'];
+      if (approvalAction['type'] != 'ir.actions.act_window' ||
+          approvalAction['res_model'] != 'credit.limit.exceeded.wizard' ||
+          context is! Map<String, dynamic> ||
+          context['default_sale_order_id'] != orderId ||
+          context['default_partner_id'] != partnerId) {
+        throw StateError('La acción de aprobación no corresponde al pedido.');
+      }
+      // Igual que abrir el asistente nativo: defaults calculados por Odoo, no
+      // una segunda clasificación de crédito basada en el saldo local.
+      final created = await odooClient.call(
+        model: 'credit.limit.exceeded.wizard',
+        method: 'create',
+        kwargs: {
+          'vals_list': [<String, dynamic>{}],
+        },
+        context: context,
+      );
+      final wizardId = created is int
+          ? created
+          : created is List && created.length == 1 && created.first is int
+          ? created.first as int
+          : null;
+      if (wizardId == null || wizardId <= 0) {
+        throw StateError('Odoo no devolvió el asistente de aprobación.');
+      }
+      await odooClient.call(
+        model: 'credit.limit.exceeded.wizard',
+        method: 'action_create_approval_request',
+        ids: [wizardId],
+      );
+      final requests = await odooClient.searchRead(
+        model: 'approval.request',
+        domain: [
+          ['sale_order_id', '=', orderId],
+          ['approval_type', '=', 'credit'],
+          [
+            'request_status',
+            'in',
+            ['new', 'pending'],
+          ],
+        ],
+        fields: ['id'],
+        order: 'id desc',
+        limit: 1,
+      );
+      final requestId = requests.isEmpty ? null : requests.first['id'];
+      if (requestId is! int || requestId <= 0) {
+        throw StateError(
+          'Odoo no confirmó una solicitud de aprobación pendiente.',
+        );
+      }
+      return requestId;
+    }
+
     // Obtener datos de crédito del cliente para pasar al wizard
     // (el wizard necesita current_credit_limit y credit_available)
     final clientData = await odooClient.searchRead(
@@ -230,7 +238,8 @@ extension SalesRepositoryCredit on SalesRepository {
       final data = clientData.first;
       currentCreditLimit = (data['credit_limit'] as num?)?.toDouble() ?? 0;
       final credit = (data['credit'] as num?)?.toDouble() ?? 0;
-      final creditToInvoice = (data['credit_to_invoice'] as num?)?.toDouble() ?? 0;
+      final creditToInvoice =
+          (data['credit_to_invoice'] as num?)?.toDouble() ?? 0;
       creditAvailable = currentCreditLimit - credit - creditToInvoice;
     }
 
@@ -250,7 +259,9 @@ extension SalesRepositoryCredit on SalesRepository {
     );
 
     if (wizardId == null) {
-      throw StateError('No se pudo crear el wizard credit.limit.exceeded.wizard');
+      throw StateError(
+        'No se pudo crear el wizard credit.limit.exceeded.wizard',
+      );
     }
 
     // Ejecutar la acción del wizard
@@ -264,86 +275,5 @@ extension SalesRepositoryCredit on SalesRepository {
     // pero podemos buscarlo si lo necesitamos.
     // Para efectos del flujo de UI, retornamos null (el wizard lo creó internamente).
     return null;
-  }
-
-  /// Fallback: crear approval.request directamente (sin wizard).
-  ///
-  /// Usado cuando el wizard `credit.limit.exceeded.wizard` no está disponible
-  /// (módulo en versión anterior o no instalado).
-  Future<int?> _createApprovalDirect({
-    required OdooClient odooClient,
-    required int orderId,
-    required int partnerId,
-    required double amount,
-    required String reason,
-    required String checkType,
-    int? paymentTermId,
-  }) async {
-    // 1. Buscar la categoría de aprobación de crédito
-    final categorySearch = await odooClient.searchRead(
-      model: 'approval.category',
-      domain: [
-        ['approval_type', '=', 'credit'],
-      ],
-      fields: ['id', 'name'],
-      limit: 1,
-    );
-
-    if (categorySearch.isEmpty) {
-      throw StateError(
-        'No se encontró la categoría de aprobación de crédito en Odoo. '
-        'Verifique que el módulo l10n_ec_sale_credit esté instalado.',
-      );
-    }
-
-    final categoryId = categorySearch.first['id'] as int;
-
-    // 2. Obtener nombre de la orden para referencia
-    final orderSearch = await odooClient.searchRead(
-      model: 'sale.order',
-      domain: [
-        ['id', '=', orderId],
-      ],
-      fields: ['name'],
-      limit: 1,
-    );
-
-    final orderName = orderSearch.isNotEmpty
-        ? orderSearch.first['name'] as String
-        : 'SO$orderId';
-
-    // 3. Construir referencia según tipo de verificación
-    final referenceType = checkType == 'overdue_debt'
-        ? 'Solicitud de Aprobación - Cliente con Deudas'
-        : 'Solicitud de Aprobación - Límite de Crédito Excedido';
-
-    // 4. Crear el approval.request
-    final approvalId = await odooClient.create(
-      model: 'approval.request',
-      values: {
-        'category_id': categoryId,
-        'partner_id': partnerId,
-        'amount': amount,
-        'reference': '$orderName - $referenceType',
-        'reason': reason,
-        'approval_type': 'credit',
-        'sale_order_id': orderId,
-        'payment_term_id': ?paymentTermId,
-      },
-    );
-
-    if (approvalId == null) {
-      throw StateError('No se pudo crear la solicitud de aprobación (direct)');
-    }
-
-    // 5. Confirmar la solicitud para que pase a estado 'pending'
-    await odooClient.call(
-      model: 'approval.request',
-      method: 'action_confirm',
-      ids: [approvalId],
-    );
-
-    logger.d('[SalesRepository]', 'Approval request $approvalId confirmed (direct)');
-    return approvalId;
   }
 }

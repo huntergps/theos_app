@@ -1,12 +1,14 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 import 'package:odoo_sdk/odoo_sdk.dart';
+
 import '../database_helper.dart';
 import '../../../features/sync/services/offline_mode_service.dart';
 import '../../../features/sync/providers/offline_mode_providers.dart';
 import '../../../features/sync/services/offline_sync_service.dart';
 import '../../../features/products/services/stock_sync_service.dart';
 import '../../services/handlers/related_record_resolver.dart';
+import '../../services/handlers/record_handler_providers.dart';
 import '../../services/platform/server_connectivity_service.dart';
 import '../../managers/manager_providers.dart';
 
@@ -20,31 +22,16 @@ import '../../../features/collection/repositories/collection_repository.dart';
 
 // Feature Repositories (Simplified)
 import '../../../features/activities/repositories/activity_repository.dart';
-import '../../../features/authentication/repositories/auth_repository.dart';
 import '../../../shared/providers/datasource_providers.dart';
 import '../datasources/datasources.dart';
 
 import '../../../features/sales/repositories/sales_repository.dart';
-export '../../../features/sales/repositories/sales_repository.dart';
 import '../../../features/products/repositories/product_repository.dart';
 import '../../../features/clients/repositories/client_repository.dart';
 import '../../../features/invoices/repositories/invoice_repository.dart';
 
 // Catalog Sync Repository
 import '../../../features/sync/repositories/catalog_sync_repository.dart';
-
-// Re-export data classes
-export '../../../features/sync/repositories/catalog_sync_repository.dart'
-    show
-        SyncProgress,
-        SyncModelInfo,
-        SyncCancelledException,
-        SyncProgressCallback,
-        PartnerSyncData,
-        ProductSyncData,
-        UomSyncData,
-        UserSyncData,
-        CompanySyncData;
 
 part 'repository_providers.g.dart';
 
@@ -91,37 +78,34 @@ OfflineQueueDataSource? offlineQueueDataSource(Ref ref) {
 
 @Riverpod(keepAlive: true)
 UserRepository? userRepository(Ref ref) {
-  final odooClient = ref.watch(odooClientProvider);
-  final dbHelper = ref.watch(databaseHelperProvider);
+  final core = _coreDependencies(ref);
 
-  if (odooClient == null || dbHelper == null) return null;
+  if (core.client == null || core.db == null) return null;
 
   return UserRepository(
-    odooClient: odooClient,
-    db: dbHelper,
+    odooClient: core.client!,
+    db: core.db!,
     appDb: ref.watch(appDatabaseProvider),
   );
 }
 
 @Riverpod(keepAlive: true)
 CommonRepository? commonRepository(Ref ref) {
-  final odooClient = ref.watch(odooClientProvider);
-  final dbHelper = ref.watch(databaseHelperProvider);
+  final core = _coreDependencies(ref);
   final fieldSelectionDatasource = ref.watch(fieldSelectionDatasourceProvider);
 
-  if (odooClient == null || dbHelper == null) return null;
+  if (core.client == null || core.db == null) return null;
 
   return CommonRepository(
-    odooClient: odooClient,
-    db: dbHelper,
+    odooClient: core.client!,
+    db: core.db!,
     fieldSelectionDatasource: fieldSelectionDatasource,
   );
 }
 
 @Riverpod(keepAlive: true)
 CollectionRepository? collectionRepository(Ref ref) {
-  final odooClient = ref.watch(odooClientProvider);
-  final dbHelper = ref.watch(databaseHelperProvider);
+  final core = _coreDependencies(ref);
   final userRepo = ref.watch(userRepositoryProvider);
   final offlineQueue = ref.watch(offlineQueueDataSourceProvider);
   final sessionManager = ref.watch(collectionSessionManagerProvider);
@@ -130,11 +114,11 @@ CollectionRepository? collectionRepository(Ref ref) {
   final sessionCashMgr = ref.watch(collectionSessionCashManagerProvider);
   final sessionDepositMgr = ref.watch(collectionSessionDepositManagerProvider);
 
-  if (odooClient == null || dbHelper == null || userRepo == null) return null;
+  if (core.client == null || core.db == null || userRepo == null) return null;
 
   return CollectionRepository(
-    odooClient: odooClient,
-    db: dbHelper,
+    odooClient: core.client!,
+    db: core.db!,
     userRepository: userRepo,
     sessionManager: sessionManager,
     paymentManager: paymentManager,
@@ -147,43 +131,29 @@ CollectionRepository? collectionRepository(Ref ref) {
 
 @Riverpod(keepAlive: true)
 CompanyRepository? companyRepository(Ref ref) {
-  final odooClient = ref.watch(odooClientProvider);
-  final dbHelper = ref.watch(databaseHelperProvider);
+  final core = _coreDependencies(ref);
 
-  if (odooClient == null || dbHelper == null) return null;
+  if (core.client == null || core.db == null) return null;
 
-  return CompanyRepository(
-    odooClient: odooClient,
-    db: dbHelper,
-  );
+  return CompanyRepository(odooClient: core.client!, db: core.db!);
 }
 
 // ============ Feature Repository Providers ============
 
 @Riverpod(keepAlive: true)
 ActivityRepository activityRepository(Ref ref) {
-  // F5: ActivityRepository ya no recibe OdooClient — usa
-  // mailActivityManager.client/.isOnline internamente. NOTA: esto pierde el
-  // gate de healthAwareOdooClientProvider (evita intentos RPC cuando
-  // ServerHealthService ya detectó el servidor como inalcanzable) — el
-  // manager solo sabe si tiene un cliente configurado, no si el servidor
-  // está sano ahora mismo. Impacto acotado: las llamadas igual fallan con
-  // timeout/error de red y caen al catch existente (mismo resultado final,
-  // solo más lento en el peor caso) — ver reporte de Fase F5 para detalle.
+  // The manager owns the shared client and online-state gate.
   return ActivityRepository();
-}
-
-@Riverpod(keepAlive: true)
-AuthRepository authRepository(Ref ref) {
-  // F5: AuthRepository ya no recibe OdooClient — usa userManager.client
-  // internamente (mismo cliente, inyectado centralmente en el manager).
-  return AuthRepository();
 }
 
 @Riverpod(keepAlive: true)
 RelatedRecordResolver? relatedRecordResolver(Ref ref) {
   final odooClient = ref.watch(healthAwareOdooClientProvider);
-  return RelatedRecordResolver(odooClient: odooClient, db: ref.watch(appDatabaseProvider));
+  return RelatedRecordResolver(
+    odooClient: odooClient,
+    db: ref.watch(appDatabaseProvider),
+    handlerRegistry: ref.watch(modelRecordHandlerRegistryProvider),
+  );
 }
 
 @Riverpod(keepAlive: true)
@@ -192,10 +162,7 @@ ProductRepository? productRepository(Ref ref) {
 
   if (dbHelper == null) return null;
 
-  // F5: ProductRepository ya no recibe OdooClient — usa
-  // productManager/saleOrderLineManager/taxManager/uomManager/
-  // productUomManager.client/.isOnline internamente (mismo trade-off de
-  // healthAwareOdooClientProvider documentado en activityRepository arriba).
+  // Product managers own the shared client and online-state gate.
   return ProductRepository(db: ref.watch(appDatabaseProvider));
 }
 
@@ -222,10 +189,7 @@ SalesRepository? salesRepository(Ref ref) {
 
   if (dbHelper == null) return null;
 
-  // F5: SalesRepository ya no recibe OdooClient — usa saleOrderManager/
-  // saleOrderLineManager/taxManager/accountMoveManager/withholdLineManager/
-  // paymentLineManager.client/.isOnline internamente (mismo trade-off de
-  // healthAwareOdooClientProvider documentado en activityRepository).
+  // Sales managers own the shared client and online-state gate.
   return SalesRepository(
     db: dbHelper,
     appDb: ref.watch(appDatabaseProvider),
@@ -234,14 +198,12 @@ SalesRepository? salesRepository(Ref ref) {
     productRepository: productRepository,
   );
 }
+
 @Riverpod(keepAlive: true)
 InvoiceRepository invoiceRepository(Ref ref) {
   final productRepository = ref.watch(productRepositoryProvider);
 
-  // F5: InvoiceRepository ya no recibe OdooClient — usa
-  // accountMoveManager/accountMoveLineManager/saleOrderManager.client
-  // internamente (mismo trade-off de healthAwareOdooClientProvider
-  // documentado en activityRepository).
+  // Invoice managers own the shared client and online-state gate.
   return InvoiceRepository(
     productRepository: productRepository,
     appDb: ref.watch(appDatabaseProvider),
@@ -258,7 +220,7 @@ OfflineSyncService? offlineSyncService(Ref ref) {
 
   if (dbHelper == null || offlineQueue == null) return null;
 
-  return OfflineSyncService(
+  final service = OfflineSyncService(
     db: dbHelper,
     appDb: ref.watch(appDatabaseProvider),
     odooClient: odooClient,
@@ -266,22 +228,46 @@ OfflineSyncService? offlineSyncService(Ref ref) {
     sessionManager: sessionManager,
     paymentManager: paymentManager,
   );
+  ref.onDispose(service.dispose);
+  return service;
 }
 
 @Riverpod(keepAlive: true)
 CatalogSyncRepository? catalogSyncRepository(Ref ref) {
   final odooClient = ref.watch(healthAwareOdooClientProvider);
   final dbHelper = ref.watch(databaseHelperProvider);
-  final productRepository = ref.watch(productRepositoryProvider);
 
   if (dbHelper == null) return null;
 
   return CatalogSyncRepository(
     db: dbHelper,
+    appDb: ref.watch(appDatabaseProvider),
     odooClient: odooClient,
-    productRepository: productRepository,
+    recordHandlerRegistry: ref.watch(modelRecordHandlerRegistryProvider),
   );
 }
+
+/// Minimal authenticated catalog boundary used while establishing a session.
+///
+/// Login has already completed a successful bearer-authenticated request, but
+/// the persisted health state can still be `disconnected` until the monitor's
+/// first probe finishes. Using [healthAwareOdooClientProvider] in that narrow
+/// window silently built a repository without a client and permission sync
+/// returned zero without publishing a snapshot. Session authorization must use
+/// the client that just authenticated; regular background/catalog work keeps
+/// using [catalogSyncRepositoryProvider] and its health gate.
+final authenticatedCatalogSyncRepositoryProvider =
+    Provider<CatalogSyncRepository?>((ref) {
+      final odooClient = ref.watch(odooClientProvider);
+      final dbHelper = ref.watch(databaseHelperProvider);
+      if (odooClient == null || dbHelper == null) return null;
+      return CatalogSyncRepository(
+        db: dbHelper,
+        appDb: ref.watch(appDatabaseProvider),
+        odooClient: odooClient,
+        recordHandlerRegistry: ref.watch(modelRecordHandlerRegistryProvider),
+      );
+    });
 
 // ============ Offline Mode Services ============
 
@@ -310,8 +296,8 @@ OdooClient? effectiveOdooClient(Ref ref) {
 
   final isOfflineModeActive = offlineModeConfig.when(
     data: (config) => config.isEnabled,
-    loading: () => false,
-    error: (_, _) => false,
+    loading: () => true,
+    error: (_, _) => true,
   );
 
   if (isOfflineModeActive) {
@@ -322,6 +308,16 @@ OdooClient? effectiveOdooClient(Ref ref) {
 }
 
 // ============ Helper Functions ============
+
+/// Shared runtime dependencies used by repositories that require both the
+/// configured Odoo client and the local database. Keeping this lookup in one
+/// place makes the not-yet-initialized state explicit and consistent.
+({OdooClient? client, DatabaseHelper? db}) _coreDependencies(Ref ref) {
+  return (
+    client: ref.watch(odooClientProvider),
+    db: ref.watch(databaseHelperProvider),
+  );
+}
 
 /// Check if core dependencies are initialized (for WidgetRef)
 bool areCoreProvidersReady(WidgetRef ref) {

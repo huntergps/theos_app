@@ -1,8 +1,11 @@
 import 'dart:typed_data';
-import 'package:test/test.dart';
+
+import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter_qweb/src/qweb_report_engine.dart';
 
 void main() {
+  TestWidgetsFlutterBinding.ensureInitialized();
+
   group('QWebReportEngine', () {
     late QWebReportEngine engine;
 
@@ -21,7 +24,7 @@ void main() {
       ''';
 
       final data = {
-        'doc': {'name': 'Test Document'}
+        'doc': {'name': 'Test Document'},
       };
 
       final pdfBytes = await engine.renderToPdf(xml: xml, data: data);
@@ -101,15 +104,16 @@ void main() {
       final pdfBytes = await engine.renderToPdf(xml: xml, data: {});
       expect(pdfBytes, isA<Uint8List>());
     });
-    test('should support nested t-call body injection without stack overflow',
-        () async {
-      engine.registerTemplate('wrapper.template', '''
+    test(
+      'should support nested t-call body injection without stack overflow',
+      () async {
+        engine.registerTemplate('wrapper.template', '''
         <div>
           <t t-out="0"/>
         </div>
       ''');
 
-      const xml = '''
+        const xml = '''
         <t t-name="main.template">
            <t t-call="wrapper.template">
               <t t-call="wrapper.template">
@@ -119,10 +123,11 @@ void main() {
         </t>
       ''';
 
-      final pdfBytes = await engine.renderToPdf(xml: xml, data: {});
-      expect(pdfBytes, isA<Uint8List>());
-      expect(pdfBytes.length, greaterThan(0));
-    });
+        final pdfBytes = await engine.renderToPdf(xml: xml, data: {});
+        expect(pdfBytes, isA<Uint8List>());
+        expect(pdfBytes.length, greaterThan(0));
+      },
+    );
 
     test('should support bootstrap layout and styling', () async {
       const xml = '''

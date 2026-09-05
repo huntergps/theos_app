@@ -1,6 +1,8 @@
 import 'dart:convert';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+
 import '../widgets/reactive/reactive_search_bar.dart';
 
 /// Service for persisting list filter state across app restarts
@@ -58,10 +60,7 @@ class ListFilterPersistenceService {
           .map((f) => _facetFromJson(f as Map<String, dynamic>))
           .toList();
 
-      return ReactiveSearchBarState(
-        query: query,
-        facets: facets,
-      );
+      return ReactiveSearchBarState(query: query, facets: facets);
     } catch (e) {
       // If parsing fails, return null (use defaults)
       return null;

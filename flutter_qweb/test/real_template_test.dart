@@ -1,10 +1,12 @@
 import 'dart:io';
 
-import 'package:test/test.dart';
+import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter_qweb/src/qweb_report_engine.dart';
 import 'package:flutter_qweb/src/models/template_context.dart';
 
 void main() {
+  TestWidgetsFlutterBinding.ensureInitialized();
+
   group('Real Odoo template rendering', () {
     late QWebReportEngine engine;
     late Map<String, dynamic> saleOrder;
@@ -46,7 +48,7 @@ void main() {
               'id': 1,
               'name': 'MAINBOARD ASUS PRIME B760M-A AX6 II',
               'barcode': 'MBO0630',
-              'default_code': 'MBO0630'
+              'default_code': 'MBO0630',
             },
             'product_uom_qty': 2.0,
             'price_unit': 159.65,
@@ -55,7 +57,7 @@ void main() {
             'price_total': 367.20,
             'tax_amount': 47.90,
             'tax_ids': [
-              {'id': 1, 'tax_label': 'IVA 15%'}
+              {'id': 1, 'tax_label': 'IVA 15%'},
             ],
             'display_type': false,
             'is_downpayment': false,
@@ -68,7 +70,7 @@ void main() {
               'id': 2,
               'name': 'PROCESADOR INTEL CORE i5-12400',
               'barcode': 'CPU0216',
-              'default_code': 'CPU0216'
+              'default_code': 'CPU0216',
             },
             'product_uom_qty': 3.0,
             'price_unit': 190.27,
@@ -77,7 +79,7 @@ void main() {
             'price_total': 656.43,
             'tax_amount': 85.62,
             'tax_ids': [
-              {'id': 1, 'tax_label': 'IVA 15%'}
+              {'id': 1, 'tax_label': 'IVA 15%'},
             ],
             'display_type': false,
             'is_downpayment': false,
@@ -89,8 +91,9 @@ void main() {
 
     test('renders real sale order template to PDF', () async {
       // Load the real template
-      final templateFile =
-          File('test/templates/sale_report_saleorder_document.xml');
+      final templateFile = File(
+        'test/templates/sale_report_saleorder_document.xml',
+      );
       if (!templateFile.existsSync()) {
         // Skip if template file not available (CI environment)
         return;
@@ -105,12 +108,10 @@ void main() {
       ''');
 
       // Register main template
-      engine.registerTemplate(
-          'sale.report_saleorder_document', templateXml);
+      engine.registerTemplate('sale.report_saleorder_document', templateXml);
 
       // Pre-process the order
-      final rawOrderLines =
-          (saleOrder['order_line'] as List).map((line) {
+      final rawOrderLines = (saleOrder['order_line'] as List).map((line) {
         final l = Map<String, dynamic>.from(line as Map);
         l['_has_taxes'] = () {
           final taxIds = l['tax_ids'];
@@ -123,8 +124,7 @@ void main() {
 
       saleOrder['order_line'] = rawOrderLines;
       saleOrder['_get_order_lines_to_report'] = () => rawOrderLines;
-      saleOrder['with_context'] =
-          ([Map<String, dynamic>? ctx]) => saleOrder;
+      saleOrder['with_context'] = ([Map<String, dynamic>? ctx]) => saleOrder;
 
       // Generate PDF
       final pdfBytes = await engine.renderToPdf(

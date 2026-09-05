@@ -90,6 +90,19 @@ void main() {
     });
 
     group('AesCacheEncryption', () {
+      test('uses a fresh authenticated nonce for every value', () {
+        final encryption = AesCacheEncryption.fromBase64(
+          keyBase64: base64Encode(List<int>.generate(32, (index) => index)),
+        );
+
+        final first = encryption.encrypt('same plaintext');
+        final second = encryption.encrypt('same plaintext');
+
+        expect(first, isNot(second));
+        expect(encryption.decrypt(first), 'same plaintext');
+        expect(encryption.decrypt(second), 'same plaintext');
+      });
+
       test('encrypts and decrypts correctly', () {
         final encryption = AesCacheEncryption.fromPassword('test-password');
 
@@ -144,6 +157,19 @@ void main() {
         final encrypted2 = encryption2.encrypt(original);
 
         expect(encrypted1, isNot(equals(encrypted2)));
+      });
+
+      test('persisted salt restores values in a new instance', () {
+        final writer = AesCacheEncryption.fromPassword(
+          'password',
+          salt: 'persisted-random-salt',
+        );
+        final reader = AesCacheEncryption.fromPassword(
+          'password',
+          salt: 'persisted-random-salt',
+        );
+
+        expect(reader.decrypt(writer.encrypt('restorable')), 'restorable');
       });
 
       test('throws on invalid ciphertext', () {

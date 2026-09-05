@@ -1,7 +1,9 @@
 import 'dart:async';
+
 import 'package:fluent_ui/fluent_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
+
 import '../providers/server_info_provider.dart';
 
 /// A compact status bar displayed at the bottom of the main screen.
@@ -9,43 +11,13 @@ import '../providers/server_info_provider.dart';
 /// Shows: Odoo version | server host | database name | current date/time.
 /// The clock updates every second locally, but syncs from the server
 /// every 10 minutes.
-class ServerInfoBar extends ConsumerStatefulWidget {
+class ServerInfoBar extends ConsumerWidget {
   const ServerInfoBar({super.key});
 
   @override
-  ConsumerState<ServerInfoBar> createState() => _ServerInfoBarState();
-}
-
-class _ServerInfoBarState extends ConsumerState<ServerInfoBar> {
-  Timer? _clockTimer;
-  DateTime _displayTime = DateTime.now();
-
-  @override
-  void initState() {
-    super.initState();
-    _clockTimer = Timer.periodic(const Duration(seconds: 1), (_) {
-      if (mounted) {
-        setState(() {
-          _displayTime = DateTime.now();
-        });
-      }
-    });
-  }
-
-  @override
-  void dispose() {
-    _clockTimer?.cancel();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final serverInfo = ref.watch(serverInfoProvider);
     final theme = FluentTheme.of(context);
-
-    // Use server time offset for display
-    final adjustedTime = _displayTime.toUtc().add(serverInfo.serverTimeOffset).toLocal();
-    final dateTimeStr = DateFormat('dd/MM/yyyy HH:mm:ss').format(adjustedTime);
 
     final textColor = theme.resources.textFillColorSecondary;
     final separatorColor = textColor.withValues(alpha: 0.3);
@@ -57,9 +29,7 @@ class _ServerInfoBarState extends ConsumerState<ServerInfoBar> {
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
       decoration: BoxDecoration(
         color: bgColor,
-        border: Border(
-          top: BorderSide(color: borderColor, width: 0.5),
-        ),
+        border: Border(top: BorderSide(color: borderColor, width: 0.5)),
       ),
       child: Row(
         children: [
@@ -97,13 +67,54 @@ class _ServerInfoBarState extends ConsumerState<ServerInfoBar> {
 
           // Date/Time (pushed to the right)
           const Spacer(),
-          _InfoSegment(
-            icon: FluentIcons.date_time,
-            text: dateTimeStr,
+          _ServerClock(
+            offset: serverInfo.serverTimeOffset,
             textColor: textColor,
           ),
         ],
       ),
+    );
+  }
+}
+
+/// Ticks independently so the server metadata above is not rebuilt every
+/// second.
+class _ServerClock extends StatefulWidget {
+  final Duration offset;
+  final Color textColor;
+
+  const _ServerClock({required this.offset, required this.textColor});
+
+  @override
+  State<_ServerClock> createState() => _ServerClockState();
+}
+
+class _ServerClockState extends State<_ServerClock> {
+  late DateTime _time;
+  Timer? _timer;
+
+  @override
+  void initState() {
+    super.initState();
+    _time = DateTime.now();
+    _timer = Timer.periodic(const Duration(seconds: 1), (_) {
+      if (mounted) setState(() => _time = DateTime.now());
+    });
+  }
+
+  @override
+  void dispose() {
+    _timer?.cancel();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final adjusted = _time.toUtc().add(widget.offset).toLocal();
+    return _InfoSegment(
+      icon: FluentIcons.date_time,
+      text: DateFormat('dd/MM/yyyy HH:mm:ss').format(adjusted),
+      textColor: widget.textColor,
     );
   }
 }
@@ -127,12 +138,17 @@ class _InfoSegment extends StatelessWidget {
       children: [
         Icon(icon, size: 14, color: textColor),
         const SizedBox(width: 5),
-        Text(
-          text,
-          style: TextStyle(
-            fontSize: 13,
-            color: textColor,
-            fontWeight: FontWeight.w400,
+        ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 280),
+          child: Text(
+            text,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              fontSize: 13,
+              color: textColor,
+              fontWeight: FontWeight.w400,
+            ),
           ),
         ),
       ],
@@ -150,11 +166,7 @@ class _Separator extends StatelessWidget {
   Widget build(BuildContext context) {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 8),
-      child: Container(
-        width: 1,
-        height: 12,
-        color: color,
-      ),
+      child: Container(width: 1, height: 12, color: color),
     );
   }
 }

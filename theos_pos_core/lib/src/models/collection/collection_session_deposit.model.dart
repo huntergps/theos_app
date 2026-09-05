@@ -114,7 +114,7 @@ abstract class CollectionSessionDeposit with _$CollectionSessionDeposit {
     // ============ State & References ============
     // Odoo 19.5 (erp1): 'state' ya no existe en collection.session.deposit
     // del servidor (smoke fields_get, julio 2026).
-    @OdooLocalOnly() String? state,
+    @OdooLocalOnly() @Default('draft') String state,
     @OdooDateTime(odooName: 'write_date') DateTime? writeDate,
     @OdooString(odooName: 'deposit_slip_number') String? depositSlipNumber,
     @OdooString(odooName: 'bank_reference') String? bankReference,

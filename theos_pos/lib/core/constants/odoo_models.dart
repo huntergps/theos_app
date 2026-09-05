@@ -92,7 +92,6 @@ abstract class OdooModels {
   static const uomUom = 'uom.uom';
 
   /// uom.category - Categorías de unidades
-  static const uomCategory = 'uom.category';
 
   // ============================================================================
   // CONTABILIDAD

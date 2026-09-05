@@ -10,6 +10,7 @@ void main() {
   setUp(() {
     resetIdCounter();
     service = CatalogService();
+    addTearDown(service.dispose);
   });
 
   // ===========================================================================
@@ -55,7 +56,12 @@ void main() {
     test('stats reflects all populated data', () {
       service.populateForTesting(
         products: [
-          ProductFactory.create(id: 1, name: 'P1', barcode: '111', defaultCode: 'C1'),
+          ProductFactory.create(
+            id: 1,
+            name: 'P1',
+            barcode: '111',
+            defaultCode: 'C1',
+          ),
           ProductFactory.create(id: 2, name: 'P2'),
         ],
         uoms: [UomFactory.create(id: 10, name: 'Units')],
@@ -312,10 +318,13 @@ void main() {
       expect(name, 'litro');
     });
 
-    test('resolveUomName returns "Unid." when UoM does not exist and no fallback', () {
-      final name = service.resolveUomName(999);
-      expect(name, 'Unid.');
-    });
+    test(
+      'resolveUomName returns "Unid." when UoM does not exist and no fallback',
+      () {
+        final name = service.resolveUomName(999);
+        expect(name, 'Unid.');
+      },
+    );
 
     test('allUoms returns all populated UoMs', () {
       final all = service.allUoms;
@@ -337,10 +346,7 @@ void main() {
         name: 'Electronics',
         completeName: 'All / Electronics',
       );
-      tools = ProductCategoryFactory.create(
-        id: 20,
-        name: 'Tools',
-      );
+      tools = ProductCategoryFactory.create(id: 20, name: 'Tools');
       service.populateForTesting(categories: [electronics, tools]);
     });
 
@@ -354,20 +360,26 @@ void main() {
       expect(service.getCategory(999), isNull);
     });
 
-    test('resolveCategoryName returns displayName (completeName) when exists', () {
-      final name = service.resolveCategoryName(10, 'Fallback');
-      expect(name, 'All / Electronics');
-    });
+    test(
+      'resolveCategoryName returns displayName (completeName) when exists',
+      () {
+        final name = service.resolveCategoryName(10, 'Fallback');
+        expect(name, 'All / Electronics');
+      },
+    );
 
     test('resolveCategoryName returns name when completeName is null', () {
       final name = service.resolveCategoryName(20);
       expect(name, 'Tools');
     });
 
-    test('resolveCategoryName returns fallback when category does not exist', () {
-      final name = service.resolveCategoryName(999, 'Fallback Category');
-      expect(name, 'Fallback Category');
-    });
+    test(
+      'resolveCategoryName returns fallback when category does not exist',
+      () {
+        final name = service.resolveCategoryName(999, 'Fallback Category');
+        expect(name, 'Fallback Category');
+      },
+    );
 
     test('allCategories returns all populated categories', () {
       final all = service.allCategories;
@@ -428,10 +440,13 @@ void main() {
         expect(result, 'Embedded Tax Name');
       });
 
-      test('returns empty string when all IDs non-existent and no fallback', () {
-        final result = service.resolveTaxNames('888,999');
-        expect(result, '');
-      });
+      test(
+        'returns empty string when all IDs non-existent and no fallback',
+        () {
+          final result = service.resolveTaxNames('888,999');
+          expect(result, '');
+        },
+      );
 
       test('returns fallback for invalid (non-numeric) string', () {
         final result = service.resolveTaxNames('abc,def', 'Fallback');
@@ -467,7 +482,11 @@ void main() {
       test('deduplicates identical group names', () {
         // Two taxes with same amount=15 → only one "IVA 15%"
         // Add another 15% tax to the service
-        final extraTax = TaxFactory.create(id: 4, name: 'VAT 15% S', amount: 15.0);
+        final extraTax = TaxFactory.create(
+          id: 4,
+          name: 'VAT 15% S',
+          amount: 15.0,
+        );
         service.populateForTesting(taxes: [iva15, extraTax]);
 
         final result = service.resolveTaxGroupName('1,4');
@@ -568,9 +587,7 @@ void main() {
     });
 
     test('populating products only does not affect other caches', () {
-      service.populateForTesting(
-        products: [ProductFactory.create(id: 1)],
-      );
+      service.populateForTesting(products: [ProductFactory.create(id: 1)]);
 
       expect(service.productCount, 1);
       expect(service.uomCount, 0);
@@ -590,7 +607,11 @@ void main() {
     });
 
     test('code index maps products case-insensitively', () {
-      final p = ProductFactory.create(id: 1, name: 'Mixed', defaultCode: 'MiXeD-123');
+      final p = ProductFactory.create(
+        id: 1,
+        name: 'Mixed',
+        defaultCode: 'MiXeD-123',
+      );
       service.populateForTesting(products: [p]);
 
       expect(service.getProductByCode('mixed-123'), isNotNull);
@@ -598,14 +619,24 @@ void main() {
       expect(service.getProductByCode('MiXeD-123'), isNotNull);
     });
 
-    test('searchProducts matches on barcode exactly (case-sensitive for digits)', () {
-      final p = ProductFactory.create(id: 1, name: 'Gadget', barcode: '12345');
-      service.populateForTesting(products: [p]);
+    test(
+      'searchProducts matches on barcode exactly (case-sensitive for digits)',
+      () {
+        final p = ProductFactory.create(
+          id: 1,
+          name: 'Gadget',
+          barcode: '12345',
+        );
+        service.populateForTesting(products: [p]);
 
-      expect(service.searchProducts('12345').length, 1);
-      expect(service.searchProducts('1234').length, 1); // partial barcode match
-      expect(service.searchProducts('99999'), isEmpty);
-    });
+        expect(service.searchProducts('12345').length, 1);
+        expect(
+          service.searchProducts('1234').length,
+          1,
+        ); // partial barcode match
+        expect(service.searchProducts('99999'), isEmpty);
+      },
+    );
 
     test('resolveTaxNames with mixed valid and invalid entries', () {
       service.populateForTesting(

@@ -8,7 +8,9 @@ import 'package:theos_pos_core/theos_pos_core.dart' hide logger, TaxDetail;
 
 import '../../../core/constants/app_constants.dart';
 import '../../../core/database/repositories/repository_providers.dart';
-import '../../../core/services/logger_service.dart';
+
+import 'package:odoo_sdk/odoo_sdk.dart' show logger;
+
 import '../../../shared/utils/formatting_utils.dart';
 import 'product_uom_pricing_table.dart';
 
@@ -62,9 +64,7 @@ class _ProductInfoDialogState extends ConsumerState<ProductInfoDialog> {
 
       if (productRepo != null) {
         logger.d('[ProductInfoDialog]', 'Trying to fetch product from Odoo...');
-        productInfo = await productRepo.getDetailedInfo(
-          widget.productId,
-        );
+        productInfo = await productRepo.getDetailedInfo(widget.productId);
         if (productInfo != null) {
           logger.i('[ProductInfoDialog]', 'Product info fetched from ODOO');
         }
@@ -75,7 +75,10 @@ class _ProductInfoDialogState extends ConsumerState<ProductInfoDialog> {
         logger.d('[ProductInfoDialog]', 'Falling back to LOCAL database...');
         productInfo = await _getProductFromLocalDb(widget.productId);
         if (productInfo != null) {
-          logger.i('[ProductInfoDialog]', 'Product info fetched from LOCAL DB: ${productInfo['name']}');
+          logger.i(
+            '[ProductInfoDialog]',
+            'Product info fetched from LOCAL DB: ${productInfo['name']}',
+          );
         }
       }
 
@@ -121,7 +124,7 @@ class _ProductInfoDialogState extends ConsumerState<ProductInfoDialog> {
       final priceLoader = ProductUomPriceLoader(ref);
 
       taxDetails = await priceLoader.loadTaxInfo(widget.productId);
-      // Also build legacy taxInfo for other parts of the dialog
+      // Adapt typed tax details to the dialog's display map.
       for (final tax in taxDetails) {
         taxInfo.add({
           'id': tax.id,
@@ -146,8 +149,8 @@ class _ProductInfoDialogState extends ConsumerState<ProductInfoDialog> {
       logger.d(
         '[ProductInfoDialog]',
         'Price calculation params: productId=${widget.productId}, '
-        'productTmplId=$productTmplId, pricelistId=${widget.pricelistId}, '
-        'basePrice=$basePrice',
+            'productTmplId=$productTmplId, pricelistId=${widget.pricelistId}, '
+            'basePrice=$basePrice',
       );
 
       // Load UoMs with prices using shared loader
@@ -170,11 +173,17 @@ class _ProductInfoDialogState extends ConsumerState<ProductInfoDialog> {
             allowedUomIds: uomIds,
             taxes: taxDetails,
           );
-          logger.i('[ProductInfoDialog]', 'Loaded ${uomPriceData.length} UoMs with prices');
+          logger.i(
+            '[ProductInfoDialog]',
+            'Loaded ${uomPriceData.length} UoMs with prices',
+          );
 
           // Load ALL barcodes grouped by UoM (one UoM can have multiple barcodes)
           barcodesByUom = await _loadBarcodesByUom(widget.productId);
-          logger.i('[ProductInfoDialog]', 'Loaded barcodes for ${barcodesByUom.length} UoMs');
+          logger.i(
+            '[ProductInfoDialog]',
+            'Loaded barcodes for ${barcodesByUom.length} UoMs',
+          );
         }
       }
 
@@ -182,9 +191,9 @@ class _ProductInfoDialogState extends ConsumerState<ProductInfoDialog> {
         logger.i(
           '[ProductInfoDialog]',
           'Product info loaded successfully: '
-          'taxes=${taxInfo.length}, stock=${stockByWarehouse.length} warehouses, '
-          'uoms=${uomPriceData.length}, barcodes=${barcodesByUom.values.expand((b) => b).length}, '
-          'history=${history.length} orders',
+              'taxes=${taxInfo.length}, stock=${stockByWarehouse.length} warehouses, '
+              'uoms=${uomPriceData.length}, barcodes=${barcodesByUom.values.expand((b) => b).length}, '
+              'history=${history.length} orders',
         );
         setState(() {
           _isLoading = false;
@@ -228,7 +237,9 @@ class _ProductInfoDialogState extends ConsumerState<ProductInfoDialog> {
         'type': product.type.name,
         'tracking': product.tracking.name,
         'is_storable': product.isStorable,
-        'uom_id': product.uomId != null ? [product.uomId, product.uomName] : null,
+        'uom_id': product.uomId != null
+            ? [product.uomId, product.uomName]
+            : null,
         'categ_id': product.categId != null
             ? [product.categId, product.categName]
             : null,
@@ -248,7 +259,9 @@ class _ProductInfoDialogState extends ConsumerState<ProductInfoDialog> {
   Future<Map<int, List<String>>> _loadBarcodesByUom(int productId) async {
     try {
       final productUoms = await productUomManager.searchLocal(
-        domain: [['product_id', '=', productId]],
+        domain: [
+          ['product_id', '=', productId],
+        ],
       );
 
       final result = <int, List<String>>{};
@@ -369,19 +382,23 @@ class _ProductInfoContentState extends State<_ProductInfoContent> {
 
     // Tab 1: Stock + Precios (unified)
     if (widget.uomPriceData.isNotEmpty || widget.stockByWarehouse.isNotEmpty) {
-      tabs.add(Tab(
-        text: const Text('Stock / Precios'),
-        icon: const Icon(FluentIcons.product, size: 14),
-        body: _buildStockAndPricingTab(theme),
-      ));
+      tabs.add(
+        Tab(
+          text: const Text('Stock / Precios'),
+          icon: const Icon(FluentIcons.product, size: 14),
+          body: _buildStockAndPricingTab(theme),
+        ),
+      );
     }
 
     // Tab 2: History
-    tabs.add(Tab(
-      text: const Text('Historial'),
-      icon: const Icon(FluentIcons.history, size: 14),
-      body: _buildHistoryTab(theme, dateFormat),
-    ));
+    tabs.add(
+      Tab(
+        text: const Text('Historial'),
+        icon: const Icon(FluentIcons.history, size: 14),
+        body: _buildHistoryTab(theme, dateFormat),
+      ),
+    );
 
     return ContentDialog(
       title: _buildHeader(
@@ -499,12 +516,19 @@ class _ProductInfoContentState extends State<_ProductInfoContent> {
                 const SizedBox(height: 4),
                 Row(
                   children: [
-                    Icon(FluentIcons.folder, size: 14, color: theme.inactiveColor),
+                    Icon(
+                      FluentIcons.folder,
+                      size: 14,
+                      color: theme.inactiveColor,
+                    ),
                     const SizedBox(width: 6),
                     Expanded(
                       child: Text(
                         categName,
-                        style: TextStyle(fontSize: 13, color: theme.inactiveColor),
+                        style: TextStyle(
+                          fontSize: 13,
+                          color: theme.inactiveColor,
+                        ),
                         maxLines: 2,
                         overflow: TextOverflow.ellipsis,
                       ),
@@ -521,13 +545,25 @@ class _ProductInfoContentState extends State<_ProductInfoContent> {
                 runSpacing: 4,
                 children: [
                   // Product type badge
-                  _buildBadge(productTypeLabel, productTypeIcon, productTypeColor),
+                  _buildBadge(
+                    productTypeLabel,
+                    productTypeIcon,
+                    productTypeColor,
+                  ),
                   // Storable badge
                   if (isStorable)
-                    _buildBadge('Almacenable', FluentIcons.archive, Colors.blue),
+                    _buildBadge(
+                      'Almacenable',
+                      FluentIcons.archive,
+                      Colors.blue,
+                    ),
                   // Tracking badge (if applicable)
                   if (trackingLabel != null)
-                    _buildBadge(trackingLabel, FluentIcons.number_field, Colors.orange),
+                    _buildBadge(
+                      trackingLabel,
+                      FluentIcons.number_field,
+                      Colors.orange,
+                    ),
                 ],
               ),
               const SizedBox(height: 6),
@@ -572,10 +608,7 @@ class _ProductInfoContentState extends State<_ProductInfoContent> {
       children: [
         Icon(icon, size: 14, color: theme.inactiveColor),
         const SizedBox(width: 6),
-        Text(
-          text,
-          style: TextStyle(fontSize: 14, color: theme.inactiveColor),
-        ),
+        Text(text, style: TextStyle(fontSize: 14, color: theme.inactiveColor)),
       ],
     );
   }
@@ -600,9 +633,10 @@ class _ProductInfoContentState extends State<_ProductInfoContent> {
         .map((t) => t['name'] as String? ?? '')
         .where((n) => n.isNotEmpty)
         .map((n) {
-      final parenIdx = n.indexOf('(');
-      return parenIdx > 0 ? n.substring(0, parenIdx).trim() : n;
-    }).toList();
+          final parenIdx = n.indexOf('(');
+          return parenIdx > 0 ? n.substring(0, parenIdx).trim() : n;
+        })
+        .toList();
 
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
@@ -634,7 +668,11 @@ class _ProductInfoContentState extends State<_ProductInfoContent> {
           if (taxNames.isNotEmpty) ...[
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 14),
-              child: Icon(FluentIcons.add, size: 14, color: theme.inactiveColor),
+              child: Icon(
+                FluentIcons.add,
+                size: 14,
+                color: theme.inactiveColor,
+              ),
             ),
             Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -802,7 +840,9 @@ class _ProductInfoContentState extends State<_ProductInfoContent> {
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
             decoration: BoxDecoration(
               color: theme.accentColor.withAlpha(20),
-              borderRadius: const BorderRadius.vertical(top: Radius.circular(3)),
+              borderRadius: const BorderRadius.vertical(
+                top: Radius.circular(3),
+              ),
             ),
             child: const Row(
               children: [
@@ -1041,7 +1081,9 @@ class _ProductInfoContentState extends State<_ProductInfoContent> {
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
             decoration: BoxDecoration(
               color: theme.accentColor.withAlpha(20),
-              borderRadius: const BorderRadius.vertical(top: Radius.circular(3)),
+              borderRadius: const BorderRadius.vertical(
+                top: Radius.circular(3),
+              ),
             ),
             child: const Row(
               children: [
@@ -1191,7 +1233,9 @@ class _ProductInfoContentState extends State<_ProductInfoContent> {
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
             decoration: BoxDecoration(
               color: theme.accentColor.withAlpha(20),
-              borderRadius: const BorderRadius.vertical(top: Radius.circular(3)),
+              borderRadius: const BorderRadius.vertical(
+                top: Radius.circular(3),
+              ),
             ),
             child: const Row(
               children: [

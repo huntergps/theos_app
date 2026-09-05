@@ -4,7 +4,9 @@ import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 import 'package:theos_pos_core/theos_pos_core.dart';
 
+import '../../core/navigation/app_router.dart';
 import '../providers/credit_approval_provider.dart';
+import '../providers/menu_provider.dart';
 import 'dialogs/copyable_info_bar.dart';
 
 /// Widget que observa las órdenes en estado waitingApproval y
@@ -29,41 +31,64 @@ class _CreditApprovalNotificationListenerState
   final Set<int> _notifiedIds = {};
   bool _isFirstLoad = true;
 
+  late final ProviderSubscription<AsyncValue<List<SaleOrder>>>
+  _approvalSubscription;
+
+  @override
+  void initState() {
+    super.initState();
+    // Listen once instead of registering a new listener from build on every
+    // provider update. The supervisor check remains dynamic in the callback.
+    _approvalSubscription = ref.listenManual<AsyncValue<List<SaleOrder>>>(
+      pendingApprovalOrdersProvider,
+      (previous, next) {
+        if (!mounted ||
+            !ref.read(isSupervisorUserProvider) ||
+            !ref.read(hasRouteAccessProvider(AppRouter.sales))) {
+          return;
+        }
+        next.whenData(_handleApprovalChanges);
+      },
+    );
+  }
+
+  @override
+  void dispose() {
+    _approvalSubscription.close();
+    super.dispose();
+  }
+
   @override
   Widget build(BuildContext context) {
     final isSupervisor = ref.watch(isSupervisorUserProvider);
 
-    // Solo escuchar si es supervisor
-    if (isSupervisor) {
-      ref.listen<List<SaleOrder>>(pendingApprovalOrdersProvider, (
-        previous,
-        next,
-      ) {
-        // En la primera carga, registrar las órdenes existentes sin notificar
-        // para evitar spam al iniciar la app.
-        if (_isFirstLoad) {
-          _isFirstLoad = false;
-          for (final order in next) {
-            _notifiedIds.add(order.id);
-          }
-          return;
-        }
-
-        // Detectar órdenes nuevas que no han sido notificadas
-        for (final order in next) {
-          if (!_notifiedIds.contains(order.id)) {
-            _notifiedIds.add(order.id);
-            _showApprovalNotification(context, order);
-          }
-        }
-
-        // Limpiar IDs de órdenes que ya no están en waitingApproval
-        final currentIds = next.map((o) => o.id).toSet();
-        _notifiedIds.removeWhere((id) => !currentIds.contains(id));
-      });
-    }
+    // The subscription is installed once in initState. Watching this value
+    // only controls rendering and lets the callback react to role changes.
+    if (!isSupervisor) _notifiedIds.clear();
 
     return widget.child;
+  }
+
+  void _handleApprovalChanges(List<SaleOrder> next) {
+    // En la primera carga, registrar las órdenes existentes sin notificar
+    // para evitar spam al iniciar la app.
+    if (_isFirstLoad) {
+      _isFirstLoad = false;
+      for (final order in next) {
+        _notifiedIds.add(order.id);
+      }
+      return;
+    }
+
+    for (final order in next) {
+      if (!_notifiedIds.contains(order.id)) {
+        _notifiedIds.add(order.id);
+        _showApprovalNotification(context, order);
+      }
+    }
+
+    final currentIds = next.map((o) => o.id).toSet();
+    _notifiedIds.removeWhere((id) => !currentIds.contains(id));
   }
 
   void _showApprovalNotification(BuildContext context, SaleOrder order) {
@@ -83,7 +108,7 @@ class _CreditApprovalNotificationListenerState
       message: '$orderName — $client por $amount\nVendedor: $seller',
       duration: const Duration(seconds: 30),
       action: Button(
-        onPressed: () => context.go('/sales'),
+        onPressed: () => context.go(AppRouter.sales),
         child: const Text('Ver solicitud'),
       ),
     );
@@ -106,11 +131,27 @@ class SalesBadgeIcon extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final count = ref.watch(pendingApprovalCountProvider);
+    final countAsync = ref.watch(pendingApprovalCountProvider);
+    final count = countAsync.value ?? 0;
 
-    if (count == 0) {
-      return Icon(baseIcon);
+    if (countAsync.hasError) {
+      return Tooltip(
+        message: 'No se pudo consultar las aprobaciones pendientes',
+        child: Stack(
+          clipBehavior: Clip.none,
+          children: [
+            Icon(baseIcon),
+            Positioned(
+              top: -3,
+              right: -4,
+              child: Icon(FluentIcons.warning, size: 11, color: Colors.orange),
+            ),
+          ],
+        ),
+      );
     }
+
+    if (count == 0) return Icon(baseIcon);
 
     return Stack(
       clipBehavior: Clip.none,

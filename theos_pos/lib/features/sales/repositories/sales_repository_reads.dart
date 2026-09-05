@@ -136,6 +136,32 @@ extension SalesRepositoryReads on SalesRepository {
       }
     }
 
+    if (order.pricelistId != null && order.pricelistName == null) {
+      try {
+        final pricelist = await pricelistManager.readLocal(order.pricelistId!);
+        if (pricelist != null) {
+          enrichedOrder = enrichedOrder.copyWith(pricelistName: pricelist.name);
+        }
+      } catch (e) {
+        logger.w('[SalesRepository]', 'Error getting local pricelist: $e');
+      }
+    }
+
+    if (order.paymentTermId != null && order.paymentTermName == null) {
+      try {
+        final paymentTerm = await paymentTermManager.readLocal(
+          order.paymentTermId!,
+        );
+        if (paymentTerm != null) {
+          enrichedOrder = enrichedOrder.copyWith(
+            paymentTermName: paymentTerm.name,
+          );
+        }
+      } catch (e) {
+        logger.w('[SalesRepository]', 'Error getting local payment term: $e');
+      }
+    }
+
     // Enrich user from local DB only if name missing
     if (order.userId != null && order.userName == null) {
       try {
@@ -269,9 +295,9 @@ extension SalesRepositoryReads on SalesRepository {
           // Try local tax table first
           try {
             final appDb = _db;
-            final localTaxes = await (appDb.select(appDb.accountTax)
-                  ..where((t) => t.odooId.isIn(allTaxIds.toList())))
-                .get();
+            final localTaxes = await (appDb.select(
+              appDb.accountTax,
+            )..where((t) => t.odooId.isIn(allTaxIds.toList()))).get();
             for (final tax in localTaxes) {
               taxIdToName[tax.odooId] = tax.name;
             }
@@ -280,7 +306,9 @@ extension SalesRepositoryReads on SalesRepository {
           }
 
           // Fetch missing tax names from server
-          final missingTaxIds = allTaxIds.where((id) => !taxIdToName.containsKey(id)).toList();
+          final missingTaxIds = allTaxIds
+              .where((id) => !taxIdToName.containsKey(id))
+              .toList();
           if (missingTaxIds.isNotEmpty) {
             try {
               final taxData = await taxManager.client.read(
@@ -300,7 +328,9 @@ extension SalesRepositoryReads on SalesRepository {
                 '[SalesRepository] Loaded ${taxIdToName.length} tax names (${missingTaxIds.length} from server)',
               );
             } catch (e) {
-              logger.w('[SalesRepository] Could not fetch tax names from server: $e');
+              logger.w(
+                '[SalesRepository] Could not fetch tax names from server: $e',
+              );
             }
           } else {
             logger.d(
@@ -433,7 +463,11 @@ extension SalesRepositoryReads on SalesRepository {
 
   /// Get unsynced orders (created offline)
   Future<List<SaleOrder>> getUnsynced() async {
-    return _orderManager.searchLocal(domain: [['is_synced', '=', false]]);
+    return _orderManager.searchLocal(
+      domain: [
+        ['is_synced', '=', false],
+      ],
+    );
   }
 
   Future<List<SaleOrder>> search(String query) async {
@@ -465,7 +499,10 @@ extension SalesRepositoryReads on SalesRepository {
 
     // 2. If offline, return cached defaults
     if (!_orderManager.isOnline) {
-      logger.d('[SalesRepository]', 'Offline - using cached defaults: $cachedDefaults');
+      logger.d(
+        '[SalesRepository]',
+        'Offline - using cached defaults: $cachedDefaults',
+      );
       return cachedDefaults;
     }
 
@@ -486,13 +523,19 @@ extension SalesRepositoryReads on SalesRepository {
       );
 
       if (result is Map<String, dynamic>) {
-        logger.d('[SalesRepository]', 'Fresh default values from Odoo: $result');
+        logger.d(
+          '[SalesRepository]',
+          'Fresh default values from Odoo: $result',
+        );
         return result;
       }
 
       return cachedDefaults;
     } catch (e) {
-      logger.e('[SalesRepository]', 'Error getting default values, using cache: $e');
+      logger.e(
+        '[SalesRepository]',
+        'Error getting default values, using cache: $e',
+      );
       return cachedDefaults;
     }
   }

@@ -1,6 +1,6 @@
 // GENERATED CODE - DO NOT MODIFY BY HAND
 // coverage:ignore-file
-// ignore_for_file: type=lint
+// ignore_for_file: type=lint, type=warning, deprecated_member_use, deprecated_member_use_from_same_package
 // ignore_for_file: unused_element, deprecated_member_use, deprecated_member_use_from_same_package, use_function_type_syntax_for_parameters, unnecessary_const, avoid_init_to_null, invalid_override_different_default_values_named, prefer_expression_function_bodies, annotate_overrides, invalid_annotation_target, unnecessary_question_mark
 
 part of 'uom.dart';
@@ -9,17 +9,13 @@ part of 'uom.dart';
 // FreezedGenerator
 // **************************************************************************
 
+// GENERATED CODE - DO NOT MODIFY BY HAND
 // dart format off
 T _$identity<T>(T value) => value;
 /// @nodoc
 mixin _$Uom {
 
-// ============ Identifiers ============
-@OdooId() int get id;@OdooLocalOnly() String? get uuid;// ============ Basic Data ============
-@OdooString() String get name;@OdooMany2One('uom.category', odooName: 'category_id') int? get categoryId;@OdooMany2OneName(sourceField: 'category_id') String? get categoryName;@OdooSelection(odooName: 'uom_type') String get uomTypeStr;// ============ Conversion Factors ============
-@OdooFloat(precision: 6) double get factor;@OdooFloat(odooName: 'factor_inv', precision: 6) double get factorInv;@OdooFloat(precision: 5) double get rounding;// ============ Status ============
-@OdooBoolean() bool get active;// ============ Sync Metadata ============
-@OdooDateTime(odooName: 'write_date', writable: false) DateTime? get writeDate;@OdooLocalOnly() bool get isSynced;@OdooLocalOnly() DateTime? get localModifiedAt;
+@OdooId() int get id;@OdooLocalOnly() String? get uuid;@OdooString() String get name;@OdooMany2One('uom.category', odooName: 'category_id') int? get categoryId;@OdooMany2OneName(sourceField: 'category_id') String? get categoryName;@OdooSelection(odooName: 'uom_type') String get uomTypeStr;@OdooFloat(precision: 6) double get factor;@OdooFloat(odooName: 'factor_inv', precision: 6) double get factorInv;@OdooFloat(precision: 5) double get rounding;@OdooBoolean() bool get active;@OdooDateTime(odooName: 'write_date', writable: false) DateTime? get writeDate;@OdooLocalOnly() bool get isSynced;@OdooLocalOnly() DateTime? get localModifiedAt;
 /// Create a copy of Uom
 /// with the given fields replaced by the non-null parameter values.
 @JsonKey(includeFromJson: false, includeToJson: false)
@@ -68,7 +64,7 @@ class _$UomCopyWithImpl<$Res>
 /// Create a copy of Uom
 /// with the given fields replaced by the non-null parameter values.
 @pragma('vm:prefer-inline') @override $Res call({Object? id = null,Object? uuid = freezed,Object? name = null,Object? categoryId = freezed,Object? categoryName = freezed,Object? uomTypeStr = null,Object? factor = null,Object? factorInv = null,Object? rounding = null,Object? active = null,Object? writeDate = freezed,Object? isSynced = null,Object? localModifiedAt = freezed,}) {
-  return _then(_self.copyWith(
+  return _then(Uom(
 id: null == id ? _self.id : id // ignore: cast_nullable_to_non_nullable
 as int,uuid: freezed == uuid ? _self.uuid : uuid // ignore: cast_nullable_to_non_nullable
 as String?,name: null == name ? _self.name : name // ignore: cast_nullable_to_non_nullable
@@ -226,21 +222,16 @@ class _Uom extends Uom {
   const _Uom({@OdooId() required this.id, @OdooLocalOnly() this.uuid, @OdooString() required this.name, @OdooMany2One('uom.category', odooName: 'category_id') this.categoryId, @OdooMany2OneName(sourceField: 'category_id') this.categoryName, @OdooSelection(odooName: 'uom_type') this.uomTypeStr = 'reference', @OdooFloat(precision: 6) this.factor = 1.0, @OdooFloat(odooName: 'factor_inv', precision: 6) this.factorInv = 1.0, @OdooFloat(precision: 5) this.rounding = 0.01, @OdooBoolean() this.active = true, @OdooDateTime(odooName: 'write_date', writable: false) this.writeDate, @OdooLocalOnly() this.isSynced = false, @OdooLocalOnly() this.localModifiedAt}): super._();
   
 
-// ============ Identifiers ============
 @override@OdooId() final  int id;
 @override@OdooLocalOnly() final  String? uuid;
-// ============ Basic Data ============
 @override@OdooString() final  String name;
 @override@OdooMany2One('uom.category', odooName: 'category_id') final  int? categoryId;
 @override@OdooMany2OneName(sourceField: 'category_id') final  String? categoryName;
 @override@JsonKey()@OdooSelection(odooName: 'uom_type') final  String uomTypeStr;
-// ============ Conversion Factors ============
 @override@JsonKey()@OdooFloat(precision: 6) final  double factor;
 @override@JsonKey()@OdooFloat(odooName: 'factor_inv', precision: 6) final  double factorInv;
 @override@JsonKey()@OdooFloat(precision: 5) final  double rounding;
-// ============ Status ============
 @override@JsonKey()@OdooBoolean() final  bool active;
-// ============ Sync Metadata ============
 @override@OdooDateTime(odooName: 'write_date', writable: false) final  DateTime? writeDate;
 @override@JsonKey()@OdooLocalOnly() final  bool isSynced;
 @override@OdooLocalOnly() final  DateTime? localModifiedAt;
@@ -366,7 +357,7 @@ class _$UomCategoryCopyWithImpl<$Res>
 /// Create a copy of UomCategory
 /// with the given fields replaced by the non-null parameter values.
 @pragma('vm:prefer-inline') @override $Res call({Object? id = null,Object? uuid = freezed,Object? name = null,Object? writeDate = freezed,Object? isSynced = null,}) {
-  return _then(_self.copyWith(
+  return _then(UomCategory(
 id: null == id ? _self.id : id // ignore: cast_nullable_to_non_nullable
 as int,uuid: freezed == uuid ? _self.uuid : uuid // ignore: cast_nullable_to_non_nullable
 as String?,name: null == name ? _self.name : name // ignore: cast_nullable_to_non_nullable

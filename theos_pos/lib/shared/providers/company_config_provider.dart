@@ -1,10 +1,25 @@
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 import 'package:theos_pos_core/theos_pos_core.dart' show Company;
+
 import '../../core/database/repositories/repository_providers.dart';
-import '../../core/services/websocket/odoo_websocket_service.dart';
-import '../../core/services/logger_service.dart';
+
+import 'package:odoo_sdk/odoo_sdk.dart' show logger;
 
 part 'company_config_provider.g.dart';
+
+/// Safe default while the company policy is unavailable.
+const double failClosedMaxDiscountPercentage = 0;
+
+/// Keeps the discount policy inside its valid percentage range.
+///
+/// Missing and non-finite values are treated as unavailable and therefore
+/// deny discounts until a valid company policy has been loaded.
+double normalizeMaxDiscountPercentage(num? value) {
+  if (value == null || !value.isFinite) {
+    return failClosedMaxDiscountPercentage;
+  }
+  return value.clamp(0, 100).toDouble();
+}
 
 /// Provider for current user's company configuration
 ///
@@ -54,8 +69,8 @@ SalesConfig salesConfig(Ref ref) {
   logger.d(
     '[SalesConfig]',
     'Building config: isLoading=${companyAsync.isLoading}, '
-    'hasValue=${companyAsync.hasValue}, hasError=${companyAsync.hasError}, '
-    'maxDiscount=${company?.maxDiscountPercentage}',
+        'hasValue=${companyAsync.hasValue}, hasError=${companyAsync.hasError}, '
+        'maxDiscount=${company?.maxDiscountPercentage}',
   );
 
   return SalesConfig(
@@ -79,8 +94,11 @@ SalesConfig salesConfig(Ref ref) {
     pedirTipoCanalCliente: company?.pedirTipoCanalCliente ?? false,
     // Credit control configuration
     creditOverdueDaysThreshold: company?.creditOverdueDaysThreshold ?? 30,
-    creditOverdueInvoicesThreshold: company?.creditOverdueInvoicesThreshold ?? 3,
-    maxDiscountPercentage: company?.maxDiscountPercentage ?? 100.0,
+    creditOverdueInvoicesThreshold:
+        company?.creditOverdueInvoicesThreshold ?? 3,
+    maxDiscountPercentage: normalizeMaxDiscountPercentage(
+      company?.maxDiscountPercentage,
+    ),
     // Reservation configuration
     reservationExpiryDays: company?.reservationExpiryDays ?? 7,
     reservationWarehouseId: company?.reservationWarehouseId,
@@ -94,17 +112,23 @@ SalesConfig salesConfig(Ref ref) {
 /// Get max discount percentage from database
 ///
 /// This reads directly from the database to avoid async timing issues.
-/// Falls back to 100.0 only if database is not available.
+/// Fails closed at 0% while the company policy is unavailable.
 /// Works with both Ref and WidgetRef — dynamic is intentional.
 Future<double> getMaxDiscountPercentage(dynamic ref) async {
   try {
     final company = await ref.read(currentCompanyProvider.future);
-    final maxDiscount = company?.maxDiscountPercentage ?? 100.0;
+    final maxDiscount = normalizeMaxDiscountPercentage(
+      company?.maxDiscountPercentage,
+    );
     logger.d('[MaxDiscount]', 'maxDiscountPercentage=$maxDiscount%');
     return maxDiscount;
   } catch (e) {
-    logger.w('[MaxDiscount]', 'Error getting max discount: $e, defaulting to 100%');
-    return 100.0;
+    logger.e(
+      '[MaxDiscount]',
+      'No se pudo validar la política de descuentos; se bloquean descuentos',
+      e,
+    );
+    return failClosedMaxDiscountPercentage;
   }
 }
 
@@ -196,7 +220,7 @@ class SalesConfig {
     // Credit control configuration
     this.creditOverdueDaysThreshold = 30,
     this.creditOverdueInvoicesThreshold = 3,
-    this.maxDiscountPercentage = 100.0,
+    this.maxDiscountPercentage = failClosedMaxDiscountPercentage,
     // Reservation configuration
     this.reservationExpiryDays = 7,
     this.reservationWarehouseId,
@@ -236,48 +260,11 @@ class SalesConfig {
   bool get shouldReserveFromQuotation => reserveFromQuotation;
 
   @override
-  String toString() => 'SalesConfig('
+  String toString() =>
+      'SalesConfig('
       'validityDays: $quotationValidityDays, '
       'sign: $portalConfirmationSign, '
       'pay: $portalConfirmationPay, '
       'prepay: ${prepaymentPercentage.toStringAsFixed(0)}%, '
       'maxDiscount: ${maxDiscountPercentage.toStringAsFixed(0)}%)';
-}
-
-/// Provider that sets up WebSocket listener for company config changes
-///
-/// This provider subscribes to the WebSocket event stream to listen
-/// for `OdooCompanyConfigEvent` notifications from Odoo and automatically
-/// refreshes the local company cache when changes are detected.
-///
-/// ## Usage
-/// Watch this provider early in your app (e.g., in a top-level widget or after login):
-/// ```dart
-/// ref.watch(companyConfigWebSocketListenerProvider);
-/// ```
-@riverpod
-void companyConfigWebSocketListener(Ref ref) {
-  final wsService = ref.watch(odooWebSocketServiceProvider);
-
-  // Subscribe to typed event stream for company config updates
-  final subscription = wsService.eventStream.listen((event) {
-    if (event is OdooCompanyConfigEvent) {
-      logger.i(
-        '[CompanyConfig]',
-        'WebSocket: company ${event.companyId} config updated',
-      );
-      logger.d(
-        '[CompanyConfig]',
-        'New values: ${event.newValues}',
-      );
-
-      // Refresh the company data from the server
-      ref.read(companyConfigRefreshProvider.notifier).refreshCompany(event.companyId);
-    }
-  });
-
-  // Cleanup subscription when provider is disposed
-  ref.onDispose(() {
-    subscription.cancel();
-  });
 }

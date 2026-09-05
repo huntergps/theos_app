@@ -7,7 +7,11 @@ import 'package:theos_pos/features/sales/services/payment_service.dart';
 class MockOdooService {
   final Map<String, dynamic Function(Map<String, dynamic>)> _handlers = {};
 
-  void when(String model, String method, dynamic Function(Map<String, dynamic>) handler) {
+  void when(
+    String model,
+    String method,
+    dynamic Function(Map<String, dynamic>) handler,
+  ) {
     _handlers['$model:$method'] = handler;
   }
 
@@ -161,11 +165,7 @@ void main() {
 
   group('WithholdingLine', () {
     test('should create withholding line', () {
-      final line = WithholdingLine(
-        taxId: 1,
-        base: 100.0,
-        amount: 30.0,
-      );
+      final line = WithholdingLine(taxId: 1, base: 100.0, amount: 30.0);
 
       expect(line.taxId, 1);
       expect(line.base, 100.0);
@@ -257,17 +257,17 @@ void main() {
     test('should have correct enum values', () {
       expect(CreditAuthorizationType.values.length, 3);
       expect(CreditAuthorizationType.overdueDebt.name, 'overdueDebt');
-      expect(CreditAuthorizationType.creditLimitExceeded.name, 'creditLimitExceeded');
+      expect(
+        CreditAuthorizationType.creditLimitExceeded.name,
+        'creditLimitExceeded',
+      );
       expect(CreditAuthorizationType.temporaryCredit.name, 'temporaryCredit');
     });
   });
 
   group('AvailableBank', () {
     test('should parse from Odoo data', () {
-      final data = {
-        'id': 1,
-        'name': 'Banco Pichincha',
-      };
+      final data = {'id': 1, 'name': 'Banco Pichincha'};
 
       final bank = AvailableBank.fromOdoo(data);
 
@@ -397,8 +397,12 @@ void main() {
         ),
       ];
 
-      final paymentLines = lines.where((l) => l.type == PaymentLineType.payment).toList();
-      final advanceLines = lines.where((l) => l.type == PaymentLineType.advance).toList();
+      final paymentLines = lines
+          .where((l) => l.type == PaymentLineType.payment)
+          .toList();
+      final advanceLines = lines
+          .where((l) => l.type == PaymentLineType.advance)
+          .toList();
 
       expect(paymentLines.length, 2);
       expect(advanceLines.length, 1);

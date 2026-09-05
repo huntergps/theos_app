@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:fluent_ui/fluent_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:syncfusion_flutter_datagrid/datagrid.dart';
@@ -6,11 +8,15 @@ import 'package:syncfusion_flutter_core/theme.dart';
 import '../../../core/database/providers.dart';
 import '../../../core/database/repositories/repository_providers.dart';
 import '../../../core/services/config_service.dart';
-import '../../../core/services/logger_service.dart';
+
+import 'package:odoo_sdk/odoo_sdk.dart' show logger;
+
 import '../../../core/theme/spacing.dart';
 import '../../../shared/widgets/dialogs/copyable_info_bar.dart';
 import '../datasources/activities_datasource.dart';
+
 import 'package:theos_pos_core/theos_pos_core.dart' show MailActivity;
+
 import '../widgets/activity_card.dart';
 
 class ActivitiesScreen extends ConsumerStatefulWidget {
@@ -25,6 +31,7 @@ class _ActivitiesScreenState extends ConsumerState<ActivitiesScreen> {
   String _searchQuery = '';
   bool _isLoading = false;
   late ActivitiesDataSource _dataSource;
+  Timer? _searchDebounce;
 
   @override
   void initState() {
@@ -41,6 +48,20 @@ class _ActivitiesScreenState extends ConsumerState<ActivitiesScreen> {
     _loadActivities();
   }
 
+  @override
+  void dispose() {
+    _searchDebounce?.cancel();
+    _dataSource.dispose();
+    super.dispose();
+  }
+
+  void _onSearchChanged(String value) {
+    _searchDebounce?.cancel();
+    _searchDebounce = Timer(const Duration(milliseconds: 250), () {
+      if (mounted) setState(() => _searchQuery = value.trim());
+    });
+  }
+
   Future<void> _loadActivities() async {
     setState(() => _isLoading = true);
     try {
@@ -48,20 +69,43 @@ class _ActivitiesScreenState extends ConsumerState<ActivitiesScreen> {
 
       final repository = ref.read(activityRepositoryProvider);
       final currentUser = await ref.read(currentUserProvider.future);
+      if (!mounted) return;
 
       if (currentUser != null) {
         final result = await repository.syncAndGet(currentUser.id);
+        if (!mounted) return;
         result.fold(
-          (failure) => logger.d('[ActivitiesScreen] Sync failed: ${failure.message}'),
-          (activities) => logger.d('[ActivitiesScreen] Synced ${activities.length} activities'),
+          (failure) {
+            logger.d('[ActivitiesScreen] Sync failed: ${failure.message}');
+            if (mounted) {
+              CopyableInfoBar.showError(
+                context,
+                title: 'No se pudieron actualizar las actividades',
+                message: failure.message,
+              );
+            }
+          },
+          (activities) {
+            logger.d(
+              '[ActivitiesScreen] Synced ${activities.length} activities',
+            );
+          },
         );
         ref.invalidate(activitiesProvider);
       } else {
         logger.d('[ActivitiesScreen] User not available');
       }
     } catch (e, stackTrace) {
+      if (!mounted) return;
       logger.d('[ActivitiesScreen] Error loading activities: $e');
       logger.d('[ActivitiesScreen] Stack trace: $stackTrace');
+      if (mounted) {
+        CopyableInfoBar.showError(
+          context,
+          title: 'No se pudieron actualizar las actividades',
+          message: e.toString(),
+        );
+      }
     } finally {
       if (mounted) {
         setState(() => _isLoading = false);
@@ -142,7 +186,7 @@ class _ActivitiesScreenState extends ConsumerState<ActivitiesScreen> {
                 padding: EdgeInsets.only(left: spacing.sm),
                 child: const Icon(FluentIcons.search),
               ),
-              onChanged: (value) => setState(() => _searchQuery = value),
+              onChanged: _onSearchChanged,
             ),
           ),
           spacing.horizontal.ms,
@@ -261,16 +305,52 @@ class _ActivitiesScreenState extends ConsumerState<ActivitiesScreen> {
 
   List<GridColumn> _buildGridColumns(Color headerTextColor) {
     return [
-      _buildIconColumn('status', FluentIcons.status_circle_block2, headerTextColor, width: 60),
+      _buildIconColumn(
+        'status',
+        FluentIcons.status_circle_block2,
+        headerTextColor,
+        width: 60,
+      ),
       _buildTextColumn('summary', 'Actividad', headerTextColor, fill: true),
       _buildTextColumn('resName', 'Documento', headerTextColor, fill: true),
       _buildTextColumn('userName', 'Asignado', headerTextColor, fill: true),
       _buildTextColumn('activityType', 'Tipo', headerTextColor, width: 150),
-      _buildTextColumn('dateDeadline', 'Fecha limite', headerTextColor, width: 130, center: true),
-      _buildTextColumn('state', 'Estado', headerTextColor, width: 120, center: true, sortable: false),
-      _buildIconColumn('reschedule', FluentIcons.calendar, headerTextColor, width: 60, tooltip: 'Reagendar'),
-      _buildIconColumn('done', FluentIcons.accept, headerTextColor, width: 60, tooltip: 'Listo'),
-      _buildIconColumn('cancel', FluentIcons.cancel, headerTextColor, width: 60, tooltip: 'Cancelar'),
+      _buildTextColumn(
+        'dateDeadline',
+        'Fecha limite',
+        headerTextColor,
+        width: 130,
+        center: true,
+      ),
+      _buildTextColumn(
+        'state',
+        'Estado',
+        headerTextColor,
+        width: 120,
+        center: true,
+        sortable: false,
+      ),
+      _buildIconColumn(
+        'reschedule',
+        FluentIcons.calendar,
+        headerTextColor,
+        width: 60,
+        tooltip: 'Reagendar',
+      ),
+      _buildIconColumn(
+        'done',
+        FluentIcons.accept,
+        headerTextColor,
+        width: 60,
+        tooltip: 'Listo',
+      ),
+      _buildIconColumn(
+        'cancel',
+        FluentIcons.cancel,
+        headerTextColor,
+        width: 60,
+        tooltip: 'Cancelar',
+      ),
     ];
   }
 
@@ -370,7 +450,11 @@ class _ActivitiesScreenState extends ConsumerState<ActivitiesScreen> {
   }
 
   Future<void> _handleMarkAsDone(int activityId) async {
-    await _executeAction(activityId, 'completeActivity', 'Actividad completada');
+    await _executeAction(
+      activityId,
+      'completeActivity',
+      'Actividad completada',
+    );
   }
 
   Future<void> _handleCancel(int activityId) async {
@@ -383,7 +467,9 @@ class _ActivitiesScreenState extends ConsumerState<ActivitiesScreen> {
     String successMessage,
   ) async {
     final repository = ref.read(activityRepositoryProvider);
-    logger.d('[ActivitiesScreen] Executing $methodName for activity $activityId');
+    logger.d(
+      '[ActivitiesScreen] Executing $methodName for activity $activityId',
+    );
 
     late final dynamic result;
     switch (methodName) {

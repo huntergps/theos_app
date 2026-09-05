@@ -1,12 +1,21 @@
 import 'dart:convert';
+
 import 'package:drift/drift.dart' as drift;
 import 'package:drift_flutter/drift_flutter.dart';
-import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:flutter/foundation.dart' show kIsWeb, visibleForTesting;
 
 import 'database_helper_file_ops.dart'
     if (dart.library.js_interop) 'database_helper_file_ops_stub.dart'
     as file_ops;
-import 'package:theos_pos_core/theos_pos_core.dart' show AppDatabase, IOdooDatabase, ProductProductData, OfflineQueueCompanion, SyncAuditLogCompanion, SyncAuditLogData;
+
+import 'package:theos_pos_core/theos_pos_core.dart'
+    show
+        AppDatabase,
+        IOdooDatabase,
+        ProductProductData,
+        OfflineQueueCompanion,
+        SyncAuditLogCompanion,
+        SyncAuditLogData;
 import 'package:odoo_sdk/odoo_sdk.dart';
 
 /// Drift-based database helper for offline-first storage
@@ -17,33 +26,18 @@ import 'package:odoo_sdk/odoo_sdk.dart';
 /// combination gets its own SQLite file to prevent data conflicts.
 ///
 /// Use [initializeForServer] when connecting to a specific server.
-/// Use [initialize] for backwards compatibility (uses default DB name).
 ///
-/// ## DEPRECATION NOTICE
-/// Feature-specific methods are being migrated to datasources:
-/// - Partner/Client: Use clientManager from theos_pos_core (ClientManager extensions)
-/// - User: Use userManager from theos_pos_core (UserManager extensions)
-/// - Activity: Use ActivityDatasource from features/activities/datasources/
-/// - Sale Order: Use saleOrderManager from theos_pos_core (SaleOrderManager extensions)
-/// - Sale Order Lines: Use saleOrderLineManager from theos_pos_core (SaleOrderLineManager extensions)
-/// - UoM (uom.uom): Use UomDatasource from features/products/datasources/
-///
-/// NOTE: SyncAudit methods (logSyncOperation, getSyncAuditLogs, getAuditStats,
-/// clearOldAuditLogs) MUST remain in DatabaseHelper as they implement the
-/// IOdooDatabase interface required by odoo_offline_core package.
-///
-/// See database_helper_extension.dart for collection, advances and invoice
-/// datasource migration notes.
+/// Besides owning the current Drift connection, this implements the
+/// [IOdooDatabase] queue and audit contract used by the offline engine.
 class DatabaseHelper extends IOdooDatabase {
   static AppDatabase? _database;
   static String? _currentDatabaseName;
 
-  DatabaseHelper._();
+  /// Isolates native integration test files from the operator's local cache.
+  @visibleForTesting
+  static drift.QueryExecutor Function(String name)? testExecutorFactory;
 
-  /// Initialize with default database name (backwards compatible)
-  static Future<DatabaseHelper> initialize() async {
-    return initializeForServer(AppDatabase.defaultDatabaseName);
-  }
+  DatabaseHelper._();
 
   /// Initialize database for a specific server
   ///
@@ -59,12 +53,18 @@ class DatabaseHelper extends IOdooDatabase {
 
     // If switching to a different database, close the current one
     if (_database != null && _currentDatabaseName != databaseName) {
-      logger.d('[DatabaseHelper]', 'Switching database from $_currentDatabaseName to $databaseName');
+      logger.d(
+        '[DatabaseHelper]',
+        'Switching database from $_currentDatabaseName to $databaseName',
+      );
       try {
         await _database!.close().timeout(
           const Duration(seconds: 5),
           onTimeout: () {
-            logger.w('[DatabaseHelper]', 'Database close timed out after 5s, forcing release');
+            logger.w(
+              '[DatabaseHelper]',
+              'Database close timed out after 5s, forcing release',
+            );
           },
         );
         logger.d('[DatabaseHelper]', 'Previous database closed');
@@ -76,29 +76,34 @@ class DatabaseHelper extends IOdooDatabase {
     }
 
     if (_database == null) {
-      logger.i('[DatabaseHelper]', 'Initializing Drift database: $databaseName');
+      logger.i(
+        '[DatabaseHelper]',
+        'Initializing Drift database: $databaseName',
+      );
 
       logger.d('[DatabaseHelper]', 'Step 1: Creating QueryExecutor...');
-      final executor = driftDatabase(
-        name: databaseName,
-        web: DriftWebOptions(
-          sqlite3Wasm: Uri.parse('sqlite3.wasm'),
-          driftWorker: Uri.parse('drift_worker.dart.js'),
-        ),
-      );
+      final executor =
+          testExecutorFactory?.call(databaseName) ??
+          driftDatabase(
+            name: databaseName,
+            web: DriftWebOptions(
+              sqlite3Wasm: Uri.parse('sqlite3.wasm'),
+              driftWorker: Uri.parse('drift_worker.dart.js'),
+            ),
+          );
       logger.d('[DatabaseHelper]', 'QueryExecutor created');
 
       logger.d('[DatabaseHelper]', 'Step 2: Creating AppDatabase instance...');
-      _database = AppDatabase(
-        executor,
-        databaseName: databaseName,
-      );
+      _database = AppDatabase(executor, databaseName: databaseName);
       logger.d('[DatabaseHelper]', 'AppDatabase instance created');
 
       _currentDatabaseName = databaseName;
       logger.i('[DatabaseHelper]', 'Drift database initialized: $databaseName');
     } else {
-      logger.d('[DatabaseHelper]', 'Database already initialized: $databaseName');
+      logger.d(
+        '[DatabaseHelper]',
+        'Database already initialized: $databaseName',
+      );
     }
 
     logger.d('[DatabaseHelper]', 'Creating DatabaseHelper instance...');
@@ -122,8 +127,12 @@ class DatabaseHelper extends IOdooDatabase {
     return _database!;
   }
 
-  @Deprecated('Use appDatabaseProvider instead')
-  static AppDatabase get db => _db;
+  /// Current Drift database.
+  ///
+  /// Callers that already have a Riverpod [Ref] should prefer
+  /// `appDatabaseProvider`; repositories without a provider context use this
+  /// accessor so a server switch never leaves them holding a stale database.
+  static AppDatabase get database => _db;
 
   static DatabaseHelper? _instance;
   static DatabaseHelper get instance {
@@ -202,29 +211,10 @@ class DatabaseHelper extends IOdooDatabase {
 
   @override
   Future<void> removeOperation(int id) async {
-    await (_db.delete(_db.offlineQueue)..where((tbl) => tbl.id.equals(id))).go();
+    await (_db.delete(
+      _db.offlineQueue,
+    )..where((tbl) => tbl.id.equals(id))).go();
   }
-
-  // ============ Sale Orders (MIGRATED) ============
-  // Sale Order and Sale Order Line methods have been migrated to:
-  // - Sale Orders: use saleOrderManager (global manager from theos_pos_core)
-  // - Sale Order Lines: use saleOrderLineManager (global manager from theos_pos_core)
-
-  // The old Sale Order methods (1300+ lines) have been removed.
-  // See the SaleOrderManagerBusiness extension in theos_pos_core for the implementations.
-
-  // Methods removed from this file:
-  // - upsertSaleOrder, upsertSaleOrders, getSaleOrder, getSaleOrderByUuid
-  // - getSaleOrders, getSaleOrdersForPOS, countSaleOrdersForPOS
-  // - searchSaleOrdersForPOS, getEditableOrdersForPOS
-  // - deleteSaleOrder, updateSaleOrderState, clearSaleOrderPendingConfirm
-  // - updateSaleOrderLocked, updateSaleOrderRemoteId
-  // - upsertSaleOrderLine, upsertSaleOrderLines, getSaleOrderLines
-  // - getSaleOrderLine, deleteSaleOrderLine, deleteSaleOrderLinesByOrderId
-  // - upsertSaleOrderLineFromWebSocket, insertSaleOrderLineOffline
-  // - getSaleOrderLineByUuid, updateSaleOrderLineRemoteId
-  // - updateSaleOrderLineValues, getUnsyncedSaleOrderLines, saleOrderLineExists
-  // - _saleOrderFromRow, _saleOrderLineFromRow, enum converters
 
   // ============ Clear All ============
 
@@ -307,6 +297,7 @@ class DatabaseHelper extends IOdooDatabase {
   /// Returns the number of files deleted and total bytes freed.
   static Future<DatabaseCleanupResult> cleanupOldDatabases({
     int keepCount = 2,
+    required Set<String> protectedDatabaseNames,
   }) async {
     int deletedCount = 0;
     int bytesFreed = 0;
@@ -315,24 +306,20 @@ class DatabaseHelper extends IOdooDatabase {
     try {
       final files = await listDatabaseFiles();
 
-      // Never delete the current database
-      final toConsider = files.where((f) => !f.isCurrent).toList();
+      final toDelete = selectCleanupCandidates(
+        files: files,
+        keepCount: keepCount,
+        protectedDatabaseNames: protectedDatabaseNames,
+      );
 
-      // Keep the most recent N databases (sorted by lastModified desc)
-      if (toConsider.length <= keepCount) {
-        logger.d(
-          '[DatabaseHelper] No old databases to clean up '
-          '(${toConsider.length} <= $keepCount)',
-        );
+      if (toDelete.isEmpty) {
+        logger.d('[DatabaseHelper] No unprotected old databases to clean up');
         return DatabaseCleanupResult(
           deletedCount: 0,
           bytesFreed: 0,
           errors: [],
         );
       }
-
-      // Delete older databases (everything after keepCount)
-      final toDelete = toConsider.skip(keepCount).toList();
 
       for (final dbInfo in toDelete) {
         try {
@@ -368,6 +355,45 @@ class DatabaseHelper extends IOdooDatabase {
       bytesFreed: bytesFreed,
       errors: errors,
     );
+  }
+
+  /// Pure cleanup selection. Current databases and registered scoped or
+  /// quarantine names are never candidates, regardless of age.
+  static List<DatabaseFileInfo> selectCleanupCandidates({
+    required List<DatabaseFileInfo> files,
+    required int keepCount,
+    required Set<String> protectedDatabaseNames,
+  }) {
+    if (keepCount < 0) {
+      throw ArgumentError.value(keepCount, 'keepCount', 'Must not be negative');
+    }
+    final protected = protectedDatabaseNames
+        .map(_normalizedDatabaseFileName)
+        .toSet();
+    final eligible =
+        files
+            .where(
+              (file) =>
+                  !file.isCurrent &&
+                  !protected.contains(_normalizedDatabaseFileName(file.name)),
+            )
+            .toList()
+          ..sort(
+            (first, second) =>
+                second.lastModified.compareTo(first.lastModified),
+          );
+    return List<DatabaseFileInfo>.unmodifiable(eligible.skip(keepCount));
+  }
+
+  static String _normalizedDatabaseFileName(String value) {
+    final basename = value.trim().split(RegExp(r'[/\\]')).last;
+    if (basename.endsWith('.sqlite')) {
+      return basename.substring(0, basename.length - '.sqlite'.length);
+    }
+    if (basename.endsWith('.db')) {
+      return basename.substring(0, basename.length - '.db'.length);
+    }
+    return basename;
   }
 
   /// Delete a specific database file by name
@@ -504,16 +530,20 @@ class DatabaseHelper extends IOdooDatabase {
       fromDate: since,
       limit: limit ?? 100,
     );
-    return logs.map((l) => {
-      'id': l.id,
-      'model': l.model,
-      'method': l.method,
-      'odoo_id': l.odooId,
-      'local_id': l.localId,
-      'result': l.result,
-      'error_message': l.errorMessage,
-      'synced_at': l.syncedAt.toIso8601String(),
-    }).toList();
+    return logs
+        .map(
+          (l) => {
+            'id': l.id,
+            'model': l.model,
+            'method': l.method,
+            'odoo_id': l.odooId,
+            'local_id': l.localId,
+            'result': l.result,
+            'error_message': l.errorMessage,
+            'synced_at': l.syncedAt.toIso8601String(),
+          },
+        )
+        .toList();
   }
 
   /// Get audit statistics
@@ -578,14 +608,6 @@ class DatabaseHelper extends IOdooDatabase {
     final cutoff = DateTime.now().subtract(Duration(days: keepDays));
     return clearOldAuditLogs(cutoff);
   }
-
-  // ============ UoM (MIGRATED) ============
-  // UoM WebSocket methods migrated to:
-  // - UomDatasource: features/products/datasources/uom_datasource.dart
-  //
-  // Methods removed:
-  // - upsertUomUomFromWebSocket -> uomDatasource.upsertUomFromWebSocket()
-  // - deleteUomUomByOdooId -> uomDatasource.deleteUom()
 }
 
 // ============ Support Classes for Database Cleanup ============

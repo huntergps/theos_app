@@ -1,6 +1,5 @@
 import 'package:mocktail/mocktail.dart';
 import 'package:odoo_sdk/odoo_sdk.dart';
-import 'package:odoo_sdk/src/sync/offline_queue.dart';
 
 /// Mock implementation of OfflineQueueStore for testing.
 class MockOfflineQueueStore extends Mock implements OfflineQueueStore {}
@@ -71,6 +70,9 @@ class InMemoryOfflineQueueStore implements OfflineQueueStore {
     int? parentOrderId,
     int priority = OfflinePriority.normal,
     String? deviceId,
+    String? operationKey,
+    int commandVersion = 1,
+    OfflineReplayPolicy? replayPolicy,
   }) async {
     final id = _nextId++;
     final operation = OfflineOperation(
@@ -85,6 +87,9 @@ class InMemoryOfflineQueueStore implements OfflineQueueStore {
       priority: priority,
       deviceId: deviceId,
       retryCount: 0,
+      operationKey: operationKey,
+      commandVersion: commandVersion,
+      replayPolicy: replayPolicy ?? OfflineReplayPolicy.manualAfterAmbiguous,
     );
     _operations.add(operation);
     return id;
@@ -95,7 +100,12 @@ class InMemoryOfflineQueueStore implements OfflineQueueStore {
     bool includeNotReady = false,
   }) async {
     return _operations
-        .where((op) => op.retryCount < maxRetries)
+        .where(
+          (op) =>
+              op.retryCount < maxRetries &&
+              (op.status == OfflineOperationStatus.pending ||
+                  op.status == OfflineOperationStatus.recoveryPending),
+        )
         .where((op) => includeNotReady || op.isReadyForRetry)
         .toList()
       ..sort((a, b) => a.priority.compareTo(b.priority));
@@ -103,7 +113,14 @@ class InMemoryOfflineQueueStore implements OfflineQueueStore {
 
   @override
   Future<int> getPendingCount() async {
-    return _operations.where((op) => op.retryCount < maxRetries).length;
+    return _operations
+        .where(
+          (op) =>
+              op.retryCount < maxRetries &&
+              (op.status == OfflineOperationStatus.pending ||
+                  op.status == OfflineOperationStatus.recoveryPending),
+        )
+        .length;
   }
 
   @override
@@ -134,24 +151,20 @@ class InMemoryOfflineQueueStore implements OfflineQueueStore {
       final op = _operations[index];
       final newRetryCount = op.retryCount + 1;
       // Schedule next retry with exponential backoff
-      final nextRetryDelay = Duration(milliseconds: 1000 * (1 << op.retryCount));
-      _operations[index] = OfflineOperation(
-        id: op.id,
-        model: op.model,
-        method: op.method,
-        recordId: op.recordId,
-        values: op.values,
-        createdAt: op.createdAt,
-        baseWriteDate: op.baseWriteDate,
-        parentOrderId: op.parentOrderId,
-        priority: op.priority,
-        deviceId: op.deviceId,
+      final nextRetryDelay = Duration(
+        milliseconds: 1000 * (1 << op.retryCount),
+      );
+      _operations[index] = op.copyWith(
         retryCount: newRetryCount,
         lastRetryAt: DateTime.now(),
         nextRetryAt: newRetryCount < maxRetries
             ? DateTime.now().add(nextRetryDelay)
             : null, // No next retry if max exceeded
         lastError: errorMessage,
+        status: newRetryCount < maxRetries
+            ? OfflineOperationStatus.pending
+            : OfflineOperationStatus.deadLetter,
+        clearNextRetryAt: newRetryCount >= maxRetries,
       );
     }
   }
@@ -161,28 +174,25 @@ class InMemoryOfflineQueueStore implements OfflineQueueStore {
     final index = _operations.indexWhere((op) => op.id == id);
     if (index >= 0) {
       final op = _operations[index];
-      _operations[index] = OfflineOperation(
-        id: op.id,
-        model: op.model,
-        method: op.method,
-        recordId: op.recordId,
-        values: op.values,
-        createdAt: op.createdAt,
-        baseWriteDate: op.baseWriteDate,
-        parentOrderId: op.parentOrderId,
-        priority: op.priority,
-        deviceId: op.deviceId,
+      _operations[index] = op.copyWith(
         retryCount: 0,
-        lastRetryAt: null,
-        nextRetryAt: null,
-        lastError: null,
+        status: OfflineOperationStatus.pending,
+        clearLastRetryAt: true,
+        clearNextRetryAt: true,
+        clearLastError: true,
       );
     }
   }
 
   @override
   Future<List<OfflineOperation>> getDeadLetterOperations() async {
-    return _operations.where((op) => op.retryCount >= maxRetries).toList();
+    return _operations
+        .where(
+          (op) =>
+              op.status == OfflineOperationStatus.deadLetter ||
+              op.retryCount >= maxRetries,
+        )
+        .toList();
   }
 
   @override
@@ -190,7 +200,13 @@ class InMemoryOfflineQueueStore implements OfflineQueueStore {
     final pending = _operations.where((op) => op.retryCount < maxRetries);
     final ready = pending.where((op) => op.isReadyForRetry).length;
     final scheduled = pending.where((op) => !op.isReadyForRetry).length;
-    final deadLetter = _operations.where((op) => op.retryCount >= maxRetries).length;
+    final deadLetter = _operations
+        .where(
+          (op) =>
+              op.status == OfflineOperationStatus.deadLetter ||
+              op.retryCount >= maxRetries,
+        )
+        .length;
 
     return {
       'total': _operations.length,
@@ -205,15 +221,35 @@ class InMemoryOfflineQueueStore implements OfflineQueueStore {
 
   @override
   Future<int> removeOperationsBefore(DateTime date) async {
-    final before = _operations.where((op) => op.createdAt.isBefore(date)).toList();
-    _operations.removeWhere((op) => op.createdAt.isBefore(date));
+    final before = _operations
+        .where(
+          (op) =>
+              op.status == OfflineOperationStatus.completed &&
+              op.createdAt.isBefore(date),
+        )
+        .toList();
+    _operations.removeWhere(
+      (op) =>
+          op.status == OfflineOperationStatus.completed &&
+          op.createdAt.isBefore(date),
+    );
     return before.length;
   }
 
   @override
   Future<int> removeDeadLetterOperations() async {
-    final dead = _operations.where((op) => op.retryCount >= maxRetries).toList();
-    _operations.removeWhere((op) => op.retryCount >= maxRetries);
+    final dead = _operations
+        .where(
+          (op) =>
+              op.status == OfflineOperationStatus.deadLetter ||
+              op.retryCount >= maxRetries,
+        )
+        .toList();
+    _operations.removeWhere(
+      (op) =>
+          op.status == OfflineOperationStatus.deadLetter ||
+          op.retryCount >= maxRetries,
+    );
     return dead.length;
   }
 
@@ -229,14 +265,52 @@ class InMemoryOfflineQueueStore implements OfflineQueueStore {
 
   @override
   Future<void> markOperationProcessing(int id) async {
-    // In-memory store: no status column, no-op is sufficient for tests
-    // (the store doesn't filter by status, so double-execution prevention
-    // is exercised via the getPendingOperations snapshot taken before the loop)
+    _replaceStatus(id, OfflineOperationStatus.processing);
   }
 
   @override
   Future<void> markOperationPending(int id) async {
-    // No-op: ver comentario de markOperationProcessing.
+    _replaceStatus(id, OfflineOperationStatus.pending);
+  }
+
+  @override
+  Future<void> markOperationCompleted(int id) async {
+    _replaceStatus(id, OfflineOperationStatus.completed);
+  }
+
+  @override
+  Future<void> markOperationConflict(int id) async {
+    _replaceStatus(id, OfflineOperationStatus.conflict);
+  }
+
+  @override
+  Future<void> markOperationDeadLetter(int id, String errorMessage) async {
+    final index = _operations.indexWhere((op) => op.id == id);
+    if (index >= 0) {
+      _operations[index] = _operations[index].copyWith(
+        status: OfflineOperationStatus.deadLetter,
+        lastError: errorMessage,
+        clearNextRetryAt: true,
+      );
+    }
+  }
+
+  @override
+  Future<void> replaceOperationValues(
+    int id,
+    Map<String, dynamic> values,
+  ) async {
+    final index = _operations.indexWhere((op) => op.id == id);
+    if (index >= 0) {
+      _operations[index] = _operations[index].copyWith(values: values);
+    }
+  }
+
+  void _replaceStatus(int id, OfflineOperationStatus status) {
+    final index = _operations.indexWhere((op) => op.id == id);
+    if (index >= 0) {
+      _operations[index] = _operations[index].copyWith(status: status);
+    }
   }
 
   /// Get an operation by ID (for test assertions).
@@ -273,14 +347,16 @@ extension MockOfflineQueueSetup on MockOfflineQueue {
 
   /// Setup successful enqueue.
   void setupEnqueue({int resultId = 1}) {
-    when(() => enqueue(
-          model: any(named: 'model'),
-          method: any(named: 'method'),
-          recordId: any(named: 'recordId'),
-          values: any(named: 'values'),
-          priority: any(named: 'priority'),
-          deviceId: any(named: 'deviceId'),
-        )).thenAnswer((_) async => resultId);
+    when(
+      () => enqueue(
+        model: any(named: 'model'),
+        method: any(named: 'method'),
+        recordId: any(named: 'recordId'),
+        values: any(named: 'values'),
+        priority: any(named: 'priority'),
+        deviceId: any(named: 'deviceId'),
+      ),
+    ).thenAnswer((_) async => resultId);
   }
 }
 
@@ -288,31 +364,40 @@ extension MockOfflineQueueSetup on MockOfflineQueue {
 extension MockOfflineQueueStoreSetup on MockOfflineQueueStore {
   /// Setup empty queue.
   void setupEmptyQueue() {
-    when(() => getPendingOperations(includeNotReady: any(named: 'includeNotReady')))
-        .thenAnswer((_) async => []);
+    when(
+      () =>
+          getPendingOperations(includeNotReady: any(named: 'includeNotReady')),
+    ).thenAnswer((_) async => []);
     when(() => getPendingCount()).thenAnswer((_) async => 0);
     when(() => getDeadLetterOperations()).thenAnswer((_) async => []);
   }
 
   /// Setup queue with operations.
   void setupOperations(List<OfflineOperation> operations) {
-    when(() => getPendingOperations(includeNotReady: any(named: 'includeNotReady')))
-        .thenAnswer((_) async => operations);
+    when(
+      () =>
+          getPendingOperations(includeNotReady: any(named: 'includeNotReady')),
+    ).thenAnswer((_) async => operations);
     when(() => getPendingCount()).thenAnswer((_) async => operations.length);
   }
 
   /// Setup successful queue operation.
   void setupQueueOperation({int resultId = 1}) {
-    when(() => queueOperation(
-          model: any(named: 'model'),
-          method: any(named: 'method'),
-          recordId: any(named: 'recordId'),
-          values: any(named: 'values'),
-          baseWriteDate: any(named: 'baseWriteDate'),
-          parentOrderId: any(named: 'parentOrderId'),
-          priority: any(named: 'priority'),
-          deviceId: any(named: 'deviceId'),
-        )).thenAnswer((_) async => resultId);
+    when(
+      () => queueOperation(
+        model: any(named: 'model'),
+        method: any(named: 'method'),
+        recordId: any(named: 'recordId'),
+        values: any(named: 'values'),
+        baseWriteDate: any(named: 'baseWriteDate'),
+        parentOrderId: any(named: 'parentOrderId'),
+        priority: any(named: 'priority'),
+        deviceId: any(named: 'deviceId'),
+        operationKey: any(named: 'operationKey'),
+        commandVersion: any(named: 'commandVersion'),
+        replayPolicy: any(named: 'replayPolicy'),
+      ),
+    ).thenAnswer((_) async => resultId);
   }
 
   /// Setup remove operation.

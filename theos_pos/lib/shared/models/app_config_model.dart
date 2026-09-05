@@ -1,5 +1,6 @@
 import 'package:fluent_ui/fluent_ui.dart';
 import 'package:flutter_acrylic/flutter_acrylic.dart';
+
 import 'config_profile.dart';
 
 class AppConfigModel {
@@ -38,7 +39,7 @@ class AppConfigModel {
   // Date format
   final String dateFormat;
 
-  // Developer mode — enables diagnostic routes (WebSocket debug, DLQ, conflicts)
+  // Developer mode — enables diagnostic routes (DLQ and conflicts)
   final bool developerMode;
 
   const AppConfigModel({

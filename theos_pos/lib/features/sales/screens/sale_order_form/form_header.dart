@@ -3,6 +3,7 @@ import 'package:fluent_ui/fluent_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:odoo_sdk/odoo_sdk.dart';
+
 import '../../../../core/constants/app_colors.dart';
 import '../../../../core/constants/app_constants.dart';
 
@@ -10,17 +11,23 @@ import '../../../../features/sync/repositories/catalog_sync_repository.dart';
 import '../../../reports/providers/qweb_template_repository_provider.dart';
 import '../../../../core/database/repositories/repository_providers.dart';
 import '../../../reports/services/report_service.dart';
+
 import 'package:flutter_qweb/flutter_qweb.dart'
     show RenderOptions, ReportException;
+
 import '../../../../core/theme/spacing.dart';
 import '../../../../shared/providers/company_config_provider.dart';
 import '../../../../shared/providers/report_provider.dart';
 import '../../../../shared/providers/user_provider.dart';
+import '../../../../shared/constants/user_groups.dart';
 import '../../../../shared/utils/error_utils.dart';
 import '../../../../shared/widgets/dialogs/copyable_info_bar.dart';
 import '../../../../shared/widgets/status_indicator.dart';
+
 import 'package:theos_pos_core/theos_pos_core.dart';
+
 import '../../providers/providers.dart';
+import '../../repositories/sales_repository.dart';
 import '../../services/credit_validation_ui_service.dart'
     show UnifiedCreditResult;
 import '../../../clients/clients.dart'
@@ -186,8 +193,7 @@ class SaleOrderFormHeader extends ConsumerWidget {
                 spacing.vertical.sm,
                 StatusIndicator.warningAlert(
                   title: '¡Atención - Excede el límite del SRI!',
-                  message:
-                      'El monto total de esta orden excede el límite permitido para un consumidor final.',
+                  message: 'El monto total de esta orden excede el límite permitido para un consumidor final.',
                   details: const [
                     'Cambiar el cliente por uno con identificación específica',
                     'Reducir el monto de la orden',
@@ -264,8 +270,12 @@ class SaleOrderFormHeader extends ConsumerWidget {
     final tabsNotifier = ref.read(saleOrderTabsProvider.notifier);
     final user = ref.read(userProvider);
 
-    // 1. Validar crédito antes de guardar
-    final creditResult = await formNotifier.validateCreditForUI();
+    // Guardar una cotización no concede crédito. Online, la confirmación
+    // nativa evalúa el término después de registrar la aprobación comercial.
+    final online = ref.read(salesRepositoryProvider)?.isOnline == true;
+    final creditResult = online
+        ? UnifiedCreditResult.proceed()
+        : await formNotifier.validateCreditForUI();
 
     if (creditResult.requiresDialog) {
       if (!context.mounted) return;
@@ -278,10 +288,7 @@ class SaleOrderFormHeader extends ConsumerWidget {
         isOnline: creditResult.isOnline,
         // Permitir bypass si el usuario tiene permiso o el client lo permite
         canBypass:
-            user?.permissions.contains(
-              'l10n_ec_sale_credit.group_credit_bypass',
-            ) ??
-            false,
+            user?.permissions.contains(OdooUserGroup.creditApprover) ?? false,
       );
 
       switch (action) {
@@ -314,7 +321,7 @@ class SaleOrderFormHeader extends ConsumerWidget {
 
     // 2. Guardar la orden (skipCreditCheck=true porque ya validamos arriba)
     final savedOrderId = await formNotifier.saveOrder(
-      skipCreditCheck: creditResult.requiresDialog,
+      skipCreditCheck: online || creditResult.requiresDialog,
     );
 
     if (savedOrderId != null) {
@@ -400,8 +407,7 @@ class SaleOrderFormHeader extends ConsumerWidget {
         CopyableInfoBar.showWarning(
           context,
           title: 'Orden no guardada',
-          message:
-              'Debe guardar la orden primero antes de crear una solicitud de aprobación.',
+          message: 'Debe guardar la orden primero antes de crear una solicitud de aprobación.',
         );
       }
       return;
@@ -499,7 +505,7 @@ class _ViewActionButtons extends ConsumerWidget {
     final spacing = ref.watch(themedSpacingProvider);
     final user = ref.watch(userProvider);
     final canConfirm =
-        user?.permissions.contains('l10n_ec_base.group_sale_confirm') ?? false;
+        user?.permissions.contains(OdooUserGroup.saleConfirm) ?? false;
 
     return Wrap(
       spacing: spacing.sm,
@@ -534,9 +540,7 @@ class _ViewActionButtons extends ConsumerWidget {
 
         // Cancelar
         if (order.canCancel &&
-            (user?.permissions.contains(
-                  'l10n_ec_base.group_allow_delete_records',
-                ) ??
+            (user?.permissions.contains(OdooUserGroup.allowDeleteRecords) ??
                 false))
           Button(
             onPressed: () => _handleCancel(context, ref),
@@ -572,13 +576,6 @@ class _ViewActionButtons extends ConsumerWidget {
                 const Text('Confirmar Venta'),
               ],
             ),
-          ),
-
-        // Reservar Stock
-        if (order.canReserveStock)
-          FilledButton(
-            onPressed: () => _handleReserveStock(context, ref),
-            child: const Text('Reservar Stock'),
           ),
 
         // Bloquear - Solo en estado sale y no bloqueada
@@ -706,7 +703,10 @@ class _ViewActionButtons extends ConsumerWidget {
     // Collect all unique tax IDs from lines
     final taxIds = <int>{};
     for (final line in lines) {
-      logger.d('[_loadTaxDataMap]', 'Line: taxIds="${line.taxIds}", taxNames="${line.taxNames}"');
+      logger.d(
+        '[_loadTaxDataMap]',
+        'Line: taxIds="${line.taxIds}", taxNames="${line.taxNames}"',
+      );
       if (line.taxIds != null && line.taxIds!.isNotEmpty) {
         final ids = line.taxIds!
             .split(',')
@@ -716,15 +716,24 @@ class _ViewActionButtons extends ConsumerWidget {
       }
     }
 
-    logger.d('[_loadTaxDataMap]', 'Collected ${taxIds.length} unique tax IDs: $taxIds');
+    logger.d(
+      '[_loadTaxDataMap]',
+      'Collected ${taxIds.length} unique tax IDs: $taxIds',
+    );
 
     // If no taxIds from lines, load ALL taxes as fallback
     if (taxIds.isEmpty) {
-      logger.d('[_loadTaxDataMap]', 'No taxIds from lines, loading ALL taxes from DB');
+      logger.d(
+        '[_loadTaxDataMap]',
+        'No taxIds from lines, loading ALL taxes from DB',
+      );
       final allTaxes = await catalogRepo.getLocalTaxes();
       logger.d('[_loadTaxDataMap]', 'Loaded ${allTaxes.length} taxes from DB');
       for (final tax in allTaxes) {
-        logger.d('[_loadTaxDataMap]', 'Tax ${tax.odooId}: name="${tax.name}", amount=${tax.amount}');
+        logger.d(
+          '[_loadTaxDataMap]',
+          'Tax ${tax.odooId}: name="${tax.name}", amount=${tax.amount}',
+        );
         result[tax.odooId] = {
           'name': tax.name,
           'amount': tax.amount,
@@ -738,7 +747,10 @@ class _ViewActionButtons extends ConsumerWidget {
     final taxes = await catalogRepo.getLocalTaxesByIds(taxIds.toList());
     logger.d('[_loadTaxDataMap]', 'Loaded ${taxes.length} taxes from DB');
     for (final tax in taxes) {
-      logger.d('[_loadTaxDataMap]', 'Tax ${tax.odooId}: name="${tax.name}", amount=${tax.amount}');
+      logger.d(
+        '[_loadTaxDataMap]',
+        'Tax ${tax.odooId}: name="${tax.name}", amount=${tax.amount}',
+      );
       result[tax.odooId] = {
         'name': tax.name,
         'amount': tax.amount,
@@ -756,7 +768,10 @@ class _ViewActionButtons extends ConsumerWidget {
     dynamic offlineInvoice,
     Map<int, Map<String, dynamic>>? taxDataMap,
   }) {
-    logger.d('[_orderToReportMap]', 'Called with ${lines.length} lines, taxDataMap has ${taxDataMap?.length ?? 0} entries');
+    logger.d(
+      '[_orderToReportMap]',
+      'Called with ${lines.length} lines, taxDataMap has ${taxDataMap?.length ?? 0} entries',
+    );
     if (taxDataMap != null && taxDataMap.isNotEmpty) {
       taxDataMap.forEach((id, data) {
         logger.d('[_orderToReportMap]', 'TaxData[$id]: ${data['name']}');
@@ -831,7 +846,7 @@ class _ViewActionButtons extends ConsumerWidget {
     // 5. Enrich Lines with Formatted Values & Clean Name
     // order.toReportMap returns 'order_line' as List<Map<String, dynamic>>
     final List<dynamic> reportLines = baseMap['order_line'];
-    
+
     // Get currency symbol map
     final symbol = order.currencySymbol ?? '\$';
     final symbolMap = {
@@ -845,22 +860,25 @@ class _ViewActionButtons extends ConsumerWidget {
     final currencySymbol = symbolMap[symbol] ?? symbol;
 
     // Calculate details for tax totals
-    final hasDiscounts = order.totalDiscountAmount > 0 ||
+    final hasDiscounts =
+        order.totalDiscountAmount > 0 ||
         lines.any((l) => l.discount > 0 || l.discountAmount > 0);
-        
+
     // Generate section totals used by template
     final sectionTotals = <int, double>{};
     int? currentSectionIndex;
     // Calculate section totals logic (re-implemented here as it depends on list index)
     for (var i = 0; i < lines.length; i++) {
-        final line = lines[i];
-        final isSection = line.displayType == LineDisplayType.lineSection;
-        if (isSection) {
-            currentSectionIndex = i;
-            sectionTotals[i] = 0.0;
-        } else if (currentSectionIndex != null && line.displayType == LineDisplayType.product) {
-            sectionTotals[currentSectionIndex] = (sectionTotals[currentSectionIndex] ?? 0.0) + line.priceSubtotal;
-        }
+      final line = lines[i];
+      final isSection = line.displayType == LineDisplayType.lineSection;
+      if (isSection) {
+        currentSectionIndex = i;
+        sectionTotals[i] = 0.0;
+      } else if (currentSectionIndex != null &&
+          line.displayType == LineDisplayType.product) {
+        sectionTotals[currentSectionIndex] =
+            (sectionTotals[currentSectionIndex] ?? 0.0) + line.priceSubtotal;
+      }
     }
 
     for (var i = 0; i < reportLines.length; i++) {
@@ -869,7 +887,7 @@ class _ViewActionButtons extends ConsumerWidget {
 
       // Overwrite name with cleaned description
       lineMap['name'] = getCleanLineName(line);
-      
+
       // Inject section totals
       lineMap['section_totals'] = sectionTotals[i] ?? 0.0;
 
@@ -880,17 +898,18 @@ class _ViewActionButtons extends ConsumerWidget {
             : '\$ 0,00';
       }
       if (lineMap['price_subtotal'] is num) {
-        lineMap['formatted_price_subtotal'] =
-            formatCurrencyEc(lineMap['price_subtotal']);
+        lineMap['formatted_price_subtotal'] = formatCurrencyEc(
+          lineMap['price_subtotal'],
+        );
       }
       if (lineMap['price_tax'] is num) {
-        lineMap['formatted_price_tax'] =
-            formatCurrencyEc(lineMap['price_tax']);
+        lineMap['formatted_price_tax'] = formatCurrencyEc(lineMap['price_tax']);
         lineMap['formatted_tax_amount'] = lineMap['formatted_price_tax'];
       }
       if (lineMap['price_total'] is num) {
-        lineMap['formatted_price_total'] =
-            formatCurrencyEc(lineMap['price_total']);
+        lineMap['formatted_price_total'] = formatCurrencyEc(
+          lineMap['price_total'],
+        );
       }
 
       // Ensure currency_id symbol is mapped
@@ -899,9 +918,9 @@ class _ViewActionButtons extends ConsumerWidget {
         'name': symbol,
         'symbol': currencySymbol,
       };
-      
+
       // Add 'is_optional' which might be missing in model map
-      // Model doesn't have isOptional field in toReportMap? 
+      // Model doesn't have isOptional field in toReportMap?
       // Checking SaleOrderLine model again... it doesn't seem to expose isOptional to report map
       // But let's check if SaleOrderLine object has it.
       // Assuming SaleOrderLine has isOptional getter or field (it's not in the common fields in model)
@@ -1051,16 +1070,12 @@ class _ViewActionButtons extends ConsumerWidget {
 
       final companyInfo = await _getCompanyInfo(ref);
       final userInfo = _getUserInfo(ref);
-      final recordMap = _orderToReportMap(
-        order,
-        lines,
-        taxDataMap: taxDataMap,
-      );
+      final recordMap = _orderToReportMap(order, lines, taxDataMap: taxDataMap);
 
       // Get consistent render options (same as preview)
       final options = _getRenderOptions(reportService, templateName);
 
-      final success = await reportService.generateAndOpen(
+      final success = await reportService.generateAndPrint(
         templateName: templateName,
         records: [recordMap],
         filename: '${order.name}.pdf',
@@ -1070,14 +1085,11 @@ class _ViewActionButtons extends ConsumerWidget {
       );
 
       if (success) {
-        logger.i(
-          '[_ViewActionButtons]',
-          'Print/Open completed for ${order.name}',
-        );
+        logger.i('[_ViewActionButtons]', 'Print completed for ${order.name}');
       } else {
         logger.w(
           '[_ViewActionButtons]',
-          'Print/Open cancelled/failed for ${order.name}',
+          'Print cancelled/failed for ${order.name}',
         );
       }
     } catch (e) {
@@ -1171,11 +1183,7 @@ class _ViewActionButtons extends ConsumerWidget {
       final catalogRepo = ref.read(catalogSyncRepositoryProvider);
       final taxDataMap = await _loadTaxDataMap(catalogRepo, lines);
 
-      final recordMap = _orderToReportMap(
-        order,
-        lines,
-        taxDataMap: taxDataMap,
-      );
+      final recordMap = _orderToReportMap(order, lines, taxDataMap: taxDataMap);
 
       // Get consistent render options (same as print)
       final options = _getRenderOptions(reportService, templateName);
@@ -1247,14 +1255,49 @@ class _ViewActionButtons extends ConsumerWidget {
     if (salesRepo == null) return;
 
     try {
-      await salesRepo.confirm(order.id);
+      final result = await salesRepo.posConfirm(order.id);
+      if (result.requiresApproval) {
+        onRefresh();
+        if (!context.mounted) return;
+        final issue = result.creditIssue;
+        if (issue == null || order.partnerId == null) {
+          throw StateError(result.error ?? 'Odoo requiere una aprobación.');
+        }
+        final request = await _showConfirmDialog(
+          context,
+          'Solicitar aprobación',
+          '${result.error}\n¿Deseas enviar la solicitud de aprobación?',
+        );
+        if (!request) return;
+        await salesRepo.createCreditApprovalRequest(
+          orderId: order.id,
+          partnerId: order.partnerId!,
+          amount: issue.orderAmount ?? order.amountTotal,
+          reason: issue.message,
+          checkType: issue.type,
+          paymentTermId: order.paymentTermId,
+          approvalAction: result.approvalAction,
+        );
+        onRefresh();
+        if (context.mounted) {
+          CopyableInfoBar.showSuccess(
+            context,
+            title: 'Solicitud enviada',
+            message: 'La venta sigue pendiente de aprobación en Odoo.',
+          );
+        }
+        return;
+      }
+      if (!result.success) {
+        throw StateError(result.error ?? 'Odoo no confirmó la venta.');
+      }
       onRefresh();
-    } on OdooException catch (e) {
+    } catch (e) {
       if (context.mounted) {
         CopyableInfoBar.showError(
           context,
           title: 'Error al confirmar',
-          message: e.message,
+          message: e is OdooException ? e.message : e.toString(),
         );
       }
     }
@@ -1282,26 +1325,13 @@ class _ViewActionButtons extends ConsumerWidget {
       onRefresh();
     } on OdooException catch (e) {
       if (context.mounted) {
-        CopyableInfoBar.showError(context, title: 'Error al cambiar estado', message: e.message);
+        CopyableInfoBar.showError(
+          context,
+          title: 'Error al cambiar estado',
+          message: e.message,
+        );
       }
     }
-  }
-
-  Future<void> _handleReserveStock(BuildContext context, WidgetRef ref) async {
-    if (!context.mounted) return;
-    await showDialog(
-      context: context,
-      builder: (ctx) => ContentDialog(
-        title: const Text('Reservar Stock'),
-        content: const Text('Funcionalidad próximamente.'),
-        actions: [
-          FilledButton(
-            onPressed: () => Navigator.of(ctx).pop(),
-            child: const Text('Aceptar'),
-          ),
-        ],
-      ),
-    );
   }
 
   /// Lock the order (set locked=true in Odoo)
@@ -1336,7 +1366,11 @@ class _ViewActionButtons extends ConsumerWidget {
       }
     } on OdooException catch (e) {
       if (context.mounted) {
-        CopyableInfoBar.showError(context, title: 'Error al bloquear orden', message: e.message);
+        CopyableInfoBar.showError(
+          context,
+          title: 'Error al bloquear orden',
+          message: e.message,
+        );
       }
     }
   }
@@ -1375,7 +1409,11 @@ class _ViewActionButtons extends ConsumerWidget {
       }
     } on OdooException catch (e) {
       if (context.mounted) {
-        CopyableInfoBar.showError(context, title: 'Error al desbloquear orden', message: e.message);
+        CopyableInfoBar.showError(
+          context,
+          title: 'Error al desbloquear orden',
+          message: e.message,
+        );
       }
     }
   }
@@ -1433,8 +1471,7 @@ class _EditActionButtons extends ConsumerWidget {
     final spacing = ref.watch(themedSpacingProvider);
     final user = ref.watch(userProvider);
     final canDelete =
-        user?.permissions.contains('l10n_ec_sale_base.group_sale_delete') ??
-        false;
+        user?.permissions.contains(OdooUserGroup.saleDelete) ?? false;
 
     return Wrap(
       spacing: spacing.sm,
@@ -1550,29 +1587,29 @@ class _PendingSyncBadgeState extends ConsumerState<_PendingSyncBadge> {
       }
 
       // Use OfflineSyncService to process only this order's pending operations
-    final syncService = ref.read(offlineSyncServiceProvider);
-    if (syncService == null) {
-      if (mounted) {
-        CopyableInfoBar.showError(
-          context,
-          title: 'Error de sincronización',
-          message: 'Servicio de sincronización no disponible',
-        );
+      final syncService = ref.read(offlineSyncServiceProvider);
+      if (syncService == null) {
+        if (mounted) {
+          CopyableInfoBar.showError(
+            context,
+            title: 'Error de sincronización',
+            message: 'Servicio de sincronización no disponible',
+          );
+        }
+        return;
       }
-      return;
-    }
 
-    final isOnline = ref.read(odooClientProvider)?.isConfigured ?? false;
-    if (!isOnline) {
-      if (mounted) {
-        CopyableInfoBar.showError(
-          context,
-          title: 'Sin conexión',
-          message: 'No hay conexión con el servidor Odoo',
-        );
+      final isOnline = ref.read(odooClientProvider)?.isConfigured ?? false;
+      if (!isOnline) {
+        if (mounted) {
+          CopyableInfoBar.showError(
+            context,
+            title: 'Sin conexión',
+            message: 'No hay conexión con el servidor Odoo',
+          );
+        }
+        return;
       }
-      return;
-    }
 
       logger.d(
         '[_PendingSyncBadge]',
@@ -1614,12 +1651,18 @@ class _PendingSyncBadgeState extends ConsumerState<_PendingSyncBadge> {
         );
       }
     } catch (e, st) {
-      logger.e('[_PendingSyncBadge]', 'Sync failed for order ${widget.orderId}', e, st);
+      logger.e(
+        '[_PendingSyncBadge]',
+        'Sync failed for order ${widget.orderId}',
+        e,
+        st,
+      );
       if (mounted) {
         CopyableInfoBar.showError(
           context,
           title: 'Error de sincronización',
-          message: 'No se pudo sincronizar la orden: ${friendlyErrorMessage(e)}',
+          message:
+              'No se pudo sincronizar la orden: ${friendlyErrorMessage(e)}',
           durationSeconds: 15,
         );
       }

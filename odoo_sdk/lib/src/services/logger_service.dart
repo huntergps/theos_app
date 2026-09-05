@@ -9,11 +9,29 @@ typedef LogOutput = void Function(Object?);
 /// Pure Dart debug mode detection (replaces Flutter's _kDebugMode)
 bool _isDebugMode() {
   bool debug = false;
-  assert(() { debug = true; return true; }());
+  assert(() {
+    debug = true;
+    return true;
+  }());
   return debug;
 }
 
 final bool _kDebugMode = _isDebugMode();
+
+/// Sanitized payload suitable for external error/analytics sinks.
+final class SanitizedLogPayload {
+  const SanitizedLogPayload({
+    required this.tag,
+    required this.message,
+    required this.error,
+    required this.stackTrace,
+  });
+
+  final String tag;
+  final String message;
+  final Object? error;
+  final StackTrace? stackTrace;
+}
 
 /// Centralized logging service for the application
 ///
@@ -61,8 +79,13 @@ class AppLogger {
 
   /// Optional callback for sending errors to analytics
   /// Set this to integrate with Firebase Crashlytics, Sentry, etc.
-  void Function(String tag, String message, Object? error, StackTrace? stackTrace)?
-      onErrorLogged;
+  void Function(
+    String tag,
+    String message,
+    Object? error,
+    StackTrace? stackTrace,
+  )?
+  onErrorLogged;
 
   /// SEC-03: Whether automatic log sanitization is enabled.
   ///
@@ -78,6 +101,27 @@ class AppLogger {
 
   /// Whether log sanitization is currently enabled.
   bool get isSanitizationEnabled => _sanitizeEnabled;
+
+  /// Produces a payload that is always safe for an external sink.
+  ///
+  /// This deliberately ignores the console-only sanitization toggle: release
+  /// analytics must never receive the original exception object or stack path.
+  static SanitizedLogPayload sanitizeForExternalSink({
+    required String tag,
+    required String message,
+    Object? error,
+    StackTrace? stackTrace,
+  }) {
+    final sanitizedStack = stackTrace == null
+        ? null
+        : StackTrace.fromString(ErrorSanitizer.sanitizeStackTrace(stackTrace));
+    return SanitizedLogPayload(
+      tag: ErrorSanitizer.sanitize(tag),
+      message: ErrorSanitizer.sanitize(message),
+      error: error == null ? null : ErrorSanitizer.sanitize(error.toString()),
+      stackTrace: sanitizedStack,
+    );
+  }
 
   /// Log a debug message
   ///
@@ -157,10 +201,15 @@ class AppLogger {
     if (level.index < minLevel.index) return;
 
     // SEC-03: Sanitize message and error to prevent credential leaks
-    final safeMessage = _sanitizeEnabled ? ErrorSanitizer.sanitize(message) : message;
+    final safeMessage = _sanitizeEnabled
+        ? ErrorSanitizer.sanitize(message)
+        : message;
     final safeError = error != null && _sanitizeEnabled
         ? ErrorSanitizer.sanitize(error.toString())
         : error?.toString();
+    final safeStackTrace = stackTrace != null && _sanitizeEnabled
+        ? StackTrace.fromString(ErrorSanitizer.sanitizeStackTrace(stackTrace))
+        : stackTrace;
 
     final prefix = _getPrefix(level);
     final timestamp = DateTime.now().toIso8601String().substring(11, 23);
@@ -172,14 +221,25 @@ class AppLogger {
       if (safeError != null) {
         logOutput('  Error: $safeError');
       }
-      if (stackTrace != null) {
-        logOutput('  Stack: ${_sanitizeEnabled ? ErrorSanitizer.sanitizeStackTrace(stackTrace) : stackTrace}');
+      if (safeStackTrace != null) {
+        logOutput('  Stack: $safeStackTrace');
       }
     }
 
     // In release mode, send errors to analytics service
     if (level == LogLevel.error && !_kDebugMode) {
-      onErrorLogged?.call(tag, safeMessage, error, stackTrace);
+      final payload = sanitizeForExternalSink(
+        tag: tag,
+        message: message,
+        error: error,
+        stackTrace: stackTrace,
+      );
+      onErrorLogged?.call(
+        payload.tag,
+        payload.message,
+        payload.error,
+        payload.stackTrace,
+      );
     }
   }
 

@@ -103,10 +103,7 @@ class InlineProgressRing extends StatelessWidget {
     return SizedBox(
       width: size,
       height: size,
-      child: ProgressRing(
-        strokeWidth: strokeWidth,
-        activeColor: color,
-      ),
+      child: ProgressRing(strokeWidth: strokeWidth, activeColor: color),
     );
   }
 }
@@ -182,11 +179,7 @@ class CompactLoadingIndicator extends StatelessWidget {
   /// Tamaño del indicador
   final double size;
 
-  const CompactLoadingIndicator({
-    super.key,
-    this.label,
-    this.size = 14,
-  });
+  const CompactLoadingIndicator({super.key, this.label, this.size = 14});
 
   @override
   Widget build(BuildContext context) {
@@ -255,11 +248,7 @@ class ProgressIndicatorWidget extends StatelessWidget {
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                if (label != null)
-                  Text(
-                    label!,
-                    style: theme.typography.body,
-                  ),
+                if (label != null) Text(label!, style: theme.typography.body),
                 if (showPercentage)
                   Text(
                     '$percentage%',
@@ -376,17 +365,12 @@ class ErrorState extends StatelessWidget {
           const SizedBox(height: 16),
           Text(
             message,
-            style: theme.typography.body?.copyWith(
-              color: theme.inactiveColor,
-            ),
+            style: theme.typography.body?.copyWith(color: theme.inactiveColor),
             textAlign: TextAlign.center,
           ),
           if (onRetry != null) ...[
             const SizedBox(height: 16),
-            Button(
-              onPressed: onRetry,
-              child: const Text('Reintentar'),
-            ),
+            Button(onPressed: onRetry, child: const Text('Reintentar')),
           ],
         ],
       ),
@@ -456,17 +440,12 @@ class EmptyState extends StatelessWidget {
             ),
           Text(
             message,
-            style: theme.typography.body?.copyWith(
-              color: theme.inactiveColor,
-            ),
+            style: theme.typography.body?.copyWith(color: theme.inactiveColor),
             textAlign: TextAlign.center,
           ),
           if (actionLabel != null && onAction != null) ...[
             const SizedBox(height: 16),
-            FilledButton(
-              onPressed: onAction,
-              child: Text(actionLabel!),
-            ),
+            FilledButton(onPressed: onAction, child: Text(actionLabel!)),
           ],
         ],
       ),

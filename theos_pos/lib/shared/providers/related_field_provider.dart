@@ -1,6 +1,8 @@
-export '../../core/services/handlers/related_field_service.dart' show RelatedFieldResult;
+export '../../core/services/handlers/related_field_service.dart'
+    show RelatedFieldResult;
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+
 import '../../core/services/handlers/related_field_service.dart';
 import '../../core/database/repositories/repository_providers.dart';
 import '../../core/managers/manager_providers.dart' show appDatabaseProvider;
@@ -20,7 +22,9 @@ final relatedFieldServiceProvider = Provider<RelatedFieldService?>((ref) {
 
   return RelatedFieldService(
     odooClient: odooClient,
-    cacheStore: DriftRelatedRecordCacheStore(db: ref.watch(appDatabaseProvider)),
+    cacheStore: DriftRelatedRecordCacheStore(
+      db: ref.watch(appDatabaseProvider),
+    ),
   );
 });
 

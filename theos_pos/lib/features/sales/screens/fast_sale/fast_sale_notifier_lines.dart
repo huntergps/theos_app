@@ -151,10 +151,13 @@ extension FastSaleNotifierLines on FastSaleNotifier {
       // Search local DB via productManager for exact match (case insensitive)
       final lowerCode = code.toLowerCase();
       final searchResults = await productManager.searchProducts(code);
-      final exactMatches = searchResults.where((p) =>
-          p.defaultCode?.toLowerCase() == lowerCode ||
-          p.barcode?.toLowerCase() == lowerCode,
-      ).toList();
+      final exactMatches = searchResults
+          .where(
+            (p) =>
+                p.defaultCode?.toLowerCase() == lowerCode ||
+                p.barcode?.toLowerCase() == lowerCode,
+          )
+          .toList();
 
       logger.d(
         '[FastSale] Found ${exactMatches.length} matches for code: $code',
@@ -166,8 +169,7 @@ extension FastSaleNotifierLines on FastSaleNotifier {
 
         // Check if product already exists in lines with same UOM
         final existingIndex = activeTab.lines.indexWhere(
-          (l) =>
-              l.productId == product.id && l.productUomId == product.uomId,
+          (l) => l.productId == product.id && l.productUomId == product.uomId,
         );
 
         if (existingIndex >= 0) {
@@ -351,8 +353,14 @@ extension FastSaleNotifierLines on FastSaleNotifier {
         _updateActiveTab(updatedTab);
       }
 
-      // Then save the line locally
-      await saleOrderLineManager.upsertLocal(line);
+      // Then save the line locally as dirty before background transport. The
+      // previous value often still had isSynced=true, so a failed write could
+      // be skipped by the subsequent confirmation guard.
+      final dirtyLine = line.copyWith(
+        orderId: activeTab.orderId,
+        isSynced: false,
+      );
+      await saleOrderLineManager.upsertLocal(dirtyLine);
 
       logger.d('[FastSale]', 'Line saved to database: ${line.productName}');
 
@@ -367,16 +375,20 @@ extension FastSaleNotifierLines on FastSaleNotifier {
         final salesRepo = ref.read(salesRepositoryProvider);
         if (salesRepo != null) {
           // Ensure line has orderId set for the sync
-          final lineWithOrderId = line.orderId == activeTab.orderId
-              ? line
-              : line.copyWith(orderId: activeTab.orderId);
+          final lineWithOrderId = dirtyLine;
 
-          salesRepo.syncLineToOdoo(lineWithOrderId).then((_) {
-            // After successful sync, refresh state if line got a remote ID
-            _refreshLineAfterSync(lineWithOrderId.lineUuid);
-          }).catchError((e) {
-            logger.w('[FastSale]', 'Background sync failed (will retry later): $e');
-          });
+          salesRepo
+              .syncLineToOdoo(lineWithOrderId)
+              .then((_) {
+                // After successful sync, refresh state if line got a remote ID
+                _refreshLineAfterSync(lineWithOrderId.lineUuid);
+              })
+              .catchError((e) {
+                logger.w(
+                  '[FastSale]',
+                  'Background sync failed (will retry later): $e',
+                );
+              });
         }
       }
     } catch (e) {
@@ -464,7 +476,9 @@ extension FastSaleNotifierLines on FastSaleNotifier {
 
       // Read updated line from DB by UUID (may have remote ID now)
       final results = await saleOrderLineManager.searchLocal(
-        domain: [['line_uuid', '=', lineUuid]],
+        domain: [
+          ['line_uuid', '=', lineUuid],
+        ],
         limit: 1,
       );
       final updatedLine = results.isNotEmpty ? results.first : null;
@@ -556,7 +570,9 @@ extension FastSaleNotifierLines on FastSaleNotifier {
     final freshTab = state.activeTab;
     if (freshTab == null || freshTab.orderId != activeTab.orderId) return;
     final freshIndex = _findLineIndex(freshTab.lines, line);
-    if (freshIndex < 0) return; // La línea fue eliminada mientras se recalculaba
+    if (freshIndex < 0) {
+      return; // La línea fue eliminada mientras se recalculaba
+    }
 
     final newLines = List<SaleOrderLine>.from(freshTab.lines);
     newLines[freshIndex] = calculatedLine;
@@ -722,8 +738,10 @@ extension FastSaleNotifierLines on FastSaleNotifier {
     if (activeTab == null || lastDeletedLine == null) return;
 
     final restoredLine = lastDeletedLine!;
-    final insertIndex = (lastDeletedLineIndex ?? activeTab.lines.length)
-        .clamp(0, activeTab.lines.length);
+    final insertIndex = (lastDeletedLineIndex ?? activeTab.lines.length).clamp(
+      0,
+      activeTab.lines.length,
+    );
 
     final newLines = List<SaleOrderLine>.from(activeTab.lines)
       ..insert(insertIndex, restoredLine);
@@ -961,7 +979,9 @@ extension FastSaleNotifierLines on FastSaleNotifier {
     final freshTab = state.activeTab;
     if (freshTab == null || freshTab.orderId != activeTab.orderId) return;
     final freshIndex = _findLineIndex(freshTab.lines, line);
-    if (freshIndex < 0) return; // La línea fue eliminada mientras se recalculaba
+    if (freshIndex < 0) {
+      return; // La línea fue eliminada mientras se recalculaba
+    }
 
     final newLines = List<SaleOrderLine>.from(freshTab.lines);
     newLines[freshIndex] = updatedLine;

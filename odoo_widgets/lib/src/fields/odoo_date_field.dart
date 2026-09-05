@@ -376,7 +376,3 @@ class OdooDateRangeField extends StatelessWidget {
     );
   }
 }
-
-/// Backward-compatible aliases.
-typedef ReactiveDateField = OdooDateField;
-typedef ReactiveDateRangeField = OdooDateRangeField;

@@ -1,6 +1,8 @@
 import 'dart:async';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:odoo_sdk/odoo_sdk.dart' show TokenRefreshHandler, TokenRefreshResult;
+import 'package:odoo_sdk/odoo_sdk.dart'
+    show TokenRefreshHandler, TokenRefreshResult;
 
 enum AuthEvent { sessionExpired }
 

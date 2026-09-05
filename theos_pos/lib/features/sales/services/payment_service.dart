@@ -2,7 +2,9 @@ import 'package:drift/drift.dart';
 
 import '../../../features/banks/repositories/bank_repository.dart';
 import '../../../core/services/odoo_service.dart';
+
 import 'package:theos_pos_core/theos_pos_core.dart' hide DatabaseHelper;
+
 import 'order_validation_types.dart';
 import 'payment_service_models.dart';
 import 'journal_payment_method_service.dart';
@@ -51,10 +53,10 @@ class PaymentService {
     BankRepository bankRepo,
     OfflineQueueDataSource? offlineQueue,
     this._db,
-  )   : _journal = JournalPaymentMethodService(_odoo, _db),
-        _card = CardPaymentSyncService(_odoo, bankRepo, _db),
-        _paymentLines = PaymentLinePersistenceService(_odoo, offlineQueue, _db),
-        _credit = CreditWithholdingService(_odoo) {
+  ) : _journal = JournalPaymentMethodService(_odoo, _db),
+      _card = CardPaymentSyncService(_odoo, bankRepo, _db),
+      _paymentLines = PaymentLinePersistenceService(_odoo, offlineQueue, _db),
+      _credit = CreditWithholdingService(_odoo) {
     _validation = PaymentValidationService(_db, _credit);
   }
 
@@ -75,30 +77,43 @@ class PaymentService {
   Future<List<AvailableAdvance>> getAvailableAdvances(int partnerId) async {
     try {
       // Obtener anticipos de la base local
-      final advances = await (_db.select(_db.accountAdvance)
-            ..where((t) => t.partnerId.equals(partnerId))
-            ..where((t) => t.advanceType.equals('advance'))
-            ..where((t) => t.state.isIn(['posted', 'in_use']))
-            ..where((t) => t.amountAvailable.isBiggerThanValue(0))
-            ..orderBy([(t) => OrderingTerm.desc(t.date)]))
-          .get();
+      final advances =
+          await (_db.select(_db.accountAdvance)
+                ..where((t) => t.partnerId.equals(partnerId))
+                ..where((t) => t.advanceType.equals('advance'))
+                ..where((t) => t.state.isIn(['posted', 'in_use']))
+                ..where((t) => t.amountAvailable.isBiggerThanValue(0))
+                ..orderBy([(t) => OrderingTerm.desc(t.date)]))
+              .get();
 
       if (advances.isEmpty) {
-        logger.d('[PaymentService]', 'No advances found locally for partner $partnerId');
+        logger.d(
+          '[PaymentService]',
+          'No advances found locally for partner $partnerId',
+        );
         return [];
       }
 
       // Convertir a AvailableAdvance
-      return advances.map((a) => AvailableAdvance(
-        id: a.odooId,
-        // Los anticipos creados offline aún no tienen número de secuencia
-        name: a.name ?? 'Anticipo sin sincronizar',
-        amountAvailable: a.amountAvailable,
-        date: a.date,
-        reference: a.reference,
-      )).toList();
+      return advances
+          .map(
+            (a) => AvailableAdvance(
+              id: a.odooId,
+              // Los anticipos creados offline aún no tienen número de secuencia
+              name: a.name ?? 'Anticipo sin sincronizar',
+              amountAvailable: a.amountAvailable,
+              date: a.date,
+              reference: a.reference,
+            ),
+          )
+          .toList();
     } catch (e, st) {
-      logger.e('[PaymentService]', 'Error getting advances for partner $partnerId', e, st);
+      logger.e(
+        '[PaymentService]',
+        'Error getting advances for partner $partnerId',
+        e,
+        st,
+      );
       return [];
     }
   }
@@ -106,33 +121,48 @@ class PaymentService {
   /// Obtiene las notas de crédito disponibles del cliente
   ///
   /// Usa datos locales (offline-first)
-  Future<List<AvailableCreditNote>> getAvailableCreditNotes(int partnerId) async {
+  Future<List<AvailableCreditNote>> getAvailableCreditNotes(
+    int partnerId,
+  ) async {
     try {
       // Obtener notas de crédito de la base local (usando accountMove con moveType='out_refund')
-      final creditNotes = await (_db.select(_db.accountMove)
-            ..where((t) => t.partnerId.equals(partnerId))
-            ..where((t) => t.moveType.equals('out_refund'))
-            ..where((t) => t.state.equals('posted'))
-            ..where((t) => t.paymentState.isIn(['not_paid', 'partial']))
-            ..where((t) => t.amountResidual.isBiggerThanValue(0))
-            ..orderBy([(t) => OrderingTerm.desc(t.invoiceDate)]))
-          .get();
+      final creditNotes =
+          await (_db.select(_db.accountMove)
+                ..where((t) => t.partnerId.equals(partnerId))
+                ..where((t) => t.moveType.equals('out_refund'))
+                ..where((t) => t.state.equals('posted'))
+                ..where((t) => t.paymentState.isIn(['not_paid', 'partial']))
+                ..where((t) => t.amountResidual.isBiggerThanValue(0))
+                ..orderBy([(t) => OrderingTerm.desc(t.invoiceDate)]))
+              .get();
 
       if (creditNotes.isEmpty) {
-        logger.d('[PaymentService]', 'No credit notes found locally for partner $partnerId');
+        logger.d(
+          '[PaymentService]',
+          'No credit notes found locally for partner $partnerId',
+        );
         return [];
       }
 
       // Convertir a AvailableCreditNote
-      return creditNotes.map((nc) => AvailableCreditNote(
-        id: nc.odooId,
-        name: nc.name ?? '',
-        amountResidual: nc.amountResidual,
-        invoiceDate: nc.invoiceDate,
-        ref: nc.ref,
-      )).toList();
+      return creditNotes
+          .map(
+            (nc) => AvailableCreditNote(
+              id: nc.odooId,
+              name: nc.name ?? '',
+              amountResidual: nc.amountResidual,
+              invoiceDate: nc.invoiceDate,
+              ref: nc.ref,
+            ),
+          )
+          .toList();
     } catch (e, st) {
-      logger.e('[PaymentService]', 'Error getting credit notes for partner $partnerId', e, st);
+      logger.e(
+        '[PaymentService]',
+        'Error getting credit notes for partner $partnerId',
+        e,
+        st,
+      );
       return [];
     }
   }
@@ -163,19 +193,24 @@ class PaymentService {
 
   /// Obtiene los plazos de tarjeta configurados para un diario (sync-on-demand)
   /// Si los plazos no están en local, sincroniza desde Odoo primero
-  Future<List<CardDeadline>> getCardDeadlines(int journalId, CardType cardType) =>
-      _card.getCardDeadlines(journalId, cardType);
+  Future<List<CardDeadline>> getCardDeadlines(
+    int journalId,
+    CardType cardType,
+  ) => _card.getCardDeadlines(journalId, cardType);
 
   /// Reactive stream de plazos de tarjeta configurados para un diario, según
   /// tipo de tarjeta — mismo dato que [getCardDeadlines] pero reactivo (ver
   /// `CardPaymentSyncService.watchCardDeadlines`, ítem 1 Grupo B del plan de
   /// reactividad). No reemplaza el sync-on-demand de [getCardDeadlines].
-  Stream<List<CardDeadline>> watchCardDeadlines(int journalId, CardType cardType) =>
-      _card.watchCardDeadlines(journalId, cardType);
+  Stream<List<CardDeadline>> watchCardDeadlines(
+    int journalId,
+    CardType cardType,
+  ) => _card.watchCardDeadlines(journalId, cardType);
 
   /// Obtiene los lotes abiertos para un diario (sync-on-demand)
   /// Si no hay lotes locales, sincroniza desde Odoo primero
-  Future<List<CardLote>> getOpenLotes(int journalId) => _card.getOpenLotes(journalId);
+  Future<List<CardLote>> getOpenLotes(int journalId) =>
+      _card.getOpenLotes(journalId);
 
   /// Crea un nuevo lote de tarjetas para un diario
   ///
@@ -202,33 +237,64 @@ class PaymentService {
     int saleOrderId,
     List<PaymentLine> lines, {
     int? collectionSessionId,
-  }) =>
-      _paymentLines.savePaymentLines(
-        saleOrderId,
-        lines,
-        collectionSessionId: collectionSessionId,
-      );
+  }) => _paymentLines.savePaymentLines(
+    saleOrderId,
+    lines,
+    collectionSessionId: collectionSessionId,
+  );
 
-  /// Resuelve el campo de banco correcto segun la version del servidor Odoo
+  Future<bool> collectExistingInvoice({
+    required int saleOrderId,
+    required int invoiceId,
+    required int collectionSessionId,
+    required String collectionOpUuid,
+    required List<PaymentLine> lines,
+  }) => _paymentLines.collectExistingInvoice(
+    saleOrderId: saleOrderId,
+    invoiceId: invoiceId,
+    collectionSessionId: collectionSessionId,
+    collectionOpUuid: collectionOpUuid,
+    lines: lines,
+  );
+
+  Future<int> collectExistingInvoiceOffline({
+    required int saleOrderId,
+    required int invoiceId,
+    required int collectionSessionId,
+    required int operatorId,
+    required String operationUuid,
+    required List<PaymentLine> lines,
+  }) => _paymentLines.collectExistingInvoiceOffline(
+    saleOrderId: saleOrderId,
+    invoiceId: invoiceId,
+    collectionSessionId: collectionSessionId,
+    operatorId: operatorId,
+    operationUuid: operationUuid,
+    lines: lines,
+  );
+
+  /// Serializa el banco del catálogo custom de Odoo 19.5
   /// antes de enviar una linea de pago. Público — usado directamente por
   /// `pos_payment_tab.dart`.
   Map<String, dynamic> applyBankFieldGuard(
     Map<String, dynamic> vals,
     PaymentLine line,
-  ) =>
-      _paymentLines.applyBankFieldGuard(vals, line);
+  ) => _paymentLines.applyBankFieldGuard(vals, line);
 
   /// Guarda y crea factura
-  Future<int?> savePaymentLinesAndCreateInvoice(
+  Future<PaymentInvoiceResult?> savePaymentLinesAndCreateInvoice(
     int saleOrderId,
     List<PaymentLine> lines, {
     int? collectionSessionId,
-  }) =>
-      _paymentLines.savePaymentLinesAndCreateInvoice(
-        saleOrderId,
-        lines,
-        collectionSessionId: collectionSessionId,
-      );
+  }) => _paymentLines.savePaymentLinesAndCreateInvoice(
+    saleOrderId,
+    lines,
+    collectionSessionId: collectionSessionId,
+  );
+
+  Future<PaymentInvoiceResult> confirmOverpaymentAndCreateInvoice(
+    PaymentInvoiceResult pending,
+  ) => _paymentLines.confirmOverpaymentAndCreateInvoice(pending);
 
   /// Crea factura para venta a crédito (sin pagos)
   ///
@@ -236,6 +302,26 @@ class PaymentService {
   /// Retorna el ID de la factura creada o null si falla.
   Future<int?> createInvoiceForCreditSale(int saleOrderId) =>
       _paymentLines.createInvoiceForCreditSale(saleOrderId);
+
+  /// Reads display fields for an invoice created by a payment operation.
+  /// Keeps Odoo access out of presentation widgets.
+  Future<Map<String, dynamic>?> getInvoiceSummary(int invoiceId) async {
+    final result = await _odoo.call(
+      model: 'account.move',
+      method: 'search_read',
+      kwargs: {
+        'domain': [
+          ['id', '=', invoiceId],
+        ],
+        'fields': ['name', 'state'],
+        'limit': 1,
+      },
+    );
+    if (result is List && result.isNotEmpty && result.first is Map) {
+      return Map<String, dynamic>.from(result.first as Map);
+    }
+    return null;
+  }
 
   // ============================================================
   // CRÉDITO - Información de crédito del cliente
@@ -270,13 +356,12 @@ class PaymentService {
     required List<WithholdingLine> lines,
     String? authorizationNumber,
     String? documentNumber,
-  }) =>
-      _credit.registerWithholding(
-        invoiceId: invoiceId,
-        lines: lines,
-        authorizationNumber: authorizationNumber,
-        documentNumber: documentNumber,
-      );
+  }) => _credit.registerWithholding(
+    invoiceId: invoiceId,
+    lines: lines,
+    authorizationNumber: authorizationNumber,
+    documentNumber: documentNumber,
+  );
 
   // ============================================================
   // APROBACIÓN DE CRÉDITO
@@ -296,16 +381,15 @@ class PaymentService {
     int? invoiceId,
     int? paymentTermId,
     double? creditLimit,
-  }) =>
-      _credit.requestCreditApproval(
-        partnerId: partnerId,
-        transactionAmount: transactionAmount,
-        authorizationType: authorizationType,
-        saleOrderId: saleOrderId,
-        invoiceId: invoiceId,
-        paymentTermId: paymentTermId,
-        creditLimit: creditLimit,
-      );
+  }) => _credit.requestCreditApproval(
+    partnerId: partnerId,
+    transactionAmount: transactionAmount,
+    authorizationType: authorizationType,
+    saleOrderId: saleOrderId,
+    invoiceId: invoiceId,
+    paymentTermId: paymentTermId,
+    creditLimit: creditLimit,
+  );
 
   /// Verifica si una orden tiene aprobación de crédito pendiente
   Future<bool> hasPendingCreditApproval(int saleOrderId) =>
@@ -370,7 +454,9 @@ class PaymentService {
         model: 'account.payment',
         method: 'search_read',
         kwargs: {
-          'domain': [['id', '=', paymentId]],
+          'domain': [
+            ['id', '=', paymentId],
+          ],
           'fields': [
             'id',
             'name',
@@ -426,12 +512,11 @@ class PaymentService {
     required List<PaymentLine> lines,
     required double orderTotal,
     int? partnerId,
-  }) =>
-      _validation.validatePaymentLines(
-        lines: lines,
-        orderTotal: orderTotal,
-        partnerId: partnerId,
-      );
+  }) => _validation.validatePaymentLines(
+    lines: lines,
+    orderTotal: orderTotal,
+    partnerId: partnerId,
+  );
 
   /// Valida si el cliente puede hacer una venta a crédito
   ///
@@ -445,11 +530,10 @@ class PaymentService {
   Future<ValidationResult> validateCreditSale({
     required int partnerId,
     required double orderAmount,
-  }) =>
-      _validation.validateCreditSale(
-        partnerId: partnerId,
-        orderAmount: orderAmount,
-      );
+  }) => _validation.validateCreditSale(
+    partnerId: partnerId,
+    orderAmount: orderAmount,
+  );
 
   /// Calcula el monto pendiente después de aplicar los pagos
   ///

@@ -128,19 +128,6 @@ class UserManager extends OdooModelManager<User>
       workLocationName: row.workLocationName as String?,
       resourceCalendarId: row.resourceCalendarId as int?,
       resourceCalendarName: row.resourceCalendarName as String?,
-      pin: row.pin as String?,
-      privateStreet: row.privateStreet as String?,
-      privateStreet2: row.privateStreet2 as String?,
-      privateCity: row.privateCity as String?,
-      privateZip: row.privateZip as String?,
-      privateStateId: row.privateStateId as int?,
-      privateStateName: row.privateStateName as String?,
-      privateCountryId: row.privateCountryId as int?,
-      privateCountryName: row.privateCountryName as String?,
-      privateEmail: row.privateEmail as String?,
-      privatePhone: row.privatePhone as String?,
-      emergencyContact: row.emergencyContact as String?,
-      emergencyPhone: row.emergencyPhone as String?,
     );
   }
 
@@ -252,19 +239,6 @@ class UserManager extends OdooModelManager<User>
       'work_location_name': driftVar<String>(record.workLocationName),
       'resource_calendar_id': driftVar<int>(record.resourceCalendarId),
       'resource_calendar_name': driftVar<String>(record.resourceCalendarName),
-      'pin': driftVar<String>(record.pin),
-      'private_street': driftVar<String>(record.privateStreet),
-      'private_street2': driftVar<String>(record.privateStreet2),
-      'private_city': driftVar<String>(record.privateCity),
-      'private_zip': driftVar<String>(record.privateZip),
-      'private_state_id': driftVar<int>(record.privateStateId),
-      'private_state_name': driftVar<String>(record.privateStateName),
-      'private_country_id': driftVar<int>(record.privateCountryId),
-      'private_country_name': driftVar<String>(record.privateCountryName),
-      'private_email': driftVar<String>(record.privateEmail),
-      'private_phone': driftVar<String>(record.privatePhone),
-      'emergency_contact': driftVar<String>(record.emergencyContact),
-      'emergency_phone': driftVar<String>(record.emergencyPhone),
     });
   }
 
@@ -323,19 +297,6 @@ class UserManager extends OdooModelManager<User>
     'workLocationName': 'Work Location Name',
     'resourceCalendarId': 'Resource Calendar Id',
     'resourceCalendarName': 'Resource Calendar Name',
-    'pin': 'Pin',
-    'privateStreet': 'Private Street',
-    'privateStreet2': 'Private Street2',
-    'privateCity': 'Private City',
-    'privateZip': 'Private Zip',
-    'privateStateId': 'Private State Id',
-    'privateStateName': 'Private State Name',
-    'privateCountryId': 'Private Country Id',
-    'privateCountryName': 'Private Country Name',
-    'privateEmail': 'Private Email',
-    'privatePhone': 'Private Phone',
-    'emergencyContact': 'Emergency Contact',
-    'emergencyPhone': 'Emergency Phone',
   };
 
   // ═══════════════════════════════════════════════════
@@ -430,32 +391,6 @@ class UserManager extends OdooModelManager<User>
         return record.resourceCalendarId;
       case 'resourceCalendarName':
         return record.resourceCalendarName;
-      case 'pin':
-        return record.pin;
-      case 'privateStreet':
-        return record.privateStreet;
-      case 'privateStreet2':
-        return record.privateStreet2;
-      case 'privateCity':
-        return record.privateCity;
-      case 'privateZip':
-        return record.privateZip;
-      case 'privateStateId':
-        return record.privateStateId;
-      case 'privateStateName':
-        return record.privateStateName;
-      case 'privateCountryId':
-        return record.privateCountryId;
-      case 'privateCountryName':
-        return record.privateCountryName;
-      case 'privateEmail':
-        return record.privateEmail;
-      case 'privatePhone':
-        return record.privatePhone;
-      case 'emergencyContact':
-        return record.emergencyContact;
-      case 'emergencyPhone':
-        return record.emergencyPhone;
       default:
         return null;
     }
@@ -482,19 +417,6 @@ class UserManager extends OdooModelManager<User>
       workLocationName: record.workLocationName,
       resourceCalendarId: record.resourceCalendarId,
       resourceCalendarName: record.resourceCalendarName,
-      pin: record.pin,
-      privateStreet: record.privateStreet,
-      privateStreet2: record.privateStreet2,
-      privateCity: record.privateCity,
-      privateZip: record.privateZip,
-      privateStateId: record.privateStateId,
-      privateStateName: record.privateStateName,
-      privateCountryId: record.privateCountryId,
-      privateCountryName: record.privateCountryName,
-      privateEmail: record.privateEmail,
-      privatePhone: record.privatePhone,
-      emergencyContact: record.emergencyContact,
-      emergencyPhone: record.emergencyPhone,
     );
     return updated;
   }
@@ -562,32 +484,6 @@ class UserManager extends OdooModelManager<User>
         return (obj as dynamic).resourceCalendarId;
       case 'resourceCalendarName':
         return (obj as dynamic).resourceCalendarName;
-      case 'pin':
-        return (obj as dynamic).pin;
-      case 'privateStreet':
-        return (obj as dynamic).privateStreet;
-      case 'privateStreet2':
-        return (obj as dynamic).privateStreet2;
-      case 'privateCity':
-        return (obj as dynamic).privateCity;
-      case 'privateZip':
-        return (obj as dynamic).privateZip;
-      case 'privateStateId':
-        return (obj as dynamic).privateStateId;
-      case 'privateStateName':
-        return (obj as dynamic).privateStateName;
-      case 'privateCountryId':
-        return (obj as dynamic).privateCountryId;
-      case 'privateCountryName':
-        return (obj as dynamic).privateCountryName;
-      case 'privateEmail':
-        return (obj as dynamic).privateEmail;
-      case 'privatePhone':
-        return (obj as dynamic).privatePhone;
-      case 'emergencyContact':
-        return (obj as dynamic).emergencyContact;
-      case 'emergencyPhone':
-        return (obj as dynamic).emergencyPhone;
       case 'isSynced':
         return (obj as dynamic).isSynced;
       case 'uuid':
@@ -634,19 +530,6 @@ class UserManager extends OdooModelManager<User>
     'workLocationName',
     'resourceCalendarId',
     'resourceCalendarName',
-    'pin',
-    'privateStreet',
-    'privateStreet2',
-    'privateCity',
-    'privateZip',
-    'privateStateId',
-    'privateStateName',
-    'privateCountryId',
-    'privateCountryName',
-    'privateEmail',
-    'privatePhone',
-    'emergencyContact',
-    'emergencyPhone',
   ];
 
   @override

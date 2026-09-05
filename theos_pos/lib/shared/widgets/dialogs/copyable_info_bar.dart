@@ -117,9 +117,16 @@ class CopyableInfoBar {
               ),
             ],
           ),
-          content: SelectableText(
-            message,
-            style: const TextStyle(fontSize: 13),
+          content: ConstrainedBox(
+            constraints: BoxConstraints(
+              maxHeight: MediaQuery.sizeOf(context).height * 0.4,
+            ),
+            child: SingleChildScrollView(
+              child: SelectableText(
+                message,
+                style: const TextStyle(fontSize: 13),
+              ),
+            ),
           ),
           action: action,
           severity: severity,

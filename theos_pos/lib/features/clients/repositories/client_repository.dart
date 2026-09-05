@@ -1,9 +1,23 @@
 import 'package:drift/drift.dart';
 // Hide BaseRepository from core - we use the specialized one from theos_pos
 import 'package:odoo_sdk/odoo_sdk.dart' hide BaseRepository;
+
 import '../../../core/database/database_helper.dart' show DatabaseHelper;
 import '../../../core/database/repositories/base_repository.dart';
-import 'package:theos_pos_core/theos_pos_core.dart' show AppDatabase, ResPartnerCompanion, Company, Client, clientManager, ClientManagerBusiness, companyManager, userManager, UserManagerBusiness, paymentTermManager, pricelistManager;
+
+import 'package:theos_pos_core/theos_pos_core.dart'
+    show
+        AppDatabase,
+        ResPartnerCompanion,
+        Company,
+        Client,
+        clientManager,
+        ClientManagerBusiness,
+        companyManager,
+        userManager,
+        UserManagerBusiness,
+        paymentTermManager,
+        pricelistManager;
 
 /// Repository for Client/Partner operations with offline-first pattern
 ///
@@ -32,7 +46,8 @@ import 'package:theos_pos_core/theos_pos_core.dart' show AppDatabase, ResPartner
 /// // Refresh credit data from Odoo
 /// final refreshed = await repository?.refreshCreditData(123);
 /// ```
-class ClientRepository extends BaseRepository with OfflineSupport<DatabaseHelper> {
+class ClientRepository extends BaseRepository
+    with OfflineSupport<DatabaseHelper> {
   /// Cache for company data
   Company? _cachedCompany;
 
@@ -103,9 +118,9 @@ class ClientRepository extends BaseRepository with OfflineSupport<DatabaseHelper
     final response = await odooClient!.searchRead(
       model: 'res.partner',
       domain: [
-        ['id', '=', clientId]
+        ['id', '=', clientId],
       ],
-      fields: _partnerRefreshFields,
+      fields: clientManager.odooFields,
       limit: 1,
     );
 
@@ -117,7 +132,10 @@ class ClientRepository extends BaseRepository with OfflineSupport<DatabaseHelper
     final client = clientManager.fromOdoo(response.first);
     await _saveToLocal(client);
 
-    logger.d('[ClientRepository]', 'Refreshed credit data for client $clientId');
+    logger.d(
+      '[ClientRepository]',
+      'Refreshed credit data for client $clientId',
+    );
     return client;
   }
 
@@ -139,23 +157,6 @@ class ClientRepository extends BaseRepository with OfflineSupport<DatabaseHelper
       updateLocally: (id, values) async {
         await _updateLocalField(id, field, value);
       },
-    );
-  }
-
-  /// Legacy direct update — now delegates to [updateField] for offline-first support.
-  ///
-  /// Previously threw [OfflineException] when offline. Now saves locally first
-  /// and queues for Odoo sync, matching the offline-first pattern.
-  @Deprecated('Use updateField() instead — same signature, full offline support')
-  Future<bool> updateFieldDirect({
-    required int clientId,
-    required String field,
-    required dynamic value,
-  }) async {
-    return updateField(
-      clientId: clientId,
-      field: field,
-      value: value,
     );
   }
 
@@ -190,7 +191,11 @@ class ClientRepository extends BaseRepository with OfflineSupport<DatabaseHelper
     await clientManager.upsertLocal(client);
   }
 
-  Future<void> _updateLocalField(int clientId, String field, dynamic value) async {
+  Future<void> _updateLocalField(
+    int clientId,
+    String field,
+    dynamic value,
+  ) async {
     // Map field name to database column
     final db = _db;
     final update = <String, dynamic>{};
@@ -212,13 +217,24 @@ class ClientRepository extends BaseRepository with OfflineSupport<DatabaseHelper
     }
 
     if (update.isNotEmpty) {
-      await (db.update(db.resPartner)..where((t) => t.odooId.equals(clientId)))
-          .write(ResPartnerCompanion(
-        phone: field == 'phone' ? Value(value as String?) : const Value.absent(),
-        mobile: field == 'mobile' ? Value(value as String?) : const Value.absent(),
-        email: field == 'email' ? Value(value as String?) : const Value.absent(),
-        street: field == 'street' ? Value(value as String?) : const Value.absent(),
-      ));
+      await (db.update(
+        db.resPartner,
+      )..where((t) => t.odooId.equals(clientId))).write(
+        ResPartnerCompanion(
+          phone: field == 'phone'
+              ? Value(value as String?)
+              : const Value.absent(),
+          mobile: field == 'mobile'
+              ? Value(value as String?)
+              : const Value.absent(),
+          email: field == 'email'
+              ? Value(value as String?)
+              : const Value.absent(),
+          street: field == 'street'
+              ? Value(value as String?)
+              : const Value.absent(),
+        ),
+      );
     }
   }
 
@@ -229,7 +245,7 @@ class ClientRepository extends BaseRepository with OfflineSupport<DatabaseHelper
 
     final response = await odooClient!.searchRead(
       model: 'res.partner',
-      fields: _allFields,
+      fields: clientManager.odooFields,
       domain: [
         '|',
         '|',
@@ -274,120 +290,19 @@ class ClientRepository extends BaseRepository with OfflineSupport<DatabaseHelper
   ///
   /// Many2One fields are returned as [id, name] or false, matching Odoo convention.
   Map<String, dynamic> _clientToSearchMap(Client c) => <String, dynamic>{
-        'id': c.id,
-        'name': c.name,
-        'vat': c.vat ?? false,
-        'street': c.street ?? false,
-        'phone': c.phone ?? false,
-        'email': c.email ?? false,
-        'property_payment_term_id': c.propertyPaymentTermId != null
-            ? [c.propertyPaymentTermId, c.propertyPaymentTermName ?? '']
-            : false,
-        'property_product_pricelist': c.propertyProductPricelistId != null
-            ? [c.propertyProductPricelistId, c.propertyProductPricelistName ?? '']
-            : false,
-      };
-
-  // ============ FIELD DEFINITIONS ============
-
-  /// Campos para refresh individual de un partner (sync por orden).
-  /// Incluye datos básicos + crédito.
-  ///
-  /// Nota: los campos custom (use_partner_credit_limit, credit_limit, allow_over_credit,
-  /// total_overdue, etc.) son del módulo l10n_ec_collection_box_pos, que SIEMPRE está
-  /// instalado en los servidores objetivo (erp1.tecnosmart.com.ec y localhost).
-  ///
-  /// FIX 5: use_partner_credit_limit ahora incluido en ambas listas (_partnerRefreshFields
-  /// y _allFields) para que refreshCreditData() devuelva el valor correcto de Odoo en vez
-  /// del default false. La omisión anterior causaba que el campo quedara en false tras
-  /// el refresh aunque Odoo tuviera true.
-  static const _partnerRefreshFields = [
-    'id',
-    'name',
-    'display_name',
-    'ref',
-    'vat',
-    'email',
-    'phone',
-    'street',
-    'street2',
-    'city',
-    'zip',
-    'country_id',
-    'state_id',
-    'avatar_128',
-    'is_company',
-    'active',
-    'parent_id',
-    'commercial_partner_id',
-    'property_product_pricelist',
-    'property_payment_term_id',
-    'lang',
-    'comment',
-    'write_date',
-    // Credit fields (l10n_ec_collection_box_pos — siempre instalado)
-    'credit_limit',
-    'credit',
-    'credit_to_invoice',
-    'allow_over_credit',
-    'use_partner_credit_limit', // FIX 5: campo faltante en el refresh individual
-    'total_overdue',
-    'unpaid_invoices_count',
-  ];
-
-  static const _allFields = [
-    'id',
-    'name',
-    'display_name',
-    'ref',
-    'vat',
-    'email',
-    'phone',
-    'street',
-    'street2',
-    'city',
-    'zip',
-    'country_id',
-    'state_id',
-    'avatar_128',
-    'is_company',
-    'active',
-    'parent_id',
-    'commercial_partner_id',
-    'property_product_pricelist',
-    'property_payment_term_id',
-    'lang',
-    'comment',
-    'write_date',
-    // Credit fields
-    'credit_limit',
-    'credit',
-    'credit_to_invoice',
-    'allow_over_credit',
-    'use_partner_credit_limit',
-    'total_overdue',
-    'unpaid_invoices_count',
-    // Ecuador fields
-    'dias_max_factura_posterior',
-    'tipo_cliente',
-    'canal_cliente',
-    // Ranking
-    'customer_rank',
-    'supplier_rank',
-    // Check Acceptance
-    'acepta_cheques',
-    // Invoice Configuration
-    'emitir_factura_fecha_posterior',
-    'no_invoice',
-    'last_day_to_invoice',
-    // External ID
-    'external_id',
-    // Geolocation
-    'partner_latitude',
-    'partner_longitude',
-    // Custom Payments
-    'can_use_custom_payments',
-  ];
+    'id': c.id,
+    'name': c.name,
+    'vat': c.vat ?? false,
+    'street': c.street ?? false,
+    'phone': c.phone ?? false,
+    'email': c.email ?? false,
+    'property_payment_term_id': c.propertyPaymentTermId != null
+        ? [c.propertyPaymentTermId, c.propertyPaymentTermName ?? '']
+        : false,
+    'property_product_pricelist': c.propertyProductPricelistId != null
+        ? [c.propertyProductPricelistId, c.propertyProductPricelistName ?? '']
+        : false,
+  };
 
   /// Update a single field of a partner - OFFLINE-FIRST
   ///
@@ -398,11 +313,7 @@ class ClientRepository extends BaseRepository with OfflineSupport<DatabaseHelper
     required String field,
     required dynamic value,
   }) async {
-    return updateField(
-      clientId: partnerId,
-      field: field,
-      value: value,
-    );
+    return updateField(clientId: partnerId, field: field, value: value);
   }
 
   /// Search partners - offline-first
@@ -416,12 +327,16 @@ class ClientRepository extends BaseRepository with OfflineSupport<DatabaseHelper
     try {
       // Try local first
       final localClients = partnerId != null
-          ? [await clientManager.getPartner(partnerId)].whereType<Client>().toList()
+          ? [await clientManager.getPartner(partnerId)]
+                .whereType<Client>()
+                .toList()
           : await clientManager.searchPartners(query: query, limit: limit);
 
       if (localClients.isNotEmpty) {
         // Convert Client objects to Map format matching Odoo Many2One response
-        final localMaps = localClients.map((c) => _clientToSearchMap(c)).toList();
+        final localMaps = localClients
+            .map((c) => _clientToSearchMap(c))
+            .toList();
 
         // If offline, return local results
         if (odooClient == null) return localMaps;
@@ -442,8 +357,14 @@ class ClientRepository extends BaseRepository with OfflineSupport<DatabaseHelper
         model: 'res.partner',
         domain: domain,
         fields: [
-          'id', 'name', 'vat', 'street', 'phone', 'email',
-          'property_payment_term_id', 'property_product_pricelist',
+          'id',
+          'name',
+          'vat',
+          'street',
+          'phone',
+          'email',
+          'property_payment_term_id',
+          'property_product_pricelist',
         ],
         limit: limit,
       );
@@ -454,7 +375,9 @@ class ClientRepository extends BaseRepository with OfflineSupport<DatabaseHelper
       // On server error, fall back to local
       try {
         final localClients = partnerId != null
-            ? [await clientManager.getPartner(partnerId)].whereType<Client>().toList()
+            ? [await clientManager.getPartner(partnerId)]
+                  .whereType<Client>()
+                  .toList()
             : await clientManager.searchPartners(query: query, limit: limit);
         return localClients.map((c) => _clientToSearchMap(c)).toList();
       } catch (_) {
@@ -469,15 +392,19 @@ class ClientRepository extends BaseRepository with OfflineSupport<DatabaseHelper
   Future<List<dynamic>> getPaymentTerms() async {
     try {
       // Try local first
-      final localTerms = await paymentTermManager.searchLocal(domain: [
-        ['active', '=', true],
-      ]);
+      final localTerms = await paymentTermManager.searchLocal(
+        domain: [
+          ['active', '=', true],
+        ],
+      );
       if (localTerms.isNotEmpty) {
-        final localMaps = localTerms.map((t) => <String, dynamic>{
-          'id': t.id,
-          'name': t.name,
-        }).toList()
-          ..sort((a, b) => (a['name'] as String).compareTo(b['name'] as String));
+        final localMaps =
+            localTerms
+                .map((t) => <String, dynamic>{'id': t.id, 'name': t.name})
+                .toList()
+              ..sort(
+                (a, b) => (a['name'] as String).compareTo(b['name'] as String),
+              );
 
         // If offline, return local results
         if (odooClient == null) return localMaps;
@@ -487,7 +414,9 @@ class ClientRepository extends BaseRepository with OfflineSupport<DatabaseHelper
       if (odooClient == null) return [];
       final result = await odooClient!.searchRead(
         model: 'account.payment.term',
-        domain: [['active', '=', true]],
+        domain: [
+          ['active', '=', true],
+        ],
         fields: ['id', 'name'],
         order: 'name',
       );
@@ -496,14 +425,17 @@ class ClientRepository extends BaseRepository with OfflineSupport<DatabaseHelper
       logger.e('[ClientRepository]', 'Error getting payment terms', e);
       // On server error, fall back to local
       try {
-        final localTerms = await paymentTermManager.searchLocal(domain: [
-          ['active', '=', true],
-        ]);
-        return localTerms.map((t) => <String, dynamic>{
-          'id': t.id,
-          'name': t.name,
-        }).toList()
-          ..sort((a, b) => (a['name'] as String).compareTo(b['name'] as String));
+        final localTerms = await paymentTermManager.searchLocal(
+          domain: [
+            ['active', '=', true],
+          ],
+        );
+        return localTerms
+            .map((t) => <String, dynamic>{'id': t.id, 'name': t.name})
+            .toList()
+          ..sort(
+            (a, b) => (a['name'] as String).compareTo(b['name'] as String),
+          );
       } catch (_) {
         return [];
       }
@@ -516,15 +448,19 @@ class ClientRepository extends BaseRepository with OfflineSupport<DatabaseHelper
   Future<List<dynamic>> getPricelists() async {
     try {
       // Try local first
-      final localPricelists = await pricelistManager.searchLocal(domain: [
-        ['active', '=', true],
-      ]);
+      final localPricelists = await pricelistManager.searchLocal(
+        domain: [
+          ['active', '=', true],
+        ],
+      );
       if (localPricelists.isNotEmpty) {
-        final localMaps = localPricelists.map((p) => <String, dynamic>{
-          'id': p.id,
-          'name': p.name,
-        }).toList()
-          ..sort((a, b) => (a['name'] as String).compareTo(b['name'] as String));
+        final localMaps =
+            localPricelists
+                .map((p) => <String, dynamic>{'id': p.id, 'name': p.name})
+                .toList()
+              ..sort(
+                (a, b) => (a['name'] as String).compareTo(b['name'] as String),
+              );
 
         // If offline, return local results
         if (odooClient == null) return localMaps;
@@ -534,7 +470,9 @@ class ClientRepository extends BaseRepository with OfflineSupport<DatabaseHelper
       if (odooClient == null) return [];
       final result = await odooClient!.searchRead(
         model: 'product.pricelist',
-        domain: [['active', '=', true]],
+        domain: [
+          ['active', '=', true],
+        ],
         fields: ['id', 'name'],
         order: 'name',
       );
@@ -543,14 +481,17 @@ class ClientRepository extends BaseRepository with OfflineSupport<DatabaseHelper
       logger.e('[ClientRepository]', 'Error getting pricelists', e);
       // On server error, fall back to local
       try {
-        final localPricelists = await pricelistManager.searchLocal(domain: [
-          ['active', '=', true],
-        ]);
-        return localPricelists.map((p) => <String, dynamic>{
-          'id': p.id,
-          'name': p.name,
-        }).toList()
-          ..sort((a, b) => (a['name'] as String).compareTo(b['name'] as String));
+        final localPricelists = await pricelistManager.searchLocal(
+          domain: [
+            ['active', '=', true],
+          ],
+        );
+        return localPricelists
+            .map((p) => <String, dynamic>{'id': p.id, 'name': p.name})
+            .toList()
+          ..sort(
+            (a, b) => (a['name'] as String).compareTo(b['name'] as String),
+          );
       } catch (_) {
         return [];
       }
@@ -565,11 +506,13 @@ class ClientRepository extends BaseRepository with OfflineSupport<DatabaseHelper
       // Try local first - get all locally cached users (internal users are synced)
       final localUsers = await userManager.getAllUsers();
       if (localUsers.isNotEmpty) {
-        final localMaps = localUsers.map((u) => <String, dynamic>{
-          'id': u.id,
-          'name': u.name,
-        }).toList()
-          ..sort((a, b) => (a['name'] as String).compareTo(b['name'] as String));
+        final localMaps =
+            localUsers
+                .map((u) => <String, dynamic>{'id': u.id, 'name': u.name})
+                .toList()
+              ..sort(
+                (a, b) => (a['name'] as String).compareTo(b['name'] as String),
+              );
 
         // If offline, return local results
         if (odooClient == null) return localMaps;
@@ -592,11 +535,12 @@ class ClientRepository extends BaseRepository with OfflineSupport<DatabaseHelper
       // On server error, fall back to local
       try {
         final localUsers = await userManager.getAllUsers();
-        return localUsers.map((u) => <String, dynamic>{
-          'id': u.id,
-          'name': u.name,
-        }).toList()
-          ..sort((a, b) => (a['name'] as String).compareTo(b['name'] as String));
+        return localUsers
+            .map((u) => <String, dynamic>{'id': u.id, 'name': u.name})
+            .toList()
+          ..sort(
+            (a, b) => (a['name'] as String).compareTo(b['name'] as String),
+          );
       } catch (_) {
         return [];
       }

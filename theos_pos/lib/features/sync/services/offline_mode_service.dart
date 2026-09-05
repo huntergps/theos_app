@@ -5,6 +5,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:theos_pos_core/theos_pos_core.dart' hide DatabaseHelper;
 import 'package:odoo_sdk/odoo_sdk.dart' as odoo;
+
 import '../../../shared/utils/error_utils.dart';
 import '../../products/services/stock_sync_service.dart';
 
@@ -183,12 +184,10 @@ class OfflineModeService {
   final AppDatabase _db;
 
   OfflineModeService({
-    OdooClient? odooClient,
-    StockSyncService? stockSyncService,
-    required AppDatabase db,
-  }) : _odooClient = odooClient,
-       _stockSyncService = stockSyncService,
-       _db = db;
+    this._odooClient,
+    this._stockSyncService,
+    required this._db,
+  });
 
   /// Load configuration from SharedPreferences
   Future<OfflineModeConfig> loadConfig() async {
@@ -201,7 +200,7 @@ class OfflineModeService {
       );
     } catch (e) {
       logger.e('[OfflineModeService] Error loading config: $e');
-      return const OfflineModeConfig();
+      rethrow;
     }
   }
 
@@ -215,6 +214,7 @@ class OfflineModeService {
       );
     } catch (e) {
       logger.e('[OfflineModeService] Error saving config: $e');
+      rethrow;
     }
   }
 
@@ -402,13 +402,19 @@ class OfflineModeService {
 
   /// Get pending operations count
   Future<int> getPendingOperationsCount() async {
-    final ops = await _db.select(_db.offlineQueue).get();
-    return ops.length;
+    final count = drift.countAll();
+    final row = await (_db.selectOnly(
+      _db.offlineQueue,
+    )..addColumns([count])).getSingle();
+    return row.read(count) ?? 0;
   }
 
   /// Watch pending operations count — reactive stream from Drift
   Stream<int> watchPendingOperationsCount() {
-    return _db.select(_db.offlineQueue).watch().map((ops) => ops.length);
+    final count = drift.countAll();
+    return (_db.selectOnly(
+      _db.offlineQueue,
+    )..addColumns([count])).watchSingle().map((row) => row.read(count) ?? 0);
   }
 
   // ============ Private Methods ============
@@ -441,38 +447,7 @@ class OfflineModeService {
         limit: limit,
       );
 
-      for (final product in products) {
-        // Manual upsert for products
-        final existing =
-            await (_db.select(_db.productProduct)
-                  ..where((t) => t.odooId.equals(product['id'] as int)))
-                .getSingleOrNull();
-
-        final companion = ProductProductCompanion(
-          odooId: drift.Value(product['id'] as int),
-          name: drift.Value(product['name'] as String? ?? ''),
-          defaultCode: drift.Value(product['default_code'] as String?),
-          listPrice: drift.Value(
-            (product['list_price'] as num?)?.toDouble() ?? 0.0,
-          ),
-          standardPrice: drift.Value(
-            (product['standard_price'] as num?)?.toDouble() ?? 0.0,
-          ),
-          barcode: drift.Value(product['barcode'] as String?),
-          categId: drift.Value(odoo.extractMany2oneId(product['categ_id'])),
-          uomId: drift.Value(odoo.extractMany2oneId(product['uom_id'])),
-          active: drift.Value(product['active'] as bool? ?? true),
-          writeDate: drift.Value(DateTime.now()),
-        );
-
-        if (existing != null) {
-          await (_db.update(_db.productProduct)
-                ..where((t) => t.odooId.equals(product['id'] as int)))
-              .write(companion);
-        } else {
-          await _db.into(_db.productProduct).insert(companion);
-        }
-      }
+      await _upsertProducts(products);
 
       return products.length;
     } catch (e) {
@@ -512,38 +487,7 @@ class OfflineModeService {
 
         if (products.isEmpty) break;
 
-        for (final product in products) {
-          // Manual upsert for products (unlimited)
-          final existing =
-              await (_db.select(_db.productProduct)
-                    ..where((t) => t.odooId.equals(product['id'] as int)))
-                  .getSingleOrNull();
-
-          final companion = ProductProductCompanion(
-            odooId: drift.Value(product['id'] as int),
-            name: drift.Value(product['name'] as String? ?? ''),
-            defaultCode: drift.Value(product['default_code'] as String?),
-            listPrice: drift.Value(
-              (product['list_price'] as num?)?.toDouble() ?? 0.0,
-            ),
-            standardPrice: drift.Value(
-              (product['standard_price'] as num?)?.toDouble() ?? 0.0,
-            ),
-            barcode: drift.Value(product['barcode'] as String?),
-            categId: drift.Value(odoo.extractMany2oneId(product['categ_id'])),
-            uomId: drift.Value(odoo.extractMany2oneId(product['uom_id'])),
-            active: drift.Value(product['active'] as bool? ?? true),
-            writeDate: drift.Value(DateTime.now()),
-          );
-
-          if (existing != null) {
-            await (_db.update(_db.productProduct)
-                  ..where((t) => t.odooId.equals(product['id'] as int)))
-                .write(companion);
-          } else {
-            await _db.into(_db.productProduct).insert(companion);
-          }
-        }
+        await _upsertProducts(products);
 
         totalLoaded += products.length;
         offset += batchSize;
@@ -579,32 +523,7 @@ class OfflineModeService {
         limit: limit,
       );
 
-      for (final partner in partners) {
-        // Manual upsert for partners
-        final existing =
-            await (_db.select(_db.resPartner)
-                  ..where((t) => t.odooId.equals(partner['id'] as int)))
-                .getSingleOrNull();
-
-        final companion = ResPartnerCompanion(
-          odooId: drift.Value(partner['id'] as int),
-          name: drift.Value(partner['name'] as String? ?? ''),
-          vat: drift.Value(partner['vat'] as String?),
-          email: drift.Value(partner['email'] as String?),
-          phone: drift.Value(partner['phone'] as String?),
-          street: drift.Value(partner['street'] as String?),
-          city: drift.Value(partner['city'] as String?),
-          writeDate: drift.Value(DateTime.now()),
-        );
-
-        if (existing != null) {
-          await (_db.update(_db.resPartner)
-                ..where((t) => t.odooId.equals(partner['id'] as int)))
-              .write(companion);
-        } else {
-          await _db.into(_db.resPartner).insert(companion);
-        }
-      }
+      await _upsertPartners(partners);
 
       return partners.length;
     } catch (e) {
@@ -634,32 +553,7 @@ class OfflineModeService {
 
         if (partners.isEmpty) break;
 
-        for (final partner in partners) {
-          // Manual upsert for partners (unlimited)
-          final existing =
-              await (_db.select(_db.resPartner)
-                    ..where((t) => t.odooId.equals(partner['id'] as int)))
-                  .getSingleOrNull();
-
-          final companion = ResPartnerCompanion(
-            odooId: drift.Value(partner['id'] as int),
-            name: drift.Value(partner['name'] as String? ?? ''),
-            vat: drift.Value(partner['vat'] as String?),
-            email: drift.Value(partner['email'] as String?),
-            phone: drift.Value(partner['phone'] as String?),
-            street: drift.Value(partner['street'] as String?),
-            city: drift.Value(partner['city'] as String?),
-            writeDate: drift.Value(DateTime.now()),
-          );
-
-          if (existing != null) {
-            await (_db.update(_db.resPartner)
-                  ..where((t) => t.odooId.equals(partner['id'] as int)))
-                .write(companion);
-          } else {
-            await _db.into(_db.resPartner).insert(companion);
-          }
-        }
+        await _upsertPartners(partners);
 
         totalLoaded += partners.length;
         offset += batchSize;
@@ -675,6 +569,60 @@ class OfflineModeService {
       );
       return totalLoaded;
     }
+  }
+
+  /// Upsert a page in one Drift batch.  The previous implementation queried
+  /// and wrote every row separately (2N statements); conflict-update keeps
+  /// existing local/computed columns while reducing it to N writes and one
+  /// transaction.
+  Future<void> _upsertProducts(List<Map<String, dynamic>> products) async {
+    if (products.isEmpty) return;
+    final now = DateTime.now();
+    final rows = products
+        .map(
+          (product) => ProductProductCompanion(
+            odooId: drift.Value(product['id'] as int),
+            name: drift.Value(product['name'] as String? ?? ''),
+            defaultCode: drift.Value(product['default_code'] as String?),
+            listPrice: drift.Value(
+              (product['list_price'] as num?)?.toDouble() ?? 0.0,
+            ),
+            standardPrice: drift.Value(
+              (product['standard_price'] as num?)?.toDouble() ?? 0.0,
+            ),
+            barcode: drift.Value(product['barcode'] as String?),
+            categId: drift.Value(odoo.extractMany2oneId(product['categ_id'])),
+            uomId: drift.Value(odoo.extractMany2oneId(product['uom_id'])),
+            active: drift.Value(product['active'] as bool? ?? true),
+            writeDate: drift.Value(now),
+          ),
+        )
+        .toList();
+    await _db.batch((batch) {
+      batch.insertAllOnConflictUpdate(_db.productProduct, rows);
+    });
+  }
+
+  Future<void> _upsertPartners(List<Map<String, dynamic>> partners) async {
+    if (partners.isEmpty) return;
+    final now = DateTime.now();
+    final rows = partners
+        .map(
+          (partner) => ResPartnerCompanion(
+            odooId: drift.Value(partner['id'] as int),
+            name: drift.Value(partner['name'] as String? ?? ''),
+            vat: drift.Value(partner['vat'] as String?),
+            email: drift.Value(partner['email'] as String?),
+            phone: drift.Value(partner['phone'] as String?),
+            street: drift.Value(partner['street'] as String?),
+            city: drift.Value(partner['city'] as String?),
+            writeDate: drift.Value(now),
+          ),
+        )
+        .toList();
+    await _db.batch((batch) {
+      batch.insertAllOnConflictUpdate(_db.resPartner, rows);
+    });
   }
 
   Future<void> _saveLastPreloadResult(PreloadResult result) async {

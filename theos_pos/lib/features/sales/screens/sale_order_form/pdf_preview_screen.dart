@@ -5,12 +5,12 @@
 library;
 
 import 'dart:typed_data';
+
 import 'package:fluent_ui/fluent_ui.dart';
-import 'package:flutter/foundation.dart' show kIsWeb;
-import 'package:printing/printing.dart';
 import 'package:syncfusion_flutter_pdfviewer/pdfviewer.dart';
 
-import '../../../../core/services/logger_service.dart';
+import 'package:odoo_sdk/odoo_sdk.dart' show logger;
+
 import '../../../../shared/widgets/dialogs/copyable_info_bar.dart';
 
 // Conditional imports for native file operations
@@ -213,21 +213,12 @@ class _PdfPreviewScreenState extends State<PdfPreviewScreen>
   Future<void> _handlePrint() async {
     setState(() => _isLoading = true);
     try {
-      if (kIsWeb) {
-        // On web, use Printing package which handles browser print dialog
-        await Printing.layoutPdf(
-          onLayout: (format) async => widget.pdfBytes,
-          name: widget.filename,
-        );
-      } else {
-        // On native, open with system viewer for printing
-        final error = await platform_pdf.openPdfForPrint(
-          widget.pdfBytes,
-          widget.filename,
-        );
-        if (error != null && mounted) {
-          _showError(error);
-        }
+      final error = await platform_pdf.openPdfForPrint(
+        widget.pdfBytes,
+        widget.filename,
+      );
+      if (error != null && mounted) {
+        _showError(error);
       }
     } catch (e) {
       logger.e('[PdfPreview]', 'Error opening PDF: $e');
@@ -403,9 +394,7 @@ class _PdfPreviewScreenState extends State<PdfPreviewScreen>
           if (_isLoading)
             Container(
               color: theme.scaffoldBackgroundColor.withValues(alpha: 0.5),
-              child: const Center(
-                child: ProgressRing(),
-              ),
+              child: const Center(child: ProgressRing()),
             ),
         ],
       ),

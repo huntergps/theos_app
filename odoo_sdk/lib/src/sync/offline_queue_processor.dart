@@ -6,6 +6,7 @@ library;
 
 import 'dart:async';
 
+import '../utils/security_utils.dart';
 import 'offline_queue_types.dart';
 import 'sync_types.dart';
 
@@ -24,27 +25,19 @@ class OfflineOperationResult {
   });
 
   const OfflineOperationResult.success({int? odooId})
-      : this(
-          status: SyncOperationStatus.success,
-          odooId: odooId,
-        );
+    : this(status: SyncOperationStatus.success, odooId: odooId);
 
   const OfflineOperationResult.conflict(ConflictInfo conflict)
-      : this(
-          status: SyncOperationStatus.conflict,
-          conflict: conflict,
-        );
+    : this(status: SyncOperationStatus.conflict, conflict: conflict);
 
   const OfflineOperationResult.skipped({String? errorMessage})
-      : this(
-          status: SyncOperationStatus.skipped,
-          errorMessage: errorMessage,
-        );
+    : this(status: SyncOperationStatus.skipped, errorMessage: errorMessage);
 }
 
 /// Handler for processing a single offline operation.
-typedef OfflineOperationHandler =
-    Future<ConflictInfo?> Function(OfflineOperation op);
+typedef OfflineOperationHandler = Future<ConflictInfo?> Function(
+  OfflineOperation op,
+);
 
 /// Audit logger for sync operations.
 abstract class OfflineQueueAuditLogger {
@@ -54,6 +47,11 @@ abstract class OfflineQueueAuditLogger {
     int? odooId,
     String? errorMessage,
   });
+
+  /// Persists the actionable conflict details before the queue row is held.
+  Future<void> logConflict(OfflineOperation op, ConflictInfo conflict) {
+    return logOperation(op, result: 'conflict');
+  }
 }
 
 /// Processor for offline queue operations.
@@ -95,8 +93,10 @@ class OfflineQueueProcessor {
   final bool _removeOnConflict;
   final bool _removeOnSkipped;
 
-  final _progressController =
-      StreamController<SyncProgressEvent>.broadcast();
+  final _progressController = StreamController<SyncProgressEvent>.broadcast();
+  Future<QueueProcessResult>? _activeRun;
+  bool _shutdownRequested = false;
+  bool _disposed = false;
 
   /// Mutex de PROCESO (compartido por TODAS las instancias de
   /// [OfflineQueueProcessor], no solo por instancia).
@@ -132,12 +132,12 @@ class OfflineQueueProcessor {
     bool removeOnSuccess = true,
     bool removeOnConflict = false,
     bool removeOnSkipped = false,
-  })  : _queue = queue,
-        _handler = handler,
-        _auditLogger = auditLogger,
-        _removeOnSuccess = removeOnSuccess,
-        _removeOnConflict = removeOnConflict,
-        _removeOnSkipped = removeOnSkipped;
+  }) : _queue = queue,
+       _handler = handler,
+       _auditLogger = auditLogger,
+       _removeOnSuccess = removeOnSuccess,
+       _removeOnConflict = removeOnConflict,
+       _removeOnSkipped = removeOnSkipped;
 
   /// Stream of progress events emitted during queue processing.
   ///
@@ -150,7 +150,24 @@ class OfflineQueueProcessor {
   /// Closes the [progressStream]. After calling dispose, this processor
   /// should not be used again.
   void dispose() {
-    _progressController.close();
+    unawaited(shutdown());
+  }
+
+  /// Stops accepting work and waits until the current queue writer is idle.
+  Future<void> shutdown() async {
+    _shutdownRequested = true;
+    final active = _activeRun;
+    if (active != null) {
+      try {
+        await active;
+      } catch (_) {
+        // The caller that started the run owns its error/result.
+      }
+    }
+    if (!_disposed) {
+      _disposed = true;
+      await _progressController.close();
+    }
   }
 
   /// Processes all pending operations in the queue.
@@ -171,7 +188,25 @@ class OfflineQueueProcessor {
   Future<QueueProcessResult> processQueue({
     List<OfflineOperation>? operations,
   }) {
-    return runExclusive(() => _processQueueLocked(operations));
+    if (_shutdownRequested || _disposed) {
+      return Future<QueueProcessResult>.error(
+        StateError('OfflineQueueProcessor is shutting down'),
+      );
+    }
+    final current = _activeRun;
+    if (current != null) return current;
+
+    final run = runExclusive(() => _processQueueLocked(operations));
+    _activeRun = run;
+    run.then(
+      (_) {
+        if (identical(_activeRun, run)) _activeRun = null;
+      },
+      onError: (Object _, StackTrace _) {
+        if (identical(_activeRun, run)) _activeRun = null;
+      },
+    );
+    return run;
   }
 
   /// Ejecuta [action] bajo el mismo lock global de proceso que usa
@@ -202,18 +237,29 @@ class OfflineQueueProcessor {
   Future<QueueProcessResult> _processQueueLocked(
     List<OfflineOperation>? operations,
   ) async {
-    final ops = operations ?? await _queue.getPendingOperations();
+    final source = operations ?? await _queue.getPendingOperations();
+    final ops = source
+        .where(
+          (operation) =>
+              operation.isReadyForRetry &&
+              !operation.hasExceededMaxRetries &&
+              operation.status != OfflineOperationStatus.processing &&
+              operation.status != OfflineOperationStatus.completed &&
+              operation.status != OfflineOperationStatus.deadLetter &&
+              operation.status != OfflineOperationStatus.conflict,
+        )
+        .toList();
     if (ops.isEmpty) {
       return QueueProcessResult.empty;
     }
 
-    // Sort operations by dependency order:
-    // 1. Priority (lower value = higher priority: critical=0, high=1, normal=2, low=3)
-    // 2. Parents before children (parentOrderId == null first)
-    // 3. Creates before writes before deletes
-    // 4. FIFO within same group (by createdAt)
+    // Sort by dependency before priority. A high-priority payment cannot run
+    // before the normal-priority order/line it references.
     ops.sort((a, b) {
-      // 1. Priority
+      final dependencyCompare = _dependencySortOrder(a)
+          .compareTo(_dependencySortOrder(b));
+      if (dependencyCompare != 0) return dependencyCompare;
+
       final priorityCompare = a.priority.compareTo(b.priority);
       if (priorityCompare != 0) return priorityCompare;
 
@@ -247,8 +293,17 @@ class OfflineQueueProcessor {
     // Marcando todo el batch de una vez, apenas después del snapshot, esa
     // ventana se reduce al mínimo posible con este diseño (snapshot + marca
     // en un datasource sin "claim" atómico tipo UPDATE...RETURNING).
-    for (final op in ops) {
-      await _queue.markOperationProcessing(op.id);
+    final claimed = <int>[];
+    try {
+      for (final op in ops) {
+        await _queue.markOperationProcessing(op.id);
+        claimed.add(op.id);
+      }
+    } catch (_) {
+      for (final id in claimed) {
+        await _queue.markOperationPending(id);
+      }
+      rethrow;
     }
 
     int success = 0;
@@ -256,6 +311,7 @@ class OfflineQueueProcessor {
     int skipped = 0;
     final errors = <String>[];
     final conflicts = <ConflictInfo>[];
+    final blockedDependencyKeys = <String>{};
 
     final totalOps = ops.length;
     var currentIndex = 0;
@@ -263,7 +319,7 @@ class OfflineQueueProcessor {
     for (final op in ops) {
       currentIndex++;
 
-      _progressController.add(
+      _emitProgress(
         SyncProgressEvent(
           operationId: op.id,
           current: currentIndex,
@@ -273,47 +329,100 @@ class OfflineQueueProcessor {
       );
 
       // La operación ya fue marcada 'processing' en el paso de reclamo de
-      // todo el batch (ver arriba). Startup recovery en database.dart
-      // resetea 'processing' → 'pending' en cada apertura de la app, así
-      // que cualquier fila huérfana por un crash se auto-sana sola.
+      // todo el batch (ver arriba). Startup recovery la mueve a
+      // 'recovery_pending'; solo se reenvía automáticamente cuando existe
+      // un contrato de reconciliación/idempotencia verificable.
+
+      final currentOp = await _queue.getOperationById(op.id) ?? op;
+      final dependencyKeys = {
+        ..._dependencyKeys(op),
+        ..._dependencyKeys(currentOp),
+      };
+
+      if (op.status == OfflineOperationStatus.recoveryPending &&
+          currentOp.replayPolicy == OfflineReplayPolicy.manualAfterAmbiguous) {
+        final message = _safeErrorMessage(
+          'Recovered an operation after an interrupted dispatch without a '
+          'server reconciliation contract. Manual review is required.',
+        );
+        failed++;
+        blockedDependencyKeys.addAll(dependencyKeys);
+        errors.add('Op ${currentOp.id} requires manual reconciliation');
+        await _queue.markOperationDeadLetter(currentOp.id, message);
+        await _auditLogger?.logOperation(
+          currentOp,
+          result: 'dead_letter',
+          errorMessage: message,
+        );
+        _emitProgress(
+          SyncProgressEvent(
+            operationId: currentOp.id,
+            current: currentIndex,
+            total: totalOps,
+            status: SyncOperationStatus.failed,
+            error: message,
+          ),
+        );
+        continue;
+      }
+
+      // The whole batch is claimed before dispatch to prevent concurrent
+      // processors from taking later rows. If a parent/order step fails, its
+      // already-claimed dependants must be released back to pending without
+      // invoking their handlers or consuming a retry. Sorting alone cannot
+      // provide this guarantee.
+      if (dependencyKeys.any(blockedDependencyKeys.contains)) {
+        skipped++;
+        const message =
+            'Dependency was not synchronized; operation remains pending.';
+        await _queue.markOperationPending(currentOp.id);
+        await _auditLogger?.logOperation(
+          currentOp,
+          result: 'dependency_blocked',
+          errorMessage: message,
+        );
+        _emitProgress(
+          SyncProgressEvent(
+            operationId: currentOp.id,
+            current: currentIndex,
+            total: totalOps,
+            status: SyncOperationStatus.skipped,
+            error: message,
+          ),
+        );
+        continue;
+      }
 
       try {
-        final conflict = await _handler(op);
+        final conflict = await _handler(currentOp);
         if (conflict != null) {
           conflicts.add(conflict);
-          await _auditLogger?.logOperation(
-            op,
-            result: 'conflict',
-          );
+          blockedDependencyKeys.addAll(dependencyKeys);
+          await _auditLogger?.logConflict(currentOp, conflict);
           if (_removeOnConflict) {
-            await _queue.removeOperation(op.id);
+            await _queue.removeOperation(currentOp.id);
           } else {
-            // La operación se queda en la cola para resolución manual, pero
-            // debe volver a 'pending' — si se queda en 'processing', el
-            // filtro de status en getPendingOperations() la esconde para
-            // siempre y nunca vuelve a aparecer en la UI de conflictos.
-            await _queue.markOperationPending(op.id);
+            await _queue.markOperationConflict(currentOp.id);
           }
-          _progressController.add(
+          _emitProgress(
             SyncProgressEvent(
-              operationId: op.id,
+              operationId: currentOp.id,
               current: currentIndex,
               total: totalOps,
               status: SyncOperationStatus.conflict,
             ),
           );
         } else {
-          await _auditLogger?.logOperation(
-            op,
-            result: 'success',
-          );
+          await _auditLogger?.logOperation(currentOp, result: 'success');
           if (_removeOnSuccess) {
-            await _queue.removeOperation(op.id);
+            await _queue.removeOperation(currentOp.id);
+          } else {
+            await _queue.markOperationCompleted(currentOp.id);
           }
           success++;
-          _progressController.add(
+          _emitProgress(
             SyncProgressEvent(
-              operationId: op.id,
+              operationId: currentOp.id,
               current: currentIndex,
               total: totalOps,
               status: SyncOperationStatus.success,
@@ -322,48 +431,53 @@ class OfflineQueueProcessor {
         }
       } on OperationSkippedException catch (e) {
         skipped++;
+        final message = _safeErrorMessage(e.toString());
         await _auditLogger?.logOperation(
-          op,
+          currentOp,
           result: 'skipped',
-          errorMessage: e.toString(),
+          errorMessage: message,
         );
         if (_removeOnSkipped) {
-          await _queue.removeOperation(op.id);
+          await _queue.removeOperation(currentOp.id);
         } else {
-          // Igual que en el caso de conflicto: si no se remueve, debe volver
-          // a 'pending' para no quedar invisible para siempre.
-          await _queue.markOperationPending(op.id);
+          await _queue.markOperationCompleted(currentOp.id);
         }
-        _progressController.add(
+        _emitProgress(
           SyncProgressEvent(
-            operationId: op.id,
+            operationId: currentOp.id,
             current: currentIndex,
             total: totalOps,
             status: SyncOperationStatus.skipped,
-            error: e.toString(),
+            error: message,
           ),
         );
       } catch (e) {
         failed++;
-        final errorMsg = 'Op ${op.id} (${op.model}.${op.method}): $e';
+        blockedDependencyKeys.addAll(dependencyKeys);
+        final safeException = _safeErrorMessage(e.toString());
+        final errorMsg =
+            'Op ${currentOp.id} (${currentOp.model}.${currentOp.method}): '
+            '$safeException';
         errors.add(errorMsg);
-        // markOperationFailed() debe dejar la operación en status='pending'
-        // (con el backoff ya programado vía nextRetryAt) — de lo contrario
-        // se queda en 'processing' para siempre y el filtro de status la
-        // esconde de getPendingOperations() en el próximo ciclo.
-        await _queue.markOperationFailed(op.id, e.toString());
+        final manualReconciliation =
+            currentOp.replayPolicy == OfflineReplayPolicy.manualAfterAmbiguous;
+        if (manualReconciliation) {
+          await _queue.markOperationDeadLetter(currentOp.id, safeException);
+        } else {
+          await _queue.markOperationFailed(currentOp.id, safeException);
+        }
         await _auditLogger?.logOperation(
-          op,
-          result: 'error',
-          errorMessage: e.toString(),
+          currentOp,
+          result: manualReconciliation ? 'dead_letter' : 'error',
+          errorMessage: safeException,
         );
-        _progressController.add(
+        _emitProgress(
           SyncProgressEvent(
-            operationId: op.id,
+            operationId: currentOp.id,
             current: currentIndex,
             total: totalOps,
             status: SyncOperationStatus.failed,
-            error: e.toString(),
+            error: safeException,
           ),
         );
       }
@@ -386,5 +500,139 @@ class OfflineQueueProcessor {
       'unlink' => 2,
       _ => 1, // default to write-level
     };
+  }
+
+  static int _dependencySortOrder(OfflineOperation operation) {
+    if (operation.method ==
+            OfflineLocalCommand.sessionCreateAndOpen.storageName ||
+        operation.method == OfflineLocalCommand.sessionOpen.storageName ||
+        (operation.model == 'res.partner' &&
+            (operation.method == 'create' ||
+                operation.method ==
+                    OfflineLocalCommand.partnerCreate.storageName))) {
+      return 0;
+    }
+    if (operation.model == 'sale.order' && operation.method == 'create') {
+      return 10;
+    }
+    if (operation.model == 'sale.order.line') {
+      return 20;
+    }
+    if (operation.model == 'sale.order' &&
+        (operation.method == OfflineLocalCommand.orderConfirm.storageName ||
+            operation.method.contains('confirm'))) {
+      return 30;
+    }
+    if (operation.method ==
+        OfflineLocalCommand.paymentWizardApply.storageName) {
+      return 35;
+    }
+    if (operation.model == 'account.payment' ||
+        operation.model == 'account.move' ||
+        operation.method == OfflineLocalCommand.paymentCreate.storageName ||
+        operation.method ==
+            OfflineLocalCommand.invoiceCreateWithPayments.storageName ||
+        operation.method.contains('invoice') ||
+        operation.method.contains('payment')) {
+      return 40;
+    }
+    if (operation.method ==
+            OfflineLocalCommand.sessionClosingControl.storageName ||
+        operation.method == OfflineLocalCommand.sessionClose.storageName) {
+      return 50;
+    }
+    return 25;
+  }
+
+  /// Stable aliases that tie an order workflow together while its local
+  /// negative ID is progressively replaced by the remote ID.
+  ///
+  /// Both the pre-claim snapshot and the refetched operation contribute
+  /// keys. This is intentional: a successful parent handler can rewrite a
+  /// child's `parentOrderId` from -10 to 42, while later operations in the
+  /// same batch may still reference -10.
+  static Set<String> _dependencyKeys(OfflineOperation operation) {
+    final keys = <String>{};
+    void addModelRecordId(Object? value) {
+      if (value is num) {
+        keys.add('record:${operation.model}:${value.toInt()}');
+      }
+    }
+
+    // Generic create -> action/write chains (advances, cash-outs, etc.).
+    addModelRecordId(operation.recordId);
+    addModelRecordId(operation.values['local_id']);
+    addModelRecordId(operation.values['id']);
+
+    void addPartnerId(Object? value) {
+      if (value is num) keys.add('partner-id:${value.toInt()}');
+    }
+
+    if (operation.model == 'res.partner') {
+      addPartnerId(operation.recordId);
+      addPartnerId(operation.values['local_id']);
+    }
+    addPartnerId(operation.values['partner_id']);
+
+    void addSessionId(Object? value) {
+      if (value is num) keys.add('session-id:${value.toInt()}');
+    }
+
+    if (operation.model == 'collection.session') {
+      addSessionId(operation.recordId);
+      addSessionId(operation.values['local_id']);
+    }
+    addSessionId(operation.values['collection_session_id']);
+
+    final isOrderWorkflow =
+        operation.model == 'sale.order' ||
+        operation.model == 'sale.order.line' ||
+        operation.model == 'account.payment' ||
+        operation.model == 'account.move' ||
+        operation.method == OfflineLocalCommand.orderConfirm.storageName ||
+        operation.method ==
+            OfflineLocalCommand.paymentWizardApply.storageName ||
+        operation.method ==
+            OfflineLocalCommand.invoiceCreateWithPayments.storageName ||
+        operation.method == OfflineLocalCommand.paymentCreate.storageName;
+    if (!isOrderWorkflow) return keys;
+
+    void addId(Object? value) {
+      if (value is int) keys.add('order-id:$value');
+      if (value is num) keys.add('order-id:${value.toInt()}');
+    }
+
+    void addUuid(Object? value) {
+      if (value is String && value.trim().isNotEmpty) {
+        keys.add('order-uuid:${value.trim()}');
+      }
+    }
+
+    addId(operation.parentOrderId);
+    if (operation.model == 'sale.order') {
+      addId(operation.recordId);
+      addId(operation.values['local_id']);
+      addUuid(operation.values['uuid']);
+    }
+    addId(operation.values['parent_order_id']);
+    addId(operation.values['sale_id']);
+    addId(operation.values['order_id']);
+    addUuid(operation.values['order_uuid']);
+    addUuid(operation.values['sale_order_uuid']);
+    return keys;
+  }
+
+  void _emitProgress(SyncProgressEvent event) {
+    if (!_progressController.isClosed) {
+      _progressController.add(event);
+    }
+  }
+
+  static String _safeErrorMessage(String message) {
+    final sanitized = ErrorSanitizer.sanitize(message);
+    const maxLength = 2000;
+    return sanitized.length <= maxLength
+        ? sanitized
+        : '${sanitized.substring(0, maxLength)}…';
   }
 }

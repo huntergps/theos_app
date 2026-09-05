@@ -11,6 +11,7 @@ import '../../../../shared/utils/formatting_utils.dart';
 import '../product_description_cell.dart';
 import '../uom_cell.dart';
 import '../../../taxes/widgets/tax_badge.dart';
+
 import 'package:theos_pos_core/theos_pos_core.dart';
 
 /// DataGridSource for sale order lines (shared between edit and view)
@@ -33,8 +34,11 @@ class SalesOrderLinesDataSource extends DataGridSource {
 
   /// Async callback for product code validation
   /// Returns ProductCodeSearchResult to determine navigation behavior
-  final Future<ProductCodeSearchResult> Function(SaleOrderLine line, String code)?
-      onUpdateCode;
+  final Future<ProductCodeSearchResult> Function(
+    SaleOrderLine line,
+    String code,
+  )?
+  onUpdateCode;
 
   /// Callback when Escape is pressed or focus lost on code cell
   /// Used to restore original value or delete empty lines
@@ -133,7 +137,11 @@ class SalesOrderLinesDataSource extends DataGridSource {
   /// Unregister a FocusNode for a cell
   /// Only removes if the node matches what's in the registry
   /// This prevents old cells from removing new cells' FocusNodes during grid rebuild
-  void unregisterFocusNode(int lineId, EditableCellType cellType, FocusNode node) {
+  void unregisterFocusNode(
+    int lineId,
+    EditableCellType cellType,
+    FocusNode node,
+  ) {
     final key = _focusKey(lineId, cellType);
     final existing = focusNodeRegistry[key];
     // Only remove if it's the same node (prevents old cells from removing new cells' nodes)
@@ -217,17 +225,13 @@ class SalesOrderLinesDataSource extends DataGridSource {
   /// Handle Tab navigation from a cell
   /// Returns true if navigation was handled
   bool handleTabNavigation(int lineId, EditableCellType cellType) {
-
     // From code -> code on next product line
     if (cellType == EditableCellType.code) {
       final nextIndex = getNextProductLineIndex(lineId);
 
       if (nextIndex != null) {
         final nextLine = lines[nextIndex];
-        final success = requestFocusOnCell(
-          nextLine.id,
-          EditableCellType.code,
-        );
+        final success = requestFocusOnCell(nextLine.id, EditableCellType.code);
         return success;
       }
 
@@ -248,10 +252,7 @@ class SalesOrderLinesDataSource extends DataGridSource {
 
       if (nextIndex != null) {
         final nextLine = lines[nextIndex];
-        final success = requestFocusOnCell(
-          nextLine.id,
-          EditableCellType.code,
-        );
+        final success = requestFocusOnCell(nextLine.id, EditableCellType.code);
         return success;
       }
 
@@ -267,7 +268,6 @@ class SalesOrderLinesDataSource extends DataGridSource {
   ///
   /// Reverse flow: Code ← Quantity ← Discount ← Code (prev line)
   bool handleShiftTabNavigation(int lineId, EditableCellType cellType) {
-
     // From code -> discount on previous product line
     if (cellType == EditableCellType.code) {
       final prevIndex = getPreviousProductLineIndex(lineId);
@@ -303,7 +303,6 @@ class SalesOrderLinesDataSource extends DataGridSource {
   /// Handle Arrow Up navigation - move to same column on previous row
   /// Returns true if navigation was handled
   bool handleArrowUp(int lineId, EditableCellType cellType) {
-
     final prevIndex = getPreviousProductLineIndex(lineId);
     if (prevIndex != null) {
       final prevLine = lines[prevIndex];
@@ -317,7 +316,6 @@ class SalesOrderLinesDataSource extends DataGridSource {
   /// Handle Arrow Down navigation - move to same column on next row
   /// Returns true if navigation was handled
   bool handleArrowDown(int lineId, EditableCellType cellType) {
-
     final nextIndex = getNextProductLineIndex(lineId);
     if (nextIndex != null) {
       final nextLine = lines[nextIndex];
@@ -897,10 +895,14 @@ class SalesOrderLinesDataSource extends DataGridSource {
           // FocusNode registration for Tab navigation
           onFocusNodeCreated: isEditable
               ? (node) =>
-                  registerFocusNode(line.id, EditableCellType.quantity, node)
+                    registerFocusNode(line.id, EditableCellType.quantity, node)
               : null,
           onFocusNodeDisposed: isEditable
-              ? (node) => unregisterFocusNode(line.id, EditableCellType.quantity, node)
+              ? (node) => unregisterFocusNode(
+                  line.id,
+                  EditableCellType.quantity,
+                  node,
+                )
               : null,
           // Tab, Enter, and Escape key handling
           onKeyEvent: isEditable
@@ -970,7 +972,10 @@ class SalesOrderLinesDataSource extends DataGridSource {
                   if (event.logicalKey == LogicalKeyboardKey.minus ||
                       event.logicalKey == LogicalKeyboardKey.numpadSubtract) {
                     final step = line.isUnitProduct ? 1.0 : 0.01;
-                    final newQty = (line.productUomQty - step).clamp(1.0, double.infinity);
+                    final newQty = (line.productUomQty - step).clamp(
+                      1.0,
+                      double.infinity,
+                    );
                     onUpdateQty?.call(line, newQty);
                     return KeyEventResult.handled;
                   }
@@ -1019,10 +1024,14 @@ class SalesOrderLinesDataSource extends DataGridSource {
           // FocusNode registration for Tab navigation
           onFocusNodeCreated: isEditable
               ? (node) =>
-                  registerFocusNode(line.id, EditableCellType.discount, node)
+                    registerFocusNode(line.id, EditableCellType.discount, node)
               : null,
           onFocusNodeDisposed: isEditable
-              ? (node) => unregisterFocusNode(line.id, EditableCellType.discount, node)
+              ? (node) => unregisterFocusNode(
+                  line.id,
+                  EditableCellType.discount,
+                  node,
+                )
               : null,
           // Tab, Enter, and Escape key handling
           onKeyEvent: isEditable
@@ -1104,9 +1113,7 @@ class SalesOrderLinesDataSource extends DataGridSource {
         padding: const EdgeInsets.symmetric(horizontal: 6),
         alignment: Alignment.centerRight,
         child: Text(
-          line.discountAmount > 0
-              ? line.discountAmount.toCurrency()
-              : '',
+          line.discountAmount > 0 ? line.discountAmount.toCurrency() : '',
           style: TextStyle(
             // fontSize: _cellFontSize,
             color: line.discountAmount > 0 ? Colors.green : null,

@@ -93,10 +93,7 @@ class OrderCache extends _$OrderCache {
       newOrders[order.id] = order;
     }
 
-    state = state.copyWith(
-      orders: newOrders,
-      version: state.version + 1,
-    );
+    state = state.copyWith(orders: newOrders, version: state.version + 1);
 
     logger.d('[OrderCache]', 'Cached ${orders.length} orders');
   }
@@ -164,10 +161,7 @@ class OrderCache extends _$OrderCache {
     final newOrders = Map<int, SaleOrder>.from(state.orders);
     newOrders[orderId] = updatedOrder;
 
-    state = state.copyWith(
-      orders: newOrders,
-      version: state.version + 1,
-    );
+    state = state.copyWith(orders: newOrders, version: state.version + 1);
 
     return true;
   }
@@ -303,9 +297,7 @@ SaleOrder? cachedOrder(Ref ref, int orderId) {
 /// Mismo fix que [cachedOrder]: no observamos `state.version` global.
 @Riverpod(keepAlive: true)
 List<SaleOrderLine> cachedOrderLines(Ref ref, int orderId) {
-  return ref.watch(
-        orderCacheProvider.select((s) => s.orderLines[orderId]),
-      ) ??
+  return ref.watch(orderCacheProvider.select((s) => s.orderLines[orderId])) ??
       const [];
 }
 

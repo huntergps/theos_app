@@ -86,9 +86,7 @@ class _RescheduleButtonState extends State<RescheduleButton> {
             ),
             MenuFlyoutItem(
               leading: const Icon(FluentIcons.calendar, size: 16),
-              text: Text(
-                'Proxima semana (${_getDayName(_getNextMonday())})',
-              ),
+              text: Text('Proxima semana (${_getDayName(_getNextMonday())})'),
               onPressed: () {
                 _controller.close();
                 widget.onRescheduleNextWeek?.call();

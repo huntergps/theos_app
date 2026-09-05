@@ -1,8 +1,10 @@
 import 'package:fluent_ui/fluent_ui.dart';
+
 import '../product_description_cell.dart';
 import '../editable_number_cell.dart';
 import '../uom_cell.dart';
 import '../../../../shared/utils/formatting_utils.dart';
+
 import 'package:theos_pos_core/theos_pos_core.dart';
 
 /// Card for displaying a sale order line (mobile view)

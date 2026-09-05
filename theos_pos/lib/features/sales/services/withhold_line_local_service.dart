@@ -1,7 +1,8 @@
 import 'package:drift/drift.dart' show Value;
 import 'package:uuid/uuid.dart';
 
-import 'package:theos_pos_core/theos_pos_core.dart' hide DatabaseHelper, PartnerBank, CreditIssue;
+import 'package:theos_pos_core/theos_pos_core.dart'
+    hide DatabaseHelper, PartnerBank;
 
 /// Local DB service for withhold line operations.
 ///
@@ -32,9 +33,15 @@ class WithholdLineLocalService {
         isSynced: const Value(false),
       );
       await db.into(db.saleOrderWithholdLine).insert(companion);
-      logger.d('[WithholdLineLocalService]', 'Saved withhold line to DB: ${line.taxName}');
+      logger.d(
+        '[WithholdLineLocalService]',
+        'Saved withhold line to DB: ${line.taxName}',
+      );
     } catch (e) {
-      logger.e('[WithholdLineLocalService]', 'Error saving withhold line to DB: $e');
+      logger.e(
+        '[WithholdLineLocalService]',
+        'Error saving withhold line to DB: $e',
+      );
     }
   }
 
@@ -46,9 +53,15 @@ class WithholdLineLocalService {
             ..where((t) => t.orderId.equals(orderId))
             ..where((t) => t.lineUuid.equals(uuid)))
           .go();
-      logger.d('[WithholdLineLocalService]', 'Removed withhold line from DB: $uuid');
+      logger.d(
+        '[WithholdLineLocalService]',
+        'Removed withhold line from DB: $uuid',
+      );
     } catch (e) {
-      logger.e('[WithholdLineLocalService]', 'Error removing withhold line from DB: $e');
+      logger.e(
+        '[WithholdLineLocalService]',
+        'Error removing withhold line from DB: $e',
+      );
     }
   }
 
@@ -56,12 +69,18 @@ class WithholdLineLocalService {
   Future<void> clearLinesFromDb(int orderId) async {
     try {
       final db = _db;
-      await (db.delete(db.saleOrderWithholdLine)
-            ..where((t) => t.orderId.equals(orderId)))
-          .go();
-      logger.d('[WithholdLineLocalService]', 'Cleared withhold lines from DB for order $orderId');
+      await (db.delete(
+        db.saleOrderWithholdLine,
+      )..where((t) => t.orderId.equals(orderId))).go();
+      logger.d(
+        '[WithholdLineLocalService]',
+        'Cleared withhold lines from DB for order $orderId',
+      );
     } catch (e) {
-      logger.e('[WithholdLineLocalService]', 'Error clearing withhold lines from DB: $e');
+      logger.e(
+        '[WithholdLineLocalService]',
+        'Error clearing withhold lines from DB: $e',
+      );
     }
   }
 
@@ -69,28 +88,37 @@ class WithholdLineLocalService {
   Future<List<WithholdLine>> loadFromDb(int orderId) async {
     try {
       final db = _db;
-      final dbLines = await (db.select(db.saleOrderWithholdLine)
-            ..where((t) => t.orderId.equals(orderId)))
-          .get();
+      final dbLines = await (db.select(
+        db.saleOrderWithholdLine,
+      )..where((t) => t.orderId.equals(orderId))).get();
 
       if (dbLines.isEmpty) {
         return [];
       }
 
-      return dbLines.map((dbLine) => WithholdLine(
-            id: dbLine.odooId ?? 0,
-            lineUuid: const Uuid().v4(),
-            taxId: dbLine.taxId,
-            taxName: dbLine.taxName,
-            taxPercent: dbLine.taxPercent,
-            withholdType: WithholdType.fromCode(dbLine.withholdType) ?? WithholdType.incomeSale,
-            taxSupportCode: TaxSupportCode.fromCode(dbLine.taxsupportCode),
-            base: dbLine.base,
-            amount: dbLine.amount,
-            notes: dbLine.notes,
-          )).toList();
+      return dbLines
+          .map(
+            (dbLine) => WithholdLine(
+              id: dbLine.odooId ?? 0,
+              lineUuid: const Uuid().v4(),
+              taxId: dbLine.taxId,
+              taxName: dbLine.taxName,
+              taxPercent: dbLine.taxPercent,
+              withholdType:
+                  WithholdType.fromCode(dbLine.withholdType) ??
+                  WithholdType.incomeSale,
+              taxSupportCode: TaxSupportCode.fromCode(dbLine.taxsupportCode),
+              base: dbLine.base,
+              amount: dbLine.amount,
+              notes: dbLine.notes,
+            ),
+          )
+          .toList();
     } catch (e) {
-      logger.e('[WithholdLineLocalService]', 'Error loading withhold lines from DB: $e');
+      logger.e(
+        '[WithholdLineLocalService]',
+        'Error loading withhold lines from DB: $e',
+      );
       return [];
     }
   }

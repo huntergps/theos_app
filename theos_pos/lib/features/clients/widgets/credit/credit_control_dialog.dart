@@ -70,18 +70,9 @@ class CreditControlDialog extends StatelessWidget {
       constraints: const BoxConstraints(maxWidth: 500, maxHeight: 700),
       title: Row(
         children: [
-          Icon(
-            _getFluentIcon(),
-            color: _getIconColor(),
-            size: 28,
-          ),
+          Icon(_getFluentIcon(), color: _getIconColor(), size: 28),
           const SizedBox(width: 12),
-          Expanded(
-            child: Text(
-              _getTitle(),
-              style: theme.typography.subtitle,
-            ),
-          ),
+          Expanded(child: Text(_getTitle(), style: theme.typography.subtitle)),
         ],
       ),
       content: SingleChildScrollView(
@@ -137,10 +128,7 @@ class CreditControlDialog extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  client.name,
-                  style: theme.typography.bodyStrong,
-                ),
+                Text(client.name, style: theme.typography.bodyStrong),
                 if (client.vat != null && client.vat!.isNotEmpty)
                   Text(
                     client.vat!,
@@ -197,8 +185,14 @@ class CreditControlDialog extends StatelessWidget {
 
     // Calculate percentages for visual bar
     final usedPercent = (creditUsed / creditLimit * 100).clamp(0.0, 100.0);
-    final toInvoicePercent = (creditToInvoice / creditLimit * 100).clamp(0.0, 100.0);
-    final transactionPercent = (orderAmount / creditLimit * 100).clamp(0.0, 100.0);
+    final toInvoicePercent = (creditToInvoice / creditLimit * 100).clamp(
+      0.0,
+      100.0,
+    );
+    final transactionPercent = (orderAmount / creditLimit * 100).clamp(
+      0.0,
+      100.0,
+    );
     final totalPercent = usedPercent + toInvoicePercent + transactionPercent;
 
     return Card(
@@ -277,7 +271,9 @@ class CreditControlDialog extends StatelessWidget {
             theme: theme,
             label: 'Después de transacción',
             value: creditAfterTransaction,
-            color: creditAfterTransaction >= 0 ? AppColors.success : AppColors.danger,
+            color: creditAfterTransaction >= 0
+                ? AppColors.success
+                : AppColors.danger,
             isBold: true,
             showSign: true,
           ),
@@ -367,11 +363,16 @@ class CreditControlDialog extends StatelessWidget {
                     ),
                   ),
                 // Available (green)
-                if (100 - usedPercent - toInvoicePercent - transactionPercent > 0)
+                if (100 - usedPercent - toInvoicePercent - transactionPercent >
+                    0)
                   Flexible(
-                    flex: (100 - usedPercent - toInvoicePercent - transactionPercent)
-                        .round()
-                        .clamp(1, 100),
+                    flex:
+                        (100 -
+                                usedPercent -
+                                toInvoicePercent -
+                                transactionPercent)
+                            .round()
+                            .clamp(1, 100),
                     child: Container(color: AppColors.success.withAlpha(100)),
                   ),
               ],
@@ -436,10 +437,7 @@ class CreditControlDialog extends StatelessWidget {
           ),
         ),
         const SizedBox(width: 4),
-        Text(
-          label,
-          style: theme.typography.caption,
-        ),
+        Text(label, style: theme.typography.caption),
       ],
     );
   }
@@ -547,16 +545,12 @@ class CreditControlDialog extends StatelessWidget {
         Expanded(
           child: Text(
             label,
-            style: theme.typography.body?.copyWith(
-              color: Colors.red.dark,
-            ),
+            style: theme.typography.body?.copyWith(color: Colors.red.dark),
           ),
         ),
         Text(
           value,
-          style: theme.typography.bodyStrong?.copyWith(
-            color: AppColors.danger,
-          ),
+          style: theme.typography.bodyStrong?.copyWith(color: AppColors.danger),
         ),
       ],
     );
@@ -571,8 +565,7 @@ class CreditControlDialog extends StatelessWidget {
       warnings.add(
         TheosInfoBars.warning(
           title: 'Datos desactualizados',
-          message:
-              'Los datos de crédito pueden no estar actualizados. Conecte a internet para sincronizar.',
+          message: 'Los datos de crédito pueden no estar actualizados. Conecte a internet para sincronizar.',
         ),
       );
     }
@@ -583,8 +576,7 @@ class CreditControlDialog extends StatelessWidget {
       warnings.add(
         TheosInfoBars.warning(
           title: 'Modo offline',
-          message:
-              'Sin conexión. Se aplica margen de seguridad al límite de crédito.',
+          message: 'Sin conexión. Se aplica margen de seguridad al límite de crédito.',
         ),
       );
     }

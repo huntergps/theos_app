@@ -84,13 +84,11 @@ final class OdooPresenceEvent extends OdooWebSocketEvent {
   final int partnerId;
   final String imStatus;
 
-  OdooPresenceEvent({
-    required this.partnerId,
-    required this.imStatus,
-  });
+  OdooPresenceEvent({required this.partnerId, required this.imStatus});
 
   @override
-  String toString() => 'OdooPresenceEvent(partner: $partnerId, status: $imStatus)';
+  String toString() =>
+      'OdooPresenceEvent(partner: $partnerId, status: $imStatus)';
 }
 
 // ============================================================================
@@ -199,10 +197,7 @@ final class OdooCompanyConfigEvent extends OdooWebSocketEvent {
   final int companyId;
   final Map<String, dynamic> newValues;
 
-  OdooCompanyConfigEvent({
-    required this.companyId,
-    required this.newValues,
-  });
+  OdooCompanyConfigEvent({required this.companyId, required this.newValues});
 
   @override
   String toString() =>
@@ -238,10 +233,7 @@ final class OdooRawNotificationEvent extends OdooWebSocketEvent {
   final String? type;
   final Map<String, dynamic> payload;
 
-  OdooRawNotificationEvent({
-    this.type,
-    required this.payload,
-  });
+  OdooRawNotificationEvent({this.type, required this.payload});
 
   @override
   String toString() => 'OdooRawNotificationEvent(type: $type)';

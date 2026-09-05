@@ -93,19 +93,3 @@ abstract class Uom with _$Uom {
     return (qty / rounding).round() * rounding;
   }
 }
-
-/// TODO: UomCategory needs @OdooModel annotation when independent sync is implemented.
-/// Currently managed manually without generated manager. Table exists in Drift.
-///
-/// UoM Category model
-@freezed
-abstract class UomCategory with _$UomCategory {
-  const UomCategory._();
-
-  const factory UomCategory({
-    required int id,
-    required int odooId,
-    required String name,
-    DateTime? writeDate,
-  }) = _UomCategory;
-}

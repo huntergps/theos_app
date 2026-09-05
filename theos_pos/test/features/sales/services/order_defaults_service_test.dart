@@ -39,35 +39,22 @@ void main() {
 
     group('hasEssentials', () {
       test('should return true when partnerId, warehouseId, and pricelistId are set', () {
-        const d = OrderDefaults(
-          partnerId: 1,
-          warehouseId: 2,
-          pricelistId: 3,
-        );
+        const d = OrderDefaults(partnerId: 1, warehouseId: 2, pricelistId: 3);
         expect(d.hasEssentials, isTrue);
       });
 
       test('should return false when partnerId is null', () {
-        const d = OrderDefaults(
-          warehouseId: 2,
-          pricelistId: 3,
-        );
+        const d = OrderDefaults(warehouseId: 2, pricelistId: 3);
         expect(d.hasEssentials, isFalse);
       });
 
       test('should return false when warehouseId is null', () {
-        const d = OrderDefaults(
-          partnerId: 1,
-          pricelistId: 3,
-        );
+        const d = OrderDefaults(partnerId: 1, pricelistId: 3);
         expect(d.hasEssentials, isFalse);
       });
 
       test('should return false when pricelistId is null', () {
-        const d = OrderDefaults(
-          partnerId: 1,
-          warehouseId: 2,
-        );
+        const d = OrderDefaults(partnerId: 1, warehouseId: 2);
         expect(d.hasEssentials, isFalse);
       });
 
@@ -201,9 +188,9 @@ void main() {
         partnerName: 'Local',
         warehouseId: 10,
         warehouseName: 'Local WH',
-        pricelistId: 99,   // from Odoo
+        pricelistId: 99, // from Odoo
         pricelistName: 'Local PL', // names kept from local
-        paymentTermId: 77,  // from Odoo
+        paymentTermId: 77, // from Odoo
         paymentTermName: 'Local PT', // names kept from local
         userId: 5,
         userName: 'Local User',

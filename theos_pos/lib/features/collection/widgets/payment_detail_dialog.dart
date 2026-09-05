@@ -10,11 +10,11 @@ import '../../sales/providers/service_providers.dart';
 import '../../sales/services/payment_service.dart';
 
 /// Provider para detalle del cobro
-final paymentDetailProvider =
-    FutureProvider.family<SessionPayment?, int>((ref, paymentId) async {
-  final paymentService = ref.watch(paymentServiceProvider);
-  return paymentService.getPaymentDetail(paymentId);
-});
+final paymentDetailProvider = FutureProvider.autoDispose
+    .family<SessionPayment?, int>((ref, paymentId) async {
+      final paymentService = ref.watch(paymentServiceProvider);
+      return paymentService.getPaymentDetail(paymentId);
+    });
 
 /// Diálogo de detalle de cobro.
 ///
@@ -58,9 +58,8 @@ class PaymentDetailDialog extends ConsumerWidget {
       onRefresh: () => ref.invalidate(paymentDetailProvider(paymentId)),
       notFoundMessage: 'Cobro no encontrado',
       errorPrefix: 'Error cargando cobro',
-      contentBuilder: (context, ref, payment) => _PaymentDetailContent(
-        payment: payment,
-      ),
+      contentBuilder: (context, ref, payment) =>
+          _PaymentDetailContent(payment: payment),
     );
   }
 }
@@ -106,10 +105,7 @@ class _PaymentDetailContent extends StatelessWidget {
         DetailSection(
           title: 'Método de Pago',
           children: [
-            DetailInfoRow(
-              label: 'Diario',
-              value: payment.journalName ?? '-',
-            ),
+            DetailInfoRow(label: 'Diario', value: payment.journalName ?? '-'),
             DetailInfoRow(
               label: 'Método',
               value: payment.paymentMethodLineName ?? '-',
@@ -132,15 +128,9 @@ class _PaymentDetailContent extends StatelessWidget {
                   ? dateFormat.format(payment.date!)
                   : 'Sin fecha',
             ),
-            DetailInfoRow(
-              label: 'Referencia',
-              value: payment.ref ?? '-',
-            ),
+            DetailInfoRow(label: 'Referencia', value: payment.ref ?? '-'),
             if (payment.originType != null)
-              DetailInfoRow(
-                label: 'Origen',
-                value: payment.originType!.label,
-              ),
+              DetailInfoRow(label: 'Origen', value: payment.originType!.label),
             DetailInfoRow(
               label: 'Tipo',
               value: payment.isInbound ? 'Cobro' : 'Pago',
@@ -243,7 +233,9 @@ class _PaymentDetailContent extends StatelessWidget {
   }
 
   Widget _buildAmountCard(FluentThemeData theme) {
-    final amountColor = payment.isInbound ? AppColors.success : AppColors.danger;
+    final amountColor = payment.isInbound
+        ? AppColors.success
+        : AppColors.danger;
 
     return Container(
       padding: const EdgeInsets.all(Spacing.md),

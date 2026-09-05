@@ -1,4 +1,5 @@
 import 'package:riverpod_annotation/riverpod_annotation.dart';
+
 import '../../../core/database/repositories/repository_providers.dart';
 import '../../../core/managers/manager_providers.dart' show appDatabaseProvider;
 import '../repositories/qweb_template_repository.dart';

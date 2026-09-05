@@ -5,7 +5,9 @@ import 'package:theos_pos_core/theos_pos_core.dart' hide DatabaseHelper, logger;
 
 import '../../../core/database/providers.dart';
 import '../../../core/managers/manager_providers.dart' show appDatabaseProvider;
-import '../../../core/services/logger_service.dart';
+
+import 'package:odoo_sdk/odoo_sdk.dart' show logger;
+
 import '../../../shared/utils/formatting_utils.dart';
 
 // ============================================================================
@@ -125,15 +127,19 @@ class ProductUomPriceLoader {
         final baseUom = await uomManager.readLocal(product.uomId!);
         if (baseUom?.categoryId != null) {
           final categoryUoms = await uomManager.searchLocal(
-            domain: [['category_id', '=', baseUom!.categoryId]],
+            domain: [
+              ['category_id', '=', baseUom!.categoryId],
+            ],
             orderBy: 'factor asc',
           );
           uomList = categoryUoms
-              .map((u) => <String, dynamic>{
-                    'id': u.id,
-                    'name': u.name,
-                    'factor': u.factor,
-                  })
+              .map(
+                (u) => <String, dynamic>{
+                  'id': u.id,
+                  'name': u.name,
+                  'factor': u.factor,
+                },
+              )
               .toList();
         }
       }
@@ -141,7 +147,9 @@ class ProductUomPriceLoader {
 
     // Load barcodes from product_uom via manager
     final productUoms = await productUomManager.searchLocal(
-      domain: [['product_id', '=', productId]],
+      domain: [
+        ['product_id', '=', productId],
+      ],
     );
     final barcodeMap = <int, String>{};
     for (final pu in productUoms) {
@@ -185,15 +193,13 @@ class ProductUomPriceLoader {
     for (final id in uomIds) {
       final uom = await uomManager.readLocal(id);
       if (uom != null) {
-        uoms.add({
-          'id': uom.id,
-          'name': uom.name,
-          'factor': uom.factor,
-        });
+        uoms.add({'id': uom.id, 'name': uom.name, 'factor': uom.factor});
       }
     }
     // Sort by factor
-    uoms.sort((a, b) => (a['factor'] as double).compareTo(b['factor'] as double));
+    uoms.sort(
+      (a, b) => (a['factor'] as double).compareTo(b['factor'] as double),
+    );
     return uoms;
   }
 
@@ -211,7 +217,7 @@ class ProductUomPriceLoader {
     logger.d(
       '[ProductUomPriceLoader]',
       'Calculating prices: productId=$productId, productTmplId=$productTmplId, '
-      'pricelistId=$pricelistId, listPrice=$listPrice, uoms=${uoms.length}',
+          'pricelistId=$pricelistId, listPrice=$listPrice, uoms=${uoms.length}',
     );
 
     double baseUomFactor = 1.0;
@@ -290,7 +296,7 @@ class ProductUomPriceLoader {
           logger.d(
             '[ProductUomPriceLoader]',
             'UoM $uomId: Rule matched! computePrice=$computePrice, '
-            'fixedPrice=$fixedPrice, priceDiscount=$priceDiscount',
+                'fixedPrice=$fixedPrice, priceDiscount=$priceDiscount',
           );
 
           switch (computePrice) {
@@ -305,7 +311,8 @@ class ProductUomPriceLoader {
               break;
             case 'formula':
               final basePrice = listPrice * conversionFactor;
-              price = basePrice * (1 - priceDiscount / 100) +
+              price =
+                  basePrice * (1 - priceDiscount / 100) +
                   (priceSurcharge * conversionFactor);
               priceRuleType = 'Formula';
               discount = priceDiscount;
@@ -334,18 +341,20 @@ class ProductUomPriceLoader {
 
       final pvp = price + totalTaxAmount;
 
-      result.add(UomPriceData(
-        id: uomId,
-        name: uom['name'] as String? ?? '',
-        factor: uomFactor,
-        price: price,
-        priceRuleType: priceRuleType,
-        discount: discount,
-        taxAmounts: taxAmounts,
-        totalTax: totalTaxAmount,
-        pvp: pvp,
-        barcode: barcodeMap[uomId],
-      ));
+      result.add(
+        UomPriceData(
+          id: uomId,
+          name: uom['name'] as String? ?? '',
+          factor: uomFactor,
+          price: price,
+          priceRuleType: priceRuleType,
+          discount: discount,
+          taxAmounts: taxAmounts,
+          totalTax: totalTaxAmount,
+          pvp: pvp,
+          barcode: barcodeMap[uomId],
+        ),
+      );
     }
 
     return result;
@@ -440,15 +449,20 @@ class ProductUomPricingTable extends StatelessWidget {
             ),
           ),
           // Dynamic tax columns
-          ...taxes.map((tax) => SizedBox(
-                width: 80,
-                child: Text(
-                  tax.shortName,
-                  style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
-                  textAlign: TextAlign.right,
-                  overflow: TextOverflow.ellipsis,
+          ...taxes.map(
+            (tax) => SizedBox(
+              width: 80,
+              child: Text(
+                tax.shortName,
+                style: const TextStyle(
+                  fontWeight: FontWeight.bold,
+                  fontSize: 14,
                 ),
-              )),
+                textAlign: TextAlign.right,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+          ),
           if (taxes.isEmpty)
             const SizedBox(
               width: 80,
@@ -496,7 +510,9 @@ class ProductUomPricingTable extends StatelessWidget {
             Padding(
               padding: const EdgeInsets.only(right: 8),
               child: Icon(
-                isSelected ? FluentIcons.checkbox_composite : FluentIcons.quantity,
+                isSelected
+                    ? FluentIcons.checkbox_composite
+                    : FluentIcons.quantity,
                 size: 18,
                 color: isSelected ? theme.accentColor : theme.inactiveColor,
               ),
@@ -561,14 +577,16 @@ class ProductUomPricingTable extends StatelessWidget {
             ),
           ),
           // Dynamic tax columns
-          ...taxes.map((tax) => SizedBox(
-                width: 80,
-                child: Text(
-                  (uom.taxAmounts[tax.shortName] ?? 0.0).toCurrency(),
-                  style: TextStyle(fontSize: 14, color: theme.inactiveColor),
-                  textAlign: TextAlign.right,
-                ),
-              )),
+          ...taxes.map(
+            (tax) => SizedBox(
+              width: 80,
+              child: Text(
+                (uom.taxAmounts[tax.shortName] ?? 0.0).toCurrency(),
+                style: TextStyle(fontSize: 14, color: theme.inactiveColor),
+                textAlign: TextAlign.right,
+              ),
+            ),
+          ),
           if (taxes.isEmpty)
             SizedBox(
               width: 80,
@@ -610,10 +628,7 @@ class ProductUomPricingTable extends StatelessWidget {
 
     return GestureDetector(
       onTap: () => onSelect?.call(uom),
-      child: MouseRegion(
-        cursor: SystemMouseCursors.click,
-        child: content,
-      ),
+      child: MouseRegion(cursor: SystemMouseCursors.click, child: content),
     );
   }
 }

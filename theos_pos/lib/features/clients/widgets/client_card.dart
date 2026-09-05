@@ -1,6 +1,8 @@
 import 'dart:convert';
+
 import 'package:fluent_ui/fluent_ui.dart';
 import 'package:theos_pos_core/theos_pos_core.dart' show Client;
+
 import 'credit/credit_status_badge.dart';
 
 /// Client card widget for displaying partner information
@@ -70,11 +72,7 @@ class ClientCard extends StatelessWidget {
                 overflow: TextOverflow.ellipsis,
               ),
               if (client.vat != null)
-                Text(
-                  client.vat!,
-                  style: theme.typography.caption,
-                  maxLines: 1,
-                ),
+                Text(client.vat!, style: theme.typography.caption, maxLines: 1),
             ],
           ),
         ),
@@ -99,16 +97,10 @@ class ClientCard extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(
-                    client.name,
-                    style: theme.typography.bodyStrong,
-                  ),
+                  Text(client.name, style: theme.typography.bodyStrong),
                   if (client.vat != null) ...[
                     const SizedBox(height: 2),
-                    Text(
-                      'RUC: ${client.vat}',
-                      style: theme.typography.caption,
-                    ),
+                    Text('RUC: ${client.vat}', style: theme.typography.caption),
                   ],
                   if (client.isCompany) ...[
                     const SizedBox(height: 4),
@@ -151,7 +143,8 @@ class ClientCard extends StatelessWidget {
             width: size,
             height: size,
             fit: BoxFit.cover,
-            errorBuilder: (context, error, stackTrace) => _buildDefaultAvatar(size),
+            errorBuilder: (context, error, stackTrace) =>
+                _buildDefaultAvatar(size),
           ),
         );
       } catch (_) {
@@ -193,18 +186,11 @@ class ClientCard extends StatelessWidget {
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(
-            FluentIcons.org,
-            size: 12,
-            color: theme.accentColor,
-          ),
+          Icon(FluentIcons.org, size: 12, color: theme.accentColor),
           const SizedBox(width: 4),
           Text(
             'Empresa',
-            style: TextStyle(
-              color: theme.accentColor,
-              fontSize: 11,
-            ),
+            style: TextStyle(color: theme.accentColor, fontSize: 11),
           ),
         ],
       ),
@@ -215,28 +201,16 @@ class ClientCard extends StatelessWidget {
     return Column(
       children: [
         if (client.effectivePhone.isNotEmpty)
-          _buildContactRow(
-            FluentIcons.phone,
-            client.effectivePhone,
-            theme,
-          ),
+          _buildContactRow(FluentIcons.phone, client.effectivePhone, theme),
         if (client.effectiveEmail.isNotEmpty) ...[
           if (client.effectivePhone.isNotEmpty) const SizedBox(height: 4),
-          _buildContactRow(
-            FluentIcons.mail,
-            client.effectiveEmail,
-            theme,
-          ),
+          _buildContactRow(FluentIcons.mail, client.effectiveEmail, theme),
         ],
         if (client.street != null) ...[
           if (client.effectivePhone.isNotEmpty ||
               client.effectiveEmail.isNotEmpty)
             const SizedBox(height: 4),
-          _buildContactRow(
-            FluentIcons.map_pin,
-            client.street!,
-            theme,
-          ),
+          _buildContactRow(FluentIcons.map_pin, client.street!, theme),
         ],
       ],
     );
@@ -245,11 +219,7 @@ class ClientCard extends StatelessWidget {
   Widget _buildContactRow(IconData icon, String text, FluentThemeData theme) {
     return Row(
       children: [
-        Icon(
-          icon,
-          size: 14,
-          color: theme.typography.caption?.color,
-        ),
+        Icon(icon, size: 14, color: theme.typography.caption?.color),
         const SizedBox(width: 8),
         Expanded(
           child: Text(

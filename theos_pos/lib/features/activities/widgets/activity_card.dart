@@ -1,6 +1,7 @@
 import 'package:fluent_ui/fluent_ui.dart';
 
 import 'package:theos_pos_core/theos_pos_core.dart' show MailActivity;
+
 import '../ui/activity_ui_extensions.dart';
 import '../../../shared/utils/formatting_utils.dart';
 import 'reschedule_button.dart';
@@ -48,7 +49,11 @@ class ActivityCard extends StatelessWidget {
     );
   }
 
-  Widget _buildHeader(FluentThemeData theme, Color stateColor, IconData stateIcon) {
+  Widget _buildHeader(
+    FluentThemeData theme,
+    Color stateColor,
+    IconData stateIcon,
+  ) {
     return Row(
       children: [
         Container(
@@ -65,16 +70,10 @@ class ActivityCard extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(
-                activity.displayTitle,
-                style: theme.typography.bodyStrong,
-              ),
+              Text(activity.displayTitle, style: theme.typography.bodyStrong),
               if (activity.resName != null) ...[
                 const SizedBox(height: 4),
-                Text(
-                  activity.resName!,
-                  style: theme.typography.caption,
-                ),
+                Text(activity.resName!, style: theme.typography.caption),
               ],
             ],
           ),

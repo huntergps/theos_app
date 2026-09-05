@@ -24,7 +24,8 @@ library;
 
 // Models
 // Services
-export 'package:theos_pos_core/theos_pos_core.dart' show TaxCalculatorService, TaxInfo;
+export 'package:theos_pos_core/theos_pos_core.dart'
+    show TaxCalculatorService, TaxInfo;
 
 // Widgets
 export 'widgets/widgets.dart';

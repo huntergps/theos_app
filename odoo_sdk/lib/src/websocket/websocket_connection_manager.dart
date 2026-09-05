@@ -33,9 +33,6 @@ class WebSocketConnectionManager {
   /// Stored connection info for reconnection.
   OdooWebSocketConnectionInfo? connectionInfo;
 
-  /// Optional callback for browser session establishment (Web only).
-  BrowserSessionEstablisher? browserSessionEstablisher;
-
   /// Establishes the WebSocket connection.
   ///
   /// Returns the created [WebSocketChannel] on success.
@@ -55,19 +52,6 @@ class WebSocketConnectionManager {
     final baseUrl = info.baseUrl;
     final database = info.database;
     final apiKey = info.apiKey;
-    final storedSessionId = info.sessionId;
-
-    // On Web platform, establish browser session cookies BEFORE connecting
-    if (info.isWeb &&
-        storedSessionId != null &&
-        browserSessionEstablisher != null) {
-      await browserSessionEstablisher!(
-        baseUrl: baseUrl,
-        apiKey: apiKey ?? '',
-        database: database,
-        sessionId: storedSessionId,
-      );
-    }
 
     // Parse base URL to get components
     final baseUri = Uri.parse(baseUrl);
@@ -82,22 +66,20 @@ class WebSocketConnectionManager {
 
     final wsVersion = WebSocketModelRegistry.instance.wsVersion;
 
-    String wsUrl;
-    if (info.isWeb && storedSessionId != null) {
-      wsUrl = shouldIncludePort
-          ? '$wsScheme://${baseUri.host}:$port/websocket?session_id=$storedSessionId&version=$wsVersion'
-          : '$wsScheme://${baseUri.host}/websocket?session_id=$storedSessionId&version=$wsVersion';
-    } else {
-      wsUrl = shouldIncludePort
-          ? '$wsScheme://${baseUri.host}:$port/websocket?version=$wsVersion'
-          : '$wsScheme://${baseUri.host}/websocket?version=$wsVersion';
-    }
+    final wsUrl = shouldIncludePort
+        ? '$wsScheme://${baseUri.host}:$port/websocket?version=$wsVersion'
+        : '$wsScheme://${baseUri.host}/websocket?version=$wsVersion';
 
     final uri = Uri.parse(wsUrl);
     connectionUrl = wsUrl;
 
     // Create WebSocket connection using platform-specific implementation
-    channel = await createWebSocketChannel(uri, baseUrl);
+    channel = await createWebSocketChannel(
+      uri,
+      baseUrl,
+      apiKey: apiKey,
+      database: database,
+    );
 
     // Listen to messages
     subscription = channel!.stream.listen(

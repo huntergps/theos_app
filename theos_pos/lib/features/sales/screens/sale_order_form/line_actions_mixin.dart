@@ -7,10 +7,14 @@ import '../../../../core/services/platform/global_notification_service.dart';
 import '../../../../shared/providers/company_config_provider.dart'
     show getMaxDiscountPercentage;
 import '../../../../shared/widgets/dialogs/copyable_info_bar.dart';
+import '../../../products/products.dart'
+    show ProductInfoDialog, SelectProductDialog;
+
 import 'package:theos_pos_core/theos_pos_core.dart' hide DatabaseHelper;
+
 import '../../providers/providers.dart';
 import '../../widgets/editable_cell_type.dart';
-import 'edit_dialogs.dart';
+import 'select_uom_dialog.dart';
 
 /// States where the sale order cannot be modified (Odoo 19 compatible)
 /// These states mean the order is locked for editing

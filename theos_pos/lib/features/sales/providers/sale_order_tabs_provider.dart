@@ -1,4 +1,5 @@
 import 'dart:typed_data';
+
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
 part 'sale_order_tabs_provider.g.dart';
@@ -188,31 +189,23 @@ class SaleOrderTabsState {
   /// Índice de la pestaña activa
   final int currentIndex;
 
-  const SaleOrderTabsState({
-    required this.tabs,
-    required this.currentIndex,
-  });
+  const SaleOrderTabsState({required this.tabs, required this.currentIndex});
 
   /// Estado inicial con solo el listado
   factory SaleOrderTabsState.initial() {
-    return SaleOrderTabsState(
-      tabs: [SaleOrderTab.list()],
-      currentIndex: 0,
-    );
+    return SaleOrderTabsState(tabs: [SaleOrderTab.list()], currentIndex: 0);
   }
 
   /// Pestaña actualmente seleccionada
   SaleOrderTab? get currentTab =>
       currentIndex >= 0 && currentIndex < tabs.length
-          ? tabs[currentIndex]
-          : null;
+      ? tabs[currentIndex]
+      : null;
 
   /// Verificar si una orden ya está abierta en alguna pestaña
   SaleOrderTab? findTabByOrderId(int orderId) {
     try {
-      return tabs.firstWhere(
-        (tab) => tab.orderId == orderId,
-      );
+      return tabs.firstWhere((tab) => tab.orderId == orderId);
     } catch (_) {
       return null;
     }
@@ -221,10 +214,7 @@ class SaleOrderTabsState {
   /// Verificar si hay pestañas con cambios sin guardar
   bool get hasUnsavedChanges => tabs.any((tab) => tab.hasUnsavedChanges);
 
-  SaleOrderTabsState copyWith({
-    List<SaleOrderTab>? tabs,
-    int? currentIndex,
-  }) {
+  SaleOrderTabsState copyWith({List<SaleOrderTab>? tabs, int? currentIndex}) {
     return SaleOrderTabsState(
       tabs: tabs ?? this.tabs,
       currentIndex: currentIndex ?? this.currentIndex,
@@ -265,20 +255,14 @@ class SaleOrderTabs extends _$SaleOrderTabs {
         : SaleOrderTab.view(orderId, orderName);
 
     final newTabs = [...state.tabs, newTab];
-    state = state.copyWith(
-      tabs: newTabs,
-      currentIndex: newTabs.length - 1,
-    );
+    state = state.copyWith(tabs: newTabs, currentIndex: newTabs.length - 1);
   }
 
   /// Abrir pestaña para nueva orden
   void openNewOrder() {
     final newTab = SaleOrderTab.newOrder();
     final newTabs = [...state.tabs, newTab];
-    state = state.copyWith(
-      tabs: newTabs,
-      currentIndex: newTabs.length - 1,
-    );
+    state = state.copyWith(tabs: newTabs, currentIndex: newTabs.length - 1);
   }
 
   /// Abrir pestaña de vista previa de PDF (con datos listos)
@@ -295,10 +279,7 @@ class SaleOrderTabs extends _$SaleOrderTabs {
       filename: filename,
     );
     final newTabs = [...state.tabs, newTab];
-    state = state.copyWith(
-      tabs: newTabs,
-      currentIndex: newTabs.length - 1,
-    );
+    state = state.copyWith(tabs: newTabs, currentIndex: newTabs.length - 1);
   }
 
   /// Abrir pestaña de vista previa de PDF en estado de carga
@@ -314,10 +295,7 @@ class SaleOrderTabs extends _$SaleOrderTabs {
       filename: filename,
     );
     final newTabs = [...state.tabs, newTab];
-    state = state.copyWith(
-      tabs: newTabs,
-      currentIndex: newTabs.length - 1,
-    );
+    state = state.copyWith(tabs: newTabs, currentIndex: newTabs.length - 1);
     return newTab.tabId;
   }
 
@@ -478,4 +456,3 @@ class SaleOrderTabs extends _$SaleOrderTabs {
     state = state.copyWith(tabs: updatedTabs);
   }
 }
-

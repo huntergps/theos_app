@@ -112,6 +112,10 @@ extension SyncNotifications on BuildContext {
 
   /// Muestra una notificación de error
   void showSyncError(String message) {
-    CopyableInfoBar.showError(this, title: 'Error de sincronización', message: message);
+    CopyableInfoBar.showError(
+      this,
+      title: 'Error de sincronización',
+      message: message,
+    );
   }
 }

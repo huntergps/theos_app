@@ -76,8 +76,7 @@ extension FastSaleNotifierKeypad on FastSaleNotifier {
       case KeypadInputMode.price:
         // Price editing is disabled in POS - prices come from Odoo pricelists
         state = state.copyWith(
-          error:
-              'El precio no se puede modificar desde el POS. Use las listas de precios de Odoo.',
+          error: 'El precio no se puede modificar desde el POS. Use las listas de precios de Odoo.',
           inputMode: KeypadInputMode.quantity,
         );
         break;

@@ -1,6 +1,7 @@
 import 'package:fluent_ui/fluent_ui.dart';
 
 import 'payment_detail_row.dart';
+
 import 'package:theos_pos_core/theos_pos_core.dart';
 
 /// Tabla de detalle de cobros

@@ -2,15 +2,15 @@ import 'package:dio/dio.dart' show CancelToken;
 
 import 'client/odoo_http_client.dart';
 import 'client/odoo_crud_api.dart';
+import 'client/json2_transport.dart';
+import 'client/odoo_transport.dart';
+import 'odoo_exception.dart';
 import 'odoo_version.dart';
-import 'session/odoo_session_manager.dart';
-import 'auth/odoo_auth_strategy.dart';
 
 /// Unified Odoo client for JSON-2 API (Odoo 19.0+).
 ///
 /// This is the **main entry point** for all Odoo operations, providing:
 /// - **CRUD operations** via [crud] or convenience methods
-/// - **Session management** via [session]
 /// - **HTTP client access** via [http] (for advanced use cases)
 ///
 /// ## Basic Usage
@@ -95,20 +95,6 @@ import 'auth/odoo_auth_strategy.dart';
 /// );
 /// ```
 ///
-/// ## Session Management
-///
-/// For WebSocket connections and browser session:
-///
-/// ```dart
-/// // Authenticate for WebSocket
-/// final session = await client.authenticateSession();
-/// print('User ID: ${session?.uid}');
-///
-/// // Get session info
-/// final info = await client.getSessionInfo();
-/// print('Company: ${info?['company_id']}');
-/// ```
-///
 /// ## Configuration Options
 ///
 /// ```dart
@@ -150,31 +136,28 @@ import 'auth/odoo_auth_strategy.dart';
 class OdooClient {
   final OdooHttpClient _httpClient;
   final OdooCrudApi _crudApi;
-  final OdooSessionManager _sessionManager;
+  late final OdooTransport _transport = Json2Transport(crudApi: _crudApi);
   OdooVersion _version = OdooVersion.unknown;
+  int _credentialsGeneration = 0;
+
+  /// Field metadata discovered from the current server/database.
+  ///
+  /// Values are futures so concurrent callers for one model share a single
+  /// read-only request. Failed requests are removed by [getModelFields] and
+  /// are therefore never cached.
+  final Map<String, Future<Map<String, dynamic>>> _modelFieldsCache = {};
 
   OdooClient._({
     required OdooHttpClient httpClient,
     required OdooCrudApi crudApi,
-    required OdooSessionManager sessionManager,
   }) : _httpClient = httpClient,
-       _crudApi = crudApi,
-       _sessionManager = sessionManager;
+       _crudApi = crudApi;
 
   /// Create a new OdooClient with the given configuration
   factory OdooClient({required OdooClientConfig config}) {
     final httpClient = OdooHttpClient(config: config);
     final crudApi = OdooCrudApi(httpClient: httpClient);
-    final sessionManager = OdooSessionManager(
-      httpClient: httpClient,
-      crudApi: crudApi,
-    );
-
-    return OdooClient._(
-      httpClient: httpClient,
-      crudApi: crudApi,
-      sessionManager: sessionManager,
-    );
+    return OdooClient._(httpClient: httpClient, crudApi: crudApi);
   }
 
   /// Low-level HTTP client (for advanced use cases)
@@ -183,8 +166,11 @@ class OdooClient {
   /// CRUD operations (search_read, read, write, create, unlink)
   OdooCrudApi get crud => _crudApi;
 
-  /// Session management (authentication, web session)
-  OdooSessionManager get session => _sessionManager;
+  /// Stable model-operation contract for feature code.
+  ///
+  /// This keeps JSON-2 URLs and HTTP implementation details inside the SDK.
+  /// Existing callers can continue using [crud] and the convenience methods.
+  OdooTransport get transport => _transport;
 
   /// The detected Odoo server version. Call [fetchVersion] first.
   OdooVersion get version => _version;
@@ -206,20 +192,22 @@ class OdooClient {
     int maxAttempts = 3,
     Duration retryDelay = const Duration(seconds: 1),
   }) async {
+    final generation = _credentialsGeneration;
     for (var attempt = 1; attempt <= maxAttempts; attempt++) {
       try {
         final result = await searchRead(
           model: 'ir.module.module',
           fields: ['latest_version'],
           domain: [
-            ['name', '=', 'base']
+            ['name', '=', 'base'],
           ],
           limit: 1,
         );
         if (result.isNotEmpty) {
-          final versionStr =
-              result.first['latest_version']?.toString() ?? '';
-          _version = OdooVersion.parse(versionStr);
+          final versionStr = result.first['latest_version']?.toString() ?? '';
+          if (generation == _credentialsGeneration) {
+            _version = OdooVersion.parse(versionStr);
+          }
         }
         return _version;
       } catch (_) {
@@ -249,6 +237,11 @@ class OdooClient {
     _httpClient.updateConfig(
       OdooClientConfig(baseUrl: baseUrl, apiKey: apiKey, database: database),
     );
+    // Version and field metadata belong to a server/database identity. Never
+    // let either leak across a credential switch.
+    _version = OdooVersion.unknown;
+    _credentialsGeneration++;
+    _modelFieldsCache.clear();
   }
 
   // ============================================================
@@ -258,6 +251,10 @@ class OdooClient {
   // ============================================================
 
   /// Generic Odoo method call.
+  ///
+  /// [ids] selects the recordset, [kwargs] contains the method's named
+  /// parameters, and [context] contains Odoo execution context. These are
+  /// separate parameters in the JSON-2 HTTP contract.
   ///
   /// Pass a [cancelToken] to allow cancelling long-running operations.
   Future<dynamic> call({
@@ -278,6 +275,7 @@ class OdooClient {
     )
     List<dynamic>? args,
     Map<String, dynamic>? kwargs,
+    Map<String, dynamic>? context,
     CancelToken? cancelToken,
   }) => _crudApi.call(
     model: model,
@@ -285,6 +283,7 @@ class OdooClient {
     ids: ids,
     args: args,
     kwargs: kwargs,
+    context: context,
     cancelToken: cancelToken,
   );
 
@@ -376,11 +375,7 @@ class OdooClient {
     required String model,
     required Map<String, dynamic> values,
     CancelToken? cancelToken,
-  }) => _crudApi.create(
-    model: model,
-    values: values,
-    cancelToken: cancelToken,
-  );
+  }) => _crudApi.create(model: model, values: values, cancelToken: cancelToken);
 
   /// Delete records.
   ///
@@ -389,11 +384,7 @@ class OdooClient {
     required String model,
     required List<int> ids,
     CancelToken? cancelToken,
-  }) => _crudApi.unlink(
-    model: model,
-    ids: ids,
-    cancelToken: cancelToken,
-  );
+  }) => _crudApi.unlink(model: model, ids: ids, cancelToken: cancelToken);
 
   /// Get field metadata.
   ///
@@ -410,24 +401,59 @@ class OdooClient {
     cancelToken: cancelToken,
   );
 
-  /// Create web session cookies
-  Future<void> createWebSession() => _sessionManager.createWebSession();
-
-  /// Authenticate for WebSocket
-  Future<OdooSessionResult?> authenticateSession({
-    String? login,
-    String? password,
-  }) => _sessionManager.authenticateSession(login: login, password: password);
-
-  /// Get session info from Odoo (cached)
+  /// Return all readable field metadata for [model], cached per client.
   ///
-  /// Returns uid, partner_id, company info, im_status_access_token, etc.
-  Future<Map<String, dynamic>?> getSessionInfo({bool forceRefresh = false}) =>
-      _sessionManager.getSessionInfo(forceRefresh: forceRefresh);
+  /// An empty map is a successful, complete response and means that no
+  /// fields were returned. Transport/Odoo errors are thrown and are not
+  /// cached, so callers can distinguish a failed probe from an absent field.
+  /// A model cache always represents the complete metadata discovery.
+  Future<Map<String, dynamic>> getModelFields(
+    String model, {
+    CancelToken? cancelToken,
+  }) {
+    final cached = _modelFieldsCache[model];
+    if (cached != null) return cached;
 
-  /// Call JSON-RPC endpoint
-  Future<dynamic> callJsonRpc({
-    required String endpoint,
-    Map<String, dynamic>? params,
-  }) => _sessionManager.callJsonRpc(endpoint: endpoint, params: params);
+    final rawRequest = _fetchModelFields(model, cancelToken: cancelToken);
+    late Future<Map<String, dynamic>> request;
+    request = () async {
+      try {
+        return await rawRequest;
+      } catch (_) {
+        _modelFieldsCache.remove(model);
+        rethrow;
+      }
+    }();
+    _modelFieldsCache[model] = request;
+    return request;
+  }
+
+  /// Whether [field] is present on [model].
+  ///
+  /// Returns `false` only after a successful metadata read proves absence;
+  /// failed discovery throws the underlying SDK exception.
+  Future<bool> hasField(String model, String field) async {
+    final fields = await getModelFields(model);
+    return fields.containsKey(field);
+  }
+
+  Future<Map<String, dynamic>> _fetchModelFields(
+    String model, {
+    CancelToken? cancelToken,
+  }) async {
+    final response = await _crudApi.call(
+      model: model,
+      method: 'fields_get',
+      kwargs: {
+        'attributes': ['type', 'string', 'selection', 'relation'],
+      },
+      cancelToken: cancelToken,
+    );
+    if (response is Map) return Map<String, dynamic>.from(response);
+    throw OdooException(
+      message: 'Invalid fields_get response for model $model',
+      model: model,
+      method: 'fields_get',
+    );
+  }
 }

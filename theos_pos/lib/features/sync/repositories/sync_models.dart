@@ -1,61 +1,26 @@
-/// Sync models - App adapter
-///
-/// Re-exports sync models from odoo_sdk and defines local data classes
-/// for single-record sync results.
+/// App-specific extensions for synchronization contracts.
 library;
 
-export 'package:odoo_sdk/odoo_sdk.dart'
-    show
-        SyncProgress,
-        SyncPhase,
-        SyncModelInfo,
-        SyncProgressCallback,
-        SyncCancelledException;
+import 'package:odoo_sdk/odoo_sdk.dart';
 
-/// Sync result for a single product.
-class ProductSyncData {
-  final String name;
-
-  const ProductSyncData({required this.name});
-}
-
-/// Sync result for a single partner.
-class PartnerSyncData {
-  final String name;
-  final String? vat;
-  final String? street;
-  final String? phone;
-  final String? email;
-  final String? avatar;
-
-  const PartnerSyncData({
-    required this.name,
-    this.vat,
-    this.street,
-    this.phone,
-    this.email,
-    this.avatar,
-  });
-}
-
-/// Sync result for a single UoM.
-class UomSyncData {
-  final String name;
-
-  const UomSyncData({required this.name});
-}
-
-/// Sync result for a single user.
-class UserSyncData {
-  final String name;
-  final String? email;
-
-  const UserSyncData({required this.name, this.email});
-}
-
-/// Sync result for a single company.
-class CompanySyncData {
-  final String name;
-
-  const CompanySyncData({required this.name});
+/// Converts the SDK's value-based sync result into the fail-fast contract
+/// required by the app watermark coordinator.
+///
+/// `GenericSyncRepository` deliberately reports transport/parser failures in
+/// [ModelSyncResult] instead of throwing. Catalog callers must not interpret a
+/// partial/error result as a completed subpass, otherwise the next watermark
+/// can skip the missing rows permanently.
+extension RequiredModelSyncResult on ModelSyncResult {
+  int requireSuccess() {
+    if (wasCancelled) {
+      throw SyncCancelledException(
+        'Sync of $model was cancelled',
+        syncedCount: synced,
+      );
+    }
+    if (error case final failure?) {
+      throw StateError('Sync of $model failed: $failure');
+    }
+    return synced;
+  }
 }

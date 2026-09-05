@@ -31,13 +31,7 @@ void main() {
   late CreditValidationUIService service;
 
   setUpAll(() {
-    registerFallbackValue(
-      const Client(
-        id: 0,
-        name: '',
-        active: true,
-      ),
-    );
+    registerFallbackValue(const Client(id: 0, name: '', active: true));
   });
 
   setUp(() {
@@ -118,38 +112,42 @@ void main() {
   // validateCredit() — bypass flag
   // ============================================================
   group('validateCredit() — bypass', () {
-    test('should return notRequired when bypassed and skipIfBypassed is true',
-        () async {
-      final result = await service.validateCredit(
-        clientId: 1,
-        orderAmount: 500.0,
-        isBypassed: true,
-        skipIfBypassed: true,
-      );
+    test(
+      'should return notRequired when bypassed and skipIfBypassed is true',
+      () async {
+        final result = await service.validateCredit(
+          clientId: 1,
+          orderAmount: 500.0,
+          isBypassed: true,
+          skipIfBypassed: true,
+        );
 
-      expect(result.requiresDialog, isFalse);
-      expect(result.canProceed, isTrue);
-      // Should not call any repo methods
-      verifyNever(() => mockClientRepo.getById(any()));
-    });
+        expect(result.requiresDialog, isFalse);
+        expect(result.canProceed, isTrue);
+        // Should not call any repo methods
+        verifyNever(() => mockClientRepo.getById(any()));
+      },
+    );
 
-    test('should NOT skip when isBypassed is true but skipIfBypassed is false',
-        () async {
-      // Need to set up mock since it will proceed with validation
-      when(() => mockClientRepo.getById(1)).thenAnswer((_) async => null);
+    test(
+      'should NOT skip when isBypassed is true but skipIfBypassed is false',
+      () async {
+        // Need to set up mock since it will proceed with validation
+        when(() => mockClientRepo.getById(1)).thenAnswer((_) async => null);
 
-      final result = await service.validateCredit(
-        clientId: 1,
-        orderAmount: 500.0,
-        isBypassed: true,
-        skipIfBypassed: false,
-      );
+        final result = await service.validateCredit(
+          clientId: 1,
+          orderAmount: 500.0,
+          isBypassed: true,
+          skipIfBypassed: false,
+        );
 
-      // It should proceed to look up the client
-      verify(() => mockClientRepo.getById(1)).called(1);
-      // Client not found -> notRequired
-      expect(result.canProceed, isTrue);
-    });
+        // It should proceed to look up the client
+        verify(() => mockClientRepo.getById(1)).called(1);
+        // Client not found -> notRequired
+        expect(result.canProceed, isTrue);
+      },
+    );
   });
 
   // ============================================================
@@ -172,18 +170,20 @@ void main() {
   // validateCredit() — client not found
   // ============================================================
   group('validateCredit() — client not found', () {
-    test('should return notRequired when client not found in local DB',
-        () async {
-      when(() => mockClientRepo.getById(99)).thenAnswer((_) async => null);
+    test(
+      'should return notRequired when client not found in local DB',
+      () async {
+        when(() => mockClientRepo.getById(99)).thenAnswer((_) async => null);
 
-      final result = await service.validateCredit(
-        clientId: 99,
-        orderAmount: 500.0,
-      );
+        final result = await service.validateCredit(
+          clientId: 99,
+          orderAmount: 500.0,
+        );
 
-      expect(result.requiresDialog, isFalse);
-      expect(result.canProceed, isTrue);
-    });
+        expect(result.requiresDialog, isFalse);
+        expect(result.canProceed, isTrue);
+      },
+    );
   });
 
   // ============================================================
@@ -207,12 +207,14 @@ void main() {
       expect(result.requiresDialog, isFalse);
       expect(result.canProceed, isTrue);
       // Should not call credit validation
-      verifyNever(() => mockCreditService.validateOrderCreditForClient(
-            client: any(named: 'client'),
-            orderAmount: any(named: 'orderAmount'),
-            isOnline: any(named: 'isOnline'),
-            bypassCheck: any(named: 'bypassCheck'),
-          ));
+      verifyNever(
+        () => mockCreditService.validateOrderCreditForClient(
+          client: any(named: 'client'),
+          orderAmount: any(named: 'orderAmount'),
+          isOnline: any(named: 'isOnline'),
+          bypassCheck: any(named: 'bypassCheck'),
+        ),
+      );
     });
   });
 
@@ -230,12 +232,14 @@ void main() {
       );
       when(() => mockClientRepo.getById(1)).thenAnswer((_) async => client);
       when(() => mockClientRepo.isOnline).thenReturn(false);
-      when(() => mockCreditService.validateOrderCreditForClient(
-            client: any(named: 'client'),
-            orderAmount: any(named: 'orderAmount'),
-            isOnline: any(named: 'isOnline'),
-            bypassCheck: any(named: 'bypassCheck'),
-          )).thenAnswer((_) async => CreditValidationResult.ok());
+      when(
+        () => mockCreditService.validateOrderCreditForClient(
+          client: any(named: 'client'),
+          orderAmount: any(named: 'orderAmount'),
+          isOnline: any(named: 'isOnline'),
+          bypassCheck: any(named: 'bypassCheck'),
+        ),
+      ).thenAnswer((_) async => CreditValidationResult.ok());
 
       final result = await service.validateCredit(
         clientId: 1,
@@ -266,12 +270,14 @@ void main() {
       );
       when(() => mockClientRepo.getById(1)).thenAnswer((_) async => client);
       when(() => mockClientRepo.isOnline).thenReturn(false);
-      when(() => mockCreditService.validateOrderCreditForClient(
-            client: any(named: 'client'),
-            orderAmount: any(named: 'orderAmount'),
-            isOnline: any(named: 'isOnline'),
-            bypassCheck: any(named: 'bypassCheck'),
-          )).thenAnswer((_) async => failResult);
+      when(
+        () => mockCreditService.validateOrderCreditForClient(
+          client: any(named: 'client'),
+          orderAmount: any(named: 'orderAmount'),
+          isOnline: any(named: 'isOnline'),
+          bypassCheck: any(named: 'bypassCheck'),
+        ),
+      ).thenAnswer((_) async => failResult);
 
       final result = await service.validateCredit(
         clientId: 1,
@@ -312,12 +318,14 @@ void main() {
       when(() => mockClientRepo.isOnline).thenReturn(true);
       when(() => mockClientRepo.refreshCreditData(1))
           .thenAnswer((_) async => freshClient);
-      when(() => mockCreditService.validateOrderCreditForClient(
-            client: any(named: 'client'),
-            orderAmount: any(named: 'orderAmount'),
-            isOnline: any(named: 'isOnline'),
-            bypassCheck: any(named: 'bypassCheck'),
-          )).thenAnswer((_) async => CreditValidationResult.ok());
+      when(
+        () => mockCreditService.validateOrderCreditForClient(
+          client: any(named: 'client'),
+          orderAmount: any(named: 'orderAmount'),
+          isOnline: any(named: 'isOnline'),
+          bypassCheck: any(named: 'bypassCheck'),
+        ),
+      ).thenAnswer((_) async => CreditValidationResult.ok());
 
       final result = await service.validateCredit(
         clientId: 1,
@@ -341,12 +349,14 @@ void main() {
       when(() => mockClientRepo.isOnline).thenReturn(true);
       when(() => mockClientRepo.refreshCreditData(1))
           .thenThrow(Exception('Network error'));
-      when(() => mockCreditService.validateOrderCreditForClient(
-            client: any(named: 'client'),
-            orderAmount: any(named: 'orderAmount'),
-            isOnline: any(named: 'isOnline'),
-            bypassCheck: any(named: 'bypassCheck'),
-          )).thenAnswer((_) async => CreditValidationResult.ok());
+      when(
+        () => mockCreditService.validateOrderCreditForClient(
+          client: any(named: 'client'),
+          orderAmount: any(named: 'orderAmount'),
+          isOnline: any(named: 'isOnline'),
+          bypassCheck: any(named: 'bypassCheck'),
+        ),
+      ).thenAnswer((_) async => CreditValidationResult.ok());
 
       final result = await service.validateCredit(
         clientId: 1,
@@ -386,12 +396,14 @@ void main() {
       );
       when(() => mockClientRepo.getById(1)).thenAnswer((_) async => client);
       when(() => mockClientRepo.isOnline).thenReturn(false);
-      when(() => mockCreditService.validateOrderCreditForClient(
-            client: any(named: 'client'),
-            orderAmount: any(named: 'orderAmount'),
-            isOnline: any(named: 'isOnline'),
-            bypassCheck: any(named: 'bypassCheck'),
-          )).thenThrow(Exception('Credit service failure'));
+      when(
+        () => mockCreditService.validateOrderCreditForClient(
+          client: any(named: 'client'),
+          orderAmount: any(named: 'orderAmount'),
+          isOnline: any(named: 'isOnline'),
+          bypassCheck: any(named: 'bypassCheck'),
+        ),
+      ).thenThrow(Exception('Credit service failure'));
 
       final result = await service.validateCredit(
         clientId: 1,
@@ -417,24 +429,25 @@ void main() {
       );
       when(() => mockClientRepo.getById(1)).thenAnswer((_) async => client);
       when(() => mockClientRepo.isOnline).thenReturn(false);
-      when(() => mockCreditService.validateOrderCreditForClient(
-            client: any(named: 'client'),
-            orderAmount: any(named: 'orderAmount'),
-            isOnline: any(named: 'isOnline'),
-            bypassCheck: any(named: 'bypassCheck'),
-          )).thenAnswer((_) async => CreditValidationResult.ok());
+      when(
+        () => mockCreditService.validateOrderCreditForClient(
+          client: any(named: 'client'),
+          orderAmount: any(named: 'orderAmount'),
+          isOnline: any(named: 'isOnline'),
+          bypassCheck: any(named: 'bypassCheck'),
+        ),
+      ).thenAnswer((_) async => CreditValidationResult.ok());
 
-      await service.validateCredit(
-        clientId: 1,
-        orderAmount: 500.0,
-      );
+      await service.validateCredit(clientId: 1, orderAmount: 500.0);
 
-      verify(() => mockCreditService.validateOrderCreditForClient(
-            client: client,
-            orderAmount: 500.0,
-            isOnline: false,
-            bypassCheck: false,
-          )).called(1);
+      verify(
+        () => mockCreditService.validateOrderCreditForClient(
+          client: client,
+          orderAmount: 500.0,
+          isOnline: false,
+          bypassCheck: false,
+        ),
+      ).called(1);
     });
 
     test('should pass correct isOnline value to credit service', () async {
@@ -451,24 +464,25 @@ void main() {
       when(() => mockClientRepo.isOnline).thenReturn(true);
       when(() => mockClientRepo.refreshCreditData(1))
           .thenAnswer((_) async => client);
-      when(() => mockCreditService.validateOrderCreditForClient(
-            client: any(named: 'client'),
-            orderAmount: any(named: 'orderAmount'),
-            isOnline: any(named: 'isOnline'),
-            bypassCheck: any(named: 'bypassCheck'),
-          )).thenAnswer((_) async => CreditValidationResult.ok());
+      when(
+        () => mockCreditService.validateOrderCreditForClient(
+          client: any(named: 'client'),
+          orderAmount: any(named: 'orderAmount'),
+          isOnline: any(named: 'isOnline'),
+          bypassCheck: any(named: 'bypassCheck'),
+        ),
+      ).thenAnswer((_) async => CreditValidationResult.ok());
 
-      await service.validateCredit(
-        clientId: 1,
-        orderAmount: 100.0,
-      );
+      await service.validateCredit(clientId: 1, orderAmount: 100.0);
 
-      verify(() => mockCreditService.validateOrderCreditForClient(
-            client: any(named: 'client'),
-            orderAmount: 100.0,
-            isOnline: true,
-            bypassCheck: false,
-          )).called(1);
+      verify(
+        () => mockCreditService.validateOrderCreditForClient(
+          client: any(named: 'client'),
+          orderAmount: 100.0,
+          isOnline: true,
+          bypassCheck: false,
+        ),
+      ).called(1);
     });
   });
 

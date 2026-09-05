@@ -1,13 +1,14 @@
 import 'package:fluent_ui/fluent_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
+import 'package:odoo_sdk/odoo_sdk.dart' show OdooException;
 import 'package:theos_pos_core/theos_pos_core.dart'
     show Advance, AdvanceState, AdvanceLine;
 
 import '../../../core/constants/app_colors.dart';
-import '../../../core/services/logger_service.dart';
 import '../../../core/theme/spacing.dart';
 import '../../../shared/utils/formatting_utils.dart';
+import '../../../shared/utils/error_utils.dart';
 import '../../../shared/widgets/dialogs/confirm_action_dialog.dart';
 import '../../../shared/widgets/dialogs/copyable_info_bar.dart';
 import '../providers/advance_providers.dart';
@@ -27,12 +28,11 @@ import '../providers/advance_providers.dart';
 /// Odoo por sí solo — perderíamos el "self-healing" cuando el anticipo aún
 /// no está cacheado localmente. Mismo patrón de decisión que
 /// `localOrderDefaultsProvider` (no tocar, documentar el motivo).
-final advanceDetailProvider = FutureProvider.family<Advance?, int>((
+final advanceDetailProvider = FutureProvider.autoDispose.family<Advance?, int>((
   ref,
   advanceId,
 ) async {
   final advanceService = ref.watch(advanceServiceProvider);
-  if (advanceService == null) return null;
   return advanceService.getAdvance(advanceId);
 });
 
@@ -632,18 +632,6 @@ class AdvanceDetailDialog extends ConsumerWidget {
               children: [
                 if (advance.amountAvailable > 0)
                   Button(
-                    onPressed: () => _markAsUsed(context, advance, ref),
-                    child: const Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(FluentIcons.completed, size: 14),
-                        SizedBox(width: 4),
-                        Text('Marcar como Usado'),
-                      ],
-                    ),
-                  ),
-                if (advance.amountAvailable > 0)
-                  Button(
                     onPressed: () => _returnAdvance(context, advance, ref),
                     child: const Row(
                       mainAxisSize: MainAxisSize.min,
@@ -659,9 +647,16 @@ class AdvanceDetailDialog extends ConsumerWidget {
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      Icon(FluentIcons.cancel, size: 14, color: AppColors.danger),
+                      Icon(
+                        FluentIcons.cancel,
+                        size: 14,
+                        color: AppColors.danger,
+                      ),
                       const SizedBox(width: 4),
-                      Text('Cancelar', style: TextStyle(color: AppColors.danger)),
+                      Text(
+                        'Cancelar',
+                        style: TextStyle(color: AppColors.danger),
+                      ),
                     ],
                   ),
                 ),
@@ -671,28 +666,6 @@ class AdvanceDetailDialog extends ConsumerWidget {
         ),
       ),
     );
-  }
-
-  Future<void> _markAsUsed(
-    BuildContext context,
-    Advance advance,
-    WidgetRef ref,
-  ) async {
-    final confirm = await ConfirmActionDialog.show(
-      context,
-      title: 'Marcar como Usado',
-      message:
-          '¿Está seguro de marcar el anticipo ${advance.name} como totalmente usado?\n\n'
-          'Saldo disponible: ${advance.amountAvailable.toCurrency()}',
-      confirmText: 'Confirmar',
-      icon: FluentIcons.completed,
-    );
-
-    if (confirm) {
-      // TODO: Implementar llamada a Odoo action_mark_as_used
-      logger.i('[AdvanceDetail]', 'Mark as used: ${advance.id}');
-      ref.invalidate(advanceDetailProvider(advanceId));
-    }
   }
 
   Future<void> _returnAdvance(
@@ -716,7 +689,9 @@ class AdvanceDetailDialog extends ConsumerWidget {
             decoration: BoxDecoration(
               color: AppColors.warning.withValues(alpha: 0.1),
               borderRadius: BorderRadius.circular(8),
-              border: Border.all(color: AppColors.warning.withValues(alpha: 0.3)),
+              border: Border.all(
+                color: AppColors.warning.withValues(alpha: 0.3),
+              ),
             ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -763,10 +738,9 @@ class AdvanceDetailDialog extends ConsumerWidget {
     if (confirm) {
       try {
         final advanceService = ref.read(advanceServiceProvider);
-        if (advanceService == null) return;
-        final success = await advanceService.returnAdvance(advance.id);
+        final result = await advanceService.returnAdvance(advance.id);
 
-        if (success && context.mounted) {
+        if (result.completed && context.mounted) {
           CopyableInfoBar.showSuccess(
             context,
             title: 'Anticipo devuelto',
@@ -774,13 +748,20 @@ class AdvanceDetailDialog extends ConsumerWidget {
                 'Se devolvió ${advance.amountAvailable.toCurrency()} del anticipo ${advance.name} al cliente.',
           );
           ref.invalidate(advanceDetailProvider(advanceId));
+        } else if (result.requiresApproval && context.mounted) {
+          CopyableInfoBar.showWarning(
+            context,
+            title: 'Devolución pendiente de aprobación',
+            message:
+                'Se creó el pago ${result.paymentId}, pero el dinero aún no ha salido y el anticipo conserva su saldo.',
+          );
         }
       } catch (e) {
         if (context.mounted) {
           CopyableInfoBar.showError(
             context,
             title: 'Error al devolver anticipo',
-            message: 'No se pudo devolver el anticipo: $e',
+            message: e is OdooException ? e.message : friendlyErrorMessage(e),
           );
         }
       }
@@ -807,7 +788,6 @@ class AdvanceDetailDialog extends ConsumerWidget {
     if (confirm) {
       try {
         final advanceService = ref.read(advanceServiceProvider);
-        if (advanceService == null) return;
         final success = await advanceService.cancelAdvance(advance.id);
 
         if (success && context.mounted) {

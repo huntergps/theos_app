@@ -2,12 +2,13 @@ import 'package:fluent_ui/fluent_ui.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../../../core/constants/app_constants.dart';
+import '../../../../core/adaptive/adaptive_layout_policy.dart';
 import '../../../../core/services/platform/server_connectivity_service.dart';
 import '../../../../core/theme/spacing.dart';
 import '../../../../shared/widgets/common/theos_info_bars.dart';
 import '../../../../shared/widgets/dialogs/copyable_info_bar.dart';
 import '../../utils/keyboard_shortcuts.dart';
+import '../../providers/sale_order_tabs_provider.dart';
 import 'fast_sale_providers.dart';
 import 'widgets/barcode_listener_widget.dart';
 import 'widgets/confirm_order_handler.dart' show confirmOrderWithCreditCheck;
@@ -79,7 +80,10 @@ class _FastSaleScreenState extends ConsumerState<FastSaleScreen> {
     final isSearchMode = inputMode == KeypadInputMode.search;
 
     // Use the keyboard shortcuts helper
-    final action = POSKeyboardShortcuts.getAction(event, isSearchMode: isSearchMode);
+    final action = POSKeyboardShortcuts.getAction(
+      event,
+      isSearchMode: isSearchMode,
+    );
 
     if (action == null) {
       // Check for F1 (help) separately
@@ -139,12 +143,26 @@ class _FastSaleScreenState extends ConsumerState<FastSaleScreen> {
         return KeyEventResult.handled;
 
       case POSShortcutAction.printReceipt:
-        // TODO: Wire print receipt when print service is available
-        CopyableInfoBar.showInfo(
-          context,
-          title: 'Impresión no disponible',
-          message: 'La impresión aún no está disponible.',
-        );
+        final activeTab = ref.read(fastSaleActiveTabProvider);
+        if (activeTab == null || activeTab.orderId <= 0) {
+          CopyableInfoBar.showInfo(
+            context,
+            title: 'Guarda la orden primero',
+            message: 'Confirma o guarda la orden antes de imprimir el recibo.',
+          );
+        } else {
+          // Reuse the established sale-order tab and its PDF/print pipeline.
+          // This keeps report rendering in one place and avoids generating a
+          // different receipt from the fast-sale shortcut.
+          ref
+              .read(saleOrderTabsProvider.notifier)
+              .openOrder(activeTab.orderId, activeTab.orderName);
+          CopyableInfoBar.showInfo(
+            context,
+            title: 'Orden lista para imprimir',
+            message: 'Usa el botón Imprimir en la pestaña de la orden.',
+          );
+        }
         return KeyEventResult.handled;
 
       case POSShortcutAction.cancel:
@@ -176,9 +194,7 @@ class _FastSaleScreenState extends ConsumerState<FastSaleScreen> {
         if (activeTab != null && activeTab.selectedLineIndex >= 0) {
           final deletedLine = activeTab.lines[activeTab.selectedLineIndex];
           notifier.deleteLine(activeTab.selectedLineIndex);
-          _showUndoDeleteInfoBar(
-            deletedLine.productName ?? deletedLine.name,
-          );
+          _showUndoDeleteInfoBar(deletedLine.productName ?? deletedLine.name);
         }
         return KeyEventResult.handled;
 
@@ -208,21 +224,24 @@ class _FastSaleScreenState extends ConsumerState<FastSaleScreen> {
   @override
   Widget build(BuildContext context) {
     final theme = FluentTheme.of(context);
-    final screenWidth = MediaQuery.of(context).size.width;
 
     // Watch loading state
     final isLoading = ref.watch(fastSaleProvider.select((s) => s.isLoading));
 
     // Show errors
-    ref.listen<String?>(
-      fastSaleProvider.select((s) => s.error),
-      (previous, next) {
-        if (next != null && next.isNotEmpty && mounted) {
-          CopyableInfoBar.showError(context, title: 'Error en punto de venta', message: next);
-          ref.read(fastSaleProvider.notifier).clearError();
-        }
-      },
-    );
+    ref.listen<String?>(fastSaleProvider.select((s) => s.error), (
+      previous,
+      next,
+    ) {
+      if (next != null && next.isNotEmpty && mounted) {
+        CopyableInfoBar.showError(
+          context,
+          title: 'Error en punto de venta',
+          message: next,
+        );
+        ref.read(fastSaleProvider.notifier).clearError();
+      }
+    });
 
     if (isLoading) {
       return ScaffoldPage(
@@ -232,13 +251,17 @@ class _FastSaleScreenState extends ConsumerState<FastSaleScreen> {
     }
 
     // Check if there are no orders (empty state)
-    final hasTabs = ref.watch(fastSaleProvider.select((s) => s.tabs.isNotEmpty));
+    final hasTabs = ref.watch(
+      fastSaleProvider.select((s) => s.tabs.isNotEmpty),
+    );
     final totalOrdersCount = ref.watch(
       fastSaleProvider.select((s) => s.totalOrdersCount),
     );
 
     // Session guard: relevant only to users with collection permissions
-    final hasCollectionPermissions = ref.watch(hasCollectionPermissionsProvider);
+    final hasCollectionPermissions = ref.watch(
+      hasCollectionPermissionsProvider,
+    );
     // hasActiveSession se valida en pos_actions_panel al intentar cobrar
 
     if (!hasTabs) {
@@ -254,10 +277,7 @@ class _FastSaleScreenState extends ConsumerState<FastSaleScreen> {
                 color: theme.inactiveColor,
               ),
               const SizedBox(height: Spacing.md),
-              Text(
-                'No hay órdenes de venta',
-                style: theme.typography.subtitle,
-              ),
+              Text('No hay órdenes de venta', style: theme.typography.subtitle),
               const SizedBox(height: Spacing.xs),
               Text(
                 'Crea una nueva orden o busca una existente',
@@ -306,21 +326,16 @@ class _FastSaleScreenState extends ConsumerState<FastSaleScreen> {
       );
     }
 
-    // Responsive layout
-    final isDesktop = screenWidth >= ScreenBreakpoints.tabletMaxWidth;
-    final isTablet = screenWidth >= ScreenBreakpoints.mobileMaxWidth &&
-        screenWidth < ScreenBreakpoints.tabletMaxWidth;
-
     // Check server connectivity for offline indicator
     final isServerOnline = ref.watch(isServerOnlineProvider);
 
-    // Mostrar FAB táctil solo en tablet/móvil sin teclado físico
-    final hasPhysicalKeyboard = ref.watch(hasPhysicalKeyboardProvider);
-    final showTouchFab = !isDesktop && !hasPhysicalKeyboard;
+    // Las capacidades son explícitas y pueden coexistir. En particular, un
+    // teclado conectado no elimina los controles táctiles de un iPad/tablet.
+    final inputCapabilities = ref.watch(fastSaleInputCapabilitiesProvider);
 
     return Focus(
       focusNode: _focusNode,
-      onKeyEvent: _handleKeyEvent,
+      onKeyEvent: inputCapabilities.hardwareKeyboard ? _handleKeyEvent : null,
       autofocus: true,
       // BarcodeListenerWidget detecta secuencias de lectores HID (USB/Bluetooth)
       // y las procesa automáticamente sin interferir con atajos F1-F12 ni TextBoxes.
@@ -336,27 +351,31 @@ class _FastSaleScreenState extends ConsumerState<FastSaleScreen> {
               if (!isServerOnline)
                 TheosInfoBars.warning(
                   title: 'Sin conexión al servidor — puedes seguir vendiendo',
-                  message: 'Las ventas se guardan localmente y se sincronizarán '
+                  message:
+                      'Las ventas se guardan localmente y se sincronizarán '
                       'con Odoo al recuperar la conexión.',
                 ),
 
               // Main content area — envuelto en Stack para el FAB táctil
               Expanded(
-                child: showTouchFab
-                    ? Stack(
-                        children: [
-                          isTablet
-                              ? _buildTabletLayout(theme, hasCollectionPermissions)
-                              : _buildMobileLayout(theme, hasCollectionPermissions),
-                          // FAB táctil flotante sobre el contenido
-                          const TouchActionsFab(),
-                        ],
-                      )
-                    : isDesktop
-                        ? _buildDesktopLayout(theme, hasCollectionPermissions)
-                        : isTablet
-                            ? _buildTabletLayout(theme, hasCollectionPermissions)
-                            : _buildMobileLayout(theme, hasCollectionPermissions),
+                child: FastSaleAdaptiveLayout(
+                  inputCapabilities: inputCapabilities,
+                  showActions: hasCollectionPermissions,
+                  orderLinesPanel: const POSOrderLinesPanel(),
+                  customerKeypadPanel: const POSCustomerKeypadPanel(),
+                  compactCustomerPanel: const POSCustomerKeypadPanel(
+                    isCompact: true,
+                  ),
+                  actionsPanel: const POSActionsPanel(),
+                  horizontalActionsPanel: const POSActionsPanel(
+                    isHorizontal: true,
+                  ),
+                  compactActionsPanel: const POSActionsPanel(
+                    isHorizontal: true,
+                    isCompact: true,
+                  ),
+                  touchActions: const TouchActionsFab(),
+                ),
               ),
             ],
           ),
@@ -364,58 +383,117 @@ class _FastSaleScreenState extends ConsumerState<FastSaleScreen> {
       ), // cierra BarcodeListenerWidget
     );
   }
+}
 
-  /// Desktop layout: 3 columns side by side
-  Widget _buildDesktopLayout(FluentThemeData theme, bool hasCollectionPermissions) {
+/// Layout presentacional de Venta Rápida, aislado de sus providers de dominio.
+///
+/// Decide por el ancho que realmente recibe mediante [LayoutBuilder]. Los
+/// widgets hijos conservan la propiedad de su estado; esta capa solo los
+/// distribuye en una, dos o tres columnas.
+class FastSaleAdaptiveLayout extends StatelessWidget {
+  const FastSaleAdaptiveLayout({
+    super.key,
+    required this.inputCapabilities,
+    required this.showActions,
+    required this.orderLinesPanel,
+    required this.customerKeypadPanel,
+    required this.compactCustomerPanel,
+    required this.actionsPanel,
+    required this.horizontalActionsPanel,
+    required this.compactActionsPanel,
+    required this.touchActions,
+  });
+
+  static const compactKey = Key('fast-sale-layout-compact');
+  static const mediumKey = Key('fast-sale-layout-medium');
+  static const expandedKey = Key('fast-sale-layout-expanded');
+  static const touchActionsKey = Key('fast-sale-touch-actions');
+
+  final AdaptiveInputCapabilities inputCapabilities;
+  final bool showActions;
+  final Widget orderLinesPanel;
+  final Widget customerKeypadPanel;
+  final Widget compactCustomerPanel;
+  final Widget actionsPanel;
+  final Widget horizontalActionsPanel;
+  final Widget compactActionsPanel;
+  final Widget touchActions;
+
+  @override
+  Widget build(BuildContext context) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final mediaSize = MediaQuery.sizeOf(context);
+        final width = constraints.maxWidth.isFinite
+            ? constraints.maxWidth
+            : mediaSize.width;
+        final height = constraints.maxHeight.isFinite
+            ? constraints.maxHeight
+            : mediaSize.height;
+        final environment = AdaptiveEnvironment(
+          width: width,
+          height: height,
+          inputs: inputCapabilities,
+        );
+        final policy = AdaptiveUiPolicy(environment);
+
+        final layout = switch (environment.sizeClass) {
+          AdaptiveSizeClass.compact => _buildCompactLayout(context),
+          AdaptiveSizeClass.medium => _buildMediumLayout(context),
+          AdaptiveSizeClass.expanded => _buildExpandedLayout(context),
+        };
+
+        if (!inputCapabilities.touch || policy.usesSplitView) {
+          return layout;
+        }
+
+        return Stack(
+          children: [
+            Positioned.fill(child: layout),
+            KeyedSubtree(key: touchActionsKey, child: touchActions),
+          ],
+        );
+      },
+    );
+  }
+
+  /// Expanded layout: 3 columns side by side.
+  Widget _buildExpandedLayout(BuildContext context) {
+    final theme = FluentTheme.of(context);
     return Row(
+      key: expandedKey,
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         // Left column: Order lines (~55%)
-        const Expanded(
-          flex: 55,
-          child: POSOrderLinesPanel(),
-        ),
+        Expanded(flex: 55, child: orderLinesPanel),
 
         // Divider
-        Container(
-          width: 1,
-          color: theme.resources.dividerStrokeColorDefault,
-        ),
+        Container(width: 1, color: theme.resources.dividerStrokeColorDefault),
 
         // Center column: Customer + Keypad (~35%)
-        const Expanded(
-          flex: 35,
-          child: POSCustomerKeypadPanel(),
-        ),
+        Expanded(flex: 35, child: customerKeypadPanel),
 
         // Right column: Actions (~140px) - only for collection users
-        if (hasCollectionPermissions) ...[
-          Container(
-            width: 1,
-            color: theme.resources.dividerStrokeColorDefault,
-          ),
-          const SizedBox(
-            width: 140,
-            child: POSActionsPanel(),
-          ),
+        if (showActions) ...[
+          Container(width: 1, color: theme.resources.dividerStrokeColorDefault),
+          SizedBox(width: 140, child: actionsPanel),
         ],
       ],
     );
   }
 
-  /// Tablet layout: 2 columns with actions as bottom bar
-  Widget _buildTabletLayout(FluentThemeData theme, bool hasCollectionPermissions) {
+  /// Medium layout: 2 columns with actions as bottom bar.
+  Widget _buildMediumLayout(BuildContext context) {
+    final theme = FluentTheme.of(context);
     return Column(
+      key: mediumKey,
       children: [
         Expanded(
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               // Left: Order lines
-              const Expanded(
-                flex: 55,
-                child: POSOrderLinesPanel(),
-              ),
+              Expanded(flex: 55, child: orderLinesPanel),
 
               // Divider
               Container(
@@ -424,16 +502,13 @@ class _FastSaleScreenState extends ConsumerState<FastSaleScreen> {
               ),
 
               // Right: Customer + Keypad
-              const Expanded(
-                flex: 45,
-                child: POSCustomerKeypadPanel(),
-              ),
+              Expanded(flex: 45, child: customerKeypadPanel),
             ],
           ),
         ),
 
         // Bottom: Actions bar - only for collection users
-        if (hasCollectionPermissions)
+        if (showActions)
           Container(
             decoration: BoxDecoration(
               border: Border(
@@ -442,41 +517,33 @@ class _FastSaleScreenState extends ConsumerState<FastSaleScreen> {
                 ),
               ),
             ),
-            child: const POSActionsPanel(isHorizontal: true),
+            child: horizontalActionsPanel,
           ),
       ],
     );
   }
 
-  /// Mobile layout: Stacked with tabs
-  Widget _buildMobileLayout(FluentThemeData theme, bool hasCollectionPermissions) {
-    // For mobile, we use a different approach with a bottom sheet or tabs
+  /// Compact layout: one content column with contextual controls stacked.
+  Widget _buildCompactLayout(BuildContext context) {
+    final theme = FluentTheme.of(context);
     return Column(
+      key: compactKey,
       children: [
         // Main content: Order lines
-        const Expanded(
-          child: POSOrderLinesPanel(),
-        ),
+        Expanded(child: orderLinesPanel),
 
         // Customer info + keypad (scrollable so nothing is hidden)
         Container(
           decoration: BoxDecoration(
             border: Border(
-              top: BorderSide(
-                color: theme.resources.dividerStrokeColorDefault,
-              ),
+              top: BorderSide(color: theme.resources.dividerStrokeColorDefault),
             ),
           ),
-          constraints: BoxConstraints(
-            maxHeight: MediaQuery.of(context).size.height * 0.55,
-          ),
-          child: const SingleChildScrollView(
-            child: POSCustomerKeypadPanel(),
-          ),
+          child: compactCustomerPanel,
         ),
 
         // Actions bar at bottom - only for collection users
-        if (hasCollectionPermissions)
+        if (showActions)
           Container(
             decoration: BoxDecoration(
               border: Border(
@@ -485,7 +552,7 @@ class _FastSaleScreenState extends ConsumerState<FastSaleScreen> {
                 ),
               ),
             ),
-            child: const POSActionsPanel(isHorizontal: true, isCompact: true),
+            child: compactActionsPanel,
           ),
       ],
     );

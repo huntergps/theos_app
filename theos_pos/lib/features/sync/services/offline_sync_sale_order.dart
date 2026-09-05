@@ -150,17 +150,26 @@ extension _OfflineSyncSaleOrder on OfflineSyncService {
       // 1. sale.order operations first
       // 2. sale.order.line operations second
       // 3. All other operations (payments, withholds, etc.) last
+      final confirmationOps = operations
+          .where((op) => op.model == 'sale.order' && _isOrderConfirmation(op))
+          .toList();
       var orderOps = operations
-          .where((op) => op.model == 'sale.order')
+          .where((op) => op.model == 'sale.order' && !_isOrderConfirmation(op))
           .toList();
       var lineOps = operations
           .where((op) => op.model == 'sale.order.line')
           .toList();
-      final otherOps = operations
-          .where(
-            (op) => op.model != 'sale.order' && op.model != 'sale.order.line',
-          )
-          .toList();
+      final otherOps =
+          <OfflineOperation>[
+            ...confirmationOps,
+            ...operations.where(
+              (op) => op.model != 'sale.order' && op.model != 'sale.order.line',
+            ),
+          ]..sort(
+            (a, b) =>
+                _postLineDependencyRank(a)
+                    .compareTo(_postLineDependencyRank(b)),
+          );
 
       // If there are no order create operations but we have other operations
       // that reference this order (payments, etc.), check if order needs to be created first
@@ -233,10 +242,10 @@ extension _OfflineSyncSaleOrder on OfflineSyncService {
           }
 
           // Reload line operations
-          lineOps = await _offlineQueue.getOperationsForModel('sale.order.line');
-          lineOps = lineOps
-              .where((op) => op.parentOrderId == orderId)
-              .toList();
+          lineOps = await _offlineQueue.getOperationsForModel(
+            'sale.order.line',
+          );
+          lineOps = lineOps.where((op) => op.parentOrderId == orderId).toList();
         }
       }
 
@@ -246,18 +255,32 @@ extension _OfflineSyncSaleOrder on OfflineSyncService {
 
       // Process order operations first
       for (final op in orderOps) {
+        if (!await _claimForDispatch(op)) {
+          if (op.status == OfflineOperationStatus.recoveryPending &&
+              op.replayPolicy == OfflineReplayPolicy.manualAfterAmbiguous) {
+            failed++;
+            errors.add('Op ${op.id} requiere reconciliación manual');
+            orderSyncFailed = true;
+          }
+          continue;
+        }
+        final currentOp = await _offlineQueue.getOperationById(op.id) ?? op;
         try {
-          final conflict = await _processOperation(op);
+          final conflict = await _processOperation(currentOp);
           if (conflict != null) {
             conflicts.add(conflict);
-            await _completeOperationWithAudit(op, result: 'conflict');
+            await _completeOperationWithAudit(
+              currentOp,
+              result: 'conflict',
+              conflict: conflict,
+            );
             logger.w(
               '[OfflineSyncService]',
               'Conflict for operation ${op.id}: ${op.model}.${op.method}',
             );
             orderSyncFailed = true;
           } else {
-            await _completeOperationWithAudit(op, result: 'success');
+            await _completeOperationWithAudit(currentOp, result: 'success');
             success++;
             logger.d(
               '[OfflineSyncService]',
@@ -265,7 +288,7 @@ extension _OfflineSyncSaleOrder on OfflineSyncService {
             );
             // Get the new order ID from the database
             final syncedOrder = await _orderManager.getSaleOrderByUuid(
-              op.values['_uuid'] as String? ?? '',
+              currentOp.values['_uuid'] as String? ?? '',
             );
             if (syncedOrder != null && syncedOrder.id > 0) {
               newOrderId = syncedOrder.id;
@@ -277,10 +300,11 @@ extension _OfflineSyncSaleOrder on OfflineSyncService {
           }
         } catch (e) {
           failed++;
-          final errorMsg = 'Op ${op.id} (${op.model}.${op.method}): $e';
+          final errorMsg =
+              'Op ${currentOp.id} (${currentOp.model}.${currentOp.method}): $e';
           errors.add(errorMsg);
           await _completeOperationWithAudit(
-            op,
+            currentOp,
             result: 'error',
             errorMessage: friendlyErrorMessage(e),
           );
@@ -295,13 +319,8 @@ extension _OfflineSyncSaleOrder on OfflineSyncService {
           '[OfflineSyncService]',
           'Order sync failed, skipping ${lineOps.length} line operations',
         );
-        // Mark line operations as skipped (will retry when order succeeds)
-        for (final op in lineOps) {
-          await _offlineQueue.markOperationFailed(
-            op.id,
-            'Order sync failed, line operation pending',
-          );
-        }
+        // Las líneas nunca fueron reclamadas: permanecen pending sin consumir
+        // reintentos y se despacharán cuando la orden padre se reconcilie.
       } else {
         // Reload line operations from DB to get updated order_id
         if (newOrderId != null) {
@@ -322,18 +341,34 @@ extension _OfflineSyncSaleOrder on OfflineSyncService {
         }
 
         // Process line operations
+        var lineSyncFailed = false;
         for (final op in lineOps) {
+          if (!await _claimForDispatch(op)) {
+            if (op.status == OfflineOperationStatus.recoveryPending &&
+                op.replayPolicy == OfflineReplayPolicy.manualAfterAmbiguous) {
+              failed++;
+              errors.add('Op ${op.id} requiere reconciliación manual');
+              lineSyncFailed = true;
+            }
+            continue;
+          }
+          final currentOp = await _offlineQueue.getOperationById(op.id) ?? op;
           try {
-            final conflict = await _processOperation(op);
+            final conflict = await _processOperation(currentOp);
             if (conflict != null) {
               conflicts.add(conflict);
-              await _completeOperationWithAudit(op, result: 'conflict');
+              await _completeOperationWithAudit(
+                currentOp,
+                result: 'conflict',
+                conflict: conflict,
+              );
               logger.w(
                 '[OfflineSyncService]',
                 'Conflict for operation ${op.id}: ${op.model}.${op.method}',
               );
+              lineSyncFailed = true;
             } else {
-              await _completeOperationWithAudit(op, result: 'success');
+              await _completeOperationWithAudit(currentOp, result: 'success');
               success++;
               logger.d(
                 '[OfflineSyncService]',
@@ -342,30 +377,57 @@ extension _OfflineSyncSaleOrder on OfflineSyncService {
             }
           } catch (e) {
             failed++;
-            final errorMsg = 'Op ${op.id} (${op.model}.${op.method}): $e';
+            final errorMsg =
+                'Op ${currentOp.id} (${currentOp.model}.${currentOp.method}): $e';
             errors.add(errorMsg);
             await _completeOperationWithAudit(
-              op,
+              currentOp,
               result: 'error',
               errorMessage: friendlyErrorMessage(e),
             );
             logger.e('[OfflineSyncService]', 'Failed to sync: $errorMsg');
+            lineSyncFailed = true;
           }
         }
 
         // Process other operations (payments, withholds, wizards, etc.)
-        if (otherOps.isNotEmpty) {
+        if (lineSyncFailed) {
+          logger.w(
+            '[OfflineSyncService]',
+            'Line sync failed, leaving ${otherOps.length} dependent '
+                'operation(s) pending',
+          );
+        } else if (otherOps.isNotEmpty) {
           logger.i(
             '[OfflineSyncService]',
             'Processing ${otherOps.length} other operations (payments, withholds, etc.)',
           );
 
           for (final op in otherOps) {
+            if (!await _claimForDispatch(op)) {
+              if (op.status == OfflineOperationStatus.recoveryPending &&
+                  op.replayPolicy == OfflineReplayPolicy.manualAfterAmbiguous) {
+                failed++;
+                errors.add('Op ${op.id} requiere reconciliación manual');
+              }
+              continue;
+            }
+            final currentOp = await _offlineQueue.getOperationById(op.id) ?? op;
             try {
-              // Process based on model type
-              await _processOtherModelOperation(op);
-              await _completeOperationWithAudit(op, result: 'success');
-              success++;
+              final conflict = currentOp.model == 'sale.order'
+                  ? await _processOperation(currentOp)
+                  : await _processOtherModelOperation(currentOp);
+              if (conflict != null) {
+                conflicts.add(conflict);
+                await _completeOperationWithAudit(
+                  currentOp,
+                  result: 'conflict',
+                  conflict: conflict,
+                );
+              } else {
+                await _completeOperationWithAudit(currentOp, result: 'success');
+                success++;
+              }
               logger.d(
                 '[OfflineSyncService]',
                 'Synced operation ${op.id}: ${op.model}.${op.method}',
@@ -373,17 +435,18 @@ extension _OfflineSyncSaleOrder on OfflineSyncService {
             } on OperationSkippedException catch (e) {
               // Operation was skipped (e.g., record doesn't exist)
               skipped++;
-              await _completeOperationWithAudit(op, result: 'skipped');
+              await _completeOperationWithAudit(currentOp, result: 'skipped');
               logger.w(
                 '[OfflineSyncService]',
                 'Skipped operation ${op.id}: $e',
               );
             } catch (e) {
               failed++;
-              final errorMsg = 'Op ${op.id} (${op.model}.${op.method}): $e';
+              final errorMsg =
+                  'Op ${currentOp.id} (${currentOp.model}.${currentOp.method}): $e';
               errors.add(errorMsg);
               await _completeOperationWithAudit(
-                op,
+                currentOp,
                 result: 'error',
                 errorMessage: friendlyErrorMessage(e),
               );
@@ -439,7 +502,7 @@ extension _OfflineSyncSaleOrder on OfflineSyncService {
     );
 
     // Determine the actual Odoo ID to use
-    int? actualOdooId = odooId;
+    int? actualOdooId = odooId != null && odooId > 0 ? odooId : null;
 
     // If the order was created offline, we need to resolve UUID to Odoo ID
     if (actualOdooId == null && orderUuid != null) {
@@ -459,72 +522,47 @@ extension _OfflineSyncSaleOrder on OfflineSyncService {
       );
     }
 
-    // Before confirming, sync any unsynced lines to Odoo
-    // This handles the case where lines exist locally but were never synced
+    final serverOrder = await _odooClient!.searchRead(
+      model: 'sale.order',
+      domain: [
+        ['id', '=', actualOdooId],
+      ],
+      fields: const ['state'],
+      limit: 1,
+    );
+    final serverState = serverOrder.isEmpty
+        ? null
+        : serverOrder.first['state'] as String?;
+    if (serverState == 'sale' || serverState == 'done') {
+      await _orderManager.clearSaleOrderPendingConfirm(localId ?? actualOdooId);
+      logger.d(
+        '[OfflineSyncService]',
+        'Order $actualOdooId was already confirmed; replay reconciled',
+      );
+      return;
+    }
+
+    // Lines must already have passed through their durable queue handlers.
+    // Creating them inline here has no preflight marker and can duplicate a
+    // line when a response is lost between server commit and local binding.
     final lookupOrderId = localId ?? actualOdooId;
     final localLines = await _lineManager.getSaleOrderLines(lookupOrderId);
     final unsyncedLines = localLines.where((l) => !l.isSynced).toList();
 
     if (unsyncedLines.isNotEmpty) {
-      logger.i(
-        '[OfflineSyncService]',
-        'Found ${unsyncedLines.length} unsynced lines for order $actualOdooId - syncing before confirm',
-      );
-
-      for (final line in unsyncedLines) {
-        try {
-          final lineResult = await _odooClient!.call(
-            model: 'sale.order.line',
-            method: 'create',
-            kwargs: {
-              'vals_list': [
-                {
-                  'order_id': actualOdooId,
-                  'product_id': line.productId,
-                  'name': line.name,
-                  'product_uom_qty': line.productUomQty,
-                  'price_unit': line.priceUnit,
-                  'discount': line.discount,
-                  if (line.productUomId != null) 'product_uom': line.productUomId,
-                },
-              ],
-            },
-          );
-
-          // Update local line as synced
-          final newLineId = (lineResult is List && lineResult.isNotEmpty)
-              ? lineResult[0] as int
-              : lineResult as int?;
-
-          if (newLineId != null && line.lineUuid != null) {
-            await _updateLineRemoteIdByUuid(line.lineUuid!, newLineId);
-            logger.d(
-              '[OfflineSyncService]',
-              'Synced line ${line.lineUuid} -> Odoo ID $newLineId',
-            );
-          }
-        } catch (e) {
-          logger.e(
-            '[OfflineSyncService]',
-            'Failed to sync line ${line.id} for order $actualOdooId: $e',
-          );
-          // Re-throw to fail the confirm operation
-          rethrow;
-        }
-      }
-
-      logger.i(
-        '[OfflineSyncService]',
-        'All ${unsyncedLines.length} lines synced for order $actualOdooId',
+      throw StateError(
+        'Cannot confirm order $actualOdooId: ${unsyncedLines.length} '
+        'line(s) are still pending durable synchronization',
       );
     }
 
     // Call action_pos_confirm on Odoo (handles credit validation on server)
-    await _odooClient!.call(
+    final confirmation = await _odooClient.call(
       model: 'sale.order',
       method: 'action_pos_confirm',
       ids: [actualOdooId],
     );
+    requireConfirmedSaleResponse(confirmation, orderId: actualOdooId);
 
     logger.d('[OfflineSyncService]', 'Order $actualOdooId confirmed in Odoo');
 
@@ -534,10 +572,49 @@ extension _OfflineSyncSaleOrder on OfflineSyncService {
     await _orderManager.clearSaleOrderPendingConfirm(orderIdToClear);
   }
 
-  Future<ConflictInfo?> _processOrderStateAction(OfflineOperation op) async {
-    final orderId = op.recordId ?? op.values['order_id'] as int?;
+  bool _isOrderConfirmation(OfflineOperation op) {
+    return op.method == OfflineLocalCommand.orderConfirm.storageName ||
+        op.method == 'action_confirm' ||
+        op.method == 'action_pos_confirm';
+  }
 
-    if (orderId == null) {
+  int _postLineDependencyRank(OfflineOperation op) {
+    if (_isOrderConfirmation(op)) return 0;
+    if (op.model == 'l10n_ec_collection_box.sale.order.payment.wizard' ||
+        op.method == OfflineLocalCommand.paymentWizardApply.storageName) {
+      return 10;
+    }
+    if (op.method ==
+            OfflineLocalCommand.invoiceCreateWithPayments.storageName ||
+        op.method == OfflineLocalCommand.paymentCreate.storageName ||
+        op.model == 'account.move' ||
+        op.model == 'account.payment' ||
+        op.method.contains('invoice') ||
+        op.method.contains('payment')) {
+      return 20;
+    }
+    if (op.method == OfflineLocalCommand.sessionClose.storageName ||
+        op.method == OfflineLocalCommand.sessionClosingControl.storageName) {
+      return 30;
+    }
+    return 15;
+  }
+
+  Future<ConflictInfo?> _processOrderStateAction(OfflineOperation op) async {
+    var orderId = op.recordId ?? op.values['order_id'] as int?;
+
+    if (orderId != null && orderId <= 0) {
+      final orderUuid =
+          (op.values['order_uuid'] ?? op.values['_uuid']) as String?;
+      if (orderUuid != null && orderUuid.isNotEmpty) {
+        final localOrder = await _orderManager.getSaleOrderByUuid(orderUuid);
+        if (localOrder != null && localOrder.id > 0) {
+          orderId = localOrder.id;
+        }
+      }
+    }
+
+    if (orderId == null || orderId <= 0) {
       throw Exception('Cannot process ${op.method} - no order_id available');
     }
 
@@ -545,6 +622,24 @@ extension _OfflineSyncSaleOrder on OfflineSyncService {
       '[OfflineSyncService]',
       'Processing ${op.method} for sale.order $orderId (baseWriteDate: ${op.baseWriteDate})',
     );
+
+    final serverOrder = await _odooClient!.searchRead(
+      model: 'sale.order',
+      domain: [
+        ['id', '=', orderId],
+      ],
+      fields: const ['state', 'locked'],
+      limit: 1,
+    );
+    if (serverOrder.isNotEmpty &&
+        _isOrderActionAlreadyApplied(op, serverOrder.first)) {
+      await _reconcileAppliedOrderAction(op, orderId);
+      logger.d(
+        '[OfflineSyncService]',
+        'Order $orderId already satisfies ${op.method}; replay reconciled',
+      );
+      return null;
+    }
 
     // Check for conflicts if we have baseWriteDate
     if (op.baseWriteDate != null) {
@@ -560,9 +655,10 @@ extension _OfflineSyncSaleOrder on OfflineSyncService {
     }
 
     // No conflict - proceed with the action
-    await _odooClient!.call(
+    await _odooClient.call(
       model: 'sale.order',
-      method: op.method,
+      // Recover commands queued by older clients under the non-existent name.
+      method: op.method == 'action_approve' ? 'set_approved' : op.method,
       ids: [orderId],
     );
 
@@ -574,7 +670,11 @@ extension _OfflineSyncSaleOrder on OfflineSyncService {
     // For lock/unlock, update isSynced flag
     if (op.method == 'action_lock' || op.method == 'action_unlock') {
       final locked = op.method == 'action_lock';
-      await _orderManager.updateSaleOrderLocked(orderId, locked: locked, isSynced: true);
+      await _orderManager.updateSaleOrderLocked(
+        orderId,
+        locked: locked,
+        isSynced: true,
+      );
     }
 
     // For state changes, clear pendingConfirm if it was a confirm action
@@ -583,6 +683,40 @@ extension _OfflineSyncSaleOrder on OfflineSyncService {
     }
 
     return null; // No conflict
+  }
+
+  bool _isOrderActionAlreadyApplied(
+    OfflineOperation op,
+    Map<String, dynamic> serverOrder,
+  ) {
+    final state = serverOrder['state'] as String?;
+    final locked = serverOrder['locked'] as bool?;
+    return switch (op.method) {
+      'action_lock' => locked == true,
+      'action_unlock' => locked == false,
+      'action_confirm' ||
+      'action_pos_confirm' => state == 'sale' || state == 'done',
+      'action_cancel' => state == 'cancel',
+      'action_draft' => state == 'draft',
+      'action_approve' || 'set_approved' => state == 'approved',
+      _ => false,
+    };
+  }
+
+  Future<void> _reconcileAppliedOrderAction(
+    OfflineOperation op,
+    int orderId,
+  ) async {
+    if (op.method == 'action_lock' || op.method == 'action_unlock') {
+      await _orderManager.updateSaleOrderLocked(
+        orderId,
+        locked: op.method == 'action_lock',
+        isSynced: true,
+      );
+    }
+    if (op.method == 'action_confirm' || op.method == 'action_pos_confirm') {
+      await _orderManager.clearSaleOrderPendingConfirm(orderId);
+    }
   }
 
   /// Validate order before syncing to Odoo

@@ -1,8 +1,9 @@
 import 'package:fluent_ui/fluent_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:theos_pos_core/theos_pos_core.dart'
-    hide DatabaseHelper, CreditIssue, PartnerBank;
+    hide DatabaseHelper, PartnerBank;
 
+import '../../../../../core/adaptive/adaptive_layout_policy.dart';
 import '../../../../../core/constants/app_colors.dart';
 import '../../../../../core/services/platform/global_notification_service.dart';
 import '../../../../../core/theme/spacing.dart';
@@ -54,11 +55,8 @@ class ProductFavoritesGrid extends ConsumerWidget {
           child: isLoading
               ? const Center(child: ProgressRing())
               : products.isEmpty
-                  ? const _EmptyProductsState()
-                  : _ProductGrid(
-                      products: products,
-                      canEdit: canEdit,
-                    ),
+              ? const _EmptyProductsState()
+              : _ProductGrid(products: products, canEdit: canEdit),
         ),
       ],
     );
@@ -88,8 +86,7 @@ class _CategoryFilterBar extends ConsumerWidget {
           vertical: 4,
         ),
         itemCount: categories.length,
-        separatorBuilder: (_, _) =>
-            const SizedBox(width: Spacing.xs),
+        separatorBuilder: (_, _) => const SizedBox(width: Spacing.xs),
         itemBuilder: (context, index) {
           final cat = categories[index];
           final isActive = selected == cat;
@@ -145,9 +142,7 @@ class _CategoryChip extends StatelessWidget {
         child: Text(
           label,
           style: theme.typography.caption?.copyWith(
-            color: isActive
-                ? Colors.white
-                : null,
+            color: isActive ? Colors.white : null,
             fontWeight: isActive ? FontWeight.w600 : FontWeight.normal,
             fontSize: 11,
           ),
@@ -167,40 +162,40 @@ class _ProductGrid extends ConsumerWidget {
   final List<Product> products;
   final bool canEdit;
 
-  const _ProductGrid({
-    required this.products,
-    required this.canEdit,
-  });
+  const _ProductGrid({required this.products, required this.canEdit});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final width = MediaQuery.of(context).size.width;
-    final crossAxisCount = width > 1200 ? 4 : (width > 600 ? 3 : 2);
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final crossAxisCount = favoriteProductColumnCount(constraints.maxWidth);
 
-    return GridView.builder(
-      padding: const EdgeInsets.all(Spacing.xs),
-      gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-        crossAxisCount: crossAxisCount,
-        mainAxisSpacing: Spacing.xs,
-        crossAxisSpacing: Spacing.xs,
-        childAspectRatio: 1.55,
-      ),
-      itemCount: products.length,
-      itemBuilder: (context, index) {
-        final product = products[index];
-        return _ProductCard(
-          product: product,
-          canEdit: canEdit,
-          onTap: canEdit
-              ? () => _addProduct(context, ref, product)
-              : null,
+        return GridView.builder(
+          padding: const EdgeInsets.all(Spacing.xs),
+          gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+            crossAxisCount: crossAxisCount,
+            mainAxisSpacing: Spacing.xs,
+            crossAxisSpacing: Spacing.xs,
+            childAspectRatio: 1.55,
+          ),
+          itemCount: products.length,
+          itemBuilder: (context, index) {
+            final product = products[index];
+            return _ProductCard(
+              product: product,
+              canEdit: canEdit,
+              onTap: canEdit ? () => _addProduct(context, ref, product) : null,
+            );
+          },
         );
       },
     );
   }
 
   void _addProduct(BuildContext context, WidgetRef ref, Product product) {
-    ref.read(fastSaleProvider.notifier).addProduct(
+    ref
+        .read(fastSaleProvider.notifier)
+        .addProduct(
           productId: product.id,
           productName: product.name,
           productCode: product.defaultCode,
@@ -208,13 +203,13 @@ class _ProductGrid extends ConsumerWidget {
           uomId: product.uomId,
           uomName: product.uomName,
           priceUnit: product.listPrice,
-          taxIds:
-              product.taxIdsList.isNotEmpty ? product.taxIdsList : null,
+          taxIds: product.taxIdsList.isNotEmpty ? product.taxIdsList : null,
         );
 
     // Feedback breve para confirmar que el producto fue agregado y
     // evitar que el cajero toque dos veces y duplique líneas.
-    final displayName = product.defaultCode != null && product.defaultCode!.isNotEmpty
+    final displayName =
+        product.defaultCode != null && product.defaultCode!.isNotEmpty
         ? '[${product.defaultCode}] ${product.name}'
         : product.name;
     ref
@@ -226,6 +221,21 @@ class _ProductGrid extends ConsumerWidget {
           durationSeconds: 1,
         );
   }
+}
+
+/// Cantidad de columnas para el ancho local asignado al grid, no para toda la
+/// ventana. Una superficie extremadamente estrecha baja a una sola columna
+/// para mantener legibles nombre, precio y objetivo táctil.
+int favoriteProductColumnCount(double availableWidth) {
+  if (availableWidth < 320) return 1;
+
+  final environment = AdaptiveEnvironment(
+    width: availableWidth,
+    height: 0,
+    inputs: const AdaptiveInputCapabilities(touch: true),
+  );
+
+  return AdaptiveUiPolicy(environment).contentColumns + 1;
 }
 
 // ============================================================================
@@ -260,8 +270,8 @@ class _ProductCardState extends State<_ProductCard> {
     final bgColor = _isPressed
         ? accent.withValues(alpha: 0.18)
         : _isHovered
-            ? accent.withValues(alpha: 0.09)
-            : theme.resources.cardBackgroundFillColorDefault;
+        ? accent.withValues(alpha: 0.09)
+        : theme.resources.cardBackgroundFillColorDefault;
 
     final borderColor = _isHovered || _isPressed
         ? accent.withValues(alpha: 0.5)
@@ -305,52 +315,52 @@ class _ProductCardState extends State<_ProductCard> {
                   bottom: BorderSide(color: borderColor),
                 ),
               ),
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(
-                Spacing.sm,
-                Spacing.xs,
-                Spacing.xs,
-                Spacing.xs,
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  // Nombre del producto (2 líneas máximo)
-                  //
-                  // Tamaño subido de 11 a 12px para mejorar legibilidad en
-                  // el grid táctil. Se retiró el código interno (que se
-                  // mostraba en 9px debajo del precio): en un grid de
-                  // "favoritos/frecuentes" pensado para toque rápido, el
-                  // cajero reconoce el producto por nombre, no por código
-                  // — mantenerlo solo apretaba las 3 líneas en una tarjeta
-                  // de 48px de alto. El código sigue disponible en las
-                  // pantallas de búsqueda/líneas de orden donde sí importa
-                  // para desambiguar variantes.
-                  Text(
-                    product.name,
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                    style: theme.typography.caption?.copyWith(
-                      fontWeight: FontWeight.w600,
-                      fontSize: 12,
-                      height: 1.2,
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(
+                  Spacing.sm,
+                  Spacing.xs,
+                  Spacing.xs,
+                  Spacing.xs,
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    // Nombre del producto (2 líneas máximo)
+                    //
+                    // Tamaño subido de 11 a 12px para mejorar legibilidad en
+                    // el grid táctil. Se retiró el código interno (que se
+                    // mostraba en 9px debajo del precio): en un grid de
+                    // "favoritos/frecuentes" pensado para toque rápido, el
+                    // cajero reconoce el producto por nombre, no por código
+                    // — mantenerlo solo apretaba las 3 líneas en una tarjeta
+                    // de 48px de alto. El código sigue disponible en las
+                    // pantallas de búsqueda/líneas de orden donde sí importa
+                    // para desambiguar variantes.
+                    Text(
+                      product.name,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: theme.typography.caption?.copyWith(
+                        fontWeight: FontWeight.w600,
+                        fontSize: 12,
+                        height: 1.2,
+                      ),
                     ),
-                  ),
-                  const SizedBox(height: 2),
-                  // Precio de venta
-                  Text(
-                    product.listPrice.toCurrency(),
-                    style: theme.typography.caption?.copyWith(
-                      color: accent,
-                      fontWeight: FontWeight.w700,
-                      fontSize: 12,
+                    const SizedBox(height: 2),
+                    // Precio de venta
+                    Text(
+                      product.listPrice.toCurrency(),
+                      style: theme.typography.caption?.copyWith(
+                        color: accent,
+                        fontWeight: FontWeight.w700,
+                        fontSize: 12,
+                      ),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
             ),
-          ),
           ),
         ),
       ),
@@ -390,9 +400,7 @@ class _EmptyProductsState extends StatelessWidget {
           const SizedBox(height: Spacing.sm),
           Text(
             'Sin productos disponibles',
-            style: theme.typography.body?.copyWith(
-              color: theme.inactiveColor,
-            ),
+            style: theme.typography.body?.copyWith(color: theme.inactiveColor),
           ),
           const SizedBox(height: Spacing.xs),
           Text(

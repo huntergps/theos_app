@@ -47,21 +47,12 @@ class ClientFactory {
     double creditLimit = 1000.0,
     double credit = 0.0,
   }) {
-    return create(
-      id: id,
-      name: name,
-      creditLimit: creditLimit,
-      credit: credit,
-    );
+    return create(id: id, name: name, creditLimit: creditLimit, credit: credit);
   }
 
   /// Create a final consumer (9999999999999).
   static Client finalConsumer({int? id}) {
-    return create(
-      id: id,
-      name: 'CONSUMIDOR FINAL',
-      vat: '9999999999999',
-    );
+    return create(id: id, name: 'CONSUMIDOR FINAL', vat: '9999999999999');
   }
 
   /// Create a company client with RUC.
@@ -70,11 +61,7 @@ class ClientFactory {
     String name = 'Test Company S.A.',
     String ruc = '1791234567001',
   }) {
-    return create(
-      id: id,
-      name: name,
-      vat: ruc,
-    );
+    return create(id: id, name: name, vat: ruc);
   }
 }
 
@@ -111,11 +98,7 @@ class ProductFactory {
     double listPrice = 50.0,
     double qtyAvailable = 100.0,
   }) {
-    return create(
-      id: id,
-      name: name,
-      listPrice: listPrice,
-    );
+    return create(id: id, name: name, listPrice: listPrice);
   }
 
   /// Create a service product.
@@ -124,23 +107,14 @@ class ProductFactory {
     String name = 'Test Service',
     double listPrice = 100.0,
   }) {
-    return create(
-      id: id,
-      name: name,
-      listPrice: listPrice,
-    );
+    return create(id: id, name: name, listPrice: listPrice);
   }
 }
 
 /// Factory for creating test SaleOrder instances.
 class SaleOrderFactory {
   /// Create a minimal draft order.
-  static SaleOrder draft({
-    int? id,
-    String? name,
-    int? partnerId,
-    int? userId,
-  }) {
+  static SaleOrder draft({int? id, String? name, int? partnerId, int? userId}) {
     final orderId = id ?? nextId();
     return SaleOrder(
       id: orderId,
@@ -174,10 +148,7 @@ class SaleOrderFactory {
   }
 
   /// Create a confirmed order.
-  static SaleOrder confirmed({
-    int? id,
-    int? partnerId,
-  }) {
+  static SaleOrder confirmed({int? id, int? partnerId}) {
     final order = withAmounts(id: id, partnerId: partnerId);
     return order.copyWith(state: SaleOrderState.sale);
   }
@@ -287,11 +258,7 @@ class TaxFactory {
   }
 
   /// Create a fixed-amount tax.
-  static Tax fixed({
-    int? id,
-    String name = 'Fixed Tax',
-    double amount = 5.0,
-  }) {
+  static Tax fixed({int? id, String name = 'Fixed Tax', double amount = 5.0}) {
     return create(
       id: id,
       name: name,

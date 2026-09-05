@@ -1,6 +1,10 @@
+import 'dart:async';
+
 import 'package:dartz/dartz.dart';
-import 'package:odoo_sdk/odoo_sdk.dart' show Failure, CacheFailure, ServerFailure;
-import 'package:theos_pos_core/theos_pos_core.dart' show MailActivity, mailActivityManager;
+import 'package:odoo_sdk/odoo_sdk.dart'
+    show Failure, CacheFailure, NetworkFailure, ServerFailure;
+import 'package:theos_pos_core/theos_pos_core.dart'
+    show MailActivity, mailActivityManager;
 
 /// Repository for Activities - Consolidated offline-first implementation
 ///
@@ -15,7 +19,9 @@ import 'package:theos_pos_core/theos_pos_core.dart' show MailActivity, mailActiv
 /// `mailActivityManager.callCustomMethod(...)` (ver
 /// `odoo_sdk/lib/src/model/manager_actions_mixin.dart`).
 class ActivityRepository {
-  ActivityRepository();
+  ActivityRepository({this.rpcTimeout = const Duration(seconds: 30)});
+
+  final Duration rpcTimeout;
 
   // ============ Read Operations ============
 
@@ -43,8 +49,7 @@ class ActivityRepository {
   }
 
   /// Get overdue activities
-  Future<Either<Failure, List<MailActivity>>>
-  getOverdueActivities() async {
+  Future<Either<Failure, List<MailActivity>>> getOverdueActivities() async {
     try {
       final allActivities = await mailActivityManager.searchLocal();
       final filtered = allActivities
@@ -72,37 +77,44 @@ class ActivityRepository {
   // ============ Sync Operations ============
 
   /// Sync activities from server and return updated list
-  Future<Either<Failure, List<MailActivity>>> syncAndGet(
-    int userId,
-  ) async {
+  Future<Either<Failure, List<MailActivity>>> syncAndGet(int userId) async {
     if (!mailActivityManager.isOnline) {
-      return getActivities(); // Return cached if no remote
+      return const Left(
+        NetworkFailure(
+          message: 'Sin conexion con el servidor. Se conservan las actividades guardadas.',
+        ),
+      );
     }
 
     try {
       // Fetch from server
-      final response = await mailActivityManager.client.searchRead(
-        model: 'mail.activity',
-        fields: mailActivityManager.odooFields,
-        domain: [
-          ['user_id', '=', userId],
-        ],
-        order: 'date_deadline asc',
-      );
+      final response = await mailActivityManager.client
+          .searchRead(
+            model: 'mail.activity',
+            fields: mailActivityManager.odooFields,
+            domain: [
+              ['user_id', '=', userId],
+            ],
+            order: 'date_deadline asc',
+          )
+          .timeout(rpcTimeout);
 
       final remoteModels = response
           .map((json) => mailActivityManager.fromOdoo(json))
           .toList();
 
-      // Clear and save locally
-      await mailActivityManager.deleteAllLocal();
-      await mailActivityManager.upsertLocalBatch(remoteModels);
+      // Replace the cache atomically only after a complete remote response.
+      // A mapping or local persistence error must leave the previous cache
+      // intact so the activities screen remains usable offline.
+      await mailActivityManager.database.transaction(() async {
+        await mailActivityManager.deleteAllLocal();
+        await mailActivityManager.upsertLocalBatch(remoteModels);
+      });
 
       // Return models directly
       return Right(remoteModels);
     } catch (e) {
-      // On error, return cached data
-      return getActivities();
+      return Left(_remoteFailure('sincronizar las actividades', e));
     }
   }
 
@@ -110,62 +122,83 @@ class ActivityRepository {
 
   /// Complete activity (mark as done)
   Future<Either<Failure, bool>> completeActivity(int activityId) async {
-    try {
-      // Optimistic: remove from local cache immediately
-      await mailActivityManager.deleteLocal(activityId);
-
-      // Background sync with server
-      if (mailActivityManager.isOnline) {
-        _syncCompleteWithServer(activityId);
-      }
-
-      return const Right(true);
-    } catch (e) {
-      return Left(CacheFailure(message: 'Error completing activity: $e'));
-    }
-  }
-
-  Future<void> _syncCompleteWithServer(int activityId) async {
-    try {
-      await mailActivityManager.callCustomMethod<dynamic>(
-        'action_done',
-        kwargs: {
-          'ids': [activityId],
-        },
-      );
-    } catch (_) {
-      // Background operation - log but don't throw
-    }
+    return _executeRemovalAction(
+      activityId: activityId,
+      method: 'action_done',
+      actionLabel: 'completar la actividad',
+    );
   }
 
   /// Cancel activity
   Future<Either<Failure, bool>> cancelActivity(int activityId) async {
+    return _executeRemovalAction(
+      activityId: activityId,
+      method: 'action_cancel',
+      actionLabel: 'cancelar la actividad',
+    );
+  }
+
+  Future<Either<Failure, bool>> _executeRemovalAction({
+    required int activityId,
+    required String method,
+    required String actionLabel,
+  }) async {
+    if (!mailActivityManager.isOnline) {
+      return Left(
+        NetworkFailure(
+          message:
+              'Sin conexion con el servidor. No se pudo $actionLabel y la actividad se conserva.',
+        ),
+      );
+    }
+
     try {
-      // Optimistic: remove from local cache immediately
-      await mailActivityManager.deleteLocal(activityId);
-
-      // Background sync with server
-      if (mailActivityManager.isOnline) {
-        _syncCancelWithServer(activityId);
+      final remoteResult = await mailActivityManager
+          .callCustomMethod<dynamic>(method, ids: [activityId])
+          .timeout(rpcTimeout);
+      if (remoteResult == false) {
+        return Left(
+          ServerFailure(
+            message:
+                'El servidor rechazo la operacion de $actionLabel. La actividad se conserva.',
+          ),
+        );
       }
+    } catch (e) {
+      return Left(_remoteFailure(actionLabel, e));
+    }
 
+    try {
+      // Local removal is deliberately last: the record remains visible until
+      // Odoo has confirmed the action, eliminating false success offline or
+      // after RPC errors/timeouts.
+      await mailActivityManager.deleteLocal(activityId);
       return const Right(true);
     } catch (e) {
-      return Left(CacheFailure(message: 'Error cancelling activity: $e'));
+      return Left(
+        CacheFailure(
+          message:
+              'El servidor confirmo la operacion, pero no se pudo actualizar la copia local: $e',
+          originalError: e,
+        ),
+      );
     }
   }
 
-  Future<void> _syncCancelWithServer(int activityId) async {
-    try {
-      await mailActivityManager.callCustomMethod<dynamic>(
-        'action_cancel',
-        kwargs: {
-          'ids': [activityId],
-        },
+  Failure _remoteFailure(String actionLabel, Object error) {
+    if (error is TimeoutException) {
+      return NetworkFailure(
+        message:
+            'Tiempo de espera agotado al $actionLabel. La informacion local se conserva.',
+        code: 'TIMEOUT',
+        originalError: error,
       );
-    } catch (_) {
-      // Background operation - log but don't throw
     }
+    return ServerFailure(
+      message:
+          'No se pudo $actionLabel en el servidor. La informacion local se conserva.',
+      originalError: error,
+    );
   }
 
   // ============ Notification Operations ============
@@ -250,9 +283,7 @@ class ActivityRepository {
 
       await mailActivityManager.callCustomMethod<dynamic>(
         method,
-        kwargs: {
-          'ids': [activityId],
-        },
+        ids: [activityId],
       );
 
       // Refresh the activity from server to get updated date

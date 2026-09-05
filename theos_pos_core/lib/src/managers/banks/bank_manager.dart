@@ -8,14 +8,13 @@ import '../../models/banks/bank.model.dart';
 
 /// Extension methods for BankManager
 extension BankManagerBusiness on BankManager {
-  /// Get a bank by Odoo ID (alias for readLocal)
-  Future<Bank?> getById(int odooId) => readLocal(odooId);
-
   /// Get all active banks
   Future<List<Bank>> getActiveBanks() async {
-    return searchLocal(domain: [
-      ['active', '=', true],
-    ]);
+    return searchLocal(
+      domain: [
+        ['active', '=', true],
+      ],
+    );
   }
 
   /// Search banks by name or BIC
@@ -37,9 +36,11 @@ extension BankManagerBusiness on BankManager {
 extension PartnerBankManagerBusiness on PartnerBankManager {
   /// Get partner bank accounts by partner ID
   Future<List<PartnerBank>> getByPartnerId(int partnerId) async {
-    return searchLocal(domain: [
-      ['partner_id', '=', partnerId],
-    ]);
+    return searchLocal(
+      domain: [
+        ['partner_id', '=', partnerId],
+      ],
+    );
   }
 
   /// Get partner bank by account number

@@ -14,15 +14,12 @@ extension ProductManagerBusiness on ProductManager {
   /// Cast database to AppDatabase for direct Drift queries
   AppDatabase get _db => database as AppDatabase;
 
-  /// Get a product by Odoo ID (alias for readLocal)
-  Future<Product?> getById(int odooId) => readLocal(odooId);
-
   /// Get products by list of Odoo IDs
   Future<List<Product>> getByIds(List<int> odooIds) async {
     if (odooIds.isEmpty) return [];
-    final results = await (_db.select(_db.productProduct)
-          ..where((t) => t.odooId.isIn(odooIds)))
-        .get();
+    final results = await (_db.select(
+      _db.productProduct,
+    )..where((t) => t.odooId.isIn(odooIds))).get();
     return results.map((row) => fromDrift(row)).toList();
   }
 
@@ -37,10 +34,12 @@ extension ProductManagerBusiness on ProductManager {
     final lowerQuery = query.toLowerCase();
 
     var selectQuery = _db.select(_db.productProduct)
-      ..where((t) =>
-          t.name.lower().like('%$lowerQuery%') |
-          t.defaultCode.lower().like('%$lowerQuery%') |
-          t.barcode.lower().like('%$lowerQuery%'))
+      ..where(
+        (t) =>
+            t.name.lower().like('%$lowerQuery%') |
+            t.defaultCode.lower().like('%$lowerQuery%') |
+            t.barcode.lower().like('%$lowerQuery%'),
+      )
       ..orderBy([(t) => drift.OrderingTerm.asc(t.name)])
       ..limit(limit);
 
@@ -70,10 +69,11 @@ extension ProductManagerBusiness on ProductManager {
   Future<Product?> getByBarcode(String barcode) async {
     if (barcode.trim().isEmpty) return null;
 
-    final result = await (_db.select(_db.productProduct)
-          ..where((t) => t.barcode.equals(barcode))
-          ..limit(1))
-        .getSingleOrNull();
+    final result =
+        await (_db.select(_db.productProduct)
+              ..where((t) => t.barcode.equals(barcode))
+              ..limit(1))
+            .getSingleOrNull();
     return result != null ? fromDrift(result) : null;
   }
 
@@ -81,10 +81,11 @@ extension ProductManagerBusiness on ProductManager {
   Future<Product?> getByCode(String code) async {
     if (code.trim().isEmpty) return null;
 
-    final result = await (_db.select(_db.productProduct)
-          ..where((t) => t.defaultCode.equals(code))
-          ..limit(1))
-        .getSingleOrNull();
+    final result =
+        await (_db.select(_db.productProduct)
+              ..where((t) => t.defaultCode.equals(code))
+              ..limit(1))
+            .getSingleOrNull();
     return result != null ? fromDrift(result) : null;
   }
 

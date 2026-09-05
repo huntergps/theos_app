@@ -1,8 +1,17 @@
-import 'package:odoo_sdk/odoo_sdk.dart' show OdooNotFoundException;
+import 'package:odoo_sdk/odoo_sdk.dart'
+    show
+        OfflineReplayPolicy,
+        OdooConnectionException,
+        OdooException,
+        OdooNotFoundException,
+        OdooOfflineException,
+        OdooTimeoutException;
+import 'package:uuid/uuid.dart';
 
 import '../../../features/banks/repositories/bank_repository.dart';
 import '../../../core/services/odoo_service.dart';
 import '../../../shared/utils/error_utils.dart';
+
 import 'package:theos_pos_core/theos_pos_core.dart';
 
 /// Servicio para gestionar anticipos de clientes/proveedores
@@ -25,8 +34,19 @@ class AdvanceService {
 
   AdvanceService(this._odoo, this._bankRepo, this._offlineQueue);
 
+  AppDatabase get _db => advanceManager.database as AppDatabase;
+
   /// Generate a temporary negative ID for offline-created records
-  int _generateTempId() => -(DateTime.now().millisecondsSinceEpoch % 1000000000);
+  int _generateTempId() =>
+      -(DateTime.now().millisecondsSinceEpoch % 1000000000);
+
+  bool _isConnectivityFailure(Object error) =>
+      error is OdooConnectionException ||
+      error is OdooTimeoutException ||
+      error is OdooOfflineException;
+
+  String _operationError(Object error) =>
+      error is OdooException ? error.message : friendlyErrorMessage(error);
 
   /// Get the current user's company_id, defaulting to 1 if unavailable
   Future<int> _getUserCompanyId() async {
@@ -34,12 +54,18 @@ class AdvanceService {
       final user = await userManager.getCurrentUser();
       final companyId = user?.companyId;
       if (companyId == null) {
-        logger.w('[AdvanceService]', 'company_id not available from user, using fallback=1');
+        logger.w(
+          '[AdvanceService]',
+          'company_id not available from user, using fallback=1',
+        );
         return 1;
       }
       return companyId;
     } catch (e) {
-      logger.w('[AdvanceService]', 'Error getting company_id, using fallback=1: $e');
+      logger.w(
+        '[AdvanceService]',
+        'Error getting company_id, using fallback=1: $e',
+      );
       return 1;
     }
   }
@@ -57,14 +83,18 @@ class AdvanceService {
   Future<List<Advance>> getAvailableAdvances(int partnerId) async {
     // 1. Read from local DB first
     final cached = await advanceManager.searchLocal(
-          domain: [
-            ['partner_id', '=', partnerId],
-            ['advance_type', '=', 'inbound'],
-            ['state', 'in', ['posted', 'in_use']],
-            ['amount_available', '>', 0],
-          ],
-          orderBy: 'date desc',
-        );
+      domain: [
+        ['partner_id', '=', partnerId],
+        ['advance_type', '=', 'inbound'],
+        [
+          'state',
+          'in',
+          ['posted', 'in_use'],
+        ],
+        ['amount_available', '>', 0],
+      ],
+      orderBy: 'date desc',
+    );
     if (cached.isNotEmpty) {
       // Have cached data, try to refresh in background
       _refreshAvailableAdvancesFromOdoo(partnerId);
@@ -75,21 +105,30 @@ class AdvanceService {
     try {
       await _fetchAndCacheAvailableAdvances(partnerId);
     } catch (e, st) {
-      logger.e('[AdvanceService]', 'Error fetching advances for partner $partnerId', e, st);
+      logger.e(
+        '[AdvanceService]',
+        'Error fetching advances for partner $partnerId',
+        e,
+        st,
+      );
       // Return empty if both cache and Odoo fail
       return cached;
     }
 
     // 3. Re-read from local DB
     return await advanceManager.searchLocal(
-          domain: [
-            ['partner_id', '=', partnerId],
-            ['advance_type', '=', 'inbound'],
-            ['state', 'in', ['posted', 'in_use']],
-            ['amount_available', '>', 0],
-          ],
-          orderBy: 'date desc',
-        );
+      domain: [
+        ['partner_id', '=', partnerId],
+        ['advance_type', '=', 'inbound'],
+        [
+          'state',
+          'in',
+          ['posted', 'in_use'],
+        ],
+        ['amount_available', '>', 0],
+      ],
+      orderBy: 'date desc',
+    );
   }
 
   /// Refresh advances from Odoo (non-blocking)
@@ -110,7 +149,11 @@ class AdvanceService {
         'domain': [
           ['partner_id', 'child_of', partnerId],
           ['advance_type', '=', 'inbound'],
-          ['state', 'in', ['posted', 'in_use']],
+          [
+            'state',
+            'in',
+            ['posted', 'in_use'],
+          ],
           ['amount_available', '>', 0],
         ],
         'fields': [
@@ -157,7 +200,7 @@ class AdvanceService {
   /// 3. Volver a leer desde BD local
   Future<Advance?> getAdvance(int advanceId) async {
     // 1. Read from local DB first
-    final cached = await advanceManager.readLocal(advanceId);
+    final cached = await advanceManager.readLocalWithLines(advanceId);
     if (cached != null) {
       // Have cached data, try to refresh in background
       _refreshAdvanceFromOdoo(advanceId);
@@ -173,7 +216,13 @@ class AdvanceService {
     }
 
     // 3. Re-read from local DB
-    return await advanceManager.readLocal(advanceId);
+    return await advanceManager.readLocalWithLines(advanceId);
+  }
+
+  /// Explicit refresh for callers that need to await a complete line snapshot.
+  Future<Advance?> refreshAdvance(int advanceId) async {
+    await _fetchAndCacheAdvance(advanceId);
+    return advanceManager.readLocalWithLines(advanceId);
   }
 
   /// Refresh single advance from Odoo (non-blocking)
@@ -191,7 +240,9 @@ class AdvanceService {
       model: 'account.advance',
       method: 'search_read',
       kwargs: {
-        'domain': [['id', '=', advanceId]],
+        'domain': [
+          ['id', '=', advanceId],
+        ],
         'fields': [
           'id',
           'name',
@@ -211,6 +262,7 @@ class AdvanceService {
           'is_expired',
           'collection_session_id',
           'sale_order_id',
+          'advance_line_ids',
         ],
         'limit': 1,
       },
@@ -220,8 +272,52 @@ class AdvanceService {
       return;
     }
 
-    final advance = advanceManager.fromOdoo(advances[0] as Map<String, dynamic>);
-    await advanceManager.upsertLocal(advance);
+    final raw = Map<String, dynamic>.from(advances[0] as Map);
+    final advance = advanceManager.fromOdoo(raw);
+    final rawLineIds = raw['advance_line_ids'];
+    if (advance.id != advanceId ||
+        rawLineIds is! List ||
+        rawLineIds.any((id) => id is! int || id <= 0)) {
+      return;
+    }
+    final requestedIds = rawLineIds.cast<int>().toSet();
+    if (requestedIds.length != rawLineIds.length) return;
+    final lines = <AdvanceLine>[];
+    // An empty, valid one2many is an authoritative empty snapshot. Otherwise
+    // require every child before replacing either the header or the lines.
+    if (requestedIds.isNotEmpty) {
+      final childRows = await _odoo.call(
+        model: 'account.advance.line',
+        method: 'search_read',
+        kwargs: {
+          'domain': [
+            ['advance_id', '=', advanceId],
+            ['id', 'in', requestedIds.toList()],
+          ],
+          'fields': advanceLineManager.odooFields,
+          'order': 'id',
+          'limit': requestedIds.length,
+        },
+      );
+      if (childRows is! List || childRows.length != requestedIds.length) return;
+      final seenIds = <int>{};
+      for (final row in childRows) {
+        if (row is! Map ||
+            row['id'] is! int ||
+            !requestedIds.contains(row['id']) ||
+            !seenIds.add(row['id'] as int) ||
+            row['amount'] is! num ||
+            !(row['amount'] as num).isFinite) {
+          return;
+        }
+        final line = advanceLineManager.fromOdoo(
+          Map<String, dynamic>.from(row),
+        );
+        if (line.journalId <= 0) return;
+        lines.add(line.copyWith(advanceId: advanceId));
+      }
+    }
+    await advanceManager.upsertLocalWithLines(advance.copyWith(lines: lines));
   }
 
   /// Obtiene anticipos de la sesión de cobranza
@@ -233,9 +329,11 @@ class AdvanceService {
   Future<List<Advance>> getSessionAdvances(int sessionId) async {
     // 1. Read from local DB first
     final cached = await advanceManager.searchLocal(
-          domain: [['collection_session_id', '=', sessionId]],
-          orderBy: 'date desc',
-        );
+      domain: [
+        ['collection_session_id', '=', sessionId],
+      ],
+      orderBy: 'date desc',
+    );
     if (cached.isNotEmpty) {
       // Have cached data, try to refresh in background
       _refreshSessionAdvancesFromOdoo(sessionId);
@@ -252,9 +350,11 @@ class AdvanceService {
 
     // 3. Re-read from local DB
     return await advanceManager.searchLocal(
-          domain: [['collection_session_id', '=', sessionId]],
-          orderBy: 'date desc',
-        );
+      domain: [
+        ['collection_session_id', '=', sessionId],
+      ],
+      orderBy: 'date desc',
+    );
   }
 
   /// Refresh session advances from Odoo (non-blocking)
@@ -342,18 +442,59 @@ class AdvanceService {
         );
       }
 
-      // 1. Save locally with a temporary negative ID
+      // 1. Persist the local financial snapshot and its replay intent in the
+      // same Drift transaction. `external_id` is a writable server field on
+      // account.advance and is the durable idempotency marker for recovery.
       final tempId = _generateTempId();
+      final advanceUuid = advance.advanceUuid?.trim().isNotEmpty == true
+          ? advance.advanceUuid!.trim()
+          : const Uuid().v4();
       final localAdvance = advance.copyWith(
         id: tempId,
+        advanceUuid: advanceUuid,
         amount: totalLines,
         amountAvailable: totalLines,
       );
-      await advanceManager.upsertLocal(localAdvance);
+      final odooValues = advanceManager.toOdoo(localAdvance)
+        ..['external_id'] = advanceUuid
+        ..['advance_line_ids'] = [
+          for (final line in localAdvance.lines)
+            [0, 0, advanceLineManager.toOdoo(line)],
+        ];
+      int? createOperationId;
+
+      Future<void> persistAdvanceAndIntent() async {
+        await advanceManager.upsertLocalWithLines(localAdvance);
+        createOperationId = await _offlineQueue?.queueOperation(
+          model: 'account.advance',
+          method: 'create',
+          recordId: tempId,
+          values: {
+            ...odooValues,
+            'local_id': tempId,
+            '_operation_key': 'account.advance:create:$advanceUuid',
+          },
+          priority: OfflinePriority.high,
+          replayPolicy: OfflineReplayPolicy.retrySafe,
+        );
+      }
+
+      if (_offlineQueue == null) {
+        await persistAdvanceAndIntent();
+      } else {
+        await _db.transaction(persistAdvanceAndIntent);
+      }
       logger.d('[AdvanceService]', 'Saved advance locally with tempId=$tempId');
 
       // 2. Try to create in Odoo
-      final odooValues = advanceManager.toOdoo(advance);
+      if (_odoo.client == null && _offlineQueue != null) {
+        return AdvanceResult(
+          success: true,
+          advanceId: tempId,
+          errorMessage:
+              'Guardado localmente. Se sincronizará cuando haya conexión.',
+        );
+      }
       try {
         final advanceId = await _odoo.call(
           model: 'account.advance',
@@ -369,28 +510,63 @@ class AdvanceService {
 
         final id = advanceId is List ? advanceId[0] as int : advanceId as int;
 
-        // 3. Odoo OK — update local record with real ID
-        await advanceManager.deleteLocal(tempId);
-        final syncedAdvance = localAdvance.copyWith(id: id);
-        await advanceManager.upsertLocal(syncedAdvance);
+        // 3. Odoo OK — hand off the local ID and retire exactly this create
+        // intent atomically. A crash before here is recovered by external_id.
+        Future<void> completeHandoff() async {
+          await advanceManager.deleteLocal(tempId);
+          await advanceManager.upsertLocal(localAdvance.copyWith(id: id));
+          await _db.customStatement(
+            'UPDATE "advance_lines" SET "advance_id" = ? WHERE "advance_id" = ?',
+            [id, tempId],
+          );
+          if (createOperationId != null) {
+            await _offlineQueue?.removeOperation(createOperationId!);
+          }
+          await _offlineQueue?.updateRecordIdInPendingOperations(
+            'account.advance',
+            tempId,
+            id,
+          );
+        }
+
+        await _db.transaction(completeHandoff);
 
         logger.i('[AdvanceService]', 'Created advance $id (synced)');
         return AdvanceResult(success: true, advanceId: id);
       } catch (e) {
-        // 4. Odoo failed — queue for later sync
-        logger.w('[AdvanceService]', 'Odoo unreachable, queuing advance create (tempId=$tempId): $e');
-        await _offlineQueue?.queueOperation(
-          model: 'account.advance',
-          method: 'create',
-          recordId: tempId,
-          values: odooValues,
-          priority: OfflinePriority.high,
-        );
+        if (!_isConnectivityFailure(e)) {
+          Future<void> discardRejectedDraft() async {
+            await _db.customStatement(
+              'DELETE FROM "advance_lines" WHERE "advance_id" = ?',
+              [tempId],
+            );
+            await advanceManager.deleteLocal(tempId);
+            if (createOperationId != null) {
+              await _offlineQueue?.removeOperation(createOperationId!);
+            }
+          }
 
+          await _db.transaction(discardRejectedDraft);
+          logger.e(
+            '[AdvanceService]',
+            'Odoo rejected advance creation; removed local draft',
+            e,
+          );
+          return AdvanceResult(
+            success: false,
+            errorMessage: _operationError(e),
+          );
+        }
+        // Network unavailable — the atomic outbox intent already exists.
+        logger.w(
+          '[AdvanceService]',
+          'Odoo unreachable, queuing advance create (tempId=$tempId): $e',
+        );
         return AdvanceResult(
           success: true,
           advanceId: tempId,
-          errorMessage: 'Guardado localmente. Se sincronizará cuando haya conexión.',
+          errorMessage:
+              'Guardado localmente. Se sincronizará cuando haya conexión.',
         );
       }
     } catch (e, st) {
@@ -418,25 +594,37 @@ class AdvanceService {
       // Encolar el post para que se ejecute después del create.
       final advanceId = createResult.advanceId!;
       if (advanceId < 0) {
-        await _offlineQueue?.queueOperation(
-          model: 'account.advance',
-          method: 'action_post',
-          recordId: advanceId,
-          values: {'ids': [advanceId]},
-          priority: OfflinePriority.high,
-        );
-        // Update local state optimistically
         final local = await advanceManager.readLocal(advanceId);
-        if (local != null) {
-          await advanceManager.upsertLocal(
-            local.copyWith(state: AdvanceState.posted),
+        Future<void> persistPostAndIntent() async {
+          if (local != null) {
+            await advanceManager.upsertLocal(
+              local.copyWith(state: AdvanceState.posted),
+            );
+          }
+          await _offlineQueue?.queueOperation(
+            model: 'account.advance',
+            method: 'action_post',
+            recordId: advanceId,
+            values: {
+              '_operation_key':
+                  'account.advance:action_post:${local?.advanceUuid ?? advanceId}',
+            },
+            priority: OfflinePriority.high,
+            replayPolicy: OfflineReplayPolicy.retrySafe,
           );
+        }
+
+        if (_offlineQueue == null) {
+          await persistPostAndIntent();
+        } else {
+          await _db.transaction(persistPostAndIntent);
         }
         return AdvanceResult(
           success: true,
           advanceId: advanceId,
           amount: advance.lines.fold<double>(0.0, (sum, l) => sum + l.amount),
-          errorMessage: 'Guardado localmente. Se sincronizará cuando haya conexión.',
+          errorMessage:
+              'Guardado localmente. Se sincronizará cuando haya conexión.',
         );
       }
 
@@ -458,11 +646,44 @@ class AdvanceService {
   /// 3. Si falla, encola para sync posterior
   Future<AdvanceResult> postAdvance(int advanceId) async {
     try {
-      // 1. Optimistic local state update
+      // 1. Commit the optimistic state and its action intent together before
+      // touching the network. Recovery checks the authoritative server state
+      // before replaying action_post.
       final localAdvance = await advanceManager.readLocal(advanceId);
-      if (localAdvance != null) {
-        await advanceManager.upsertLocal(
-          localAdvance.copyWith(state: AdvanceState.posted),
+      int? operationId;
+      Future<void> persistPostAndIntent() async {
+        if (localAdvance != null) {
+          await advanceManager.upsertLocal(
+            localAdvance.copyWith(state: AdvanceState.posted),
+          );
+        }
+        operationId = await _offlineQueue?.queueOperation(
+          model: 'account.advance',
+          method: 'action_post',
+          recordId: advanceId,
+          values: {
+            '_operation_key':
+                'account.advance:action_post:${localAdvance?.advanceUuid ?? advanceId}',
+          },
+          priority: OfflinePriority.high,
+          replayPolicy: OfflineReplayPolicy.retrySafe,
+        );
+      }
+
+      if (_offlineQueue == null) {
+        await persistPostAndIntent();
+      } else {
+        await _db.transaction(persistPostAndIntent);
+      }
+
+      if (_odoo.client == null && _offlineQueue != null) {
+        return AdvanceResult(
+          success: true,
+          advanceId: advanceId,
+          advanceName: localAdvance?.name,
+          amount: localAdvance?.amount,
+          errorMessage:
+              'Publicado localmente. Se sincronizará cuando haya conexión.',
         );
       }
 
@@ -471,13 +692,22 @@ class AdvanceService {
         await _odoo.call(
           model: 'account.advance',
           method: 'action_post',
-          kwargs: {'ids': [advanceId]},
+          ids: [advanceId],
         );
+
+        if (operationId != null) {
+          await _db.transaction(
+            () => _offlineQueue!.removeOperation(operationId!),
+          );
+        }
 
         // Refresh from Odoo to get server-generated fields (name, etc.)
         final advance = await getAdvance(advanceId);
 
-        logger.i('[AdvanceService]', 'Posted advance $advanceId: ${advance?.name}');
+        logger.i(
+          '[AdvanceService]',
+          'Posted advance $advanceId: ${advance?.name}',
+        );
 
         return AdvanceResult(
           success: true,
@@ -486,22 +716,41 @@ class AdvanceService {
           amount: advance?.amount,
         );
       } catch (e) {
-        // 3. Odoo failed — queue for later
-        logger.w('[AdvanceService]', 'Odoo unreachable, queuing action_post for advance $advanceId: $e');
-        await _offlineQueue?.queueOperation(
-          model: 'account.advance',
-          method: 'action_post',
-          recordId: advanceId,
-          values: {'ids': [advanceId]},
-          priority: OfflinePriority.high,
-        );
+        if (!_isConnectivityFailure(e)) {
+          Future<void> restoreRejectedPost() async {
+            if (localAdvance != null) {
+              await advanceManager.upsertLocal(localAdvance);
+            }
+            if (operationId != null) {
+              await _offlineQueue?.removeOperation(operationId!);
+            }
+          }
 
+          if (_offlineQueue == null) {
+            await restoreRejectedPost();
+          } else {
+            await _db.transaction(restoreRejectedPost);
+          }
+          return AdvanceResult(
+            success: false,
+            advanceId: advanceId,
+            advanceName: localAdvance?.name,
+            amount: localAdvance?.amount,
+            errorMessage: _operationError(e),
+          );
+        }
+        // Network unavailable — the atomic action intent remains queued.
+        logger.w(
+          '[AdvanceService]',
+          'Odoo unreachable, queuing action_post for advance $advanceId: $e',
+        );
         return AdvanceResult(
           success: true,
           advanceId: advanceId,
           advanceName: localAdvance?.name,
           amount: localAdvance?.amount,
-          errorMessage: 'Publicado localmente. Se sincronizará cuando haya conexión.',
+          errorMessage:
+              'Publicado localmente. Se sincronizará cuando haya conexión.',
         );
       }
     } catch (e, st) {
@@ -514,53 +763,130 @@ class AdvanceService {
     }
   }
 
-  /// Devuelve el saldo disponible de un anticipo al cliente (offline-first)
+  /// Returns the unused advance through the real accounting wizard.
   ///
-  /// 1. Actualiza estado local optimistamente
-  /// 2. Intenta llamar a Odoo action_return
-  /// 3. Si falla, encola para sync posterior
-  Future<bool> returnAdvance(int advanceId) async {
+  /// This operation is deliberately online-only. The former implementation
+  /// called a non-existent `account.advance.action_return`, zeroed the local
+  /// balance optimistically and then queued that invalid call. A return creates
+  /// and posts an outbound payment, so it must be authoritative in Odoo.
+  Future<AdvanceReturnResult> returnAdvance(int advanceId) async {
+    if (_odoo.client == null) {
+      throw const OdooOfflineException(
+        'Se necesita conexión para devolver un anticipo',
+      );
+    }
+    final advance = await advanceManager.readLocal(advanceId);
+    if (advance == null || advance.amountAvailable <= 0) {
+      throw StateError('El anticipo no tiene saldo disponible para devolver');
+    }
+
     try {
-      // 1. Optimistic local state update
-      final localAdvance = await advanceManager.readLocal(advanceId);
-      if (localAdvance != null) {
-        await advanceManager.upsertLocal(
-          localAdvance.copyWith(
-            amountReturned: localAdvance.amountAvailable,
-            amountAvailable: 0,
-          ),
+      final journalId = await _resolveAdvanceReturnJournal(advance);
+      final paymentType = advance.advanceType == AdvanceType.inbound
+          ? 'outbound'
+          : 'inbound';
+      final methods = await _odoo.call(
+        model: 'account.payment.method.line',
+        method: 'search_read',
+        kwargs: {
+          'domain': [
+            ['journal_id', '=', journalId],
+            ['payment_type', '=', paymentType],
+            ['payment_account_id', '!=', false],
+          ],
+          'fields': ['id', 'code', 'name'],
+          'order': 'sequence, id',
+        },
+      );
+      if (methods is! List || methods.isEmpty) {
+        throw StateError(
+          'El diario del anticipo no tiene un método de devolución con cuenta pendiente',
         );
       }
-
-      // 2. Try Odoo
-      try {
-        await _odoo.call(
-          model: 'account.advance',
-          method: 'action_return',
-          kwargs: {'ids': [advanceId]},
-        );
-
-        // Refresh local cache with server data
-        await _fetchAndCacheAdvance(advanceId);
-
-        logger.i('[AdvanceService]', 'Returned advance $advanceId');
-        return true;
-      } catch (e) {
-        // 3. Odoo failed — queue for later
-        logger.w('[AdvanceService]', 'Odoo unreachable, queuing action_return for advance $advanceId: $e');
-        await _offlineQueue?.queueOperation(
-          model: 'account.advance',
-          method: 'action_return',
-          recordId: advanceId,
-          values: {'ids': [advanceId]},
-          priority: OfflinePriority.high,
-        );
-        return true;
+      final methodMaps = methods.whereType<Map>().toList();
+      final preferred = methodMaps.where(
+        (method) => method['code'] == 'manual',
+      );
+      final method = preferred.isNotEmpty ? preferred.first : methodMaps.first;
+      final methodId = method['id'];
+      if (methodId is! int) {
+        throw StateError('Odoo devolvió un método de pago inválido');
       }
+
+      final createResult = await _odoo.call(
+        model: 'account.advance.return.wizard',
+        method: 'create',
+        kwargs: {
+          'vals_list': [
+            {
+              'advance_id': advanceId,
+              'amount': advance.amountAvailable,
+              'date': DateTime.now().toIso8601String().split('T').first,
+              'journal_id': journalId,
+              'payment_method_line_id': methodId,
+              'memo': 'Devolución ${advance.name ?? advanceId}',
+            },
+          ],
+        },
+      );
+      final wizardId = createResult is List && createResult.isNotEmpty
+          ? createResult.first
+          : createResult;
+      if (wizardId is! int) {
+        throw StateError('Odoo no devolvió el asistente de devolución');
+      }
+
+      final rawAction = await _odoo.call(
+        model: 'account.advance.return.wizard',
+        method: 'action_confirm',
+        ids: [wizardId],
+      );
+      if (rawAction is! Map || rawAction['res_model'] != 'account.payment') {
+        throw StateError('Odoo no devolvió el pago de devolución');
+      }
+      final action = Map<String, dynamic>.from(rawAction);
+      final paymentId = action['res_id'];
+      if (paymentId is! int) {
+        throw StateError('Odoo no devolvió el pago de devolución');
+      }
+      final context = action['context'] is Map
+          ? Map<String, dynamic>.from(action['context'] as Map)
+          : const <String, dynamic>{};
+      final pendingApproval = context['l10n_ec_pago_pendiente'] == true;
+      await _fetchAndCacheAdvance(advanceId);
+      return AdvanceReturnResult(
+        paymentId: paymentId,
+        completed: !pendingApproval,
+        requiresApproval: pendingApproval,
+      );
     } catch (e, st) {
       logger.e('[AdvanceService]', 'Error returning advance $advanceId', e, st);
       rethrow;
     }
+  }
+
+  Future<int> _resolveAdvanceReturnJournal(Advance advance) async {
+    if (advance.lines.isNotEmpty) return advance.lines.first.journalId;
+    final lines = await _odoo.call(
+      model: 'account.advance.line',
+      method: 'search_read',
+      kwargs: {
+        'domain': [
+          ['advance_id', '=', advance.id],
+        ],
+        'fields': ['journal_id'],
+        'order': 'id',
+        'limit': 1,
+      },
+    );
+    if (lines is List && lines.isNotEmpty && lines.first is Map) {
+      final journal = (lines.first as Map)['journal_id'];
+      if (journal is List && journal.isNotEmpty && journal.first is int) {
+        return journal.first as int;
+      }
+      if (journal is int) return journal;
+    }
+    throw StateError('No se pudo determinar el diario original del anticipo');
   }
 
   /// Cancela un anticipo (offline-first)
@@ -570,12 +896,36 @@ class AdvanceService {
   /// 3. Si falla, encola para sync posterior
   Future<bool> cancelAdvance(int advanceId) async {
     try {
-      // 1. Optimistic local state update
+      // 1. Persist state + retry-safe action atomically.
       final localAdvance = await advanceManager.readLocal(advanceId);
-      if (localAdvance != null) {
-        await advanceManager.upsertLocal(
-          localAdvance.copyWith(state: AdvanceState.canceled),
+      int? operationId;
+      Future<void> persistCancelAndIntent() async {
+        if (localAdvance != null) {
+          await advanceManager.upsertLocal(
+            localAdvance.copyWith(state: AdvanceState.canceled),
+          );
+        }
+        operationId = await _offlineQueue?.queueOperation(
+          model: 'account.advance',
+          method: 'action_cancel',
+          recordId: advanceId,
+          values: {
+            '_operation_key':
+                'account.advance:action_cancel:${localAdvance?.advanceUuid ?? advanceId}',
+          },
+          priority: OfflinePriority.normal,
+          replayPolicy: OfflineReplayPolicy.retrySafe,
         );
+      }
+
+      if (_offlineQueue == null) {
+        await persistCancelAndIntent();
+      } else {
+        await _db.transaction(persistCancelAndIntent);
+      }
+
+      if (_odoo.client == null && _offlineQueue != null) {
+        return true;
       }
 
       // 2. Try Odoo
@@ -583,8 +933,14 @@ class AdvanceService {
         await _odoo.call(
           model: 'account.advance',
           method: 'action_cancel',
-          kwargs: {'ids': [advanceId]},
+          ids: [advanceId],
         );
+
+        if (operationId != null) {
+          await _db.transaction(
+            () => _offlineQueue!.removeOperation(operationId!),
+          );
+        }
 
         // Refresh from Odoo
         await _fetchAndCacheAdvance(advanceId);
@@ -592,20 +948,38 @@ class AdvanceService {
         logger.i('[AdvanceService]', 'Cancelled advance $advanceId');
         return true;
       } catch (e) {
-        // 3. Odoo failed — queue for later
-        logger.w('[AdvanceService]', 'Odoo unreachable, queuing action_cancel for advance $advanceId: $e');
-        await _offlineQueue?.queueOperation(
-          model: 'account.advance',
-          method: 'action_cancel',
-          recordId: advanceId,
-          values: {'ids': [advanceId]},
-          priority: OfflinePriority.normal,
+        if (!_isConnectivityFailure(e)) {
+          Future<void> restoreRejectedCancel() async {
+            if (localAdvance != null) {
+              await advanceManager.upsertLocal(localAdvance);
+            }
+            if (operationId != null) {
+              await _offlineQueue?.removeOperation(operationId!);
+            }
+          }
+
+          if (_offlineQueue == null) {
+            await restoreRejectedCancel();
+          } else {
+            await _db.transaction(restoreRejectedCancel);
+          }
+          rethrow;
+        }
+        // Network unavailable — the atomic action intent remains queued.
+        logger.w(
+          '[AdvanceService]',
+          'Odoo unreachable, queuing action_cancel for advance $advanceId: $e',
         );
         return true;
       }
     } catch (e, st) {
-      logger.e('[AdvanceService]', 'Error cancelling advance $advanceId', e, st);
-      return false;
+      logger.e(
+        '[AdvanceService]',
+        'Error cancelling advance $advanceId',
+        e,
+        st,
+      );
+      rethrow;
     }
   }
 
@@ -622,7 +996,11 @@ class AdvanceService {
         method: 'search_read',
         kwargs: {
           'domain': [
-            ['type', 'in', ['cash', 'bank', 'credit']],
+            [
+              'type',
+              'in',
+              ['cash', 'bank', 'credit'],
+            ],
             ['allow_advance_customer', '=', true],
             ['company_id', '=', companyId],
           ],
@@ -643,13 +1021,15 @@ class AdvanceService {
         // Obtener métodos de pago del diario
         final methods = await _getAdvancePaymentMethods(journalId);
 
-        result.add(AvailableJournal(
-          id: journalId,
-          name: journal['name'] as String,
-          type: journal['type'] as String,
-          isCardJournal: journal['is_card_journal'] as bool? ?? false,
-          paymentMethods: methods,
-        ));
+        result.add(
+          AvailableJournal(
+            id: journalId,
+            name: journal['name'] as String,
+            type: journal['type'] as String,
+            isCardJournal: journal['is_card_journal'] as bool? ?? false,
+            paymentMethods: methods,
+          ),
+        );
       }
 
       return result;
@@ -682,7 +1062,12 @@ class AdvanceService {
           .map((m) => PaymentMethod.fromOdoo(m as Map<String, dynamic>))
           .toList();
     } catch (e, st) {
-      logger.e('[AdvanceService]', 'Error getting payment methods for journal $journalId', e, st);
+      logger.e(
+        '[AdvanceService]',
+        'Error getting payment methods for journal $journalId',
+        e,
+        st,
+      );
       return [];
     }
   }
@@ -691,15 +1076,16 @@ class AdvanceService {
   // BANCOS Y TARJETAS (igual que PaymentService)
   // ============================================================
 
-  /// Obtiene los bancos disponibles.
-  /// In Odoo 19.2+, res.bank was removed — returns empty list.
+  /// Obtiene el catálogo bancario de la localización ecuatoriana.
   Future<List<AvailableBank>> getBanks() async {
     try {
       final banks = await _odoo.call(
-        model: 'res.bank',
+        model: 'l10n.ec.bank',
         method: 'search_read',
         kwargs: {
-          'domain': [],
+          'domain': [
+            ['active', '=', true],
+          ],
           'fields': ['id', 'name'],
           'order': 'name',
         },
@@ -713,8 +1099,7 @@ class AdvanceService {
           .map((b) => AvailableBank.fromOdoo(b as Map<String, dynamic>))
           .toList();
     } on OdooNotFoundException {
-      // Odoo 19.2+: res.bank model doesn't exist
-      logger.i('[AdvanceService]', 'res.bank not available (Odoo 19.2+)');
+      logger.w('[AdvanceService]', 'Catálogo l10n.ec.bank no disponible');
       return [];
     } catch (e, st) {
       logger.e('[AdvanceService]', 'Error getting banks', e, st);
@@ -730,7 +1115,9 @@ class AdvanceService {
         model: 'account.journal',
         method: 'search_read',
         kwargs: {
-          'domain': [['id', '=', journalId]],
+          'domain': [
+            ['id', '=', journalId],
+          ],
           'fields': ['card_brand_ids'],
           'limit': 1,
         },
@@ -740,7 +1127,8 @@ class AdvanceService {
         return [];
       }
 
-      final brandIds = (journal[0]['card_brand_ids'] as List?)?.cast<int>() ?? [];
+      final brandIds =
+          (journal[0]['card_brand_ids'] as List?)?.cast<int>() ?? [];
 
       List<dynamic>? brands;
       if (brandIds.isEmpty) {
@@ -759,7 +1147,9 @@ class AdvanceService {
           model: 'account.credit.card.brand',
           method: 'search_read',
           kwargs: {
-            'domain': [['id', 'in', brandIds]],
+            'domain': [
+              ['id', 'in', brandIds],
+            ],
             'fields': ['id', 'name'],
           },
         );
@@ -779,7 +1169,10 @@ class AdvanceService {
   }
 
   /// Obtiene los plazos de tarjeta disponibles
-  Future<List<CardDeadline>> getCardDeadlines({bool? credit, bool? debit}) async {
+  Future<List<CardDeadline>> getCardDeadlines({
+    bool? credit,
+    bool? debit,
+  }) async {
     try {
       final domain = <List<dynamic>>[
         if (credit == true) ['credit', '=', true],
@@ -818,12 +1211,16 @@ class AdvanceService {
   Future<List<PartnerBank>> getPartnerBanks(int partnerId) async {
     try {
       final banks = await _bankRepo.getPartnerBanks(partnerId);
-      return banks.map((b) => PartnerBank(
-        id: b.odooId,
-        accountNumber: b.accNumber,
-        bankId: b.bankId,
-        bankName: b.bankName,
-      )).toList();
+      return banks
+          .map(
+            (b) => PartnerBank(
+              id: b.odooId,
+              accountNumber: b.accNumber,
+              bankId: b.bankId,
+              bankName: b.bankName,
+            ),
+          )
+          .toList();
     } catch (e, st) {
       logger.e('[AdvanceService]', 'Error getting partner banks', e, st);
       return [];
@@ -835,14 +1232,18 @@ class AdvanceService {
   /// [PartnerBank] local (esta clase) con el `PartnerBank` de
   /// `theos_pos_core` — sigue siendo el mismo modelo local de siempre.
   Stream<List<PartnerBank>> watchPartnerBanks(int partnerId) {
-    return _bankRepo.watchPartnerBanks(partnerId).map(
+    return _bankRepo
+        .watchPartnerBanks(partnerId)
+        .map(
           (banks) => banks
-              .map((b) => PartnerBank(
-                    id: b.odooId,
-                    accountNumber: b.accNumber,
-                    bankId: b.bankId,
-                    bankName: b.bankName,
-                  ))
+              .map(
+                (b) => PartnerBank(
+                  id: b.odooId,
+                  accountNumber: b.accNumber,
+                  bankId: b.bankId,
+                  bankName: b.bankName,
+                ),
+              )
               .toList(),
         );
   }
@@ -893,14 +1294,19 @@ class AdvanceService {
         model: 'res.company',
         method: 'search_read',
         kwargs: {
-          'domain': [['id', '=', companyId]],
+          'domain': [
+            ['id', '=', companyId],
+          ],
           'fields': ['l10n_ec_advance_default_due_days'],
           'limit': 1,
         },
       );
 
       if (company is List && company.isNotEmpty) {
-        return (company[0] as Map<String, dynamic>)['l10n_ec_advance_default_due_days'] as int? ?? 30;
+        return (company[0]
+                    as Map<String, dynamic>)['l10n_ec_advance_default_due_days']
+                as int? ??
+            30;
       }
 
       return 30;
@@ -918,14 +1324,22 @@ class AdvanceService {
         model: 'res.company',
         method: 'search_read',
         kwargs: {
-          'domain': [['id', '=', companyId]],
+          'domain': [
+            ['id', '=', companyId],
+          ],
           'fields': ['l10n_ec_advance_min_reference_length'],
           'limit': 1,
         },
       );
 
       if (company is List && company.isNotEmpty) {
-        return (company[0] as Map<String, dynamic>)['l10n_ec_advance_min_reference_length'] as int? ?? 30;
+        return (company[0]
+                    as Map<
+                      String,
+                      dynamic
+                    >)['l10n_ec_advance_min_reference_length']
+                as int? ??
+            30;
       }
 
       return 30;
@@ -953,6 +1367,20 @@ class AdvanceResult {
   });
 }
 
+/// Result of the accounting return wizard. A payment awaiting supervisor
+/// approval exists, but the advance balance has not been returned yet.
+class AdvanceReturnResult {
+  final int paymentId;
+  final bool completed;
+  final bool requiresApproval;
+
+  const AdvanceReturnResult({
+    required this.paymentId,
+    required this.completed,
+    required this.requiresApproval,
+  });
+}
+
 /// Cuenta bancaria del cliente
 class PartnerBank {
   final int id;
@@ -968,23 +1396,17 @@ class PartnerBank {
   });
 
   factory PartnerBank.fromOdoo(Map<String, dynamic> data) {
-    final bankData = data['bank_id'];
-    int? bankId;
-    String? bankName;
-    if (bankData is List && bankData.length >= 2) {
-      bankId = bankData[0] as int;
-      bankName = bankData[1] as String;
-    }
-
     return PartnerBank(
       id: data['id'] as int,
       // Odoo 19.5/19.2: 'acc_number' fue renombrado a 'account_number' en
       // res.partner.bank (verificado en vivo contra erp1, julio 2026).
       accountNumber: data['account_number'] as String,
-      bankId: bankId,
-      bankName: bankName,
+      bankName: data['bank_name'] is String
+          ? data['bank_name'] as String
+          : null,
     );
   }
 
-  String get displayName => bankName != null ? '$bankName - $accountNumber' : accountNumber;
+  String get displayName =>
+      bankName != null ? '$bankName - $accountNumber' : accountNumber;
 }

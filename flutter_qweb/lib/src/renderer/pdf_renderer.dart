@@ -1,4 +1,5 @@
 import 'dart:typed_data';
+
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 
@@ -7,6 +8,7 @@ import '../models/render_options.dart';
 import '../models/template_context.dart';
 import '../parser/qweb_node.dart';
 import '../parser/qweb_parser.dart';
+import '../services/pdf_font_loader.dart';
 import 'pdf_layout_renderer.dart';
 import 'pdf_text_renderer.dart';
 import 'pdf_value_formatter.dart';
@@ -30,6 +32,7 @@ class QWebPdfRenderer implements QWebTableRendererDelegate {
   late final PdfValueFormatter _valueFormatter;
   late final PdfTextRenderer _textRenderer;
   final PdfLayoutRenderer _layoutRenderer = PdfLayoutRenderer();
+  final PdfFontLoader _fontLoader = PdfFontLoader();
 
   /// Template loader for t-call
   @override
@@ -118,14 +121,14 @@ class QWebPdfRenderer implements QWebTableRendererDelegate {
     RenderOptions options = const RenderOptions(),
   }) async {
     _context = context.toEvaluationContext();
-    _options = options;
+    _options = await _fontLoader.resolve(options);
     _cachedPrimaryColor = null; // Reset cache for new render
 
     final theme = pw.ThemeData.withFont(
-      base: _options.font ?? pw.Font.helvetica(),
-      bold: _options.boldFont ?? pw.Font.helveticaBold(),
-      italic: _options.italicFont ?? pw.Font.helveticaOblique(),
-      boldItalic: _options.boldItalicFont ?? pw.Font.helveticaBoldOblique(),
+      base: _options.font,
+      bold: _options.boldFont,
+      italic: _options.italicFont,
+      boldItalic: _options.boldItalicFont,
     );
 
     final pdf = pw.Document(
@@ -240,8 +243,10 @@ class QWebPdfRenderer implements QWebTableRendererDelegate {
     if (interpolated.isEmpty) return [];
 
     return [
-      pw.Text(interpolated,
-          style: pw.TextStyle(fontSize: _options.baseFontSize))
+      pw.Text(
+        interpolated,
+        style: pw.TextStyle(fontSize: _options.baseFontSize),
+      ),
     ];
   }
 
@@ -258,10 +263,7 @@ class QWebPdfRenderer implements QWebTableRendererDelegate {
     // Check for so_total_summary - replace with TaxTotalsWidget
     final elementName = node.attributes['name'] ?? '';
     if (elementName == 'so_total_summary') {
-      final widget = TaxTotalsWidget(
-        context: _context,
-        options: _options,
-      );
+      final widget = TaxTotalsWidget(context: _context, options: _options);
       final result = widget.render();
       if (result != null) {
         return result;
@@ -291,7 +293,7 @@ class QWebPdfRenderer implements QWebTableRendererDelegate {
             pw.Row(
               crossAxisAlignment: pw.CrossAxisAlignment.start,
               children: children.map((c) => pw.Expanded(child: c)).toList(),
-            )
+            ),
           ];
         }
 
@@ -305,8 +307,7 @@ class QWebPdfRenderer implements QWebTableRendererDelegate {
         pw.Widget contentWidget;
 
         // Handle text alignment classes
-        if (cssClass.contains('text-end') ||
-            cssClass.contains('text-right')) {
+        if (cssClass.contains('text-end') || cssClass.contains('text-right')) {
           contentWidget = pw.Column(
             crossAxisAlignment: pw.CrossAxisAlignment.end,
             children: children,
@@ -337,10 +338,7 @@ class QWebPdfRenderer implements QWebTableRendererDelegate {
             final borderColor = PdfColors.grey600;
 
             decoration = pw.BoxDecoration(
-              border: pw.Border.all(
-                color: borderColor,
-                width: borderWidth,
-              ),
+              border: pw.Border.all(color: borderColor, width: borderWidth),
             );
           }
 
@@ -372,9 +370,7 @@ class QWebPdfRenderer implements QWebTableRendererDelegate {
           }
 
           final styledContent = pw.DefaultTextStyle(
-            style: const pw.TextStyle(
-              color: PdfColors.grey700,
-            ),
+            style: const pw.TextStyle(color: PdfColors.grey700),
             child: contentWidget,
           );
 
@@ -384,7 +380,7 @@ class QWebPdfRenderer implements QWebTableRendererDelegate {
               margin: margin,
               decoration: decoration,
               child: styledContent,
-            )
+            ),
           ];
         }
 
@@ -427,7 +423,10 @@ class QWebPdfRenderer implements QWebTableRendererDelegate {
             try {
               return [
                 pw.DefaultTextStyle(
-                    style: style, textAlign: align, child: child)
+                  style: style,
+                  textAlign: align,
+                  child: child,
+                ),
               ];
             } catch (e) {
               // Fallback to normal rendering
@@ -438,15 +437,19 @@ class QWebPdfRenderer implements QWebTableRendererDelegate {
         if (children.length == 1) {
           return [
             pw.DefaultTextStyle(
-                style: style, textAlign: align, child: children.first)
+              style: style,
+              textAlign: align,
+              child: children.first,
+            ),
           ];
         }
 
         return [
           pw.DefaultTextStyle(
-              style: style,
-              textAlign: align,
-              child: pw.Wrap(children: children))
+            style: style,
+            textAlign: align,
+            child: pw.Wrap(children: children),
+          ),
         ];
 
       case 'strong':
@@ -457,7 +460,7 @@ class QWebPdfRenderer implements QWebTableRendererDelegate {
             child: children.length == 1
                 ? children.first
                 : pw.Row(children: children),
-          )
+          ),
         ];
 
       case 'em':
@@ -468,15 +471,14 @@ class QWebPdfRenderer implements QWebTableRendererDelegate {
             child: children.length == 1
                 ? children.first
                 : pw.Row(children: children),
-          )
+          ),
         ];
 
       case 'h1':
         return [
           pw.Text(
             _textRenderer.getTextContent(node, _context),
-            style:
-                pw.TextStyle(fontSize: 24, fontWeight: pw.FontWeight.bold),
+            style: pw.TextStyle(fontSize: 24, fontWeight: pw.FontWeight.bold),
           ),
           pw.SizedBox(height: 12),
         ];
@@ -498,8 +500,7 @@ class QWebPdfRenderer implements QWebTableRendererDelegate {
         return [
           pw.Text(
             _textRenderer.getTextContent(node, _context),
-            style:
-                pw.TextStyle(fontSize: 16, fontWeight: pw.FontWeight.bold),
+            style: pw.TextStyle(fontSize: 16, fontWeight: pw.FontWeight.bold),
           ),
           pw.SizedBox(height: 8),
         ];
@@ -508,8 +509,7 @@ class QWebPdfRenderer implements QWebTableRendererDelegate {
         return [
           pw.Text(
             _textRenderer.getTextContent(node, _context),
-            style:
-                pw.TextStyle(fontSize: 14, fontWeight: pw.FontWeight.bold),
+            style: pw.TextStyle(fontSize: 14, fontWeight: pw.FontWeight.bold),
           ),
           pw.SizedBox(height: 6),
         ];
@@ -537,17 +537,20 @@ class QWebPdfRenderer implements QWebTableRendererDelegate {
             crossAxisAlignment: pw.CrossAxisAlignment.start,
             children: node.children.expand((child) {
               final items = _renderNode(child);
-              return items.map((item) => pw.Row(
-                    crossAxisAlignment: pw.CrossAxisAlignment.start,
-                    children: [
-                      pw.Text('• ',
-                          style:
-                              pw.TextStyle(fontSize: _options.baseFontSize)),
-                      pw.Expanded(child: item),
-                    ],
-                  ));
+              return items.map(
+                (item) => pw.Row(
+                  crossAxisAlignment: pw.CrossAxisAlignment.start,
+                  children: [
+                    pw.Text(
+                      '• ',
+                      style: pw.TextStyle(fontSize: _options.baseFontSize),
+                    ),
+                    pw.Expanded(child: item),
+                  ],
+                ),
+              );
             }).toList(),
-          )
+          ),
         ];
 
       case 'ol':
@@ -558,17 +561,20 @@ class QWebPdfRenderer implements QWebTableRendererDelegate {
             children: node.children.expand((child) {
               index++;
               final items = _renderNode(child);
-              return items.map((item) => pw.Row(
-                    crossAxisAlignment: pw.CrossAxisAlignment.start,
-                    children: [
-                      pw.Text('$index. ',
-                          style:
-                              pw.TextStyle(fontSize: _options.baseFontSize)),
-                      pw.Expanded(child: item),
-                    ],
-                  ));
+              return items.map(
+                (item) => pw.Row(
+                  crossAxisAlignment: pw.CrossAxisAlignment.start,
+                  children: [
+                    pw.Text(
+                      '$index. ',
+                      style: pw.TextStyle(fontSize: _options.baseFontSize),
+                    ),
+                    pw.Expanded(child: item),
+                  ],
+                ),
+              );
             }).toList(),
-          )
+          ),
         ];
 
       case 'li':
@@ -585,7 +591,7 @@ class QWebPdfRenderer implements QWebTableRendererDelegate {
               color: PdfColors.blue,
               decoration: pw.TextDecoration.underline,
             ),
-          )
+          ),
         ];
 
       case 'row':
@@ -593,7 +599,7 @@ class QWebPdfRenderer implements QWebTableRendererDelegate {
           pw.Row(
             crossAxisAlignment: pw.CrossAxisAlignment.start,
             children: children.map((c) => pw.Expanded(child: c)).toList(),
-          )
+          ),
         ];
 
       case 'col':
@@ -603,7 +609,7 @@ class QWebPdfRenderer implements QWebTableRendererDelegate {
               crossAxisAlignment: pw.CrossAxisAlignment.start,
               children: children,
             ),
-          )
+          ),
         ];
 
       case 'root':
@@ -632,7 +638,8 @@ class QWebPdfRenderer implements QWebTableRendererDelegate {
     if (node.condition.contains('collapse_prices') ||
         node.condition.contains('price_field ==')) {
       _debugPrint(
-          '  [RENDER_IF] Subtotal cell condition: "${node.condition}" => $condition');
+        '  [RENDER_IF] Subtotal cell condition: "${node.condition}" => $condition',
+      );
     }
 
     // Debug: Log t-if conditions for cell content
@@ -643,21 +650,26 @@ class QWebPdfRenderer implements QWebTableRendererDelegate {
       final lineData = _context['line'];
       if (lineData is Map) {
         _debugPrint(
-            '   -> line.display_type: ${lineData['display_type']} (${lineData['display_type'].runtimeType})');
+          '   -> line.display_type: ${lineData['display_type']} (${lineData['display_type'].runtimeType})',
+        );
       }
       if (node.condition.contains('display_discount') ||
           node.condition.contains('display_taxes')) {
         _debugPrint(
-            '   -> context.display_discount: ${_context['display_discount']}');
+          '   -> context.display_discount: ${_context['display_discount']}',
+        );
       }
       if (condition) {
         if (node.thenBranch is QWebFragmentNode) {
           final frag = node.thenBranch as QWebFragmentNode;
-          _debugPrint('   -> thenBranch fragment with ${frag.children.length} children');
+          _debugPrint(
+            '   -> thenBranch fragment with ${frag.children.length} children',
+          );
         } else if (node.thenBranch is QWebElementNode) {
           final elem = node.thenBranch as QWebElementNode;
           _debugPrint(
-              '   -> thenBranch element: <${elem.tagName}> with ${elem.children.length} children');
+            '   -> thenBranch element: <${elem.tagName}> with ${elem.children.length} children',
+          );
         }
       }
     }
@@ -696,10 +708,12 @@ class QWebPdfRenderer implements QWebTableRendererDelegate {
       if (items.isNotEmpty && items[0] is Map) {
         final firstItem = items[0] as Map;
         _debugPrint(
-            '   -> First item keys: ${firstItem.keys.take(10).join(", ")}...');
+          '   -> First item keys: ${firstItem.keys.take(10).join(", ")}...',
+        );
         final firstName = firstItem['name']?.toString() ?? '';
         _debugPrint(
-            '   -> First item name: ${firstName.length > 40 ? firstName.substring(0, 40) : firstName}...');
+          '   -> First item name: ${firstName.length > 40 ? firstName.substring(0, 40) : firstName}...',
+        );
       }
     }
 
@@ -744,7 +758,8 @@ class QWebPdfRenderer implements QWebTableRendererDelegate {
     if (node.variableName == 'tax_totals' ||
         node.expression.contains('tax_totals')) {
       _debugPrint(
-          '  [T-SET TAX_TOTALS] ${node.variableName} = "${node.expression}"');
+        '  [T-SET TAX_TOTALS] ${node.variableName} = "${node.expression}"',
+      );
       if (value is Map) {
         if (value.containsKey('subtotals')) {
           _debugPrint('   -> has subtotals');
@@ -766,9 +781,11 @@ class QWebPdfRenderer implements QWebTableRendererDelegate {
         if (value.isNotEmpty && value.first is Map) {
           final firstLine = value.first as Map;
           _debugPrint(
-              '   -> First line discount: ${firstLine['discount']}, discount_amount: ${firstLine['discount_amount']}');
+            '   -> First line discount: ${firstLine['discount']}, discount_amount: ${firstLine['discount_amount']}',
+          );
           _debugPrint(
-              '   -> First line tax_amount: ${firstLine['tax_amount']}, price_tax: ${firstLine['price_tax']}');
+            '   -> First line tax_amount: ${firstLine['tax_amount']}, price_tax: ${firstLine['price_tax']}',
+          );
         }
       }
     }
@@ -779,8 +796,9 @@ class QWebPdfRenderer implements QWebTableRendererDelegate {
 
   /// Render variable assignment with content
   List<pw.Widget> _renderSetContent(QWebSetContentNode node) {
-    final content =
-        node.children.map((n) => _textRenderer.getTextContent(n, _context)).join('');
+    final content = node.children
+        .map((n) => _textRenderer.getTextContent(n, _context))
+        .join('');
     _context[node.variableName] = content;
     return [];
   }
@@ -796,7 +814,7 @@ class QWebPdfRenderer implements QWebTableRendererDelegate {
         cleanValue,
         style: pw.TextStyle(fontSize: _options.baseFontSize),
         maxLines: 1,
-      )
+      ),
     ];
   }
 
@@ -855,8 +873,10 @@ class QWebPdfRenderer implements QWebTableRendererDelegate {
     }
 
     return [
-      pw.Text(formattedValue,
-          style: pw.TextStyle(fontSize: _options.baseFontSize))
+      pw.Text(
+        formattedValue,
+        style: pw.TextStyle(fontSize: _options.baseFontSize),
+      ),
     ];
   }
 
@@ -868,7 +888,8 @@ class QWebPdfRenderer implements QWebTableRendererDelegate {
     if (node.expression.contains('price_subtotal') ||
         node.expression.contains('price_total')) {
       _debugPrint(
-          '   -> Context keys: ${_context.keys.where((k) => k.contains('price') || k.contains('line')).take(10).toList()}');
+        '   -> Context keys: ${_context.keys.where((k) => k.contains('price') || k.contains('line')).take(10).toList()}',
+      );
     }
 
     if (value == null) return [];
@@ -882,8 +903,7 @@ class QWebPdfRenderer implements QWebTableRendererDelegate {
     // Auto-detect monetary fields if no widget specified
     if (options == null || !options.containsKey('widget')) {
       final expression = node.expression.toLowerCase();
-      final isMonetaryField =
-          _valueFormatter.isMonetaryFieldName(expression);
+      final isMonetaryField = _valueFormatter.isMonetaryFieldName(expression);
 
       if (isMonetaryField && value is num) {
         options ??= <String, dynamic>{};
@@ -891,7 +911,9 @@ class QWebPdfRenderer implements QWebTableRendererDelegate {
 
         // Try to get currency from context
         final currency = _valueFormatter.getCurrencyFromContext(
-            node.expression, _context);
+          node.expression,
+          _context,
+        );
         if (currency != null) {
           options['display_currency'] = currency;
         }
@@ -906,14 +928,15 @@ class QWebPdfRenderer implements QWebTableRendererDelegate {
         cleanFormatted,
         style: pw.TextStyle(fontSize: _options.baseFontSize),
         maxLines: 1,
-      )
+      ),
     ];
   }
 
   /// Render template call (t-call)
   List<pw.Widget> _renderCall(QWebCallNode node) {
     _debugPrint(
-        '  t-call: "${node.templateName}" (has templateLoader: ${templateLoader != null})');
+      '  t-call: "${node.templateName}" (has templateLoader: ${templateLoader != null})',
+    );
 
     if (templateLoader == null) {
       return node.children.expand(_renderNode).toList();
@@ -927,12 +950,13 @@ class QWebPdfRenderer implements QWebTableRendererDelegate {
         pw.Text(
           'Template not found: $templateName',
           style: const pw.TextStyle(color: PdfColors.red),
-        )
+        ),
       ];
     }
 
     _debugPrint(
-        '  t-call: Template LOADED: $templateName (${templateNode.runtimeType})');
+      '  t-call: Template LOADED: $templateName (${templateNode.runtimeType})',
+    );
 
     // Process t-set children FIRST - these set context variables for the template
     final bodyChildren = <QWebNode>[];
@@ -944,7 +968,8 @@ class QWebPdfRenderer implements QWebTableRendererDelegate {
         if (child.variableName == 'tax_totals' ||
             child.expression.contains('tax_totals')) {
           _debugPrint(
-              '  [T-CALL T-SET] ${child.variableName} = "${child.expression}"');
+            '  [T-CALL T-SET] ${child.variableName} = "${child.expression}"',
+          );
           if (_context.containsKey('doc')) {
             final doc = _context['doc'];
             if (doc is Map) {
@@ -985,8 +1010,10 @@ class QWebPdfRenderer implements QWebTableRendererDelegate {
   /// Render dynamic attributes
   List<pw.Widget> _renderDynamicAttrs(QWebDynamicAttrsNode node) {
     for (final entry in node.formatAttrs.entries) {
-      final interpolated =
-          _textRenderer.interpolateFormat(entry.value, _context);
+      final interpolated = _textRenderer.interpolateFormat(
+        entry.value,
+        _context,
+      );
       _context['__attr_${entry.key}'] = interpolated;
     }
 

@@ -5,28 +5,33 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:window_manager/window_manager.dart';
+
 import '../../../../core/constants/app_colors.dart';
 import '../../../../core/services/odoo_service.dart';
 import '../services/server_service.dart';
+import '../services/offline_session_attempt_guard.dart';
 import '../../../../core/services/config_service.dart';
 import '../../../../core/services/app_initializer.dart';
+import '../../../../core/navigation/app_router.dart';
+import '../../../../core/navigation/route_access_policy.dart';
 import '../../../../core/services/auth_event_service.dart';
 import '../../../../core/database/repositories/repository_providers.dart';
 import '../../../../core/database/database_helper.dart';
 import '../../../../core/managers/manager_providers.dart';
-import '../../../../core/services/platform/device_service.dart';
-import '../../../../core/services/platform/server_database_service.dart'
-    show AppServerDatabaseService;
 import '../../../../core/theme/spacing.dart';
-import '../../../../shared/widgets/form/form_fields.dart';
-import '../../../../core/services/logger_service.dart';
+
+import 'package:odoo_sdk/odoo_sdk.dart' show logger;
+
 import '../../../../shared/widgets/dialogs/copyable_info_bar.dart';
 import '../../../../shared/widgets/theos_logo.dart';
 import '../../../../shared/providers/user_provider.dart';
+
 import 'package:odoo_sdk/odoo_sdk.dart'
     show OdooAuthenticationException, OdooAccessDeniedException;
 import 'package:theos_pos_core/theos_pos_core.dart'
-    show userManager, UserManagerBusiness;
+    show userManager, User, UserManagerBusiness;
+
+import '../widgets/login_form.dart';
 
 class LoginScreen extends ConsumerStatefulWidget {
   const LoginScreen({super.key});
@@ -180,7 +185,14 @@ class _LoginScreenState extends ConsumerState<LoginScreen> with WindowListener {
 
     // Auto-select first server if none selected
     if (_selectedServer == null && servers.isNotEmpty) {
-      _selectedServer = servers.first;
+      final initialServer = servers.first;
+      _selectedServer = initialServer;
+      final initialApiKey = initialServer.apiKey;
+      if (_apiKeyController.text.isEmpty &&
+          initialApiKey != null &&
+          initialApiKey.isNotEmpty) {
+        _apiKeyController.text = initialApiKey;
+      }
     }
 
     return ScaffoldPage(
@@ -209,12 +221,36 @@ class _LoginScreenState extends ConsumerState<LoginScreen> with WindowListener {
                             constraints: const BoxConstraints(maxWidth: 400),
                             padding: spacing.all.lg,
                             decoration: BoxDecoration(
-                              color: FluentTheme.of(
-                                context,
-                              ).scaffoldBackgroundColor,
+                              color: FluentTheme.of(context)
+                                  .scaffoldBackgroundColor,
                               borderRadius: BorderRadius.circular(spacing.sm),
                             ),
-                            child: _buildLoginForm(context, servers, spacing),
+                            child: LoginForm(
+                              formKey: _formKey,
+                              controller: _apiKeyController,
+                              servers: servers,
+                              selectedServer: _selectedServer,
+                              spacing: spacing,
+                              showPassword: _showPassword,
+                              isLoading: _isLoading,
+                              loadingStage: _loadingStage,
+                              onServerChanged: (value) {
+                                setState(() {
+                                  _selectedServer = value;
+                                  if (value?.apiKey != null) {
+                                    _apiKeyController.text = value!.apiKey!;
+                                  } else {
+                                    _apiKeyController.clear();
+                                  }
+                                });
+                              },
+                              onTogglePassword: () => setState(
+                                () => _showPassword = !_showPassword,
+                              ),
+                              onSubmit: _login,
+                              onManageServers: () =>
+                                  _showManageServersDialog(context),
+                            ),
                           ),
                         ],
                       ),
@@ -232,7 +268,9 @@ class _LoginScreenState extends ConsumerState<LoginScreen> with WindowListener {
                         color: AppColors.loginBackground,
                         child: Column(
                           mainAxisAlignment: MainAxisAlignment.center,
-                          children: [TheosLogoName(height: 300, color: Colors.white)],
+                          children: [
+                            TheosLogoName(height: 300, color: Colors.white),
+                          ],
                         ),
                       ),
                     ),
@@ -266,7 +304,33 @@ class _LoginScreenState extends ConsumerState<LoginScreen> with WindowListener {
                                     ),
                                   ),
                                   spacing.vertical.xl,
-                                  _buildLoginForm(context, servers, spacing),
+                                  LoginForm(
+                                    formKey: _formKey,
+                                    controller: _apiKeyController,
+                                    servers: servers,
+                                    selectedServer: _selectedServer,
+                                    spacing: spacing,
+                                    showPassword: _showPassword,
+                                    isLoading: _isLoading,
+                                    loadingStage: _loadingStage,
+                                    onServerChanged: (value) {
+                                      setState(() {
+                                        _selectedServer = value;
+                                        if (value?.apiKey != null) {
+                                          _apiKeyController.text =
+                                              value!.apiKey!;
+                                        } else {
+                                          _apiKeyController.clear();
+                                        }
+                                      });
+                                    },
+                                    onTogglePassword: () => setState(
+                                      () => _showPassword = !_showPassword,
+                                    ),
+                                    onSubmit: _login,
+                                    onManageServers: () =>
+                                        _showManageServersDialog(context),
+                                  ),
                                 ],
                               ),
                             ),
@@ -328,116 +392,6 @@ class _LoginScreenState extends ConsumerState<LoginScreen> with WindowListener {
                   ],
                 ),
               ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildLoginForm(
-    BuildContext context,
-    List<ServerConfig> servers,
-    ThemedSpacing spacing,
-  ) {
-    return Form(
-      key: _formKey,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          FormComboBox<ServerConfig>(
-            label: 'Servidor',
-            value: _selectedServer,
-            items: servers.map((e) {
-              return ComboBoxItem(
-                value: e,
-                child: Text('${e.name} (${e.url})'),
-              );
-            }).toList(),
-            onChanged: (value) {
-              setState(() {
-                _selectedServer = value;
-                if (value != null && value.apiKey != null) {
-                  _apiKeyController.text = value.apiKey!;
-                } else {
-                  _apiKeyController.clear();
-                }
-              });
-            },
-            placeholder: 'Selecciona un servidor',
-          ),
-          spacing.vertical.md,
-
-          if (_selectedServer != null) ...[
-            FormTextField(
-              label: 'Base de Datos',
-              placeholder: _selectedServer!.database,
-              readOnly: true,
-              enabled: false,
-            ),
-            spacing.vertical.md,
-          ],
-
-          FormTextField(
-            label: 'Clave de acceso',
-            controller: _apiKeyController,
-            placeholder: 'Ingresa tu clave de acceso',
-            obscureText: !_showPassword,
-            prefix: Padding(
-              padding: EdgeInsets.only(left: spacing.sm),
-              child: const Icon(FluentIcons.lock),
-            ),
-            suffix: IconButton(
-              icon: Icon(_showPassword ? FluentIcons.view : FluentIcons.hide),
-              onPressed: () => setState(() => _showPassword = !_showPassword),
-            ),
-            validator: (v) => v == null || v.isEmpty ? 'Requerido' : null,
-          ),
-
-          spacing.vertical.lg,
-
-          SizedBox(
-            width: double.infinity,
-            child: FilledButton(
-              onPressed: _isLoading ? null : _login,
-              child: Padding(
-                padding: spacing.symmetric.vSm(),
-                child: _isLoading
-                    ? Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          const SizedBox(
-                            width: 16,
-                            height: 16,
-                            child: ProgressRing(
-                              activeColor: Colors.white,
-                              strokeWidth: 2,
-                            ),
-                          ),
-                          if (_loadingStage.isNotEmpty) ...[
-                            const SizedBox(width: 8),
-                            Flexible(
-                              child: Text(
-                                _loadingStage,
-                                style: const TextStyle(fontSize: 12),
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                            ),
-                          ],
-                        ],
-                      )
-                    : const Text('Entrar'),
-              ),
-            ),
-          ),
-
-          spacing.vertical.ml,
-          Center(
-            child: HyperlinkButton(
-              child: const Text('Gestionar Servidores'),
-              onPressed: () {
-                _showManageServersDialog(context);
-              },
             ),
           ),
         ],
@@ -510,8 +464,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> with WindowListener {
                                         color: Colors.red,
                                       ),
                                       onPressed: () async {
-                                        final confirmed =
-                                            await showDialog<bool>(
+                                        final confirmed = await showDialog<bool>(
                                           context: context,
                                           builder: (_) => ContentDialog(
                                             title: const Text(
@@ -523,19 +476,23 @@ class _LoginScreenState extends ConsumerState<LoginScreen> with WindowListener {
                                             actions: [
                                               Button(
                                                 child: const Text('Cancelar'),
-                                                onPressed: () =>
-                                                    Navigator.pop(context, false),
+                                                onPressed: () => Navigator.pop(
+                                                  context,
+                                                  false,
+                                                ),
                                               ),
                                               FilledButton(
                                                 style: ButtonStyle(
                                                   backgroundColor:
                                                       WidgetStatePropertyAll(
-                                                    Colors.red,
-                                                  ),
+                                                        Colors.red,
+                                                      ),
                                                 ),
                                                 child: const Text('Eliminar'),
-                                                onPressed: () =>
-                                                    Navigator.pop(context, true),
+                                                onPressed: () => Navigator.pop(
+                                                  context,
+                                                  true,
+                                                ),
                                               ),
                                             ],
                                           ),
@@ -638,8 +595,9 @@ class _LoginScreenState extends ConsumerState<LoginScreen> with WindowListener {
                       name: nameCtrl.text,
                       url: urlCtrl.text,
                       database: dbCtrl.text,
-                      apiKey:
-                          apiKeyCtrl.text.isNotEmpty ? apiKeyCtrl.text : null,
+                      apiKey: apiKeyCtrl.text.isNotEmpty
+                          ? apiKeyCtrl.text
+                          : null,
                     );
 
                     if (server != null) {
@@ -658,8 +616,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> with WindowListener {
                     CopyableInfoBar.showWarning(
                       context,
                       title: 'Datos incompletos',
-                      message:
-                          'Por favor complete todos los campos obligatorios (Nombre, URL, Base de Datos).',
+                      message: 'Por favor complete todos los campos obligatorios (Nombre, URL, Base de Datos).',
                     );
                   }
                 },
@@ -707,6 +664,8 @@ class _LoginScreenState extends ConsumerState<LoginScreen> with WindowListener {
     final url = _selectedServer!.url;
     final db = _selectedServer!.database;
     final apiKey = _apiKeyController.text.trim();
+    var scopeActivated = false;
+    var sessionCommitted = false;
 
     try {
       final odoo = ref.read(odooServiceProvider);
@@ -714,10 +673,13 @@ class _LoginScreenState extends ConsumerState<LoginScreen> with WindowListener {
 
       bool success = false;
       bool isOfflineLogin = false;
+      int? authenticatedUserId;
+      User? authenticatedUser;
 
       try {
         _setStage('Verificando credenciales...');
-        success = await odoo.testConnection();
+        authenticatedUserId = await odoo.resolveCurrentUserId();
+        success = true;
       } on OdooAuthenticationException {
         // HTTP 401 — API key is invalid/expired. Do NOT fall through to offline login.
         logger.w('[LOGIN] 🔑 Authentication failed (HTTP 401)');
@@ -745,7 +707,10 @@ class _LoginScreenState extends ConsumerState<LoginScreen> with WindowListener {
         }
         return;
       } catch (e) {
-        // Network/connection error - try offline login
+        if (!isOfflineFallbackEligible(e)) rethrow;
+
+        // A genuine transport outage may use the already committed local
+        // scope. Server/protocol/programming errors are never hidden here.
         logger.d('[LOGIN] 🔴 Connection failed: $e');
         logger.d('[LOGIN] 🔄 Attempting offline login...');
 
@@ -753,6 +718,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> with WindowListener {
         if (offlineResult) {
           success = true;
           isOfflineLogin = true;
+          scopeActivated = true;
         } else {
           // Re-throw to show error to user
           rethrow;
@@ -763,6 +729,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> with WindowListener {
         // If offline login, skip online-only operations
         if (isOfflineLogin) {
           await _completeOfflineLogin(url, db, apiKey);
+          sessionCommitted = true;
           return;
         }
         // Update the selected server with the new API key if it changed
@@ -785,15 +752,29 @@ class _LoginScreenState extends ConsumerState<LoginScreen> with WindowListener {
         final authEventService = ref.read(authEventServiceProvider);
         authEventService.reset();
 
-        // Initialize app dependencies with force re-init for fresh credentials
+        final resolvedUserId = authenticatedUserId;
+        if (resolvedUserId == null || resolvedUserId <= 0) {
+          throw StateError('El servidor no devolvio un usuario valido');
+        }
+
+        // Open and commit the user-owned scope before any scoped Drift
+        // repository is exposed. A failure here aborts login fail-closed.
+        await AppInitializer.activateSessionScope(
+          baseUrl: url,
+          database: db,
+          userId: resolvedUserId,
+        );
+        scopeActivated = true;
+
+        // Initialize app dependencies for the authenticated user scope.
         _setStage('Inicializando datos...');
         logger.d('[LOGIN] 🔧 Initializing AppInitializer...');
         final initResult = await AppInitializer.initialize(
           baseUrl: url,
           apiKey: apiKey,
           database: db,
-          forceReinitialize: true, // Always force re-init on login
           authEventService: authEventService,
+          userId: resolvedUserId,
         );
         logger.d('[LOGIN] ✅ AppInitializer completed');
 
@@ -809,7 +790,15 @@ class _LoginScreenState extends ConsumerState<LoginScreen> with WindowListener {
         // Initialize model managers with the database (required for userManager, etc.)
         _setStage('Inicializando managers...');
         logger.d('[LOGIN] 🔧 Initializing model managers...');
-        initializeModelManagers();
+        final managerQueueStore = ref.read(offlineQueueDataSourceProvider);
+        if (managerQueueStore == null) {
+          throw StateError('No se pudo inicializar la cola del scope actual');
+        }
+        await initializeModelManagers(
+          client: initResult.odooClient,
+          db: ref.read(appDatabaseProvider),
+          queueStore: managerQueueStore,
+        );
         logger.d('[LOGIN] ✅ Model managers initialized');
 
         // Invalidate repository providers that capture appDb reference
@@ -817,177 +806,87 @@ class _LoginScreenState extends ConsumerState<LoginScreen> with WindowListener {
         ref.invalidate(catalogSyncRepositoryProvider);
         logger.d('[LOGIN] ✅ Repository providers invalidated for new DB');
 
-        // Get partner_id from session_info for WebSocket
+        // Resolve the partner identity associated with the bearer user.
         int? partnerId;
         String? imStatusAccessToken;
 
+        _setStage('Cargando datos de usuario...');
+        // JSON-2 has no webclient session_info. Identity and partner data
+        // come from the bearer-authenticated res.users record.
+        final userRepo = ref.read(userRepositoryProvider);
+        authenticatedUser = userRepo != null
+            ? await userRepo.getCurrentUser(knownUserId: resolvedUserId)
+            : null;
+        final user = authenticatedUser;
+        if (user == null) {
+          throw StateError('No se pudo cargar la identidad del usuario');
+        }
+        partnerId = user.partnerId;
+        if (partnerId != null) {
+          logger.d('[LOGIN] ✅ Partner ID obtained from res.users: $partnerId');
+        }
+
+        // Only the current identity and its known group memberships are
+        // required to enter. A full user catalog remains an explicit manual
+        // sync and must not compete with first-login rendering.
         try {
-          _setStage('Cargando datos de usuario...');
-          logger.d('[LOGIN] 📄 Getting session_info to extract partner_id...');
-          final sessionInfo = await initResult.odooClient.getSessionInfo();
-
-          if (sessionInfo != null) {
-            // Extract partner_id (can be int or [id, name])
-            if (sessionInfo['partner_id'] is List &&
-                (sessionInfo['partner_id'] as List).isNotEmpty) {
-              partnerId = (sessionInfo['partner_id'] as List)[0] as int?;
-            } else if (sessionInfo['partner_id'] is int) {
-              partnerId = sessionInfo['partner_id'] as int;
-            }
-
-            // If partner_id is null, try to get it from storeData.Store.self_partner
-            if (partnerId == null && sessionInfo.containsKey('storeData')) {
-              final storeData =
-                  sessionInfo['storeData'] as Map<String, dynamic>?;
-              if (storeData != null && storeData.containsKey('Store')) {
-                final store = storeData['Store'] as Map<String, dynamic>?;
-                if (store != null && store.containsKey('self_partner')) {
-                  partnerId = store['self_partner'] as int?;
-                  logger.d(
-                    '[LOGIN] 👤 Partner ID found in storeData.Store.self_partner: $partnerId',
-                  );
-                }
-              }
-            }
-
-            // Extract im_status_access_token
-            imStatusAccessToken =
-                sessionInfo['im_status_access_token'] as String?;
-
-            // If not at top level, try to get it from storeData.res.partner
-            if (imStatusAccessToken == null &&
-                sessionInfo.containsKey('storeData')) {
-              final storeData =
-                  sessionInfo['storeData'] as Map<String, dynamic>?;
-              if (storeData != null && storeData.containsKey('res.partner')) {
-                final resPartner = storeData['res.partner'] as List?;
-                if (resPartner != null && resPartner.isNotEmpty) {
-                  for (final partner in resPartner) {
-                    if (partner is Map<String, dynamic>) {
-                      final token =
-                          partner['im_status_access_token'] as String?;
-                      if (token != null) {
-                        imStatusAccessToken = token;
-                        logger.d(
-                          '[LOGIN] 🔑 Token found in storeData.res.partner',
-                        );
-                        break;
-                      }
-                    }
-                  }
-                }
-              }
-            }
-
-            logger.d('[LOGIN] 👤 Partner ID from session_info: $partnerId');
-            logger.d(
-              '[LOGIN] 🔑 IM Status Token: ${imStatusAccessToken != null ? "present" : "absent"}',
-            );
-          }
-
-          // Get partner_id from res.users if not available from session_info
-          if (partnerId == null) {
-            logger.d(
-              '[LOGIN] 👤 Partner ID not available in session_info, getting from res.users...',
-            );
-            final userRepo = ref.read(userRepositoryProvider);
-            final user = userRepo != null
-                ? await userRepo.getCurrentUser()
-                : null;
-            if (user != null && user.partnerId != null) {
-              partnerId = user.partnerId;
-              logger.d(
-                '[LOGIN] ✅ Partner ID obtained from res.users: $partnerId',
-              );
-
-              // Sync ALL users and groups for offline support
-              try {
-                final catalogRepo = ref.read(catalogSyncRepositoryProvider);
-                if (catalogRepo != null) {
-                  _setStage('Sincronizando usuarios...');
-                  logger.d(
-                    '[LOGIN] 🔄 Syncing all users for offline support...',
-                  );
-                  await catalogRepo.syncUsers();
-                  logger.d('[LOGIN] ✅ All users synced');
-
-                  _setStage('Sincronizando permisos...');
-                  logger.d('[LOGIN] 🔄 Syncing groups + user memberships...');
-                  // syncUserGroups (no syncGroups a secas): además de poblar la
-                  // tabla res_groups, escribe group_ids del usuario actual vía
-                  // has_group() — base del gate de permisos del menú. Sin el
-                  // userId aquí, el usuario quedaba sin permisos al entrar.
-                  await catalogRepo.syncUserGroups(user.id);
-                  logger.d('[LOGIN] ✅ Groups + memberships synced');
-                }
-              } catch (e) {
-                // Non-blocking: sync failure shouldn't prevent login
-                logger.d(
-                  '[LOGIN] ⚠️ Failed to sync users/groups (will use cached): $e',
-                );
-              }
-
-              // Store credential for offline login
-              try {
-                logger.d('[LOGIN] 💾 Storing credential for offline login...');
-                await ref
-                    .read(serverServiceProvider.notifier)
-                    .storeCredential(
-                      serverUrl: url,
-                      database: db,
-                      apiKey: apiKey,
-                      userId: user.id,
-                    );
-                logger.d('[LOGIN] ✅ Credential stored for user ${user.id}');
-              } catch (e) {
-                logger.d('[LOGIN] ⚠️ Failed to store credential: $e');
-              }
-            } else {
-              logger.d('[LOGIN] ⚠️ Could not obtain partner_id from res.users');
-            }
+          final catalogRepo = ref.read(
+            authenticatedCatalogSyncRepositoryProvider,
+          );
+          if (catalogRepo != null) {
+            _setStage('Sincronizando permisos...');
+            logger.d('[LOGIN] 🔄 Syncing groups + user memberships...');
+            await catalogRepo.syncUserGroups(user.id);
+            logger.d('[LOGIN] ✅ Groups + memberships synced');
+            await ref.read(userProvider.notifier).fetchUser();
           }
         } catch (e) {
-          logger.d('[LOGIN] ⚠️ Error getting partner_id: $e');
-        }
-
-        // Get real session_id for WebSocket authentication (required on Web)
-        String? realSessionId;
-        if (kIsWeb) {
+          // Permission snapshots are atomic and fail closed. Cached groups can
+          // still authorize offline-capable routes when the remote read fails.
           logger.d(
-            '[LOGIN] 🌐 Web platform: Getting real session_id for WebSocket...',
+            '[LOGIN] ⚠️ Failed to sync groups; using atomic cached snapshot: $e',
           );
-          final sessionResult = await initResult.odooClient
-              .authenticateSession();
-          if (sessionResult != null) {
-            realSessionId = sessionResult.sessionId;
-            logger.d('[LOGIN] ✅ Got real session_id for WebSocket');
-          } else {
-            logger.d(
-              '[LOGIN] ⚠️ Could not get real session_id, WebSocket may not work',
-            );
-          }
         }
 
-        // Set current session for WebSocket authentication (with partner_id)
-        // On Web, use real session_id; on native, use API key (cookies handle it)
-        final sessionIdForWebSocket = realSessionId ?? apiKey;
-        logger.d(
-          '[LOGIN] 🔐 Saving current session with partner_id: $partnerId...',
-        );
+        final finalUser = ref.read(userProvider) ?? user;
+        await ref
+            .read(userProvider.notifier)
+            .setUser(finalUser, isOffline: false);
+
+        // Credential persistence is part of the login commit. Continuing
+        // after a keychain failure would appear successful but force another
+        // login on the next launch.
+        // The offline credential and resumable session are one persistence
+        // commit. A keychain/preferences failure rolls both sides back.
+        logger.d('[LOGIN] 💾 Committing offline credential and session...');
         await ref
             .read(serverServiceProvider.notifier)
-            .setCurrentSession(
-              updatedServer,
-              sessionIdForWebSocket,
+            .commitAuthenticatedSession(
+              config: updatedServer,
+              userId: finalUser.id,
               partnerId: partnerId,
               imStatusAccessToken: imStatusAccessToken,
             );
-        logger.d('[LOGIN] ✅ Session saved with partner_id');
+        logger.d('[LOGIN] ✅ Credential and session committed');
+        sessionCommitted = true;
+
+        // Publish identity only after scope, vault credential and current
+        // session have all committed successfully.
+        AppRouter.session.value = RouteSessionSnapshot(
+          userId: finalUser.id,
+          permissions: finalUser.permissions,
+          developerMode: ref.read(configServiceProvider).developerMode,
+        );
 
         if (mounted) {
           _setStage('¡Listo!');
-          logger.d('[LOGIN] 🚀 Navigating to home screen...');
-          context.go('/');
+          final destination = RouteAccessPolicy.destinationAfterLogin(
+            returnTo: GoRouterState.of(context).uri.queryParameters['returnTo'],
+            permissions: finalUser.permissions,
+            developerMode: ref.read(configServiceProvider).developerMode,
+          );
+          logger.d('[LOGIN] 🚀 Navigating to $destination...');
+          context.go(destination);
           logger.d('[LOGIN] ✅ Navigation completed');
         } else {
           logger.d('[LOGIN] ⚠️ Widget not mounted, skipping navigation');
@@ -1002,6 +901,16 @@ class _LoginScreenState extends ConsumerState<LoginScreen> with WindowListener {
         }
       }
     } catch (e) {
+      if (scopeActivated && !sessionCommitted) {
+        AppRouter.session.value = const RouteSessionSnapshot();
+        ref.read(userProvider.notifier).clearUser();
+        resetModelManagersSession();
+        try {
+          await AppInitializer.deactivateSessionScope();
+        } catch (rollbackError) {
+          logger.e('[LOGIN] Session rollback failed: $rollbackError');
+        }
+      }
       if (mounted) {
         final message = e.toString().replaceAll('Exception: ', '');
         CopyableInfoBar.showError(
@@ -1028,11 +937,14 @@ class _LoginScreenState extends ConsumerState<LoginScreen> with WindowListener {
     String db,
     String apiKey,
   ) async {
+    final attemptGuard = OfflineSessionAttemptGuard(
+      AppInitializer.deactivateSessionScope,
+    );
     try {
       final serverService = ref.read(serverServiceProvider.notifier);
 
       // 1. Find stored credential for this API key
-      final credential = serverService.findCredential(
+      final credential = await serverService.findCredentialAsync(
         serverUrl: url,
         database: db,
         apiKey: apiKey,
@@ -1049,17 +961,14 @@ class _LoginScreenState extends ConsumerState<LoginScreen> with WindowListener {
       );
       logger.d('[LOGIN]    Last login: ${credential.lastLoginAt}');
 
-      // 2. Initialize the database for this server
-      logger.d('[LOGIN] 📂 Initializing database for offline login...');
-      final serverConfig = ServerConfig(
-        name: 'Offline Server',
-        url: url,
+      // 2. Activate the user-scoped database before touching local models.
+      logger.d('[LOGIN] 📂 Initializing scoped database for offline login...');
+      await AppInitializer.activateSessionScope(
+        baseUrl: url,
         database: db,
+        userId: credential.userId,
+        offline: true,
       );
-      final deviceService = createDeviceService();
-      final serverDbService = AppServerDatabaseService(deviceService);
-      final dbName = serverDbService.generateDatabaseName(serverConfig);
-      await DatabaseHelper.initializeForServer(dbName);
 
       // 3. Check if the user exists in local database
       final localUser = await userManager.getUser(credential.userId);
@@ -1071,10 +980,13 @@ class _LoginScreenState extends ConsumerState<LoginScreen> with WindowListener {
       }
 
       logger.d('[LOGIN] ✅ Offline login possible for user: ${localUser.name}');
+      attemptGuard.markSucceeded();
       return true;
     } catch (e) {
       logger.e('[LOGIN] 🔴 Error attempting offline login: $e');
-      return false;
+      rethrow;
+    } finally {
+      await attemptGuard.close();
     }
   }
 
@@ -1090,7 +1002,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> with WindowListener {
       final serverService = ref.read(serverServiceProvider.notifier);
 
       // Get the stored credential to find the user ID
-      final credential = serverService.findCredential(
+      final credential = await serverService.findCredentialAsync(
         serverUrl: url,
         database: db,
         apiKey: apiKey,
@@ -1118,7 +1030,14 @@ class _LoginScreenState extends ConsumerState<LoginScreen> with WindowListener {
 
       // Initialize model managers with the database (required for userManager, etc.)
       logger.d('[LOGIN] 🔧 Initializing model managers (offline)...');
-      initializeModelManagers();
+      final managerQueueStore = ref.read(offlineQueueDataSourceProvider);
+      if (managerQueueStore == null) {
+        throw StateError('No se pudo inicializar la cola del scope offline');
+      }
+      await initializeModelManagers(
+        db: ref.read(appDatabaseProvider),
+        queueStore: managerQueueStore,
+      );
       ref.invalidate(catalogSyncRepositoryProvider);
       logger.d('[LOGIN] ✅ Model managers initialized');
 
@@ -1147,8 +1066,15 @@ class _LoginScreenState extends ConsumerState<LoginScreen> with WindowListener {
       // Set current session
       await serverService.setCurrentSession(
         updatedServer,
-        apiKey, // Use API key as session ID in offline mode
         partnerId: localUser.partnerId,
+      );
+
+      // Publish authentication only after the offline session commit. This
+      // keeps GoRouter from disposing LoginScreen while persistence is active.
+      AppRouter.session.value = RouteSessionSnapshot(
+        userId: localUser.id,
+        permissions: localUser.permissions,
+        developerMode: ref.read(configServiceProvider).developerMode,
       );
 
       if (mounted) {
@@ -1156,23 +1082,21 @@ class _LoginScreenState extends ConsumerState<LoginScreen> with WindowListener {
         CopyableInfoBar.showWarning(
           context,
           title: 'Modo Offline',
-          message:
-              'Iniciando sesión sin conexión. Algunas funciones pueden no estar disponibles.',
+          message: 'Iniciando sesión sin conexión. Algunas funciones pueden no estar disponibles.',
         );
 
-        logger.d('[LOGIN] 🚀 Navigating to home screen (offline mode)...');
-        context.go('/');
+        final destination = RouteAccessPolicy.destinationAfterLogin(
+          returnTo: GoRouterState.of(context).uri.queryParameters['returnTo'],
+          permissions: localUser.permissions,
+          developerMode: ref.read(configServiceProvider).developerMode,
+        );
+        logger.d('[LOGIN] 🚀 Navigating to $destination (offline mode)...');
+        context.go(destination);
         logger.d('[LOGIN] ✅ Offline login completed');
       }
     } catch (e) {
       logger.e('[LOGIN] 🔴 Error completing offline login: $e');
-      if (mounted) {
-        CopyableInfoBar.showError(
-          context,
-          title: 'Error de inicio offline',
-          message: 'No se pudo iniciar sesión sin conexión: $e',
-        );
-      }
+      rethrow;
     } finally {
       if (mounted) {
         setState(() => _isLoading = false);

@@ -1,5 +1,7 @@
 import 'package:drift/drift.dart';
+
 import '../../../core/database/database_helper.dart';
+
 import 'package:odoo_sdk/odoo_sdk.dart';
 import 'package:theos_pos_core/theos_pos_core.dart' hide DatabaseHelper;
 
@@ -10,20 +12,13 @@ import 'sale_order_sync_repository.dart';
 import 'user_sync_repository.dart';
 import 'qweb_template_sync_repository.dart';
 import '../../banks/repositories/bank_repository.dart';
-import '../../products/repositories/product_repository.dart';
+import '../../../core/services/handlers/model_record_handler.dart' as handlers;
 
 // Fase E2: sub-repos extraídos de este mismo archivo (composición, mismo
 // patrón que los de arriba). El facade delega — API pública intacta.
 import 'sync_metadata_repository.dart';
 import 'sync_counts_repository.dart';
-import 'denormalized_field_sync_repository.dart';
-import 'pricelist_item_sync_repository.dart';
-import 'stock_sync_repository.dart';
 import 'card_cash_sync_repository.dart';
-
-// Import and re-export sync data classes for backward compatibility
-import 'sync_models.dart';
-export 'sync_models.dart';
 
 /// Facade repository for syncing master catalogs from Odoo to local SQLite
 ///
@@ -32,17 +27,11 @@ export 'sync_models.dart';
 /// - [PartnerSyncRepository]: Partners/customers
 /// - [SaleOrderSyncRepository]: Sale orders and lines
 /// - [UserSyncRepository]: Users, warehouses, teams, companies, etc.
-///
-/// Maintains backward compatibility while using focused implementations internally.
 class CatalogSyncRepository {
   final OdooClient? odooClient;
   final DatabaseHelper db;
-  final ProductRepository? _productRepository;
-
-  /// Always access the CURRENT database via DatabaseHelper to avoid
-  /// stale references after server switch ("connection was closed" bug).
-  // ignore: deprecated_member_use_from_same_package
-  AppDatabase get _appDb => DatabaseHelper.db;
+  final AppDatabase appDb;
+  final handlers.ModelRecordHandlerRegistry recordHandlerRegistry;
 
   // Delegate repositories (lazy initialized)
   late final ProductSyncRepository _productSync;
@@ -55,9 +44,6 @@ class CatalogSyncRepository {
   // Fase E2: sub-repos extraídos de este archivo (ver imports arriba).
   late final SyncMetadataRepository _metadataRepo;
   late final SyncCountsRepository _countsRepo;
-  late final DenormalizedFieldSyncRepository _denormalizedRepo;
-  late final PricelistItemSyncRepository _pricelistItemRepo;
-  late final StockSyncRepository _stockRepo;
   late final CardCashSyncRepository _cardCashRepo;
 
   /// Flag to request sync cancellation
@@ -65,55 +51,43 @@ class CatalogSyncRepository {
 
   CatalogSyncRepository({
     required this.db,
+    required this.appDb,
+    required this.recordHandlerRegistry,
     this.odooClient,
-    ProductRepository? productRepository,
-    AppDatabase? appDb, // kept for API compatibility but ignored
-  })  : _productRepository = productRepository {
+  }) {
     // Initialize delegate repositories
-    // Sub-repos that take AppDatabase also use DatabaseHelper.db internally
-    _productSync = ProductSyncRepository(db: _appDb, odooClient: odooClient);
-    _partnerSync = PartnerSyncRepository(db: _appDb, odooClient: odooClient);
+    _productSync = ProductSyncRepository(db: appDb, odooClient: odooClient);
+    _partnerSync = PartnerSyncRepository(db: appDb, odooClient: odooClient);
     _saleOrderSync = SaleOrderSyncRepository(
-      db: db,
+      db: appDb,
       odooClient: odooClient,
-      productRepository: _productRepository,
+      recordHandlerRegistry: recordHandlerRegistry,
     );
     _userSync = UserSyncRepository(
       db: db,
       odooClient: odooClient,
+      appDatabase: appDb,
     );
     _qwebTemplateSync = QwebTemplateSyncRepository(
       db: db,
       odooClient: odooClient,
     );
     // Centralized bank repository (odooClient is optional - works offline)
-    _bankRepo = BankRepository(db: _appDb, odooClient: odooClient);
+    _bankRepo = BankRepository(db: appDb, odooClient: odooClient);
 
     // Fase E2: sub-repos extraídos de este archivo.
     _metadataRepo = SyncMetadataRepository(
-      appDb: _appDb,
+      appDb: appDb,
       qwebTemplateSync: _qwebTemplateSync,
     );
     _countsRepo = SyncCountsRepository(
-      appDb: _appDb,
+      appDb: appDb,
       odooClient: odooClient,
       qwebTemplateSync: _qwebTemplateSync,
     );
-    _denormalizedRepo = DenormalizedFieldSyncRepository(appDb: _appDb);
-    _pricelistItemRepo = PricelistItemSyncRepository(
-      appDb: _appDb,
-      odooClient: odooClient,
-      // getLocalProductById se queda en este facade (sección "Local Data
-      // Access", fuera del alcance de este split) — se pasa como callback.
-      getLocalProductById: getLocalProductById,
-    );
-    _stockRepo = StockSyncRepository(appDb: _appDb);
     _cardCashRepo = CardCashSyncRepository(
-      appDb: _appDb,
+      appDb: appDb,
       odooClient: odooClient,
-      // syncGroups también se queda en este facade (wrapper de una línea a
-      // UserSyncRepository) — se pasa como callback.
-      syncGroups: syncGroups,
     );
   }
 
@@ -265,11 +239,13 @@ class CatalogSyncRepository {
     int? partnerId,
     List<String>? states,
     bool forceRefresh = false,
+    bool allUsers = false,
   }) => _saleOrderSync.fetchSaleOrdersWithLines(
     limit: limit ?? 50,
     state: state,
     partnerId: partnerId,
     forceRefresh: forceRefresh,
+    allUsers: allUsers,
   );
 
   /// Search sale orders with lines
@@ -361,23 +337,6 @@ class CatalogSyncRepository {
     onProgress: onProgress,
     sinceDate: sinceDate,
   );
-
-  /// Sync fiscal position tax mappings
-  /// These define how taxes are mapped for different fiscal positions
-  Future<int> syncFiscalPositionTaxMappings({
-    int batchSize = 500,
-    SyncProgressCallback? onProgress,
-    DateTime? sinceDate,
-  }) => _userSync.syncFiscalPositionTaxMappings(
-    limit: batchSize,
-    onProgress: onProgress,
-    sinceDate: sinceDate,
-  );
-
-  /// Get fiscal position tax mappings for a specific position
-  Future<List<AccountFiscalPositionTaxData>> getFiscalPositionTaxMappings(
-    int positionId,
-  ) => _userSync.getFiscalPositionTaxMappings(positionId);
 
   /// Sync journals
   Future<int> syncJournals({
@@ -489,76 +448,9 @@ class CatalogSyncRepository {
     sinceDate: sinceDate,
   );
 
-  /// Sync a single QWeb template by key
-  Future<bool> syncSingleQwebTemplate(String templateKey) =>
-      _qwebTemplateSync.syncTemplate(templateKey);
-
-  /// Check for QWeb template updates using checksums
-  Future<List<String>> checkQwebTemplateUpdates(List<String> templateKeys) =>
-      _qwebTemplateSync.checkForUpdates(templateKeys);
-
-  // ============================================================================
-  // SYNC ALL CATALOGS
-  // ============================================================================
-
-  /// Sync all catalogs in sequence
-  Future<Map<String, int>> syncAllCatalogs() async {
-    final results = <String, int>{};
-
-    // Capturado ANTES de iniciar el batch completo (~20 catálogos), no
-    // después de que termine. Si se guardara el timestamp de después,
-    // cualquier registro modificado en Odoo MIENTRAS este batch corre
-    // (que puede tardar varios segundos) quedaría con un write_date
-    // anterior al "last_sync" guardado y nunca más se volvería a traer.
-    final syncStartTime = DateTime.now().toUtc();
-
-    try {
-      results['users'] = await syncUsers();
-      results['groups'] = await syncGroups();
-      results['warehouses'] = await syncWarehouses();
-      results['teams'] = await syncTeams();
-      results['company'] = await syncCompany();
-      // Core Config
-      results['currencies'] = await syncCurrencies();
-      results['decimalPrecision'] = await syncDecimalPrecision();
-      results['countries'] = await syncCountries();
-      results['states'] = await syncCountryStates();
-      results['languages'] = await syncLanguages();
-      results['fiscalPositions'] = await syncFiscalPositions();
-      results['fiscalPositionTaxes'] = await syncFiscalPositionTaxMappings();
-      results['journals'] = await syncJournals();
-      // Payment-related data (depends on journals)
-      results['paymentMethodLines'] = await syncPaymentMethodLines();
-      results['advances'] = await syncAdvances();
-      results['creditNotes'] = await syncCreditNotes();
-      results['collectionConfigs'] = await syncCollectionConfigs();
-      results['categories'] = await syncProductCategories();
-      results['taxes'] = await syncTaxes();
-      results['uom'] = await syncUom();
-      results['productUom'] = await syncProductUom();
-      results['paymentTerms'] = await syncPaymentTerms();
-      results['pricelists'] = await syncPricelists();
-      results['partners'] = await syncPartners();
-      results['products'] = await syncProducts();
-      results['saleOrders'] = await syncSaleOrders();
-
-      await _metadataRepo.saveLastSyncTime(syncStartTime);
-
-      logger.i('[CatalogSync] All catalogs synced: $results');
-    } catch (e) {
-      logger.e('[CatalogSync]', 'Error syncing all catalogs', e);
-      rethrow;
-    }
-
-    return results;
-  }
-
   // ============================================================================
   // SYNC METADATA (delega a SyncMetadataRepository — Fase E2)
   // ============================================================================
-
-  /// Get last sync time
-  Future<DateTime?> getLastSyncTime() => _metadataRepo.getLastSyncTime();
 
   /// Get sync info for a specific model
   Future<SyncModelInfo> getModelSyncInfo(String modelName) =>
@@ -607,11 +499,13 @@ class CatalogSyncRepository {
 
   Future<int> getLocalUomCount() => _countsRepo.getLocalUomCount();
 
-  Future<int> getLocalProductUomCount() => _countsRepo.getLocalProductUomCount();
+  Future<int> getLocalProductUomCount() =>
+      _countsRepo.getLocalProductUomCount();
 
   Future<int> getLocalPricelistCount() => _countsRepo.getLocalPricelistCount();
 
-  Future<int> getLocalPaymentTermCount() => _countsRepo.getLocalPaymentTermCount();
+  Future<int> getLocalPaymentTermCount() =>
+      _countsRepo.getLocalPaymentTermCount();
 
   Future<int> getLocalPartnerCount() => _countsRepo.getLocalPartnerCount();
 
@@ -650,7 +544,7 @@ class CatalogSyncRepository {
     int? offset,
     String? searchTerm,
   }) async {
-    var query = _appDb.select(_appDb.productProduct);
+    var query = appDb.select(appDb.productProduct);
 
     if (searchTerm != null && searchTerm.isNotEmpty) {
       final term = '%$searchTerm%';
@@ -672,39 +566,39 @@ class CatalogSyncRepository {
 
   /// Get local product by ID
   Future<ProductProductData?> getLocalProductById(int odooId) async {
-    return (_appDb.select(
-      _appDb.productProduct,
+    return (appDb.select(
+      appDb.productProduct,
     )..where((t) => t.odooId.equals(odooId))).getSingleOrNull();
   }
 
   /// Get local taxes
   Future<List<AccountTaxData>> getLocalTaxes() async {
-    return _appDb.select(_appDb.accountTax).get();
+    return appDb.select(appDb.accountTax).get();
   }
 
   /// Get local tax by ID
   Future<AccountTaxData?> getLocalTaxById(int odooId) async {
-    return (_appDb.select(
-      _appDb.accountTax,
+    return (appDb.select(
+      appDb.accountTax,
     )..where((t) => t.odooId.equals(odooId))).getSingleOrNull();
   }
 
   /// Get local taxes by IDs
   Future<List<AccountTaxData>> getLocalTaxesByIds(List<int> odooIds) async {
-    return (_appDb.select(
-      _appDb.accountTax,
+    return (appDb.select(
+      appDb.accountTax,
     )..where((t) => t.odooId.isIn(odooIds))).get();
   }
 
   /// Get local UoMs
   Future<List<UomUomData>> getLocalUoms() async {
-    return _appDb.select(_appDb.uomUom).get();
+    return appDb.select(appDb.uomUom).get();
   }
 
   /// Get local UoM by ID
   Future<UomUomData?> getLocalUomById(int odooId) async {
-    return (_appDb.select(
-      _appDb.uomUom,
+    return (appDb.select(
+      appDb.uomUom,
     )..where((t) => t.odooId.equals(odooId))).getSingleOrNull();
   }
 
@@ -714,7 +608,7 @@ class CatalogSyncRepository {
     int? offset,
     String? searchTerm,
   }) async {
-    var query = _appDb.select(_appDb.resPartner);
+    var query = appDb.select(appDb.resPartner);
 
     if (searchTerm != null && searchTerm.isNotEmpty) {
       final term = '%$searchTerm%';
@@ -733,408 +627,20 @@ class CatalogSyncRepository {
 
   /// Get local partner by ID
   Future<ResPartnerData?> getLocalPartnerById(int odooId) async {
-    return (_appDb.select(
-      _appDb.resPartner,
+    return (appDb.select(
+      appDb.resPartner,
     )..where((t) => t.odooId.equals(odooId))).getSingleOrNull();
   }
 
   /// Get local pricelists
   Future<List<ProductPricelistData>> getLocalPricelists() async {
-    return _appDb.select(_appDb.productPricelist).get();
+    return appDb.select(appDb.productPricelist).get();
   }
 
   /// Get local payment terms
   Future<List<AccountPaymentTermData>> getLocalPaymentTerms() async {
-    return _appDb.select(_appDb.accountPaymentTerm).get();
+    return appDb.select(appDb.accountPaymentTerm).get();
   }
-
-  // ============================================================================
-  // SINGLE-RECORD SYNC METHODS (WebSocket handlers)
-  // ============================================================================
-
-  /// Sync a single product from Odoo by ID
-  Future<ProductSyncData?> syncSingleProduct(int productId) async {
-    if (!isOnline) return null;
-
-    try {
-      final result = await odooClient!.searchRead(
-        model: 'product.product',
-        domain: [
-          ['id', '=', productId],
-        ],
-        fields: [
-          'id',
-          'name',
-          'display_name',
-          'default_code',
-          'list_price',
-          'uom_id',
-          'taxes_id',
-          'active',
-        ],
-        limit: 1,
-      );
-
-      if (result.isEmpty) return null;
-
-      final data = result.first;
-      final name = (data['display_name'] ?? data['name'] ?? '') as String;
-
-      // Update local database
-      // Update local database (Manual upsert)
-      final existing = await (_appDb.select(
-        _appDb.productProduct,
-      )..where((t) => t.odooId.equals(productId))).getSingleOrNull();
-
-      final companion = ProductProductCompanion(
-        odooId: Value(productId),
-        name: Value(name),
-        defaultCode: Value(data['default_code'] as String?),
-        listPrice: Value((data['list_price'] as num?)?.toDouble() ?? 0.0),
-        active: Value(data['active'] as bool? ?? true),
-      );
-
-      if (existing != null) {
-        await (_appDb.update(
-          _appDb.productProduct,
-        )..where((t) => t.odooId.equals(productId))).write(companion);
-      } else {
-        await _appDb.into(_appDb.productProduct).insert(companion);
-      }
-
-      return ProductSyncData(name: name);
-    } catch (e) {
-      logger.e('[CatalogSync]', 'Error syncing single product $productId', e);
-      return null;
-    }
-  }
-
-  /// Sync a single partner from Odoo by ID
-  Future<PartnerSyncData?> syncSinglePartner(int partnerId) async {
-    if (!isOnline) return null;
-
-    try {
-      final result = await odooClient!.searchRead(
-        model: 'res.partner',
-        domain: [
-          ['id', '=', partnerId],
-        ],
-        fields: [
-          'id',
-          'name',
-          'vat',
-          'street',
-          'phone',
-          'email',
-          'active',
-          'avatar_128',
-        ],
-        limit: 1,
-      );
-
-      if (result.isEmpty) return null;
-
-      final data = result.first;
-      final name = (data['name'] ?? '') as String;
-      final vat = data['vat'] as String?;
-      final street = data['street'] as String?;
-      final phone = data['phone'] as String?;
-      final email = data['email'] as String?;
-      final avatar = data['avatar_128'] is String ? data['avatar_128'] : null;
-
-      // Update local database (Manual upsert)
-      final existing = await (_appDb.select(
-        _appDb.resPartner,
-      )..where((t) => t.odooId.equals(partnerId))).getSingleOrNull();
-
-      final companion = ResPartnerCompanion(
-        odooId: Value(partnerId),
-        name: Value(name),
-        vat: Value(vat),
-        street: Value(street),
-        phone: Value(phone),
-        email: Value(email),
-        avatar128: Value(avatar),
-        active: Value(data['active'] as bool? ?? true),
-      );
-
-      if (existing != null) {
-        await (_appDb.update(
-          _appDb.resPartner,
-        )..where((t) => t.odooId.equals(partnerId))).write(companion);
-      } else {
-        await _appDb.into(_appDb.resPartner).insert(companion);
-      }
-
-      return PartnerSyncData(
-        name: name,
-        vat: vat,
-        street: street,
-        phone: phone,
-        email: email,
-        avatar: avatar,
-      );
-    } catch (e) {
-      logger.e('[CatalogSync]', 'Error syncing single partner $partnerId', e);
-      return null;
-    }
-  }
-
-  /// Sync a single user from Odoo by ID
-  Future<UserSyncData?> syncSingleUser(int userId) async {
-    if (!isOnline) return null;
-
-    try {
-      final result = await odooClient!.searchRead(
-        model: 'res.users',
-        domain: [
-          ['id', '=', userId],
-        ],
-        fields: ['id', 'name', 'login', 'email', 'active'],
-        limit: 1,
-      );
-
-      if (result.isEmpty) return null;
-
-      final data = result.first;
-      final name = (data['name'] ?? '') as String;
-      final email = data['email'] as String?;
-
-      // Update local database (Manual upsert to avoid ON CONFLICT on PK)
-      final existing = await (_appDb.select(
-        _appDb.resUsers,
-      )..where((t) => t.odooId.equals(userId))).getSingleOrNull();
-
-      final companion = ResUsersCompanion(
-        odooId: Value(userId),
-        name: Value(name),
-        login: Value((data['login'] ?? '') as String),
-        email: Value(email),
-      );
-
-      if (existing != null) {
-        // Preserve is_current_user flag when updating
-        await (_appDb.update(
-          _appDb.resUsers,
-        )..where((t) => t.odooId.equals(userId))).write(companion);
-      } else {
-        // New users default to is_current_user = false
-        await _appDb
-            .into(_appDb.resUsers)
-            .insert(companion.copyWith(isCurrentUser: const Value(false)));
-      }
-
-      return UserSyncData(name: name, email: email);
-    } catch (e) {
-      logger.e('[CatalogSync]', 'Error syncing single user $userId', e);
-      return null;
-    }
-  }
-
-  /// Sync a single company from Odoo by ID
-  Future<CompanySyncData?> syncSingleCompany(int companyId) async {
-    if (!isOnline) return null;
-
-    try {
-      final result = await odooClient!.searchRead(
-        model: 'res.company',
-        domain: [
-          ['id', '=', companyId],
-        ],
-        fields: ['id', 'name', 'vat', 'street', 'phone', 'email'],
-        limit: 1,
-      );
-
-      if (result.isEmpty) return null;
-
-      final data = result.first;
-      final name = (data['name'] ?? '') as String;
-
-      // Update local database
-      // Update local database (Manual upsert)
-      final existing = await (_appDb.select(
-        _appDb.resCompanyTable,
-      )..where((t) => t.odooId.equals(companyId))).getSingleOrNull();
-
-      final companion = ResCompanyTableCompanion(
-        odooId: Value(companyId),
-        name: Value(name),
-        vat: Value(data['vat'] as String?),
-        street: Value(data['street'] as String?),
-        phone: Value(data['phone'] as String?),
-        email: Value(data['email'] as String?),
-      );
-
-      if (existing != null) {
-        await (_appDb.update(
-          _appDb.resCompanyTable,
-        )..where((t) => t.odooId.equals(companyId))).write(companion);
-      } else {
-        await _appDb.into(_appDb.resCompanyTable).insert(companion);
-      }
-
-      return CompanySyncData(name: name);
-    } catch (e) {
-      logger.e('[CatalogSync]', 'Error syncing single company $companyId', e);
-      return null;
-    }
-  }
-
-  // ============================================================================
-  // DENORMALIZED FIELD UPDATE METHODS (delega a DenormalizedFieldSyncRepository — Fase E2)
-  // ============================================================================
-
-  /// Update product name in sale order lines
-  Future<int> updateSaleOrderLinesProductName(
-    int productId,
-    String name,
-  ) => _denormalizedRepo.updateSaleOrderLinesProductName(productId, name);
-
-  /// Update partner fields in sale orders
-  Future<int> updateSaleOrdersPartnerFields(
-    int partnerId, {
-    String? name,
-    String? vat,
-    String? street,
-    String? phone,
-    String? email,
-    String?
-    avatar, // Note: avatar is NOT stored in sale_order table, only in UI state
-  }) => _denormalizedRepo.updateSaleOrdersPartnerFields(
-    partnerId,
-    name: name,
-    vat: vat,
-    street: street,
-    phone: phone,
-    email: email,
-    avatar: avatar,
-  );
-
-  /// Update user name in sale orders
-  Future<int> updateSaleOrdersUserName(int userId, String name) =>
-      _denormalizedRepo.updateSaleOrdersUserName(userId, name);
-
-  /// Update user name in activities
-  Future<int> updateActivitiesUserName(int userId, String name) =>
-      _denormalizedRepo.updateActivitiesUserName(userId, name);
-
-  /// Update company name in sale orders
-  Future<int> updateSaleOrdersCompanyName(int companyId, String name) =>
-      _denormalizedRepo.updateSaleOrdersCompanyName(companyId, name);
-
-  // ============================================================================
-  // PRICELIST METHODS (delega a PricelistItemSyncRepository — Fase E2)
-  // ============================================================================
-
-  /// Delete a pricelist item from local database
-  Future<void> deletePricelistItem(int pricelistItemId) =>
-      _pricelistItemRepo.deletePricelistItem(pricelistItemId);
-
-  /// Sync pricelist items for a specific product
-  Future<void> syncPricelistItemsForProduct(int productId) =>
-      _pricelistItemRepo.syncPricelistItemsForProduct(productId);
-
-  // ============================================================================
-  // UOM METHODS (siguen acá — requerirían extender ProductSyncRepository,
-  // fuera del alcance de este split — ver plan de descomposición Fase E2)
-  // ============================================================================
-
-  /// Delete a product UoM from local database
-  Future<void> deleteProductUom(int uomId) async {
-    try {
-      await (_appDb.delete(
-        _appDb.productUom,
-      )..where((t) => t.odooId.equals(uomId))).go();
-    } catch (e) {
-      logger.e('[CatalogSync]', 'Error deleting product UoM $uomId', e);
-    }
-  }
-
-  /// Sync product UoMs for a specific product
-  /// Note: ProductUom table stores barcode mappings, not full UoM data
-  Future<void> syncProductUomsForProduct(int productId) async {
-    if (!isOnline) return;
-
-    try {
-      final result = await odooClient!.searchRead(
-        model: 'product.uom',
-        domain: [
-          ['product_id', '=', productId],
-        ],
-        fields: ['id', 'product_id', 'uom_id', 'barcode', 'company_id'],
-      );
-
-      for (final item in result) {
-        final uomIdRaw = item['uom_id'];
-        final uomId = (uomIdRaw is List && uomIdRaw.isNotEmpty)
-            ? uomIdRaw.first as int
-            : 0;
-
-        final companyIdRaw = item['company_id'];
-        final companyId = (companyIdRaw is List && companyIdRaw.isNotEmpty)
-            ? companyIdRaw.first as int
-            : null;
-
-        await _appDb
-            .into(_appDb.productUom)
-            .insertOnConflictUpdate(
-              ProductUomCompanion(
-                odooId: Value(item['id'] as int),
-                productId: Value(productId),
-                uomId: Value(uomId),
-                barcode: Value(item['barcode'] as String? ?? ''),
-                companyId: Value(companyId),
-              ),
-            );
-      }
-    } catch (e) {
-      logger.e('[CatalogSync]', 'Error syncing UoMs for product $productId', e);
-    }
-  }
-
-  // ============================================================================
-  // STOCK METHODS (delega a StockSyncRepository — Fase E2)
-  // ============================================================================
-
-  /// Update stock from WebSocket notification
-  Future<bool> updateStockFromWebSocket({
-    required int productId,
-    required String productName,
-    String? defaultCode,
-    required int warehouseId,
-    required String warehouseName,
-    required double quantity,
-    required double reservedQuantity,
-    required double availableQuantity,
-  }) => _stockRepo.updateStockFromWebSocket(
-    productId: productId,
-    productName: productName,
-    defaultCode: defaultCode,
-    warehouseId: warehouseId,
-    warehouseName: warehouseName,
-    quantity: quantity,
-    reservedQuantity: reservedQuantity,
-    availableQuantity: availableQuantity,
-  );
-
-  /// Record a stock change for audit purposes
-  Future<void> recordStockChange({
-    required int productId,
-    required String productName,
-    String? defaultCode,
-    required int warehouseId,
-    required String warehouseName,
-    required double oldQuantity,
-    required double newQuantity,
-  }) => _stockRepo.recordStockChange(
-    productId: productId,
-    productName: productName,
-    defaultCode: defaultCode,
-    warehouseId: warehouseId,
-    warehouseName: warehouseName,
-    oldQuantity: oldQuantity,
-    newQuantity: newQuantity,
-  );
 
   // ============================================================================
   // CARD & CASH OUT SYNC (delega a CardCashSyncRepository — Fase E2)
@@ -1190,10 +696,5 @@ class CatalogSyncRepository {
     int batchSize = 100,
     SyncProgressCallback? onProgress,
     DateTime? sinceDate,
-  ]) => _cardCashRepo.syncUserGroups(
-    userId,
-    batchSize,
-    onProgress,
-    sinceDate,
-  );
+  ]) => _cardCashRepo.syncUserGroups(userId, batchSize, onProgress, sinceDate);
 }

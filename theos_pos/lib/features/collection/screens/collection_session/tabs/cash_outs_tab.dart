@@ -53,9 +53,7 @@ class CashOutsTab extends ConsumerWidget {
               child: ListTile.selectable(
                 leading: Icon(FluentIcons.money, color: AppColors.danger),
                 title: Text(cashOut.name ?? 'Sin motivo'),
-                subtitle: Text(
-                  dateFormat.format(cashOut.date),
-                ),
+                subtitle: Text(dateFormat.format(cashOut.date)),
                 trailing: Text(
                   '-${cashOut.amount.toCurrency()}',
                   style: theme.typography.bodyStrong?.copyWith(
@@ -79,8 +77,8 @@ class CashOutsTab extends ConsumerWidget {
 
   /// Construye un formato de fecha/hora basado en el formato de fecha base
   String _buildDateTimeFormat(String baseFormat) {
-    if (baseFormat.contains('H') || 
-        baseFormat.contains('h') || 
+    if (baseFormat.contains('H') ||
+        baseFormat.contains('h') ||
         (baseFormat.contains('m') && baseFormat.contains('a'))) {
       return baseFormat;
     }

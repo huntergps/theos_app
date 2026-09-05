@@ -21,8 +21,9 @@ import '../../../core/services/odoo_service.dart';
 import '../../../core/database/providers.dart'
     show pricelistCalculatorProvider, taxCalculatorProvider;
 import '../../../core/database/repositories/repository_providers.dart';
-import '../../../features/banks/repositories/bank_repository.dart';
-import '../../../core/managers/manager_providers.dart' show appDatabaseProvider, cashOutManagerProvider;
+import '../../../features/banks/providers/bank_providers.dart';
+import '../../../core/managers/manager_providers.dart'
+    show appDatabaseProvider, cashOutManagerProvider;
 import '../../../shared/providers/company_config_provider.dart';
 import '../../clients/clients.dart'
     show clientRepositoryProvider, clientCreditServiceProvider;
@@ -66,22 +67,11 @@ final withholdServiceProvider = Provider((ref) {
 // PaymentService
 // =============================================================================
 
-/// Provider for PaymentService.
-///
-/// Note: This provider requires BankRepository to be available.
-/// Returns PaymentService directly - will throw if BankRepository is not initialized.
+/// Application-scoped service for payment operations.
 final paymentServiceProvider = Provider<PaymentService>((ref) {
-  final bankRepo = ref.watch(bankRepositoryProvider);
-  if (bankRepo == null) {
-    throw StateError(
-      'PaymentService requires BankRepository to be initialized. '
-      'Ensure the app is properly initialized before using payment features.',
-    );
-  }
-
   return PaymentService(
     ref.watch(odooServiceProvider),
-    bankRepo,
+    ref.watch(bankRepositoryProvider),
     ref.watch(offlineQueueDataSourceProvider),
     ref.watch(appDatabaseProvider),
   );
@@ -106,7 +96,7 @@ final orderDefaultsServiceProvider = Provider<OrderDefaultsService>((ref) {
 /// partnerManager) that cannot be expressed as a single Drift `.watch()` stream.
 ///
 /// Auto-refreshes when [currentCompanyProvider] emits a new value (e.g. after
-/// WebSocket-driven company config update or manual refresh).
+/// HTTP-sync company config update or manual refresh).
 final localOrderDefaultsProvider = FutureProvider<OrderDefaults>((ref) async {
   // Watch company so this provider rebuilds when company config changes.
   ref.watch(currentCompanyProvider);
@@ -135,10 +125,12 @@ final orderLineCreationServiceProvider = Provider<OrderLineCreationService>(
 // =============================================================================
 
 /// Provider for OrderService
-final orderServiceProvider = Provider<OrderService>((ref) => OrderService(
-      defaultsService: ref.read(orderDefaultsServiceProvider),
-      salesRepo: ref.read(salesRepositoryProvider),
-    ));
+final orderServiceProvider = Provider<OrderService>(
+  (ref) => OrderService(
+    defaultsService: ref.read(orderDefaultsServiceProvider),
+    salesRepo: ref.read(salesRepositoryProvider),
+  ),
+);
 
 // =============================================================================
 // CreditValidationUIService
@@ -147,8 +139,9 @@ final orderServiceProvider = Provider<OrderService>((ref) => OrderService(
 /// Provider for CreditValidationUIService
 ///
 /// Returns null if required dependencies are not available.
-final creditValidationUIServiceProvider =
-    Provider<CreditValidationUIService?>((ref) {
+final creditValidationUIServiceProvider = Provider<CreditValidationUIService?>((
+  ref,
+) {
   final clientRepo = ref.watch(clientRepositoryProvider);
   final creditService = ref.watch(clientCreditServiceProvider);
 
@@ -167,10 +160,9 @@ final creditValidationUIServiceProvider =
 /// Provider for OrderConfirmationService
 final orderConfirmationServiceProvider = Provider<OrderConfirmationService>(
   (ref) => OrderConfirmationService(
-    salesRepo: ref.watch(salesRepositoryProvider),
+    salesRepository: ref.watch(salesRepositoryProvider),
     logicEngine: ref.watch(saleOrderLogicEngineProvider),
     creditValidationService: ref.watch(creditValidationUIServiceProvider),
-    offlineQueue: ref.watch(offlineQueueDataSourceProvider),
   ),
 );
 
@@ -193,12 +185,13 @@ final saleOrderLogicEngineProvider = Provider<SaleOrderLogicEngine>((ref) {
 // =============================================================================
 
 /// Provider for LineOperationsHelper
-final lineOperationsHelperProvider = Provider.family<LineOperationsHelper, String>(
-  (ref, logTag) => LineOperationsHelper(
-    ref.watch(orderLineCreationServiceProvider),
-    logTag: logTag,
-  ),
-);
+final lineOperationsHelperProvider =
+    Provider.family<LineOperationsHelper, String>(
+      (ref, logTag) => LineOperationsHelper(
+        ref.watch(orderLineCreationServiceProvider),
+        logTag: logTag,
+      ),
+    );
 
 // =============================================================================
 // CreditApprovalService

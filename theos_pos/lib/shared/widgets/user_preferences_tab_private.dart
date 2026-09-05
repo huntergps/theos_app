@@ -115,9 +115,11 @@ extension _UserPreferencesPrivateTab on _UserPreferencesDialogState {
                                       _states = [];
                                     });
                                     if (value != null) {
-                                      final states = await ref
-                                          .read(odooServiceProvider)
-                                          .getStates(value);
+                                      final states =
+                                          await ref
+                                              .read(userRepositoryProvider)
+                                              ?.getStatesByCountry(value) ??
+                                          const <Map<String, dynamic>>[];
                                       if (mounted) {
                                         setState(() => _states = states);
                                       }

@@ -5,6 +5,7 @@ import 'package:fluent_ui/fluent_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:theos_pos_core/theos_pos_core.dart' hide DatabaseHelper;
+
 import '../../core/managers/manager_providers.dart' show appDatabaseProvider;
 import '../../core/database/repositories/repository_providers.dart';
 import '../../core/services/platform/global_notification_service.dart';
@@ -354,9 +355,7 @@ class _ConflictResolutionScreenState
 
   /// Construye la comparación legible del campo en conflicto.
   ///
-  /// `localData`/`remoteData` guardan `{"field": "...", "value": "..."}`
-  /// (ver [_applyServerValueToLocal]). Si el formato no es el esperado
-  /// (conflictos antiguos o de otro tipo) se hace fallback al JSON crudo.
+  /// `localData`/`remoteData` guardan `{"field": "...", "value": "..."}`.
   Widget _buildFieldComparison(
     FluentThemeData theme,
     SyncConflictData conflict,
@@ -367,7 +366,7 @@ class _ConflictResolutionScreenState
         (remoteChange?['field'] ?? localChange?['field']) as String?;
 
     if (fieldName == null) {
-      return _buildRawComparisonCards(theme, conflict);
+      return _buildUnsupportedComparison(theme);
     }
 
     final fieldLabel = _conflictFieldLabels[fieldName] ?? fieldName;
@@ -427,44 +426,19 @@ class _ConflictResolutionScreenState
     );
   }
 
-  /// Fallback: comparación en JSON crudo (comportamiento original) para
-  /// conflictos que no tengan el formato `{"field": ..., "value": ...}`.
-  Widget _buildRawComparisonCards(
-    FluentThemeData theme,
-    SyncConflictData conflict,
-  ) {
-    return Row(
-      children: [
-        Expanded(
-          child: _buildValueCard(
-            theme: theme,
-            icon: FluentIcons.cell_phone,
-            color: Colors.blue,
-            title: 'Datos Locales',
-            child: Text(
-              conflict.localData,
-              style: theme.typography.body,
-              maxLines: 5,
-              overflow: TextOverflow.ellipsis,
-            ),
-          ),
-        ),
-        const SizedBox(width: 16),
-        Expanded(
-          child: _buildValueCard(
-            theme: theme,
-            icon: FluentIcons.cloud,
-            color: AppColors.success,
-            title: 'Datos del Servidor',
-            child: Text(
-              conflict.remoteData,
-              style: theme.typography.body,
-              maxLines: 5,
-              overflow: TextOverflow.ellipsis,
-            ),
-          ),
-        ),
-      ],
+  Widget _buildUnsupportedComparison(FluentThemeData theme) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.orange.withValues(alpha: 0.1),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Text(
+        'Este conflicto no tiene un campo editable soportado. '
+        'No se aplicó ningún cambio.',
+        style: theme.typography.body,
+      ),
     );
   }
 
@@ -511,7 +485,7 @@ class _ConflictResolutionScreenState
         return decoded;
       }
     } catch (_) {
-      // No es JSON o no tiene el formato esperado — se maneja como fallback.
+      // Unsupported conflict payloads are handled as non-editable.
     }
     return null;
   }
@@ -585,6 +559,10 @@ class _ConflictResolutionScreenState
         }
       }
 
+      if (conflict != null) {
+        await _finalizeQueueResolution(db, conflict.operationId);
+      }
+
       // Refresh the list
       ref.invalidate(pendingConflictsProvider);
 
@@ -621,6 +599,34 @@ class _ConflictResolutionScreenState
     }
   }
 
+  /// Releases the durable queue row only after every conflict belonging to
+  /// that operation has a decision. Any local-wins decision retries the
+  /// operation; all-server-wins discards the queued mutation while retaining
+  /// the resolved conflict records as audit evidence.
+  Future<void> _finalizeQueueResolution(AppDatabase db, int operationId) async {
+    final unresolved =
+        await (db.select(db.syncConflict)..where(
+              (row) =>
+                  row.operationId.equals(operationId) &
+                  row.isResolved.equals(false),
+            ))
+            .get();
+    if (unresolved.isNotEmpty) return;
+
+    final resolved = await (db.select(
+      db.syncConflict,
+    )..where((row) => row.operationId.equals(operationId))).get();
+    final keepLocal = resolved.any((row) => row.resolution == 'local_wins');
+    final queue = ref.read(offlineQueueDataSourceProvider);
+    if (queue == null) return;
+
+    if (keepLocal) {
+      await queue.resetOperationRetry(operationId);
+    } else {
+      await queue.removeOperation(operationId);
+    }
+  }
+
   /// FIX 2: Aplica el valor del servidor al registro local en Drift y borra
   /// el dirty field correspondiente.
   ///
@@ -630,7 +636,8 @@ class _ConflictResolutionScreenState
   /// (e.g., `"\"Borrador\""` para strings, `"42"` para ints).
   ///
   /// Soporta los modelos editables críticos: sale.order y sale.order.line.
-  /// Para otros modelos se limpia solo el dirty field (TODO: extender por modelo).
+  /// Los modelos no soportados se dejan sin cambios y requieren sincronización
+  /// explícita desde su repositorio.
   Future<void> _applyServerValueToLocal(
     AppDatabase db,
     SyncConflictData conflict,
@@ -652,11 +659,7 @@ class _ConflictResolutionScreenState
         '${conflict.model}[${conflict.localId}].$fieldName = $serverValue',
       );
 
-      // TODO: Para una solución genérica completa, se necesita un mapper
-      // modelo→tabla→columna. Por ahora se soportan los modelos editables
-      // críticos. Otros modelos solo limpian el dirty field.
-      //
-      // Para sale.order y sale.order.line, la manera más segura es marcar
+      // Para los modelos soportados, la manera más segura es marcar
       // el dirty field como synced=true (el valor del servidor ya no debe
       // ser reenviado) y dejar que el próximo refresh de la lista actualice
       // la UI con el valor del servidor desde Odoo. Un fetch completo se
@@ -673,8 +676,6 @@ class _ConflictResolutionScreenState
           // re-fetch de Odoo. El dirty field ya está limpio, así que el
           // próximo fetch sobrescribirá correctamente.
           //
-          // TODO: Extender con companion tipado para cada campo soportado
-          // (state, partner_id, pricelist_id, etc.) cuando sea necesario.
           logger.d(
             '[ConflictResolution] sale.order: server value written via '
             'dirty field clear — next fetch will apply $fieldName=$serverValue',

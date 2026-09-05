@@ -3,12 +3,10 @@
 /// "Modo Ruta" es un modo especial para vendedores rurales que trabajan
 /// sin conexion por horas. Cuando está activo:
 ///
-/// - El WebSocket NO intenta reconectar (ahorra bateria)
 /// - La OfflineQueue NO intenta enviar operaciones al servidor
 /// - Se muestra un banner azul "Modo Ruta" en la barra superior
 ///
 /// Al desactivar Modo Ruta:
-/// - El WebSocket intenta conectar de inmediato
 /// - Se dispara sync incremental de catalogos (productos, precios, clientes)
 /// - La OfflineQueue empieza a procesar pendientes
 ///
@@ -35,15 +33,9 @@ class RouteModeState {
   /// Cuando se activo (null si no esta activo)
   final DateTime? activatedAt;
 
-  const RouteModeState({
-    this.isActive = false,
-    this.activatedAt,
-  });
+  const RouteModeState({this.isActive = false, this.activatedAt});
 
-  RouteModeState copyWith({
-    bool? isActive,
-    DateTime? activatedAt,
-  }) {
+  RouteModeState copyWith({bool? isActive, DateTime? activatedAt}) {
     return RouteModeState(
       isActive: isActive ?? this.isActive,
       activatedAt: activatedAt ?? this.activatedAt,
@@ -84,7 +76,7 @@ class RouteModeNotifier extends AsyncNotifier<RouteModeState> {
 
   /// Activar Modo Ruta
   ///
-  /// Suspende WebSocket reconnect y OfflineQueue retries.
+  /// Suspende la reconciliacion remota y los reintentos de OfflineQueue.
   Future<void> activate() async {
     logger.i('[RouteModeProvider] Activando Modo Ruta');
     final newState = RouteModeState(
@@ -97,8 +89,7 @@ class RouteModeNotifier extends AsyncNotifier<RouteModeState> {
 
   /// Desactivar Modo Ruta
   ///
-  /// El llamador es responsable de disparar el WebSocket reconnect
-  /// y el sync incremental (ver [RouteModeSideEffects]).
+  /// El llamador es responsable de disparar el sync incremental.
   Future<void> deactivate() async {
     logger.i('[RouteModeProvider] Desactivando Modo Ruta');
     const newState = RouteModeState(isActive: false);
@@ -130,10 +121,7 @@ class RouteModeNotifier extends AsyncNotifier<RouteModeState> {
           ? DateTime.tryParse(activatedAtStr)
           : null;
 
-      return RouteModeState(
-        isActive: isActive,
-        activatedAt: activatedAt,
-      );
+      return RouteModeState(isActive: isActive, activatedAt: activatedAt);
     } catch (e) {
       logger.e('[RouteModeProvider] Error cargando config: $e');
       return RouteModeState.initial;
@@ -168,25 +156,19 @@ class RouteModeNotifier extends AsyncNotifier<RouteModeState> {
 /// Estado inicial cargado desde disco — usa AsyncValue.
 final routeModeProvider =
     AsyncNotifierProvider<RouteModeNotifier, RouteModeState>(
-  RouteModeNotifier.new,
-);
+      RouteModeNotifier.new,
+    );
 
 /// Provider booleano derivado — true si el modo ruta esta activo.
 ///
 /// Nunca bloquea: devuelve false mientras carga.
 final isRouteModeActiveProvider = Provider<bool>((ref) {
   final state = ref.watch(routeModeProvider);
-  return state.maybeWhen(
-    data: (s) => s.isActive,
-    orElse: () => false,
-  );
+  return state.maybeWhen(data: (s) => s.isActive, orElse: () => false);
 });
 
 /// Estado completo del modo ruta (para mostrar duracion, etc.)
 final routeModeStateProvider = Provider<RouteModeState>((ref) {
   final state = ref.watch(routeModeProvider);
-  return state.maybeWhen(
-    data: (s) => s,
-    orElse: () => RouteModeState.initial,
-  );
+  return state.maybeWhen(data: (s) => s, orElse: () => RouteModeState.initial);
 });

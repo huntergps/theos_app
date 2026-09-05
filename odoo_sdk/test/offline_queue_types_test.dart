@@ -213,5 +213,46 @@ void main() {
       expect(op.recordId, null);
       expect(op.method, 'create');
     });
+
+    test('terminal and in-flight states are never ready for retry', () {
+      for (final status in [
+        OfflineOperationStatus.processing,
+        OfflineOperationStatus.completed,
+        OfflineOperationStatus.conflict,
+        OfflineOperationStatus.deadLetter,
+      ]) {
+        final op = OfflineOperation(
+          id: 1,
+          model: 'sale.order',
+          method: 'write',
+          values: const {},
+          createdAt: DateTime.now(),
+          status: status,
+        );
+        expect(op.isReadyForRetry, isFalse, reason: status.storageValue);
+      }
+    });
+
+    test(
+      'local commands round-trip their stable storage names and versions',
+      () {
+        for (final command in OfflineLocalCommand.values) {
+          expect(OfflineLocalCommand.tryParse(command.storageName), command);
+          expect(command.version, greaterThanOrEqualTo(1));
+        }
+        expect(OfflineLocalCommand.tryParse('unknown_command'), isNull);
+      },
+    );
+
+    test('storage enums parse unknown values conservatively', () {
+      expect(
+        OfflineReplayPolicy.fromStorage('unknown'),
+        OfflineReplayPolicy.manualAfterAmbiguous,
+      );
+      expect(
+        OfflineOperationStatus.fromStorage('unknown'),
+        OfflineOperationStatus.pending,
+      );
+    });
   });
 }

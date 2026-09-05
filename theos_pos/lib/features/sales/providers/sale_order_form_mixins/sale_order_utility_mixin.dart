@@ -84,7 +84,8 @@ mixin SaleOrderUtilityMixin {
       commitmentDate: order.commitmentDate,
       clientOrderRef: order.clientOrderRef,
       note: order.note,
-      isFinalConsumer: order.isFinalConsumer || order.partnerVat == '9999999999999',
+      isFinalConsumer:
+          order.isFinalConsumer || order.partnerVat == '9999999999999',
       endCustomerName: order.endCustomerName,
       endCustomerPhone: order.endCustomerPhone,
       endCustomerEmail: order.endCustomerEmail,

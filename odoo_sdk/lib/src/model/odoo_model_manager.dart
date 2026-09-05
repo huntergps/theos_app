@@ -21,10 +21,12 @@ library;
 import 'dart:async';
 
 import 'package:drift/drift.dart';
+
 import '../api/odoo_client.dart';
 import '../sync/sync_models.dart';
 import '../sync/sync_types.dart';
 import '../utils/value_stream.dart';
+
 import 'package:uuid/uuid.dart';
 
 // Local OfflineQueueWrapper (application-specific implementation)
@@ -61,11 +63,7 @@ class CancellationToken {
 // SyncProgress and SyncPhase are now imported from odoo_offline_core
 
 /// Event types for WebSocket notifications.
-enum RecordOperation {
-  create,
-  write,
-  unlink,
-}
+enum RecordOperation { create, write, unlink }
 
 /// Types of record changes for reactive streams.
 enum ChangeType {
@@ -334,8 +332,9 @@ abstract class _OdooModelManagerBase<T> {
 
   /// Validate constraints for changed fields.
   Map<String, String> validateConstraintsFor(
-          T record, Set<String> changedFields) =>
-      const {};
+    T record,
+    Set<String> changedFields,
+  ) => const {};
 
   /// The state machine field name (e.g., 'state'), or null if no state machine.
   String? get stateField => null;
@@ -436,8 +435,7 @@ abstract class _OdooModelManagerBase<T> {
   ///   // Show notification, log to analytics, etc.
   /// });
   /// ```
-  Stream<BackgroundSyncError> get backgroundErrors =>
-      _backgroundErrors.stream;
+  Stream<BackgroundSyncError> get backgroundErrors => _backgroundErrors.stream;
 
   /// Whether the Odoo client is configured and ready.
   bool get isOnline => _client?.isConfigured ?? false;
@@ -447,21 +445,21 @@ abstract class _OdooModelManagerBase<T> {
   /// Throws [StateError] if the manager has not been initialized.
   OdooClient get client {
     if (_client == null) {
-      throw StateError(
-        'Manager not initialized. Call initialize() first.',
-      );
+      throw StateError('Manager not initialized. Call initialize() first.');
     }
     return _client!;
   }
 
   /// Emit a record change event.
   void _emitChange(ChangeType type, int id, {T? record}) {
-    _recordChanges.add(RecordChangeEvent(
-      type: type,
-      id: id,
-      record: record,
-      timestamp: DateTime.now(),
-    ));
+    _recordChanges.add(
+      RecordChangeEvent(
+        type: type,
+        id: id,
+        record: record,
+        timestamp: DateTime.now(),
+      ),
+    );
 
     // Update LRU cache - O(1) operations
     if (this is _ManagerCacheMixin<T>) {
@@ -494,14 +492,16 @@ abstract class _OdooModelManagerBase<T> {
       }
     } catch (e, stackTrace) {
       // Emit background sync error instead of silently failing
-      _backgroundErrors.add(BackgroundSyncError(
-        model: odooModel,
-        recordId: id,
-        operation: BackgroundSyncOperation.syncRecord,
-        error: e,
-        stackTrace: stackTrace,
-        timestamp: DateTime.now(),
-      ));
+      _backgroundErrors.add(
+        BackgroundSyncError(
+          model: odooModel,
+          recordId: id,
+          operation: BackgroundSyncOperation.syncRecord,
+          error: e,
+          stackTrace: stackTrace,
+          timestamp: DateTime.now(),
+        ),
+      );
     }
   }
 
@@ -532,14 +532,16 @@ abstract class _OdooModelManagerBase<T> {
       }
     } catch (e, stackTrace) {
       // Emit background sync error instead of silently failing
-      _backgroundErrors.add(BackgroundSyncError(
-        model: odooModel,
-        recordId: null, // Search operation, no specific record
-        operation: BackgroundSyncOperation.syncSearch,
-        error: e,
-        stackTrace: stackTrace,
-        timestamp: DateTime.now(),
-      ));
+      _backgroundErrors.add(
+        BackgroundSyncError(
+          model: odooModel,
+          recordId: null, // Search operation, no specific record
+          operation: BackgroundSyncOperation.syncSearch,
+          error: e,
+          stackTrace: stackTrace,
+          timestamp: DateTime.now(),
+        ),
+      );
     }
   }
 
@@ -616,10 +618,7 @@ abstract class _OdooModelManagerBase<T> {
 
       case OfflineOperationType.unlink:
         if (recordId != null && recordId > 0) {
-          await _client!.unlink(
-            model: odooModel,
-            ids: [recordId],
-          );
+          await _client!.unlink(model: odooModel, ids: [recordId]);
         }
         break;
     }
@@ -683,6 +682,22 @@ abstract class OdooModelManager<T> extends _OdooModelManagerBase<T>
     required OfflineQueueWrapper queue,
     ModelManagerConfig? config,
   }) {
+    bindSession(client: client, db: db, queue: queue, config: config);
+  }
+
+  /// Binds this singleton manager to the currently active application scope.
+  ///
+  /// [client] is nullable so an authenticated session can be restored while
+  /// deliberately offline and still retain a durable queue. Rebinding clears
+  /// the in-memory record cache and sync state so records from a previous
+  /// server/database/user scope can never leak into the new one.
+  void bindSession({
+    OdooClient? client,
+    required GeneratedDatabase db,
+    required OfflineQueueWrapper queue,
+    ModelManagerConfig? config,
+  }) {
+    _resetRuntimeState();
     _client = client;
     _db = db;
     _queue = queue;
@@ -695,7 +710,26 @@ abstract class OdooModelManager<T> extends _OdooModelManagerBase<T>
   /// models synced via [GenericSyncRepository]) without the full
   /// [initialize] which requires OdooClient and OfflineQueueWrapper.
   void initDb(GeneratedDatabase db) {
+    _resetRuntimeState();
+    _client = null;
     _db = db;
+    _queue = null;
+  }
+
+  /// Detaches all session-owned dependencies without closing this singleton's
+  /// long-lived streams. The manager can be rebound by a later login.
+  void resetSession() {
+    _resetRuntimeState();
+    _client = null;
+    _db = null;
+    _queue = null;
+  }
+
+  void _resetRuntimeState() {
+    _recordCache?.clear();
+    _syncInProgress.add(false);
+    _lastSyncTime.add(null);
+    _unsyncedCount.add(0);
   }
 
   /// Dispose resources.
@@ -835,13 +869,16 @@ abstract class OdooModelManager<T> extends _OdooModelManagerBase<T>
       } catch (e) {
         // Failed to sync - queue for later
         await _queueOperation(
-            OfflineOperationType.create, localId, uuid, record);
+          OfflineOperationType.create,
+          localId,
+          uuid,
+          record,
+        );
         return localId;
       }
     } else {
       // Offline - queue for later
-      await _queueOperation(
-          OfflineOperationType.create, localId, uuid, record);
+      await _queueOperation(OfflineOperationType.create, localId, uuid, record);
       return localId;
     }
   }
@@ -912,10 +949,7 @@ abstract class OdooModelManager<T> extends _OdooModelManagerBase<T>
     // 2. Try to sync if online and has real ID
     if (isOnline && id > 0) {
       try {
-        return await _client!.unlink(
-          model: odooModel,
-          ids: [id],
-        );
+        return await _client!.unlink(model: odooModel, ids: [id]);
       } catch (e) {
         // Failed - queue for later
         await _queueOperation(OfflineOperationType.unlink, id, uuid, null);

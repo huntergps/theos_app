@@ -7,7 +7,7 @@ import 'dart:io';
 import 'package:path_provider/path_provider.dart';
 import 'package:odoo_sdk/odoo_sdk.dart' as pkg;
 
-import '../logger_service.dart';
+import 'package:odoo_sdk/odoo_sdk.dart' show logger;
 
 /// File system based lock persistence for desktop platforms.
 class FileSystemLockPersistence implements pkg.ServerLockPersistence {

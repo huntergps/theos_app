@@ -11,7 +11,7 @@
 /// - Journals (account.journal)
 /// - Card Brands/Deadlines/Lotes (pos.card.*)
 /// - Payment Method Lines (account.payment.method.line)
-/// - Banks (res.bank)
+/// - Banks (l10n.ec.bank)
 /// - Partner Banks (res.partner.bank)
 /// - Advances (account.advance)
 /// - Credit Notes (account.move)
@@ -27,8 +27,13 @@ import 'package:drift/drift.dart';
 import 'package:odoo_sdk/odoo_sdk.dart';
 import 'package:odoo_sdk/odoo_sdk.dart' as odoo;
 
-import 'package:theos_pos_core/theos_pos_core.dart' hide OdooClient, DatabaseHelper;
+import 'package:theos_pos_core/theos_pos_core.dart'
+    hide OdooClient, DatabaseHelper;
+
 import '../../../core/database/database_helper.dart';
+import 'sync_models.dart';
+import 'sync_scope_domains.dart';
+import '../../collection/services/pos_capabilities_service.dart';
 
 /// Repository for syncing user-related configuration data from Odoo.
 ///
@@ -36,6 +41,7 @@ import '../../../core/database/database_helper.dart';
 class UserSyncRepository {
   final OdooClient? odooClient;
   final DatabaseHelper db;
+  final AppDatabase? appDatabase;
   final GenericSyncRepository _syncRepo;
 
   // Managers — global singletons (don't capture DB)
@@ -44,30 +50,30 @@ class UserSyncRepository {
   final SalesTeamManager _teamManager = salesTeamManager;
   final FiscalPositionManager _fiscalPositionManager = fiscalPositionManager;
   final CurrencyManager _currencyManager = currencyManager;
-  final DecimalPrecisionManager _decimalPrecisionManager = decimalPrecisionManager;
+  final DecimalPrecisionManager _decimalPrecisionManager =
+      decimalPrecisionManager;
   final BankManager _bankManager = bankManager;
   final PartnerBankManager _partnerBankManager = partnerBankManager;
 
   // Managers that need the current DB — created on demand via getters
   // to avoid stale references after server switch.
-  FiscalPositionTaxManager get _fiscalPositionTaxManager => FiscalPositionTaxManager(_currentDb);
+  FiscalPositionTaxManager get _fiscalPositionTaxManager =>
+      FiscalPositionTaxManager(_currentDb);
   JournalManager get _journalManager => JournalManager(_currentDb);
-  PaymentMethodLineManager get _paymentMethodLineManager => PaymentMethodLineManager(_currentDb);
+  PaymentMethodLineManager get _paymentMethodLineManager =>
+      PaymentMethodLineManager(_currentDb);
   AdvanceManager get _advanceManager => advanceManager;
-  CollectionConfigManager get _collectionConfigManager => collectionConfigManager;
   CountryManager get _countryManager => CountryManager(_currentDb);
-  CountryStateManager get _countryStateManager => CountryStateManager(_currentDb);
+  CountryStateManager get _countryStateManager =>
+      CountryStateManager(_currentDb);
   LanguageManager get _languageManager => LanguageManager(_currentDb);
 
   /// Always access the CURRENT database via DatabaseHelper to avoid
   /// stale references after server switch ("connection was closed" bug).
-  // ignore: deprecated_member_use_from_same_package
-  AppDatabase get _currentDb => DatabaseHelper.db;
+  AppDatabase get _currentDb => appDatabase ?? DatabaseHelper.database;
 
-  UserSyncRepository({
-    required this.db,
-    this.odooClient,
-  })  : _syncRepo = GenericSyncRepository(odooClient: odooClient);
+  UserSyncRepository({required this.db, this.odooClient, this.appDatabase})
+    : _syncRepo = GenericSyncRepository(odooClient: odooClient);
 
   bool get isOnline => odooClient != null;
 
@@ -107,7 +113,7 @@ class UserSyncRepository {
         model: 'res.users',
         fields: _userFields,
         domain: [
-          ['active', '=', true]
+          ['active', '=', true],
         ],
         batchSize: batchSize,
         fromOdoo: _userManager.fromOdoo,
@@ -117,7 +123,7 @@ class UserSyncRepository {
       sinceDate: sinceDate,
       onProgress: onProgress,
     );
-    return result.synced;
+    return result.requireSuccess();
   }
 
   // ═══════════════════════════════════════════════════════════════════════════
@@ -134,7 +140,7 @@ class UserSyncRepository {
         model: _warehouseManager.odooModel,
         fields: _warehouseManager.odooFields,
         domain: [
-          ['active', '=', true]
+          ['active', '=', true],
         ],
         batchSize: limit,
         order: 'name asc',
@@ -145,7 +151,7 @@ class UserSyncRepository {
       sinceDate: sinceDate,
       onProgress: onProgress,
     );
-    return result.synced;
+    return result.requireSuccess();
   }
 
   // ═══════════════════════════════════════════════════════════════════════════
@@ -162,7 +168,7 @@ class UserSyncRepository {
         model: _teamManager.odooModel,
         fields: _teamManager.odooFields,
         domain: [
-          ['active', '=', true]
+          ['active', '=', true],
         ],
         batchSize: limit,
         order: 'sequence asc',
@@ -173,7 +179,7 @@ class UserSyncRepository {
       sinceDate: sinceDate,
       onProgress: onProgress,
     );
-    return result.synced;
+    return result.requireSuccess();
   }
 
   // ═══════════════════════════════════════════════════════════════════════════
@@ -190,7 +196,7 @@ class UserSyncRepository {
         model: _fiscalPositionManager.odooModel,
         fields: _fiscalPositionManager.odooFields,
         domain: [
-          ['active', '=', true]
+          ['active', '=', true],
         ],
         batchSize: limit,
         order: 'sequence asc',
@@ -201,14 +207,20 @@ class UserSyncRepository {
       sinceDate: sinceDate,
       onProgress: onProgress,
     );
-    return result.synced;
+    final synced = result.requireSuccess();
+
+    // Mappings are derived from account.tax and have an independent write
+    // lifecycle. Reconcile them even when the incremental parent fetch is
+    // empty so removals and remaps cannot leave stale local configuration.
+    await syncFiscalPositionTaxMappings(onProgress: onProgress);
+    return synced;
   }
 
   // ═══════════════════════════════════════════════════════════════════════════
   // Fiscal Position Tax Mapping Sync (uses FiscalPositionTaxManager)
   //
   // REWORK compatibilidad Odoo >= 18.3 (hallazgo verificado en vivo contra
-  // erp1.tecnosmart.com.ec corriendo 19.5a1+e, julio 2026): el modelo
+  // Odoo 19.5a1+e, julio 2026): el modelo
   // account.fiscal.position.tax fue ELIMINADO del core de Odoo desde la
   // 18.3 (fields_get en vivo: "the model does not exist" — no existe ni en
   // 19.1 ni en 19.2). Esta sync llevaba MESES fallando en silencio,
@@ -247,16 +259,20 @@ class UserSyncRepository {
     ];
 
     try {
-      final totalTaxes = await odooClient!.searchCount(
-        model: FiscalPositionTax.odooModel,
-        domain: domain,
-      ) ?? 0;
+      final totalTaxes =
+          await odooClient!.searchCount(
+            model: FiscalPositionTax.odooModel,
+            domain: domain,
+          ) ??
+          0;
 
-      onProgress?.call(SyncProgress(
-        total: totalTaxes,
-        synced: 0,
-        currentItem: 'Sintetizando mapeos fiscales...',
-      ));
+      onProgress?.call(
+        SyncProgress(
+          total: totalTaxes,
+          synced: 0,
+          currentItem: 'Sintetizando mapeos fiscales...',
+        ),
+      );
 
       // Paginado (mismo patrón que syncGroups en este archivo) — el dominio
       // filtra sólo taxes que actúan como destino de al menos una posición
@@ -268,7 +284,12 @@ class UserSyncRepository {
       var hasMore = true;
 
       while (hasMore) {
-        if (_syncRepo.isCancelRequested) break;
+        if (_syncRepo.isCancelRequested) {
+          throw SyncCancelledException(
+            'Fiscal position tax mapping sync was cancelled',
+            syncedCount: synthesized.length,
+          );
+        }
 
         final page = await odooClient!.searchRead(
           model: FiscalPositionTax.odooModel,
@@ -289,16 +310,20 @@ class UserSyncRepository {
         }
         fetchedTaxes += page.length;
 
-        onProgress?.call(SyncProgress(
-          total: totalTaxes,
-          synced: fetchedTaxes,
-        ));
+        onProgress?.call(SyncProgress(total: totalTaxes, synced: fetchedTaxes));
 
         if (page.length < limit) {
           hasMore = false;
         } else {
           offset += limit;
         }
+      }
+
+      if (_syncRepo.isCancelRequested) {
+        throw SyncCancelledException(
+          'Fiscal position tax mapping sync was cancelled',
+          syncedCount: synthesized.length,
+        );
       }
 
       // Full-replace atómico — ver FiscalPositionTaxManager.replaceAllLocal
@@ -320,15 +345,6 @@ class UserSyncRepository {
     }
   }
 
-  /// Get fiscal position tax mappings for a specific position
-  Future<List<AccountFiscalPositionTaxData>> getFiscalPositionTaxMappings(
-    int positionId,
-  ) async {
-    return (_currentDb.select(_currentDb.accountFiscalPositionTax)
-          ..where((t) => t.positionId.equals(positionId)))
-        .get();
-  }
-
   // ═══════════════════════════════════════════════════════════════════════════
   // Currency Sync (uses CurrencyManager)
   // ═══════════════════════════════════════════════════════════════════════════
@@ -343,7 +359,7 @@ class UserSyncRepository {
         model: _currencyManager.odooModel,
         fields: _currencyManager.odooFields,
         domain: [
-          ['active', '=', true]
+          ['active', '=', true],
         ],
         batchSize: limit,
         fromOdoo: _currencyManager.fromOdoo,
@@ -353,7 +369,7 @@ class UserSyncRepository {
       sinceDate: sinceDate,
       onProgress: onProgress,
     );
-    return result.synced;
+    return result.requireSuccess();
   }
 
   // ═══════════════════════════════════════════════════════════════════════════
@@ -371,7 +387,7 @@ class UserSyncRepository {
         upsertLocalBatch: _decimalPrecisionManager.upsertLocalBatch,
       ),
     );
-    return result.synced;
+    return result.requireSuccess();
   }
 
   // ═══════════════════════════════════════════════════════════════════════════
@@ -388,7 +404,7 @@ class UserSyncRepository {
         model: _journalManager.odooModel,
         fields: _journalManager.odooFields,
         domain: [
-          ['active', '=', true]
+          ['active', '=', true],
         ],
         batchSize: limit,
         order: 'name asc',
@@ -398,7 +414,7 @@ class UserSyncRepository {
       sinceDate: sinceDate,
       onProgress: onProgress,
     );
-    return result.synced;
+    return result.requireSuccess();
   }
 
   // ═══════════════════════════════════════════════════════════════════════════
@@ -421,7 +437,7 @@ class UserSyncRepository {
       sinceDate: sinceDate,
       onProgress: onProgress,
     );
-    return result.synced;
+    return result.requireSuccess();
   }
 
   // ═══════════════════════════════════════════════════════════════════════════
@@ -433,15 +449,12 @@ class UserSyncRepository {
     SyncProgressCallback? onProgress,
     DateTime? sinceDate,
   }) async {
-    // res.bank was removed in Odoo 19.2
-    if (odooClient != null && !odooClient!.version.hasBankModel) return 0;
-
     final result = await _syncRepo.syncModel(
       SyncConfigBuilder.create(
         model: _bankManager.odooModel,
         fields: _bankManager.odooFields,
         domain: [
-          ['active', '=', true]
+          ['active', '=', true],
         ],
         batchSize: limit,
         order: 'name asc',
@@ -452,7 +465,7 @@ class UserSyncRepository {
       sinceDate: sinceDate,
       onProgress: onProgress,
     );
-    return result.synced;
+    return result.requireSuccess();
   }
 
   // ═══════════════════════════════════════════════════════════════════════════
@@ -469,7 +482,7 @@ class UserSyncRepository {
         model: _partnerBankManager.odooModel,
         fields: _partnerBankManager.odooFields,
         domain: [
-          ['active', '=', true]
+          ['active', '=', true],
         ],
         batchSize: limit,
         fromOdoo: _partnerBankManager.fromOdoo,
@@ -479,7 +492,7 @@ class UserSyncRepository {
       sinceDate: sinceDate,
       onProgress: onProgress,
     );
-    return result.synced;
+    return result.requireSuccess();
   }
 
   // ═══════════════════════════════════════════════════════════════════════════
@@ -495,10 +508,7 @@ class UserSyncRepository {
       SyncConfigBuilder.create(
         model: _advanceManager.odooModel,
         fields: _advanceManager.odooFields,
-        domain: [
-          ['state', '=', 'posted'],
-          ['amount_available', '>', 0],
-        ],
+        domain: advanceSyncScope(),
         batchSize: limit,
         order: 'date desc',
         fromOdoo: _advanceManager.fromOdoo,
@@ -508,19 +518,12 @@ class UserSyncRepository {
       sinceDate: sinceDate,
       onProgress: onProgress,
     );
-    return result.synced;
+    return result.requireSuccess();
   }
 
   // ═══════════════════════════════════════════════════════════════════════════
-  // Credit Notes Sync (usa accountMoveManager — Fase F3b)
-  //
-  // Antes usaba CreditNoteManager (manager transicional, ya eliminado — ver
-  // migración documentada en el historial de
-  // theos_pos_core/lib/src/managers/invoices/credit_note_manager.dart).
-  // account.move es la MISMA tabla que ya sincroniza accountMoveManager (con
-  // el set completo de ~30 campos, incluido `ref`/`payment_state`), así que
-  // usar el manager generado evita el bug de campos incompletos que tenía el
-  // manager transicional.
+  // Credit Notes Sync. Las notas son account.move y comparten el manager y el
+  // conjunto completo de campos, incluidos `ref` y `payment_state`.
   // ═══════════════════════════════════════════════════════════════════════════
 
   Future<int> syncCreditNotes({
@@ -535,7 +538,11 @@ class UserSyncRepository {
         domain: [
           ['move_type', '=', 'out_refund'],
           ['state', '=', 'posted'],
-          ['payment_state', 'in', ['not_paid', 'partial']],
+          [
+            'payment_state',
+            'in',
+            ['not_paid', 'partial'],
+          ],
           ['amount_residual', '>', 0],
         ],
         batchSize: limit,
@@ -548,7 +555,7 @@ class UserSyncRepository {
       sinceDate: sinceDate,
       onProgress: onProgress,
     );
-    return result.synced;
+    return result.requireSuccess();
   }
 
   // ═══════════════════════════════════════════════════════════════════════════
@@ -560,23 +567,34 @@ class UserSyncRepository {
     SyncProgressCallback? onProgress,
     DateTime? sinceDate,
   }) async {
+    final client = odooClient;
+    if (client == null) return 0;
+    final manager = CollectionConfigManager()..initDb(_currentDb);
     final result = await _syncRepo.syncModel(
       SyncConfigBuilder.create(
-        model: _collectionConfigManager.odooModel,
-        fields: _collectionConfigManager.odooFields,
+        model: manager.odooModel,
+        fields: manager.odooFields,
         domain: [
-          ['active', '=', true]
+          ['active', '=', true],
         ],
         batchSize: limit,
         order: 'name asc',
-        fromOdoo: _collectionConfigManager.fromOdoo,
-        upsertLocal: _collectionConfigManager.upsertLocal,
-        upsertLocalBatch: _collectionConfigManager.upsertLocalBatch,
+        fromOdoo: manager.fromOdoo,
+        upsertLocal: (config) async {
+          final enriched = await loadPosAppCapabilities(client, [config]);
+          await manager.upsertLocal(enriched.single);
+        },
+        upsertLocalBatch: (configs) async {
+          final enriched = await loadPosAppCapabilities(client, configs);
+          await manager.upsertLocalBatch(enriched);
+        },
       ),
-      sinceDate: sinceDate,
+      // Company-level policy changes do not update collection.config.write_date.
+      // This small configuration catalog must refresh effective policies too.
+      sinceDate: null,
       onProgress: onProgress,
     );
-    return result.synced;
+    return result.requireSuccess();
   }
 
   // ═══════════════════════════════════════════════════════════════════════════
@@ -591,9 +609,9 @@ class UserSyncRepository {
 
     try {
       // Get current user's company from local database
-      final currentUser = await (_currentDb.select(_currentDb.resUsers)
-            ..where((t) => t.isCurrentUser.equals(true)))
-          .getSingleOrNull();
+      final currentUser = await (_currentDb.select(
+        _currentDb.resUsers,
+      )..where((t) => t.isCurrentUser.equals(true))).getSingleOrNull();
 
       if (currentUser == null || currentUser.companyId == null) return 0;
       final companyId = currentUser.companyId!;
@@ -610,11 +628,9 @@ class UserSyncRepository {
       final company = companyManager.fromOdoo(companyData.first);
       await companyManager.upsertLocal(company);
 
-      onProgress?.call(SyncProgress(
-        total: 1,
-        synced: 1,
-        currentItem: company.name,
-      ));
+      onProgress?.call(
+        SyncProgress(total: 1, synced: 1, currentItem: company.name),
+      );
 
       return 1;
     } catch (e) {
@@ -646,7 +662,7 @@ class UserSyncRepository {
       sinceDate: sinceDate,
       onProgress: onProgress,
     );
-    return result.synced;
+    return result.requireSuccess();
   }
 
   // ═══════════════════════════════════════════════════════════════════════════
@@ -671,7 +687,7 @@ class UserSyncRepository {
       sinceDate: sinceDate,
       onProgress: onProgress,
     );
-    return result.synced;
+    return result.requireSuccess();
   }
 
   // ═══════════════════════════════════════════════════════════════════════════
@@ -688,7 +704,7 @@ class UserSyncRepository {
         model: _languageManager.odooModel,
         fields: _languageManager.odooFields,
         domain: [
-          ['active', '=', true]
+          ['active', '=', true],
         ],
         batchSize: limit,
         order: 'name asc',
@@ -698,7 +714,7 @@ class UserSyncRepository {
       sinceDate: sinceDate,
       onProgress: onProgress,
     );
-    return result.synced;
+    return result.requireSuccess();
   }
 
   // ═══════════════════════════════════════════════════════════════════════════
@@ -719,19 +735,21 @@ class UserSyncRepository {
     try {
       final domain = sinceDate != null
           ? [
-              ['write_date', '>', odoo.formatOdooDateTime(sinceDate)]
+              ['write_date', '>', odoo.formatOdooDateTime(sinceDate)],
             ]
           : <List<dynamic>>[];
 
-      totalRecords = await odooClient!
-              .searchCount(model: 'res.groups', domain: domain) ??
+      totalRecords =
+          await odooClient!.searchCount(model: 'res.groups', domain: domain) ??
           0;
 
-      onProgress?.call(SyncProgress(
-        total: totalRecords,
-        synced: 0,
-        currentItem: 'Iniciando...',
-      ));
+      onProgress?.call(
+        SyncProgress(
+          total: totalRecords,
+          synced: 0,
+          currentItem: 'Iniciando...',
+        ),
+      );
 
       if (totalRecords == 0) return 0;
 
@@ -746,7 +764,14 @@ class UserSyncRepository {
         final groups = await odooClient!.searchRead(
           model: 'res.groups',
           domain: domain,
-          fields: ['id', 'name', 'full_name', 'share', 'implied_ids', 'write_date'],
+          fields: [
+            'id',
+            'name',
+            'full_name',
+            'share',
+            'implied_ids',
+            'write_date',
+          ],
           limit: batchSize,
           offset: offset,
           order: 'id asc',
@@ -781,11 +806,14 @@ class UserSyncRepository {
           syncedCount++;
 
           if (syncedCount % 20 == 0) {
-            onProgress?.call(SyncProgress(
-              total: totalRecords,
-              synced: syncedCount,
-              currentItem: g['full_name'] as String? ?? g['name'] as String? ?? '',
-            ));
+            onProgress?.call(
+              SyncProgress(
+                total: totalRecords,
+                synced: syncedCount,
+                currentItem:
+                    g['full_name'] as String? ?? g['name'] as String? ?? '',
+              ),
+            );
           }
         }
 
@@ -800,11 +828,13 @@ class UserSyncRepository {
       return syncedCount;
     } catch (e) {
       logger.e('[UserSync] Error syncing groups: $e');
-      onProgress?.call(SyncProgress(
-        total: totalRecords,
-        synced: syncedCount,
-        error: e.toString(),
-      ));
+      onProgress?.call(
+        SyncProgress(
+          total: totalRecords,
+          synced: syncedCount,
+          error: e.toString(),
+        ),
+      );
       rethrow;
     }
   }
@@ -835,13 +865,13 @@ class UserSyncRepository {
 
       // Fallback if needed
       if (xmlIds.isEmpty) {
-        return _fetchGroupXmlIdsFromIrModelData(groupIds);
+        return await _fetchGroupXmlIdsFromIrModelData(groupIds);
       }
 
       return xmlIds;
     } catch (e) {
       logger.w('[UserSync] Error fetching group XML IDs: $e');
-      return _fetchGroupXmlIdsFromIrModelData(groupIds);
+      return await _fetchGroupXmlIdsFromIrModelData(groupIds);
     }
   }
 
@@ -865,13 +895,17 @@ class UserSyncRepository {
         final resId = r['res_id'] as int;
         final module = r['module'] as String? ?? '';
         final name = r['name'] as String? ?? '';
-        if (module.isNotEmpty && name.isNotEmpty && !xmlIds.containsKey(resId)) {
+        if (module.isNotEmpty &&
+            name.isNotEmpty &&
+            !xmlIds.containsKey(resId)) {
           xmlIds[resId] = '$module.$name';
         }
       }
       return xmlIds;
     } catch (e) {
-      logger.w('[UserSync] Error fetching group XML IDs from ir.model.data: $e');
+      logger.w(
+        '[UserSync] Error fetching group XML IDs from ir.model.data: $e',
+      );
       return {};
     }
   }
@@ -887,17 +921,16 @@ class UserSyncRepository {
     Insertable<D> companion,
   ) async {
     // First try to find existing record
-    final existing = await (_currentDb.select(table)
-          ..where((t) => (t as dynamic).odooId.equals(odooId)))
-        .getSingleOrNull();
+    final existing = await (_currentDb.select(
+      table,
+    )..where((t) => (t as dynamic).odooId.equals(odooId))).getSingleOrNull();
 
     if (existing != null) {
-      await (_currentDb.update(table)
-            ..where((t) => (t as dynamic).odooId.equals(odooId)))
-          .write(companion);
+      await (_currentDb.update(
+        table,
+      )..where((t) => (t as dynamic).odooId.equals(odooId))).write(companion);
     } else {
       await _currentDb.into(table).insert(companion);
     }
   }
-
 }

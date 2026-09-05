@@ -539,6 +539,13 @@ void main() {
   });
 
   group('ErrorSanitizer', () {
+    test('redacts a bare bearer token from transport errors', () {
+      final result = ErrorSanitizer.sanitize(
+        'Request failed with Bearer short-test-token in headers',
+      );
+      expect(result, isNot(contains('short-test-token')));
+      expect(result, contains(ErrorSanitizer.redactedPlaceholder));
+    });
     group('sanitize - email redaction', () {
       test('redacts simple email', () {
         final result = ErrorSanitizer.sanitize('User john@example.com failed');
@@ -823,27 +830,24 @@ void main() {
         expect(CredentialMasker.mask(''), '');
       });
 
-      test('fully masks short strings (≤4 chars)', () {
-        expect(CredentialMasker.mask('a'), '*');
-        expect(CredentialMasker.mask('ab'), '**');
-        expect(CredentialMasker.mask('abc'), '***');
-        expect(CredentialMasker.mask('abcd'), '****');
+      test('fully masks every non-empty credential', () {
+        expect(CredentialMasker.mask('a'), '********');
+        expect(CredentialMasker.mask('ab'), '********');
+        expect(CredentialMasker.mask('abc'), '********');
+        expect(CredentialMasker.mask('abcd'), '********');
       });
 
-      test('shows first 2 and last 2 chars for longer strings', () {
-        expect(CredentialMasker.mask('abcde'), 'ab*de');
-        expect(CredentialMasker.mask('secret'), 'se**et');
-        expect(CredentialMasker.mask('my-api-key-12345'), 'my************45');
+      test('does not reveal credential prefixes, suffixes or lengths', () {
+        expect(CredentialMasker.mask('abcde'), '********');
+        expect(CredentialMasker.mask('secret'), '********');
+        expect(CredentialMasker.mask('my-api-key-12345'), '********');
       });
 
       test('masks real-world API key', () {
         const apiKey = 'sk_test_4eC39HqLyjWDarjtT1zdp7dc';
         final masked = CredentialMasker.mask(apiKey);
 
-        expect(masked, startsWith('sk'));
-        expect(masked, endsWith('dc'));
-        expect(masked, contains('*'));
-        expect(masked.length, apiKey.length);
+        expect(masked, '********');
         expect(masked, isNot(contains('test')));
         expect(masked, isNot(contains('4eC39')));
       });
@@ -855,7 +859,7 @@ void main() {
       });
 
       test('masks non-null values', () {
-        expect(CredentialMasker.maskNullable('secret'), 'se**et');
+        expect(CredentialMasker.maskNullable('secret'), '********');
       });
     });
 
@@ -886,23 +890,26 @@ void main() {
         expect(CredentialMasker.maskWithPrefix(''), '');
       });
 
-      test('fully masks strings shorter than prefix length', () {
-        expect(CredentialMasker.maskWithPrefix('abc', prefixLength: 4), '***');
+      test('fully masks strings regardless of prefix length', () {
+        expect(
+          CredentialMasker.maskWithPrefix('abc', prefixLength: 4),
+          '********',
+        );
         expect(
           CredentialMasker.maskWithPrefix('abcd', prefixLength: 4),
-          '****',
+          '********',
         );
       });
 
-      test('shows prefix and masks rest', () {
+      test('does not expose requested prefix', () {
         expect(
           CredentialMasker.maskWithPrefix('my-secret-key', prefixLength: 4),
-          'my-s*********',
+          '********',
         );
       });
 
-      test('uses default prefix length of 4', () {
-        expect(CredentialMasker.maskWithPrefix('abcdefgh'), 'abcd****');
+      test('fully masks with the default prefix length', () {
+        expect(CredentialMasker.maskWithPrefix('abcdefgh'), '********');
       });
     });
 
@@ -937,7 +944,7 @@ void main() {
         final map = {'apiKey': 'secret-api-key', 'name': 'Test'};
         final result = CredentialMasker.maskMap(map);
 
-        expect(result, contains('apiKey: se**********ey'));
+        expect(result, contains('apiKey: ********'));
         expect(result, contains('name: Test'));
       });
 
@@ -945,7 +952,7 @@ void main() {
         final map = {'password': 'mypassword', 'username': 'john'};
         final result = CredentialMasker.maskMap(map);
 
-        expect(result, contains('password: my******rd'));
+        expect(result, contains('password: ********'));
         expect(result, contains('username: john'));
       });
 
@@ -953,8 +960,7 @@ void main() {
         final map = {'session_token': 'abc123xyz789', 'id': 42};
         final result = CredentialMasker.maskMap(map);
 
-        // 'abc123xyz789' is 12 chars, so 12-4=8 asterisks
-        expect(result, contains('session_token: ab********89'));
+        expect(result, contains('session_token: ********'));
         expect(result, contains('id: 42'));
       });
 

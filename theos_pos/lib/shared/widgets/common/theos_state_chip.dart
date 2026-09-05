@@ -12,24 +12,29 @@ class TheosStateChip extends StatelessWidget {
     super.key,
     required this.label,
     required this.color,
-    this.fontSize = 12,
-    this.fontWeight = FontWeight.w500,
+    this.fontSize = 13,
+    this.fontWeight = FontWeight.w600,
   });
 
   @override
   Widget build(BuildContext context) {
+    final isDark = FluentTheme.of(context).brightness == Brightness.dark;
+    final foreground = isDark && color.computeLuminance() < 0.35
+        ? Color.lerp(color, Colors.white, 0.55)!
+        : color;
     return Semantics(
       label: 'Estado: $label',
       child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
         decoration: BoxDecoration(
-          color: color.withValues(alpha: 0.2),
-          borderRadius: BorderRadius.circular(4),
+          color: foreground.withValues(alpha: isDark ? 0.24 : 0.16),
+          borderRadius: BorderRadius.circular(6),
+          border: Border.all(color: foreground.withValues(alpha: 0.45)),
         ),
         child: Text(
           label,
           style: TextStyle(
-            color: color,
+            color: foreground,
             fontSize: fontSize,
             fontWeight: fontWeight,
           ),

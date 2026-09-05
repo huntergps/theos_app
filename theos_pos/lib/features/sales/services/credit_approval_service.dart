@@ -1,4 +1,94 @@
+import 'package:odoo_sdk/odoo_sdk.dart' show OfflineReplayPolicy;
 import 'package:theos_pos_core/theos_pos_core.dart';
+
+/// Durable local command contract for a credit-approval request.
+///
+/// This is deliberately not an Odoo method name. The offline dispatcher
+/// replays the complete JSON-2 wizard workflow and first reconciles an
+/// existing pending request by sale order, making retries idempotent after an
+/// indeterminate network response.
+abstract final class CreditApprovalOfflineContract {
+  static const String aggregateModel = 'sale.order';
+  static const String method = 'credit_approval_create';
+  static const int version = 1;
+
+  static Map<String, dynamic> payload({
+    required int orderId,
+    required int partnerId,
+    required double amount,
+    required String checkType,
+    int? paymentTermId,
+    String? orderUuid,
+  }) => {
+    'order_id': orderId,
+    'partner_id': partnerId,
+    'amount': amount,
+    'check_type': checkType,
+    'payment_term_id': ?paymentTermId,
+    'order_uuid': ?orderUuid,
+  };
+
+  static String operationKey({
+    required int orderId,
+    required String checkType,
+    String? orderUuid,
+  }) {
+    final orderKey = orderUuid?.trim().isNotEmpty == true
+        ? orderUuid!.trim()
+        : orderId.toString();
+    return 'v$version:$aggregateModel:$method:$orderKey:$checkType';
+  }
+
+  static Future<int> enqueue({
+    required OfflineQueueDataSource queue,
+    required int orderId,
+    required int partnerId,
+    required double amount,
+    required String checkType,
+    int? paymentTermId,
+    String? orderUuid,
+  }) {
+    if (orderId == 0) {
+      throw ArgumentError.value(orderId, 'orderId', 'Must not be zero');
+    }
+    if (partnerId <= 0) {
+      throw ArgumentError.value(partnerId, 'partnerId', 'Must be positive');
+    }
+    if (!amount.isFinite || amount <= 0) {
+      throw ArgumentError.value(
+        amount,
+        'amount',
+        'Must be positive and finite',
+      );
+    }
+    if (checkType.trim().isEmpty) {
+      throw ArgumentError.value(checkType, 'checkType', 'Must not be empty');
+    }
+
+    return queue.queueOperation(
+      model: aggregateModel,
+      method: method,
+      recordId: orderId,
+      parentOrderId: orderId,
+      values: payload(
+        orderId: orderId,
+        partnerId: partnerId,
+        amount: amount,
+        checkType: checkType.trim(),
+        paymentTermId: paymentTermId,
+        orderUuid: orderUuid,
+      ),
+      priority: OfflinePriority.high,
+      operationKey: operationKey(
+        orderId: orderId,
+        checkType: checkType.trim(),
+        orderUuid: orderUuid,
+      ),
+      commandVersion: version,
+      replayPolicy: OfflineReplayPolicy.retrySafe,
+    );
+  }
+}
 
 /// Servicio para gestionar solicitudes de aprobación de crédito via Odoo API.
 ///
@@ -11,7 +101,7 @@ import 'package:theos_pos_core/theos_pos_core.dart';
 /// 2. Llama `action_create_approval_request()` en el wizard
 /// 3. El wizard crea el `approval.request` y lo confirma internamente
 /// 4. Odoo cambia el estado de la orden a `waiting`
-/// 5. WebSocket notifica el cambio → Drift `.watch()` → UI refresca
+/// 5. El sync HTTP actualiza Drift → `.watch()` refresca la UI
 ///
 /// ## Flujo offline
 /// - Si no hay conexión, crea el estado local `waiting` en Drift
@@ -25,11 +115,7 @@ class CreditApprovalService {
 
   static const _tag = '[CreditApprovalService]';
 
-  CreditApprovalService({
-    required OdooClient client,
-    OfflineQueueDataSource? offlineQueue,
-  })  : _client = client,
-        _offlineQueue = offlineQueue;
+  CreditApprovalService({required this._client, this._offlineQueue});
 
   /// Crear solicitud de aprobación de crédito usando el wizard de Odoo.
   ///
@@ -81,7 +167,10 @@ class CreditApprovalService {
       );
     }
 
-    logger.d(_tag, 'Wizard created: id=$wizardId, calling action_create_approval_request...');
+    logger.d(
+      _tag,
+      'Wizard created: id=$wizardId, calling action_create_approval_request...',
+    );
 
     // 2. Ejecutar la acción del wizard que crea el approval.request
     // El wizard internamente:
@@ -141,10 +230,16 @@ class CreditApprovalService {
         limit: 5,
       );
 
-      logger.d(_tag, 'getPendingApprovals: found ${results.length} pending for order $saleOrderId');
+      logger.d(
+        _tag,
+        'getPendingApprovals: found ${results.length} pending for order $saleOrderId',
+      );
       return results;
     } catch (e) {
-      logger.w(_tag, 'Error checking pending approvals for order $saleOrderId: $e');
+      logger.w(
+        _tag,
+        'Error checking pending approvals for order $saleOrderId: $e',
+      );
       return [];
     }
   }
@@ -176,10 +271,10 @@ class CreditApprovalService {
         throw StateError(
           pending.length == 1
               ? 'Ya existe una solicitud de aprobación pendiente'
-                  '${latestRef != null ? ": $latestRef" : ""}. '
-                  'Espere la aprobación o cancele la solicitud existente.'
+                    '${latestRef != null ? ": $latestRef" : ""}. '
+                    'Espere la aprobación o cancele la solicitud existente.'
               : 'Existen ${pending.length} solicitudes de aprobación pendientes '
-                  'para esta orden.',
+                    'para esta orden.',
         );
       }
     }
@@ -213,18 +308,13 @@ class CreditApprovalService {
       return false;
     }
 
-    await _offlineQueue.queueOperation(
-      model: 'credit.limit.exceeded.wizard',
-      method: 'create_credit_approval_via_wizard',
-      recordId: orderId,
-      values: {
-        'order_id': orderId,
-        'partner_id': partnerId,
-        'amount': amount,
-        'check_type': checkType,
-        'payment_term_id': ?paymentTermId,
-      },
-      priority: OfflinePriority.high,
+    await CreditApprovalOfflineContract.enqueue(
+      queue: _offlineQueue,
+      orderId: orderId,
+      partnerId: partnerId,
+      amount: amount,
+      checkType: checkType,
+      paymentTermId: paymentTermId,
     );
 
     logger.i(_tag, 'Approval request queued for order $orderId (offline)');

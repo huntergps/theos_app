@@ -6,7 +6,9 @@ import '../../../../../core/services/odoo_service.dart';
 import '../../../../../core/theme/spacing.dart';
 import '../../../../../shared/utils/formatting_utils.dart';
 import '../../../../clients/clients.dart';
+
 import 'package:theos_pos_core/theos_pos_core.dart';
+
 import '../../../providers/service_providers.dart';
 import '../../../../../shared/widgets/dialogs/copyable_info_bar.dart';
 import '../fast_sale_providers.dart';
@@ -150,7 +152,11 @@ class _POSCreditSaleTabState extends ConsumerState<POSCreditSaleTab> {
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(FluentIcons.info, size: 48, color: theme.inactiveColor.withValues(alpha: 0.4)),
+          Icon(
+            FluentIcons.info,
+            size: 48,
+            color: theme.inactiveColor.withValues(alpha: 0.4),
+          ),
           const SizedBox(height: Spacing.sm),
           Text(message, style: theme.typography.body),
         ],
@@ -202,10 +208,7 @@ class _POSCreditSaleTabState extends ConsumerState<POSCreditSaleTab> {
         children: [
           Icon(FluentIcons.edit, size: 48, color: AppColors.warning),
           const SizedBox(height: Spacing.sm),
-          Text(
-            'Orden en Borrador',
-            style: theme.typography.subtitle,
-          ),
+          Text('Orden en Borrador', style: theme.typography.subtitle),
           const SizedBox(height: Spacing.xs),
           Text(
             'Confirme la orden primero para poder facturar',
@@ -249,7 +252,9 @@ class _POSCreditSaleTabState extends ConsumerState<POSCreditSaleTab> {
             decoration: BoxDecoration(
               color: AppColors.warning.withValues(alpha: 0.1),
               borderRadius: BorderRadius.circular(8),
-              border: Border.all(color: AppColors.warning.withValues(alpha: 0.3)),
+              border: Border.all(
+                color: AppColors.warning.withValues(alpha: 0.3),
+              ),
             ),
             child: Column(
               children: [
@@ -292,10 +297,7 @@ class _POSCreditSaleTabState extends ConsumerState<POSCreditSaleTab> {
         children: [
           Icon(FluentIcons.completed, size: 48, color: AppColors.success),
           const SizedBox(height: Spacing.sm),
-          Text(
-            'Orden Facturada',
-            style: theme.typography.subtitle,
-          ),
+          Text('Orden Facturada', style: theme.typography.subtitle),
           const SizedBox(height: Spacing.xs),
           if (order.invoiceCount > 0)
             Text(
@@ -347,11 +349,17 @@ class _POSCreditSaleTabState extends ConsumerState<POSCreditSaleTab> {
       decoration: BoxDecoration(
         color: AppColors.primaryBackground.withValues(alpha: 0.1),
         borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: AppColors.primaryBackground.withValues(alpha: 0.3)),
+        border: Border.all(
+          color: AppColors.primaryBackground.withValues(alpha: 0.3),
+        ),
       ),
       child: Row(
         children: [
-          Icon(FluentIcons.calendar, color: AppColors.primaryBackground, size: 24),
+          Icon(
+            FluentIcons.calendar,
+            color: AppColors.primaryBackground,
+            size: 24,
+          ),
           const SizedBox(width: Spacing.sm),
           Expanded(
             child: Column(
@@ -396,7 +404,8 @@ class _POSCreditSaleTabState extends ConsumerState<POSCreditSaleTab> {
     final client = _client!;
     final creditLimit = client.creditLimit ?? 0;
     final creditUsed = (client.credit ?? 0) + (client.creditToInvoice ?? 0);
-    final creditAvailable = client.creditAvailable ?? (creditLimit - creditUsed);
+    final creditAvailable =
+        client.creditAvailable ?? (creditLimit - creditUsed);
 
     return Container(
       padding: const EdgeInsets.all(Spacing.md),
@@ -408,10 +417,7 @@ class _POSCreditSaleTabState extends ConsumerState<POSCreditSaleTab> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            'Información de Crédito',
-            style: theme.typography.bodyStrong,
-          ),
+          Text('Información de Crédito', style: theme.typography.bodyStrong),
           const SizedBox(height: Spacing.sm),
           _buildCreditRow(theme, 'Límite de Crédito:', creditLimit),
           _buildCreditRow(theme, 'Crédito Usado:', creditUsed),
@@ -419,7 +425,9 @@ class _POSCreditSaleTabState extends ConsumerState<POSCreditSaleTab> {
             theme,
             'Crédito Disponible:',
             creditAvailable,
-            color: creditAvailable >= orderAmount ? AppColors.success : AppColors.danger,
+            color: creditAvailable >= orderAmount
+                ? AppColors.success
+                : AppColors.danger,
           ),
           const Divider(),
           _buildCreditRow(
@@ -455,8 +463,9 @@ class _POSCreditSaleTabState extends ConsumerState<POSCreditSaleTab> {
           Text(label, style: theme.typography.body),
           Text(
             value.toCurrency(),
-            style: (isBold ? theme.typography.bodyStrong : theme.typography.body)
-                ?.copyWith(color: color),
+            style:
+                (isBold ? theme.typography.bodyStrong : theme.typography.body)
+                    ?.copyWith(color: color),
           ),
         ],
       ),
@@ -499,10 +508,7 @@ class _POSCreditSaleTabState extends ConsumerState<POSCreditSaleTab> {
                   ),
                 ),
                 if (!isOk && result.message != null)
-                  Text(
-                    result.message!,
-                    style: theme.typography.caption,
-                  ),
+                  Text(result.message!, style: theme.typography.caption),
               ],
             ),
           ),
@@ -564,9 +570,7 @@ class _POSCreditSaleTabState extends ConsumerState<POSCreditSaleTab> {
           const SizedBox(width: Spacing.sm),
           Text(
             'Solicitar Aprobación de Crédito',
-            style: theme.typography.bodyStrong?.copyWith(
-              color: Colors.white,
-            ),
+            style: theme.typography.bodyStrong?.copyWith(color: Colors.white),
           ),
         ],
       ),
@@ -637,7 +641,9 @@ class _POSCreditSaleTabState extends ConsumerState<POSCreditSaleTab> {
 
     try {
       final paymentService = ref.read(paymentServiceProvider);
-      final invoiceId = await paymentService.createInvoiceForCreditSale(order.id);
+      final invoiceId = await paymentService.createInvoiceForCreditSale(
+        order.id,
+      );
 
       if (!mounted) return;
 
@@ -645,19 +651,8 @@ class _POSCreditSaleTabState extends ConsumerState<POSCreditSaleTab> {
         // Get invoice name
         String? invoiceName;
         try {
-          final odoo = ref.read(odooServiceProvider);
-          final invoiceData = await odoo.call(
-            model: 'account.move',
-            method: 'search_read',
-            kwargs: {
-              'domain': [['id', '=', invoiceId]],
-              'fields': ['name'],
-              'limit': 1,
-            },
-          );
-          if (invoiceData is List && invoiceData.isNotEmpty) {
-            invoiceName = invoiceData[0]['name'] as String?;
-          }
+          final invoiceData = await paymentService.getInvoiceSummary(invoiceId);
+          invoiceName = invoiceData?['name'] as String?;
         } catch (_) {}
 
         if (!mounted) return;

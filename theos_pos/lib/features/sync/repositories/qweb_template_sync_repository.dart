@@ -6,6 +6,8 @@ library;
 
 import 'package:flutter_qweb/flutter_qweb.dart';
 import 'package:odoo_sdk/odoo_sdk.dart';
+import 'package:theos_pos_core/theos_pos_core.dart' show AppDatabase;
+
 import '../../../core/database/database_helper.dart';
 import '../../reports/repositories/qweb_template_repository.dart';
 
@@ -13,16 +15,18 @@ import '../../reports/repositories/qweb_template_repository.dart';
 class QwebTemplateSyncRepository {
   final OdooClient? odooClient;
   final DatabaseHelper db;
+  final AppDatabase? appDatabase;
   bool _cancelRequested = false;
 
   /// Access template repo with current DB to avoid stale references
   /// after server switch ("connection was closed" bug).
-  // ignore: deprecated_member_use_from_same_package
-  QwebTemplateRepository get _templateRepo => QwebTemplateRepository(DatabaseHelper.db);
+  QwebTemplateRepository get _templateRepo =>
+      QwebTemplateRepository(appDatabase ?? DatabaseHelper.database);
 
   QwebTemplateSyncRepository({
     required this.db,
     this.odooClient,
+    this.appDatabase,
   });
 
   bool get isOnline => odooClient != null;
@@ -94,6 +98,7 @@ class QwebTemplateSyncRepository {
   Future<int> syncTemplatesForModel(
     String model, {
     SyncProgressCallback? onProgress,
+    Set<String> protectedTemplateKeys = const {},
   }) async {
     if (!isOnline) return 0;
 
@@ -103,24 +108,50 @@ class QwebTemplateSyncRepository {
         model: 'ir.actions.report',
         domain: [
           ['model', '=', model],
-          ['report_type', 'in', ['qweb-pdf', 'qweb-html']],
+          [
+            'report_type',
+            'in',
+            ['qweb-pdf', 'qweb-html'],
+          ],
         ],
         fields: ['report_name', 'name', 'model'],
       );
 
       int synced = 0;
+      final activeTemplateKeys = <String>{};
       for (final report in reports) {
-        if (_cancelRequested) break;
+        if (_cancelRequested) {
+          throw SyncCancelledException(
+            'QWeb template sync was cancelled',
+            syncedCount: synced,
+          );
+        }
         final templateKey = report['report_name'] as String?;
-        if (templateKey != null) {
-          final success = await syncTemplate(templateKey);
+        if (templateKey != null && templateKey.isNotEmpty) {
+          activeTemplateKeys.add(templateKey);
+          final success = await syncTemplate(templateKey, scopeModel: model);
           if (success) synced++;
         }
       }
+
+      if (_cancelRequested) {
+        throw SyncCancelledException(
+          'QWeb template sync was cancelled',
+          syncedCount: synced,
+        );
+      }
+      await _templateRepo.tombstoneMissingRemoteTemplatesForModel(
+        model,
+        activeTemplateKeys: activeTemplateKeys,
+        protectedTemplateKeys: {
+          ..._defaultBaseTemplates,
+          ...protectedTemplateKeys,
+        },
+      );
       return synced;
     } catch (e) {
       logger.e('[QwebTemplateSync] Error syncing templates for $model: $e');
-      return 0;
+      rethrow;
     }
   }
 
@@ -132,12 +163,19 @@ class QwebTemplateSyncRepository {
     List<String> baseTemplates = const [],
   }) async {
     final results = <String, int>{};
-    final templates = baseTemplates.isEmpty ? _defaultBaseTemplates : baseTemplates;
+    final templates = baseTemplates.isEmpty
+        ? _defaultBaseTemplates
+        : baseTemplates;
 
     // Sync base templates first
     int baseSynced = 0;
     for (final key in templates) {
-      if (_cancelRequested) break;
+      if (_cancelRequested) {
+        throw SyncCancelledException(
+          'QWeb template sync was cancelled',
+          syncedCount: baseSynced,
+        );
+      }
       final success = await syncTemplate(key);
       if (success) baseSynced++;
     }
@@ -145,15 +183,21 @@ class QwebTemplateSyncRepository {
 
     // Sync model-specific templates
     for (final model in models) {
-      if (_cancelRequested) break;
-      results[model] = await syncTemplatesForModel(model, onProgress: onProgress);
+      if (_cancelRequested) {
+        throw SyncCancelledException('QWeb template sync was cancelled');
+      }
+      results[model] = await syncTemplatesForModel(
+        model,
+        onProgress: onProgress,
+        protectedTemplateKeys: templates.toSet(),
+      );
     }
 
     return results;
   }
 
   /// Sync a single template by key.
-  Future<bool> syncTemplate(String templateKey) async {
+  Future<bool> syncTemplate(String templateKey, {String? scopeModel}) async {
     if (!isOnline) return false;
 
     try {
@@ -163,13 +207,28 @@ class QwebTemplateSyncRepository {
           ['key', '=', templateKey],
           ['type', '=', 'qweb'],
         ],
-        fields: ['id', 'key', 'name', 'arch_db', 'model', 'write_date'],
+        fields: [
+          'id',
+          'key',
+          'name',
+          'arch_db',
+          'model',
+          'active',
+          'write_date',
+        ],
         limit: 1,
       );
 
-      if (views.isEmpty) return false;
+      if (views.isEmpty) {
+        await _templateRepo.tombstoneRemoteTemplate(templateKey);
+        return false;
+      }
 
       final view = views.first;
+      if (view['active'] == false) {
+        await _templateRepo.tombstoneRemoteTemplate(templateKey);
+        return false;
+      }
       // Odoo returns false instead of null for empty fields
       String safeStr(dynamic val) =>
           (val != null && val != false) ? val.toString() : '';
@@ -177,7 +236,7 @@ class QwebTemplateSyncRepository {
         templateKey: view['key'] as String,
         odooId: view['id'] as int,
         name: safeStr(view['name']),
-        model: safeStr(view['model']),
+        model: scopeModel ?? safeStr(view['model']),
         xmlContent: safeStr(view['arch_db']),
         requiredFields: const [],
         dependencies: const [],
@@ -189,24 +248,8 @@ class QwebTemplateSyncRepository {
       return true;
     } catch (e) {
       logger.e('[QwebTemplateSync] Error syncing template $templateKey: $e');
-      return false;
+      rethrow;
     }
-  }
-
-  /// Check for template updates using checksums.
-  Future<List<String>> checkForUpdates(List<String> templateKeys) async {
-    if (!isOnline) return [];
-
-    final localChecksums = await _templateRepo.getTemplateChecksums();
-    final needsUpdate = <String>[];
-
-    for (final key in templateKeys) {
-      if (!localChecksums.containsKey(key)) {
-        needsUpdate.add(key);
-      }
-    }
-
-    return needsUpdate;
   }
 
   /// Clear all locally stored templates.

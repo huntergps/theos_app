@@ -1,6 +1,7 @@
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
 import '../../../core/database/repositories/repository_providers.dart';
+
 import 'package:theos_pos_core/theos_pos_core.dart'
     show
         SaleOrder,
@@ -17,9 +18,7 @@ Stream<List<SaleOrder>> saleOrdersStream(Ref ref) {
   final dbHelper = ref.watch(databaseHelperProvider);
   if (dbHelper == null) return Stream.value([]);
 
-  return saleOrderManager.watchLocalSearch(
-    orderBy: 'date_order desc',
-  );
+  return saleOrderManager.watchLocalSearch(orderBy: 'date_order desc');
 }
 
 /// Stream provider for watching sale orders filtered by state
@@ -177,7 +176,8 @@ double? saleOrderTotal(Ref ref, int orderId) {
 @Riverpod(keepAlive: false)
 bool saleOrderIsSynced(Ref ref, int orderId) {
   final asyncValue = ref.watch(saleOrderStreamProvider(orderId));
-  return asyncValue.whenData((order) => order?.isSynced ?? false).value ?? false;
+  return asyncValue.whenData((order) => order?.isSynced ?? false).value ??
+      false;
 }
 
 /// Provider for watching only the quantity of a line

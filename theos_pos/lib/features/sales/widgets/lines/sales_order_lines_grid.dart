@@ -12,6 +12,7 @@ import '../../../products/providers/product_providers.dart';
 import '../editable_cell_type.dart';
 import 'sales_order_line_card.dart';
 import 'sales_order_lines_data_source.dart';
+
 import 'package:theos_pos_core/theos_pos_core.dart';
 
 /// A unified grid/list widget for displaying and editing Sale Order Lines.
@@ -33,15 +34,18 @@ class SalesOrderLinesGrid extends ConsumerStatefulWidget {
 
   /// Async callback for product code validation
   /// Returns ProductCodeSearchResult to determine navigation behavior
-  final Future<ProductCodeSearchResult> Function(SaleOrderLine line, String code)?
-      onUpdateCode;
+  final Future<ProductCodeSearchResult> Function(
+    SaleOrderLine line,
+    String code,
+  )?
+  onUpdateCode;
 
   /// Callback when Escape is pressed or focus lost on code cell
   /// Used to restore original value or delete empty lines
   final void Function(SaleOrderLine line)? onCodeEscape;
 
   final void Function(SaleOrderLine line, int uomId, String uomName)?
-      onUpdateUom;
+  onUpdateUom;
   final void Function(SaleOrderLine line)? onDeleteLine;
   final void Function(SaleOrderLine line)? onMoveUp;
   final void Function(SaleOrderLine line)? onMoveDown;
@@ -534,36 +538,36 @@ class SalesOrderLinesGridState extends ConsumerState<SalesOrderLinesGrid> {
         child: SfDataGrid(
           key: ValueKey('grid_$lineIdsKey'),
           source: dataSource,
-        columnWidthMode: ColumnWidthMode.none,
-        gridLinesVisibility: GridLinesVisibility.both,
-        headerGridLinesVisibility: GridLinesVisibility.both,
-        headerRowHeight: 36,
-        onQueryRowHeight: (details) {
-          // rowIndex 0 es el header, las filas de datos empiezan en 1
-          if (details.rowIndex == 0) {
-            return 36; // Altura del header
-          }
-          // Restar 1 para obtener el índice correcto en la lista de líneas
-          return _calculateRowHeight(details.rowIndex - 1);
-        },
-        allowSorting: false,
-        allowColumnsResizing: true,
-        columnResizeMode: ColumnResizeMode.onResize,
-        onColumnResizeStart: (details) {
-          logger.d(
-            '[SalesOrderLinesGrid]',
-            'Column resize started: ${details.column.columnName}',
-          );
-          return true;
-        },
-        onColumnResizeUpdate: (details) {
-          logger.d(
-            '[SalesOrderLinesGrid]',
-            'Column resize update: ${details.column.columnName} -> ${details.width}',
-          );
-          _onColumnResizeUpdate(details);
-          return true;
-        },
+          columnWidthMode: ColumnWidthMode.none,
+          gridLinesVisibility: GridLinesVisibility.both,
+          headerGridLinesVisibility: GridLinesVisibility.both,
+          headerRowHeight: 36,
+          onQueryRowHeight: (details) {
+            // rowIndex 0 es el header, las filas de datos empiezan en 1
+            if (details.rowIndex == 0) {
+              return 36; // Altura del header
+            }
+            // Restar 1 para obtener el índice correcto en la lista de líneas
+            return _calculateRowHeight(details.rowIndex - 1);
+          },
+          allowSorting: false,
+          allowColumnsResizing: true,
+          columnResizeMode: ColumnResizeMode.onResize,
+          onColumnResizeStart: (details) {
+            logger.d(
+              '[SalesOrderLinesGrid]',
+              'Column resize started: ${details.column.columnName}',
+            );
+            return true;
+          },
+          onColumnResizeUpdate: (details) {
+            logger.d(
+              '[SalesOrderLinesGrid]',
+              'Column resize update: ${details.column.columnName} -> ${details.width}',
+            );
+            _onColumnResizeUpdate(details);
+            return true;
+          },
           columns: _buildGridColumns(
             effectiveVisibility,
             headerTextColor,

@@ -27,12 +27,14 @@ class ModelManagerMockHelper<T> {
 
   /// Setup searchLocal to return records.
   void setupSearchLocal(List<T> records) {
-    when(() => manager.searchLocal(
-          domain: any(named: 'domain'),
-          limit: any(named: 'limit'),
-          offset: any(named: 'offset'),
-          orderBy: any(named: 'orderBy'),
-        )).thenAnswer((_) async => records);
+    when(
+      () => manager.searchLocal(
+        domain: any(named: 'domain'),
+        limit: any(named: 'limit'),
+        offset: any(named: 'offset'),
+        orderBy: any(named: 'orderBy'),
+      ),
+    ).thenAnswer((_) async => records);
   }
 
   /// Setup countLocal to return a count.
@@ -72,15 +74,10 @@ class ModelManagerMockHelper<T> {
   }
 
   /// Setup callOdooAction to return a value.
-  void setupCallOdooAction({
-    required String action,
-    dynamic returnValue,
-  }) {
-    when(() => manager.callOdooAction(
-          any(),
-          action,
-          kwargs: any(named: 'kwargs'),
-        )).thenAnswer((_) async => returnValue);
+  void setupCallOdooAction({required String action, dynamic returnValue}) {
+    when(
+      () => manager.callOdooAction(any(), action, kwargs: any(named: 'kwargs')),
+    ).thenAnswer((_) async => returnValue);
   }
 
   /// Setup isOnline property.

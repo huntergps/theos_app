@@ -36,7 +36,10 @@ extension FastSaleNotifierCustomer on FastSaleNotifier {
 
     // Block if order is not editable
     if (!_ensureCanModify('setCustomer')) {
-      logger.w('[FastSale]', '>>> setCustomer: Order is not editable, returning');
+      logger.w(
+        '[FastSale]',
+        '>>> setCustomer: Order is not editable, returning',
+      );
       return;
     }
 
@@ -127,7 +130,7 @@ extension FastSaleNotifierCustomer on FastSaleNotifier {
     logger.d(
       '[FastSale]',
       '>>> setCustomer: After _updateActiveTab, state.activeTab.order.partner = '
-      '${verifyTab?.order?.partnerId}/${verifyTab?.order?.partnerName}',
+          '${verifyTab?.order?.partnerId}/${verifyTab?.order?.partnerName}',
     );
 
     logger.d(
@@ -411,7 +414,10 @@ extension FastSaleNotifierCustomer on FastSaleNotifier {
   }
 
   /// Set the referrer for the active order
-  Future<void> setReferrer({required int referrerId, required String referrerName}) async {
+  Future<void> setReferrer({
+    required int referrerId,
+    required String referrerName,
+  }) async {
     final activeTab = state.activeTab;
     final order = activeTab?.order;
     if (activeTab == null || order == null) return;

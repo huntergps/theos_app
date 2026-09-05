@@ -1,14 +1,79 @@
+import 'dart:async';
+
+import 'package:odoo_sdk/odoo_sdk.dart'
+    show logger, SyncModelInfo, SyncProgress, SyncProgressCallback;
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
 import '../repositories/catalog_sync_repository.dart';
 import '../../../core/database/repositories/repository_providers.dart';
 import '../../../core/managers/manager_providers.dart';
-import 'package:odoo_sdk/odoo_sdk.dart' show logger;
+
 import '../../reports/repositories/qweb_template_repository.dart';
 import '../../../shared/providers/report_provider.dart';
 import '../../../shared/utils/error_utils.dart';
 
 part 'sync_provider.g.dart';
+
+/// Serializes synchronization entry points and coalesces duplicate requests.
+///
+/// The queue is process-wide because [SyncNotifier] can be rebuilt while an
+/// operation is still unwinding. A rebuilt notifier must observe and wait for
+/// that work instead of starting a second writer against the same Drift scope.
+class _SyncOperationQueue {
+  Future<void> _tail = Future<void>.value();
+  final Map<String, Future<void>> _pendingByKey = {};
+  Completer<void>? _idleCompleter;
+  var _pendingCount = 0;
+  var _cancelRequested = false;
+
+  bool get isCancellationRequested => _cancelRequested;
+  bool get isBusy => _pendingCount > 0;
+  bool hasPending(String key) => _pendingByKey.containsKey(key);
+
+  Future<void> run(String key, Future<void> Function() operation) {
+    final existing = _pendingByKey[key];
+    if (existing != null) return existing;
+
+    // A cancellation remains sticky until every old writer has stopped. The
+    // first operation of a new idle session explicitly opens the queue again.
+    if (!isBusy) _cancelRequested = false;
+
+    final previous = _tail;
+    _pendingCount++;
+    _idleCompleter ??= Completer<void>();
+
+    late final Future<void> task;
+    task = () async {
+      try {
+        try {
+          await previous;
+        } catch (_) {
+          // A failed predecessor must not poison the queue.
+        }
+
+        if (!_cancelRequested) await operation();
+      } finally {
+        if (identical(_pendingByKey[key], task)) {
+          _pendingByKey.remove(key);
+        }
+        _pendingCount--;
+        if (_pendingCount == 0) {
+          _idleCompleter?.complete();
+          _idleCompleter = null;
+        }
+      }
+    }();
+
+    _pendingByKey[key] = task;
+    _tail = task;
+    return task;
+  }
+
+  void requestCancellation() => _cancelRequested = true;
+
+  Future<void> waitUntilIdle() =>
+      isBusy ? _idleCompleter!.future : Future<void>.value();
+}
 
 /// Sync status for each catalog
 enum SyncStatus { idle, syncing, success, error }
@@ -131,13 +196,12 @@ class SyncItemDef {
 /// Provider for sync state - persists across navigation
 @Riverpod(keepAlive: true)
 class SyncNotifier extends _$SyncNotifier {
-  /// Static flag to track if sync is running (persists across notifier rebuilds)
-  /// This is needed because Riverpod may rebuild the notifier when navigating,
-  /// which would reset the state and cancel the ongoing sync.
-  static bool _isSyncRunning = false;
+  static final _syncQueue = _SyncOperationQueue();
 
-  /// Reset the static sync flag (call on logout/server switch)
-  static void resetSyncFlag() => _isSyncRunning = false;
+  /// Requests cancellation without claiming that the writer is already idle.
+  /// Callers that are about to close Drift must additionally await
+  /// [cancelAndWait].
+  static void resetSyncFlag() => _syncQueue.requestCancellation();
 
   /// Margen de solape para el high-water-mark de sync incremental.
   ///
@@ -227,7 +291,7 @@ class SyncNotifier extends _$SyncNotifier {
     SyncItemDef(
       name: 'banks',
       description: 'Bancos',
-      odooModel: 'res.bank',
+      odooModel: 'l10n.ec.bank',
       syncFn: (repo, onProgress, sinceDate) =>
           repo.syncBanks(onProgress: onProgress, sinceDate: sinceDate),
     ),
@@ -420,7 +484,10 @@ class SyncNotifier extends _$SyncNotifier {
     // Initialize with loading state, then load persisted data
     // Preserve isSyncingAll from static flag (in case notifier was rebuilt during sync)
     _loadPersistedState();
-    return SyncScreenState(isLoading: true, isSyncingAll: _isSyncRunning);
+    return SyncScreenState(
+      isLoading: true,
+      isSyncingAll: _syncQueue.hasPending('full'),
+    );
   }
 
   /// Get the catalog sync repository
@@ -445,18 +512,12 @@ class SyncNotifier extends _$SyncNotifier {
       for (final item in syncItems) {
         final info = allSyncInfo[item.name];
         if (info != null) {
-          // Also get current local count
-          final localCount = await catalogSync.getLocalCountForModel(
-            item.odooModel,
-          );
-          initialStates[item.name] = SyncItemState.fromModelInfo(
-            info.copyWith(localCount: localCount),
-          );
+          // The header badge only needs persisted status. Exact table counts
+          // are refreshed when the dedicated Sync screen is opened, avoiding
+          // one Drift COUNT query per catalog during the first Home frame.
+          initialStates[item.name] = SyncItemState.fromModelInfo(info);
         } else {
-          final localCount = await catalogSync.getLocalCountForModel(
-            item.odooModel,
-          );
-          initialStates[item.name] = SyncItemState(localCount: localCount);
+          initialStates[item.name] = const SyncItemState();
         }
       }
 
@@ -515,28 +576,49 @@ class SyncNotifier extends _$SyncNotifier {
     String? error,
     bool wasIncremental = false,
   }) async {
+    final catalogSync = _catalogSync;
+    if (catalogSync == null) {
+      throw StateError('CatalogSyncRepository not available');
+    }
+
+    final localCount = await catalogSync.getLocalCountForModel(odooModel);
+
+    final lastSyncDate = error != null
+        ? previousLastSyncDate
+        : syncStartTime.subtract(_incrementalSyncOverlap);
+
+    final info = SyncModelInfo(
+      modelName: itemName,
+      lastSyncDate: lastSyncDate,
+      syncedCount: count,
+      localCount: localCount,
+      errorMessage: error,
+      wasIncremental: wasIncremental,
+    );
+
+    // This write is the commit point of an item sync. Let failures propagate
+    // so callers never publish an in-memory watermark that was not persisted.
+    await catalogSync.saveModelSyncInfo(info);
+  }
+
+  Future<void> _saveFailedSyncResult(
+    String itemName, {
+    required String odooModel,
+    required DateTime syncStartTime,
+    DateTime? previousLastSyncDate,
+    required String error,
+  }) async {
     try {
-      final catalogSync = _catalogSync;
-      if (catalogSync == null) return;
-
-      final localCount = await catalogSync.getLocalCountForModel(odooModel);
-
-      final lastSyncDate = error != null
-          ? previousLastSyncDate
-          : syncStartTime.subtract(_incrementalSyncOverlap);
-
-      final info = SyncModelInfo(
-        modelName: itemName,
-        lastSyncDate: lastSyncDate,
-        syncedCount: count,
-        localCount: localCount,
-        errorMessage: error,
-        wasIncremental: wasIncremental,
+      await _saveSyncResult(
+        itemName,
+        count: 0,
+        odooModel: odooModel,
+        syncStartTime: syncStartTime,
+        previousLastSyncDate: previousLastSyncDate,
+        error: error,
       );
-
-      await catalogSync.saveModelSyncInfo(info);
     } catch (e) {
-      logger.e('[SyncNotifier] Error saving sync result for $itemName: $e');
+      logger.e('[SyncNotifier] Error saving failed sync for $itemName: $e');
     }
   }
 
@@ -598,16 +680,11 @@ class SyncNotifier extends _$SyncNotifier {
 
       // First, sync deleted records if this is incremental
       if (isIncremental && currentInfo.lastSyncDate != null) {
-        try {
-          await catalogSync.syncDeletedRecords(
-            odooModel: itemDef.odooModel,
-            localModelName: itemName,
-            sinceDate: currentInfo.lastSyncDate,
-          );
-        } catch (e) {
-          logger.w('[SyncNotifier] Error syncing deleted records: $e');
-          // Continue with sync even if deleted records fail
-        }
+        await catalogSync.syncDeletedRecords(
+          odooModel: itemDef.odooModel,
+          localModelName: itemName,
+          sinceDate: currentInfo.lastSyncDate,
+        );
       }
 
       // Progress callback
@@ -663,9 +740,8 @@ class SyncNotifier extends _$SyncNotifier {
       final errorMessage = friendlyErrorMessage(e);
 
       // Save error — no avanza el watermark (ver _saveSyncResult)
-      await _saveSyncResult(
+      await _saveFailedSyncResult(
         itemName,
-        count: 0,
         odooModel: itemDef.odooModel,
         syncStartTime: syncStartTime,
         previousLastSyncDate: currentInfo.lastSyncDate,
@@ -695,17 +771,16 @@ class SyncNotifier extends _$SyncNotifier {
 
   /// Force full sync for all items
   Future<void> forceFullSyncAll() async {
-    final catalogSync = _catalogSync;
-    if (catalogSync == null) {
-      logger.e('[SyncNotifier] CatalogSyncRepository not available');
-      return;
-    }
+    await _syncQueue.run('full', () async {
+      final catalogSync = _catalogSync;
+      if (catalogSync == null) {
+        logger.e('[SyncNotifier] CatalogSyncRepository not available');
+        return;
+      }
 
-    // Clear all sync info first
-    await catalogSync.clearAllModelSyncInfo();
-
-    // Then sync all
-    await syncAll();
+      await catalogSync.clearAllModelSyncInfo();
+      await _syncAllUnlocked();
+    });
   }
 
   /// Critical items that should be synced during recovery
@@ -723,7 +798,10 @@ class SyncNotifier extends _$SyncNotifier {
 
   /// Sync only critical data (lightweight sync for recovery scenarios)
   /// Used by ConnectivitySyncOrchestrator when server recovers
-  Future<void> syncCriticalData() async {
+  Future<void> syncCriticalData() =>
+      _syncQueue.run('critical-recovery', _syncCriticalDataUnlocked);
+
+  Future<void> _syncCriticalDataUnlocked() async {
     final catalogSync = _catalogSync;
     if (catalogSync == null) {
       logger.e('[SyncNotifier] CatalogSyncRepository not available');
@@ -735,25 +813,74 @@ class SyncNotifier extends _$SyncNotifier {
       return;
     }
 
+    // The queue guarantees that an older cancelled writer is already idle.
+    // Clear its repository-level token before starting a new recovery pass.
+    catalogSync.resetCancelFlag();
     logger.i('[SyncNotifier] Starting critical data sync...');
 
-    for (final itemName in _criticalItems) {
+    final criticalItems = syncItems.where(
+      (item) => _criticalItems.contains(item.name),
+    );
+    for (final itemDef in criticalItems) {
+      if (_syncQueue.isCancellationRequested) {
+        logger.d('[SyncNotifier] Critical data sync cancelled');
+        break;
+      }
+
+      final itemName = itemDef.name;
+      SyncModelInfo? syncInfo;
+      DateTime? syncStartTime;
       try {
-        // Find the item definition
-        final itemDef = syncItems.firstWhere(
-          (item) => item.name == itemName,
-          orElse: () => throw ArgumentError('Unknown sync item: $itemName'),
+        // Get current sync info (for incremental sync)
+        syncInfo = await catalogSync.getModelSyncInfo(itemName);
+        final isIncremental = syncInfo.lastSyncDate != null;
+        syncStartTime = DateTime.now().toUtc();
+
+        // Recovery is an incremental writer too. Tombstones and records that
+        // left an active/saleable domain must complete before fetching live
+        // rows, otherwise persisting the recovery watermark would skip them.
+        if (isIncremental) {
+          await catalogSync.syncDeletedRecords(
+            odooModel: itemDef.odooModel,
+            localModelName: itemName,
+            sinceDate: syncInfo.lastSyncDate,
+          );
+        }
+
+        // Recovery uses the same persisted watermark as manual sync. Saving a
+        // successful result below prevents every reconnect from becoming a
+        // repeated full catalog download.
+        final count = await itemDef.syncFn(
+          catalogSync,
+          null,
+          syncInfo.lastSyncDate,
         );
 
-        // Get current sync info (for incremental sync)
-        final syncInfo = await catalogSync.getModelSyncInfo(itemName);
+        if (itemDef.postSyncFn != null) {
+          await itemDef.postSyncFn!(ref);
+        }
 
-        // Perform incremental sync
-        await itemDef.syncFn(catalogSync, null, syncInfo.lastSyncDate);
+        await _saveSyncResult(
+          itemName,
+          count: count,
+          odooModel: itemDef.odooModel,
+          syncStartTime: syncStartTime,
+          previousLastSyncDate: syncInfo.lastSyncDate,
+          wasIncremental: isIncremental,
+        );
 
         logger.d('[SyncNotifier] Synced critical item: $itemName');
       } catch (e) {
         logger.w('[SyncNotifier] Failed to sync critical item $itemName: $e');
+        if (syncStartTime != null) {
+          await _saveFailedSyncResult(
+            itemName,
+            odooModel: itemDef.odooModel,
+            syncStartTime: syncStartTime,
+            previousLastSyncDate: syncInfo?.lastSyncDate,
+            error: friendlyErrorMessage(e),
+          );
+        }
         // Continue with other items
       }
     }
@@ -762,7 +889,9 @@ class SyncNotifier extends _$SyncNotifier {
   }
 
   /// Sync all catalogs sequentially
-  Future<void> syncAll() async {
+  Future<void> syncAll() => _syncQueue.run('full', _syncAllUnlocked);
+
+  Future<void> _syncAllUnlocked() async {
     final catalogSync = _catalogSync;
     if (catalogSync == null) {
       logger.e('[SyncNotifier] CatalogSyncRepository not available');
@@ -773,15 +902,6 @@ class SyncNotifier extends _$SyncNotifier {
       logger.e('[SyncNotifier] Not online');
       return;
     }
-
-    // Check if already syncing all (use static flag for reliability)
-    if (_isSyncRunning) {
-      logger.d('[SyncNotifier] Already syncing all (static flag)');
-      return;
-    }
-
-    // Set static flag to prevent re-entry and state resets from cancelling sync
-    _isSyncRunning = true;
 
     // Reset cancellation flag before starting
     catalogSync.resetCancelFlag();
@@ -794,179 +914,176 @@ class SyncNotifier extends _$SyncNotifier {
     }
     state = SyncScreenState(itemStates: newStates, isSyncingAll: true);
 
-    // Sync each item sequentially
-    for (final itemDef in syncItems) {
-      // Check if sync was cancelled globally (use static flag)
-      if (!_isSyncRunning) {
-        logger.d('[SyncNotifier] Sync all was cancelled, stopping...');
-        // Mark remaining items as idle
-        for (final item in syncItems) {
-          final itemState = state.getItemState(item.name);
-          if (itemState.status == SyncStatus.syncing) {
-            _updateItemState(
-              item.name,
-              itemState.copyWith(status: SyncStatus.idle),
-            );
+    try {
+      // Sync each item sequentially
+      for (final itemDef in syncItems) {
+        if (_syncQueue.isCancellationRequested) {
+          logger.d('[SyncNotifier] Sync all was cancelled, stopping...');
+          // Mark remaining items as idle
+          for (final item in syncItems) {
+            final itemState = state.getItemState(item.name);
+            if (itemState.status == SyncStatus.syncing) {
+              _updateItemState(
+                item.name,
+                itemState.copyWith(status: SyncStatus.idle),
+              );
+            }
           }
+          break;
         }
-        break;
-      }
 
-      // Check if this specific item was already cancelled/errored
-      final currentItemState = state.getItemState(itemDef.name);
-      if (currentItemState.status == SyncStatus.error) {
-        logger.d(
-          '[SyncNotifier] Skipping ${itemDef.name} - already cancelled/errored',
-        );
-        continue;
-      }
+        // Check if this specific item was already cancelled/errored
+        final currentItemState = state.getItemState(itemDef.name);
+        if (currentItemState.status == SyncStatus.error) {
+          logger.d(
+            '[SyncNotifier] Skipping ${itemDef.name} - already cancelled/errored',
+          );
+          continue;
+        }
 
-      // Mark this item as current
-      state = state.copyWith(currentSyncingItem: itemDef.name);
+        // Mark this item as current
+        state = state.copyWith(currentSyncingItem: itemDef.name);
 
-      // Reset cancel flag before each item ONLY if we're still syncing
-      // Don't reset if cancellation was requested
-      if (!catalogSync.isCancelRequested) {
-        catalogSync.resetCancelFlag();
-      } else {
-        logger.d(
-          '[SyncNotifier] Cancel flag is set, skipping reset and breaking',
-        );
-        break;
-      }
+        // Reset cancel flag before each item ONLY if we're still syncing
+        // Don't reset if cancellation was requested
+        if (!catalogSync.isCancelRequested) {
+          catalogSync.resetCancelFlag();
+        } else {
+          logger.d(
+            '[SyncNotifier] Cancel flag is set, skipping reset and breaking',
+          );
+          break;
+        }
 
-      // Get current sync info for incremental sync
-      final currentInfo = await catalogSync.getModelSyncInfo(itemDef.name);
-      final isIncremental = currentInfo.lastSyncDate != null;
+        // Get current sync info for incremental sync
+        final currentInfo = await catalogSync.getModelSyncInfo(itemDef.name);
+        final isIncremental = currentInfo.lastSyncDate != null;
 
-      _updateItemState(
-        itemDef.name,
-        state
-            .getItemState(itemDef.name)
-            .copyWith(
-              status: SyncStatus.syncing,
-              wasIncremental: isIncremental,
-            ),
-      );
-
-      // Capturado ANTES de cualquier fetch a Odoo para este item — ver
-      // _incrementalSyncOverlap y syncItem() para la explicación completa.
-      final syncStartTime = DateTime.now().toUtc();
-
-      try {
-        logger.d(
-          '[SyncNotifier] Syncing ${itemDef.description}... (incremental: $isIncremental)',
+        _updateItemState(
+          itemDef.name,
+          state
+              .getItemState(itemDef.name)
+              .copyWith(
+                status: SyncStatus.syncing,
+                wasIncremental: isIncremental,
+              ),
         );
 
-        // First, sync deleted records if this is incremental
-        if (isIncremental && currentInfo.lastSyncDate != null) {
-          try {
+        // Capturado ANTES de cualquier fetch a Odoo para este item — ver
+        // _incrementalSyncOverlap y syncItem() para la explicación completa.
+        final syncStartTime = DateTime.now().toUtc();
+
+        try {
+          logger.d(
+            '[SyncNotifier] Syncing ${itemDef.description}... (incremental: $isIncremental)',
+          );
+
+          // First, sync deleted records if this is incremental
+          if (isIncremental && currentInfo.lastSyncDate != null) {
             await catalogSync.syncDeletedRecords(
               odooModel: itemDef.odooModel,
               localModelName: itemDef.name,
               sinceDate: currentInfo.lastSyncDate,
             );
-          } catch (e) {
-            logger.w('[SyncNotifier] Error syncing deleted records: $e');
           }
-        }
 
-        // Progress callback
-        void onProgress(SyncProgress progress) {
+          // Progress callback
+          void onProgress(SyncProgress progress) {
+            _updateItemState(
+              itemDef.name,
+              SyncItemState(
+                status: SyncStatus.syncing,
+                progress: progress,
+                lastSyncDate: currentInfo.lastSyncDate,
+                wasIncremental: isIncremental,
+              ),
+            );
+          }
+
+          // Pass sinceDate for incremental sync
+          final sinceDate = isIncremental ? currentInfo.lastSyncDate : null;
+          final count = await itemDef.syncFn(
+            catalogSync,
+            onProgress,
+            sinceDate,
+          );
+          logger.d('[SyncNotifier] ${itemDef.description}: $count records');
+
+          // Run post-sync callback if defined
+          if (itemDef.postSyncFn != null) {
+            await itemDef.postSyncFn!(ref);
+          }
+
+          // Save sync result
+          await _saveSyncResult(
+            itemDef.name,
+            count: count,
+            odooModel: itemDef.odooModel,
+            syncStartTime: syncStartTime,
+            previousLastSyncDate: currentInfo.lastSyncDate,
+            wasIncremental: isIncremental,
+          );
+
+          // Get updated local count
+          final localCount = await catalogSync.getLocalCountForModel(
+            itemDef.odooModel,
+          );
+
           _updateItemState(
             itemDef.name,
             SyncItemState(
-              status: SyncStatus.syncing,
-              progress: progress,
-              lastSyncDate: currentInfo.lastSyncDate,
+              status: SyncStatus.success,
+              count: count,
+              lastSyncDate: syncStartTime.subtract(_incrementalSyncOverlap),
+              localCount: localCount,
               wasIncremental: isIncremental,
             ),
           );
-        }
+        } catch (e) {
+          logger.e('[SyncNotifier] Error syncing ${itemDef.description}: $e');
+          final errorMessage = friendlyErrorMessage(e);
 
-        // Pass sinceDate for incremental sync
-        final sinceDate = isIncremental ? currentInfo.lastSyncDate : null;
-        final count = await itemDef.syncFn(catalogSync, onProgress, sinceDate);
-        logger.d('[SyncNotifier] ${itemDef.description}: $count records');
-
-        // Run post-sync callback if defined
-        if (itemDef.postSyncFn != null) {
-          await itemDef.postSyncFn!(ref);
-        }
-
-        // Save sync result
-        await _saveSyncResult(
-          itemDef.name,
-          count: count,
-          odooModel: itemDef.odooModel,
-          syncStartTime: syncStartTime,
-          previousLastSyncDate: currentInfo.lastSyncDate,
-          wasIncremental: isIncremental,
-        );
-
-        // Get updated local count
-        final localCount = await catalogSync.getLocalCountForModel(
-          itemDef.odooModel,
-        );
-
-        _updateItemState(
-          itemDef.name,
-          SyncItemState(
-            status: SyncStatus.success,
-            count: count,
-            lastSyncDate: syncStartTime.subtract(_incrementalSyncOverlap),
-            localCount: localCount,
-            wasIncremental: isIncremental,
-          ),
-        );
-      } catch (e) {
-        logger.e('[SyncNotifier] Error syncing ${itemDef.description}: $e');
-        final errorMessage = friendlyErrorMessage(e);
-
-        // Save error — no avanza el watermark (ver _saveSyncResult)
-        await _saveSyncResult(
-          itemDef.name,
-          count: 0,
-          odooModel: itemDef.odooModel,
-          syncStartTime: syncStartTime,
-          previousLastSyncDate: currentInfo.lastSyncDate,
-          error: errorMessage,
-        );
-
-        _updateItemState(
-          itemDef.name,
-          SyncItemState(
-            status: SyncStatus.error,
+          // Save error — no avanza el watermark (ver _saveSyncResult)
+          await _saveFailedSyncResult(
+            itemDef.name,
+            odooModel: itemDef.odooModel,
+            syncStartTime: syncStartTime,
+            previousLastSyncDate: currentInfo.lastSyncDate,
             error: errorMessage,
-            lastSyncDate: currentInfo.lastSyncDate,
-            localCount: state.getItemState(itemDef.name).localCount,
-          ),
-        );
-
-        // If cancelled, check if we should stop the whole sync
-        if (catalogSync.isCancelRequested && !_isSyncRunning) {
-          logger.d(
-            '[SyncNotifier] Item ${itemDef.name} was cancelled, stopping sync all',
           );
-          break;
+
+          _updateItemState(
+            itemDef.name,
+            SyncItemState(
+              status: SyncStatus.error,
+              error: errorMessage,
+              lastSyncDate: currentInfo.lastSyncDate,
+              localCount: state.getItemState(itemDef.name).localCount,
+            ),
+          );
+
+          // If cancelled, stop the whole sync after this item unwinds.
+          if (catalogSync.isCancelRequested ||
+              _syncQueue.isCancellationRequested) {
+            logger.d(
+              '[SyncNotifier] Item ${itemDef.name} was cancelled, stopping sync all',
+            );
+            break;
+          }
         }
       }
+    } finally {
+      state = state.copyWith(isSyncingAll: false, currentSyncingItem: null);
+      logger.d('[SyncNotifier] Full sync completed');
     }
-
-    // Mark as done and clear static flag
-    _isSyncRunning = false;
-    state = state.copyWith(isSyncingAll: false, currentSyncingItem: null);
-    logger.d('[SyncNotifier] Full sync completed');
   }
 
   /// Cancel current sync operation (all items)
   void cancelSync() {
     final catalogSync = _catalogSync;
-    if (catalogSync == null) return;
-
     logger.d('[SyncNotifier] Requesting sync cancellation...');
-    _isSyncRunning = false; // Clear static flag first
-    catalogSync.cancelSync();
+    _syncQueue.requestCancellation();
+    catalogSync?.cancelSync();
 
     // Mark current syncing item as idle with cancellation message
     final currentItem = state.currentSyncingItem;
@@ -991,7 +1108,20 @@ class SyncNotifier extends _$SyncNotifier {
         newStates[item.name] = itemState;
       }
     }
-    state = state.copyWith(itemStates: newStates, isSyncingAll: false);
+    // Keep isSyncingAll true until the active Future has actually unwound.
+    state = state.copyWith(itemStates: newStates);
+  }
+
+  /// Cancels queued/active synchronization and waits until no writer can still
+  /// access the current Drift scope.
+  ///
+  /// Logout and server-switch flows must await this before closing the scoped
+  /// database. Cancellation is cooperative, so the currently awaited network
+  /// call may finish before this future completes.
+  Future<void> cancelAndWait() async {
+    cancelSync();
+    await _syncQueue.waitUntilIdle();
+    state = state.copyWith(isSyncingAll: false, currentSyncingItem: null);
   }
 
   /// Cancel sync for a specific item
@@ -1009,8 +1139,7 @@ class SyncNotifier extends _$SyncNotifier {
 
     logger.d('[SyncNotifier] Requesting cancellation for $itemName...');
 
-    // Clear static flag first to stop the sync loop
-    _isSyncRunning = false;
+    _syncQueue.requestCancellation();
 
     // Also cancel via repository to set the flag
     catalogSync.cancelSync();
@@ -1024,12 +1153,6 @@ class SyncNotifier extends _$SyncNotifier {
         error: 'Cancelado por el usuario',
       ),
     );
-
-    // Mark as not syncing all anymore
-    if (state.isSyncingAll) {
-      logger.d('[SyncNotifier] Setting isSyncingAll = false');
-      state = state.copyWith(isSyncingAll: false, currentSyncingItem: null);
-    }
 
     // Also mark all other syncing items as idle (they haven't started yet)
     final newStates = <String, SyncItemState>{};
@@ -1173,4 +1296,3 @@ class SyncNotifier extends _$SyncNotifier {
     }
   }
 }
-

@@ -5,10 +5,10 @@
 list(APPEND FLUTTER_PLUGIN_LIST
   connectivity_plus
   flutter_acrylic
+  flutter_secure_storage_windows
   printing
   screen_retriever_windows
   share_plus
-  sqlite3_flutter_libs
   syncfusion_pdfviewer_windows
   system_theme
   url_launcher_windows

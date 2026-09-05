@@ -72,14 +72,17 @@ abstract class CredentialKeys {
   /// API key for Odoo JSON-2 authentication.
   static const String apiKey = 'odoo_api_key';
 
-  /// Session ID from authentication.
-  static const String sessionId = 'odoo_session_id';
-
-  /// Session token for WebSocket authentication.
+  /// Optional secondary token used by server-specific presence services.
   static const String sessionToken = 'odoo_session_token';
 
   /// Refresh token (if token refresh is configured).
   static const String refreshToken = 'odoo_refresh_token';
+
+  /// Every credential key managed by the SDK.
+  ///
+  /// Used for deterministic context cleanup after a cold restart, when an
+  /// in-memory guard no longer knows which values were previously cached.
+  static const Set<String> values = {apiKey, sessionToken, refreshToken};
 
   /// Generate a context-scoped key.
   ///

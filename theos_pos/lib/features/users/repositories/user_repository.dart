@@ -1,40 +1,74 @@
 import 'package:drift/drift.dart';
 
 import '../../../core/database/repositories/base_repository.dart';
+
 import 'package:theos_pos_core/theos_pos_core.dart' hide DatabaseHelper;
+
 // Models
 import '../../../shared/models/res_device.model.dart';
+
+/// The local permission snapshot is absent, incomplete, or unreadable.
+///
+/// An empty, synchronized `groupIds` value is valid and means that the user
+/// has no known application permissions. This exception represents a
+/// different state and must never be interpreted as authorization.
+class PermissionSnapshotUnavailableException implements Exception {
+  final String message;
+  final Object? cause;
+
+  const PermissionSnapshotUnavailableException(this.message, {this.cause});
+
+  @override
+  String toString() => 'Permission snapshot unavailable: $message';
+}
 
 /// Repository for user-related operations
 ///
 /// Handles: Users, Partners, Devices, Password, IM Status
 class UserRepository extends BaseRepository
     with SessionInfoCache, OfflineSupport {
-  final AppDatabase _appDb;
+  final AppDatabase appDb;
 
   UserRepository({
     required super.odooClient,
     required super.db,
-    required AppDatabase appDb,
-  }) : _appDb = appDb;
+    required this.appDb,
+  });
+
+  /// Returns states for a country through the repository boundary.
+  Future<List<Map<String, dynamic>>> getStatesByCountry(int countryId) async {
+    if (!isOnline || odooClient == null) return const [];
+    final rows = await odooClient!.searchRead(
+      model: 'res.country.state',
+      domain: [
+        ['country_id', '=', countryId],
+      ],
+      fields: ['id', 'name'],
+      order: 'name asc',
+    );
+    return rows.map((row) => Map<String, dynamic>.from(row)).toList();
+  }
 
   // ============ Users ============
 
+  /// Returns the authenticated user already stored in the active Drift scope.
+  ///
+  /// Startup restoration must not turn a local session lookup into a network
+  /// request. Remote refresh remains the responsibility of [getCurrentUser].
+  Future<User?> getCachedCurrentUser() => userManager.getCurrentUser();
+
   /// Get current user from Odoo and cache locally
   /// Falls back to local database when Odoo is offline
-  Future<User?> getCurrentUser() async {
+  Future<User?> getCurrentUser({int? knownUserId}) async {
     try {
-      final sessionInfo = await getSessionInfoCached();
-
-      int? uid = sessionInfo?['uid'] as int?;
-      String? username = sessionInfo?['username'] as String?;
+      int? uid = knownUserId;
 
       // session_info NO funciona con API key pura (requiere sesión web). En ese
       // caso resolvemos la identidad del dueño de la API key vía
       // res.users.context_get(), que devuelve {uid, lang, tz}. Sin esto, el
       // usuario actual nunca se marca (is_current_user) y los permisos no
       // cargan en el primer login por API key.
-      if (uid == null && username == null && isOnline) {
+      if (uid == null && isOnline) {
         try {
           final ctx = await odooClient!.call(
             model: 'res.users',
@@ -48,7 +82,7 @@ class UserRepository extends BaseRepository
         }
       }
 
-      if (uid == null && username == null) {
+      if (uid == null) {
         return await userManager.getCurrentUser();
       }
       if (!isOnline) {
@@ -56,16 +90,9 @@ class UserRepository extends BaseRepository
       }
       final response = await odooClient!.call(
         model: 'res.users',
-        method: uid != null ? 'read' : 'search_read',
-        kwargs: {
-          if (uid != null) 'ids': [uid],
-          if (uid == null && username != null)
-            'domain': [
-              ['login', '=', username],
-            ],
-          'fields': userManager.odooFields,
-          if (uid == null) 'limit': 1,
-        },
+        method: 'read',
+        ids: [uid],
+        kwargs: {'fields': userManager.odooFields},
       );
 
       if (response is List && response.isNotEmpty) {
@@ -116,6 +143,34 @@ class UserRepository extends BaseRepository
       await queueOfflineOperation('res.users', 'write', userId, values);
       return true; // Local update succeeded
     }
+  }
+
+  /// Atomically orchestrates profile writes owned by the current user.
+  /// Partner writes are strict: a rejected partner update is surfaced to the
+  /// caller so profile dialogs cannot close while showing stale data.
+  Future<bool> updateUserAndPartner({
+    required int userId,
+    int? partnerId,
+    Map<String, dynamic> userValues = const {},
+    Map<String, dynamic> partnerValues = const {},
+  }) async {
+    if (userValues.isNotEmpty) {
+      final result = await odooClient!.write(
+        model: 'res.users',
+        ids: [userId],
+        values: userValues,
+      );
+      if (!result) return false;
+    }
+    if (partnerId != null && partnerValues.isNotEmpty) {
+      final result = await odooClient!.write(
+        model: 'res.partner',
+        ids: [partnerId],
+        values: partnerValues,
+      );
+      if (!result) return false;
+    }
+    return true;
   }
 
   // ============ Partners ============
@@ -171,7 +226,9 @@ class UserRepository extends BaseRepository
           fields: clientManager.odooFields,
         );
         if (partners.isNotEmpty) {
-          await clientManager.upsertLocal(clientManager.fromOdoo(partners.first));
+          await clientManager.upsertLocal(
+            clientManager.fromOdoo(partners.first),
+          );
         }
       }
       return success;
@@ -191,7 +248,7 @@ class UserRepository extends BaseRepository
       if (query.isEmpty) return [];
 
       // OFFLINE-FIRST: Search in local SQLite database
-      final appDb = _appDb;
+      final appDb = this.appDb;
       final pattern = '%${query.toLowerCase()}%';
 
       final results =
@@ -316,23 +373,23 @@ class UserRepository extends BaseRepository
   /// `.watchSingleOrNull()` (en vez de `.getSingleOrNull()`) hace que el
   /// stream re-emita automáticamente cuando la fila cambia en la DB local.
   Stream<List<int>> watchCurrentUserGroupIds() {
-    return _appDb
+    return appDb
         .customSelect(
           'SELECT group_ids FROM res_users WHERE is_current_user = 1 LIMIT 1',
         )
         .watchSingleOrNull()
         .map((row) {
-      if (row == null) return const <int>[];
+          if (row == null) return const <int>[];
 
-      final groupIdsStr = row.read<String?>('group_ids');
-      if (groupIdsStr == null || groupIdsStr.isEmpty) return const <int>[];
+          final groupIdsStr = row.read<String?>('group_ids');
+          if (groupIdsStr == null || groupIdsStr.isEmpty) return const <int>[];
 
-      return groupIdsStr
-          .split(',')
-          .map((s) => int.tryParse(s.trim()))
-          .whereType<int>()
-          .toList();
-    });
+          return groupIdsStr
+              .split(',')
+              .map((s) => int.tryParse(s.trim()))
+              .whereType<int>()
+              .toList();
+        });
   }
 
   /// Revoke all devices except current
@@ -368,10 +425,7 @@ class UserRepository extends BaseRepository
       final result = await odooClient!.call(
         model: 'res.users',
         method: 'change_password',
-        kwargs: {
-          'old_passwd': oldPassword,
-          'new_passwd': newPassword,
-        },
+        kwargs: {'old_passwd': oldPassword, 'new_passwd': newPassword},
       );
       return result == true;
     } catch (e) {
@@ -404,18 +458,18 @@ class UserRepository extends BaseRepository
 
   /// Check if current user belongs to a group by XML ID (offline-first)
   ///
-  /// Example: `hasGroup('base.group_user')` or `hasGroup('sales_team.group_sale_manager')`
+  /// The caller must pass an XML ID from the central user-group catalog.
   ///
   /// Returns true if user belongs to the group, false otherwise.
   /// Works offline by checking the local database.
   Future<bool> hasGroup(String groupXmlId) async {
     try {
-      final appDb = _appDb;
+      final appDb = this.appDb;
 
       // Get current user
-      final currentUser = await (appDb.select(appDb.resUsers)
-            ..where((t) => t.isCurrentUser.equals(true)))
-          .getSingleOrNull();
+      final currentUser = await (appDb.select(
+        appDb.resUsers,
+      )..where((t) => t.isCurrentUser.equals(true))).getSingleOrNull();
 
       if (currentUser == null || currentUser.groupIds == null) {
         return false;
@@ -433,9 +487,9 @@ class UserRepository extends BaseRepository
       }
 
       // Find group by XML ID
-      final group = await (appDb.select(appDb.resGroups)
-            ..where((t) => t.xmlId.equals(groupXmlId)))
-          .getSingleOrNull();
+      final group = await (appDb.select(
+        appDb.resGroups,
+      )..where((t) => t.xmlId.equals(groupXmlId))).getSingleOrNull();
 
       if (group == null) {
         // Group not found in local database
@@ -493,59 +547,70 @@ class UserRepository extends BaseRepository
 
   /// Get all groups the current user belongs to
   Future<List<String>> getCurrentUserGroups() async {
-    try {
-      final appDb = _appDb;
+    final currentUser = await (appDb.select(
+      appDb.resUsers,
+    )..where((t) => t.isCurrentUser.equals(true))).getSingleOrNull();
 
-      // Get current user
-      final currentUser = await (appDb.select(appDb.resUsers)
-            ..where((t) => t.isCurrentUser.equals(true)))
-          .getSingleOrNull();
-
-      if (currentUser == null) {
-        return [];
-      }
-
-      if (currentUser.groupIds == null) {
-        return [];
-      }
-
-      // Parse user's group IDs
-      final userGroupIds = currentUser.groupIds!
-          .split(',')
-          .map((e) => int.tryParse(e.trim()))
-          .whereType<int>()
-          .toList();
-
-      if (userGroupIds.isEmpty) {
-        return [];
-      }
-
-      // Get group XML IDs from local database
-      final groups = await (appDb.select(appDb.resGroups)
-            ..where((t) => t.odooId.isIn(userGroupIds)))
-          .get();
-
-      final localXmlIds = groups
-          .where((g) => g.xmlId != null && g.xmlId!.isNotEmpty)
-          .map((g) => g.xmlId!)
-          .toList();
-
-      // If we have XML IDs locally, return them
-      if (localXmlIds.isNotEmpty) {
-        return localXmlIds;
-      }
-
-      // Otherwise, try to fetch from Odoo
-      return await _fetchGroupXmlIdsFromOdoo(userGroupIds);
-    } catch (e) {
-      return [];
+    if (currentUser == null) {
+      throw const PermissionSnapshotUnavailableException(
+        'current user is not present in the active database',
+      );
     }
+
+    final encodedGroupIds = currentUser.groupIds;
+    if (encodedGroupIds == null) {
+      throw PermissionSnapshotUnavailableException(
+        'groups for user ${currentUser.odooId} have not been synchronized',
+      );
+    }
+
+    // An explicitly published empty string is a valid zero-permission
+    // snapshot. A null value above means that no snapshot was published.
+    final userGroupIds = encodedGroupIds
+        .split(',')
+        .map((e) => int.tryParse(e.trim()))
+        .whereType<int>()
+        .toSet();
+    if (userGroupIds.isEmpty) return const [];
+
+    final groups = await (appDb.select(
+      appDb.resGroups,
+    )..where((t) => t.odooId.isIn(userGroupIds))).get();
+    final xmlIdByGroupId = <int, String>{
+      for (final group in groups)
+        if (group.xmlId != null && group.xmlId!.isNotEmpty)
+          group.odooId: group.xmlId!,
+    };
+
+    final missingGroupIds = userGroupIds
+        .difference(xmlIdByGroupId.keys.toSet())
+        .toList(growable: false);
+    if (missingGroupIds.isNotEmpty) {
+      final fetchedXmlIds = await _fetchGroupXmlIdsFromOdoo(missingGroupIds);
+      if (fetchedXmlIds.length != missingGroupIds.length) {
+        throw PermissionSnapshotUnavailableException(
+          'could not resolve every group for user ${currentUser.odooId}',
+        );
+      }
+      for (var index = 0; index < missingGroupIds.length; index++) {
+        xmlIdByGroupId[missingGroupIds[index]] = fetchedXmlIds[index];
+      }
+    }
+
+    return userGroupIds
+        .map((id) => xmlIdByGroupId[id]!)
+        .toList(growable: false);
   }
 
   /// Fetch XML IDs directly from Odoo for a list of group IDs
   /// Uses ir.model.data to look up external IDs for res.groups records
   Future<List<String>> _fetchGroupXmlIdsFromOdoo(List<int> groupIds) async {
-    if (groupIds.isEmpty || odooClient == null) return [];
+    if (groupIds.isEmpty) return const [];
+    if (odooClient == null) {
+      throw const PermissionSnapshotUnavailableException(
+        'missing Odoo client while resolving uncached groups',
+      );
+    }
 
     try {
       final result = await odooClient!.searchRead(
@@ -558,23 +623,23 @@ class UserRepository extends BaseRepository
         limit: groupIds.length * 2,
       );
 
-      final xmlIds = <String>[];
       final xmlIdMap = <int, String>{};
 
       for (final r in result) {
         final resId = r['res_id'] as int;
         final module = r['module'] as String? ?? '';
         final name = r['name'] as String? ?? '';
-        if (module.isNotEmpty && name.isNotEmpty && !xmlIdMap.containsKey(resId)) {
+        if (module.isNotEmpty &&
+            name.isNotEmpty &&
+            !xmlIdMap.containsKey(resId)) {
           final xmlId = '$module.$name';
           xmlIdMap[resId] = xmlId;
-          xmlIds.add(xmlId);
         }
       }
 
       // Also update local database with the XML IDs for future use
       if (xmlIdMap.isNotEmpty) {
-        final appDb = _appDb;
+        final appDb = this.appDb;
         for (final entry in xmlIdMap.entries) {
           final groupId = entry.key;
           final xmlId = entry.value;
@@ -584,10 +649,19 @@ class UserRepository extends BaseRepository
         }
       }
 
-      return xmlIds;
+      if (xmlIdMap.length != groupIds.length) {
+        throw PermissionSnapshotUnavailableException(
+          'Odoo returned ${xmlIdMap.length} of ${groupIds.length} group XML IDs',
+        );
+      }
+      return [for (final groupId in groupIds) xmlIdMap[groupId]!];
     } catch (e) {
       logger.w('[UserRepo] Error fetching group XML IDs from Odoo: $e');
-      return [];
+      if (e is PermissionSnapshotUnavailableException) rethrow;
+      throw PermissionSnapshotUnavailableException(
+        'could not load group XML IDs from Odoo',
+        cause: e,
+      );
     }
   }
 
@@ -598,88 +672,95 @@ class UserRepository extends BaseRepository
   /// Maps Odoo field names (snake_case) to Drift companion fields.
   /// Only the fields present in [values] are updated; others remain unchanged.
   Future<void> _updateLocalUser(int userId, Map<String, dynamic> values) async {
-    final appDb = _appDb;
-    await (appDb.update(appDb.resUsers)
-          ..where((t) => t.odooId.equals(userId)))
-        .write(ResUsersCompanion(
-      name: values.containsKey('name')
-          ? Value(values['name'] as String)
-          : const Value.absent(),
-      email: values.containsKey('email')
-          ? Value(values['email'] as String?)
-          : const Value.absent(),
-      lang: values.containsKey('lang')
-          ? Value(values['lang'] as String?)
-          : const Value.absent(),
-      tz: values.containsKey('tz')
-          ? Value(values['tz'] as String?)
-          : const Value.absent(),
-      signature: values.containsKey('signature')
-          ? Value(values['signature'] as String?)
-          : const Value.absent(),
-      notificationType: values.containsKey('notification_type')
-          ? Value(values['notification_type'] as String?)
-          : const Value.absent(),
-      workPhone: values.containsKey('work_phone')
-          ? Value(values['work_phone'] as String?)
-          : const Value.absent(),
-      mobilePhone: values.containsKey('mobile_phone')
-          ? Value(values['mobile_phone'] as String?)
-          : const Value.absent(),
-      workEmail: values.containsKey('work_email')
-          ? Value(values['work_email'] as String?)
-          : const Value.absent(),
-      outOfOfficeMessage: values.containsKey('out_of_office_message')
-          ? Value(values['out_of_office_message'] as String?)
-          : const Value.absent(),
-      calendarDefaultPrivacy: values.containsKey('calendar_default_privacy')
-          ? Value(values['calendar_default_privacy'] as String?)
-          : const Value.absent(),
-    ));
+    final appDb = this.appDb;
+    await (appDb.update(
+      appDb.resUsers,
+    )..where((t) => t.odooId.equals(userId))).write(
+      ResUsersCompanion(
+        name: values.containsKey('name')
+            ? Value(values['name'] as String)
+            : const Value.absent(),
+        email: values.containsKey('email')
+            ? Value(values['email'] as String?)
+            : const Value.absent(),
+        lang: values.containsKey('lang')
+            ? Value(values['lang'] as String?)
+            : const Value.absent(),
+        tz: values.containsKey('tz')
+            ? Value(values['tz'] as String?)
+            : const Value.absent(),
+        signature: values.containsKey('signature')
+            ? Value(values['signature'] as String?)
+            : const Value.absent(),
+        notificationType: values.containsKey('notification_type')
+            ? Value(values['notification_type'] as String?)
+            : const Value.absent(),
+        workPhone: values.containsKey('work_phone')
+            ? Value(values['work_phone'] as String?)
+            : const Value.absent(),
+        mobilePhone: values.containsKey('mobile_phone')
+            ? Value(values['mobile_phone'] as String?)
+            : const Value.absent(),
+        workEmail: values.containsKey('work_email')
+            ? Value(values['work_email'] as String?)
+            : const Value.absent(),
+        outOfOfficeMessage: values.containsKey('out_of_office_message')
+            ? Value(values['out_of_office_message'] as String?)
+            : const Value.absent(),
+        calendarDefaultPrivacy: values.containsKey('calendar_default_privacy')
+            ? Value(values['calendar_default_privacy'] as String?)
+            : const Value.absent(),
+      ),
+    );
   }
 
   /// Apply a partial update to the local res_partner Drift table.
   ///
   /// Maps Odoo field names (snake_case) to Drift companion fields.
   /// Only the fields present in [values] are updated; others remain unchanged.
-  Future<void> _updateLocalPartner(int partnerId, Map<String, dynamic> values) async {
-    final appDb = _appDb;
-    await (appDb.update(appDb.resPartner)
-          ..where((t) => t.odooId.equals(partnerId)))
-        .write(ResPartnerCompanion(
-      name: values.containsKey('name')
-          ? Value(values['name'] as String)
-          : const Value.absent(),
-      email: values.containsKey('email')
-          ? Value(values['email'] as String?)
-          : const Value.absent(),
-      phone: values.containsKey('phone')
-          ? Value(values['phone'] as String?)
-          : const Value.absent(),
-      mobile: values.containsKey('mobile')
-          ? Value(values['mobile'] as String?)
-          : const Value.absent(),
-      street: values.containsKey('street')
-          ? Value(values['street'] as String?)
-          : const Value.absent(),
-      street2: values.containsKey('street2')
-          ? Value(values['street2'] as String?)
-          : const Value.absent(),
-      city: values.containsKey('city')
-          ? Value(values['city'] as String?)
-          : const Value.absent(),
-      zip: values.containsKey('zip')
-          ? Value(values['zip'] as String?)
-          : const Value.absent(),
-      vat: values.containsKey('vat')
-          ? Value(values['vat'] as String?)
-          : const Value.absent(),
-      lang: values.containsKey('lang')
-          ? Value(values['lang'] as String?)
-          : const Value.absent(),
-      comment: values.containsKey('comment')
-          ? Value(values['comment'] as String?)
-          : const Value.absent(),
-    ));
+  Future<void> _updateLocalPartner(
+    int partnerId,
+    Map<String, dynamic> values,
+  ) async {
+    final appDb = this.appDb;
+    await (appDb.update(
+      appDb.resPartner,
+    )..where((t) => t.odooId.equals(partnerId))).write(
+      ResPartnerCompanion(
+        name: values.containsKey('name')
+            ? Value(values['name'] as String)
+            : const Value.absent(),
+        email: values.containsKey('email')
+            ? Value(values['email'] as String?)
+            : const Value.absent(),
+        phone: values.containsKey('phone')
+            ? Value(values['phone'] as String?)
+            : const Value.absent(),
+        mobile: values.containsKey('mobile')
+            ? Value(values['mobile'] as String?)
+            : const Value.absent(),
+        street: values.containsKey('street')
+            ? Value(values['street'] as String?)
+            : const Value.absent(),
+        street2: values.containsKey('street2')
+            ? Value(values['street2'] as String?)
+            : const Value.absent(),
+        city: values.containsKey('city')
+            ? Value(values['city'] as String?)
+            : const Value.absent(),
+        zip: values.containsKey('zip')
+            ? Value(values['zip'] as String?)
+            : const Value.absent(),
+        vat: values.containsKey('vat')
+            ? Value(values['vat'] as String?)
+            : const Value.absent(),
+        lang: values.containsKey('lang')
+            ? Value(values['lang'] as String?)
+            : const Value.absent(),
+        comment: values.containsKey('comment')
+            ? Value(values['comment'] as String?)
+            : const Value.absent(),
+      ),
+    );
   }
 }

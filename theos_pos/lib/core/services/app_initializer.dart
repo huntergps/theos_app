@@ -1,21 +1,14 @@
 import 'dart:async';
 
-import 'package:flutter/foundation.dart';
-import 'package:shared_preferences/shared_preferences.dart';
-
 import 'package:odoo_sdk/odoo_sdk.dart' hide ServerConfig;
-import '../database/database_helper.dart';
-import 'platform/device_service.dart';
-import 'platform/server_database_service.dart' show AppServerDatabaseService;
-import '../../features/authentication/services/server_service.dart';
-import 'auth_event_service.dart';
 
-bool _isLocalAddress(String url) {
-  final uri = Uri.tryParse(url);
-  if (uri == null) return false;
-  final host = uri.host.toLowerCase();
-  return host == 'localhost' || host == '127.0.0.1' || host == '::1';
-}
+import '../database/database_helper.dart';
+import '../security/transport_security.dart';
+import 'auth_event_service.dart';
+import '../session/app_session_scope_driver.dart';
+import '../session/session_scope_activation_coordinator.dart';
+import '../session/session_scope.dart';
+import '../session/session_teardown_coordinator.dart';
 
 /// Result of app initialization
 class AppInitializationResult {
@@ -35,8 +28,53 @@ class AppInitializationResult {
 /// - OdooClient for API communication
 /// - DatabaseHelper for local storage (server-specific)
 class AppInitializer {
-  static const _lastApiKeyKey = 'last_used_api_key';
   static AppInitializationResult? _lastResult;
+  static final AppSessionScopeDriver _scopeDriver = AppSessionScopeDriver();
+  static final SessionScopeActivationCoordinator _scopeCoordinator =
+      SessionScopeActivationCoordinator(driver: _scopeDriver);
+  static final SessionTeardownCoordinator _teardownCoordinator =
+      SessionTeardownCoordinator();
+
+  static SessionScopeActivationCoordinator get sessionScopeCoordinator =>
+      _scopeCoordinator;
+
+  /// Serializes logout, expiry and server-switch cleanup. Callers can safely
+  /// invoke this more than once; concurrent callers await the same teardown.
+  static Future<void> deactivateSessionScope() =>
+      _teardownCoordinator.run(() async {
+        _cancelVersionRetry();
+        await _scopeCoordinator.deactivate();
+        _lastResult = null;
+      });
+
+  static Future<bool> hasCommittedSessionScope({
+    required String baseUrl,
+    required String database,
+    required int userId,
+  }) => _scopeDriver.isCommitted(
+    SessionScope(serverUrl: baseUrl, database: database, userId: userId),
+  );
+
+  /// Activates the authenticated scope after the caller has resolved its UID.
+  /// This is deliberately separate from [initialize], preserving the public
+  /// initializer API for splash/offline callers that may not have a UID yet.
+  static Future<SessionScopeActivationResult> activateSessionScope({
+    required String baseUrl,
+    required String database,
+    required int userId,
+    bool offline = false,
+  }) async {
+    _scopeDriver.setOnlineUserId(userId);
+    return offline
+        ? _scopeCoordinator.activateOffline(
+            serverUrl: baseUrl,
+            database: database,
+          )
+        : _scopeCoordinator.activateOnline(
+            serverUrl: baseUrl,
+            database: database,
+          );
+  }
 
   // Reintento en segundo plano de la detección de versión Odoo (19.1 vs
   // 19.2). Si fetchVersion() falla en el arranque (p.ej. app offline), no
@@ -45,6 +83,8 @@ class AppInitializer {
   // enviar campos inválidos si el servidor real es 19.2. Reintentamos
   // periódicamente hasta detectarla o agotar los intentos.
   static Timer? _versionRetryTimer;
+  static Future<void>? _versionRetryInFlight;
+  static int _versionRetryGeneration = 0;
   static int _versionRetryAttempts = 0;
   static const _versionRetryInterval = Duration(seconds: 30);
   static const _maxVersionRetryAttempts = 10;
@@ -57,32 +97,30 @@ class AppInitializer {
     required String baseUrl,
     required String apiKey,
     String? database,
-    bool forceReinitialize = false,
     AuthEventService? authEventService,
+    int? userId,
+    bool waitForServerVersion = true,
   }) async {
-    logger.i('[AppInitializer]', '🏁 START initialize() - baseUrl: $baseUrl, db: $database');
-
-    // Check if API key changed and we need to clear old data
-    logger.d('[AppInitializer] 🔑 Step 1: Checking API key changes...');
-    await _handleApiKeyChange(
-      baseUrl: baseUrl,
-      apiKey: apiKey,
-      database: database,
-      forceReinitialize: forceReinitialize,
+    logger.i(
+      '[AppInitializer]',
+      '🏁 START initialize() - baseUrl: $baseUrl, db: $database',
     );
-    logger.d('[AppInitializer] ✅ API key check complete');
+
+    // This project has never been deployed: every initialization is a clean
+    // installation. Credentials are resolved from the platform vault by
+    // ServerService; no API key is persisted in preferences and no
+    // key-comparison/reset path is needed.
+    logger.d('[AppInitializer] 🔐 Clean-install credential policy active');
 
     // Create OdooClient
     logger.d('[AppInitializer] 🌐 Step 2: Creating OdooClient...');
-    final allowInsecure = kDebugMode ||
-        _isLocalAddress(baseUrl);
+    final allowInsecure = allowsInsecureLoopbackTransport(baseUrl);
     final odooClient = OdooClient(
       config: OdooClientConfig(
         baseUrl: baseUrl,
         apiKey: apiKey,
         database: database,
         allowInsecure: allowInsecure,
-        isWeb: kIsWeb,
         tokenRefreshHandler: authEventService != null
             ? SessionExpiredHandler(authEventService)
             : null,
@@ -90,59 +128,47 @@ class AppInitializer {
     );
     logger.d('[AppInitializer] ✅ OdooClient created');
 
-    // Detect Odoo server version for compatibility (19.1 vs 19.2)
-    logger.d('[AppInitializer] 🔍 Detecting Odoo server version...');
-    try {
-      final version = await odooClient.fetchVersion();
-      if (version.isUnknown) {
-        logger.w(
-          '[AppInitializer]',
-          '⚠️ No se pudo detectar la version de Odoo (sin conexion?). '
-          'Se asume Odoo 19.1 (hasBankModel=true) hasta poder detectarla. '
-          'Reintentando en segundo plano cada ${_versionRetryInterval.inSeconds}s...',
-        );
-        _scheduleVersionRetry(odooClient);
-      } else {
-        logger.i('[AppInitializer]', '✅ Odoo version detected: $version');
-      }
-    } catch (e) {
-      logger.w(
-        '[AppInitializer]',
-        '⚠️ Could not detect Odoo version: $e. '
-        'Se asume Odoo 19.1 (hasBankModel=true) hasta reintentar.',
-      );
-      _scheduleVersionRetry(odooClient);
+    if (waitForServerVersion) {
+      await _detectServerVersion(odooClient);
+    } else {
+      unawaited(_detectServerVersion(odooClient));
     }
 
-    // Generate server-specific database name for multi-server support
-    logger.d('[AppInitializer] 📝 Step 3: Generating database name...');
-    final serverConfig = ServerConfig(
-      name: 'Current Server',
-      url: baseUrl,
+    // Resolve identity before opening Drift. Every local database is scoped to
+    // the authenticated UID; no server-only database may be opened.
+    var scopedUserId = userId;
+    if (scopedUserId == null) {
+      final context = await odooClient.call(
+        model: 'res.users',
+        method: 'context_get',
+      );
+      if (context is Map && context['uid'] is num) {
+        scopedUserId = (context['uid'] as num).toInt();
+      }
+    }
+    if (scopedUserId == null || scopedUserId <= 0) {
+      throw StateError('Cannot initialize Drift without a positive user UID');
+    }
+    final scope = SessionScope(
+      serverUrl: baseUrl,
       database: database ?? 'default',
+      userId: scopedUserId,
     );
-    final deviceService = createDeviceService();
-    final serverDbService = AppServerDatabaseService(deviceService);
-    final dbName = serverDbService.generateDatabaseName(serverConfig);
+    final dbName = scope.driftDatabaseName;
     logger.d('[AppInitializer] ✅ Database name generated: $dbName');
 
     // Initialize DatabaseHelper
     logger.i('[AppInitializer]', '🗄️  Step 4: Initializing DatabaseHelper...');
-    logger.d('[AppInitializer] Database: $dbName (server: $baseUrl, db: $database)');
+    logger.d(
+      '[AppInitializer] Database: $dbName (server: $baseUrl, db: $database)',
+    );
     final databaseHelper = await DatabaseHelper.initializeForServer(dbName);
     logger.d('[AppInitializer] ✅ DatabaseHelper initialized: $dbName');
 
-    // For web platform: Establish session cookies for WebSocket authentication
-    if (kIsWeb) {
-      logger.d(
-        '[AppInitializer] 🌐 Web platform, establishing session cookies...',
-      );
-      await odooClient.createWebSession();
-    } else {
-      logger.d(
-        '[AppInitializer] 📱 Desktop/Mobile platform, skipping web session',
-      );
-    }
+    // JSON-2 is bearer-authenticated and does not require a browser cookie
+    // session. Never call /web/session/* on Web: those routes belong to
+    // Odoo's webclient and are not CORS-enabled.
+    logger.d('[AppInitializer] 🔐 JSON-2 bearer session active');
 
     _lastResult = AppInitializationResult(
       odooClient: odooClient,
@@ -153,54 +179,29 @@ class AppInitializer {
     return _lastResult!;
   }
 
-  /// Handle API key change detection and clear stale data if needed
-  static Future<void> _handleApiKeyChange({
-    required String baseUrl,
-    required String apiKey,
-    String? database,
-    required bool forceReinitialize,
-  }) async {
-    final prefs = await SharedPreferences.getInstance();
-    final lastApiKey = prefs.getString(_lastApiKeyKey);
-
-    // If we have a previous result and API key changed, clear data
-    if (_lastResult != null && !forceReinitialize) {
-      final currentApiKey = _lastResult!.odooClient.apiKey;
-      if (currentApiKey != apiKey) {
-        logger.d('[AppInitializer] API key changed, clearing old data...');
-        await _lastResult!.databaseHelper.clearAll();
-        _lastResult = null;
-      }
-    }
-
-    // Check if API key changed since last app startup (handles cold restart)
-    if (_lastResult == null && !forceReinitialize) {
-      if (lastApiKey != null && lastApiKey != apiKey) {
-        logger.d(
-          '[AppInitializer] 🔄 API key changed since last startup, clearing old data...',
+  static Future<void> _detectServerVersion(OdooClient odooClient) async {
+    logger.d('[AppInitializer] 🔍 Detecting Odoo server version...');
+    try {
+      final version = await odooClient.fetchVersion();
+      if (version.isUnknown) {
+        logger.w(
+          '[AppInitializer]',
+          '⚠️ No se pudo detectar la version de Odoo (sin conexion?). '
+              'La versión permanece sin confirmar. '
+              'Reintentando en segundo plano cada ${_versionRetryInterval.inSeconds}s...',
         );
-        // Generate server-specific database name
-        final serverConfig = ServerConfig(
-          name: 'Temp Server',
-          url: baseUrl,
-          database: database ?? 'default',
-        );
-        final deviceService = createDeviceService();
-        final serverDbService = AppServerDatabaseService(deviceService);
-        final dbName = serverDbService.generateDatabaseName(serverConfig);
-
-        // Initialize db temporarily just to clear it
-        final tempDb = await DatabaseHelper.initializeForServer(dbName);
-        await tempDb.clearAll();
-        await tempDb.close();
-
-        // Reset DatabaseHelper for fresh initialization
-        DatabaseHelper.resetInstance();
+        _scheduleVersionRetry(odooClient);
+      } else {
+        logger.i('[AppInitializer]', '✅ Odoo version detected: $version');
       }
+    } catch (e) {
+      logger.w(
+        '[AppInitializer]',
+        '⚠️ Could not detect Odoo version: $e. '
+            'La versión permanece sin confirmar hasta reintentar.',
+      );
+      _scheduleVersionRetry(odooClient);
     }
-
-    // Save current API key
-    await prefs.setString(_lastApiKeyKey, apiKey);
   }
 
   /// Clear all local data (for logout/server switch)
@@ -216,45 +217,90 @@ class AppInitializer {
   /// automáticamente al detectar la version o al agotar los intentos.
   static void _scheduleVersionRetry(OdooClient odooClient) {
     _versionRetryTimer?.cancel();
+    final generation = ++_versionRetryGeneration;
     _versionRetryAttempts = 0;
-    _versionRetryTimer = Timer.periodic(_versionRetryInterval, (timer) async {
-      _versionRetryAttempts++;
-      logger.d(
-        '[AppInitializer]',
-        'Reintentando deteccion de version Odoo (intento $_versionRetryAttempts/$_maxVersionRetryAttempts)...',
-      );
-      try {
-        final version = await odooClient.fetchVersion();
-        if (!version.isUnknown) {
-          logger.i('[AppInitializer]', '✅ Odoo version detectada en reintento: $version');
-          timer.cancel();
-          _versionRetryTimer = null;
-          return;
-        }
-      } catch (e) {
-        logger.d('[AppInitializer]', 'Reintento de deteccion de version fallo: $e');
+    _versionRetryTimer = Timer.periodic(_versionRetryInterval, (timer) {
+      if (_versionRetryInFlight != null) {
+        logger.d(
+          '[AppInitializer]',
+          'Omitiendo reintento de version: ya hay una consulta en curso.',
+        );
+        return;
       }
 
-      if (_versionRetryAttempts >= _maxVersionRetryAttempts) {
-        logger.w(
+      late final Future<void> operation;
+      operation = _runVersionRetry(odooClient, timer, generation).whenComplete(
+        () {
+          if (identical(_versionRetryInFlight, operation)) {
+            _versionRetryInFlight = null;
+          }
+        },
+      );
+      _versionRetryInFlight = operation;
+    });
+  }
+
+  static Future<void> _runVersionRetry(
+    OdooClient odooClient,
+    Timer timer,
+    int generation,
+  ) async {
+    if (generation != _versionRetryGeneration) return;
+
+    _versionRetryAttempts++;
+    logger.d(
+      '[AppInitializer]',
+      'Reintentando deteccion de version Odoo (intento $_versionRetryAttempts/$_maxVersionRetryAttempts)...',
+    );
+    try {
+      final version = await odooClient.fetchVersion();
+      if (generation != _versionRetryGeneration) return;
+      if (!version.isUnknown) {
+        logger.i(
           '[AppInitializer]',
-          '⚠️ No se pudo detectar la version de Odoo tras $_maxVersionRetryAttempts '
-          'intentos. Se mantiene el supuesto de Odoo 19.1 (hasBankModel=true) — '
-          'verificar conectividad con el servidor.',
+          '✅ Odoo version detectada en reintento: $version',
         );
         timer.cancel();
+        if (identical(_versionRetryTimer, timer)) {
+          _versionRetryTimer = null;
+        }
+        return;
+      }
+    } catch (e) {
+      if (generation != _versionRetryGeneration) return;
+      logger.d(
+        '[AppInitializer]',
+        'Reintento de deteccion de version fallo: $e',
+      );
+    }
+
+    if (_versionRetryAttempts >= _maxVersionRetryAttempts) {
+      logger.w(
+        '[AppInitializer]',
+        '⚠️ No se pudo detectar la version de Odoo tras $_maxVersionRetryAttempts '
+            'intentos. La versión permanece sin confirmar; '
+            'verificar conectividad con el servidor.',
+      );
+      timer.cancel();
+      if (identical(_versionRetryTimer, timer)) {
         _versionRetryTimer = null;
       }
-    });
+    }
   }
 
   /// Reset initialization state
   static void reset() {
-    _versionRetryTimer?.cancel();
-    _versionRetryTimer = null;
-    _versionRetryAttempts = 0;
+    _cancelVersionRetry();
     _lastResult = null;
     DatabaseHelper.resetInstance();
     logger.d('[AppInitializer] Reset complete');
+  }
+
+  static void _cancelVersionRetry() {
+    _versionRetryTimer?.cancel();
+    _versionRetryTimer = null;
+    _versionRetryGeneration++;
+    _versionRetryAttempts = 0;
+    _versionRetryInFlight = null;
   }
 }

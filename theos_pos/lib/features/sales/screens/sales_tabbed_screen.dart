@@ -72,11 +72,7 @@ class _SalesTabbedScreenState extends ConsumerState<SalesTabbedScreen> {
               ),
             ),
           ),
-        Text(
-          text,
-          overflow: TextOverflow.ellipsis,
-          maxLines: 1,
-        ),
+        Text(text, overflow: TextOverflow.ellipsis, maxLines: 1),
       ],
     );
   }
@@ -137,7 +133,9 @@ class _SalesTabbedScreenState extends ConsumerState<SalesTabbedScreen> {
           return _PdfErrorView(
             title: tab.title,
             error: tab.pdfError!,
-            onClose: () => ref.read(saleOrderTabsProvider.notifier).closeTabById(tab.tabId),
+            onClose: () => ref
+                .read(saleOrderTabsProvider.notifier)
+                .closeTabById(tab.tabId),
           );
         }
         // PDF no disponible (fallback)
@@ -227,10 +225,7 @@ class _PdfLoadingView extends StatelessWidget {
           children: [
             const ProgressRing(),
             const SizedBox(height: 24),
-            Text(
-              'Generando PDF...',
-              style: theme.typography.bodyLarge,
-            ),
+            Text('Generando PDF...', style: theme.typography.bodyLarge),
             const SizedBox(height: 8),
             Text(
               'Por favor espere',
@@ -284,17 +279,11 @@ class _PdfErrorView extends StatelessWidget {
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Icon(
-                FluentIcons.error_badge,
-                size: 64,
-                color: Colors.red,
-              ),
+              Icon(FluentIcons.error_badge, size: 64, color: Colors.red),
               const SizedBox(height: 24),
               Text(
                 'Error al generar PDF',
-                style: theme.typography.subtitle?.copyWith(
-                  color: Colors.red,
-                ),
+                style: theme.typography.subtitle?.copyWith(color: Colors.red),
               ),
               const SizedBox(height: 16),
               Container(
@@ -304,16 +293,10 @@ class _PdfErrorView extends StatelessWidget {
                   borderRadius: BorderRadius.circular(8),
                   border: Border.all(color: Colors.red.withAlpha(50)),
                 ),
-                child: SelectableText(
-                  error,
-                  style: theme.typography.body,
-                ),
+                child: SelectableText(error, style: theme.typography.body),
               ),
               const SizedBox(height: 24),
-              Button(
-                onPressed: onClose,
-                child: const Text('Cerrar pestaña'),
-              ),
+              Button(onPressed: onClose, child: const Text('Cerrar pestaña')),
             ],
           ),
         ),

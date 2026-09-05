@@ -1,10 +1,13 @@
 # Conflict Resolution Strategies
 
-This document describes the conflict resolution strategies available in `odoo_offline_core` and provides guidance on when to use each one.
+This document describes the conflict resolution strategies available in
+`odoo_sdk` and provides guidance on when to use each one.
 
 ## Overview
 
-Conflicts occur when data modified offline is also modified on the server before synchronization. The `odoo_offline_core` package detects conflicts by comparing `write_date` timestamps and provides four resolution strategies.
+Conflicts occur when data modified offline is also modified on the server
+before synchronization. The `odoo_sdk` sync layer detects conflicts by
+comparing `write_date` timestamps and provides four resolution strategies.
 
 ## How Conflicts Are Detected
 

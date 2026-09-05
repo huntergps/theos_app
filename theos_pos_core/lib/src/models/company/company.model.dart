@@ -43,7 +43,9 @@ abstract class Company with _$Company {
     // ═══════════════════ Ecuador SRI Fields ═══════════════════
     @OdooString(odooName: 'l10n_ec_comercial_name') String? l10nEcComercialName,
     @OdooString(odooName: 'l10n_ec_legal_name') String? l10nEcLegalName,
-    @OdooBoolean(odooName: 'l10n_ec_production_env') @Default(false) bool l10nEcProductionEnv,
+    @OdooBoolean(odooName: 'l10n_ec_production_env')
+    @Default(false)
+    bool l10nEcProductionEnv,
 
     // ═══════════════════ Document Layout ═══════════════════
     @OdooBinary() String? logo,
@@ -53,29 +55,42 @@ abstract class Company with _$Company {
     @OdooString(odooName: 'secondary_color') String? secondaryColor,
     @OdooString() String? font,
     @OdooLocalOnly() String? layoutBackground, // Removed from Odoo 19
-    @OdooMany2One('ir.ui.view', odooName: 'external_report_layout_id') int? externalReportLayoutId,
+    @OdooMany2One('ir.ui.view', odooName: 'external_report_layout_id')
+    int? externalReportLayoutId,
 
     // ═══════════════════ Tax Configuration ═══════════════════
-    @OdooSelection(odooName: 'tax_calculation_rounding_method') @Default('round_per_line') String taxCalculationRoundingMethod,
+    @OdooSelection(odooName: 'tax_calculation_rounding_method')
+    @Default('round_per_line')
+    String taxCalculationRoundingMethod,
 
     // ═══════════════════ Sales Configuration ═══════════════════
     /// Days a quotation is valid
-    @OdooInteger(odooName: 'quotation_validity_days') @Default(30) int quotationValidityDays,
+    @OdooInteger(odooName: 'quotation_validity_days')
+    @Default(30)
+    int quotationValidityDays,
 
     /// Require signature for portal confirmation
-    @OdooBoolean(odooName: 'portal_confirmation_sign') @Default(true) bool portalConfirmationSign,
+    @OdooBoolean(odooName: 'portal_confirmation_sign')
+    @Default(true)
+    bool portalConfirmationSign,
 
     /// Require payment for portal confirmation
-    @OdooBoolean(odooName: 'portal_confirmation_pay') @Default(false) bool portalConfirmationPay,
+    @OdooBoolean(odooName: 'portal_confirmation_pay')
+    @Default(false)
+    bool portalConfirmationPay,
 
     /// Prepayment percentage
-    @OdooFloat(odooName: 'prepayment_percent') @Default(1.0) double prepaymentPercent,
+    @OdooFloat(odooName: 'prepayment_percent')
+    @Default(1.0)
+    double prepaymentPercent,
 
     /// Discount product ID
-    @OdooMany2One('product.product', odooName: 'sale_discount_product_id') int? saleDiscountProductId,
+    @OdooMany2One('product.product', odooName: 'sale_discount_product_id')
+    int? saleDiscountProductId,
 
     /// Discount product name
-    @OdooMany2OneName(sourceField: 'sale_discount_product_id') String? saleDiscountProductName,
+    @OdooMany2OneName(sourceField: 'sale_discount_product_id')
+    String? saleDiscountProductName,
 
     // ═══════════════════ Sales Defaults ═══════════════════
     /// Default partner for new sales
@@ -100,17 +115,25 @@ abstract class Company with _$Company {
     @OdooLocalOnly() int? defaultPaymentTermId,
     @OdooLocalOnly() String? defaultPaymentTermName,
 
-    /// Whether to require end customer data in sales
-    // Campo custom — requiere módulo l10n_ec instalado
-    @OdooBoolean(odooName: 'pedir_end_customer_data') @Default(false) bool pedirEndCustomerData,
+    /// Whether to require end customer data in sales.
+    @OdooBoolean(
+      odooName: 'pedir_datos_consumidor_final',
+      driftName: 'pedirEndCustomerData',
+    )
+    @Default(false)
+    bool pedirEndCustomerData,
 
     /// Whether to require sales referrer
     // Campo custom — requiere módulo l10n_ec instalado
-    @OdooBoolean(odooName: 'pedir_sale_referrer') @Default(false) bool pedirSaleReferrer,
+    @OdooBoolean(odooName: 'pedir_sale_referrer')
+    @Default(false)
+    bool pedirSaleReferrer,
 
     /// Whether to require client type/channel
     // Campo custom — requiere módulo l10n_ec instalado
-    @OdooBoolean(odooName: 'pedir_tipo_canal_cliente') @Default(false) bool pedirTipoCanalCliente,
+    @OdooBoolean(odooName: 'pedir_tipo_canal_cliente')
+    @Default(false)
+    bool pedirTipoCanalCliente,
 
     /// SRI invoice limit for sales customers
     // Campo custom — requiere módulo l10n_ec instalado.
@@ -120,16 +143,22 @@ abstract class Company with _$Company {
 
     /// Maximum discount percentage allowed
     // Campo custom — requiere módulo l10n_ec instalado
-    @OdooFloat(odooName: 'max_discount_percentage') @Default(100.0) double maxDiscountPercentage,
+    @OdooFloat(odooName: 'max_discount_percentage')
+    @Default(0.0)
+    double maxDiscountPercentage,
 
     // ═══════════════════ Credit Control Configuration ═══════════════════
     /// Overdue days threshold for credit blocking
     // Campo custom — requiere módulo l10n_ec instalado
-    @OdooInteger(odooName: 'credit_overdue_days_threshold') @Default(30) int creditOverdueDaysThreshold,
+    @OdooInteger(odooName: 'credit_overdue_days_threshold')
+    @Default(30)
+    int creditOverdueDaysThreshold,
 
     /// Overdue invoices threshold for credit blocking
     // Campo custom — requiere módulo l10n_ec instalado
-    @OdooInteger(odooName: 'credit_overdue_invoices_threshold') @Default(3) int creditOverdueInvoicesThreshold,
+    @OdooInteger(odooName: 'credit_overdue_invoices_threshold')
+    @Default(3)
+    int creditOverdueInvoicesThreshold,
 
     /// Safety margin for offline credit validation (%)
     // Campo custom — requiere módulo l10n_ec instalado.
@@ -146,33 +175,38 @@ abstract class Company with _$Company {
     // ═══════════════════ Reservation Configuration ═══════════════════
     /// Days before a reservation expires
     // Campo custom — requiere módulo l10n_ec instalado
-    @OdooInteger(odooName: 'reservation_expiry_days') @Default(7) int reservationExpiryDays,
+    @OdooInteger(odooName: 'reservation_expiry_days')
+    @Default(7)
+    int reservationExpiryDays,
 
-    /// Warehouse for reservations
-    // Campo custom — requiere módulo l10n_ec instalado
-    @OdooMany2One('stock.warehouse', odooName: 'reservation_warehouse_id') int? reservationWarehouseId,
+    /// Optional local warehouse preference for reservations.
+    @OdooLocalOnly() int? reservationWarehouseId,
 
     /// Warehouse name for reservations
-    // Campo custom — requiere módulo l10n_ec instalado
-    @OdooMany2OneName(sourceField: 'reservation_warehouse_id') String? reservationWarehouseName,
+    @OdooLocalOnly() String? reservationWarehouseName,
 
     /// Location for reservations
     // Campo custom — requiere módulo l10n_ec instalado
-    @OdooMany2One('stock.location', odooName: 'reservation_location_id') int? reservationLocationId,
+    @OdooMany2One('stock.location', odooName: 'reservation_location_id')
+    int? reservationLocationId,
 
     /// Location name for reservations
     // Campo custom — requiere módulo l10n_ec instalado
-    @OdooMany2OneName(sourceField: 'reservation_location_id') String? reservationLocationName,
+    @OdooMany2OneName(sourceField: 'reservation_location_id')
+    String? reservationLocationName,
 
     /// Reserve stock from quotation stage
     // Campo custom — requiere módulo l10n_ec instalado
-    @OdooBoolean(odooName: 'reserve_from_quotation') @Default(false) bool reserveFromQuotation,
+    @OdooBoolean(odooName: 'reserve_from_quotation')
+    @Default(false)
+    bool reserveFromQuotation,
 
     // ═══════════════════ Metadata ═══════════════════
     @OdooDateTime(odooName: 'write_date', writable: false) DateTime? writeDate,
   }) = _Company;
 
-  factory Company.fromJson(Map<String, dynamic> json) => _$CompanyFromJson(json);
+  factory Company.fromJson(Map<String, dynamic> json) =>
+      _$CompanyFromJson(json);
 
   // ═══════════════════════════════════════════════════════════════════════════
   // Computed Getters
@@ -182,7 +216,8 @@ abstract class Company with _$Company {
   DateTime? get lastModified => writeDate;
 
   bool get hasAddress => street?.isNotEmpty == true || city?.isNotEmpty == true;
-  bool get hasContactInfo => phone?.isNotEmpty == true || email?.isNotEmpty == true;
+  bool get hasContactInfo =>
+      phone?.isNotEmpty == true || email?.isNotEmpty == true;
   bool get hasLogo => logo?.isNotEmpty == true;
   bool get hasReportConfig => reportHeaderImage != null || primaryColor != null;
 
@@ -210,41 +245,69 @@ abstract class Company with _$Company {
   // ═══════════════════════════════════════════════════════════════════════════
 
   static const List<String> odooFieldsCore = [
-    'id', 'name', 'email', 'phone', 'website', 'vat',
-    'street', 'street2', 'city', 'zip', 'country_id', 'state_id',
-    'currency_id', 'parent_id', 'logo', 'write_date',
-    'report_footer', 'primary_color', 'secondary_color', 'font',
+    'id',
+    'name',
+    'email',
+    'phone',
+    'website',
+    'vat',
+    'street',
+    'street2',
+    'city',
+    'zip',
+    'country_id',
+    'state_id',
+    'currency_id',
+    'parent_id',
+    'logo',
+    'write_date',
+    'report_footer',
+    'primary_color',
+    'secondary_color',
+    'font',
     'external_report_layout_id',
   ];
 
   static const List<String> odooFieldsSale = [
-    'quotation_validity_days', 'portal_confirmation_sign',
-    'portal_confirmation_pay', 'prepayment_percent',
-    'sale_discount_product_id', 'tax_calculation_rounding_method',
+    'quotation_validity_days',
+    'portal_confirmation_sign',
+    'portal_confirmation_pay',
+    'prepayment_percent',
+    'sale_discount_product_id',
+    'tax_calculation_rounding_method',
   ];
 
   static const List<String> odooFieldsEcuadorSri = [
-    'l10n_ec_legal_name', 'l10n_ec_production_env',
+    'l10n_ec_legal_name',
+    'l10n_ec_production_env',
   ];
 
   static const List<String> odooFieldsEcuadorReport = [
-    'report_header_image', 'l10n_ec_comercial_name',
+    'report_header_image',
+    'l10n_ec_comercial_name',
   ];
 
   static const List<String> odooFieldsEcuador = [
-    ...odooFieldsEcuadorSri, ...odooFieldsEcuadorReport,
+    ...odooFieldsEcuadorSri,
+    ...odooFieldsEcuadorReport,
   ];
 
   static const List<String> odooFieldsPedir = [
-    'pedir_end_customer_data', 'pedir_sale_referrer',
-    'pedir_tipo_canal_cliente', 'credit_overdue_days_threshold',
-    'credit_overdue_invoices_threshold', 'max_discount_percentage',
-    'reservation_expiry_days', 'reservation_warehouse_id',
-    'reservation_location_id', 'reserve_from_quotation',
+    'pedir_datos_consumidor_final',
+    'pedir_sale_referrer',
+    'pedir_tipo_canal_cliente',
+    'credit_overdue_days_threshold',
+    'credit_overdue_invoices_threshold',
+    'max_discount_percentage',
+    'reservation_expiry_days',
+    'reservation_location_id',
+    'reserve_from_quotation',
   ];
 
   static const List<String> odooFields = [
-    ...odooFieldsCore, ...odooFieldsSale,
-    ...odooFieldsEcuador, ...odooFieldsPedir,
+    ...odooFieldsCore,
+    ...odooFieldsSale,
+    ...odooFieldsEcuador,
+    ...odooFieldsPedir,
   ];
 }

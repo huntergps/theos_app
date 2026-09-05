@@ -13,7 +13,10 @@
 library;
 
 import 'dart:convert';
+import 'dart:math';
 import 'dart:typed_data';
+
+import 'package:pointycastle/export.dart';
 
 /// Interface for cache encryption.
 ///
@@ -119,7 +122,7 @@ class ObfuscationCacheEncryption implements CacheEncryption {
   /// The key is used for XOR obfuscation. Longer keys provide
   /// better obfuscation but this is still NOT secure encryption.
   ObfuscationCacheEncryption(String key)
-      : _key = utf8.encode(key.isEmpty ? 'default-key' : key);
+    : _key = utf8.encode(key.isEmpty ? 'default-key' : key);
 
   @override
   String encrypt(String plaintext) {
@@ -156,106 +159,69 @@ class ObfuscationCacheEncryption implements CacheEncryption {
   }
 }
 
-/// AES-256 encryption wrapper.
+/// Authenticated AES-GCM encryption for cache values.
 ///
-/// This is a placeholder that requires the `encrypt` package.
-/// Add to your pubspec.yaml:
-/// ```yaml
-/// dependencies:
-///   encrypt: ^5.0.3
-/// ```
-///
-/// Then implement as shown:
-/// ```dart
-/// import 'package:encrypt/encrypt.dart' as encrypt;
-///
-/// final encryption = AesCacheEncryption.fromSecureKey(
-///   keyBase64: 'your-32-byte-key-in-base64',
-///   ivBase64: 'your-16-byte-iv-in-base64',
-/// );
-/// ```
-///
-/// For key generation:
-/// ```dart
-/// final key = encrypt.Key.fromSecureRandom(32);
-/// final iv = encrypt.IV.fromSecureRandom(16);
-/// print('Key: ${key.base64}');
-/// print('IV: ${iv.base64}');
-/// ```
+/// Every value contains a format version, a fresh 96-bit nonce and the GCM
+/// authentication tag. Callers never provide an IV, preventing accidental
+/// nonce reuse with the same key.
 class AesCacheEncryption implements CacheEncryption {
-  final Uint8List _key;
-  final Uint8List _iv;
+  static const _version = 1;
+  static const _nonceLength = 12;
+  static const _tagLengthBits = 128;
+  static const _derivedKeyLength = 32;
+  static const _defaultPbkdf2Iterations = 210000;
 
-  /// Create AES encryption with raw key and IV bytes.
-  ///
-  /// Key must be 16, 24, or 32 bytes (128, 192, or 256 bits).
-  /// IV must be 16 bytes.
-  AesCacheEncryption({
-    required Uint8List key,
-    required Uint8List iv,
-  })  : _key = key,
-        _iv = iv {
+  final Uint8List _key;
+
+  /// Creates an AES-GCM encryptor with a raw AES key.
+  AesCacheEncryption({required Uint8List key})
+    : _key = Uint8List.fromList(key) {
     if (key.length != 16 && key.length != 24 && key.length != 32) {
       throw ArgumentError('Key must be 16, 24, or 32 bytes');
     }
-    if (iv.length != 16) {
-      throw ArgumentError('IV must be 16 bytes');
-    }
   }
 
-  /// Create AES encryption from base64-encoded key and IV.
-  factory AesCacheEncryption.fromBase64({
-    required String keyBase64,
-    required String ivBase64,
+  /// Creates an AES-GCM encryptor from a base64-encoded AES key.
+  factory AesCacheEncryption.fromBase64({required String keyBase64}) {
+    return AesCacheEncryption(key: base64Decode(keyBase64));
+  }
+
+  /// Derives an AES-256 key using PBKDF2-HMAC-SHA256.
+  ///
+  /// For persistent caches, [salt] must be application-specific random data
+  /// persisted alongside the cache. When omitted, a secure random salt is
+  /// generated and the resulting instance is intentionally session-only.
+  factory AesCacheEncryption.fromPassword(
+    String password, {
+    String? salt,
+    int iterations = _defaultPbkdf2Iterations,
   }) {
-    return AesCacheEncryption(
-      key: base64Decode(keyBase64),
-      iv: base64Decode(ivBase64),
-    );
-  }
-
-  /// Create AES encryption from a password using PBKDF2-like derivation.
-  ///
-  /// This derives a key from the password. For production, use a proper
-  /// key derivation function like PBKDF2 from the `pointycastle` package.
-  factory AesCacheEncryption.fromPassword(String password, {String? salt}) {
-    final effectiveSalt = salt ?? 'odoo-cache-salt';
-    final combined = '$password:$effectiveSalt';
-
-    // Simple key derivation (NOT cryptographically secure)
-    // For production, use PBKDF2 from pointycastle
-    final keyBytes = _deriveKey(combined, 32);
-    final ivBytes = _deriveKey('$combined:iv', 16);
-
-    return AesCacheEncryption(
-      key: keyBytes,
-      iv: ivBytes,
-    );
-  }
-
-  /// Simple key derivation (for demonstration only).
-  ///
-  /// In production, use PBKDF2:
-  /// ```dart
-  /// import 'package:pointycastle/pointycastle.dart';
-  /// final pbkdf2 = PBKDF2KeyDerivator(HMac(SHA256Digest(), 64));
-  /// pbkdf2.init(Pbkdf2Parameters(salt, 10000, keyLength));
-  /// final key = pbkdf2.process(password);
-  /// ```
-  static Uint8List _deriveKey(String input, int length) {
-    final bytes = utf8.encode(input);
-    final result = Uint8List(length);
-
-    // Simple hash-like mixing (NOT secure)
-    for (var i = 0; i < length; i++) {
-      var value = 0;
-      for (var j = 0; j < bytes.length; j++) {
-        value = (value * 31 + bytes[j] + i) & 0xFF;
-      }
-      result[i] = value;
+    if (password.isEmpty) {
+      throw ArgumentError.value(password, 'password', 'Must not be empty');
+    }
+    if (salt != null && salt.isEmpty) {
+      throw ArgumentError.value(salt, 'salt', 'Must not be empty');
+    }
+    if (iterations < 100000) {
+      throw ArgumentError.value(
+        iterations,
+        'iterations',
+        'Must be at least 100000',
+      );
     }
 
-    return result;
+    final derivator = PBKDF2KeyDerivator(HMac(SHA256Digest(), 64))
+      ..init(
+        Pbkdf2Parameters(
+          salt == null
+              ? _secureRandomBytes(32)
+              : Uint8List.fromList(utf8.encode(salt)),
+          iterations,
+          _derivedKeyLength,
+        ),
+      );
+    final key = derivator.process(Uint8List.fromList(utf8.encode(password)));
+    return AesCacheEncryption(key: key);
   }
 
   @override
@@ -263,11 +229,23 @@ class AesCacheEncryption implements CacheEncryption {
     if (plaintext.isEmpty) return '';
 
     try {
-      // This is a simplified AES-like transformation
-      // For real AES, use the `encrypt` package
-      final bytes = utf8.encode(plaintext);
-      final encrypted = _simpleEncrypt(bytes);
-      return base64Encode(encrypted);
+      final nonce = _secureRandomBytes(_nonceLength);
+      final cipher = GCMBlockCipher(AESEngine())
+        ..init(
+          true,
+          AEADParameters(
+            KeyParameter(_key),
+            _tagLengthBits,
+            nonce,
+            Uint8List(0),
+          ),
+        );
+      final encrypted = cipher.process(
+        Uint8List.fromList(utf8.encode(plaintext)),
+      );
+      return base64Encode(
+        Uint8List.fromList(<int>[_version, ...nonce, ...encrypted]),
+      );
     } catch (e) {
       throw CacheEncryptionException('AES encryption failed', e);
     }
@@ -278,97 +256,38 @@ class AesCacheEncryption implements CacheEncryption {
     if (ciphertext.isEmpty) return '';
 
     try {
-      final encrypted = base64Decode(ciphertext);
-      final bytes = _simpleDecrypt(encrypted);
-      return utf8.decode(bytes);
+      final envelope = base64Decode(ciphertext);
+      const minimumLength = 1 + _nonceLength + (_tagLengthBits ~/ 8);
+      if (envelope.length < minimumLength || envelope.first != _version) {
+        throw const CacheDecryptionException(
+          'Invalid or unsupported encrypted cache value',
+        );
+      }
+      final nonce = Uint8List.fromList(envelope.sublist(1, 1 + _nonceLength));
+      final encrypted = Uint8List.fromList(envelope.sublist(1 + _nonceLength));
+      final cipher = GCMBlockCipher(AESEngine())
+        ..init(
+          false,
+          AEADParameters(
+            KeyParameter(_key),
+            _tagLengthBits,
+            nonce,
+            Uint8List(0),
+          ),
+        );
+      return utf8.decode(cipher.process(encrypted));
+    } on CacheDecryptionException {
+      rethrow;
     } catch (e) {
       throw CacheDecryptionException('AES decryption failed', e);
     }
   }
 
-  /// Simplified encryption (XOR + shuffle with key).
-  ///
-  /// For real AES encryption, use:
-  /// ```dart
-  /// import 'package:encrypt/encrypt.dart' as encrypt;
-  /// final encrypter = encrypt.Encrypter(encrypt.AES(key));
-  /// return encrypter.encrypt(plaintext, iv: iv).base64;
-  /// ```
-  Uint8List _simpleEncrypt(List<int> input) {
-    final result = Uint8List(input.length + 16); // Add padding info
-
-    // Store original length in first 4 bytes
-    final length = input.length;
-    result[0] = (length >> 24) & 0xFF;
-    result[1] = (length >> 16) & 0xFF;
-    result[2] = (length >> 8) & 0xFF;
-    result[3] = length & 0xFF;
-
-    // XOR with key and IV combined
-    for (var i = 0; i < input.length; i++) {
-      final keyByte = _key[i % _key.length];
-      final ivByte = _iv[i % _iv.length];
-      result[i + 4] = input[i] ^ keyByte ^ ivByte ^ (i & 0xFF);
-    }
-
-    // Add verification hash in last 12 bytes
-    var hash = 0x12345678;
-    for (var i = 0; i < input.length; i++) {
-      hash = ((hash << 5) + hash + input[i]) & 0xFFFFFFFF;
-    }
-    result[result.length - 12] = (hash >> 24) & 0xFF;
-    result[result.length - 11] = (hash >> 16) & 0xFF;
-    result[result.length - 10] = (hash >> 8) & 0xFF;
-    result[result.length - 9] = hash & 0xFF;
-
-    // Fill remaining with random-ish data
-    for (var i = result.length - 8; i < result.length; i++) {
-      result[i] = (_key[i % _key.length] + _iv[i % _iv.length]) & 0xFF;
-    }
-
-    return result;
-  }
-
-  Uint8List _simpleDecrypt(List<int> input) {
-    if (input.length < 16) {
-      throw const CacheDecryptionException('Invalid ciphertext: too short');
-    }
-
-    // Extract original length
-    final length = (input[0] << 24) |
-        (input[1] << 16) |
-        (input[2] << 8) |
-        input[3];
-
-    if (length < 0 || length > input.length - 16) {
-      throw const CacheDecryptionException('Invalid ciphertext: invalid length');
-    }
-
-    // Decrypt
-    final result = Uint8List(length);
-    for (var i = 0; i < length; i++) {
-      final keyByte = _key[i % _key.length];
-      final ivByte = _iv[i % _iv.length];
-      result[i] = input[i + 4] ^ keyByte ^ ivByte ^ (i & 0xFF);
-    }
-
-    // Verify hash
-    var hash = 0x12345678;
-    for (var i = 0; i < result.length; i++) {
-      hash = ((hash << 5) + hash + result[i]) & 0xFFFFFFFF;
-    }
-
-    final storedHash = (input[input.length - 12] << 24) |
-        (input[input.length - 11] << 16) |
-        (input[input.length - 10] << 8) |
-        input[input.length - 9];
-
-    if (hash != storedHash) {
-      throw const CacheDecryptionException(
-          'Invalid ciphertext: hash verification failed');
-    }
-
-    return result;
+  static Uint8List _secureRandomBytes(int length) {
+    final random = Random.secure();
+    return Uint8List.fromList(
+      List<int>.generate(length, (_) => random.nextInt(256)),
+    );
   }
 }
 
@@ -397,10 +316,8 @@ class EncryptedCacheValue<T> {
   /// Timestamp when the value was encrypted.
   final DateTime encryptedAt;
 
-  EncryptedCacheValue({
-    required this.encryptedData,
-    DateTime? encryptedAt,
-  }) : encryptedAt = encryptedAt ?? DateTime.now();
+  EncryptedCacheValue({required this.encryptedData, DateTime? encryptedAt})
+    : encryptedAt = encryptedAt ?? DateTime.now();
 
   /// Create from a value using the provided encryption.
   factory EncryptedCacheValue.fromValue(
@@ -409,16 +326,11 @@ class EncryptedCacheValue<T> {
     String Function(T) toJson,
   ) {
     final json = toJson(value);
-    return EncryptedCacheValue(
-      encryptedData: encryption.encrypt(json),
-    );
+    return EncryptedCacheValue(encryptedData: encryption.encrypt(json));
   }
 
   /// Decrypt and deserialize the value.
-  T toValue(
-    CacheEncryption encryption,
-    T Function(String json) fromJson,
-  ) {
+  T toValue(CacheEncryption encryption, T Function(String json) fromJson) {
     final json = encryption.decrypt(encryptedData);
     return fromJson(json);
   }

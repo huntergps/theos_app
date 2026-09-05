@@ -6,6 +6,7 @@ import '../../../../core/database/providers.dart';
 import '../../../../core/database/repositories/repository_providers.dart';
 import '../../../../shared/utils/error_utils.dart';
 import '../../../../shared/widgets/dialogs/copyable_info_bar.dart';
+
 import 'package:theos_pos_core/theos_pos_core.dart';
 
 /// Busca la última operación en dead-letter (agotó reintentos) de la cola
@@ -31,11 +32,11 @@ Future<OfflineOperation?> _lastFailureFor(WidgetRef ref, int sessionId) async {
 // ---------------------------------------------------------------------------
 final _failedSessionsProvider =
     FutureProvider.autoDispose<List<CollectionSession>>((ref) async {
-  final repo = ref.watch(collectionRepositoryProvider);
-  final maxRetries = ref.watch(maxSyncRetriesProvider);
-  if (repo == null) return [];
-  return repo.getFailedSyncSessions(maxRetries: maxRetries);
-});
+      final repo = ref.watch(collectionRepositoryProvider);
+      final maxRetries = ref.watch(maxSyncRetriesProvider);
+      if (repo == null) return [];
+      return repo.getFailedSyncSessions(maxRetries: maxRetries);
+    });
 
 /// Widget que muestra las sesiones que no se pudieron sincronizar y ofrece
 /// un botón para reintentar.
@@ -167,7 +168,10 @@ class _FailedSessionTile extends ConsumerWidget {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text('• ${session.name}', style: theme.typography.caption),
+                      Text(
+                        '• ${session.name}',
+                        style: theme.typography.caption,
+                      ),
                       Text(
                         reason,
                         style: theme.typography.caption?.copyWith(
@@ -200,11 +204,15 @@ class _FailedSessionTile extends ConsumerWidget {
 
     if (failure != null) {
       detail
-        ..writeln('Operación en cola: ${failure.model} (record ${failure.recordId})')
+        ..writeln(
+          'Operación en cola: ${failure.model} (record ${failure.recordId})',
+        )
         ..writeln('Reintentos de la operación: ${failure.retryCount}')
         ..writeln('Último error técnico: ${failure.lastError ?? "N/D"}');
     } else {
-      detail.writeln('No se encontró una operación asociada en la cola offline.');
+      detail.writeln(
+        'No se encontró una operación asociada en la cola offline.',
+      );
     }
 
     Clipboard.setData(ClipboardData(text: detail.toString()));

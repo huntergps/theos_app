@@ -36,7 +36,10 @@ class _OrderLinesTotals extends StatelessWidget {
             const SizedBox(height: Spacing.xs),
           ],
           // Confirm button
-          if (order != null && order!.state == SaleOrderState.draft && !order!.hasQueuedInvoice && !order!.isFullyInvoiced)
+          if (order != null &&
+              order!.state == SaleOrderState.draft &&
+              !order!.hasQueuedInvoice &&
+              !order!.isFullyInvoiced)
             SizedBox(
               width: double.infinity,
               child: FilledButton(
@@ -87,7 +90,11 @@ class _OrderLinesTotals extends StatelessWidget {
                     child: Row(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        Icon(FluentIcons.sync, size: 16, color: AppColors.warning),
+                        Icon(
+                          FluentIcons.sync,
+                          size: 16,
+                          color: AppColors.warning,
+                        ),
                         const SizedBox(width: Spacing.xs),
                         Text(
                           'Factura pendiente de enviar',
@@ -119,7 +126,11 @@ class _OrderLinesTotals extends StatelessWidget {
                     child: Row(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        Icon(FluentIcons.completed, size: 16, color: AppColors.info),
+                        Icon(
+                          FluentIcons.completed,
+                          size: 16,
+                          color: AppColors.info,
+                        ),
                         const SizedBox(width: Spacing.xs),
                         Text(
                           'Listo para facturar',

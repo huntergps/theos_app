@@ -78,11 +78,11 @@ class TheosChip extends StatelessWidget {
     required Color this.color,
     this.icon,
     this.size = ChipSize.medium,
-  })  : onTap = null,
-        onClose = null,
-        isSelected = false,
-        isSolid = true,
-        isDisabled = false;
+  }) : onTap = null,
+       onClose = null,
+       isSelected = false,
+       isSolid = true,
+       isDisabled = false;
 
   /// Constructor para chip seleccionable/filtro
   const TheosChip.filter({
@@ -93,9 +93,9 @@ class TheosChip extends StatelessWidget {
     this.icon,
     this.size = ChipSize.medium,
     this.isDisabled = false,
-  })  : color = null,
-        onClose = null,
-        isSolid = false;
+  }) : color = null,
+       onClose = null,
+       isSolid = false;
 
   /// Constructor para chip removible
   const TheosChip.removable({
@@ -106,9 +106,9 @@ class TheosChip extends StatelessWidget {
     this.icon,
     this.size = ChipSize.medium,
     this.isDisabled = false,
-  })  : onTap = null,
-        isSelected = false,
-        isSolid = false;
+  }) : onTap = null,
+       isSelected = false,
+       isSolid = false;
 
   /// Constructor para chip de acción (clickeable)
   const TheosChip.action({
@@ -119,33 +119,33 @@ class TheosChip extends StatelessWidget {
     this.icon,
     this.size = ChipSize.medium,
     this.isDisabled = false,
-  })  : onClose = null,
-        isSelected = false,
-        isSolid = false;
+  }) : onClose = null,
+       isSelected = false,
+       isSolid = false;
 
   double get _fontSize => switch (size) {
-        ChipSize.small => 10,
-        ChipSize.medium => 12,
-        ChipSize.large => 14,
-      };
+    ChipSize.small => 10,
+    ChipSize.medium => 12,
+    ChipSize.large => 14,
+  };
 
   double get _iconSize => switch (size) {
-        ChipSize.small => 10,
-        ChipSize.medium => 12,
-        ChipSize.large => 14,
-      };
+    ChipSize.small => 10,
+    ChipSize.medium => 12,
+    ChipSize.large => 14,
+  };
 
   EdgeInsets get _padding => switch (size) {
-        ChipSize.small => const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-        ChipSize.medium => const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-        ChipSize.large => const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-      };
+    ChipSize.small => const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+    ChipSize.medium => const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+    ChipSize.large => const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+  };
 
   @override
   Widget build(BuildContext context) {
     final theme = FluentTheme.of(context);
     final effectiveColor = color ?? theme.accentColor;
-    
+
     final backgroundColor = _getBackgroundColor(theme, effectiveColor);
     final textColor = _getTextColor(theme, effectiveColor);
     final borderColor = _getBorderColor(theme, effectiveColor);
@@ -168,7 +168,9 @@ class TheosChip extends StatelessWidget {
             label,
             style: TextStyle(
               fontSize: _fontSize,
-              fontWeight: isSelected || isSolid ? FontWeight.w600 : FontWeight.normal,
+              fontWeight: isSelected || isSolid
+                  ? FontWeight.w600
+                  : FontWeight.normal,
               color: textColor,
             ),
           ),
@@ -200,7 +202,9 @@ class TheosChip extends StatelessWidget {
                   ? effectiveColor.withValues(alpha: isSelected ? 0.3 : 0.15)
                   : backgroundColor,
               borderRadius: BorderRadius.circular(4),
-              border: borderColor != null ? Border.all(color: borderColor) : null,
+              border: borderColor != null
+                  ? Border.all(color: borderColor)
+                  : null,
             ),
             child: Row(
               mainAxisSize: MainAxisSize.min,
@@ -213,7 +217,9 @@ class TheosChip extends StatelessWidget {
                   label,
                   style: TextStyle(
                     fontSize: _fontSize,
-                    fontWeight: isSelected || isSolid ? FontWeight.w600 : FontWeight.normal,
+                    fontWeight: isSelected || isSolid
+                        ? FontWeight.w600
+                        : FontWeight.normal,
                     color: textColor,
                   ),
                 ),
@@ -395,13 +401,15 @@ class TheosChipGroup<T> extends StatelessWidget {
       runSpacing: spacing / 2,
       crossAxisAlignment: WrapCrossAlignment.center,
       children: [
-        ...chips.map((chip) => TheosChip.removable(
-              label: chip.label,
-              icon: chip.icon,
-              color: chip.color,
-              size: chipSize,
-              onClose: onRemove != null ? () => onRemove!(chip.value) : null,
-            )),
+        ...chips.map(
+          (chip) => TheosChip.removable(
+            label: chip.label,
+            icon: chip.icon,
+            color: chip.color,
+            size: chipSize,
+            onClose: onRemove != null ? () => onRemove!(chip.value) : null,
+          ),
+        ),
         if (onClearAll != null && chips.length > 1)
           TheosChip.action(
             label: clearAllLabel,

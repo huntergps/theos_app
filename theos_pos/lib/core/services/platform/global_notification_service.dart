@@ -1,8 +1,10 @@
 import 'package:fluent_ui/fluent_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+
 import '../../../shared/widgets/dialogs/copyable_info_bar.dart';
 import '../../database/providers.dart';
-import '../logger_service.dart';
+
+import 'package:odoo_sdk/odoo_sdk.dart' show logger;
 
 /// Global notification service that provides copyable InfoBars throughout the app.
 /// All error messages can be copied to clipboard for easier debugging.
@@ -23,14 +25,11 @@ class GlobalNotificationService {
   final int _infoDuration;
 
   GlobalNotificationService({
-    required int errorDuration,
-    required int warningDuration,
-    required int successDuration,
-    required int infoDuration,
-  })  : _errorDuration = errorDuration,
-        _warningDuration = warningDuration,
-        _successDuration = successDuration,
-        _infoDuration = infoDuration;
+    required this._errorDuration,
+    required this._warningDuration,
+    required this._successDuration,
+    required this._infoDuration,
+  });
 
   /// Show an error notification with copy-to-clipboard functionality
   void showError(
@@ -39,8 +38,7 @@ class GlobalNotificationService {
     required String message,
     int? durationSeconds,
   }) {
-    final int duration =
-        durationSeconds ?? _errorDuration;
+    final int duration = durationSeconds ?? _errorDuration;
     _showCopyable(
       context,
       title: title,
@@ -58,8 +56,7 @@ class GlobalNotificationService {
     required String message,
     int? durationSeconds,
   }) {
-    final int duration =
-        durationSeconds ?? _warningDuration;
+    final int duration = durationSeconds ?? _warningDuration;
     _showCopyable(
       context,
       title: title,
@@ -77,8 +74,7 @@ class GlobalNotificationService {
     required String message,
     int? durationSeconds,
   }) {
-    final int duration =
-        durationSeconds ?? _successDuration;
+    final int duration = durationSeconds ?? _successDuration;
     _showCopyable(
       context,
       title: title,
@@ -96,8 +92,7 @@ class GlobalNotificationService {
     required String message,
     int? durationSeconds,
   }) {
-    final int duration =
-        durationSeconds ?? _infoDuration;
+    final int duration = durationSeconds ?? _infoDuration;
     _showCopyable(
       context,
       title: title,
@@ -120,8 +115,7 @@ class GlobalNotificationService {
         ? '$error\n\nStack trace:\n$stackTrace'
         : '$error';
 
-    final int duration =
-        durationSeconds ?? _errorDuration;
+    final int duration = durationSeconds ?? _errorDuration;
     _showCopyable(
       context,
       title: title,

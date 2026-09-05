@@ -1,6 +1,7 @@
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
 import 'package:theos_pos_core/theos_pos_core.dart' hide SaleOrderLineManager;
+
 // Hide generated SaleOrderLineManager - we use the mixin
 import 'order_cache_provider.dart';
 import 'sale_order_field_updater.dart';
@@ -67,13 +68,19 @@ class SaleOrderFormNotifier extends _$SaleOrderFormNotifier
 
     final currentOrder = state.order;
     if (currentOrder == null) {
-      logger.d('[SaleOrderForm]', '>>> _syncFromCache: No current order, skipping');
+      logger.d(
+        '[SaleOrderForm]',
+        '>>> _syncFromCache: No current order, skipping',
+      );
       return;
     }
 
     final cachedOrder = cache.orders[currentOrder.id];
     if (cachedOrder == null) {
-      logger.d('[SaleOrderForm]', '>>> _syncFromCache: No cached order for ${currentOrder.id}, skipping');
+      logger.d(
+        '[SaleOrderForm]',
+        '>>> _syncFromCache: No cached order for ${currentOrder.id}, skipping',
+      );
       return;
     }
 
@@ -178,14 +185,20 @@ class SaleOrderFormNotifier extends _$SaleOrderFormNotifier
   /// - Other fields: direct value sync
   @override
   void onFieldUpdated(int orderId, String fieldName, dynamic value) {
-    logger.d('[SaleOrderForm]', '>>> onFieldUpdated: orderId=$orderId, field=$fieldName');
+    logger.d(
+      '[SaleOrderForm]',
+      '>>> onFieldUpdated: orderId=$orderId, field=$fieldName',
+    );
     final cache = ref.read(orderCacheProvider.notifier);
 
     switch (fieldName) {
       case 'partner':
         // Partner is a composite field with multiple values
         final data = value as Map<String, dynamic>;
-        logger.d('[SaleOrderForm]', '>>> Updating cache with partner: ${data['partner_name']} (${data['partner_id']})');
+        logger.d(
+          '[SaleOrderForm]',
+          '>>> Updating cache with partner: ${data['partner_name']} (${data['partner_id']})',
+        );
         cache.updateOrderPartner(
           orderId,
           partnerId: data['partner_id'] as int?,
@@ -258,27 +271,12 @@ class SaleOrderFormNotifier extends _$SaleOrderFormNotifier
   // Movidos a sale_order_form_mixins/sale_order_conflict_mixin.dart.
   // Fase E2b (AREA DE RIESGO ALTO, copy-paste literal): setServerUpdatePending,
   // applyPendingServerUpdate, _applyMergeableFields, _applyPendingLinesMerge,
-  // clearServerUpdatePending, updatePartnerFieldsOnly, clearError.
+  // clearServerUpdatePending, clearError.
   // Fase F2 (unificación con METODOS DE RESOLUCION DE CONFLICTOS, ver ese
   // mixin para el diseño completo): se eliminó la duplicación
   // _clearPendingState/clearServerUpdatePending y el código muerto
   // resolveConflictsWithServer/resolveConflictsWithLocal/detectConflictsWithServer
   // (verificado sin consumidores). API pública externa sin cambios.
-  // ==========================================================================
-
-  // ==========================================================================
-  // NOTA: los métodos updateLineFromWebSocket / updateOrderFromWebSocket /
-  // removeLineFromWebSocket que existían acá fueron ELIMINADOS (Fase B,
-  // fix de race condition "triple canal"). Eran un bypass directo desde
-  // notification_provider.dart hacia el estado de UI del formulario (Canal 2
-  // escribiendo directo en vez de solo notificar) y, si `isEditing==true`,
-  // descartaban el update del servidor EN SILENCIO y para siempre — a
-  // diferencia del canal correcto (streams de Drift `saleOrderStreamProvider`
-  // / `saleOrderLinesStreamProvider`, escuchados en `sale_order_form_screen.dart`),
-  // que sí deja el cambio pendiente vía [setServerUpdatePending] para
-  // aplicarlo con merge/detección de conflictos al salir de edición.
-  // Verificado (grep) que ningún código llama ya a estos 3 métodos — el
-  // Sale Order Form se actualiza exclusivamente vía el stream de Drift.
   // ==========================================================================
 
   // ==========================================================================
@@ -294,8 +292,7 @@ class SaleOrderFormNotifier extends _$SaleOrderFormNotifier
   // ==========================================================================
   // Movidos a sale_order_form_mixins/sale_order_conflict_mixin.dart (fusionado
   // con SERVER UPDATE PENDING en Fase F2, ver ese archivo para el diseño
-  // completo): processServerUpdate, acceptServerChanges, keepLocalChanges,
-  // clearConflict.
+  // completo): acceptServerChanges, keepLocalChanges, clearConflict.
   // ==========================================================================
 
   // ==========================================================================

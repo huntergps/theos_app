@@ -27,6 +27,7 @@ library;
 import 'dart:async';
 
 import 'package:drift/drift.dart';
+
 import '../api/odoo_client.dart';
 import '../sync/sync_models.dart';
 import '../sync/sync_types.dart';
@@ -224,10 +225,9 @@ class ModelRegistry {
   }) {
     final manager = _instance._managers[model];
     if (manager == null) {
-      return Future.value(SyncResult.error(
-        model: model,
-        error: 'Model $model not registered',
-      ));
+      return Future.value(
+        SyncResult.error(model: model, error: 'Model $model not registered'),
+      );
     }
 
     return manager.syncFromOdoo(
@@ -258,6 +258,20 @@ class ModelRegistry {
     _instance._dispose();
   }
 
+  /// Detach the registry from the current authenticated application scope.
+  ///
+  /// Unlike [disposeAll], this keeps the registry's long-lived streams open so
+  /// singleton managers can be registered again after a logout/login cycle.
+  static void resetSession() {
+    _instance._managers.clear();
+    _instance._client = null;
+    _instance._db = null;
+    _instance._queue = null;
+    _instance._isSyncing.add(false);
+    _instance._syncProgress.add(const {});
+    _instance._lastSyncReport.add(null);
+  }
+
   // ═══════════════════════════════════════════════════════════════════════════
   // Instance Methods
   // ═══════════════════════════════════════════════════════════════════════════
@@ -278,9 +292,7 @@ class ModelRegistry {
   }) async {
     if (_isSyncing.value) {
       return SyncReport(
-        results: [
-          SyncResult.alreadyInProgress(model: 'all'),
-        ],
+        results: [SyncResult.alreadyInProgress(model: 'all')],
         startTime: DateTime.now(),
         endTime: DateTime.now(),
       );

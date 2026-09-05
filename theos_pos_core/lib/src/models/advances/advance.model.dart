@@ -86,12 +86,17 @@ abstract class Advance with _$Advance {
     @OdooString() required String reference,
     @OdooFloat() @Default(0.0) double amount,
     @OdooFloat(odooName: 'amount_used') @Default(0.0) double amountUsed,
-    @OdooFloat(odooName: 'amount_available') @Default(0.0) double amountAvailable,
+    @OdooFloat(odooName: 'amount_available')
+    @Default(0.0)
+    double amountAvailable,
     @OdooFloat(odooName: 'amount_returned') @Default(0.0) double amountReturned,
-    @OdooFloat(odooName: 'usage_percentage') @Default(0.0) double usagePercentage,
+    @OdooFloat(odooName: 'usage_percentage')
+    @Default(0.0)
+    double usagePercentage,
     @OdooInteger(odooName: 'days_to_expire') int? daysToExpire,
     @OdooBoolean(odooName: 'is_expired') @Default(false) bool isExpired,
-    @OdooMany2One('collection.session', odooName: 'collection_session_id') int? collectionSessionId,
+    @OdooMany2One('collection.session', odooName: 'collection_session_id')
+    int? collectionSessionId,
     @OdooMany2One('sale.order', odooName: 'sale_order_id') int? saleOrderId,
     @OdooLocalOnly() @Default([]) List<AdvanceLine> lines,
   }) = _Advance;
@@ -158,7 +163,6 @@ abstract class Advance with _$Advance {
 
   /// Total de lineas de pago
   double get totalLines => lines.fold(0.0, (sum, l) => sum + l.amount);
-
 }
 
 /// Linea de pago del anticipo.
@@ -170,20 +174,30 @@ abstract class AdvanceLine with _$AdvanceLine {
   const factory AdvanceLine({
     @OdooId() @Default(0) int id,
     @OdooLocalOnly() String? lineUuid,
-    @OdooMany2One('account.journal', odooName: 'journal_id') required int journalId,
+    @OdooLocalOnly() int? advanceId,
+    @OdooMany2One('account.journal', odooName: 'journal_id')
+    required int journalId,
     @OdooMany2OneName(sourceField: 'journal_id') String? journalName,
-    @OdooString(odooName: 'journal_type') String? journalType,
-    @OdooMany2One('account.advance.method.line', odooName: 'advance_method_line_id') int? advanceMethodLineId,
-    @OdooMany2OneName(sourceField: 'advance_method_line_id') String? advanceMethodName,
+    @OdooLocalOnly() String? journalType,
+    @OdooMany2One(
+      'account.advance.method.line',
+      odooName: 'advance_method_line_id',
+    )
+    int? advanceMethodLineId,
+    @OdooMany2OneName(sourceField: 'advance_method_line_id')
+    String? advanceMethodName,
     @OdooFloat() required double amount,
     @OdooString(odooName: 'nro_document') String? documentNumber,
     @OdooDate(odooName: 'date_document') DateTime? documentDate,
-    @OdooMany2One('res.partner.bank', odooName: 'partner_bank_id') int? partnerBankId,
+    @OdooMany2One('res.partner.bank', odooName: 'partner_bank_id')
+    int? partnerBankId,
     @OdooMany2OneName(sourceField: 'partner_bank_id') String? partnerBankName,
     @OdooDate(odooName: 'check_due_date') DateTime? checkDueDate,
-    @OdooMany2One('account.card.brand', odooName: 'card_brand_id') int? cardBrandId,
+    @OdooMany2One('account.card.brand', odooName: 'card_brand_id')
+    int? cardBrandId,
     @OdooMany2OneName(sourceField: 'card_brand_id') String? cardBrandName,
-    @OdooMany2One('account.card.deadline', odooName: 'card_deadline_id') int? cardDeadlineId,
+    @OdooMany2One('account.card.deadline', odooName: 'card_deadline_id')
+    int? cardDeadlineId,
     @OdooMany2OneName(sourceField: 'card_deadline_id') String? cardDeadlineName,
   }) = _AdvanceLine;
 

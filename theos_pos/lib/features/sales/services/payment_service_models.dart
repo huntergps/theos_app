@@ -317,8 +317,12 @@ class SessionPayment {
       partnerName: odoo.extractMany2oneName(data['partner_id']),
       journalId: odoo.extractMany2oneId(data['journal_id']),
       journalName: odoo.extractMany2oneName(data['journal_id']),
-      paymentMethodLineId: odoo.extractMany2oneId(data['payment_method_line_id']),
-      paymentMethodLineName: odoo.extractMany2oneName(data['payment_method_line_id']),
+      paymentMethodLineId: odoo.extractMany2oneId(
+        data['payment_method_line_id'],
+      ),
+      paymentMethodLineName: odoo.extractMany2oneName(
+        data['payment_method_line_id'],
+      ),
       amount: (data['amount'] as num?)?.toDouble() ?? 0.0,
       paymentType: data['payment_type'] as String? ?? 'inbound',
       state: PaymentState.fromString(data['state'] as String?),
@@ -333,7 +337,9 @@ class SessionPayment {
       invoiceIds: (data['reconciled_invoice_ids'] as List<dynamic>?)
           ?.cast<int>(),
       moveId: odoo.extractMany2oneId(data['move_id']),
-      collectionSessionId: odoo.extractMany2oneId(data['collection_session_id']),
+      collectionSessionId: odoo.extractMany2oneId(
+        data['collection_session_id'],
+      ),
     );
   }
 

@@ -64,9 +64,7 @@ class PaymentDetailRow extends StatelessWidget {
             Expanded(
               flex: 1,
               child: Text(
-                cartera != null && cartera != 0
-                    ? cartera!.toCurrency()
-                    : '-',
+                cartera != null && cartera != 0 ? cartera!.toCurrency() : '-',
                 style: style,
                 textAlign: TextAlign.right,
               ),

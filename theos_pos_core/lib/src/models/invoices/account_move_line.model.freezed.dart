@@ -1,6 +1,6 @@
 // GENERATED CODE - DO NOT MODIFY BY HAND
 // coverage:ignore-file
-// ignore_for_file: type=lint
+// ignore_for_file: type=lint, type=warning, deprecated_member_use, deprecated_member_use_from_same_package
 // ignore_for_file: unused_element, deprecated_member_use, deprecated_member_use_from_same_package, use_function_type_syntax_for_parameters, unnecessary_const, avoid_init_to_null, invalid_override_different_default_values_named, prefer_expression_function_bodies, annotate_overrides, invalid_annotation_target, unnecessary_question_mark
 
 part of 'account_move_line.model.dart';
@@ -9,22 +9,14 @@ part of 'account_move_line.model.dart';
 // FreezedGenerator
 // **************************************************************************
 
+// GENERATED CODE - DO NOT MODIFY BY HAND
 // dart format off
 T _$identity<T>(T value) => value;
 
 /// @nodoc
 mixin _$AccountMoveLine {
 
-// ============ Identifiers ============
-@OdooId() int get id;// ============ Relations ============
-@OdooMany2One('account.move', odooName: 'move_id') int get moveId;// ============ Basic Data ============
-@OdooString() String get name;@OdooSelection(odooName: 'display_type') InvoiceLineDisplayType get displayType;@OdooInteger() int get sequence;// ============ Product ============
-@OdooMany2One('product.product', odooName: 'product_id') int? get productId;@OdooMany2OneName(sourceField: 'product_id') String? get productName;@OdooLocalOnly() String? get productCode;@OdooLocalOnly() String? get productBarcode;@OdooLocalOnly() String? get productL10nEcAuxiliaryCode;@OdooLocalOnly() String? get productType;// ============ Quantity and UoM ============
-@OdooFloat() double get quantity;@OdooMany2One('uom.uom', odooName: 'product_uom_id') int? get productUomId;@OdooMany2OneName(sourceField: 'product_uom_id') String? get productUomName;// ============ Prices ============
-@OdooFloat(odooName: 'price_unit') double get priceUnit;@OdooFloat() double get discount;@OdooFloat(odooName: 'price_subtotal') double get priceSubtotal;@OdooFloat(odooName: 'price_total') double get priceTotal;// ============ Taxes ============
-@OdooLocalOnly() String? get taxIds;@OdooLocalOnly() String? get taxNames;@OdooMany2One('account.tax', odooName: 'tax_line_id') int? get taxLineId;@OdooMany2OneName(sourceField: 'tax_line_id') String? get taxLineName;// ============ Account ============
-@OdooMany2One('account.account', odooName: 'account_id') int? get accountId;@OdooMany2OneName(sourceField: 'account_id') String? get accountName;// ============ Display Fields for Reports ============
-@OdooBoolean(odooName: 'collapse_composition') bool get collapseComposition;@OdooBoolean(odooName: 'collapse_prices') bool get collapsePrices;
+@OdooId() int get id;@OdooMany2One('account.move', odooName: 'move_id') int get moveId;@OdooString() String get name;@OdooSelection(odooName: 'display_type') InvoiceLineDisplayType get displayType;@OdooInteger() int get sequence;@OdooMany2One('product.product', odooName: 'product_id') int? get productId;@OdooMany2OneName(sourceField: 'product_id') String? get productName;@OdooLocalOnly() String? get productCode;@OdooLocalOnly() String? get productBarcode;@OdooLocalOnly() String? get productL10nEcAuxiliaryCode;@OdooLocalOnly() String? get productType;@OdooFloat() double get quantity;@OdooMany2One('uom.uom', odooName: 'product_uom_id') int? get productUomId;@OdooMany2OneName(sourceField: 'product_uom_id') String? get productUomName;@OdooFloat(odooName: 'price_unit') double get priceUnit;@OdooFloat() double get discount;@OdooFloat(odooName: 'price_subtotal') double get priceSubtotal;@OdooFloat(odooName: 'price_total') double get priceTotal;@OdooLocalOnly() String? get taxIds;@OdooLocalOnly() String? get taxNames;@OdooMany2One('account.tax', odooName: 'tax_line_id') int? get taxLineId;@OdooMany2OneName(sourceField: 'tax_line_id') String? get taxLineName;@OdooMany2One('account.account', odooName: 'account_id') int? get accountId;@OdooMany2OneName(sourceField: 'account_id') String? get accountName;@OdooBoolean(odooName: 'collapse_composition') bool get collapseComposition;@OdooBoolean(odooName: 'collapse_prices') bool get collapsePrices;
 /// Create a copy of AccountMoveLine
 /// with the given fields replaced by the non-null parameter values.
 @JsonKey(includeFromJson: false, includeToJson: false)
@@ -75,7 +67,7 @@ class _$AccountMoveLineCopyWithImpl<$Res>
 /// Create a copy of AccountMoveLine
 /// with the given fields replaced by the non-null parameter values.
 @pragma('vm:prefer-inline') @override $Res call({Object? id = null,Object? moveId = null,Object? name = null,Object? displayType = null,Object? sequence = null,Object? productId = freezed,Object? productName = freezed,Object? productCode = freezed,Object? productBarcode = freezed,Object? productL10nEcAuxiliaryCode = freezed,Object? productType = freezed,Object? quantity = null,Object? productUomId = freezed,Object? productUomName = freezed,Object? priceUnit = null,Object? discount = null,Object? priceSubtotal = null,Object? priceTotal = null,Object? taxIds = freezed,Object? taxNames = freezed,Object? taxLineId = freezed,Object? taxLineName = freezed,Object? accountId = freezed,Object? accountName = freezed,Object? collapseComposition = null,Object? collapsePrices = null,}) {
-  return _then(_self.copyWith(
+  return _then(AccountMoveLine(
 id: null == id ? _self.id : id // ignore: cast_nullable_to_non_nullable
 as int,moveId: null == moveId ? _self.moveId : moveId // ignore: cast_nullable_to_non_nullable
 as int,name: null == name ? _self.name : name // ignore: cast_nullable_to_non_nullable
@@ -246,39 +238,30 @@ class _AccountMoveLine extends AccountMoveLine {
   const _AccountMoveLine({@OdooId() this.id = 0, @OdooMany2One('account.move', odooName: 'move_id') this.moveId = 0, @OdooString() this.name = '', @OdooSelection(odooName: 'display_type') this.displayType = InvoiceLineDisplayType.product, @OdooInteger() this.sequence = 10, @OdooMany2One('product.product', odooName: 'product_id') this.productId, @OdooMany2OneName(sourceField: 'product_id') this.productName, @OdooLocalOnly() this.productCode, @OdooLocalOnly() this.productBarcode, @OdooLocalOnly() this.productL10nEcAuxiliaryCode, @OdooLocalOnly() this.productType, @OdooFloat() this.quantity = 1.0, @OdooMany2One('uom.uom', odooName: 'product_uom_id') this.productUomId, @OdooMany2OneName(sourceField: 'product_uom_id') this.productUomName, @OdooFloat(odooName: 'price_unit') this.priceUnit = 0.0, @OdooFloat() this.discount = 0.0, @OdooFloat(odooName: 'price_subtotal') this.priceSubtotal = 0.0, @OdooFloat(odooName: 'price_total') this.priceTotal = 0.0, @OdooLocalOnly() this.taxIds, @OdooLocalOnly() this.taxNames, @OdooMany2One('account.tax', odooName: 'tax_line_id') this.taxLineId, @OdooMany2OneName(sourceField: 'tax_line_id') this.taxLineName, @OdooMany2One('account.account', odooName: 'account_id') this.accountId, @OdooMany2OneName(sourceField: 'account_id') this.accountName, @OdooBoolean(odooName: 'collapse_composition') this.collapseComposition = false, @OdooBoolean(odooName: 'collapse_prices') this.collapsePrices = false}): super._();
   factory _AccountMoveLine.fromJson(Map<String, dynamic> json) => _$AccountMoveLineFromJson(json);
 
-// ============ Identifiers ============
 @override@JsonKey()@OdooId() final  int id;
-// ============ Relations ============
 @override@JsonKey()@OdooMany2One('account.move', odooName: 'move_id') final  int moveId;
-// ============ Basic Data ============
 @override@JsonKey()@OdooString() final  String name;
 @override@JsonKey()@OdooSelection(odooName: 'display_type') final  InvoiceLineDisplayType displayType;
 @override@JsonKey()@OdooInteger() final  int sequence;
-// ============ Product ============
 @override@OdooMany2One('product.product', odooName: 'product_id') final  int? productId;
 @override@OdooMany2OneName(sourceField: 'product_id') final  String? productName;
 @override@OdooLocalOnly() final  String? productCode;
 @override@OdooLocalOnly() final  String? productBarcode;
 @override@OdooLocalOnly() final  String? productL10nEcAuxiliaryCode;
 @override@OdooLocalOnly() final  String? productType;
-// ============ Quantity and UoM ============
 @override@JsonKey()@OdooFloat() final  double quantity;
 @override@OdooMany2One('uom.uom', odooName: 'product_uom_id') final  int? productUomId;
 @override@OdooMany2OneName(sourceField: 'product_uom_id') final  String? productUomName;
-// ============ Prices ============
 @override@JsonKey()@OdooFloat(odooName: 'price_unit') final  double priceUnit;
 @override@JsonKey()@OdooFloat() final  double discount;
 @override@JsonKey()@OdooFloat(odooName: 'price_subtotal') final  double priceSubtotal;
 @override@JsonKey()@OdooFloat(odooName: 'price_total') final  double priceTotal;
-// ============ Taxes ============
 @override@OdooLocalOnly() final  String? taxIds;
 @override@OdooLocalOnly() final  String? taxNames;
 @override@OdooMany2One('account.tax', odooName: 'tax_line_id') final  int? taxLineId;
 @override@OdooMany2OneName(sourceField: 'tax_line_id') final  String? taxLineName;
-// ============ Account ============
 @override@OdooMany2One('account.account', odooName: 'account_id') final  int? accountId;
 @override@OdooMany2OneName(sourceField: 'account_id') final  String? accountName;
-// ============ Display Fields for Reports ============
 @override@JsonKey()@OdooBoolean(odooName: 'collapse_composition') final  bool collapseComposition;
 @override@JsonKey()@OdooBoolean(odooName: 'collapse_prices') final  bool collapsePrices;
 

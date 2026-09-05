@@ -31,21 +31,14 @@ extension SaleOrderLineManagerBusiness on SaleOrderLineManager {
 
   /// Delete all lines for a specific order
   Future<void> deleteByOrderId(int orderId) async {
-    await (_db.delete(_db.saleOrderLine)
-          ..where((t) => t.orderId.equals(orderId)))
-        .go();
+    await (_db.delete(
+      _db.saleOrderLine,
+    )..where((t) => t.orderId.equals(orderId))).go();
   }
 
   // ═══════════════════════════════════════════════════════════════════════════
   // Convenience Methods (Replaces SaleOrderLineDatasource)
   // ═══════════════════════════════════════════════════════════════════════════
-
-  /// Get line by Odoo ID (alias for readLocal)
-  Future<SaleOrderLine?> getSaleOrderLine(int odooId) => readLocal(odooId);
-
-  /// Get line by UUID (alias for readLocalByUuid)
-  Future<SaleOrderLine?> getSaleOrderLineByUuid(String uuid) =>
-      readLocalByUuid(uuid);
 
   /// Get all lines for an order (alias for getByOrderId)
   Future<List<SaleOrderLine>> getSaleOrderLines(int orderId) =>
@@ -53,11 +46,12 @@ extension SaleOrderLineManagerBusiness on SaleOrderLineManager {
 
   /// Check if a line exists by ID
   Future<bool> saleOrderLineExists(int lineId) async {
-    final count = await (_db.selectOnly(_db.saleOrderLine)
-          ..addColumns([_db.saleOrderLine.odooId.count()])
-          ..where(_db.saleOrderLine.odooId.equals(lineId)))
-        .map((row) => row.read(_db.saleOrderLine.odooId.count()))
-        .getSingle();
+    final count =
+        await (_db.selectOnly(_db.saleOrderLine)
+              ..addColumns([_db.saleOrderLine.odooId.count()])
+              ..where(_db.saleOrderLine.odooId.equals(lineId)))
+            .map((row) => row.read(_db.saleOrderLine.odooId.count()))
+            .getSingle();
     return (count ?? 0) > 0;
   }
 
@@ -77,10 +71,7 @@ extension SaleOrderLineManagerBusiness on SaleOrderLineManager {
 
     await deleteLocal(localId);
 
-    final updatedLine = existingLine.copyWith(
-      id: remoteId,
-      isSynced: true,
-    );
+    final updatedLine = existingLine.copyWith(id: remoteId, isSynced: true);
     await upsertLocal(updatedLine);
   }
 
@@ -93,6 +84,25 @@ extension SaleOrderLineManagerBusiness on SaleOrderLineManager {
     if (existingLine == null) return;
 
     var updatedLine = existingLine;
+    if (values.containsKey('order_id')) {
+      final value = _nullableInt(values['order_id']);
+      if (value != null) updatedLine = updatedLine.copyWith(orderId: value);
+    }
+    if (values.containsKey('sequence')) {
+      updatedLine = updatedLine.copyWith(
+        sequence: (values['sequence'] as num).toInt(),
+      );
+    }
+    if (values.containsKey('display_type')) {
+      updatedLine = updatedLine.copyWith(
+        displayType: _lineDisplayType(values['display_type']),
+      );
+    }
+    if (values.containsKey('product_id')) {
+      updatedLine = updatedLine.copyWith(
+        productId: _nullableInt(values['product_id']),
+      );
+    }
     if (values.containsKey('product_uom_qty')) {
       updatedLine = updatedLine.copyWith(
         productUomQty: (values['product_uom_qty'] as num).toDouble(),
@@ -109,7 +119,15 @@ extension SaleOrderLineManagerBusiness on SaleOrderLineManager {
       );
     }
     if (values.containsKey('name')) {
-      updatedLine = updatedLine.copyWith(name: values['name'] as String);
+      updatedLine = updatedLine.copyWith(name: values['name'] as String? ?? '');
+    }
+    if (values.containsKey('product_uom_id')) {
+      updatedLine = updatedLine.copyWith(
+        productUomId: _nullableInt(values['product_uom_id']),
+      );
+    }
+    if (values.containsKey('tax_ids')) {
+      updatedLine = updatedLine.copyWith(taxIds: _taxIdsCsv(values['tax_ids']));
     }
     if (values.containsKey('price_subtotal')) {
       updatedLine = updatedLine.copyWith(
@@ -126,6 +144,21 @@ extension SaleOrderLineManagerBusiness on SaleOrderLineManager {
         priceTotal: (values['price_total'] as num).toDouble(),
       );
     }
+    if (values.containsKey('collapse_prices')) {
+      updatedLine = updatedLine.copyWith(
+        collapsePrices: values['collapse_prices'] == true,
+      );
+    }
+    if (values.containsKey('collapse_composition')) {
+      updatedLine = updatedLine.copyWith(
+        collapseComposition: values['collapse_composition'] == true,
+      );
+    }
+    if (values.containsKey('is_optional')) {
+      updatedLine = updatedLine.copyWith(
+        isOptional: values['is_optional'] == true,
+      );
+    }
 
     updatedLine = updatedLine.copyWith(isSynced: false);
     await upsertLocal(updatedLine);
@@ -137,9 +170,9 @@ extension SaleOrderLineManagerBusiness on SaleOrderLineManager {
   /// in [odooId] (not in the autoincrement PK [id]).
   /// Note: [readLocal] already queries by odooId, this method is an explicit alias.
   Future<SaleOrderLine?> findByOdooId(int odooId) async {
-    final rows = await (_db.select(_db.saleOrderLine)
-          ..where((t) => t.odooId.equals(odooId)))
-        .get();
+    final rows = await (_db.select(
+      _db.saleOrderLine,
+    )..where((t) => t.odooId.equals(odooId))).get();
     if (rows.isEmpty) return null;
     return fromDrift(rows.first);
   }
@@ -180,7 +213,9 @@ extension SaleOrderLineManagerBusiness on SaleOrderLineManager {
     String? displayType,
     DateTime? writeDate,
   }) async {
-    await _db.into(_db.saleOrderLine).insert(
+    await _db
+        .into(_db.saleOrderLine)
+        .insert(
           SaleOrderLineCompanion.insert(
             odooId: drift.Value(odooId),
             lineUuid: drift.Value(lineUuid),
@@ -231,4 +266,43 @@ extension SaleOrderLineManagerBusiness on SaleOrderLineManager {
           ),
         );
   }
+}
+
+int? _nullableInt(Object? value) {
+  if (value == null || value == false) return null;
+  if (value is int) return value;
+  if (value is num) return value.toInt();
+  if (value is List && value.isNotEmpty) return _nullableInt(value.first);
+  return int.tryParse(value.toString());
+}
+
+LineDisplayType _lineDisplayType(Object? value) {
+  if (value is LineDisplayType) return value;
+  if (value == null || value == false || value == '') {
+    return LineDisplayType.product;
+  }
+  final code = value.toString();
+  return LineDisplayType.values.firstWhere(
+    (item) => item.code == code,
+    orElse: () => LineDisplayType.product,
+  );
+}
+
+String _taxIdsCsv(Object? value) {
+  if (value == null || value == false) return '';
+  if (value is String) return value;
+  if (value is! List) return '';
+
+  Object? ids = value;
+  // Odoo many2many replace command: [[6, 0, [1, 2]]].
+  if (value.isNotEmpty && value.first is List) {
+    final command = value.first as List;
+    if (command.length >= 3 && command.first == 6) ids = command[2];
+  }
+  if (ids is! List) return '';
+  return ids
+      .map(_nullableInt)
+      .whereType<int>()
+      .map((id) => id.toString())
+      .join(',');
 }

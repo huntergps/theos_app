@@ -2,4 +2,8 @@
 library;
 
 export 'package:theos_pos_core/theos_pos_core.dart'
-    show OfflineQueueDataSource, FieldSelectionDatasource, OfflineOperation, OfflinePriority;
+    show
+        OfflineQueueDataSource,
+        FieldSelectionDatasource,
+        OfflineOperation,
+        OfflinePriority;

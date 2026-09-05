@@ -65,7 +65,7 @@ abstract class BaseOrderState {
   /// Whether there are unsaved changes
   bool get hasChanges;
 
-  /// Version counter for lines (incremented on WebSocket updates)
+  /// Version counter for line mutations that require a derived-state refresh.
   int get linesVersion;
 
   /// Authorized payment term IDs for the current partner

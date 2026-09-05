@@ -1,9 +1,12 @@
 import 'dart:convert';
+import 'dart:async';
+
 import 'package:fluent_ui/fluent_ui.dart';
 import 'package:syncfusion_flutter_datagrid/datagrid.dart';
 import 'package:syncfusion_flutter_core/theme.dart';
 import 'package:syncfusion_flutter_datagrid_export/export.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+
 import '../../utils/web_download.dart' as web_download;
 
 import 'theos_data_grid_source.dart';
@@ -28,6 +31,8 @@ class TheosDataGrid extends StatefulWidget {
   // Paging
   final bool showPager;
   final int rowsPerPage;
+  final int? totalRowCount;
+  final int currentPageIndex;
   final VoidCallback? onExport;
 
   // Storage key for persisting column widths
@@ -49,6 +54,8 @@ class TheosDataGrid extends StatefulWidget {
     this.showSortNumbers = false,
     this.showPager = false,
     this.rowsPerPage = 80,
+    this.totalRowCount,
+    this.currentPageIndex = 0,
     this.onExport,
     this.storageKey,
   });
@@ -64,7 +71,11 @@ class TheosDataGrid extends StatefulWidget {
     final List<int> bytes = workbook.saveAsStream();
     workbook.dispose();
 
-    await web_download.shareFile(bytes, '$fileName.xlsx', text: 'Exported Excel File');
+    await web_download.shareFile(
+      bytes,
+      '$fileName.xlsx',
+      text: 'Exported Excel File',
+    );
   }
 
   /// Helper to create a standard header label
@@ -92,11 +103,31 @@ class _TheosDataGridState extends State<TheosDataGrid> {
   Map<String, double> _columnWidths = {};
   List<SortColumnDetails>? _savedSortColumns;
   bool _sortingApplied = false;
+  Timer? _columnWidthSaveDebounce;
 
   @override
   void initState() {
     super.initState();
     _loadPersistedState();
+  }
+
+  @override
+  void didUpdateWidget(covariant TheosDataGrid oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.source != widget.source ||
+        oldWidget.storageKey != widget.storageKey) {
+      _clearSortingCallback(oldWidget.source);
+      _sortingApplied = false;
+      _savedSortColumns = null;
+      _loadPersistedState();
+    }
+  }
+
+  @override
+  void dispose() {
+    _columnWidthSaveDebounce?.cancel();
+    _clearSortingCallback(widget.source);
+    super.dispose();
   }
 
   Future<void> _loadPersistedState() async {
@@ -115,6 +146,13 @@ class _TheosDataGridState extends State<TheosDataGrid> {
     }
   }
 
+  void _clearSortingCallback(DataGridSource source) {
+    if (source is TheosDataGridSource &&
+        source.onSortingChanged == _saveSorting) {
+      source.onSortingChanged = null;
+    }
+  }
+
   Future<void> _loadColumnWidths() async {
     if (widget.storageKey == null) return;
 
@@ -125,6 +163,7 @@ class _TheosDataGridState extends State<TheosDataGrid> {
 
       if (widthsJson != null) {
         final Map<String, dynamic> decoded = json.decode(widthsJson);
+        if (!mounted) return;
         setState(() {
           _columnWidths = decoded.map(
             (k, v) => MapEntry(k, (v as num).toDouble()),
@@ -153,7 +192,11 @@ class _TheosDataGridState extends State<TheosDataGrid> {
     setState(() {
       _columnWidths[details.column.columnName] = details.width;
     });
-    _saveColumnWidths();
+    _columnWidthSaveDebounce?.cancel();
+    _columnWidthSaveDebounce = Timer(
+      const Duration(milliseconds: 350),
+      _saveColumnWidths,
+    );
   }
 
   Future<void> _loadSorting() async {
@@ -166,6 +209,7 @@ class _TheosDataGridState extends State<TheosDataGrid> {
 
       if (sortingJson != null) {
         final List<dynamic> decoded = json.decode(sortingJson);
+        if (!mounted) return;
         setState(() {
           _savedSortColumns = decoded.map((item) {
             return SortColumnDetails(
@@ -265,7 +309,7 @@ class _TheosDataGridState extends State<TheosDataGrid> {
         builder: (context) {
           // Apply saved sorting after grid is built
           WidgetsBinding.instance.addPostFrameCallback((_) {
-            _applySavedSorting();
+            if (mounted) _applySavedSorting();
           });
 
           return SfDataGrid(
@@ -331,8 +375,10 @@ class _TheosDataGridState extends State<TheosDataGrid> {
                   ),
                   child: SfDataPager(
                     delegate: widget.source,
-                    pageCount: (widget.source.rows.length / widget.rowsPerPage)
+                    initialPageIndex: widget.currentPageIndex,
+                    pageCount: (_totalRowCount / widget.rowsPerPage)
                         .ceil()
+                        .clamp(1, double.maxFinite)
                         .toDouble(),
                     direction: Axis.horizontal,
                     visibleItemsCount: 5,
@@ -357,5 +403,13 @@ class _TheosDataGridState extends State<TheosDataGrid> {
         ),
       ],
     );
+  }
+
+  int get _totalRowCount {
+    if (widget.totalRowCount != null) return widget.totalRowCount!;
+    final source = widget.source;
+    return source is TheosDataGridSource
+        ? source.totalRowCount
+        : source.rows.length;
   }
 }

@@ -25,12 +25,10 @@ class WebSocketEventParser {
   /// Parses a raw WebSocket message.
   ///
   /// Calls [onEvent] for each typed event produced.
-  /// Calls [onNotification] for each raw notification (legacy API).
   /// Returns the list of raw notifications found.
   List<Map<String, dynamic>> parseMessage(
     dynamic message, {
     required void Function(OdooWebSocketEvent) onEvent,
-    required void Function(Map<String, dynamic>) onNotification,
   }) {
     final notifications = <Map<String, dynamic>>[];
 
@@ -40,22 +38,19 @@ class WebSocketEventParser {
       if (data is List) {
         for (final item in data) {
           if (item is Map<String, dynamic>) {
-            final notification =
-                _processNotificationItem(item, onEvent: onEvent);
+            final notification = _processNotificationItem(
+              item,
+              onEvent: onEvent,
+            );
             if (notification != null) notifications.add(notification);
           }
         }
       } else if (data is Map<String, dynamic>) {
-        final notification =
-            _processNotificationItem(data, onEvent: onEvent);
+        final notification = _processNotificationItem(data, onEvent: onEvent);
         if (notification != null) notifications.add(notification);
       }
     } catch (e) {
       logger.e('[OdooWebSocket]', 'Error parsing message: $e');
-    }
-
-    for (final n in notifications) {
-      onNotification(n);
     }
 
     return notifications;
@@ -119,8 +114,12 @@ class WebSocketEventParser {
           _handleCatalogEvent(mapping.catalogType!, payload, onEvent: onEvent);
         } else {
           _handleRecordEvent(
-              mapping.model, mapping.idField, mapping.nameField, payload,
-              onEvent: onEvent);
+            mapping.model,
+            mapping.idField,
+            mapping.nameField,
+            payload,
+            onEvent: onEvent,
+          );
         }
       }
     }
@@ -155,8 +154,12 @@ class WebSocketEventParser {
     final companyId = payload['company_id'] as int?;
     final newValues = payload['new_values'] as Map<String, dynamic>?;
     if (companyId != null) {
-      onEvent(OdooCompanyConfigEvent(
-          companyId: companyId, newValues: newValues ?? {}));
+      onEvent(
+        OdooCompanyConfigEvent(
+          companyId: companyId,
+          newValues: newValues ?? {},
+        ),
+      );
     }
   }
 
@@ -165,14 +168,16 @@ class WebSocketEventParser {
     OdooRecordAction action, {
     required void Function(OdooWebSocketEvent) onEvent,
   }) {
-    onEvent(OdooOrderLineEvent(
-      lineId: payload['id'] as int? ?? 0,
-      orderId: payload['order_id'] as int? ?? 0,
-      action: action,
-      values: payload,
-      changedFields:
-          (payload['changed_fields'] as List?)?.cast<String>() ?? [],
-    ));
+    onEvent(
+      OdooOrderLineEvent(
+        lineId: payload['id'] as int? ?? 0,
+        orderId: payload['order_id'] as int? ?? 0,
+        action: action,
+        values: payload,
+        changedFields:
+            (payload['changed_fields'] as List?)?.cast<String>() ?? [],
+      ),
+    );
   }
 
   void _handleCatalogEvent(
@@ -180,15 +185,19 @@ class WebSocketEventParser {
     Map<String, dynamic> payload, {
     required void Function(OdooWebSocketEvent) onEvent,
   }) {
-    final idField =
-        WebSocketModelRegistry.instance.getCatalogIdField(catalogType);
-    onEvent(OdooCatalogEvent(
-      catalogType: catalogType,
-      recordId: payload[idField] as int? ?? 0,
-      action: parseRecordAction(payload['action'] as String?) ??
-          OdooRecordAction.updated,
-      values: payload,
-    ));
+    final idField = WebSocketModelRegistry.instance.getCatalogIdField(
+      catalogType,
+    );
+    onEvent(
+      OdooCatalogEvent(
+        catalogType: catalogType,
+        recordId: payload[idField] as int? ?? 0,
+        action:
+            parseRecordAction(payload['action'] as String?) ??
+            OdooRecordAction.updated,
+        values: payload,
+      ),
+    );
   }
 
   void _handleRecordEvent(
@@ -201,15 +210,17 @@ class WebSocketEventParser {
     final action = payload['action'] as String?;
     final recordAction = parseRecordAction(action);
     if (recordAction != null) {
-      onEvent(OdooRecordEvent(
-        model: model,
-        recordId: payload[idField] as int? ?? 0,
-        recordName: payload[nameField] as String?,
-        action: recordAction,
-        values: payload['values'] as Map<String, dynamic>? ?? payload,
-        changedFields:
-            (payload['changed_fields'] as List?)?.cast<String>() ?? [],
-      ));
+      onEvent(
+        OdooRecordEvent(
+          model: model,
+          recordId: payload[idField] as int? ?? 0,
+          recordName: payload[nameField] as String?,
+          action: recordAction,
+          values: payload['values'] as Map<String, dynamic>? ?? payload,
+          changedFields:
+              (payload['changed_fields'] as List?)?.cast<String>() ?? [],
+        ),
+      );
     }
   }
 }

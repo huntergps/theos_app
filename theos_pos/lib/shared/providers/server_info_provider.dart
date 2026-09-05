@@ -1,6 +1,8 @@
 import 'dart:async';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:odoo_sdk/odoo_sdk.dart';
+
 import '../../core/database/repositories/repository_providers.dart';
 import '../../core/services/platform/server_connectivity_service.dart';
 
@@ -49,15 +51,18 @@ class ServerInfo {
 /// Provider that manages server info: URL, database, version, and synced time.
 ///
 /// Syncs server time on startup, every 10 minutes, and on connectivity restore.
-final serverInfoProvider =
-    NotifierProvider<ServerInfoNotifier, ServerInfo>(() => ServerInfoNotifier());
+final serverInfoProvider = NotifierProvider<ServerInfoNotifier, ServerInfo>(
+  () => ServerInfoNotifier(),
+);
 
 class ServerInfoNotifier extends Notifier<ServerInfo> {
   Timer? _syncTimer;
   bool _wasOffline = true;
+  bool _disposed = false;
 
   @override
   ServerInfo build() {
+    _disposed = false;
     // Read static info from OdooClient config
     final odooClient = ref.watch(odooClientProvider);
     if (odooClient != null) {
@@ -72,22 +77,22 @@ class ServerInfoNotifier extends Notifier<ServerInfo> {
       );
 
       // Listen to connectivity changes for re-sync on reconnect
-      ref.listen<AsyncValue<ConnectivityStatus>>(
-        connectivityStatusProvider,
-        (previous, next) {
-          next.whenData((status) {
-            final isOnline =
-                status.serverState == ServerConnectionState.online;
-            if (isOnline && _wasOffline) {
-              _syncServerTime();
-            }
-            _wasOffline = !isOnline;
-          });
-        },
-      );
+      ref.listen<AsyncValue<ConnectivityStatus>>(connectivityStatusProvider, (
+        previous,
+        next,
+      ) {
+        next.whenData((status) {
+          final isOnline = status.serverState == ServerConnectionState.online;
+          if (isOnline && _wasOffline) {
+            _syncServerTime();
+          }
+          _wasOffline = !isOnline;
+        });
+      });
 
       // Clean up timer on dispose
       ref.onDispose(() {
+        _disposed = true;
         _syncTimer?.cancel();
       });
 
@@ -132,6 +137,7 @@ class ServerInfoNotifier extends Notifier<ServerInfo> {
   /// as the sync reference. The display clock runs locally and resets its
   /// offset on each sync.
   Future<void> _syncServerTime() async {
+    if (_disposed) return;
     final odooClient = ref.read(odooClientProvider);
     if (odooClient == null) return;
 
@@ -144,13 +150,12 @@ class ServerInfoNotifier extends Notifier<ServerInfo> {
         method: 'search_count',
         kwargs: {'domain': []},
       );
+      if (_disposed) return;
 
       final localAfter = DateTime.now().toUtc();
 
       // Use the midpoint of the round-trip as the sync timestamp
-      final midpoint = localBefore.add(
-        localAfter.difference(localBefore) ~/ 2,
-      );
+      final midpoint = localBefore.add(localAfter.difference(localBefore) ~/ 2);
 
       state = state.copyWith(
         serverTimeOffset: Duration.zero,
@@ -161,6 +166,7 @@ class ServerInfoNotifier extends Notifier<ServerInfo> {
             : 'Odoo ${odooClient.version}',
       );
     } catch (e) {
+      if (_disposed) return;
       // Sync failed — keep last known state. This is non-critical;
       // the timer will retry on the next interval.
       logger.d('[ServerInfo] Time sync failed (non-critical): $e');

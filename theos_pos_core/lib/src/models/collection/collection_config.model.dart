@@ -84,6 +84,8 @@ abstract class CollectionConfig with _$CollectionConfig {
     @OdooBoolean(odooName: 'set_maximum_difference') @Default(false) bool setMaximumDifference,
     @OdooFloat(odooName: 'amount_authorized_diff') @Default(0.0) double amountAuthorizedDiff,
     @OdooMany2Many('res.users', odooName: 'user_ids') List<int>? userIds,
+    // Validated read-only capability snapshot, persisted for offline use.
+    @OdooLocalOnly() String? posAppCapabilitiesJson,
 
     // ============ Session Fields ============
     @OdooMany2One('collection.session', odooName: 'current_session_id') int? currentSessionId,

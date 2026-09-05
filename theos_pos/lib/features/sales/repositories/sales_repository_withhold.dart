@@ -38,8 +38,7 @@ extension SalesRepositoryWithhold on SalesRepository {
     final lineUuid = uuid ?? existingLine?.lineUuid;
     final wasSynced = existingLine?.isSynced ?? (lineOdooId != null);
 
-    // 2. Delete locally
-    try {
+    Future<int?> deleteSnapshotAndPersistIntent() async {
       if (lineOdooId != null) {
         await (appDb.delete(
           appDb.saleOrderWithholdLine,
@@ -49,22 +48,42 @@ extension SalesRepositoryWithhold on SalesRepository {
           appDb.saleOrderWithholdLine,
         )..where((t) => t.lineUuid.equals(lineUuid))).go();
       }
+
+      if (lineOdooId == null || !wasSynced) {
+        if (_offlineQueue != null && lineUuid != null) {
+          await _offlineQueue.removeOperationsForUuid(lineUuid);
+        }
+        return null;
+      }
+
+      return _offlineQueue?.queueOperation(
+        model: 'sale.order.withhold.line',
+        method: 'unlink',
+        recordId: lineOdooId,
+        values: {'uuid': lineUuid},
+        parentOrderId: orderId,
+        replayPolicy: OfflineReplayPolicy.retrySafe,
+      );
+    }
+
+    final int? operationId;
+    try {
+      operationId = _offlineQueue == null
+          ? await deleteSnapshotAndPersistIntent()
+          : await appDb.transaction(deleteSnapshotAndPersistIntent);
       logger.d(
         '[SalesRepository] 🗑️ Withhold line deleted locally: odooId=$lineOdooId, uuid=$lineUuid',
       );
     } catch (e) {
-      logger.e('[SalesRepository]', 'Error deleting withhold line locally: $e');
+      logger.e(
+        '[SalesRepository]',
+        'Withhold delete snapshot/outbox transaction failed: $e',
+      );
       return false;
     }
 
-    // 3. If line was never synced to Odoo (local-only), we're done
+    // A local-only row and its pending create were retired atomically.
     if (lineOdooId == null || !wasSynced) {
-      if (_offlineQueue != null && lineUuid != null) {
-        await _offlineQueue.removeOperationsForUuid(lineUuid);
-        logger.d(
-          '[SalesRepository] 🗑️ Removed queued ops for withhold UUID: $lineUuid',
-        );
-      }
       return true;
     }
 
@@ -78,6 +97,9 @@ extension SalesRepositoryWithhold on SalesRepository {
           ids: [lineOdooId],
         );
         if (success) {
+          if (operationId != null) {
+            await _offlineQueue?.removeOperation(operationId);
+          }
           logger.i(
             '[SalesRepository] ✅ Withhold line $lineOdooId deleted from server',
           );
@@ -88,15 +110,8 @@ extension SalesRepositoryWithhold on SalesRepository {
       }
     }
 
-    // 5. Queue deletion for later if offline or sync failed
-    if (_offlineQueue != null) {
-      await _offlineQueue.queueOperation(
-        model: 'sale.order.withhold.line',
-        method: 'unlink',
-        recordId: lineOdooId,
-        values: {'uuid': lineUuid},
-        parentOrderId: orderId,
-      );
+    // The unlink intent was committed with the local deletion.
+    if (operationId != null) {
       logger.i(
         '[SalesRepository] 📥 Withhold line deletion queued: ID=$lineOdooId',
       );
@@ -117,26 +132,34 @@ extension SalesRepositoryWithhold on SalesRepository {
         appDb.saleOrderWithholdLine,
       )..where((t) => t.orderId.equals(orderId))).get();
 
-      // Queue deletions for lines that were synced to Odoo
-      for (final line in existingLines) {
-        if (line.odooId != null && line.odooId! > 0) {
-          // Queue deletion for Odoo
-          if (_offlineQueue != null) {
-            await _offlineQueue.queueOperation(
+      Future<void> deleteSnapshotsAndPersistIntents() async {
+        for (final line in existingLines) {
+          if (line.odooId != null && line.odooId! > 0) {
+            await _offlineQueue!.queueOperation(
               model: 'sale.order.withhold.line',
               method: 'unlink',
               recordId: line.odooId!,
               values: {'uuid': line.lineUuid},
               parentOrderId: orderId,
+              replayPolicy: OfflineReplayPolicy.retrySafe,
             );
+          } else if (line.lineUuid != null) {
+            await _offlineQueue!.removeOperationsForUuid(line.lineUuid);
           }
         }
+
+        await (appDb.delete(
+          appDb.saleOrderWithholdLine,
+        )..where((t) => t.orderId.equals(orderId))).go();
       }
 
-      // Delete all locally
-      await (appDb.delete(
-        appDb.saleOrderWithholdLine,
-      )..where((t) => t.orderId.equals(orderId))).go();
+      if (_offlineQueue == null) {
+        await (appDb.delete(
+          appDb.saleOrderWithholdLine,
+        )..where((t) => t.orderId.equals(orderId))).go();
+      } else {
+        await appDb.transaction(deleteSnapshotsAndPersistIntents);
+      }
 
       logger.d(
         '[SalesRepository] 🗑️ Deleted ${existingLines.length} withhold lines for order $orderId',
@@ -181,9 +204,36 @@ extension SalesRepositoryWithhold on SalesRepository {
         isSynced: const drift.Value(false),
       );
 
-      final localId = await appDb
-          .into(appDb.saleOrderWithholdLine)
-          .insert(companion);
+      final odooValues = <String, dynamic>{
+        'sale_id': orderId,
+        'tax_id': values['tax_id'],
+        'base': values['base'],
+        'amount': values['amount'],
+        if (values['taxsupport_code'] != null)
+          'taxsupport_code': values['taxsupport_code'],
+        if (values['notes'] != null) 'notes': values['notes'],
+      };
+
+      var operationId = 0;
+      Future<int> persistSnapshotAndIntent() async {
+        final localId = await appDb
+            .into(appDb.saleOrderWithholdLine)
+            .insert(companion);
+        if (_offlineQueue != null) {
+          operationId = await _offlineQueue.queueOperation(
+            model: 'sale.order.withhold.line',
+            method: 'create',
+            values: {'uuid': lineUuid, 'local_id': localId, ...odooValues},
+            parentOrderId: orderId,
+            replayPolicy: OfflineReplayPolicy.retrySafe,
+          );
+        }
+        return localId;
+      }
+
+      final localId = _offlineQueue == null
+          ? await persistSnapshotAndIntent()
+          : await appDb.transaction(persistSnapshotAndIntent);
       logger.d(
         '[SalesRepository] 💾 Withhold line saved locally: ID=$localId, UUID=$lineUuid',
       );
@@ -193,28 +243,24 @@ extension SalesRepositoryWithhold on SalesRepository {
         try {
           final result = await withholdLineManager.client.create(
             model: withholdLineManager.odooModel,
-            values: {
-              'sale_id': orderId,
-              'tax_id': values['tax_id'],
-              'base': values['base'],
-              'amount': values['amount'],
-              if (values['taxsupport_code'] != null)
-                'taxsupport_code': values['taxsupport_code'],
-              if (values['notes'] != null) 'notes': values['notes'],
-            },
+            values: odooValues,
           );
 
           if (result != null) {
-            // Update local record with Odoo ID
-            await (appDb.update(
-              appDb.saleOrderWithholdLine,
-            )..where((t) => t.id.equals(localId))).write(
-              SaleOrderWithholdLineCompanion(
-                odooId: drift.Value(result),
-                isSynced: const drift.Value(true),
-                lastSyncDate: drift.Value(DateTime.now()),
-              ),
-            );
+            await appDb.transaction(() async {
+              await (appDb.update(
+                appDb.saleOrderWithholdLine,
+              )..where((t) => t.id.equals(localId))).write(
+                SaleOrderWithholdLineCompanion(
+                  odooId: drift.Value(result),
+                  isSynced: const drift.Value(true),
+                  lastSyncDate: drift.Value(DateTime.now()),
+                ),
+              );
+              if (operationId > 0) {
+                await _offlineQueue?.removeOperation(operationId);
+              }
+            });
             logger.i(
               '[SalesRepository] ✅ Withhold line synced: local=$localId, odoo=$result',
             );
@@ -225,24 +271,8 @@ extension SalesRepositoryWithhold on SalesRepository {
         }
       }
 
-      // 3. Queue for later if offline or sync failed
-      if (_offlineQueue != null) {
-        await _offlineQueue.queueOperation(
-          model: 'sale.order.withhold.line',
-          method: 'create',
-          values: {
-            'uuid': lineUuid,
-            'local_id': localId,
-            'sale_id': orderId,
-            'tax_id': values['tax_id'],
-            'base': values['base'],
-            'amount': values['amount'],
-            if (values['taxsupport_code'] != null)
-              'taxsupport_code': values['taxsupport_code'],
-            if (values['notes'] != null) 'notes': values['notes'],
-          },
-          parentOrderId: orderId,
-        );
+      // The durable create intent already exists if immediate dispatch failed.
+      if (operationId > 0) {
         logger.i(
           '[SalesRepository] 📥 Withhold line queued for sync: UUID=$lineUuid',
         );
@@ -291,8 +321,7 @@ extension SalesRepositoryWithhold on SalesRepository {
     final lineUuid = uuid ?? existingLine?.lineUuid;
     final wasSynced = existingLine?.isSynced ?? (lineOdooId != null);
 
-    // 2. Delete locally
-    try {
+    Future<int?> deleteSnapshotAndPersistIntent() async {
       if (lineOdooId != null) {
         await (appDb.delete(
           appDb.saleOrderPaymentLine,
@@ -302,22 +331,41 @@ extension SalesRepositoryWithhold on SalesRepository {
           appDb.saleOrderPaymentLine,
         )..where((t) => t.lineUuid.equals(lineUuid))).go();
       }
+
+      if (lineOdooId == null || !wasSynced) {
+        if (_offlineQueue != null && lineUuid != null) {
+          await _offlineQueue.removeOperationsForUuid(lineUuid);
+        }
+        return null;
+      }
+
+      return _offlineQueue?.queueOperation(
+        model: 'l10n_ec_collection_box.sale.order.payment',
+        method: 'unlink',
+        recordId: lineOdooId,
+        values: {'uuid': lineUuid},
+        parentOrderId: orderId,
+        replayPolicy: OfflineReplayPolicy.retrySafe,
+      );
+    }
+
+    final int? operationId;
+    try {
+      operationId = _offlineQueue == null
+          ? await deleteSnapshotAndPersistIntent()
+          : await appDb.transaction(deleteSnapshotAndPersistIntent);
       logger.d(
         '[SalesRepository] 🗑️ Payment line deleted locally: odooId=$lineOdooId, uuid=$lineUuid',
       );
     } catch (e) {
-      logger.e('[SalesRepository]', 'Error deleting payment line locally: $e');
+      logger.e(
+        '[SalesRepository]',
+        'Payment delete snapshot/outbox transaction failed: $e',
+      );
       return false;
     }
 
-    // 3. If line was never synced to Odoo (local-only), we're done
     if (lineOdooId == null || !wasSynced) {
-      if (_offlineQueue != null && lineUuid != null) {
-        await _offlineQueue.removeOperationsForUuid(lineUuid);
-        logger.d(
-          '[SalesRepository] 🗑️ Removed queued ops for payment UUID: $lineUuid',
-        );
-      }
       return true;
     }
 
@@ -331,6 +379,9 @@ extension SalesRepositoryWithhold on SalesRepository {
           ids: [lineOdooId],
         );
         if (success) {
+          if (operationId != null) {
+            await _offlineQueue?.removeOperation(operationId);
+          }
           logger.i(
             '[SalesRepository] ✅ Payment line $lineOdooId deleted from server',
           );
@@ -341,15 +392,7 @@ extension SalesRepositoryWithhold on SalesRepository {
       }
     }
 
-    // 5. Queue deletion for later if offline or sync failed
-    if (_offlineQueue != null) {
-      await _offlineQueue.queueOperation(
-        model: 'l10n_ec_collection_box.sale.order.payment',
-        method: 'unlink',
-        recordId: lineOdooId,
-        values: {'uuid': lineUuid},
-        parentOrderId: orderId,
-      );
+    if (operationId != null) {
       logger.i(
         '[SalesRepository] 📥 Payment line deletion queued: ID=$lineOdooId',
       );
@@ -421,9 +464,64 @@ extension SalesRepositoryWithhold on SalesRepository {
         isSynced: const drift.Value(false),
       );
 
-      final localId = await appDb
-          .into(appDb.saleOrderPaymentLine)
-          .insert(companion);
+      final odooValues = <String, dynamic>{
+        'sale_id': orderId,
+        'amount': values['amount'],
+        'date': values['date'] != null
+            ? (values['date'] as DateTime).toIso8601String().split('T')[0]
+            : DateTime.now().toIso8601String().split('T')[0],
+        if (values['journal_id'] != null) 'journal_id': values['journal_id'],
+        if (values['payment_method_line_id'] != null)
+          'payment_method_line_id': values['payment_method_line_id'],
+        if (values['payment_reference'] != null)
+          'payment_reference': values['payment_reference'],
+        if (values['credit_note_id'] != null)
+          'credit_note_id': values['credit_note_id'],
+        if (values['advance_id'] != null) 'advance_id': values['advance_id'],
+        if (values['card_type'] != null) 'card_type': values['card_type'],
+        if (values['card_brand_id'] != null)
+          'card_brand_id': values['card_brand_id'],
+        if (values['card_deadline_id'] != null)
+          'card_deadline_id': values['card_deadline_id'],
+        if (values['lote_id'] != null) 'lote_id': values['lote_id'],
+        if (values['partner_bank_id'] != null)
+          'partner_bank_id': values['partner_bank_id'],
+        if (values['effective_date'] != null)
+          'effective_date': (values['effective_date'] as DateTime)
+              .toIso8601String()
+              .split('T')[0],
+        if (values['collection_session_id'] != null)
+          'collection_session_id': values['collection_session_id'],
+      };
+      // The UI's bank_id is a local DTO key for the custom bank catalog.
+      // Preserve it in the durable payload even when the client is offline.
+      if (values['bank_id'] != null) {
+        odooValues['l10n_ec_bank_id'] = values['bank_id'];
+      }
+      if (values['bank_name'] != null) {
+        odooValues['bank_name_ec'] = values['bank_name'];
+      }
+
+      var operationId = 0;
+      Future<int> persistSnapshotAndIntent() async {
+        final localId = await appDb
+            .into(appDb.saleOrderPaymentLine)
+            .insert(companion);
+        if (_offlineQueue != null) {
+          operationId = await _offlineQueue.queueOperation(
+            model: 'l10n_ec_collection_box.sale.order.payment',
+            method: 'create',
+            values: {'uuid': lineUuid, 'local_id': localId, ...odooValues},
+            parentOrderId: orderId,
+            replayPolicy: OfflineReplayPolicy.retrySafe,
+          );
+        }
+        return localId;
+      }
+
+      final localId = _offlineQueue == null
+          ? await persistSnapshotAndIntent()
+          : await appDb.transaction(persistSnapshotAndIntent);
       logger.d(
         '[SalesRepository] 💾 Payment line saved locally: ID=$localId, UUID=$lineUuid',
       );
@@ -431,71 +529,6 @@ extension SalesRepositoryWithhold on SalesRepository {
       // 2. If online, sync immediately
       if (isOnline) {
         try {
-          // Prepare Odoo values
-          final odooValues = <String, dynamic>{
-            'sale_id': orderId,
-            'amount': values['amount'],
-            'date': values['date'] != null
-                ? (values['date'] as DateTime).toIso8601String().split('T')[0]
-                : DateTime.now().toIso8601String().split('T')[0],
-          };
-
-          // Add optional fields
-          if (values['journal_id'] != null) {
-            odooValues['journal_id'] = values['journal_id'];
-          }
-          if (values['payment_method_line_id'] != null) {
-            odooValues['payment_method_line_id'] =
-                values['payment_method_line_id'];
-          }
-          if (values['payment_reference'] != null) {
-            odooValues['payment_reference'] = values['payment_reference'];
-          }
-          if (values['credit_note_id'] != null) {
-            odooValues['credit_note_id'] = values['credit_note_id'];
-          }
-          if (values['advance_id'] != null) {
-            odooValues['advance_id'] = values['advance_id'];
-          }
-          if (values['card_type'] != null) {
-            odooValues['card_type'] = values['card_type'];
-          }
-          if (values['card_brand_id'] != null) {
-            odooValues['card_brand_id'] = values['card_brand_id'];
-          }
-          if (values['card_deadline_id'] != null) {
-            odooValues['card_deadline_id'] = values['card_deadline_id'];
-          }
-          if (values['lote_id'] != null) {
-            odooValues['lote_id'] = values['lote_id'];
-          }
-          // FIX 4: bank_id solo existe en Odoo 19.1. En 19.2 usar bank_name_ec.
-          final client = paymentLineManager.isOnline ? paymentLineManager.client : null;
-          if (client != null) {
-            if (client.version.hasBankModel) {
-              if (values['bank_id'] != null) {
-                odooValues['bank_id'] = values['bank_id'];
-              }
-            } else {
-              if (values['bank_name'] != null) {
-                odooValues['bank_name_ec'] = values['bank_name'];
-              }
-            }
-          }
-          if (values['partner_bank_id'] != null) {
-            odooValues['partner_bank_id'] = values['partner_bank_id'];
-          }
-          if (values['effective_date'] != null) {
-            odooValues['effective_date'] =
-                (values['effective_date'] as DateTime).toIso8601String().split(
-                  'T',
-                )[0];
-          }
-          if (values['collection_session_id'] != null) {
-            odooValues['collection_session_id'] =
-                values['collection_session_id'];
-          }
-
           // F6: @OdooModel de PaymentLine ya corregido — usa
           // paymentLineManager.odooModel directamente.
           final result = await paymentLineManager.client.create(
@@ -504,16 +537,20 @@ extension SalesRepositoryWithhold on SalesRepository {
           );
 
           if (result != null) {
-            // Update local record with Odoo ID
-            await (appDb.update(
-              appDb.saleOrderPaymentLine,
-            )..where((t) => t.id.equals(localId))).write(
-              SaleOrderPaymentLineCompanion(
-                odooId: drift.Value(result),
-                isSynced: const drift.Value(true),
-                lastSyncDate: drift.Value(DateTime.now()),
-              ),
-            );
+            await appDb.transaction(() async {
+              await (appDb.update(
+                appDb.saleOrderPaymentLine,
+              )..where((t) => t.id.equals(localId))).write(
+                SaleOrderPaymentLineCompanion(
+                  odooId: drift.Value(result),
+                  isSynced: const drift.Value(true),
+                  lastSyncDate: drift.Value(DateTime.now()),
+                ),
+              );
+              if (operationId > 0) {
+                await _offlineQueue?.removeOperation(operationId);
+              }
+            });
             logger.i(
               '[SalesRepository] ✅ Payment line synced: local=$localId, odoo=$result',
             );
@@ -524,40 +561,7 @@ extension SalesRepositoryWithhold on SalesRepository {
         }
       }
 
-      // 3. Queue for later if offline or sync failed
-      if (_offlineQueue != null) {
-        await _offlineQueue.queueOperation(
-          model: 'l10n_ec_collection_box.sale.order.payment',
-          method: 'create',
-          values: {
-            'uuid': lineUuid,
-            'local_id': localId,
-            'sale_id': orderId,
-            'amount': values['amount'],
-            'date': values['date'] != null
-                ? (values['date'] as DateTime).toIso8601String().split('T')[0]
-                : DateTime.now().toIso8601String().split('T')[0],
-            if (values['journal_id'] != null)
-              'journal_id': values['journal_id'],
-            if (values['payment_method_line_id'] != null)
-              'payment_method_line_id': values['payment_method_line_id'],
-            if (values['payment_reference'] != null)
-              'payment_reference': values['payment_reference'],
-            if (values['credit_note_id'] != null)
-              'credit_note_id': values['credit_note_id'],
-            if (values['advance_id'] != null)
-              'advance_id': values['advance_id'],
-            if (values['card_type'] != null) 'card_type': values['card_type'],
-            if (values['card_brand_id'] != null)
-              'card_brand_id': values['card_brand_id'],
-            if (values['card_deadline_id'] != null)
-              'card_deadline_id': values['card_deadline_id'],
-            if (values['lote_id'] != null) 'lote_id': values['lote_id'],
-            if (values['collection_session_id'] != null)
-              'collection_session_id': values['collection_session_id'],
-          },
-          parentOrderId: orderId,
-        );
+      if (operationId > 0) {
         logger.i(
           '[SalesRepository] 📥 Payment line queued for sync: UUID=$lineUuid',
         );

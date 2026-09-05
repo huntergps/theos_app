@@ -11,13 +11,29 @@ import 'package:theos_pos_core/theos_pos_core.dart'
 
 import '../../../../core/database/providers.dart';
 import '../../../../core/database/repositories/repository_providers.dart';
-import '../../../../core/services/logger_service.dart';
+
+import 'package:odoo_sdk/odoo_sdk.dart' show logger;
+
 import '../../../../core/theme/spacing.dart';
 import '../../../../shared/utils/error_utils.dart';
 import '../../../../shared/widgets/common/theos_info_bars.dart';
 import '../../../../shared/widgets/dialogs/copyable_info_bar.dart';
 import 'cash_count_dialog.dart';
 import 'widgets/widgets.dart';
+
+/// Mirrors the native create constraint: only an opening or already-open
+/// session reserves a config. Paused/closing-control sessions are allowed to
+/// coexist while Odoo completes their state transition.
+bool blocksNewSessionForConfig(
+  CollectionSession? currentSession,
+  int configId,
+) {
+  if (currentSession == null || currentSession.configId != configId) {
+    return false;
+  }
+  return currentSession.state == SessionState.openingControl ||
+      currentSession.state == SessionState.opened;
+}
 
 class CollectionDashboardScreen extends ConsumerStatefulWidget {
   const CollectionDashboardScreen({super.key});
@@ -106,11 +122,17 @@ class _CollectionDashboardScreenState
 
       final openingBalance =
           openingCash?.cashTotal ?? localSession.cashRegisterBalanceStart;
+      final userId = localSession.userId;
+      if (userId == null || userId <= 0) {
+        throw StateError(
+          'La sesión local no tiene un usuario válido; requiere recuperación',
+        );
+      }
 
       // Create session in Odoo
       final createdSessionId = await repo.createCollectionSession(
         configId: config.id,
-        userId: localSession.userId ?? 2,
+        userId: userId,
         cashRegisterBalanceStart: openingBalance,
         sessionUuid: localSession.sessionUuid,
       );
@@ -231,8 +253,7 @@ class _CollectionDashboardScreenState
                 if (configs.isEmpty) {
                   return TheosInfoBars.warning(
                     title: 'Sin puntos de cobro',
-                    message:
-                        'No tiene puntos de cobro asignados. Contacte al administrador.',
+                    message: 'No tiene puntos de cobro asignados. Contacte al administrador.',
                   );
                 }
 
@@ -426,10 +447,7 @@ class _CollectionDashboardScreenState
       );
       ref.read(currentSessionProvider.notifier).set(sessionToUse);
 
-      // 7. Invalidar providers para refrescar UI con el nombre correcto
-      ref.invalidate(sessionByIdProvider(createdSessionId));
-      // También invalidar el ID temporal - la próxima lectura obtendrá los datos actualizados
-      ref.invalidate(sessionByIdProvider(localSession.id));
+      // Refrescar las configuraciones que alimentan el dashboard.
       ref.invalidate(collectionConfigsProvider);
 
       logger.d(
@@ -455,8 +473,7 @@ class _CollectionDashboardScreenState
         CopyableInfoBar.showWarning(
           context,
           title: 'Guardado localmente',
-          message:
-              'La sesión se guardó localmente. Se sincronizará con el servidor cuando haya conexión.',
+          message: 'La sesión se guardó localmente. Se sincronizará con el servidor cuando haya conexión.',
           durationSeconds: warningDuration,
         );
       }
@@ -469,7 +486,7 @@ class _CollectionDashboardScreenState
   ) async {
     // ✅ Check if there's already a local session for this config
     final currentSession = ref.read(currentSessionProvider);
-    if (currentSession != null && currentSession.configId == config.id) {
+    if (blocksNewSessionForConfig(currentSession, config.id)) {
       // There's already a local session for this config
       if (context.mounted) {
         final warningDuration = ref.read(warningNotificationDurationProvider);
@@ -577,7 +594,8 @@ class _CollectionDashboardScreenState
           CopyableInfoBar.showError(
             context,
             title: 'Error al crear sesión',
-            message: 'No se pudo crear la sesión de cobranza. Intente nuevamente.',
+            message:
+                'No se pudo crear la sesión de cobranza. Intente nuevamente.',
             durationSeconds: errorDuration,
           );
         }

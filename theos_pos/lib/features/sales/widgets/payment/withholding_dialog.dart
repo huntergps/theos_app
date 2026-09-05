@@ -9,6 +9,7 @@ import '../../../../shared/widgets/dialogs/base_form_dialog.dart';
 import '../../providers/service_providers.dart';
 import '../../services/payment_service.dart';
 import '../../../../shared/widgets/dialogs/copyable_info_bar.dart';
+
 import 'package:theos_pos_core/theos_pos_core.dart';
 
 /// Diálogo para registrar retenciones del cliente.
@@ -141,9 +142,16 @@ class _WithholdingDialogState extends ConsumerState<WithholdingDialog> {
       _rentaTypes = types.where((t) => t.code.startsWith('3')).toList();
 
       // Pre-fill lines from initialWithholdLines if provided
-      logger.i('[WithholdingDialog]', 'Checking initialWithholdLines: ${widget.initialWithholdLines?.length ?? "null"}');
-      if (widget.initialWithholdLines != null && widget.initialWithholdLines!.isNotEmpty) {
-        logger.i('[WithholdingDialog]', 'Calling _prefillLinesFromSaleOrder with ${types.length} types');
+      logger.i(
+        '[WithholdingDialog]',
+        'Checking initialWithholdLines: ${widget.initialWithholdLines?.length ?? "null"}',
+      );
+      if (widget.initialWithholdLines != null &&
+          widget.initialWithholdLines!.isNotEmpty) {
+        logger.i(
+          '[WithholdingDialog]',
+          'Calling _prefillLinesFromSaleOrder with ${types.length} types',
+        );
         _prefillLinesFromSaleOrder(types);
       } else {
         logger.i('[WithholdingDialog]', 'No initialWithholdLines to pre-fill');
@@ -163,7 +171,10 @@ class _WithholdingDialogState extends ConsumerState<WithholdingDialog> {
   /// Pre-fill withhold lines from sale order withhold lines
   void _prefillLinesFromSaleOrder(List<WithholdingType> availableTypes) {
     logger.i('[WithholdingDialog]', '=== PRE-FILL LINES DEBUG ===');
-    logger.i('[WithholdingDialog]', 'initialWithholdLines: ${widget.initialWithholdLines?.length ?? "null"}');
+    logger.i(
+      '[WithholdingDialog]',
+      'initialWithholdLines: ${widget.initialWithholdLines?.length ?? "null"}',
+    );
     logger.i('[WithholdingDialog]', 'availableTypes: ${availableTypes.length}');
 
     if (widget.initialWithholdLines == null) {
@@ -172,7 +183,10 @@ class _WithholdingDialogState extends ConsumerState<WithholdingDialog> {
     }
 
     for (final saleOrderLine in widget.initialWithholdLines!) {
-      logger.i('[WithholdingDialog]', 'Processing line: taxId=${saleOrderLine.taxId}, taxName=${saleOrderLine.taxName}');
+      logger.i(
+        '[WithholdingDialog]',
+        'Processing line: taxId=${saleOrderLine.taxId}, taxName=${saleOrderLine.taxName}',
+      );
 
       // Find matching withholding type by tax_id
       WithholdingType? found;
@@ -183,15 +197,25 @@ class _WithholdingDialogState extends ConsumerState<WithholdingDialog> {
         }
       }
 
-      final matchingType = found ?? WithholdingType(
-        id: saleOrderLine.taxId,
-        code: saleOrderLine.withholdType == WithholdType.vatSale ? '1' : '3',
-        name: saleOrderLine.taxName,
-        percentage: saleOrderLine.taxPercent * 100,
-      );
+      final matchingType =
+          found ??
+          WithholdingType(
+            id: saleOrderLine.taxId,
+            code: saleOrderLine.withholdType == WithholdType.vatSale
+                ? '1'
+                : '3',
+            name: saleOrderLine.taxName,
+            percentage: saleOrderLine.taxPercent * 100,
+          );
 
-      logger.i('[WithholdingDialog]', '  Matched type: ${matchingType.name} (${matchingType.percentage}%)');
-      logger.i('[WithholdingDialog]', '  Adding line: base=${saleOrderLine.base}, amount=${saleOrderLine.amount}');
+      logger.i(
+        '[WithholdingDialog]',
+        '  Matched type: ${matchingType.name} (${matchingType.percentage}%)',
+      );
+      logger.i(
+        '[WithholdingDialog]',
+        '  Adding line: base=${saleOrderLine.base}, amount=${saleOrderLine.amount}',
+      );
 
       _lines.add(
         _WithholdingLineEntry(
@@ -202,7 +226,10 @@ class _WithholdingDialogState extends ConsumerState<WithholdingDialog> {
       );
     }
 
-    logger.i('[WithholdingDialog]', 'Total lines after pre-fill: ${_lines.length}');
+    logger.i(
+      '[WithholdingDialog]',
+      'Total lines after pre-fill: ${_lines.length}',
+    );
   }
 
   double get _totalWithholding =>
@@ -294,7 +321,9 @@ class _WithholdingDialogState extends ConsumerState<WithholdingDialog> {
     if (auth.isEmpty) {
       errors.add('El número de autorización es requerido');
     } else if (auth.length != 49) {
-      errors.add('El número de autorización debe tener exactamente 49 dígitos (tiene ${auth.length})');
+      errors.add(
+        'El número de autorización debe tener exactamente 49 dígitos (tiene ${auth.length})',
+      );
     } else if (!RegExp(r'^\d{49}$').hasMatch(auth)) {
       errors.add('El número de autorización solo debe contener dígitos');
     }
@@ -367,7 +396,8 @@ class _WithholdingDialogState extends ConsumerState<WithholdingDialog> {
     return ContentDialog(
       constraints: BoxConstraints(
         maxWidth: _config.maxWidth,
-        maxHeight: _config.maxHeight ?? MediaQuery.of(context).size.height * 0.9,
+        maxHeight:
+            _config.maxHeight ?? MediaQuery.of(context).size.height * 0.9,
       ),
       title: Row(
         children: [

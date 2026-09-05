@@ -1,6 +1,6 @@
 // GENERATED CODE - DO NOT MODIFY BY HAND
 // coverage:ignore-file
-// ignore_for_file: type=lint
+// ignore_for_file: type=lint, type=warning, deprecated_member_use, deprecated_member_use_from_same_package
 // ignore_for_file: unused_element, deprecated_member_use, deprecated_member_use_from_same_package, use_function_type_syntax_for_parameters, unnecessary_const, avoid_init_to_null, invalid_override_different_default_values_named, prefer_expression_function_bodies, annotate_overrides, invalid_annotation_target, unnecessary_question_mark
 
 part of 'collection_session.model.dart';
@@ -9,38 +9,14 @@ part of 'collection_session.model.dart';
 // FreezedGenerator
 // **************************************************************************
 
+// GENERATED CODE - DO NOT MODIFY BY HAND
 // dart format off
 T _$identity<T>(T value) => value;
 
 /// @nodoc
 mixin _$CollectionSession {
 
-@OdooId() int get id;@OdooString() String get name;@OdooSelection() SessionState get state;@OdooString(odooName: 'session_uuid') String? get sessionUuid;// Relaciones
-@OdooMany2One('collection.config', odooName: 'config_id') int? get configId;@OdooMany2OneName(sourceField: 'config_id') String? get configName;@OdooMany2One('res.company', odooName: 'company_id') int? get companyId;@OdooMany2OneName(sourceField: 'company_id') String? get companyName;@OdooMany2One('res.users', odooName: 'user_id') int? get userId;@OdooMany2OneName(sourceField: 'user_id') String? get userName;@OdooMany2One('res.currency', odooName: 'currency_id') int? get currencyId;// Odoo 19.5 (erp1): 'currency_symbol' ya no existe en collection.session
-// del servidor (smoke fields_get, julio 2026). sessionUuid de este
-// modelo SÍ existe en el servidor — no se toca.
-@OdooLocalOnly() String? get currencySymbol;@OdooMany2One('account.journal', odooName: 'cash_journal_id') int? get cashJournalId;@OdooMany2OneName(sourceField: 'cash_journal_id') String? get cashJournalName;// Fechas
-@OdooDateTime(odooName: 'start_at') DateTime? get startAt;@OdooDateTime(odooName: 'stop_at') DateTime? get stopAt;// Control de efectivo
-@OdooFloat(odooName: 'cash_register_balance_start') double get cashRegisterBalanceStart;@OdooFloat(odooName: 'cash_register_balance_end_real') double get cashRegisterBalanceEndReal;@OdooFloat(odooName: 'cash_register_balance_end') double get cashRegisterBalanceEnd;@OdooFloat(odooName: 'cash_register_difference') double get cashRegisterDifference;// Contadores
-@OdooInteger(odooName: 'order_count') int get orderCount;@OdooInteger(odooName: 'invoice_count') int get invoiceCount;@OdooInteger(odooName: 'payment_count') int get paymentCount;@OdooInteger(odooName: 'advance_count') int get advanceCount;@OdooInteger(odooName: 'cheque_recibido_count') int get chequeRecibidoCount;@OdooInteger(odooName: 'cash_out_count') int get cashOutCount;@OdooInteger(odooName: 'deposit_count') int get depositCount;@OdooInteger(odooName: 'withhold_count') int get withholdCount;// Totales monetarios
-@OdooFloat(odooName: 'total_payments_amount') double get totalPaymentsAmount;@OdooFloat(odooName: 'total_cash_out_amount') double get totalCashOutAmount;@OdooFloat(odooName: 'total_deposit_amount') double get totalDepositAmount;@OdooFloat(odooName: 'total_withhold_amount') double get totalWithholdAmount;@OdooFloat(odooName: 'total_cash_advance_amount') double get totalCashAdvanceAmount;// Desglose salidas de efectivo
-@OdooFloat(odooName: 'cash_out_security_total') double get cashOutSecurityTotal;@OdooFloat(odooName: 'cash_out_invoice_total') double get cashOutInvoiceTotal;@OdooFloat(odooName: 'cash_out_refund_total') double get cashOutRefundTotal;@OdooFloat(odooName: 'cash_out_withhold_total') double get cashOutWithholdTotal;@OdooFloat(odooName: 'cash_out_other_total') double get cashOutOtherTotal;// Totales de cheques
-@OdooFloat(odooName: 'checks_on_day_total') double get checksOnDayTotal;@OdooFloat(odooName: 'checks_postdated_total') double get checksPostdatedTotal;@OdooFloat(odooName: 'advance_checks_on_day_total') double get advanceChecksOnDayTotal;@OdooFloat(odooName: 'advance_checks_postdated_total') double get advanceChecksPostdatedTotal;@OdooFloat(odooName: 'total_checks_on_day') double get totalChecksOnDay;@OdooFloat(odooName: 'total_checks_postdated') double get totalChecksPostdated;// Control de depositos
-@OdooFloat(odooName: 'system_deposits_cash_total') double get systemDepositsCashTotal;@OdooFloat(odooName: 'manual_deposits_cash_total') double get manualDepositsCashTotal;@OdooFloat(odooName: 'diff_deposits_cash_total') double get diffDepositsCashTotal;@OdooFloat(odooName: 'system_deposits_checks_total') double get systemDepositsChecksTotal;@OdooFloat(odooName: 'manual_deposits_checks_total') double get manualDepositsChecksTotal;@OdooFloat(odooName: 'diff_deposits_checks_total') double get diffDepositsChecksTotal;// Facturas del cierre
-@OdooFloat(odooName: 'total_cash_invoices_amount') double get totalCashInvoicesAmount;@OdooFloat(odooName: 'total_cash_collected_amount') double get totalCashCollectedAmount;@OdooFloat(odooName: 'total_cash_pending_amount') double get totalCashPendingAmount;@OdooFloat(odooName: 'total_credit_orders_amount') double get totalCreditOrdersAmount;@OdooFloat(odooName: 'total_credit_invoices_amount') double get totalCreditInvoicesAmount;@OdooFloat(odooName: 'credit_sales_difference') double get creditSalesDifference;// Conteo manual - Sistema
-@OdooFloat(odooName: 'system_checks_on_day') double get systemChecksOnDay;@OdooFloat(odooName: 'system_checks_postdated') double get systemChecksPostdated;@OdooFloat(odooName: 'system_cards_total') double get systemCardsTotal;@OdooFloat(odooName: 'system_transfers_total') double get systemTransfersTotal;@OdooFloat(odooName: 'system_advances_total') double get systemAdvancesTotal;@OdooFloat(odooName: 'system_credit_notes_total') double get systemCreditNotesTotal;// Conteo manual - Manual
-@OdooFloat(odooName: 'manual_checks_on_day') double get manualChecksOnDay;@OdooFloat(odooName: 'manual_checks_postdated') double get manualChecksPostdated;@OdooFloat(odooName: 'manual_cards_total') double get manualCardsTotal;@OdooFloat(odooName: 'manual_transfers_total') double get manualTransfersTotal;@OdooFloat(odooName: 'manual_advances_total') double get manualAdvancesTotal;@OdooFloat(odooName: 'manual_credit_notes_total') double get manualCreditNotesTotal;@OdooFloat(odooName: 'manual_withholds_total') double get manualWithholdsTotal;// Conteo manual - Diferencias
-@OdooFloat(odooName: 'diff_checks_on_day') double get diffChecksOnDay;@OdooFloat(odooName: 'diff_checks_postdated') double get diffChecksPostdated;@OdooFloat(odooName: 'diff_cards_total') double get diffCardsTotal;@OdooFloat(odooName: 'diff_transfers_total') double get diffTransfersTotal;@OdooFloat(odooName: 'diff_advances_total') double get diffAdvancesTotal;@OdooFloat(odooName: 'diff_credit_notes_total') double get diffCreditNotesTotal;@OdooFloat(odooName: 'diff_withholds_total') double get diffWithholdsTotal;// Totales resumen
-@OdooFloat(odooName: 'summary_system_total') double get summarySystemTotal;@OdooFloat(odooName: 'summary_manual_total') double get summaryManualTotal;@OdooFloat(odooName: 'summary_diff_total') double get summaryDiffTotal;// Detalle de Cobros - Depositos
-@OdooFloat(odooName: 'fact_deposits_cash') double get factDepositsCash;@OdooFloat(odooName: 'fact_deposits_checks') double get factDepositsChecks;@OdooFloat(odooName: 'cartera_deposits_cash') double get carteraDepositsCash;@OdooFloat(odooName: 'cartera_deposits_checks') double get carteraDepositsChecks;@OdooFloat(odooName: 'anticipo_deposits_cash') double get anticipoDepositsCash;@OdooFloat(odooName: 'anticipo_deposits_checks') double get anticipoDepositsChecks;// Anticipos cruzados
-@OdooFloat(odooName: 'fact_advances_used') double get factAdvancesUsed;@OdooFloat(odooName: 'cartera_advances_used') double get carteraAdvancesUsed;@OdooFloat(odooName: 'summary_advances_used_total') double get summaryAdvancesUsedTotal;// Total facturas con NC y retenciones
-@OdooFloat(odooName: 'fact_total_with_nc_withholds') double get factTotalWithNcWithholds;// Desglose facturas del dia
-@OdooFloat(odooName: 'fact_cash') double get factCash;@OdooFloat(odooName: 'fact_cards') double get factCards;@OdooFloat(odooName: 'fact_transfers') double get factTransfers;@OdooFloat(odooName: 'fact_checks_day') double get factChecksDay;@OdooFloat(odooName: 'fact_checks_post') double get factChecksPost;@OdooFloat(odooName: 'fact_total') double get factTotal;// Desglose cartera
-@OdooFloat(odooName: 'cartera_cash') double get carteraCash;@OdooFloat(odooName: 'cartera_cards') double get carteraCards;@OdooFloat(odooName: 'cartera_transfers') double get carteraTransfers;@OdooFloat(odooName: 'cartera_checks_day') double get carteraChecksDay;@OdooFloat(odooName: 'cartera_checks_post') double get carteraChecksPost;@OdooFloat(odooName: 'cartera_total') double get carteraTotal;// Desglose anticipos
-@OdooFloat(odooName: 'anticipo_cash') double get anticipoCash;@OdooFloat(odooName: 'anticipo_cards') double get anticipoCards;@OdooFloat(odooName: 'anticipo_transfers') double get anticipoTransfers;@OdooFloat(odooName: 'anticipo_checks_day') double get anticipoChecksDay;@OdooFloat(odooName: 'anticipo_checks_post') double get anticipoChecksPost;@OdooFloat(odooName: 'anticipo_total') double get anticipoTotal;// Totales generales
-@OdooFloat(odooName: 'total_cash') double get totalCash;@OdooFloat(odooName: 'total_cards') double get totalCards;@OdooFloat(odooName: 'total_transfers') double get totalTransfers;@OdooFloat(odooName: 'total_checks_day') double get totalChecksDay;@OdooFloat(odooName: 'total_checks_post') double get totalChecksPost;@OdooFloat(odooName: 'total_general') double get totalGeneral;// Validacion supervisor
-@OdooMany2One('res.users', odooName: 'supervisor_id') int? get supervisorId;@OdooMany2OneName(sourceField: 'supervisor_id') String? get supervisorName;@OdooDateTime(odooName: 'supervisor_validation_date') DateTime? get supervisorValidationDate;@OdooString(odooName: 'supervisor_notes') String? get supervisorNotes;@OdooString(odooName: 'opening_notes') String? get openingNotes;@OdooString(odooName: 'closing_notes') String? get closingNotes;// Sync
-@OdooLocalOnly() bool get isSynced;@OdooLocalOnly() DateTime? get lastSyncDate;@OdooLocalOnly() int get syncRetryCount;@OdooLocalOnly() DateTime? get lastSyncAttempt;@OdooDateTime(odooName: 'write_date', writable: false) DateTime? get writeDate;
+@OdooId() int get id;@OdooString() String get name;@OdooSelection() SessionState get state;@OdooString(odooName: 'session_uuid') String? get sessionUuid;@OdooMany2One('collection.config', odooName: 'config_id') int? get configId;@OdooMany2OneName(sourceField: 'config_id') String? get configName;@OdooMany2One('res.company', odooName: 'company_id') int? get companyId;@OdooMany2OneName(sourceField: 'company_id') String? get companyName;@OdooMany2One('res.users', odooName: 'user_id') int? get userId;@OdooMany2OneName(sourceField: 'user_id') String? get userName;@OdooMany2One('res.currency', odooName: 'currency_id') int? get currencyId;@OdooLocalOnly() String? get currencySymbol;@OdooMany2One('account.journal', odooName: 'cash_journal_id') int? get cashJournalId;@OdooMany2OneName(sourceField: 'cash_journal_id') String? get cashJournalName;@OdooDateTime(odooName: 'start_at') DateTime? get startAt;@OdooDateTime(odooName: 'stop_at') DateTime? get stopAt;@OdooFloat(odooName: 'cash_register_balance_start') double get cashRegisterBalanceStart;@OdooFloat(odooName: 'cash_register_balance_end_real') double get cashRegisterBalanceEndReal;@OdooFloat(odooName: 'cash_register_balance_end') double get cashRegisterBalanceEnd;@OdooFloat(odooName: 'cash_register_difference') double get cashRegisterDifference;@OdooInteger(odooName: 'order_count') int get orderCount;@OdooInteger(odooName: 'invoice_count') int get invoiceCount;@OdooInteger(odooName: 'payment_count') int get paymentCount;@OdooInteger(odooName: 'advance_count') int get advanceCount;@OdooInteger(odooName: 'cheque_recibido_count') int get chequeRecibidoCount;@OdooInteger(odooName: 'cash_out_count') int get cashOutCount;@OdooInteger(odooName: 'deposit_count') int get depositCount;@OdooInteger(odooName: 'withhold_count') int get withholdCount;@OdooFloat(odooName: 'total_payments_amount') double get totalPaymentsAmount;@OdooFloat(odooName: 'total_cash_out_amount') double get totalCashOutAmount;@OdooFloat(odooName: 'total_deposit_amount') double get totalDepositAmount;@OdooFloat(odooName: 'total_withhold_amount') double get totalWithholdAmount;@OdooFloat(odooName: 'total_cash_advance_amount') double get totalCashAdvanceAmount;@OdooFloat(odooName: 'cash_out_security_total') double get cashOutSecurityTotal;@OdooFloat(odooName: 'cash_out_invoice_total') double get cashOutInvoiceTotal;@OdooFloat(odooName: 'cash_out_refund_total') double get cashOutRefundTotal;@OdooFloat(odooName: 'cash_out_withhold_total') double get cashOutWithholdTotal;@OdooFloat(odooName: 'cash_out_other_total') double get cashOutOtherTotal;@OdooFloat(odooName: 'checks_on_day_total') double get checksOnDayTotal;@OdooFloat(odooName: 'checks_postdated_total') double get checksPostdatedTotal;@OdooFloat(odooName: 'advance_checks_on_day_total') double get advanceChecksOnDayTotal;@OdooFloat(odooName: 'advance_checks_postdated_total') double get advanceChecksPostdatedTotal;@OdooFloat(odooName: 'total_checks_on_day') double get totalChecksOnDay;@OdooFloat(odooName: 'total_checks_postdated') double get totalChecksPostdated;@OdooFloat(odooName: 'system_deposits_cash_total') double get systemDepositsCashTotal;@OdooFloat(odooName: 'manual_deposits_cash_total') double get manualDepositsCashTotal;@OdooFloat(odooName: 'diff_deposits_cash_total') double get diffDepositsCashTotal;@OdooFloat(odooName: 'system_deposits_checks_total') double get systemDepositsChecksTotal;@OdooFloat(odooName: 'manual_deposits_checks_total') double get manualDepositsChecksTotal;@OdooFloat(odooName: 'diff_deposits_checks_total') double get diffDepositsChecksTotal;@OdooFloat(odooName: 'total_cash_invoices_amount') double get totalCashInvoicesAmount;@OdooFloat(odooName: 'total_cash_collected_amount') double get totalCashCollectedAmount;@OdooFloat(odooName: 'total_cash_pending_amount') double get totalCashPendingAmount;@OdooFloat(odooName: 'total_credit_orders_amount') double get totalCreditOrdersAmount;@OdooFloat(odooName: 'total_credit_invoices_amount') double get totalCreditInvoicesAmount;@OdooFloat(odooName: 'credit_sales_difference') double get creditSalesDifference;@OdooFloat(odooName: 'system_checks_on_day') double get systemChecksOnDay;@OdooFloat(odooName: 'system_checks_postdated') double get systemChecksPostdated;@OdooFloat(odooName: 'system_cards_total') double get systemCardsTotal;@OdooFloat(odooName: 'system_transfers_total') double get systemTransfersTotal;@OdooFloat(odooName: 'system_advances_total') double get systemAdvancesTotal;@OdooFloat(odooName: 'system_credit_notes_total') double get systemCreditNotesTotal;@OdooFloat(odooName: 'manual_checks_on_day') double get manualChecksOnDay;@OdooFloat(odooName: 'manual_checks_postdated') double get manualChecksPostdated;@OdooFloat(odooName: 'manual_cards_total') double get manualCardsTotal;@OdooFloat(odooName: 'manual_transfers_total') double get manualTransfersTotal;@OdooFloat(odooName: 'manual_advances_total') double get manualAdvancesTotal;@OdooFloat(odooName: 'manual_credit_notes_total') double get manualCreditNotesTotal;@OdooFloat(odooName: 'manual_withholds_total') double get manualWithholdsTotal;@OdooFloat(odooName: 'diff_checks_on_day') double get diffChecksOnDay;@OdooFloat(odooName: 'diff_checks_postdated') double get diffChecksPostdated;@OdooFloat(odooName: 'diff_cards_total') double get diffCardsTotal;@OdooFloat(odooName: 'diff_transfers_total') double get diffTransfersTotal;@OdooFloat(odooName: 'diff_advances_total') double get diffAdvancesTotal;@OdooFloat(odooName: 'diff_credit_notes_total') double get diffCreditNotesTotal;@OdooFloat(odooName: 'diff_withholds_total') double get diffWithholdsTotal;@OdooFloat(odooName: 'summary_system_total') double get summarySystemTotal;@OdooFloat(odooName: 'summary_manual_total') double get summaryManualTotal;@OdooFloat(odooName: 'summary_diff_total') double get summaryDiffTotal;@OdooFloat(odooName: 'fact_deposits_cash') double get factDepositsCash;@OdooFloat(odooName: 'fact_deposits_checks') double get factDepositsChecks;@OdooFloat(odooName: 'cartera_deposits_cash') double get carteraDepositsCash;@OdooFloat(odooName: 'cartera_deposits_checks') double get carteraDepositsChecks;@OdooFloat(odooName: 'anticipo_deposits_cash') double get anticipoDepositsCash;@OdooFloat(odooName: 'anticipo_deposits_checks') double get anticipoDepositsChecks;@OdooFloat(odooName: 'fact_advances_used') double get factAdvancesUsed;@OdooFloat(odooName: 'cartera_advances_used') double get carteraAdvancesUsed;@OdooFloat(odooName: 'summary_advances_used_total') double get summaryAdvancesUsedTotal;@OdooFloat(odooName: 'fact_total_with_nc_withholds') double get factTotalWithNcWithholds;@OdooFloat(odooName: 'fact_cash') double get factCash;@OdooFloat(odooName: 'fact_cards') double get factCards;@OdooFloat(odooName: 'fact_transfers') double get factTransfers;@OdooFloat(odooName: 'fact_checks_day') double get factChecksDay;@OdooFloat(odooName: 'fact_checks_post') double get factChecksPost;@OdooFloat(odooName: 'fact_total') double get factTotal;@OdooFloat(odooName: 'cartera_cash') double get carteraCash;@OdooFloat(odooName: 'cartera_cards') double get carteraCards;@OdooFloat(odooName: 'cartera_transfers') double get carteraTransfers;@OdooFloat(odooName: 'cartera_checks_day') double get carteraChecksDay;@OdooFloat(odooName: 'cartera_checks_post') double get carteraChecksPost;@OdooFloat(odooName: 'cartera_total') double get carteraTotal;@OdooFloat(odooName: 'anticipo_cash') double get anticipoCash;@OdooFloat(odooName: 'anticipo_cards') double get anticipoCards;@OdooFloat(odooName: 'anticipo_transfers') double get anticipoTransfers;@OdooFloat(odooName: 'anticipo_checks_day') double get anticipoChecksDay;@OdooFloat(odooName: 'anticipo_checks_post') double get anticipoChecksPost;@OdooFloat(odooName: 'anticipo_total') double get anticipoTotal;@OdooFloat(odooName: 'total_cash') double get totalCash;@OdooFloat(odooName: 'total_cards') double get totalCards;@OdooFloat(odooName: 'total_transfers') double get totalTransfers;@OdooFloat(odooName: 'total_checks_day') double get totalChecksDay;@OdooFloat(odooName: 'total_checks_post') double get totalChecksPost;@OdooFloat(odooName: 'total_general') double get totalGeneral;@OdooMany2One('res.users', odooName: 'supervisor_id') int? get supervisorId;@OdooMany2OneName(sourceField: 'supervisor_id') String? get supervisorName;@OdooDateTime(odooName: 'supervisor_validation_date') DateTime? get supervisorValidationDate;@OdooString(odooName: 'supervisor_notes') String? get supervisorNotes;@OdooString(odooName: 'opening_notes') String? get openingNotes;@OdooString(odooName: 'closing_notes') String? get closingNotes;@OdooLocalOnly() bool get isSynced;@OdooLocalOnly() DateTime? get lastSyncDate;@OdooLocalOnly() int get syncRetryCount;@OdooLocalOnly() DateTime? get lastSyncAttempt;@OdooDateTime(odooName: 'write_date', writable: false) DateTime? get writeDate;
 /// Create a copy of CollectionSession
 /// with the given fields replaced by the non-null parameter values.
 @JsonKey(includeFromJson: false, includeToJson: false)
@@ -91,7 +67,7 @@ class _$CollectionSessionCopyWithImpl<$Res>
 /// Create a copy of CollectionSession
 /// with the given fields replaced by the non-null parameter values.
 @pragma('vm:prefer-inline') @override $Res call({Object? id = null,Object? name = null,Object? state = null,Object? sessionUuid = freezed,Object? configId = freezed,Object? configName = freezed,Object? companyId = freezed,Object? companyName = freezed,Object? userId = freezed,Object? userName = freezed,Object? currencyId = freezed,Object? currencySymbol = freezed,Object? cashJournalId = freezed,Object? cashJournalName = freezed,Object? startAt = freezed,Object? stopAt = freezed,Object? cashRegisterBalanceStart = null,Object? cashRegisterBalanceEndReal = null,Object? cashRegisterBalanceEnd = null,Object? cashRegisterDifference = null,Object? orderCount = null,Object? invoiceCount = null,Object? paymentCount = null,Object? advanceCount = null,Object? chequeRecibidoCount = null,Object? cashOutCount = null,Object? depositCount = null,Object? withholdCount = null,Object? totalPaymentsAmount = null,Object? totalCashOutAmount = null,Object? totalDepositAmount = null,Object? totalWithholdAmount = null,Object? totalCashAdvanceAmount = null,Object? cashOutSecurityTotal = null,Object? cashOutInvoiceTotal = null,Object? cashOutRefundTotal = null,Object? cashOutWithholdTotal = null,Object? cashOutOtherTotal = null,Object? checksOnDayTotal = null,Object? checksPostdatedTotal = null,Object? advanceChecksOnDayTotal = null,Object? advanceChecksPostdatedTotal = null,Object? totalChecksOnDay = null,Object? totalChecksPostdated = null,Object? systemDepositsCashTotal = null,Object? manualDepositsCashTotal = null,Object? diffDepositsCashTotal = null,Object? systemDepositsChecksTotal = null,Object? manualDepositsChecksTotal = null,Object? diffDepositsChecksTotal = null,Object? totalCashInvoicesAmount = null,Object? totalCashCollectedAmount = null,Object? totalCashPendingAmount = null,Object? totalCreditOrdersAmount = null,Object? totalCreditInvoicesAmount = null,Object? creditSalesDifference = null,Object? systemChecksOnDay = null,Object? systemChecksPostdated = null,Object? systemCardsTotal = null,Object? systemTransfersTotal = null,Object? systemAdvancesTotal = null,Object? systemCreditNotesTotal = null,Object? manualChecksOnDay = null,Object? manualChecksPostdated = null,Object? manualCardsTotal = null,Object? manualTransfersTotal = null,Object? manualAdvancesTotal = null,Object? manualCreditNotesTotal = null,Object? manualWithholdsTotal = null,Object? diffChecksOnDay = null,Object? diffChecksPostdated = null,Object? diffCardsTotal = null,Object? diffTransfersTotal = null,Object? diffAdvancesTotal = null,Object? diffCreditNotesTotal = null,Object? diffWithholdsTotal = null,Object? summarySystemTotal = null,Object? summaryManualTotal = null,Object? summaryDiffTotal = null,Object? factDepositsCash = null,Object? factDepositsChecks = null,Object? carteraDepositsCash = null,Object? carteraDepositsChecks = null,Object? anticipoDepositsCash = null,Object? anticipoDepositsChecks = null,Object? factAdvancesUsed = null,Object? carteraAdvancesUsed = null,Object? summaryAdvancesUsedTotal = null,Object? factTotalWithNcWithholds = null,Object? factCash = null,Object? factCards = null,Object? factTransfers = null,Object? factChecksDay = null,Object? factChecksPost = null,Object? factTotal = null,Object? carteraCash = null,Object? carteraCards = null,Object? carteraTransfers = null,Object? carteraChecksDay = null,Object? carteraChecksPost = null,Object? carteraTotal = null,Object? anticipoCash = null,Object? anticipoCards = null,Object? anticipoTransfers = null,Object? anticipoChecksDay = null,Object? anticipoChecksPost = null,Object? anticipoTotal = null,Object? totalCash = null,Object? totalCards = null,Object? totalTransfers = null,Object? totalChecksDay = null,Object? totalChecksPost = null,Object? totalGeneral = null,Object? supervisorId = freezed,Object? supervisorName = freezed,Object? supervisorValidationDate = freezed,Object? supervisorNotes = freezed,Object? openingNotes = freezed,Object? closingNotes = freezed,Object? isSynced = null,Object? lastSyncDate = freezed,Object? syncRetryCount = null,Object? lastSyncAttempt = freezed,Object? writeDate = freezed,}) {
-  return _then(_self.copyWith(
+  return _then(CollectionSession(
 id: null == id ? _self.id : id // ignore: cast_nullable_to_non_nullable
 as int,name: null == name ? _self.name : name // ignore: cast_nullable_to_non_nullable
 as String,state: null == state ? _self.state : state // ignore: cast_nullable_to_non_nullable
@@ -364,7 +340,6 @@ class _CollectionSession extends CollectionSession {
 @override@OdooString() final  String name;
 @override@OdooSelection() final  SessionState state;
 @override@OdooString(odooName: 'session_uuid') final  String? sessionUuid;
-// Relaciones
 @override@OdooMany2One('collection.config', odooName: 'config_id') final  int? configId;
 @override@OdooMany2OneName(sourceField: 'config_id') final  String? configName;
 @override@OdooMany2One('res.company', odooName: 'company_id') final  int? companyId;
@@ -372,21 +347,15 @@ class _CollectionSession extends CollectionSession {
 @override@OdooMany2One('res.users', odooName: 'user_id') final  int? userId;
 @override@OdooMany2OneName(sourceField: 'user_id') final  String? userName;
 @override@OdooMany2One('res.currency', odooName: 'currency_id') final  int? currencyId;
-// Odoo 19.5 (erp1): 'currency_symbol' ya no existe en collection.session
-// del servidor (smoke fields_get, julio 2026). sessionUuid de este
-// modelo SÍ existe en el servidor — no se toca.
 @override@OdooLocalOnly() final  String? currencySymbol;
 @override@OdooMany2One('account.journal', odooName: 'cash_journal_id') final  int? cashJournalId;
 @override@OdooMany2OneName(sourceField: 'cash_journal_id') final  String? cashJournalName;
-// Fechas
 @override@OdooDateTime(odooName: 'start_at') final  DateTime? startAt;
 @override@OdooDateTime(odooName: 'stop_at') final  DateTime? stopAt;
-// Control de efectivo
 @override@JsonKey()@OdooFloat(odooName: 'cash_register_balance_start') final  double cashRegisterBalanceStart;
 @override@JsonKey()@OdooFloat(odooName: 'cash_register_balance_end_real') final  double cashRegisterBalanceEndReal;
 @override@JsonKey()@OdooFloat(odooName: 'cash_register_balance_end') final  double cashRegisterBalanceEnd;
 @override@JsonKey()@OdooFloat(odooName: 'cash_register_difference') final  double cashRegisterDifference;
-// Contadores
 @override@JsonKey()@OdooInteger(odooName: 'order_count') final  int orderCount;
 @override@JsonKey()@OdooInteger(odooName: 'invoice_count') final  int invoiceCount;
 @override@JsonKey()@OdooInteger(odooName: 'payment_count') final  int paymentCount;
@@ -395,47 +364,40 @@ class _CollectionSession extends CollectionSession {
 @override@JsonKey()@OdooInteger(odooName: 'cash_out_count') final  int cashOutCount;
 @override@JsonKey()@OdooInteger(odooName: 'deposit_count') final  int depositCount;
 @override@JsonKey()@OdooInteger(odooName: 'withhold_count') final  int withholdCount;
-// Totales monetarios
 @override@JsonKey()@OdooFloat(odooName: 'total_payments_amount') final  double totalPaymentsAmount;
 @override@JsonKey()@OdooFloat(odooName: 'total_cash_out_amount') final  double totalCashOutAmount;
 @override@JsonKey()@OdooFloat(odooName: 'total_deposit_amount') final  double totalDepositAmount;
 @override@JsonKey()@OdooFloat(odooName: 'total_withhold_amount') final  double totalWithholdAmount;
 @override@JsonKey()@OdooFloat(odooName: 'total_cash_advance_amount') final  double totalCashAdvanceAmount;
-// Desglose salidas de efectivo
 @override@JsonKey()@OdooFloat(odooName: 'cash_out_security_total') final  double cashOutSecurityTotal;
 @override@JsonKey()@OdooFloat(odooName: 'cash_out_invoice_total') final  double cashOutInvoiceTotal;
 @override@JsonKey()@OdooFloat(odooName: 'cash_out_refund_total') final  double cashOutRefundTotal;
 @override@JsonKey()@OdooFloat(odooName: 'cash_out_withhold_total') final  double cashOutWithholdTotal;
 @override@JsonKey()@OdooFloat(odooName: 'cash_out_other_total') final  double cashOutOtherTotal;
-// Totales de cheques
 @override@JsonKey()@OdooFloat(odooName: 'checks_on_day_total') final  double checksOnDayTotal;
 @override@JsonKey()@OdooFloat(odooName: 'checks_postdated_total') final  double checksPostdatedTotal;
 @override@JsonKey()@OdooFloat(odooName: 'advance_checks_on_day_total') final  double advanceChecksOnDayTotal;
 @override@JsonKey()@OdooFloat(odooName: 'advance_checks_postdated_total') final  double advanceChecksPostdatedTotal;
 @override@JsonKey()@OdooFloat(odooName: 'total_checks_on_day') final  double totalChecksOnDay;
 @override@JsonKey()@OdooFloat(odooName: 'total_checks_postdated') final  double totalChecksPostdated;
-// Control de depositos
 @override@JsonKey()@OdooFloat(odooName: 'system_deposits_cash_total') final  double systemDepositsCashTotal;
 @override@JsonKey()@OdooFloat(odooName: 'manual_deposits_cash_total') final  double manualDepositsCashTotal;
 @override@JsonKey()@OdooFloat(odooName: 'diff_deposits_cash_total') final  double diffDepositsCashTotal;
 @override@JsonKey()@OdooFloat(odooName: 'system_deposits_checks_total') final  double systemDepositsChecksTotal;
 @override@JsonKey()@OdooFloat(odooName: 'manual_deposits_checks_total') final  double manualDepositsChecksTotal;
 @override@JsonKey()@OdooFloat(odooName: 'diff_deposits_checks_total') final  double diffDepositsChecksTotal;
-// Facturas del cierre
 @override@JsonKey()@OdooFloat(odooName: 'total_cash_invoices_amount') final  double totalCashInvoicesAmount;
 @override@JsonKey()@OdooFloat(odooName: 'total_cash_collected_amount') final  double totalCashCollectedAmount;
 @override@JsonKey()@OdooFloat(odooName: 'total_cash_pending_amount') final  double totalCashPendingAmount;
 @override@JsonKey()@OdooFloat(odooName: 'total_credit_orders_amount') final  double totalCreditOrdersAmount;
 @override@JsonKey()@OdooFloat(odooName: 'total_credit_invoices_amount') final  double totalCreditInvoicesAmount;
 @override@JsonKey()@OdooFloat(odooName: 'credit_sales_difference') final  double creditSalesDifference;
-// Conteo manual - Sistema
 @override@JsonKey()@OdooFloat(odooName: 'system_checks_on_day') final  double systemChecksOnDay;
 @override@JsonKey()@OdooFloat(odooName: 'system_checks_postdated') final  double systemChecksPostdated;
 @override@JsonKey()@OdooFloat(odooName: 'system_cards_total') final  double systemCardsTotal;
 @override@JsonKey()@OdooFloat(odooName: 'system_transfers_total') final  double systemTransfersTotal;
 @override@JsonKey()@OdooFloat(odooName: 'system_advances_total') final  double systemAdvancesTotal;
 @override@JsonKey()@OdooFloat(odooName: 'system_credit_notes_total') final  double systemCreditNotesTotal;
-// Conteo manual - Manual
 @override@JsonKey()@OdooFloat(odooName: 'manual_checks_on_day') final  double manualChecksOnDay;
 @override@JsonKey()@OdooFloat(odooName: 'manual_checks_postdated') final  double manualChecksPostdated;
 @override@JsonKey()@OdooFloat(odooName: 'manual_cards_total') final  double manualCardsTotal;
@@ -443,7 +405,6 @@ class _CollectionSession extends CollectionSession {
 @override@JsonKey()@OdooFloat(odooName: 'manual_advances_total') final  double manualAdvancesTotal;
 @override@JsonKey()@OdooFloat(odooName: 'manual_credit_notes_total') final  double manualCreditNotesTotal;
 @override@JsonKey()@OdooFloat(odooName: 'manual_withholds_total') final  double manualWithholdsTotal;
-// Conteo manual - Diferencias
 @override@JsonKey()@OdooFloat(odooName: 'diff_checks_on_day') final  double diffChecksOnDay;
 @override@JsonKey()@OdooFloat(odooName: 'diff_checks_postdated') final  double diffChecksPostdated;
 @override@JsonKey()@OdooFloat(odooName: 'diff_cards_total') final  double diffCardsTotal;
@@ -451,59 +412,49 @@ class _CollectionSession extends CollectionSession {
 @override@JsonKey()@OdooFloat(odooName: 'diff_advances_total') final  double diffAdvancesTotal;
 @override@JsonKey()@OdooFloat(odooName: 'diff_credit_notes_total') final  double diffCreditNotesTotal;
 @override@JsonKey()@OdooFloat(odooName: 'diff_withholds_total') final  double diffWithholdsTotal;
-// Totales resumen
 @override@JsonKey()@OdooFloat(odooName: 'summary_system_total') final  double summarySystemTotal;
 @override@JsonKey()@OdooFloat(odooName: 'summary_manual_total') final  double summaryManualTotal;
 @override@JsonKey()@OdooFloat(odooName: 'summary_diff_total') final  double summaryDiffTotal;
-// Detalle de Cobros - Depositos
 @override@JsonKey()@OdooFloat(odooName: 'fact_deposits_cash') final  double factDepositsCash;
 @override@JsonKey()@OdooFloat(odooName: 'fact_deposits_checks') final  double factDepositsChecks;
 @override@JsonKey()@OdooFloat(odooName: 'cartera_deposits_cash') final  double carteraDepositsCash;
 @override@JsonKey()@OdooFloat(odooName: 'cartera_deposits_checks') final  double carteraDepositsChecks;
 @override@JsonKey()@OdooFloat(odooName: 'anticipo_deposits_cash') final  double anticipoDepositsCash;
 @override@JsonKey()@OdooFloat(odooName: 'anticipo_deposits_checks') final  double anticipoDepositsChecks;
-// Anticipos cruzados
 @override@JsonKey()@OdooFloat(odooName: 'fact_advances_used') final  double factAdvancesUsed;
 @override@JsonKey()@OdooFloat(odooName: 'cartera_advances_used') final  double carteraAdvancesUsed;
 @override@JsonKey()@OdooFloat(odooName: 'summary_advances_used_total') final  double summaryAdvancesUsedTotal;
-// Total facturas con NC y retenciones
 @override@JsonKey()@OdooFloat(odooName: 'fact_total_with_nc_withholds') final  double factTotalWithNcWithholds;
-// Desglose facturas del dia
 @override@JsonKey()@OdooFloat(odooName: 'fact_cash') final  double factCash;
 @override@JsonKey()@OdooFloat(odooName: 'fact_cards') final  double factCards;
 @override@JsonKey()@OdooFloat(odooName: 'fact_transfers') final  double factTransfers;
 @override@JsonKey()@OdooFloat(odooName: 'fact_checks_day') final  double factChecksDay;
 @override@JsonKey()@OdooFloat(odooName: 'fact_checks_post') final  double factChecksPost;
 @override@JsonKey()@OdooFloat(odooName: 'fact_total') final  double factTotal;
-// Desglose cartera
 @override@JsonKey()@OdooFloat(odooName: 'cartera_cash') final  double carteraCash;
 @override@JsonKey()@OdooFloat(odooName: 'cartera_cards') final  double carteraCards;
 @override@JsonKey()@OdooFloat(odooName: 'cartera_transfers') final  double carteraTransfers;
 @override@JsonKey()@OdooFloat(odooName: 'cartera_checks_day') final  double carteraChecksDay;
 @override@JsonKey()@OdooFloat(odooName: 'cartera_checks_post') final  double carteraChecksPost;
 @override@JsonKey()@OdooFloat(odooName: 'cartera_total') final  double carteraTotal;
-// Desglose anticipos
 @override@JsonKey()@OdooFloat(odooName: 'anticipo_cash') final  double anticipoCash;
 @override@JsonKey()@OdooFloat(odooName: 'anticipo_cards') final  double anticipoCards;
 @override@JsonKey()@OdooFloat(odooName: 'anticipo_transfers') final  double anticipoTransfers;
 @override@JsonKey()@OdooFloat(odooName: 'anticipo_checks_day') final  double anticipoChecksDay;
 @override@JsonKey()@OdooFloat(odooName: 'anticipo_checks_post') final  double anticipoChecksPost;
 @override@JsonKey()@OdooFloat(odooName: 'anticipo_total') final  double anticipoTotal;
-// Totales generales
 @override@JsonKey()@OdooFloat(odooName: 'total_cash') final  double totalCash;
 @override@JsonKey()@OdooFloat(odooName: 'total_cards') final  double totalCards;
 @override@JsonKey()@OdooFloat(odooName: 'total_transfers') final  double totalTransfers;
 @override@JsonKey()@OdooFloat(odooName: 'total_checks_day') final  double totalChecksDay;
 @override@JsonKey()@OdooFloat(odooName: 'total_checks_post') final  double totalChecksPost;
 @override@JsonKey()@OdooFloat(odooName: 'total_general') final  double totalGeneral;
-// Validacion supervisor
 @override@OdooMany2One('res.users', odooName: 'supervisor_id') final  int? supervisorId;
 @override@OdooMany2OneName(sourceField: 'supervisor_id') final  String? supervisorName;
 @override@OdooDateTime(odooName: 'supervisor_validation_date') final  DateTime? supervisorValidationDate;
 @override@OdooString(odooName: 'supervisor_notes') final  String? supervisorNotes;
 @override@OdooString(odooName: 'opening_notes') final  String? openingNotes;
 @override@OdooString(odooName: 'closing_notes') final  String? closingNotes;
-// Sync
 @override@JsonKey()@OdooLocalOnly() final  bool isSynced;
 @override@OdooLocalOnly() final  DateTime? lastSyncDate;
 @override@JsonKey()@OdooLocalOnly() final  int syncRetryCount;

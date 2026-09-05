@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:fluent_ui/fluent_ui.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
@@ -8,14 +10,24 @@ import 'package:window_manager/window_manager.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'core/constants/app_constants.dart';
+import 'core/services/global_error_handler.dart';
 import 'core/services/config_service.dart';
 import 'routes/app_routes.dart';
 
 import 'shared/models/app_config_model.dart';
 import 'shared/widgets/auth_guard.dart';
 
-void main() async {
+Future<void> main() async {
+  await runZonedGuarded(
+    _bootstrapApplication,
+    (error, stackTrace) =>
+        reportUnhandledError('Uncaught asynchronous error', error, stackTrace),
+  );
+}
+
+Future<void> _bootstrapApplication() async {
   WidgetsFlutterBinding.ensureInitialized();
+  installGlobalErrorHandlers();
 
   // Configurar modo edge-to-edge en móvil (iOS y Android)
   if (!kIsWeb &&
@@ -182,6 +194,14 @@ class MyApp extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final config = ref.watch(configServiceProvider);
+    ref.listen(configServiceProvider, (_, updatedConfig) {
+      final currentSession = AppRouter.session.value;
+      AppRouter.session.value = RouteSessionSnapshot(
+        userId: currentSession.userId,
+        permissions: currentSession.permissions,
+        developerMode: updatedConfig.developerMode,
+      );
+    });
 
     // Apply window effect if changed
     if (!kIsWeb &&

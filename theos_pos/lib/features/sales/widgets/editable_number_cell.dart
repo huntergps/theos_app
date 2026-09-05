@@ -79,7 +79,9 @@ class _EditableNumberCellState extends State<EditableNumberCell> {
   }
 
   void _registerIfNeeded() {
-    if (widget.isEditable && !_isRegistered && widget.onFocusNodeCreated != null) {
+    if (widget.isEditable &&
+        !_isRegistered &&
+        widget.onFocusNodeCreated != null) {
       widget.onFocusNodeCreated!(_focusNode);
       _isRegistered = true;
     }
@@ -118,8 +120,9 @@ class _EditableNumberCellState extends State<EditableNumberCell> {
         onKeyEvent: widget.onKeyEvent,
         suffix: widget.suffix,
         // Wrap onChanged to cast to double, NumberInputBase uses num
-        onChanged:
-            widget.onChanged != null ? (v) => widget.onChanged!(v.toDouble()) : null,
+        onChanged: widget.onChanged != null
+            ? (v) => widget.onChanged!(v.toDouble())
+            : null,
       );
     }
 

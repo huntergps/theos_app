@@ -315,6 +315,7 @@ Map<String, dynamic> _$CollectionSessionToJson(_CollectionSession instance) =>
 const _$SessionStateEnumMap = {
   SessionState.openingControl: 'opening_control',
   SessionState.opened: 'opened',
+  SessionState.paused: 'paused',
   SessionState.closingControl: 'closing_control',
   SessionState.closed: 'closed',
 };

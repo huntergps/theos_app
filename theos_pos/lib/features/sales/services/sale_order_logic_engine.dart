@@ -1,7 +1,11 @@
-import '../../clients/clients.dart' show CreditValidationResult, ClientCreditService;
+import '../../clients/clients.dart'
+    show CreditValidationResult, ClientCreditService;
 import '../../products/repositories/product_repository.dart';
-import '../../../shared/providers/company_config_provider.dart' show SalesConfig;
+import '../../../shared/providers/company_config_provider.dart'
+    show SalesConfig;
+
 import 'package:theos_pos_core/theos_pos_core.dart';
+
 import 'order_validation_types.dart';
 
 /// Actions that can be validated by the engine
@@ -59,14 +63,11 @@ class SaleOrderLogicEngine {
   final ClientCreditService? _creditService;
 
   SaleOrderLogicEngine({
-    required Future<Company?> Function() getCompany,
-    required SalesConfig Function() getSalesConfig,
-    ProductRepository? productRepo,
-    ClientCreditService? creditService,
-  })  : _getCompany = getCompany,
-        _getSalesConfig = getSalesConfig,
-        _productRepo = productRepo,
-        _creditService = creditService;
+    required this._getCompany,
+    required this._getSalesConfig,
+    this._productRepo,
+    this._creditService,
+  });
 
   // ============ Main Validation Method ============
 
@@ -253,7 +254,8 @@ class SaleOrderLogicEngine {
     // Odoo SIEMPRE requiere end_customer_name cuando is_final_consumer=True
     // (constraint en l10n_ec_edi). No depende de pedirEndCustomerData.
     if (order.isFinalConsumer &&
-        (order.endCustomerName == null || order.endCustomerName!.trim().isEmpty)) {
+        (order.endCustomerName == null ||
+            order.endCustomerName!.trim().isEmpty)) {
       errors.add(ValidationError.finalConsumerNameRequired());
     }
 
@@ -268,7 +270,7 @@ class SaleOrderLogicEngine {
     // 8. Maximum discount validation
     final discountErrors = _validateMaxDiscount(
       lines: productLines,
-      maxDiscount: company?.maxDiscountPercentage ?? 100.0,
+      maxDiscount: salesConfig.maxDiscountPercentage,
     );
     errors.addAll(discountErrors);
 
@@ -417,8 +419,7 @@ class SaleOrderLogicEngine {
     if (order.state == SaleOrderState.approved) {
       return ValidationError(
         type: ValidationErrorType.fieldNotEditable,
-        message:
-            'Las líneas no pueden ser modificadas en una orden aprobada. Solo se permite confirmar o cancelar.',
+        message: 'Las líneas no pueden ser modificadas en una orden aprobada. Solo se permite confirmar o cancelar.',
       );
     }
 
@@ -459,8 +460,7 @@ class SaleOrderLogicEngine {
         if (state != SaleOrderState.approved && state != SaleOrderState.sale) {
           return ValidationError(
             type: ValidationErrorType.invalidState,
-            message:
-                'Solo se puede facturar órdenes en estado Aprobado o Confirmado.',
+            message: 'Solo se puede facturar órdenes en estado Aprobado o Confirmado.',
           );
         }
         break;

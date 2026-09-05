@@ -1,7 +1,11 @@
 import 'dart:convert';
+
 import 'package:drift/drift.dart';
+
 import '../../database/database.dart';
+
 import 'package:odoo_sdk/odoo_sdk.dart';
+
 import '../../utils/precision_config.dart';
 
 /// Unified service for all tax-related operations
@@ -305,7 +309,7 @@ class TaxCalculatorService {
       }
 
       // Fetch the mapped taxes
-      return getTaxesByIds(resultTaxIds);
+      return await getTaxesByIds(resultTaxIds);
     } catch (e, stack) {
       logger.e(
         '[TaxCalculator]',
@@ -733,9 +737,7 @@ class TaxCalculatorService {
   ///
   /// Returns a map of simplified tax name -> TaxGroupData
   /// Used by sales_order_totals widget.
-  static Map<String, TaxGroupData> groupTaxesByName(
-    List<TaxLineData> lines,
-  ) {
+  static Map<String, TaxGroupData> groupTaxesByName(List<TaxLineData> lines) {
     final groups = <String, TaxGroupData>{};
 
     for (final line in lines) {

@@ -288,7 +288,3 @@ class _SegmentButton extends StatelessWidget {
     );
   }
 }
-
-/// Backward-compatible aliases.
-typedef ReactiveBooleanField = OdooBooleanField;
-typedef ReactiveTristateBooleanField = OdooTristateBooleanField;

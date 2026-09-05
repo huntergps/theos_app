@@ -1,7 +1,8 @@
 import 'package:theos_pos_core/theos_pos_core.dart'
     show SaleOrderLine, orderTotalsCalculator;
 
-import '../../../core/services/logger_service.dart';
+import 'package:odoo_sdk/odoo_sdk.dart' show logger;
+
 import 'order_line_creation_service.dart';
 import 'line_calculator.dart';
 
@@ -22,25 +23,17 @@ class LineOperationResult {
   factory LineOperationResult.success(
     List<SaleOrderLine> lines, {
     int? selectedIndex,
-  }) =>
-      LineOperationResult._(
-        success: true,
-        lines: lines,
-        selectedIndex: selectedIndex,
-      );
+  }) => LineOperationResult._(
+    success: true,
+    lines: lines,
+    selectedIndex: selectedIndex,
+  );
 
   factory LineOperationResult.error(String error, List<SaleOrderLine> lines) =>
-      LineOperationResult._(
-        success: false,
-        lines: lines,
-        error: error,
-      );
+      LineOperationResult._(success: false, lines: lines, error: error);
 
   factory LineOperationResult.noChange(List<SaleOrderLine> lines) =>
-      LineOperationResult._(
-        success: true,
-        lines: lines,
-      );
+      LineOperationResult._(success: true, lines: lines);
 }
 
 /// Shared helper for line operations
@@ -205,7 +198,10 @@ class LineOperationsHelper {
     }
 
     final line = lines[index];
-    logger.d(logTag, 'Updating quantity: ${line.productUomQty} -> $newQuantity');
+    logger.d(
+      logTag,
+      'Updating quantity: ${line.productUomQty} -> $newQuantity',
+    );
 
     final creationService = _creationService;
     final updatedLine = await creationService.recalculateLine(
@@ -354,7 +350,10 @@ class LineOperationsHelper {
       }
     }
 
-    return LineOperationResult.success(newLines, selectedIndex: newSelectedIndex);
+    return LineOperationResult.success(
+      newLines,
+      selectedIndex: newSelectedIndex,
+    );
   }
 
   /// Clear all lines
@@ -394,17 +393,16 @@ class LineOperationsHelper {
     final line = lines[index];
     final decrement = line.isUnitProduct ? 0.5 : 1.0;
     final minQty = line.isUnitProduct ? 0.5 : 1.0;
-    final newQty = (line.productUomQty - decrement).clamp(minQty, double.infinity);
+    final newQty = (line.productUomQty - decrement).clamp(
+      minQty,
+      double.infinity,
+    );
 
     if (newQty == line.productUomQty) {
       return LineOperationResult.noChange(lines);
     }
 
-    return updateLineQuantity(
-      lines: lines,
-      index: index,
-      newQuantity: newQty,
-    );
+    return updateLineQuantity(lines: lines, index: index, newQuantity: newQty);
   }
 
   // ========== Reorder Operations ==========
@@ -441,7 +439,10 @@ class LineOperationsHelper {
       newSelectedIndex = newIndex;
     }
 
-    return LineOperationResult.success(newLines, selectedIndex: newSelectedIndex);
+    return LineOperationResult.success(
+      newLines,
+      selectedIndex: newSelectedIndex,
+    );
   }
 
   // ========== Computed Properties ==========

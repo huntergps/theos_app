@@ -8,10 +8,12 @@ class _SyncOrderButtonInline extends ConsumerStatefulWidget {
   const _SyncOrderButtonInline({required this.orderId, this.fullWidth = false});
 
   @override
-  ConsumerState<_SyncOrderButtonInline> createState() => _SyncOrderButtonInlineState();
+  ConsumerState<_SyncOrderButtonInline> createState() =>
+      _SyncOrderButtonInlineState();
 }
 
-class _SyncOrderButtonInlineState extends ConsumerState<_SyncOrderButtonInline> {
+class _SyncOrderButtonInlineState
+    extends ConsumerState<_SyncOrderButtonInline> {
   bool _isSyncing = false;
 
   Future<void> _syncOrder() async {
@@ -26,7 +28,9 @@ class _SyncOrderButtonInlineState extends ConsumerState<_SyncOrderButtonInline> 
         return;
       }
 
-      final result = await offlineSyncService.processSaleOrderQueue(widget.orderId);
+      final result = await offlineSyncService.processSaleOrderQueue(
+        widget.orderId,
+      );
 
       if (mounted) {
         // El contador de pendientes se actualiza automáticamente via Drift watch
@@ -72,7 +76,8 @@ class _SyncOrderButtonInlineState extends ConsumerState<_SyncOrderButtonInline> 
           CopyableInfoBar.showWarning(
             context,
             title: 'Conflictos detectados',
-            message: '${result.conflicts.length} operaciones tienen conflictos con el servidor',
+            message:
+                '${result.conflicts.length} operaciones tienen conflictos con el servidor',
           );
         }
       }
@@ -94,18 +99,26 @@ class _SyncOrderButtonInlineState extends ConsumerState<_SyncOrderButtonInline> 
   @override
   Widget build(BuildContext context) {
     // Watch pending sync count for this order
-    final pendingSyncAsync = ref.watch(orderPendingSyncProvider(widget.orderId));
-    final pendingCount = pendingSyncAsync.when(
-      data: (count) => count,
-      loading: () => 0,
-      error: (_, _) => 0,
+    final pendingSyncAsync = ref.watch(
+      orderPendingSyncProvider(widget.orderId),
     );
+    if (pendingSyncAsync.hasError) {
+      return Tooltip(
+        message: 'No se pudo consultar la cola de sincronización',
+        child: IconButton(
+          icon: Icon(FluentIcons.warning, color: Colors.orange),
+          onPressed: () =>
+              ref.invalidate(orderPendingSyncProvider(widget.orderId)),
+        ),
+      );
+    }
+    final pendingCount = pendingSyncAsync.value ?? 0;
 
     // Don't show if no pending operations
     if (pendingCount == 0) return const SizedBox.shrink();
 
     // Check if we're online using OdooClient (HTTP connectivity)
-    // WebSocket is for real-time notifications, but sync uses HTTP
+    // Remote synchronization uses authenticated HTTP.
     final odooClient = ref.watch(odooClientProvider);
     final isOnline = odooClient?.isConfigured ?? false;
 
@@ -123,7 +136,10 @@ class _SyncOrderButtonInlineState extends ConsumerState<_SyncOrderButtonInline> 
             return AppColors.success;
           }),
           padding: WidgetStateProperty.all(
-            const EdgeInsets.symmetric(horizontal: Spacing.md, vertical: Spacing.sm),
+            const EdgeInsets.symmetric(
+              horizontal: Spacing.md,
+              vertical: Spacing.sm,
+            ),
           ),
         ),
         child: Row(
@@ -147,8 +163,8 @@ class _SyncOrderButtonInlineState extends ConsumerState<_SyncOrderButtonInline> 
               _isSyncing
                   ? 'Sincronizando...'
                   : isOnline
-                      ? 'Sincronizar ($pendingCount)'
-                      : 'Offline ($pendingCount)',
+                  ? 'Sincronizar ($pendingCount)'
+                  : 'Offline ($pendingCount)',
               style: const TextStyle(
                 fontSize: 12,
                 color: Colors.white,

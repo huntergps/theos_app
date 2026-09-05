@@ -1,4 +1,5 @@
-import '../../../core/services/logger_service.dart';
+import 'package:odoo_sdk/odoo_sdk.dart' show logger;
+
 import '../../clients/clients.dart';
 
 /// Unified result type for credit validation in UI context
@@ -37,23 +38,19 @@ class UnifiedCreditResult {
   });
 
   /// Validation passed - can proceed without showing dialog
-  factory UnifiedCreditResult.proceed() => const UnifiedCreditResult(
-        requiresDialog: false,
-        canProceed: true,
-      );
+  factory UnifiedCreditResult.proceed() =>
+      const UnifiedCreditResult(requiresDialog: false, canProceed: true);
 
   /// No validation needed (no client, no credit limit, etc.)
-  factory UnifiedCreditResult.notRequired() => const UnifiedCreditResult(
-        requiresDialog: false,
-        canProceed: true,
-      );
+  factory UnifiedCreditResult.notRequired() =>
+      const UnifiedCreditResult(requiresDialog: false, canProceed: true);
 
   /// Error occurred during validation
   factory UnifiedCreditResult.error(String message) => UnifiedCreditResult(
-        requiresDialog: false,
-        canProceed: false,
-        errorMessage: message,
-      );
+    requiresDialog: false,
+    canProceed: false,
+    errorMessage: message,
+  );
 
   /// Credit issues found - need to show dialog
   factory UnifiedCreditResult.showDialog({
@@ -61,15 +58,14 @@ class UnifiedCreditResult {
     required CreditValidationResult validationResult,
     required double orderAmount,
     required bool isOnline,
-  }) =>
-      UnifiedCreditResult(
-        requiresDialog: true,
-        canProceed: false,
-        client: client,
-        validationResult: validationResult,
-        orderAmount: orderAmount,
-        isOnline: isOnline,
-      );
+  }) => UnifiedCreditResult(
+    requiresDialog: true,
+    canProceed: false,
+    client: client,
+    validationResult: validationResult,
+    orderAmount: orderAmount,
+    isOnline: isOnline,
+  );
 }
 
 /// Service for credit validation in UI context
@@ -87,10 +83,9 @@ class CreditValidationUIService {
   final ClientCreditService _creditService;
 
   CreditValidationUIService({
-    required ClientRepository clientRepo,
-    required ClientCreditService creditService,
-  })  : _clientRepo = clientRepo,
-        _creditService = creditService;
+    required this._clientRepo,
+    required this._creditService,
+  });
 
   /// Validate credit for a client
   ///

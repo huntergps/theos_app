@@ -25,22 +25,22 @@ export 'offline_queue_types.dart'
 import 'offline_queue_types.dart' as core;
 
 /// Types of offline operations (for OdooModelManager internal use).
-enum OfflineOperationType {
-  create,
-  write,
-  unlink,
-}
+enum OfflineOperationType { create, write, unlink }
 
 /// Status of an offline operation (for queue management).
 enum OperationStatus {
   /// Pending, waiting to be processed
   pending,
+
   /// Currently being processed
   processing,
+
   /// Successfully completed
   completed,
+
   /// Failed, will be retried
   failed,
+
   /// Moved to dead letter queue after max retries
   deadLetter,
 }
@@ -75,7 +75,7 @@ class OfflineQueueConfig {
     this.exponentialBackoff = true,
     this.parallelOperations = 1,
     this.maxQueueSize = 10000,
-    this.maxOperationAge = const Duration(days: 30),
+    this.maxOperationAge,
   });
 
   /// Calculate delay for a retry attempt.
@@ -272,11 +272,7 @@ class OfflineQueueWrapper {
       await _updateCounts();
     }
 
-    return WrapperQueueResult(
-      processed: processed,
-      failed: failed,
-      skipped: 0,
-    );
+    return WrapperQueueResult(processed: processed, failed: failed, skipped: 0);
   }
 
   /// Remove operations older than [config.maxOperationAge].
@@ -315,7 +311,16 @@ class OfflineQueueWrapper {
       // Sort by createdAt ascending so latest is last
       ops.sort((a, b) => a.createdAt.compareTo(b.createdAt));
 
-      // Remove all but the last (latest) operation
+      // Merge oldest → newest so the newest value wins per field while
+      // fields touched only by earlier writes are preserved.
+      final mergedValues = <String, dynamic>{};
+      for (final op in ops) {
+        mergedValues.addAll(op.values);
+      }
+      final latest = ops.last;
+      await _store.replaceOperationValues(latest.id, mergedValues);
+
+      // Remove all but the last (latest) operation.
       for (int i = 0; i < ops.length - 1; i++) {
         await _store.removeOperation(ops[i].id);
         removed++;
@@ -335,34 +340,18 @@ class OfflineQueueWrapper {
     return removed;
   }
 
-  /// Enforce maximum queue size by removing oldest low-priority operations.
+  /// Checks whether the durable queue exceeds its configured soft limit.
   ///
-  /// Returns the number of operations removed.
+  /// Pending financial operations are evidence and must never be discarded
+  /// automatically. Back-pressure belongs at enqueue/UI level, so this method
+  /// intentionally performs no destructive cleanup and returns zero.
   Future<int> enforceMaxSize() async {
     if (config.maxQueueSize <= 0) return 0;
 
     final pending = await _store.getPendingOperations(includeNotReady: true);
     if (pending.length <= config.maxQueueSize) return 0;
 
-    final excess = pending.length - config.maxQueueSize;
-
-    // Sort by priority descending (higher number = lower priority),
-    // then by createdAt ascending (oldest first) for same priority.
-    final sorted = List<core.OfflineOperation>.from(pending)
-      ..sort((a, b) {
-        final priCmp = b.priority.compareTo(a.priority);
-        if (priCmp != 0) return priCmp;
-        return a.createdAt.compareTo(b.createdAt);
-      });
-
-    int removed = 0;
-    for (int i = 0; i < excess && i < sorted.length; i++) {
-      await _store.removeOperation(sorted[i].id);
-      removed++;
-    }
-
-    if (removed > 0) await _updateCounts();
-    return removed;
+    return 0;
   }
 
   /// Get queue statistics.

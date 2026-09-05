@@ -318,7 +318,3 @@ class _OdooCollapsibleTextFieldState
     );
   }
 }
-
-/// Backward-compatible aliases.
-typedef ReactiveMultilineField = OdooMultilineField;
-typedef ReactiveCollapsibleTextField = OdooCollapsibleTextField;

@@ -3,7 +3,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../shared/utils/error_utils.dart';
 import '../errors/errors.dart';
-import '../services/logger_service.dart';
+
+import 'package:odoo_sdk/odoo_sdk.dart' show logger;
+
 import 'base_feature_state.dart';
 
 /// Mixin providing common notifier functionality for feature notifiers
@@ -71,7 +73,8 @@ mixin BaseNotifierMixin<S extends BaseFeatureState> on Notifier<S> {
   void logWarning(String message) => logger.w(logTag, message);
 
   /// Log error message
-  void logError(String message, [dynamic error]) => logger.e(logTag, message, error);
+  void logError(String message, [dynamic error]) =>
+      logger.e(logTag, message, error);
 
   /// Execute an async operation with automatic loading/error handling
   ///
@@ -124,7 +127,7 @@ mixin BaseNotifierMixin<S extends BaseFeatureState> on Notifier<S> {
       final result = await action();
       if (showLoading) setLoading(false);
 
-      return result.fold(
+      return await result.fold(
         (failure) {
           logError('Operation failed: ${failure.message}');
           if (onFailure != null) {
@@ -164,7 +167,7 @@ mixin BaseNotifierMixin<S extends BaseFeatureState> on Notifier<S> {
     try {
       final result = await action();
 
-      return result.fold(
+      return await result.fold(
         (failure) {
           rollback();
           setError(failure.message);

@@ -55,24 +55,6 @@ abstract class User with _$User {
     // Requiere módulo hr instalado
     @OdooLocalOnly() String? resourceCalendarName,
 
-    // PIN for attendance — requiere módulo hr instalado
-    @OdooLocalOnly() String? pin,
-
-    // Private information — requiere módulo hr instalado
-    @OdooLocalOnly() String? privateStreet,
-    @OdooLocalOnly() String? privateStreet2,
-    @OdooLocalOnly() String? privateCity,
-    @OdooLocalOnly() String? privateZip,
-    @OdooLocalOnly() int? privateStateId,
-    @OdooLocalOnly() String? privateStateName,
-    @OdooLocalOnly() int? privateCountryId,
-    @OdooLocalOnly() String? privateCountryName,
-    @OdooLocalOnly() String? privateEmail,
-    @OdooLocalOnly() String? privatePhone,
-
-    // Emergency contact — requiere módulo hr instalado
-    @OdooLocalOnly() String? emergencyContact,
-    @OdooLocalOnly() String? emergencyPhone,
   }) = _User;
 
   // ============ Computed Fields (@api.depends equivalents) ============

@@ -7,4 +7,3 @@ export '../../../core/database/providers.dart' show activitiesProvider;
 // Export presentation providers
 export 'activities_notifier.dart';
 export 'activities_state.dart';
-

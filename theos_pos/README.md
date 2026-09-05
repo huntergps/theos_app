@@ -1,16 +1,25 @@
-# theos_pos
+# Orbi ERP (`theos_pos`)
 
-A new Flutter project.
+Aplicación Flutter offline-first de venta, cobro y facturación para Odoo 19.x
+y 20.x mediante JSON-2. El paquete contiene la UI, la composición Riverpod y
+los shells de plataforma; el dominio y la persistencia viven en
+`theos_pos_core`, y la integración Odoo en `odoo_sdk`.
 
-## Getting Started
+La fuente de verdad del producto es
+[`docs/specs/PROJECT_COMPLETION_V1.md`](../docs/specs/PROJECT_COMPLETION_V1.md).
+Para preparar una estación use el
+[runbook de instalación](../docs/runbooks/INSTALLATION.md); para generar
+artefactos use el [runbook de release](../docs/runbooks/RELEASE.md); para
+incidentes de sincronización use el
+[runbook offline](../docs/runbooks/OFFLINE_SUPPORT.md).
 
-This project is a starting point for a Flutter application.
+Desde la raíz del repositorio:
 
-A few resources to get you started if this is your first Flutter project:
+```bash
+make deps
+make verify
+make run-macos
+```
 
-- [Lab: Write your first Flutter app](https://docs.flutter.dev/get-started/codelab)
-- [Cookbook: Useful Flutter samples](https://docs.flutter.dev/cookbook)
-
-For help getting started with Flutter development, view the
-[online documentation](https://docs.flutter.dev/), which offers tutorials,
-samples, guidance on mobile development, and a full API reference.
+Web requiere introducir la clave API en cada nueva sesión del navegador. Los
+builds release no incorporan claves, certificados ni configuración secreta.

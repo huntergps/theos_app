@@ -32,8 +32,6 @@ import 'tables/account_journal_table.dart';
 import 'tables/product_product_table.dart';
 import 'tables/sale_order_table.dart';
 
-import 'migrations.dart';
-
 part 'database.g.dart';
 
 // ============ Database Definition ============
@@ -60,84 +58,85 @@ part 'database.g.dart';
 ///
 /// final db = AppDatabase(NativeDatabase.memory());
 /// ```
-@DriftDatabase(tables: [
-  // Core system tables
-  DecimalPrecision,
-  ResCurrency,
-  // User and partner tables
-  ResUsers,
-  ResGroups,
-  ResPartner,
-  // Geographic tables
-  ResCountry,
-  ResCountryState,
-  ResLang,
-  // Banking tables
-  ResBank,
-  ResPartnerBank,
-  ResCompanyTable,
-  // Inventory tables
-  StockWarehouse,
-  ResourceCalendar,
-  // Sync tables
-  OfflineQueue,
-  SyncAuditLog,
-  SyncMetadata,
-  FieldSelections,
-  RelatedRecordCache,
-  // Activity and mail tables
-  MailActivityTable,
-  // Collection system tables
-  CollectionConfig,
-  CollectionSession,
-  CollectionSessionCash,
-  CollectionSessionDeposit,
-  CashOut,
-  // Accounting tables
-  AccountPaymentTable,
-  AccountMove,
-  AccountMoveLine,
-  // Sales tables
-  SaleOrder,
-  SaleOrderLine,
-  SaleOrderWithholdLine,
-  SaleOrderPaymentLine,
-  // Product tables
-  ProductProduct,
-  ProductCategory,
-  // Tax and pricing tables
-  AccountTax,
-  UomUom,
-  UomCategory,
-  ProductUom,
-  ProductPricelist,
-  ProductPricelistItem,
-  // Payment and fiscal tables
-  AccountPaymentTerm,
-  CrmTeam,
-  AccountFiscalPosition,
-  AccountFiscalPositionTax,
-  AccountJournal,
-  AccountCreditCardBrand,
-  AccountCreditCardDeadline,
-  AccountCardLote,
-  AccountPaymentMethodLine,
-  AccountAdvance,
-  AdvanceLinesTable,
-  AccountCreditNote,
-  OfflineInvoice,
-  // Cash out types
-  CashOutType,
-  // Stock and inventory tables
-  StockByWarehouse,
-  ProductPriceChange,
-  StockQuantityChange,
-  // Sync and conflict tables
-  SyncConflict,
-  // Report templates
-  QwebReportTemplate,
-  QwebPaperFormat,
-])
+@DriftDatabase(
+  tables: [
+    // Core system tables
+    DecimalPrecision,
+    ResCurrency,
+    // User and partner tables
+    ResUsers,
+    ResGroups,
+    ResPartner,
+    // Geographic tables
+    ResCountry,
+    ResCountryState,
+    ResLang,
+    // Banking tables
+    ResBank,
+    ResPartnerBank,
+    ResCompanyTable,
+    // Inventory tables
+    StockWarehouse,
+    ResourceCalendar,
+    // Sync tables
+    OfflineQueue,
+    SyncAuditLog,
+    SyncMetadata,
+    FieldSelections,
+    RelatedRecordCache,
+    // Activity and mail tables
+    MailActivityTable,
+    // Collection system tables
+    CollectionConfig,
+    CollectionSession,
+    CollectionSessionCash,
+    CollectionSessionDeposit,
+    CashOut,
+    // Accounting tables
+    AccountPaymentTable,
+    AccountMove,
+    AccountMoveLine,
+    // Sales tables
+    SaleOrder,
+    SaleOrderLine,
+    SaleOrderWithholdLine,
+    SaleOrderPaymentLine,
+    // Product tables
+    ProductProduct,
+    ProductCategory,
+    // Tax and pricing tables
+    AccountTax,
+    UomUom,
+    ProductUom,
+    ProductPricelist,
+    ProductPricelistItem,
+    // Payment and fiscal tables
+    AccountPaymentTerm,
+    CrmTeam,
+    AccountFiscalPosition,
+    AccountFiscalPositionTax,
+    AccountJournal,
+    AccountCreditCardBrand,
+    AccountCreditCardDeadline,
+    AccountCardLote,
+    AccountPaymentMethodLine,
+    AccountAdvance,
+    AdvanceLinesTable,
+    AccountCreditNote,
+    OfflineInvoice,
+    // Cash out types
+    CashOutType,
+    // Stock and inventory tables
+    StockByWarehouse,
+    ProductPriceChange,
+    StockQuantityChange,
+    // Sync and conflict tables
+    SyncConflict,
+    // Report templates
+    QwebReportTemplate,
+    QwebPaperFormat,
+  ],
+)
 class AppDatabase extends _$AppDatabase {
   /// Default database name (used when no server-specific name is provided)
   static const String defaultDatabaseName = 'theos_pos_db';
@@ -165,33 +164,51 @@ class AppDatabase extends _$AppDatabase {
   /// // In CLI tool
   /// final db = AppDatabase(NativeDatabase.memory());
   /// ```
-  AppDatabase(QueryExecutor executor, {String? databaseName}) : super(executor) {
+  AppDatabase(QueryExecutor executor, {String? databaseName})
+    : super(executor) {
     _currentDatabaseName = databaseName ?? defaultDatabaseName;
   }
 
   @override
-  int get schemaVersion => 8;
+  int get schemaVersion => 13;
 
   @override
   MigrationStrategy get migration {
     return MigrationStrategy(
       onCreate: (Migrator m) async {
-        logger.i('[Database]', 'Creating all tables (schema v$schemaVersion)...');
+        logger.i(
+          '[Database]',
+          'Creating all tables (schema v$schemaVersion)...',
+        );
         await m.createAll();
         logger.i('[Database]', 'All tables created successfully');
       },
       onUpgrade: (Migrator m, int from, int to) async {
-        // Delega a DatabaseMigrations para lógica de migración incremental.
-        //
-        // Estrategia:
-        //   - from <= 3 (alfa): drop + recreate. Sin datos de producción.
-        //   - from >= 4 (prod): migraciones incrementales que preservan datos.
-        //     Las migraciones se ejecutan paso a paso: from→from+1→...→to.
-        //
-        // Ver: theos_pos_core/lib/src/database/migrations.dart
-        logger.i('[Database]', 'Iniciando upgrade v$from → v$to...');
-        await DatabaseMigrations.migrate(m, from, to, this);
-        logger.i('[Database]', 'Upgrade v$from → v$to completado.');
+        if (from >= 10 && from < 13 && to == 13) {
+          // Preserve existing offline financial records and queued operations.
+          if (from == 10) {
+            await m.addColumn(advanceLinesTable, advanceLinesTable.advanceId);
+          }
+          if (from < 12) {
+            await m.addColumn(
+              collectionConfig,
+              collectionConfig.posAppCapabilitiesJson,
+            );
+          }
+          await m.addColumn(
+            accountJournal,
+            accountJournal.numberedByClient,
+          );
+          return;
+        }
+        logger.i(
+          '[Database]',
+          'Development schema changed v$from → v$to; recreating local cache',
+        );
+        for (final table in allTables.toList().reversed) {
+          await m.deleteTable(table.actualTableName);
+        }
+        await m.createAll();
       },
       beforeOpen: (details) async {
         await customStatement('PRAGMA journal_mode=WAL');
@@ -250,6 +267,14 @@ class AppDatabase extends _$AppDatabase {
           'ON sale_order (state)',
         );
         await customStatement(
+          'CREATE INDEX IF NOT EXISTS idx_so_date_order_state '
+          'ON sale_order (date_order, state)',
+        );
+        await customStatement(
+          'CREATE INDEX IF NOT EXISTS idx_so_is_synced '
+          'ON sale_order (is_synced)',
+        );
+        await customStatement(
           'CREATE INDEX IF NOT EXISTS idx_so_partner_id '
           'ON sale_order (partner_id)',
         );
@@ -300,22 +325,26 @@ class AppDatabase extends _$AppDatabase {
         //
         // Si la app crashea mientras procesaba operaciones offline, éstas
         // quedan en estado 'processing' indefinidamente. Al abrir la DB,
-        // se resetean a 'pending' para que el sync las reintente.
+        // se mueven a 'recovery_pending'. El procesador solo reintentará
+        // automáticamente las que tengan un contrato de reconciliación
+        // remoto; una creación ambigua sin ese contrato irá a dead-letter.
         //
         // Seguro: una operación genuinamente en curso no existirá en la DB
         // en el momento de apertura, ya que el proceso previo fue terminado.
         // ----------------------------------------------------------------
         await customStatement(
-          "UPDATE offline_queue SET status = 'pending' WHERE status = 'processing'",
+          "UPDATE offline_queue SET status = 'recovery_pending' "
+          "WHERE status = 'processing'",
         );
         final recovered = await customSelect(
-          "SELECT COUNT(*) AS cnt FROM offline_queue WHERE status = 'pending'",
+          "SELECT COUNT(*) AS cnt FROM offline_queue "
+          "WHERE status IN ('pending', 'recovery_pending')",
         ).getSingle();
         final pendingCount = recovered.read<int>('cnt');
         logger.i(
           '[Database]',
-          'Startup recovery: offline_queue processing→pending reset. '
-          'Total pending now: $pendingCount',
+          'Startup recovery: offline_queue processing→recovery_pending. '
+              'Total pending now: $pendingCount',
         );
       },
     );

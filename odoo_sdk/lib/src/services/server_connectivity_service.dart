@@ -8,6 +8,7 @@
 library;
 
 import 'dart:async';
+
 import '../websocket/odoo_websocket_events.dart';
 import 'logger_service.dart';
 
@@ -100,9 +101,7 @@ class ConnectivityStatus {
 
   /// Is the server fully operational?
   bool get isFullyOnline =>
-      hasNetwork &&
-      serverState == ServerConnectionState.online &&
-      sessionValid;
+      hasNetwork && serverState == ServerConnectionState.online && sessionValid;
 
   /// Requires re-authentication?
   bool get needsReauth => serverState == ServerConnectionState.sessionExpired;
@@ -148,13 +147,13 @@ class ConnectivityStatus {
 
   @override
   int get hashCode => Object.hash(
-        hasNetwork,
-        serverState,
-        webSocketConnected,
-        sessionValid,
-        consecutiveFailures,
-        isManualOffline,
-      );
+    hasNetwork,
+    serverState,
+    webSocketConnected,
+    sessionValid,
+    consecutiveFailures,
+    isManualOffline,
+  );
 
   @override
   String toString() {
@@ -181,15 +180,22 @@ typedef HealthCheckCallback = Future<void> Function();
 typedef WebSocketStateCallback = bool Function();
 
 /// Callback to subscribe to WebSocket events
-typedef WebSocketEventSubscriber = StreamSubscription<OdooWebSocketEvent>
-    Function(void Function(OdooWebSocketEvent));
+typedef WebSocketEventSubscriber =
+    StreamSubscription<OdooWebSocketEvent> Function(
+      void Function(OdooWebSocketEvent),
+    );
 
 /// Interface for persisting health state
 abstract class HealthStatePersistence {
-  Future<void> saveState(ServerConnectionState state, DateTime timestamp,
-      DateTime? lastOnline);
-  Future<({ServerConnectionState? state, DateTime? timestamp, DateTime? lastOnline})>
-      loadState();
+  Future<void> saveState(
+    ServerConnectionState state,
+    DateTime timestamp,
+    DateTime? lastOnline,
+  );
+  Future<
+    ({ServerConnectionState? state, DateTime? timestamp, DateTime? lastOnline})
+  >
+  loadState();
 }
 
 /// Interface for network connectivity monitoring
@@ -266,9 +272,11 @@ class ServerHealthService {
 
   Timer? _healthCheckTimer;
   Timer? _recoveryCheckTimer;
+  Future<bool>? _healthCheckInFlight;
   DateTime? _lastActivity;
   StreamSubscription<bool>? _connectivitySubscription;
   StreamSubscription<OdooWebSocketEvent>? _wsEventSubscription;
+  bool _isDisposed = false;
 
   // Current state
   ConnectivityStatus _status = const ConnectivityStatus();
@@ -283,11 +291,11 @@ class ServerHealthService {
     WebSocketEventSubscriber? subscribeToWebSocket,
     HealthStatePersistence? persistence,
     NetworkConnectivityMonitor? networkMonitor,
-  })  : _healthCheck = healthCheck,
-        _getWebSocketState = getWebSocketState,
-        _subscribeToWebSocket = subscribeToWebSocket,
-        _persistence = persistence,
-        _networkMonitor = networkMonitor;
+  }) : _healthCheck = healthCheck,
+       _getWebSocketState = getWebSocketState,
+       _subscribeToWebSocket = subscribeToWebSocket,
+       _persistence = persistence,
+       _networkMonitor = networkMonitor;
 
   /// Current connectivity status
   ConnectivityStatus get status => _status;
@@ -307,10 +315,12 @@ class ServerHealthService {
     if (_status.isManualOffline == enabled) return;
 
     if (enabled) {
-      _updateStatus(_status.copyWith(
-        serverState: ServerConnectionState.unreachable,
-        isManualOffline: true,
-      ));
+      _updateStatus(
+        _status.copyWith(
+          serverState: ServerConnectionState.unreachable,
+          isManualOffline: true,
+        ),
+      );
       _healthCheckTimer?.cancel();
       _healthCheckTimer = null;
       _recoveryCheckTimer?.cancel();
@@ -343,8 +353,10 @@ class ServerHealthService {
     // Start periodic health check
     _startHealthCheckTimer();
 
-    logger.i('[ServerHealth]',
-        'Initialized with state: ${_status.serverState.name}');
+    logger.i(
+      '[ServerHealth]',
+      'Initialized with state: ${_status.serverState.name}',
+    );
   }
 
   /// Check initial network connectivity state
@@ -354,8 +366,10 @@ class ServerHealthService {
     try {
       final hasNetwork = await _networkMonitor.checkConnectivity();
       _updateStatus(_status.copyWith(hasNetwork: hasNetwork));
-      logger.d('[ServerHealth]',
-          'Initial network state: ${hasNetwork ? "connected" : "disconnected"}');
+      logger.d(
+        '[ServerHealth]',
+        'Initial network state: ${hasNetwork ? "connected" : "disconnected"}',
+      );
     } catch (e) {
       logger.w('[ServerHealth]', 'Failed to check initial network state: $e');
     }
@@ -383,14 +397,16 @@ class ServerHealthService {
       logger.i('[ServerHealth]', 'Server recovered - marking online');
     }
 
-    _updateStatus(_status.copyWith(
-      serverState: ServerConnectionState.online,
-      lastOnlineAt: DateTime.now(),
-      lastCheckedAt: DateTime.now(),
-      consecutiveFailures: 0,
-      lastError: null,
-      latencyMs: latencyMs,
-    ));
+    _updateStatus(
+      _status.copyWith(
+        serverState: ServerConnectionState.online,
+        lastOnlineAt: DateTime.now(),
+        lastCheckedAt: DateTime.now(),
+        consecutiveFailures: 0,
+        lastError: null,
+        latencyMs: latencyMs,
+      ),
+    );
 
     // Switch back to normal check interval if we were in recovery mode
     if (_recoveryCheckTimer != null) {
@@ -411,12 +427,14 @@ class ServerHealthService {
       'API failure #$newFailures: ${errorStr.substring(0, errorStr.length > 100 ? 100 : errorStr.length)}',
     );
 
-    _updateStatus(_status.copyWith(
-      serverState: newState,
-      lastCheckedAt: DateTime.now(),
-      consecutiveFailures: newFailures,
-      lastError: errorStr,
-    ));
+    _updateStatus(
+      _status.copyWith(
+        serverState: newState,
+        lastCheckedAt: DateTime.now(),
+        consecutiveFailures: newFailures,
+        lastError: errorStr,
+      ),
+    );
 
     // Switch to recovery mode (faster checking)
     if (newFailures >= config.failureThreshold && _recoveryCheckTimer == null) {
@@ -427,19 +445,19 @@ class ServerHealthService {
   /// Record session expiration
   void recordSessionExpired() {
     logger.w('[ServerHealth]', 'Session expired - needs re-authentication');
-    _updateStatus(_status.copyWith(
-      serverState: ServerConnectionState.sessionExpired,
-      sessionValid: false,
-      lastCheckedAt: DateTime.now(),
-    ));
+    _updateStatus(
+      _status.copyWith(
+        serverState: ServerConnectionState.sessionExpired,
+        sessionValid: false,
+        lastCheckedAt: DateTime.now(),
+      ),
+    );
   }
 
   /// Record session restoration
   void recordSessionRestored() {
     logger.i('[ServerHealth]', 'Session restored');
-    _updateStatus(_status.copyWith(
-      sessionValid: true,
-    ));
+    _updateStatus(_status.copyWith(sessionValid: true));
   }
 
   /// Update network connectivity state
@@ -468,7 +486,9 @@ class ServerHealthService {
         _lastActivity != null &&
         DateTime.now().difference(_lastActivity!) < config.activityThreshold) {
       logger.d(
-          '[ServerHealth]', 'Recent activity & online - skipping active check');
+        '[ServerHealth]',
+        'Recent activity & online - skipping active check',
+      );
       return true;
     }
 
@@ -476,7 +496,26 @@ class ServerHealthService {
   }
 
   /// Actually perform the HTTP health check
-  Future<bool> _performHealthCheck() async {
+  Future<bool> _performHealthCheck() {
+    if (_isDisposed) return Future.value(false);
+
+    final inFlight = _healthCheckInFlight;
+    if (inFlight != null) {
+      logger.d('[ServerHealth]', 'Health check already in progress - joining');
+      return inFlight;
+    }
+
+    late final Future<bool> operation;
+    operation = _runHealthCheck().whenComplete(() {
+      if (identical(_healthCheckInFlight, operation)) {
+        _healthCheckInFlight = null;
+      }
+    });
+    _healthCheckInFlight = operation;
+    return operation;
+  }
+
+  Future<bool> _runHealthCheck() async {
     if (_healthCheck == null) return false;
 
     logger.d('[ServerHealth]', 'Performing HTTP health check...');
@@ -486,12 +525,17 @@ class ServerHealthService {
       await _healthCheck();
       stopwatch.stop();
 
+      if (_isDisposed) return false;
+
       recordSuccess(latencyMs: stopwatch.elapsedMilliseconds);
-      logger.d('[ServerHealth]',
-          'Health check OK (${stopwatch.elapsedMilliseconds}ms)');
+      logger.d(
+        '[ServerHealth]',
+        'Health check OK (${stopwatch.elapsedMilliseconds}ms)',
+      );
       return true;
     } catch (e) {
       stopwatch.stop();
+      if (_isDisposed) return false;
       recordFailure(e);
       logger.w('[ServerHealth]', 'Health check FAILED: $e');
       return false;
@@ -559,34 +603,41 @@ class ServerHealthService {
 
     try {
       // Update initial state
-      _updateStatus(_status.copyWith(
-        webSocketConnected: _getWebSocketState(),
-      ));
+      _updateStatus(_status.copyWith(webSocketConnected: _getWebSocketState()));
 
       // Subscribe to typed event stream for all WebSocket events
       _wsEventSubscription = _subscribeToWebSocket((event) {
         switch (event) {
           case OdooConnectionEvent():
-            logger.d('[ServerHealth]',
-                'WebSocket state changed: connected=${event.isConnected}');
+            logger.d(
+              '[ServerHealth]',
+              'WebSocket state changed: connected=${event.isConnected}',
+            );
             _updateStatus(
-                _status.copyWith(webSocketConnected: event.isConnected));
+              _status.copyWith(webSocketConnected: event.isConnected),
+            );
 
             if (event.isConnected &&
                 _status.serverState != ServerConnectionState.online) {
               // WebSocket connected implies server is reachable
               logger.i(
-                  '[ServerHealth]', 'WebSocket connected - server likely online');
+                '[ServerHealth]',
+                'WebSocket connected - server likely online',
+              );
               checkHealth();
             } else if (!event.isConnected &&
                 _status.serverState == ServerConnectionState.online) {
               // WebSocket disconnected while we thought server was online
-              logger.w('[ServerHealth]',
-                  'WebSocket disconnected - marking as degraded, verifying HTTP');
-              _updateStatus(_status.copyWith(
-                serverState: ServerConnectionState.degraded,
-                consecutiveFailures: _status.consecutiveFailures + 1,
-              ));
+              logger.w(
+                '[ServerHealth]',
+                'WebSocket disconnected - marking as degraded, verifying HTTP',
+              );
+              _updateStatus(
+                _status.copyWith(
+                  serverState: ServerConnectionState.degraded,
+                  consecutiveFailures: _status.consecutiveFailures + 1,
+                ),
+              );
               _performHealthCheck();
             }
 
@@ -622,8 +673,10 @@ class ServerHealthService {
       checkHealth();
     });
 
-    logger.i('[ServerHealth]',
-        'Switched to recovery mode (${config.recoveryCheckInterval.inSeconds}s interval)');
+    logger.i(
+      '[ServerHealth]',
+      'Switched to recovery mode (${config.recoveryCheckInterval.inSeconds}s interval)',
+    );
   }
 
   /// Update status and notify listeners
@@ -666,7 +719,10 @@ class ServerHealthService {
             lastCheckedAt: cached.timestamp,
             lastOnlineAt: cached.lastOnline,
           );
-          logger.d('[ServerHealth]', 'Loaded cached state: ${cached.state!.name}');
+          logger.d(
+            '[ServerHealth]',
+            'Loaded cached state: ${cached.state!.name}',
+          );
         }
       }
     } catch (e) {
@@ -676,6 +732,7 @@ class ServerHealthService {
 
   /// Dispose resources
   void dispose() {
+    _isDisposed = true;
     _healthCheckTimer?.cancel();
     _recoveryCheckTimer?.cancel();
     _connectivitySubscription?.cancel();

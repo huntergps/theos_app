@@ -1,6 +1,8 @@
-import 'package:theos_pos_core/theos_pos_core.dart' show SaleOrder, SaleOrderLine;
+import 'package:theos_pos_core/theos_pos_core.dart'
+    show SaleOrder, SaleOrderLine;
 
-import '../../../core/services/logger_service.dart';
+import 'package:odoo_sdk/odoo_sdk.dart' show logger;
+
 import '../providers/base_order_state.dart';
 
 /// Result of conflict detection
@@ -19,23 +21,21 @@ class ConflictDetectionResult {
 
   factory ConflictDetectionResult.noConflicts({
     Map<String, dynamic> mergeableFields = const {},
-  }) =>
-      ConflictDetectionResult._(
-        hasConflicts: false,
-        mergeableFields: mergeableFields,
-      );
+  }) => ConflictDetectionResult._(
+    hasConflicts: false,
+    mergeableFields: mergeableFields,
+  );
 
   factory ConflictDetectionResult.withConflicts({
     required List<ConflictDetail> conflicts,
     required String conflictMessage,
     Map<String, dynamic> mergeableFields = const {},
-  }) =>
-      ConflictDetectionResult._(
-        hasConflicts: true,
-        conflicts: conflicts,
-        conflictMessage: conflictMessage,
-        mergeableFields: mergeableFields,
-      );
+  }) => ConflictDetectionResult._(
+    hasConflicts: true,
+    conflicts: conflicts,
+    conflictMessage: conflictMessage,
+    mergeableFields: mergeableFields,
+  );
 
   /// Get list of conflicting field names
   List<String> get conflictingFieldNames =>
@@ -98,7 +98,7 @@ class ConflictDetectionService {
   /// Detect conflicts between local and server order changes
   ///
   /// [localOrder] - Current local order state
-  /// [serverOrder] - Order received from server (via WebSocket or reload)
+  /// [serverOrder] - Order received from server through sync or reload
   /// [changedFields] - Map of locally changed fields with their values
   /// [serverUserName] - Name of user who made server changes (for message)
   ///
@@ -133,13 +133,18 @@ class ConflictDetectionService {
       if (changedFields.containsKey(field)) {
         // Field was modified locally AND on server = conflict
         final localChange = changedFields[field];
-        conflicts.add(ConflictDetail(
-          fieldName: _getFieldDisplayName(field),
-          localValue: localChange,
-          serverValue: serverValue,
-          serverUserName: serverUserName,
-        ));
-        logger.d(_tag, 'Conflict on $field: local=$localChange, server=$serverValue');
+        conflicts.add(
+          ConflictDetail(
+            fieldName: _getFieldDisplayName(field),
+            localValue: localChange,
+            serverValue: serverValue,
+            serverUserName: serverUserName,
+          ),
+        );
+        logger.d(
+          _tag,
+          'Conflict on $field: local=$localChange, server=$serverValue',
+        );
       } else {
         // Field only modified on server = can merge
         mergeableFields[field] = serverValue;
@@ -219,12 +224,14 @@ class ConflictDetectionService {
 
         if (!_valuesEqual(localValue, serverValue)) {
           // Line was modified on server for this field
-          conflicts.add(ConflictDetail(
-            fieldName: _getFieldDisplayName(field),
-            localValue: localValue,
-            serverValue: serverValue,
-            serverUserName: serverUserName,
-          ));
+          conflicts.add(
+            ConflictDetail(
+              fieldName: _getFieldDisplayName(field),
+              localValue: localValue,
+              serverValue: serverValue,
+              serverUserName: serverUserName,
+            ),
+          );
         }
       }
 

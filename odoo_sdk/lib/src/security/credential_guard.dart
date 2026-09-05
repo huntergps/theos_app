@@ -57,8 +57,8 @@ class CredentialGuard {
     required SecureCredentialStore store,
     required String contextId,
     this.autoClearAfter = const Duration(minutes: 5),
-  })  : _store = store,
-        _contextId = contextId;
+  }) : _store = store,
+       _contextId = contextId;
 
   /// The context ID this guard is scoped to.
   String get contextId => _contextId;
@@ -116,13 +116,19 @@ class CredentialGuard {
     _clearTimer = null;
   }
 
-  /// Delete all credentials for this context from both memory and store.
+  /// Delete all SDK-managed credentials for this context from memory and store.
   ///
-  /// Iterates over all cached keys and removes them from the underlying
-  /// store, then clears the in-memory cache.
+  /// Known keys are removed deterministically even after a cold restart. Any
+  /// custom keys used through [set] and still present in the cache are removed
+  /// as well.
   Future<void> deleteAll() async {
-    // Delete each cached key from store
-    for (final key in _cache.keys.toList()) {
+    final keys = <String>{
+      ...CredentialKeys.values.map(
+        (key) => CredentialKeys.scoped(_contextId, key),
+      ),
+      ..._cache.keys,
+    };
+    for (final key in keys) {
       await _store.delete(key);
     }
     _cache.clear();

@@ -1,8 +1,13 @@
 import 'package:theos_pos_core/theos_pos_core.dart'
-    show WithholdLine, withholdLineManager, AvailableWithholdTax,
-         userManager, UserManagerBusiness;
+    show
+        WithholdLine,
+        withholdLineManager,
+        AvailableWithholdTax,
+        userManager,
+        UserManagerBusiness;
 
-import '../../../core/services/logger_service.dart';
+import 'package:odoo_sdk/odoo_sdk.dart' show logger;
+
 import '../../../core/services/odoo_service.dart';
 import '../../../shared/utils/formatting_utils.dart';
 import '../repositories/sales_repository.dart';
@@ -29,8 +34,7 @@ class WithholdService {
   final OdooService _odoo;
   final SalesRepository? _salesRepo;
 
-  WithholdService(this._odoo, {SalesRepository? salesRepo})
-      : _salesRepo = salesRepo;
+  WithholdService(this._odoo, {this._salesRepo});
 
   /// Get the current user's company_id, defaulting to 1 if unavailable
   Future<int> _getUserCompanyId() async {
@@ -38,12 +42,18 @@ class WithholdService {
       final user = await userManager.getCurrentUser();
       final companyId = user?.companyId;
       if (companyId == null) {
-        logger.w('[WithholdService]', 'company_id not available from user, using fallback=1');
+        logger.w(
+          '[WithholdService]',
+          'company_id not available from user, using fallback=1',
+        );
         return 1;
       }
       return companyId;
     } catch (e) {
-      logger.w('[WithholdService]', 'Error getting company_id, using fallback=1: $e');
+      logger.w(
+        '[WithholdService]',
+        'Error getting company_id, using fallback=1: $e',
+      );
       return 1;
     }
   }
@@ -55,7 +65,8 @@ class WithholdService {
   ///
   /// Returns [WithholdAuthorizationValidation] with validation result.
   static WithholdAuthorizationValidation validateAuthorization(
-      String? authorization) {
+    String? authorization,
+  ) {
     if (authorization == null || authorization.isEmpty) {
       return WithholdAuthorizationValidation.valid(); // Empty is optional
     }
@@ -95,7 +106,11 @@ class WithholdService {
         method: 'search_read',
         kwargs: {
           'domain': [
-            ['tax_group_id.l10n_ec_type', 'in', ['withhold_vat_sale', 'withhold_income_sale']],
+            [
+              'tax_group_id.l10n_ec_type',
+              'in',
+              ['withhold_vat_sale', 'withhold_income_sale'],
+            ],
             ['active', '=', true],
             ['company_id', '=', companyId],
           ],
@@ -134,14 +149,18 @@ class WithholdService {
             model: 'account.tax.group',
             method: 'search_read',
             kwargs: {
-              'domain': [['id', '=', groupId]],
+              'domain': [
+                ['id', '=', groupId],
+              ],
               'fields': ['l10n_ec_type'],
               'limit': 1,
             },
           );
 
           if (groupData is List && groupData.isNotEmpty) {
-            l10nEcType = (groupData[0] as Map<String, dynamic>)['l10n_ec_type'] as String?;
+            l10nEcType =
+                (groupData[0] as Map<String, dynamic>)['l10n_ec_type']
+                    as String?;
             if (l10nEcType != null) {
               groupCache[groupId] = l10nEcType;
             }
@@ -186,8 +205,17 @@ class WithholdService {
         model: 'sale.order.withhold.line',
         method: 'search_read',
         kwargs: {
-          'domain': [['sale_id', '=', saleOrderId]],
-          'fields': ['id', 'tax_id', 'taxsupport_code', 'base', 'amount', 'notes'],
+          'domain': [
+            ['sale_id', '=', saleOrderId],
+          ],
+          'fields': [
+            'id',
+            'tax_id',
+            'taxsupport_code',
+            'base',
+            'amount',
+            'notes',
+          ],
           'order': 'sequence, id',
         },
       );
@@ -214,7 +242,9 @@ class WithholdService {
           model: 'account.tax',
           method: 'search_read',
           kwargs: {
-            'domain': [['id', 'in', taxIds.toList()]],
+            'domain': [
+              ['id', 'in', taxIds.toList()],
+            ],
             'fields': ['id', 'name', 'amount', 'tax_group_id'],
           },
         );
@@ -235,7 +265,9 @@ class WithholdService {
               model: 'account.tax.group',
               method: 'search_read',
               kwargs: {
-                'domain': [['id', 'in', groupIds.toList()]],
+                'domain': [
+                  ['id', 'in', groupIds.toList()],
+                ],
                 'fields': ['id', 'l10n_ec_type'],
               },
             );
@@ -289,10 +321,18 @@ class WithholdService {
         result.add(withholdLineManager.fromOdoo(line));
       }
 
-      logger.d('[WithholdService]', 'Got ${result.length} withhold lines for order $saleOrderId');
+      logger.d(
+        '[WithholdService]',
+        'Got ${result.length} withhold lines for order $saleOrderId',
+      );
       return result;
     } catch (e, st) {
-      logger.e('[WithholdService]', 'Error getting withhold lines for order $saleOrderId', e, st);
+      logger.e(
+        '[WithholdService]',
+        'Error getting withhold lines for order $saleOrderId',
+        e,
+        st,
+      );
       return [];
     }
   }
@@ -304,9 +344,15 @@ class WithholdService {
   ///
   /// Eliminates existing lines and creates new ones using the repository's
   /// offline-first `deleteAllWithholdLinesForOrder` and `createWithholdLine`.
-  Future<bool> saveWithholdLines(int saleOrderId, List<WithholdLine> lines) async {
+  Future<bool> saveWithholdLines(
+    int saleOrderId,
+    List<WithholdLine> lines,
+  ) async {
     if (_salesRepo == null) {
-      logger.e('[WithholdService]', 'SalesRepository not available - cannot save withhold lines');
+      logger.e(
+        '[WithholdService]',
+        'SalesRepository not available - cannot save withhold lines',
+      );
       return false;
     }
 
@@ -325,10 +371,17 @@ class WithholdService {
         await _salesRepo.createWithholdLine(saleOrderId, vals);
       }
 
-      logger.d('[WithholdService] Saved ${lines.length} withhold lines for order $saleOrderId');
+      logger.d(
+        '[WithholdService] Saved ${lines.length} withhold lines for order $saleOrderId',
+      );
       return true;
     } catch (e, st) {
-      logger.e('[WithholdService]', 'Error saving withhold lines for order $saleOrderId', e, st);
+      logger.e(
+        '[WithholdService]',
+        'Error saving withhold lines for order $saleOrderId',
+        e,
+        st,
+      );
       return false;
     }
   }
@@ -340,19 +393,28 @@ class WithholdService {
         model: 'sale.order',
         method: 'search_read',
         kwargs: {
-          'domain': [['id', '=', saleOrderId]],
+          'domain': [
+            ['id', '=', saleOrderId],
+          ],
           'fields': ['retenido_amount'],
           'limit': 1,
         },
       );
 
       if (order is List && order.isNotEmpty) {
-        return ((order[0] as Map<String, dynamic>)['retenido_amount'] as num?)?.toDouble() ?? 0.0;
+        return ((order[0] as Map<String, dynamic>)['retenido_amount'] as num?)
+                ?.toDouble() ??
+            0.0;
       }
 
       return 0.0;
     } catch (e, st) {
-      logger.e('[WithholdService]', 'Error getting total withhold for order $saleOrderId', e, st);
+      logger.e(
+        '[WithholdService]',
+        'Error getting total withhold for order $saleOrderId',
+        e,
+        st,
+      );
       return 0.0;
     }
   }

@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:test/test.dart';
 import 'package:odoo_sdk/odoo_sdk.dart';
 
@@ -5,12 +7,30 @@ void main() {
   group('ServerConnectionState', () {
     test('all states are defined', () {
       expect(ServerConnectionState.values, hasLength(6));
-      expect(ServerConnectionState.values, contains(ServerConnectionState.online));
-      expect(ServerConnectionState.values, contains(ServerConnectionState.degraded));
-      expect(ServerConnectionState.values, contains(ServerConnectionState.unreachable));
-      expect(ServerConnectionState.values, contains(ServerConnectionState.maintenance));
-      expect(ServerConnectionState.values, contains(ServerConnectionState.sessionExpired));
-      expect(ServerConnectionState.values, contains(ServerConnectionState.unknown));
+      expect(
+        ServerConnectionState.values,
+        contains(ServerConnectionState.online),
+      );
+      expect(
+        ServerConnectionState.values,
+        contains(ServerConnectionState.degraded),
+      );
+      expect(
+        ServerConnectionState.values,
+        contains(ServerConnectionState.unreachable),
+      );
+      expect(
+        ServerConnectionState.values,
+        contains(ServerConnectionState.maintenance),
+      );
+      expect(
+        ServerConnectionState.values,
+        contains(ServerConnectionState.sessionExpired),
+      );
+      expect(
+        ServerConnectionState.values,
+        contains(ServerConnectionState.unknown),
+      );
     });
   });
 
@@ -72,9 +92,7 @@ void main() {
 
     group('shouldSkipRemote', () {
       test('returns true when no network', () {
-        const status = ConnectivityStatus(
-          hasNetwork: false,
-        );
+        const status = ConnectivityStatus(hasNetwork: false);
         expect(status.shouldSkipRemote, true);
       });
 
@@ -360,6 +378,52 @@ void main() {
         ServerHealthService.classifyError('Some random error', null),
         ServerConnectionState.degraded,
       );
+    });
+  });
+
+  group('ServerHealthService health-check concurrency', () {
+    test('concurrent force checks share the same in-flight probe', () async {
+      final probe = Completer<void>();
+      var calls = 0;
+      final service = ServerHealthService(
+        healthCheck: () async {
+          calls++;
+          await probe.future;
+        },
+      );
+      addTearDown(service.dispose);
+
+      final first = service.forceCheck();
+      final second = service.forceCheck();
+      await Future<void>.delayed(Duration.zero);
+
+      expect(calls, 1);
+
+      probe.complete();
+      final results = await Future.wait([first, second]);
+
+      expect(results, everyElement(isA<ConnectivityStatus>()));
+      expect(
+        results,
+        everyElement(
+          predicate<ConnectivityStatus>(
+            (status) => status.serverState == ServerConnectionState.online,
+          ),
+        ),
+      );
+      expect(calls, 1);
+    });
+
+    test('disposing during a probe prevents a late status update', () async {
+      final probe = Completer<void>();
+      final service = ServerHealthService(healthCheck: () => probe.future);
+
+      final result = service.forceCheck();
+      await Future<void>.delayed(Duration.zero);
+      service.dispose();
+      probe.complete();
+
+      expect((await result).serverState, ServerConnectionState.unknown);
     });
   });
 }

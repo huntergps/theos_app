@@ -18,8 +18,6 @@ import 'package:theos_pos_core/theos_pos_core.dart'
         collectionSessionDepositManager,
         CashOut,
         cashOutManager,
-        AccountPayment,
-        accountPaymentManager,
         taxManager,
         clientManager,
         ClientManagerBusiness,
@@ -28,28 +26,11 @@ import 'package:theos_pos_core/theos_pos_core.dart'
         resLangManager,
         resourceCalendarManager,
         userManager;
-// Feature modules (new pattern)
-import '../../features/prices/prices.dart' hide pricelistsProvider;
-// Core services (re-exported from features for backwards compatibility)
-import '../../features/collection/services/session_service.dart';
 
-// Re-export Sale Order providers from features/sales for backwards compatibility
-export '../../features/sales/providers/providers.dart'
-    show
-        saleOrdersProvider,
-        saleOrdersByPartnerProvider,
-        saleOrderByIdProvider,
-        saleOrderWithLinesProvider,
-        saleOrderLinesProvider,
-        saleOrderSearchProvider,
-        unsyncedSaleOrdersProvider,
-        // Stream providers (reactive, preferred for new UI code)
-        saleOrdersStreamProvider,
-        saleOrdersByStateStreamProvider,
-        saleOrderStreamProvider,
-        saleOrderLinesStreamProvider,
-        saleOrderLineStreamProvider,
-        unsyncedSaleOrdersStreamProvider;
+import 'package:theos_pos_core/theos_pos_core.dart'
+    show PricelistCalculatorService;
+
+import '../../features/collection/services/session_service.dart';
 
 import '../services/config_service.dart';
 import '../../features/taxes/taxes.dart';
@@ -132,25 +113,32 @@ final countriesProvider = StreamProvider<List<ResCountry>>((ref) {
 /// `ref.read(statesProvider(id).future)` puntual — patrón seguro y
 /// oficialmente soportado para autoDispose (el `.future` mantiene el
 /// provider vivo hasta que resuelve el valor).
-final statesProvider = StreamProvider.autoDispose.family<List<ResCountryState>, int?>((ref, countryId) {
-  if (countryId == null) {
-    return resCountryStateManager.watchLocalSearch(orderBy: 'name asc');
-  }
-  return resCountryStateManager.watchLocalSearch(
-    domain: [['country_id', '=', countryId]],
-    orderBy: 'name asc',
-  );
-});
+final statesProvider = StreamProvider.autoDispose
+    .family<List<ResCountryState>, int?>((ref, countryId) {
+      if (countryId == null) {
+        return resCountryStateManager.watchLocalSearch(orderBy: 'name asc');
+      }
+      return resCountryStateManager.watchLocalSearch(
+        domain: [
+          ['country_id', '=', countryId],
+        ],
+        orderBy: 'name asc',
+      );
+    });
 
 /// Reactive stream of the current user from local DB.
 ///
 /// Uses `userManager.watchLocalSearch()` filtered by `is_current_user`
 /// so UI auto-updates when the current user changes or is modified locally.
 final currentUserProvider = StreamProvider<User?>((ref) {
-  return userManager.watchLocalSearch(
-    domain: [['is_current_user', '=', true]],
-    limit: 1,
-  ).map((users) => users.isNotEmpty ? users.first : null);
+  return userManager
+      .watchLocalSearch(
+        domain: [
+          ['is_current_user', '=', true],
+        ],
+        limit: 1,
+      )
+      .map((users) => users.isNotEmpty ? users.first : null);
 });
 
 /// Reactive stream of a partner by ID from local DB.
@@ -162,7 +150,10 @@ final currentUserProvider = StreamProvider<User?>((ref) {
 /// corregido). Verificado: ambos consumidores (`pos_customer_keypad_panel.dart`,
 /// `form_fields.dart`) lo observan vía `ref.watch()` dentro de `build()` —
 /// patrón reactivo estándar, seguro con autoDispose.
-final partnerProvider = StreamProvider.autoDispose.family<Client?, int>((ref, partnerId) {
+final partnerProvider = StreamProvider.autoDispose.family<Client?, int>((
+  ref,
+  partnerId,
+) {
   return clientManager.watchPartner(partnerId);
 });
 
@@ -172,7 +163,9 @@ final partnerProvider = StreamProvider.autoDispose.family<Client?, int>((ref, pa
 /// when languages are synced or modified locally.
 final languagesProvider = StreamProvider<List<ResLang>>((ref) {
   return resLangManager.watchLocalSearch(
-    domain: [['active', '=', true]],
+    domain: [
+      ['active', '=', true],
+    ],
     orderBy: 'name asc',
   );
 });
@@ -197,7 +190,9 @@ final timezonesProvider = FutureProvider<List<dynamic>>((ref) async {
     if (timezones.isNotEmpty) return timezones;
   }
   // Default Ecuador si no hay cache ni conexión
-  return [['America/Guayaquil', 'America/Guayaquil']];
+  return [
+    ['America/Guayaquil', 'America/Guayaquil'],
+  ];
 });
 
 /// Notification types — lee de cache local (FieldSelections), con default.
@@ -210,7 +205,10 @@ final notificationTypesProvider = FutureProvider<List<dynamic>>((ref) async {
     final types = await repo.getNotificationTypes();
     if (types.isNotEmpty) return types;
   }
-  return [['email', 'Correo electrónico'], ['inbox', 'Bandeja de entrada']];
+  return [
+    ['email', 'Correo electrónico'],
+    ['inbox', 'Bandeja de entrada'],
+  ];
 });
 
 /// Reactive stream of all activities from local DB.
@@ -283,38 +281,6 @@ class CurrentSession extends _$CurrentSession {
   }
 }
 
-/// Reactive stream of a collection session by ID.
-///
-/// Uses `collectionSessionManager.watch()` so UI auto-updates
-/// when the session is modified or synced locally.
-///
-/// `keepAlive:false`: es `.family` por `sessionId` transitorio (memory leak
-/// corregido). Verificado: **sin ningún consumidor vía `ref.watch()`** en
-/// todo el codebase hoy — los 8 usos existentes son todos
-/// `ref.invalidate(sessionByIdProvider(id))` (en `collection_dashboard_screen.dart`,
-/// `collection_session_screen.dart`, `notification_provider.dart`), lo cual
-/// ya era efectivamente un no-op porque nadie lo observaba. Cero riesgo de
-/// romper algo al convertirlo a autoDispose.
-@Riverpod(keepAlive: false)
-Stream<CollectionSession?> sessionById(Ref ref, int sessionId) {
-  return collectionSessionManager.watch(sessionId);
-}
-
-/// Reactive stream of payments for a collection session.
-///
-/// Uses `accountPaymentManager.watchLocalSearch()` so UI auto-updates
-/// when payments are created, modified, or synced locally.
-///
-/// `autoDispose`: es `.family` por `sessionId` transitorio (memory leak
-/// corregido). Verificado: sin consumidores activos hoy (solo re-exportado
-/// en el barrel de `features/collection/providers/providers.dart`) — cero
-/// riesgo de romper algo.
-final sessionPaymentsProvider = StreamProvider.autoDispose.family<List<AccountPayment>, int>((ref, sessionId) {
-  return accountPaymentManager.watchLocalSearch(
-    domain: [['collection_session_id', '=', sessionId]],
-  );
-});
-
 /// Reactive stream of cash outs for a collection session.
 ///
 /// Uses `cashOutManager.watchLocalSearch()` so UI auto-updates
@@ -323,11 +289,14 @@ final sessionPaymentsProvider = StreamProvider.autoDispose.family<List<AccountPa
 /// `autoDispose`: es `.family` por `sessionId` transitorio (memory leak
 /// corregido). Verificado: el único consumidor (`cash_outs_tab.dart`) lo
 /// observa vía `ref.watch()` en `build()` — patrón reactivo estándar.
-final sessionCashOutsProvider = StreamProvider.autoDispose.family<List<CashOut>, int>((ref, sessionId) {
-  return cashOutManager.watchLocalSearch(
-    domain: [['collection_session_id', '=', sessionId]],
-  );
-});
+final sessionCashOutsProvider = StreamProvider.autoDispose
+    .family<List<CashOut>, int>((ref, sessionId) {
+      return cashOutManager.watchLocalSearch(
+        domain: [
+          ['collection_session_id', '=', sessionId],
+        ],
+      );
+    });
 
 /// Reactive stream of deposits for a collection session.
 ///
@@ -338,11 +307,14 @@ final sessionCashOutsProvider = StreamProvider.autoDispose.family<List<CashOut>,
 /// corregido). Verificado: el único consumidor (`deposits_tab.dart`) lo
 /// observa vía `ref.watch()` en `build()` (y usa `ref.invalidate()` para
 /// forzar refresh, patrón compatible con autoDispose).
-final sessionDepositsProvider = StreamProvider.autoDispose.family<List<CollectionSessionDeposit>, int>((ref, sessionId) {
-  return collectionSessionDepositManager.watchLocalSearch(
-    domain: [['collection_session_id', '=', sessionId]],
-  );
-});
+final sessionDepositsProvider = StreamProvider.autoDispose
+    .family<List<CollectionSessionDeposit>, int>((ref, sessionId) {
+      return collectionSessionDepositManager.watchLocalSearch(
+        domain: [
+          ['collection_session_id', '=', sessionId],
+        ],
+      );
+    });
 
 @Riverpod(keepAlive: true)
 SessionService? sessionService(Ref ref) {

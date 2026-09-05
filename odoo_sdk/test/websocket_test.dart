@@ -180,14 +180,12 @@ void main() {
         baseUrl: 'https://odoo.example.com',
         database: 'mydb',
         apiKey: 'test-key',
-        sessionId: 'session-123',
         partnerId: 42,
       );
 
       expect(info.baseUrl, equals('https://odoo.example.com'));
       expect(info.database, equals('mydb'));
       expect(info.apiKey, equals('test-key'));
-      expect(info.sessionId, equals('session-123'));
       expect(info.partnerId, equals(42));
     });
   });
@@ -229,14 +227,8 @@ void main() {
           isReconnection: true,
         );
 
-        expect(
-          event.toString(),
-          contains('connected: true'),
-        );
-        expect(
-          event.toString(),
-          contains('reconnection: true'),
-        );
+        expect(event.toString(), contains('connected: true'));
+        expect(event.toString(), contains('reconnection: true'));
       });
     });
 
@@ -260,20 +252,14 @@ void main() {
 
     group('OdooPresenceEvent', () {
       test('creates presence event', () {
-        final event = OdooPresenceEvent(
-          partnerId: 42,
-          imStatus: 'online',
-        );
+        final event = OdooPresenceEvent(partnerId: 42, imStatus: 'online');
 
         expect(event.partnerId, equals(42));
         expect(event.imStatus, equals('online'));
       });
 
       test('toString includes partner and status', () {
-        final event = OdooPresenceEvent(
-          partnerId: 42,
-          imStatus: 'away',
-        );
+        final event = OdooPresenceEvent(partnerId: 42, imStatus: 'away');
 
         expect(event.toString(), contains('partner: 42'));
         expect(event.toString(), contains('status: away'));
@@ -316,11 +302,7 @@ void main() {
           model: 'sale.order',
           recordId: 1,
           action: OdooRecordAction.created,
-          values: {
-            'name': 'SO001',
-            'amount_total': 1500.0,
-            'line_count': 5,
-          },
+          values: {'name': 'SO001', 'amount_total': 1500.0, 'line_count': 5},
         );
 
         expect(event.getValue<String>('name'), equals('SO001'));
@@ -355,7 +337,10 @@ void main() {
           lineId: 10,
           orderId: 100,
           action: OdooRecordAction.created,
-          values: {'product_id': [5, 'Product A'], 'quantity': 10},
+          values: {
+            'product_id': [5, 'Product A'],
+            'quantity': 10,
+          },
           changedFields: ['quantity'],
         );
 
@@ -410,8 +395,20 @@ void main() {
     setUp(() {
       // Register field mappings that the tests expect (no longer provided by registerDefaults)
       final registry = WebSocketModelRegistry.instance;
-      registry.registerFieldMapping('sale.order', const WebSocketFieldMapping(idField: 'order_id', nameField: 'order_name'));
-      registry.registerFieldMapping('res.partner', const WebSocketFieldMapping(idField: 'partner_id', nameField: 'partner_name'));
+      registry.registerFieldMapping(
+        'sale.order',
+        const WebSocketFieldMapping(
+          idField: 'order_id',
+          nameField: 'order_name',
+        ),
+      );
+      registry.registerFieldMapping(
+        'res.partner',
+        const WebSocketFieldMapping(
+          idField: 'partner_id',
+          nameField: 'partner_name',
+        ),
+      );
     });
 
     tearDown(() {
@@ -455,7 +452,9 @@ void main() {
       });
 
       test('extracts id from list format', () {
-        final payload = {'id': [42, 'Record Name']};
+        final payload = {
+          'id': [42, 'Record Name'],
+        };
         expect(extractRecordId(payload, 'some.model'), equals(42));
       });
 
@@ -478,7 +477,10 @@ void main() {
 
       test('falls back to name field', () {
         final payload = {'name': 'Generic Name'};
-        expect(extractRecordName(payload, 'unknown.model'), equals('Generic Name'));
+        expect(
+          extractRecordName(payload, 'unknown.model'),
+          equals('Generic Name'),
+        );
       });
 
       test('returns null for missing name', () {
@@ -508,11 +510,13 @@ void main() {
 
       // Emit different event types
       controller.add(OdooPresenceEvent(partnerId: 1, imStatus: 'online'));
-      controller.add(OdooRecordEvent(
-        model: 'sale.order',
-        recordId: 100,
-        action: OdooRecordAction.created,
-      ));
+      controller.add(
+        OdooRecordEvent(
+          model: 'sale.order',
+          recordId: 100,
+          action: OdooRecordAction.created,
+        ),
+      );
       controller.add(OdooPresenceEvent(partnerId: 2, imStatus: 'away'));
       controller.add(OdooConnectionEvent(isConnected: true));
 
@@ -536,21 +540,27 @@ void main() {
           .listen((e) => orderEvents.add(e));
 
       // Emit events for different models
-      controller.add(OdooRecordEvent(
-        model: 'sale.order',
-        recordId: 1,
-        action: OdooRecordAction.created,
-      ));
-      controller.add(OdooRecordEvent(
-        model: 'res.partner',
-        recordId: 2,
-        action: OdooRecordAction.updated,
-      ));
-      controller.add(OdooRecordEvent(
-        model: 'sale.order',
-        recordId: 3,
-        action: OdooRecordAction.updated,
-      ));
+      controller.add(
+        OdooRecordEvent(
+          model: 'sale.order',
+          recordId: 1,
+          action: OdooRecordAction.created,
+        ),
+      );
+      controller.add(
+        OdooRecordEvent(
+          model: 'res.partner',
+          recordId: 2,
+          action: OdooRecordAction.updated,
+        ),
+      );
+      controller.add(
+        OdooRecordEvent(
+          model: 'sale.order',
+          recordId: 3,
+          action: OdooRecordAction.updated,
+        ),
+      );
 
       await Future.delayed(const Duration(milliseconds: 10));
 
@@ -569,8 +579,14 @@ void main() {
       );
       final after = DateTime.now();
 
-      expect(event.timestamp.isAfter(before) || event.timestamp == before, isTrue);
-      expect(event.timestamp.isBefore(after) || event.timestamp == after, isTrue);
+      expect(
+        event.timestamp.isAfter(before) || event.timestamp == before,
+        isTrue,
+      );
+      expect(
+        event.timestamp.isBefore(after) || event.timestamp == after,
+        isTrue,
+      );
     });
 
     test('sealed class pattern matching works', () async {
@@ -601,17 +617,18 @@ void main() {
 
       processEvent(OdooConnectionEvent(isConnected: true));
       processEvent(OdooPresenceEvent(partnerId: 42, imStatus: 'online'));
-      processEvent(OdooRecordEvent(
-        model: 'sale.order',
-        recordId: 100,
-        action: OdooRecordAction.created,
-      ));
+      processEvent(
+        OdooRecordEvent(
+          model: 'sale.order',
+          recordId: 100,
+          action: OdooRecordAction.created,
+        ),
+      );
 
-      expect(events, equals([
-        'connection:true',
-        'presence:42',
-        'record:sale.order:100',
-      ]));
+      expect(
+        events,
+        equals(['connection:true', 'presence:42', 'record:sale.order:100']),
+      );
     });
   });
 
@@ -622,7 +639,10 @@ void main() {
   group('Reconnection Logic', () {
     test('calculates exponential backoff correctly', () {
       // Backoff formula: (5 * attempts).clamp(10, 120) seconds
-      expect((5 * 1).clamp(10, 120), equals(10)); // 1st attempt: 5 -> clamped to 10
+      expect(
+        (5 * 1).clamp(10, 120),
+        equals(10),
+      ); // 1st attempt: 5 -> clamped to 10
       expect((5 * 2).clamp(10, 120), equals(10)); // 2nd attempt: 10
       expect((5 * 3).clamp(10, 120), equals(15)); // 3rd attempt: 15
       expect((5 * 10).clamp(10, 120), equals(50)); // 10th attempt: 50
@@ -785,7 +805,10 @@ void main() {
       expect(lastHeartbeat, isNull);
       sendHeartbeat();
       expect(lastHeartbeat, isNotNull);
-      expect(lastHeartbeat!.isBefore(DateTime.now().add(const Duration(seconds: 1))), isTrue);
+      expect(
+        lastHeartbeat!.isBefore(DateTime.now().add(const Duration(seconds: 1))),
+        isTrue,
+      );
     });
   });
 
@@ -977,9 +1000,9 @@ void main() {
         processedMessages.add(hash);
 
         if (processedMessages.length > maxCache) {
-          final toRemove = processedMessages.take(
-            processedMessages.length - maxCache,
-          ).toList();
+          final toRemove = processedMessages
+              .take(processedMessages.length - maxCache)
+              .toList();
           processedMessages.removeAll(toRemove);
         }
       }
@@ -1084,61 +1107,6 @@ void main() {
   });
 
   // ===========================================================================
-  // PENDING NOTIFICATIONS TESTS
-  // ===========================================================================
-
-  group('Pending Notifications', () {
-    test('stores notifications when no listeners', () {
-      final pendingNotifications = <Map<String, dynamic>>[];
-      var hasListener = false;
-
-      void addNotification(Map<String, dynamic> notification) {
-        if (!hasListener) {
-          pendingNotifications.add(notification);
-        }
-      }
-
-      addNotification({'type': 'test1'});
-      addNotification({'type': 'test2'});
-
-      expect(pendingNotifications, hasLength(2));
-    });
-
-    test('processes pending when listener added', () {
-      final pendingNotifications = <Map<String, dynamic>>[
-        {'type': 'pending1'},
-        {'type': 'pending2'},
-      ];
-      final processedByListener = <Map<String, dynamic>>[];
-
-      void registerListener(void Function(Map<String, dynamic>) callback) {
-        // Process pending first
-        for (final notification in pendingNotifications) {
-          callback(notification);
-        }
-      }
-
-      registerListener((notification) {
-        processedByListener.add(notification);
-      });
-
-      expect(processedByListener, hasLength(2));
-      expect(processedByListener[0]['type'], equals('pending1'));
-    });
-
-    test('clears pending after processing', () {
-      final pendingNotifications = <Map<String, dynamic>>[
-        {'type': 'test'},
-      ];
-
-      // Simulate listener processing pending
-      pendingNotifications.clear();
-
-      expect(pendingNotifications, isEmpty);
-    });
-  });
-
-  // ===========================================================================
   // LIFECYCLE TESTS
   // ===========================================================================
 
@@ -1171,27 +1139,20 @@ void main() {
 
     test('dispose closes streams and clears state', () async {
       final eventController = StreamController<OdooWebSocketEvent>.broadcast();
-      final notificationController =
-          StreamController<Map<String, dynamic>>.broadcast();
-      final pendingNotifications = <Map<String, dynamic>>[{'test': true}];
       OdooWebSocketConnectionInfo? connectionInfo =
           const OdooWebSocketConnectionInfo(
-        baseUrl: 'https://test.com',
-        database: 'test',
-      );
+            baseUrl: 'https://test.com',
+            database: 'test',
+          );
 
       void dispose() {
         eventController.close();
-        notificationController.close();
-        pendingNotifications.clear();
         connectionInfo = null;
       }
 
       dispose();
 
       expect(eventController.isClosed, isTrue);
-      expect(notificationController.isClosed, isTrue);
-      expect(pendingNotifications, isEmpty);
       expect(connectionInfo, isNull);
     });
 
@@ -1288,18 +1249,14 @@ void main() {
         baseUrl: 'https://odoo.example.com',
         database: 'mydb',
         apiKey: 'supersecretapikey123',
-        sessionId: 'verylongsessionidhere',
       );
 
       final str = info.toString();
 
       expect(str, isNot(contains('supersecretapikey123')));
-      expect(str, isNot(contains('verylongsessionidhere')));
       // Masked: first 2 chars + asterisks + last 2 chars
       expect(str, contains('su')); // First 2 chars of API key
       expect(str, contains('23')); // Last 2 chars of API key
-      expect(str, contains('ve')); // First 2 chars of session ID
-      expect(str, contains('re')); // Last 2 chars of session ID
       expect(str, contains('*')); // Contains masked characters
     });
   });

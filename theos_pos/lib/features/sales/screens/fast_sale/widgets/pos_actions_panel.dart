@@ -5,19 +5,26 @@ import '../../../../../core/constants/app_colors.dart';
 import '../../../../../core/database/providers.dart';
 import '../../../../../core/database/repositories/repository_providers.dart';
 import '../../../../../core/theme/spacing.dart';
-import '../../../../../shared/providers/menu_provider.dart';
+import '../../../../../shared/constants/user_groups.dart';
 import '../../../../../shared/utils/formatting_utils.dart';
 import '../../../../../shared/providers/user_provider.dart';
 import '../../../../../shared/widgets/dialogs/copyable_info_bar.dart';
 import '../../../../clients/clients.dart' show clientRepositoryProvider;
+import '../../../../collection/providers/counter_capabilities_provider.dart';
+
 import 'package:theos_pos_core/theos_pos_core.dart';
+
 import '../../../../invoices/invoices.dart';
 import '../../../providers/service_providers.dart';
+import '../../../repositories/sales_repository.dart';
 import '../../../widgets/payment/withholding_dialog.dart';
 import '../../../../advances/widgets/advance_registration_dialog.dart';
 import '../../../providers/providers.dart' show saleOrderFormProvider;
 import '../fast_sale_providers.dart';
 import 'confirm_order_handler.dart' show confirmOrderWithCreditCheck;
+
+export '../../../../collection/providers/counter_capabilities_provider.dart'
+    show hasCollectionPermissionsProvider;
 
 part 'pos_overflow_actions_button.dart';
 part 'pos_action_item_button.dart';
@@ -25,6 +32,35 @@ part 'pos_close_current_tab_widget.dart';
 part 'pos_final_consumer_warning_banner.dart';
 part 'pos_credit_note_selection_dialog.dart';
 part 'pos_cash_out_dialog.dart';
+
+Future<bool> _checkCounterAction(
+  BuildContext context,
+  WidgetRef ref,
+  String policy,
+) async {
+  // Keyboard entry may run without the actions panel watching this stream.
+  final subscription = ref.listenManual(counterCapabilitiesProvider, (_, _) {});
+  try {
+    await ref.read(counterCapabilitiesProvider.future);
+    if (!context.mounted) return false;
+    if (ref.read(hasCollectionPermissionsProvider) &&
+        counterActionVisible(ref.read(counterCapabilitiesProvider), policy)) {
+      return true;
+    }
+  } catch (_) {
+    // A broken or stale configuration is not permission to perform an action.
+  } finally {
+    subscription.close();
+  }
+  if (context.mounted) {
+    CopyableInfoBar.showWarning(
+      context,
+      title: 'Acción no disponible',
+      message: 'Revisa la configuración de tu punto de cobro o sincronízala.',
+    );
+  }
+  return false;
+}
 
 /// Helper to ensure collection session is loaded (offline-first).
 ///
@@ -49,10 +85,67 @@ Future<void> goToPaymentsWithAutoConfirm(
   WidgetRef ref,
   FastSaleTabState? activeTab,
 ) async {
+  // Shared by the button and F6: hiding the actions panel is not a guard.
+  final user = ref.read(userProvider);
+  if (user == null || !ref.read(hasCollectionPermissionsProvider)) {
+    CopyableInfoBar.showWarning(
+      context,
+      title: 'Cobro no autorizado',
+      message:
+          'Tu usuario no tiene permisos de caja. Envía la venta al cajero.',
+    );
+    return;
+  }
+
+  final session = await ensureSessionLoaded(ref);
+  if (!context.mounted) return;
+  if (!await _checkCounterAction(context, ref, 'panel_accion_visible_pago')) {
+    return;
+  }
+  if (!context.mounted) return;
+  // Match the native collection-box exception, not every accounting admin.
+  final canBypassSession =
+      user.permissions.contains(OdooUserGroup.collectionManager) ||
+      user.permissions.contains(OdooUserGroup.systemAdministrator);
+
+  // Recheck after every asynchronous boundary before changing the order.
+  bool stillAuthorized() =>
+      identical(ref.read(userProvider), user) &&
+      ref.read(hasCollectionPermissionsProvider) &&
+      counterActionVisible(
+        ref.read(counterCapabilitiesProvider),
+        'panel_accion_visible_pago',
+      ) &&
+      ((session == null &&
+              ref.read(currentSessionProvider) == null &&
+              canBypassSession) ||
+          (session != null &&
+              ref.read(currentSessionProvider)?.id == session.id &&
+              ref.read(currentSessionProvider)?.userId == user.id &&
+              ref.read(currentSessionProvider)?.canRegisterTransactions ==
+                  true));
+
+  if (!stillAuthorized()) {
+    CopyableInfoBar.showWarning(
+      context,
+      title: 'Caja no disponible',
+      message: 'Abre o reanuda tu sesión de caja antes de cobrar.',
+    );
+    return;
+  }
+
   final order = activeTab?.order;
+  if (order == null) {
+    CopyableInfoBar.showWarning(
+      context,
+      title: 'Selecciona una venta',
+      message: 'Abre o crea una venta antes de registrar el cobro.',
+    );
+    return;
+  }
 
   // If the order is in draft/quotation, auto-confirm before going to payments
-  if (order != null && order.state == SaleOrderState.draft) {
+  if (order.state == SaleOrderState.draft) {
     final hasLines = activeTab != null && activeTab.lines.isNotEmpty;
     final hasPartner = order.partnerId != null;
 
@@ -90,9 +183,7 @@ Future<void> goToPaymentsWithAutoConfirm(
               'Para registrar el cobro, primero se debe confirmar la orden.',
             ),
             const SizedBox(height: Spacing.sm),
-            const Text(
-              '¿Confirmar la orden y continuar al cobro?',
-            ),
+            const Text('¿Confirmar la orden y continuar al cobro?'),
           ],
         ),
         actions: [
@@ -112,6 +203,10 @@ Future<void> goToPaymentsWithAutoConfirm(
     );
 
     if (proceed != true || !context.mounted) return;
+    if (!stillAuthorized() ||
+        ref.read(fastSaleActiveTabProvider)?.orderId != activeTab.orderId) {
+      return;
+    }
 
     // Confirm the order (full flow with credit check)
     await confirmOrderWithCreditCheck(context, ref);
@@ -119,35 +214,27 @@ Future<void> goToPaymentsWithAutoConfirm(
     // After confirmation, check if it succeeded (state should no longer be draft)
     if (!context.mounted) return;
     final updatedOrder = ref.read(fastSaleActiveTabProvider)?.order;
-    if (updatedOrder?.state == SaleOrderState.draft) {
-      // Confirmation failed or was cancelled — do not navigate to payments
+    if (updatedOrder == null ||
+        (updatedOrder.state != SaleOrderState.sale &&
+            updatedOrder.state != SaleOrderState.done)) {
+      // Includes pending/rejected credit approval, not just a draft.
       return;
     }
+  } else if (order.state != SaleOrderState.sale &&
+      order.state != SaleOrderState.done) {
+    CopyableInfoBar.showWarning(
+      context,
+      title: 'Venta pendiente de confirmar',
+      message:
+          'Completa la confirmación o aprobación de la venta antes de cobrar.',
+    );
+    return;
   }
 
   // Navigate to payments tab
+  if (!stillAuthorized()) return;
   ref.read(orderPanelTabProvider.notifier).goToPayments();
 }
-
-/// Provider to check if current user has collection permissions
-final hasCollectionPermissionsProvider = Provider<bool>((ref) {
-  final user = ref.watch(userProvider);
-  if (user == null) return false;
-
-  final permissions = user.permissions;
-
-  // Check admin groups first
-  for (final adminGroup in adminGroups) {
-    if (permissions.contains(adminGroup)) return true;
-  }
-
-  // Check collection groups
-  for (final collectionGroup in collectionGroups) {
-    if (permissions.contains(collectionGroup)) return true;
-  }
-
-  return false;
-});
 
 /// Right panel with quick action buttons
 ///
@@ -177,10 +264,13 @@ class POSActionsPanel extends ConsumerWidget {
     final activeTab = ref.watch(fastSaleActiveTabProvider);
 
     // Check if user has collection permissions
-    final hasCollectionPermissions = ref.watch(hasCollectionPermissionsProvider);
+    final hasCollectionPermissions = ref.watch(
+      hasCollectionPermissionsProvider,
+    );
     if (!hasCollectionPermissions) {
       return const SizedBox.shrink();
     }
+    final capabilities = ref.watch(counterCapabilitiesProvider);
 
     // Get order state info from model getters
     final order = activeTab?.order;
@@ -191,8 +281,10 @@ class POSActionsPanel extends ConsumerWidget {
     // Use model getters for action visibility
     // Note: canLock/canUnlock already include isFullyInvoiced check in the model
     // Don't show Confirmar if order already has invoice (queued or synced)
-    final hasInvoice = order?.hasQueuedInvoice == true || order?.isFullyInvoiced == true;
-    final canConfirm = hasOrder && order.canConfirm && hasLines && hasPartner && !hasInvoice;
+    final hasInvoice =
+        order?.hasQueuedInvoice == true || order?.isFullyInvoiced == true;
+    final canConfirm =
+        hasOrder && order.canConfirm && hasLines && hasPartner && !hasInvoice;
     final canCancel = hasOrder && order.canCancel;
     final canLock = hasOrder && order.canLock;
     final canUnlock = hasOrder && order.canUnlock;
@@ -202,9 +294,11 @@ class POSActionsPanel extends ConsumerWidget {
 
     // Consumidor final sin nombre: se marca visualmente desde el inicio
     // (no solo cuando falla la sincronización — ver _handleSyncAll).
-    final needsFinalConsumerName = hasOrder &&
+    final needsFinalConsumerName =
+        hasOrder &&
         order.isFinalConsumer &&
-        (order.endCustomerName == null || order.endCustomerName!.trim().isEmpty);
+        (order.endCustomerName == null ||
+            order.endCustomerName!.trim().isEmpty);
 
     final actions = <_ActionItem>[
       // Sincronizar: envía pendientes + actualiza datos del cliente y orden
@@ -252,8 +346,7 @@ class POSActionsPanel extends ConsumerWidget {
       _ActionItem(
         icon: FluentIcons.bank,
         label: 'Retencion',
-        // TODO: Migrar a TheosTheme.info(context) cuando _ActionItem soporte BuildContext
-        color: AppColors.primaryBackground,
+        color: AppColors.info,
         onTap: () => _showRetentionDialog(context, ref, activeTab),
       ),
       _ActionItem(
@@ -262,24 +355,30 @@ class POSActionsPanel extends ConsumerWidget {
         color: AppColors.creditNote,
         onTap: () => _showCreditNoteDialog(context, ref, activeTab),
       ),
-      _ActionItem(
-        icon: FluentIcons.money,
-        label: 'Salida Dinero',
-        color: AppColors.warning,
-        onTap: () => _showCashOutDialog(context, ref),
-      ),
-      _ActionItem(
-        icon: FluentIcons.payment_card,
-        label: 'Cobrar',
-        color: AppColors.success,
-        onTap: () => goToPaymentsWithAutoConfirm(context, ref, activeTab),
-      ),
-      _ActionItem(
-        icon: FluentIcons.circle_dollar,
-        label: 'Anticipo',
-        color: AppColors.advance,
-        onTap: () => _showAdvanceDialog(context, ref, activeTab),
-      ),
+      if (counterActionVisible(
+        capabilities,
+        'panel_accion_visible_salida_efectivo',
+      ))
+        _ActionItem(
+          icon: FluentIcons.money,
+          label: 'Salida Dinero',
+          color: AppColors.warning,
+          onTap: () => _showCashOutDialog(context, ref),
+        ),
+      if (counterActionVisible(capabilities, 'panel_accion_visible_pago'))
+        _ActionItem(
+          icon: FluentIcons.payment_card,
+          label: 'Cobrar',
+          color: AppColors.success,
+          onTap: () => goToPaymentsWithAutoConfirm(context, ref, activeTab),
+        ),
+      if (counterActionVisible(capabilities, 'panel_accion_visible_anticipo'))
+        _ActionItem(
+          icon: FluentIcons.circle_dollar,
+          label: 'Anticipo',
+          color: AppColors.advance,
+          onTap: () => _showAdvanceDialog(context, ref, activeTab),
+        ),
       _ActionItem(
         icon: FluentIcons.save,
         label: 'Guardar (F10)',
@@ -325,32 +424,32 @@ class POSActionsPanel extends ConsumerWidget {
   ) {
     return Container(
       color: theme.menuColor,
-      padding: const EdgeInsets.symmetric(vertical: Spacing.sm, horizontal: Spacing.xs),
+      padding: const EdgeInsets.symmetric(
+        vertical: Spacing.sm,
+        horizontal: Spacing.xs,
+      ),
       child: SingleChildScrollView(
         child: Column(
-        children: [
-          // Close current tab widget
-          if (activeTab != null)
-            _CloseCurrentTabWidget(
-              orderName: activeTab.orderName,
-              onClose: () => _confirmCloseTab(context, ref, activeTab),
-            ),
-          if (needsFinalConsumerName) ...[
-            const SizedBox(height: Spacing.xs),
-            const _FinalConsumerWarningBanner(),
-          ],
-          const SizedBox(height: Spacing.sm),
+          children: [
+            // Close current tab widget
+            if (activeTab != null)
+              _CloseCurrentTabWidget(
+                orderName: activeTab.orderName,
+                onClose: () => _confirmCloseTab(context, ref, activeTab),
+              ),
+            if (needsFinalConsumerName) ...[
+              const SizedBox(height: Spacing.xs),
+              const _FinalConsumerWarningBanner(),
+            ],
+            const SizedBox(height: Spacing.sm),
 
-          // Actions
-          for (int i = 0; i < actions.length; i++) ...[
-            if (i > 0) const SizedBox(height: Spacing.xs),
-            _ActionButton(
-              action: actions[i],
-              isCompact: isCompact,
-            ),
+            // Actions
+            for (int i = 0; i < actions.length; i++) ...[
+              if (i > 0) const SizedBox(height: Spacing.xs),
+              _ActionButton(action: actions[i], isCompact: isCompact),
+            ],
           ],
-        ],
-      ),
+        ),
       ),
     );
   }
@@ -377,10 +476,12 @@ class POSActionsPanel extends ConsumerWidget {
     bool needsFinalConsumerName,
   ) {
     // Separa acciones primarias (visibles) de secundarias (overflow)
-    final primaryActions =
-        actions.where((a) => _primaryActionLabels.contains(a.label)).toList();
-    final secondaryActions =
-        actions.where((a) => !_primaryActionLabels.contains(a.label)).toList();
+    final primaryActions = actions
+        .where((a) => _primaryActionLabels.contains(a.label))
+        .toList();
+    final secondaryActions = actions
+        .where((a) => !_primaryActionLabels.contains(a.label))
+        .toList();
 
     return Container(
       color: theme.menuColor,
@@ -442,8 +543,6 @@ class POSActionsPanel extends ConsumerWidget {
       ),
     );
   }
-
-
 
   /// Safely pop the navigator, deferring if it is locked during a transition.
   void _safePop(BuildContext context) {
@@ -624,7 +723,9 @@ class POSActionsPanel extends ConsumerWidget {
     if (!context.mounted) return;
 
     // Step 2: Check for existing active withholds - BLOCK if has any
-    final withholdCount = await invoiceRepo.getActiveWithholdsCount(selectedInvoice.id);
+    final withholdCount = await invoiceRepo.getActiveWithholdsCount(
+      selectedInvoice.id,
+    );
 
     if (!context.mounted) return;
 
@@ -667,24 +768,43 @@ class POSActionsPanel extends ConsumerWidget {
     final saleOrderId = selectedInvoice.saleOrderId;
 
     logger.i('[POSActions]', '=== WITHHOLD PRE-FILL DEBUG ===');
-    logger.i('[POSActions]', 'Invoice: ${selectedInvoice.name} (odooId: ${selectedInvoice.id})');
+    logger.i(
+      '[POSActions]',
+      'Invoice: ${selectedInvoice.name} (odooId: ${selectedInvoice.id})',
+    );
     logger.i('[POSActions]', 'Invoice saleOrderId: $saleOrderId');
 
     if (saleOrderId != null) {
       try {
         final withholdService = ref.read(withholdServiceProvider);
         logger.i('[POSActions]', 'Calling getWithholdLines($saleOrderId)...');
-        initialWithholdLines = await withholdService.getWithholdLines(saleOrderId);
-        logger.i('[POSActions]', 'Got ${initialWithholdLines.length} withhold lines from order $saleOrderId');
+        initialWithholdLines = await withholdService.getWithholdLines(
+          saleOrderId,
+        );
+        logger.i(
+          '[POSActions]',
+          'Got ${initialWithholdLines.length} withhold lines from order $saleOrderId',
+        );
         for (final line in initialWithholdLines) {
-          logger.i('[POSActions]', '  - Line: taxId=${line.taxId}, taxName=${line.taxName}, base=${line.base}, amount=${line.amount}');
+          logger.i(
+            '[POSActions]',
+            '  - Line: taxId=${line.taxId}, taxName=${line.taxName}, base=${line.base}, amount=${line.amount}',
+          );
         }
       } catch (e, st) {
-        logger.e('[POSActions]', 'Error getting withhold lines from order: $e', e, st);
+        logger.e(
+          '[POSActions]',
+          'Error getting withhold lines from order: $e',
+          e,
+          st,
+        );
         // Continue without pre-fill
       }
     } else {
-      logger.w('[POSActions]', 'No saleOrderId on invoice, cannot pre-fill withhold lines');
+      logger.w(
+        '[POSActions]',
+        'No saleOrderId on invoice, cannot pre-fill withhold lines',
+      );
     }
 
     if (!context.mounted) return;
@@ -785,6 +905,16 @@ class POSActionsPanel extends ConsumerWidget {
       // Obtener sesión actual (offline-first)
       final currentSession = await ensureSessionLoaded(ref);
       if (!context.mounted) return;
+      if (currentSession?.canRegisterTransactions != true) {
+        CopyableInfoBar.showWarning(
+          context,
+          title: 'Sesión no disponible',
+          message: currentSession == null
+              ? 'Abra una sesión de cobranza antes de aplicar la nota de crédito.'
+              : 'Reanude la sesión de cobranza antes de aplicar la nota de crédito.',
+        );
+        return;
+      }
 
       // Determinar monto a aplicar (menor entre disponible y total)
       final amountToApply = selected.amountResidual < activeTab.total
@@ -856,7 +986,8 @@ class POSActionsPanel extends ConsumerWidget {
           CopyableInfoBar.showSuccess(
             context,
             title: 'Nota de crédito aplicada',
-            message: 'NC ${selected.name} aplicada por ${amountToApply.toCurrency()}',
+            message:
+                'NC ${selected.name} aplicada por ${amountToApply.toCurrency()}',
           );
         } else if (context.mounted) {
           CopyableInfoBar.showError(
@@ -869,19 +1000,28 @@ class POSActionsPanel extends ConsumerWidget {
     }
   }
 
-
-
   Future<void> _showCashOutDialog(BuildContext context, WidgetRef ref) async {
-    // Verificar que hay una sesión de cobranza abierta (offline-first)
     final currentSession = await ensureSessionLoaded(ref);
-    if (currentSession == null) {
+    if (!context.mounted) return;
+    if (!await _checkCounterAction(
+      context,
+      ref,
+      'panel_accion_visible_salida_efectivo',
+    )) {
+      return;
+    }
+    if (!context.mounted) return;
+    // Verificar que hay una sesión de cobranza abierta (offline-first)
+    if (currentSession?.canRegisterTransactions != true) {
       if (!context.mounted) return;
       showDialog(
         context: context,
         builder: (context) => ContentDialog(
-          title: const Text('Sin sesión'),
-          content: const Text(
-            'Debe tener una sesión de cobranza abierta para registrar salidas de dinero.',
+          title: const Text('Sesión no disponible'),
+          content: Text(
+            currentSession == null
+                ? 'Debe tener una sesión de cobranza abierta para registrar salidas de dinero.'
+                : 'Debe reanudar la sesión de cobranza para registrar salidas de dinero.',
           ),
           actions: [
             Button(
@@ -898,14 +1038,15 @@ class POSActionsPanel extends ConsumerWidget {
     if (!context.mounted) return;
     final result = await showDialog<_CashOutResult>(
       context: context,
-      builder: (context) => _CashOutDialog(sessionId: currentSession.id),
+      builder: (context) => _CashOutDialog(sessionId: currentSession!.id),
     );
 
     if (result != null && result.success && context.mounted) {
       CopyableInfoBar.showSuccess(
         context,
         title: 'Salida registrada',
-        message: 'Salida de ${result.amount.toCurrency()} registrada correctamente',
+        message:
+            'Salida de ${result.amount.toCurrency()} registrada correctamente',
       );
     }
   }
@@ -915,6 +1056,16 @@ class POSActionsPanel extends ConsumerWidget {
     WidgetRef ref,
     FastSaleTabState? activeTab,
   ) async {
+    final currentSession = await ensureSessionLoaded(ref);
+    if (!context.mounted) return;
+    if (!await _checkCounterAction(
+      context,
+      ref,
+      'panel_accion_visible_anticipo',
+    )) {
+      return;
+    }
+    if (!context.mounted) return;
     // Verificar que hay una orden con cliente
     if (activeTab?.order == null || activeTab?.order?.partnerId == null) {
       showDialog(
@@ -936,15 +1087,16 @@ class POSActionsPanel extends ConsumerWidget {
     }
 
     // Verificar sesión de cobranza (offline-first)
-    final currentSession = await ensureSessionLoaded(ref);
-    if (currentSession == null) {
+    if (currentSession?.canRegisterTransactions != true) {
       if (!context.mounted) return;
       showDialog(
         context: context,
         builder: (context) => ContentDialog(
-          title: const Text('Sin sesión'),
-          content: const Text(
-            'Debe tener una sesión de cobranza abierta para registrar anticipos.',
+          title: const Text('Sesión no disponible'),
+          content: Text(
+            currentSession == null
+                ? 'Debe tener una sesión de cobranza abierta para registrar anticipos.'
+                : 'Debe reanudar la sesión de cobranza para registrar anticipos.',
           ),
           actions: [
             Button(
@@ -964,14 +1116,15 @@ class POSActionsPanel extends ConsumerWidget {
       context: context,
       partnerId: activeTab!.order!.partnerId!,
       partnerName: activeTab.order!.partnerName ?? 'Cliente',
-      sessionId: currentSession.id,
+      sessionId: currentSession!.id,
     );
 
     if (result != null && result.success && context.mounted) {
       CopyableInfoBar.showSuccess(
         context,
         title: 'Anticipo registrado',
-        message: 'Anticipo de ${result.amount.toCurrency()} registrado correctamente',
+        message:
+            'Anticipo de ${result.amount.toCurrency()} registrado correctamente',
       );
     }
   }
@@ -1021,8 +1174,8 @@ class POSActionsPanel extends ConsumerWidget {
   /// Delega al handler centralizado que incluye validación de crédito,
   /// diálogo de bypass con canBypass, indicador de carga y mensaje de resultado.
   ///
-  /// Antes este método omitía [canBypass], por lo que supervisores con el grupo
-  /// 'l10n_ec_sale_credit.group_credit_bypass' no veían el botón "Continuar de
+  /// Antes este método omitía [canBypass], por lo que supervisores con permiso
+  /// de bypass de crédito no veían el botón "Continuar de
   /// todas formas". Ahora ambos puntos de entrada usan exactamente el mismo flujo.
   Future<void> _handleConfirmOrder(
     BuildContext context,
@@ -1167,7 +1320,9 @@ class POSActionsPanel extends ConsumerWidget {
       ref.read(fastSaleProvider.notifier).updateActiveOrderLocked(true);
 
       // Sync with Form Sale provider (cross-provider sync)
-      ref.read(saleOrderFormProvider.notifier).updateOrderLockedById(order.id, true);
+      ref
+          .read(saleOrderFormProvider.notifier)
+          .updateOrderLockedById(order.id, true);
 
       if (!context.mounted) return;
       CopyableInfoBar.showSuccess(
@@ -1227,7 +1382,9 @@ class POSActionsPanel extends ConsumerWidget {
       ref.read(fastSaleProvider.notifier).updateActiveOrderLocked(false);
 
       // Sync with Form Sale provider (cross-provider sync)
-      ref.read(saleOrderFormProvider.notifier).updateOrderLockedById(order.id, false);
+      ref
+          .read(saleOrderFormProvider.notifier)
+          .updateOrderLockedById(order.id, false);
 
       if (!context.mounted) return;
       CopyableInfoBar.showSuccess(
@@ -1244,5 +1401,4 @@ class POSActionsPanel extends ConsumerWidget {
       );
     }
   }
-
 }

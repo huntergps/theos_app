@@ -467,7 +467,7 @@ class LinePreprocessor {
       'docs': processedRecords,
       if (processedRecords.isNotEmpty) 'doc': processedRecords.first,
       if (processedRecords.isNotEmpty) 'o': processedRecords.first,
-      if (docTaxTotals != null) 'tax_totals': docTaxTotals,
+      ...?(docTaxTotals == null ? null : {'tax_totals': docTaxTotals}),
       'doc_ids': processedRecords.map((r) => r['id']).toList(),
       'doc_model': docModel,
       if (processedRecords.isNotEmpty)

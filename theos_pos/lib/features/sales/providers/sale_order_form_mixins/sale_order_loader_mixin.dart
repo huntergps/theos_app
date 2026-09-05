@@ -2,6 +2,7 @@ import 'package:riverpod_annotation/riverpod_annotation.dart';
 import 'package:theos_pos_core/theos_pos_core.dart';
 
 import '../../../../core/database/repositories/repository_providers.dart';
+import '../../repositories/sales_repository.dart';
 import '../../utils/partner_utils.dart' as partner_utils;
 import '../order_cache_provider.dart';
 import '../sale_order_form_state.dart';
@@ -361,7 +362,10 @@ mixin SaleOrderLoaderMixin {
         paymentTermId: updatedOrder.paymentTermId ?? state.paymentTermId,
         paymentTermName: updatedOrder.paymentTermName ?? state.paymentTermName,
       );
-      logger.i('[SaleOrderForm]', 'Form updated with Odoo defaults for order $targetOrderId');
+      logger.i(
+        '[SaleOrderForm]',
+        'Form updated with Odoo defaults for order $targetOrderId',
+      );
     } catch (e) {
       // Silent failure - background sync shouldn't affect user experience
       logger.d('[SaleOrderForm]', 'Background sync skipped: $e');

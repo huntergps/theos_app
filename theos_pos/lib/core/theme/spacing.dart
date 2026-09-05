@@ -48,11 +48,11 @@ class ResponsiveValues {
   double get touchTarget {
     switch (deviceType) {
       case DeviceType.mobile:
-        return 48;
+        return InteractionSizes.touch;
       case DeviceType.tablet:
-        return 44;
+        return InteractionSizes.hybrid;
       case DeviceType.desktop:
-        return 32;
+        return InteractionSizes.pointer;
     }
   }
 
@@ -269,33 +269,21 @@ class EdgeInsetsSymmetric {
 
   /// Horizontal only
   EdgeInsets hNone() => const EdgeInsets.symmetric(horizontal: Spacing.none);
-  EdgeInsets hXs() =>
-      EdgeInsets.symmetric(horizontal: Spacing.xs * _factor);
-  EdgeInsets hSm() =>
-      EdgeInsets.symmetric(horizontal: Spacing.sm * _factor);
-  EdgeInsets hMs() =>
-      EdgeInsets.symmetric(horizontal: Spacing.ms * _factor);
-  EdgeInsets hMd() =>
-      EdgeInsets.symmetric(horizontal: Spacing.md * _factor);
-  EdgeInsets hLg() =>
-      EdgeInsets.symmetric(horizontal: Spacing.lg * _factor);
-  EdgeInsets hXl() =>
-      EdgeInsets.symmetric(horizontal: Spacing.xl * _factor);
+  EdgeInsets hXs() => EdgeInsets.symmetric(horizontal: Spacing.xs * _factor);
+  EdgeInsets hSm() => EdgeInsets.symmetric(horizontal: Spacing.sm * _factor);
+  EdgeInsets hMs() => EdgeInsets.symmetric(horizontal: Spacing.ms * _factor);
+  EdgeInsets hMd() => EdgeInsets.symmetric(horizontal: Spacing.md * _factor);
+  EdgeInsets hLg() => EdgeInsets.symmetric(horizontal: Spacing.lg * _factor);
+  EdgeInsets hXl() => EdgeInsets.symmetric(horizontal: Spacing.xl * _factor);
 
   /// Vertical only
   EdgeInsets vNone() => const EdgeInsets.symmetric(vertical: Spacing.none);
-  EdgeInsets vXs() =>
-      EdgeInsets.symmetric(vertical: Spacing.xs * _factor);
-  EdgeInsets vSm() =>
-      EdgeInsets.symmetric(vertical: Spacing.sm * _factor);
-  EdgeInsets vMs() =>
-      EdgeInsets.symmetric(vertical: Spacing.ms * _factor);
-  EdgeInsets vMd() =>
-      EdgeInsets.symmetric(vertical: Spacing.md * _factor);
-  EdgeInsets vLg() =>
-      EdgeInsets.symmetric(vertical: Spacing.lg * _factor);
-  EdgeInsets vXl() =>
-      EdgeInsets.symmetric(vertical: Spacing.xl * _factor);
+  EdgeInsets vXs() => EdgeInsets.symmetric(vertical: Spacing.xs * _factor);
+  EdgeInsets vSm() => EdgeInsets.symmetric(vertical: Spacing.sm * _factor);
+  EdgeInsets vMs() => EdgeInsets.symmetric(vertical: Spacing.ms * _factor);
+  EdgeInsets vMd() => EdgeInsets.symmetric(vertical: Spacing.md * _factor);
+  EdgeInsets vLg() => EdgeInsets.symmetric(vertical: Spacing.lg * _factor);
+  EdgeInsets vXl() => EdgeInsets.symmetric(vertical: Spacing.xl * _factor);
 
   /// Both directions
   EdgeInsets both({double h = Spacing.md, double v = Spacing.md}) =>

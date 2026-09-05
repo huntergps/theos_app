@@ -1,12 +1,30 @@
+import 'dart:convert';
+
 import 'package:dartz/dartz.dart';
+import 'package:odoo_sdk/odoo_sdk.dart'
+    show
+        OfflineLocalCommand,
+        OfflineReplayPolicy,
+        OfflineQueueCommandStore,
+        OdooConnectionException,
+        OdooOfflineException,
+        OdooTimeoutException;
 import 'package:uuid/uuid.dart';
 import 'package:theos_pos_core/theos_pos_core.dart';
 
 // import 'package:odoo_sdk/odoo_sdk.dart';
 import '../../../core/database/repositories/base_repository.dart';
 import '../../users/repositories/user_repository.dart';
+import '../services/pos_capabilities_service.dart';
 // Models
 import '../../../core/errors/errors.dart';
+
+part 'collection_repository_config_sync.dart';
+
+bool _isRecoverableConnectivityFailure(Object error) =>
+    error is OdooConnectionException ||
+    error is OdooTimeoutException ||
+    error is OdooOfflineException;
 
 /// Repository for collection-related operations
 ///
@@ -26,79 +44,44 @@ class CollectionRepository extends BaseRepository with OfflineSupport {
   CollectionRepository({
     required super.odooClient,
     required super.db,
-    required UserRepository userRepository,
-    required CollectionSessionManager sessionManager,
-    required AccountPaymentManager paymentManager,
-    required CashOutManager cashOutManager,
-    required CollectionSessionCashManager sessionCashManager,
-    required CollectionSessionDepositManager sessionDepositManager,
-    OfflineQueueDataSource? offlineQueue,
-  }) : _userRepository = userRepository,
-       _sessionManager = sessionManager,
-       _paymentManager = paymentManager,
-       _cashOutManager = cashOutManager,
-       _sessionCashManager = sessionCashManager,
-       _sessionDepositManager = sessionDepositManager,
-       _offlineQueue = offlineQueue;
+    required this._userRepository,
+    required this._sessionManager,
+    required this._paymentManager,
+    required this._cashOutManager,
+    required this._sessionCashManager,
+    required this._sessionDepositManager,
+    this._offlineQueue,
+  });
 
   /// Access to the session manager for advanced operations
   CollectionSessionManager get sessionManager => _sessionManager;
 
-  // ============ Collection Configs ============
+  AppDatabase get _appDb => _sessionManager.database as AppDatabase;
 
-  /// Sync collection configs and return them
-  /// Returns cached configs if offline
-  Future<List<CollectionConfig>> syncCollectionConfigs() async {
-    if (!isOnline) {
-      return collectionConfigManager.searchLocal();
+  /// Persists supervisor notes and validates a session through JSON-2.
+  /// The widget should only orchestrate presentation; keeping both calls here
+  /// guarantees that record ids are sent separately from keyword arguments.
+  Future<void> validateSession(int sessionId, {String? supervisorNotes}) async {
+    final client = odooClient;
+    if (client == null || !isOnline) {
+      throw StateError('No hay conexión para validar la sesión');
     }
-
-    try {
-      final currentUser = await _userRepository.getCurrentUser();
-      if (currentUser == null) {
-        return collectionConfigManager.searchLocal();
-      }
-
-      final data = await odooClient!.searchRead(
-        model: 'collection.config',
-        fields: collectionConfigManager.odooFields,
-        domain: [
-          [
-            'user_ids',
-            'in',
-            [currentUser.id],
-          ],
-        ],
+    final notes = supervisorNotes?.trim();
+    if (notes != null && notes.isNotEmpty) {
+      await client.call(
+        model: 'collection.session',
+        method: 'write',
+        ids: [sessionId],
+        kwargs: {
+          'vals': {'supervisor_notes': notes},
+        },
       );
-
-      final configs = data.map((e) => collectionConfigManager.fromOdoo(e)).toList();
-
-      final accessibleIds = configs.map((c) => c.id).toList();
-      await _deleteConfigsNotIn(accessibleIds);
-
-      if (configs.isNotEmpty) {
-        await collectionConfigManager.upsertLocalBatch(configs);
-        await syncCollectionSessions();
-      }
-    } catch (e) {
-      // Error syncing collection configs
     }
-    return collectionConfigManager.searchLocal();
-  }
-
-
-  /// Delete collection configs whose IDs are NOT in the given list
-  Future<void> _deleteConfigsNotIn(List<int> keepIds) async {
-    if (keepIds.isEmpty) {
-      await collectionConfigManager.deleteAllLocal();
-      return;
-    }
-    final allConfigs = await collectionConfigManager.searchLocal();
-    for (final config in allConfigs) {
-      if (!keepIds.contains(config.id)) {
-        await collectionConfigManager.deleteLocal(config.id);
-      }
-    }
+    await client.call(
+      model: 'collection.session',
+      method: 'action_session_validate',
+      ids: [sessionId],
+    );
   }
 
   // ============ Collection Sessions ============
@@ -256,7 +239,6 @@ class CollectionRepository extends BaseRepository with OfflineSupport {
     // Generate a UUID if not provided
     final uuid = sessionUuid ?? const Uuid().v4();
 
-    // LOCAL FIRST: Save session locally with temp negative ID
     final localId = -(DateTime.now().millisecondsSinceEpoch % 1000000000);
     final localSession = CollectionSession(
       id: localId,
@@ -270,23 +252,44 @@ class CollectionRepository extends BaseRepository with OfflineSupport {
       sessionUuid: uuid,
       syncRetryCount: 0,
     );
-    await _sessionManager.smartUpsert(localSession);
+    final createValues = <String, dynamic>{
+      'local_id': localId,
+      'config_id': configId,
+      'user_id': userId,
+      'cash_register_balance_start': cashRegisterBalanceStart,
+      'session_uuid': uuid,
+    };
 
+    // Write-ahead intent: even the online path is durable before its first
+    // mutation. Marking it processing in the same transaction prevents the
+    // background worker from racing this immediate attempt. Startup recovery
+    // returns it to the queue if the process stops at any later point.
+    final operationId = await _persistSessionCreateAndIntent(
+      localSession,
+      createValues,
+      claimForImmediateSync: isOnline && odooClient != null,
+    );
+
+    if (!isOnline || odooClient == null) return localId;
+
+    int? remoteSessionId;
     try {
-      final Map<String, dynamic> values = {
-        'config_id': configId,
-        'user_id': userId,
-        'cash_register_balance_start': cashRegisterBalanceStart,
-        'session_uuid': uuid,
-      };
-
-      final sessionId = await odooClient!.create(
+      remoteSessionId = await odooClient!.create(
         model: 'collection.session',
-        values: values,
+        values: {
+          'config_id': configId,
+          'user_id': userId,
+          'cash_register_balance_start': cashRegisterBalanceStart,
+          'session_uuid': uuid,
+        },
       );
 
-      if (sessionId == null) {
+      if (remoteSessionId == null) {
         throw Exception('Failed to create session in Odoo - returned null');
+      }
+      final sessionId = remoteSessionId;
+      if (operationId != null) {
+        await _offlineQueue!.persistRemoteCreateId(operationId, sessionId);
       }
 
       await odooClient!.call(
@@ -295,33 +298,87 @@ class CollectionRepository extends BaseRepository with OfflineSupport {
         ids: [sessionId],
       );
 
-      // Odoo succeeded — replace local temp record with real ID
-      await _sessionManager.deleteLocal(localId);
-      final remoteSession = localSession.copyWith(
-        id: sessionId,
-        isSynced: true,
-      );
-      await _sessionManager.smartUpsert(remoteSession);
+      await _appDb.transaction(() async {
+        await _sessionManager.deleteLocal(localId);
+        await _sessionManager.smartUpsert(
+          localSession.copyWith(id: sessionId, isSynced: true),
+        );
+        await _offlineQueue?.updateCollectionSessionIdInPendingOperations(
+          localId,
+          sessionId,
+        );
+        if (operationId != null) {
+          await _offlineQueue!.removeOperation(operationId);
+        }
+      });
 
       return sessionId;
     } catch (e) {
-      // Odoo failed — queue the operation for later sync
-      if (_offlineQueue != null) {
-        await _offlineQueue.queueOperation(
-          model: 'collection.session',
-          method: 'session_create_and_open',
-          values: {
-            'local_id': localId,
-            'config_id': configId,
-            'user_id': userId,
-            'cash_register_balance_start': cashRegisterBalanceStart,
-            'session_uuid': uuid,
-          },
-          priority: OfflinePriority.critical,
-        );
+      if (!_isRecoverableConnectivityFailure(e)) {
+        // A validation/ACL/business failure must remain visible. When create
+        // already committed but opening failed, keep the real remote identity
+        // locally in opening_control so a retry never creates a duplicate.
+        await _appDb.transaction(() async {
+          await _sessionManager.deleteLocal(localId);
+          if (remoteSessionId != null) {
+            await _sessionManager.smartUpsert(
+              localSession.copyWith(
+                id: remoteSessionId,
+                state: SessionState.openingControl,
+                isSynced: true,
+              ),
+            );
+            await _offlineQueue?.updateCollectionSessionIdInPendingOperations(
+              localId,
+              remoteSessionId!,
+            );
+          }
+          if (operationId != null) {
+            await _offlineQueue!.removeOperation(operationId);
+          }
+        });
+        rethrow;
+      }
+
+      // Keep the original create-and-open intent. If create committed before a
+      // timeout, replay consumes the persisted ID (or resolves session_uuid)
+      // and only completes the missing open/handoff.
+      if (operationId != null) {
+        await _offlineQueue!.markOperationPending(operationId);
       }
       return localId;
     }
+  }
+
+  Future<int?> _persistSessionCreateAndIntent(
+    CollectionSession session,
+    Map<String, dynamic> values, {
+    bool claimForImmediateSync = false,
+  }) async {
+    int? operationId;
+
+    Future<void> persist() async {
+      await _sessionManager.smartUpsert(session);
+      if (_offlineQueue case final queue?) {
+        operationId = await queue.queueCommand(
+          model: 'collection.session',
+          command: OfflineLocalCommand.sessionCreateAndOpen,
+          recordId: session.id,
+          values: values,
+          priority: OfflinePriority.critical,
+        );
+        if (claimForImmediateSync) {
+          await queue.markOperationProcessing(operationId!);
+        }
+      }
+    }
+
+    if (_offlineQueue == null) {
+      await persist();
+    } else {
+      await _appDb.transaction(persist);
+    }
+    return operationId;
   }
 
   /// Create collection session offline-first
@@ -351,23 +408,13 @@ class CollectionRepository extends BaseRepository with OfflineSupport {
       syncRetryCount: 0,
     );
 
-    await _sessionManager.smartUpsert(localSession);
-
-    // Queue for sync with critical priority
-    if (_offlineQueue != null) {
-      await _offlineQueue.queueOperation(
-        model: 'collection.session',
-        method: 'session_create_and_open',
-        values: {
-          'local_id': localId,
-          'config_id': configId,
-          'user_id': userId,
-          'cash_register_balance_start': cashRegisterBalanceStart,
-          'session_uuid': sessionUuid,
-        },
-        priority: OfflinePriority.critical,
-      );
-    }
+    await _persistSessionCreateAndIntent(localSession, {
+      'local_id': localId,
+      'config_id': configId,
+      'user_id': userId,
+      'cash_register_balance_start': cashRegisterBalanceStart,
+      'session_uuid': sessionUuid,
+    });
 
     return localId;
   }
@@ -412,8 +459,18 @@ class CollectionRepository extends BaseRepository with OfflineSupport {
 
       return await getCollectionSession(sessionId, forceRefresh: true);
     } catch (e) {
-      // Si falla la sincronización, usar modo offline
-      logger.w('[CollectionRepo]', 'Failed to open session online, using offline: $e');
+      if (!_isRecoverableConnectivityFailure(e)) {
+        logger.e(
+          '[CollectionRepo]',
+          'Odoo rejected session open; keeping local state unchanged',
+          e,
+        );
+        rethrow;
+      }
+      logger.w(
+        '[CollectionRepo]',
+        'Connection lost while opening session; queueing offline: $e',
+      );
       return await _openCollectionSessionLocally(sessionId, cashAmount);
     }
   }
@@ -436,24 +493,112 @@ class CollectionRepository extends BaseRepository with OfflineSupport {
       startAt: DateTime.now(),
       isSynced: false,
     );
-    await _sessionManager.smartUpsert(updatedSession);
-
-    // Encolar para sincronización si es una sesión con ID de Odoo
-    if (_offlineQueue != null && sessionId > 0) {
-      await _offlineQueue.queueOperation(
-        model: 'collection.session',
-        method: 'session_open',
-        recordId: sessionId,
-        values: {
-          'session_id': sessionId,
-          'cash_register_balance_start': cashAmount,
-        },
-        priority: OfflinePriority.critical,
-      );
-      logger.d('[CollectionRepo]', 'Session open operation queued for sync');
-    }
+    final command = sessionId < 0
+        ? OfflineLocalCommand.sessionCreateAndOpen
+        : OfflineLocalCommand.sessionOpen;
+    final values = sessionId < 0
+        ? <String, dynamic>{
+            'local_id': sessionId,
+            'config_id': session.configId,
+            'user_id': session.userId,
+            'cash_register_balance_start': cashAmount,
+            'session_uuid': session.sessionUuid,
+          }
+        : <String, dynamic>{
+            'session_id': sessionId,
+            'cash_register_balance_start': cashAmount,
+            if (session.sessionUuid != null)
+              'session_uuid': session.sessionUuid,
+          };
+    await _persistSessionTransition(updatedSession, command, values);
 
     return updatedSession;
+  }
+
+  Future<void> _persistSessionTransition(
+    CollectionSession session,
+    OfflineLocalCommand command,
+    Map<String, dynamic> values,
+  ) async {
+    Future<void> persist() async {
+      await _sessionManager.smartUpsert(session);
+      if (_offlineQueue case final queue?) {
+        final operationId = await queue.queueCommand(
+          model: 'collection.session',
+          command: command,
+          recordId: session.id,
+          values: values,
+          priority: OfflinePriority.critical,
+          operationKey:
+              'v${command.version}:collection.session:'
+              '${command.storageName}:${session.sessionUuid ?? session.id}',
+        );
+        final existing = await queue.getOperationById(operationId);
+        final refreshedValues = Map<String, dynamic>.of(values);
+        final remoteId =
+            existing?.values[OfflineQueueDataSource.remoteCreateIdKey];
+        if (remoteId is int) {
+          refreshedValues[OfflineQueueDataSource.remoteCreateIdKey] = remoteId;
+        }
+        await queue.replaceOperationValues(operationId, refreshedValues);
+      }
+    }
+
+    if (_offlineQueue == null) {
+      await persist();
+    } else {
+      await _appDb.transaction(persist);
+    }
+  }
+
+  /// Pauses an opened session using the backend recordset action.
+  ///
+  /// This transition is intentionally online-only: pausing only the local
+  /// device would let another terminal open the same collection point while
+  /// Odoo still considers this session active.
+  Future<CollectionSession> pauseCollectionSession(
+    int sessionId, {
+    String? reason,
+  }) async {
+    if (!isOnline || odooClient == null) {
+      throw const OdooOfflineException(
+        'Se necesita conexión para pausar una sesión de caja',
+      );
+    }
+    await odooClient!.call(
+      model: 'collection.session',
+      method: 'action_session_pause',
+      ids: [sessionId],
+      context: {
+        if (reason != null && reason.trim().isNotEmpty)
+          'pause_reason': reason.trim(),
+      },
+    );
+    final refreshed = await getCollectionSession(sessionId, forceRefresh: true);
+    if (refreshed?.state != SessionState.paused) {
+      throw StateError('Odoo no confirmó el estado pausado de la sesión');
+    }
+    return refreshed!;
+  }
+
+  /// Resumes a paused session. Like pause, it must be authoritative in Odoo
+  /// before the local state changes.
+  Future<CollectionSession> resumeCollectionSession(int sessionId) async {
+    if (!isOnline || odooClient == null) {
+      throw const OdooOfflineException(
+        'Se necesita conexión para reanudar una sesión de caja',
+      );
+    }
+    await odooClient!.call(
+      model: 'collection.session',
+      method: 'action_session_resume',
+      ids: [sessionId],
+    );
+    final refreshed = await getCollectionSession(sessionId, forceRefresh: true);
+    if (refreshed?.state != SessionState.opened) {
+      throw StateError('Odoo no confirmó el estado abierto de la sesión');
+    }
+    return refreshed!;
   }
 
   /// Start closing control for session
@@ -466,18 +611,10 @@ class CollectionRepository extends BaseRepository with OfflineSupport {
       return await startSessionClosingControlOffline(sessionId, cashRealAmount);
     }
 
-    // LOCAL FIRST: Save state change locally before trying Odoo
     final session = await _sessionManager.getSessionById(sessionId);
     if (session == null) {
       throw Exception('Session $sessionId not found locally');
     }
-
-    final updatedSession = session.copyWith(
-      state: SessionState.closingControl,
-      cashRegisterBalanceEndReal: cashRealAmount,
-      isSynced: false,
-    );
-    await _sessionManager.smartUpsert(updatedSession);
 
     try {
       final writeResult = await odooClient!.write(
@@ -497,23 +634,21 @@ class CollectionRepository extends BaseRepository with OfflineSupport {
       );
 
       // Odoo succeeded — refresh from server and mark as synced
-      final refreshed = await getCollectionSession(sessionId, forceRefresh: true);
+      final refreshed = await getCollectionSession(
+        sessionId,
+        forceRefresh: true,
+      );
       return refreshed;
     } catch (e) {
-      // Odoo failed — queue the operation for later sync
-      if (_offlineQueue != null && sessionId > 0) {
-        await _offlineQueue.queueOperation(
-          model: 'collection.session',
-          method: 'session_closing_control',
-          recordId: sessionId,
-          values: {
-            'session_id': sessionId,
-            'cash_register_balance_end_real': cashRealAmount,
-          },
-          priority: OfflinePriority.critical,
+      if (!_isRecoverableConnectivityFailure(e)) {
+        logger.e(
+          '[CollectionRepo]',
+          'Odoo rejected closing control; restored local session',
+          e,
         );
+        rethrow;
       }
-      return updatedSession;
+      return startSessionClosingControlOffline(sessionId, cashRealAmount);
     }
   }
 
@@ -524,18 +659,10 @@ class CollectionRepository extends BaseRepository with OfflineSupport {
       return await closeCollectionSessionOffline(sessionId);
     }
 
-    // LOCAL FIRST: Save closing state locally before trying Odoo
     final session = await _sessionManager.getSessionById(sessionId);
     if (session == null) {
       throw Exception('Session $sessionId not found locally');
     }
-
-    final updatedSession = session.copyWith(
-      state: SessionState.closed,
-      stopAt: DateTime.now(),
-      isSynced: false,
-    );
-    await _sessionManager.smartUpsert(updatedSession);
 
     try {
       await odooClient!.call(
@@ -545,20 +672,21 @@ class CollectionRepository extends BaseRepository with OfflineSupport {
       );
 
       // Odoo succeeded — refresh from server and mark as synced
-      final refreshed = await getCollectionSession(sessionId, forceRefresh: true);
+      final refreshed = await getCollectionSession(
+        sessionId,
+        forceRefresh: true,
+      );
       return refreshed;
     } catch (e) {
-      // Odoo failed — queue the operation for later sync
-      if (_offlineQueue != null && sessionId > 0) {
-        await _offlineQueue.queueOperation(
-          model: 'collection.session',
-          method: 'session_close',
-          recordId: sessionId,
-          values: {'session_id': sessionId},
-          priority: OfflinePriority.critical,
+      if (!_isRecoverableConnectivityFailure(e)) {
+        logger.e(
+          '[CollectionRepo]',
+          'Odoo rejected session close; restored local session',
+          e,
         );
+        rethrow;
       }
-      return updatedSession;
+      return closeCollectionSessionOffline(sessionId);
     }
   }
 
@@ -580,21 +708,15 @@ class CollectionRepository extends BaseRepository with OfflineSupport {
       cashRegisterBalanceEndReal: cashRealAmount,
       isSynced: false,
     );
-    await _sessionManager.smartUpsert(updatedSession);
-
-    // Queue for sync
-    if (_offlineQueue != null && sessionId > 0) {
-      await _offlineQueue.queueOperation(
-        model: 'collection.session',
-        method: 'session_closing_control',
-        recordId: sessionId,
-        values: {
-          'session_id': sessionId,
-          'cash_register_balance_end_real': cashRealAmount,
-        },
-        priority: OfflinePriority.critical,
-      );
-    }
+    await _persistSessionTransition(
+      updatedSession,
+      OfflineLocalCommand.sessionClosingControl,
+      {
+        'session_id': sessionId,
+        'cash_register_balance_end_real': cashRealAmount,
+        if (session.sessionUuid != null) 'session_uuid': session.sessionUuid,
+      },
+    );
 
     return updatedSession;
   }
@@ -605,7 +727,6 @@ class CollectionRepository extends BaseRepository with OfflineSupport {
   Future<CollectionSession?> closeCollectionSessionOffline(
     int sessionId,
   ) async {
-
     // Update local session state
     final session = await _sessionManager.getSessionById(sessionId);
     if (session == null) {
@@ -617,18 +738,14 @@ class CollectionRepository extends BaseRepository with OfflineSupport {
       stopAt: DateTime.now(),
       isSynced: false,
     );
-    await _sessionManager.smartUpsert(updatedSession);
-
-    // Queue for sync
-    if (_offlineQueue != null && sessionId > 0) {
-      await _offlineQueue.queueOperation(
-        model: 'collection.session',
-        method: 'session_close',
-        recordId: sessionId,
-        values: {'session_id': sessionId},
-        priority: OfflinePriority.critical,
-      );
-    }
+    await _persistSessionTransition(
+      updatedSession,
+      OfflineLocalCommand.sessionClose,
+      {
+        'session_id': sessionId,
+        if (session.sessionUuid != null) 'session_uuid': session.sessionUuid,
+      },
+    );
 
     return updatedSession;
   }
@@ -668,6 +785,10 @@ class CollectionRepository extends BaseRepository with OfflineSupport {
           if (localSession.configId == null) {
             continue;
           }
+          final userId = localSession.userId;
+          if (userId == null || userId <= 0) {
+            continue;
+          }
 
           final updatedSession = localSession.copyWith(
             syncRetryCount: localSession.syncRetryCount + 1,
@@ -683,7 +804,7 @@ class CollectionRepository extends BaseRepository with OfflineSupport {
 
           final createdSessionId = await createCollectionSession(
             configId: localSession.configId!,
-            userId: localSession.userId ?? 2,
+            userId: userId,
             cashRegisterBalanceStart: openingBalance,
             sessionUuid: localSession.sessionUuid,
           );
@@ -726,18 +847,13 @@ class CollectionRepository extends BaseRepository with OfflineSupport {
 
     // If offline, save locally and queue for later sync
     if (!isOnline) {
-      final unsyncedCash = cash.copyWith(isSynced: false);
-      await _sessionCashManager.upsertSessionCash(unsyncedCash);
+      final localCash = cash.id == 0
+          ? cash.copyWith(id: -DateTime.now().microsecondsSinceEpoch)
+          : cash;
+      final unsyncedCash = localCash.copyWith(isSynced: false);
+      await _persistSessionCashAndIntent(unsyncedCash);
 
       if (_offlineQueue != null) {
-        final queueValues = collectionSessionCashManager.toOdoo(cash);
-        queueValues.remove('id');
-        await _offlineQueue.queueOperation(
-          model: 'collection.session.cash',
-          method: cash.id > 0 ? 'write' : 'create',
-          recordId: cash.id > 0 ? cash.id : null,
-          values: queueValues,
-        );
         logger.i(
           '[CollectionRepository] Offline: queued session cash for later sync '
           '(session=${cash.collectionSessionId}, type=${cash.cashType})',
@@ -802,19 +918,14 @@ class CollectionRepository extends BaseRepository with OfflineSupport {
       }
     } catch (e) {
       // Save locally with isSynced=false
-      final unsyncedCash = cash.copyWith(isSynced: false);
-      await _sessionCashManager.upsertSessionCash(unsyncedCash);
+      final localCash = cash.id == 0
+          ? cash.copyWith(id: -DateTime.now().microsecondsSinceEpoch)
+          : cash;
+      final unsyncedCash = localCash.copyWith(isSynced: false);
+      await _persistSessionCashAndIntent(unsyncedCash);
 
-      // Queue the operation for later sync instead of rethrowing
+      // Queue the operation for later sync instead of rethrowing.
       if (_offlineQueue != null) {
-        final queueValues = collectionSessionCashManager.toOdoo(cash);
-        queueValues.remove('id');
-        await _offlineQueue.queueOperation(
-          model: 'collection.session.cash',
-          method: cash.id > 0 ? 'write' : 'create',
-          recordId: cash.id > 0 ? cash.id : null,
-          values: queueValues,
-        );
         logger.i(
           '[CollectionRepository] Queued session cash for later sync '
           '(session=${cash.collectionSessionId}, type=${cash.cashType})',
@@ -822,6 +933,31 @@ class CollectionRepository extends BaseRepository with OfflineSupport {
       }
 
       return unsyncedCash;
+    }
+  }
+
+  Future<void> _persistSessionCashAndIntent(CollectionSessionCash cash) async {
+    Future<void> persist() async {
+      await _sessionCashManager.upsertSessionCash(cash);
+      final queue = _offlineQueue;
+      if (queue == null) return;
+
+      final queueValues = collectionSessionCashManager.toOdoo(cash)
+        ..remove('id');
+      if (cash.id < 0) queueValues['local_id'] = cash.id;
+      await queue.queueOperation(
+        model: 'collection.session.cash',
+        method: cash.id > 0 ? 'write' : 'create',
+        recordId: cash.id,
+        values: queueValues,
+        replayPolicy: cash.id > 0 ? null : OfflineReplayPolicy.retrySafe,
+      );
+    }
+
+    if (_offlineQueue == null) {
+      await persist();
+    } else {
+      await _appDb.transaction(persist);
     }
   }
 
@@ -982,13 +1118,14 @@ class CollectionRepository extends BaseRepository with OfflineSupport {
       lastSyncDate: null,
     );
 
-    await _paymentManager.upsertLocal(payment);
+    Future<void> persistPaymentAndIntent() async {
+      await _paymentManager.upsertLocal(payment);
+      final queue = _offlineQueue;
+      if (queue == null) return;
 
-    // Queue for sync with high priority
-    if (_offlineQueue != null) {
-      await _offlineQueue.queueOperation(
+      await queue.queueCommand(
         model: 'account.payment',
-        method: 'payment_create',
+        command: OfflineLocalCommand.paymentCreate,
         values: {
           'local_id': localId,
           'collection_session_id': collectionSessionId,
@@ -1000,23 +1137,20 @@ class CollectionRepository extends BaseRepository with OfflineSupport {
           'payment_origin_type': paymentOriginType,
           'payment_method_category': paymentMethodCategory,
           'invoice_id': invoiceId,
-          // Odoo 19.5 (erp1): account.payment.ref fue eliminado del
-          // servidor, reemplazado por 'memo' (verificado con fields_get en
-          // vivo, julio 2026 — ausente en 19.2 y 19.5, EXISTS: memo). Se usa
-          // el nombre 'memo' aqui tambien (no solo en el payload HTTP de
-          // _processPaymentCreate) para que la clave interna del encolado
-          // coincida con el campo remoto real y no confunda a futuros
-          // mantenedores. Mismo dato que el `ref` del modelo local
-          // (AccountPayment.ref, ahora @OdooLocalOnly).
+          // `memo` is the Odoo 19 replacement for the removed `ref` field.
           'memo': ref,
-          // payment_uuid es EXCLUSIVAMENTE de correlacion local (nunca se
-          // envia a Odoo) — ver _processPaymentCreate en
-          // offline_sync_payment.dart, que lo usa solo para
-          // _updatePaymentIdByUuid despues del create.
+          // Local correlation marker; the replay handler maps it to the
+          // server-visible payment_reference before creating the payment.
           'payment_uuid': paymentUuid,
         },
         priority: OfflinePriority.high,
       );
+    }
+
+    if (_offlineQueue == null) {
+      await persistPaymentAndIntent();
+    } else {
+      await _appDb.transaction(persistPaymentAndIntent);
     }
 
     return payment;
@@ -1025,7 +1159,9 @@ class CollectionRepository extends BaseRepository with OfflineSupport {
   /// Get payment by UUID
   Future<AccountPayment?> getPaymentByUuid(String uuid) async {
     return (await _paymentManager.searchLocal(
-      domain: [['payment_uuid', '=', uuid]],
+      domain: [
+        ['payment_uuid', '=', uuid],
+      ],
       limit: 1,
     )).firstOrNull;
   }
@@ -1033,7 +1169,9 @@ class CollectionRepository extends BaseRepository with OfflineSupport {
   /// Update payment ID by UUID after sync
   Future<void> updatePaymentIdByUuid(String uuid, int newOdooId) async {
     final existing = (await _paymentManager.searchLocal(
-      domain: [['payment_uuid', '=', uuid]],
+      domain: [
+        ['payment_uuid', '=', uuid],
+      ],
       limit: 1,
     )).firstOrNull;
     if (existing == null) {
@@ -1046,7 +1184,9 @@ class CollectionRepository extends BaseRepository with OfflineSupport {
       lastSyncDate: DateTime.now(),
     );
     await _paymentManager.upsertLocal(updated);
-    logger.i('[CollectionRepository] Payment UUID=$uuid updated to ID=$newOdooId');
+    logger.i(
+      '[CollectionRepository] Payment UUID=$uuid updated to ID=$newOdooId',
+    );
   }
 
   // ============ Partners (Offline Support) ============
@@ -1070,26 +1210,26 @@ class CollectionRepository extends BaseRepository with OfflineSupport {
     // Generate negative local ID
     final localId = -DateTime.now().millisecondsSinceEpoch % 1000000000;
 
-    // Create local partner
-    await clientManager.insertOfflinePartner(
-      localOdooId: localId,
-      name: name,
-      partnerUuid: partnerUuid,
-      vat: vat,
-      email: email,
-      phone: phone,
-      mobile: mobile,
-      street: street,
-      city: city,
-      countryId: countryId,
-      countryName: countryName,
-    );
+    Future<void> persistPartnerAndIntent() async {
+      await clientManager.insertOfflinePartner(
+        localOdooId: localId,
+        name: name,
+        partnerUuid: partnerUuid,
+        vat: vat,
+        email: email,
+        phone: phone,
+        mobile: mobile,
+        street: street,
+        city: city,
+        countryId: countryId,
+        countryName: countryName,
+      );
 
-    // Queue for sync with high priority
-    if (_offlineQueue != null) {
-      await _offlineQueue.queueOperation(
+      final queue = _offlineQueue;
+      if (queue == null) return;
+      await queue.queueCommand(
         model: 'res.partner',
-        method: 'partner_create',
+        command: OfflineLocalCommand.partnerCreate,
         values: {
           'local_id': localId,
           'partner_uuid': partnerUuid,
@@ -1104,6 +1244,12 @@ class CollectionRepository extends BaseRepository with OfflineSupport {
         },
         priority: OfflinePriority.high,
       );
+    }
+
+    if (_offlineQueue == null) {
+      await persistPartnerAndIntent();
+    } else {
+      await _appDb.transaction(persistPartnerAndIntent);
     }
 
     return localId;
@@ -1133,72 +1279,25 @@ class CollectionRepository extends BaseRepository with OfflineSupport {
 
   /// Create a new deposit for a collection session
   ///
-  /// OFFLINE-FIRST: Saves locally first, then attempts direct Odoo sync.
-  /// If online sync fails, queues the operation for later processing.
+  /// OFFLINE-FIRST: persists the complete snapshot and durable create intent
+  /// atomically. The queue owns the remote mutation on every platform.
   Future<Either<Failure, CollectionSessionDeposit>> createDeposit(
     CollectionSessionDeposit deposit,
   ) async {
     try {
-      // Generate UUID if not present
-      final depositWithUuid = deposit.uuid != null
+      final depositWithUuid = deposit.uuid?.trim().isNotEmpty == true
           ? deposit
           : deposit.copyWith(uuid: const Uuid().v4());
+      final localDeposit = depositWithUuid.id == 0
+          ? depositWithUuid.copyWith(
+              id: -DateTime.now().microsecondsSinceEpoch,
+              isSynced: false,
+            )
+          : depositWithUuid.copyWith(isSynced: false);
 
-      // Save locally first (offline-first)
-      await _sessionDepositManager.upsertDeposit(depositWithUuid);
+      await _persistDepositAndIntent(localDeposit);
 
-      // Try direct Odoo sync if online, queue on failure
-      if (_offlineQueue != null) {
-        if (isOnline && odooClient != null) {
-          try {
-            final odooId = await odooClient!.create(
-              model: 'collection.session.deposit',
-              values: {
-                'collection_session_id': depositWithUuid.collectionSessionId,
-                'session_uuid': depositWithUuid.sessionUuid,
-                'deposit_date': depositWithUuid.depositDate?.toIso8601String(),
-                'accounting_date': depositWithUuid.accountingDate?.toIso8601String(),
-                'amount': depositWithUuid.amount,
-                'deposit_type': depositWithUuid.depositType.name,
-                'cash_amount': depositWithUuid.cashAmount,
-                'check_amount': depositWithUuid.checkAmount,
-                'check_count': depositWithUuid.checkCount,
-                'bank_journal_id': depositWithUuid.bankJournalId,
-                'bank_id': depositWithUuid.bankId,
-                'deposit_slip_number': depositWithUuid.depositSlipNumber,
-                'bank_reference': depositWithUuid.bankReference,
-                'depositor_name': depositWithUuid.depositorName,
-                'notes': depositWithUuid.notes,
-                'user_id': depositWithUuid.userId,
-                'uuid': depositWithUuid.uuid,
-              },
-            );
-
-            // Update local record with Odoo ID and mark as synced
-            final synced = depositWithUuid.copyWith(
-              id: odooId ?? depositWithUuid.id,
-              isSynced: true,
-              lastSyncDate: DateTime.now(),
-            );
-            await _sessionDepositManager.upsertDeposit(synced);
-
-            logger.d('[CollectionRepository]', 'Deposit created in Odoo: id=$odooId');
-            return Right(synced);
-          } catch (e) {
-            // Direct sync failed — fall back to queue
-            logger.w(
-              '[CollectionRepository]',
-              'Direct deposit create failed, queuing: $e',
-            );
-            await _queueDepositSync(depositWithUuid);
-          }
-        } else {
-          // Offline — queue for later sync
-          await _queueDepositSync(depositWithUuid);
-        }
-      }
-
-      return Right(depositWithUuid);
+      return Right(localDeposit);
     } catch (e) {
       logger.e('[CollectionRepository]', 'Error creating deposit: $e');
       return Left(CacheFailure(message: 'Error guardando depósito: $e'));
@@ -1207,8 +1306,7 @@ class CollectionRepository extends BaseRepository with OfflineSupport {
 
   /// Update an existing deposit
   ///
-  /// OFFLINE-FIRST: Saves locally first, then attempts direct Odoo sync.
-  /// If online sync fails, queues the operation for later processing.
+  /// OFFLINE-FIRST: snapshot and write intent commit together.
   Future<Either<Failure, CollectionSessionDeposit>> updateDeposit(
     CollectionSessionDeposit deposit,
   ) async {
@@ -1216,59 +1314,7 @@ class CollectionRepository extends BaseRepository with OfflineSupport {
       // Mark as not synced since it was modified
       final updatedDeposit = deposit.copyWith(isSynced: false);
 
-      // Save locally first (offline-first)
-      await _sessionDepositManager.upsertDeposit(updatedDeposit);
-
-      // Try direct Odoo sync if online, queue on failure
-      if (_offlineQueue != null) {
-        if (isOnline && odooClient != null && updatedDeposit.id > 0) {
-          try {
-            await odooClient!.write(
-              model: 'collection.session.deposit',
-              ids: [updatedDeposit.id],
-              values: {
-                'collection_session_id': updatedDeposit.collectionSessionId,
-                'session_uuid': updatedDeposit.sessionUuid,
-                'deposit_date': updatedDeposit.depositDate?.toIso8601String(),
-                'accounting_date': updatedDeposit.accountingDate?.toIso8601String(),
-                'amount': updatedDeposit.amount,
-                'deposit_type': updatedDeposit.depositType.name,
-                'cash_amount': updatedDeposit.cashAmount,
-                'check_amount': updatedDeposit.checkAmount,
-                'check_count': updatedDeposit.checkCount,
-                'bank_journal_id': updatedDeposit.bankJournalId,
-                'bank_id': updatedDeposit.bankId,
-                'deposit_slip_number': updatedDeposit.depositSlipNumber,
-                'bank_reference': updatedDeposit.bankReference,
-                'depositor_name': updatedDeposit.depositorName,
-                'notes': updatedDeposit.notes,
-                'user_id': updatedDeposit.userId,
-                'uuid': updatedDeposit.uuid,
-              },
-            );
-
-            // Mark as synced after successful write
-            final synced = updatedDeposit.copyWith(
-              isSynced: true,
-              lastSyncDate: DateTime.now(),
-            );
-            await _sessionDepositManager.upsertDeposit(synced);
-
-            logger.d('[CollectionRepository]', 'Deposit updated in Odoo: id=${synced.id}');
-            return Right(synced);
-          } catch (e) {
-            // Direct sync failed — fall back to queue
-            logger.w(
-              '[CollectionRepository]',
-              'Direct deposit update failed, queuing: $e',
-            );
-            await _queueDepositSync(updatedDeposit);
-          }
-        } else {
-          // Offline or new record — queue for later sync
-          await _queueDepositSync(updatedDeposit);
-        }
-      }
+      await _persistDepositAndIntent(updatedDeposit);
 
       return Right(updatedDeposit);
     } catch (e) {
@@ -1281,50 +1327,69 @@ class CollectionRepository extends BaseRepository with OfflineSupport {
   ///
   /// For new deposits (id <= 0 or no Odoo ID): queues a `create` operation.
   /// For existing deposits (id > 0): queues a `write` operation.
-  Future<void> _queueDepositSync(CollectionSessionDeposit deposit) async {
-    if (_offlineQueue == null) return;
-
+  Future<void> _persistDepositAndIntent(
+    CollectionSessionDeposit deposit,
+  ) async {
     final isNew = deposit.id <= 0;
     final method = isNew ? 'create' : 'write';
+    final values = _depositRemoteValues(deposit);
+    if (isNew) values['local_id'] = deposit.id;
 
-    final values = <String, dynamic>{
-      'uuid': deposit.uuid,
-      'collection_session_id': deposit.collectionSessionId,
-      'session_uuid': deposit.sessionUuid,
-      'deposit_date': deposit.depositDate?.toIso8601String(),
-      'accounting_date': deposit.accountingDate?.toIso8601String(),
-      'amount': deposit.amount,
-      'deposit_type': deposit.depositType.name,
-      'cash_amount': deposit.cashAmount,
-      'check_amount': deposit.checkAmount,
-      'check_count': deposit.checkCount,
-      'bank_journal_id': deposit.bankJournalId,
-      'bank_id': deposit.bankId,
-      'state': deposit.state,
-      'deposit_slip_number': deposit.depositSlipNumber,
-      'bank_reference': deposit.bankReference,
-      'depositor_name': deposit.depositorName,
-      'notes': deposit.notes,
-      'user_id': deposit.userId,
-    };
-
-    if (isNew) {
-      values['local_id'] = deposit.id;
+    Future<void> persist() async {
+      await _sessionDepositManager.upsertDeposit(deposit);
+      if (_offlineQueue case final queue?) {
+        final operationId = await queue.queueOperation(
+          model: 'collection.session.deposit',
+          method: method,
+          recordId: deposit.id,
+          values: values,
+          priority: OfflinePriority.high,
+          replayPolicy: isNew ? OfflineReplayPolicy.retrySafe : null,
+        );
+        // A repeated save of the same UUID collapses to one create. Refresh
+        // its payload without losing a server ID already persisted after an
+        // ambiguous create response.
+        final existing = await queue.getOperationById(operationId);
+        final refreshedValues = Map<String, dynamic>.of(values);
+        final remoteId =
+            existing?.values[OfflineQueueDataSource.remoteCreateIdKey];
+        if (remoteId is int) {
+          refreshedValues[OfflineQueueDataSource.remoteCreateIdKey] = remoteId;
+        }
+        await queue.replaceOperationValues(operationId, refreshedValues);
+      }
     }
 
-    await _offlineQueue.queueOperation(
-      model: 'collection.session.deposit',
-      method: method,
-      recordId: isNew ? null : deposit.id,
-      values: values,
-      priority: OfflinePriority.high,
-    );
+    if (_offlineQueue == null) {
+      await persist();
+    } else {
+      await _appDb.transaction(persist);
+    }
 
     logger.d(
       '[CollectionRepository]',
-      'Deposit queued for sync ($method): id=${deposit.id}, uuid=${deposit.uuid}',
+      'Deposit persisted with durable $method intent: id=${deposit.id}',
     );
   }
+
+  Map<String, dynamic> _depositRemoteValues(CollectionSessionDeposit deposit) =>
+      <String, dynamic>{
+        if (deposit.uuid?.trim().isNotEmpty == true) 'uuid': deposit.uuid,
+        'collection_session_id': deposit.collectionSessionId,
+        'deposit_date': deposit.depositDate?.toIso8601String(),
+        'accounting_date': deposit.accountingDate?.toIso8601String(),
+        'amount': deposit.amount,
+        'deposit_type': deposit.depositType.name,
+        'cash_amount': deposit.cashAmount,
+        'check_amount': deposit.checkAmount,
+        'check_count': deposit.checkCount,
+        'bank_journal_id': deposit.bankJournalId,
+        'deposit_slip_number': deposit.depositSlipNumber,
+        'bank_reference': deposit.bankReference,
+        'depositor_name': deposit.depositorName,
+        'notes': deposit.notes,
+        'user_id': deposit.userId,
+      };
 
   // ============ Local Database Access (for UI screens) ============
 
@@ -1338,20 +1403,9 @@ class CollectionRepository extends BaseRepository with OfflineSupport {
   /// OFFLINE-FIRST: Reads from local DB first, syncs in background if online.
   /// Returns null if no active session exists.
   Future<CollectionSession?> getActiveUserSession(int userId) async {
-    // 1. OFFLINE-FIRST: Always read from local DB first
-    final localSessions = await _sessionManager.getAllSessions();
-    final localActive = localSessions.where(
-      (s) =>
-          s.userId == userId &&
-          s.state != SessionState.closed,
-    ).toList();
-
-    CollectionSession? localSession;
-    if (localActive.isNotEmpty) {
-      localActive.sort((a, b) => (b.startAt ?? DateTime.now())
-          .compareTo(a.startAt ?? DateTime.now()));
-      localSession = localActive.first;
-    }
+    // 1. OFFLINE-FIRST: query only the active row instead of loading and
+    // sorting the complete historical session table during startup.
+    final localSession = await _sessionManager.getOpenSession(userId);
 
     // 2. Sync from Odoo in background (don't block UI)
     _syncActiveSessionInBackground(userId, localSession);
@@ -1373,7 +1427,11 @@ class CollectionRepository extends BaseRepository with OfflineSupport {
         model: 'collection.session',
         domain: [
           ['user_id', '=', userId],
-          ['state', 'not in', ['closed']],
+          [
+            'state',
+            'not in',
+            ['closed'],
+          ],
         ],
         fields: collectionSessionManager.odooFields,
         order: 'start_at desc',
@@ -1470,11 +1528,19 @@ class CollectionRepository extends BaseRepository with OfflineSupport {
 
       final openingBalance =
           openingCash?.cashTotal ?? localSession.cashRegisterBalanceStart;
+      final userId = localSession.userId;
+      if (userId == null || userId <= 0) {
+        return Left(
+          ValidationFailure(
+            message: 'La sesión local no tiene un usuario válido; requiere recuperación',
+          ),
+        );
+      }
 
       // Create session in Odoo
       final createdSessionId = await createCollectionSession(
         configId: config.id,
-        userId: localSession.userId ?? 2,
+        userId: userId,
         cashRegisterBalanceStart: openingBalance,
         sessionUuid: localSession.sessionUuid,
       );
@@ -1549,8 +1615,7 @@ class CollectionRepository extends BaseRepository with OfflineSupport {
       if (cash.cashType != CashType.opening) {
         return Left(
           ValidationFailure(
-            message:
-                'El tipo de efectivo debe ser "opening" para registrar fondo de apertura',
+            message: 'El tipo de efectivo debe ser "opening" para registrar fondo de apertura',
           ),
         );
       }
@@ -1644,8 +1709,7 @@ class CollectionRepository extends BaseRepository with OfflineSupport {
       if (cash.cashType != CashType.closing) {
         return Left(
           ValidationFailure(
-            message:
-                'El tipo de efectivo debe ser "closing" para registrar efectivo de cierre',
+            message: 'El tipo de efectivo debe ser "closing" para registrar efectivo de cierre',
           ),
         );
       }
@@ -1675,8 +1739,7 @@ class CollectionRepository extends BaseRepository with OfflineSupport {
         if (updatedSession == null) {
           return Left(
             ServerFailure(
-              message:
-                  'No se pudo obtener la sesión actualizada después de iniciar control de cierre',
+              message: 'No se pudo obtener la sesión actualizada después de iniciar control de cierre',
             ),
           );
         }

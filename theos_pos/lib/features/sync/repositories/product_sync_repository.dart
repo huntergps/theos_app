@@ -10,9 +10,12 @@
 /// - Payment Terms (account.payment.term)
 library;
 
+import 'package:drift/drift.dart';
 import 'package:odoo_sdk/odoo_sdk.dart';
 
 import 'package:theos_pos_core/theos_pos_core.dart';
+
+import 'sync_models.dart';
 
 /// Repository for syncing product-related catalog data from Odoo.
 ///
@@ -35,17 +38,15 @@ class ProductSyncRepository {
   late final PricelistItemManager _pricelistItemManager;
   late final PaymentTermManager _paymentTermManager;
 
-  ProductSyncRepository({
-    required this.db,
-    this.odooClient,
-  }) : _syncRepo = GenericSyncRepository(odooClient: odooClient) {
+  ProductSyncRepository({required this.db, this.odooClient})
+    : _syncRepo = GenericSyncRepository(odooClient: odooClient) {
     _productManager = productManager;
     _categoryManager = productCategoryManager;
     _taxManager = taxManager;
     _uomManager = uomManager;
     _productUomManager = productUomManager;
     _pricelistManager = pricelistManager;
-    _pricelistItemManager = PricelistItemManager(db);
+    _pricelistItemManager = pricelistItemManager;
     _paymentTermManager = paymentTermManager;
   }
 
@@ -99,6 +100,30 @@ class ProductSyncRepository {
     'l10n_ec_auxiliary_code',
   ];
 
+  static const _pricelistItemFields = [
+    'id',
+    'pricelist_id',
+    'product_tmpl_id',
+    'product_id',
+    'categ_id',
+    'applied_on',
+    'min_quantity',
+    'date_start',
+    'date_end',
+    'compute_price',
+    'fixed_price',
+    'percent_price',
+    'base',
+    'base_pricelist_id',
+    'price_discount',
+    'price_surcharge',
+    'price_round',
+    'price_min_margin',
+    'price_max_margin',
+    // `uom_id` does not exist on product.pricelist.item in Odoo 19.
+    'write_date',
+  ];
+
   // ============ Single Model Sync Methods ============
 
   /// Sync products
@@ -124,7 +149,7 @@ class ProductSyncRepository {
       sinceDate: sinceDate,
       onProgress: onProgress,
     );
-    return result.synced;
+    return result.requireSuccess();
   }
 
   /// Sync product categories
@@ -145,7 +170,7 @@ class ProductSyncRepository {
       sinceDate: sinceDate,
       onProgress: onProgress,
     );
-    return result.synced;
+    return result.requireSuccess();
   }
 
   /// Sync taxes
@@ -183,7 +208,7 @@ class ProductSyncRepository {
       sinceDate: sinceDate,
       onProgress: onProgress,
     );
-    return result.synced;
+    return result.requireSuccess();
   }
 
   /// Sync units of measure
@@ -195,13 +220,7 @@ class ProductSyncRepository {
     final result = await _syncRepo.syncModel(
       SyncConfigBuilder.create(
         model: 'uom.uom',
-        fields: [
-          'id',
-          'name',
-          'factor',
-          'active',
-          'write_date',
-        ],
+        fields: ['id', 'name', 'factor', 'active', 'write_date'],
         domain: [
           ['active', '=', true],
         ],
@@ -214,7 +233,7 @@ class ProductSyncRepository {
       sinceDate: sinceDate,
       onProgress: onProgress,
     );
-    return result.synced;
+    return result.requireSuccess();
   }
 
   /// Sync product UoMs (packaging barcodes)
@@ -245,7 +264,7 @@ class ProductSyncRepository {
       sinceDate: sinceDate,
       onProgress: onProgress,
     );
-    return result.synced;
+    return result.requireSuccess();
   }
 
   /// Sync pricelists (and their items)
@@ -274,62 +293,131 @@ class ProductSyncRepository {
         upsertRecord: (data) async {
           final pricelist = _pricelistManager.fromOdoo(data);
           await _pricelistManager.upsertLocal(pricelist);
-          // Also sync pricelist items for this pricelist
-          await _syncPricelistItems(pricelistId: pricelist.id);
         },
       ),
       sinceDate: sinceDate,
       onProgress: onProgress,
     );
-    return result.synced;
+    final synced = result.requireSuccess();
+
+    // Child rules have their own write lifecycle. An incremental parent fetch
+    // can legitimately return zero while several rules changed or disappeared,
+    // so always reconcile the complete child scope after the parent succeeds.
+    await syncPricelistItems(onProgress: onProgress);
+    return synced;
   }
 
-  /// Sync pricelist items for a specific pricelist
-  Future<int> _syncPricelistItems({required int pricelistId, int limit = 500}) async {
+  /// Synchronizes and reconciles every rule belonging to locally active
+  /// pricelists in one paginated query instead of one request per parent.
+  ///
+  /// This intentionally ignores the parent watermark: child rules may change
+  /// or be deleted without touching `product.pricelist.write_date`. Local
+  /// negative IDs are drafts and are excluded from cleanup.
+  Future<int> syncPricelistItems({
+    int batchSize = 500,
+    SyncProgressCallback? onProgress,
+  }) async {
     if (!isOnline) return 0;
 
     try {
-      final items = await odooClient!.searchRead(
-        model: 'product.pricelist.item',
-        domain: [
-          ['pricelist_id', '=', pricelistId],
-        ],
-        fields: [
-          'id',
-          'pricelist_id',
-          'product_tmpl_id',
-          'product_id',
-          'categ_id',
-          'applied_on',
-          'min_quantity',
-          'date_start',
-          'date_end',
-          'compute_price',
-          'fixed_price',
-          'percent_price',
-          'base',
-          'base_pricelist_id',
-          'price_discount',
-          'price_surcharge',
-          'price_round',
-          'price_min_margin',
-          'price_max_margin',
-          // Note: 'uom_id' does NOT exist on product.pricelist.item in Odoo 19
-          'write_date',
-        ],
-        limit: limit,
-      );
+      final parents =
+          await (db.select(db.productPricelist)..where(
+                (table) =>
+                    table.odooId.isBiggerThanValue(0) &
+                    table.active.equals(true),
+              ))
+              .get();
+      final parentIds = parents.map((row) => row.odooId).toSet();
+      final remoteItemIds = <int>{};
 
-      int count = 0;
-      for (final item in items) {
-        final pricelistItem = _pricelistItemManager.fromOdoo(item);
-        await _pricelistItemManager.upsertLocal(pricelistItem);
-        count++;
+      var synced = 0;
+      if (parentIds.isNotEmpty) {
+        final domain = <dynamic>[
+          ['pricelist_id', 'in', parentIds.toList(growable: false)],
+        ];
+        final total =
+            await odooClient!.searchCount(
+              model: 'product.pricelist.item',
+              domain: domain,
+            ) ??
+            0;
+        onProgress?.call(
+          SyncProgress(
+            total: total,
+            synced: 0,
+            currentItem: 'Sincronizando reglas de precios...',
+          ),
+        );
+
+        var offset = 0;
+        while (true) {
+          if (_syncRepo.isCancelRequested) {
+            throw SyncCancelledException(
+              'Pricelist item sync was cancelled',
+              syncedCount: synced,
+            );
+          }
+          final page = await odooClient!.searchRead(
+            model: 'product.pricelist.item',
+            domain: domain,
+            fields: _pricelistItemFields,
+            limit: batchSize,
+            offset: offset,
+            order: 'id asc',
+          );
+          if (page.isEmpty) break;
+
+          final parsed = page
+              .map(_pricelistItemManager.fromOdoo)
+              .toList(growable: false);
+          await _pricelistItemManager.upsertLocalBatch(parsed);
+          remoteItemIds.addAll(parsed.map((item) => item.id));
+          synced += parsed.length;
+          onProgress?.call(SyncProgress(total: total, synced: synced));
+
+          if (page.length < batchSize) break;
+          offset += page.length;
+        }
       }
-      return count;
+
+      if (_syncRepo.isCancelRequested) {
+        throw SyncCancelledException(
+          'Pricelist item sync was cancelled',
+          syncedCount: synced,
+        );
+      }
+
+      // Reconcile only after a complete successful fetch. Remote-owned stale
+      // rows are removed, while negative local drafts survive both scope and
+      // parent cleanup.
+      await db.transaction(() async {
+        final scopedDelete = db.delete(db.productPricelistItem)
+          ..where((table) {
+            var expression =
+                table.odooId.isBiggerThanValue(0) &
+                table.pricelistId.isIn(parentIds);
+            if (remoteItemIds.isNotEmpty) {
+              expression = expression & table.odooId.isNotIn(remoteItemIds);
+            }
+            return expression;
+          });
+        await scopedDelete.go();
+
+        final orphanDelete = db.delete(db.productPricelistItem)
+          ..where((table) {
+            var expression = table.odooId.isBiggerThanValue(0);
+            if (parentIds.isNotEmpty) {
+              expression = expression & table.pricelistId.isNotIn(parentIds);
+            }
+            return expression;
+          });
+        await orphanDelete.go();
+      });
+
+      return synced;
     } catch (e) {
       logger.e('[ProductSync] Error syncing pricelist items: $e');
-      return 0;
+      rethrow;
     }
   }
 
@@ -364,153 +452,6 @@ class ProductSyncRepository {
       sinceDate: sinceDate,
       onProgress: onProgress,
     );
-    return result.synced;
-  }
-
-  // ============ Aggregate Sync ============
-
-  /// Sync all product-related catalog data in the recommended order.
-  ///
-  /// Order: Categories -> UoM -> Taxes -> Products -> ProductUom -> Pricelists -> PaymentTerms
-  Future<AggregateSyncResult> syncAllCatalog({
-    DateTime? sinceDate,
-    MultiModelProgressCallback? onProgress,
-  }) async {
-    return _syncRepo.syncModels(
-      [
-        // Categories first (products reference them)
-        SyncConfigBuilder.create(
-          model: 'product.category',
-          fields: ['id', 'name', 'complete_name', 'parent_id', 'write_date'],
-          batchSize: 200,
-          fromOdoo: _categoryManager.fromOdoo,
-          upsertLocal: _categoryManager.upsertLocal,
-          upsertLocalBatch: _categoryManager.upsertLocalBatch,
-        ),
-
-        // UoM (products reference them)
-        SyncConfigBuilder.create(
-          model: 'uom.uom',
-          fields: ['id', 'name', 'factor', 'active', 'write_date'],
-          domain: [
-            ['active', '=', true]
-          ],
-          batchSize: 100,
-          fromOdoo: _uomManager.fromOdoo,
-          upsertLocal: _uomManager.upsertLocal,
-          upsertLocalBatch: _uomManager.upsertLocalBatch,
-        ),
-
-        // Taxes (products reference them)
-        SyncConfigBuilder.create(
-          model: 'account.tax',
-          fields: [
-            'id',
-            'name',
-            'description',
-            'type_tax_use',
-            'amount_type',
-            'amount',
-            'active',
-            'price_include',
-            'include_base_amount',
-            'sequence',
-            'company_id',
-            'tax_group_id',
-              'write_date',
-          ],
-          domain: [
-            ['active', '=', true]
-          ],
-          batchSize: 200,
-          fromOdoo: _taxManager.fromOdoo,
-          upsertLocal: _taxManager.upsertLocal,
-          upsertLocalBatch: _taxManager.upsertLocalBatch,
-        ),
-
-        // Products
-        SyncConfigBuilder.create(
-          model: 'product.product',
-          fields: _productFields,
-          domain: [
-            ['sale_ok', '=', true],
-            ['active', '=', true],
-          ],
-          batchSize: 500,
-          fromOdoo: _productManager.fromOdoo,
-          upsertLocal: _productManager.upsertLocal,
-          upsertLocalBatch: _productManager.upsertLocalBatch,
-          isolateParser: ProductManager.fromOdooMap,
-        ),
-
-        // Product UoM (needs products)
-        ModelSyncConfig(
-          model: 'product.uom',
-          fields: [
-            'id',
-            'product_id',
-            'uom_id',
-            'barcode',
-            'company_id',
-            'write_date'
-          ],
-          batchSize: 500,
-          upsertRecord: (data) async {
-            final productUom = _productUomManager.fromOdoo(data);
-            if (productUom.productId == 0 || productUom.uomId == 0) return;
-            await _productUomManager.upsertLocal(productUom);
-          },
-        ),
-
-        // Pricelists (with items)
-        ModelSyncConfig(
-          model: 'product.pricelist',
-          fields: [
-            'id',
-            'name',
-            'active',
-            'currency_id',
-            'company_id',
-            'sequence',
-            'write_date'
-          ],
-          domain: [
-            ['active', '=', true]
-          ],
-          batchSize: 50,
-          order: 'sequence asc',
-          upsertRecord: (data) async {
-            final pricelist = _pricelistManager.fromOdoo(data);
-            await _pricelistManager.upsertLocal(pricelist);
-            await _syncPricelistItems(pricelistId: pricelist.id);
-          },
-        ),
-
-        // Payment Terms
-        SyncConfigBuilder.create(
-          model: 'account.payment.term',
-          fields: [
-            'id',
-            'name',
-            'active',
-            'note',
-            'company_id',
-            'sequence',
-            'is_cash',
-            'is_credit',
-            'write_date',
-          ],
-          domain: [
-            ['active', '=', true]
-          ],
-          batchSize: 100,
-          fromOdoo: _paymentTermManager.fromOdoo,
-          upsertLocal: _paymentTermManager.upsertLocal,
-          upsertLocalBatch: _paymentTermManager.upsertLocalBatch,
-        ),
-      ],
-      sinceDate: sinceDate,
-      onProgress: onProgress,
-    );
+    return result.requireSuccess();
   }
 }

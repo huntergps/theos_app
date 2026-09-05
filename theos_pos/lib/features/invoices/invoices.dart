@@ -19,6 +19,5 @@ library;
 
 export 'repositories/repositories.dart';
 export 'widgets/widgets.dart';
-export 'datasources/datasources.dart';
 export 'providers/providers.dart';
 export 'utils/utils.dart';

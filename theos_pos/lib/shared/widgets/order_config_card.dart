@@ -100,8 +100,8 @@ class OrderConfigCard extends ConsumerWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           // Date - always visible
-          ReactiveDateField(
-            config: ReactiveFieldConfig(label: 'Fecha', isEditing: isEditing),
+          OdooDateField(
+            config: OdooFieldConfig(label: 'Fecha', isEditing: isEditing),
             value: dateOrder,
             showTime: true,
             onChanged: isEditing ? onDateChanged : null,
@@ -125,7 +125,7 @@ class OrderConfigCard extends ConsumerWidget {
   /// Pricelist selector
   Widget _buildPricelistField(WidgetRef ref) {
     return ReactiveMasterSelector<Pricelist>(
-      config: ReactiveFieldConfig(
+      config: OdooFieldConfig(
         label: 'Lista de precios',
         isEditing: isEditing && onPricelistChanged != null,
       ),
@@ -141,7 +141,7 @@ class OrderConfigCard extends ConsumerWidget {
   /// Payment terms selector with partner filtering
   Widget _buildPaymentTermField(WidgetRef ref) {
     return ReactiveMasterSelector<PaymentTerm>(
-      config: ReactiveFieldConfig(
+      config: OdooFieldConfig(
         label: 'Términos de pago',
         isEditing: isEditing && onPaymentTermChanged != null,
       ),
@@ -161,7 +161,7 @@ class OrderConfigCard extends ConsumerWidget {
   /// Warehouse selector
   Widget _buildWarehouseField(WidgetRef ref) {
     return ReactiveMasterSelector<Warehouse>(
-      config: ReactiveFieldConfig(
+      config: OdooFieldConfig(
         label: 'Almacén',
         isEditing: isEditing && onWarehouseChanged != null,
       ),
@@ -177,7 +177,7 @@ class OrderConfigCard extends ConsumerWidget {
   /// User/salesperson selector
   Widget _buildUserField(WidgetRef ref) {
     return ReactiveMasterSelector<User>(
-      config: ReactiveFieldConfig(
+      config: OdooFieldConfig(
         label: 'Vendedor',
         isEditing: isEditing && onUserChanged != null,
       ),

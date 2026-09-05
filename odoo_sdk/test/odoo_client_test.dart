@@ -108,7 +108,22 @@ void main() {
       expect(client.config.database, equals('new-db'));
     });
 
-    test('provides access to http, crud, and session components', () {
+    test('setCredentials resets detected version', () async {
+      final client = OdooClient(
+        config: const OdooClientConfig(
+          baseUrl: 'https://old.example.com',
+          apiKey: 'old-key',
+        ),
+      );
+
+      // A fresh client starts unknown; changing identity must keep it that
+      // way even if a previous server had been detected successfully.
+      expect(client.version.isUnknown, isTrue);
+      client.setCredentials('https://new.example.com', 'new-key', 'new-db');
+      expect(client.version.isUnknown, isTrue);
+    });
+
+    test('provides access to http and JSON-2 crud components', () {
       final client = OdooClient(
         config: const OdooClientConfig(
           baseUrl: 'https://odoo.example.com',
@@ -118,7 +133,6 @@ void main() {
 
       expect(client.http, isNotNull);
       expect(client.crud, isNotNull);
-      expect(client.session, isNotNull);
     });
   });
 

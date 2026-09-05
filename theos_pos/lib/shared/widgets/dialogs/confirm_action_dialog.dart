@@ -139,8 +139,7 @@ class ConfirmActionDialog extends StatelessWidget {
     return show(
       context,
       title: 'Descartar cambios',
-      message:
-          'Tienes cambios sin guardar que se perderán. ¿Estás seguro de continuar?',
+      message: 'Tienes cambios sin guardar que se perderán. ¿Estás seguro de continuar?',
       confirmText: 'Descartar',
       cancelText: 'Continuar editando',
       icon: FluentIcons.warning,

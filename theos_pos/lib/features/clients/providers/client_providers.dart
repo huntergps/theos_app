@@ -1,10 +1,11 @@
-import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
+
 import '../../../core/database/repositories/repository_providers.dart';
 import '../../../core/managers/manager_providers.dart' show appDatabaseProvider;
 import '../../../core/services/platform/server_connectivity_service.dart';
+
 import 'package:theos_pos_core/theos_pos_core.dart';
-import '../services/client_validation_types.dart';
+
 import '../repositories/client_repository.dart';
 import '../services/client_calculator_service.dart';
 import '../services/client_credit_service.dart';
@@ -56,32 +57,6 @@ ClientCreditService? clientCreditService(Ref ref) {
   );
 }
 
-// ============ DATA PROVIDERS ============
-
-/// Reactive stream of a client by ID using Drift's native watch.
-///
-/// Replaces the old FutureProvider [clientById] with a StreamProvider
-/// that auto-re-emits whenever the partner record changes in the local DB.
-///
-/// `autoDispose`: es `.family` por `clientId` transitorio (memory leak
-/// corregido). Verificado: sin consumidores activos hoy (solo mencionado en
-/// el doc comment de `clients.dart`) — cero riesgo de romper algo.
-final clientByIdProvider = StreamProvider.autoDispose.family<Client?, int>((ref, clientId) {
-  return clientManager.watchPartner(clientId);
-});
-
-/// Search clients by query (name, VAT, email).
-///
-/// Offline-first: returns local results immediately, enriched with Odoo
-/// data when online. The Odoo search saves results to local DB so they
-/// become available for future offline searches.
-@Riverpod(keepAlive: true)
-Future<List<Client>> clientSearch(Ref ref, String query) async {
-  final repository = ref.watch(clientRepositoryProvider);
-  if (repository == null) return [];
-  return repository.search(query);
-}
-
 /// Get client with credit data — offline-first with background refresh.
 ///
 /// Uses a StreamProvider backed by Drift's `watchPartner()` so the UI
@@ -116,22 +91,4 @@ Stream<Client?> clientWithCredit(Ref ref, int clientId) {
 
   // Reactive stream from local DB — auto-updates when data changes
   return clientManager.watchPartner(clientId);
-}
-
-/// `keepAlive:false`: es `.family` por `params` (clientId+amount), un valor
-/// transitorio de validación puntual. Verificado: sin consumidores reales en
-/// todo el codebase hoy (solo mencionado en el doc comment de `clients.dart`)
-/// — cero riesgo de romper algo.
-@Riverpod(keepAlive: false)
-Future<CreditValidationResult> validateOrderCredit(
-  Ref ref,
-  ({int clientId, double amount}) params,
-) async {
-  final creditService = ref.watch(clientCreditServiceProvider);
-  if (creditService == null) return CreditValidationResult.ok();
-
-  return creditService.validateOrderCredit(
-    clientId: params.clientId,
-    orderAmount: params.amount,
-  );
 }

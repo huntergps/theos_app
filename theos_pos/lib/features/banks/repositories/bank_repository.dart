@@ -1,13 +1,6 @@
 import 'package:drift/drift.dart' as drift;
-import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:odoo_sdk/odoo_sdk.dart' show OfflineReplayPolicy;
 import 'package:theos_pos_core/theos_pos_core.dart';
-
-/// Provider for BankRepository
-final bankRepositoryProvider = Provider<BankRepository?>((ref) {
-  // This will be initialized when the app database is ready
-  // For now, return null and let features handle null checks
-  return null;
-});
 
 /// Repository for Bank-related operations using theos_pos_core database
 ///
@@ -22,9 +15,9 @@ class BankRepository {
     required AppDatabase db,
     OdooClient? odooClient,
     OfflineQueueDataSource? offlineQueue,
-  })  : _db = db,
-        _odooClient = odooClient,
-        _offlineQueue = offlineQueue;
+  }) : this._(db, odooClient, offlineQueue);
+
+  BankRepository._(this._db, this._odooClient, this._offlineQueue);
 
   // ════════════════════════════════════════════════════════════════════════════
   // PartnerBank Operations
@@ -37,9 +30,9 @@ class BankRepository {
       ..where((t) => t.partnerId.equals(partnerId) & t.active.equals(true))
       ..orderBy([
         (t) => drift.OrderingTerm(
-              expression: t.sequence,
-              mode: drift.OrderingMode.asc,
-            ),
+          expression: t.sequence,
+          mode: drift.OrderingMode.asc,
+        ),
       ]);
 
     return await query.get();
@@ -57,9 +50,9 @@ class BankRepository {
       ..where((t) => t.partnerId.equals(partnerId) & t.active.equals(true))
       ..orderBy([
         (t) => drift.OrderingTerm(
-              expression: t.sequence,
-              mode: drift.OrderingMode.asc,
-            ),
+          expression: t.sequence,
+          mode: drift.OrderingMode.asc,
+        ),
       ]);
 
     return query.watch();
@@ -72,9 +65,9 @@ class BankRepository {
   /// localmente antes de encolar la operación.
   Future<String?> _resolveBankName(int? bankId) async {
     if (bankId == null) return null;
-    final bank = await (_db.select(_db.resBank)
-          ..where((t) => t.odooId.equals(bankId)))
-        .getSingleOrNull();
+    final bank = await (_db.select(
+      _db.resBank,
+    )..where((t) => t.odooId.equals(bankId))).getSingleOrNull();
     return bank?.name;
   }
 
@@ -100,26 +93,34 @@ class BankRepository {
         writeDate: drift.Value(DateTime.now()),
       );
 
-      final id = await _db.into(_db.resPartnerBank).insert(companion);
-
-      // Queue for offline sync
-      if (_offlineQueue != null) {
-        // Campos verificados contra el servidor (19.2/19.5, julio 2026):
-        // acc_number → account_number (renombrado); bank_id y acc_holder_name
-        // YA NO existen en res.partner.bank — el banco viaja como texto plano
-        // en bank_name (se resuelve el nombre desde la tabla local res_bank).
-        final bankName = await _resolveBankName(bankId);
-        await _offlineQueue.queueOperation(
-          model: 'res.partner.bank',
-          method: 'create',
-          recordId: tempId,
-          values: {
-            'partner_id': partnerId,
-            'account_number': accNumber,
-            'bank_name': ?bankName,
-          },
-        );
+      Future<int> persistBankAndIntent() async {
+        final id = await _db.into(_db.resPartnerBank).insert(companion);
+        if (_offlineQueue case final queue?) {
+          // Campos verificados contra el servidor (19.2/19.5, julio 2026):
+          // acc_number → account_number (renombrado); bank_id y acc_holder_name
+          // YA NO existen en res.partner.bank — el banco viaja como texto plano
+          // en bank_name (se resuelve el nombre desde la tabla local res_bank).
+          final bankName = await _resolveBankName(bankId);
+          await queue.queueOperation(
+            model: 'res.partner.bank',
+            method: 'create',
+            recordId: tempId,
+            values: {
+              'partner_id': partnerId,
+              'account_number': accNumber,
+              'bank_name': ?bankName,
+            },
+            replayPolicy: OfflineReplayPolicy.retrySafe,
+          );
+        }
+        return id;
       }
+
+      // The local account and its replay intent are one durable unit. Nested
+      // queue transactions use the same AppDatabase transaction context.
+      final id = _offlineQueue == null
+          ? await persistBankAndIntent()
+          : await _db.transaction(persistBankAndIntent);
 
       // Retrieve the inserted record
       final query = _db.select(_db.resPartnerBank)
@@ -139,41 +140,54 @@ class BankRepository {
   }) async {
     try {
       final companion = ResPartnerBankCompanion(
-        accNumber: accNumber != null ? drift.Value(accNumber) : const drift.Value.absent(),
-        bankId: bankId != null ? drift.Value(bankId) : const drift.Value.absent(),
-        accHolderName: accHolderName != null ? drift.Value(accHolderName) : const drift.Value.absent(),
+        accNumber: accNumber != null
+            ? drift.Value(accNumber)
+            : const drift.Value.absent(),
+        bankId: bankId != null
+            ? drift.Value(bankId)
+            : const drift.Value.absent(),
+        accHolderName: accHolderName != null
+            ? drift.Value(accHolderName)
+            : const drift.Value.absent(),
         isSynced: const drift.Value(false),
         writeDate: drift.Value(DateTime.now()),
       );
 
-      final stmt = _db.update(_db.resPartnerBank)
-        ..where((t) => t.id.equals(id));
+      Future<int> persistUpdateAndIntent() async {
+        final count = await (_db.update(
+          _db.resPartnerBank,
+        )..where((t) => t.id.equals(id))).write(companion);
 
-      final count = await stmt.write(companion);
+        final queue = _offlineQueue;
+        if (count > 0 && queue != null) {
+          // Get the odoo_id for this record to queue the operation.
+          final record = await (_db.select(
+            _db.resPartnerBank,
+          )..where((t) => t.id.equals(id))).getSingleOrNull();
+          if (record != null) {
+            // Mismos campos verificados que en createPartnerBank (19.2/19.5):
+            // account_number (renombrado) + bank_name (texto plano).
+            final values = <String, dynamic>{};
+            if (accNumber != null) values['account_number'] = accNumber;
+            if (bankId != null) {
+              final bankName = await _resolveBankName(bankId);
+              if (bankName != null) values['bank_name'] = bankName;
+            }
 
-      if (count > 0 && _offlineQueue != null) {
-        // Get the odoo_id for this record to queue the operation
-        final record = await (_db.select(_db.resPartnerBank)
-              ..where((t) => t.id.equals(id)))
-            .getSingleOrNull();
-        if (record != null) {
-          // Mismos campos verificados que en createPartnerBank (19.2/19.5):
-          // account_number (renombrado) + bank_name (texto plano).
-          final values = <String, dynamic>{};
-          if (accNumber != null) values['account_number'] = accNumber;
-          if (bankId != null) {
-            final bankName = await _resolveBankName(bankId);
-            if (bankName != null) values['bank_name'] = bankName;
+            await queue.queueOperation(
+              model: 'res.partner.bank',
+              method: 'write',
+              recordId: record.odooId,
+              values: values,
+            );
           }
-
-          await _offlineQueue.queueOperation(
-            model: 'res.partner.bank',
-            method: 'write',
-            recordId: record.odooId,
-            values: values,
-          );
         }
+        return count;
       }
+
+      final count = _offlineQueue == null
+          ? await persistUpdateAndIntent()
+          : await _db.transaction(persistUpdateAndIntent);
 
       return count > 0;
     } catch (e) {
@@ -185,28 +199,46 @@ class BankRepository {
   Future<bool> deletePartnerBank(int id) async {
     try {
       // Get odoo_id before soft-deleting
-      final record = await (_db.select(_db.resPartnerBank)
-            ..where((t) => t.id.equals(id)))
-          .getSingleOrNull();
+      final record = await (_db.select(
+        _db.resPartnerBank,
+      )..where((t) => t.id.equals(id))).getSingleOrNull();
 
-      final stmt = _db.update(_db.resPartnerBank)
-        ..where((t) => t.id.equals(id));
+      Future<int> persistDeleteAndIntent() async {
+        final count =
+            await (_db.update(
+              _db.resPartnerBank,
+            )..where((t) => t.id.equals(id))).write(
+              const ResPartnerBankCompanion(
+                active: drift.Value(false),
+                isSynced: drift.Value(false),
+              ),
+            );
 
-      final count = await stmt.write(
-        const ResPartnerBankCompanion(
-          active: drift.Value(false),
-          isSynced: drift.Value(false),
-        ),
-      );
-
-      if (count > 0 && _offlineQueue != null && record != null && record.odooId > 0) {
-        await _offlineQueue.queueOperation(
-          model: 'res.partner.bank',
-          method: 'write',
-          recordId: record.odooId,
-          values: {'active': false},
-        );
+        final queue = _offlineQueue;
+        if (count > 0 && queue != null && record != null) {
+          if (record.odooId > 0) {
+            await queue.queueOperation(
+              model: 'res.partner.bank',
+              method: 'write',
+              recordId: record.odooId,
+              values: {'active': false},
+            );
+          } else {
+            // A local-only account must not survive in the outbox after the
+            // user deletes it; otherwise restart/reconnect would create it in
+            // Odoo despite being hidden locally.
+            await queue.removeOperationsForRecord(
+              'res.partner.bank',
+              record.odooId,
+            );
+          }
+        }
+        return count;
       }
+
+      final count = _offlineQueue == null
+          ? await persistDeleteAndIntent()
+          : await _db.transaction(persistDeleteAndIntent);
 
       return count > 0;
     } catch (e) {
@@ -222,9 +254,7 @@ class BankRepository {
   Future<List<ResBankData>> getAllBanks() async {
     final query = _db.select(_db.resBank)
       ..where((t) => t.active.equals(true))
-      ..orderBy([
-        (t) => drift.OrderingTerm(expression: t.name),
-      ]);
+      ..orderBy([(t) => drift.OrderingTerm(expression: t.name)]);
 
     return await query.get();
   }
@@ -237,16 +267,18 @@ class BankRepository {
     return await query.getSingleOrNull();
   }
 
-  /// Search banks by name or BIC
+  /// Search banks by name or the locally retained SPI code.
   Future<List<ResBankData>> searchBanks(String searchTerm) async {
     if (searchTerm.trim().isEmpty) return [];
 
     final lowerQuery = searchTerm.toLowerCase();
     final query = _db.select(_db.resBank)
-      ..where((t) =>
-          t.active.equals(true) &
-          (t.name.lower().contains(lowerQuery) |
-              t.bic.lower().contains(lowerQuery)))
+      ..where(
+        (t) =>
+            t.active.equals(true) &
+            (t.name.lower().contains(lowerQuery) |
+                t.bic.lower().contains(lowerQuery)),
+      )
       ..limit(50);
 
     return await query.get();
@@ -301,12 +333,8 @@ class BankRepository {
   /// sola cuando la tabla `res_bank` cambia (ej. tras sincronizar catálogo),
   /// sin necesitar `ref.invalidate()` manual.
   ///
-  /// NOTA: no existe un `bankManager` generado para el modelo `Bank`
-  /// (`res.bank` no tiene `.odoo.g.dart` — el `@OdooModel` no se ha
-  /// regenerado para este modelo), así que este método usa `.watch()` de
-  /// Drift directo sobre la misma tabla `res_bank`, en vez de
-  /// `bankManager.watchLocalSearch()` (que hoy no compila). Mismo resultado
-  /// reactivo, sin depender de código generado inexistente.
+  /// La tabla local conserva su nombre histórico `res_bank`, pero contiene
+  /// el catálogo remoto `l10n.ec.bank`.
   Stream<List<ResBankData>> watchBanks() {
     return (_db.select(_db.resBank)
           ..where((t) => t.active.equals(true))
@@ -314,17 +342,15 @@ class BankRepository {
         .watch();
   }
 
-  /// Sync banks from Odoo (res.bank was removed in Odoo 19.2)
+  /// Sync banks from the Odoo 19.5 Ecuadorian catalog.
   Future<int> syncBanks({int limit = 100}) async {
     if (_odooClient == null) return 0;
-    // res.bank doesn't exist in Odoo 19.2+
-    if (!_odooClient.version.hasBankModel) return 0;
 
     try {
       final banks = await _odooClient.searchRead(
-        model: 'res.bank',
+        model: 'l10n.ec.bank',
         domain: [],
-        fields: ['name', 'bic', 'active'],
+        fields: ['name', 'active', 'write_date'],
         limit: limit,
       );
 
@@ -332,32 +358,38 @@ class BankRepository {
       for (final bank in banks) {
         final id = bank['id'] as int;
         final name = bank['name'] as String? ?? '';
-        final bic = bank['bic'] as String?;
+        // SPI codes are not SWIFT/BIC identifiers.
+        const String? bic = null;
+        final writeDate = bank['write_date'] is String
+            ? DateTime.tryParse(bank['write_date'] as String)
+            : null;
         final active = bank['active'] as bool? ?? true;
 
-        await _db.into(_db.resBank).insert(
-          ResBankCompanion.insert(
-            odooId: id,
-            name: name,
-            bic: drift.Value(bic),
-            active: drift.Value(active),
-            writeDate: drift.Value(DateTime.now()),
-          ),
-          onConflict: drift.DoUpdate(
-            (old) => ResBankCompanion(
-              name: drift.Value(name),
-              bic: drift.Value(bic),
-              active: drift.Value(active),
-              writeDate: drift.Value(DateTime.now()),
-            ),
-          ),
-        );
+        await _db
+            .into(_db.resBank)
+            .insert(
+              ResBankCompanion.insert(
+                odooId: id,
+                name: name,
+                bic: drift.Value(bic),
+                active: drift.Value(active),
+                writeDate: drift.Value(writeDate),
+              ),
+              onConflict: drift.DoUpdate(
+                (old) => ResBankCompanion(
+                  name: drift.Value(name),
+                  bic: drift.Value(bic),
+                  active: drift.Value(active),
+                  writeDate: drift.Value(writeDate),
+                ),
+              ),
+            );
         syncCount++;
       }
 
       return syncCount;
     } catch (e) {
-      return 0;
+      rethrow;
     }
   }
 }

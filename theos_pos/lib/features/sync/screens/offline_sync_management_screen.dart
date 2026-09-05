@@ -3,7 +3,9 @@ import 'dart:convert';
 import 'package:fluent_ui/fluent_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
+import 'package:odoo_sdk/odoo_sdk.dart' show SyncOperationStatus;
 import 'package:syncfusion_flutter_datagrid/datagrid.dart';
+
 import '../../../core/constants/app_colors.dart';
 
 import '../../../core/database/datasources/datasources.dart';
@@ -11,7 +13,6 @@ import '../../../core/database/repositories/repository_providers.dart';
 import '../../../shared/widgets/dialogs/copyable_info_bar.dart';
 import '../providers/sync_service_providers.dart' show dataPurgeServiceProvider;
 import '../services/data_purge_service.dart';
-import '../services/offline_sync_service.dart' show SyncOperationStatus;
 import '../../../shared/providers/offline_queue_provider.dart';
 
 /// Screen for managing offline sync operations and local data
@@ -62,7 +63,8 @@ class _OfflineSyncManagementScreenState
   Widget build(BuildContext context) {
     final theme = FluentTheme.of(context);
     final queueState = ref.watch(offlineQueueProvider);
-    final isOnline = ref.watch(catalogSyncRepositoryProvider)?.isOnline ?? false;
+    final isOnline =
+        ref.watch(catalogSyncRepositoryProvider)?.isOnline ?? false;
 
     return ScaffoldPage(
       header: PageHeader(
@@ -86,7 +88,9 @@ class _OfflineSyncManagementScreenState
             ),
             CommandBarButton(
               icon: Icon(
-                isOnline ? FluentIcons.plug_connected : FluentIcons.plug_disconnected,
+                isOnline
+                    ? FluentIcons.plug_connected
+                    : FluentIcons.plug_disconnected,
                 color: isOnline ? AppColors.success : AppColors.danger,
               ),
               label: Text(isOnline ? 'Conectado' : 'Sin conexion'),
@@ -119,13 +123,23 @@ class _OfflineSyncManagementScreenState
                   // Grid header
                   Row(
                     children: [
-                      Icon(FluentIcons.list, size: 20, color: theme.accentColor),
+                      Icon(
+                        FluentIcons.list,
+                        size: 20,
+                        color: theme.accentColor,
+                      ),
                       const SizedBox(width: 8),
-                      Text('Transacciones Pendientes', style: theme.typography.subtitle),
+                      Text(
+                        'Transacciones Pendientes',
+                        style: theme.typography.subtitle,
+                      ),
                       const SizedBox(width: 12),
                       if (queueState.totalCount > 0)
                         Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 10,
+                            vertical: 4,
+                          ),
                           decoration: BoxDecoration(
                             color: AppColors.warning.withValues(alpha: 0.2),
                             borderRadius: BorderRadius.circular(16),
@@ -147,15 +161,16 @@ class _OfflineSyncManagementScreenState
                     child: queueState.isLoading
                         ? const Center(child: ProgressRing())
                         : queueState.totalCount == 0
-                            ? _buildEmptyState(theme)
-                            : _OfflineQueueDataGrid(
-                                operations: queueState.operations,
-                                syncProgress: queueState.syncProgress,
-                                currentSyncIndex: queueState.currentSyncIndex,
-                                totalSyncCount: queueState.totalSyncCount,
-                                isProcessing: queueState.isProcessing,
-                                onRemove: (id) => _confirmRemoveOperation(context, ref, id),
-                              ),
+                        ? _buildEmptyState(theme)
+                        : _OfflineQueueDataGrid(
+                            operations: queueState.operations,
+                            syncProgress: queueState.syncProgress,
+                            currentSyncIndex: queueState.currentSyncIndex,
+                            totalSyncCount: queueState.totalSyncCount,
+                            isProcessing: queueState.isProcessing,
+                            onRemove: (id) =>
+                                _confirmRemoveOperation(context, ref, id),
+                          ),
                   ),
                 ],
               ),
@@ -179,19 +194,36 @@ class _OfflineSyncManagementScreenState
             title: 'Total',
             count: queueState.totalCount,
             icon: FluentIcons.cloud_upload,
-            color: queueState.totalCount > 0 ? AppColors.warning : AppColors.success,
+            color: queueState.totalCount > 0
+                ? AppColors.warning
+                : AppColors.success,
           ),
           const SizedBox(width: 12),
           if (queueState.criticalCount > 0) ...[
-            _SummaryCard(title: 'Criticos', count: queueState.criticalCount, icon: FluentIcons.warning, color: AppColors.danger),
+            _SummaryCard(
+              title: 'Criticos',
+              count: queueState.criticalCount,
+              icon: FluentIcons.warning,
+              color: AppColors.danger,
+            ),
             const SizedBox(width: 12),
           ],
           if (queueState.highCount > 0) ...[
-            _SummaryCard(title: 'Altos', count: queueState.highCount, icon: FluentIcons.important, color: AppColors.warning),
+            _SummaryCard(
+              title: 'Altos',
+              count: queueState.highCount,
+              icon: FluentIcons.important,
+              color: AppColors.warning,
+            ),
             const SizedBox(width: 12),
           ],
           if (queueState.normalCount > 0) ...[
-            _SummaryCard(title: 'Normales', count: queueState.normalCount, icon: FluentIcons.info, color: Colors.blue),
+            _SummaryCard(
+              title: 'Normales',
+              count: queueState.normalCount,
+              icon: FluentIcons.info,
+              color: Colors.blue,
+            ),
             const SizedBox(width: 12),
           ],
           const Spacer(),
@@ -217,7 +249,9 @@ class _OfflineSyncManagementScreenState
                       width: 120,
                       child: ProgressBar(
                         value: queueState.totalSyncCount > 0
-                            ? (queueState.currentSyncIndex / queueState.totalSyncCount) * 100
+                            ? (queueState.currentSyncIndex /
+                                      queueState.totalSyncCount) *
+                                  100
                             : 0,
                       ),
                     ),
@@ -227,8 +261,17 @@ class _OfflineSyncManagementScreenState
             )
           else if (queueState.totalCount > 0)
             FilledButton(
-              onPressed: isOnline ? () => ref.read(offlineQueueProvider.notifier).processQueue() : null,
-              child: const Row(mainAxisSize: MainAxisSize.min, children: [Icon(FluentIcons.sync, size: 14), SizedBox(width: 6), Text('Sincronizar')]),
+              onPressed: isOnline
+                  ? () => ref.read(offlineQueueProvider.notifier).processQueue()
+                  : null,
+              child: const Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(FluentIcons.sync, size: 14),
+                  SizedBox(width: 6),
+                  Text('Sincronizar'),
+                ],
+              ),
             ),
         ],
       ),
@@ -236,32 +279,60 @@ class _OfflineSyncManagementScreenState
   }
 
   Widget _buildPurgeSection(FluentThemeData theme) {
-    if (_isLoadingPurge) return const SizedBox(height: 60, child: Center(child: ProgressRing()));
+    if (_isLoadingPurge) {
+      return const SizedBox(height: 60, child: Center(child: ProgressRing()));
+    }
     if (!_hasPermission) return const SizedBox.shrink();
 
     return Card(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-      child: Row(
+      child: Wrap(
+        spacing: 8,
+        runSpacing: 8,
+        crossAxisAlignment: WrapCrossAlignment.center,
         children: [
           Icon(FluentIcons.broom, size: 16, color: theme.accentColor),
-          const SizedBox(width: 8),
           Text('Limpieza:', style: theme.typography.bodyStrong),
-          const SizedBox(width: 16),
-          _PurgeStatChip(label: 'Ordenes', count: _localOrdersCount, color: Colors.blue),
-          const SizedBox(width: 8),
-          _PurgeStatChip(label: 'Pendientes', count: _pendingOpsCount, color: AppColors.warning),
-          const SizedBox(width: 8),
-          _PurgeStatChip(label: 'Fallidas', count: _failedOpsCount, color: AppColors.danger),
-          const Spacer(),
-          Button(onPressed: _localOrdersCount > 0 ? () => _showPurgeDialog(_PurgeType.orders) : null, child: const Text('Ordenes')),
-          const SizedBox(width: 8),
-          Button(onPressed: _pendingOpsCount > 0 ? () => _showPurgeDialog(_PurgeType.pending) : null, child: const Text('Cola')),
-          const SizedBox(width: 8),
-          Button(onPressed: _failedOpsCount > 0 ? () => _showPurgeDialog(_PurgeType.failed) : null, child: const Text('Fallidas')),
-          const SizedBox(width: 8),
+          _PurgeStatChip(
+            label: 'Ordenes',
+            count: _localOrdersCount,
+            color: Colors.blue,
+          ),
+          _PurgeStatChip(
+            label: 'Pendientes',
+            count: _pendingOpsCount,
+            color: AppColors.warning,
+          ),
+          _PurgeStatChip(
+            label: 'Fallidas',
+            count: _failedOpsCount,
+            color: AppColors.danger,
+          ),
+          Button(
+            onPressed: _localOrdersCount > 0
+                ? () => _showPurgeDialog(_PurgeType.orders)
+                : null,
+            child: const Text('Ordenes'),
+          ),
+          Button(
+            onPressed: _pendingOpsCount > 0
+                ? () => _showPurgeDialog(_PurgeType.pending)
+                : null,
+            child: const Text('Cola'),
+          ),
+          Button(
+            onPressed: _failedOpsCount > 0
+                ? () => _showPurgeDialog(_PurgeType.failed)
+                : null,
+            child: const Text('Fallidas'),
+          ),
           FilledButton(
-            onPressed: _pendingOpsCount > 0 || _localOrdersCount > 0 ? () => _showPurgeDialog(_PurgeType.all) : null,
-            style: ButtonStyle(backgroundColor: WidgetStateProperty.all(AppColors.danger)),
+            onPressed: _pendingOpsCount > 0 || _localOrdersCount > 0
+                ? () => _showPurgeDialog(_PurgeType.all)
+                : null,
+            style: ButtonStyle(
+              backgroundColor: WidgetStateProperty.all(AppColors.danger),
+            ),
             child: const Text('Purgar Todo'),
           ),
         ],
@@ -276,9 +347,19 @@ class _OfflineSyncManagementScreenState
         children: [
           Icon(FluentIcons.completed, size: 64, color: AppColors.success),
           const SizedBox(height: 16),
-          Text('Todo sincronizado', style: theme.typography.title?.copyWith(fontWeight: FontWeight.w600)),
+          Text(
+            'Todo sincronizado',
+            style: theme.typography.title?.copyWith(
+              fontWeight: FontWeight.w600,
+            ),
+          ),
           const SizedBox(height: 8),
-          Text('No hay transacciones pendientes', style: theme.typography.body?.copyWith(color: theme.resources.textFillColorSecondary)),
+          Text(
+            'No hay transacciones pendientes',
+            style: theme.typography.body?.copyWith(
+              color: theme.resources.textFillColorSecondary,
+            ),
+          ),
         ],
       ),
     );
@@ -291,7 +372,8 @@ class _OfflineSyncManagementScreenState
     switch (type) {
       case _PurgeType.all:
         title = 'Purgar Todo';
-        message = 'Se eliminaran $_localOrdersCount ordenes y $_pendingOpsCount operaciones.';
+        message =
+            'Se eliminaran $_localOrdersCount ordenes y $_pendingOpsCount operaciones.';
         break;
       case _PurgeType.orders:
         title = 'Eliminar Ordenes';
@@ -313,10 +395,15 @@ class _OfflineSyncManagementScreenState
         title: Text(title),
         content: Text(message),
         actions: [
-          Button(onPressed: () => Navigator.pop(context, false), child: const Text('Cancelar')),
+          Button(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancelar'),
+          ),
           FilledButton(
             onPressed: () => Navigator.pop(context, true),
-            style: ButtonStyle(backgroundColor: WidgetStateProperty.all(AppColors.danger)),
+            style: ButtonStyle(
+              backgroundColor: WidgetStateProperty.all(AppColors.danger),
+            ),
             child: const Text('Confirmar'),
           ),
         ],
@@ -350,7 +437,8 @@ class _OfflineSyncManagementScreenState
         CopyableInfoBar.showSuccess(
           context,
           title: 'Completado',
-          message: 'Ordenes: ${result.ordersDeleted}, Ops: ${result.operationsCleared}',
+          message:
+              'Ordenes: ${result.ordersDeleted}, Ops: ${result.operationsCleared}',
         );
       } else {
         CopyableInfoBar.showError(
@@ -364,17 +452,26 @@ class _OfflineSyncManagementScreenState
     }
   }
 
-  Future<void> _confirmRemoveOperation(BuildContext context, WidgetRef ref, int operationId) async {
+  Future<void> _confirmRemoveOperation(
+    BuildContext context,
+    WidgetRef ref,
+    int operationId,
+  ) async {
     final result = await showDialog<bool>(
       context: context,
       builder: (context) => ContentDialog(
         title: const Text('Eliminar Operacion'),
         content: const Text('Esta operacion no sera sincronizada. Continuar?'),
         actions: [
-          Button(onPressed: () => Navigator.pop(context, false), child: const Text('Cancelar')),
+          Button(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancelar'),
+          ),
           FilledButton(
             onPressed: () => Navigator.pop(context, true),
-            style: ButtonStyle(backgroundColor: WidgetStateProperty.all(AppColors.danger)),
+            style: ButtonStyle(
+              backgroundColor: WidgetStateProperty.all(AppColors.danger),
+            ),
             child: const Text('Eliminar'),
           ),
         ],
@@ -382,7 +479,9 @@ class _OfflineSyncManagementScreenState
     );
 
     if (result == true) {
-      await ref.read(offlineQueueProvider.notifier).removeOperation(operationId);
+      await ref
+          .read(offlineQueueProvider.notifier)
+          .removeOperation(operationId);
       _loadPurgeData();
     }
   }
@@ -397,7 +496,12 @@ class _SummaryCard extends StatelessWidget {
   final IconData icon;
   final Color color;
 
-  const _SummaryCard({required this.title, required this.count, required this.icon, required this.color});
+  const _SummaryCard({
+    required this.title,
+    required this.count,
+    required this.icon,
+    required this.color,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -414,9 +518,17 @@ class _SummaryCard extends StatelessWidget {
         children: [
           Icon(icon, size: 14, color: color),
           const SizedBox(width: 6),
-          Text('$count', style: theme.typography.bodyStrong?.copyWith(color: color)),
+          Text(
+            '$count',
+            style: theme.typography.bodyStrong?.copyWith(color: color),
+          ),
           const SizedBox(width: 4),
-          Text(title, style: theme.typography.caption?.copyWith(color: theme.resources.textFillColorSecondary)),
+          Text(
+            title,
+            style: theme.typography.caption?.copyWith(
+              color: theme.resources.textFillColorSecondary,
+            ),
+          ),
         ],
       ),
     );
@@ -429,14 +541,28 @@ class _PurgeStatChip extends StatelessWidget {
   final int count;
   final Color color;
 
-  const _PurgeStatChip({required this.label, required this.count, required this.color});
+  const _PurgeStatChip({
+    required this.label,
+    required this.count,
+    required this.color,
+  });
 
   @override
   Widget build(BuildContext context) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-      decoration: BoxDecoration(color: color.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(4)),
-      child: Text('$label: $count', style: TextStyle(fontSize: 12, color: color, fontWeight: FontWeight.w600)),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.1),
+        borderRadius: BorderRadius.circular(4),
+      ),
+      child: Text(
+        '$label: $count',
+        style: TextStyle(
+          fontSize: 12,
+          color: color,
+          fontWeight: FontWeight.w600,
+        ),
+      ),
     );
   }
 }
@@ -566,7 +692,10 @@ class _OfflineQueueDataGridState extends State<_OfflineQueueDataGrid> {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8),
       alignment: Alignment.centerLeft,
-      child: Text(text, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
+      child: Text(
+        text,
+        style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12),
+      ),
     );
   }
 }
@@ -592,17 +721,19 @@ class _OfflineQueueDataSource extends DataGridSource {
 
   void _buildRows() {
     _rows = operations.map((op) {
-      return DataGridRow(cells: [
-        DataGridCell(columnName: 'priority', value: op),
-        DataGridCell(columnName: 'model', value: op),
-        DataGridCell(columnName: 'method', value: op),
-        DataGridCell(columnName: 'recordId', value: op),
-        DataGridCell(columnName: 'createdAt', value: op),
-        DataGridCell(columnName: 'retryCount', value: op),
-        DataGridCell(columnName: 'status', value: op),
-        DataGridCell(columnName: 'values', value: op),
-        DataGridCell(columnName: 'actions', value: op),
-      ]);
+      return DataGridRow(
+        cells: [
+          DataGridCell(columnName: 'priority', value: op),
+          DataGridCell(columnName: 'model', value: op),
+          DataGridCell(columnName: 'method', value: op),
+          DataGridCell(columnName: 'recordId', value: op),
+          DataGridCell(columnName: 'createdAt', value: op),
+          DataGridCell(columnName: 'retryCount', value: op),
+          DataGridCell(columnName: 'status', value: op),
+          DataGridCell(columnName: 'values', value: op),
+          DataGridCell(columnName: 'actions', value: op),
+        ],
+      );
     }).toList();
   }
 
@@ -637,9 +768,20 @@ class _OfflineQueueDataSource extends DataGridSource {
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Container(width: 8, height: 8, decoration: BoxDecoration(color: color, shape: BoxShape.circle)),
+          Container(
+            width: 8,
+            height: 8,
+            decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+          ),
           const SizedBox(width: 4),
-          Text(label, style: TextStyle(fontSize: 11, color: color, fontWeight: FontWeight.w600)),
+          Text(
+            label,
+            style: TextStyle(
+              fontSize: 11,
+              color: color,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
         ],
       ),
     );
@@ -649,7 +791,11 @@ class _OfflineQueueDataSource extends DataGridSource {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8),
       alignment: Alignment.centerLeft,
-      child: Text(_getModelName(op.model), style: const TextStyle(fontSize: 11), overflow: TextOverflow.ellipsis),
+      child: Text(
+        _getModelName(op.model),
+        style: const TextStyle(fontSize: 11),
+        overflow: TextOverflow.ellipsis,
+      ),
     );
   }
 
@@ -657,7 +803,10 @@ class _OfflineQueueDataSource extends DataGridSource {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8),
       alignment: Alignment.centerLeft,
-      child: Text(_getMethodName(op.method), style: const TextStyle(fontSize: 11)),
+      child: Text(
+        _getMethodName(op.method),
+        style: const TextStyle(fontSize: 11),
+      ),
     );
   }
 
@@ -665,7 +814,10 @@ class _OfflineQueueDataSource extends DataGridSource {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8),
       alignment: Alignment.centerLeft,
-      child: Text(op.recordId?.toString() ?? '-', style: const TextStyle(fontSize: 11, fontFamily: 'monospace')),
+      child: Text(
+        op.recordId?.toString() ?? '-',
+        style: const TextStyle(fontSize: 11, fontFamily: 'monospace'),
+      ),
     );
   }
 
@@ -673,7 +825,10 @@ class _OfflineQueueDataSource extends DataGridSource {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8),
       alignment: Alignment.centerLeft,
-      child: Text(_dateFormat.format(op.createdAt.toLocal()), style: const TextStyle(fontSize: 10)),
+      child: Text(
+        _dateFormat.format(op.createdAt.toLocal()),
+        style: const TextStyle(fontSize: 10),
+      ),
     );
   }
 
@@ -682,7 +837,14 @@ class _OfflineQueueDataSource extends DataGridSource {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8),
       alignment: Alignment.center,
-      child: Text('${op.retryCount}', style: TextStyle(fontSize: 11, color: color, fontWeight: FontWeight.w600)),
+      child: Text(
+        '${op.retryCount}',
+        style: TextStyle(
+          fontSize: 11,
+          color: color,
+          fontWeight: FontWeight.w600,
+        ),
+      ),
     );
   }
 
@@ -702,7 +864,8 @@ class _OfflineQueueDataSource extends DataGridSource {
     } else if (op.retryCount >= 10) {
       status = 'Fallido';
       color = AppColors.danger;
-    } else if (op.nextRetryAt != null && op.nextRetryAt!.isAfter(DateTime.now())) {
+    } else if (op.nextRetryAt != null &&
+        op.nextRetryAt!.isAfter(DateTime.now())) {
       final remaining = op.nextRetryAt!.difference(DateTime.now());
       if (remaining.inMinutes > 0) {
         status = 'Retry ${remaining.inMinutes}m';
@@ -727,7 +890,14 @@ class _OfflineQueueDataSource extends DataGridSource {
           color: color.withValues(alpha: 0.15),
           borderRadius: BorderRadius.circular(4),
         ),
-        child: Text(status, style: TextStyle(fontSize: 10, color: color, fontWeight: FontWeight.w600)),
+        child: Text(
+          status,
+          style: TextStyle(
+            fontSize: 10,
+            color: color,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
       ),
     );
   }
@@ -792,7 +962,11 @@ class _OfflineQueueDataSource extends DataGridSource {
               Flexible(
                 child: Text(
                   statusLabel,
-                  style: TextStyle(fontSize: 10, color: color, fontWeight: FontWeight.w600),
+                  style: TextStyle(
+                    fontSize: 10,
+                    color: color,
+                    fontWeight: FontWeight.w600,
+                  ),
                   overflow: TextOverflow.ellipsis,
                 ),
               ),
@@ -825,7 +999,15 @@ class _OfflineQueueDataSource extends DataGridSource {
     final items = <Widget>[];
 
     // Sort keys for consistent display, prioritizing important fields
-    final priorityKeys = ['amount', 'sale_id', 'order_id', 'partner_id', 'product_id', 'name', 'journal_id'];
+    final priorityKeys = [
+      'amount',
+      'sale_id',
+      'order_id',
+      'partner_id',
+      'product_id',
+      'name',
+      'journal_id',
+    ];
     final sortedKeys = values.keys.toList()
       ..sort((a, b) {
         final aIndex = priorityKeys.indexOf(a);
@@ -846,7 +1028,9 @@ class _OfflineQueueDataSource extends DataGridSource {
       // Format the value for display
       String displayValue;
       if (value is String) {
-        displayValue = value.length > 25 ? '${value.substring(0, 22)}...' : value;
+        displayValue = value.length > 25
+            ? '${value.substring(0, 22)}...'
+            : value;
       } else if (value is List) {
         displayValue = '[${value.length} items]';
       } else if (value is Map) {
@@ -866,7 +1050,11 @@ class _OfflineQueueDataSource extends DataGridSource {
           children: [
             Text(
               '$displayKey: ',
-              style: const TextStyle(fontSize: 9, fontWeight: FontWeight.w600, color: Color(0xFF555555)),
+              style: const TextStyle(
+                fontSize: 9,
+                fontWeight: FontWeight.w600,
+                color: Color(0xFF555555),
+              ),
             ),
             Flexible(
               child: Text(
@@ -890,7 +1078,9 @@ class _OfflineQueueDataSource extends DataGridSource {
             const SizedBox(width: 2),
             Flexible(
               child: Text(
-                op.lastError!.length > 40 ? '${op.lastError!.substring(0, 37)}...' : op.lastError!,
+                op.lastError!.length > 40
+                    ? '${op.lastError!.substring(0, 37)}...'
+                    : op.lastError!,
                 style: TextStyle(fontSize: 9, color: AppColors.danger),
                 overflow: TextOverflow.ellipsis,
               ),
@@ -904,7 +1094,10 @@ class _OfflineQueueDataSource extends DataGridSource {
       return Container(
         padding: const EdgeInsets.symmetric(horizontal: 8),
         alignment: Alignment.centerLeft,
-        child: const Text('-', style: TextStyle(fontSize: 10, color: Color(0xFF999999))),
+        child: const Text(
+          '-',
+          style: TextStyle(fontSize: 10, color: Color(0xFF999999)),
+        ),
       );
     }
 
@@ -964,48 +1157,75 @@ class _OfflineQueueDataSource extends DataGridSource {
 
   Color _getPriorityColor(int priority) {
     switch (priority) {
-      case OfflinePriority.critical: return AppColors.danger;
-      case OfflinePriority.high: return AppColors.warning;
-      case OfflinePriority.normal: return Colors.blue;
-      case OfflinePriority.low: return Colors.grey;
-      default: return Colors.blue;
+      case OfflinePriority.critical:
+        return AppColors.danger;
+      case OfflinePriority.high:
+        return AppColors.warning;
+      case OfflinePriority.normal:
+        return Colors.blue;
+      case OfflinePriority.low:
+        return Colors.grey;
+      default:
+        return Colors.blue;
     }
   }
 
   String _getPriorityLabel(int priority) {
     switch (priority) {
-      case OfflinePriority.critical: return 'Critico';
-      case OfflinePriority.high: return 'Alto';
-      case OfflinePriority.normal: return 'Normal';
-      case OfflinePriority.low: return 'Bajo';
-      default: return 'Normal';
+      case OfflinePriority.critical:
+        return 'Critico';
+      case OfflinePriority.high:
+        return 'Alto';
+      case OfflinePriority.normal:
+        return 'Normal';
+      case OfflinePriority.low:
+        return 'Bajo';
+      default:
+        return 'Normal';
     }
   }
 
   String _getModelName(String model) {
     switch (model) {
-      case 'collection.session': return 'Sesion';
-      case 'account.payment': return 'Pago';
-      case 'res.partner': return 'Cliente';
-      case 'sale.order': return 'Orden';
-      case 'sale.order.line': return 'Linea';
-      case 'sale.order.withhold.line': return 'Retencion';
-      case 'l10n_ec_collection_box.sale.order.payment': return 'Pago Cobro';
-      case 'l10n_ec_collection_box.sale.order.payment.wizard': return 'Facturacion';
-      default: return model.split('.').last;
+      case 'collection.session':
+        return 'Sesion';
+      case 'account.payment':
+        return 'Pago';
+      case 'res.partner':
+        return 'Cliente';
+      case 'sale.order':
+        return 'Orden';
+      case 'sale.order.line':
+        return 'Linea';
+      case 'sale.order.withhold.line':
+        return 'Retencion';
+      case 'l10n_ec_collection_box.sale.order.payment':
+        return 'Pago Cobro';
+      case 'l10n_ec_collection_box.sale.order.payment.wizard':
+        return 'Facturacion';
+      default:
+        return model.split('.').last;
     }
   }
 
   String _getMethodName(String method) {
     switch (method) {
-      case 'session_create_and_open': return 'Abrir';
-      case 'session_close': return 'Cerrar';
-      case 'payment_create': return 'Crear';
-      case 'invoice_create_with_payments': return 'Facturar';
-      case 'create': return 'Crear';
-      case 'write': return 'Editar';
-      case 'unlink': return 'Eliminar';
-      default: return method;
+      case 'session_create_and_open':
+        return 'Abrir';
+      case 'session_close':
+        return 'Cerrar';
+      case 'payment_create':
+        return 'Crear';
+      case 'invoice_create_with_payments':
+        return 'Facturar';
+      case 'create':
+        return 'Crear';
+      case 'write':
+        return 'Editar';
+      case 'unlink':
+        return 'Eliminar';
+      default:
+        return method;
     }
   }
 }

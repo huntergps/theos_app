@@ -52,9 +52,7 @@ class SectionCard extends StatelessWidget {
                 child: Icon(icon, color: color, size: 16),
               ),
               const SizedBox(width: 12),
-              Expanded(
-                child: Text(title, style: theme.typography.subtitle),
-              ),
+              Expanded(child: Text(title, style: theme.typography.subtitle)),
               ...?actions,
             ],
           ),

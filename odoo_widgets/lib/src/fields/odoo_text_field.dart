@@ -164,7 +164,9 @@ class _OdooTextFieldView extends OdooFieldBase<String> {
 
   @override
   Widget buildEditMode(BuildContext context, FluentThemeData theme, String? effectiveValue) {
-    throw UnimplementedError();
+    // This private adapter is selected only for view mode. Returning the same
+    // view defensively keeps an inconsistent config from crashing the app.
+    return buildViewMode(context, theme, effectiveValue);
   }
 }
 
@@ -202,7 +204,9 @@ class _OdooTextFieldEdit extends OdooFieldBase<String> {
 
   @override
   Widget buildViewMode(BuildContext context, FluentThemeData theme, String? effectiveValue) {
-    throw UnimplementedError();
+    // This private adapter is selected only for edit mode. Keep rendering the
+    // editor if a parent rebuild changes the mode before it is replaced.
+    return buildEditMode(context, theme, effectiveValue);
   }
 
   @override
@@ -454,7 +458,3 @@ class _OdooInlineTextFieldState extends State<OdooInlineTextField> {
     );
   }
 }
-
-/// Backward-compatible aliases.
-typedef ReactiveTextField = OdooTextField;
-typedef ReactiveInlineTextField = OdooInlineTextField;

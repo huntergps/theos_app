@@ -1,6 +1,2 @@
-/// Odoo authentication strategies
+/// JSON-2 authentication is bearer-token based and requires no session API.
 library;
-
-export 'odoo_auth_strategy.dart';
-export 'mobile_auth_strategy.dart';
-export 'json_rpc_auth_strategy.dart';

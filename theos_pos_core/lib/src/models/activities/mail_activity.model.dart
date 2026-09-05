@@ -36,7 +36,8 @@ abstract class MailActivity with _$MailActivity {
     @OdooString(odooName: 'res_name') String? resName,
     @OdooString() String? summary,
     @OdooString() String? note,
-    @OdooMany2One('mail.activity.type', odooName: 'activity_type_id') int? activityTypeId,
+    @OdooMany2One('mail.activity.type', odooName: 'activity_type_id')
+    int? activityTypeId,
     @OdooMany2OneName(sourceField: 'activity_type_id') String? activityTypeName,
     @OdooMany2One('res.users', odooName: 'user_id') int? userId,
     @OdooMany2OneName(sourceField: 'user_id') String? userName,
@@ -44,7 +45,8 @@ abstract class MailActivity with _$MailActivity {
     @OdooString(writable: false) required String state,
     @OdooString() String? icon,
     @OdooBoolean(odooName: 'can_write') @Default(true) bool canWrite,
-    @OdooDateTime(odooName: 'create_date', writable: false) DateTime? createDate,
+    @OdooDateTime(odooName: 'create_date', writable: false)
+    DateTime? createDate,
     @OdooDateTime(odooName: 'write_date', writable: false) DateTime? writeDate,
   }) = _MailActivity;
 
@@ -121,8 +123,9 @@ abstract class MailActivity with _$MailActivity {
   }
 
   /// Get display title (summary or activity type)
-  String get displayTitle =>
-      (summary?.isNotEmpty ?? false) ? summary! : (activityTypeName ?? 'Actividad');
+  String get displayTitle => (summary?.isNotEmpty ?? false)
+      ? summary!
+      : (activityTypeName ?? 'Actividad');
 
   /// Days until deadline (negative if overdue)
   int get daysUntilDeadline {
@@ -135,12 +138,6 @@ abstract class MailActivity with _$MailActivity {
     );
     return deadline.difference(today).inDays;
   }
-
-  /// Alias for activityTypeId
-  int get activityTypeIdValue => activityTypeId ?? 0;
-
-  /// Alias for activityTypeName
-  String get activityTypeNameValue => activityTypeName ?? 'Actividad';
 
   // ═══════════════════ Factory Methods ═══════════════════
 

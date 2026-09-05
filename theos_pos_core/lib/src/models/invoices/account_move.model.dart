@@ -3,9 +3,6 @@ import 'package:odoo_sdk/odoo_sdk.dart';
 
 import 'account_move_line.model.dart';
 
-// Re-export AccountMoveLine and related types for backwards compatibility
-export 'account_move_line.model.dart';
-
 part 'account_move.model.freezed.dart';
 part 'account_move.model.g.dart';
 
@@ -72,7 +69,8 @@ abstract class AccountMove with _$AccountMove {
 
       case 'register_payment':
         if (!isPosted) {
-          errors['state'] = 'Solo se puede registrar pago en facturas publicadas';
+          errors['state'] =
+              'Solo se puede registrar pago en facturas publicadas';
         }
         if (!hasResidual) {
           errors['amountResidual'] = 'La factura no tiene saldo pendiente';
@@ -81,7 +79,8 @@ abstract class AccountMove with _$AccountMove {
 
       case 'credit_note':
         if (!isPosted) {
-          errors['state'] = 'Solo se puede crear nota de credito de facturas publicadas';
+          errors['state'] =
+              'Solo se puede crear nota de credito de facturas publicadas';
         }
         break;
 
@@ -100,16 +99,28 @@ abstract class AccountMove with _$AccountMove {
 
     // ============ Basic Data ============
     @OdooString() @Default('') String name,
-    @OdooSelection(odooName: 'move_type') @Default('out_invoice') String moveType,
+    @OdooSelection(odooName: 'move_type')
+    @Default('out_invoice')
+    String moveType,
 
     // ============ Ecuador SRI Fields ============
-    @OdooString(odooName: 'l10n_ec_authorization_number') String? l10nEcAuthorizationNumber,
-    @OdooDateTime(odooName: 'l10n_ec_authorization_date') DateTime? l10nEcAuthorizationDate,
-    @OdooString(odooName: 'l10n_latam_document_number') String? l10nLatamDocumentNumber,
-    @OdooMany2One('l10n_latam.document.type', odooName: 'l10n_latam_document_type_id') int? l10nLatamDocumentTypeId,
-    @OdooMany2OneName(sourceField: 'l10n_latam_document_type_id') String? l10nLatamDocumentTypeName,
-    @OdooMany2One('l10n.ec.sri.payment', odooName: 'l10n_ec_sri_payment_id') int? l10nEcSriPaymentId,
-    @OdooMany2OneName(sourceField: 'l10n_ec_sri_payment_id') String? l10nEcSriPaymentName,
+    @OdooString(odooName: 'l10n_ec_authorization_number')
+    String? l10nEcAuthorizationNumber,
+    @OdooDateTime(odooName: 'l10n_ec_authorization_date')
+    DateTime? l10nEcAuthorizationDate,
+    @OdooString(odooName: 'l10n_latam_document_number')
+    String? l10nLatamDocumentNumber,
+    @OdooMany2One(
+      'l10n_latam.document.type',
+      odooName: 'l10n_latam_document_type_id',
+    )
+    int? l10nLatamDocumentTypeId,
+    @OdooMany2OneName(sourceField: 'l10n_latam_document_type_id')
+    String? l10nLatamDocumentTypeName,
+    @OdooMany2One('l10n.ec.sri.payment', odooName: 'l10n_ec_sri_payment_id')
+    int? l10nEcSriPaymentId,
+    @OdooMany2OneName(sourceField: 'l10n_ec_sri_payment_id')
+    String? l10nEcSriPaymentName,
 
     // ============ State ============
     @OdooSelection() @Default('draft') String state,
@@ -164,7 +175,8 @@ abstract class AccountMove with _$AccountMove {
 
   /// Check if invoice is authorized by SRI
   bool get isSriAuthorized =>
-      l10nEcAuthorizationNumber != null && l10nEcAuthorizationNumber!.length == 49;
+      l10nEcAuthorizationNumber != null &&
+      l10nEcAuthorizationNumber!.length == 49;
 
   /// Check if invoice is posted
   bool get isPosted => state == 'posted';
@@ -302,8 +314,10 @@ abstract class AccountMove with _$AccountMove {
 
     String buildPartnerAddress() {
       final parts = <String>[];
-      if (partnerStreet != null && partnerStreet!.isNotEmpty) parts.add(partnerStreet!);
-      if (partnerCity != null && partnerCity!.isNotEmpty) parts.add(partnerCity!);
+      if (partnerStreet != null && partnerStreet!.isNotEmpty)
+        parts.add(partnerStreet!);
+      if (partnerCity != null && partnerCity!.isNotEmpty)
+        parts.add(partnerCity!);
       if (parts.isEmpty) return '';
       parts.add('Ecuador');
       return parts.join(', ');
@@ -311,7 +325,12 @@ abstract class AccountMove with _$AccountMove {
 
     final symbol = currencySymbol ?? '\$';
     const symbolMap = {
-      'USD': '\$', 'EUR': '\u20AC', 'GBP': '\u00A3', 'PEN': 'S/', 'COP': '\$', 'MXN': '\$',
+      'USD': '\$',
+      'EUR': '\u20AC',
+      'GBP': '\u00A3',
+      'PEN': 'S/',
+      'COP': '\$',
+      'MXN': '\$',
     };
     final actualSymbol = symbolMap[symbol] ?? symbol;
 
@@ -320,11 +339,16 @@ abstract class AccountMove with _$AccountMove {
         ? <String, dynamic>{
             'id': company['id'] ?? companyId,
             'name': company['name'] ?? '',
-            'l10n_ec_legal_name': company['l10n_ec_legal_name'] ?? company['name'] ?? '',
-            'l10n_ec_comercial_name': company['l10n_ec_comercial_name'] ?? company['name'] ?? '',
-            'l10n_ec_forced_accounting': company['l10n_ec_forced_accounting'] ?? true,
-            'l10n_ec_special_taxpayer_number': company['l10n_ec_special_taxpayer_number'],
-            'l10n_ec_withhold_agent_number': company['l10n_ec_withhold_agent_number'],
+            'l10n_ec_legal_name':
+                company['l10n_ec_legal_name'] ?? company['name'] ?? '',
+            'l10n_ec_comercial_name':
+                company['l10n_ec_comercial_name'] ?? company['name'] ?? '',
+            'l10n_ec_forced_accounting':
+                company['l10n_ec_forced_accounting'] ?? true,
+            'l10n_ec_special_taxpayer_number':
+                company['l10n_ec_special_taxpayer_number'],
+            'l10n_ec_withhold_agent_number':
+                company['l10n_ec_withhold_agent_number'],
             'l10n_ec_production_env': company['l10n_ec_production_env'] ?? true,
             'l10n_ec_regime': company['l10n_ec_regime'],
             'display_invoice_amount_total_words': false,
@@ -348,16 +372,22 @@ abstract class AccountMove with _$AccountMove {
     final companyCity = company?['city'] ?? '';
     final companyCountry = company?['country'] ?? 'Ecuador';
 
-    final journalMap = journal != null && journal['l10n_ec_emission_address_id'] != null
+    final journalMap =
+        journal != null && journal['l10n_ec_emission_address_id'] != null
         ? <String, dynamic>{
             'id': journal['id'] ?? journalId,
             'name': journal['name'] ?? journalName ?? '',
             'l10n_ec_emission': true,
             'l10n_ec_emission_address_id': {
               'street': journal['l10n_ec_emission_address_id']['street'] ?? '',
-              'street2': journal['l10n_ec_emission_address_id']['street2'] ?? '',
+              'street2':
+                  journal['l10n_ec_emission_address_id']['street2'] ?? '',
               'city': journal['l10n_ec_emission_address_id']['city'] ?? '',
-              'country_id': {'name': journal['l10n_ec_emission_address_id']['country'] ?? 'Ecuador'},
+              'country_id': {
+                'name':
+                    journal['l10n_ec_emission_address_id']['country'] ??
+                    'Ecuador',
+              },
             },
           }
         : <String, dynamic>{
@@ -375,7 +405,9 @@ abstract class AccountMove with _$AccountMove {
           };
 
     // Build lines_to_report
-    final filteredLines = lines.where((l) => l.isProductLine || l.isSection || l.isNote).toList();
+    final filteredLines = lines
+        .where((l) => l.isProductLine || l.isSection || l.isNote)
+        .toList();
     final linesToReport = filteredLines.map((l) => l.toReportMap()).toList();
 
     // Calculate effective amounts
@@ -415,13 +447,18 @@ abstract class AccountMove with _$AccountMove {
           ? {
               'id': l10nLatamDocumentTypeId,
               'name': getCleanDocumentTypeName(l10nLatamDocumentTypeName),
-              'report_name': getDocumentTypeReportName(moveType, l10nLatamDocumentTypeName),
+              'report_name': getDocumentTypeReportName(
+                moveType,
+                l10nLatamDocumentTypeName,
+              ),
             }
           : {'name': 'Factura', 'report_name': 'Factura'},
       'l10n_ec_sri_payment_id': l10nEcSriPaymentName != null
           ? {'name': l10nEcSriPaymentName}
           : {'name': 'Sin utilizacion del sistema financiero'},
-      'l10n_latam_internal_type': moveType == 'out_refund' ? 'credit_note' : 'invoice',
+      'l10n_latam_internal_type': moveType == 'out_refund'
+          ? 'credit_note'
+          : 'invoice',
       'l10n_ec_authorization_date': l10nEcAuthorizationDate != null
           ? '${l10nEcAuthorizationDate!.day.toString().padLeft(2, '0')}/${l10nEcAuthorizationDate!.month.toString().padLeft(2, '0')}/${l10nEcAuthorizationDate!.year} ${l10nEcAuthorizationDate!.hour.toString().padLeft(2, '0')}:${l10nEcAuthorizationDate!.minute.toString().padLeft(2, '0')}:${l10nEcAuthorizationDate!.second.toString().padLeft(2, '0')}'
           : null,
@@ -441,31 +478,57 @@ abstract class AccountMove with _$AccountMove {
         'ref': '',
         'l10n_latam_identification_type_id': {'name': 'RUC'},
         'display_address': buildPartnerAddress(),
-        '_display_address': ([bool withoutCompany = false]) => buildPartnerAddress(),
+        '_display_address': ([bool withoutCompany = false]) =>
+            buildPartnerAddress(),
       },
       'amount_untaxed': effectiveAmountUntaxed,
       'amount_tax': effectiveAmountTax,
       'amount_total': effectiveAmountTotal,
       'amount_residual': amountResidual,
-      'formatted_amount_untaxed': formatCurrencyEc(effectiveAmountUntaxed, symbol: actualSymbol),
-      'formatted_amount_tax': formatCurrencyEc(effectiveAmountTax, symbol: actualSymbol),
-      'formatted_amount_total': formatCurrencyEc(effectiveAmountTotal, symbol: actualSymbol),
-      'formatted_amount_residual': formatCurrencyEc(amountResidual, symbol: actualSymbol),
-      'currency_id': {'id': currencyId ?? 1, 'name': symbol, 'symbol': actualSymbol},
+      'formatted_amount_untaxed': formatCurrencyEc(
+        effectiveAmountUntaxed,
+        symbol: actualSymbol,
+      ),
+      'formatted_amount_tax': formatCurrencyEc(
+        effectiveAmountTax,
+        symbol: actualSymbol,
+      ),
+      'formatted_amount_total': formatCurrencyEc(
+        effectiveAmountTotal,
+        symbol: actualSymbol,
+      ),
+      'formatted_amount_residual': formatCurrencyEc(
+        amountResidual,
+        symbol: actualSymbol,
+      ),
+      'currency_id': {
+        'id': currencyId ?? 1,
+        'name': symbol,
+        'symbol': actualSymbol,
+      },
       'invoice_origin': invoiceOrigin,
       'ref': ref ?? '',
       'tax_totals': {
         'amount_untaxed': effectiveAmountUntaxed,
         'amount_total': effectiveAmountTotal,
         'total_amount_currency': effectiveAmountTotal,
-        'formatted_amount_untaxed': formatCurrencyEc(effectiveAmountUntaxed, symbol: actualSymbol),
-        'formatted_amount_total': formatCurrencyEc(effectiveAmountTotal, symbol: actualSymbol),
+        'formatted_amount_untaxed': formatCurrencyEc(
+          effectiveAmountUntaxed,
+          symbol: actualSymbol,
+        ),
+        'formatted_amount_total': formatCurrencyEc(
+          effectiveAmountTotal,
+          symbol: actualSymbol,
+        ),
         'subtotals': [
           {
             'name': 'Subtotal',
             'amount': effectiveAmountUntaxed,
             'base_amount_currency': effectiveAmountUntaxed,
-            'formatted_amount': formatCurrencyEc(effectiveAmountUntaxed, symbol: actualSymbol),
+            'formatted_amount': formatCurrencyEc(
+              effectiveAmountUntaxed,
+              symbol: actualSymbol,
+            ),
             'tax_groups': effectiveAmountTax > 0
                 ? [
                     {
@@ -473,7 +536,10 @@ abstract class AccountMove with _$AccountMove {
                       'tax_group_name': 'IVA 15%',
                       'tax_amount_currency': effectiveAmountTax,
                       'base_amount_currency': effectiveAmountUntaxed,
-                      'formatted_tax_group_amount': formatCurrencyEc(effectiveAmountTax, symbol: actualSymbol),
+                      'formatted_tax_group_amount': formatCurrencyEc(
+                        effectiveAmountTax,
+                        symbol: actualSymbol,
+                      ),
                     },
                   ]
                 : <Map<String, dynamic>>[],
@@ -486,7 +552,10 @@ abstract class AccountMove with _$AccountMove {
                     'group_name': 'IVA 15%',
                     'tax_group_name': 'IVA 15%',
                     'tax_group_amount': effectiveAmountTax,
-                    'formatted_tax_group_amount': formatCurrencyEc(effectiveAmountTax, symbol: actualSymbol),
+                    'formatted_tax_group_amount': formatCurrencyEc(
+                      effectiveAmountTax,
+                      symbol: actualSymbol,
+                    ),
                   },
                 ]
               : <Map<String, dynamic>>[],
@@ -498,15 +567,22 @@ abstract class AccountMove with _$AccountMove {
       'company_price_include': 'tax_excluded',
       'lines_to_report': linesToReport,
       'invoice_line_ids': linesToReport,
-      'tax_line_ids': lines.where((l) => l.isTaxLine).map((l) => l.toReportMap()).toList(),
+      'tax_line_ids': lines
+          .where((l) => l.isTaxLine)
+          .map((l) => l.toReportMap())
+          .toList(),
       'line_ids': lines.map((l) => l.toReportMap()).toList(),
-      'with_context': (Map<String, dynamic>? ctx) => toReportMap(company: company, journal: journal),
+      'with_context': (Map<String, dynamic>? ctx) =>
+          toReportMap(company: company, journal: journal),
       '_get_move_lines_to_report': () => linesToReport,
       '_l10n_ec_get_payment_data': () => [
         {
           'name': 'Sin utilizacion del sistema financiero',
           'payment_total': effectiveAmountTotal,
-          'formatted_payment_total': formatCurrencyEc(effectiveAmountTotal, symbol: actualSymbol),
+          'formatted_payment_total': formatCurrencyEc(
+            effectiveAmountTotal,
+            symbol: actualSymbol,
+          ),
         },
       ],
       '_l10n_ec_get_invoice_additional_info': () => <String, dynamic>{

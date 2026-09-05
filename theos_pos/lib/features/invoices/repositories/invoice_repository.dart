@@ -1,7 +1,18 @@
 import 'dart:convert';
+
 import 'package:drift/drift.dart' as drift;
 import 'package:odoo_sdk/odoo_sdk.dart' show logger;
-import 'package:theos_pos_core/theos_pos_core.dart' show AppDatabase, AccountMove, AccountMoveLine, accountMoveManager, accountMoveLineManager, saleOrderManager, clientManager, SaleOrderCompanion, AccountMoveLineCompanion;
+import 'package:theos_pos_core/theos_pos_core.dart'
+    show
+        AppDatabase,
+        AccountMove,
+        AccountMoveLine,
+        accountMoveManager,
+        accountMoveLineManager,
+        saleOrderManager,
+        clientManager,
+        SaleOrderCompanion,
+        AccountMoveLineCompanion;
 
 import '../../products/repositories/product_repository.dart';
 
@@ -26,11 +37,17 @@ class InvoiceRepository {
   final ProductRepository? _productRepository;
   final AppDatabase _appDb;
 
-  InvoiceRepository({
-    ProductRepository? productRepository,
-    required AppDatabase appDb,
-  })  : _productRepository = productRepository,
-        _appDb = appDb;
+  InvoiceRepository({this._productRepository, required this._appDb});
+
+  /// Stable temporary `account.move.odoo_id` for an invoice created locally.
+  /// Local sale IDs are already negative, so negating them would accidentally
+  /// produce a positive ID that can collide with a real Odoo invoice.
+  static int offlineMoveIdForOrder(int orderId) {
+    if (orderId == 0) {
+      throw ArgumentError.value(orderId, 'orderId', 'must be persisted');
+    }
+    return orderId > 0 ? -orderId : orderId;
+  }
 
   /// Indica si hay conexión con Odoo (cualquier manager sirve — comparten
   /// el mismo `OdooClient` inyectado centralmente).
@@ -39,9 +56,13 @@ class InvoiceRepository {
   // ============ Local Data Access (via Managers) ============
 
   /// Get all invoices for a sale order (by sale order odoo_id)
-  Future<List<AccountMove>> getInvoicesForSaleOrderLocal(int saleOrderOdooId) async {
+  Future<List<AccountMove>> getInvoicesForSaleOrderLocal(
+    int saleOrderOdooId,
+  ) async {
     return accountMoveManager.searchLocal(
-      domain: [['sale_order_id', '=', saleOrderOdooId]],
+      domain: [
+        ['sale_order_id', '=', saleOrderOdooId],
+      ],
     );
   }
 
@@ -78,7 +99,9 @@ class InvoiceRepository {
   Future<void> deleteInvoiceLocal(int odooId) async {
     // Delete lines first via manager search + delete
     final lines = await accountMoveLineManager.searchLocal(
-      domain: [['move_id', '=', odooId]],
+      domain: [
+        ['move_id', '=', odooId],
+      ],
     );
     for (final line in lines) {
       await accountMoveLineManager.deleteLocal(line.id);
@@ -97,9 +120,13 @@ class InvoiceRepository {
   }
 
   /// Get invoice lines for a specific invoice by move_id from local database
-  Future<List<AccountMoveLine>> getInvoiceLinesForMoveLocal(int moveOdooId) async {
+  Future<List<AccountMoveLine>> getInvoiceLinesForMoveLocal(
+    int moveOdooId,
+  ) async {
     return accountMoveLineManager.searchLocal(
-      domain: [['move_id', '=', moveOdooId]],
+      domain: [
+        ['move_id', '=', moveOdooId],
+      ],
       orderBy: 'sequence asc',
     );
   }
@@ -107,7 +134,9 @@ class InvoiceRepository {
   /// Check if invoice has lines cached locally
   Future<bool> hasInvoiceLinesLocally(int moveOdooId) async {
     final count = await accountMoveLineManager.countLocal(
-      domain: [['move_id', '=', moveOdooId]],
+      domain: [
+        ['move_id', '=', moveOdooId],
+      ],
     );
     return count > 0;
   }
@@ -126,14 +155,17 @@ class InvoiceRepository {
     final lowerQuery = query.toLowerCase();
     final db = _appDb;
 
-    final results = await (db.select(db.accountMove)
-          ..where((tbl) =>
-              tbl.moveType.isIn(moveTypes) &
-              (tbl.name.lower().like('%$lowerQuery%') |
-                  tbl.partnerName.lower().like('%$lowerQuery%')))
-          ..orderBy([(t) => drift.OrderingTerm.desc(t.invoiceDate)])
-          ..limit(limit))
-        .get();
+    final results =
+        await (db.select(db.accountMove)
+              ..where(
+                (tbl) =>
+                    tbl.moveType.isIn(moveTypes) &
+                    (tbl.name.lower().like('%$lowerQuery%') |
+                        tbl.partnerName.lower().like('%$lowerQuery%')),
+              )
+              ..orderBy([(t) => drift.OrderingTerm.desc(t.invoiceDate)])
+              ..limit(limit))
+            .get();
 
     return results.map((r) => accountMoveManager.fromDrift(r)).toList();
   }
@@ -141,17 +173,18 @@ class InvoiceRepository {
   /// Get offline invoice data for an order (returns the most recent one as AccountMove)
   Future<AccountMove?> getOfflineInvoice(int orderId) async {
     final db = _appDb;
-    final invoices = await (db.select(db.offlineInvoice)
-          ..where((tbl) => tbl.orderId.equals(orderId))
-          ..orderBy([(tbl) => drift.OrderingTerm.desc(tbl.createdAt)])
-          ..limit(1))
-        .get();
+    final invoices =
+        await (db.select(db.offlineInvoice)
+              ..where((tbl) => tbl.orderId.equals(orderId))
+              ..orderBy([(tbl) => drift.OrderingTerm.desc(tbl.createdAt)])
+              ..limit(1))
+            .get();
 
     if (invoices.isEmpty) return null;
 
     // Convert OfflineInvoiceData to AccountMove
     // Note: Offline invoice is a temporary record, we return the associated AccountMove
-    final negativeOdooId = -orderId;
+    final negativeOdooId = offlineMoveIdForOrder(orderId);
     return await getInvoiceByOdooIdLocal(negativeOdooId);
   }
 
@@ -173,12 +206,12 @@ class InvoiceRepository {
     final db = _appDb;
 
     // Delete offline invoice record
-    await (db.delete(db.offlineInvoice)
-          ..where((tbl) => tbl.orderId.equals(orderId)))
-        .go();
+    await (db.delete(
+      db.offlineInvoice,
+    )..where((tbl) => tbl.orderId.equals(orderId))).go();
 
     // Delete associated AccountMove and its lines (has negative odooId = -orderId)
-    final offlineMoveOdooId = -orderId;
+    final offlineMoveOdooId = offlineMoveIdForOrder(orderId);
     await deleteInvoiceLocal(offlineMoveOdooId);
 
     // Reset hasQueuedInvoice flag on the order
@@ -187,11 +220,14 @@ class InvoiceRepository {
         .write(const SaleOrderCompanion(hasQueuedInvoice: drift.Value(false)));
 
     // Delete related offline queue operations (invoice creation, payments)
-    await (db.delete(db.offlineQueue)
-          ..where((tbl) =>
+    await (db.delete(db.offlineQueue)..where(
+          (tbl) =>
               tbl.parentOrderId.equals(orderId) &
-              (tbl.model.equals('l10n_ec_collection_box.sale.order.payment.wizard') |
-               tbl.model.equals('l10n_ec_collection_box.sale.order.payment'))))
+              (tbl.model.equals('sale.order') |
+                  tbl.model.equals(
+                    'l10n_ec_collection_box.sale.order.payment',
+                  )),
+        ))
         .go();
 
     return true;
@@ -209,7 +245,9 @@ class InvoiceRepository {
   }) async {
     // 1. Check local first - get invoices WITH lines
     if (!forceRefresh) {
-      final cachedInvoices = await getInvoicesForSaleOrderLocal(saleOrderOdooId);
+      final cachedInvoices = await getInvoicesForSaleOrderLocal(
+        saleOrderOdooId,
+      );
       if (cachedInvoices.isNotEmpty) {
         // Load lines for each invoice
         final invoicesWithLines = <AccountMove>[];
@@ -223,7 +261,10 @@ class InvoiceRepository {
         }
         // If all invoices have lines, return from cache
         if (invoicesWithLines.every((inv) => inv.lines.isNotEmpty)) {
-          logger.d('[InvoiceRepository]', 'Returning ${invoicesWithLines.length} invoices from local cache with lines');
+          logger.d(
+            '[InvoiceRepository]',
+            'Returning ${invoicesWithLines.length} invoices from local cache with lines',
+          );
           return invoicesWithLines;
         }
       }
@@ -233,7 +274,9 @@ class InvoiceRepository {
     // This is more efficient than searching by invoice_origin
     if (!_isOnline) {
       // Offline: return local data with lines
-      final cachedInvoices = await getInvoicesForSaleOrderLocal(saleOrderOdooId);
+      final cachedInvoices = await getInvoicesForSaleOrderLocal(
+        saleOrderOdooId,
+      );
       final invoicesWithLines = <AccountMove>[];
       for (final invoice in cachedInvoices) {
         final lines = await getInvoiceLinesForMoveLocal(invoice.id);
@@ -266,8 +309,13 @@ class InvoiceRepository {
       );
     } catch (e) {
       // Fallback to local cache on error - return with lines if available
-      logger.w('[InvoiceRepository]', 'Error fetching invoices from Odoo, falling back to cache: $e');
-      final cachedInvoices = await getInvoicesForSaleOrderLocal(saleOrderOdooId);
+      logger.w(
+        '[InvoiceRepository]',
+        'Error fetching invoices from Odoo, falling back to cache: $e',
+      );
+      final cachedInvoices = await getInvoicesForSaleOrderLocal(
+        saleOrderOdooId,
+      );
       final invoicesWithLines = <AccountMove>[];
       for (final invoice in cachedInvoices) {
         final lines = await getInvoiceLinesForMoveLocal(invoice.id);
@@ -289,7 +337,10 @@ class InvoiceRepository {
       return [];
     }
 
-    logger.d('[InvoiceRepository]', 'Fetching ${invoiceIds.length} invoices for order $saleOrderOdooId');
+    logger.d(
+      '[InvoiceRepository]',
+      'Fetching ${invoiceIds.length} invoices for order $saleOrderOdooId',
+    );
 
     // Clean up local invoices that are no longer linked in Odoo
     await _cleanupObsoleteInvoices(saleOrderOdooId, invoiceIds);
@@ -321,7 +372,10 @@ class InvoiceRepository {
             );
           }
         } catch (e) {
-          logger.w('[InvoiceRepository]', 'Failed to load partner from local DB: $e');
+          logger.w(
+            '[InvoiceRepository]',
+            'Failed to load partner from local DB: $e',
+          );
         }
       }
 
@@ -335,26 +389,33 @@ class InvoiceRepository {
           ],
         );
 
-        logger.d('[InvoiceRepository]', 'Invoice ${invoice.name}: ${linesData.length} raw lines');
+        logger.d(
+          '[InvoiceRepository]',
+          'Invoice ${invoice.name}: ${linesData.length} raw lines',
+        );
 
         // Filter to report-relevant lines only
-        var lines = linesData
-            .map((e) => accountMoveLineManager.fromOdoo(e))
-            .where((line) => line.isReportLine)
-            .toList()
-          ..sort((a, b) => a.sequence.compareTo(b.sequence));
+        var lines =
+            linesData
+                .map((e) => accountMoveLineManager.fromOdoo(e))
+                .where((line) => line.isReportLine)
+                .toList()
+              ..sort((a, b) => a.sequence.compareTo(b.sequence));
 
         // Enrich lines with product data (barcode, l10n_ec_auxiliary_code)
         lines = await _enrichLinesWithProductData(lines);
 
-        logger.d('[InvoiceRepository]', 'Invoice ${invoice.name}: ${lines.length} report lines (enriched)');
-
-        invoice = invoice.copyWith(
-          saleOrderId: saleOrderOdooId,
-          lines: lines,
+        logger.d(
+          '[InvoiceRepository]',
+          'Invoice ${invoice.name}: ${lines.length} report lines (enriched)',
         );
+
+        invoice = invoice.copyWith(saleOrderId: saleOrderOdooId, lines: lines);
       } catch (e) {
-        logger.w('[InvoiceRepository]', 'Failed to load lines for ${invoice.name}: $e');
+        logger.w(
+          '[InvoiceRepository]',
+          'Failed to load lines for ${invoice.name}: $e',
+        );
         // If lines fail, continue with header only
         invoice = invoice.copyWith(saleOrderId: saleOrderOdooId);
       }
@@ -387,7 +448,10 @@ class InvoiceRepository {
       if (hasLines) {
         final cached = await getInvoiceWithLinesLocal(odooId);
         if (cached != null && cached.lines.isNotEmpty) {
-          logger.d('[InvoiceRepository]', 'Returning invoice $odooId from local cache with ${cached.lines.length} lines');
+          logger.d(
+            '[InvoiceRepository]',
+            'Returning invoice $odooId from local cache with ${cached.lines.length} lines',
+          );
           return cached;
         }
       }
@@ -424,7 +488,10 @@ class InvoiceRepository {
         try {
           final partner = await clientManager.readLocal(invoice.partnerId!);
           if (partner != null) {
-            logger.d('[InvoiceRepository]', 'Partner loaded: ${partner.name}, street: ${partner.street}');
+            logger.d(
+              '[InvoiceRepository]',
+              'Partner loaded: ${partner.name}, street: ${partner.street}',
+            );
             invoice = invoice.copyWithPartnerData(
               partnerStreet: partner.street,
               partnerCity: partner.city,
@@ -433,7 +500,10 @@ class InvoiceRepository {
             );
           }
         } catch (e) {
-          logger.w('[InvoiceRepository]', 'Failed to load partner from local DB: $e');
+          logger.w(
+            '[InvoiceRepository]',
+            'Failed to load partner from local DB: $e',
+          );
         }
       }
 
@@ -447,39 +517,54 @@ class InvoiceRepository {
         ],
       );
 
-      logger.d('[InvoiceRepository]', 'Fetched ${linesData.length} raw lines from Odoo');
+      logger.d(
+        '[InvoiceRepository]',
+        'Fetched ${linesData.length} raw lines from Odoo',
+      );
 
       // Filter to only report-relevant lines (exclude cogs, payment_term)
-      var lines = linesData
-          .map((e) => accountMoveLineManager.fromOdoo(e))
-          .where((line) => line.isReportLine)
-          .toList()
-        ..sort((a, b) => a.sequence.compareTo(b.sequence));
+      var lines =
+          linesData
+              .map((e) => accountMoveLineManager.fromOdoo(e))
+              .where((line) => line.isReportLine)
+              .toList()
+            ..sort((a, b) => a.sequence.compareTo(b.sequence));
 
       // Enrich lines with product data (barcode, l10n_ec_auxiliary_code)
       lines = await _enrichLinesWithProductData(lines);
 
-      logger.i('[InvoiceRepository]',
+      logger.i(
+        '[InvoiceRepository]',
         'Invoice ${invoice.name} has ${lines.length} report lines (enriched) '
-        '(product: ${lines.where((l) => l.isProductLine).length}, '
-        'tax: ${lines.where((l) => l.isTaxLine).length}, '
-        'section: ${lines.where((l) => l.isSection).length}, '
-        'note: ${lines.where((l) => l.isNote).length})');
+            '(product: ${lines.where((l) => l.isProductLine).length}, '
+            'tax: ${lines.where((l) => l.isTaxLine).length}, '
+            'section: ${lines.where((l) => l.isSection).length}, '
+            'note: ${lines.where((l) => l.isNote).length})',
+      );
 
       invoice = invoice.copyWith(lines: lines);
 
       // 4. Save to local cache (including lines)
       await upsertInvoiceLocal(invoice);
-      logger.d('[InvoiceRepository]', 'Invoice ${invoice.name} saved to local cache with ${lines.length} lines');
+      logger.d(
+        '[InvoiceRepository]',
+        'Invoice ${invoice.name} saved to local cache with ${lines.length} lines',
+      );
 
       return invoice;
     } catch (e, stack) {
-      logger.e('[InvoiceRepository]', 'Error fetching invoice $odooId from Odoo: $e\n$stack');
+      logger.e(
+        '[InvoiceRepository]',
+        'Error fetching invoice $odooId from Odoo: $e\n$stack',
+      );
       // Fallback to local cache on error (even without lines)
       logger.d('[InvoiceRepository]', 'Falling back to local cache...');
       final cached = await getInvoiceWithLinesLocal(odooId);
       if (cached != null) {
-        logger.d('[InvoiceRepository]', 'Returning cached invoice with ${cached.lines.length} lines');
+        logger.d(
+          '[InvoiceRepository]',
+          'Returning cached invoice with ${cached.lines.length} lines',
+        );
       }
       return cached;
     }
@@ -510,7 +595,10 @@ class InvoiceRepository {
         }
         // If all invoices have lines, return from cache
         if (invoicesWithLines.every((inv) => inv.lines.isNotEmpty)) {
-          logger.d('[InvoiceRepository]', 'Returning ${invoicesWithLines.length} invoices from local cache with lines');
+          logger.d(
+            '[InvoiceRepository]',
+            'Returning ${invoicesWithLines.length} invoices from local cache with lines',
+          );
           return invoicesWithLines;
         }
       }
@@ -555,7 +643,10 @@ class InvoiceRepository {
               );
             }
           } catch (e) {
-            logger.w('[InvoiceRepository]', 'Failed to load partner from local DB: $e');
+            logger.w(
+              '[InvoiceRepository]',
+              'Failed to load partner from local DB: $e',
+            );
           }
         }
 
@@ -570,18 +661,22 @@ class InvoiceRepository {
           );
 
           // Filter to report-relevant lines only
-          var lines = linesData
-              .map((e) => accountMoveLineManager.fromOdoo(e))
-              .where((line) => line.isReportLine)
-              .toList()
-            ..sort((a, b) => a.sequence.compareTo(b.sequence));
+          var lines =
+              linesData
+                  .map((e) => accountMoveLineManager.fromOdoo(e))
+                  .where((line) => line.isReportLine)
+                  .toList()
+                ..sort((a, b) => a.sequence.compareTo(b.sequence));
 
           // Enrich lines with product data (barcode, l10n_ec_auxiliary_code)
           lines = await _enrichLinesWithProductData(lines);
 
           invoice = invoice.copyWith(lines: lines);
         } catch (e) {
-          logger.w('[InvoiceRepository]', 'Failed to load lines for ${invoice.name}: $e');
+          logger.w(
+            '[InvoiceRepository]',
+            'Failed to load lines for ${invoice.name}: $e',
+          );
         }
 
         // Apply sale order link if provided
@@ -597,7 +692,10 @@ class InvoiceRepository {
       return invoices;
     } catch (e) {
       // Fallback to cache with lines
-      logger.w('[InvoiceRepository]', 'Error fetching invoices from Odoo, falling back to cache: $e');
+      logger.w(
+        '[InvoiceRepository]',
+        'Error fetching invoices from Odoo, falling back to cache: $e',
+      );
       final cached = await getInvoicesByOdooIdsLocal(odooIds);
       final invoicesWithLines = <AccountMove>[];
       for (final invoice in cached) {
@@ -676,7 +774,7 @@ class InvoiceRepository {
       logger.i(
         '[InvoiceRepository]',
         'Found ${obsoleteInvoices.length} obsolete invoices for order $saleOrderOdooId: '
-        '${obsoleteInvoices.map((i) => '${i.name} (id=${i.id})').join(', ')}',
+            '${obsoleteInvoices.map((i) => '${i.name} (id=${i.id})').join(', ')}',
       );
 
       // Delete obsolete invoices from local database
@@ -714,9 +812,16 @@ class InvoiceRepository {
     if (query.trim().isEmpty) return [];
 
     // 1. Search locally first
-    final localResults = await searchInvoicesLocal(query, limit: limit, moveTypes: moveTypes);
+    final localResults = await searchInvoicesLocal(
+      query,
+      limit: limit,
+      moveTypes: moveTypes,
+    );
     if (localResults.isNotEmpty) {
-      logger.d('[InvoiceRepository]', 'Found ${localResults.length} invoices locally for "$query"');
+      logger.d(
+        '[InvoiceRepository]',
+        'Found ${localResults.length} invoices locally for "$query"',
+      );
       return localResults;
     }
 
@@ -752,7 +857,10 @@ class InvoiceRepository {
         invoices.add(invoice);
       }
 
-      logger.d('[InvoiceRepository]', 'Found ${invoices.length} invoices from Odoo for "$query"');
+      logger.d(
+        '[InvoiceRepository]',
+        'Found ${invoices.length} invoices from Odoo for "$query"',
+      );
       return invoices;
     } catch (e) {
       logger.w('[InvoiceRepository]', 'Error searching invoices from Odoo: $e');
@@ -799,7 +907,10 @@ class InvoiceRepository {
 
       return withholdIds.length;
     } catch (e) {
-      logger.w('[InvoiceRepository]', 'Error checking withholds for invoice $invoiceOdooId: $e');
+      logger.w(
+        '[InvoiceRepository]',
+        'Error checking withholds for invoice $invoiceOdooId: $e',
+      );
       // On error, return -1 to indicate error (will be treated as 0)
       return -1;
     }
@@ -820,35 +931,47 @@ class InvoiceRepository {
     final db = _appDb;
 
     // First delete existing lines for this move
-    await (db.delete(db.accountMoveLine)
-          ..where((tbl) => tbl.moveId.equals(moveOdooId)))
-        .go();
+    await (db.delete(
+      db.accountMoveLine,
+    )..where((tbl) => tbl.moveId.equals(moveOdooId))).go();
 
     // Get parent invoice to extract required fields
-    final invoiceRow = await (db.select(db.accountMove)
-          ..where((tbl) => tbl.odooId.equals(moveOdooId)))
-        .getSingleOrNull();
+    final invoiceRow = await (db.select(
+      db.accountMove,
+    )..where((tbl) => tbl.odooId.equals(moveOdooId))).getSingleOrNull();
 
     if (invoiceRow == null) return; // Can't insert lines without parent invoice
 
     // Log warnings for missing required fields that fall back to defaults
     if (invoiceRow.companyId == null) {
-      logger.w('[InvoiceRepository]', 'Invoice $moveOdooId has null companyId, using fallback=1');
+      logger.w(
+        '[InvoiceRepository]',
+        'Invoice $moveOdooId has null companyId, using fallback=1',
+      );
     }
     if (invoiceRow.journalId == null) {
-      logger.w('[InvoiceRepository]', 'Invoice $moveOdooId has null journalId, using fallback=1');
+      logger.w(
+        '[InvoiceRepository]',
+        'Invoice $moveOdooId has null journalId, using fallback=1',
+      );
     }
 
     // Then insert all new lines
     for (final line in lines) {
       if (line.accountId == null) {
-        logger.w('[InvoiceRepository]', 'Invoice line ${line.id} has null accountId, using fallback=1');
+        logger.w(
+          '[InvoiceRepository]',
+          'Invoice line ${line.id} has null accountId, using fallback=1',
+        );
       }
-      await db.into(db.accountMoveLine).insert(
+      await db
+          .into(db.accountMoveLine)
+          .insert(
             AccountMoveLineCompanion.insert(
               odooId: line.id,
               moveId: moveOdooId,
-              accountId: line.accountId ?? 1, // Use dummy account if not specified
+              accountId:
+                  line.accountId ?? 1, // Use dummy account if not specified
               // companyId/date/journalId pasaron a nullable en la tabla
               // (schema v8, fix del roundtrip) — el companion ahora los
               // recibe como Value<T?>.
@@ -862,7 +985,9 @@ class InvoiceRepository {
               productName: drift.Value(line.productName),
               productCode: drift.Value(line.productCode),
               productBarcode: drift.Value(line.productBarcode),
-              productL10nEcAuxiliaryCode: drift.Value(line.productL10nEcAuxiliaryCode),
+              productL10nEcAuxiliaryCode: drift.Value(
+                line.productL10nEcAuxiliaryCode,
+              ),
               productType: drift.Value(line.productType),
               quantity: drift.Value(line.quantity),
               productUomId: drift.Value(line.productUomId),
@@ -894,7 +1019,9 @@ class InvoiceRepository {
                 productName: drift.Variable(line.productName),
                 productCode: drift.Variable(line.productCode),
                 productBarcode: drift.Variable(line.productBarcode),
-                productL10nEcAuxiliaryCode: drift.Variable(line.productL10nEcAuxiliaryCode),
+                productL10nEcAuxiliaryCode: drift.Variable(
+                  line.productL10nEcAuxiliaryCode,
+                ),
                 productType: drift.Variable(line.productType),
                 quantity: drift.Variable(line.quantity),
                 productUomId: drift.Variable(line.productUomId),
@@ -941,16 +1068,21 @@ class InvoiceRepository {
         // Get product from local database via ProductRepository
         final product = await _productRepository.getById(line.productId!);
         if (product != null) {
-          enrichedLines.add(line.copyWithProductData(
-            barcode: product.barcode,
-            l10nEcAuxiliaryCode: product.l10nEcAuxiliaryCode,
-            type: product.type.name, // Odoo 18+: 'consu', 'service', 'combo'
-          ));
+          enrichedLines.add(
+            line.copyWithProductData(
+              barcode: product.barcode,
+              l10nEcAuxiliaryCode: product.l10nEcAuxiliaryCode,
+              type: product.type.name, // Odoo 18+: 'consu', 'service', 'combo'
+            ),
+          );
         } else {
           enrichedLines.add(line);
         }
       } catch (e) {
-        logger.w('[InvoiceRepository]', 'Failed to get product ${line.productId} for line enrichment: $e');
+        logger.w(
+          '[InvoiceRepository]',
+          'Failed to get product ${line.productId} for line enrichment: $e',
+        );
         enrichedLines.add(line);
       }
     }

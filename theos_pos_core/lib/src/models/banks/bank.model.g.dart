@@ -9,24 +9,17 @@ part of 'bank.model.dart';
 /// Generated manager for Bank.
 ///
 /// Provides offline-first CRUD operations and sync
-/// with Odoo model: res.bank
+/// with Odoo model: l10n.ec.bank
 class BankManager extends OdooModelManager<Bank>
     with GenericDriftOperations<Bank> {
   @override
-  String get odooModel => 'res.bank';
+  String get odooModel => 'l10n.ec.bank';
 
   @override
   String get tableName => 'res_bank';
 
   @override
-  List<String> get odooFields => [
-    'id',
-    'name',
-    'bic',
-    'country',
-    'active',
-    'write_date',
-  ];
+  List<String> get odooFields => ['id', 'name', 'active', 'write_date'];
 
   /// Versión estática pura de [fromOdoo] — no referencia `this` ni
   /// estado de instancia (OdooClient, GeneratedDatabase), solo [data].
@@ -37,8 +30,6 @@ class BankManager extends OdooModelManager<Bank>
     return Bank(
       id: data['id'] as int? ?? 0,
       name: parseOdooStringRequired(data['name']),
-      bic: parseOdooString(data['bic']),
-      countryId: extractMany2oneId(data['country']),
       active: parseOdooBool(data['active']),
       writeDate: parseOdooDateTime(data['write_date']),
     );
@@ -49,12 +40,7 @@ class BankManager extends OdooModelManager<Bank>
 
   @override
   Map<String, dynamic> toOdoo(Bank record) {
-    return {
-      'name': record.name,
-      'bic': record.bic,
-      'country': record.countryId,
-      'active': record.active,
-    };
+    return {'name': record.name, 'active': record.active};
   }
 
   @override
@@ -94,8 +80,6 @@ class BankManager extends OdooModelManager<Bank>
   static const Map<String, String> fieldMappings = {
     'id': 'id',
     'name': 'name',
-    'bic': 'bic',
-    'country': 'countryId',
     'active': 'active',
     'write_date': 'writeDate',
   };
@@ -138,20 +122,15 @@ class BankManager extends OdooModelManager<Bank>
     return RawValuesInsertable({
       'odoo_id': Variable<int>(record.id),
       'name': Variable<String>(record.name),
-      'bic': driftVar<String>(record.bic),
-      'country': driftVar<int>(record.countryId),
       'active': Variable<bool>(record.active),
       'write_date': driftVar<DateTime>(record.writeDate),
+      'bic': driftVar<String>(record.bic),
+      'country': driftVar<int>(record.countryId),
     });
   }
 
   /// List of writable fields for partial updates.
-  static const List<String> writableFields = [
-    'name',
-    'bic',
-    'countryId',
-    'active',
-  ];
+  static const List<String> writableFields = ['name', 'active'];
 
   /// List of required fields for validation.
   static const List<String> requiredFields = ['id'];
@@ -224,6 +203,8 @@ class BankManager extends OdooModelManager<Bank>
     current.addAll(changes);
     current['id'] = getId(record);
     var updated = fromOdoo(current);
+    // Preserve local-only fields from original record
+    updated = updated.copyWith(bic: record.bic, countryId: record.countryId);
     return updated;
   }
 
@@ -267,12 +248,7 @@ class BankManager extends OdooModelManager<Bank>
   ];
 
   @override
-  List<String> get writableFieldNames => const [
-    'name',
-    'bic',
-    'countryId',
-    'active',
-  ];
+  List<String> get writableFieldNames => const ['name', 'active'];
 }
 
 /// Global instance of BankManager.
@@ -294,6 +270,7 @@ class PartnerBankManager extends OdooModelManager<PartnerBank>
   List<String> get odooFields => [
     'id',
     'partner_id',
+    'bank_name',
     'account_number',
     'write_date',
   ];
@@ -307,6 +284,7 @@ class PartnerBankManager extends OdooModelManager<PartnerBank>
     return PartnerBank(
       id: data['id'] as int? ?? 0,
       partnerId: extractMany2oneId(data['partner_id']) ?? 0,
+      bankName: parseOdooString(data['bank_name']),
       accNumber: parseOdooStringRequired(data['account_number']),
       writeDate: parseOdooDateTime(data['write_date']),
     );
@@ -317,7 +295,11 @@ class PartnerBankManager extends OdooModelManager<PartnerBank>
 
   @override
   Map<String, dynamic> toOdoo(PartnerBank record) {
-    return {'partner_id': record.partnerId, 'account_number': record.accNumber};
+    return {
+      'partner_id': record.partnerId,
+      'bank_name': record.bankName,
+      'account_number': record.accNumber,
+    };
   }
 
   @override
@@ -326,6 +308,7 @@ class PartnerBankManager extends OdooModelManager<PartnerBank>
       id: row.odooId as int,
       partnerId: row.partnerId as int,
       bankId: row.bankId as int?,
+      bankName: row.bankName as String?,
       accNumber: row.accNumber as String,
       writeDate: row.writeDate as DateTime?,
     );
@@ -356,6 +339,7 @@ class PartnerBankManager extends OdooModelManager<PartnerBank>
   static const Map<String, String> fieldMappings = {
     'id': 'id',
     'partner_id': 'partnerId',
+    'bank_name': 'bankName',
     'account_number': 'accNumber',
     'write_date': 'writeDate',
   };
@@ -398,6 +382,7 @@ class PartnerBankManager extends OdooModelManager<PartnerBank>
     return RawValuesInsertable({
       'odoo_id': Variable<int>(record.id),
       'partner_id': Variable<int>(record.partnerId),
+      'bank_name': driftVar<String>(record.bankName),
       'acc_number': Variable<String>(record.accNumber),
       'write_date': driftVar<DateTime>(record.writeDate),
       'bank_id': driftVar<int>(record.bankId),
@@ -405,7 +390,11 @@ class PartnerBankManager extends OdooModelManager<PartnerBank>
   }
 
   /// List of writable fields for partial updates.
-  static const List<String> writableFields = ['partnerId', 'accNumber'];
+  static const List<String> writableFields = [
+    'partnerId',
+    'bankName',
+    'accNumber',
+  ];
 
   /// List of required fields for validation.
   static const List<String> requiredFields = ['id'];
@@ -415,6 +404,7 @@ class PartnerBankManager extends OdooModelManager<PartnerBank>
     'id': 'Id',
     'partnerId': 'Partner Id',
     'bankId': 'Bank Id',
+    'bankName': 'Bank Name',
     'accNumber': 'Acc Number',
     'writeDate': 'Write Date',
   };
@@ -457,6 +447,8 @@ class PartnerBankManager extends OdooModelManager<PartnerBank>
         return record.partnerId;
       case 'bankId':
         return record.bankId;
+      case 'bankName':
+        return record.bankName;
       case 'accNumber':
         return record.accNumber;
       case 'writeDate':
@@ -489,6 +481,8 @@ class PartnerBankManager extends OdooModelManager<PartnerBank>
         return (obj as dynamic).partnerId;
       case 'bankId':
         return (obj as dynamic).bankId;
+      case 'bankName':
+        return (obj as dynamic).bankName;
       case 'accNumber':
         return (obj as dynamic).accNumber;
       case 'writeDate':
@@ -512,12 +506,17 @@ class PartnerBankManager extends OdooModelManager<PartnerBank>
     'id',
     'partnerId',
     'bankId',
+    'bankName',
     'accNumber',
     'writeDate',
   ];
 
   @override
-  List<String> get writableFieldNames => const ['partnerId', 'accNumber'];
+  List<String> get writableFieldNames => const [
+    'partnerId',
+    'bankName',
+    'accNumber',
+  ];
 }
 
 /// Global instance of PartnerBankManager.

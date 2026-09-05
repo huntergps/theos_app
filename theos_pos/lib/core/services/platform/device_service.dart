@@ -9,10 +9,6 @@ import 'package:odoo_sdk/odoo_sdk.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:uuid/uuid.dart';
 
-// Re-export types from package for backward compatibility
-export 'package:odoo_sdk/odoo_sdk.dart'
-    show DeviceService, DeviceIdPersistence, UuidGenerator;
-
 // ============================================================================
 // FACTORY FUNCTION (for use outside provider context)
 // ============================================================================

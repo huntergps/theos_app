@@ -186,37 +186,3 @@ extension OdooStreamExtension<T> on Stream<T> {
     );
   }
 }
-
-// ---------------------------------------------------------------------------
-// Backward-compatible aliases
-// ---------------------------------------------------------------------------
-
-/// @nodoc Deprecated: use [OdooContentBuilder] instead.
-typedef AsyncContentBuilder<T> = OdooContentBuilder<T>;
-
-/// @nodoc Deprecated: use [OdooStreamExtension] instead.
-extension StreamContentBuilderExtension<T> on Stream<T> {
-  /// @nodoc Deprecated: use [OdooStreamExtension.buildContent] instead.
-  Widget buildContentLegacy({
-    required Widget Function(T data) builder,
-    Widget? loading,
-    String? loadingMessage,
-    Widget Function(Object error, StackTrace? stack)? errorBuilder,
-    VoidCallback? onRetry,
-    String errorTitle = 'Error loading data',
-    String retryLabel = 'Retry',
-    T? initialData,
-  }) {
-    return OdooContentBuilder<T>(
-      stream: this,
-      builder: builder,
-      loading: loading,
-      loadingMessage: loadingMessage,
-      errorBuilder: errorBuilder,
-      onRetry: onRetry,
-      errorTitle: errorTitle,
-      retryLabel: retryLabel,
-      initialData: initialData,
-    );
-  }
-}

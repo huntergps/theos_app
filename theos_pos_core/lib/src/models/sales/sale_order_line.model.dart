@@ -1,5 +1,6 @@
 import 'package:freezed_annotation/freezed_annotation.dart';
 import 'package:odoo_sdk/odoo_sdk.dart';
+
 import '../../services/taxes/taxes.dart';
 
 part 'sale_order_line.model.freezed.dart';
@@ -43,12 +44,15 @@ abstract class SaleOrderLine with _$SaleOrderLine {
 
   const factory SaleOrderLine({
     @OdooId() required int id,
-    @OdooLocalOnly() String? lineUuid, // UUID local para sincronizacion offline-first
+    @OdooLocalOnly()
+    String? lineUuid, // UUID local para sincronizacion offline-first
     @OdooMany2One('sale.order', odooName: 'order_id') required int orderId,
     @OdooInteger() @Default(10) int sequence,
 
     // Tipo de linea
-    @OdooSelection(odooName: 'display_type') @Default(LineDisplayType.product) LineDisplayType displayType,
+    @OdooSelection(odooName: 'display_type')
+    @Default(LineDisplayType.product)
+    LineDisplayType displayType,
     @OdooBoolean(odooName: 'is_downpayment') @Default(false) bool isDownpayment,
 
     // Producto
@@ -56,8 +60,10 @@ abstract class SaleOrderLine with _$SaleOrderLine {
     @OdooMany2OneName(sourceField: 'product_id') String? productName,
     // No existe en sale.order.line, se llena desde producto
     @OdooLocalOnly() String? productCode,
-    @OdooMany2One('product.template', odooName: 'product_template_id') int? productTemplateId,
-    @OdooMany2OneName(sourceField: 'product_template_id') String? productTemplateName,
+    @OdooMany2One('product.template', odooName: 'product_template_id')
+    int? productTemplateId,
+    @OdooMany2OneName(sourceField: 'product_template_id')
+    String? productTemplateName,
     // No existe en sale.order.line, se llena desde producto
     @OdooLocalOnly() String? productType,
     // No existe en sale.order.line, se llena desde producto
@@ -75,12 +81,15 @@ abstract class SaleOrderLine with _$SaleOrderLine {
     // Precios
     @OdooFloat(odooName: 'price_unit') @Default(0.0) double priceUnit,
     @OdooFloat() @Default(0.0) double discount,
-    @OdooFloat(odooName: 'discount_amount') @Default(0.0)
+    @OdooFloat(odooName: 'discount_amount')
+    @Default(0.0)
     double discountAmount, // Monto de descuento (campo computado de Odoo)
     @OdooFloat(odooName: 'price_subtotal') @Default(0.0) double priceSubtotal,
     @OdooFloat(odooName: 'price_tax') @Default(0.0) double priceTax,
     @OdooFloat(odooName: 'price_total') @Default(0.0) double priceTotal,
-    @OdooFloat(odooName: 'price_reduce_taxexcl') @Default(0.0) double priceReduce, // Precio con descuento
+    @OdooFloat(odooName: 'price_reduce_taxexcl')
+    @Default(0.0)
+    double priceReduce, // Precio con descuento
     // Many2many en Odoo, se maneja como CSV string localmente
     @OdooLocalOnly() String? taxIds,
     // Nombres de impuestos (para mostrar en UI)
@@ -88,21 +97,28 @@ abstract class SaleOrderLine with _$SaleOrderLine {
 
     // Entrega
     @OdooFloat(odooName: 'qty_delivered') @Default(0.0) double qtyDelivered,
-    @OdooFloat(odooName: 'customer_lead') @Default(0.0) double customerLead, // Lead time en dias
+    @OdooFloat(odooName: 'customer_lead')
+    @Default(0.0)
+    double customerLead, // Lead time en dias
     // Facturacion
     @OdooFloat(odooName: 'qty_invoiced') @Default(0.0) double qtyInvoiced,
     @OdooFloat(odooName: 'qty_to_invoice') @Default(0.0) double qtyToInvoice,
-    @OdooSelection(odooName: 'invoice_status') @Default(LineInvoiceStatus.no) LineInvoiceStatus invoiceStatus,
+    @OdooSelection(odooName: 'invoice_status')
+    @Default(LineInvoiceStatus.no)
+    LineInvoiceStatus invoiceStatus,
 
     // Estado de la orden (related)
     @OdooString(odooName: 'state') String? orderState,
 
     // Section settings (Odoo 19)
-    @OdooBoolean(odooName: 'collapse_prices') @Default(false)
+    @OdooBoolean(odooName: 'collapse_prices')
+    @Default(false)
     bool collapsePrices, // Ocultar precios de lineas en esta seccion
-    @OdooBoolean(odooName: 'collapse_composition') @Default(false)
+    @OdooBoolean(odooName: 'collapse_composition')
+    @Default(false)
     bool collapseComposition, // Ocultar lineas hijas (solo mostrar seccion)
-    @OdooBoolean(odooName: 'is_optional') @Default(false)
+    @OdooBoolean(odooName: 'is_optional')
+    @Default(false)
     bool isOptional, // Linea opcional (cliente puede elegir en portal)
     // Sync
     @OdooLocalOnly() @Default(false) bool isSynced,
@@ -110,7 +126,9 @@ abstract class SaleOrderLine with _$SaleOrderLine {
     @OdooDateTime(odooName: 'write_date', writable: false) DateTime? writeDate,
 
     // Product flags from catalog (for display purposes)
-    @OdooLocalOnly() @Default(true) bool isUnitProduct, // If true, quantity must be integer
+    @OdooLocalOnly()
+    @Default(true)
+    bool isUnitProduct, // If true, quantity must be integer
   }) = _SaleOrderLine;
 
   factory SaleOrderLine.fromJson(Map<String, dynamic> json) =>
@@ -205,18 +223,12 @@ abstract class SaleOrderLine with _$SaleOrderLine {
 
   // ============ Business Logic (from SaleOrderLineEntity) ============
 
-  /// Alias for compatibility: quantity returns productUomQty
-  double get quantity => productUomQty;
-
   /// Get display name (custom description or product name)
   String get displayName =>
       name.isNotEmpty ? name : (productName ?? 'Producto');
 
   /// Check if line has discount
   bool get hasDiscount => discount > 0;
-
-  /// Calculate line total with discount (alias for calculateSubtotal)
-  double get calculatedTotal => calculateSubtotal();
 
   /// Check if line is fully delivered
   bool get isFullyDelivered => qtyDelivered >= productUomQty;
@@ -385,7 +397,9 @@ abstract class SaleOrderLine with _$SaleOrderLine {
   /// [taxDataMap] Optional map of tax ID -> tax data for looking up tax names.
   ///              The map key is the Odoo ID of the tax.
   ///              Expected structure: {taxId: {'name': 'IVA 15%', 'amount': 15.0}}
-  Map<String, dynamic> toReportMap({Map<int, Map<String, dynamic>>? taxDataMap}) {
+  Map<String, dynamic> toReportMap({
+    Map<int, Map<String, dynamic>>? taxDataMap,
+  }) {
     // Build tax list using centralized TaxUtils
     // Template expects: ', '.join(tax.tax_label for tax in line.tax_ids)
     final taxList = TaxCalculatorService.buildTaxListForReport(
@@ -458,7 +472,10 @@ abstract class SaleOrderLine with _$SaleOrderLine {
 
     // Add _has_taxes method (used by ReportService to calculate display_taxes)
     result['_has_taxes'] = () {
-      return TaxCalculatorService.hasTaxes(taxList: taxList, priceTax: priceTax);
+      return TaxCalculatorService.hasTaxes(
+        taxList: taxList,
+        priceTax: priceTax,
+      );
     };
 
     // Add with_context method for template compatibility

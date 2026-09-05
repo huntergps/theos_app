@@ -1,11 +1,12 @@
 import 'package:drift/drift.dart';
+import 'package:odoo_sdk/odoo_sdk.dart' show SyncProgress, SyncProgressCallback;
 
 import '../../../core/services/handlers/related_record_resolver.dart';
+import '../../../core/services/handlers/model_record_handler.dart';
 import 'base_sync_repository.dart';
-import 'sync_models.dart';
+import 'sync_scope_domains.dart';
+
 import 'package:theos_pos_core/theos_pos_core.dart' hide DatabaseHelper;
-import '../../invoices/repositories/invoice_repository.dart';
-import '../../products/repositories/product_repository.dart';
 
 /// Repository for syncing sale.order and sale.order.line from Odoo
 ///
@@ -71,7 +72,7 @@ const _saleOrderBaseFields = [
 /// del servidor porque los módulos custom siempre están instalados.
 ///
 /// Requieren: sale_final_consumer, l10n_ec_collection_box, l10n_ec_sale_discount,
-/// l10n_ec_withhold (todos instalados en erp1.tecnosmart.com.ec y localhost).
+/// l10n_ec_withhold (instalados en los entornos Odoo soportados).
 const _saleOrderEcuadorFields = [
   // sale_final_consumer: Consumidor Final
   'is_final_consumer',
@@ -95,16 +96,19 @@ const _saleOrderEcuadorFields = [
 ];
 
 /// Lista completa de campos para sale.order (base + Ecuador custom).
-const _saleOrderAllFields = [..._saleOrderBaseFields, ..._saleOrderEcuadorFields];
+const _saleOrderAllFields = [
+  ..._saleOrderBaseFields,
+  ..._saleOrderEcuadorFields,
+];
 
 class SaleOrderSyncRepository extends BaseSyncRepository {
-  final ProductRepository? _productRepository;
+  final ModelRecordHandlerRegistry recordHandlerRegistry;
 
   SaleOrderSyncRepository({
     required super.db,
+    required this.recordHandlerRegistry,
     super.odooClient,
-    ProductRepository? productRepository,
-  })  : _productRepository = productRepository;
+  });
 
   @override
   String get logTag => 'SaleOrderSync';
@@ -122,38 +126,40 @@ class SaleOrderSyncRepository extends BaseSyncRepository {
 
     int syncedCount = 0;
     int totalRecords = 0;
+    final syncedOrderIds = <int>[];
 
     try {
       final isIncremental = sinceDate != null;
-      logDebug('[SaleOrderSync] Syncing sale orders (incremental: $isIncremental)...');
+      logDebug(
+        '[SaleOrderSync] Syncing sale orders (incremental: $isIncremental)...',
+      );
 
       // Get recent sale orders (last 90 days or active)
-      final List<dynamic> domain = [
-        '|',
-        ['state', 'in', ['draft', 'sent', 'sale']],
-        ['date_order', '>=', _getDateNDaysAgo(90)],
-      ];
+      final domain = saleOrderSyncScope(DateTime.now());
 
       // Add write_date filter for incremental sync
       if (sinceDate != null) {
         final sinceDateStr = formatDateForOdoo(sinceDate);
         domain.add(['write_date', '>', sinceDateStr]);
-        logDebug('[SaleOrderSync] Filtering sale orders with write_date > $sinceDateStr');
+        logDebug(
+          '[SaleOrderSync] Filtering sale orders with write_date > $sinceDateStr',
+        );
       }
 
       // Get total count
-      totalRecords = await odooClient!.searchCount(
-        model: 'sale.order',
-        domain: domain,
-      ) ?? 0;
+      totalRecords =
+          await odooClient!.searchCount(model: 'sale.order', domain: domain) ??
+          0;
 
       logDebug('[SaleOrderSync] Total sale orders to sync: $totalRecords');
 
-      onProgress?.call(SyncProgress(
-        total: totalRecords,
-        synced: 0,
-        currentItem: 'Iniciando...',
-      ));
+      onProgress?.call(
+        SyncProgress(
+          total: totalRecords,
+          synced: 0,
+          currentItem: 'Iniciando...',
+        ),
+      );
 
       if (totalRecords == 0) {
         onProgress?.call(const SyncProgress(total: 0, synced: 0));
@@ -164,7 +170,9 @@ class SaleOrderSyncRepository extends BaseSyncRepository {
       bool hasMore = true;
 
       while (hasMore) {
-        logDebug('[SaleOrderSync] Fetching sale orders batch offset=$offset limit=$batchSize');
+        logDebug(
+          '[SaleOrderSync] Fetching sale orders batch offset=$offset limit=$batchSize',
+        );
 
         final orders = await odooClient!.searchRead(
           model: 'sale.order',
@@ -180,42 +188,39 @@ class SaleOrderSyncRepository extends BaseSyncRepository {
           break;
         }
 
-        // Upsert all order headers first
-        for (final order in orders) {
-          if (syncedCount % 5 == 0) {
-            checkCancellation(syncedCount);
-          }
-          await _upsertSaleOrder(order);
-          syncedCount++;
-        }
+        // A single database transaction per page avoids hundreds of IndexedDB
+        // transactions on web and keeps navigation responsive.
+        checkCancellation(syncedCount);
+        await _upsertSaleOrders(orders);
+        syncedCount += orders.length;
 
         // FIX 2: Batch fetch lines for all orders in this page (1 HTTP request
         // instead of N). Group by order_id in memory to preserve per-order semantics.
         final orderIds = orders.map((o) => o['id'] as int).toList();
+        syncedOrderIds.addAll(orderIds);
 
         await _syncSaleOrderLinesBatch(orderIds);
         await _syncSaleOrderWithholdLinesBatch(orderIds);
 
-        // Invoice sync: uses InvoiceRepository which has its own internal batching.
-        // Still called per-order because getInvoicesByIds already batches internally.
-        for (final order in orders) {
-          final invoiceIds = order['invoice_ids'] as List? ?? [];
-          if (invoiceIds.isNotEmpty) {
-            await _syncSaleOrderInvoices(order['id'] as int, invoiceIds.cast<int>());
-          }
-        }
+        // Invoice details and lines are loaded on demand from the order/invoice
+        // screens. Pulling them here caused one or more RPCs per invoiced order
+        // and made the broad list sync appear frozen on web.
 
         // Report progress after each page
         if (orders.isNotEmpty) {
           final lastOrderName = orders.last['name'] as String? ?? '';
-          onProgress?.call(SyncProgress(
-            total: totalRecords,
-            synced: syncedCount,
-            currentItem: lastOrderName,
-          ));
+          onProgress?.call(
+            SyncProgress(
+              total: totalRecords,
+              synced: syncedCount,
+              currentItem: lastOrderName,
+            ),
+          );
         }
 
-        logDebug('[SaleOrderSync] Batch complete: ${orders.length} sale orders (total: $syncedCount)');
+        logDebug(
+          '[SaleOrderSync] Batch complete: ${orders.length} sale orders (total: $syncedCount)',
+        );
 
         if (orders.length < batchSize) {
           hasMore = false;
@@ -224,10 +229,7 @@ class SaleOrderSyncRepository extends BaseSyncRepository {
         }
       }
 
-      onProgress?.call(SyncProgress(
-        total: totalRecords,
-        synced: syncedCount,
-      ));
+      onProgress?.call(SyncProgress(total: totalRecords, synced: syncedCount));
 
       logDebug('[SaleOrderSync] Synced $syncedCount sale orders total');
 
@@ -235,67 +237,59 @@ class SaleOrderSyncRepository extends BaseSyncRepository {
       if (syncedCount > 0) {
         try {
           logDebug('[SaleOrderSync] Resolving missing related records...');
-          final resolver = RelatedRecordResolver(odooClient: odooClient, db: appDb);
-
-          // Get all synced orders and lines to extract IDs
-          final orders = await _getLocalSaleOrders(limit: 1000);
-      
-          final allLines = await (appDb.select(appDb.saleOrderLine)).get();
-
-          // Extract all related IDs from orders
-          final partnerIds = orders.map((o) => o.partnerId).whereType<int>().toSet().toList();
-          final pricelistIds = orders.map((o) => o.pricelistId).whereType<int>().toSet().toList();
-          final paymentTermIds = orders.map((o) => o.paymentTermId).whereType<int>().toSet().toList();
-          final warehouseIds = orders.map((o) => o.warehouseId).whereType<int>().toSet().toList();
-          final userIds = orders.map((o) => o.userId).whereType<int>().toSet().toList();
-          final teamIds = orders.map((o) => o.teamId).whereType<int>().toSet().toList();
-          final fiscalPositionIds = orders.map((o) => o.fiscalPositionId).whereType<int>().toSet().toList();
-
-          // Resolve order-level related records
-          for (final partnerId in partnerIds) {
-            await resolver.resolveForOrderIds(partnerId: partnerId);
-          }
-          for (final pricelistId in pricelistIds) {
-            await resolver.resolveForOrderIds(pricelistId: pricelistId);
-          }
-          for (final paymentTermId in paymentTermIds) {
-            await resolver.resolveForOrderIds(paymentTermId: paymentTermId);
-          }
-          for (final warehouseId in warehouseIds) {
-            await resolver.resolveForOrderIds(warehouseId: warehouseId);
-          }
-          for (final userId in userIds) {
-            await resolver.resolveForOrderIds(userId: userId);
-          }
-          for (final teamId in teamIds) {
-            await resolver.resolveForOrderIds(teamId: teamId);
-          }
-          for (final fiscalPositionId in fiscalPositionIds) {
-            await resolver.resolveForOrderIds(fiscalPositionId: fiscalPositionId);
-          }
-
-          // Resolve line-level related records in batch
-          await resolver.resolveForLineIds(
-            productIds: allLines.map((l) => l.productId).cast<int?>().toList(),
-            taxIdsStrings: allLines.map((l) => l.taxIds).cast<String?>().toList(),
-            uomIds: allLines.map((l) => l.productUomId).cast<int?>().toList(),
+          final resolver = RelatedRecordResolver(
+            odooClient: odooClient,
+            db: appDb,
+            handlerRegistry: recordHandlerRegistry,
           );
+
+          // Resolve only records touched by this sync. The previous path read
+          // every cached order and every historical line after each run.
+          const relationChunkSize = 400;
+          for (
+            var start = 0;
+            start < syncedOrderIds.length;
+            start += relationChunkSize
+          ) {
+            final end = (start + relationChunkSize).clamp(
+              0,
+              syncedOrderIds.length,
+            );
+            final chunk = syncedOrderIds.sublist(start, end);
+            final orders = await (appDb.select(
+              appDb.saleOrder,
+            )..where((table) => table.odooId.isIn(chunk))).get();
+            final lines = await (appDb.select(
+              appDb.saleOrderLine,
+            )..where((table) => table.orderId.isIn(chunk))).get();
+
+            await resolver.resolveForOrders(orders);
+            await resolver.resolveForLineIds(
+              productIds: lines.map((line) => line.productId).toList(),
+              taxIdsStrings: lines.map((line) => line.taxIds).toList(),
+              uomIds: lines.map((line) => line.productUomId).toList(),
+            );
+          }
 
           logDebug('[SaleOrderSync] ✅ Related records resolved');
         } catch (e) {
           logWarning('[SaleOrderSync] Error resolving related records: $e');
-          // Non-fatal: continue even if related record resolution fails
+          rethrow;
         }
       }
 
       return syncedCount;
     } catch (e) {
-      logError('[SaleOrderSync] Error syncing sale orders: $e (synced $syncedCount before error)');
-      onProgress?.call(SyncProgress(
-        total: totalRecords,
-        synced: syncedCount,
-        error: e.toString(),
-      ));
+      logError(
+        '[SaleOrderSync] Error syncing sale orders: $e (synced $syncedCount before error)',
+      );
+      onProgress?.call(
+        SyncProgress(
+          total: totalRecords,
+          synced: syncedCount,
+          error: e.toString(),
+        ),
+      );
       rethrow;
     }
   }
@@ -323,14 +317,20 @@ class SaleOrderSyncRepository extends BaseSyncRepository {
         limit: limit,
       );
       if (cached.isNotEmpty) {
-        logDebug('[SaleOrderSync] Returning ${cached.length} cached sale orders');
+        logDebug(
+          '[SaleOrderSync] Returning ${cached.length} cached sale orders',
+        );
         return cached;
       }
     }
 
     if (!isOnline) {
       logDebug('[SaleOrderSync] Offline - returning local sale orders');
-      return _getLocalSaleOrders(state: state, partnerId: partnerId, limit: limit);
+      return await _getLocalSaleOrders(
+        state: state,
+        partnerId: partnerId,
+        limit: limit,
+      );
     }
 
     try {
@@ -362,33 +362,32 @@ class SaleOrderSyncRepository extends BaseSyncRepository {
       );
 
       if (data.isNotEmpty) {
-        logDebug('[SaleOrderSync] Syncing ${data.length} sale orders with lines');
+        logDebug(
+          '[SaleOrderSync] Syncing ${data.length} sale orders with lines',
+        );
 
-        for (final order in data) {
-          await _upsertSaleOrder(order);
-
-          // Sync lines for this order
-          final orderLineIds = order['order_line'] as List? ?? [];
-          if (orderLineIds.isNotEmpty) {
-            await _syncSaleOrderLines(order['id'] as int, orderLineIds);
-          }
-
-          // Sync withhold lines for this order (Ecuador)
-          final withholdLineIds = order['withhold_line_ids'] as List? ?? [];
-          if (withholdLineIds.isNotEmpty) {
-            await _syncSaleOrderWithholdLines(order['id'] as int, withholdLineIds);
-          }
-        }
+        await _upsertSaleOrders(data);
+        final orderIds = data.map((order) => order['id'] as int).toList();
+        await _syncSaleOrderLinesBatch(orderIds);
+        await _syncSaleOrderWithholdLinesBatch(orderIds);
 
         logInfo('[SaleOrderSync] Synced ${data.length} sale orders with lines');
       }
 
       // Return fresh data from local database
-      return _getLocalSaleOrders(state: state, partnerId: partnerId, limit: limit);
+      return await _getLocalSaleOrders(
+        state: state,
+        partnerId: partnerId,
+        limit: limit,
+      );
     } catch (e) {
       logError('[SaleOrderSync] Error fetching sale orders: $e');
       // Fallback to local cache
-      return _getLocalSaleOrders(state: state, partnerId: partnerId, limit: limit);
+      return _getLocalSaleOrders(
+        state: state,
+        partnerId: partnerId,
+        limit: limit,
+      );
     }
   }
 
@@ -398,7 +397,6 @@ class SaleOrderSyncRepository extends BaseSyncRepository {
     int? partnerId,
     int limit = 50,
   }) async {
-
     var query = appDb.select(appDb.saleOrder);
 
     if (state != null) {
@@ -421,8 +419,6 @@ class SaleOrderSyncRepository extends BaseSyncRepository {
   }) async {
     if (query.isEmpty) return [];
 
-
-
     // First try to sync from Odoo if online
     if (isOnline) {
       try {
@@ -442,22 +438,15 @@ class SaleOrderSyncRepository extends BaseSyncRepository {
         );
 
         if (data.isNotEmpty) {
-          for (final order in data) {
-            await _upsertSaleOrder(order);
-
-            // Sync lines for this order
-            final orderLineIds = order['order_line'] as List? ?? [];
-            if (orderLineIds.isNotEmpty) {
-              await _syncSaleOrderLines(order['id'] as int, orderLineIds);
-            }
-
-            // Sync withhold lines for this order (Ecuador)
-            final withholdLineIds = order['withhold_line_ids'] as List? ?? [];
-            if (withholdLineIds.isNotEmpty) {
-              await _syncSaleOrderWithholdLines(order['id'] as int, withholdLineIds);
-            }
-          }
-          logDebug('[SaleOrderSync] Synced ${data.length} search results with lines');
+          await _upsertSaleOrders(data);
+          final orderIds = data.map((order) => order['id'] as int).toList();
+          await Future.wait([
+            _syncSaleOrderLinesBatch(orderIds),
+            _syncSaleOrderWithholdLinesBatch(orderIds),
+          ]);
+          logDebug(
+            '[SaleOrderSync] Synced ${data.length} search results with lines',
+          );
         }
       } catch (e) {
         logError('[SaleOrderSync] Error searching sale orders in Odoo: $e');
@@ -467,10 +456,12 @@ class SaleOrderSyncRepository extends BaseSyncRepository {
     // Search in local database
     final pattern = '%${query.toLowerCase()}%';
     return (appDb.select(appDb.saleOrder)
-          ..where((t) =>
-              t.name.lower().like(pattern) |
-              t.clientOrderRef.lower().like(pattern) |
-              t.partnerName.lower().like(pattern))
+          ..where(
+            (t) =>
+                t.name.lower().like(pattern) |
+                t.clientOrderRef.lower().like(pattern) |
+                t.partnerName.lower().like(pattern),
+          )
           ..orderBy([(t) => OrderingTerm.desc(t.dateOrder)])
           ..limit(limit))
         .get();
@@ -478,18 +469,12 @@ class SaleOrderSyncRepository extends BaseSyncRepository {
 
   // ============ Private Helper Methods ============
 
-  String _getDateNDaysAgo(int days) {
-    final date = DateTime.now().subtract(Duration(days: days));
-    return '${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}';
-  }
-
   Future<void> _upsertSaleOrder(Map<String, dynamic> o) async {
-
     final odooId = o['id'] as int;
 
-    final existing = await (appDb.select(appDb.saleOrder)
-          ..where((t) => t.odooId.equals(odooId)))
-        .getSingleOrNull();
+    final existing = await (appDb.select(
+      appDb.saleOrder,
+    )..where((t) => t.odooId.equals(odooId))).getSingleOrNull();
 
     // Get partner details from local res_partner table
     final partnerId = extractId(o['partner_id']);
@@ -499,9 +484,9 @@ class SaleOrderSyncRepository extends BaseSyncRepository {
     String? partnerEmail;
 
     if (partnerId != null) {
-      final partner = await (appDb.select(appDb.resPartner)
-            ..where((t) => t.odooId.equals(partnerId)))
-          .getSingleOrNull();
+      final partner = await (appDb.select(
+        appDb.resPartner,
+      )..where((t) => t.odooId.equals(partnerId))).getSingleOrNull();
       if (partner != null) {
         partnerVat = partner.vat;
         partnerStreet = partner.street;
@@ -530,9 +515,15 @@ class SaleOrderSyncRepository extends BaseSyncRepository {
       partnerShippingAddress: Value(extractName(o['partner_shipping_id'])),
       // Final consumer fields (Consumidor Final)
       isFinalConsumer: Value(o['is_final_consumer'] == true),
-      endCustomerName: Value(o['end_customer_name'] is String ? o['end_customer_name'] : null),
-      endCustomerPhone: Value(o['end_customer_phone'] is String ? o['end_customer_phone'] : null),
-      endCustomerEmail: Value(o['end_customer_email'] is String ? o['end_customer_email'] : null),
+      endCustomerName: Value(
+        o['end_customer_name'] is String ? o['end_customer_name'] : null,
+      ),
+      endCustomerPhone: Value(
+        o['end_customer_phone'] is String ? o['end_customer_phone'] : null,
+      ),
+      endCustomerEmail: Value(
+        o['end_customer_email'] is String ? o['end_customer_email'] : null,
+      ),
       userId: Value(extractId(o['user_id'])),
       userName: Value(extractName(o['user_id'])),
       teamId: Value(extractId(o['team_id'])),
@@ -555,15 +546,23 @@ class SaleOrderSyncRepository extends BaseSyncRepository {
       amountUntaxed: Value((o['amount_untaxed'] as num?)?.toDouble() ?? 0.0),
       amountTax: Value((o['amount_tax'] as num?)?.toDouble() ?? 0.0),
       amountTotal: Value((o['amount_total'] as num?)?.toDouble() ?? 0.0),
-      amountToInvoice: Value((o['amount_to_invoice'] as num?)?.toDouble() ?? 0.0),
+      amountToInvoice: Value(
+        (o['amount_to_invoice'] as num?)?.toDouble() ?? 0.0,
+      ),
       amountInvoiced: Value((o['amount_invoiced'] as num?)?.toDouble() ?? 0.0),
       // Discount fields from l10n_ec_sale_discount
-      totalDiscountAmount: Value((o['total_discount_amount'] as num?)?.toDouble() ?? 0.0),
-      totalAmountUndiscounted: Value((o['total_amount_undiscounted'] as num?)?.toDouble() ?? 0.0),
+      totalDiscountAmount: Value(
+        (o['total_discount_amount'] as num?)?.toDouble() ?? 0.0,
+      ),
+      totalAmountUndiscounted: Value(
+        (o['total_amount_undiscounted'] as num?)?.toDouble() ?? 0.0,
+      ),
       invoiceStatus: Value(o['invoice_status'] as String? ?? 'no'),
       invoiceCount: Value(o['invoice_count'] as int? ?? 0),
       note: Value(o['note'] is String ? o['note'] : null),
-      clientOrderRef: Value(o['client_order_ref'] is String ? o['client_order_ref'] : null),
+      clientOrderRef: Value(
+        o['client_order_ref'] is String ? o['client_order_ref'] : null,
+      ),
       // Note: invoiceIds field removed from SaleOrder table
       // Invoice relationship is tracked via invoice.sale_order_id instead
       // invoiceIds: Value(
@@ -576,15 +575,24 @@ class SaleOrderSyncRepository extends BaseSyncRepository {
     );
 
     if (existing != null) {
-      await (appDb.update(appDb.saleOrder)
-            ..where((t) => t.odooId.equals(odooId)))
-          .write(companion);
+      await (appDb.update(
+        appDb.saleOrder,
+      )..where((t) => t.odooId.equals(odooId))).write(companion);
     } else {
       await appDb.into(appDb.saleOrder).insert(companion);
     }
   }
 
-  // ============ Batch Sync Methods (FIX 2 — eliminan N+1 HTTP) ============
+  Future<void> _upsertSaleOrders(List<Map<String, dynamic>> orders) async {
+    if (orders.isEmpty) return;
+    await appDb.transaction(() async {
+      for (final order in orders) {
+        await _upsertSaleOrder(order);
+      }
+    });
+  }
+
+  // ============ Batch Sync Methods ============
 
   /// Sync sale order lines for a batch of orders with a SINGLE HTTP request.
   ///
@@ -630,18 +638,21 @@ class SaleOrderSyncRepository extends BaseSyncRepository {
       final linesByOrder = <int, List<Map<String, dynamic>>>{};
       for (final line in allLines) {
         // order_id comes as [id, name] tuple
-        final oid = extractId(line['order_id']) ?? (line['order_id'] as num?)?.toInt();
+        final oid =
+            extractId(line['order_id']) ?? (line['order_id'] as num?)?.toInt();
         if (oid == null) continue;
         linesByOrder.putIfAbsent(oid, () => []).add(line);
       }
 
-      // Process each order's lines
-      for (final orderId in orderIds) {
-        final lines = linesByOrder[orderId] ?? [];
-        await _upsertSaleOrderLinesForOrder(orderId, lines);
-      }
+      await appDb.transaction(() async {
+        for (final orderId in orderIds) {
+          final lines = linesByOrder[orderId] ?? [];
+          await _upsertSaleOrderLinesForOrder(orderId, lines);
+        }
+      });
     } catch (e) {
       logError('[SaleOrderSync] Error batch-syncing order lines: $e');
+      rethrow;
     }
   }
 
@@ -671,31 +682,40 @@ class SaleOrderSyncRepository extends BaseSyncRepository {
       // Group by sale_id (sale_id is [id, name] tuple)
       final linesByOrder = <int, List<Map<String, dynamic>>>{};
       for (final line in allLines) {
-        final oid = extractId(line['sale_id']) ?? (line['sale_id'] as num?)?.toInt();
+        final oid =
+            extractId(line['sale_id']) ?? (line['sale_id'] as num?)?.toInt();
         if (oid == null) continue;
         linesByOrder.putIfAbsent(oid, () => []).add(line);
       }
 
-      for (final orderId in orderIds) {
-        final lines = linesByOrder[orderId] ?? [];
-        await _upsertSaleOrderWithholdLinesForOrder(orderId, lines);
-      }
+      await appDb.transaction(() async {
+        for (final orderId in orderIds) {
+          final lines = linesByOrder[orderId] ?? [];
+          await _upsertSaleOrderWithholdLinesForOrder(orderId, lines);
+        }
+      });
     } catch (e) {
       logError('[SaleOrderSync] Error batch-syncing withhold lines: $e');
+      rethrow;
     }
   }
 
-  // ============ Per-Order Upsert Helpers (FIX 3 — eliminan select N+1 local) ============
+  // ============ Per-Order Upsert Helpers ============
 
-  /// Upsert sale order lines for one order using insertOrReplace (no select previo).
-  ///
-  /// FIX 3: Reemplaza el patrón select→decide→insert/update por un único
-  /// insertOrReplace que usa odooId como clave de conflicto.
+  /// Upsert sale order lines by their stable Odoo identifier.
   Future<void> _upsertSaleOrderLinesForOrder(
     int orderId,
     List<Map<String, dynamic>> lines,
   ) async {
     try {
+      final localLines = await (appDb.select(
+        appDb.saleOrderLine,
+      )..where((t) => t.orderId.equals(orderId))).get();
+      final localByOdooId = {
+        for (final line in localLines)
+          if (line.odooId != null) line.odooId!: line,
+      };
+
       for (final line in lines) {
         final lineId = line['id'] as int;
 
@@ -712,58 +732,90 @@ class SaleOrderSyncRepository extends BaseSyncRepository {
           sequence: Value(line['sequence'] as int? ?? 10),
           productId: Value(extractId(line['product_id'])),
           productName: Value(extractName(line['product_id'])),
-          productCode: Value(line['product_default_code'] is String ? line['product_default_code'] as String : null),
-          productUomQty: Value((line['product_uom_qty'] as num?)?.toDouble() ?? 0.0),
+          productCode: Value(
+            line['product_default_code'] is String
+                ? line['product_default_code'] as String
+                : null,
+          ),
+          productUomQty: Value(
+            (line['product_uom_qty'] as num?)?.toDouble() ?? 0.0,
+          ),
           productUomId: Value(extractId(line['product_uom_id'])),
           productUomName: Value(extractName(line['product_uom_id'])),
           priceUnit: Value((line['price_unit'] as num?)?.toDouble() ?? 0.0),
           discount: Value((line['discount'] as num?)?.toDouble() ?? 0.0),
-          discountAmount: Value((line['discount_amount'] as num?)?.toDouble() ?? 0.0),
-          priceSubtotal: Value((line['price_subtotal'] as num?)?.toDouble() ?? 0.0),
+          discountAmount: Value(
+            (line['discount_amount'] as num?)?.toDouble() ?? 0.0,
+          ),
+          priceSubtotal: Value(
+            (line['price_subtotal'] as num?)?.toDouble() ?? 0.0,
+          ),
           priceTax: Value((line['price_tax'] as num?)?.toDouble() ?? 0.0),
           priceTotal: Value((line['price_total'] as num?)?.toDouble() ?? 0.0),
           taxIds: Value(taxIdsJson),
-          qtyDelivered: Value((line['qty_delivered'] as num?)?.toDouble() ?? 0.0),
+          qtyDelivered: Value(
+            (line['qty_delivered'] as num?)?.toDouble() ?? 0.0,
+          ),
           qtyInvoiced: Value((line['qty_invoiced'] as num?)?.toDouble() ?? 0.0),
-          displayType: Value(line['display_type'] is String ? line['display_type'] : ''),
+          displayType: Value(
+            line['display_type'] is String ? line['display_type'] : '',
+          ),
           state: Value(line['state'] as String? ?? 'draft'),
           writeDate: Value(parseDateTime(line['write_date'])),
           isSynced: const Value(true),
         );
 
-        await appDb.into(appDb.saleOrderLine).insertOnConflictUpdate(companion);
+        final existing = localByOdooId[lineId];
+        if (existing == null) {
+          await appDb.into(appDb.saleOrderLine).insert(companion);
+        } else {
+          await (appDb.update(
+            appDb.saleOrderLine,
+          )..where((table) => table.id.equals(existing.id))).write(companion);
+        }
       }
 
       // Delete local lines for this order that no longer exist in Odoo
-      final remoteIds = lines.map((l) => l['id'] as int).toList();
-      final localLines = await (appDb.select(appDb.saleOrderLine)
-            ..where((t) => t.orderId.equals(orderId)))
-          .get();
+      final remoteIds = lines.map((l) => l['id'] as int).toSet();
 
       int deletedCount = 0;
       for (final localLine in localLines) {
-        if (localLine.odooId != null && !remoteIds.contains(localLine.odooId)) {
-          await (appDb.delete(appDb.saleOrderLine)
-                ..where((t) => t.id.equals(localLine.id)))
-              .go();
+        if (localLine.isSynced &&
+            localLine.odooId != null &&
+            localLine.odooId! > 0 &&
+            !remoteIds.contains(localLine.odooId)) {
+          await (appDb.delete(
+            appDb.saleOrderLine,
+          )..where((t) => t.id.equals(localLine.id))).go();
           deletedCount++;
         }
       }
 
       if (deletedCount > 0) {
-        logDebug('[SaleOrderSync] Cleaned up $deletedCount obsolete lines for order $orderId');
+        logDebug(
+          '[SaleOrderSync] Cleaned up $deletedCount obsolete lines for order $orderId',
+        );
       }
     } catch (e) {
       logError('[SaleOrderSync] Error upserting lines for order $orderId: $e');
+      rethrow;
     }
   }
 
-  /// Upsert withhold lines for one order using insertOrReplace (no select previo).
+  /// Upsert withhold lines for one order.
   Future<void> _upsertSaleOrderWithholdLinesForOrder(
     int orderId,
     List<Map<String, dynamic>> lines,
   ) async {
     try {
+      final localLines = await (appDb.select(
+        appDb.saleOrderWithholdLine,
+      )..where((t) => t.orderId.equals(orderId))).get();
+      final localByOdooId = {
+        for (final line in localLines)
+          if (line.odooId != null) line.odooId!: line,
+      };
+
       for (final line in lines) {
         final lineId = line['id'] as int;
 
@@ -776,9 +828,13 @@ class SaleOrderSyncRepository extends BaseSyncRepository {
         if (taxName.toLowerCase().contains('iva')) {
           withholdType = 'withhold_vat_sale';
         }
-        final percentMatch = RegExp(r'(\d+(?:[.,]\d+)?)\s*%').firstMatch(taxName);
+        final percentMatch = RegExp(r'(\d+(?:[.,]\d+)?)\s*%')
+            .firstMatch(taxName);
         if (percentMatch != null) {
-          taxPercent = (double.tryParse(percentMatch.group(1)!.replaceAll(',', '.')) ?? 0) / 100;
+          taxPercent =
+              (double.tryParse(percentMatch.group(1)!.replaceAll(',', '.')) ??
+                  0) /
+              100;
         }
 
         final companion = SaleOrderWithholdLineCompanion(
@@ -789,7 +845,9 @@ class SaleOrderSyncRepository extends BaseSyncRepository {
           taxName: Value(taxName),
           taxPercent: Value(taxPercent),
           withholdType: Value(withholdType),
-          taxsupportCode: Value(line['taxsupport_code'] is String ? line['taxsupport_code'] : null),
+          taxsupportCode: Value(
+            line['taxsupport_code'] is String ? line['taxsupport_code'] : null,
+          ),
           base: Value((line['base'] as num?)?.toDouble() ?? 0.0),
           amount: Value((line['amount'] as num?)?.toDouble() ?? 0.0),
           notes: Value(line['notes'] is String ? line['notes'] : null),
@@ -798,248 +856,34 @@ class SaleOrderSyncRepository extends BaseSyncRepository {
           lastSyncDate: Value(DateTime.now()),
         );
 
-        await appDb.into(appDb.saleOrderWithholdLine).insertOnConflictUpdate(companion);
+        final existing = localByOdooId[lineId];
+        if (existing == null) {
+          await appDb.into(appDb.saleOrderWithholdLine).insert(companion);
+        } else {
+          await (appDb.update(
+            appDb.saleOrderWithholdLine,
+          )..where((table) => table.id.equals(existing.id))).write(companion);
+        }
       }
 
       // Delete local withhold lines that no longer exist in Odoo
-      final remoteIds = lines.map((l) => l['id'] as int).toList();
-      final localLines = await (appDb.select(appDb.saleOrderWithholdLine)
-            ..where((t) => t.orderId.equals(orderId)))
-          .get();
+      final remoteIds = lines.map((l) => l['id'] as int).toSet();
 
       for (final localLine in localLines) {
-        if (localLine.odooId != null && !remoteIds.contains(localLine.odooId)) {
-          await (appDb.delete(appDb.saleOrderWithholdLine)
-                ..where((t) => t.id.equals(localLine.id)))
-              .go();
+        if (localLine.isSynced &&
+            localLine.odooId != null &&
+            localLine.odooId! > 0 &&
+            !remoteIds.contains(localLine.odooId)) {
+          await (appDb.delete(
+            appDb.saleOrderWithholdLine,
+          )..where((t) => t.id.equals(localLine.id))).go();
         }
       }
     } catch (e) {
-      logError('[SaleOrderSync] Error upserting withhold lines for order $orderId: $e');
-    }
-  }
-
-  // ============ Single-Order Sync Methods (used by fetchSaleOrdersWithLines / searchSaleOrdersWithLines) ============
-
-  Future<void> _syncSaleOrderLines(int orderId, List orderLineIds) async {
-    try {
-      final lines = await odooClient!.searchRead(
-        model: 'sale.order.line',
-        domain: [
-          ['order_id', '=', orderId],
-        ],
-        fields: [
-          'id',
-          'name',
-          'sequence',
-          'product_id',
-          'product_default_code', // product internal reference
-          'product_uom_qty',
-          'product_uom_id', // Odoo 18/19: renamed from product_uom
-          'price_unit',
-          'discount',
-          'discount_amount', // l10n_ec_sale_discount: monto de descuento calculado
-          'price_subtotal',
-          'price_tax',
-          'price_total',
-          'tax_ids', // Odoo 18/19: renamed from tax_id
-          'qty_delivered',
-          'qty_invoiced',
-          'qty_to_invoice',
-          'invoice_status',
-          'display_type',
-          'state',
-          'write_date',
-        ],
-        order: 'sequence asc',
+      logError(
+        '[SaleOrderSync] Error upserting withhold lines for order $orderId: $e',
       );
-
-  
-
-      // FIX 3: Use insertOnConflictUpdate — eliminates a SELECT per line
-      for (final line in lines) {
-        final lineId = line['id'] as int;
-
-        // Build taxIds JSON from tax_ids (Odoo 18/19: renamed from tax_id)
-        String? taxIdsJson;
-        final lineTaxIds = line['tax_ids'] as List?;
-        if (lineTaxIds != null && lineTaxIds.isNotEmpty) {
-          taxIdsJson = lineTaxIds.cast<int>().join(',');
-        }
-
-        final companion = SaleOrderLineCompanion(
-          odooId: Value(lineId),
-          orderId: Value(orderId),
-          name: Value(line['name'] is String ? line['name'] as String : ''),
-          sequence: Value(line['sequence'] as int? ?? 10),
-          productId: Value(extractId(line['product_id'])),
-          productName: Value(extractName(line['product_id'])),
-          productCode: Value(line['product_default_code'] is String ? line['product_default_code'] as String : null),
-          productUomQty: Value((line['product_uom_qty'] as num?)?.toDouble() ?? 0.0),
-          productUomId: Value(extractId(line['product_uom_id'])),
-          productUomName: Value(extractName(line['product_uom_id'])),
-          priceUnit: Value((line['price_unit'] as num?)?.toDouble() ?? 0.0),
-          discount: Value((line['discount'] as num?)?.toDouble() ?? 0.0),
-          discountAmount: Value((line['discount_amount'] as num?)?.toDouble() ?? 0.0),
-          priceSubtotal: Value((line['price_subtotal'] as num?)?.toDouble() ?? 0.0),
-          priceTax: Value((line['price_tax'] as num?)?.toDouble() ?? 0.0),
-          priceTotal: Value((line['price_total'] as num?)?.toDouble() ?? 0.0),
-          taxIds: Value(taxIdsJson),
-          qtyDelivered: Value((line['qty_delivered'] as num?)?.toDouble() ?? 0.0),
-          qtyInvoiced: Value((line['qty_invoiced'] as num?)?.toDouble() ?? 0.0),
-          displayType: Value(line['display_type'] is String ? line['display_type'] : ''),
-          state: Value(line['state'] as String? ?? 'draft'),
-          writeDate: Value(parseDateTime(line['write_date'])),
-          isSynced: const Value(true),
-        );
-
-        await appDb.into(appDb.saleOrderLine).insertOnConflictUpdate(companion);
-      }
-
-      // Clean up obsolete lines: delete local lines that no longer exist in Odoo
-      final remoteIds = lines.map((l) => l['id'] as int).toList();
-      final localLines = await (appDb.select(appDb.saleOrderLine)
-            ..where((t) => t.orderId.equals(orderId)))
-          .get();
-
-      int deletedCount = 0;
-      for (final localLine in localLines) {
-        if (localLine.odooId != null && !remoteIds.contains(localLine.odooId)) {
-          await (appDb.delete(appDb.saleOrderLine)
-                ..where((t) => t.id.equals(localLine.id)))
-              .go();
-          deletedCount++;
-        }
-      }
-
-      if (deletedCount > 0) {
-        logDebug('[SaleOrderSync] Cleaned up $deletedCount obsolete lines for order $orderId');
-      }
-    } catch (e) {
-      logError('[SaleOrderSync] Error syncing lines for order $orderId: $e');
-    }
-  }
-
-  /// Sync withhold lines for a specific sale order from Odoo
-  /// Similar to _syncSaleOrderLines but for Ecuador tax withholdings
-  Future<void> _syncSaleOrderWithholdLines(int orderId, List withholdLineIds) async {
-    if (withholdLineIds.isEmpty) return;
-
-    try {
-      final lines = await odooClient!.searchRead(
-        model: 'sale.order.withhold.line',
-        domain: [
-          ['sale_id', '=', orderId],
-        ],
-        fields: [
-          'id',
-          'sale_id',
-          'sequence',
-          'tax_id',
-          'taxsupport_code',
-          'base',
-          'amount',
-          'notes',
-          'write_date',
-        ],
-        order: 'sequence asc',
-      );
-
-  
-
-      // FIX 3: Use insertOnConflictUpdate — eliminates a SELECT per line
-      for (final line in lines) {
-        final lineId = line['id'] as int;
-
-        // Extract tax info (tax_id is [id, name] tuple in Odoo)
-        final taxId = extractId(line['tax_id']);
-        final taxName = extractName(line['tax_id']) ?? '';
-
-        // Determine withhold type and percentage from tax name
-        // e.g., "Ret. IVA 30%" -> type: withhold_vat_sale, percent: 0.30
-        String withholdType = 'withhold_income_sale';
-        double taxPercent = 0.0;
-
-        if (taxName.toLowerCase().contains('iva')) {
-          withholdType = 'withhold_vat_sale';
-        }
-        // Extract percentage from tax name if present
-        final percentMatch = RegExp(r'(\d+(?:[.,]\d+)?)\s*%').firstMatch(taxName);
-        if (percentMatch != null) {
-          taxPercent = (double.tryParse(percentMatch.group(1)!.replaceAll(',', '.')) ?? 0) / 100;
-        }
-
-        final companion = SaleOrderWithholdLineCompanion(
-          odooId: Value(lineId),
-          orderId: Value(orderId),
-          sequence: Value(line['sequence'] as int? ?? 10),
-          taxId: Value(taxId ?? 0),
-          taxName: Value(taxName),
-          taxPercent: Value(taxPercent),
-          withholdType: Value(withholdType),
-          taxsupportCode: Value(line['taxsupport_code'] is String ? line['taxsupport_code'] : null),
-          base: Value((line['base'] as num?)?.toDouble() ?? 0.0),
-          amount: Value((line['amount'] as num?)?.toDouble() ?? 0.0),
-          notes: Value(line['notes'] is String ? line['notes'] : null),
-          writeDate: Value(parseDateTime(line['write_date'])),
-          isSynced: const Value(true),
-          lastSyncDate: Value(DateTime.now()),
-        );
-
-        await appDb.into(appDb.saleOrderWithholdLine).insertOnConflictUpdate(companion);
-      }
-
-      // Delete local withhold lines that no longer exist in Odoo
-      final remoteIds = lines.map((l) => l['id'] as int).toList();
-      final localLines = await (appDb.select(appDb.saleOrderWithholdLine)
-            ..where((t) => t.orderId.equals(orderId)))
-          .get();
-
-      for (final localLine in localLines) {
-        if (localLine.odooId != null && !remoteIds.contains(localLine.odooId)) {
-          await (appDb.delete(appDb.saleOrderWithholdLine)
-                ..where((t) => t.id.equals(localLine.id)))
-              .go();
-        }
-      }
-
-      logDebug('[SaleOrderSync] Synced ${lines.length} withhold lines for order $orderId');
-    } catch (e) {
-      logError('[SaleOrderSync] Error syncing withhold lines for order $orderId: $e');
-    }
-  }
-
-  /// Sync invoices and their lines for a sale order
-  ///
-  /// Uses InvoiceRepository to fetch invoices by IDs and save them to local database
-  /// with their lines, following the same pattern as payment lines synchronization
-  Future<void> _syncSaleOrderInvoices(int orderId, List<int> invoiceIds) async {
-    if (invoiceIds.isEmpty || odooClient == null) return;
-
-    try {
-      logDebug('[SaleOrderSync] Syncing ${invoiceIds.length} invoices for order $orderId');
-
-      // Use InvoiceRepository to sync invoices with their lines
-      // F5: InvoiceRepository ya no recibe OdooClient (usa managers
-      // internamente) — este repo (sale_order_sync_repository.dart) sigue
-      // usando su propio odooClient para el resto de sus operaciones, fuera
-      // de alcance de esta fase.
-      final invoiceRepository = InvoiceRepository(
-        productRepository: _productRepository,
-        appDb: appDb,
-      );
-
-      // Fetch invoices by IDs (this will also sync their lines)
-      await invoiceRepository.getInvoicesByIds(
-        invoiceIds,
-        forceRefresh: true,
-        saleOrderId: orderId,
-      );
-
-      logDebug('[SaleOrderSync] Synced ${invoiceIds.length} invoices with lines for order $orderId');
-    } catch (e) {
-      logError('[SaleOrderSync] Error syncing invoices for order $orderId: $e');
-      // Non-fatal: continue even if invoice sync fails
+      rethrow;
     }
   }
 }

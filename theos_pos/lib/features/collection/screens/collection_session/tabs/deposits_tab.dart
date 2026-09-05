@@ -11,6 +11,7 @@ import '../../../../../shared/utils/formatting_utils.dart';
 import '../../../../../shared/widgets/common/theos_info_bars.dart';
 import '../../../../../shared/widgets/dialogs/copyable_info_bar.dart';
 import '../widgets/deposit_form_dialog.dart';
+
 import 'package:theos_pos_core/theos_pos_core.dart';
 
 /// Tab para mostrar y gestionar los depositos de la sesion
@@ -18,11 +19,7 @@ class DepositsTab extends ConsumerWidget {
   final int sessionId;
   final bool canEdit;
 
-  const DepositsTab({
-    super.key,
-    required this.sessionId,
-    this.canEdit = true,
-  });
+  const DepositsTab({super.key, required this.sessionId, this.canEdit = true});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -152,21 +149,14 @@ class DepositsTab extends ConsumerWidget {
                     color: typeInfo.color.withValues(alpha: 0.1),
                     borderRadius: BorderRadius.circular(6),
                   ),
-                  child: Icon(
-                    typeInfo.icon,
-                    size: 16,
-                    color: typeInfo.color,
-                  ),
+                  child: Icon(typeInfo.icon, size: 16, color: typeInfo.color),
                 ),
                 const SizedBox(width: 12),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(
-                        typeInfo.label,
-                        style: theme.typography.bodyStrong,
-                      ),
+                      Text(typeInfo.label, style: theme.typography.bodyStrong),
                       if (deposit.bankJournalName != null)
                         Text(
                           deposit.bankJournalName!,
@@ -295,7 +285,8 @@ class DepositsTab extends ConsumerWidget {
   }
 
   ({IconData icon, String label, Color color}) _getDepositTypeInfo(
-      DepositType type) {
+    DepositType type,
+  ) {
     switch (type) {
       case DepositType.cash:
         return (
@@ -375,10 +366,8 @@ class DepositsTab extends ConsumerWidget {
   ) async {
     final result = await showDialog<CollectionSessionDeposit>(
       context: context,
-      builder: (context) => DepositFormDialog(
-        sessionId: sessionId,
-        initialDeposit: deposit,
-      ),
+      builder: (context) =>
+          DepositFormDialog(sessionId: sessionId, initialDeposit: deposit),
     );
 
     if (result != null && context.mounted) {
@@ -395,7 +384,8 @@ class DepositsTab extends ConsumerWidget {
               CopyableInfoBar.showError(
                 context,
                 title: 'Error al actualizar depósito',
-                message: 'No se pudo actualizar el depósito: ${failure.message}',
+                message:
+                    'No se pudo actualizar el depósito: ${failure.message}',
               );
             }
           },

@@ -1,4 +1,12 @@
+import 'package:odoo_sdk/odoo_sdk.dart'
+    show
+        OfflineReplayPolicy,
+        OdooConnectionException,
+        OdooException,
+        OdooOfflineException,
+        OdooTimeoutException;
 import 'package:theos_pos_core/theos_pos_core.dart';
+import 'package:uuid/uuid.dart';
 
 import '../../../core/services/odoo_service.dart';
 import '../../../shared/utils/error_utils.dart';
@@ -27,7 +35,16 @@ class CashOutService {
   bool get _isOnline => _odoo.client != null;
 
   /// Generate a negative local ID for offline records
-  int _generateLocalId() => -(DateTime.now().microsecondsSinceEpoch % 1000000000);
+  int _generateLocalId() =>
+      -(DateTime.now().microsecondsSinceEpoch % 1000000000);
+
+  bool _isConnectivityFailure(Object error) =>
+      error is OdooConnectionException ||
+      error is OdooTimeoutException ||
+      error is OdooOfflineException;
+
+  String _operationError(Object error) =>
+      error is OdooException ? error.message : friendlyErrorMessage(error);
 
   /// Get the current user's company_id, defaulting to 1 if unavailable
   Future<int> _getUserCompanyId() async {
@@ -35,17 +52,28 @@ class CashOutService {
       final user = await userManager.getCurrentUser();
       final companyId = user?.companyId;
       if (companyId == null) {
-        logger.w('[CashOutService]', 'company_id not available from user, using fallback=1');
+        logger.w(
+          '[CashOutService]',
+          'company_id not available from user, using fallback=1',
+        );
         return 1;
       }
       return companyId;
     } catch (e) {
-      logger.w('[CashOutService]', 'Error getting company_id, using fallback=1: $e');
+      logger.w(
+        '[CashOutService]',
+        'Error getting company_id, using fallback=1: $e',
+      );
       return 1;
     }
   }
 
-  CashOutService(this._odoo, this._cashOutManager, this._offlineQueue, this._db);
+  CashOutService(
+    this._odoo,
+    this._cashOutManager,
+    this._offlineQueue,
+    this._db,
+  );
 
   // ============================================================
   // TIPOS DE RETIRO
@@ -94,7 +122,9 @@ class CashOutService {
       model: 'l10n_ec.cash.out.type',
       method: 'search_read',
       kwargs: {
-        'domain': [['active', '=', true]],
+        'domain': [
+          ['active', '=', true],
+        ],
         'fields': ['id', 'name', 'code', 'default_cash_flow'],
         'order': 'sequence, name',
       },
@@ -125,7 +155,12 @@ class CashOutService {
     try {
       await _fetchAndCacheCashOutTypes();
     } catch (e, st) {
-      logger.e('[CashOutService]', 'Error fetching cash out type by code $code', e, st);
+      logger.e(
+        '[CashOutService]',
+        'Error fetching cash out type by code $code',
+        e,
+        st,
+      );
       return null;
     }
 
@@ -252,7 +287,9 @@ class CashOutService {
       model: 'l10n_ec.cash.out',
       method: 'search_read',
       kwargs: {
-        'domain': [['id', '=', cashOutId]],
+        'domain': [
+          ['id', '=', cashOutId],
+        ],
         'fields': [
           'id',
           'name',
@@ -278,7 +315,9 @@ class CashOutService {
       return;
     }
 
-    final cashOut = cashOutManager.fromOdoo(cashOuts[0] as Map<String, dynamic>);
+    final cashOut = cashOutManager.fromOdoo(
+      cashOuts[0] as Map<String, dynamic>,
+    );
     await _cashOutManager.upsertFromOdoo(cashOut);
   }
 
@@ -306,11 +345,14 @@ class CashOutService {
       // Validar saldo disponible si hay sesión (best-effort, skip if offline)
       if (cashOut.collectionSessionId != null && _isOnline) {
         try {
-          final availableCash = await getAvailableCash(cashOut.collectionSessionId!);
+          final availableCash = await getAvailableCash(
+            cashOut.collectionSessionId!,
+          );
           if (availableCash < cashOut.amount) {
             return CashOutResult(
               success: false,
-              errorMessage: 'Saldo insuficiente en caja. Disponible: ${availableCash.toCurrency()}',
+              errorMessage:
+                  'Saldo insuficiente en caja. Disponible: ${availableCash.toCurrency()}',
             );
           }
         } catch (_) {
@@ -318,24 +360,54 @@ class CashOutService {
         }
       }
 
-      // 1. Save locally with negative ID
+      // 1. Save the local row and create intent atomically. ERP2 exposes the
+      // writable `cash_out_uuid` field, which is used to reconcile a lost
+      // create response without duplicating a financial withdrawal.
       final localId = _generateLocalId();
+      final cashOutUuid = cashOut.uuid?.trim().isNotEmpty == true
+          ? cashOut.uuid!.trim()
+          : const Uuid().v4();
       final localCashOut = cashOut.copyWith(
         id: localId,
+        uuid: cashOutUuid,
         isSynced: false,
       );
-      await _cashOutManager.upsertCashOut(localCashOut);
+      final odooValues = cashOutManager.toOdoo(localCashOut)
+        ..remove('id')
+        ..remove('is_synced')
+        ..remove('last_sync_date')
+        ..['cash_out_uuid'] = cashOutUuid;
+      int? createOperationId;
+
+      Future<void> persistCashOutAndIntent() async {
+        await _cashOutManager.upsertCashOut(localCashOut);
+        createOperationId = await _offlineQueue?.queueOperation(
+          model: 'l10n_ec.cash.out',
+          method: 'create',
+          recordId: localId,
+          values: {
+            ...odooValues,
+            'local_id': localId,
+            '_operation_key': 'l10n_ec.cash.out:create:$cashOutUuid',
+          },
+          priority: OfflinePriority.high,
+          replayPolicy: OfflineReplayPolicy.retrySafe,
+        );
+      }
+
+      if (_offlineQueue == null) {
+        await persistCashOutAndIntent();
+      } else {
+        await _db.transaction(persistCashOutAndIntent);
+      }
 
       logger.i('[CashOutService]', 'Saved cash out locally with id=$localId');
 
       // 2. Try to create in Odoo
+      if (_odoo.client == null && _offlineQueue != null) {
+        return CashOutResult(success: true, cashOutId: localId);
+      }
       try {
-        final odooValues = cashOutManager.toOdoo(localCashOut);
-        // Remove local-only fields before sending to Odoo
-        odooValues.remove('id');
-        odooValues.remove('is_synced');
-        odooValues.remove('last_sync_date');
-
         final cashOutId = await _odoo.call(
           model: 'l10n_ec.cash.out',
           method: 'create',
@@ -348,43 +420,74 @@ class CashOutService {
           throw Exception('Odoo returned null for cash out create');
         }
 
-        final remoteId = cashOutId is List ? cashOutId[0] as int : cashOutId as int;
+        final remoteId = cashOutId is List
+            ? cashOutId[0] as int
+            : cashOutId as int;
 
-        // 3. Update local record with remote ID
-        // Delete the local negative-ID record and insert with remote ID
-        await (_db.delete(_db.cashOut)
-              ..where((t) => t.odooId.equals(localId)))
-            .go();
+        // 3. Hand off the local ID and retire exactly this create intent in
+        // one commit. A crash before it is recovered through cash_out_uuid.
+        Future<void> completeHandoff() async {
+          await (_db.delete(
+            _db.cashOut,
+          )..where((t) => t.odooId.equals(localId))).go();
+          await _cashOutManager.upsertFromOdoo(
+            localCashOut.copyWith(
+              id: remoteId,
+              isSynced: true,
+              lastSyncDate: DateTime.now().toUtc(),
+            ),
+          );
+          if (createOperationId != null) {
+            await _offlineQueue?.removeOperation(createOperationId!);
+          }
+          await _offlineQueue?.updateRecordIdInPendingOperations(
+            'l10n_ec.cash.out',
+            localId,
+            remoteId,
+          );
+        }
 
-        final syncedCashOut = localCashOut.copyWith(
-          id: remoteId,
-          isSynced: true,
-          lastSyncDate: DateTime.now(),
+        if (_offlineQueue == null) {
+          await completeHandoff();
+        } else {
+          await _db.transaction(completeHandoff);
+        }
+
+        logger.i(
+          '[CashOutService]',
+          'Created cash out in Odoo: $remoteId (was local $localId)',
         );
-        await _cashOutManager.upsertFromOdoo(syncedCashOut);
 
-        logger.i('[CashOutService]', 'Created cash out in Odoo: $remoteId (was local $localId)');
-
-        return CashOutResult(
-          success: true,
-          cashOutId: remoteId,
-        );
+        return CashOutResult(success: true, cashOutId: remoteId);
       } catch (e) {
-        // 4. Offline or error — queue for later sync
-        logger.w('[CashOutService]', 'Odoo create failed, queuing offline: $e');
+        if (!_isConnectivityFailure(e)) {
+          Future<void> discardRejectedDraft() async {
+            await (_db.delete(
+              _db.cashOut,
+            )..where((table) => table.odooId.equals(localId))).go();
+            if (createOperationId != null) {
+              await _offlineQueue?.removeOperation(createOperationId!);
+            }
+          }
 
-        await _offlineQueue?.queueOperation(
-          model: 'l10n_ec.cash.out',
-          method: 'create',
-          recordId: localId,
-          values: cashOutManager.toOdoo(localCashOut),
-          priority: OfflinePriority.high,
+          if (_offlineQueue == null) {
+            await discardRejectedDraft();
+          } else {
+            await _db.transaction(discardRejectedDraft);
+          }
+          return CashOutResult(
+            success: false,
+            errorMessage: _operationError(e),
+          );
+        }
+
+        // 4. Connectivity failed — the atomic create intent remains queued.
+        logger.w(
+          '[CashOutService]',
+          'Odoo create unavailable; kept in outbox: $e',
         );
 
-        return CashOutResult(
-          success: true,
-          cashOutId: localId,
-        );
+        return CashOutResult(success: true, cashOutId: localId);
       }
     } catch (e, st) {
       logger.e('[CashOutService]', 'Error creating cash out', e, st);
@@ -407,7 +510,12 @@ class CashOutService {
       // Luego confirmar
       return await confirmCashOut(createResult.cashOutId!);
     } catch (e, st) {
-      logger.e('[CashOutService]', 'Error creating and confirming cash out', e, st);
+      logger.e(
+        '[CashOutService]',
+        'Error creating and confirming cash out',
+        e,
+        st,
+      );
       return CashOutResult(
         success: false,
         errorMessage: friendlyErrorMessage(e),
@@ -422,11 +530,41 @@ class CashOutService {
   /// 3. Si falla (offline): encola en OfflineQueue
   Future<CashOutResult> confirmCashOut(int cashOutId) async {
     try {
-      // 1. Update local state to 'posted'
+      // 1. Commit local state + action intent before the HTTP request.
       final existing = await _cashOutManager.getByOdooId(cashOutId);
-      if (existing != null) {
-        final updated = existing.copyWith(state: CashOutState.posted);
-        await _cashOutManager.upsertCashOut(updated);
+      int? operationId;
+      Future<void> persistConfirmAndIntent() async {
+        if (existing != null) {
+          await _cashOutManager.upsertCashOut(
+            existing.copyWith(state: CashOutState.posted),
+          );
+        }
+        operationId = await _offlineQueue?.queueOperation(
+          model: 'l10n_ec.cash.out',
+          method: 'action_confirm',
+          recordId: cashOutId,
+          values: {
+            '_operation_key':
+                'l10n_ec.cash.out:action_confirm:${existing?.uuid ?? cashOutId}',
+          },
+          priority: OfflinePriority.high,
+          replayPolicy: OfflineReplayPolicy.retrySafe,
+        );
+      }
+
+      if (_offlineQueue == null) {
+        await persistConfirmAndIntent();
+      } else {
+        await _db.transaction(persistConfirmAndIntent);
+      }
+
+      if ((cashOutId < 0 || _odoo.client == null) && _offlineQueue != null) {
+        return CashOutResult(
+          success: true,
+          cashOutId: cashOutId,
+          cashOutName: existing?.name,
+          amount: existing?.amount,
+        );
       }
 
       // 2. Try to confirm in Odoo
@@ -434,14 +572,23 @@ class CashOutService {
         await _odoo.call(
           model: 'l10n_ec.cash.out',
           method: 'action_confirm',
-          kwargs: {'ids': [cashOutId]},
+          ids: [cashOutId],
         );
+
+        if (operationId != null) {
+          await _db.transaction(
+            () => _offlineQueue!.removeOperation(operationId!),
+          );
+        }
 
         // Refresh from Odoo to get server-generated fields (name, move_id, etc.)
         await _fetchAndCacheCashOut(cashOutId);
         final cashOut = await _cashOutManager.getByOdooId(cashOutId);
 
-        logger.i('[CashOutService]', 'Confirmed cash out $cashOutId: ${cashOut?.name}');
+        logger.i(
+          '[CashOutService]',
+          'Confirmed cash out $cashOutId: ${cashOut?.name}',
+        );
 
         return CashOutResult(
           success: true,
@@ -450,15 +597,32 @@ class CashOutService {
           amount: cashOut?.amount,
         );
       } catch (e) {
-        // 3. Offline — queue for later sync
-        logger.w('[CashOutService]', 'Odoo confirm failed, queuing offline: $e');
+        if (!_isConnectivityFailure(e)) {
+          Future<void> restoreRejectedConfirm() async {
+            if (existing != null) {
+              await _cashOutManager.upsertCashOut(existing);
+            }
+            if (operationId != null) {
+              await _offlineQueue?.removeOperation(operationId!);
+            }
+          }
 
-        await _offlineQueue?.queueOperation(
-          model: 'l10n_ec.cash.out',
-          method: 'action_confirm',
-          recordId: cashOutId,
-          values: {'ids': [cashOutId]},
-          priority: OfflinePriority.high,
+          if (_offlineQueue == null) {
+            await restoreRejectedConfirm();
+          } else {
+            await _db.transaction(restoreRejectedConfirm);
+          }
+          return CashOutResult(
+            success: false,
+            cashOutId: cashOutId,
+            errorMessage: _operationError(e),
+          );
+        }
+
+        // 3. Offline — the atomic action intent remains queued.
+        logger.w(
+          '[CashOutService]',
+          'Odoo confirm unavailable; kept in outbox: $e',
         );
 
         return CashOutResult(
@@ -469,7 +633,12 @@ class CashOutService {
         );
       }
     } catch (e, st) {
-      logger.e('[CashOutService]', 'Error confirming cash out $cashOutId', e, st);
+      logger.e(
+        '[CashOutService]',
+        'Error confirming cash out $cashOutId',
+        e,
+        st,
+      );
       return CashOutResult(
         success: false,
         cashOutId: cashOutId,
@@ -485,11 +654,36 @@ class CashOutService {
   /// 3. Si falla (offline): encola en OfflineQueue
   Future<bool> cancelCashOut(int cashOutId) async {
     try {
-      // 1. Update local state to 'cancelled'
+      // 1. Commit local state + action intent atomically.
       final existing = await _cashOutManager.getByOdooId(cashOutId);
-      if (existing != null) {
-        final updated = existing.copyWith(state: CashOutState.cancelled);
-        await _cashOutManager.upsertCashOut(updated);
+      int? operationId;
+      Future<void> persistCancelAndIntent() async {
+        if (existing != null) {
+          await _cashOutManager.upsertCashOut(
+            existing.copyWith(state: CashOutState.cancelled),
+          );
+        }
+        operationId = await _offlineQueue?.queueOperation(
+          model: 'l10n_ec.cash.out',
+          method: 'action_cancel',
+          recordId: cashOutId,
+          values: {
+            '_operation_key':
+                'l10n_ec.cash.out:action_cancel:${existing?.uuid ?? cashOutId}',
+          },
+          priority: OfflinePriority.normal,
+          replayPolicy: OfflineReplayPolicy.retrySafe,
+        );
+      }
+
+      if (_offlineQueue == null) {
+        await persistCancelAndIntent();
+      } else {
+        await _db.transaction(persistCancelAndIntent);
+      }
+
+      if ((cashOutId < 0 || _odoo.client == null) && _offlineQueue != null) {
+        return true;
       }
 
       // 2. Try to cancel in Odoo
@@ -497,29 +691,53 @@ class CashOutService {
         await _odoo.call(
           model: 'l10n_ec.cash.out',
           method: 'action_cancel',
-          kwargs: {'ids': [cashOutId]},
+          ids: [cashOutId],
         );
+
+        if (operationId != null) {
+          await _db.transaction(
+            () => _offlineQueue!.removeOperation(operationId!),
+          );
+        }
 
         // Refresh from Odoo
         await _fetchAndCacheCashOut(cashOutId);
 
         logger.i('[CashOutService]', 'Cancelled cash out $cashOutId');
       } catch (e) {
-        // 3. Offline — queue for later sync
-        logger.w('[CashOutService]', 'Odoo cancel failed, queuing offline: $e');
+        if (!_isConnectivityFailure(e)) {
+          Future<void> restoreRejectedCancel() async {
+            if (existing != null) {
+              await _cashOutManager.upsertCashOut(existing);
+            }
+            if (operationId != null) {
+              await _offlineQueue?.removeOperation(operationId!);
+            }
+          }
 
-        await _offlineQueue?.queueOperation(
-          model: 'l10n_ec.cash.out',
-          method: 'action_cancel',
-          recordId: cashOutId,
-          values: {'ids': [cashOutId]},
-          priority: OfflinePriority.normal,
+          if (_offlineQueue == null) {
+            await restoreRejectedCancel();
+          } else {
+            await _db.transaction(restoreRejectedCancel);
+          }
+          return false;
+        }
+
+        // 3. Offline — the atomic action intent remains queued.
+        logger.w(
+          '[CashOutService]',
+          'Odoo cancel unavailable; kept in outbox: $e',
         );
       }
 
       return true;
     } catch (e, st) {
-      logger.e('[CashOutService]', 'Error cancelling cash out $cashOutId', e, st);
+      logger.e(
+        '[CashOutService]',
+        'Error cancelling cash out $cashOutId',
+        e,
+        st,
+      );
       return false;
     }
   }
@@ -653,10 +871,20 @@ class CashOutService {
             ['move_type', '=', 'out_refund'],
             ['partner_id', 'child_of', partnerId],
             ['state', '=', 'posted'],
-            ['payment_state', 'in', ['not_paid', 'partial']],
+            [
+              'payment_state',
+              'in',
+              ['not_paid', 'partial'],
+            ],
             ['amount_residual', '>', 0],
           ],
-          'fields': ['id', 'name', 'amount_residual', 'invoice_date', 'partner_id'],
+          'fields': [
+            'id',
+            'name',
+            'amount_residual',
+            'invoice_date',
+            'partner_id',
+          ],
           'order': 'invoice_date desc',
           'limit': 50,
         },
@@ -686,10 +914,21 @@ class CashOutService {
             ['move_type', '=', 'in_invoice'],
             ['partner_id', 'child_of', partnerId],
             ['state', '=', 'posted'],
-            ['payment_state', 'in', ['not_paid', 'partial']],
+            [
+              'payment_state',
+              'in',
+              ['not_paid', 'partial'],
+            ],
             ['amount_residual', '>', 0],
           ],
-          'fields': ['id', 'name', 'amount_residual', 'invoice_date', 'invoice_date_due', 'partner_id'],
+          'fields': [
+            'id',
+            'name',
+            'amount_residual',
+            'invoice_date',
+            'invoice_date_due',
+            'partner_id',
+          ],
           'order': 'invoice_date_due asc',
           'limit': 50,
         },
@@ -703,7 +942,12 @@ class CashOutService {
           .map((inv) => PendingInvoice.fromOdoo(inv as Map<String, dynamic>))
           .toList();
     } catch (e, st) {
-      logger.e('[CashOutService]', 'Error getting pending purchase invoices', e, st);
+      logger.e(
+        '[CashOutService]',
+        'Error getting pending purchase invoices',
+        e,
+        st,
+      );
       return [];
     }
   }
@@ -719,19 +963,28 @@ class CashOutService {
         model: 'l10n_ec_collection_box.session',
         method: 'search_read',
         kwargs: {
-          'domain': [['id', '=', sessionId]],
+          'domain': [
+            ['id', '=', sessionId],
+          ],
           'fields': ['cash_register_balance_end'],
           'limit': 1,
         },
       );
 
       if (session is List && session.isNotEmpty) {
-        return (session[0] as Map<String, dynamic>)['cash_register_balance_end'] as double? ?? 0;
+        return (session[0] as Map<String, dynamic>)['cash_register_balance_end']
+                as double? ??
+            0;
       }
 
       return 0;
     } catch (e, st) {
-      logger.e('[CashOutService]', 'Error getting available cash for session $sessionId', e, st);
+      logger.e(
+        '[CashOutService]',
+        'Error getting available cash for session $sessionId',
+        e,
+        st,
+      );
       return 0;
     }
   }
@@ -743,7 +996,9 @@ class CashOutService {
         model: 'l10n_ec_collection_box.session',
         method: 'search_read',
         kwargs: {
-          'domain': [['id', '=', sessionId]],
+          'domain': [
+            ['id', '=', sessionId],
+          ],
           'fields': [
             'cash_register_balance_start',
             'cash_register_balance_end',
@@ -762,11 +1017,15 @@ class CashOutService {
 
       final data = session[0] as Map<String, dynamic>;
       return SessionCashSummary(
-        balanceStart: (data['cash_register_balance_start'] as num?)?.toDouble() ?? 0,
-        balanceEnd: (data['cash_register_balance_end'] as num?)?.toDouble() ?? 0,
-        balanceEndReal: (data['cash_register_balance_end_real'] as num?)?.toDouble() ?? 0,
+        balanceStart:
+            (data['cash_register_balance_start'] as num?)?.toDouble() ?? 0,
+        balanceEnd:
+            (data['cash_register_balance_end'] as num?)?.toDouble() ?? 0,
+        balanceEndReal:
+            (data['cash_register_balance_end_real'] as num?)?.toDouble() ?? 0,
         difference: (data['cash_register_difference'] as num?)?.toDouble() ?? 0,
-        totalCashOutAmount: (data['total_cash_out_amount'] as num?)?.toDouble() ?? 0,
+        totalCashOutAmount:
+            (data['total_cash_out_amount'] as num?)?.toDouble() ?? 0,
         cashOutCount: data['cash_out_count'] as int? ?? 0,
       );
     } catch (e, st) {
@@ -788,7 +1047,11 @@ class CashOutService {
         method: 'search_read',
         kwargs: {
           'domain': [
-            ['type', 'in', ['cash', 'bank']],
+            [
+              'type',
+              'in',
+              ['cash', 'bank'],
+            ],
             ['company_id', '=', companyId],
           ],
           'fields': ['id', 'name', 'type'],
@@ -828,7 +1091,11 @@ class CashOutService {
         method: 'search_read',
         kwargs: {
           'domain': [
-            ['account_type', 'in', ['expense', 'expense_direct_cost']],
+            [
+              'account_type',
+              'in',
+              ['expense', 'expense_direct_cost'],
+            ],
             ['deprecated', '=', false],
             ['company_id', '=', companyId],
           ],
@@ -897,11 +1164,7 @@ class ExpenseAccount {
   final String code;
   final String name;
 
-  ExpenseAccount({
-    required this.id,
-    required this.code,
-    required this.name,
-  });
+  ExpenseAccount({required this.id, required this.code, required this.name});
 
   factory ExpenseAccount.fromOdoo(Map<String, dynamic> data) {
     return ExpenseAccount(

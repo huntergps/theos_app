@@ -10,9 +10,6 @@ import '../../models/warehouses/warehouse.model.dart';
 import 'sale_order_enums.dart';
 import 'sale_order_line.model.dart';
 
-// Re-export enums for backwards compatibility
-export 'sale_order_enums.dart';
-
 part 'sale_order.model.freezed.dart';
 part 'sale_order.model.g.dart';
 
@@ -47,7 +44,8 @@ abstract class SaleOrder with _$SaleOrder {
 
   const factory SaleOrder({
     @OdooId() required int id,
-    @OdooLocalOnly() String? orderUuid, // UUID local para sincronizacion offline-first
+    @OdooLocalOnly()
+    String? orderUuid, // UUID local para sincronizacion offline-first
     @OdooString() required String name, // Referencia (SO001)
     @OdooSelection() required SaleOrderState state,
 
@@ -65,10 +63,14 @@ abstract class SaleOrder with _$SaleOrder {
     @OdooLocalOnly() String? partnerPhone,
     @OdooLocalOnly() String? partnerEmail,
     @OdooLocalOnly() String? partnerAvatar,
-    @OdooMany2One('res.partner', odooName: 'partner_invoice_id') int? partnerInvoiceId,
-    @OdooMany2OneName(sourceField: 'partner_invoice_id') String? partnerInvoiceAddress,
-    @OdooMany2One('res.partner', odooName: 'partner_shipping_id') int? partnerShippingId,
-    @OdooMany2OneName(sourceField: 'partner_shipping_id') String? partnerShippingAddress,
+    @OdooMany2One('res.partner', odooName: 'partner_invoice_id')
+    int? partnerInvoiceId,
+    @OdooMany2OneName(sourceField: 'partner_invoice_id')
+    String? partnerInvoiceAddress,
+    @OdooMany2One('res.partner', odooName: 'partner_shipping_id')
+    int? partnerShippingId,
+    @OdooMany2OneName(sourceField: 'partner_shipping_id')
+    String? partnerShippingAddress,
 
     // Vendedor y equipo
     @OdooMany2One('res.users', odooName: 'user_id') int? userId,
@@ -85,14 +87,16 @@ abstract class SaleOrder with _$SaleOrder {
     @OdooMany2OneName(sourceField: 'warehouse_id') String? warehouseName,
 
     // Lista de precios y moneda
-    @OdooMany2One('product.pricelist', odooName: 'pricelist_id') int? pricelistId,
+    @OdooMany2One('product.pricelist', odooName: 'pricelist_id')
+    int? pricelistId,
     @OdooMany2OneName(sourceField: 'pricelist_id') String? pricelistName,
     @OdooMany2One('res.currency', odooName: 'currency_id') int? currencyId,
     @OdooLocalOnly() String? currencySymbol,
     @OdooFloat(odooName: 'currency_rate') @Default(1.0) double currencyRate,
 
     // Condiciones comerciales
-    @OdooMany2One('account.payment.term', odooName: 'payment_term_id') int? paymentTermId,
+    @OdooMany2One('account.payment.term', odooName: 'payment_term_id')
+    int? paymentTermId,
     @OdooMany2OneName(sourceField: 'payment_term_id') String? paymentTermName,
 
     // Payment type (synced from Odoo: payment_term_id.is_cash / is_credit)
@@ -104,26 +108,44 @@ abstract class SaleOrder with _$SaleOrder {
     // Campo custom l10n_ec_collection_box — requiere módulo instalado
     @OdooBoolean(odooName: 'is_credit') @Default(false) bool isCredit,
 
-    @OdooMany2One('account.fiscal.position', odooName: 'fiscal_position_id') int? fiscalPositionId,
-    @OdooMany2OneName(sourceField: 'fiscal_position_id') String? fiscalPositionName,
+    @OdooMany2One('account.fiscal.position', odooName: 'fiscal_position_id')
+    int? fiscalPositionId,
+    @OdooMany2OneName(sourceField: 'fiscal_position_id')
+    String? fiscalPositionName,
 
     // Montos — campos computados por Odoo (readonly)
-    @OdooFloat(odooName: 'amount_untaxed', writable: false) @Default(0.0) double amountUntaxed,
-    @OdooFloat(odooName: 'amount_tax', writable: false) @Default(0.0) double amountTax,
-    @OdooFloat(odooName: 'amount_total', writable: false) @Default(0.0) double amountTotal,
-    @OdooFloat(odooName: 'amount_to_invoice', writable: false) @Default(0.0) double amountToInvoice,
-    @OdooFloat(odooName: 'amount_invoiced', writable: false) @Default(0.0) double amountInvoiced,
+    @OdooFloat(odooName: 'amount_untaxed', writable: false)
+    @Default(0.0)
+    double amountUntaxed,
+    @OdooFloat(odooName: 'amount_tax', writable: false)
+    @Default(0.0)
+    double amountTax,
+    @OdooFloat(odooName: 'amount_total', writable: false)
+    @Default(0.0)
+    double amountTotal,
+    @OdooFloat(odooName: 'amount_to_invoice', writable: false)
+    @Default(0.0)
+    double amountToInvoice,
+    @OdooFloat(odooName: 'amount_invoiced', writable: false)
+    @Default(0.0)
+    double amountInvoiced,
 
     // Estado de facturacion — campos computados por Odoo (readonly)
-    @OdooSelection(odooName: 'invoice_status', writable: false) @Default(InvoiceStatus.no) InvoiceStatus invoiceStatus,
-    @OdooInteger(odooName: 'invoice_count', writable: false) @Default(0) int invoiceCount,
+    @OdooSelection(odooName: 'invoice_status', writable: false)
+    @Default(InvoiceStatus.no)
+    InvoiceStatus invoiceStatus,
+    @OdooInteger(odooName: 'invoice_count', writable: false)
+    @Default(0)
+    int invoiceCount,
 
     // Notas y referencias
     @OdooString(odooName: 'note') String? note,
     @OdooString(odooName: 'client_order_ref') String? clientOrderRef,
 
     // Firma digital
-    @OdooBoolean(odooName: 'require_signature') @Default(false) bool requireSignature,
+    @OdooBoolean(odooName: 'require_signature')
+    @Default(false)
+    bool requireSignature,
     @OdooString(odooName: 'signature') String? signature,
     @OdooString(odooName: 'signed_by') String? signedBy,
     @OdooDateTime(odooName: 'signed_on') DateTime? signedOn,
@@ -132,25 +154,41 @@ abstract class SaleOrder with _$SaleOrder {
     // Odoo 19.5 (erp1): 'require_payment' ya no existe en sale.order del
     // servidor (smoke fields_get, julio 2026).
     @OdooLocalOnly() @Default(false) bool requirePayment,
-    @OdooFloat(odooName: 'prepayment_percent') @Default(0.0) double prepaymentPercent,
+    @OdooFloat(odooName: 'prepayment_percent')
+    @Default(0.0)
+    double prepaymentPercent,
 
     // Control — campos computados por Odoo (readonly)
-    @OdooBoolean(odooName: 'locked', writable: false) @Default(false) bool locked,
-    @OdooBoolean(odooName: 'is_expired', writable: false) @Default(false) bool isExpired,
+    @OdooBoolean(odooName: 'locked', writable: false)
+    @Default(false)
+    bool locked,
+    @OdooBoolean(odooName: 'is_expired', writable: false)
+    @Default(false)
+    bool isExpired,
 
     // Descuentos (l10n_ec_sale_discount)
-    @OdooFloat(odooName: 'total_discount_amount') @Default(0.0) double totalDiscountAmount,
-    @OdooFloat(odooName: 'total_amount_undiscounted') @Default(0.0) double amountUntaxedUndiscounted,
+    @OdooFloat(odooName: 'total_discount_amount')
+    @Default(0.0)
+    double totalDiscountAmount,
+    @OdooFloat(odooName: 'total_amount_undiscounted')
+    @Default(0.0)
+    double amountUntaxedUndiscounted,
 
     // Consumidor Final (l10n_ec_sale_base)
-    @OdooBoolean(odooName: 'is_final_consumer') @Default(false) bool isFinalConsumer,
+    @OdooBoolean(odooName: 'is_final_consumer')
+    @Default(false)
+    bool isFinalConsumer,
     @OdooString(odooName: 'end_customer_name') String? endCustomerName,
     @OdooString(odooName: 'end_customer_phone') String? endCustomerPhone,
     @OdooString(odooName: 'end_customer_email') String? endCustomerEmail,
-    @OdooBoolean(odooName: 'exceeds_final_consumer_limit') @Default(false) bool exceedsFinalConsumerLimit,
+    @OdooBoolean(odooName: 'exceeds_final_consumer_limit')
+    @Default(false)
+    bool exceedsFinalConsumerLimit,
 
     // Facturacion postfechada (l10n_ec_sale_base)
-    @OdooBoolean(odooName: 'emitir_factura_fecha_posterior') @Default(false) bool emitirFacturaFechaPosterior,
+    @OdooBoolean(odooName: 'emitir_factura_fecha_posterior')
+    @Default(false)
+    bool emitirFacturaFechaPosterior,
     @OdooDate(odooName: 'fecha_facturar') DateTime? fechaFacturar,
 
     // Referidor (l10n_ec_sale_base)
@@ -162,22 +200,32 @@ abstract class SaleOrder with _$SaleOrder {
     @OdooString(odooName: 'canal_cliente') String? canalCliente,
 
     // Entregas/Picking (sale_stock)
-    @OdooMany2Many('stock.picking', odooName: 'picking_ids') @Default(<int>[]) List<int> pickingIds,
+    @OdooMany2Many('stock.picking', odooName: 'picking_ids')
+    @Default(<int>[])
+    List<int> pickingIds,
     @OdooString(odooName: 'delivery_status') String? deliveryStatus,
 
     // Tax totals JSON para desglose de impuestos
     @OdooJson(odooName: 'tax_totals') Map<String, dynamic>? taxTotals,
 
     // Credit Control (l10n_ec_sale_credit)
-    @OdooBoolean(odooName: 'credit_exceeded') @Default(false) bool creditExceeded,
-    @OdooBoolean(odooName: 'credit_check_bypassed') @Default(false) bool creditCheckBypassed,
+    @OdooBoolean(odooName: 'credit_exceeded')
+    @Default(false)
+    bool creditExceeded,
+    @OdooBoolean(odooName: 'credit_check_bypassed')
+    @Default(false)
+    bool creditCheckBypassed,
 
     // Additional Amounts
     @OdooFloat(odooName: 'amount_cash') @Default(0.0) double amountCash,
     @OdooLocalOnly() @Default(0.0) double amountUnpaid,
-    @OdooFloat(odooName: 'total_cost_amount') @Default(0.0) double totalCostAmount,
+    @OdooFloat(odooName: 'total_cost_amount')
+    @Default(0.0)
+    double totalCostAmount,
     @OdooFloat(odooName: 'margin', writable: false) @Default(0.0) double margin,
-    @OdooFloat(odooName: 'margin_percent', writable: false) @Default(0.0) double marginPercent,
+    @OdooFloat(odooName: 'margin_percent', writable: false)
+    @Default(0.0)
+    double marginPercent,
     @OdooFloat(odooName: 'retenido_amount') @Default(0.0) double retenidoAmount,
 
     // Approvals (l10n_ec_sale_credit)
@@ -187,13 +235,23 @@ abstract class SaleOrder with _$SaleOrder {
     @OdooString(odooName: 'rejected_reason') String? rejectedReason,
 
     // Collection Session (l10n_ec_collection_box)
-    @OdooMany2One('collection.session', odooName: 'collection_session_id') int? collectionSessionId,
-    @OdooMany2One('res.users', odooName: 'collection_user_id') int? collectionUserId,
-    @OdooMany2One('res.users', odooName: 'sale_created_user_id') int? saleCreatedUserId,
+    @OdooMany2One('collection.session', odooName: 'collection_session_id')
+    int? collectionSessionId,
+    @OdooMany2One('res.users', odooName: 'collection_user_id')
+    int? collectionUserId,
+    @OdooMany2One('res.users', odooName: 'sale_created_user_id')
+    int? saleCreatedUserId,
 
     // Dispatch Control (l10n_ec_sale_base)
-    @OdooBoolean(odooName: 'entregar_solo_pagado') @Default(false) bool entregarSoloPagado,
-    @OdooBoolean(odooName: 'es_para_despacho') @Default(false) bool esParaDespacho,
+    @OdooBoolean(
+      odooName: 'exige_pago_total_entrega',
+      driftName: 'entregarSoloPagado',
+    )
+    @Default(false)
+    bool entregarSoloPagado,
+    @OdooBoolean(odooName: 'es_para_despacho')
+    @Default(false)
+    bool esParaDespacho,
     @OdooString(odooName: 'nota_adicional') String? notaAdicional,
 
     // UUID for offline sync (l10n_ec_collection_box_pos)
@@ -244,26 +302,30 @@ abstract class SaleOrder with _$SaleOrder {
     // --- Constraint: Final consumer Ecuador ---
     if (isFinalConsumer && exceedsFinalConsumerLimit) {
       if (endCustomerName == null || endCustomerName!.isEmpty) {
-        errors['end_customer_name'] = 'Nombre de consumidor requerido para montos sobre el limite';
+        errors['end_customer_name'] =
+            'Nombre de consumidor requerido para montos sobre el limite';
       }
     }
 
     // --- Constraint: Postdated invoice ---
     if (emitirFacturaFechaPosterior && fechaFacturar == null) {
-      errors['fecha_facturar'] = 'Fecha de factura requerida para facturacion postfechada';
+      errors['fecha_facturar'] =
+          'Fecha de factura requerida para facturacion postfechada';
     }
 
     // --- Constraint: Validity date ---
     if (validityDate != null && dateOrder != null) {
       if (validityDate!.isBefore(dateOrder!)) {
-        errors['validity_date'] = 'La fecha de validez debe ser posterior a la fecha de orden';
+        errors['validity_date'] =
+            'La fecha de validez debe ser posterior a la fecha de orden';
       }
     }
 
     // --- Constraint: Commitment date ---
     if (commitmentDate != null && dateOrder != null) {
       if (commitmentDate!.isBefore(dateOrder!)) {
-        errors['commitment_date'] = 'La fecha de compromiso debe ser posterior a la fecha de orden';
+        errors['commitment_date'] =
+            'La fecha de compromiso debe ser posterior a la fecha de orden';
       }
     }
 
@@ -429,7 +491,9 @@ abstract class SaleOrder with _$SaleOrder {
   ///
   /// Usado para: Mostrar botones de accion como Cancelar, etc.
   bool get canEdit =>
-      !locked && state != SaleOrderState.cancel && state != SaleOrderState.rejected;
+      !locked &&
+      state != SaleOrderState.cancel &&
+      state != SaleOrderState.rejected;
 
   /// Indica si la orden puede ser editada (lineas, precios, partner, descuentos)
   ///
@@ -452,7 +516,7 @@ abstract class SaleOrder with _$SaleOrder {
   bool get isConfirmed => state == SaleOrderState.sale;
 
   /// Indica si la orden puede ser confirmada (boton verde "Confirmar Venta")
-  /// Visible en: draft, sent, approved (waiting_approval no porque necesita aprobacion)
+  /// Visible en: draft, sent, approved (waiting no porque necesita aprobacion)
   bool get canConfirm =>
       state == SaleOrderState.draft ||
       state == SaleOrderState.sent ||
@@ -461,7 +525,7 @@ abstract class SaleOrder with _$SaleOrder {
   /// Indica si la orden puede ser cancelada
   ///
   /// Segun Odoo Ecuador:
-  /// - draft, sent, waiting_approval, approved: Si (sin restriccion de lock)
+  /// - draft, sent, waiting, approved: Si (sin restriccion de lock)
   /// - sale: Solo si NO esta bloqueada
   /// - rejected, cancel: No (rejected se reactiva a draft primero)
   bool get canCancel =>
@@ -511,8 +575,7 @@ abstract class SaleOrder with _$SaleOrder {
   ///
   /// Nota: El estado locked NO afecta la capacidad de cobrar y facturar
   /// IMPORTANTE: Solo estado 'sale' permite pagos. 'approved' requiere confirmar primero.
-  bool get canAddPayments =>
-      !hasQueuedInvoice && state == SaleOrderState.sale;
+  bool get canAddPayments => !hasQueuedInvoice && state == SaleOrderState.sale;
 
   /// Indica si la orden puede ser facturada
   ///
@@ -524,8 +587,7 @@ abstract class SaleOrder with _$SaleOrder {
   /// - done: Ya completada (generalmente ya facturada)
   /// - cancel: Cancelada
   /// - hasQueuedInvoice: Ya hay una factura encolada esperando sync
-  bool get canInvoice =>
-      !hasQueuedInvoice && state == SaleOrderState.sale;
+  bool get canInvoice => !hasQueuedInvoice && state == SaleOrderState.sale;
 
   /// Indica si la orden ya esta completamente facturada
   ///
@@ -664,7 +726,9 @@ abstract class SaleOrder with _$SaleOrder {
     bool isCredit = false,
   }) {
     return SaleOrder(
-      id: -(DateTime.now().millisecondsSinceEpoch % 1000000000), // ID negativo temporal hasta sync
+      id:
+          -(DateTime.now().millisecondsSinceEpoch %
+              1000000000), // ID negativo temporal hasta sync
       orderUuid: null, // Se asignara al guardar
       name: 'Nuevo', // Se generara secuencia al confirmar
       state: SaleOrderState.draft,
@@ -703,9 +767,11 @@ abstract class SaleOrder with _$SaleOrder {
     FiscalPosition? fiscalPosition,
   }) {
     // Construir direccion de display
-    final clientAddress = [client.street, client.city, client.stateName]
-        .where((s) => s != null && s.isNotEmpty)
-        .join(', ');
+    final clientAddress = [
+      client.street,
+      client.city,
+      client.stateName,
+    ].where((s) => s != null && s.isNotEmpty).join(', ');
 
     return SaleOrder(
       id: 0,
@@ -720,9 +786,13 @@ abstract class SaleOrder with _$SaleOrder {
       partnerPhone: client.phone,
       partnerEmail: client.email,
       partnerInvoiceId: client.id,
-      partnerInvoiceAddress: clientAddress.isNotEmpty ? clientAddress : client.name,
+      partnerInvoiceAddress: clientAddress.isNotEmpty
+          ? clientAddress
+          : client.name,
       partnerShippingId: client.id,
-      partnerShippingAddress: clientAddress.isNotEmpty ? clientAddress : client.name,
+      partnerShippingAddress: clientAddress.isNotEmpty
+          ? clientAddress
+          : client.name,
       // Vendedor
       userId: user.id,
       userName: user.name,

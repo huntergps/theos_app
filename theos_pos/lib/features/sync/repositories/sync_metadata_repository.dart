@@ -1,7 +1,7 @@
 /// SyncMetadataRepository - Metadata de sincronización y limpieza de tablas
 ///
-/// Extraído de CatalogSyncRepository (Fase E2): guarda/lee el timestamp de
-/// última sync (global y por-modelo), y limpia tablas de catálogo.
+/// Extraído de CatalogSyncRepository (Fase E2): guarda/lee el estado de sync
+/// por modelo y limpia tablas de catálogo.
 library;
 
 import 'dart:convert';
@@ -19,57 +19,9 @@ class SyncMetadataRepository {
   final QwebTemplateSyncRepository _qwebTemplateSync;
 
   SyncMetadataRepository({
-    required AppDatabase appDb,
-    required QwebTemplateSyncRepository qwebTemplateSync,
-  })  : _appDb = appDb,
-        _qwebTemplateSync = qwebTemplateSync;
-
-  /// Margen de solape para el high-water-mark de `last_sync` (ver
-  /// [saveLastSyncTime]). Mismo criterio que `SyncNotifier._incrementalSyncOverlap`.
-  static const Duration _lastSyncOverlap = Duration(seconds: 60);
-
-  /// Get last sync time
-  Future<DateTime?> getLastSyncTime() async {
-    try {
-      final metadata = await (_appDb.select(
-        _appDb.syncMetadata,
-      )..where((t) => t.key.equals('last_sync'))).getSingleOrNull();
-      if (metadata != null) {
-        return DateTime.tryParse(metadata.value);
-      }
-    } catch (e) {
-      logger.e('[CatalogSync]', 'Error getting last sync time', e);
-    }
-    return null;
-  }
-
-  /// Save last sync time
-  ///
-  /// [syncStartTime] debe ser el timestamp de ANTES de iniciar el batch de
-  /// sync (no el de después de terminarlo) — ver comentario en
-  /// `CatalogSyncRepository.syncAllCatalogs` y [_lastSyncOverlap]. Se le
-  /// resta un margen fijo para cubrir registros modificados durante el
-  /// batch y desfase de reloj cliente/servidor.
-  ///
-  /// NOTA: originalmente `_saveLastSyncTime` (privado) en
-  /// `CatalogSyncRepository` — se hizo público porque ahora vive en una
-  /// clase distinta y `syncAllCatalogs()` (que se queda en el facade)
-  /// necesita invocarlo.
-  Future<void> saveLastSyncTime(DateTime syncStartTime) async {
-    try {
-      final lastSync = syncStartTime.subtract(_lastSyncOverlap);
-      await _appDb
-          .into(_appDb.syncMetadata)
-          .insertOnConflictUpdate(
-            SyncMetadataCompanion(
-              key: const Value('last_sync'),
-              value: Value(lastSync.toIso8601String()),
-            ),
-          );
-    } catch (e) {
-      logger.e('[CatalogSync]', 'Error saving last sync time', e);
-    }
-  }
+    required this._appDb,
+    required this._qwebTemplateSync,
+  });
 
   /// Get sync info for a specific model
   Future<SyncModelInfo> getModelSyncInfo(String modelName) async {

@@ -1,4 +1,2 @@
-/// Odoo session management
+/// Cookie-based web sessions are intentionally unsupported by this SDK.
 library;
-
-export 'odoo_session_manager.dart';

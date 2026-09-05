@@ -6,12 +6,15 @@ import 'package:syncfusion_flutter_datagrid/datagrid.dart';
 class TheosDataGridSource<T> extends DataGridSource {
   List<T> _data = [];
   List<DataGridRow> _dataGridRows = [];
+  List<DataGridRow> _visibleRows = [];
 
   /// Current page index (0-based) for pagination
   int _currentPageIndex = 0;
 
   /// Rows per page for pagination
   int _rowsPerPage = 80;
+
+  bool _paginationEnabled = false;
 
   /// Callback to convert a model item into a list of DataGridCells.
   final List<DataGridCell> Function(T item) rowBuilder;
@@ -25,6 +28,10 @@ class TheosDataGridSource<T> extends DataGridSource {
   /// Callback fired after sorting is performed
   void Function(List<SortColumnDetails>)? onSortingChanged;
 
+  /// Optional external page loader. When present, rows already represent one
+  /// database-backed page and this source must not slice them again.
+  Future<bool> Function(int pageIndex)? onExternalPageChange;
+
   TheosDataGridSource({
     required List<T> data,
     required this.rowBuilder,
@@ -34,17 +41,49 @@ class TheosDataGridSource<T> extends DataGridSource {
     updateData(data);
   }
 
-  /// Set the rows per page for pagination calculations
-  void setRowsPerPage(int rowsPerPage) {
+  /// Configures whether [rows] exposes a bounded page or the complete source.
+  void configurePagination({required bool enabled, required int rowsPerPage}) {
+    assert(rowsPerPage > 0, 'rowsPerPage must be positive');
+    final changed =
+        _paginationEnabled != enabled || _rowsPerPage != rowsPerPage;
+    _paginationEnabled = enabled;
     _rowsPerPage = rowsPerPage;
+    if (changed) {
+      _clampCurrentPage();
+      _refreshVisibleRows();
+      notifyListeners();
+    }
   }
 
+  /// Total number of model rows, independent from the current page.
+  int get totalRowCount => _dataGridRows.length;
+
+  /// Current page index, exposed for deterministic tests and pager state.
+  int get currentPageIndex => _currentPageIndex;
+
   /// Updates the data source with a new list of items.
-  void updateData(List<T> data) {
+  bool updateData(List<T> data, {bool notify = true}) {
+    // Providers may emit a new list instance for an unchanged query. Avoid
+    // rebuilding every DataGridRow in that case.
+    if (identical(data, _data) ||
+        (data.length == _data.length &&
+            data.asMap().entries.every(
+              (entry) =>
+                  identical(entry.value, _data[entry.key]) ||
+                  entry.value == _data[entry.key],
+            ))) {
+      return false;
+    }
     _data = data;
     _buildDataGridRows();
-    notifyListeners();
+    _clampCurrentPage();
+    _refreshVisibleRows();
+    if (notify) notifyListeners();
+    return true;
   }
+
+  /// Notifies a mounted grid after a build-safe batched update.
+  void notifyDataChanged() => notifyListeners();
 
   /// Returns the current list of items.
   List<T> get data => _data;
@@ -57,17 +96,28 @@ class TheosDataGridSource<T> extends DataGridSource {
   /// - Current page offset (for pagination)
   /// - Current sort order
   T? getItem(int visualRowIndex) {
-    // Calculate absolute index accounting for pagination
-    final absoluteIndex = (_currentPageIndex * _rowsPerPage) + visualRowIndex;
-
-    if (absoluteIndex < 0 || absoluteIndex >= _dataGridRows.length) return null;
-    final row = _dataGridRows[absoluteIndex];
+    if (visualRowIndex < 0 || visualRowIndex >= _visibleRows.length) {
+      return null;
+    }
+    final row = _visibleRows[visualRowIndex];
     return _rowMap[row];
   }
 
   @override
   Future<bool> handlePageChange(int oldPageIndex, int newPageIndex) async {
+    final externalPageChange = onExternalPageChange;
+    if (externalPageChange != null) {
+      final accepted = await externalPageChange(newPageIndex);
+      if (accepted) _currentPageIndex = newPageIndex;
+      return accepted;
+    }
+    if (!_paginationEnabled || newPageIndex == _currentPageIndex) {
+      return true;
+    }
     _currentPageIndex = newPageIndex;
+    _clampCurrentPage();
+    _refreshVisibleRows();
+    notifyListeners();
     return true;
   }
 
@@ -80,15 +130,38 @@ class TheosDataGridSource<T> extends DataGridSource {
     }).toList();
   }
 
+  void _clampCurrentPage() {
+    if (!_paginationEnabled || _dataGridRows.isEmpty) {
+      _currentPageIndex = 0;
+      return;
+    }
+    final lastPage = (_dataGridRows.length - 1) ~/ _rowsPerPage;
+    if (_currentPageIndex > lastPage) _currentPageIndex = lastPage;
+  }
+
+  void _refreshVisibleRows() {
+    if (!_paginationEnabled) {
+      _visibleRows = List.of(_dataGridRows);
+      return;
+    }
+    final start = _currentPageIndex * _rowsPerPage;
+    if (start >= _dataGridRows.length) {
+      _visibleRows = [];
+      return;
+    }
+    final end = (start + _rowsPerPage).clamp(0, _dataGridRows.length);
+    _visibleRows = _dataGridRows.sublist(start, end);
+  }
+
   @override
-  List<DataGridRow> get rows => _dataGridRows;
+  List<DataGridRow> get rows => _visibleRows;
 
   @override
   Future<void> performSorting(List<DataGridRow> rows) async {
     if (sortedColumns.isEmpty) return;
 
     for (final sortColumn in sortedColumns.reversed) {
-      rows.sort((a, b) {
+      _dataGridRows.sort((a, b) {
         final cellA = a.getCells().firstWhere(
           (cell) => cell.columnName == sortColumn.name,
           orElse: () => const DataGridCell(columnName: '', value: null),
@@ -120,8 +193,8 @@ class TheosDataGridSource<T> extends DataGridSource {
       });
     }
 
-    // IMPORTANT: Update _dataGridRows with the sorted order so getItem() works correctly
-    _dataGridRows = List.from(rows);
+    _currentPageIndex = 0;
+    _refreshVisibleRows();
 
     // Notify listeners about sorting change
     onSortingChanged?.call(sortedColumns);

@@ -7,8 +7,10 @@ import '../../../../../core/services/platform/global_notification_service.dart';
 import '../../../../../shared/widgets/reactive/reactive_field_base.dart';
 import '../../../../../shared/widgets/reactive/reactive_partner_card.dart';
 import '../../../../../shared/utils/formatting_utils.dart';
+import '../../../../clients/clients.dart'
+    show CreateClientOfflineDialog, showSelectClientDialog;
+import '../../../../products/products.dart' show SelectProductDialog;
 import '../../../widgets/partner_credit_info_card.dart';
-import '../../sale_order_form/edit_dialogs.dart';
 import '../fast_sale_providers.dart';
 import 'pos_order_config_card.dart';
 
@@ -49,108 +51,120 @@ class POSCustomerKeypadPanel extends ConsumerWidget {
             child: SingleChildScrollView(
               child: Column(
                 children: [
-          // 1. Order configuration card (pricelist, warehouse, etc.)
-          const Padding(
-            padding: EdgeInsets.all(Spacing.sm),
-            child: POSOrderConfigCard(),
-          ),
-
-          // 2. Customer card using ReactivePartnerCard
-          // Get partner details from database for complete info
-          Builder(
-            builder: (context) {
-              final partnerId = activeTab?.order?.partnerId;
-              final partnerAsync = partnerId != null
-                  ? ref.watch(partnerProvider(partnerId))
-                  : null;
-
-              // Get partner data from async provider (or use fallback from order)
-              final partner = partnerAsync?.value;
-
-              return Padding(
-                padding: const EdgeInsets.symmetric(horizontal: Spacing.sm),
-                child: ReactivePartnerCard(
-                  config: ReactiveFieldConfig(
-                    label: 'Cliente (F3)',
-                    isEditing: canEdit, // Only editable in draft/sent
-                    isCompact: !isExpanded,
+                  // 1. Order configuration card (pricelist, warehouse, etc.)
+                  const Padding(
+                    padding: EdgeInsets.all(Spacing.sm),
+                    child: POSOrderConfigCard(),
                   ),
-                  partner: PartnerInfo(
-                    id: partner?.id ?? activeTab?.order?.partnerId,
-                    name: partner?.name ?? activeTab?.order?.partnerName,
-                    vat: partner?.vat ?? activeTab?.order?.partnerVat,
-                    street: partner?.street ?? activeTab?.order?.partnerStreet,
-                    phone: (partner?.effectivePhone.isNotEmpty ?? false)
-                        ? partner!.effectivePhone
-                        : activeTab?.order?.partnerPhone,
-                    email: (partner?.effectiveEmail.isNotEmpty ?? false)
-                        ? partner!.effectiveEmail
-                        : activeTab?.order?.partnerEmail,
-                    avatar: partner?.avatar128 ?? activeTab?.order?.partnerAvatar,
-                    isFinalConsumer: activeTab?.order?.isFinalConsumer ?? false,
-                    endCustomerName: activeTab?.order?.endCustomerName,
-                    endCustomerPhone: activeTab?.order?.endCustomerPhone,
-                    endCustomerEmail: activeTab?.order?.endCustomerEmail,
-                    referrerId: activeTab?.order?.referrerId,
-                    referrerName: activeTab?.order?.referrerName,
-                  ),
-                  callbacks: PartnerCardCallbacks(
-                    onSelectPartner: canEdit
-                        ? () => _showCustomerSearchDialog(context, ref)
-                        : null,
-                    onCreatePartner: canEdit
-                        ? () => _showCreatePartnerDialog(context, ref)
-                        : null,
-                    onPhoneChanged: canEdit
-                        ? (value) => ref
-                              .read(fastSaleProvider.notifier)
-                              .updatePartnerPhone(value)
-                        : null,
-                    onEmailChanged: canEdit
-                        ? (value) => ref
-                              .read(fastSaleProvider.notifier)
-                              .updatePartnerEmail(value)
-                        : null,
-                    onEndCustomerNameChanged: canEdit
-                        ? (value) => ref
-                              .read(fastSaleProvider.notifier)
-                              .updateEndCustomerName(value)
-                        : null,
-                    onEndCustomerPhoneChanged: canEdit
-                        ? (value) => ref
-                              .read(fastSaleProvider.notifier)
-                              .updateEndCustomerPhone(value)
-                        : null,
-                    onEndCustomerEmailChanged: canEdit
-                        ? (value) => ref
-                              .read(fastSaleProvider.notifier)
-                              .updateEndCustomerEmail(value)
-                        : null,
-                    onSelectReferrer: canEdit
-                        ? () => _showSelectReferrerDialog(context, ref)
-                        : null,
-                  ),
-                  isCompact: !isExpanded,
-                ),
-              );
-            },
-          ),
 
-          // 3. Credit info table (shows when partner selected)
-          // Note: hideSyncButton=true because sync is handled in POSActionsPanel
-          if (activeTab?.order?.partnerId != null) ...[
-            const SizedBox(height: Spacing.sm),
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: Spacing.sm),
-              child: PartnerCreditInfoCard(
-                partnerId: activeTab?.order?.partnerId,
-                orderId: activeTab?.order?.id,
-                isCompact: !isExpanded,
-                hideSyncButton: true,
-              ),
-            ),
-            if (isExpanded) const SizedBox(height: Spacing.sm),
-          ],
+                  // 2. Customer card using ReactivePartnerCard
+                  // Get partner details from database for complete info
+                  Builder(
+                    builder: (context) {
+                      final partnerId = activeTab?.order?.partnerId;
+                      final partnerAsync = partnerId != null
+                          ? ref.watch(partnerProvider(partnerId))
+                          : null;
+
+                      // Get partner data from async provider (or use fallback from order)
+                      final partner = partnerAsync?.value;
+
+                      return Padding(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: Spacing.sm,
+                        ),
+                        child: ReactivePartnerCard(
+                          config: OdooFieldConfig(
+                            label: 'Cliente (F3)',
+                            isEditing: canEdit, // Only editable in draft/sent
+                            isCompact: !isExpanded,
+                          ),
+                          partner: PartnerInfo(
+                            id: partner?.id ?? activeTab?.order?.partnerId,
+                            name:
+                                partner?.name ?? activeTab?.order?.partnerName,
+                            vat: partner?.vat ?? activeTab?.order?.partnerVat,
+                            street:
+                                partner?.street ??
+                                activeTab?.order?.partnerStreet,
+                            phone: (partner?.effectivePhone.isNotEmpty ?? false)
+                                ? partner!.effectivePhone
+                                : activeTab?.order?.partnerPhone,
+                            email: (partner?.effectiveEmail.isNotEmpty ?? false)
+                                ? partner!.effectiveEmail
+                                : activeTab?.order?.partnerEmail,
+                            avatar:
+                                partner?.avatar128 ??
+                                activeTab?.order?.partnerAvatar,
+                            isFinalConsumer:
+                                activeTab?.order?.isFinalConsumer ?? false,
+                            endCustomerName: activeTab?.order?.endCustomerName,
+                            endCustomerPhone:
+                                activeTab?.order?.endCustomerPhone,
+                            endCustomerEmail:
+                                activeTab?.order?.endCustomerEmail,
+                            referrerId: activeTab?.order?.referrerId,
+                            referrerName: activeTab?.order?.referrerName,
+                          ),
+                          callbacks: PartnerCardCallbacks(
+                            onSelectPartner: canEdit
+                                ? () => _showCustomerSearchDialog(context, ref)
+                                : null,
+                            onCreatePartner: canEdit
+                                ? () => _showCreatePartnerDialog(context, ref)
+                                : null,
+                            onPhoneChanged: canEdit
+                                ? (value) => ref
+                                      .read(fastSaleProvider.notifier)
+                                      .updatePartnerPhone(value)
+                                : null,
+                            onEmailChanged: canEdit
+                                ? (value) => ref
+                                      .read(fastSaleProvider.notifier)
+                                      .updatePartnerEmail(value)
+                                : null,
+                            onEndCustomerNameChanged: canEdit
+                                ? (value) => ref
+                                      .read(fastSaleProvider.notifier)
+                                      .updateEndCustomerName(value)
+                                : null,
+                            onEndCustomerPhoneChanged: canEdit
+                                ? (value) => ref
+                                      .read(fastSaleProvider.notifier)
+                                      .updateEndCustomerPhone(value)
+                                : null,
+                            onEndCustomerEmailChanged: canEdit
+                                ? (value) => ref
+                                      .read(fastSaleProvider.notifier)
+                                      .updateEndCustomerEmail(value)
+                                : null,
+                            onSelectReferrer: canEdit
+                                ? () => _showSelectReferrerDialog(context, ref)
+                                : null,
+                          ),
+                          isCompact: !isExpanded,
+                        ),
+                      );
+                    },
+                  ),
+
+                  // 3. Credit info table (shows when partner selected)
+                  // Note: hideSyncButton=true because sync is handled in POSActionsPanel
+                  if (activeTab?.order?.partnerId != null) ...[
+                    const SizedBox(height: Spacing.sm),
+                    Padding(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: Spacing.sm,
+                      ),
+                      child: PartnerCreditInfoCard(
+                        partnerId: activeTab?.order?.partnerId,
+                        orderId: activeTab?.order?.id,
+                        isCompact: !isExpanded,
+                        hideSyncButton: true,
+                      ),
+                    ),
+                    if (isExpanded) const SizedBox(height: Spacing.sm),
+                  ],
                 ],
               ),
             ),
@@ -270,10 +284,7 @@ class POSCustomerKeypadPanel extends ConsumerWidget {
     if (client != null) {
       ref
           .read(fastSaleProvider.notifier)
-          .setReferrer(
-            referrerId: client.id,
-            referrerName: client.name,
-          );
+          .setReferrer(referrerId: client.id, referrerName: client.name);
     }
   }
 }

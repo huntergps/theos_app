@@ -1,7 +1,10 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../../core/database/providers.dart';
-import 'package:theos_pos_core/theos_pos_core.dart' hide DatabaseHelper, PartnerBank, CreditIssue;
+
+import 'package:theos_pos_core/theos_pos_core.dart'
+    hide DatabaseHelper, PartnerBank;
+
 import '../../../../advances/providers/advance_providers.dart';
 import '../../../../advances/services/advance_service.dart';
 import '../../../providers/service_providers.dart';
@@ -15,14 +18,18 @@ export 'pos_withhold_line_notifier.dart';
 /// Provider for payment lines stored by order ID
 /// `Map<orderId, List<PaymentLine>>`
 final posPaymentLinesByOrderProvider =
-    NotifierProvider<POSPaymentLinesByOrderNotifier, Map<int, List<PaymentLine>>>(
-        () => POSPaymentLinesByOrderNotifier());
+    NotifierProvider<
+      POSPaymentLinesByOrderNotifier,
+      Map<int, List<PaymentLine>>
+    >(() => POSPaymentLinesByOrderNotifier());
 
 /// Provider for withhold lines stored by order ID
 /// `Map<orderId, List<WithholdLine>>`
 final posWithholdLinesByOrderProvider =
-    NotifierProvider<POSWithholdLinesByOrderNotifier, Map<int, List<WithholdLine>>>(
-        () => POSWithholdLinesByOrderNotifier());
+    NotifierProvider<
+      POSWithholdLinesByOrderNotifier,
+      Map<int, List<WithholdLine>>
+    >(() => POSWithholdLinesByOrderNotifier());
 
 /// Provider for payment lines of the current active order
 final posPaymentLinesProvider = Provider<List<PaymentLine>>((ref) {
@@ -64,17 +71,20 @@ final _journalsConfigRefreshProvider = StreamProvider<void>((ref) {
 ///
 /// La carga de sesión desde BD se delega a [CurrentSession.ensureLoaded()] para
 /// evitar que este provider mute otro provider durante su fase de build.
-final posAvailableJournalsProvider = FutureProvider<List<AvailableJournal>>((ref) async {
+final posAvailableJournalsProvider = FutureProvider<List<AvailableJournal>>((
+  ref,
+) async {
   // Watch config stream — triggers rebuild when configs change in local DB
   ref.watch(_journalsConfigRefreshProvider);
 
   // Watch currentSessionProvider — triggers rebuild on session change.
   // Si es null, ensureLoaded() lo carga desde BD y actualiza el estado del
   // notifier sin que este provider lo haga directamente (evita "modify during build").
-  final currentSession = ref.watch(currentSessionProvider) ??
+  final currentSession =
+      ref.watch(currentSessionProvider) ??
       await ref.read(currentSessionProvider.notifier).ensureLoaded();
 
-  if (currentSession == null) {
+  if (currentSession == null || !currentSession.canRegisterTransactions) {
     logger.d('[POSPayment] No session available, returning empty journals');
     return [];
   }
@@ -89,51 +99,51 @@ final posAvailableJournalsProvider = FutureProvider<List<AvailableJournal>>((ref
 /// (withhold_vat_sale, withhold_income_sale) using the synced
 /// tax_group_l10n_ec_type field. Maps Tax -> AvailableWithholdTax
 /// with generated Spanish names. UI auto-updates when taxes are synced.
-final posWithholdTaxesStreamProvider = StreamProvider<List<AvailableWithholdTax>>((ref) {
-  return taxManager.watchLocalSearch(
-    domain: [
-      ['active', '=', true],
-    ],
-    orderBy: 'sequence, name',
-  ).map((taxes) {
-    return taxes
-        .where((tax) =>
-            tax.taxGroupL10nEcType == 'withhold_vat_sale' ||
-            tax.taxGroupL10nEcType == 'withhold_income_sale')
-        .map((tax) {
-      final percent = tax.amount.abs();
-      final percentStr = percent == percent.truncateToDouble()
-          ? percent.toInt().toString()
-          : percent.toStringAsFixed(2);
+final posWithholdTaxesStreamProvider =
+    StreamProvider<List<AvailableWithholdTax>>((ref) {
+      return taxManager
+          .watchLocalSearch(
+            domain: [
+              ['active', '=', true],
+            ],
+            orderBy: 'sequence, name',
+          )
+          .map((taxes) {
+            return taxes
+                .where(
+                  (tax) =>
+                      tax.taxGroupL10nEcType == 'withhold_vat_sale' ||
+                      tax.taxGroupL10nEcType == 'withhold_income_sale',
+                )
+                .map((tax) {
+                  final percent = tax.amount.abs();
+                  final percentStr = percent == percent.truncateToDouble()
+                      ? percent.toInt().toString()
+                      : percent.toStringAsFixed(2);
 
-      String spanishName;
-      if (tax.taxGroupL10nEcType == 'withhold_vat_sale') {
-        spanishName = '$percentStr% Ret. IVA';
-      } else {
-        spanishName = '$percentStr% Ret. de la Fuente';
-      }
+                  String spanishName;
+                  if (tax.taxGroupL10nEcType == 'withhold_vat_sale') {
+                    spanishName = '$percentStr% Ret. IVA';
+                  } else {
+                    spanishName = '$percentStr% Ret. de la Fuente';
+                  }
 
-      final withholdType = tax.taxGroupL10nEcType == 'withhold_vat_sale'
-          ? WithholdType.vatSale
-          : WithholdType.incomeSale;
+                  final withholdType =
+                      tax.taxGroupL10nEcType == 'withhold_vat_sale'
+                      ? WithholdType.vatSale
+                      : WithholdType.incomeSale;
 
-      return AvailableWithholdTax(
-        id: tax.id,
-        name: tax.name,
-        spanishName: spanishName,
-        amount: tax.amount,
-        withholdType: withholdType,
-      );
-    }).toList();
-  });
-});
-
-/// Provider for available withhold taxes (StreamProvider).
-///
-/// Directly exposes [posWithholdTaxesStreamProvider] — no FutureProvider
-/// facade needed since consumers use `.when()` which works with both types.
-/// Alias kept for backward compatibility.
-final posAvailableWithholdTaxesProvider = posWithholdTaxesStreamProvider;
+                  return AvailableWithholdTax(
+                    id: tax.id,
+                    name: tax.name,
+                    spanishName: spanishName,
+                    amount: tax.amount,
+                    withholdType: withholdType,
+                  );
+                })
+                .toList();
+          });
+    });
 
 /// Reactive stream of available advances for the active order's partner.
 ///
@@ -141,34 +151,41 @@ final posAvailableWithholdTaxesProvider = posWithholdTaxesStreamProvider;
 /// the original PaymentService query: advance_type=advance, state in
 /// [posted, in_use], amount_available > 0. Maps Advance -> AvailableAdvance.
 /// UI auto-updates when advances are synced or modified locally.
-final posAvailableAdvancesStream = StreamProvider<List<AvailableAdvance>>((ref) {
+final posAvailableAdvancesStream = StreamProvider<List<AvailableAdvance>>((
+  ref,
+) {
   final activeTab = ref.watch(fastSaleProvider.select((s) => s.activeTab));
   if (activeTab?.order?.partnerId == null) return Stream.value([]);
 
   final partnerId = activeTab!.order!.partnerId!;
-  return advanceManager.watchLocalSearch(
-    domain: [
-      ['partner_id', '=', partnerId],
-      ['advance_type', '=', 'advance'],
-      ['state', 'in', ['posted', 'in_use']],
-      ['amount_available', '>', 0],
-    ],
-    orderBy: 'date desc',
-  ).map((advances) => advances.map((a) => AvailableAdvance(
-    id: a.id,
-    name: a.name ?? '',
-    amountAvailable: a.amountAvailable,
-    date: a.date,
-    reference: a.reference,
-  )).toList());
+  return advanceManager
+      .watchLocalSearch(
+        domain: [
+          ['partner_id', '=', partnerId],
+          ['advance_type', '=', 'advance'],
+          [
+            'state',
+            'in',
+            ['posted', 'in_use'],
+          ],
+          ['amount_available', '>', 0],
+        ],
+        orderBy: 'date desc',
+      )
+      .map(
+        (advances) => advances
+            .map(
+              (a) => AvailableAdvance(
+                id: a.id,
+                name: a.name ?? '',
+                amountAvailable: a.amountAvailable,
+                date: a.date,
+                reference: a.reference,
+              ),
+            )
+            .toList(),
+      );
 });
-
-/// Provider for available advances (StreamProvider).
-///
-/// Directly exposes [posAvailableAdvancesStream] — no FutureProvider
-/// facade needed since consumers use `.when()` which works with both types.
-/// Alias kept for backward compatibility.
-final posAvailableAdvancesProvider = posAvailableAdvancesStream;
 
 /// Reactive stream of available credit notes for the active order's partner.
 ///
@@ -177,35 +194,42 @@ final posAvailableAdvancesProvider = posAvailableAdvancesStream;
 /// payment_state in [not_paid, partial], amount_residual > 0.
 /// Maps AccountMove -> AvailableCreditNote.
 /// UI auto-updates when credit notes are synced or modified locally.
-final posAvailableCreditNotesStream = StreamProvider<List<AvailableCreditNote>>((ref) {
-  final activeTab = ref.watch(fastSaleProvider.select((s) => s.activeTab));
-  if (activeTab?.order?.partnerId == null) return Stream.value([]);
+final posAvailableCreditNotesStream = StreamProvider<List<AvailableCreditNote>>(
+  (ref) {
+    final activeTab = ref.watch(fastSaleProvider.select((s) => s.activeTab));
+    if (activeTab?.order?.partnerId == null) return Stream.value([]);
 
-  final partnerId = activeTab!.order!.partnerId!;
-  return accountMoveManager.watchLocalSearch(
-    domain: [
-      ['partner_id', '=', partnerId],
-      ['move_type', '=', 'out_refund'],
-      ['state', '=', 'posted'],
-      ['payment_state', 'in', ['not_paid', 'partial']],
-      ['amount_residual', '>', 0],
-    ],
-    orderBy: 'invoice_date desc',
-  ).map((moves) => moves.map((nc) => AvailableCreditNote(
-    id: nc.id,
-    name: nc.name,
-    amountResidual: nc.amountResidual,
-    invoiceDate: nc.invoiceDate,
-    ref: nc.invoiceOrigin,
-  )).toList());
-});
-
-/// Provider for available credit notes (StreamProvider).
-///
-/// Directly exposes [posAvailableCreditNotesStream] — no FutureProvider
-/// facade needed since consumers use `.when()` which works with both types.
-/// Alias kept for backward compatibility.
-final posAvailableCreditNotesProvider = posAvailableCreditNotesStream;
+    final partnerId = activeTab!.order!.partnerId!;
+    return accountMoveManager
+        .watchLocalSearch(
+          domain: [
+            ['partner_id', '=', partnerId],
+            ['move_type', '=', 'out_refund'],
+            ['state', '=', 'posted'],
+            [
+              'payment_state',
+              'in',
+              ['not_paid', 'partial'],
+            ],
+            ['amount_residual', '>', 0],
+          ],
+          orderBy: 'invoice_date desc',
+        )
+        .map(
+          (moves) => moves
+              .map(
+                (nc) => AvailableCreditNote(
+                  id: nc.id,
+                  name: nc.name,
+                  amountResidual: nc.amountResidual,
+                  invoiceDate: nc.invoiceDate,
+                  ref: nc.invoiceOrigin,
+                ),
+              )
+              .toList(),
+        );
+  },
+);
 
 /// Reactive stream of partner bank accounts (for cheques).
 ///
@@ -217,26 +241,14 @@ final posAvailableCreditNotesProvider = posAvailableCreditNotesStream;
 /// (`advance_service.dart`) con el `PartnerBank` de `theos_pos_core` — fuera
 /// de alcance de este refactor.
 ///
-/// Los `ref.invalidate(posPartnerBanksProvider)` en `add_payment_dialog.dart`
-/// (tras crear una cuenta bancaria) ya no son estrictamente necesarios
-/// (el stream se actualiza solo), pero se dejan tal cual: son inofensivos y
-/// tocar ese archivo no está en el alcance de esta ronda.
 final posPartnerBanksStreamProvider = StreamProvider<List<PartnerBank>>((ref) {
   final activeTab = ref.watch(fastSaleProvider.select((s) => s.activeTab));
   final partnerId = activeTab?.order?.partnerId;
   if (partnerId == null) return Stream.value(const []);
 
   final advanceService = ref.watch(advanceServiceProvider);
-  if (advanceService == null) return Stream.value(const []);
   return advanceService.watchPartnerBanks(partnerId);
 });
-
-/// Provider for partner bank accounts (for cheques).
-///
-/// Directly exposes [posPartnerBanksStreamProvider] — no FutureProvider
-/// facade needed since consumers use `.when()` which works with both types.
-/// Alias kept for backward compatibility.
-final posPartnerBanksProvider = posPartnerBanksStreamProvider;
 
 /// Reactive stream of available banks (for card payments).
 ///
@@ -244,18 +256,12 @@ final posPartnerBanksProvider = posPartnerBanksStreamProvider;
 /// `res_bank`, ver nota en `BankRepository.watchBanks` — no existe un
 /// `bankManager` generado para este modelo todavía). La UI se actualiza sola
 /// cuando la tabla cambia, sin depender de que otro provider se invalide.
-final posAvailableBanksStreamProvider = StreamProvider<List<AvailableBank>>((ref) {
+final posAvailableBanksStreamProvider = StreamProvider<List<AvailableBank>>((
+  ref,
+) {
   final paymentService = ref.watch(paymentServiceProvider);
   return paymentService.watchBanks();
 });
-
-/// Provider for available banks (for card payments).
-///
-/// Directly exposes [posAvailableBanksStreamProvider] — no FutureProvider
-/// facade needed since consumers use `.when()` which works with both types.
-/// Alias kept for backward compatibility (mismo patrón que
-/// `posAvailableAdvancesProvider`/`posAvailableCreditNotesProvider`).
-final posAvailableBanksProvider = posAvailableBanksStreamProvider;
 
 /// Reactive stream family de marcas de tarjeta configuradas por diario.
 ///
@@ -266,39 +272,31 @@ final posAvailableBanksProvider = posAvailableBanksStreamProvider;
 /// combina el `.watch()` del diario con el `.watch()` de la tabla de marcas.
 /// La UI se actualiza sola cuando el diario o las marcas cambian en local
 /// (ej. tras el sync-on-demand que sigue disparando `getCardBrands`).
-final posCardBrandsByJournalStreamProvider =
-    StreamProvider.family<List<CardBrand>, int>((ref, journalId) {
-  final paymentService = ref.watch(paymentServiceProvider);
-  return paymentService.watchCardBrandsByJournal(journalId);
-});
-
-/// Provider family for card brands by journal.
-///
-/// Directly exposes [posCardBrandsByJournalStreamProvider] — no FutureProvider
-/// facade needed since consumers use `.whenData()`/`AsyncValue` which works
-/// with both types. Alias kept for backward compatibility (mismo patrón que
-/// `posAvailableAdvancesProvider`/`posAvailableCreditNotesProvider`).
-final posCardBrandsByJournalProvider = posCardBrandsByJournalStreamProvider;
+final posCardBrandsByJournalStreamProvider = StreamProvider.autoDispose
+    .family<List<CardBrand>, int>((ref, journalId) {
+      final paymentService = ref.watch(paymentServiceProvider);
+      return paymentService.watchCardBrandsByJournal(journalId);
+    });
 
 /// Reactive stream family de plazos de tarjeta configurados por diario y
 /// tipo de tarjeta (crédito/débito). Mismo patrón y motivo que
 /// [posCardBrandsByJournalStreamProvider] — ver
 /// `PaymentService.watchCardDeadlines`.
-final posCardDeadlinesStreamProvider = StreamProvider.family<List<CardDeadline>,
-    ({int journalId, CardType cardType})>((ref, params) {
-  final paymentService = ref.watch(paymentServiceProvider);
-  return paymentService.watchCardDeadlines(params.journalId, params.cardType);
-});
-
-/// Provider family for card deadlines by card type.
-///
-/// Directly exposes [posCardDeadlinesStreamProvider] — no FutureProvider
-/// facade needed since consumers use `.whenData()`/`AsyncValue` which works
-/// with both types. Alias kept for backward compatibility.
-final posCardDeadlinesProvider = posCardDeadlinesStreamProvider;
+final posCardDeadlinesStreamProvider = StreamProvider.autoDispose
+    .family<List<CardDeadline>, ({int journalId, CardType cardType})>((
+      ref,
+      params,
+    ) {
+      final paymentService = ref.watch(paymentServiceProvider);
+      return paymentService.watchCardDeadlines(
+        params.journalId,
+        params.cardType,
+      );
+    });
 
 /// Provider family for open lotes by journal
-final posOpenLotesProvider = FutureProvider.family<List<CardLote>, int>((ref, journalId) async {
-  final paymentService = ref.watch(paymentServiceProvider);
-  return paymentService.getOpenLotes(journalId);
-});
+final posOpenLotesProvider = FutureProvider.autoDispose
+    .family<List<CardLote>, int>((ref, journalId) async {
+      final paymentService = ref.watch(paymentServiceProvider);
+      return paymentService.getOpenLotes(journalId);
+    });

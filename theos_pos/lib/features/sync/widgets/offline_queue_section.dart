@@ -14,7 +14,8 @@ class OfflineQueueSection extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final queueState = ref.watch(offlineQueueProvider);
     final theme = FluentTheme.of(context);
-    final isOnline = ref.watch(catalogSyncRepositoryProvider)?.isOnline ?? false;
+    final isOnline =
+        ref.watch(catalogSyncRepositoryProvider)?.isOnline ?? false;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -104,9 +105,7 @@ class OfflineQueueSection extends ConsumerWidget {
       context: context,
       builder: (context) => ContentDialog(
         title: const Text('Eliminar Operacion'),
-        content: const Text(
-          'Esta operacion no sera sincronizada. Continuar?',
-        ),
+        content: const Text('Esta operacion no sera sincronizada. Continuar?'),
         actions: [
           Button(
             onPressed: () => Navigator.pop(context, false),
@@ -121,7 +120,9 @@ class OfflineQueueSection extends ConsumerWidget {
     );
 
     if (result == true) {
-      await ref.read(offlineQueueProvider.notifier).removeOperation(operationId);
+      await ref
+          .read(offlineQueueProvider.notifier)
+          .removeOperation(operationId);
     }
   }
 }
@@ -158,10 +159,7 @@ class _QueueHeader extends StatelessWidget {
               : theme.resources.textFillColorSecondary,
         ),
         const SizedBox(width: 8),
-        Text(
-          'Cola Offline',
-          style: theme.typography.subtitle,
-        ),
+        Text('Cola Offline', style: theme.typography.subtitle),
         const SizedBox(width: 8),
         if (totalCount > 0)
           Container(
@@ -242,11 +240,7 @@ class _PrioritySummary extends StatelessWidget {
             color: Colors.red,
           ),
         if (highCount > 0)
-          _PriorityChip(
-            label: 'Alto',
-            count: highCount,
-            color: Colors.orange,
-          ),
+          _PriorityChip(label: 'Alto', count: highCount, color: Colors.orange),
         if (normalCount > 0)
           _PriorityChip(
             label: 'Normal',
@@ -254,11 +248,7 @@ class _PrioritySummary extends StatelessWidget {
             color: Colors.blue,
           ),
         if (lowCount > 0)
-          _PriorityChip(
-            label: 'Bajo',
-            count: lowCount,
-            color: Colors.grey,
-          ),
+          _PriorityChip(label: 'Bajo', count: lowCount, color: Colors.grey),
       ],
     );
   }
@@ -293,10 +283,7 @@ class _PriorityChip extends StatelessWidget {
             Container(
               width: 8,
               height: 8,
-              decoration: BoxDecoration(
-                color: color,
-                shape: BoxShape.circle,
-              ),
+              decoration: BoxDecoration(color: color, shape: BoxShape.circle),
             ),
             const SizedBox(width: 6),
             Text(
@@ -328,11 +315,7 @@ class _EmptyQueueState extends StatelessWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(
-              FluentIcons.completed,
-              size: 48,
-              color: Colors.green,
-            ),
+            Icon(FluentIcons.completed, size: 48, color: Colors.green),
             const SizedBox(height: 12),
             Text(
               'Cola vacia',
@@ -359,10 +342,7 @@ class _OperationsList extends StatelessWidget {
   final List<OfflineOperation> operations;
   final void Function(int) onRemove;
 
-  const _OperationsList({
-    required this.operations,
-    required this.onRemove,
-  });
+  const _OperationsList({required this.operations, required this.onRemove});
 
   @override
   Widget build(BuildContext context) {
@@ -459,10 +439,7 @@ class _ModelOperationsGroup extends StatelessWidget {
       ),
       content: Column(
         children: operations.map((op) {
-          return _OperationTile(
-            operation: op,
-            onRemove: () => onRemove(op.id),
-          );
+          return _OperationTile(operation: op, onRemove: () => onRemove(op.id));
         }).toList(),
       ),
     );
@@ -474,10 +451,7 @@ class _OperationTile extends StatelessWidget {
   final OfflineOperation operation;
   final VoidCallback onRemove;
 
-  const _OperationTile({
-    required this.operation,
-    required this.onRemove,
-  });
+  const _OperationTile({required this.operation, required this.onRemove});
 
   Color _getPriorityColor() {
     switch (operation.priority) {
@@ -533,10 +507,7 @@ class _OperationTile extends StatelessWidget {
           shape: BoxShape.circle,
         ),
       ),
-      title: Text(
-        _getMethodDisplay(),
-        style: theme.typography.body,
-      ),
+      title: Text(_getMethodDisplay(), style: theme.typography.body),
       subtitle: Text(
         'Creado: ${dateFormat.format(operation.createdAt.toLocal())}',
         style: theme.typography.caption,

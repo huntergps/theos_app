@@ -16,16 +16,10 @@
 /// - [ClientRepository] - Offline-first data access
 ///
 /// **Providers:**
-/// - [clientByIdProvider] - Reactive stream of client by ID (StreamProvider)
-/// - [clientSearchProvider] - Search clients
 /// - [clientWithCreditProvider] - Get client with fresh credit data
-/// - [validateOrderCreditProvider] - Validate credit for order
 ///
 /// Usage:
 /// ```dart
-/// // Watch client reactively (auto-updates on DB changes)
-/// final clientAsync = ref.watch(clientByIdProvider(123));
-///
 /// // Computed fields (auto-calculated getters)
 /// final available = client?.creditAvailable;
 /// final status = client?.creditStatus;
@@ -40,7 +34,8 @@
 library;
 
 // Models - from theos_pos_core
-export 'package:theos_pos_core/theos_pos_core.dart' show Client, CreditStatus, ClientManager, clientManager;
+export 'package:theos_pos_core/theos_pos_core.dart'
+    show Client, CreditStatus, ClientManager, clientManager;
 
 // Services
 export 'services/client_validation_types.dart';
@@ -57,4 +52,3 @@ export 'providers/client_providers.dart';
 
 // Widgets
 export 'widgets/widgets.dart';
-

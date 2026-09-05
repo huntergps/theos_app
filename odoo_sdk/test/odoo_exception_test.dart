@@ -104,6 +104,24 @@ void main() {
         expect(exception.model, 'product.product');
         expect(exception.method, 'create');
       });
+
+      test('sanitizes credentials in public response fields', () {
+        const token = 'sk-live.ab_12';
+        final exception = OdooException.fromResponse({
+          'error': {
+            'message': 'Authorization: Bearer $token',
+            'data': {
+              'debug': 'session_id=short-_token',
+              'api_key': token,
+            },
+          },
+        });
+
+        expect(exception.message, isNot(contains(token)));
+        expect(exception.technicalDetails, isNot(contains('short-_token')));
+        expect(exception.data.toString(), isNot(contains(token)));
+        expect(exception.toString(), isNot(contains(token)));
+      });
     });
   });
 

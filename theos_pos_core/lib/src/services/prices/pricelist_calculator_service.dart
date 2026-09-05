@@ -86,15 +86,16 @@ class PricelistCalculatorService {
     for (final pricelistId in pricelistIds) {
       if (_pricelistRulesCache.containsKey(pricelistId)) continue;
 
-      final rules = await (_db.select(_db.productPricelistItem)
-            ..where((t) => t.pricelistId.equals(pricelistId))
-            ..orderBy([
-              (t) => OrderingTerm.asc(t.appliedOn),
-              (t) => OrderingTerm.desc(t.minQuantity),
-              (t) => OrderingTerm.desc(t.categId),
-              (t) => OrderingTerm.desc(t.odooId),
-            ]))
-          .get();
+      final rules =
+          await (_db.select(_db.productPricelistItem)
+                ..where((t) => t.pricelistId.equals(pricelistId))
+                ..orderBy([
+                  (t) => OrderingTerm.asc(t.appliedOn),
+                  (t) => OrderingTerm.desc(t.minQuantity),
+                  (t) => OrderingTerm.desc(t.categId),
+                  (t) => OrderingTerm.desc(t.odooId),
+                ]))
+              .get();
 
       _pricelistRulesCache[pricelistId] = rules;
       logger.d(
@@ -119,7 +120,6 @@ class PricelistCalculatorService {
   /// [productUomId] - Product's base UoM ID (for UoM conversion)
   /// [listPrice] - product's list_price (in product UoM)
   /// [standardPrice] - product's standard_price/cost (in product UoM) - for cost-based rules
-  /// [productUomFactor] - DEPRECATED: UoM conversion factor (now calculated internally)
   Future<PriceCalculationResult> calculatePrice({
     required int productId,
     required int productTmplId,
@@ -129,7 +129,6 @@ class PricelistCalculatorService {
     int? productUomId,
     required double listPrice,
     double? standardPrice,
-    double productUomFactor = 1.0,
   }) async {
     // Check cache age and clear if stale
     _checkCacheAge();
@@ -663,9 +662,9 @@ class PricelistCalculatorService {
 
     while (currentCategoryId != null && depth < maxDepth) {
       // Get the category from DB
-      final category = await (_db.select(_db.productCategory)
-            ..where((t) => t.odooId.equals(currentCategoryId!)))
-          .getSingleOrNull();
+      final category = await (_db.select(
+        _db.productCategory,
+      )..where((t) => t.odooId.equals(currentCategoryId!))).getSingleOrNull();
 
       if (category == null) {
         break;
@@ -728,9 +727,9 @@ class PricelistCalculatorService {
     );
 
     // Get product category
-    final product = await (_db.select(_db.productProduct)
-          ..where((t) => t.odooId.equals(productId)))
-        .getSingleOrNull();
+    final product = await (_db.select(
+      _db.productProduct,
+    )..where((t) => t.odooId.equals(productId))).getSingleOrNull();
 
     final int? categId = product?.categId;
     final effectiveProductUomId = productUomId ?? product?.uomId;
@@ -765,8 +764,7 @@ class PricelistCalculatorService {
 
     // Convert prices to sale UoM
     final listPriceInSaleUom = listPrice * uomConversionFactor;
-    final standardPriceInSaleUom =
-        effectiveStandardPrice * uomConversionFactor;
+    final standardPriceInSaleUom = effectiveStandardPrice * uomConversionFactor;
 
     // Handle recursive pricelist base
     if (rule.computePrice == 'formula' &&

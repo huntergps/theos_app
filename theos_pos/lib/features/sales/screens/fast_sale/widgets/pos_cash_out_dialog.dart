@@ -6,11 +6,7 @@ class _CashOutResult {
   final double amount;
   final String? reason;
 
-  _CashOutResult({
-    required this.success,
-    required this.amount,
-    this.reason,
-  });
+  _CashOutResult({required this.success, required this.amount, this.reason});
 }
 
 /// Diálogo para registrar salida de dinero
@@ -87,7 +83,8 @@ class _CashOutDialogState extends ConsumerState<_CashOutDialog> {
         CopyableInfoBar.showError(
           context,
           title: 'Error de retiro de efectivo',
-          message: 'No se pudo registrar la salida de efectivo. Intente nuevamente.',
+          message:
+              'No se pudo registrar la salida de efectivo. Intente nuevamente.',
         );
       }
     }
@@ -108,7 +105,9 @@ class _CashOutDialogState extends ConsumerState<_CashOutDialog> {
               controller: _amountController,
               placeholder: '0.00',
               autofocus: true,
-              keyboardType: const TextInputType.numberWithOptions(decimal: true),
+              keyboardType: const TextInputType.numberWithOptions(
+                decimal: true,
+              ),
               prefix: const Padding(
                 padding: EdgeInsets.only(left: 8),
                 child: Text('\$'),

@@ -1,9 +1,11 @@
 import 'dart:convert';
+
 import 'package:fluent_ui/fluent_ui.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter_acrylic/flutter_acrylic.dart';
 import 'package:uuid/uuid.dart';
+
 import '../../shared/models/app_config_model.dart';
 import '../../shared/models/config_profile.dart';
 
@@ -541,7 +543,13 @@ class ConfigService extends _$ConfigService {
     _saveConfig();
   }
 
-  void updateWindowPosition(double width, double height, double x, double y, {bool? isMaximized}) {
+  void updateWindowPosition(
+    double width,
+    double height,
+    double x,
+    double y, {
+    bool? isMaximized,
+  }) {
     state = state.copyWith(
       windowWidth: width,
       windowHeight: height,

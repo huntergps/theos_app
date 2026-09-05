@@ -357,9 +357,13 @@ mixin SessionInfoCache<DB extends IOdooDatabase> on BaseRepository<DB> {
   static DateTime? _sessionInfoCacheTime;
   static const _sessionInfoCacheDuration = Duration(minutes: 5);
 
-  /// Get session_info from cache or fetch from Odoo
+  /// Get cached session metadata.
   ///
-  /// Returns null if offline or fetch fails.
+  /// The SDK transport is JSON-2/Bearer.  Odoo's legacy
+  /// `ir.http/session_info` route belongs to the cookie-based web client and
+  /// is not a JSON-2 model method (and is not CORS-enabled in browsers).
+  /// Therefore this mixin must never issue that request.  Callers that need
+  /// identity/company data should query `res.users` through JSON-2 instead.
   Future<Map<String, dynamic>?> getSessionInfoCached() async {
     // Check cache first
     if (_cachedSessionInfo != null &&
@@ -374,22 +378,8 @@ mixin SessionInfoCache<DB extends IOdooDatabase> on BaseRepository<DB> {
       return _cachedSessionInfo; // Return stale cache or null
     }
 
-    try {
-      final sessionInfo = await odooClient!.call(
-        model: 'ir.http',
-        method: 'session_info',
-        kwargs: {},
-      );
-
-      if (sessionInfo is Map<String, dynamic>) {
-        _cachedSessionInfo = sessionInfo;
-        _sessionInfoCacheTime = DateTime.now();
-        return sessionInfo;
-      }
-    } catch (e) {
-      // Return stale cache on error
-    }
-
+    // Do not call ir.http/session_info here; it would create an avoidable
+    // browser network/CORS failure and is incompatible with API-key auth.
     return _cachedSessionInfo;
   }
 

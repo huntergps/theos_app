@@ -49,7 +49,9 @@ class OdooException implements Exception {
 
   @override
   String toString() {
-    final buffer = StringBuffer('OdooException: $message');
+    final buffer = StringBuffer(
+      'OdooException: ${ErrorSanitizer.sanitize(message)}',
+    );
     if (statusCode > 0) buffer.write(' (HTTP $statusCode)');
     if (model != null && method != null) buffer.write(' [$model.$method]');
     if (data != null) buffer.write('\nData: ${_sanitizeData(data!)}');
@@ -58,7 +60,7 @@ class OdooException implements Exception {
 
   /// Sanitize exception data to prevent credential leaks in logs/stack traces.
   static String _sanitizeData(Map<String, dynamic> data) {
-    return CredentialMasker.maskMap(data);
+    return ErrorSanitizer.sanitize(CredentialMasker.maskMap(data));
   }
 
   /// Create from Odoo error response data
@@ -114,6 +116,12 @@ class OdooException implements Exception {
       }
     }
 
+    message = ErrorSanitizer.sanitize(message);
+    technicalDetails = technicalDetails == null
+        ? null
+        : ErrorSanitizer.sanitize(technicalDetails);
+    errorData = _sanitizeExceptionMap(errorData);
+
     return OdooException(
       message: message,
       statusCode: statusCode ?? 0,
@@ -122,6 +130,47 @@ class OdooException implements Exception {
       data: errorData,
       technicalDetails: technicalDetails,
     );
+  }
+
+  static Map<String, dynamic>? _sanitizeExceptionMap(
+    Map<String, dynamic>? value,
+  ) {
+    if (value == null) return null;
+    return value.map(
+      (key, item) => MapEntry(key, _sanitizeExceptionValue(key, item)),
+    );
+  }
+
+  static dynamic _sanitizeExceptionValue(String key, dynamic value) {
+    final normalizedKey = key.toLowerCase().replaceAll('-', '_');
+    const sensitiveFragments = {
+      'api_key',
+      'apikey',
+      'authorization',
+      'cookie',
+      'credential',
+      'password',
+      'private_key',
+      'secret',
+      'session_id',
+      'token',
+    };
+    if (sensitiveFragments.any(normalizedKey.contains)) {
+      return ErrorSanitizer.redactedPlaceholder;
+    }
+    if (value is String) return ErrorSanitizer.sanitize(value);
+    if (value is Map) {
+      return value.map<String, dynamic>(
+        (nestedKey, nestedValue) => MapEntry(
+          nestedKey.toString(),
+          _sanitizeExceptionValue(nestedKey.toString(), nestedValue),
+        ),
+      );
+    }
+    if (value is List) {
+      return value.map((item) => _sanitizeExceptionValue(key, item)).toList();
+    }
+    return value;
   }
 }
 
@@ -141,8 +190,18 @@ class OdooBadRequestException extends OdooException {
 ///
 /// Indicates invalid or missing authentication credentials.
 class OdooAuthenticationException extends OdooException {
-  const OdooAuthenticationException(String message)
-      : super(message: message, statusCode: 401);
+  const OdooAuthenticationException(
+    String message, {
+    int statusCode = 401,
+  }) : super(message: message, statusCode: statusCode);
+}
+
+/// Exception for an authenticated web session that is no longer valid.
+class OdooSessionExpiredException extends OdooAuthenticationException {
+  const OdooSessionExpiredException([
+    String message = 'Session expired',
+    int statusCode = 403,
+  ]) : super(message, statusCode: statusCode);
 }
 
 /// Exception for HTTP 403 Forbidden errors.
@@ -161,12 +220,52 @@ class OdooNotFoundException extends OdooException {
       : super(message: message, statusCode: 404);
 }
 
+/// Exception for a model method that is unavailable on the target server.
+class OdooMethodNotFoundException extends OdooException {
+  final String targetModel;
+  final String methodName;
+
+  const OdooMethodNotFoundException({
+    required this.targetModel,
+    required this.methodName,
+    required String message,
+    int statusCode = 404,
+  }) : super(
+          message: message,
+          statusCode: statusCode,
+          model: targetModel,
+          method: methodName,
+        );
+}
+
+/// Exception for a field that is unavailable on the target server model.
+class OdooFieldNotFoundException extends OdooException {
+  final String targetModel;
+  final String fieldName;
+
+  const OdooFieldNotFoundException({
+    required this.targetModel,
+    required this.fieldName,
+    required String message,
+    String? method,
+    int statusCode = 422,
+  }) : super(
+          message: message,
+          statusCode: statusCode,
+          model: targetModel,
+          method: method,
+        );
+}
+
 /// Exception for HTTP 500 Server errors.
 ///
 /// Indicates an unhandled error on the Odoo server.
 class OdooServerException extends OdooException {
-  const OdooServerException(String message, [Map<String, dynamic>? data])
-      : super(message: message, statusCode: 500, data: data);
+  const OdooServerException(
+    String message, [
+    Map<String, dynamic>? data,
+    int statusCode = 500,
+  ]) : super(message: message, statusCode: statusCode, data: data);
 }
 
 // ============================================================================
@@ -180,9 +279,13 @@ class OdooValidationException extends OdooException {
   /// Field-specific validation errors.
   final Map<String, List<String>>? fieldErrors;
 
-  OdooValidationException(String message, [Map<String, dynamic>? data])
+  OdooValidationException(
+    String message, [
+    Map<String, dynamic>? data,
+    int statusCode = 400,
+  ])
       : fieldErrors = _extractFieldErrors(data),
-        super(message: message, statusCode: 400, data: data);
+        super(message: message, statusCode: statusCode, data: data);
 
   static Map<String, List<String>>? _extractFieldErrors(
       Map<String, dynamic>? data) {
@@ -213,6 +316,13 @@ class OdooTimeoutException extends OdooException {
 class OdooConnectionException extends OdooException {
   const OdooConnectionException([String message = 'No server connection'])
       : super(message: message, statusCode: 0);
+}
+
+/// Exception for a request deliberately cancelled by its caller.
+class OdooRequestCancelledException extends OdooException {
+  const OdooRequestCancelledException([
+    String message = 'Request cancelled',
+  ]) : super(message: message, statusCode: 0);
 }
 
 // ============================================================================
@@ -302,7 +412,10 @@ extension OdooExceptionToFailure on OdooException {
       OdooAuthenticationException() ||
       OdooAccessDeniedException() =>
         AuthFailure(message: message, originalError: this),
-      OdooNotFoundException() || OdooRecordNotFoundException() =>
+      OdooNotFoundException() ||
+      OdooMethodNotFoundException() ||
+      OdooFieldNotFoundException() ||
+      OdooRecordNotFoundException() =>
         NotFoundFailure(message: message, originalError: this),
       OdooValidationException(:final fieldErrors) =>
         ValidationFailure(
@@ -310,7 +423,9 @@ extension OdooExceptionToFailure on OdooException {
           fieldErrors: fieldErrors,
           originalError: this,
         ),
-      OdooTimeoutException() || OdooConnectionException() =>
+      OdooTimeoutException() ||
+      OdooConnectionException() ||
+      OdooRequestCancelledException() =>
         NetworkFailure(message: message, originalError: this),
       OdooOfflineException() =>
         OfflineFailure(message: message, originalError: this),

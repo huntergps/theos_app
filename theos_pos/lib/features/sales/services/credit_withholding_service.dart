@@ -1,6 +1,8 @@
 import '../../../core/services/odoo_service.dart';
 import '../../../shared/utils/error_utils.dart';
+
 import 'package:theos_pos_core/theos_pos_core.dart' hide DatabaseHelper;
+
 import 'payment_service_models.dart';
 
 /// Servicio de crédito del cliente, registro de retenciones y aprobación de
@@ -29,13 +31,14 @@ class CreditWithholdingService {
         model: 'res.partner',
         method: 'search_read',
         kwargs: {
-          'domain': [['id', '=', partnerId]],
+          'domain': [
+            ['id', '=', partnerId],
+          ],
           'fields': [
             'credit_limit',
             'credit',
             'credit_to_invoice',
             'total_overdue',
-            'unpaid_invoices_count',
             'credit_available',
             'allow_over_credit',
           ],
@@ -54,7 +57,10 @@ class CreditWithholdingService {
         creditUsed: (data['credit'] as num?)?.toDouble() ?? 0,
         creditToInvoice: (data['credit_to_invoice'] as num?)?.toDouble() ?? 0,
         totalOverdue: (data['total_overdue'] as num?)?.toDouble() ?? 0,
-        unpaidInvoicesCount: data['unpaid_invoices_count'] as int? ?? 0,
+        // ERP2 does not expose an unpaid invoice counter on res.partner.
+        // Keep the local/UI contract deterministic until it is calculated
+        // from account.move data by a dedicated offline aggregate.
+        unpaidInvoicesCount: 0,
         creditAvailable: (data['credit_available'] as num?)?.toDouble() ?? 0,
         allowOverCredit: data['allow_over_credit'] as bool? ?? false,
       );
@@ -150,7 +156,9 @@ class CreditWithholdingService {
       final wizardId = await _odoo.call(
         model: 'l10n_ec.wizard.account.withhold',
         method: 'create',
-        kwargs: {'vals_list': [wizardVals]},
+        kwargs: {
+          'vals_list': [wizardVals],
+        },
         context: {
           'active_ids': [invoiceId],
           'active_model': 'account.move',
@@ -163,7 +171,10 @@ class CreditWithholdingService {
       }
 
       final id = wizardId is List ? wizardId[0] as int : wizardId as int;
-      logger.d('[PaymentService]', 'Created withhold wizard: $id for invoice $invoiceId');
+      logger.d(
+        '[PaymentService]',
+        'Created withhold wizard: $id for invoice $invoiceId',
+      );
 
       // Agregar líneas de retención
       for (final line in lines) {
@@ -174,10 +185,11 @@ class CreditWithholdingService {
             'vals_list': [
               {
                 'wizard_id': id,
-                'invoice_id': invoiceId, // Link to invoice for taxsupport computation
+                'invoice_id':
+                    invoiceId, // Link to invoice for taxsupport computation
                 'tax_id': line.taxId,
                 'base': line.base,
-              }
+              },
             ],
           },
         );
@@ -188,7 +200,7 @@ class CreditWithholdingService {
       final result = await _odoo.call(
         model: 'l10n_ec.wizard.account.withhold',
         method: 'action_create_and_post_withhold',
-        kwargs: {'ids': [id]},
+        ids: [id],
       );
 
       // Obtener el ID de la retención creada
@@ -205,13 +217,16 @@ class CreditWithholdingService {
           model: 'account.move',
           method: 'search_read',
           kwargs: {
-            'domain': [['id', '=', withholdId]],
+            'domain': [
+              ['id', '=', withholdId],
+            ],
             'fields': ['name'],
             'limit': 1,
           },
         );
         if (withhold is List && withhold.isNotEmpty) {
-          withholdName = (withhold[0] as Map<String, dynamic>)['name'] as String?;
+          withholdName =
+              (withhold[0] as Map<String, dynamic>)['name'] as String?;
         }
       }
 
@@ -287,7 +302,9 @@ class CreditWithholdingService {
       final wizardId = await _odoo.call(
         model: 'credit.limit.exceeded.wizard',
         method: 'create',
-        kwargs: {'vals_list': [wizardVals]},
+        kwargs: {
+          'vals_list': [wizardVals],
+        },
       );
 
       if (wizardId == null) {
@@ -300,7 +317,7 @@ class CreditWithholdingService {
       await _odoo.call(
         model: 'credit.limit.exceeded.wizard',
         method: 'action_create_approval_request',
-        kwargs: {'ids': [id]},
+        ids: [id],
       );
 
       // La orden debe quedar en estado 'waiting'

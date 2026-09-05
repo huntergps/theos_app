@@ -8,9 +8,14 @@ import '../../repositories/sales_repository.dart'; // Extension methods (getWith
 import '../../../../core/theme/spacing.dart';
 import '../../../../shared/widgets/dialogs/copyable_info_bar.dart';
 import '../../../clients/clients.dart'
-    show clientWithCreditProvider, clientCreditServiceProvider, clientRepositoryProvider;
+    show
+        clientWithCreditProvider,
+        clientCreditServiceProvider,
+        clientRepositoryProvider;
 import '../../../invoices/invoices.dart';
+
 import 'package:theos_pos_core/theos_pos_core.dart';
+
 import '../../providers/providers.dart';
 import '../../widgets/totals/sales_order_totals.dart';
 import 'conflict_banner.dart';
@@ -35,7 +40,7 @@ import 'form_sections.dart';
 /// - Section 4: Totals
 /// - Section 5: Notes
 ///
-// Phase3-Item11: Reactive streams migration — ALL 4 STEPS COMPLETE.
+// The form consumes reactive Drift streams for all order state.
 //
 // ✅ Step 1 — View mode only: ref.listen() on stream providers auto-applies
 //   updates when !isEditing && !isSaving.
@@ -162,7 +167,10 @@ class _SaleOrderFormScreenState extends ConsumerState<SaleOrderFormScreen> {
     final partnerId = order.partnerId;
     final orderId = order.id;
 
-    logger.i('[SaleOrderForm]', '🔄 Starting data sync for partner $partnerId, order $orderId');
+    logger.i(
+      '[SaleOrderForm]',
+      '🔄 Starting data sync for partner $partnerId, order $orderId',
+    );
 
     // Show loading dialog
     if (!mounted) return;
@@ -233,7 +241,10 @@ class _SaleOrderFormScreenState extends ConsumerState<SaleOrderFormScreen> {
         try {
           final creditService = ref.read(clientCreditServiceProvider);
           if (creditService != null) {
-            await creditService.getClientWithCredit(partnerId, forceRefresh: true);
+            await creditService.getClientWithCredit(
+              partnerId,
+              forceRefresh: true,
+            );
             syncedItems.add('Crédito');
           }
           // Invalidate the provider to reload UI
@@ -250,16 +261,18 @@ class _SaleOrderFormScreenState extends ConsumerState<SaleOrderFormScreen> {
           final salesRepo = ref.read(salesRepositoryProvider);
           if (salesRepo != null) {
             // forceRefresh: false -> read from local DB only
-            final result = await salesRepo.getWithLines(orderId, forceRefresh: false);
+            final result = await salesRepo.getWithLines(
+              orderId,
+              forceRefresh: false,
+            );
             final localOrder = result.$1;
             final localLines = result.$2;
 
             if (localOrder != null) {
               // Update form state with data from local DB (no loading flash)
-              ref.read(saleOrderFormProvider.notifier).updateOrderFromSync(
-                localOrder,
-                localLines,
-              );
+              ref
+                  .read(saleOrderFormProvider.notifier)
+                  .updateOrderFromSync(localOrder, localLines);
             }
           }
         } catch (e) {
@@ -270,7 +283,10 @@ class _SaleOrderFormScreenState extends ConsumerState<SaleOrderFormScreen> {
       // Close dialog
       closeDialog();
 
-      logger.i('[SaleOrderForm]', 'Sync completed. Items: ${syncedItems.join(", ")}. Errors: ${errors.length}');
+      logger.i(
+        '[SaleOrderForm]',
+        'Sync completed. Items: ${syncedItems.join(", ")}. Errors: ${errors.length}',
+      );
 
       // Show result
       if (!mounted) return;
@@ -284,7 +300,8 @@ class _SaleOrderFormScreenState extends ConsumerState<SaleOrderFormScreen> {
         CopyableInfoBar.showWarning(
           context,
           title: 'Sincronización parcial',
-          message: 'OK: ${syncedItems.join(", ")}\n\nErrores:\n${errors.join("\n")}',
+          message:
+              'OK: ${syncedItems.join(", ")}\n\nErrores:\n${errors.join("\n")}',
         );
       }
     } catch (e) {
@@ -317,7 +334,7 @@ class _SaleOrderFormScreenState extends ConsumerState<SaleOrderFormScreen> {
     // ── Step 1: View-mode reactive streams ──────────────────────────────
     // When the form is NOT editing and NOT saving, automatically apply
     // updates from the local DB stream (Drift watch) so the user sees
-    // real-time changes from sync / WebSocket / other tabs.
+    // changes from sync / other tabs.
     // When editing, show a non-intrusive notification instead.
     if (!widget.isNew && widget.orderId > 0) {
       // Listen to order header changes
@@ -336,20 +353,24 @@ class _SaleOrderFormScreenState extends ConsumerState<SaleOrderFormScreen> {
           if (!formState.isEditing) {
             // Only update if the order actually changed
             if (formState.order != newOrder) {
-              ref.read(saleOrderFormProvider.notifier).updateOrderFromSync(
-                newOrder,
-                formState.lines, // lines handled separately below
-              );
+              ref
+                  .read(saleOrderFormProvider.notifier)
+                  .updateOrderFromSync(
+                    newOrder,
+                    formState.lines, // lines handled separately below
+                  );
             }
             return;
           }
 
           // Edit mode: set pending flag instead of overwriting user changes
           if (formState.order != newOrder) {
-            ref.read(saleOrderFormProvider.notifier).setServerUpdatePending(
-              newOrder,
-              null, // lines handled separately below
-            );
+            ref
+                .read(saleOrderFormProvider.notifier)
+                .setServerUpdatePending(
+                  newOrder,
+                  null, // lines handled separately below
+                );
           }
         },
       );
@@ -368,10 +389,9 @@ class _SaleOrderFormScreenState extends ConsumerState<SaleOrderFormScreen> {
           // View mode: auto-apply line updates
           if (!formState.isEditing && formState.order != null) {
             if (formState.lines != newLines) {
-              ref.read(saleOrderFormProvider.notifier).updateOrderFromSync(
-                formState.order!,
-                newLines,
-              );
+              ref
+                  .read(saleOrderFormProvider.notifier)
+                  .updateOrderFromSync(formState.order!, newLines);
             }
             return;
           }
@@ -396,7 +416,11 @@ class _SaleOrderFormScreenState extends ConsumerState<SaleOrderFormScreen> {
       next,
     ) {
       if (next != null && next.isNotEmpty && mounted) {
-        CopyableInfoBar.showError(context, title: 'Error en la orden', message: next);
+        CopyableInfoBar.showError(
+          context,
+          title: 'Error en la orden',
+          message: next,
+        );
         ref.read(saleOrderFormProvider.notifier).clearError();
       }
     });
@@ -419,10 +443,7 @@ class _SaleOrderFormScreenState extends ConsumerState<SaleOrderFormScreen> {
     return _buildContent(isEditing: isEditing, order: order);
   }
 
-  Widget _buildContent({
-    required bool isEditing,
-    required SaleOrder? order,
-  }) {
+  Widget _buildContent({required bool isEditing, required SaleOrder? order}) {
     final effectiveIsEditing = isEditing || widget.isNew;
     final visibleLines = ref.watch(saleOrderFormVisibleLinesProvider);
 
@@ -461,9 +482,7 @@ class _SaleOrderFormScreenState extends ConsumerState<SaleOrderFormScreen> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             // Banner de conflicto si existe (ocultar cuando teclado visible)
-            if (hasConflict &&
-                conflictMessage != null &&
-                !isKeyboardVisible)
+            if (hasConflict && conflictMessage != null && !isKeyboardVisible)
               ConflictBanner(
                 message: conflictMessage,
                 conflicts: conflicts,
@@ -478,9 +497,7 @@ class _SaleOrderFormScreenState extends ConsumerState<SaleOrderFormScreen> {
               ),
 
             // Server update pending indicator (ocultar cuando teclado visible)
-            if (serverUpdatePending &&
-                effectiveIsEditing &&
-                !isKeyboardVisible)
+            if (serverUpdatePending && effectiveIsEditing && !isKeyboardVisible)
               Padding(
                 padding: const EdgeInsets.only(bottom: 8),
                 child: InfoBar(
@@ -581,10 +598,7 @@ class _SaleOrderFormScreenState extends ConsumerState<SaleOrderFormScreen> {
               // Right: Totals (fixed width)
               SizedBox(
                 width: 320,
-                child: SalesOrderTotals(
-                  order: order,
-                  lines: visibleLines,
-                ),
+                child: SalesOrderTotals(order: order, lines: visibleLines),
               ),
             ],
           );
@@ -656,4 +670,3 @@ class _SaleOrderFormScreenState extends ConsumerState<SaleOrderFormScreen> {
     );
   }
 }
-

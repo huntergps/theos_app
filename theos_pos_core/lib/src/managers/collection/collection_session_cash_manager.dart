@@ -46,9 +46,7 @@ extension CollectionSessionCashManagerBusiness on CollectionSessionCashManager {
           CollectionSessionCashCompanion.insert(
             odooId: cash.id,
             collectionSessionId: cash.collectionSessionId ?? 0,
-            cashType: drift.Value(cash.cashType == CashType.closing
-                ? 'closing'
-                : 'opening'),
+            cashType: cash.cashType == CashType.closing ? 'closing' : 'opening',
             bills100: drift.Value(cash.bills100),
             bills50: drift.Value(cash.bills50),
             bills20: drift.Value(cash.bills20),
@@ -79,9 +77,7 @@ extension CollectionSessionCashManagerBusiness on CollectionSessionCashManager {
               coins1Cent: drift.Variable(cash.coins1Cent),
               notes: drift.Variable(cash.notes),
             ),
-            target: [
-              _db.collectionSessionCash.odooId,
-            ],
+            target: [_db.collectionSessionCash.odooId],
           ),
         );
   }

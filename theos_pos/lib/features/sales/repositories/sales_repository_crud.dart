@@ -30,13 +30,16 @@ extension SalesRepositoryCrud on SalesRepository {
     if (_orderManager.isOnline) {
       try {
         // Build values map with required fields
-        final values = <String, dynamic>{
-          'partner_id': partnerId,
-        };
+        final values = <String, dynamic>{'partner_id': partnerId};
 
         if (warehouseId != null) values['warehouse_id'] = warehouseId;
+        if (userId != null) values['user_id'] = userId;
         if (pricelistId != null) values['pricelist_id'] = pricelistId;
         if (paymentTermId != null) values['payment_term_id'] = paymentTermId;
+        final localOrder = await _orderManager.getSaleOrder(tempId);
+        if (localOrder?.orderUuid?.isNotEmpty == true) {
+          values['x_uuid'] = localOrder!.orderUuid;
+        }
 
         // Add Final Consumer fields if applicable
         // This is required for Ecuador when partner VAT is 9999999999999
@@ -82,6 +85,95 @@ extension SalesRepositoryCrud on SalesRepository {
 
     // Return the local temp ID — offline queue will sync it later
     return tempId;
+  }
+
+  /// Creates an existing local-only order in Odoo without creating a second
+  /// local header. This is used by immediate confirmation and is idempotent by
+  /// `x_uuid`, so a lost response cannot duplicate the order on retry.
+  Future<int?> syncLocalOrderToOdoo(int localId) async {
+    if (localId >= 0 || !_orderManager.isOnline) return null;
+
+    var localOrder = await _orderManager.getSaleOrder(localId);
+    if (localOrder == null || localOrder.partnerId == null) return null;
+
+    var uuid = localOrder.orderUuid;
+    if (uuid == null || uuid.isEmpty) {
+      uuid = _uuid.v4();
+      localOrder = localOrder.copyWith(orderUuid: uuid, xUuid: uuid);
+      await _orderManager.upsertLocal(localOrder);
+      await _offlineQueue?.updatePendingCreateValues(localId, {'_uuid': uuid});
+    }
+
+    int? remoteId;
+    try {
+      final existing = await _orderManager.client.searchRead(
+        model: 'sale.order',
+        fields: const ['id'],
+        domain: [
+          ['x_uuid', '=', uuid],
+        ],
+        limit: 1,
+      );
+      if (existing.isNotEmpty) {
+        remoteId = existing.first['id'] as int?;
+      }
+    } catch (error) {
+      logger.w(
+        '[SalesRepository]',
+        'Could not preflight local order UUID before create: $error',
+      );
+    }
+
+    final values = <String, dynamic>{
+      ...localOrder.toOdoo(),
+      'x_uuid': uuid,
+      if (localOrder.isFinalConsumer) 'is_final_consumer': true,
+      if (localOrder.endCustomerName?.isNotEmpty == true)
+        'end_customer_name': localOrder.endCustomerName,
+      if (localOrder.endCustomerPhone?.isNotEmpty == true)
+        'end_customer_phone': localOrder.endCustomerPhone,
+      if (localOrder.endCustomerEmail?.isNotEmpty == true)
+        'end_customer_email': localOrder.endCustomerEmail,
+      if (localOrder.emitirFacturaFechaPosterior)
+        'emitir_factura_fecha_posterior': true,
+      if (localOrder.fechaFacturar != null)
+        'fecha_facturar': formatOdooDate(localOrder.fechaFacturar!),
+      if (localOrder.referrerId != null) 'referrer_id': localOrder.referrerId,
+      if (localOrder.tipoCliente?.isNotEmpty == true)
+        'tipo_cliente': localOrder.tipoCliente,
+      if (localOrder.canalCliente?.isNotEmpty == true)
+        'canal_cliente': localOrder.canalCliente,
+    };
+
+    if (remoteId == null) {
+      try {
+        remoteId = await _orderManager.client.create(
+          model: 'sale.order',
+          values: values,
+        );
+      } catch (error) {
+        // The request may have succeeded while its response was lost.
+        final existing = await _orderManager.client.searchRead(
+          model: 'sale.order',
+          fields: const ['id'],
+          domain: [
+            ['x_uuid', '=', uuid],
+          ],
+          limit: 1,
+        );
+        if (existing.isEmpty) rethrow;
+        remoteId = existing.first['id'] as int?;
+      }
+    }
+    if (remoteId == null) return null;
+
+    await _orderManager.updateSaleOrderRemoteId(localId, remoteId);
+    if (_offlineQueue != null) {
+      await _offlineQueue.updateOrderIdInPendingOperations(localId, remoteId);
+      await _offlineQueue.removePendingWritesForOrder(localId);
+      await _offlineQueue.removeOperationsForRecord('sale.order', localId);
+    }
+    return remoteId;
   }
 
   Future<int?> _createOffline({
@@ -166,31 +258,41 @@ extension SalesRepositoryCrud on SalesRepository {
         writeDate: now,
       );
 
-      // Save to local database
-      await _orderManager.upsertLocal(order);
+      Future<void> persistOrderAndIntent() async {
+        await _orderManager.upsertLocal(order);
+        if (_offlineQueue case final queue?) {
+          await queue.queueOperation(
+            model: 'sale.order',
+            method: 'create',
+            recordId: tempId,
+            values: {
+              'partner_id': partnerId,
+              'user_id': ?userId,
+              'warehouse_id': ?warehouseId,
+              'pricelist_id': ?pricelistId,
+              'payment_term_id': ?paymentTermId,
+              if (isFinalConsumer) 'is_final_consumer': true,
+              if (endCustomerName != null && endCustomerName.isNotEmpty)
+                'end_customer_name': endCustomerName,
+              '_uuid': orderUuid, // To map back after sync
+            },
+          );
+        }
+      }
+
+      // The local row and its durable replay intent share one Drift
+      // transaction. A queue write failure must never leave an order that the
+      // recovery loop cannot discover.
+      if (_offlineQueue != null) {
+        await _db.transaction(persistOrderAndIntent);
+      } else {
+        await persistOrderAndIntent();
+      }
+
       logger.i(
         '[SalesRepository]',
         'Created offline order: $tempId (UUID: $orderUuid)',
       );
-
-      // Queue for sync when online
-      if (_offlineQueue != null) {
-        await _offlineQueue.queueOperation(
-          model: 'sale.order',
-          method: 'create',
-          recordId: tempId,
-          values: {
-            'partner_id': partnerId,
-            'warehouse_id': ?warehouseId,
-            'pricelist_id': ?pricelistId,
-            'payment_term_id': ?paymentTermId,
-            if (isFinalConsumer) 'is_final_consumer': true,
-            if (endCustomerName != null && endCustomerName.isNotEmpty)
-              'end_customer_name': endCustomerName,
-            '_uuid': orderUuid, // To map back after sync
-          },
-        );
-      }
 
       return tempId;
     } catch (e) {
@@ -210,7 +312,10 @@ extension SalesRepositoryCrud on SalesRepository {
       final minId = orders.isNotEmpty ? orders.first.id : 0;
       return minId < 0 ? minId - 1 : -1;
     } catch (e) {
-      logger.w('[SalesRepository]', 'Error getting min order ID via manager, using fallback: $e');
+      logger.w(
+        '[SalesRepository]',
+        'Error getting min order ID via manager, using fallback: $e',
+      );
       // Fallback: use timestamp-based negative ID to avoid collisions
       return -(DateTime.now().millisecondsSinceEpoch % 1000000000);
     }
@@ -229,8 +334,17 @@ extension SalesRepositoryCrud on SalesRepository {
     // 2. Update local order with new values
     var updatedOrder = _applyValuesToOrder(existingOrder, values);
 
-    // 3. Enrich with partner details from local DB if partner changed
-    if (values.containsKey('partner_id')) {
+    // 3. Rebuild denormalized display names from local related records when
+    // any editable relation changes.
+    if (values.keys.any(
+      const {
+        'partner_id',
+        'payment_term_id',
+        'pricelist_id',
+        'warehouse_id',
+        'user_id',
+      }.contains,
+    )) {
       updatedOrder = await _enrichOrderWithLocalDataOnly(updatedOrder);
     }
 
@@ -320,30 +434,51 @@ extension SalesRepositoryCrud on SalesRepository {
       final val = values['payment_term_id'];
       updated = updated.copyWith(
         paymentTermId: val == false ? null : val as int?,
+        paymentTermName: null,
       );
     }
     if (values.containsKey('pricelist_id')) {
       final val = values['pricelist_id'];
       updated = updated.copyWith(
         pricelistId: val == false ? null : val as int?,
+        pricelistName: null,
       );
     }
     if (values.containsKey('warehouse_id')) {
       final val = values['warehouse_id'];
       updated = updated.copyWith(
         warehouseId: val == false ? null : val as int?,
+        warehouseName: null,
       );
     }
     if (values.containsKey('user_id')) {
       final val = values['user_id'];
-      updated = updated.copyWith(userId: val == false ? null : val as int?);
+      updated = updated.copyWith(
+        userId: val == false ? null : val as int?,
+        userName: null,
+      );
+    }
+    if (values.containsKey('date_order')) {
+      updated = updated.copyWith(
+        dateOrder: _saleOrderDateTimeValue(values['date_order']),
+      );
+    }
+    if (values.containsKey('validity_date')) {
+      updated = updated.copyWith(
+        validityDate: _saleOrderDateValue(values['validity_date']),
+      );
+    }
+    if (values.containsKey('commitment_date')) {
+      updated = updated.copyWith(
+        commitmentDate: _saleOrderDateTimeValue(values['commitment_date']),
+      );
     }
     if (values.containsKey('note')) {
-      updated = updated.copyWith(note: values['note'] as String?);
+      updated = updated.copyWith(note: _saleOrderStringValue(values['note']));
     }
     if (values.containsKey('client_order_ref')) {
       updated = updated.copyWith(
-        clientOrderRef: values['client_order_ref'] as String?,
+        clientOrderRef: _saleOrderStringValue(values['client_order_ref']),
       );
     }
 
@@ -371,6 +506,34 @@ extension SalesRepositoryCrud on SalesRepository {
         endCustomerEmail: val == false ? null : val as String?,
       );
     }
+    if (values.containsKey('emitir_factura_fecha_posterior')) {
+      updated = updated.copyWith(
+        emitirFacturaFechaPosterior:
+            values['emitir_factura_fecha_posterior'] == true,
+      );
+    }
+    if (values.containsKey('fecha_facturar')) {
+      updated = updated.copyWith(
+        fechaFacturar: _saleOrderDateValue(values['fecha_facturar']),
+      );
+    }
+    if (values.containsKey('referrer_id')) {
+      final value = values['referrer_id'];
+      updated = updated.copyWith(
+        referrerId: value == false ? null : value as int?,
+        referrerName: null,
+      );
+    }
+    if (values.containsKey('tipo_cliente')) {
+      updated = updated.copyWith(
+        tipoCliente: _saleOrderStringValue(values['tipo_cliente']),
+      );
+    }
+    if (values.containsKey('canal_cliente')) {
+      updated = updated.copyWith(
+        canalCliente: _saleOrderStringValue(values['canal_cliente']),
+      );
+    }
 
     return updated;
   }
@@ -386,14 +549,16 @@ extension SalesRepositoryCrud on SalesRepository {
 
       // 2. Delete invoices related to this order (via managers)
       final invoices = await accountMoveManager.searchLocal(
-        domain: [['sale_order_id', '=', orderId]],
+        domain: [
+          ['sale_order_id', '=', orderId],
+        ],
       );
       for (final invoice in invoices) {
         // Delete lines first, then invoice header
         final db = _db;
-        await (db.delete(db.accountMoveLine)
-              ..where((tbl) => tbl.moveId.equals(invoice.id)))
-            .go();
+        await (db.delete(
+          db.accountMoveLine,
+        )..where((tbl) => tbl.moveId.equals(invoice.id))).go();
         await accountMoveManager.deleteLocal(invoice.id);
       }
 
@@ -403,7 +568,7 @@ extension SalesRepositoryCrud on SalesRepository {
       logger.i(
         '[SalesRepository]',
         '🗑️ Deleted order $orderId and all child records '
-        '(${invoices.length} invoices)',
+            '(${invoices.length} invoices)',
       );
     } catch (e) {
       logger.e('[SalesRepository]', 'Error deleting order and children: $e');
@@ -488,4 +653,21 @@ extension SalesRepositoryCrud on SalesRepository {
       return false;
     }
   }
+}
+
+String? _saleOrderStringValue(Object? value) {
+  if (value == null || value == false) return null;
+  return value.toString();
+}
+
+DateTime? _saleOrderDateTimeValue(Object? value) {
+  if (value == null || value == false) return null;
+  if (value is DateTime) return value;
+  return parseOdooDateTime(value);
+}
+
+DateTime? _saleOrderDateValue(Object? value) {
+  if (value == null || value == false) return null;
+  if (value is DateTime) return value;
+  return parseOdooDate(value);
 }

@@ -1,7 +1,9 @@
 import 'package:drift/drift.dart';
 
 import 'package:theos_pos_core/theos_pos_core.dart';
+
 import '../../../core/services/handlers/model_record_handler.dart';
+
 import 'package:odoo_sdk/odoo_sdk.dart' as odoo;
 
 /// Handler for account.tax records
@@ -29,9 +31,9 @@ class TaxRecordHandler extends ModelRecordHandler {
 
   @override
   Future<bool> exists(AppDatabase db, int odooId) async {
-    final result = await (db.select(db.accountTax)
-          ..where((t) => t.odooId.equals(odooId)))
-        .getSingleOrNull();
+    final result = await (db.select(
+      db.accountTax,
+    )..where((t) => t.odooId.equals(odooId))).getSingleOrNull();
     return result != null;
   }
 
@@ -39,9 +41,9 @@ class TaxRecordHandler extends ModelRecordHandler {
   Future<void> upsert(AppDatabase db, Map<String, dynamic> data) async {
     final id = data['id'] as int;
 
-    final existing = await (db.select(db.accountTax)
-          ..where((t) => t.odooId.equals(id)))
-        .getSingleOrNull();
+    final existing = await (db.select(
+      db.accountTax,
+    )..where((t) => t.odooId.equals(id))).getSingleOrNull();
 
     final companion = AccountTaxCompanion(
       odooId: Value(id),
@@ -60,13 +62,18 @@ class TaxRecordHandler extends ModelRecordHandler {
       companyName: Value(odoo.extractMany2oneName(data['company_id'])),
       taxGroupId: Value(odoo.extractMany2oneId(data['tax_group_id'])),
       taxGroupName: Value(odoo.extractMany2oneName(data['tax_group_id'])),
-      taxGroupL10nEcType: Value(data['tax_group_l10n_ec_type'] is String ? data['tax_group_l10n_ec_type'] : null),
+      taxGroupL10nEcType: Value(
+        data['tax_group_l10n_ec_type'] is String
+            ? data['tax_group_l10n_ec_type']
+            : null,
+      ),
       writeDate: Value(odoo.parseOdooDateTime(data['write_date'])),
     );
 
     if (existing != null) {
-      await (db.update(db.accountTax)..where((t) => t.odooId.equals(id)))
-          .write(companion);
+      await (db.update(
+        db.accountTax,
+      )..where((t) => t.odooId.equals(id))).write(companion);
     } else {
       await db.into(db.accountTax).insert(companion);
     }
@@ -93,9 +100,9 @@ class FiscalPositionRecordHandler extends ModelRecordHandler {
 
   @override
   Future<bool> exists(AppDatabase db, int odooId) async {
-    final result = await (db.select(db.accountFiscalPosition)
-          ..where((t) => t.odooId.equals(odooId)))
-        .getSingleOrNull();
+    final result = await (db.select(
+      db.accountFiscalPosition,
+    )..where((t) => t.odooId.equals(odooId))).getSingleOrNull();
     return result != null;
   }
 
@@ -103,9 +110,9 @@ class FiscalPositionRecordHandler extends ModelRecordHandler {
   Future<void> upsert(AppDatabase db, Map<String, dynamic> data) async {
     final id = data['id'] as int;
 
-    final existing = await (db.select(db.accountFiscalPosition)
-          ..where((t) => t.odooId.equals(id)))
-        .getSingleOrNull();
+    final existing = await (db.select(
+      db.accountFiscalPosition,
+    )..where((t) => t.odooId.equals(id))).getSingleOrNull();
 
     final companion = AccountFiscalPositionCompanion(
       odooId: Value(id),
@@ -122,9 +129,9 @@ class FiscalPositionRecordHandler extends ModelRecordHandler {
     );
 
     if (existing != null) {
-      await (db.update(db.accountFiscalPosition)
-            ..where((t) => t.odooId.equals(id)))
-          .write(companion);
+      await (db.update(
+        db.accountFiscalPosition,
+      )..where((t) => t.odooId.equals(id))).write(companion);
     } else {
       await db.into(db.accountFiscalPosition).insert(companion);
     }
@@ -149,9 +156,9 @@ class PaymentTermRecordHandler extends ModelRecordHandler {
 
   @override
   Future<bool> exists(AppDatabase db, int odooId) async {
-    final result = await (db.select(db.accountPaymentTerm)
-          ..where((t) => t.odooId.equals(odooId)))
-        .getSingleOrNull();
+    final result = await (db.select(
+      db.accountPaymentTerm,
+    )..where((t) => t.odooId.equals(odooId))).getSingleOrNull();
     return result != null;
   }
 
@@ -159,9 +166,9 @@ class PaymentTermRecordHandler extends ModelRecordHandler {
   Future<void> upsert(AppDatabase db, Map<String, dynamic> data) async {
     final id = data['id'] as int;
 
-    final existing = await (db.select(db.accountPaymentTerm)
-          ..where((t) => t.odooId.equals(id)))
-        .getSingleOrNull();
+    final existing = await (db.select(
+      db.accountPaymentTerm,
+    )..where((t) => t.odooId.equals(id))).getSingleOrNull();
 
     final companion = AccountPaymentTermCompanion(
       odooId: Value(id),
@@ -174,9 +181,9 @@ class PaymentTermRecordHandler extends ModelRecordHandler {
     );
 
     if (existing != null) {
-      await (db.update(db.accountPaymentTerm)
-            ..where((t) => t.odooId.equals(id)))
-          .write(companion);
+      await (db.update(
+        db.accountPaymentTerm,
+      )..where((t) => t.odooId.equals(id))).write(companion);
     } else {
       await db.into(db.accountPaymentTerm).insert(companion);
     }

@@ -5,8 +5,8 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../../core/services/platform/global_notification_service.dart';
+import '../../../../products/products.dart' show SelectProductDialog;
 import '../../../screens/fast_sale/fast_sale_providers.dart';
-import '../../sale_order_form/edit_dialogs.dart';
 
 // ---------------------------------------------------------------------------
 // Constantes del detector de lector de código de barras
@@ -67,8 +67,7 @@ class BarcodeListenerWidget extends ConsumerStatefulWidget {
       _BarcodeListenerWidgetState();
 }
 
-class _BarcodeListenerWidgetState
-    extends ConsumerState<BarcodeListenerWidget> {
+class _BarcodeListenerWidgetState extends ConsumerState<BarcodeListenerWidget> {
   // Buffer de caracteres del escaneo en curso
   final StringBuffer _buffer = StringBuffer();
 
@@ -265,8 +264,7 @@ class _BarcodeListenerWidgetState
           if (matches != null && matches.isNotEmpty && mounted) {
             final selected = await showDialog<Map<String, dynamic>>(
               context: context,
-              builder: (context) =>
-                  SelectProductDialog(initialSearch: code),
+              builder: (context) => SelectProductDialog(initialSearch: code),
             );
 
             if (selected != null && mounted) {
@@ -288,8 +286,7 @@ class _BarcodeListenerWidgetState
                 uomName: selected['uom_id'] is List
                     ? (selected['uom_id'] as List)[1] as String
                     : null,
-                taxIds:
-                    (selected['taxes_id'] as List<dynamic>?)?.cast<int>(),
+                taxIds: (selected['taxes_id'] as List<dynamic>?)?.cast<int>(),
               );
 
               if (mounted) {
@@ -323,7 +320,9 @@ class _BarcodeListenerWidgetState
   String? _extractChar(KeyEvent event) {
     // Intentar obtener el carácter del campo keyLabel
     final label = event.character;
-    if (label != null && label.length == 1 && _kBarcodeCharPattern.hasMatch(label)) {
+    if (label != null &&
+        label.length == 1 &&
+        _kBarcodeCharPattern.hasMatch(label)) {
       return label;
     }
     return null;

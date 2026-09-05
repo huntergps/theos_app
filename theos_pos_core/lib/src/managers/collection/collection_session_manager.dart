@@ -25,9 +25,15 @@ extension CollectionSessionManagerBusiness on CollectionSessionManager {
   /// Get open session for current user
   Future<CollectionSession?> getOpenSession(int userId) async {
     final query = _db.select(_db.collectionSession)
-      ..where((t) =>
-          t.userId.equals(userId) &
-          (t.state.equals('opened') | t.state.equals('opening_control')));
+      ..where(
+        (t) =>
+            t.userId.equals(userId) &
+            (t.state.equals('opened') |
+                t.state.equals('paused') |
+                t.state.equals('opening_control')),
+      )
+      ..orderBy([(table) => drift.OrderingTerm.desc(table.startAt)])
+      ..limit(1);
     final result = await query.getSingleOrNull();
     return result != null ? fromDrift(result) : null;
   }
@@ -68,8 +74,7 @@ extension CollectionSessionManagerBusiness on CollectionSessionManager {
     // Get all sessions with positive odoo_id
     final allSessions = await (_db.select(
       _db.collectionSession,
-    )..where((tbl) => tbl.odooId.isBiggerThanValue(0)))
-        .get();
+    )..where((tbl) => tbl.odooId.isBiggerThanValue(0))).get();
 
     // Group by odoo_id
     final Map<int, List<CollectionSessionData>> grouped = {};
@@ -104,9 +109,9 @@ extension CollectionSessionManagerBusiness on CollectionSessionManager {
             '[CollectionSessionManager]',
             'Deleting duplicate: id=${toDelete.id}, name=${toDelete.name}',
           );
-          await (_db.delete(_db.collectionSession)
-                ..where((tbl) => tbl.id.equals(toDelete.id)))
-              .go();
+          await (_db.delete(
+            _db.collectionSession,
+          )..where((tbl) => tbl.id.equals(toDelete.id))).go();
           removedCount++;
         }
       }
@@ -116,14 +121,14 @@ extension CollectionSessionManagerBusiness on CollectionSessionManager {
     // with a synced session (these are leftover temp sessions)
     final tempSessions = await (_db.select(
       _db.collectionSession,
-    )..where((tbl) => tbl.odooId.equals(-1)))
-        .get();
+    )..where((tbl) => tbl.odooId.equals(-1))).get();
 
     for (final temp in tempSessions) {
-      final syncedWithSameUuid = await (_db.select(_db.collectionSession)
-            ..where((tbl) => tbl.sessionUuid.equals(temp.sessionUuid))
-            ..where((tbl) => tbl.odooId.isBiggerThanValue(0)))
-          .getSingleOrNull();
+      final syncedWithSameUuid =
+          await (_db.select(_db.collectionSession)
+                ..where((tbl) => tbl.sessionUuid.equals(temp.sessionUuid))
+                ..where((tbl) => tbl.odooId.isBiggerThanValue(0)))
+              .getSingleOrNull();
 
       if (syncedWithSameUuid != null) {
         logger.d(
@@ -131,9 +136,9 @@ extension CollectionSessionManagerBusiness on CollectionSessionManager {
           'Deleting orphan temp session: id=${temp.id}, name=${temp.name} '
               '(synced version exists with odooId=${syncedWithSameUuid.odooId})',
         );
-        await (_db.delete(_db.collectionSession)
-              ..where((tbl) => tbl.id.equals(temp.id)))
-            .go();
+        await (_db.delete(
+          _db.collectionSession,
+        )..where((tbl) => tbl.id.equals(temp.id))).go();
         removedCount++;
       }
     }
@@ -166,9 +171,10 @@ extension CollectionSessionManagerBusiness on CollectionSessionManager {
     // This handles the critical case where local session has temp odoo_id (-1)
     // but Odoo already created it and returns the same UUID
     if (session.sessionUuid?.isNotEmpty == true) {
-      final existingByUuid = await (_db.select(_db.collectionSession)
-            ..where((tbl) => tbl.sessionUuid.equals(session.sessionUuid!)))
-          .getSingleOrNull();
+      final existingByUuid =
+          await (_db.select(_db.collectionSession)
+                ..where((tbl) => tbl.sessionUuid.equals(session.sessionUuid!)))
+              .getSingleOrNull();
 
       if (existingByUuid != null) {
         logger.d(
@@ -176,40 +182,44 @@ extension CollectionSessionManagerBusiness on CollectionSessionManager {
           'updating odoo_id: ${existingByUuid.odooId} -> ${session.id}',
         );
         await (_db.update(_db.collectionSession)
-              ..where(
-                  (tbl) => tbl.sessionUuid.equals(session.sessionUuid!)))
+              ..where((tbl) => tbl.sessionUuid.equals(session.sessionUuid!)))
             .write(_buildCompanionFromModel(session));
-        logger.i('[CollectionSessionManager]', 'Session updated by UUID (Odoo UUID)');
+        logger.i(
+          '[CollectionSessionManager]',
+          'Session updated by UUID (Odoo UUID)',
+        );
         return;
       }
     }
 
     // STEP 2: Check if a session with this odoo_id already exists
     if (session.id > 0) {
-      final existingByOdooId = await (_db.select(_db.collectionSession)
-            ..where((tbl) => tbl.odooId.equals(session.id)))
-          .getSingleOrNull();
+      final existingByOdooId = await (_db.select(
+        _db.collectionSession,
+      )..where((tbl) => tbl.odooId.equals(session.id))).getSingleOrNull();
 
       if (existingByOdooId != null) {
         logger.d(
           '[CollectionSessionManager] Found existing by odoo_id=${session.id}, updating...',
         );
-        await (_db.update(_db.collectionSession)
-              ..where((tbl) => tbl.odooId.equals(session.id)))
-            .write(_buildCompanionFromModel(
-          session,
-          preserveUuid: existingByOdooId.sessionUuid.isNotEmpty,
-          effectiveUuid: effectiveUuid,
-        ));
+        await (_db.update(
+          _db.collectionSession,
+        )..where((tbl) => tbl.odooId.equals(session.id))).write(
+          _buildCompanionFromModel(
+            session,
+            preserveUuid: existingByOdooId.sessionUuid.isNotEmpty,
+            effectiveUuid: effectiveUuid,
+          ),
+        );
         logger.i('[CollectionSessionManager]', 'Session updated by odoo_id');
         return;
       }
     }
 
     // STEP 3: Check if a session with the effective UUID exists
-    final existingByUuid = await (_db.select(_db.collectionSession)
-          ..where((tbl) => tbl.sessionUuid.equals(effectiveUuid)))
-        .getSingleOrNull();
+    final existingByUuid = await (_db.select(
+      _db.collectionSession,
+    )..where((tbl) => tbl.sessionUuid.equals(effectiveUuid))).getSingleOrNull();
 
     if (existingByUuid != null) {
       logger.d(
@@ -244,12 +254,15 @@ extension CollectionSessionManagerBusiness on CollectionSessionManager {
       '[CollectionSessionManager] Odoo data: name="${odooSession.name}", id=${odooSession.id}',
     );
 
-    final localSession = await (_db.select(_db.collectionSession)
-          ..where((tbl) => tbl.sessionUuid.equals(sessionUuid)))
-        .getSingleOrNull();
+    final localSession = await (_db.select(
+      _db.collectionSession,
+    )..where((tbl) => tbl.sessionUuid.equals(sessionUuid))).getSingleOrNull();
 
     if (localSession == null) {
-      logger.w('[CollectionSessionManager]', 'No session found with UUID=$sessionUuid');
+      logger.w(
+        '[CollectionSessionManager]',
+        'No session found with UUID=$sessionUuid',
+      );
       return;
     }
 
@@ -259,9 +272,9 @@ extension CollectionSessionManagerBusiness on CollectionSessionManager {
     );
 
     // Update ALL fields from Odoo (but preserve sessionUuid!)
-    await (_db.update(_db.collectionSession)
-          ..where((tbl) => tbl.sessionUuid.equals(sessionUuid)))
-        .write(
+    await (_db.update(
+      _db.collectionSession,
+    )..where((tbl) => tbl.sessionUuid.equals(sessionUuid))).write(
       CollectionSessionCompanion(
         odooId: drift.Value(odooSession.id),
         name: drift.Value(odooSession.name),
@@ -367,12 +380,15 @@ extension CollectionSessionManagerBusiness on CollectionSessionManager {
   Future<CollectionSession?> getSessionByUuid(String uuid) async {
     logger.d('[CollectionSessionManager]', 'Looking for session by UUID=$uuid');
 
-    final result = await (_db.select(_db.collectionSession)
-          ..where((tbl) => tbl.sessionUuid.equals(uuid)))
-        .getSingleOrNull();
+    final result = await (_db.select(
+      _db.collectionSession,
+    )..where((tbl) => tbl.sessionUuid.equals(uuid))).getSingleOrNull();
 
     if (result == null) {
-      logger.e('[CollectionSessionManager]', 'No session found with UUID=$uuid');
+      logger.e(
+        '[CollectionSessionManager]',
+        'No session found with UUID=$uuid',
+      );
       return null;
     }
 
@@ -390,12 +406,15 @@ extension CollectionSessionManagerBusiness on CollectionSessionManager {
       '[CollectionSessionManager] Updating session UUID=$sessionUuid with Odoo ID=$newOdooId',
     );
 
-    final localSession = await (_db.select(_db.collectionSession)
-          ..where((tbl) => tbl.sessionUuid.equals(sessionUuid)))
-        .getSingleOrNull();
+    final localSession = await (_db.select(
+      _db.collectionSession,
+    )..where((tbl) => tbl.sessionUuid.equals(sessionUuid))).getSingleOrNull();
 
     if (localSession == null) {
-      logger.w('[CollectionSessionManager]', 'No session found with UUID=$sessionUuid');
+      logger.w(
+        '[CollectionSessionManager]',
+        'No session found with UUID=$sessionUuid',
+      );
       return;
     }
 
@@ -417,12 +436,15 @@ extension CollectionSessionManagerBusiness on CollectionSessionManager {
     logger.d('[CollectionSessionManager]', 'Looking for session with ID=$id');
 
     // First, try to find by exact odooId
-    var result = await (_db.select(_db.collectionSession)
-          ..where((tbl) => tbl.odooId.equals(id)))
-        .getSingleOrNull();
+    var result = await (_db.select(
+      _db.collectionSession,
+    )..where((tbl) => tbl.odooId.equals(id))).getSingleOrNull();
 
     if (result != null) {
-      logger.i('[CollectionSessionManager]', 'Found session by ID: ${result.name}');
+      logger.i(
+        '[CollectionSessionManager]',
+        'Found session by ID: ${result.name}',
+      );
     }
 
     // If not found and id is negative (temporary),
@@ -434,15 +456,16 @@ extension CollectionSessionManagerBusiness on CollectionSessionManager {
       );
 
       final oneMinuteAgo = DateTime.now().subtract(const Duration(minutes: 1));
-      final recentlySynced = await (_db.select(_db.collectionSession)
-            ..where((tbl) => tbl.isSynced.equals(true))
-            ..where((tbl) => tbl.odooId.isBiggerThanValue(0))
-            ..where(
-              (tbl) => tbl.lastSyncDate.isBiggerOrEqualValue(oneMinuteAgo),
-            )
-            ..orderBy([(tbl) => drift.OrderingTerm.desc(tbl.lastSyncDate)])
-            ..limit(1))
-          .getSingleOrNull();
+      final recentlySynced =
+          await (_db.select(_db.collectionSession)
+                ..where((tbl) => tbl.isSynced.equals(true))
+                ..where((tbl) => tbl.odooId.isBiggerThanValue(0))
+                ..where(
+                  (tbl) => tbl.lastSyncDate.isBiggerOrEqualValue(oneMinuteAgo),
+                )
+                ..orderBy([(tbl) => drift.OrderingTerm.desc(tbl.lastSyncDate)])
+                ..limit(1))
+              .getSingleOrNull();
 
       if (recentlySynced != null) {
         logger.d(
@@ -451,7 +474,10 @@ extension CollectionSessionManagerBusiness on CollectionSessionManager {
         );
         result = recentlySynced;
       } else {
-        logger.e('[CollectionSessionManager]', 'No recently synced session found');
+        logger.e(
+          '[CollectionSessionManager]',
+          'No recently synced session found',
+        );
       }
     }
 

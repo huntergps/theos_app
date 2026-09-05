@@ -16,7 +16,9 @@ class TaxBadge extends StatelessWidget {
       return Text('-', style: TextStyle(color: theme.inactiveColor));
     }
 
-    final displayName = TaxCalculatorService.getFirstSimplifiedTaxName(taxNames);
+    final displayName = TaxCalculatorService.getFirstSimplifiedTaxName(
+      taxNames,
+    );
 
     return Tooltip(
       message: taxNames!,

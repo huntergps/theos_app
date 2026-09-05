@@ -1,4 +1,5 @@
 import 'package:theos_pos_core/theos_pos_core.dart';
+
 import 'client_validation_types.dart';
 import 'client_calculator_service.dart';
 
@@ -216,10 +217,7 @@ class ClientValidationService {
   }
 
   /// Validate overdue debt
-  CreditValidationResult _validateOverdueDebt(
-    Client client,
-    Company? company,
-  ) {
+  CreditValidationResult _validateOverdueDebt(Client client, Company? company) {
     final daysThreshold = company?.creditOverdueDaysThreshold ?? 30;
     final invoicesThreshold = company?.creditOverdueInvoicesThreshold ?? 3;
 
@@ -249,14 +247,20 @@ class ClientValidationService {
     double orderAmount,
     bool isOnline,
   ) {
-    final creditAvailable = ClientCalculatorService.computeCreditAvailable(client);
-    final exceeded = ClientCalculatorService.computeExceededAmount(client, orderAmount);
+    final creditAvailable = ClientCalculatorService.computeCreditAvailable(
+      client,
+    );
+    final exceeded = ClientCalculatorService.computeExceededAmount(
+      client,
+      orderAmount,
+    );
 
     if (exceeded != null) {
       // Partner is allowed to exceed?
       if (client.allowOverCredit) {
         return CreditValidationResult.warning(
-          message: 'Crédito excedido en \$${exceeded.toStringAsFixed(2)} (permitido)',
+          message:
+              'Crédito excedido en \$${exceeded.toStringAsFixed(2)} (permitido)',
           creditAvailable: creditAvailable,
         );
       }
@@ -269,7 +273,8 @@ class ClientValidationService {
     }
 
     // Check usage percentage for warning
-    final usagePercentage = ClientCalculatorService.computeCreditUsagePercentage(client);
+    final usagePercentage =
+        ClientCalculatorService.computeCreditUsagePercentage(client);
     if (usagePercentage != null && usagePercentage >= 80) {
       return CreditValidationResult.warning(
         message: 'Uso de crédito: ${usagePercentage.toStringAsFixed(1)}%',

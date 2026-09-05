@@ -1,10 +1,8 @@
 import 'package:freezed_annotation/freezed_annotation.dart';
 
 import '../../../core/providers/base_feature_state.dart';
-import 'package:theos_pos_core/theos_pos_core.dart';
 
-// Re-export OperationResult from base_notifier for backwards compatibility
-export '../../../core/providers/base_notifier.dart' show OperationResult, OperationSuccess, OperationFailure;
+import 'package:theos_pos_core/theos_pos_core.dart';
 
 part 'collection_session_state.freezed.dart';
 
@@ -14,14 +12,15 @@ part 'collection_session_state.freezed.dart';
 /// Utiliza Freezed para generar copyWith, equals, hashCode y toString.
 /// Implements [BaseFeatureState] for standardized loading/error handling.
 @freezed
-abstract class CollectionSessionScreenState with _$CollectionSessionScreenState
+abstract class CollectionSessionScreenState
+    with _$CollectionSessionScreenState
     implements BaseFeatureState {
   const factory CollectionSessionScreenState({
     /// Indica si se esta cargando la sesion
     @Default(false) bool isLoading,
 
-    /// Indica si se esta sincronizando la sesion con Odoo
-    @Default(false) bool isSyncing,
+    /// Indica si se esta guardando o sincronizando la sesion con Odoo
+    @Default(false) bool isSaving,
 
     /// Indica si se esta registrando el fondo de apertura
     @Default(false) bool isRegisteringOpeningCash,
@@ -56,15 +55,11 @@ abstract class CollectionSessionScreenState with _$CollectionSessionScreenState
 
   const CollectionSessionScreenState._();
 
-  /// Alias for isSyncing for BaseFeatureState compatibility
-  @override
-  bool get isSaving => isSyncing;
-
   /// Verifica si hay alguna operacion en progreso
   @override
   bool get isProcessing =>
       isLoading ||
-      isSyncing ||
+      isSaving ||
       isRegisteringOpeningCash ||
       isRegisteringClosingCash ||
       isClosingSession;

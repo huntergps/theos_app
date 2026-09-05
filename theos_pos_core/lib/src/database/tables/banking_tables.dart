@@ -34,7 +34,8 @@ class ResPartnerBank extends Table {
   IntColumn get currencyId => integer().nullable()();
   IntColumn get sequence => integer().withDefault(const Constant(10))();
   BoolColumn get active => boolean().withDefault(const Constant(true))();
-  BoolColumn get allowOutPayment => boolean().withDefault(const Constant(true))();
+  BoolColumn get allowOutPayment =>
+      boolean().withDefault(const Constant(true))();
   DateTimeColumn get writeDate => dateTime().nullable()();
   // Sync tracking
   BoolColumn get isSynced => boolean().withDefault(const Constant(true))();
@@ -67,7 +68,8 @@ class ResCompanyTable extends Table {
   // Ecuador SRI fields
   TextColumn get l10nEcComercialName => text().nullable()();
   TextColumn get l10nEcLegalName => text().nullable()();
-  BoolColumn get l10nEcProductionEnv => boolean().withDefault(const Constant(false))();
+  BoolColumn get l10nEcProductionEnv =>
+      boolean().withDefault(const Constant(false))();
 
   // Document Layout fields
   TextColumn get reportHeaderImage => text().nullable()();
@@ -79,34 +81,48 @@ class ResCompanyTable extends Table {
   IntColumn get externalReportLayoutId => integer().nullable()();
 
   // Tax configuration
-  TextColumn get taxCalculationRoundingMethod => text().withDefault(const Constant('round_per_line'))();
+  TextColumn get taxCalculationRoundingMethod =>
+      text().withDefault(const Constant('round_per_line'))();
 
   // Sales Configuration
-  IntColumn get quotationValidityDays => integer().withDefault(const Constant(30))();
-  BoolColumn get portalConfirmationSign => boolean().withDefault(const Constant(false))();
-  BoolColumn get portalConfirmationPay => boolean().withDefault(const Constant(false))();
+  IntColumn get quotationValidityDays =>
+      integer().withDefault(const Constant(30))();
+  BoolColumn get portalConfirmationSign =>
+      boolean().withDefault(const Constant(false))();
+  BoolColumn get portalConfirmationPay =>
+      boolean().withDefault(const Constant(false))();
   RealColumn get prepaymentPercent => real().withDefault(const Constant(0.0))();
   IntColumn get saleDiscountProductId => integer().nullable()();
   TextColumn get saleDiscountProductName => text().nullable()();
-  BoolColumn get pedirEndCustomerData => boolean().withDefault(const Constant(false))();
-  BoolColumn get pedirSaleReferrer => boolean().withDefault(const Constant(false))();
-  BoolColumn get pedirTipoCanalCliente => boolean().withDefault(const Constant(false))();
+  BoolColumn get pedirEndCustomerData =>
+      boolean().withDefault(const Constant(false))();
+  BoolColumn get pedirSaleReferrer =>
+      boolean().withDefault(const Constant(false))();
+  BoolColumn get pedirTipoCanalCliente =>
+      boolean().withDefault(const Constant(false))();
   RealColumn get saleCustomerInvoiceLimitSri => real().nullable()();
-  RealColumn get maxDiscountPercentage => real().withDefault(const Constant(100.0))();
+  RealColumn get maxDiscountPercentage =>
+      real().withDefault(const Constant(0.0))();
 
   // Credit Control Configuration
-  IntColumn get creditOverdueDaysThreshold => integer().withDefault(const Constant(0))();
-  IntColumn get creditOverdueInvoicesThreshold => integer().withDefault(const Constant(0))();
-  RealColumn get creditOfflineSafetyMargin => real().withDefault(const Constant(0.0))();
-  IntColumn get creditDataMaxAgeHours => integer().withDefault(const Constant(24))();
+  IntColumn get creditOverdueDaysThreshold =>
+      integer().withDefault(const Constant(0))();
+  IntColumn get creditOverdueInvoicesThreshold =>
+      integer().withDefault(const Constant(0))();
+  RealColumn get creditOfflineSafetyMargin =>
+      real().withDefault(const Constant(0.0))();
+  IntColumn get creditDataMaxAgeHours =>
+      integer().withDefault(const Constant(24))();
 
   // Reservation Configuration
-  IntColumn get reservationExpiryDays => integer().withDefault(const Constant(7))();
+  IntColumn get reservationExpiryDays =>
+      integer().withDefault(const Constant(7))();
   IntColumn get reservationWarehouseId => integer().nullable()();
   TextColumn get reservationWarehouseName => text().nullable()();
   IntColumn get reservationLocationId => integer().nullable()();
   TextColumn get reservationLocationName => text().nullable()();
-  BoolColumn get reserveFromQuotation => boolean().withDefault(const Constant(false))();
+  BoolColumn get reserveFromQuotation =>
+      boolean().withDefault(const Constant(false))();
 
   // Sales defaults
   IntColumn get partnerId => integer().nullable()();

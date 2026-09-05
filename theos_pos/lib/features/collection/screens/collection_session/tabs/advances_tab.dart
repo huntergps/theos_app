@@ -5,6 +5,7 @@ import 'package:intl/intl.dart';
 import '../../../../../core/constants/app_colors.dart';
 import '../../../../../core/theme/spacing.dart';
 import '../../../../../shared/utils/formatting_utils.dart';
+
 import 'package:theos_pos_core/theos_pos_core.dart';
 
 import '../../../../advances/widgets/advance_detail_dialog.dart';
@@ -13,12 +14,14 @@ import '../../../../advances/widgets/advance_detail_dialog.dart';
 ///
 /// Uses `advanceManager.watchLocalSearch()` so UI auto-updates
 /// when advances are created, modified, or synced locally.
-final sessionAdvancesProvider =
-    StreamProvider.family<List<Advance>, int>((ref, sessionId) {
-  return advanceManager.watchLocalSearch(
-    domain: [['collection_session_id', '=', sessionId]],
-  );
-});
+final sessionAdvancesProvider = StreamProvider.autoDispose
+    .family<List<Advance>, int>((ref, sessionId) {
+      return advanceManager.watchLocalSearch(
+        domain: [
+          ['collection_session_id', '=', sessionId],
+        ],
+      );
+    });
 
 /// Tab de anticipos de la sesión de cobranza
 ///
@@ -83,11 +86,13 @@ class _AdvancesTabState extends ConsumerState<AdvancesTab> {
               if (_searchText.isNotEmpty) {
                 final search = _searchText.toLowerCase();
                 filtered = filtered
-                    .where((a) =>
-                        (a.name?.toLowerCase().contains(search) ?? false) ||
-                        (a.partnerName?.toLowerCase().contains(search) ??
-                            false) ||
-                        a.reference.toLowerCase().contains(search))
+                    .where(
+                      (a) =>
+                          (a.name?.toLowerCase().contains(search) ?? false) ||
+                          (a.partnerName?.toLowerCase().contains(search) ??
+                              false) ||
+                          a.reference.toLowerCase().contains(search),
+                    )
                     .toList();
               }
 
@@ -147,10 +152,7 @@ class _AdvancesTabState extends ConsumerState<AdvancesTab> {
             items: [
               const ComboBoxItem(value: null, child: Text('Todos')),
               ...AdvanceState.values.map(
-                (s) => ComboBoxItem(
-                  value: s,
-                  child: Text(s.label),
-                ),
+                (s) => ComboBoxItem(value: s, child: Text(s.label)),
               ),
             ],
             onChanged: (v) => setState(() => _filterState = v),
@@ -170,8 +172,10 @@ class _AdvancesTabState extends ConsumerState<AdvancesTab> {
 
   Widget _buildTotalsBar(FluentThemeData theme, List<Advance> advances) {
     final totalAmount = advances.fold(0.0, (sum, a) => sum + a.amount);
-    final totalAvailable =
-        advances.fold(0.0, (sum, a) => sum + a.amountAvailable);
+    final totalAvailable = advances.fold(
+      0.0,
+      (sum, a) => sum + a.amountAvailable,
+    );
     final totalUsed = advances.fold(0.0, (sum, a) => sum + a.amountUsed);
 
     return Container(
@@ -257,19 +261,13 @@ class _AdvancesTabState extends ConsumerState<AdvancesTab> {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(
-            FluentIcons.money,
-            size: 64,
-            color: theme.inactiveColor,
-          ),
+          Icon(FluentIcons.money, size: 64, color: theme.inactiveColor),
           const SizedBox(height: Spacing.md),
           Text(
             noData
                 ? 'No hay anticipos registrados en esta sesión'
                 : 'No hay anticipos que coincidan con el filtro',
-            style: theme.typography.body?.copyWith(
-              color: theme.inactiveColor,
-            ),
+            style: theme.typography.body?.copyWith(color: theme.inactiveColor),
           ),
           if (noData) ...[
             const SizedBox(height: Spacing.md),
@@ -299,10 +297,7 @@ class _AdvancesTabState extends ConsumerState<AdvancesTab> {
             color: stateColor.withValues(alpha: 0.1),
             borderRadius: BorderRadius.circular(8),
           ),
-          child: Icon(
-            _getStateIcon(advance.state),
-            color: stateColor,
-          ),
+          child: Icon(_getStateIcon(advance.state), color: stateColor),
         ),
         title: Row(
           children: [
@@ -342,7 +337,11 @@ class _AdvancesTabState extends ConsumerState<AdvancesTab> {
             const SizedBox(height: 2),
             Row(
               children: [
-                Icon(FluentIcons.calendar, size: 12, color: theme.inactiveColor),
+                Icon(
+                  FluentIcons.calendar,
+                  size: 12,
+                  color: theme.inactiveColor,
+                ),
                 const SizedBox(width: 4),
                 Text(
                   dateFormat.format(advance.date),
@@ -445,10 +444,7 @@ class _AdvancesTabState extends ConsumerState<AdvancesTab> {
   }
 
   Future<void> _showAdvanceDetail(Advance advance) async {
-    await AdvanceDetailDialog.show(
-      context: context,
-      advanceId: advance.id,
-    );
+    await AdvanceDetailDialog.show(context: context, advanceId: advance.id);
     // Refrescar después de cerrar el diálogo
     ref.invalidate(sessionAdvancesProvider(widget.session.id));
   }

@@ -1,0 +1,165 @@
+name: Monorepo CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  FLUTTER_VERSION: '3.47.1'
+
+jobs:
+  quality:
+    name: Analyze and test all packages
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: stable
+          cache: true
+
+      - name: Resolve dependencies
+        run: make deps
+
+      - name: Scan tracked files for secrets
+        run: make check-secrets
+
+      - name: Verify generated sources
+        run: make generated-check
+
+      - name: Check patch formatting
+        run: git diff --check
+
+      - name: Analyze all packages
+        run: make analyze
+
+      - name: Test all packages
+        run: make test
+
+  build-linux-targets:
+    name: Build ${{ matrix.target }} release
+    runs-on: ubuntu-latest
+    needs: quality
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        target: [web, appbundle]
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: stable
+          cache: true
+
+      - name: Resolve app dependencies
+        working-directory: theos_pos
+        run: flutter pub get
+
+      - name: Build release
+        working-directory: theos_pos
+        run: flutter build ${{ matrix.target }} --release
+
+      - name: Upload release artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-${{ matrix.target }}
+          path: |
+            theos_pos/build/web
+            theos_pos/build/app/outputs/bundle/release/*.aab
+          if-no-files-found: error
+          retention-days: 7
+
+  build-apple-targets:
+    name: Build ${{ matrix.target }} release
+    runs-on: macos-14
+    needs: quality
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - target: ios
+          - target: macos
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: stable
+          cache: true
+
+      - name: Resolve app dependencies
+        working-directory: theos_pos
+        run: flutter pub get
+
+      - name: Build unsigned iOS release
+        if: matrix.target == 'ios'
+        working-directory: theos_pos
+        run: flutter build ios --release --no-codesign
+
+      - name: Build unsigned macOS release
+        if: matrix.target == 'macos'
+        working-directory: theos_pos
+        env:
+          # Flutter forwards FLUTTER_XCODE_* variables as xcodebuild settings.
+          # Distribution signing and notarization remain a separate release gate.
+          FLUTTER_XCODE_CODE_SIGNING_ALLOWED: 'NO'
+          FLUTTER_XCODE_CODE_SIGN_IDENTITY: '-'
+        run: flutter build macos --release
+
+      - name: Upload release artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-${{ matrix.target }}
+          path: |
+            theos_pos/build/ios/iphoneos/Runner.app
+            theos_pos/build/macos/Build/Products/Release/*.app
+          if-no-files-found: error
+          retention-days: 7
+
+  build-windows:
+    name: Build Windows release
+    runs-on: windows-latest
+    needs: quality
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: stable
+          cache: true
+
+      - name: Resolve app dependencies
+        working-directory: theos_pos
+        run: flutter pub get
+
+      - name: Build release
+        working-directory: theos_pos
+        run: flutter build windows --release
+
+      - name: Upload release artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-windows
+          path: theos_pos/build/windows/x64/runner/Release
+          if-no-files-found: error
+          retention-days: 7

@@ -30,8 +30,6 @@ import 'package:theos_pos_core/src/models/sales/sales_team.model.dart';
 // Warehouses
 
 // Prices
-import 'package:theos_pos_core/src/managers/prices/pricelist_manager.dart';
-
 // Products (generated managers from model files)
 import 'package:theos_pos_core/src/models/products/product_category.model.dart';
 import 'package:theos_pos_core/src/models/products/product_uom.model.dart';
@@ -85,10 +83,16 @@ void main() {
 
   group('FiscalPositionManager', () {
     test('odooModel is account.fiscal.position', () {
-      expect(fiscalPositionManager.odooModel, equals('account.fiscal.position'));
+      expect(
+        fiscalPositionManager.odooModel,
+        equals('account.fiscal.position'),
+      );
     });
     test('tableName is account_fiscal_position', () {
-      expect(fiscalPositionManager.tableName, equals('account_fiscal_position'));
+      expect(
+        fiscalPositionManager.tableName,
+        equals('account_fiscal_position'),
+      );
     });
     test('odooFields is non-empty', () {
       expect(fiscalPositionManager.odooFields, isNotEmpty);
@@ -182,8 +186,8 @@ void main() {
   // ═══════════════════════════════════════════════════════════════════════════
 
   group('BankManager', () {
-    test('odooModel is res.bank', () {
-      expect(bankManager.odooModel, equals('res.bank'));
+    test('odooModel is l10n.ec.bank', () {
+      expect(bankManager.odooModel, equals('l10n.ec.bank'));
     });
     test('tableName is res_bank', () {
       expect(bankManager.tableName, equals('res_bank'));
@@ -254,8 +258,7 @@ void main() {
   });
 
   group('PricelistItemManager', () {
-    late PricelistItemManager manager;
-    setUp(() => manager = PricelistItemManager(db));
+    final manager = pricelistItemManager;
 
     test('odooModel is product.pricelist.item', () {
       expect(manager.odooModel, equals('product.pricelist.item'));
@@ -477,5 +480,4 @@ void main() {
       expect(manager.odooFields, isNotEmpty);
     });
   });
-
 }

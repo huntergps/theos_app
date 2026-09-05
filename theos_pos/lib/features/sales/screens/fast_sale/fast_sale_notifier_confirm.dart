@@ -21,6 +21,12 @@ extension FastSaleNotifierConfirm on FastSaleNotifier {
       return UnifiedCreditResult.error('Debe seleccionar un cliente');
     }
 
+    // Online, Odoo first records commercial approval, then evaluates the actual
+    // payment term and credit policy. A stale local balance must not replace it.
+    if (ref.read(salesRepositoryProvider)?.isOnline == true) {
+      return UnifiedCreditResult.proceed();
+    }
+
     try {
       // Get client from ClientRepository
       final clientRepo = ref.read(clientRepositoryProvider);
@@ -104,7 +110,10 @@ extension FastSaleNotifierConfirm on FastSaleNotifier {
   Future<bool> confirmActiveOrder({bool skipCreditCheck = false}) async {
     // Guard: prevent double-submit (e.g. rapid double-tap on confirm button)
     if (isConfirming) {
-      logger.w('[FastSale]', 'confirmActiveOrder: already in progress, ignoring duplicate call');
+      logger.w(
+        '[FastSale]',
+        'confirmActiveOrder: already in progress, ignoring duplicate call',
+      );
       return false;
     }
     isConfirming = true;
@@ -134,9 +143,15 @@ extension FastSaleNotifierConfirm on FastSaleNotifier {
       logger.d('[FastSale]', '=== CONFIRM: Lines BEFORE save ===');
       logger.d('[FastSale]', 'activeTab.orderId: ${activeTab.orderId}');
       logger.d('[FastSale]', 'order.id: ${order.id}');
-      logger.d('[FastSale]', 'hasChanges: ${activeTab.hasChanges}, lines count: ${activeTab.lines.length}');
+      logger.d(
+        '[FastSale]',
+        'hasChanges: ${activeTab.hasChanges}, lines count: ${activeTab.lines.length}',
+      );
       for (final line in activeTab.lines) {
-        logger.d('[FastSale]', '  Line: id=${line.id}, orderId=${line.orderId}, displayType=${line.displayType}, product=${line.productName}');
+        logger.d(
+          '[FastSale]',
+          '  Line: id=${line.id}, orderId=${line.orderId}, displayType=${line.displayType}, product=${line.productName}',
+        );
       }
 
       // 1. Save if has unsaved changes (UI-specific pre-step)
@@ -151,7 +166,9 @@ extension FastSaleNotifierConfirm on FastSaleNotifier {
       // Get current order state after save
       final currentTab = state.activeTab;
       if (currentTab == null) {
-        state = state.copyWith(error: 'No hay pestaña activa después de guardar');
+        state = state.copyWith(
+          error: 'No hay pestaña activa después de guardar',
+        );
         return false;
       }
       final currentOrder = currentTab.order ?? order;
@@ -160,14 +177,25 @@ extension FastSaleNotifierConfirm on FastSaleNotifier {
       logger.d('[FastSale]', '=== CONFIRM: Lines AFTER save ===');
       logger.d('[FastSale]', 'lines count: ${currentTab.lines.length}');
       for (final line in currentTab.lines) {
-        logger.d('[FastSale]', '  Line: id=${line.id}, orderId=${line.orderId}, displayType=${line.displayType}, product=${line.productName}');
+        logger.d(
+          '[FastSale]',
+          '  Line: id=${line.id}, orderId=${line.orderId}, displayType=${line.displayType}, product=${line.productName}',
+        );
       }
-      final productLines = currentTab.lines.where((l) => l.isProductLine).toList();
+      final productLines = currentTab.lines
+          .where((l) => l.isProductLine)
+          .toList();
       logger.d('[FastSale]', 'Product lines count: ${productLines.length}');
 
       // 2. Use OrderConfirmationService for unified confirmation logic
-      logger.d('[FastSale]', '=== Calling confirmationService.confirmOrder ===');
-      logger.d('[FastSale]', 'Order ID: ${currentOrder.id}, Name: ${currentOrder.name}');
+      logger.d(
+        '[FastSale]',
+        '=== Calling confirmationService.confirmOrder ===',
+      );
+      logger.d(
+        '[FastSale]',
+        'Order ID: ${currentOrder.id}, Name: ${currentOrder.name}',
+      );
       final confirmationService = ref.read(orderConfirmationServiceProvider);
       final result = await confirmationService.confirmOrder(
         order: currentOrder,
@@ -177,13 +205,24 @@ extension FastSaleNotifierConfirm on FastSaleNotifier {
         creditBypassed: skipCreditCheck,
       );
       logger.d('[FastSale]', '=== confirmOrder returned ===');
-      logger.d('[FastSale]', 'success=${result.success}, error=${result.error}, hasCreditIssue=${result.hasCreditIssue}');
+      logger.d(
+        '[FastSale]',
+        'success=${result.success}, error=${result.error}, hasCreditIssue=${result.hasCreditIssue}',
+      );
 
       // 3. Handle result
       if (!result.success) {
         _updateActiveTab(currentTab.copyWith(isLoading: false));
 
-        // Handle credit issue - convert to legacy format for UI compatibility
+        if (result.serverCreditIssue != null) {
+          state = state.copyWith(
+            error: result.serverCreditIssue!.message,
+            lastCreditIssue: result.serverCreditIssue,
+          );
+          return false;
+        }
+
+        // Adapt the service result to the credit dialog state.
         if (result.hasCreditIssue && result.creditResult != null) {
           final creditResult = result.creditResult!;
           final validation = creditResult.validationResult;
@@ -259,6 +298,7 @@ extension FastSaleNotifierConfirm on FastSaleNotifier {
   Future<int?> createCreditApprovalRequest({
     required String reason,
     required String checkType,
+    Map<String, dynamic>? approvalAction,
   }) async {
     final activeTab = state.activeTab;
     if (activeTab == null) return null;
@@ -278,6 +318,7 @@ extension FastSaleNotifierConfirm on FastSaleNotifier {
         reason: reason,
         checkType: checkType,
         paymentTermId: order.paymentTermId,
+        approvalAction: approvalAction,
       );
 
       if (approvalId != null) {

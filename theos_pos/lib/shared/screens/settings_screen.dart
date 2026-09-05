@@ -2,6 +2,7 @@ import 'package:fluent_ui/fluent_ui.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_acrylic/flutter_acrylic.dart';
+
 import '../../core/constants/app_colors.dart';
 import '../../core/constants/app_constants.dart';
 import '../../core/services/config_service.dart';
@@ -66,7 +67,9 @@ class _SettingsSectionProfiles extends StatelessWidget {
                 placeholder: const Text('Seleccionar perfil...'),
                 isExpanded: true,
                 value: config.activeProfileId,
-                items: config.profiles.map<ComboBoxItem<String>>((ConfigProfile e) {
+                items: config.profiles.map<ComboBoxItem<String>>((
+                  ConfigProfile e,
+                ) {
                   return ComboBoxItem<String>(
                     value: e.id,
                     child: Row(
@@ -118,8 +121,8 @@ class _SettingsSectionProfiles extends StatelessWidget {
                     message: 'Eliminar perfil seleccionado',
                     child: IconButton(
                       icon: Icon(FluentIcons.delete, color: Colors.red),
-                      onPressed: () => _showDeleteProfileDialog(
-                          context, config, notifier),
+                      onPressed: () =>
+                          _showDeleteProfileDialog(context, config, notifier),
                     ),
                   ),
                 ],
@@ -130,8 +133,7 @@ class _SettingsSectionProfiles extends StatelessWidget {
               return Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  SizedBox(
-                      width: double.infinity, child: buildComboBox()),
+                  SizedBox(width: double.infinity, child: buildComboBox()),
                   const SizedBox(height: 10),
                   buildButtons(),
                 ],
@@ -283,8 +285,7 @@ class _SettingsSectionAppearance extends StatelessWidget {
           child: Wrap(
             spacing: 10,
             runSpacing: 10,
-            children:
-                [...Colors.accentColors, cyanAccentColor].map((color) {
+            children: [...Colors.accentColors, cyanAccentColor].map((color) {
               return Tooltip(
                 message: _getColorName(color),
                 child: IconButton(
@@ -296,9 +297,10 @@ class _SettingsSectionAppearance extends StatelessWidget {
                       shape: BoxShape.circle,
                       border: config.accentColor == color
                           ? Border.all(
-                              color: FluentTheme.of(
-                                context,
-                              ).typography.bodyStrong!.color!,
+                              color: FluentTheme.of(context)
+                                  .typography
+                                  .bodyStrong!
+                                  .color!,
                               width: 2,
                             )
                           : null,
@@ -390,31 +392,45 @@ class _SettingsSectionAppearance extends StatelessWidget {
               ),
               const SizedBox(height: 10),
               _buildSlider(
-                context, 'Display', config.displayFactor,
+                context,
+                'Display',
+                config.displayFactor,
                 notifier.setDisplayFactor,
               ),
               _buildSlider(
-                context, 'Titulo Grande', config.titleLargeFactor,
+                context,
+                'Titulo Grande',
+                config.titleLargeFactor,
                 notifier.setTitleLargeFactor,
               ),
               _buildSlider(
-                context, 'Titulo', config.titleFactor,
+                context,
+                'Titulo',
+                config.titleFactor,
                 notifier.setTitleFactor,
               ),
               _buildSlider(
-                context, 'Cuerpo Grande', config.bodyLargeFactor,
+                context,
+                'Cuerpo Grande',
+                config.bodyLargeFactor,
                 notifier.setBodyLargeFactor,
               ),
               _buildSlider(
-                context, 'Cuerpo Fuerte', config.bodyStrongFactor,
+                context,
+                'Cuerpo Fuerte',
+                config.bodyStrongFactor,
                 notifier.setBodyStrongFactor,
               ),
               _buildSlider(
-                context, 'Cuerpo', config.bodyFactor,
+                context,
+                'Cuerpo',
+                config.bodyFactor,
                 notifier.setBodyFactor,
               ),
               _buildSlider(
-                context, 'Subtitulo', config.captionFactor,
+                context,
+                'Subtitulo',
+                config.captionFactor,
                 notifier.setCaptionFactor,
               ),
             ],
@@ -445,8 +461,7 @@ class _SettingsSectionAppearance extends StatelessWidget {
                     width: 50,
                     child: Text(
                       config.spacingFactor.toStringAsFixed(1),
-                      style: const TextStyle(
-                          fontWeight: FontWeight.bold),
+                      style: const TextStyle(fontWeight: FontWeight.bold),
                     ),
                   ),
                   const SizedBox(width: 8),
@@ -459,11 +474,10 @@ class _SettingsSectionAppearance extends StatelessWidget {
               const SizedBox(height: 8),
               Text(
                 'Ajusta el espaciado entre elementos de la interfaz.',
-                style:
-                    FluentTheme.of(context).typography.caption?.copyWith(
-                  color: FluentTheme.of(
-                    context,
-                  ).resources.textFillColorSecondary,
+                style: FluentTheme.of(context).typography.caption?.copyWith(
+                  color: FluentTheme.of(context)
+                      .resources
+                      .textFillColorSecondary,
                 ),
               ),
             ],
@@ -522,10 +536,7 @@ class _SettingsSectionSystem extends ConsumerWidget {
   final dynamic config;
   final ConfigService notifier;
 
-  const _SettingsSectionSystem({
-    required this.config,
-    required this.notifier,
-  });
+  const _SettingsSectionSystem({required this.config, required this.notifier});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -540,9 +551,7 @@ class _SettingsSectionSystem extends ConsumerWidget {
           label: 'Modo Ruta (Vendedores Rurales)',
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const RouteModeToggle(showDescription: true),
-            ],
+            children: [const RouteModeToggle(showDescription: true)],
           ),
         ),
         const SizedBox(height: 16),
@@ -586,26 +595,24 @@ class _SettingsSectionSystem extends ConsumerWidget {
                   ToggleSwitch(
                     checked: config.developerMode,
                     onChanged: (value) => notifier.setDeveloperMode(value),
-                    content: Text(
-                      config.developerMode ? 'Activo' : 'Inactivo',
-                    ),
+                    content: Text(config.developerMode ? 'Activo' : 'Inactivo'),
                   ),
                 ],
               ),
               const SizedBox(height: 8),
               Text(
                 'Muestra herramientas de diagnostico en el menu de navegacion: '
-                'WebSocket Debug, Conflictos de Sync y Cola Fallida.',
+                'Conflictos de Sync y Cola Fallida.',
                 style: FluentTheme.of(context).typography.caption?.copyWith(
-                  color: FluentTheme.of(
-                    context,
-                  ).resources.textFillColorSecondary,
+                  color: FluentTheme.of(context)
+                      .resources
+                      .textFillColorSecondary,
                 ),
               ),
               if (config.developerMode) ...[
                 const SizedBox(height: 6),
                 Text(
-                  'Rutas disponibles: /websocket-debug, /conflicts, /dead-letter-queue',
+                  'Rutas disponibles: /conflicts, /dead-letter-queue',
                   style: FluentTheme.of(context).typography.caption?.copyWith(
                     color: FluentTheme.of(context).accentColor,
                     fontSize: 11,
@@ -642,8 +649,7 @@ class _SettingsSectionSystem extends ConsumerWidget {
                     width: 60,
                     child: Text(
                       '${config.maxSyncRetries} ${config.maxSyncRetries == 1 ? 'vez' : 'veces'}',
-                      style: const TextStyle(
-                          fontWeight: FontWeight.bold),
+                      style: const TextStyle(fontWeight: FontWeight.bold),
                     ),
                   ),
                 ],
@@ -651,11 +657,10 @@ class _SettingsSectionSystem extends ConsumerWidget {
               const SizedBox(height: 8),
               Text(
                 'Intentos antes de requerir intervencion manual.',
-                style:
-                    FluentTheme.of(context).typography.caption?.copyWith(
-                  color: FluentTheme.of(
-                    context,
-                  ).resources.textFillColorSecondary,
+                style: FluentTheme.of(context).typography.caption?.copyWith(
+                  color: FluentTheme.of(context)
+                      .resources
+                      .textFillColorSecondary,
                 ),
               ),
             ],
@@ -670,28 +675,44 @@ class _SettingsSectionSystem extends ConsumerWidget {
             children: [
               const SizedBox(height: 10),
               _buildNotificationDurationSlider(
-                context, 'Errores',
+                context,
+                'Errores',
                 config.errorNotificationDuration,
                 notifier.setErrorNotificationDuration,
-                FluentIcons.status_error_full, Colors.red, 1, 60,
+                FluentIcons.status_error_full,
+                Colors.red,
+                1,
+                60,
               ),
               _buildNotificationDurationSlider(
-                context, 'Advertencias',
+                context,
+                'Advertencias',
                 config.warningNotificationDuration,
                 notifier.setWarningNotificationDuration,
-                FluentIcons.warning, Colors.orange, 1, 30,
+                FluentIcons.warning,
+                Colors.orange,
+                1,
+                30,
               ),
               _buildNotificationDurationSlider(
-                context, 'Exito',
+                context,
+                'Exito',
                 config.successNotificationDuration,
                 notifier.setSuccessNotificationDuration,
-                FluentIcons.completed_solid, Colors.green, 1, 30,
+                FluentIcons.completed_solid,
+                Colors.green,
+                1,
+                30,
               ),
               _buildNotificationDurationSlider(
-                context, 'Informacion',
+                context,
+                'Informacion',
                 config.infoNotificationDuration,
                 notifier.setInfoNotificationDuration,
-                FluentIcons.info, Colors.blue, 1, 30,
+                FluentIcons.info,
+                Colors.blue,
+                1,
+                30,
               ),
             ],
           ),

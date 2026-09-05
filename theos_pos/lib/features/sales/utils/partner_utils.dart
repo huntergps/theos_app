@@ -1,6 +1,7 @@
 import 'package:drift/drift.dart' as drift;
 import 'package:odoo_sdk/odoo_sdk.dart';
-import 'package:theos_pos_core/theos_pos_core.dart' show AppDatabase, clientManager;
+import 'package:theos_pos_core/theos_pos_core.dart'
+    show AppDatabase, clientManager;
 
 import '../../clients/repositories/client_repository.dart';
 
@@ -104,7 +105,6 @@ Future<(int, String)?> findConsumidorFinal({
   String logTag = '[PartnerUtils]',
 }) async {
   try {
-
     // 1. Search by VAT 9999999999999 (most reliable for Ecuador)
     final byVat =
         await (appDb.select(appDb.resPartner)
@@ -123,7 +123,9 @@ Future<(int, String)?> findConsumidorFinal({
 
     // 2. Fallback: search by name containing "consumidor final"
     final activeClients = await clientManager.searchLocal(
-      domain: [['active', '=', true]],
+      domain: [
+        ['active', '=', true],
+      ],
       orderBy: 'name asc',
     );
     final byName = activeClients.where((c) {
@@ -132,7 +134,10 @@ Future<(int, String)?> findConsumidorFinal({
     }).firstOrNull;
 
     if (byName != null) {
-      logger.d(logTag, 'Found Consumidor Final by name: ${byName.id} - ${byName.name}');
+      logger.d(
+        logTag,
+        'Found Consumidor Final by name: ${byName.id} - ${byName.name}',
+      );
       return (byName.id, byName.name);
     }
 

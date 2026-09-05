@@ -1,631 +1,264 @@
-# 🏗️ Arquitectura del Proyecto theos_pos
+# Arquitectura de `theos_pos`
 
-## 📋 Tabla de Contenidos
+> Documento de orientación del runtime actual. La especificación, el plan y el
+> estado verificable viven en `../docs/specs/`; si un ejemplo difiere del
+> código o de una prueba, prevalecen el código y la prueba.
 
-- [Visión General](#visión-general)
-- [Clean Architecture](#clean-architecture)
-- [Dependency Inversion Principle](#dependency-inversion-principle)
-- [Estructura de Carpetas](#estructura-de-carpetas)
-- [Layers (Capas)](#layers-capas)
-- [Flujo de Datos](#flujo-de-datos)
-- [Patrones de Diseño](#patrones-de-diseño)
-- [Guías de Uso](#guías-de-uso)
-- [Testing](#testing)
-- [Migración a theos_pos_core](#migración-a-theos_pos_core)
+## Resumen
 
----
+`theos_pos` es una aplicación Flutter offline-first para Odoo 19/20. Usa una
+única sesión Bearer por scope de usuario, persistencia local Drift, managers
+ligados explícitamente al scope activo y sincronización HTTP JSON-2. La app no
+abre una sesión del webclient, no usa cookies y no mantiene un WebSocket.
 
-## Visión General
-
-Este proyecto implementa **Clean Architecture** con **Dependency Inversion Principle (DIP)**, separando el código en capas bien definidas que promueven:
-
-- ✅ **Testabilidad**: Interfaces permiten mocking fácil
-- ✅ **Mantenibilidad**: Cambios en una capa no afectan otras
-- ✅ **Escalabilidad**: Fácil agregar nuevas features
-- ✅ **Reutilización**: Lógica compartida en `theos_pos_core`
-
-### Arquitectura en 3 Capas
-
-```
-┌─────────────────────────────────────┐
-│   Presentation Layer (UI)           │  ← Flutter Widgets, Riverpod
-├─────────────────────────────────────┤
-│   Domain Layer (Business Logic)     │  ← Repositories, Models
-├─────────────────────────────────────┤
-│   Data Layer (Datasources)          │  ← SQLite/Drift, API
-└─────────────────────────────────────┘
+```text
+Flutter UI + GoRouter + Riverpod
+              │
+              ▼
+providers / repositories / model managers
+        │                       │
+        ▼                       ▼
+Drift del SessionScope     OdooClient JSON-2
+        │                       │
+        └──── cola offline ─────┘
+                 │
+                 ▼
+       recovery + polling HTTP
 ```
 
----
+## Paquetes y dependencias
 
-## Clean Architecture
-
-### Principios Aplicados
-
-#### 1. Dependency Rule
-
-**Las dependencias apuntan hacia adentro** (hacia el dominio):
-
-```
-Presentation (UI)
-    ↓ depends on
-Domain (Repositories) ← define interfaces
-    ↑ implemented by
-Data (Datasources) ← implementa interfaces
-```
-
-#### 2. Entities (Models)
-
-Definidos en `theos_pos_core/lib/src/models/`:
-
-```dart
-@freezed
-class Client with _$Client {
-  const factory Client({
-    required int id,
-    required String name,
-    String? vat,
-    String? email,
-  }) = _Client;
-}
+```text
+theos_pos
+  UI, navegación, Riverpod, ciclo de vida y adaptadores de plataforma
+       │
+       ├──► theos_pos_core
+       │      modelos Freezed, tablas Drift, managers y reglas compartidas
+       │
+       ├──► odoo_sdk
+       │      cliente/transport JSON-2, conectividad y primitivas offline
+       │
+       ├──► odoo_widgets
+       │      componentes visuales reutilizables
+       │
+       └──► flutter_qweb
+              interpretación QWeb y documentos
 ```
 
-#### 3. Use Cases (Repositories)
+Reglas:
 
-Contienen lógica de negocio:
+- La UI consume providers, repositorios o managers; no construye URLs Odoo.
+- `theos_pos_core` no depende de la aplicación Flutter.
+- Toda llamada remota de la app usa el único `OdooClient` publicado por
+  `odooClientProvider`.
+- La lógica de negocio y persistencia no vive dentro de widgets.
+- El almacenamiento local se identifica por servidor, base y UID; nunca por
+  una clave API.
 
-```dart
-class ClientRepository {
-  final IPartnerDatasource _datasource; // ← Interfaz, no implementación
+## Transporte y autenticación
 
-  Future<Client?> getById(int id) async {
-    return await _datasource.getPartner(id);
-  }
-}
+El único transporte de la app es:
+
+```text
+POST /json/2/<modelo>/<método>
+Authorization: Bearer <api-key>
+X-Odoo-Database: <base>
+Content-Type: application/json
 ```
 
-#### 4. Interface Adapters (Datasources)
+No forman parte de la arquitectura:
 
-Implementan interfaces definidas en `theos_pos_core`:
+- `/web/session/authenticate` o cualquier URL `/web/...`;
+- cookies de sesión o `withCredentials`;
+- XML-RPC/JSON-RPC del webclient;
+- WebSocket como canal de actualización de la aplicación.
 
-```dart
-// Interface (en theos_pos_core)
-abstract class IPartnerDatasource {
-  Future<Client?> getPartner(int id);
-}
+Odoo aplica ACL y record rules. El SDK normaliza errores sin exponer headers,
+credenciales o cuerpos sensibles. Aunque JSON-2 usa POST para leer y escribir,
+el retry de transporte solo se habilita para métodos de lectura expresamente
+clasificados; una mutación o método desconocido nunca se reenvía
+automáticamente.
 
-// Implementation (en theos_pos)
-class PartnerDatasource implements IPartnerDatasource {
-  final AppDatabase _db;
+## Ciclo de vida de sesión
 
-  @override
-  Future<Client?> getPartner(int id) async {
-    // Implementación con SQLite/Drift
-  }
-}
+### Login online
+
+```text
+validar Bearer y resolver UID
+        │
+        ▼
+activar SessionScope(server, database, uid)
+        │
+        ▼
+abrir Drift y publicar OdooClient/DatabaseHelper
+        │
+        ▼
+initializeModelManagers(client, db, queueStore)
+        │
+        ▼
+cargar identidad + snapshot atómico de permisos
+        │
+        ▼
+persistir referencia segura y publicar RouteSessionSnapshot
 ```
 
----
+La API key no se guarda en preferencias. En plataformas nativas se guarda en
+el almacén seguro y la metadata de sesión conserva únicamente una
+`credentialRef`. La restauración vuelve a resolver esa referencia, comprueba
+el scope committed y repite la misma composición antes de navegar.
 
-## Dependency Inversion Principle
+En Web el store es efímero: la navegación dentro de la instancia conserva la
+sesión, pero un refresh o cierre de la página requiere introducir la clave de
+nuevo. No se degrada a LocalStorage ni a una cookie.
 
-### ¿Qué es DIP?
+### Login offline y restauración
 
-> "Los módulos de alto nivel no deben depender de módulos de bajo nivel. Ambos deben depender de abstracciones."
+El login offline solo es válido para un scope ya comprometido con identidad y
+permisos locales completos. Liga los managers con `client: null`, por lo que
+ningún manager puede intentar tráfico remoto. Una restauración con credencial
+segura disponible crea el cliente Bearer y liga esos mismos managers con el
+cliente activo.
 
-### Implementación en el Proyecto
+La sesión se publica al router únicamente después de abrir el scope, ligar los
+managers y recuperar identidad/permisos. Los guards son default-deny.
 
-#### ❌ Antes (Acoplamiento Fuerte)
+### Teardown
 
-```dart
-class ClientRepository {
-  final PartnerDatasource _datasource; // ← Implementación concreta
+Logout, expiración y cambio de servidor/usuario comparten un teardown
+serializado e idempotente:
 
-  ClientRepository(PartnerDatasource datasource);
-}
+1. cancelar sincronizaciones y orquestadores;
+2. invalidar providers que capturan el cliente o la base;
+3. ejecutar `resetModelManagersSession()`;
+4. cerrar Drift y retirar la sesión del router;
+5. borrar la referencia segura cuando la operación sea un logout real.
 
-// Problema: No se puede cambiar implementación sin modificar repository
-// Problema: No se puede testear sin base de datos real
+Cerrar normalmente la ventana nativa no equivale a logout y permite la
+restauración posterior.
+
+## Binding de model managers
+
+Los managers concretos son singletons de `theos_pos_core`, pero sus recursos
+de sesión no lo son. `initializeModelManagers(...)` recorre todos los managers
+y ejecuta `bindSession` con:
+
+- el `OdooClient` del usuario, o `null` en login offline;
+- la instancia Drift del `SessionScope` activo;
+- un wrapper nuevo sobre la cola offline de ese mismo scope.
+
+Después registra los managers y elimina el wrapper del scope anterior. Esta es
+la única entrada de composición de managers para login online, login offline y
+cold-start. No se debe crear en paralelo otro `DataContext` para la app: el SDK
+ofrece ese contenedor como API genérica, pero el runtime Flutter usa el binding
+explícito anterior.
+
+Los providers de managers devuelven esos objetos ya ligados. Agregar un
+manager requiere:
+
+1. definir modelo y manager en `theos_pos_core`;
+2. incluirlo en `_getAllManagers()`;
+3. exponer provider solo cuando una feature lo necesite;
+4. cubrir binding, reset y aislamiento de usuario con pruebas.
+
+## Datos locales y UI reactiva
+
+Drift es la fuente inmediata para listas, contadores y formularios offline.
+Las lecturas normales siguen este recorrido:
+
+```text
+Widget watch
+   ▼
+Riverpod provider / Drift stream
+   ▼
+repository o manager
+   ▼
+tabla del scope activo
 ```
 
-#### ✅ Después (Dependency Inversion)
+La sincronización HTTP hace upsert transaccional en Drift. Sus streams
+invalidan o actualizan la UI; no se necesita un canal push separado. Una lista
+y su contador deben consultar el mismo scope y compartir la misma semántica de
+filtros.
 
-```dart
-class ClientRepository {
-  final IPartnerDatasource _datasource; // ← Abstracción (interfaz)
+## Sincronización HTTP
 
-  ClientRepository(IPartnerDatasource datasource);
-}
+`ConnectivitySyncOrchestrator` es el coordinador automático de la app. Se
+activa dentro de la sesión autenticada y serializa cada ciclo para impedir
+trabajo duplicado.
 
-// Beneficio: Se puede inyectar cualquier implementación
-// Beneficio: Fácil crear mocks para testing
+Disparadores:
+
+- una reconciliación inmediata al iniciar el orquestador;
+- recuperación de conectividad, después de confirmar estabilidad;
+- polling incremental cada cinco minutos;
+- acción manual del usuario.
+
+Orden de un ciclo automático:
+
+```text
+autenticado + online + no modo offline/ruta
+                    │
+                    ▼
+          drenar cola durable
+                    │
+            confirmar conexión
+                    │
+                    ▼
+     sincronizar catálogos críticos
+                    │
+                    ▼
+          upsert Drift → streams UI
 ```
 
-### Inyección de Dependencias con Riverpod
+El polling automático es incremental. La sincronización completa es una
+acción manual explícita y no compite con otro ciclo en progreso.
 
-```dart
-// Provider devuelve interfaz, no implementación
-final partnerDatasourceProvider = Provider<IPartnerDatasource>((ref) {
-  return PartnerDatasource(DatabaseHelper.db); // ← Implementación concreta
-});
+## Cola offline
 
-final clientRepositoryProvider = Provider((ref) {
-  return ClientRepository(
-    partnerDatasource: ref.read(partnerDatasourceProvider), // ← Interfaz
-  );
-});
+Solo las operaciones declaradas aptas para offline se guardan en la cola Drift
+del scope. La cola conserva:
+
+- comando tipado y payload mínimo;
+- identidad estable/idempotencia cuando el flujo la admite;
+- dependencias entre operaciones;
+- estado, intentos y próximo retry con backoff;
+- información de conflicto y evidencia de dead-letter.
+
+Al iniciar o recuperar conexión, las operaciones `processing` interrumpidas se
+recuperan y el procesador reclama un snapshot listo una sola vez. Si falla un
+padre, sus dependientes no se despachan en el mismo ciclo. Antes de repetir una
+creación ambigua se consulta el marcador remoto disponible; una operación sin
+idempotencia demostrable debe fallar de forma segura y requerir reconciliación.
+
+Los conflictos de `write_date` no se sobrescriben silenciosamente. Se
+persisten para resolución autorizada. Eliminar una fila local nunca se trata
+como prueba de que Odoo no ejecutó la operación.
+
+## Navegación y permisos
+
+GoRouter y el menú consumen la misma `RouteAccessPolicy`. La sesión publicada
+incluye UID y snapshot de permisos; rutas desconocidas o no autorizadas se
+deniegan aunque el usuario escriba la URL directamente. Los accesos rápidos
+usan nombres de ruta canónicos y no crean navegadores secundarios.
+
+## Verificación de cambios
+
+Antes de integrar cambios de arquitectura:
+
+```bash
+flutter analyze
+flutter test
 ```
 
----
+Además:
 
-## Estructura de Carpetas
+- cambios de modelos/tablas requieren regenerar y probar el esquema limpio;
+- cambios de sesión requieren pruebas de login, restore, offline, logout y
+  cambio de usuario/servidor;
+- cambios de sync requieren pruebas de exclusión mutua, queue-first, recovery,
+  idempotencia y conflictos;
+- ningún fixture, log o snapshot puede incluir una clave real.
 
-### theos_pos_core (Shared/Core Package)
+**Última actualización:** 2026-08-26
 
-```
-theos_pos_core/
-├── lib/
-│   ├── src/
-│   │   ├── models/              # Entities (Domain)
-│   │   │   ├── client.dart
-│   │   │   ├── sale_order.dart
-│   │   │   └── ...
-│   │   ├── datasources/         # Interface Contracts
-│   │   │   ├── partner_datasource.dart (IPartnerDatasource)
-│   │   │   ├── sale_order_datasource.dart (ISaleOrderDatasource)
-│   │   │   └── datasources.dart (barrel file)
-│   │   └── managers/            # Business Logic
-│   │       └── sale_order_manager.dart
-│   └── theos_pos_core.dart      # Main export
-└── pubspec.yaml
-```
-
-### theos_pos (Application)
-
-```
-theos_pos/
-├── lib/
-│   ├── features/                # Feature-based organization
-│   │   ├── clients/
-│   │   │   ├── datasources/     # Data Layer (implementations)
-│   │   │   │   └── partner_datasource.dart (implements IPartnerDatasource)
-│   │   │   ├── repositories/    # Domain Layer
-│   │   │   │   └── client_repository.dart
-│   │   │   ├── providers/       # Dependency Injection
-│   │   │   │   ├── datasource_providers.dart
-│   │   │   │   └── repository_providers.dart
-│   │   │   └── widgets/         # Presentation Layer
-│   │   │       └── client_list.dart
-│   │   ├── sales/
-│   │   ├── collection/
-│   │   └── ...
-│   └── core/
-│       ├── database/            # Infrastructure
-│       │   └── database.dart (Drift/SQLite)
-│       └── services/            # Cross-cutting concerns
-│           └── logger_service.dart
-├── test/                        # Unit tests with mocks
-└── pubspec.yaml
-```
-
----
-
-## Layers (Capas)
-
-### 1. Presentation Layer
-
-**Responsabilidad**: UI y manejo de eventos
-
-**Tecnologías**: Flutter Widgets, Riverpod
-
-**Archivos**: `lib/features/*/widgets/`
-
-```dart
-class ClientListWidget extends ConsumerWidget {
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final repository = ref.watch(clientRepositoryProvider);
-
-    return FutureBuilder(
-      future: repository.search(''),
-      builder: (context, snapshot) {
-        // Render UI
-      },
-    );
-  }
-}
-```
-
-**Reglas**:
-- No contiene lógica de negocio
-- Solo usa Repositories, no Datasources directamente
-- Maneja estado con Riverpod
-
----
-
-### 2. Domain Layer
-
-**Responsabilidad**: Lógica de negocio
-
-**Archivos**: `lib/features/*/repositories/`
-
-```dart
-class ClientRepository extends BaseRepository {
-  final IPartnerDatasource _datasource; // ← Usa interfaz
-
-  Future<Client?> getById(int id) async {
-    // 1. Get from local cache
-    final localClient = await _datasource.getPartner(id);
-
-    // 2. Refresh from Odoo if online
-    if (isOnline && needsRefresh(localClient)) {
-      final fresh = await refreshCreditData(id);
-      return fresh;
-    }
-
-    return localClient;
-  }
-}
-```
-
-**Reglas**:
-- Contiene lógica de negocio (offline-first, caching, etc.)
-- Depende de interfaces (IXxxDatasource), no implementaciones
-- No conoce detalles de SQLite, Drift, o HTTP
-
----
-
-### 3. Data Layer
-
-**Responsabilidad**: Acceso a datos
-
-**Archivos**: `lib/features/*/datasources/`
-
-```dart
-class PartnerDatasource implements IPartnerDatasource {
-  final AppDatabase _db; // ← Detalle de implementación (SQLite)
-
-  @override
-  Future<Client?> getPartner(int id) async {
-    final data = await (_db.select(_db.resPartner)
-          ..where((t) => t.odooId.equals(id)))
-        .getSingleOrNull();
-
-    return data != null ? Client.fromDatabase(data) : null;
-  }
-}
-```
-
-**Reglas**:
-- Implementa interfaces definidas en `theos_pos_core`
-- Conoce detalles de persistencia (SQL, HTTP, etc.)
-- No contiene lógica de negocio
-
----
-
-## Flujo de Datos
-
-### Lectura (Offline-First)
-
-```
-┌─────────┐
-│   UI    │ "Necesito cliente #123"
-└────┬────┘
-     │
-     ↓ ref.read(clientRepositoryProvider)
-┌─────────────┐
-│ Repository  │ 1. Buscar en cache local
-└─────┬───────┘
-      │
-      ↓ datasource.getPartner(123)
-┌─────────────┐
-│ Datasource  │ 2. Query SQLite
-└─────┬───────┘
-      │
-      ↓ SELECT * FROM res_partner WHERE odoo_id = 123
-┌─────────────┐
-│  Database   │ 3. Retornar datos
-└─────────────┘
-```
-
-### Escritura (con Sync)
-
-```
-┌─────────┐
-│   UI    │ "Crear cliente nuevo"
-└────┬────┘
-     │
-     ↓
-┌─────────────┐
-│ Repository  │ 1. Guardar local
-└─────┬───────┘    2. Intentar sync con Odoo
-      │            3. Si falla, encolar
-      ↓
-┌─────────────┐
-│ Datasource  │ INSERT INTO res_partner ...
-└─────┬───────┘
-      │
-      ↓
-┌─────────────┐
-│  Database   │ Guardado local ✓
-└─────────────┘
-      │
-      ↓ (si online)
-┌─────────────┐
-│ Odoo API    │ Sync remoto
-└─────────────┘
-```
-
----
-
-## Patrones de Diseño
-
-### 1. Repository Pattern
-
-**Propósito**: Abstraer acceso a datos
-
-```dart
-// Repository = Colección de objetos
-class ClientRepository {
-  Future<Client?> getById(int id);
-  Future<List<Client>> search(String query);
-  Future<void> save(Client client);
-}
-```
-
-### 2. Dependency Injection
-
-**Propósito**: Proveer dependencias desde afuera
-
-```dart
-// Con Riverpod
-final datasourceProvider = Provider<IPartnerDatasource>(...);
-
-final repositoryProvider = Provider((ref) {
-  return ClientRepository(
-    datasource: ref.read(datasourceProvider), // ← Inyectado
-  );
-});
-```
-
-### 3. Offline-First Pattern
-
-**Propósito**: App funciona sin internet
-
-```dart
-Future<Client?> getById(int id) async {
-  // 1. Local first
-  final cached = await _datasource.getPartner(id);
-
-  // 2. Refresh if online
-  if (isOnline) {
-    try {
-      return await refreshCreditData(id);
-    } catch (_) {
-      return cached; // Fallback to cache
-    }
-  }
-
-  return cached;
-}
-```
-
-### 4. Interface Segregation
-
-**Propósito**: Interfaces pequeñas y específicas
-
-```dart
-// ✅ Bueno: Interfaz específica
-abstract class IPartnerDatasource {
-  Future<Client?> getPartner(int id);
-  Future<void> upsertPartner(Client partner);
-}
-
-// ❌ Malo: Interfaz muy grande
-abstract class IMegaDatasource {
-  // 50 métodos mezclados...
-}
-```
-
----
-
-## Guías de Uso
-
-### Crear un Nuevo Feature
-
-#### 1. Definir Model en `theos_pos_core`
-
-```dart
-// theos_pos_core/lib/src/models/product.dart
-@freezed
-class Product with _$Product {
-  const factory Product({
-    required int id,
-    required String name,
-    double? price,
-  }) = _Product;
-}
-```
-
-#### 2. Definir Interface en `theos_pos_core`
-
-```dart
-// theos_pos_core/lib/src/datasources/product_datasource.dart
-abstract class IProductDatasource {
-  Future<Product?> getProduct(int id);
-  Future<List<Product>> searchProducts(String query);
-  Future<void> upsertProduct(Product product);
-}
-```
-
-#### 3. Implementar Datasource en `theos_pos`
-
-```dart
-// theos_pos/lib/features/products/datasources/product_datasource.dart
-import 'package:theos_pos_core/theos_pos_core.dart' show IProductDatasource, Product;
-
-class ProductDatasource implements IProductDatasource {
-  final AppDatabase _db;
-
-  @override
-  Future<Product?> getProduct(int id) async {
-    // Implementación con SQLite
-  }
-}
-```
-
-#### 4. Crear Repository en `theos_pos`
-
-```dart
-// theos_pos/lib/features/products/repositories/product_repository.dart
-class ProductRepository extends BaseRepository {
-  final IProductDatasource _datasource; // ← Interfaz
-
-  Future<Product?> getById(int id) async {
-    return await _datasource.getProduct(id);
-  }
-}
-```
-
-#### 5. Crear Providers
-
-```dart
-// theos_pos/lib/features/products/providers/datasource_providers.dart
-final productDatasourceProvider = Provider<IProductDatasource>((ref) {
-  return ProductDatasource(DatabaseHelper.db);
-});
-
-// theos_pos/lib/features/products/providers/repository_providers.dart
-final productRepositoryProvider = Provider((ref) {
-  return ProductRepository(
-    datasource: ref.read(productDatasourceProvider),
-  );
-});
-```
-
-#### 6. Usar en Widget
-
-```dart
-class ProductList extends ConsumerWidget {
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final repo = ref.watch(productRepositoryProvider);
-
-    return FutureBuilder(
-      future: repo.search(''),
-      builder: (context, snapshot) {
-        // Render products
-      },
-    );
-  }
-}
-```
-
----
-
-## Testing
-
-### Unit Tests con Mocks
-
-```dart
-import 'package:mockito/mockito.dart';
-import 'package:mockito/annotations.dart';
-
-@GenerateMocks([IProductDatasource])
-void main() {
-  late MockIProductDatasource mockDatasource;
-  late ProductRepository repository;
-
-  setUp(() {
-    mockDatasource = MockIProductDatasource();
-    repository = ProductRepository(datasource: mockDatasource);
-  });
-
-  test('getById returns product', () async {
-    // Arrange
-    final testProduct = Product(id: 1, name: 'Test');
-    when(mockDatasource.getProduct(1))
-        .thenAnswer((_) async => testProduct);
-
-    // Act
-    final result = await repository.getById(1);
-
-    // Assert
-    expect(result?.name, equals('Test'));
-    verify(mockDatasource.getProduct(1)).called(1);
-  });
-}
-```
-
-**Ver más**: [test/README_TESTS.md](test/README_TESTS.md)
-
----
-
-## Migración a theos_pos_core
-
-### Estado Actual
-
-#### ✅ Migrado (100%)
-
-- **Models**: Client, SaleOrder, CollectionSession, etc. (en `theos_pos_core`)
-- **Interfaces**: 12 datasource interfaces creadas
-- **Datasources**: 9 implementaciones usan interfaces
-- **Repositories**: 5 repositories usan DIP
-
-#### 📊 Estadísticas
-
-| Componente | Migrado | Total | % |
-|------------|---------|-------|---|
-| Models principales | 15 | 15 | 100% |
-| Datasource interfaces | 12 | 12 | 100% |
-| Datasource implementations | 9 | 9 | 100% |
-| Repositories con DIP | 5 | 5 | 100% |
-
-### Documentos de Migración
-
-- [MIGRATION_COMPLETE.md](MIGRATION_COMPLETE.md) - Resumen ejecutivo completo
-- [FASE1_COMPLETE.md](FASE1_COMPLETE.md) - Detalles de migración de datasources
-- [FASE2_COMPLETE.md](FASE2_COMPLETE.md) - Detalles de migración de repositories
-
----
-
-## 📚 Recursos Adicionales
-
-### Documentación del Proyecto
-
-- [ARCHITECTURE.md](ARCHITECTURE.md) - Este documento
-- [MIGRATION_COMPLETE.md](MIGRATION_COMPLETE.md) - Guía de migración
-- [test/README_TESTS.md](test/README_TESTS.md) - Guía de testing
-
-### Clean Architecture
-
-- [The Clean Architecture (Uncle Bob)](https://blog.cleancoder.com/uncle-bob/2012/08/13/the-clean-architecture.html)
-- [Flutter Clean Architecture](https://resocoder.com/2019/08/27/flutter-tdd-clean-architecture-course-1-explanation-project-structure/)
-
-### SOLID Principles
-
-- [Dependency Inversion Principle](https://stackify.com/dependency-inversion-principle/)
-- [SOLID in Dart](https://medium.com/flutter-community/s-o-l-i-d-the-first-5-principles-of-object-oriented-design-with-dart-f31d62135b7e)
-
-### Riverpod
-
-- [Riverpod Documentation](https://riverpod.dev/)
-- [Provider Pattern with Riverpod](https://codewithandrea.com/articles/flutter-state-management-riverpod/)
-
----
-
-## ✅ Checklist para Nuevos Desarrolladores
-
-- [ ] Leer este documento completo
-- [ ] Revisar [MIGRATION_COMPLETE.md](MIGRATION_COMPLETE.md)
-- [ ] Entender estructura de `theos_pos_core` vs `theos_pos`
-- [ ] Revisar ejemplos de tests en `test/`
-- [ ] Crear un feature simple siguiendo la guía
-- [ ] Ejecutar tests con `flutter test`
-- [ ] Familiarizarse con Riverpod providers
-
----
-
-**Última actualización**: 2026-01-25
-**Versión de arquitectura**: 2.0 (con DIP)
-**Mantenedor**: Equipo theos_pos
+**Versión de arquitectura:** 3.0 (Bearer JSON-2, scope y polling HTTP)

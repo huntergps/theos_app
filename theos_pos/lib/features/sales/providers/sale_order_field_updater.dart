@@ -1,4 +1,5 @@
-import '../../../../core/services/logger_service.dart';
+import 'package:odoo_sdk/odoo_sdk.dart' show logger;
+
 import 'sale_order_form_state.dart';
 
 /// Mixin para actualizar campos del formulario de orden de venta
@@ -76,10 +77,12 @@ mixin SaleOrderFieldUpdater {
         // Resolve payment term details from cached list
         Map<String, dynamic>? paymentTermData;
         if (id != null && state.paymentTerms.isNotEmpty) {
-          paymentTermData = state.paymentTerms.cast<Map<String, dynamic>>().firstWhere(
-            (pt) => pt['id'] == id,
-            orElse: () => <String, dynamic>{},
-          );
+          paymentTermData = state.paymentTerms
+              .cast<Map<String, dynamic>>()
+              .firstWhere(
+                (pt) => pt['id'] == id,
+                orElse: () => <String, dynamic>{},
+              );
         }
         state = state.copyWith(
           paymentTermId: id,
@@ -278,7 +281,7 @@ mixin SaleOrderFieldUpdater {
     // Determinar el término de pago a usar
     int? newPaymentTermId = state.paymentTermId;
     String? newPaymentTermName = state.paymentTermName;
-    
+
     // Si el cliente tiene un término de pago por defecto, usarlo
     if (propertyPaymentTermId != null) {
       newPaymentTermId = propertyPaymentTermId;
@@ -318,12 +321,9 @@ mixin SaleOrderFieldUpdater {
       // Campos de consumidor final
       isFinalConsumer: isFinalConsumer,
       // Limpiar datos del cliente final si el partner cambió y no es consumidor final
-      endCustomerName:
-          isFinalConsumer ? state.endCustomerName : null,
-      endCustomerPhone:
-          isFinalConsumer ? state.endCustomerPhone : null,
-      endCustomerEmail:
-          isFinalConsumer ? state.endCustomerEmail : null,
+      endCustomerName: isFinalConsumer ? state.endCustomerName : null,
+      endCustomerPhone: isFinalConsumer ? state.endCustomerPhone : null,
+      endCustomerEmail: isFinalConsumer ? state.endCustomerEmail : null,
       hasChanges: true,
       changedFields: newChangedFields,
     );

@@ -3,10 +3,11 @@ import 'package:fluent_ui/fluent_ui.dart';
 import '../../../../../shared/utils/formatting_utils.dart';
 import '../../../../../shared/widgets/dialogs/base_form_dialog.dart';
 import '../../../../../shared/widgets/reactive/reactive_widgets.dart';
+
 import 'package:theos_pos_core/theos_pos_core.dart';
 
 /// Diálogo para crear/editar un depósito.
-/// 
+///
 /// Migrado a usar [StatefulFormDialog] para consistencia
 /// con otros diálogos de formulario.
 class DepositFormDialog extends StatefulFormDialog<CollectionSessionDeposit> {
@@ -30,12 +31,13 @@ class DepositFormDialog extends StatefulFormDialog<CollectionSessionDeposit> {
   );
 
   @override
-  StatefulFormDialogState<CollectionSessionDeposit, DepositFormDialog> createState() =>
-      _DepositFormDialogState();
+  StatefulFormDialogState<CollectionSessionDeposit, DepositFormDialog>
+  createState() => _DepositFormDialogState();
 }
 
 class _DepositFormDialogState
-    extends StatefulFormDialogState<CollectionSessionDeposit, DepositFormDialog> {
+    extends
+        StatefulFormDialogState<CollectionSessionDeposit, DepositFormDialog> {
   late DepositType _depositType;
   late double _amount;
   late double _cashAmount;
@@ -89,8 +91,8 @@ class _DepositFormDialogState
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           // Tipo de deposito
-          ReactiveSelectionField<DepositType>(
-            config: ReactiveFieldConfig(
+          OdooSelectionField<DepositType>(
+            config: OdooFieldConfig(
               label: 'Tipo de Depósito',
               isEditing: true,
               prefixIcon: FluentIcons.bank,
@@ -128,8 +130,8 @@ class _DepositFormDialogState
           const SizedBox(height: 16),
 
           // Fecha de deposito
-          ReactiveDateField(
-            config: ReactiveFieldConfig(
+          OdooDateField(
+            config: OdooFieldConfig(
               label: 'Fecha de Depósito',
               isEditing: true,
               prefixIcon: FluentIcons.calendar,
@@ -144,8 +146,8 @@ class _DepositFormDialogState
           const SizedBox(height: 16),
 
           // Fecha contable
-          ReactiveDateField(
-            config: ReactiveFieldConfig(
+          OdooDateField(
+            config: OdooFieldConfig(
               label: 'Fecha Contable',
               isEditing: true,
               prefixIcon: FluentIcons.calendar,
@@ -160,8 +162,8 @@ class _DepositFormDialogState
           // Montos segun tipo
           if (_depositType == DepositType.cash ||
               _depositType == DepositType.mixed) ...[
-            ReactiveMoneyField(
-              config: ReactiveFieldConfig(
+            OdooMoneyField(
+              config: OdooFieldConfig(
                 label: 'Monto Efectivo',
                 isEditing: true,
                 prefixIcon: FluentIcons.money,
@@ -179,8 +181,8 @@ class _DepositFormDialogState
 
           if (_depositType == DepositType.check ||
               _depositType == DepositType.mixed) ...[
-            ReactiveMoneyField(
-              config: ReactiveFieldConfig(
+            OdooMoneyField(
+              config: OdooFieldConfig(
                 label: 'Monto Cheques',
                 isEditing: true,
                 prefixIcon: FluentIcons.check_list,
@@ -194,8 +196,8 @@ class _DepositFormDialogState
               },
             ),
             const SizedBox(height: 16),
-            ReactiveNumberField(
-              config: ReactiveFieldConfig(
+            OdooNumberField(
+              config: OdooFieldConfig(
                 label: 'Cantidad de Cheques',
                 isEditing: true,
                 prefixIcon: FluentIcons.number_field,
@@ -220,8 +222,8 @@ class _DepositFormDialogState
           _buildSectionHeader(theme, 'Datos del Comprobante'),
           const SizedBox(height: 12),
 
-          ReactiveTextField(
-            config: ReactiveFieldConfig(
+          OdooTextField(
+            config: OdooFieldConfig(
               label: 'Número de Papeleta',
               isEditing: true,
               prefixIcon: FluentIcons.number_field,
@@ -233,8 +235,8 @@ class _DepositFormDialogState
           ),
           const SizedBox(height: 16),
 
-          ReactiveTextField(
-            config: ReactiveFieldConfig(
+          OdooTextField(
+            config: OdooFieldConfig(
               label: 'Referencia Bancaria',
               isEditing: true,
               prefixIcon: FluentIcons.bank,
@@ -246,8 +248,8 @@ class _DepositFormDialogState
           ),
           const SizedBox(height: 16),
 
-          ReactiveTextField(
-            config: ReactiveFieldConfig(
+          OdooTextField(
+            config: OdooFieldConfig(
               label: 'Nombre del Depositante',
               isEditing: true,
               prefixIcon: FluentIcons.contact,
@@ -259,8 +261,8 @@ class _DepositFormDialogState
           ),
           const SizedBox(height: 16),
 
-          ReactiveMultilineField(
-            config: ReactiveFieldConfig(
+          OdooMultilineField(
+            config: OdooFieldConfig(
               label: 'Notas',
               isEditing: true,
               prefixIcon: FluentIcons.edit_note,
@@ -283,9 +285,7 @@ class _DepositFormDialogState
       decoration: BoxDecoration(
         color: theme.accentColor.withValues(alpha: 0.1),
         borderRadius: BorderRadius.circular(8),
-        border: Border.all(
-          color: theme.accentColor.withValues(alpha: 0.3),
-        ),
+        border: Border.all(color: theme.accentColor.withValues(alpha: 0.3)),
       ),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -361,7 +361,9 @@ class _DepositFormDialogState
       checkCount: _checkCount,
       depositDate: _depositDate,
       accountingDate: _accountingDate,
-      depositSlipNumber: _depositSlipNumber.isNotEmpty ? _depositSlipNumber : null,
+      depositSlipNumber: _depositSlipNumber.isNotEmpty
+          ? _depositSlipNumber
+          : null,
       bankReference: _bankReference.isNotEmpty ? _bankReference : null,
       depositorName: _depositorName.isNotEmpty ? _depositorName : null,
       notes: _notes.isNotEmpty ? _notes : null,

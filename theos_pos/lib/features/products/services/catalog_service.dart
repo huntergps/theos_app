@@ -3,11 +3,14 @@ import 'dart:async';
 import 'package:flutter/foundation.dart' show visibleForTesting;
 import 'package:theos_pos_core/theos_pos_core.dart';
 
+typedef CatalogLoader<T> = Future<List<T>> Function();
+typedef CatalogWatcher<T> = Stream<List<T>> Function();
+
 /// Servicio que mantiene un caché de los catálogos locales
 /// para poder resolver nombres de forma síncrona en la UI.
 ///
 /// El caché es un HashMap O(1) que se actualiza reactivamente cuando
-/// Drift recibe cambios vía WebSocket (upsert → stream → actualización
+/// Drift recibe cambios vía sincronización HTTP (upsert → stream → actualización
 /// de los mapas internos). No depende de TTL para reflejar precios
 /// actualizados.
 ///
@@ -26,6 +29,17 @@ import 'package:theos_pos_core/theos_pos_core.dart';
 /// }
 /// ```
 class CatalogService {
+  final CatalogLoader<Product> _loadProducts;
+  final CatalogLoader<Uom> _loadUoms;
+  final CatalogLoader<ProductCategory> _loadCategories;
+  final CatalogLoader<Tax> _loadTaxes;
+  final CatalogWatcher<Product> _watchProducts;
+  final CatalogWatcher<Uom> _watchUoms;
+  final CatalogWatcher<ProductCategory> _watchCategories;
+  final CatalogWatcher<Tax> _watchTaxes;
+  @visibleForTesting
+  final Duration debounceDuration;
+
   // Caches indexados por odooId para acceso O(1)
   final Map<int, Product> _productsById = {};
   final Map<String, Product> _productsByBarcode = {};
@@ -35,13 +49,29 @@ class CatalogService {
   final Map<int, Tax> _taxesById = {};
 
   bool _isLoaded = false;
+  bool _isWatching = false;
+  bool _isDisposed = false;
   DateTime? _lastLoadTime;
+  Future<void>? _loadFuture;
+  Future<void>? _refreshFuture;
 
   // Stream de cambios para que los providers de UI sepan cuándo re-renderizar.
   // Emite un entero que se incrementa con cada actualización del caché.
   final StreamController<int> _changesController =
       StreamController<int>.broadcast();
+  final StreamController<int> _productChangesController =
+      StreamController<int>.broadcast();
+  final StreamController<int> _uomChangesController =
+      StreamController<int>.broadcast();
+  final StreamController<int> _categoryChangesController =
+      StreamController<int>.broadcast();
+  final StreamController<int> _taxChangesController =
+      StreamController<int>.broadcast();
   int _changeVersion = 0;
+  int _productChangeVersion = 0;
+  int _uomChangeVersion = 0;
+  int _categoryChangeVersion = 0;
+  int _taxChangeVersion = 0;
 
   // Suscripciones a los streams de Drift (para cancelar en dispose)
   final List<StreamSubscription<dynamic>> _watchSubscriptions = [];
@@ -49,13 +79,45 @@ class CatalogService {
   // Debounce: agrupa cambios rápidos en una sola actualización
   Timer? _debounceTimer;
 
-  CatalogService();
+  CatalogService({
+    CatalogLoader<Product>? loadProducts,
+    CatalogLoader<Uom>? loadUoms,
+    CatalogLoader<ProductCategory>? loadCategories,
+    CatalogLoader<Tax>? loadTaxes,
+    CatalogWatcher<Product>? watchProducts,
+    CatalogWatcher<Uom>? watchUoms,
+    CatalogWatcher<ProductCategory>? watchCategories,
+    CatalogWatcher<Tax>? watchTaxes,
+    this.debounceDuration = const Duration(milliseconds: 500),
+  }) : _loadProducts = loadProducts ?? (() => productManager.searchLocal()),
+       _loadUoms = loadUoms ?? (() => uomManager.searchLocal()),
+       _loadCategories =
+           loadCategories ?? (() => productCategoryManager.searchLocal()),
+       _loadTaxes = loadTaxes ?? (() => taxManager.searchLocal()),
+       _watchProducts = watchProducts ?? (() => productManager.watchAll()),
+       _watchUoms = watchUoms ?? (() => uomManager.watchAll()),
+       _watchCategories =
+           watchCategories ?? (() => productCategoryManager.watchAll()),
+       _watchTaxes = watchTaxes ?? (() => taxManager.watchAll());
 
   /// Stream que emite un entero incremental cada vez que el caché cambia.
   ///
   /// Los providers de UI deben hacer `ref.watch(catalogChangesProvider)`
   /// para recibir rebuilds cuando los datos del catálogo se actualicen.
   Stream<int> get onChanged => _changesController.stream;
+
+  /// Product-only cache revisions. Product lookups avoid rebuilding when an
+  /// unrelated UoM, category, or tax row changes.
+  Stream<int> get onProductsChanged => _productChangesController.stream;
+
+  /// UoM-only cache revisions.
+  Stream<int> get onUomsChanged => _uomChangesController.stream;
+
+  /// Category-only cache revisions.
+  Stream<int> get onCategoriesChanged => _categoryChangesController.stream;
+
+  /// Tax-only cache revisions.
+  Stream<int> get onTaxesChanged => _taxChangesController.stream;
 
   /// Indica si el caché está cargado
   bool get isLoaded => _isLoaded;
@@ -74,6 +136,9 @@ class CatalogService {
   /// Cantidad de categorías en caché
   int get categoryCount => _categoriesById.length;
 
+  @visibleForTesting
+  int get activeWatchSubscriptionCount => _watchSubscriptions.length;
+
   /// Carga todos los catálogos en memoria
   Future<void> initialize() async {
     if (_isLoaded && !needsRefresh) return;
@@ -81,7 +146,20 @@ class CatalogService {
   }
 
   /// Recarga los catálogos
-  Future<void> refresh() async {
+  Future<void> refresh() {
+    final inFlight = _refreshFuture;
+    if (inFlight != null) return inFlight;
+
+    final future = _refreshCatalogs();
+    _refreshFuture = future;
+    return future.whenComplete(() {
+      if (identical(_refreshFuture, future)) _refreshFuture = null;
+    });
+  }
+
+  Future<void> _refreshCatalogs() async {
+    final currentLoad = _loadFuture;
+    if (currentLoad != null) await currentLoad;
     clear();
     await loadCatalogs();
   }
@@ -89,59 +167,74 @@ class CatalogService {
   /// Inicia la suscripción reactiva a los streams de Drift.
   ///
   /// Debe llamarse una sola vez después de la carga inicial. Cuando Drift
-  /// recibe un upsert (vía WebSocket), los streams emiten los datos
+  /// recibe un upsert (vía sincronización HTTP), los streams emiten los datos
   /// actualizados. Con un debounce de 500 ms se agrupan cambios rápidos
   /// (p.ej. sync masivo) en una sola actualización del HashMap.
   ///
   /// Los subscriptions se cancelan en [dispose].
   void startWatching() {
-    // Limpiar suscripciones anteriores si se llama más de una vez
-    _cancelWatchSubscriptions();
+    if (_isDisposed || _isWatching || !_isLoaded) return;
+    _isWatching = true;
 
-    // Productos — se actualiza el mapa en lugar de reemplazarlo completo
-    _watchSubscriptions.add(
-      productManager.watchAll().listen(
-        (products) => _scheduleProductsUpdate(products),
-        onError: (Object e) =>
-            logger.w('[CatalogService]', 'Products stream error: $e'),
-      ),
-    );
+    try {
+      // Productos — se actualiza el mapa en lugar de reemplazarlo completo
+      _watchSubscriptions.add(
+        _watchProducts().listen(
+          (products) => _scheduleProductsUpdate(products),
+          onError: (Object e) =>
+              logger.w('[CatalogService]', 'Products stream error: $e'),
+        ),
+      );
 
-    // UoMs
-    _watchSubscriptions.add(
-      uomManager.watchAll().listen(
-        (uoms) => _scheduleUomsUpdate(uoms),
-        onError: (Object e) =>
-            logger.w('[CatalogService]', 'Uoms stream error: $e'),
-      ),
-    );
+      // UoMs
+      _watchSubscriptions.add(
+        _watchUoms().listen(
+          (uoms) => _scheduleUomsUpdate(uoms),
+          onError: (Object e) =>
+              logger.w('[CatalogService]', 'Uoms stream error: $e'),
+        ),
+      );
 
-    // Categorías
-    _watchSubscriptions.add(
-      productCategoryManager.watchAll().listen(
-        (categories) => _scheduleCategoriesUpdate(categories),
-        onError: (Object e) =>
-            logger.w('[CatalogService]', 'Categories stream error: $e'),
-      ),
-    );
+      // Categorías
+      _watchSubscriptions.add(
+        _watchCategories().listen(
+          (categories) => _scheduleCategoriesUpdate(categories),
+          onError: (Object e) =>
+              logger.w('[CatalogService]', 'Categories stream error: $e'),
+        ),
+      );
 
-    // Impuestos
-    _watchSubscriptions.add(
-      taxManager.watchAll().listen(
-        (taxes) => _scheduleTaxesUpdate(taxes),
-        onError: (Object e) =>
-            logger.w('[CatalogService]', 'Taxes stream error: $e'),
-      ),
-    );
+      // Impuestos
+      _watchSubscriptions.add(
+        _watchTaxes().listen(
+          (taxes) => _scheduleTaxesUpdate(taxes),
+          onError: (Object e) =>
+              logger.w('[CatalogService]', 'Taxes stream error: $e'),
+        ),
+      );
+    } catch (error, stackTrace) {
+      // A factory may fail synchronously. Reset the partial set so a later
+      // initialization can retry without leaking subscriptions.
+      unawaited(_cancelWatchSubscriptions());
+      Error.throwWithStackTrace(error, stackTrace);
+    }
 
     logger.d('[CatalogService]', 'Watching Drift streams for reactive updates');
   }
 
   /// Libera recursos: cancela suscripciones y cierra el stream de cambios.
-  void dispose() {
+  Future<void> dispose() async {
+    if (_isDisposed) return;
+    _isDisposed = true;
     _debounceTimer?.cancel();
-    _cancelWatchSubscriptions();
-    _changesController.close();
+    await _cancelWatchSubscriptions();
+    await Future.wait([
+      _changesController.close(),
+      _productChangesController.close(),
+      _uomChangesController.close(),
+      _categoryChangesController.close(),
+      _taxChangesController.close(),
+    ]);
   }
 
   // ============ Actualización reactiva de mapas ============
@@ -176,41 +269,48 @@ class CatalogService {
   /// Debounce de 500 ms: agrupa cambios rápidos en una sola actualización.
   void _scheduleFlush() {
     _debounceTimer?.cancel();
-    _debounceTimer = Timer(const Duration(milliseconds: 500), _flush);
+    _debounceTimer = Timer(debounceDuration, _flush);
   }
 
   void _flush() {
     if (!_isLoaded) return; // No actualizar antes de la carga inicial
 
-    bool changed = false;
+    var productsChanged = false;
+    var uomsChanged = false;
+    var categoriesChanged = false;
+    var taxesChanged = false;
 
     if (_pendingProducts != null) {
-      _applyProductsUpdate(_pendingProducts!);
+      productsChanged = _applyProductsUpdate(_pendingProducts!);
       _pendingProducts = null;
-      changed = true;
     }
     if (_pendingUoms != null) {
-      _applyUomsUpdate(_pendingUoms!);
+      uomsChanged = _applyUomsUpdate(_pendingUoms!);
       _pendingUoms = null;
-      changed = true;
     }
     if (_pendingCategories != null) {
-      _applyCategoriesUpdate(_pendingCategories!);
+      categoriesChanged = _applyCategoriesUpdate(_pendingCategories!);
       _pendingCategories = null;
-      changed = true;
     }
     if (_pendingTaxes != null) {
-      _applyTaxesUpdate(_pendingTaxes!);
+      taxesChanged = _applyTaxesUpdate(_pendingTaxes!);
       _pendingTaxes = null;
-      changed = true;
     }
 
-    if (changed) {
-      _notifyChange();
+    if (productsChanged || uomsChanged || categoriesChanged || taxesChanged) {
+      _notifyChanges(
+        products: productsChanged,
+        uoms: uomsChanged,
+        categories: categoriesChanged,
+        taxes: taxesChanged,
+      );
     }
   }
 
-  void _applyProductsUpdate(List<Product> products) {
+  bool _applyProductsUpdate(List<Product> products) {
+    if (_sameById(_productsById, products, (product) => product.id)) {
+      return false;
+    }
     _productsById.clear();
     _productsByBarcode.clear();
     _productsByCode.clear();
@@ -227,17 +327,23 @@ class CatalogService {
       '[CatalogService]',
       'Products map updated reactively: ${_productsById.length} products',
     );
+    return true;
   }
 
-  void _applyUomsUpdate(List<Uom> uoms) {
+  bool _applyUomsUpdate(List<Uom> uoms) {
+    if (_sameById(_uomsById, uoms, (uom) => uom.id)) return false;
     _uomsById.clear();
     for (final u in uoms) {
       _uomsById[u.id] = u;
     }
     logger.d('[CatalogService]', 'UoMs map updated: ${_uomsById.length}');
+    return true;
   }
 
-  void _applyCategoriesUpdate(List<ProductCategory> categories) {
+  bool _applyCategoriesUpdate(List<ProductCategory> categories) {
+    if (_sameById(_categoriesById, categories, (category) => category.id)) {
+      return false;
+    }
     _categoriesById.clear();
     for (final c in categories) {
       _categoriesById[c.id] = c;
@@ -246,80 +352,110 @@ class CatalogService {
       '[CatalogService]',
       'Categories map updated: ${_categoriesById.length}',
     );
+    return true;
   }
 
-  void _applyTaxesUpdate(List<Tax> taxes) {
+  bool _applyTaxesUpdate(List<Tax> taxes) {
+    if (_sameById(_taxesById, taxes, (tax) => tax.id)) return false;
     _taxesById.clear();
     for (final t in taxes) {
       _taxesById[t.id] = t;
     }
     logger.d('[CatalogService]', 'Taxes map updated: ${_taxesById.length}');
+    return true;
   }
 
-  void _notifyChange() {
+  bool _sameById<T>(Map<int, T> current, List<T> next, int Function(T) idOf) {
+    if (current.length != next.length) return false;
+    for (final value in next) {
+      if (current[idOf(value)] != value) return false;
+    }
+    return true;
+  }
+
+  void _notifyChanges({
+    required bool products,
+    required bool uoms,
+    required bool categories,
+    required bool taxes,
+  }) {
     _changeVersion++;
     if (!_changesController.isClosed) {
       _changesController.add(_changeVersion);
-      logger.d(
-        '[CatalogService]',
-        'Catalog updated (version $_changeVersion)',
-      );
+      logger.d('[CatalogService]', 'Catalog updated (version $_changeVersion)');
+    }
+    if (products && !_productChangesController.isClosed) {
+      _productChangesController.add(++_productChangeVersion);
+    }
+    if (uoms && !_uomChangesController.isClosed) {
+      _uomChangesController.add(++_uomChangeVersion);
+    }
+    if (categories && !_categoryChangesController.isClosed) {
+      _categoryChangesController.add(++_categoryChangeVersion);
+    }
+    if (taxes && !_taxChangesController.isClosed) {
+      _taxChangesController.add(++_taxChangeVersion);
     }
   }
 
-  void _cancelWatchSubscriptions() {
-    for (final sub in _watchSubscriptions) {
-      sub.cancel();
-    }
+  Future<void> _cancelWatchSubscriptions() async {
+    final subscriptions = List<StreamSubscription<dynamic>>.of(
+      _watchSubscriptions,
+    );
     _watchSubscriptions.clear();
+    _isWatching = false;
+    await Future.wait(subscriptions.map((sub) => sub.cancel()));
   }
 
   /// Carga todos los catálogos en memoria
-  Future<void> loadCatalogs() async {
+  Future<void> loadCatalogs() {
+    if (_isDisposed) {
+      return Future.error(StateError('CatalogService is disposed'));
+    }
+    if (_isLoaded && !needsRefresh) return Future.value();
+    final inFlight = _loadFuture;
+    if (inFlight != null) return inFlight;
+
+    final future = _loadCatalogs();
+    _loadFuture = future;
+    return future.whenComplete(() {
+      if (identical(_loadFuture, future)) _loadFuture = null;
+    });
+  }
+
+  Future<void> _loadCatalogs() async {
     try {
       logger.d('[CatalogService]', 'Loading catalogs...');
       final sw = Stopwatch()..start();
 
-      // Cargar productos via manager
-      final products = await productManager.searchLocal();
-      _productsById.clear();
-      _productsByBarcode.clear();
-      _productsByCode.clear();
+      // These catalogs are independent. Loading them concurrently shortens
+      // the first usable POS frame without changing the atomic publication of
+      // the in-memory indexes below.
+      final results = await Future.wait<Object>([
+        _loadProducts(),
+        _loadUoms(),
+        _loadCategories(),
+        _loadTaxes(),
+      ]);
+      if (_isDisposed) return;
+      final products = results[0] as List<Product>;
+      final uoms = results[1] as List<Uom>;
+      final categories = results[2] as List<ProductCategory>;
+      final taxes = results[3] as List<Tax>;
 
-      for (final product in products) {
-        _productsById[product.id] = product;
-
-        if (product.hasBarcode) {
-          _productsByBarcode[product.barcode!] = product;
-        }
-        if (product.hasDefaultCode) {
-          _productsByCode[product.defaultCode!.toLowerCase()] = product;
-        }
-      }
-
-      // Cargar UoMs via manager
-      final uoms = await uomManager.searchLocal();
-      _uomsById.clear();
-      for (final u in uoms) {
-        _uomsById[u.id] = u;
-      }
-
-      // Cargar categorías via manager
-      final categories = await productCategoryManager.searchLocal();
-      _categoriesById.clear();
-      for (final c in categories) {
-        _categoriesById[c.id] = c;
-      }
-
-      // Cargar impuestos via manager
-      final taxes = await taxManager.searchLocal();
-      _taxesById.clear();
-      for (final t in taxes) {
-        _taxesById[t.id] = t;
-      }
+      _applyProductsUpdate(products);
+      _applyUomsUpdate(uoms);
+      _applyCategoriesUpdate(categories);
+      _applyTaxesUpdate(taxes);
 
       _isLoaded = true;
       _lastLoadTime = DateTime.now();
+      if (_pendingProducts != null ||
+          _pendingUoms != null ||
+          _pendingCategories != null ||
+          _pendingTaxes != null) {
+        _scheduleFlush();
+      }
 
       sw.stop();
       logger.i(
@@ -333,11 +469,18 @@ class CatalogService {
     } catch (e, stack) {
       logger.e('[CatalogService]', 'Error loading catalogs', e, stack);
       _isLoaded = false;
+      rethrow;
     }
   }
 
   /// Limpia el caché
   void clear() {
+    _debounceTimer?.cancel();
+    _debounceTimer = null;
+    _pendingProducts = null;
+    _pendingUoms = null;
+    _pendingCategories = null;
+    _pendingTaxes = null;
     _productsById.clear();
     _productsByBarcode.clear();
     _productsByCode.clear();
@@ -379,7 +522,8 @@ class CatalogService {
       if (results.length >= limit) break;
 
       final matchesName = product.name.toLowerCase().contains(queryLower);
-      final matchesCode = product.defaultCode?.toLowerCase().contains(queryLower) ?? false;
+      final matchesCode =
+          product.defaultCode?.toLowerCase().contains(queryLower) ?? false;
       final matchesBarcode = product.barcode?.contains(query) ?? false;
 
       if (matchesName || matchesCode || matchesBarcode) {
@@ -549,13 +693,13 @@ class CatalogService {
 
   /// Devuelve estadísticas del caché
   Map<String, int> get stats => {
-        'products': _productsById.length,
-        'productsByBarcode': _productsByBarcode.length,
-        'productsByCode': _productsByCode.length,
-        'uoms': _uomsById.length,
-        'categories': _categoriesById.length,
-        'taxes': _taxesById.length,
-      };
+    'products': _productsById.length,
+    'productsByBarcode': _productsByBarcode.length,
+    'productsByCode': _productsByCode.length,
+    'uoms': _uomsById.length,
+    'categories': _categoriesById.length,
+    'taxes': _taxesById.length,
+  };
 
   // ============ Testing Support ============
 

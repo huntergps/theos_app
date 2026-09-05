@@ -7,7 +7,7 @@ import 'package:theos_pos/features/products/repositories/product_repository.dart
 import 'package:theos_pos/features/clients/clients.dart'
     show ClientCreditService, CreditValidationResult, CreditCheckType;
 import 'package:theos_pos/shared/providers/company_config_provider.dart'
-    show SalesConfig;
+    show SalesConfig, normalizeMaxDiscountPercentage;
 
 // ============================================================
 // Mocks
@@ -31,8 +31,7 @@ void main() {
     testSalesConfig = const SalesConfig(saleCustomerInvoiceLimitSri: 50.0);
 
     // Default stub: getById returns null (no product found)
-    when(() => mockProductRepo.getById(any()))
-        .thenAnswer((_) async => null);
+    when(() => mockProductRepo.getById(any())).thenAnswer((_) async => null);
 
     engine = SaleOrderLogicEngine(
       getCompany: () async => testCompany,
@@ -158,8 +157,9 @@ void main() {
     });
 
     test('waitingApproval can transition to approved or cancel', () {
-      final transitions =
-          engine.getAllowedTransitions(SaleOrderState.waitingApproval);
+      final transitions = engine.getAllowedTransitions(
+        SaleOrderState.waitingApproval,
+      );
       expect(transitions, contains(SaleOrderState.approved));
       expect(transitions, contains(SaleOrderState.cancel));
       expect(transitions.length, 2);
@@ -389,7 +389,7 @@ void main() {
       );
       final engineWithLimit = SaleOrderLogicEngine(
         getCompany: () async => company,
-        getSalesConfig: () => testSalesConfig,
+        getSalesConfig: () => const SalesConfig(maxDiscountPercentage: 30),
         productRepo: mockProductRepo,
       );
 
@@ -429,7 +429,11 @@ void main() {
     });
 
     test('passes discount validation when no limit configured', () async {
-      // Default maxDiscountPercentage is 100.0, meaning no limit
+      final engineWithoutLimit = SaleOrderLogicEngine(
+        getCompany: () async => testCompany,
+        getSalesConfig: () => const SalesConfig(maxDiscountPercentage: 100),
+        productRepo: mockProductRepo,
+      );
       final order = SaleOrder(
         id: 1,
         name: 'SO001',
@@ -451,7 +455,7 @@ void main() {
         ),
       ];
 
-      final result = await engine.validateAction(
+      final result = await engineWithoutLimit.validateAction(
         order: order,
         lines: lines,
         action: OrderAction.confirm,
@@ -593,10 +597,7 @@ void main() {
       );
 
       expect(result.isValid, isFalse);
-      expect(
-        result.hasErrorType(ValidationErrorType.fieldNotEditable),
-        isTrue,
-      );
+      expect(result.hasErrorType(ValidationErrorType.fieldNotEditable), isTrue);
     });
 
     test('fails for approved order (lines not modifiable)', () async {
@@ -615,10 +616,7 @@ void main() {
       );
 
       expect(result.isValid, isFalse);
-      expect(
-        result.hasErrorType(ValidationErrorType.fieldNotEditable),
-        isTrue,
-      );
+      expect(result.hasErrorType(ValidationErrorType.fieldNotEditable), isTrue);
     });
 
     test('succeeds for draft order line edit', () async {
@@ -881,10 +879,7 @@ void main() {
         dateOrder: DateTime.now(),
       );
 
-      final result = await engine.validateCredit(
-        order: order,
-        lines: const [],
-      );
+      final result = await engine.validateCredit(order: order, lines: const []);
 
       expect(result, isNull);
     });
@@ -914,11 +909,13 @@ void main() {
     });
 
     test('returns null when credit validation passes', () async {
-      when(() => mockCreditService.validateOrderCredit(
-            clientId: any(named: 'clientId'),
-            orderAmount: any(named: 'orderAmount'),
-            bypassCheck: any(named: 'bypassCheck'),
-          )).thenAnswer((_) async => CreditValidationResult.ok());
+      when(
+        () => mockCreditService.validateOrderCredit(
+          clientId: any(named: 'clientId'),
+          orderAmount: any(named: 'orderAmount'),
+          bypassCheck: any(named: 'bypassCheck'),
+        ),
+      ).thenAnswer((_) async => CreditValidationResult.ok());
 
       final order = SaleOrder(
         id: 1,
@@ -940,10 +937,7 @@ void main() {
         ),
       ];
 
-      final result = await engine.validateCredit(
-        order: order,
-        lines: lines,
-      );
+      final result = await engine.validateCredit(order: order, lines: lines);
 
       expect(result, isNull);
     });
@@ -954,11 +948,13 @@ void main() {
         isValid: false,
         message: 'Credit limit exceeded',
       );
-      when(() => mockCreditService.validateOrderCredit(
-            clientId: any(named: 'clientId'),
-            orderAmount: any(named: 'orderAmount'),
-            bypassCheck: any(named: 'bypassCheck'),
-          )).thenAnswer((_) async => failedResult);
+      when(
+        () => mockCreditService.validateOrderCredit(
+          clientId: any(named: 'clientId'),
+          orderAmount: any(named: 'orderAmount'),
+          bypassCheck: any(named: 'bypassCheck'),
+        ),
+      ).thenAnswer((_) async => failedResult);
 
       final order = SaleOrder(
         id: 1,
@@ -980,21 +976,20 @@ void main() {
         ),
       ];
 
-      final result = await engine.validateCredit(
-        order: order,
-        lines: lines,
-      );
+      final result = await engine.validateCredit(order: order, lines: lines);
 
       expect(result, isNotNull);
       expect(result!.isValid, isFalse);
     });
 
     test('calculates order amount from product lines only', () async {
-      when(() => mockCreditService.validateOrderCredit(
-            clientId: any(named: 'clientId'),
-            orderAmount: any(named: 'orderAmount'),
-            bypassCheck: any(named: 'bypassCheck'),
-          )).thenAnswer((_) async => CreditValidationResult.ok());
+      when(
+        () => mockCreditService.validateOrderCredit(
+          clientId: any(named: 'clientId'),
+          orderAmount: any(named: 'orderAmount'),
+          bypassCheck: any(named: 'bypassCheck'),
+        ),
+      ).thenAnswer((_) async => CreditValidationResult.ok());
 
       final order = SaleOrder(
         id: 1,
@@ -1035,11 +1030,13 @@ void main() {
       await engine.validateCredit(order: order, lines: lines);
 
       // Should calculate 100 + 200 = 300 (excluding section line)
-      verify(() => mockCreditService.validateOrderCredit(
-            clientId: 5,
-            orderAmount: 300.0,
-            bypassCheck: false,
-          )).called(1);
+      verify(
+        () => mockCreditService.validateOrderCredit(
+          clientId: 5,
+          orderAmount: 300.0,
+          bypassCheck: false,
+        ),
+      ).called(1);
     });
   });
 
@@ -1066,7 +1063,7 @@ void main() {
   // Engine with null company
   // ============================================================
   group('engine with null company', () {
-    test('uses default maxDiscount of 100 when company is null', () async {
+    test('fails closed when company policy is unavailable', () async {
       final engineNoCompany = SaleOrderLogicEngine(
         getCompany: () async => null,
         getSalesConfig: () => testSalesConfig,
@@ -1099,11 +1096,24 @@ void main() {
         action: OrderAction.confirm,
       );
 
-      // 90% discount should pass when no company => maxDiscount defaults to 100
       expect(
         result.hasErrorType(ValidationErrorType.discountExceedsLimit),
-        isFalse,
+        isTrue,
       );
+    });
+  });
+
+  group('discount policy normalization', () {
+    test('missing or non-finite policy fails closed', () {
+      expect(normalizeMaxDiscountPercentage(null), 0);
+      expect(normalizeMaxDiscountPercentage(double.nan), 0);
+      expect(normalizeMaxDiscountPercentage(double.infinity), 0);
+    });
+
+    test('policy is constrained to a valid percentage', () {
+      expect(normalizeMaxDiscountPercentage(-5), 0);
+      expect(normalizeMaxDiscountPercentage(35.5), 35.5);
+      expect(normalizeMaxDiscountPercentage(120), 100);
     });
   });
 }

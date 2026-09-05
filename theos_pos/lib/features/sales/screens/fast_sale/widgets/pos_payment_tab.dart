@@ -1,27 +1,30 @@
 import 'package:fluent_ui/fluent_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:odoo_sdk/odoo_sdk.dart' show OdooException, OfflineLocalCommand;
 import 'package:odoo_widgets/odoo_widgets.dart' show OdooSummaryCard;
+import 'package:uuid/uuid.dart';
 
+import '../../../../../core/adaptive/adaptive_layout_policy.dart';
 import '../../../../../core/constants/app_colors.dart';
-import '../../../../../core/database/providers.dart' show currentSessionProvider;
+import '../../../../../core/database/providers.dart'
+    show currentSessionProvider, currentUserProvider;
 import '../../../../../core/database/repositories/repository_providers.dart';
-import '../../../../../core/services/odoo_service.dart';
 import '../../../../../core/theme/spacing.dart';
-import 'package:theos_pos_core/theos_pos_core.dart' hide DatabaseHelper, PartnerBank, CreditIssue;
+
+import 'package:theos_pos_core/theos_pos_core.dart'
+    hide DatabaseHelper, PartnerBank;
+
 import '../../../providers/service_providers.dart';
+import '../../../repositories/sales_repository.dart';
 import '../../../../../shared/utils/formatting_utils.dart';
+import '../../../../../shared/utils/error_utils.dart';
 import '../fast_sale_providers.dart';
 import 'pos_payment_providers.dart';
 import 'add_payment_dialog.dart';
 import 'add_withhold_dialog.dart';
+import 'touch_actions_fab.dart' show fastSaleInputCapabilitiesProvider;
+import '../../../widgets/payment/overpayment_dialog.dart';
 import '../../../../../shared/widgets/dialogs/copyable_info_bar.dart';
-
-// Re-export providers and notifiers for backward compatibility
-// (other files import pos_payment_tab.dart with show clauses for these symbols)
-export 'pos_payment_providers.dart';
-export 'add_payment_dialog.dart';
-export 'add_withhold_dialog.dart';
-export 'quick_amount_button.dart';
 
 /// Tab content for payments in POS
 ///
@@ -30,6 +33,80 @@ export 'quick_amount_button.dart';
 /// - List of registered payments
 /// - Form to add new payments
 /// - Quick cash buttons
+///
+/// Stable retry identity for an existing-invoice collection. Kept outside the
+/// widget so it can be tested without mounting the POS dependency graph.
+String existingInvoiceCollectionOperationUuid(
+  int invoiceId,
+  Iterable<PaymentLine> lines,
+) {
+  final keys =
+      lines
+          .map((line) => line.lineUuid ?? line.uuid)
+          .whereType<String>()
+          .where((value) => value.trim().isNotEmpty)
+          .toList()
+        ..sort();
+  return const Uuid().v5(
+    Namespace.url.value,
+    'theos-pos:invoice-collection:$invoiceId:${keys.join(',')}',
+  );
+}
+
+typedef ExistingInvoiceCollector = Future<int> Function({
+  required int saleOrderId,
+  required int invoiceId,
+  required int collectionSessionId,
+  required int operatorId,
+  required String operationUuid,
+  required List<PaymentLine> lines,
+});
+
+/// UI adapter for collecting against an already-posted invoice. Keeping the
+/// policy here makes the screen testable without replacing the payment
+/// persistence service or weakening its native guards.
+Future<int> collectExistingInvoiceFromPos({
+  required int saleOrderId,
+  required AccountMove invoice,
+  required int collectionSessionId,
+  required int operatorId,
+  required List<PaymentLine> lines,
+  Set<String> queuedLineUuids = const {},
+  required ExistingInvoiceCollector collector,
+}) async {
+  final newLines = lines
+      .where((line) => !queuedLineUuids.contains(line.lineUuid ?? line.uuid))
+      .toList(growable: false);
+  if (invoice.moveType != 'out_invoice' ||
+      invoice.state != 'posted' ||
+      invoice.amountResidual <= 0.000001) {
+    throw StateError('La factura no tiene saldo pendiente cobrable.');
+  }
+  if (newLines.isEmpty ||
+      newLines.any(
+        (line) =>
+            line.isSynced ||
+            line.type != PaymentLineType.payment ||
+            (line.lineUuid ?? line.uuid)?.trim().isEmpty != false,
+      )) {
+    throw StateError(
+      'Agregue sólo pagos nuevos válidos para cobrar la factura.',
+    );
+  }
+  final total = newLines.fold<double>(0, (sum, line) => sum + line.amount);
+  if (total > invoice.amountResidual + 0.000001) {
+    throw StateError('El cobro supera el saldo pendiente de la factura.');
+  }
+  return collector(
+    saleOrderId: saleOrderId,
+    invoiceId: invoice.id,
+    collectionSessionId: collectionSessionId,
+    operatorId: operatorId,
+    operationUuid: existingInvoiceCollectionOperationUuid(invoice.id, newLines),
+    lines: newLines,
+  );
+}
+
 class POSPaymentTab extends ConsumerStatefulWidget {
   const POSPaymentTab({super.key});
 
@@ -49,23 +126,30 @@ class _POSPaymentTabState extends ConsumerState<POSPaymentTab> {
     final withholdLines = ref.watch(posWithholdLinesProvider);
     final journalsAsync = ref.watch(posAvailableJournalsProvider);
     final currentSession = ref.watch(currentSessionProvider);
+    final inputCapabilities = ref.watch(fastSaleInputCapabilitiesProvider);
 
     // Calculate totals (considering withholdings)
     final orderTotal = activeTab?.total ?? 0.0;
     final totalWithheld = withholdLines.fold(0.0, (sum, l) => sum + l.amount);
-    final amountToCollect = orderTotal - totalWithheld; // Total a cobrar = Total - Retención
+    final amountToCollect =
+        orderTotal - totalWithheld; // Total a cobrar = Total - Retención
     final totalPaid = paymentLines.fold(0.0, (sum, l) => sum + l.amount);
     final pendingAmount = amountToCollect - totalPaid;
     final isFullyPaid = pendingAmount <= 0.01;
 
     // Check if we can add payments (model: state == sale || approved)
     final order = activeTab?.order;
-    final canAddPayments = order != null && order.canAddPayments && currentSession != null;
+    final canAddPayments =
+        order != null &&
+        order.canAddPayments &&
+        currentSession?.canRegisterTransactions == true;
 
     // Show "confirm first" message only when order state is not sale/approved
     // NOT when hasQueuedInvoice is true (that case should show payments read-only)
-    final isOrderConfirmed = order != null &&
-        (order.state == SaleOrderState.sale || order.state == SaleOrderState.approved);
+    final isOrderConfirmed =
+        order != null &&
+        (order.state == SaleOrderState.sale ||
+            order.state == SaleOrderState.approved);
     final orderNotConfirmed = order != null && !isOrderConfirmed;
 
     return Column(
@@ -79,11 +163,11 @@ class _POSPaymentTabState extends ConsumerState<POSPaymentTab> {
           totalPaid,
           pendingAmount,
           isFullyPaid,
+          inputCapabilities,
         ),
 
         // Note: Credit info is displayed in the right panel (POSCreditInfoCard)
         // to avoid duplication and use the single source of truth from local DB
-
         const SizedBox(height: Spacing.sm),
 
         // Content
@@ -91,29 +175,40 @@ class _POSPaymentTabState extends ConsumerState<POSPaymentTab> {
           child: orderNotConfirmed
               ? _buildConfirmFirstMessage(theme)
               : currentSession == null
-                  ? _buildNoSessionMessage(theme)
-                  : journalsAsync.when(
-                      loading: () => const Center(child: ProgressRing()),
-                      error: (e, _) => Center(child: Text('Error: $e')),
-                      data: (journals) => _buildPaymentContent(
-                        context,
-                        theme,
-                        activeTab,
-                        paymentLines,
-                        journals,
-                        pendingAmount,
-                        isFullyPaid,
-                      ),
-                    ),
+              ? _buildNoSessionMessage(theme)
+              : !currentSession.canRegisterTransactions
+              ? _buildInactiveSessionMessage(theme, currentSession)
+              : journalsAsync.when(
+                  loading: () => const Center(child: ProgressRing()),
+                  error: (e, _) => Center(child: Text('Error: $e')),
+                  data: (journals) => _buildPaymentContent(
+                    context,
+                    theme,
+                    activeTab,
+                    paymentLines,
+                    journals,
+                    pendingAmount,
+                    isFullyPaid,
+                    inputCapabilities,
+                  ),
+                ),
         ),
 
         // Action buttons:
         // - Show save/invoice buttons when canAddPayments is true and there are payments
         // - Show print button when hasQueuedInvoice is true (even if canAddPayments is false)
         if (activeTab != null &&
-            ((canAddPayments && paymentLines.isNotEmpty) ||
-             (activeTab.order?.hasQueuedInvoice ?? false)))
-          _buildActionButtons(context, theme, activeTab, paymentLines, isFullyPaid),
+            (((canAddPayments || (activeTab.order?.isFullyInvoiced ?? false)) &&
+                    paymentLines.isNotEmpty) ||
+                (activeTab.order?.hasQueuedInvoice ?? false)))
+          _buildActionButtons(
+            context,
+            theme,
+            activeTab,
+            paymentLines,
+            isFullyPaid,
+            inputCapabilities,
+          ),
       ],
     );
   }
@@ -126,6 +221,7 @@ class _POSPaymentTabState extends ConsumerState<POSPaymentTab> {
     double totalPaid,
     double pendingAmount,
     bool isFullyPaid,
+    AdaptiveInputCapabilities inputCapabilities,
   ) {
     // Simplified summary: only show what matters for payment
     // A COBRAR = Total - Retenciones (what customer pays)
@@ -138,32 +234,34 @@ class _POSPaymentTabState extends ConsumerState<POSPaymentTab> {
         backgroundColor: isFullyPaid
             ? AppColors.success.withValues(alpha: 0.1)
             : null,
-        padding: const EdgeInsets.symmetric(horizontal: Spacing.md, vertical: Spacing.sm),
+        padding: const EdgeInsets.symmetric(
+          horizontal: Spacing.md,
+          vertical: Spacing.sm,
+        ),
         children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-            children: [
+          AdaptivePaymentMetrics(
+            inputCapabilities: inputCapabilities,
+            items: [
               _buildSummaryItem(
                 theme,
                 'A COBRAR',
                 amountToCollect,
                 color: AppColors.info,
               ),
-              Container(width: 1, height: 50, color: theme.resources.dividerStrokeColorDefault),
               _buildSummaryItem(
                 theme,
                 'RETENIDO',
                 totalWithheld,
-                color: totalWithheld > 0 ? AppColors.warning : theme.inactiveColor,
+                color: totalWithheld > 0
+                    ? AppColors.warning
+                    : theme.inactiveColor,
               ),
-              Container(width: 1, height: 50, color: theme.resources.dividerStrokeColorDefault),
               _buildSummaryItem(
                 theme,
                 'PAGADO',
                 totalPaid,
                 color: AppColors.success,
               ),
-              Container(width: 1, height: 50, color: theme.resources.dividerStrokeColorDefault),
               _buildSummaryItem(
                 theme,
                 isFullyPaid ? 'COMPLETADO' : 'PENDIENTE',
@@ -197,21 +295,24 @@ class _POSPaymentTabState extends ConsumerState<POSPaymentTab> {
           ),
         ),
         const SizedBox(height: Spacing.xxs),
-        Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            if (icon != null) ...[
-              Icon(icon, size: 20, color: color),
-              const SizedBox(width: Spacing.xxs),
-            ],
-            Text(
-              amount.toCurrency(),
-              style: theme.typography.subtitle?.copyWith(
-                fontWeight: FontWeight.bold,
-                color: color,
+        FittedBox(
+          fit: BoxFit.scaleDown,
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              if (icon != null) ...[
+                Icon(icon, size: 20, color: color),
+                const SizedBox(width: Spacing.xxs),
+              ],
+              Text(
+                amount.toCurrency(),
+                style: theme.typography.subtitle?.copyWith(
+                  fontWeight: FontWeight.bold,
+                  color: color,
+                ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ],
     );
@@ -277,6 +378,39 @@ class _POSPaymentTabState extends ConsumerState<POSPaymentTab> {
     );
   }
 
+  Widget _buildInactiveSessionMessage(
+    FluentThemeData theme,
+    CollectionSession session,
+  ) {
+    return Center(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(
+            FluentIcons.pause,
+            size: 48,
+            color: AppColors.warning.withValues(alpha: 0.5),
+          ),
+          const SizedBox(height: Spacing.sm),
+          Text(
+            'Sesión ${session.displayState.toLowerCase()}',
+            style: theme.typography.subtitle?.copyWith(
+              color: theme.inactiveColor,
+            ),
+          ),
+          const SizedBox(height: Spacing.xs),
+          Text(
+            'Reanude la sesión de cobranza antes de registrar pagos',
+            style: theme.typography.caption?.copyWith(
+              color: theme.inactiveColor,
+            ),
+            textAlign: TextAlign.center,
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildPaymentContent(
     BuildContext context,
     FluentThemeData theme,
@@ -285,9 +419,10 @@ class _POSPaymentTabState extends ConsumerState<POSPaymentTab> {
     List<AvailableJournal> journals,
     double pendingAmount,
     bool isFullyPaid,
+    AdaptiveInputCapabilities inputCapabilities,
   ) {
     final withholdLines = ref.watch(posWithholdLinesProvider);
-    final withholdTaxesAsync = ref.watch(posAvailableWithholdTaxesProvider);
+    final withholdTaxesAsync = ref.watch(posWithholdTaxesStreamProvider);
 
     return SingleChildScrollView(
       padding: const EdgeInsets.symmetric(horizontal: Spacing.sm),
@@ -295,56 +430,82 @@ class _POSPaymentTabState extends ConsumerState<POSPaymentTab> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           // Withholdings section
-          _buildWithholdingsSection(context, theme, activeTab, withholdLines, withholdTaxesAsync),
+          _buildWithholdingsSection(
+            context,
+            theme,
+            activeTab,
+            withholdLines,
+            withholdTaxesAsync,
+            inputCapabilities,
+          ),
 
           const SizedBox(height: Spacing.md),
           const Divider(),
           const SizedBox(height: Spacing.sm),
 
           // Registered payments header with add button
-          Row(
-            children: [
-              Icon(FluentIcons.list, size: 14, color: theme.accentColor),
-              const SizedBox(width: Spacing.xs),
-              Text(
-                'Pagos registrados (${paymentLines.length})',
-                style: theme.typography.bodyStrong,
-              ),
-              const Spacer(),
-              // Hide add button when fully paid or order is invoiced
-              if (!isFullyPaid && activeTab != null && !(activeTab.order?.isFullyInvoiced ?? false))
-                FilledButton(
-                  onPressed: () => _showAddPaymentDialog(context, theme, journals, pendingAmount, activeTab.orderId, activeTab.order?.partnerId),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      const Icon(FluentIcons.add, size: 12),
-                      const SizedBox(width: Spacing.xxs),
-                      const Text('Agregar'),
-                    ],
+          AdaptivePaymentActionRow(
+            inputCapabilities: inputCapabilities,
+            leading: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(FluentIcons.list, size: 14, color: theme.accentColor),
+                const SizedBox(width: Spacing.xs),
+                Flexible(
+                  child: Text(
+                    'Pagos registrados (${paymentLines.length})',
+                    style: theme.typography.bodyStrong,
                   ),
                 ),
-            ],
+              ],
+            ),
+            trailing: !isFullyPaid && activeTab != null
+                ? FilledButton(
+                    onPressed: () => _showAddPaymentDialog(
+                      context,
+                      theme,
+                      journals,
+                      pendingAmount,
+                      activeTab.orderId,
+                      activeTab.order?.partnerId,
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Icon(FluentIcons.add, size: 12),
+                        const SizedBox(width: Spacing.xxs),
+                        const Text('Agregar'),
+                      ],
+                    ),
+                  )
+                : const SizedBox.shrink(),
           ),
           const SizedBox(height: Spacing.sm),
 
           // Payments list
           if (paymentLines.isNotEmpty && activeTab != null)
-            ...paymentLines.map((line) => _buildPaymentLineCard(
-              theme,
-              line,
-              activeTab.orderId,
-              isInvoiced: activeTab.order?.isFullyInvoiced ?? false,
-            ))
+            ...paymentLines.map(
+              (line) => _buildPaymentLineCard(
+                theme,
+                line,
+                activeTab.orderId,
+                isInvoiced: activeTab.order?.isFullyInvoiced ?? false,
+              ),
+            )
           else if (isFullyPaid)
             _buildFullyPaidMessage(theme)
           else
             Container(
-              padding: const EdgeInsets.symmetric(horizontal: Spacing.sm, vertical: Spacing.md),
+              padding: const EdgeInsets.symmetric(
+                horizontal: Spacing.sm,
+                vertical: Spacing.md,
+              ),
               decoration: BoxDecoration(
                 color: theme.cardColor.withValues(alpha: 0.5),
                 borderRadius: BorderRadius.circular(6),
-                border: Border.all(color: theme.resources.dividerStrokeColorDefault),
+                border: Border.all(
+                  color: theme.resources.dividerStrokeColorDefault,
+                ),
               ),
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.center,
@@ -353,7 +514,9 @@ class _POSPaymentTabState extends ConsumerState<POSPaymentTab> {
                   const SizedBox(width: Spacing.xs),
                   Text(
                     'Sin pagos registrados',
-                    style: theme.typography.caption?.copyWith(color: theme.inactiveColor),
+                    style: theme.typography.caption?.copyWith(
+                      color: theme.inactiveColor,
+                    ),
                   ),
                 ],
               ),
@@ -381,12 +544,14 @@ class _POSPaymentTabState extends ConsumerState<POSPaymentTab> {
         orderId: orderId,
         partnerId: partnerId,
         onAddLine: (line) {
-          ref.read(posPaymentLinesByOrderProvider.notifier).addLine(orderId, line);
+          ref
+              .read(posPaymentLinesByOrderProvider.notifier)
+              .addLine(orderId, line);
         },
-        advancesProvider: posAvailableAdvancesProvider,
-        creditNotesProvider: posAvailableCreditNotesProvider,
-        partnerBanksProvider: posPartnerBanksProvider,
-        banksProvider: posAvailableBanksProvider,
+        advancesProvider: posAvailableAdvancesStream,
+        creditNotesProvider: posAvailableCreditNotesStream,
+        partnerBanksProvider: posPartnerBanksStreamProvider,
+        banksProvider: posAvailableBanksStreamProvider,
         ref: ref,
       ),
     );
@@ -398,10 +563,15 @@ class _POSPaymentTabState extends ConsumerState<POSPaymentTab> {
     FastSaleTabState? activeTab,
     List<WithholdLine> withholdLines,
     AsyncValue<List<AvailableWithholdTax>> withholdTaxesAsync,
+    AdaptiveInputCapabilities inputCapabilities,
   ) {
     // Group lines by type
-    final vatLines = withholdLines.where((l) => l.withholdType == WithholdType.vatSale).toList();
-    final incomeLines = withholdLines.where((l) => l.withholdType == WithholdType.incomeSale).toList();
+    final vatLines = withholdLines
+        .where((l) => l.withholdType == WithholdType.vatSale)
+        .toList();
+    final incomeLines = withholdLines
+        .where((l) => l.withholdType == WithholdType.incomeSale)
+        .toList();
     final vatTotal = vatLines.fold(0.0, (sum, l) => sum + l.amount);
     final incomeTotal = incomeLines.fold(0.0, (sum, l) => sum + l.amount);
 
@@ -409,45 +579,64 @@ class _POSPaymentTabState extends ConsumerState<POSPaymentTab> {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         // Section header with add button
-        Row(
-          children: [
-            Icon(FluentIcons.calculator_percentage, size: 14, color: AppColors.warning),
-            const SizedBox(width: Spacing.xs),
-            Text(
-              'Retenciones',
-              style: theme.typography.bodyStrong,
+        AdaptivePaymentActionRow(
+          inputCapabilities: inputCapabilities,
+          leading: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(
+                FluentIcons.calculator_percentage,
+                size: 14,
+                color: AppColors.warning,
+              ),
+              const SizedBox(width: Spacing.xs),
+              Text('Retenciones', style: theme.typography.bodyStrong),
+            ],
+          ),
+          trailing: withholdTaxesAsync.when(
+            loading: () => const SizedBox(
+              width: 16,
+              height: 16,
+              child: ProgressRing(strokeWidth: 2),
             ),
-            const Spacer(),
-            // Hide add button when order is invoiced
-            withholdTaxesAsync.when(
-              loading: () => const SizedBox(width: 16, height: 16, child: ProgressRing(strokeWidth: 2)),
-              error: (_, _) => const SizedBox(),
-              data: (taxes) => taxes.isNotEmpty && !(activeTab?.order?.isFullyInvoiced ?? false)
-                  ? Button(
-                      onPressed: () => _showAddWithholdDialog(context, theme, activeTab, taxes),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          const Icon(FluentIcons.add, size: 12),
-                          const SizedBox(width: Spacing.xxs),
-                          const Text('Agregar'),
-                        ],
-                      ),
-                    )
-                  : const SizedBox(),
-            ),
-          ],
+            error: (_, _) => const SizedBox(),
+            data: (taxes) =>
+                taxes.isNotEmpty &&
+                    !(activeTab?.order?.isFullyInvoiced ?? false)
+                ? Button(
+                    onPressed: () => _showAddWithholdDialog(
+                      context,
+                      theme,
+                      activeTab,
+                      taxes,
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Icon(FluentIcons.add, size: 12),
+                        const SizedBox(width: Spacing.xxs),
+                        const Text('Agregar'),
+                      ],
+                    ),
+                  )
+                : const SizedBox(),
+          ),
         ),
         const SizedBox(height: Spacing.xs),
 
         // Grouped withholdings (IVA and Renta in one row)
         if (withholdLines.isEmpty)
           Container(
-            padding: const EdgeInsets.symmetric(horizontal: Spacing.sm, vertical: Spacing.xs),
+            padding: const EdgeInsets.symmetric(
+              horizontal: Spacing.sm,
+              vertical: Spacing.xs,
+            ),
             decoration: BoxDecoration(
               color: theme.cardColor.withValues(alpha: 0.5),
               borderRadius: BorderRadius.circular(6),
-              border: Border.all(color: theme.resources.dividerStrokeColorDefault),
+              border: Border.all(
+                color: theme.resources.dividerStrokeColorDefault,
+              ),
             ),
             child: Row(
               children: [
@@ -455,7 +644,9 @@ class _POSPaymentTabState extends ConsumerState<POSPaymentTab> {
                 const SizedBox(width: Spacing.xs),
                 Text(
                   'Sin retenciones',
-                  style: theme.typography.caption?.copyWith(color: theme.inactiveColor),
+                  style: theme.typography.caption?.copyWith(
+                    color: theme.inactiveColor,
+                  ),
                 ),
               ],
             ),
@@ -494,7 +685,11 @@ class _POSPaymentTabState extends ConsumerState<POSPaymentTab> {
       ),
       header: Row(
         children: [
-          Icon(FluentIcons.calculator_percentage, size: 16, color: AppColors.warning),
+          Icon(
+            FluentIcons.calculator_percentage,
+            size: 16,
+            color: AppColors.warning,
+          ),
           const SizedBox(width: Spacing.sm),
           Expanded(
             child: Row(
@@ -506,13 +701,21 @@ class _POSPaymentTabState extends ConsumerState<POSPaymentTab> {
                 ],
                 // Renta summary
                 if (incomeLines.isNotEmpty)
-                  _buildWithholdChip(theme, 'Renta', incomeTotal, incomeLines.length),
+                  _buildWithholdChip(
+                    theme,
+                    'Renta',
+                    incomeTotal,
+                    incomeLines.length,
+                  ),
               ],
             ),
           ),
           // Total
           Container(
-            padding: const EdgeInsets.symmetric(horizontal: Spacing.sm, vertical: Spacing.xxs),
+            padding: const EdgeInsets.symmetric(
+              horizontal: Spacing.sm,
+              vertical: Spacing.xxs,
+            ),
             decoration: BoxDecoration(
               color: AppColors.warning.withValues(alpha: 0.2),
               borderRadius: BorderRadius.circular(4),
@@ -530,10 +733,16 @@ class _POSPaymentTabState extends ConsumerState<POSPaymentTab> {
             Tooltip(
               message: 'Eliminar todas las retenciones',
               child: IconButton(
-                icon: Icon(FluentIcons.delete, size: 14, color: AppColors.danger),
+                icon: Icon(
+                  FluentIcons.delete,
+                  size: 14,
+                  color: AppColors.danger,
+                ),
                 onPressed: () {
                   for (final line in allLines) {
-                    ref.read(posWithholdLinesByOrderProvider.notifier).removeLine(orderId, line.lineUuid);
+                    ref
+                        .read(posWithholdLinesByOrderProvider.notifier)
+                        .removeLine(orderId, line.lineUuid);
                   }
                 },
               ),
@@ -547,7 +756,10 @@ class _POSPaymentTabState extends ConsumerState<POSPaymentTab> {
           children: [
             // Detail table header
             Container(
-              padding: const EdgeInsets.symmetric(horizontal: Spacing.xs, vertical: Spacing.xxs),
+              padding: const EdgeInsets.symmetric(
+                horizontal: Spacing.xs,
+                vertical: Spacing.xxs,
+              ),
               decoration: BoxDecoration(
                 color: theme.cardColor,
                 borderRadius: BorderRadius.circular(4),
@@ -556,19 +768,42 @@ class _POSPaymentTabState extends ConsumerState<POSPaymentTab> {
                 children: [
                   Expanded(
                     flex: 3,
-                    child: Text('Retención', style: theme.typography.caption?.copyWith(fontWeight: FontWeight.w600)),
+                    child: Text(
+                      'Retención',
+                      style: theme.typography.caption?.copyWith(
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
                   ),
                   Expanded(
                     flex: 2,
-                    child: Text('Base', style: theme.typography.caption?.copyWith(fontWeight: FontWeight.w600), textAlign: TextAlign.right),
+                    child: Text(
+                      'Base',
+                      style: theme.typography.caption?.copyWith(
+                        fontWeight: FontWeight.w600,
+                      ),
+                      textAlign: TextAlign.right,
+                    ),
                   ),
                   Expanded(
                     flex: 1,
-                    child: Text('%', style: theme.typography.caption?.copyWith(fontWeight: FontWeight.w600), textAlign: TextAlign.center),
+                    child: Text(
+                      '%',
+                      style: theme.typography.caption?.copyWith(
+                        fontWeight: FontWeight.w600,
+                      ),
+                      textAlign: TextAlign.center,
+                    ),
                   ),
                   Expanded(
                     flex: 2,
-                    child: Text('Monto', style: theme.typography.caption?.copyWith(fontWeight: FontWeight.w600), textAlign: TextAlign.right),
+                    child: Text(
+                      'Monto',
+                      style: theme.typography.caption?.copyWith(
+                        fontWeight: FontWeight.w600,
+                      ),
+                      textAlign: TextAlign.right,
+                    ),
                   ),
                   const SizedBox(width: 32), // Space for delete button
                 ],
@@ -576,7 +811,14 @@ class _POSPaymentTabState extends ConsumerState<POSPaymentTab> {
             ),
             const SizedBox(height: Spacing.xxs),
             // Detail rows
-            ...allLines.map((line) => _buildWithholdDetailRow(theme, line, orderId, isInvoiced: isInvoiced)),
+            ...allLines.map(
+              (line) => _buildWithholdDetailRow(
+                theme,
+                line,
+                orderId,
+                isInvoiced: isInvoiced,
+              ),
+            ),
           ],
         ),
       ),
@@ -584,7 +826,12 @@ class _POSPaymentTabState extends ConsumerState<POSPaymentTab> {
   }
 
   /// Builds a compact chip showing withhold type summary
-  Widget _buildWithholdChip(FluentThemeData theme, String type, double amount, int count) {
+  Widget _buildWithholdChip(
+    FluentThemeData theme,
+    String type,
+    double amount,
+    int count,
+  ) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: Spacing.xs, vertical: 2),
       decoration: BoxDecoration(
@@ -604,9 +851,7 @@ class _POSPaymentTabState extends ConsumerState<POSPaymentTab> {
           const SizedBox(width: Spacing.xxs),
           Text(
             amount.toCurrency(),
-            style: theme.typography.caption?.copyWith(
-              color: AppColors.warning,
-            ),
+            style: theme.typography.caption?.copyWith(color: AppColors.warning),
           ),
           Text(
             ' ($count)',
@@ -621,9 +866,17 @@ class _POSPaymentTabState extends ConsumerState<POSPaymentTab> {
   }
 
   /// Builds a detail row for a single withhold line
-  Widget _buildWithholdDetailRow(FluentThemeData theme, WithholdLine line, int orderId, {bool isInvoiced = false}) {
+  Widget _buildWithholdDetailRow(
+    FluentThemeData theme,
+    WithholdLine line,
+    int orderId, {
+    bool isInvoiced = false,
+  }) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: Spacing.xs, vertical: Spacing.xxs),
+      padding: const EdgeInsets.symmetric(
+        horizontal: Spacing.xs,
+        vertical: Spacing.xxs,
+      ),
       margin: const EdgeInsets.only(bottom: 2),
       decoration: BoxDecoration(
         color: theme.cardColor.withValues(alpha: 0.5),
@@ -666,7 +919,9 @@ class _POSPaymentTabState extends ConsumerState<POSPaymentTab> {
             flex: 2,
             child: Text(
               line.amount.toCurrency(),
-              style: theme.typography.caption?.copyWith(fontWeight: FontWeight.w600),
+              style: theme.typography.caption?.copyWith(
+                fontWeight: FontWeight.w600,
+              ),
               textAlign: TextAlign.right,
             ),
           ),
@@ -677,9 +932,15 @@ class _POSPaymentTabState extends ConsumerState<POSPaymentTab> {
               child: Tooltip(
                 message: 'Eliminar retención',
                 child: IconButton(
-                  icon: Icon(FluentIcons.delete, size: 10, color: AppColors.danger),
+                  icon: Icon(
+                    FluentIcons.delete,
+                    size: 10,
+                    color: AppColors.danger,
+                  ),
                   onPressed: () {
-                    ref.read(posWithholdLinesByOrderProvider.notifier).removeLine(orderId, line.lineUuid);
+                    ref
+                        .read(posWithholdLinesByOrderProvider.notifier)
+                        .removeLine(orderId, line.lineUuid);
                   },
                 ),
               ),
@@ -704,8 +965,12 @@ class _POSPaymentTabState extends ConsumerState<POSPaymentTab> {
     final orderSubtotal = activeTab.subtotal;
 
     // Separate taxes by type
-    final vatTaxes = taxes.where((t) => t.withholdType == WithholdType.vatSale).toList();
-    final incomeTaxes = taxes.where((t) => t.withholdType == WithholdType.incomeSale).toList();
+    final vatTaxes = taxes
+        .where((t) => t.withholdType == WithholdType.vatSale)
+        .toList();
+    final incomeTaxes = taxes
+        .where((t) => t.withholdType == WithholdType.incomeSale)
+        .toList();
 
     showDialog(
       context: context,
@@ -718,7 +983,9 @@ class _POSPaymentTabState extends ConsumerState<POSPaymentTab> {
         incomeTaxes: incomeTaxes,
         orderId: activeTab.orderId,
         onAddLine: (line) {
-          ref.read(posWithholdLinesByOrderProvider.notifier).addLine(activeTab.orderId, line);
+          ref
+              .read(posWithholdLinesByOrderProvider.notifier)
+              .addLine(activeTab.orderId, line);
         },
       ),
     );
@@ -792,9 +1059,15 @@ class _POSPaymentTabState extends ConsumerState<POSPaymentTab> {
             Tooltip(
               message: 'Eliminar pago',
               child: IconButton(
-                icon: Icon(FluentIcons.delete, size: 14, color: AppColors.danger),
+                icon: Icon(
+                  FluentIcons.delete,
+                  size: 14,
+                  color: AppColors.danger,
+                ),
                 onPressed: () {
-                  ref.read(posPaymentLinesByOrderProvider.notifier).removeLine(orderId, line.id);
+                  ref
+                      .read(posPaymentLinesByOrderProvider.notifier)
+                      .removeLine(orderId, line.id);
                 },
               ),
             ),
@@ -851,15 +1124,18 @@ class _POSPaymentTabState extends ConsumerState<POSPaymentTab> {
     FastSaleTabState activeTab,
     List<PaymentLine> paymentLines,
     bool isFullyPaid,
+    AdaptiveInputCapabilities inputCapabilities,
   ) {
     final order = activeTab.order;
     final hasQueuedInvoice = order?.hasQueuedInvoice ?? false;
     final isFullyInvoiced = order?.isFullyInvoiced ?? false;
-    final canInvoice = order?.canInvoice ?? false;
+    final canInvoice = (order?.canInvoice ?? false) || isFullyInvoiced;
 
-    // If invoice is already queued or fully invoiced, show status bar only
+    // A queued invoice cannot accept another payment. A posted invoice may,
+    // however, receive additional collection lines through the existing-
+    // invoice operation below.
     // Print is handled by InvoiceSection which follows offline-first pattern
-    if (hasQueuedInvoice || isFullyInvoiced) {
+    if (hasQueuedInvoice || (isFullyInvoiced && paymentLines.isEmpty)) {
       return Container(
         padding: const EdgeInsets.all(Spacing.sm),
         decoration: BoxDecoration(
@@ -871,7 +1147,9 @@ class _POSPaymentTabState extends ConsumerState<POSPaymentTab> {
         child: Row(
           children: [
             Icon(
-              hasQueuedInvoice ? FluentIcons.cloud_upload : FluentIcons.check_mark,
+              hasQueuedInvoice
+                  ? FluentIcons.cloud_upload
+                  : FluentIcons.check_mark,
               size: 16,
               color: hasQueuedInvoice ? AppColors.warning : AppColors.success,
             ),
@@ -882,7 +1160,9 @@ class _POSPaymentTabState extends ConsumerState<POSPaymentTab> {
                     ? 'Factura pendiente de sincronización'
                     : 'Orden facturada',
                 style: theme.typography.caption?.copyWith(
-                  color: hasQueuedInvoice ? AppColors.warning : AppColors.success,
+                  color: hasQueuedInvoice
+                      ? AppColors.warning
+                      : AppColors.success,
                 ),
                 overflow: TextOverflow.ellipsis,
               ),
@@ -900,46 +1180,64 @@ class _POSPaymentTabState extends ConsumerState<POSPaymentTab> {
           top: BorderSide(color: theme.resources.dividerStrokeColorDefault),
         ),
       ),
-      child: Row(
-        children: [
-          // Clear all button
-          Button(
-            onPressed: _isSaving ? null : () {
-              ref.read(posPaymentLinesByOrderProvider.notifier).clear(activeTab.orderId);
-            },
-            child: Row(
-              children: [
-                Icon(FluentIcons.delete, size: 14, color: AppColors.danger),
-                const SizedBox(width: Spacing.xs),
-                const Text('Limpiar'),
-              ],
-            ),
-          ),
-
-          const Spacer(),
-
-          // Save button - only show if can invoice
-          FilledButton(
-            onPressed: (_isSaving || !canInvoice) ? null : () => _savePayments(context, activeTab, paymentLines, isFullyPaid),
-            style: ButtonStyle(
-              backgroundColor: WidgetStateProperty.all(
-                isFullyPaid ? AppColors.success : theme.accentColor,
+      child: AdaptivePaymentActionRow(
+        inputCapabilities: inputCapabilities,
+        stretchInCompact: true,
+        leading:
+            // Clear all button
+            Button(
+              onPressed: _isSaving
+                  ? null
+                  : () {
+                      ref
+                          .read(posPaymentLinesByOrderProvider.notifier)
+                          .clear(activeTab.orderId);
+                    },
+              child: Row(
+                children: [
+                  Icon(FluentIcons.delete, size: 14, color: AppColors.danger),
+                  const SizedBox(width: Spacing.xs),
+                  const Text('Limpiar'),
+                ],
               ),
             ),
-            child: _isSaving
-                ? const SizedBox(width: 16, height: 16, child: ProgressRing(strokeWidth: 2))
-                : Row(
-                    children: [
-                      Icon(
-                        isFullyPaid ? FluentIcons.document_set : FluentIcons.save,
-                        size: 16,
-                      ),
-                      const SizedBox(width: Spacing.xs),
-                      Text(isFullyPaid ? 'Guardar y Facturar' : 'Guardar Pagos'),
-                    ],
-                  ),
-          ),
-        ],
+        trailing:
+            // Save button - only show if can invoice
+            FilledButton(
+              onPressed: (_isSaving || !canInvoice)
+                  ? null
+                  : () => _savePayments(
+                      context,
+                      activeTab,
+                      paymentLines,
+                      isFullyPaid,
+                    ),
+              style: ButtonStyle(
+                backgroundColor: WidgetStateProperty.all(
+                  isFullyPaid ? AppColors.success : theme.accentColor,
+                ),
+              ),
+              child: _isSaving
+                  ? const SizedBox(
+                      width: 16,
+                      height: 16,
+                      child: ProgressRing(strokeWidth: 2),
+                    )
+                  : Row(
+                      children: [
+                        Icon(
+                          isFullyPaid
+                              ? FluentIcons.document_set
+                              : FluentIcons.save,
+                          size: 16,
+                        ),
+                        const SizedBox(width: Spacing.xs),
+                        Text(
+                          isFullyPaid ? 'Guardar y Facturar' : 'Guardar Pagos',
+                        ),
+                      ],
+                    ),
+            ),
       ),
     );
   }
@@ -960,8 +1258,11 @@ class _POSPaymentTabState extends ConsumerState<POSPaymentTab> {
 
     // Check if order already has a queued invoice - prevent duplicates
     final order = activeTab.order!;
-    if (order.hasQueuedInvoice || order.isFullyInvoiced) {
-      logger.w('[POSPaymentTab]', 'Order ${order.id} already has invoice (hasQueuedInvoice=${order.hasQueuedInvoice}, isFullyInvoiced=${order.isFullyInvoiced})');
+    if (order.hasQueuedInvoice) {
+      logger.w(
+        '[POSPaymentTab]',
+        'Order ${order.id} already has invoice (hasQueuedInvoice=${order.hasQueuedInvoice}, isFullyInvoiced=${order.isFullyInvoiced})',
+      );
       if (context.mounted) {
         CopyableInfoBar.showWarning(
           context,
@@ -980,38 +1281,151 @@ class _POSPaymentTabState extends ConsumerState<POSPaymentTab> {
       final paymentService = ref.read(paymentServiceProvider);
       final salesRepo = ref.read(salesRepositoryProvider);
       final currentSession = ref.read(currentSessionProvider);
+      if (currentSession?.canRegisterTransactions != true) {
+        if (context.mounted) {
+          CopyableInfoBar.showWarning(
+            context,
+            title: 'Sesión no disponible',
+            message: currentSession == null
+                ? 'Abra una sesión de cobranza antes de registrar pagos.'
+                : 'Reanude la sesión de cobranza antes de registrar pagos.',
+          );
+        }
+        return;
+      }
       final withholdLines = ref.read(posWithholdLinesProvider);
+
+      // Already-issued invoices are collected through the dedicated native
+      // wizard. Never fall through to the create-invoice operation: that
+      // would emit a second invoice and lose the existing invoice's payment
+      // history. Payment lines created by the dialog carry stable UUIDs;
+      // only unsynced lines are submitted so a retry cannot duplicate old
+      // collections.
+      if (order.isFullyInvoiced) {
+        final invoiceRepository = ref.read(invoiceRepositoryProvider);
+        final invoices = await invoiceRepository.getInvoicesForSaleOrder(
+          order.id,
+          forceRefresh: false,
+        );
+        final invoice = invoices
+            .where(
+              (candidate) =>
+                  candidate.moveType == 'out_invoice' &&
+                  candidate.state == 'posted' &&
+                  candidate.amountResidual > 0.000001,
+            )
+            .firstOrNull;
+        final queuedLineUuids = <String>{};
+        final offlineQueue = ref.read(offlineQueueDataSourceProvider);
+        if (offlineQueue != null) {
+          final operations = await offlineQueue.getOperationsForSaleOrder(
+            order.id,
+          );
+          for (final operation in operations) {
+            if (operation.method ==
+                    OfflineLocalCommand.invoiceCollectExisting.storageName ||
+                operation.method ==
+                    OfflineLocalCommand.paymentWizardApply.storageName ||
+                operation.method ==
+                    OfflineLocalCommand.invoiceCreateWithPayments.storageName) {
+              final rawUuids = operation.values['payment_line_uuids'];
+              if (rawUuids is List) {
+                queuedLineUuids.addAll(
+                  rawUuids.whereType<String>().where((id) => id.isNotEmpty),
+                );
+              }
+            }
+          }
+        }
+        final newLines = paymentLines
+            .where((line) => !line.isSynced)
+            .toList(growable: false);
+        final user = await ref.read(currentUserProvider.future);
+        final operatorId = currentSession?.userId ?? user?.id;
+        if (invoice == null || operatorId == null) {
+          throw StateError(
+            'No se encontró una factura cobrable o un operador válido.',
+          );
+        }
+        await collectExistingInvoiceFromPos(
+          saleOrderId: order.id,
+          invoice: invoice,
+          collectionSessionId: currentSession!.id,
+          operatorId: operatorId,
+          lines: newLines,
+          queuedLineUuids: queuedLineUuids,
+          collector: paymentService.collectExistingInvoiceOffline,
+        );
+        await ref
+            .read(posPaymentLinesByOrderProvider.notifier)
+            .loadFromDb(activeTab.orderId);
+        if (context.mounted) {
+          CopyableInfoBar.showSuccess(
+            context,
+            title: 'Pago guardado',
+            message: 'El cobro se registró sobre la factura existente.',
+          );
+        }
+        return;
+      }
 
       // NOTE: Withhold lines are already saved/queued when added via posWithholdLinesByOrderProvider.addLine()
       // No need to re-save them here - that would create duplicate operations
 
       if (isFullyPaid) {
         // Save and create invoice
-        logger.d('[POSPaymentTab]', 'Calling savePaymentLinesAndCreateInvoice...');
-        final invoiceId = await paymentService.savePaymentLinesAndCreateInvoice(
-          activeTab.order!.id,
-          paymentLines,
-          collectionSessionId: currentSession?.id,
+        logger.d(
+          '[POSPaymentTab]',
+          'Calling savePaymentLinesAndCreateInvoice...',
         );
-        logger.d('[POSPaymentTab]', 'savePaymentLinesAndCreateInvoice returned: $invoiceId');
+        var paymentResult = await paymentService
+            .savePaymentLinesAndCreateInvoice(
+              activeTab.order!.id,
+              paymentLines,
+              collectionSessionId: currentSession?.id,
+            );
+        logger.d(
+          '[POSPaymentTab]',
+          'savePaymentLinesAndCreateInvoice returned: $paymentResult',
+        );
+
+        if (paymentResult?.requiresOverpaymentConfirmation == true) {
+          if (!context.mounted) return;
+          final overpayment = paymentResult!.overpaymentAmount ?? 0;
+          final action = await OverpaymentDialog.show(
+            context: context,
+            orderTotal: activeTab.total,
+            totalPaid: paymentLines.fold<double>(
+              0,
+              (sum, line) => sum + line.amount,
+            ),
+            overpayment: overpayment,
+            // The server never permits cash overpayment here. Any excess
+            // returned by this action came from a non-cash line and must be
+            // converted into an advance or corrected by the cashier.
+            hasCashPayment: false,
+            partnerName: activeTab.order!.partnerName,
+          );
+          if (action != OverpaymentAction.createAdvance) {
+            if (context.mounted) {
+              CopyableInfoBar.showWarning(
+                context,
+                title: 'Cobro sin completar',
+                message: 'Ajuste los pagos para eliminar el sobrepago antes de facturar.',
+              );
+            }
+            return;
+          }
+          paymentResult = await paymentService
+              .confirmOverpaymentAndCreateInvoice(paymentResult);
+        }
+
+        final invoiceId = paymentResult?.invoiceId;
 
         if (invoiceId != null && context.mounted) {
           // Get invoice number
-          final odoo = ref.read(odooServiceProvider);
-          final invoiceData = await odoo.call(
-            model: 'account.move',
-            method: 'search_read',
-            kwargs: {
-              'domain': [['id', '=', invoiceId]],
-              'fields': ['name', 'state'],
-              'limit': 1,
-            },
-          );
-
-          String? invoiceName;
-          if (invoiceData is List && invoiceData.isNotEmpty) {
-            invoiceName = invoiceData[0]['name'] as String?;
-          }
+          final invoiceData = await paymentService.getInvoiceSummary(invoiceId);
+          final invoiceName = invoiceData?['name'] as String?;
 
           // Reload order to update state (should now be 'sale')
           await ref.read(fastSaleProvider.notifier).reloadActiveOrder();
@@ -1019,32 +1433,42 @@ class _POSPaymentTabState extends ConsumerState<POSPaymentTab> {
           // After invoicing, payments have been processed to account.payment in Odoo
           // and are no longer in l10n_ec_collection_box.sale.order.payment
           // So we only load from local DB (don't sync from Odoo which would clear them)
-          await ref.read(posPaymentLinesByOrderProvider.notifier).loadFromDb(activeTab.orderId);
-          await ref.read(posWithholdLinesByOrderProvider.notifier).loadFromDb(activeTab.orderId);
+          await ref
+              .read(posPaymentLinesByOrderProvider.notifier)
+              .loadFromDb(activeTab.orderId);
+          await ref
+              .read(posWithholdLinesByOrderProvider.notifier)
+              .loadFromDb(activeTab.orderId);
 
           if (context.mounted) {
             CopyableInfoBar.showSuccess(
               context,
               title: 'Factura creada',
-              message: 'Factura ${invoiceName ?? invoiceId} generada correctamente',
+              message:
+                  'Factura ${invoiceName ?? invoiceId} generada correctamente',
             );
           }
         } else if (context.mounted) {
           // Invoice creation failed (likely offline) - create offline invoice and queue for later
           if (salesRepo != null) {
             // Get ALL local payment lines for this order (not just new ones)
-            final allLocalPayments = await salesRepo.getLocalPaymentLinesForOrder(activeTab.order!.id);
-            // bankId/bankName son @OdooLocalOnly — el guard resuelve el campo
-            // correcto (bank_id vs bank_name_ec) segun la version del servidor,
-            // igual que en PaymentService._syncPaymentLinesToOdoo.
+            final allLocalPayments = await salesRepo
+                .getLocalPaymentLinesForOrder(activeTab.order!.id);
+            // bankId/bankName son @OdooLocalOnly; el guard conserva el banco
+            // custom l10n.ec.bank y su nombre en el comando offline.
             final allPaymentLinesData = allLocalPayments
-                .map((line) => paymentService.applyBankFieldGuard(
-                      paymentLineManager.toOdoo(line),
-                      line,
-                    ))
+                .map(
+                  (line) => paymentService.applyBankFieldGuard(
+                    paymentLineManager.toOdoo(line),
+                    line,
+                  ),
+                )
                 .toList();
 
-            logger.i('[POSPaymentTab]', 'Creating offline invoice for order ${activeTab.order!.id} with ${allPaymentLinesData.length} payment lines');
+            logger.i(
+              '[POSPaymentTab]',
+              'Creating offline invoice for order ${activeTab.order!.id} with ${allPaymentLinesData.length} payment lines',
+            );
 
             // Create offline invoice with SRI access key and queue for sync
             final offlineInvoice = await salesRepo.queueInvoiceWithPayments(
@@ -1053,7 +1477,10 @@ class _POSPaymentTabState extends ConsumerState<POSPaymentTab> {
               collectionSessionId: currentSession?.id,
             );
 
-            logger.d('[POSPaymentTab]', 'Offline invoice result: ${offlineInvoice?.invoiceName ?? "NULL"}');
+            logger.d(
+              '[POSPaymentTab]',
+              'Offline invoice result: ${offlineInvoice?.invoiceName ?? "NULL"}',
+            );
 
             // El contador de pendientes se actualiza automáticamente via Drift watch
 
@@ -1061,8 +1488,12 @@ class _POSPaymentTabState extends ConsumerState<POSPaymentTab> {
             await ref.read(fastSaleProvider.notifier).reloadActiveOrder();
 
             // Reload from local DB to show saved payments
-            await ref.read(posPaymentLinesByOrderProvider.notifier).loadFromDb(activeTab.orderId);
-            await ref.read(posWithholdLinesByOrderProvider.notifier).loadFromDb(activeTab.orderId);
+            await ref
+                .read(posPaymentLinesByOrderProvider.notifier)
+                .loadFromDb(activeTab.orderId);
+            await ref
+                .read(posWithholdLinesByOrderProvider.notifier)
+                .loadFromDb(activeTab.orderId);
 
             // Show appropriate message based on whether offline invoice was created
             if (!context.mounted) return;
@@ -1070,7 +1501,8 @@ class _POSPaymentTabState extends ConsumerState<POSPaymentTab> {
               CopyableInfoBar.showSuccess(
                 context,
                 title: 'Factura creada (offline)',
-                message: 'Factura ${offlineInvoice.invoiceName} creada localmente.\n'
+                message:
+                    'Factura ${offlineInvoice.invoiceName} creada localmente.\n'
                     'Se sincronizará con el SRI cuando haya conexión.',
               );
             } else {
@@ -1093,14 +1525,19 @@ class _POSPaymentTabState extends ConsumerState<POSPaymentTab> {
         if (success && context.mounted) {
           // Reload payment and withhold lines from DB to show saved state
           // This keeps previously saved payments visible
-          await ref.read(posPaymentLinesByOrderProvider.notifier).syncAndLoad(activeTab.orderId);
-          await ref.read(posWithholdLinesByOrderProvider.notifier).syncAndLoad(activeTab.orderId);
+          await ref
+              .read(posPaymentLinesByOrderProvider.notifier)
+              .syncAndLoad(activeTab.orderId);
+          await ref
+              .read(posWithholdLinesByOrderProvider.notifier)
+              .syncAndLoad(activeTab.orderId);
 
           if (!context.mounted) return;
           CopyableInfoBar.showSuccess(
             context,
             title: 'Pagos guardados',
-            message: 'Se guardaron ${paymentLines.length} pago(s)${withholdLines.isNotEmpty ? ' y ${withholdLines.length} retención(es)' : ''}',
+            message:
+                'Se guardaron ${paymentLines.length} pago(s)${withholdLines.isNotEmpty ? ' y ${withholdLines.length} retención(es)' : ''}',
           );
         }
       }
@@ -1110,7 +1547,7 @@ class _POSPaymentTabState extends ConsumerState<POSPaymentTab> {
         CopyableInfoBar.showError(
           context,
           title: 'Error de pago',
-          message: 'No se pudieron guardar los pagos. Intente nuevamente.',
+          message: e is OdooException ? e.message : friendlyErrorMessage(e),
         );
       }
     } finally {
@@ -1140,5 +1577,146 @@ class _POSPaymentTabState extends ConsumerState<POSPaymentTab> {
       case PaymentLineType.creditNote:
         return AppColors.creditNote;
     }
+  }
+}
+
+/// Reflow de las cuatro métricas de cobro según el ancho local del panel.
+class AdaptivePaymentMetrics extends StatelessWidget {
+  const AdaptivePaymentMetrics({
+    super.key,
+    required this.inputCapabilities,
+    required this.items,
+  }) : assert(items.length == 4);
+
+  static const compactKey = Key('payment-metrics-compact');
+  static const inlineKey = Key('payment-metrics-inline');
+
+  final AdaptiveInputCapabilities inputCapabilities;
+  final List<Widget> items;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = FluentTheme.of(context);
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final size = MediaQuery.sizeOf(context);
+        final width = constraints.maxWidth.isFinite
+            ? constraints.maxWidth
+            : size.width;
+        final policy = AdaptiveUiPolicy(
+          AdaptiveEnvironment(
+            width: width,
+            height: constraints.maxHeight.isFinite
+                ? constraints.maxHeight
+                : size.height,
+            inputs: inputCapabilities,
+          ),
+        );
+
+        if (policy.environment.sizeClass == AdaptiveSizeClass.compact) {
+          final itemWidth = (width - Spacing.xs) / 2;
+          return Wrap(
+            key: compactKey,
+            spacing: Spacing.xs,
+            runSpacing: Spacing.sm,
+            children: [
+              for (final item in items) SizedBox(width: itemWidth, child: item),
+            ],
+          );
+        }
+
+        return Row(
+          key: inlineKey,
+          children: [
+            for (var index = 0; index < items.length; index++) ...[
+              Expanded(child: items[index]),
+              if (index < items.length - 1)
+                Container(
+                  width: 1,
+                  height: 50,
+                  color: theme.resources.dividerStrokeColorDefault,
+                ),
+            ],
+          ],
+        );
+      },
+    );
+  }
+}
+
+/// Encabezados y footers que apilan acciones en compact y las mantienen en
+/// línea cuando el ancho local lo permite.
+class AdaptivePaymentActionRow extends StatelessWidget {
+  const AdaptivePaymentActionRow({
+    super.key,
+    required this.inputCapabilities,
+    required this.leading,
+    required this.trailing,
+    this.stretchInCompact = false,
+  });
+
+  static const compactKey = Key('payment-actions-compact');
+  static const inlineKey = Key('payment-actions-inline');
+
+  final AdaptiveInputCapabilities inputCapabilities;
+  final Widget leading;
+  final Widget trailing;
+  final bool stretchInCompact;
+
+  @override
+  Widget build(BuildContext context) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final size = MediaQuery.sizeOf(context);
+        final width = constraints.maxWidth.isFinite
+            ? constraints.maxWidth
+            : size.width;
+        final policy = AdaptiveUiPolicy(
+          AdaptiveEnvironment(
+            width: width,
+            height: constraints.maxHeight.isFinite
+                ? constraints.maxHeight
+                : size.height,
+            inputs: inputCapabilities,
+          ),
+        );
+        final minimumExtent = policy.minimumInteractiveExtent;
+
+        Widget target(Widget child) => ConstrainedBox(
+          constraints: BoxConstraints(minHeight: minimumExtent),
+          child: child,
+        );
+
+        if (policy.environment.sizeClass == AdaptiveSizeClass.compact) {
+          return Column(
+            key: compactKey,
+            crossAxisAlignment: stretchInCompact
+                ? CrossAxisAlignment.stretch
+                : CrossAxisAlignment.start,
+            children: [
+              target(leading),
+              const SizedBox(height: Spacing.xs),
+              if (stretchInCompact)
+                target(trailing)
+              else
+                Align(
+                  alignment: AlignmentDirectional.centerEnd,
+                  child: target(trailing),
+                ),
+            ],
+          );
+        }
+
+        return Row(
+          key: inlineKey,
+          children: [
+            Expanded(child: target(leading)),
+            const SizedBox(width: Spacing.sm),
+            target(trailing),
+          ],
+        );
+      },
+    );
   }
 }

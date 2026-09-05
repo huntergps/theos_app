@@ -1,4 +1,6 @@
+import 'package:dartz/dartz.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:odoo_sdk/odoo_sdk.dart' show Failure;
 
 import '../../../core/database/repositories/repository_providers.dart';
 import '../../../core/providers/base_notifier.dart';
@@ -7,7 +9,9 @@ import 'activities_state.dart';
 
 /// Provider for ActivitiesNotifier
 final activitiesNotifierProvider =
-    NotifierProvider<ActivitiesNotifier, ActivitiesState>(() => ActivitiesNotifier());
+    NotifierProvider<ActivitiesNotifier, ActivitiesState>(
+      () => ActivitiesNotifier(),
+    );
 
 /// Notifier for managing activities state
 ///
@@ -127,35 +131,53 @@ class ActivitiesNotifier extends Notifier<ActivitiesState>
 
   /// Complete activity (mark as done)
   Future<bool> completeActivity(int activityId) async {
-    final currentActivities = state.activities;
-
-    return executeOptimistic(
-      optimisticUpdate: () {
-        state = state.copyWith(
-          activities: currentActivities.where((a) => a.id != activityId).toList(),
-        );
-      },
-      action: () => _repository.completeActivity(activityId),
-      rollback: () {
-        state = state.copyWith(activities: currentActivities);
-      },
+    return _executeConfirmedRemoval(
+      activityId,
+      () => _repository.completeActivity(activityId),
     );
   }
 
   /// Cancel activity
   Future<bool> cancelActivity(int activityId) async {
-    final currentActivities = state.activities;
-
-    return executeOptimistic(
-      optimisticUpdate: () {
-        state = state.copyWith(
-          activities: currentActivities.where((a) => a.id != activityId).toList(),
-        );
-      },
-      action: () => _repository.cancelActivity(activityId),
-      rollback: () {
-        state = state.copyWith(activities: currentActivities);
-      },
+    return _executeConfirmedRemoval(
+      activityId,
+      () => _repository.cancelActivity(activityId),
     );
+  }
+
+  Future<bool> _executeConfirmedRemoval(
+    int activityId,
+    Future<Either<Failure, bool>> Function() action,
+  ) async {
+    state = state.copyWith(isSaving: true, errorMessage: null);
+
+    try {
+      final result = await action();
+
+      final succeeded = result.fold(
+        (failure) {
+          state = state.copyWith(
+            isSaving: false,
+            errorMessage: failure.message,
+          );
+          return false;
+        },
+        (success) {
+          // The repository removes the local record only after Odoo confirms
+          // the action. Reflect it in state at the same point, never before.
+          state = state.copyWith(
+            isSaving: false,
+            activities: state.activities
+                .where((activity) => activity.id != activityId)
+                .toList(),
+          );
+          return success;
+        },
+      );
+      return succeeded;
+    } catch (error) {
+      state = state.copyWith(isSaving: false, errorMessage: error.toString());
+      return false;
+    }
   }
 }

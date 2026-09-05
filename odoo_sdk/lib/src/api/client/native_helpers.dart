@@ -4,21 +4,6 @@ import 'dart:io' show HttpClient;
 import 'package:crypto/crypto.dart' show sha256;
 import 'package:dio/dio.dart';
 import 'package:dio/io.dart';
-import 'package:dio_cookie_manager/dio_cookie_manager.dart';
-import 'package:cookie_jar/cookie_jar.dart';
-
-/// Add cookie manager interceptor (native only).
-void addCookieManager(Dio dio, Object cookieJar) {
-  dio.interceptors.add(CookieManager(cookieJar as CookieJar));
-}
-
-/// Create a CookieJar instance.
-Object createCookieJar() => CookieJar();
-
-/// Load cookies for a URL from the CookieJar.
-Future<List<dynamic>> loadCookies(Object cookieJar, Uri uri) async {
-  return (cookieJar as CookieJar).loadForRequest(uri);
-}
 
 /// Configure certificate pinning on Dio (native only).
 void configureCertificatePinning(

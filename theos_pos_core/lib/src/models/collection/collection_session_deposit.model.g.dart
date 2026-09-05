@@ -38,7 +38,7 @@ _CollectionSessionDeposit _$CollectionSessionDepositFromJson(
   bankJournalName: json['bankJournalName'] as String?,
   bankId: (json['bankId'] as num?)?.toInt(),
   bankName: json['bankName'] as String?,
-  state: json['state'] as String?,
+  state: json['state'] as String? ?? 'draft',
   writeDate: json['writeDate'] == null
       ? null
       : DateTime.parse(json['writeDate'] as String),
@@ -154,6 +154,7 @@ class CollectionSessionDepositManager
       checkCount: parseOdooInt(data['check_count']) ?? 0,
       bankJournalId: extractMany2oneId(data['bank_journal_id']),
       bankJournalName: extractMany2oneName(data['bank_journal_id']),
+      state: '',
       writeDate: parseOdooDateTime(data['write_date']),
       depositSlipNumber: parseOdooString(data['deposit_slip_number']),
       bankReference: parseOdooString(data['bank_reference']),
@@ -218,7 +219,7 @@ class CollectionSessionDepositManager
       bankJournalName: row.bankJournalName as String?,
       bankId: row.bankId as int?,
       bankName: row.bankName as String?,
-      state: row.state as String?,
+      state: row.state as String? ?? '',
       writeDate: row.writeDate as DateTime?,
       depositSlipNumber: row.depositSlipNumber as String?,
       bankReference: row.bankReference as String?,
@@ -344,7 +345,7 @@ class CollectionSessionDepositManager
       'session_uuid': driftVar<String>(record.sessionUuid),
       'bank_id': driftVar<int>(record.bankId),
       'bank_name': driftVar<String>(record.bankName),
-      'state': driftVar<String>(record.state),
+      'state': Variable<String>(record.state),
     });
   }
 

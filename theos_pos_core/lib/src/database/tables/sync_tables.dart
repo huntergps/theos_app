@@ -51,14 +51,25 @@ class OfflineQueue extends Table {
   /// Device ID that created this operation (for multi-device tracking)
   TextColumn get deviceId => text().nullable()();
 
+  /// Stable local idempotency key. Null is allowed for non-create operations.
+  TextColumn get operationKey => text().nullable().unique()();
+
+  /// Version of the local command payload contract.
+  IntColumn get commandVersion => integer().withDefault(const Constant(1))();
+
+  /// Retry behavior after an ambiguous network failure.
+  TextColumn get replayPolicy =>
+      text().withDefault(const Constant('manual_after_ambiguous'))();
+
   /// Estado de la operación: 'pending', 'processing', 'completed', 'failed'
   TextColumn get status => text().withDefault(const Constant('pending'))();
 
   /// Número máximo de reintentos
-  IntColumn get maxRetries => integer().withDefault(const Constant(3))();
+  IntColumn get maxRetries => integer().withDefault(const Constant(10))();
 
   /// Indica si la operación requiere conexión de red
-  BoolColumn get requiresNetwork => boolean().withDefault(const Constant(true))();
+  BoolColumn get requiresNetwork =>
+      boolean().withDefault(const Constant(true))();
 
   // Retry backoff fields
   /// Number of retry attempts
@@ -153,13 +164,16 @@ class RelatedRecordCache extends Table {
 /// SyncConflict - Registro de conflictos de sincronización
 class SyncConflict extends Table {
   IntColumn get id => integer().autoIncrement()();
+  IntColumn get operationId => integer()();
   TextColumn get model => text()();
   IntColumn get localId => integer()();
   IntColumn get remoteId => integer()();
-  TextColumn get conflictType => text()(); // 'local_modified', 'remote_modified', 'both_modified'
+  TextColumn get conflictType =>
+      text()(); // 'local_modified', 'remote_modified', 'both_modified'
   TextColumn get localData => text()(); // JSON local data
   TextColumn get remoteData => text()(); // JSON remote data
-  TextColumn get resolution => text().nullable()(); // 'local_wins', 'remote_wins', 'merge', 'manual'
+  TextColumn get resolution =>
+      text().nullable()(); // 'local_wins', 'remote_wins', 'merge', 'manual'
   DateTimeColumn get detectedAt => dateTime()();
   DateTimeColumn get resolvedAt => dateTime().nullable()();
   BoolColumn get isResolved => boolean().withDefault(const Constant(false))();

@@ -1,21 +1,26 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:typed_data';
+
 import 'package:drift/drift.dart' as drift;
 import 'package:fluent_ui/fluent_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_html/flutter_html.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:image/image.dart' as img;
+
 import '../../core/constants/app_colors.dart';
 import '../../core/constants/app_constants.dart';
 import '../providers/user_provider.dart';
-import '../../core/services/odoo_service.dart';
 import '../../core/database/providers.dart';
 import '../../core/managers/manager_providers.dart' show appDatabaseProvider;
+
 import 'package:theos_pos_core/theos_pos_core.dart' hide DatabaseHelper;
+
 import '../../shared/models/res_device.model.dart';
 import '../../core/database/repositories/repository_providers.dart';
-import '../../features/warehouses/warehouses.dart';
+import '../../features/warehouses/providers/warehouse_providers.dart'
+    show warehousesProvider;
 
 import '../../core/services/platform/global_notification_service.dart';
 import 'dialogs/copyable_info_bar.dart';
@@ -200,6 +205,23 @@ class _UserPreferencesDialogState extends ConsumerState<UserPreferencesDialog> {
   }
 
   Future<void> _loadData() async {
+    try {
+      await _loadDataInternal().timeout(const Duration(seconds: 20));
+    } on TimeoutException {
+      if (mounted) {
+        setState(() => _isLoading = false);
+        ref
+            .read(globalNotificationProvider)
+            .showError(
+              context,
+              title: 'Preferencias',
+              message: 'Las preferencias tardaron demasiado en cargar. Revisa la conexión e inténtalo nuevamente.',
+            );
+      }
+    }
+  }
+
+  Future<void> _loadDataInternal() async {
     setState(() => _isLoading = true);
 
     final repo = ref.read(userRepositoryProvider);
@@ -213,14 +235,37 @@ class _UserPreferencesDialogState extends ConsumerState<UserPreferencesDialog> {
       }
 
       // Fetch data from Brick (offline-first)
-      final languages = await ref.read(languagesProvider.future);
-      final warehouses = await ref.read(warehousesProvider.future);
-      final calendars = await ref.read(calendarsProvider.future);
-      final countries = await ref.read(countriesProvider.future);
-      final timezones = await ref.read(timezonesProvider.future);
-      final notificationTypes = await ref.read(
-        notificationTypesProvider.future,
-      );
+      // Local streams should resolve offline; bound each one independently so
+      // one unavailable cache cannot hold the whole preferences dialog open.
+      final languages = await ref
+          .read(languagesProvider.future)
+          .timeout(const Duration(seconds: 3), onTimeout: () => const []);
+      final warehouses = await ref
+          .read(warehousesProvider.future)
+          .timeout(const Duration(seconds: 3), onTimeout: () => const []);
+      final calendars = await ref
+          .read(calendarsProvider.future)
+          .timeout(const Duration(seconds: 3), onTimeout: () => const []);
+      final countries = await ref
+          .read(countriesProvider.future)
+          .timeout(const Duration(seconds: 3), onTimeout: () => const []);
+      final timezones = await ref
+          .read(timezonesProvider.future)
+          .timeout(
+            const Duration(seconds: 3),
+            onTimeout: () => const [
+              ['America/Guayaquil', 'America/Guayaquil'],
+            ],
+          );
+      final notificationTypes = await ref
+          .read(notificationTypesProvider.future)
+          .timeout(
+            const Duration(seconds: 3),
+            onTimeout: () => const [
+              ['email', 'Correo electrónico'],
+              ['inbox', 'Bandeja de entrada'],
+            ],
+          );
 
       if (!mounted) return;
 
@@ -228,7 +273,9 @@ class _UserPreferencesDialogState extends ConsumerState<UserPreferencesDialog> {
       Client? partner;
       if (user.partnerId != null && repo != null) {
         try {
-          partner = await repo.getPartner(user.partnerId!);
+          partner = await repo
+              .getPartner(user.partnerId!)
+              .timeout(const Duration(seconds: 3));
         } catch (e) {
           // Intentionally empty - non-critical UI operation
         }
@@ -236,7 +283,9 @@ class _UserPreferencesDialogState extends ConsumerState<UserPreferencesDialog> {
 
       // Fetch states only if country is selected
       final states = partner?.countryId != null
-          ? await ref.read(statesProvider(partner!.countryId!).future)
+          ? await ref
+                .read(statesProvider(partner!.countryId!).future)
+                .timeout(const Duration(seconds: 3), onTimeout: () => const [])
           : <dynamic>[];
 
       if (!mounted) return;
@@ -383,13 +432,10 @@ class _UserPreferencesDialogState extends ConsumerState<UserPreferencesDialog> {
 
   Future<void> _pickImage() async {
     try {
-      FilePickerResult? result = await FilePicker.platform.pickFiles(
-        type: FileType.image,
-        withData: true,
-      );
+      final result = await FilePicker.pickFiles(type: FileType.image);
 
-      if (result != null && result.files.single.bytes != null) {
-        final originalBytes = result.files.single.bytes!;
+      if (result.isNotEmpty) {
+        final originalBytes = await result.first.readAsBytes();
 
         // Optimize image for upload
         final optimized = _optimizeImage(originalBytes);
@@ -445,12 +491,7 @@ class _UserPreferencesDialogState extends ConsumerState<UserPreferencesDialog> {
 
     try {
       final user = ref.read(userProvider);
-      bool success = true;
-
-      // Only call API if there are changes
-      if (userUpdates.isNotEmpty) {
-        success = await ref.read(userProvider.notifier).updateUser(userUpdates);
-      }
+      var success = true;
 
       // Build partner updates - only include changed fields (no 'mobile' field)
       if (user?.partnerId != null) {
@@ -488,19 +529,25 @@ class _UserPreferencesDialogState extends ConsumerState<UserPreferencesDialog> {
         }
 
         // Only call API if there are changes
-        if (partnerUpdates.isNotEmpty) {
-          final odoo = ref.read(odooServiceProvider);
-
-          final partnerSuccess = await odoo.call(
-            model: 'res.partner',
-            method: 'write',
-            kwargs: {
-              'ids': [user!.partnerId],
-              'vals': partnerUpdates,
-            },
+        final repository = ref.read(userRepositoryProvider);
+        if (repository == null) {
+          success = false;
+        } else {
+          success = await repository.updateUserAndPartner(
+            userId: user!.id,
+            partnerId: user.partnerId,
+            userValues: userUpdates,
+            partnerValues: partnerUpdates,
           );
-          if (partnerSuccess != true) {}
         }
+      } else if (userUpdates.isNotEmpty && user != null) {
+        final repository = ref.read(userRepositoryProvider);
+        success =
+            repository != null &&
+            await repository.updateUserAndPartner(
+              userId: user.id,
+              userValues: userUpdates,
+            );
       }
 
       if (mounted) {
@@ -696,7 +743,10 @@ class _UserPreferencesDialogState extends ConsumerState<UserPreferencesDialog> {
                     const SizedBox(height: 4),
                     Text(
                       user.login,
-                      style: TextStyle(fontSize: 14, color: AppColors.textSecondary),
+                      style: TextStyle(
+                        fontSize: 14,
+                        color: AppColors.textSecondary,
+                      ),
                     ),
                     const SizedBox(height: 12),
                     // Editable fields in two columns
@@ -795,5 +845,4 @@ class _UserPreferencesDialogState extends ConsumerState<UserPreferencesDialog> {
       },
     );
   }
-
 }

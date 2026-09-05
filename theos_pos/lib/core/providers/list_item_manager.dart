@@ -1,4 +1,4 @@
-import '../services/logger_service.dart';
+import 'package:odoo_sdk/odoo_sdk.dart' show logger;
 
 /// Generic mixin for managing a list of items with CRUD operations
 ///
@@ -111,13 +111,17 @@ extension ListItemManagerOperations<T, S> on ListItemManager<T, S> {
 
     if (isInNewItems) {
       // Update in new items list
-      final updated = newItems.map((i) => getItemId(i) == itemId ? item : i).toList();
+      final updated = newItems
+          .map((i) => getItemId(i) == itemId ? item : i)
+          .toList();
       currentState = copyStateWithNewItems(updated);
       logger.d(logTag, 'Updated new item: $itemId');
     } else {
       // Update in updated items list
       final updatedItems = getUpdatedItems(currentState);
-      final existingIndex = updatedItems.indexWhere((i) => getItemId(i) == itemId);
+      final existingIndex = updatedItems.indexWhere(
+        (i) => getItemId(i) == itemId,
+      );
 
       List<T> newUpdatedItems;
       if (existingIndex >= 0) {
@@ -149,10 +153,10 @@ extension ListItemManagerOperations<T, S> on ListItemManager<T, S> {
         final updatedItems = getUpdatedItems(currentState)
             .where((i) => getItemId(i) != itemId)
             .toList();
-        currentState = copyStateWithDeletedIds(
-          [...deletedIds, itemId],
-          updatedItems,
-        );
+        currentState = copyStateWithDeletedIds([
+          ...deletedIds,
+          itemId,
+        ], updatedItems);
         logger.d(logTag, 'Marked item for deletion: $itemId');
       }
     }

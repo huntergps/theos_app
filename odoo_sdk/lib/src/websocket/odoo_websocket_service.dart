@@ -28,7 +28,6 @@ class OdooWebSocketConnectionInfo {
   final String baseUrl;
   final String database;
   final String? apiKey;
-  final String? sessionId;
   final int? partnerId;
 
   /// Heartbeat interval to keep connection alive.
@@ -46,22 +45,14 @@ class OdooWebSocketConnectionInfo {
   /// Set to `true` only for local development (e.g., localhost).
   final bool allowInsecure;
 
-  /// Whether the app is running on a web platform.
-  ///
-  /// Used for browser-specific session handling (e.g., cookie-based auth).
-  /// Pass `true` when running on web, `false` otherwise.
-  final bool isWeb;
-
   const OdooWebSocketConnectionInfo({
     required this.baseUrl,
     required this.database,
     this.apiKey,
-    this.sessionId,
     this.partnerId,
     this.heartbeatInterval = const Duration(seconds: 30),
     this.defaultChannels,
     this.allowInsecure = false,
-    this.isWeb = false,
   });
 
   /// Whether this connection uses a secure HTTPS base URL.
@@ -110,15 +101,14 @@ class OdooWebSocketConnectionInfo {
 
   /// SEC-01: Secure string representation that masks sensitive credentials.
   ///
-  /// API keys and session IDs are masked to prevent accidental exposure
-  /// in logs, error messages, or stack traces.
+  /// API keys are masked to prevent accidental exposure in logs, error
+  /// messages, or stack traces.
   @override
   String toString() {
     return 'OdooWebSocketConnectionInfo('
         'baseUrl: $baseUrl, '
         'database: $database, '
         'apiKey: ${_maskCredential(apiKey)}, '
-        'sessionId: ${_maskCredential(sessionId)}, '
         'partnerId: $partnerId, '
         'secure: ${!allowInsecure})';
   }
@@ -132,14 +122,6 @@ class OdooWebSocketConnectionInfo {
   }
 }
 
-/// Callback type for establishing browser session before WebSocket connection
-typedef BrowserSessionEstablisher = Future<void> Function({
-  required String baseUrl,
-  required String apiKey,
-  required String database,
-  required String sessionId,
-});
-
 /// WebSocket service for Odoo 19.0 real-time notifications
 /// Implements the Odoo bus.websocket protocol
 ///
@@ -152,7 +134,7 @@ typedef BrowserSessionEstablisher = Future<void> Function({
 /// await wsService.connect(OdooWebSocketConnectionInfo(
 ///   baseUrl: 'https://odoo.example.com',
 ///   database: 'mydb',
-///   sessionId: 'abc123',
+///   apiKey: 'api-key',
 /// ));
 ///
 /// // Listen to typed events with pattern matching
@@ -177,15 +159,6 @@ class OdooWebSocketService {
       WebSocketMessageDeduplicator();
   final WebSocketEventParser _parser = WebSocketEventParser();
   final WebSocketChannelManager _channels = WebSocketChannelManager();
-
-  // Queue for notifications that arrive before any listener is registered
-  final List<Map<String, dynamic>> _pendingNotifications = [];
-
-  // Optional callback for browser session establishment (Web only)
-  BrowserSessionEstablisher? get browserSessionEstablisher =>
-      _connection.browserSessionEstablisher;
-  set browserSessionEstablisher(BrowserSessionEstablisher? value) =>
-      _connection.browserSessionEstablisher = value;
 
   // ============================================================================
   // TYPED EVENT STREAM (Primary API)
@@ -251,52 +224,6 @@ class OdooWebSocketService {
     }
   }
 
-  // ============================================================================
-  // RAW NOTIFICATION STREAM (Legacy API - for backwards compatibility)
-  // ============================================================================
-
-  final StreamController<Map<String, dynamic>> _notificationController =
-      StreamController<Map<String, dynamic>>.broadcast();
-
-  /// Stream of raw notifications that multiple listeners can subscribe to.
-  Stream<Map<String, dynamic>> get notificationStream =>
-      _notificationController.stream;
-
-  /// Subscribes to raw notification events with automatic cleanup.
-  ///
-  /// This is the legacy API for backwards compatibility. For new code,
-  /// prefer using [addEventListener] or [eventsOfType] for typed events.
-  ///
-  /// When a new listener is registered, any pending notifications that
-  /// arrived before any listener was registered are immediately delivered.
-  ///
-  /// Returns a [StreamSubscription] that can be cancelled to stop receiving
-  /// notifications.
-  ///
-  /// Example:
-  /// ```dart
-  /// final subscription = wsService.addNotificationListener((notification) {
-  ///   final type = notification['type'];
-  ///   final payload = notification['payload'];
-  ///   print('Received $type: $payload');
-  /// });
-  /// ```
-  StreamSubscription<Map<String, dynamic>> addNotificationListener(
-    void Function(Map<String, dynamic>) callback,
-  ) {
-    // First, process any pending notifications for this new listener
-    if (_pendingNotifications.isNotEmpty) {
-      logger.d(
-        '[OdooWebSocket]',
-        'Processing ${_pendingNotifications.length} pending notifications for new listener...',
-      );
-      for (final notification in _pendingNotifications) {
-        callback(notification);
-      }
-    }
-    return _notificationController.stream.listen(callback);
-  }
-
   // Getters for monitoring
   bool get isConnected => _connection.isConnected;
   String? get connectionUrl => _connection.connectionUrl;
@@ -304,8 +231,7 @@ class OdooWebSocketService {
   DateTime? get lastHeartbeat => _heartbeat.lastHeartbeat;
   Map<String, dynamic>? get lastNotification => _parser.lastNotification;
   int get reconnectAttempts => _reconnection.reconnectAttempts;
-  List<String> get subscribedChannels =>
-      _channels.subscribedChannels.toList();
+  List<String> get subscribedChannels => _channels.subscribedChannels.toList();
 
   /// Adds additional channels to subscribe to.
   ///
@@ -336,9 +262,6 @@ class OdooWebSocketService {
   /// On success, starts the heartbeat timer and subscribes to default channels.
   ///
   /// If already connected or connecting, this method returns immediately.
-  ///
-  /// For web platforms with session authentication, set [browserSessionEstablisher]
-  /// before calling this method to establish browser cookies.
   ///
   /// Throws [InsecureWebSocketException] if [connectionInfo.allowInsecure] is
   /// false and the URL uses http:// instead of https://.
@@ -393,18 +316,16 @@ class OdooWebSocketService {
       _reconnection.reset();
 
       // Emit typed connection event
-      _emitEvent(OdooConnectionEvent(
-        isConnected: true,
-        isReconnection: wasReconnection,
-      ));
+      _emitEvent(
+        OdooConnectionEvent(isConnected: true, isReconnection: wasReconnection),
+      );
 
       if (wasReconnection) {
         logger.i('[OdooWebSocket]', 'Reconnected - triggering offline sync');
       }
 
       // Start heartbeat
-      final interval =
-          connectionInfo.heartbeatInterval;
+      final interval = connectionInfo.heartbeatInterval;
       _heartbeat.start(interval, _connection);
 
       // Build and subscribe to channels
@@ -436,33 +357,7 @@ class OdooWebSocketService {
     // Check for duplicate messages first
     if (_deduplicator.isDuplicate(message)) return;
 
-    _parser.parseMessage(
-      message,
-      onEvent: _emitEvent,
-      onNotification: _emitRawNotification,
-    );
-  }
-
-  /// Emit a raw notification to legacy listeners or queue it.
-  void _emitRawNotification(Map<String, dynamic> notification) {
-    final hasListeners = _notificationController.hasListener;
-    final type = notification['type'] as String?;
-    logger.d('[OdooWebSocket]',
-        'Emitting to stream (hasListeners: $hasListeners, type: $type)');
-
-    if (hasListeners) {
-      try {
-        _notificationController.add(notification);
-        logger.d(
-            '[OdooWebSocket]', 'Stream notification emitted successfully');
-      } catch (e) {
-        logger.e('[OdooWebSocket]', 'Error emitting to stream: $e');
-      }
-    } else {
-      logger.d(
-          '[OdooWebSocket]', 'No stream listeners, queueing notification');
-      _pendingNotifications.add(notification);
-    }
+    _parser.parseMessage(message, onEvent: _emitEvent);
   }
 
   /// Handle errors
@@ -499,12 +394,14 @@ class OdooWebSocketService {
     // eventStream (ej. un widget de estado en la UI) cuando ya llevamos
     // demasiados intentos consecutivos fallidos, sin dejar de reintentar.
     if (_reconnection.isCircuitBreakerActive) {
-      _emitEvent(OdooConnectionEvent(
-        isConnected: false,
-        isReconnection: true,
-        circuitBreakerActive: true,
-        reconnectAttempts: _reconnection.reconnectAttempts,
-      ));
+      _emitEvent(
+        OdooConnectionEvent(
+          isConnected: false,
+          isReconnection: true,
+          circuitBreakerActive: true,
+          reconnectAttempts: _reconnection.reconnectAttempts,
+        ),
+      );
     }
   }
 
@@ -555,8 +452,6 @@ class OdooWebSocketService {
   void dispose() {
     disconnect();
     _eventController.close();
-    _notificationController.close();
-    _pendingNotifications.clear();
     _connection.connectionInfo = null;
   }
 }

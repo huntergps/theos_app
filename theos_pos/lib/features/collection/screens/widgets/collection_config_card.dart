@@ -8,6 +8,7 @@ import '../../../../shared/widgets/common/chip_is_local.dart';
 
 import '../../../../shared/utils/formatting_utils.dart';
 import '../state_chip.dart';
+
 import 'package:theos_pos_core/theos_pos_core.dart';
 
 /// Card widget displaying a collection point configuration
@@ -165,7 +166,11 @@ class CollectionConfigCard extends ConsumerWidget {
                   ),
                   child: Row(
                     children: [
-                      Icon(FluentIcons.warning, size: 16, color: AppColors.warning),
+                      Icon(
+                        FluentIcons.warning,
+                        size: 16,
+                        color: AppColors.warning,
+                      ),
                       const SizedBox(width: 8),
                       Expanded(
                         child: Text(
@@ -320,6 +325,8 @@ String getStateDisplay(SessionState state) {
       return 'Control de Apertura';
     case SessionState.opened:
       return 'Abierta';
+    case SessionState.paused:
+      return 'Pausada';
     case SessionState.closingControl:
       return 'Control de Cierre';
     case SessionState.closed:

@@ -29,9 +29,9 @@ class SaleOrder extends Table {
   IntColumn get warehouseId => integer().nullable()();
   TextColumn get warehouseName => text().nullable()();
   IntColumn get currencyId => integer().nullable()();
-  RealColumn get amountUntaxed => real().nullable()();
-  RealColumn get amountTax => real().nullable()();
-  RealColumn get amountTotal => real().nullable()();
+  RealColumn get amountUntaxed => real().withDefault(const Constant(0.0))();
+  RealColumn get amountTax => real().withDefault(const Constant(0.0))();
+  RealColumn get amountTotal => real().withDefault(const Constant(0.0))();
   RealColumn get amountPaid => real().nullable()();
   RealColumn get amountResidual => real().nullable()();
   TextColumn get paymentState => text().nullable()();

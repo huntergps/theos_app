@@ -901,9 +901,9 @@ class _POSLineCardState extends ConsumerState<_POSLineCard> {
             Container(
               padding: const EdgeInsets.all(Spacing.sm),
               decoration: BoxDecoration(
-                color: FluentTheme.of(
-                  context,
-                ).resources.subtleFillColorSecondary,
+                color: FluentTheme.of(context)
+                    .resources
+                    .subtleFillColorSecondary,
                 borderRadius: BorderRadius.circular(4),
               ),
               child: Row(

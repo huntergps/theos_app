@@ -777,13 +777,3 @@ class _SearchDialogState<T> extends State<_SearchDialog<T>> {
     );
   }
 }
-
-// ---------------------------------------------------------------------------
-// Backward-compatible aliases
-// ---------------------------------------------------------------------------
-
-/// @nodoc Deprecated: use [OdooMasterSelector] instead.
-typedef ReactiveMasterSelector<T> = OdooMasterSelector<T>;
-
-/// @nodoc Deprecated: use [OdooRelatedField] instead.
-typedef ReactiveRelatedField<T> = OdooRelatedField<T>;

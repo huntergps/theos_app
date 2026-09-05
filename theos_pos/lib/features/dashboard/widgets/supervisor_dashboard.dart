@@ -16,6 +16,7 @@ import '../../../core/navigation/app_router.dart';
 import '../../../core/theme/spacing.dart';
 import '../../../features/sync/providers/sync_provider.dart';
 import '../providers/dashboard_providers.dart';
+import '../../../shared/providers/menu_provider.dart';
 import '../../../shared/utils/formatting_utils.dart';
 
 // ============================================================================
@@ -27,6 +28,7 @@ import '../../../shared/utils/formatting_utils.dart';
 const _colorSessionOpened = Color(0xFF107C10); // verde — abierta
 const _colorSessionOpening = Color(0xFFCA5010); // naranja — apertura/cierre
 const _colorSessionClosing = Color(0xFF0078D4); // azul — cierre en proceso
+const _colorSessionPaused = Color(0xFFFFB900); // amarillo — pausada
 const _colorSessionClosed = Color(0xFF767676); // gris — cerrada
 
 class SupervisorDashboard extends ConsumerWidget {
@@ -38,14 +40,14 @@ class SupervisorDashboard extends ConsumerWidget {
     final spacing = ref.watch(themedSpacingProvider);
     final screenWidth = MediaQuery.of(context).size.width;
     final isCompact = screenWidth < 700;
+    final canAccessCollection = ref.watch(
+      hasRouteAccessProvider(AppRouter.collection),
+    );
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
-          'Resumen del dia',
-          style: theme.typography.subtitle,
-        ),
+        Text('Resumen del dia', style: theme.typography.subtitle),
         SizedBox(height: spacing.md),
 
         // --- Metricas de ventas ---
@@ -56,18 +58,18 @@ class SupervisorDashboard extends ConsumerWidget {
         _LastSyncCard(spacing: spacing),
         SizedBox(height: spacing.md),
 
-        // --- Lista de todas las sesiones activas ---
-        _AllSessionsSection(spacing: spacing),
-
-        SizedBox(height: spacing.lg),
+        // A supervisor may only inspect/open sessions when the route guard
+        // grants the cashier role. Sales-only supervisors must not receive a
+        // navigation affordance that immediately redirects them back home.
+        if (canAccessCollection) ...[
+          _AllSessionsSection(spacing: spacing),
+          SizedBox(height: spacing.lg),
+        ],
 
         // --- Accesos rapidos ---
-        Text(
-          'Accesos rapidos',
-          style: theme.typography.bodyStrong,
-        ),
+        Text('Accesos rapidos', style: theme.typography.bodyStrong),
         SizedBox(height: spacing.sm),
-        _QuickActionsRow(spacing: spacing),
+        DashboardQuickActions(spacing: spacing),
       ],
     );
   }
@@ -81,15 +83,14 @@ class _SalesMetricsSection extends ConsumerWidget {
   final bool isCompact;
   final ThemedSpacing spacing;
 
-  const _SalesMetricsSection({
-    required this.isCompact,
-    required this.spacing,
-  });
+  const _SalesMetricsSection({required this.isCompact, required this.spacing});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final metrics = ref.watch(dailySaleMetricsProvider);
+    final metricsAsync = ref.watch(dailySaleMetricsProvider);
 
+    return metricsAsync.when(
+      data: (metrics) {
         if (isCompact) {
           return Column(
             children: [
@@ -188,6 +189,15 @@ class _SalesMetricsSection extends ConsumerWidget {
             ),
           ],
         );
+      },
+      loading: () =>
+          const SizedBox(height: 120, child: Center(child: ProgressRing())),
+      error: (error, _) => InfoBar(
+        title: const Text('Error al cargar metricas de ventas'),
+        content: Text(error.toString()),
+        severity: InfoBarSeverity.error,
+      ),
+    );
   }
 }
 
@@ -288,7 +298,10 @@ class _AllSessionsSection extends ConsumerWidget {
           children: [
             Icon(FluentIcons.people, size: 16, color: theme.accentColor),
             const SizedBox(width: 8),
-            Text('Sesiones de caja activas', style: theme.typography.bodyStrong),
+            Text(
+              'Sesiones de caja activas',
+              style: theme.typography.bodyStrong,
+            ),
             const Spacer(),
             sessionsAsync.maybeWhen(
               data: (s) => Text(
@@ -357,8 +370,8 @@ class _SessionRowCard extends StatelessWidget {
     final totalLabel = session.totalGeneral > 0
         ? '\$${session.totalGeneral.toStringAsFixed(2)}'
         : session.totalPaymentsAmount > 0
-            ? '\$${session.totalPaymentsAmount.toStringAsFixed(2)}'
-            : null;
+        ? '\$${session.totalPaymentsAmount.toStringAsFixed(2)}'
+        : null;
 
     final stateColor = _stateColor(session.state);
     final stateLabel = session.state.label;
@@ -491,7 +504,11 @@ class _SessionRowCard extends StatelessWidget {
                   const SizedBox(width: 10),
 
                   // Chip de estado
-                  _StateChip(state: session.state, color: stateColor, label: stateLabel),
+                  _StateChip(
+                    state: session.state,
+                    color: stateColor,
+                    label: stateLabel,
+                  ),
 
                   const SizedBox(width: 8),
 
@@ -511,11 +528,12 @@ class _SessionRowCard extends StatelessWidget {
   }
 
   Color _stateColor(SessionState state) => switch (state) {
-        SessionState.opened => _colorSessionOpened,
-        SessionState.openingControl => _colorSessionOpening,
-        SessionState.closingControl => _colorSessionClosing,
-        SessionState.closed => _colorSessionClosed,
-      };
+    SessionState.opened => _colorSessionOpened,
+    SessionState.openingControl => _colorSessionOpening,
+    SessionState.closingControl => _colorSessionClosing,
+    SessionState.paused => _colorSessionPaused,
+    SessionState.closed => _colorSessionClosed,
+  };
 }
 
 // ============================================================================
@@ -533,6 +551,7 @@ class _StateDot extends StatelessWidget {
       SessionState.opened => _colorSessionOpened,
       SessionState.openingControl => _colorSessionOpening,
       SessionState.closingControl => _colorSessionClosing,
+      SessionState.paused => _colorSessionPaused,
       SessionState.closed => _colorSessionClosed,
     };
     return Container(
@@ -607,10 +626,7 @@ class _LastSyncCard extends ConsumerWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               mainAxisSize: MainAxisSize.min,
               children: [
-                Text(
-                  'Ultimo sync',
-                  style: theme.typography.bodyStrong,
-                ),
+                Text('Ultimo sync', style: theme.typography.bodyStrong),
                 const SizedBox(height: 2),
                 if (isSyncing)
                   Text(
@@ -658,9 +674,59 @@ class _LastSyncCard extends ConsumerWidget {
 // ACCESOS RAPIDOS
 // ============================================================================
 
-class _QuickActionsRow extends ConsumerWidget {
+/// Dashboard actions filtered by the exact same policy as GoRouter.
+///
+/// Public for focused widget tests; application code renders it only from the
+/// supervisor dashboard.
+class DashboardQuickActionDefinition {
+  const DashboardQuickActionDefinition({
+    required this.path,
+    required this.key,
+    required this.icon,
+    required this.label,
+  });
+
+  final String path;
+  final ValueKey<String> key;
+  final IconData icon;
+  final String label;
+}
+
+const dashboardQuickActionDefinitions = <DashboardQuickActionDefinition>[
+  DashboardQuickActionDefinition(
+    path: AppRouter.fastSale,
+    key: DashboardQuickActions.fastSaleKey,
+    icon: FluentIcons.shopping_cart,
+    label: 'Nueva Venta',
+  ),
+  DashboardQuickActionDefinition(
+    path: AppRouter.sales,
+    key: DashboardQuickActions.salesKey,
+    icon: FluentIcons.bill,
+    label: 'Ver Ordenes',
+  ),
+  DashboardQuickActionDefinition(
+    path: AppRouter.collection,
+    key: DashboardQuickActions.collectionKey,
+    icon: FluentIcons.money,
+    label: 'Punto de Cobro',
+  ),
+  DashboardQuickActionDefinition(
+    path: AppRouter.sync,
+    key: DashboardQuickActions.syncKey,
+    icon: FluentIcons.sync,
+    label: 'Sincronizar',
+  ),
+];
+
+class DashboardQuickActions extends ConsumerWidget {
+  static const fastSaleKey = ValueKey<String>('quick-action.fast-sale');
+  static const salesKey = ValueKey<String>('quick-action.sales');
+  static const collectionKey = ValueKey<String>('quick-action.collection');
+  static const syncKey = ValueKey<String>('quick-action.sync');
+
   final ThemedSpacing spacing;
-  const _QuickActionsRow({required this.spacing});
+  const DashboardQuickActions({super.key, required this.spacing});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -668,26 +734,14 @@ class _QuickActionsRow extends ConsumerWidget {
       spacing: spacing.sm,
       runSpacing: spacing.sm,
       children: [
-        _QuickActionButton(
-          icon: FluentIcons.shopping_cart,
-          label: 'Nueva Venta',
-          onPressed: () => context.go('/fast-sale'),
-        ),
-        _QuickActionButton(
-          icon: FluentIcons.bill,
-          label: 'Ver Ordenes',
-          onPressed: () => context.go('/sales'),
-        ),
-        _QuickActionButton(
-          icon: FluentIcons.money,
-          label: 'Punto de Cobro',
-          onPressed: () => context.go('/collection'),
-        ),
-        _QuickActionButton(
-          icon: FluentIcons.sync,
-          label: 'Sincronizar',
-          onPressed: () => context.go('/sync'),
-        ),
+        for (final action in dashboardQuickActionDefinitions)
+          if (ref.watch(hasRouteAccessProvider(action.path)))
+            _QuickActionButton(
+              key: action.key,
+              icon: action.icon,
+              label: action.label,
+              onPressed: () => context.go(action.path),
+            ),
       ],
     );
   }
@@ -699,6 +753,7 @@ class _QuickActionButton extends StatelessWidget {
   final VoidCallback onPressed;
 
   const _QuickActionButton({
+    super.key,
     required this.icon,
     required this.label,
     required this.onPressed,
@@ -710,11 +765,7 @@ class _QuickActionButton extends StatelessWidget {
       onPressed: onPressed,
       child: Row(
         mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(icon, size: 16),
-          const SizedBox(width: 6),
-          Text(label),
-        ],
+        children: [Icon(icon, size: 16), const SizedBox(width: 6), Text(label)],
       ),
     );
   }
@@ -723,5 +774,3 @@ class _QuickActionButton extends StatelessWidget {
 // ============================================================================
 // PLACEHOLDER DE CARGA
 // ============================================================================
-
-

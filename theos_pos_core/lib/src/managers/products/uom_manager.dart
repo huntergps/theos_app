@@ -14,43 +14,46 @@ extension UomManagerBusiness on UomManager {
   /// Cast database to AppDatabase for direct Drift queries
   AppDatabase get _db => database as AppDatabase;
 
-  /// Get UoM by Odoo ID (alias for readLocal)
-  Future<Uom?> getUom(int odooId) => readLocal(odooId);
-
   /// Get all active UoMs
   Future<List<Uom>> getUoms() async {
-    final results = await (_db.select(_db.uomUom)
-          ..where((t) => t.active.equals(true))
-          ..orderBy([(t) => drift.OrderingTerm.asc(t.name)]))
-        .get();
+    final results =
+        await (_db.select(_db.uomUom)
+              ..where((t) => t.active.equals(true))
+              ..orderBy([(t) => drift.OrderingTerm.asc(t.name)]))
+            .get();
     return results.map((r) => fromDrift(r)).toList();
   }
 
   /// Get all UoMs including inactive
   Future<List<Uom>> getAllUoms() async {
-    final results = await (_db.select(_db.uomUom)
-          ..orderBy([(t) => drift.OrderingTerm.asc(t.name)]))
-        .get();
+    final results = await (_db.select(
+      _db.uomUom,
+    )..orderBy([(t) => drift.OrderingTerm.asc(t.name)])).get();
     return results.map((r) => fromDrift(r)).toList();
   }
 
   /// Get UoMs by category ID
   Future<List<Uom>> getUomsByCategory(int categoryId) async {
-    final results = await (_db.select(_db.uomUom)
-          ..where((t) => t.categoryId.equals(categoryId) & t.active.equals(true))
-          ..orderBy([(t) => drift.OrderingTerm.asc(t.name)]))
-        .get();
+    final results =
+        await (_db.select(_db.uomUom)
+              ..where(
+                (t) => t.categoryId.equals(categoryId) & t.active.equals(true),
+              )
+              ..orderBy([(t) => drift.OrderingTerm.asc(t.name)]))
+            .get();
     return results.map((r) => fromDrift(r)).toList();
   }
 
   /// Get reference UoM for a category
   Future<Uom?> getReferenceUom(int categoryId) async {
-    final result = await (_db.select(_db.uomUom)
-          ..where((t) =>
-              t.categoryId.equals(categoryId) &
-              t.uomType.equals('reference') &
-              t.active.equals(true)))
-        .getSingleOrNull();
+    final result =
+        await (_db.select(_db.uomUom)..where(
+              (t) =>
+                  t.categoryId.equals(categoryId) &
+                  t.uomType.equals('reference') &
+                  t.active.equals(true),
+            ))
+            .getSingleOrNull();
     return result != null ? fromDrift(result) : null;
   }
 
@@ -67,7 +70,9 @@ extension UomManagerBusiness on UomManager {
     bool active = true,
     DateTime? writeDate,
   }) async {
-    await _db.into(_db.uomUom).insert(
+    await _db
+        .into(_db.uomUom)
+        .insert(
           UomUomCompanion.insert(
             odooId: odooId,
             name: name,

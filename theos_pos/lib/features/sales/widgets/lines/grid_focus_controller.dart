@@ -1,6 +1,7 @@
 import 'package:fluent_ui/fluent_ui.dart';
 
 import '../editable_cell_type.dart';
+
 import 'package:theos_pos_core/theos_pos_core.dart';
 
 /// Centralized focus controller for sales order lines grid.
@@ -63,7 +64,11 @@ class GridFocusController {
       '${lineId}_${cellType.name}';
 
   /// Register a FocusNode for a cell
-  void registerFocusNode(int lineId, EditableCellType cellType, FocusNode node) {
+  void registerFocusNode(
+    int lineId,
+    EditableCellType cellType,
+    FocusNode node,
+  ) {
     _focusNodes[_key(lineId, cellType)] = node;
   }
 
@@ -159,7 +164,6 @@ class GridFocusController {
   ///
   /// Returns true if navigation was handled.
   bool handleTabNavigation(int lineId, EditableCellType cellType) {
-
     switch (cellType) {
       case EditableCellType.code:
         // Code → Quantity (same line)
@@ -193,7 +197,6 @@ class GridFocusController {
   ///
   /// Returns true if navigation was handled.
   bool handleShiftTabNavigation(int lineId, EditableCellType cellType) {
-
     switch (cellType) {
       case EditableCellType.code:
         // Code → Discount (previous line)

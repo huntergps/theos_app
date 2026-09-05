@@ -1,9 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:theos_pos_core/theos_pos_core.dart'
-    show
-        SaleOrderLine,
-        LineDisplayType,
-        SaleOrderLineListExtension;
+    show SaleOrderLine, LineDisplayType, SaleOrderLineListExtension;
 
 import '../../../helpers/test_model_factory.dart';
 
@@ -244,18 +241,12 @@ void main() {
 
       group('hasDiscount', () {
         test('returns true when discount > 0', () {
-          final line = SaleOrderLineFactory.create(
-            orderId: 1,
-            discount: 5.0,
-          );
+          final line = SaleOrderLineFactory.create(orderId: 1, discount: 5.0);
           expect(line.hasDiscount, isTrue);
         });
 
         test('returns false when discount is zero', () {
-          final line = SaleOrderLineFactory.create(
-            orderId: 1,
-            discount: 0.0,
-          );
+          final line = SaleOrderLineFactory.create(orderId: 1, discount: 0.0);
           expect(line.hasDiscount, isFalse);
         });
       });
@@ -278,10 +269,7 @@ void main() {
         });
 
         test('returns Producto when both name and productName are empty', () {
-          final line = SaleOrderLineFactory.create(
-            orderId: 1,
-            name: '',
-          );
+          final line = SaleOrderLineFactory.create(orderId: 1, name: '');
           // productName is null by default
           expect(line.displayName, 'Producto');
         });
@@ -533,10 +521,7 @@ void main() {
       });
 
       test('includes product_id when set', () {
-        final line = SaleOrderLineFactory.create(
-          orderId: 10,
-          productId: 42,
-        );
+        final line = SaleOrderLineFactory.create(orderId: 10, productId: 42);
 
         final map = line.toOdoo();
         expect(map['product_id'], 42);
@@ -564,9 +549,8 @@ void main() {
       });
 
       test('includes tax_ids in [(6,0,[ids])] format', () {
-        final line = SaleOrderLineFactory.create(
-          orderId: 10,
-        ).copyWith(taxIds: '1,2,3');
+        final line = SaleOrderLineFactory.create(orderId: 10)
+            .copyWith(taxIds: '1,2,3');
 
         final map = line.toOdoo();
 
@@ -586,9 +570,8 @@ void main() {
       });
 
       test('does not include tax_ids when empty string', () {
-        final line = SaleOrderLineFactory.create(
-          orderId: 10,
-        ).copyWith(taxIds: '');
+        final line = SaleOrderLineFactory.create(orderId: 10)
+            .copyWith(taxIds: '');
 
         final map = line.toOdoo();
         expect(map.containsKey('tax_ids'), isFalse);
@@ -625,11 +608,20 @@ void main() {
         test('returns lines sorted by sequence ascending', () {
           final lines = [
             SaleOrderLineFactory.create(
-                id: 1, orderId: 1, name: 'C').copyWith(sequence: 30),
+              id: 1,
+              orderId: 1,
+              name: 'C',
+            ).copyWith(sequence: 30),
             SaleOrderLineFactory.create(
-                id: 2, orderId: 1, name: 'A').copyWith(sequence: 10),
+              id: 2,
+              orderId: 1,
+              name: 'A',
+            ).copyWith(sequence: 10),
             SaleOrderLineFactory.create(
-                id: 3, orderId: 1, name: 'B').copyWith(sequence: 20),
+              id: 3,
+              orderId: 1,
+              name: 'B',
+            ).copyWith(sequence: 20),
           ];
 
           final sorted = lines.sortedBySequence;
@@ -642,9 +634,15 @@ void main() {
         test('does not mutate original list', () {
           final lines = [
             SaleOrderLineFactory.create(
-                id: 1, orderId: 1, name: 'B').copyWith(sequence: 20),
+              id: 1,
+              orderId: 1,
+              name: 'B',
+            ).copyWith(sequence: 20),
             SaleOrderLineFactory.create(
-                id: 2, orderId: 1, name: 'A').copyWith(sequence: 10),
+              id: 2,
+              orderId: 1,
+              name: 'A',
+            ).copyWith(sequence: 10),
           ];
 
           lines.sortedBySequence;
@@ -657,13 +655,19 @@ void main() {
       group('getLinesInSection', () {
         test('returns product lines belonging to a section', () {
           final section = SaleOrderLineFactory.section(
-            id: 1, orderId: 1, name: 'Section 1',
+            id: 1,
+            orderId: 1,
+            name: 'Section 1',
           ).copyWith(sequence: 10);
           final line1 = SaleOrderLineFactory.create(
-            id: 2, orderId: 1, name: 'Product 1',
+            id: 2,
+            orderId: 1,
+            name: 'Product 1',
           ).copyWith(sequence: 20);
           final line2 = SaleOrderLineFactory.create(
-            id: 3, orderId: 1, name: 'Product 2',
+            id: 3,
+            orderId: 1,
+            name: 'Product 2',
           ).copyWith(sequence: 30);
 
           final lines = [section, line1, line2];
@@ -676,16 +680,24 @@ void main() {
 
         test('stops at the next section', () {
           final section1 = SaleOrderLineFactory.section(
-            id: 1, orderId: 1, name: 'Section 1',
+            id: 1,
+            orderId: 1,
+            name: 'Section 1',
           ).copyWith(sequence: 10);
           final line1 = SaleOrderLineFactory.create(
-            id: 2, orderId: 1, name: 'Product 1',
+            id: 2,
+            orderId: 1,
+            name: 'Product 1',
           ).copyWith(sequence: 20);
           final section2 = SaleOrderLineFactory.section(
-            id: 3, orderId: 1, name: 'Section 2',
+            id: 3,
+            orderId: 1,
+            name: 'Section 2',
           ).copyWith(sequence: 30);
           final line2 = SaleOrderLineFactory.create(
-            id: 4, orderId: 1, name: 'Product 2',
+            id: 4,
+            orderId: 1,
+            name: 'Product 2',
           ).copyWith(sequence: 40);
 
           final lines = [section1, line1, section2, line2];
@@ -705,13 +717,19 @@ void main() {
 
         test('includes note lines in section', () {
           final section = SaleOrderLineFactory.section(
-            id: 1, orderId: 1, name: 'Section',
+            id: 1,
+            orderId: 1,
+            name: 'Section',
           ).copyWith(sequence: 10);
           final product = SaleOrderLineFactory.create(
-            id: 2, orderId: 1, name: 'Product',
+            id: 2,
+            orderId: 1,
+            name: 'Product',
           ).copyWith(sequence: 20);
           final note = SaleOrderLineFactory.note(
-            id: 3, orderId: 1, name: 'A note',
+            id: 3,
+            orderId: 1,
+            name: 'A note',
           ).copyWith(sequence: 30);
 
           final lines = [section, product, note];
@@ -724,7 +742,9 @@ void main() {
 
         test('returns empty list when section not found', () {
           final section = SaleOrderLineFactory.section(
-            id: 99, orderId: 1, name: 'Ghost Section',
+            id: 99,
+            orderId: 1,
+            name: 'Ghost Section',
           );
           final line = SaleOrderLineFactory.create(id: 1, orderId: 1);
 
@@ -738,16 +758,24 @@ void main() {
       group('getSectionSubtotal', () {
         test('sums priceSubtotal of product lines in section', () {
           final section = SaleOrderLineFactory.section(
-            id: 1, orderId: 1, name: 'Section',
+            id: 1,
+            orderId: 1,
+            name: 'Section',
           ).copyWith(sequence: 10);
           final line1 = SaleOrderLineFactory.create(
-            id: 2, orderId: 1, name: 'Product 1',
+            id: 2,
+            orderId: 1,
+            name: 'Product 1',
           ).copyWith(sequence: 20, priceSubtotal: 100.0);
           final line2 = SaleOrderLineFactory.create(
-            id: 3, orderId: 1, name: 'Product 2',
+            id: 3,
+            orderId: 1,
+            name: 'Product 2',
           ).copyWith(sequence: 30, priceSubtotal: 50.0);
           final note = SaleOrderLineFactory.note(
-            id: 4, orderId: 1, name: 'Note',
+            id: 4,
+            orderId: 1,
+            name: 'Note',
           ).copyWith(sequence: 25);
 
           final lines = [section, line1, note, line2];
@@ -759,10 +787,14 @@ void main() {
 
         test('returns 0.0 for empty section', () {
           final section = SaleOrderLineFactory.section(
-            id: 1, orderId: 1, name: 'Empty Section',
+            id: 1,
+            orderId: 1,
+            name: 'Empty Section',
           ).copyWith(sequence: 10);
           final section2 = SaleOrderLineFactory.section(
-            id: 2, orderId: 1, name: 'Next Section',
+            id: 2,
+            orderId: 1,
+            name: 'Next Section',
           ).copyWith(sequence: 20);
 
           final lines = [section, section2];

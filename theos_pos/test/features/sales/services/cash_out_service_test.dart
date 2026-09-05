@@ -124,11 +124,7 @@ void main() {
     });
 
     test('displayName should combine code and name', () {
-      final account = ExpenseAccount(
-        id: 1,
-        code: '5.1.02',
-        name: 'Materiales',
-      );
+      final account = ExpenseAccount(id: 1, code: '5.1.02', name: 'Materiales');
 
       expect(account.displayName, '5.1.02 - Materiales');
     });
@@ -171,12 +167,20 @@ void main() {
 
       test('predefined list should contain all types', () {
         expect(CashOutType.predefined.length, 8);
-        final codes =
-            CashOutType.predefined.map((t) => t.code).toSet();
-        expect(codes, containsAll([
-          'expense', 'withhold', 'refund', 'commission',
-          'invoice', 'general', 'security', 'other',
-        ]));
+        final codes = CashOutType.predefined.map((t) => t.code).toSet();
+        expect(
+          codes,
+          containsAll([
+            'expense',
+            'withhold',
+            'refund',
+            'commission',
+            'invoice',
+            'general',
+            'security',
+            'other',
+          ]),
+        );
       });
     });
 
@@ -247,10 +251,7 @@ void main() {
       });
 
       test('should handle missing code gracefully', () {
-        final type = CashOutType.fromOdoo({
-          'id': 10,
-          'name': 'Unknown',
-        });
+        final type = CashOutType.fromOdoo({'id': 10, 'name': 'Unknown'});
 
         expect(type.id, 10);
         expect(type.name, 'Unknown');
@@ -299,7 +300,10 @@ void main() {
       test('should return error when amount is zero', () {
         final cashOut = createTestCashOut(amount: 0.0);
         final errors = cashOut.validate();
-        expect(errors, containsPair('amount', 'El monto debe ser mayor a cero'));
+        expect(
+          errors,
+          containsPair('amount', 'El monto debe ser mayor a cero'),
+        );
       });
 
       test('should return error when amount is negative', () {
@@ -356,10 +360,7 @@ void main() {
       });
 
       test('post action should accept partner for withhold type', () {
-        final cashOut = createTestCashOut(
-          typeCode: 'withhold',
-          partnerId: 10,
-        );
+        final cashOut = createTestCashOut(typeCode: 'withhold', partnerId: 10);
         final errors = cashOut.validateFor('post');
         expect(errors.containsKey('partnerId'), isFalse);
       });
@@ -395,7 +396,10 @@ void main() {
       test('isPosted should be true only for posted state', () {
         expect(createTestCashOut(state: CashOutState.posted).isPosted, isTrue);
         expect(createTestCashOut(state: CashOutState.draft).isPosted, isFalse);
-        expect(createTestCashOut(state: CashOutState.cancelled).isPosted, isFalse);
+        expect(
+          createTestCashOut(state: CashOutState.cancelled).isPosted,
+          isFalse,
+        );
       });
 
       test('isDraft should be true only for draft state', () {
@@ -404,8 +408,14 @@ void main() {
       });
 
       test('isCancelled should be true only for cancelled state', () {
-        expect(createTestCashOut(state: CashOutState.cancelled).isCancelled, isTrue);
-        expect(createTestCashOut(state: CashOutState.draft).isCancelled, isFalse);
+        expect(
+          createTestCashOut(state: CashOutState.cancelled).isCancelled,
+          isTrue,
+        );
+        expect(
+          createTestCashOut(state: CashOutState.draft).isCancelled,
+          isFalse,
+        );
       });
 
       test('canEdit should be true only for draft state', () {
@@ -413,24 +423,43 @@ void main() {
         expect(createTestCashOut(state: CashOutState.posted).canEdit, isFalse);
       });
 
-      test('canPost requires draft state, positive amount, and valid journal', () {
-        expect(
-          createTestCashOut(state: CashOutState.draft, amount: 100.0, journalId: 5).canPost,
-          isTrue,
-        );
-        expect(
-          createTestCashOut(state: CashOutState.posted, amount: 100.0, journalId: 5).canPost,
-          isFalse,
-        );
-        expect(
-          createTestCashOut(state: CashOutState.draft, amount: 0.0, journalId: 5).canPost,
-          isFalse,
-        );
-        expect(
-          createTestCashOut(state: CashOutState.draft, amount: 100.0, journalId: 0).canPost,
-          isFalse,
-        );
-      });
+      test(
+        'canPost requires draft state, positive amount, and valid journal',
+        () {
+          expect(
+            createTestCashOut(
+              state: CashOutState.draft,
+              amount: 100.0,
+              journalId: 5,
+            ).canPost,
+            isTrue,
+          );
+          expect(
+            createTestCashOut(
+              state: CashOutState.posted,
+              amount: 100.0,
+              journalId: 5,
+            ).canPost,
+            isFalse,
+          );
+          expect(
+            createTestCashOut(
+              state: CashOutState.draft,
+              amount: 0.0,
+              journalId: 5,
+            ).canPost,
+            isFalse,
+          );
+          expect(
+            createTestCashOut(
+              state: CashOutState.draft,
+              amount: 100.0,
+              journalId: 0,
+            ).canPost,
+            isFalse,
+          );
+        },
+      );
 
       test('canCancel should be true only for posted state', () {
         expect(createTestCashOut(state: CashOutState.posted).canCancel, isTrue);
@@ -666,11 +695,7 @@ void main() {
   // ============================================================
   group('CashOut.createLocal', () {
     test('should create a local cash out with all fields', () {
-      final type = CashOutType(
-        id: 3,
-        name: 'Test Type',
-        code: 'test',
-      );
+      final type = CashOutType(id: 3, name: 'Test Type', code: 'test');
 
       final cashOut = CashOut.createLocal(
         date: DateTime(2024, 6, 15),
@@ -701,8 +726,18 @@ void main() {
 
     test('should generate unique UUIDs', () {
       final type = CashOutType.expense;
-      final a = CashOut.createLocal(date: DateTime.now(), journalId: 1, amount: 10, type: type);
-      final b = CashOut.createLocal(date: DateTime.now(), journalId: 1, amount: 10, type: type);
+      final a = CashOut.createLocal(
+        date: DateTime.now(),
+        journalId: 1,
+        amount: 10,
+        type: type,
+      );
+      final b = CashOut.createLocal(
+        date: DateTime.now(),
+        journalId: 1,
+        amount: 10,
+        type: type,
+      );
 
       expect(a.uuid, isNot(equals(b.uuid)));
     });
@@ -755,10 +790,7 @@ void main() {
     });
 
     test('toOdooValues should return reconcile_amount', () {
-      final line = CashOutLine(
-        documentId: 10,
-        reconcileAmount: 123.45,
-      );
+      final line = CashOutLine(documentId: 10, reconcileAmount: 123.45);
 
       final vals = line.toOdooValues();
       expect(vals['reconcile_amount'], closeTo(123.45, 0.001));

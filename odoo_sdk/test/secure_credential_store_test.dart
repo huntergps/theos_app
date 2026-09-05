@@ -97,7 +97,6 @@ void main() {
   group('CredentialKeys', () {
     test('constants have expected values', () {
       expect(CredentialKeys.apiKey, equals('odoo_api_key'));
-      expect(CredentialKeys.sessionId, equals('odoo_session_id'));
       expect(CredentialKeys.sessionToken, equals('odoo_session_token'));
       expect(CredentialKeys.refreshToken, equals('odoo_refresh_token'));
     });
@@ -113,8 +112,8 @@ void main() {
         equals('ctx-1:odoo_api_key'),
       );
       expect(
-        CredentialKeys.scoped('ctx-2', CredentialKeys.sessionId),
-        equals('ctx-2:odoo_session_id'),
+        CredentialKeys.scoped('ctx-2', CredentialKeys.sessionToken),
+        equals('ctx-2:odoo_session_token'),
       );
     });
 
@@ -212,7 +211,7 @@ void main() {
 
     test('clearMemoryCache() clears cache but NOT store', () async {
       await guard.set(CredentialKeys.apiKey, 'key_persist');
-      await guard.set(CredentialKeys.sessionId, 'session_123');
+      await guard.set(CredentialKeys.sessionToken, 'presence_123');
 
       guard.clearMemoryCache();
 
@@ -225,14 +224,14 @@ void main() {
         equals('key_persist'),
       );
       expect(
-        await store.retrieve('test-ctx:odoo_session_id'),
-        equals('session_123'),
+        await store.retrieve('test-ctx:odoo_session_token'),
+        equals('presence_123'),
       );
     });
 
     test('deleteAll() clears both cache and store', () async {
       await guard.set(CredentialKeys.apiKey, 'key_delete');
-      await guard.set(CredentialKeys.sessionId, 'session_delete');
+      await guard.set(CredentialKeys.sessionToken, 'presence_delete');
 
       await guard.deleteAll();
 
@@ -241,7 +240,20 @@ void main() {
 
       // Store should be empty for these keys
       expect(await store.retrieve('test-ctx:odoo_api_key'), isNull);
-      expect(await store.retrieve('test-ctx:odoo_session_id'), isNull);
+      expect(await store.retrieve('test-ctx:odoo_session_token'), isNull);
+    });
+
+    test('deleteAll() removes known credentials after cold restart', () async {
+      await store.store('test-ctx:odoo_api_key', 'key_delete');
+      await store.store('test-ctx:odoo_session_token', 'token_delete');
+      await store.store('test-ctx:odoo_refresh_token', 'refresh_delete');
+
+      expect(guard.hasCachedCredentials, isFalse);
+      await guard.deleteAll();
+
+      for (final key in CredentialKeys.values) {
+        expect(await store.retrieve('test-ctx:$key'), isNull);
+      }
     });
 
     test('getApiKey() convenience method works', () async {
@@ -274,7 +286,7 @@ void main() {
 
     test('dispose() clears everything', () async {
       await guard.set(CredentialKeys.apiKey, 'value');
-      await guard.set(CredentialKeys.sessionId, 'session');
+      await guard.set(CredentialKeys.sessionToken, 'presence');
 
       guard.dispose();
 

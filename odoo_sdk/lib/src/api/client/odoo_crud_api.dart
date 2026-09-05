@@ -1,5 +1,6 @@
 import 'package:dio/dio.dart';
 
+import '../odoo_error_mapper.dart';
 import '../odoo_exception.dart';
 import '../../utils/odoo_parsing_utils.dart';
 import 'odoo_http_client.dart';
@@ -29,8 +30,13 @@ class OdooCrudApi {
 
   /// Generic Odoo method call
   ///
-  /// For methods that operate on recordsets (like action_session_open), use 'ids' parameter.
-  /// For methods with positional arguments, use 'args' parameter.
+  /// For methods that operate on recordsets (like action_session_open), use
+  /// [ids]. Method keyword arguments belong in [kwargs], while Odoo execution
+  /// context belongs in [context].
+  ///
+  /// The standard JSON-2 dispatcher does not support positional arguments.
+  /// [args] exists only for backwards compatibility with custom HTTP
+  /// controllers that explicitly read an `args` key from the request body.
   /// The default context (with lang from config) is automatically added to all calls.
   ///
   /// Pass a [cancelToken] to allow cancelling long-running operations.
@@ -48,23 +54,24 @@ class OdooCrudApi {
     List<int>? ids,
     List<dynamic>? args,
     Map<String, dynamic>? kwargs,
+    Map<String, dynamic>? context,
     CancelToken? cancelToken,
   }) async {
-    // Odoo 19 JSON2 API: parameters go directly in body
-    final Map<String, dynamic> body = {};
+    // Kwargs are spread directly into body (NOT wrapped in "kwargs" key)
+    final body = Map<String, dynamic>.from(kwargs ?? const {});
 
-    // Args go directly in body (for positional arguments)
+    // The only supported args use-case is a custom controller that reads the
+    // raw body itself. Standard /json/2 model methods must use kwargs.
     if (args != null) body['args'] = args;
 
-    // Kwargs are spread directly into body (NOT wrapped in "kwargs" key)
-    if (kwargs != null) body.addAll(kwargs);
-
-    // IDs go as a top-level parameter for action methods
+    // IDs select the recordset and are not method kwargs.
     if (ids != null) body['ids'] = ids;
 
-    // Merge default context with any provided context
-    final existingContext = body['context'] as Map<String, dynamic>? ?? {};
-    body['context'] = {..._defaultContext, ...existingContext};
+    // Context is a dedicated transport parameter; method kwargs stay pure.
+    body['context'] = {
+      ..._defaultContext,
+      ...?context,
+    };
 
     try {
       final response = await _httpClient.postJson2(
@@ -76,89 +83,19 @@ class OdooCrudApi {
 
       // Check for error in response body (Odoo validation errors, warnings, etc.)
       if (data is Map<String, dynamic>) {
-        // Check for JSON-RPC style error
         if (data.containsKey('error')) {
-          final error = data['error'];
-          String message = 'Error desconocido';
-          String? technicalDetails;
-
-          if (error is Map<String, dynamic>) {
-            // Extract message from error object
-            message = error['message']?.toString() ??
-                error['data']?['message']?.toString() ??
-                'Error en la operación';
-            technicalDetails = error['data']?['debug']?.toString();
-          } else if (error is String) {
-            message = error;
-          }
-
-          throw OdooException(
-            message: message,
+          throw OdooErrorMapper.fromResponse(
+            data,
             model: model,
             method: method,
-            technicalDetails: technicalDetails,
           );
         }
 
-        // Check for message key (some Odoo responses use this for warnings)
-        if (data.containsKey('message') && data['message'] is String) {
-          final message = data['message'] as String;
-          // If the response also has a 'result' or 'success' key, it might be a success with message
-          if (!data.containsKey('result') && !data.containsKey('success')) {
-            // This looks like an error/warning response
-            throw OdooException(
-              message: message,
-              model: model,
-              method: method,
-            );
-          }
-        }
       }
 
       return data;
     } on DioException catch (e) {
-      // Extract error message from Dio exception
-      String message = 'Error de conexión';
-      String? technicalDetails;
-
-      if (e.response?.data is Map<String, dynamic>) {
-        final data = e.response!.data as Map<String, dynamic>;
-        // Try to get message from various error formats
-        message = data['message']?.toString() ??
-            data['error']?['message']?.toString() ??
-            data['error']?.toString() ??
-            e.message ??
-            'Error de conexión';
-        technicalDetails = data['error']?['data']?['debug']?.toString();
-      } else if (e.response?.data is String) {
-        message = e.response!.data as String;
-      } else {
-        message = e.message ?? 'Error de conexión';
-      }
-
-      final statusCode = e.response?.statusCode ?? 0;
-
-      // Throw specific exception subclasses based on HTTP status code
-      switch (statusCode) {
-        case 401:
-          throw OdooAuthenticationException(message);
-        case 403:
-          throw OdooAccessDeniedException(message);
-        case 404:
-          throw OdooNotFoundException(message);
-        case 400:
-          throw OdooBadRequestException(message);
-        case 500:
-          throw OdooServerException(message);
-        default:
-          throw OdooException(
-            message: message,
-            statusCode: statusCode,
-            model: model,
-            method: method,
-            technicalDetails: technicalDetails,
-          );
-      }
+      throw OdooErrorMapper.fromDio(e, model: model, method: method);
     }
   }
 
@@ -246,7 +183,8 @@ class OdooCrudApi {
     final response = await call(
       model: model,
       method: 'read',
-      kwargs: {'ids': ids, 'fields': fields},
+      ids: ids,
+      kwargs: {'fields': fields},
       cancelToken: cancelToken,
     );
 
@@ -273,7 +211,8 @@ class OdooCrudApi {
     final response = await call(
       model: model,
       method: 'write',
-      kwargs: {'ids': ids, 'vals': cleanValues},
+      ids: ids,
+      kwargs: {'vals': cleanValues},
       cancelToken: cancelToken,
     );
 
@@ -323,7 +262,7 @@ class OdooCrudApi {
     final response = await call(
       model: model,
       method: 'unlink',
-      kwargs: {'ids': ids},
+      ids: ids,
       cancelToken: cancelToken,
     );
 

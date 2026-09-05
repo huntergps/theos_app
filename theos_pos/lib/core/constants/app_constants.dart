@@ -6,6 +6,18 @@ abstract class ScreenBreakpoints {
   /// Ancho maximo para considerar pantalla mobile
   static const double mobileMaxWidth = 600;
 
+  /// Limite superior exclusivo de una ventana compacta.
+  ///
+  /// Es alias del breakpoint mobile existente para mantener una unica fuente
+  /// de verdad mientras las pantallas migran al sistema adaptativo tipado.
+  static const double compactMaxWidth = mobileMaxWidth;
+
+  /// Limite superior exclusivo de una ventana mediana.
+  ///
+  /// Desde este ancho la ventana se considera expandida, independientemente
+  /// del dispositivo fisico o de su orientacion.
+  static const double mediumMaxWidth = 840;
+
   /// Ancho para tablet pequeña (usado en grids de 2 columnas)
   static const double tabletSmallWidth = 900;
 
@@ -23,6 +35,18 @@ abstract class ScreenBreakpoints {
 
   /// Alto por defecto de ventana
   static const double defaultWindowHeight = 720;
+}
+
+/// Extensiones minimas para controles segun las entradas disponibles.
+abstract class InteractionSizes {
+  /// Interfaz operada principalmente mediante touch.
+  static const double touch = 48;
+
+  /// Interfaz hibrida con touch y puntero preciso.
+  static const double hybrid = 44;
+
+  /// Interfaz operada mediante mouse/trackpad y teclado.
+  static const double pointer = 32;
 }
 
 /// Constantes para tamaños de dialogos

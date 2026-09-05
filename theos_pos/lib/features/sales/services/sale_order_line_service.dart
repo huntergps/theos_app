@@ -1,8 +1,9 @@
 import 'package:collection/collection.dart';
-import 'package:theos_pos_core/theos_pos_core.dart' show SaleOrderLine;
+import 'package:theos_pos_core/theos_pos_core.dart'
+    show PricelistCalculatorService, SaleOrderLine;
 
-import '../../../core/services/logger_service.dart';
-import '../../prices/prices.dart';
+import 'package:odoo_sdk/odoo_sdk.dart' show logger;
+
 import '../../taxes/taxes.dart';
 
 /// Service for managing sale order lines
@@ -18,10 +19,9 @@ class SaleOrderLineService {
   final PricelistCalculatorService _pricelistCalculator;
 
   SaleOrderLineService({
-    required TaxCalculatorService taxCalculator,
-    required PricelistCalculatorService pricelistCalculator,
-  })  : _taxCalculator = taxCalculator,
-        _pricelistCalculator = pricelistCalculator;
+    required this._taxCalculator,
+    required this._pricelistCalculator,
+  });
 
   /// Create a new line with calculated prices
   ///
@@ -305,7 +305,8 @@ class SaleOrderLineCollectionService {
     List<SaleOrderLine> newLines,
     List<SaleOrderLine> updatedLines,
     List<int> deletedLineIds,
-  }) deleteLine(
+  })
+  deleteLine(
     List<SaleOrderLine> currentNewLines,
     List<SaleOrderLine> currentUpdatedLines,
     List<int> currentDeletedIds,

@@ -28,15 +28,6 @@ void main() {
         'calendar_default_privacy': 'public',
         'work_location_id': [3, 'Office GYE'],
         'resource_calendar_id': [1, 'Standard 40h'],
-        'pin': '1234',
-        'private_street': 'Calle Privada 123',
-        'private_city': 'Guayaquil',
-        'private_state_id': [5, 'Guayas'],
-        'private_country_id': [63, 'Ecuador'],
-        'private_email': 'john.private@gmail.com',
-        'private_phone': '0991234567',
-        'emergency_contact': 'Jane Doe',
-        'emergency_phone': '0992345678',
       };
 
       final user = userManager.fromOdoo(json);
@@ -61,18 +52,12 @@ void main() {
       expect(user.mobilePhone, isNull);
       expect(user.writeDate, isNotNull);
       expect(user.outOfOfficeMessage, equals('On vacation'));
-      // workLocationId/Name, resourceCalendarId, pin, private fields,
-      // emergencyContact/Phone are @OdooLocalOnly() — not populated by generated fromOdoo
+      // workLocationId/Name and resourceCalendarId are @OdooLocalOnly() —
+      // not populated by generated fromOdoo. HR PIN/private/emergency fields
+      // are intentionally absent from the POS model and local database.
       expect(user.workLocationId, isNull);
       expect(user.workLocationName, isNull);
       expect(user.resourceCalendarId, isNull);
-      expect(user.pin, isNull);
-      expect(user.privateStreet, isNull);
-      expect(user.privateCity, isNull);
-      expect(user.privateStateId, isNull);
-      expect(user.privateCountryId, isNull);
-      expect(user.emergencyContact, isNull);
-      expect(user.emergencyPhone, isNull);
     });
 
     test('handles false/null values', () {
@@ -151,10 +136,7 @@ void main() {
         const User(id: 1, name: 'T', login: 'l', avatar128: '').hasAvatar,
         isFalse,
       );
-      expect(
-        const User(id: 1, name: 'T', login: 'l').hasAvatar,
-        isFalse,
-      );
+      expect(const User(id: 1, name: 'T', login: 'l').hasAvatar, isFalse);
     });
 
     test('initials from two-word name', () {
@@ -178,7 +160,12 @@ void main() {
         equals('UTC'),
       );
       expect(
-        const User(id: 1, name: 'T', login: 'l', tz: 'America/Guayaquil').timezoneDisplay,
+        const User(
+          id: 1,
+          name: 'T',
+          login: 'l',
+          tz: 'America/Guayaquil',
+        ).timezoneDisplay,
         equals('America/Guayaquil'),
       );
     });
@@ -196,12 +183,7 @@ void main() {
     });
 
     test('hasGroupId checks groupIds list', () {
-      const user = User(
-        id: 1,
-        name: 'T',
-        login: 'l',
-        groupIds: [1, 5, 10],
-      );
+      const user = User(id: 1, name: 'T', login: 'l', groupIds: [1, 5, 10]);
       expect(user.hasGroupId(5), isTrue);
       expect(user.hasGroupId(99), isFalse);
     });
@@ -246,23 +228,28 @@ void main() {
       );
       expect(noWarehouse.canMakeSales, isFalse);
 
-      const noRole = User(
-        id: 1,
-        name: 'T',
-        login: 'l',
-        warehouseId: 1,
-      );
+      const noRole = User(id: 1, name: 'T', login: 'l', warehouseId: 1);
       expect(noRole.canMakeSales, isFalse);
     });
 
     test('effectiveEmail prefers email over workEmail', () {
       expect(
-        const User(id: 1, name: 'T', login: 'l', email: 'a@b.c', workEmail: 'w@b.c')
-            .effectiveEmail,
+        const User(
+          id: 1,
+          name: 'T',
+          login: 'l',
+          email: 'a@b.c',
+          workEmail: 'w@b.c',
+        ).effectiveEmail,
         equals('a@b.c'),
       );
       expect(
-        const User(id: 1, name: 'T', login: 'l', workEmail: 'w@b.c').effectiveEmail,
+        const User(
+          id: 1,
+          name: 'T',
+          login: 'l',
+          workEmail: 'w@b.c',
+        ).effectiveEmail,
         equals('w@b.c'),
       );
       expect(
@@ -273,12 +260,22 @@ void main() {
 
     test('effectivePhone prefers workPhone over mobilePhone', () {
       expect(
-        const User(id: 1, name: 'T', login: 'l', workPhone: '042', mobilePhone: '099')
-            .effectivePhone,
+        const User(
+          id: 1,
+          name: 'T',
+          login: 'l',
+          workPhone: '042',
+          mobilePhone: '099',
+        ).effectivePhone,
         equals('042'),
       );
       expect(
-        const User(id: 1, name: 'T', login: 'l', mobilePhone: '099').effectivePhone,
+        const User(
+          id: 1,
+          name: 'T',
+          login: 'l',
+          mobilePhone: '099',
+        ).effectivePhone,
         equals('099'),
       );
     });

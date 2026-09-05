@@ -45,22 +45,6 @@ class ResUsers extends Table {
   IntColumn get resourceCalendarId => integer().nullable()();
   TextColumn get resourceCalendarName => text().nullable()();
 
-  // PIN for attendance (módulo hr)
-  TextColumn get pin => text().nullable()();
-
-  // Private information (módulo hr) - stored on user, not partner
-  TextColumn get privateStreet => text().nullable()();
-  TextColumn get privateStreet2 => text().nullable()();
-  TextColumn get privateCity => text().nullable()();
-  TextColumn get privateZip => text().nullable()();
-  IntColumn get privateStateId => integer().nullable()();
-  TextColumn get privateStateName => text().nullable()();
-  IntColumn get privateCountryId => integer().nullable()();
-  TextColumn get privateCountryName => text().nullable()();
-  TextColumn get privateEmail => text().nullable()();
-  TextColumn get privatePhone => text().nullable()();
-
-  // Emergency contact (módulo hr)
-  TextColumn get emergencyContact => text().nullable()();
-  TextColumn get emergencyPhone => text().nullable()();
+  // HR attendance PIN, private address and emergency-contact fields are not
+  // part of this POS domain. They are deliberately not cached at rest.
 }

@@ -1,6 +1,6 @@
 // GENERATED CODE - DO NOT MODIFY BY HAND
 // coverage:ignore-file
-// ignore_for_file: type=lint
+// ignore_for_file: type=lint, type=warning, deprecated_member_use, deprecated_member_use_from_same_package
 // ignore_for_file: unused_element, deprecated_member_use, deprecated_member_use_from_same_package, use_function_type_syntax_for_parameters, unnecessary_const, avoid_init_to_null, invalid_override_different_default_values_named, prefer_expression_function_bodies, annotate_overrides, invalid_annotation_target, unnecessary_question_mark
 
 part of 'tax.dart';
@@ -9,18 +9,13 @@ part of 'tax.dart';
 // FreezedGenerator
 // **************************************************************************
 
+// GENERATED CODE - DO NOT MODIFY BY HAND
 // dart format off
 T _$identity<T>(T value) => value;
 /// @nodoc
 mixin _$Tax {
 
-// ============ Identifiers ============
-@OdooId() int get id;@OdooLocalOnly() String? get uuid;// ============ Basic Data ============
-@OdooString() String get name;@OdooString() String? get description;@OdooSelection(odooName: 'type_tax_use') String get typeTaxUseStr;@OdooSelection(odooName: 'amount_type') String get amountTypeStr;@OdooFloat(precision: 4) double get amount;@OdooBoolean() bool get active;// ============ Configuration ============
-@OdooBoolean(odooName: 'price_include') bool get priceInclude;@OdooBoolean(odooName: 'include_base_amount') bool get includeBaseAmount;@OdooInteger() int get sequence;// ============ Company ============
-@OdooMany2One('res.company', odooName: 'company_id') int? get companyId;@OdooMany2OneName(sourceField: 'company_id') String? get companyName;// ============ Tax Group ============
-@OdooMany2One('account.tax.group', odooName: 'tax_group_id') int? get taxGroupId;@OdooMany2OneName(sourceField: 'tax_group_id') String? get taxGroupName;// ============ Sync Metadata ============
-@OdooDateTime(odooName: 'write_date', writable: false) DateTime? get writeDate;@OdooLocalOnly() bool get isSynced;@OdooLocalOnly() DateTime? get localModifiedAt;
+@OdooId() int get id;@OdooLocalOnly() String? get uuid;@OdooString() String get name;@OdooString() String? get description;@OdooSelection(odooName: 'type_tax_use') String get typeTaxUseStr;@OdooSelection(odooName: 'amount_type') String get amountTypeStr;@OdooFloat(precision: 4) double get amount;@OdooBoolean() bool get active;@OdooBoolean(odooName: 'price_include') bool get priceInclude;@OdooBoolean(odooName: 'include_base_amount') bool get includeBaseAmount;@OdooInteger() int get sequence;@OdooMany2One('res.company', odooName: 'company_id') int? get companyId;@OdooMany2OneName(sourceField: 'company_id') String? get companyName;@OdooMany2One('account.tax.group', odooName: 'tax_group_id') int? get taxGroupId;@OdooMany2OneName(sourceField: 'tax_group_id') String? get taxGroupName;@OdooDateTime(odooName: 'write_date', writable: false) DateTime? get writeDate;@OdooLocalOnly() bool get isSynced;@OdooLocalOnly() DateTime? get localModifiedAt;
 /// Create a copy of Tax
 /// with the given fields replaced by the non-null parameter values.
 @JsonKey(includeFromJson: false, includeToJson: false)
@@ -69,7 +64,7 @@ class _$TaxCopyWithImpl<$Res>
 /// Create a copy of Tax
 /// with the given fields replaced by the non-null parameter values.
 @pragma('vm:prefer-inline') @override $Res call({Object? id = null,Object? uuid = freezed,Object? name = null,Object? description = freezed,Object? typeTaxUseStr = null,Object? amountTypeStr = null,Object? amount = null,Object? active = null,Object? priceInclude = null,Object? includeBaseAmount = null,Object? sequence = null,Object? companyId = freezed,Object? companyName = freezed,Object? taxGroupId = freezed,Object? taxGroupName = freezed,Object? writeDate = freezed,Object? isSynced = null,Object? localModifiedAt = freezed,}) {
-  return _then(_self.copyWith(
+  return _then(Tax(
 id: null == id ? _self.id : id // ignore: cast_nullable_to_non_nullable
 as int,uuid: freezed == uuid ? _self.uuid : uuid // ignore: cast_nullable_to_non_nullable
 as String?,name: null == name ? _self.name : name // ignore: cast_nullable_to_non_nullable
@@ -232,27 +227,21 @@ class _Tax extends Tax {
   const _Tax({@OdooId() required this.id, @OdooLocalOnly() this.uuid, @OdooString() required this.name, @OdooString() this.description, @OdooSelection(odooName: 'type_tax_use') this.typeTaxUseStr = 'sale', @OdooSelection(odooName: 'amount_type') this.amountTypeStr = 'percent', @OdooFloat(precision: 4) this.amount = 0.0, @OdooBoolean() this.active = true, @OdooBoolean(odooName: 'price_include') this.priceInclude = false, @OdooBoolean(odooName: 'include_base_amount') this.includeBaseAmount = false, @OdooInteger() this.sequence = 1, @OdooMany2One('res.company', odooName: 'company_id') this.companyId, @OdooMany2OneName(sourceField: 'company_id') this.companyName, @OdooMany2One('account.tax.group', odooName: 'tax_group_id') this.taxGroupId, @OdooMany2OneName(sourceField: 'tax_group_id') this.taxGroupName, @OdooDateTime(odooName: 'write_date', writable: false) this.writeDate, @OdooLocalOnly() this.isSynced = false, @OdooLocalOnly() this.localModifiedAt}): super._();
   
 
-// ============ Identifiers ============
 @override@OdooId() final  int id;
 @override@OdooLocalOnly() final  String? uuid;
-// ============ Basic Data ============
 @override@OdooString() final  String name;
 @override@OdooString() final  String? description;
 @override@JsonKey()@OdooSelection(odooName: 'type_tax_use') final  String typeTaxUseStr;
 @override@JsonKey()@OdooSelection(odooName: 'amount_type') final  String amountTypeStr;
 @override@JsonKey()@OdooFloat(precision: 4) final  double amount;
 @override@JsonKey()@OdooBoolean() final  bool active;
-// ============ Configuration ============
 @override@JsonKey()@OdooBoolean(odooName: 'price_include') final  bool priceInclude;
 @override@JsonKey()@OdooBoolean(odooName: 'include_base_amount') final  bool includeBaseAmount;
 @override@JsonKey()@OdooInteger() final  int sequence;
-// ============ Company ============
 @override@OdooMany2One('res.company', odooName: 'company_id') final  int? companyId;
 @override@OdooMany2OneName(sourceField: 'company_id') final  String? companyName;
-// ============ Tax Group ============
 @override@OdooMany2One('account.tax.group', odooName: 'tax_group_id') final  int? taxGroupId;
 @override@OdooMany2OneName(sourceField: 'tax_group_id') final  String? taxGroupName;
-// ============ Sync Metadata ============
 @override@OdooDateTime(odooName: 'write_date', writable: false) final  DateTime? writeDate;
 @override@JsonKey()@OdooLocalOnly() final  bool isSynced;
 @override@OdooLocalOnly() final  DateTime? localModifiedAt;

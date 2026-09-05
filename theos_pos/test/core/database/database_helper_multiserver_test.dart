@@ -36,7 +36,9 @@ void main() {
       final db2 = AppDatabase(NativeDatabase.memory());
 
       // Insert a user into db1
-      await db1.into(db1.resUsers).insert(
+      await db1
+          .into(db1.resUsers)
+          .insert(
             ResUsersCompanion.insert(
               odooId: 1,
               name: 'User A',
@@ -63,7 +65,9 @@ void main() {
       final db2 = AppDatabase(NativeDatabase.memory());
 
       // Insert different data into each database
-      await db1.into(db1.resUsers).insert(
+      await db1
+          .into(db1.resUsers)
+          .insert(
             ResUsersCompanion.insert(
               odooId: 100,
               name: 'Empresa A User',
@@ -71,7 +75,9 @@ void main() {
             ),
           );
 
-      await db2.into(db2.resUsers).insert(
+      await db2
+          .into(db2.resUsers)
+          .insert(
             ResUsersCompanion.insert(
               odooId: 200,
               name: 'Empresa B User',
@@ -80,25 +86,25 @@ void main() {
           );
 
       // Verify each database has its own user
-      final user1 = await (db1.select(db1.resUsers)
-            ..where((t) => t.odooId.equals(100)))
-          .getSingleOrNull();
+      final user1 = await (db1.select(
+        db1.resUsers,
+      )..where((t) => t.odooId.equals(100))).getSingleOrNull();
 
-      final user2 = await (db2.select(db2.resUsers)
-            ..where((t) => t.odooId.equals(200)))
-          .getSingleOrNull();
+      final user2 = await (db2.select(
+        db2.resUsers,
+      )..where((t) => t.odooId.equals(200))).getSingleOrNull();
 
       expect(user1?.name, equals('Empresa A User'));
       expect(user2?.name, equals('Empresa B User'));
 
       // Verify cross-contamination doesn't happen
-      final user1InDb2 = await (db2.select(db2.resUsers)
-            ..where((t) => t.odooId.equals(100)))
-          .getSingleOrNull();
+      final user1InDb2 = await (db2.select(
+        db2.resUsers,
+      )..where((t) => t.odooId.equals(100))).getSingleOrNull();
 
-      final user2InDb1 = await (db1.select(db1.resUsers)
-            ..where((t) => t.odooId.equals(200)))
-          .getSingleOrNull();
+      final user2InDb1 = await (db1.select(
+        db1.resUsers,
+      )..where((t) => t.odooId.equals(200))).getSingleOrNull();
 
       expect(user1InDb2, isNull);
       expect(user2InDb1, isNull);
@@ -112,15 +118,14 @@ void main() {
       final db2 = AppDatabase(NativeDatabase.memory());
 
       // Create sale order in db1 (Empresa A)
-      await db1.into(db1.saleOrder).insert(
-            SaleOrderCompanion.insert(
-              odooId: 1,
-              name: 'SO001',
-            ),
-          );
+      await db1
+          .into(db1.saleOrder)
+          .insert(SaleOrderCompanion.insert(odooId: 1, name: 'SO001'));
 
       // Create sale order in db2 (Empresa B)
-      await db2.into(db2.saleOrder).insert(
+      await db2
+          .into(db2.saleOrder)
+          .insert(
             SaleOrderCompanion.insert(
               odooId: 2,
               name: 'SO001', // Same name, different database
@@ -147,7 +152,9 @@ void main() {
       final db2 = AppDatabase(NativeDatabase.memory());
 
       // Queue operation in db1
-      await db1.into(db1.offlineQueue).insert(
+      await db1
+          .into(db1.offlineQueue)
+          .insert(
             OfflineQueueCompanion.insert(
               model: 'sale.order',
               values: '{"name": "SO-A"}',
@@ -158,7 +165,9 @@ void main() {
           );
 
       // Queue operation in db2
-      await db2.into(db2.offlineQueue).insert(
+      await db2
+          .into(db2.offlineQueue)
+          .insert(
             OfflineQueueCompanion.insert(
               model: 'sale.order',
               values: '{"name": "SO-B"}',
@@ -188,7 +197,7 @@ void main() {
       final db2 = AppDatabase(NativeDatabase.memory());
 
       expect(db1.schemaVersion, equals(db2.schemaVersion));
-      expect(db1.schemaVersion, equals(8)); // Current version (v8: fixes roundtrip persistencia)
+      expect(db1.schemaVersion, equals(13));
 
       await db1.close();
       await db2.close();
@@ -206,7 +215,9 @@ void main() {
 
       // Insert data into each
       for (var i = 0; i < 3; i++) {
-        await databases[i].into(databases[i].resUsers).insert(
+        await databases[i]
+            .into(databases[i].resUsers)
+            .insert(
               ResUsersCompanion.insert(
                 odooId: i + 1,
                 name: 'User ${i + 1}',

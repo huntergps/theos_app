@@ -1,4 +1,5 @@
-import '../../clients/clients.dart' show Client, CreditStatus, ClientCalculatorService;
+import '../../clients/clients.dart'
+    show Client, CreditStatus, ClientCalculatorService;
 import '../../../shared/utils/formatting_utils.dart';
 
 /// Helper functions for credit display across widgets

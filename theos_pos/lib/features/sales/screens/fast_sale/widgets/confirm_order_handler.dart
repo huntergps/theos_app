@@ -1,9 +1,8 @@
 import 'package:fluent_ui/fluent_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:theos_pos_core/theos_pos_core.dart'
-    hide DatabaseHelper, PartnerBank, CreditIssue;
+    hide DatabaseHelper, PartnerBank;
 
-import '../../../../../shared/providers/user_provider.dart' show userProvider;
 import '../../../../../shared/utils/formatting_utils.dart';
 import '../../../../../shared/widgets/dialogs/copyable_info_bar.dart';
 import '../../../../clients/clients.dart'
@@ -14,7 +13,7 @@ import '../../../../clients/clients.dart'
         CreditDialogAction,
         CreditValidationResult,
         clientRepositoryProvider;
-import '../../../repositories/sales_repository.dart' show CreditIssue;
+import '../../../repositories/sales_repository_models.dart' show CreditIssue;
 import '../../../services/credit_validation_ui_service.dart'
     show UnifiedCreditResult;
 import '../fast_sale_providers.dart';
@@ -43,7 +42,10 @@ Future<void> confirmOrderWithCreditCheck(
   WidgetRef ref,
 ) async {
   if (_isConfirmingOrder) {
-    logger.w('[POS]', 'Confirmación de orden ya en curso, se ignora tap duplicado');
+    logger.w(
+      '[POS]',
+      'Confirmación de orden ya en curso, se ignora tap duplicado',
+    );
     return;
   }
   _isConfirmingOrder = true;
@@ -70,21 +72,14 @@ Future<void> confirmOrderWithCreditCheck(
         creditResult.validationResult != null) {
       if (!context.mounted) return;
 
-      // Solo supervisores con el grupo bypass ven el botón "Continuar de todas formas"
-      final user = ref.read(userProvider);
-      final canBypassCredit =
-          user?.permissions.contains(
-            'l10n_ec_sale_credit.group_credit_bypass',
-          ) ??
-          false;
-
       final action = await CreditControlDialog.show(
         context: context,
         client: creditResult.client!,
         validationResult: creditResult.validationResult!,
         orderAmount: creditResult.orderAmount,
         isOnline: creditResult.isOnline,
-        canBypass: canBypassCredit,
+        // La autorización se tramita en Odoo; un booleano local no la sustituye.
+        canBypass: false,
       );
 
       if (action == null || action == CreditDialogAction.cancel) {
@@ -161,7 +156,8 @@ Future<void> _executeConfirmOrder(
       CopyableInfoBar.showSuccess(
         context,
         title: 'Venta registrada${orderRef.isNotEmpty ? ' — $orderRef' : ''}',
-        message: 'Total: ${orderTotal.toCurrency()}. La orden está lista para facturar.',
+        message:
+            'Total: ${orderTotal.toCurrency()}. La orden está lista para facturar.',
         durationSeconds: 5,
       );
     } else {
@@ -182,13 +178,6 @@ Future<void> _executeConfirmOrder(
         if (!context.mounted) return;
 
         if (client != null) {
-          final user = ref.read(userProvider);
-          final canBypassCredit =
-              user?.permissions.contains(
-                'l10n_ec_sale_credit.group_credit_bypass',
-              ) ??
-              false;
-
           final action = await CreditControlDialog.show(
             context: context,
             client: client,
@@ -196,7 +185,7 @@ Future<void> _executeConfirmOrder(
             orderAmount:
                 creditIssue.orderAmount ?? currentState.activeTab?.total ?? 0,
             isOnline: true,
-            canBypass: canBypassCredit,
+            canBypass: false,
           );
 
           notifier.clearCreditIssue();
@@ -209,7 +198,11 @@ Future<void> _executeConfirmOrder(
 
           if (action == CreditDialogAction.createApproval) {
             if (!context.mounted) return;
-            await _createApprovalRequestFromCreditIssue(context, ref, creditIssue);
+            await _createApprovalRequestFromCreditIssue(
+              context,
+              ref,
+              creditIssue,
+            );
             return;
           }
 
@@ -286,7 +279,8 @@ Future<void> _createApprovalRequest(
       CopyableInfoBar.showSuccess(
         context,
         title: 'Solicitud creada',
-        message: 'La solicitud de aprobación ha sido enviada.\n'
+        message:
+            'La solicitud de aprobación ha sido enviada.\n'
             'La orden quedará en estado "Esperando aprobación".',
       );
     } else {
@@ -341,10 +335,12 @@ Future<void> _createApprovalRequestFromCreditIssue(
   );
 
   try {
-    final checkType =
-        issue.isOverdueDebt ? 'overdue_debt' : 'credit_limit_exceeded';
+    final checkType = issue.isOverdueDebt
+        ? 'overdue_debt'
+        : 'credit_limit_exceeded';
     final approvalId = await notifier.createCreditApprovalRequest(
       checkType: checkType,
+      approvalAction: issue.approvalAction,
       reason: issue.isOverdueDebt
           ? 'Deuda vencida'
           : 'Límite de crédito excedido',
@@ -358,7 +354,8 @@ Future<void> _createApprovalRequestFromCreditIssue(
       CopyableInfoBar.showSuccess(
         context,
         title: 'Solicitud creada',
-        message: 'La solicitud de aprobación ha sido enviada.\n'
+        message:
+            'La solicitud de aprobación ha sido enviada.\n'
             'La orden quedará en estado "Esperando aprobación".',
       );
     } else {

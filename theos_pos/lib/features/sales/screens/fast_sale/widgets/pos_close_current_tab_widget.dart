@@ -20,9 +20,7 @@ class _CloseCurrentTabWidget extends StatelessWidget {
       decoration: BoxDecoration(
         color: theme.accentColor.withValues(alpha: 0.1),
         borderRadius: BorderRadius.circular(6),
-        border: Border.all(
-          color: theme.accentColor.withValues(alpha: 0.3),
-        ),
+        border: Border.all(color: theme.accentColor.withValues(alpha: 0.3)),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,

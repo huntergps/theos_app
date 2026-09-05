@@ -101,10 +101,7 @@ class TheosInfoBars {
       severity: severity,
       isLong: isLong,
       onClose: onClose,
-      action: Button(
-        onPressed: onAction,
-        child: Text(actionLabel),
-      ),
+      action: Button(onPressed: onAction, child: Text(actionLabel)),
     );
   }
 
@@ -118,7 +115,9 @@ class TheosInfoBars {
         : errors.map((e) => '• $e').join('\n');
 
     return InfoBar(
-      title: Text(errors.length == 1 ? 'Error de validación' : 'Errores de validación'),
+      title: Text(
+        errors.length == 1 ? 'Error de validación' : 'Errores de validación',
+      ),
       content: Text(message),
       severity: InfoBarSeverity.error,
       isLong: errors.length > 1,
@@ -135,7 +134,9 @@ class TheosInfoBars {
     if (isConnected) {
       return InfoBar(
         title: const Text('Conectado'),
-        content: Text(serverName != null ? 'Servidor: $serverName' : 'Conexión establecida'),
+        content: Text(
+          serverName != null ? 'Servidor: $serverName' : 'Conexión establecida',
+        ),
         severity: InfoBarSeverity.success,
       );
     }
@@ -145,10 +146,7 @@ class TheosInfoBars {
       content: const Text('Trabajando en modo offline'),
       severity: InfoBarSeverity.warning,
       action: onRetry != null
-          ? Button(
-              onPressed: onRetry,
-              child: const Text('Reintentar'),
-            )
+          ? Button(onPressed: onRetry, child: const Text('Reintentar'))
           : null,
     );
   }
@@ -177,13 +175,12 @@ class TheosInfoBars {
 
     return InfoBar(
       title: const Text('Pendiente de sincronizar'),
-      content: Text('$pendingCount ${pendingCount == 1 ? 'registro' : 'registros'} pendientes'),
+      content: Text(
+        '$pendingCount ${pendingCount == 1 ? 'registro' : 'registros'} pendientes',
+      ),
       severity: InfoBarSeverity.warning,
       action: onSync != null
-          ? Button(
-              onPressed: onSync,
-              child: const Text('Sincronizar'),
-            )
+          ? Button(onPressed: onSync, child: const Text('Sincronizar'))
           : null,
     );
   }

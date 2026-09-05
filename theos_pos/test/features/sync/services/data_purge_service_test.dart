@@ -93,10 +93,7 @@ void main() {
       });
 
       test('creates result with error', () {
-        const result = PurgeResult(
-          success: false,
-          error: 'Custom error',
-        );
+        const result = PurgeResult(success: false, error: 'Custom error');
 
         expect(result.success, isFalse);
         expect(result.error, 'Custom error');

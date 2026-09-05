@@ -29,8 +29,10 @@ final warehousesStreamProvider = StreamProvider<List<Warehouse>>((ref) {
 });
 
 /// Single warehouse by ID
-final warehouseStreamProvider =
-    StreamProvider.family<Warehouse?, int>((ref, id) {
+final warehouseStreamProvider = StreamProvider.family<Warehouse?, int>((
+  ref,
+  id,
+) {
   return warehouseManager.watchLocalRecord(id);
 });
 
@@ -49,8 +51,10 @@ final pricelistsStreamProvider = StreamProvider<List<Pricelist>>((ref) {
 });
 
 /// Single pricelist by ID
-final pricelistStreamProvider =
-    StreamProvider.family<Pricelist?, int>((ref, id) {
+final pricelistStreamProvider = StreamProvider.family<Pricelist?, int>((
+  ref,
+  id,
+) {
   return pricelistManager.watchLocalRecord(id);
 });
 

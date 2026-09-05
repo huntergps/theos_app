@@ -1,17 +1,20 @@
+import 'dart:convert';
+
 import 'package:drift/drift.dart' as drift;
 import 'package:odoo_sdk/odoo_sdk.dart';
 import 'package:uuid/uuid.dart';
-import 'package:theos_pos_core/theos_pos_core.dart' hide DatabaseHelper, CreditIssue;
+import 'package:theos_pos_core/theos_pos_core.dart' hide DatabaseHelper;
 
 import '../../../../core/database/database_helper.dart';
 import '../../../../core/services/handlers/related_record_resolver.dart';
+
 import 'package:odoo_sdk/odoo_sdk.dart' as odoo;
+
 import '../../invoices/repositories/invoice_repository.dart';
 import '../../products/repositories/product_repository.dart';
+import '../services/credit_approval_service.dart';
+import '../services/sale_confirmation_contract.dart';
 import 'sales_repository_models.dart';
-
-// Re-export standalone models for backward compatibility
-export 'sales_repository_models.dart';
 
 // Part files
 part 'sales_repository_invoice.dart';
@@ -65,18 +68,17 @@ class SalesRepository {
   SalesRepository({
     required DatabaseHelper db,
     required AppDatabase appDb,
-    OfflineQueueDataSource? offlineQueue,
-    RelatedRecordResolver? relatedResolver,
-    ProductRepository? productRepository,
-  }) : _db = appDb,
-       _offlineQueue = offlineQueue,
-       _relatedResolver = relatedResolver,
-       _productRepository = productRepository;
+    this._offlineQueue,
+    this._relatedResolver,
+    this._productRepository,
+  }) : _db = appDb;
 
   /// Find a sale order line by UUID using searchLocal domain filter
   Future<SaleOrderLine?> _findLineByUuid(String uuid) async {
     final results = await _lineManager.searchLocal(
-      domain: [['line_uuid', '=', uuid]],
+      domain: [
+        ['line_uuid', '=', uuid],
+      ],
       limit: 1,
     );
     return results.isNotEmpty ? results.first : null;
@@ -102,12 +104,14 @@ class SalesRepository {
       lastSyncDate: DateTime.now().toUtc(),
     );
     await _lineManager.upsertLocal(updatedLine);
-    logger.d('[SalesRepository] Updated line UUID $uuid with Odoo ID: $remoteId');
+    logger.d(
+      '[SalesRepository] Updated line UUID $uuid with Odoo ID: $remoteId',
+    );
   }
 
   /// Check if we're online (have an active Odoo connection)
   ///
   /// Cualquier manager sirve para esta pregunta — todos comparten el mismo
-  /// `OdooClient` inyectado centralmente vía `DataContext`.
+  /// `OdooClient` enlazado centralmente al scope activo de managers.
   bool get isOnline => _orderManager.isOnline;
 }

@@ -3,7 +3,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/database/datasources/datasources.dart';
 import '../../core/database/repositories/repository_providers.dart';
-import '../../core/services/logger_service.dart';
+
+import 'package:odoo_sdk/odoo_sdk.dart' show logger;
+
 import '../../core/theme/spacing.dart';
 import '../widgets/dialogs/copyable_info_bar.dart';
 

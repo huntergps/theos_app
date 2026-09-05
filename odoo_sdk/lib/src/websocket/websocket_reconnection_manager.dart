@@ -35,7 +35,8 @@ class WebSocketReconnectionManager {
 
   /// Si el intento actual (o el próximo a programarse) ya cruzó el umbral
   /// del circuit breaker suave.
-  bool get isCircuitBreakerActive => _reconnectAttempts > circuitBreakerThreshold;
+  bool get isCircuitBreakerActive =>
+      _reconnectAttempts > circuitBreakerThreshold;
 
   /// Schedules a reconnection attempt with exponential backoff.
   ///
@@ -73,7 +74,8 @@ class WebSocketReconnectionManager {
       // Exponential backoff: 2^attempt * 2 seconds, capped at 120 s
       final baseSeconds = min(120, pow(2, _reconnectAttempts).toInt() * 2);
       // ±20 % jitter to spread reconnect bursts (e.g. after a server restart)
-      final jitter = (baseSeconds * 0.2 * (Random().nextDouble() * 2 - 1)).round();
+      final jitter = (baseSeconds * 0.2 * (Random().nextDouble() * 2 - 1))
+          .round();
       final delaySeconds = (baseSeconds + jitter).clamp(1, 144);
       delay = Duration(seconds: delaySeconds);
     }

@@ -26,6 +26,6 @@ targets:
         generate_for:
           include:
             - lib/**/*.dart
-      # Disable odoo_sdk builders due to compatibility issues
-      odoo_sdk|*:
+      # Models live in theos_pos_core; avoid scanning the application target.
+      odoo_sdk|odoo_model:
         enabled: false

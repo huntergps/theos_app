@@ -214,6 +214,7 @@ class OdooModelGenerator extends GeneratorForAnnotation<OdooModel> {
           fieldType: _OdooFieldType.boolean,
           isRequired: reader.peek('required')?.boolValue ?? false,
           isWritable: reader.peek('writable')?.boolValue ?? true,
+          driftName: reader.peek('driftName')?.stringValue,
         );
       }
 

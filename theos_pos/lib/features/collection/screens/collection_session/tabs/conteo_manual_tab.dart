@@ -2,6 +2,7 @@ import 'package:fluent_ui/fluent_ui.dart';
 
 import '../widgets/conteo_manual_table.dart';
 import '../widgets/detalle_cobros_table.dart';
+
 import 'package:theos_pos_core/theos_pos_core.dart';
 
 /// Tab de conteo manual de la sesion de cobranza

@@ -145,12 +145,7 @@ abstract class OdooField {
 @immutable
 class OdooId extends OdooField {
   const OdooId()
-      : super(
-          odooName: 'id',
-          required: true,
-          writable: false,
-          readable: true,
-        );
+    : super(odooName: 'id', required: true, writable: false, readable: true);
 }
 
 /// Annotation for String fields (Char, Text in Odoo).
@@ -273,6 +268,7 @@ class OdooMonetary extends OdooFloat {
 class OdooBoolean extends OdooField {
   const OdooBoolean({
     super.odooName,
+    super.driftName,
     super.required,
     super.writable,
     super.readable,
@@ -381,15 +377,8 @@ class OdooMany2OneName extends OdooField {
   /// The source Many2one field this name comes from.
   final String sourceField;
 
-  const OdooMany2OneName({
-    required this.sourceField,
-    super.label,
-    super.help,
-  }) : super(
-          required: false,
-          writable: false,
-          readable: true,
-        );
+  const OdooMany2OneName({required this.sourceField, super.label, super.help})
+    : super(required: false, writable: false, readable: true);
 }
 
 /// Annotation for One2many relational fields.
@@ -580,16 +569,8 @@ class OdooComputed extends OdooField {
   /// Fields this computed field depends on.
   final List<String>? depends;
 
-  const OdooComputed({
-    this.compute,
-    this.depends,
-    super.label,
-    super.help,
-  }) : super(
-          required: false,
-          writable: false,
-          readable: false,
-        );
+  const OdooComputed({this.compute, this.depends, super.label, super.help})
+    : super(required: false, writable: false, readable: false);
 }
 
 /// Annotation for fields that exist only in local storage.
@@ -618,11 +599,7 @@ class OdooLocalOnly extends OdooField {
     super.label,
     super.driftName,
     this.driftType,
-  }) : super(
-          required: false,
-          writable: false,
-          readable: false,
-        );
+  }) : super(required: false, writable: false, readable: false);
 }
 
 /// Annotation for Reference fields (polymorphic relations).
@@ -724,10 +701,7 @@ class OdooOnchange {
   /// Name of the onchange method.
   final String method;
 
-  const OdooOnchange({
-    required this.fields,
-    required this.method,
-  });
+  const OdooOnchange({required this.fields, required this.method});
 }
 
 /// Annotation for stored computed fields that are synced from Odoo.
@@ -762,11 +736,7 @@ class OdooStoredComputed extends OdooField {
     super.odooName,
     super.label,
     super.help,
-  }) : super(
-          required: false,
-          writable: false,
-          readable: true,
-        );
+  }) : super(required: false, writable: false, readable: true);
 }
 
 /// Annotation for related fields that delegate to a field on a related model.
@@ -790,11 +760,7 @@ class OdooRelated extends OdooField {
     super.odooName,
     super.label,
     super.help,
-  }) : super(
-          required: false,
-          writable: false,
-          readable: true,
-        );
+  }) : super(required: false, writable: false, readable: true);
 }
 
 /// Annotation for state machine configuration on a model class.
@@ -822,10 +788,7 @@ class OdooStateMachine {
   /// Map of state -> list of allowed target states.
   final Map<String, List<String>> transitions;
 
-  const OdooStateMachine({
-    required this.stateField,
-    required this.transitions,
-  });
+  const OdooStateMachine({required this.stateField, required this.transitions});
 }
 
 /// Annotation for Odoo action methods.
@@ -885,7 +848,5 @@ class OdooDefault {
   /// Name of the static method that provides the default value.
   final String method;
 
-  const OdooDefault({
-    required this.method,
-  });
+  const OdooDefault({required this.method});
 }

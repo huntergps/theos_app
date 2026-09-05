@@ -1,4 +1,5 @@
 import 'package:theos_pos_core/theos_pos_core.dart';
+
 import 'sale_order_form_state.dart';
 
 /// Mixin para gestion de lineas de orden de venta
@@ -102,7 +103,10 @@ mixin SaleOrderLineManager {
         newLines: state.newLines.where((l) => l.id != lineId).toList(),
         hasChanges: true,
       );
-      logger.d('[SaleOrderLineManager]', 'Linea nueva eliminada de newLines: ID=$lineId');
+      logger.d(
+        '[SaleOrderLineManager]',
+        'Linea nueva eliminada de newLines: ID=$lineId',
+      );
     } else {
       // Linea existente (de state.lines, puede tener ID < 0 si es offline)
       // Marcarla para eliminacion
@@ -110,11 +114,15 @@ mixin SaleOrderLineManager {
         state = state.copyWith(
           deletedLineIds: [...state.deletedLineIds, lineId],
           // Tambien remover de updatedLines si estaba ahi
-          updatedLines:
-              state.updatedLines.where((l) => l.id != lineId).toList(),
+          updatedLines: state.updatedLines
+              .where((l) => l.id != lineId)
+              .toList(),
           hasChanges: true,
         );
-        logger.d('[SaleOrderLineManager]', 'Linea marcada para eliminacion: ID=$lineId');
+        logger.d(
+          '[SaleOrderLineManager]',
+          'Linea marcada para eliminacion: ID=$lineId',
+        );
       }
     }
   }
@@ -138,7 +146,10 @@ mixin SaleOrderLineManager {
     // Buscar en lineas nuevas (agregadas en esta sesión)
     try {
       final newLine = state.newLines.firstWhere((l) => l.id == lineId);
-      logger.d('[SaleOrderLineManager]', 'Found in newLines: ${newLine.productName}');
+      logger.d(
+        '[SaleOrderLineManager]',
+        'Found in newLines: ${newLine.productName}',
+      );
       return newLine;
     } catch (_) {
       // No encontrado en newLines
@@ -147,7 +158,10 @@ mixin SaleOrderLineManager {
     // Buscar en lineas actualizadas
     try {
       final updated = state.updatedLines.firstWhere((l) => l.id == lineId);
-      logger.d('[SaleOrderLineManager]', 'Found in updatedLines: ${updated.productName}');
+      logger.d(
+        '[SaleOrderLineManager]',
+        'Found in updatedLines: ${updated.productName}',
+      );
       return updated;
     } catch (_) {
       // No encontrado en updatedLines
@@ -156,7 +170,10 @@ mixin SaleOrderLineManager {
     // Buscar en lineas originales (incluye lineas de ordenes offline)
     try {
       final original = state.lines.firstWhere((l) => l.id == lineId);
-      logger.d('[SaleOrderLineManager]', 'Found in lines: ${original.productName}');
+      logger.d(
+        '[SaleOrderLineManager]',
+        'Found in lines: ${original.productName}',
+      );
       return original;
     } catch (_) {
       logger.w('[SaleOrderLineManager]', 'Line $lineId not found in any list');

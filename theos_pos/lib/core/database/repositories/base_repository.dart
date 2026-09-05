@@ -1,4 +1,5 @@
 import 'package:odoo_sdk/odoo_sdk.dart' as core;
+
 import '../database_helper.dart';
 
 // Re-export mixins and extensions from odoo_offline_core package
@@ -10,52 +11,6 @@ export 'package:odoo_sdk/odoo_sdk.dart'
         GenericSyncExtension,
         OfflineWriteExtension;
 
-// ============================================================
-// MIGRATION GUIDE: Converting to BaseRepository Pattern
-// ============================================================
-//
-// To migrate a repository to use BaseRepository and its extensions:
-//
-// 1. Change class declaration:
-//    BEFORE: class MyRepository { ... }
-//    AFTER:  class MyRepository extends BaseRepository with OfflineSupport<DatabaseHelper> { ... }
-//
-// 2. Update constructor - OdooClient is OPTIONAL for offline-first:
-//    BEFORE: MyRepository(this._db, this._client);
-//    AFTER:  MyRepository({super.odooClient, required super.db});
-//
-// 3. Use extension methods instead of manual patterns:
-//    BEFORE:
-//      if (!forceRefresh) {
-//        final cached = await _db.getItems();
-//        if (cached.isNotEmpty) return cached;
-//      }
-//      final data = await _client.searchRead(...);
-//      await _db.upsertItems(data.map(Item.fromOdoo).toList());
-//
-//    AFTER:
-//      return fetchWithCache<Item>(
-//        forceRefresh: forceRefresh,
-//        getFromCache: () => _db.getItems(),
-//        fetchFromRemote: () => odooClient!.searchRead(...),
-//        parseItem: (data) => Item.fromOdoo(data),
-//        saveToCache: (items) => _db.upsertItems(items),
-//      );
-//
-// 4. Use offline write extensions for create/update:
-//    BEFORE: Manual try/catch with queue fallback
-//    AFTER:  await createWithOfflineFallback(...)
-//
-// 5. Check connectivity with isOnline before remote operations:
-//    if (isOnline) {
-//      // Remote operations
-//    }
-//
-// Benefits:
-// - Consistent offline-first patterns
-// - OdooClient is optional - works fully offline
-// - Automatic queue for offline operations
-// - Less boilerplate code
 // - Shared logic for sync, cache, and error handling
 //
 
@@ -114,7 +69,9 @@ extension ObsoleteRecordCleanupExtension on BaseRepository {
       if (localIds.isEmpty) return 0;
 
       // Find IDs that exist locally but not in Odoo
-      final obsoleteIds = localIds.where((id) => !remoteIds.contains(id)).toList();
+      final obsoleteIds = localIds
+          .where((id) => !remoteIds.contains(id))
+          .toList();
       if (obsoleteIds.isEmpty) return 0;
 
       // Delete obsolete records

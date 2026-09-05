@@ -67,7 +67,8 @@ class PaymentValidationService {
       }
 
       // Validar nota de crédito
-      if (line.type == PaymentLineType.creditNote && line.creditNoteId != null) {
+      if (line.type == PaymentLineType.creditNote &&
+          line.creditNoteId != null) {
         final validationError = await _validateCreditNote(
           line.creditNoteId!,
           line.amount,
@@ -84,17 +85,23 @@ class PaymentValidationService {
         // Validar campos para pagos con tarjeta
         if (code.contains('card')) {
           if (line.cardBrandId == null) {
-            errors.add(ValidationError.missingPaymentInfo(field: 'Marca de tarjeta'));
+            errors.add(
+              ValidationError.missingPaymentInfo(field: 'Marca de tarjeta'),
+            );
           }
           if (line.cardDeadlineId == null) {
-            errors.add(ValidationError.missingPaymentInfo(field: 'Plazo de tarjeta'));
+            errors.add(
+              ValidationError.missingPaymentInfo(field: 'Plazo de tarjeta'),
+            );
           }
         }
 
         // Validar campos para pagos con cheque
         if (code.contains('cheque')) {
           if (line.reference == null || line.reference!.isEmpty) {
-            errors.add(ValidationError.missingPaymentInfo(field: 'Número de cheque'));
+            errors.add(
+              ValidationError.missingPaymentInfo(field: 'Número de cheque'),
+            );
           }
           if (line.bankId == null) {
             errors.add(ValidationError.missingPaymentInfo(field: 'Banco'));
@@ -104,7 +111,11 @@ class PaymentValidationService {
         // Validar campos para transferencias
         if (code.contains('transf')) {
           if (line.reference == null || line.reference!.isEmpty) {
-            errors.add(ValidationError.missingPaymentInfo(field: 'Referencia de transferencia'));
+            errors.add(
+              ValidationError.missingPaymentInfo(
+                field: 'Referencia de transferencia',
+              ),
+            );
           }
         }
       }
@@ -113,11 +124,15 @@ class PaymentValidationService {
     // Verificar sobrepago
     if (totalPayments > orderTotal) {
       final overpayment = totalPayments - orderTotal;
-      if (overpayment > 0.01) { // Tolerancia de 1 centavo
-        warnings.add(ValidationWarning(
-          code: 'overpayment',
-          message: 'El sobrepago de ${overpayment.toCurrency()} generará un anticipo a favor del cliente.',
-        ));
+      if (overpayment > 0.01) {
+        // Tolerancia de 1 centavo
+        warnings.add(
+          ValidationWarning(
+            code: 'overpayment',
+            message:
+                'El sobrepago de ${overpayment.toCurrency()} generará un anticipo a favor del cliente.',
+          ),
+        );
       }
     }
 
@@ -133,11 +148,14 @@ class PaymentValidationService {
   }
 
   /// Valida un anticipo antes de usarlo
-  Future<ValidationError?> _validateAdvance(int advanceId, double requestedAmount) async {
+  Future<ValidationError?> _validateAdvance(
+    int advanceId,
+    double requestedAmount,
+  ) async {
     try {
-      final advance = await (_db.select(_db.accountAdvance)
-            ..where((t) => t.odooId.equals(advanceId)))
-          .getSingleOrNull();
+      final advance = await (_db.select(
+        _db.accountAdvance,
+      )..where((t) => t.odooId.equals(advanceId))).getSingleOrNull();
 
       if (advance == null) {
         return ValidationError.advanceNotFound(advanceId: advanceId);
@@ -159,12 +177,16 @@ class PaymentValidationService {
   }
 
   /// Valida una nota de crédito antes de usarla
-  Future<ValidationError?> _validateCreditNote(int creditNoteId, double requestedAmount) async {
+  Future<ValidationError?> _validateCreditNote(
+    int creditNoteId,
+    double requestedAmount,
+  ) async {
     try {
-      final creditNote = await (_db.select(_db.accountMove)
-            ..where((t) => t.odooId.equals(creditNoteId))
-            ..where((t) => t.moveType.equals('out_refund')))
-          .getSingleOrNull();
+      final creditNote =
+          await (_db.select(_db.accountMove)
+                ..where((t) => t.odooId.equals(creditNoteId))
+                ..where((t) => t.moveType.equals('out_refund')))
+              .getSingleOrNull();
 
       if (creditNote == null) {
         return ValidationError.creditNoteNotFound(creditNoteId: creditNoteId);
@@ -180,7 +202,11 @@ class PaymentValidationService {
 
       return null;
     } catch (e) {
-      logger.e('[PaymentService]', 'Error validating credit note $creditNoteId', e);
+      logger.e(
+        '[PaymentService]',
+        'Error validating credit note $creditNoteId',
+        e,
+      );
       return ValidationError.creditNoteNotFound(creditNoteId: creditNoteId);
     }
   }
@@ -211,27 +237,36 @@ class PaymentValidationService {
 
       // Verificar deuda vencida
       if (creditInfo.hasOverdueDebt && !creditInfo.allowOverCredit) {
-        errors.add(ValidationError.overdueDebtExists(
-          overdueAmount: creditInfo.totalOverdue,
-          overdueCount: creditInfo.unpaidInvoicesCount,
-        ));
+        errors.add(
+          ValidationError.overdueDebtExists(
+            overdueAmount: creditInfo.totalOverdue,
+            overdueCount: creditInfo.unpaidInvoicesCount,
+          ),
+        );
       }
 
       // Verificar límite de crédito
       if (creditInfo.hasCreditLimit) {
-        final totalCredit = creditInfo.creditUsed + creditInfo.creditToInvoice + orderAmount;
-        if (totalCredit > creditInfo.creditLimit && !creditInfo.allowOverCredit) {
-          errors.add(ValidationError.creditLimitExceeded(
-            creditUsed: creditInfo.creditUsed + creditInfo.creditToInvoice,
-            creditLimit: creditInfo.creditLimit,
-            orderAmount: orderAmount,
-          ));
+        final totalCredit =
+            creditInfo.creditUsed + creditInfo.creditToInvoice + orderAmount;
+        if (totalCredit > creditInfo.creditLimit &&
+            !creditInfo.allowOverCredit) {
+          errors.add(
+            ValidationError.creditLimitExceeded(
+              creditUsed: creditInfo.creditUsed + creditInfo.creditToInvoice,
+              creditLimit: creditInfo.creditLimit,
+              orderAmount: orderAmount,
+            ),
+          );
         } else if (totalCredit > creditInfo.creditLimit * 0.9) {
           // Advertencia si está cerca del límite (90%)
-          warnings.add(ValidationWarning(
-            code: 'credit_near_limit',
-            message: 'El cliente está cerca de su límite de crédito (${creditInfo.creditUsagePercentage.toFixed(0)}% usado).',
-          ));
+          warnings.add(
+            ValidationWarning(
+              code: 'credit_near_limit',
+              message:
+                  'El cliente está cerca de su límite de crédito (${creditInfo.creditUsagePercentage.toFixed(0)}% usado).',
+            ),
+          );
         }
       }
 

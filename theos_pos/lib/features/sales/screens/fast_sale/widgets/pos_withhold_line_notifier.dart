@@ -1,12 +1,18 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../../core/database/repositories/repository_providers.dart';
-import '../../../../../core/managers/manager_providers.dart' show appDatabaseProvider;
-import 'package:theos_pos_core/theos_pos_core.dart' hide DatabaseHelper, PartnerBank, CreditIssue;
+import '../../../../../core/managers/manager_providers.dart'
+    show appDatabaseProvider;
+
+import 'package:theos_pos_core/theos_pos_core.dart'
+    hide DatabaseHelper, PartnerBank;
+
 import '../../../services/withhold_line_local_service.dart';
+import '../../../repositories/sales_repository.dart';
 
 /// Notifier for managing withhold lines by order
-class POSWithholdLinesByOrderNotifier extends Notifier<Map<int, List<WithholdLine>>> {
+class POSWithholdLinesByOrderNotifier
+    extends Notifier<Map<int, List<WithholdLine>>> {
   WithholdLineLocalService get _localService =>
       WithholdLineLocalService(ref.read(appDatabaseProvider));
 
@@ -16,7 +22,10 @@ class POSWithholdLinesByOrderNotifier extends Notifier<Map<int, List<WithholdLin
   /// Add a withhold line for a specific order (also persists to DB and syncs to Odoo)
   Future<void> addLine(int orderId, WithholdLine line) async {
     final currentLines = state[orderId] ?? [];
-    state = {...state, orderId: [...currentLines, line]};
+    state = {
+      ...state,
+      orderId: [...currentLines, line],
+    };
 
     // Use SalesRepository for offline-first sync (same as sale.order.line)
     final salesRepo = ref.read(salesRepositoryProvider);
@@ -42,11 +51,16 @@ class POSWithholdLinesByOrderNotifier extends Notifier<Map<int, List<WithholdLin
   Future<void> removeLine(int orderId, String uuid) async {
     // Find the line to get its Odoo ID before removing
     final currentLines = state[orderId] ?? [];
-    final lineToRemove = currentLines.where((l) => l.lineUuid == uuid).firstOrNull;
+    final lineToRemove = currentLines
+        .where((l) => l.lineUuid == uuid)
+        .firstOrNull;
     final odooId = lineToRemove?.id;
 
     // Update state immediately for responsive UI
-    state = {...state, orderId: currentLines.where((l) => l.lineUuid != uuid).toList()};
+    state = {
+      ...state,
+      orderId: currentLines.where((l) => l.lineUuid != uuid).toList(),
+    };
 
     // Use SalesRepository for offline-first sync (same as sale.order.line)
     final salesRepo = ref.read(salesRepositoryProvider);
@@ -82,7 +96,10 @@ class POSWithholdLinesByOrderNotifier extends Notifier<Map<int, List<WithholdLin
         );
       }
       // El contador de pendientes se actualiza automáticamente via Drift watch
-      logger.d('[WithholdProvider]', 'Cleared ${linesToRemove.length} withhold lines (synced to Odoo) for order $orderId');
+      logger.d(
+        '[WithholdProvider]',
+        'Cleared ${linesToRemove.length} withhold lines (synced to Odoo) for order $orderId',
+      );
     } else {
       // Fallback to local-only clear if repository not available
       await _localService.clearLinesFromDb(orderId);
@@ -116,11 +133,6 @@ class POSWithholdLinesByOrderNotifier extends Notifier<Map<int, List<WithholdLin
   double totalWithheld(int orderId) =>
       (state[orderId] ?? []).fold(0.0, (sum, l) => sum + l.amount);
 
-  /// Set all withhold lines for an order from server (WebSocket sync)
-  void setLinesFromServer(int orderId, List<WithholdLine> lines) {
-    state = {...state, orderId: lines};
-  }
-
   /// Load withhold lines from local database for an order
   Future<void> loadFromDb(int orderId) async {
     final lines = await _localService.loadFromDb(orderId);
@@ -134,7 +146,10 @@ class POSWithholdLinesByOrderNotifier extends Notifier<Map<int, List<WithholdLin
     }
 
     state = {...state, orderId: lines};
-    logger.d('[WithholdProvider]', 'Loaded ${lines.length} withhold lines from DB for order $orderId');
+    logger.d(
+      '[WithholdProvider]',
+      'Loaded ${lines.length} withhold lines from DB for order $orderId',
+    );
   }
 
   /// Sync withhold lines from Odoo (if online) and then load from local DB
@@ -145,9 +160,15 @@ class POSWithholdLinesByOrderNotifier extends Notifier<Map<int, List<WithholdLin
     if (salesRepo != null && salesRepo.isOnline) {
       try {
         await salesRepo.syncWithholdLinesFromOdoo(orderId);
-        logger.d('[WithholdProvider]', 'Synced withhold lines from Odoo for order $orderId');
+        logger.d(
+          '[WithholdProvider]',
+          'Synced withhold lines from Odoo for order $orderId',
+        );
       } catch (e) {
-        logger.w('[WithholdProvider]', 'Failed to sync from Odoo (will use local): $e');
+        logger.w(
+          '[WithholdProvider]',
+          'Failed to sync from Odoo (will use local): $e',
+        );
       }
     }
     // Then load from local DB (includes synced data if sync succeeded)

@@ -44,9 +44,8 @@ class TheosNumberCell extends StatelessWidget {
         if (value is int || value == value.roundToDouble()) {
           formattedValue = NumberFormat.decimalPattern().format(value);
         } else {
-          formattedValue = NumberFormat.decimalPatternDigits(
-            decimalDigits: 2,
-          ).format(value);
+          formattedValue = NumberFormat.decimalPatternDigits(decimalDigits: 2)
+              .format(value);
         }
       }
     }

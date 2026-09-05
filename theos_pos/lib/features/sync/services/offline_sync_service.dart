@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 
 import 'package:odoo_sdk/odoo_sdk.dart'
     show
@@ -9,34 +10,54 @@ import 'package:odoo_sdk/odoo_sdk.dart'
         SyncStatus,
         ConflictInfo,
         OperationSkippedException,
+        OfflineOperationStatus,
+        OfflineReplayPolicy,
+        OfflineLocalCommand,
         OfflineQueueProcessor,
         OfflineQueueAuditLogger;
 import 'package:drift/drift.dart' as drift;
-import 'package:theos_pos_core/theos_pos_core.dart' show AppDatabase, AccountPaymentManager, SaleOrder, SaleOrderLine, SaleOrderLineManager, SaleOrderLineManagerBusiness, saleOrderLineManager, SaleOrderManager, SaleOrderManagerBusiness, saleOrderManager, ClientManagerBusiness, clientManager, CollectionSessionManager, CollectionSessionManagerBusiness, SaleOrderPaymentLineCompanion;
+import 'package:theos_pos_core/theos_pos_core.dart'
+    show
+        AppDatabase,
+        AccountPaymentManager,
+        SaleOrder,
+        SaleOrderLine,
+        SaleOrderLineManager,
+        SaleOrderLineManagerBusiness,
+        saleOrderLineManager,
+        SaleOrderManager,
+        SaleOrderManagerBusiness,
+        saleOrderManager,
+        ClientManagerBusiness,
+        clientManager,
+        CollectionSessionManager,
+        CollectionSessionManagerBusiness,
+        CollectionSessionCashCompanion,
+        CollectionSessionDepositCompanion,
+        CashOutCompanion,
+        AccountPaymentCompanion,
+        AccountAdvanceCompanion,
+        AdvanceLinesTableCompanion,
+        ResPartnerBankCompanion,
+        SaleOrderCompanion,
+        SaleOrderLineCompanion,
+        SaleOrderPaymentLineCompanion,
+        SaleOrderWithholdLineCompanion,
+        SyncConflictCompanion;
+
 import '../../../core/database/database_helper.dart';
 import '../../../core/database/datasources/datasources.dart';
+import '../../sales/services/credit_approval_service.dart';
+import '../../sales/services/sale_confirmation_contract.dart';
+import '../../sales/services/payment_wizard_contract.dart';
 import '../../../shared/utils/error_utils.dart';
-
-// Re-export sync types from package for backward compatibility
-export 'package:odoo_sdk/odoo_sdk.dart'
-    show
-        SyncProgressEvent,
-        SyncOperationStatus,
-        SyncResult,
-        SyncStatus,
-        ConflictInfo,
-        OperationSkippedException,
-        SyncConflictException,
-        SyncFieldResult,
-        FieldChange,
-        ConflictResolutionStrategy,
-        SyncModelHandler;
 
 part 'offline_sync_session.dart';
 part 'offline_sync_generic_ops.dart';
 part 'offline_sync_partner.dart';
 part 'offline_sync_sale_order.dart';
 part 'offline_sync_payment.dart';
+part 'offline_sync_credit_approval.dart';
 
 /// App-specific extension for SyncResult
 ///
@@ -72,6 +93,7 @@ class OfflineSyncService {
   final OfflineQueueDataSource _offlineQueue;
   final CollectionSessionManager _sessionManager;
   final AccountPaymentManager _paymentManager;
+  late final OfflineQueueAuditLogger _auditLogger;
   late final OfflineQueueProcessor _processor;
 
   bool _isSyncing = false;
@@ -86,22 +108,19 @@ class OfflineSyncService {
   SaleOrderLineManager get _lineManager => saleOrderLineManager;
 
   OfflineSyncService({
-    required DatabaseHelper db,
-    required AppDatabase appDb,
-    OdooClient? odooClient,
-    required OfflineQueueDataSource offlineQueue,
-    required CollectionSessionManager sessionManager,
-    required AccountPaymentManager paymentManager,
-  })  : _db = db,
-        _appDb = appDb,
-        _odooClient = odooClient,
-        _offlineQueue = offlineQueue,
-        _sessionManager = sessionManager,
-        _paymentManager = paymentManager {
+    required this._db,
+    required this._appDb,
+    this._odooClient,
+    required this._offlineQueue,
+    required this._sessionManager,
+    required this._paymentManager,
+    OfflineQueueAuditLogger? auditLogger,
+  }) {
+    _auditLogger = auditLogger ?? _AppAuditLogger(_db, _appDb);
     _processor = OfflineQueueProcessor(
       queue: _offlineQueue,
       handler: _processOperation,
-      auditLogger: _AppAuditLogger(_db),
+      auditLogger: _auditLogger,
       removeOnSuccess: true,
       removeOnConflict: false,
       // FIX 3: remove skipped operations immediately — they are already logged
@@ -114,7 +133,9 @@ class OfflineSyncService {
   /// Find a sale order line by UUID using searchLocal domain filter
   Future<SaleOrderLine?> _findLineByUuid(String uuid) async {
     final results = await _lineManager.searchLocal(
-      domain: [['line_uuid', '=', uuid]],
+      domain: [
+        ['line_uuid', '=', uuid],
+      ],
       limit: 1,
     );
     return results.isNotEmpty ? results.first : null;
@@ -149,6 +170,10 @@ class OfflineSyncService {
     _processor.dispose();
   }
 
+  /// Stops new dispatches and waits for the active queue writer to finish.
+  /// Callers closing/switching the database must await this first.
+  Future<void> shutdown() => _processor.shutdown();
+
   /// Stream of sync progress events
   Stream<SyncProgressEvent> get progressStream => _processor.progressStream;
 
@@ -167,19 +192,11 @@ class OfflineSyncService {
     int? odooId,
     String? errorMessage,
   }) async {
-    await _db.logSyncOperation(
-      model: op.model,
-      method: op.method,
-      odooId: odooId ?? op.recordId,
-      localId: op.values['local_id'] as int?,
-      recordUuid:
-          (op.values['uuid'] ?? op.values['_uuid'] ?? op.values['order_uuid'])
-              as String?,
-      deviceId: op.deviceId,
-      createdOfflineAt: op.createdAt,
+    await _auditLogger.logOperation(
+      op,
       result: result,
+      odooId: odooId,
       errorMessage: errorMessage,
-      metadata: {'op_id': op.id, 'priority': op.priority},
     );
   }
 
@@ -189,18 +206,62 @@ class OfflineSyncService {
     required String result,
     int? odooId,
     String? errorMessage,
+    ConflictInfo? conflict,
   }) async {
-    await _logOperation(
-      op,
-      result: result,
-      odooId: odooId,
-      errorMessage: errorMessage,
-    );
-
-    // Remove from queue only on success
-    if (result == 'success') {
-      await _offlineQueue.removeOperation(op.id);
+    if (conflict != null) {
+      await _auditLogger.logConflict(op, conflict);
+    } else {
+      await _logOperation(
+        op,
+        result: result,
+        odooId: odooId,
+        errorMessage: errorMessage,
+      );
     }
+
+    switch (result) {
+      case 'success':
+      case 'skipped':
+        await _offlineQueue.removeOperation(op.id);
+        return;
+      case 'conflict':
+        await _offlineQueue.markOperationConflict(op.id);
+        return;
+      case 'error':
+        if (op.replayPolicy == OfflineReplayPolicy.retrySafe) {
+          await _offlineQueue.markOperationFailed(
+            op.id,
+            errorMessage ?? 'Offline dispatch failed',
+          );
+        } else {
+          await _offlineQueue.markOperationDeadLetter(
+            op.id,
+            errorMessage ?? 'Ambiguous offline dispatch requires review',
+          );
+        }
+        return;
+      default:
+        return;
+    }
+  }
+
+  /// Claims one row for the direct sale-order dispatcher.
+  ///
+  /// Rows recovered from an interrupted unsafe create are held for manual
+  /// reconciliation instead of being sent again blindly.
+  Future<bool> _claimForDispatch(OfflineOperation op) async {
+    if (!op.isReadyForRetry) return false;
+    if (op.status == OfflineOperationStatus.recoveryPending &&
+        op.replayPolicy == OfflineReplayPolicy.manualAfterAmbiguous) {
+      const message =
+          'Operación recuperada tras un cierre durante el envío; requiere '
+          'revisión manual antes de repetirla.';
+      await _offlineQueue.markOperationDeadLetter(op.id, message);
+      await _logOperation(op, result: 'dead_letter', errorMessage: message);
+      return false;
+    }
+    await _offlineQueue.markOperationProcessing(op.id);
+    return true;
   }
 
   /// Process all pending operations in the queue
@@ -330,6 +391,41 @@ class OfflineSyncService {
   /// Process a single operation based on its method type
   /// Returns ConflictInfo if there's a conflict (only for write operations)
   Future<ConflictInfo?> _processOperation(OfflineOperation op) async {
+    final command = OfflineLocalCommand.tryParse(op.method);
+    if (command != null && op.commandVersion != command.version) {
+      throw StateError(
+        'Unsupported ${command.storageName} payload version '
+        '${op.commandVersion}; expected ${command.version}',
+      );
+    }
+    if (command != null) {
+      switch (command) {
+        case OfflineLocalCommand.sessionCreateAndOpen:
+          await _processSessionCreateAndOpen(op);
+        case OfflineLocalCommand.sessionOpen:
+          await _processSessionOpen(op);
+        case OfflineLocalCommand.sessionClosingControl:
+          await _processSessionClosingControl(op);
+        case OfflineLocalCommand.sessionClose:
+          await _processSessionClose(op);
+        case OfflineLocalCommand.paymentCreate:
+          await _processPaymentCreate(op);
+        case OfflineLocalCommand.paymentWizardApply:
+          return await _processPaymentWizard(op);
+        case OfflineLocalCommand.partnerCreate:
+          await _processPartnerCreate(op);
+        case OfflineLocalCommand.orderConfirm:
+          await _processOrderConfirm(op);
+        case OfflineLocalCommand.invoiceCreateWithPayments:
+          return await _processInvoiceWithPayments(op);
+        case OfflineLocalCommand.invoiceCollectExisting:
+          return await _processExistingInvoiceCollection(op);
+      }
+      return null;
+    }
+    if (op.method == CreditApprovalOfflineContract.method) {
+      return await _processCreditApproval(op);
+    }
     switch (op.method) {
       case 'create':
         await _processCreate(op);
@@ -338,31 +434,6 @@ class OfflineSyncService {
         return await _processWrite(op);
       case 'unlink':
         await _processUnlink(op);
-        return null;
-      // Collection session specific actions
-      case 'session_create_and_open':
-        await _processSessionCreateAndOpen(op);
-        return null;
-      case 'session_open':
-        await _processSessionOpen(op);
-        return null;
-      case 'session_closing_control':
-        await _processSessionClosingControl(op);
-        return null;
-      case 'session_close':
-        await _processSessionClose(op);
-        return null;
-      // Payment operations
-      case 'payment_create':
-        await _processPaymentCreate(op);
-        return null;
-      // Partner operations
-      case 'partner_create':
-        await _processPartnerCreate(op);
-        return null;
-      // Sale order operations
-      case 'order_confirm':
-        await _processOrderConfirm(op);
         return null;
       // Sale order state actions (offline-first) - with conflict detection
       // Only route to order-specific handler for sale.order model
@@ -382,14 +453,6 @@ class OfflineSyncService {
       case 'action_post':
       case 'action_return':
         return await _processGenericAction(op);
-      // Invoice creation with payments (offline-first)
-      case 'invoice_create_with_payments':
-        await _processInvoiceWithPayments(op);
-        return null;
-      // SRI Offline Invoice Sync
-      case 'invoice_create_offline':
-        await _processSyncOfflineInvoice(op);
-        return null;
       default:
         // For unknown action_* methods, use generic handler instead of dropping
         if (op.method.startsWith('action_')) {
@@ -408,13 +471,13 @@ class OfflineSyncService {
         );
     }
   }
-
 }
 
 class _AppAuditLogger implements OfflineQueueAuditLogger {
   final DatabaseHelper _db;
+  final AppDatabase _appDb;
 
-  _AppAuditLogger(this._db);
+  _AppAuditLogger(this._db, this._appDb);
 
   @override
   Future<void> logOperation(
@@ -437,5 +500,49 @@ class _AppAuditLogger implements OfflineQueueAuditLogger {
       errorMessage: errorMessage,
       metadata: {'op_id': op.id, 'priority': op.priority},
     );
+  }
+
+  @override
+  Future<void> logConflict(OfflineOperation op, ConflictInfo conflict) async {
+    await logOperation(op, result: 'conflict');
+
+    final existing =
+        await (_appDb.select(_appDb.syncConflict)..where(
+              (table) =>
+                  table.operationId.equals(op.id) &
+                  table.isResolved.equals(false),
+            ))
+            .getSingleOrNull();
+    if (existing != null) return;
+
+    final localPayload = jsonEncode({
+      'field': '__record__',
+      'value': jsonEncode(conflict.localValues),
+      'write_date': conflict.localWriteDate.toUtc().toIso8601String(),
+    });
+    final remotePayload = jsonEncode({
+      'field': '__record__',
+      'value': jsonEncode(conflict.serverValues ?? const {}),
+      'write_date': conflict.serverWriteDate.toUtc().toIso8601String(),
+    });
+
+    await _appDb
+        .into(_appDb.syncConflict)
+        .insert(
+          SyncConflictCompanion.insert(
+            operationId: op.id,
+            model: conflict.model,
+            localId:
+                op.values['local_id'] as int? ??
+                op.recordId ??
+                conflict.recordId ??
+                0,
+            remoteId: conflict.recordId ?? op.recordId ?? 0,
+            conflictType: 'both_modified',
+            localData: localPayload,
+            remoteData: remotePayload,
+            detectedAt: DateTime.now().toUtc(),
+          ),
+        );
   }
 }

@@ -1,6 +1,7 @@
 import 'package:drift/drift.dart' show Value;
 
-import 'package:theos_pos_core/theos_pos_core.dart' hide DatabaseHelper, PartnerBank, CreditIssue;
+import 'package:theos_pos_core/theos_pos_core.dart'
+    hide DatabaseHelper, PartnerBank;
 
 /// Local DB service for payment line operations.
 ///
@@ -51,9 +52,15 @@ class PaymentLineLocalService {
         isSynced: const Value(false),
       );
       await db.into(db.saleOrderPaymentLine).insert(companion);
-      logger.d('[PaymentLineLocalService]', 'Saved payment line to DB: ${line.description}');
+      logger.d(
+        '[PaymentLineLocalService]',
+        'Saved payment line to DB: ${line.description}',
+      );
     } catch (e) {
-      logger.e('[PaymentLineLocalService]', 'Error saving payment line to DB: $e');
+      logger.e(
+        '[PaymentLineLocalService]',
+        'Error saving payment line to DB: $e',
+      );
     }
   }
 
@@ -66,9 +73,15 @@ class PaymentLineLocalService {
             ..where((t) => t.orderId.equals(orderId))
             ..where((t) => t.odooId.equals(lineId)))
           .go();
-      logger.d('[PaymentLineLocalService]', 'Removed payment line from DB: $lineId');
+      logger.d(
+        '[PaymentLineLocalService]',
+        'Removed payment line from DB: $lineId',
+      );
     } catch (e) {
-      logger.e('[PaymentLineLocalService]', 'Error removing payment line from DB: $e');
+      logger.e(
+        '[PaymentLineLocalService]',
+        'Error removing payment line from DB: $e',
+      );
     }
   }
 
@@ -77,12 +90,18 @@ class PaymentLineLocalService {
     try {
       final db = _db;
 
-      await (db.delete(db.saleOrderPaymentLine)
-            ..where((t) => t.orderId.equals(orderId)))
-          .go();
-      logger.d('[PaymentLineLocalService]', 'Cleared payment lines from DB for order $orderId');
+      await (db.delete(
+        db.saleOrderPaymentLine,
+      )..where((t) => t.orderId.equals(orderId))).go();
+      logger.d(
+        '[PaymentLineLocalService]',
+        'Cleared payment lines from DB for order $orderId',
+      );
     } catch (e) {
-      logger.e('[PaymentLineLocalService]', 'Error clearing payment lines from DB: $e');
+      logger.e(
+        '[PaymentLineLocalService]',
+        'Error clearing payment lines from DB: $e',
+      );
     }
   }
 
@@ -91,9 +110,9 @@ class PaymentLineLocalService {
     try {
       final db = _db;
 
-      final dbLines = await (db.select(db.saleOrderPaymentLine)
-            ..where((t) => t.orderId.equals(orderId)))
-          .get();
+      final dbLines = await (db.select(
+        db.saleOrderPaymentLine,
+      )..where((t) => t.orderId.equals(orderId))).get();
 
       if (dbLines.isEmpty) {
         return [];
@@ -147,7 +166,10 @@ class PaymentLineLocalService {
         );
       }).toList();
     } catch (e) {
-      logger.e('[PaymentLineLocalService]', 'Error loading payment lines from DB: $e');
+      logger.e(
+        '[PaymentLineLocalService]',
+        'Error loading payment lines from DB: $e',
+      );
       return [];
     }
   }

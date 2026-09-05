@@ -351,7 +351,10 @@ extension FastSaleNotifierTabs on FastSaleNotifier {
       // Sync invoices for this order (similar to payment lines)
       if (salesRepo.isOnline) {
         salesRepo.syncInvoicesForOrder(order.id).catchError((e) {
-          logger.w('[FastSale]', 'Failed to sync invoices for order ${order.id}: $e');
+          logger.w(
+            '[FastSale]',
+            'Failed to sync invoices for order ${order.id}: $e',
+          );
         });
       }
     } catch (e) {

@@ -41,11 +41,7 @@ class _ActionButton extends StatelessWidget {
       return Tooltip(
         message: action.label,
         child: IconButton(
-          icon: Icon(
-            action.icon,
-            size: 20,
-            color: effectiveColor,
-          ),
+          icon: Icon(action.icon, size: 20, color: effectiveColor),
           onPressed: action.onTap,
         ),
       );
@@ -81,7 +77,10 @@ class _ActionButton extends StatelessWidget {
             onPressed: action.onTap,
             style: ButtonStyle(
               padding: WidgetStateProperty.all(
-                const EdgeInsets.symmetric(vertical: Spacing.sm, horizontal: Spacing.xs),
+                const EdgeInsets.symmetric(
+                  vertical: Spacing.sm,
+                  horizontal: Spacing.xs,
+                ),
               ),
               backgroundColor: WidgetStateProperty.all(
                 action.color.withValues(alpha: 0.9),
@@ -93,16 +92,16 @@ class _ActionButton extends StatelessWidget {
             onPressed: action.onTap,
             style: ButtonStyle(
               padding: WidgetStateProperty.all(
-                const EdgeInsets.symmetric(vertical: Spacing.sm, horizontal: Spacing.xs),
+                const EdgeInsets.symmetric(
+                  vertical: Spacing.sm,
+                  horizontal: Spacing.xs,
+                ),
               ),
             ),
             child: _buildButtonContent(theme, effectiveColor, isEnabled),
           );
 
-    return SizedBox(
-      width: double.infinity,
-      child: buttonWidget,
-    );
+    return SizedBox(width: double.infinity, child: buttonWidget);
   }
 
   Widget _buildButtonContent(
@@ -121,11 +120,7 @@ class _ActionButton extends StatelessWidget {
                 : action.color.withValues(alpha: isEnabled ? 0.1 : 0.05),
             borderRadius: BorderRadius.circular(8),
           ),
-          child: Icon(
-            action.icon,
-            size: 24,
-            color: iconColor,
-          ),
+          child: Icon(action.icon, size: 24, color: iconColor),
         ),
         const SizedBox(height: Spacing.xs),
         Text(

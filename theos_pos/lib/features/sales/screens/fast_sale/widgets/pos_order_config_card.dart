@@ -12,10 +12,7 @@ class POSOrderConfigCard extends ConsumerWidget {
   /// Show in compact mode (only date row)
   final bool isCompact;
 
-  const POSOrderConfigCard({
-    super.key,
-    this.isCompact = false,
-  });
+  const POSOrderConfigCard({super.key, this.isCompact = false});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {

@@ -136,11 +136,11 @@ class EncryptedRecordCache<K, V> {
 
   /// Encryption statistics.
   EncryptedCacheStats get encryptionStats => EncryptedCacheStats(
-        encryptionCount: _encryptionCount,
-        decryptionCount: _decryptionCount,
-        encryptionErrors: _encryptionErrors,
-        decryptionErrors: _decryptionErrors,
-      );
+    encryptionCount: _encryptionCount,
+    decryptionCount: _decryptionCount,
+    encryptionErrors: _encryptionErrors,
+    decryptionErrors: _decryptionErrors,
+  );
 
   /// Stream of cache change events (with decrypted values).
   Stream<CacheChangeEvent<K, V>> get changes => _changes.stream;
@@ -404,12 +404,14 @@ class EncryptedRecordCache<K, V> {
     }
 
     if (!_changes.isClosed) {
-      _changes.add(CacheChangeEvent<K, V>(
-        type: event.type,
-        key: event.key,
-        value: decryptedValue,
-        timestamp: event.timestamp,
-      ));
+      _changes.add(
+        CacheChangeEvent<K, V>(
+          type: event.type,
+          key: event.key,
+          value: decryptedValue,
+          timestamp: event.timestamp,
+        ),
+      );
     }
 
     _updateValuesStream();
@@ -455,15 +457,4 @@ class EncryptedCacheStats {
   String toString() =>
       'EncryptedCacheStats(encryptions: $encryptionCount (${encryptionErrors} errors), '
       'decryptions: $decryptionCount (${decryptionErrors} errors))';
-}
-
-/// Extension to easily create encrypted cache from a model manager.
-extension EncryptedCacheExtension<V> on V {
-  /// Serialize this value for encrypted caching.
-  ///
-  /// Requires the value to have a toJson method.
-  String toEncryptedCacheValue(CacheEncryption encryption) {
-    // This is a helper method - actual implementation depends on the value type
-    throw UnimplementedError('Implement toJson() on your model class');
-  }
 }

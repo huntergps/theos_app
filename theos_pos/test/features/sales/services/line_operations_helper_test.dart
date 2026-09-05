@@ -1,6 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
-import 'package:theos_pos_core/theos_pos_core.dart' show SaleOrderLine, LineDisplayType;
+import 'package:theos_pos_core/theos_pos_core.dart'
+    show SaleOrderLine, LineDisplayType;
 import 'package:theos_pos/features/sales/services/line_operations_helper.dart';
 import 'package:theos_pos/features/sales/services/order_line_creation_service.dart';
 
@@ -108,14 +109,17 @@ void main() {
       expect(result.error, 'Something failed');
     });
 
-    test('noChange factory creates successful result without selectedIndex', () {
-      final lines = [_productLine()];
-      final result = LineOperationResult.noChange(lines);
+    test(
+      'noChange factory creates successful result without selectedIndex',
+      () {
+        final lines = [_productLine()];
+        final result = LineOperationResult.noChange(lines);
 
-      expect(result.success, isTrue);
-      expect(result.lines, equals(lines));
-      expect(result.selectedIndex, isNull);
-    });
+        expect(result.success, isTrue);
+        expect(result.lines, equals(lines));
+        expect(result.selectedIndex, isNull);
+      },
+    );
   });
 
   // ============================================================
@@ -156,10 +160,7 @@ void main() {
     });
 
     test('adjusts selected index when removing last line', () {
-      final lines = [
-        _productLine(id: 1),
-        _productLine(id: 2),
-      ];
+      final lines = [_productLine(id: 1), _productLine(id: 2)];
 
       final result = helper.removeLine(
         lines: lines,
@@ -300,10 +301,10 @@ void main() {
       final originalLine = _productLine(id: 1, qty: 1);
       final updatedLine = _productLine(id: 1, qty: 5, priceTotal: 50);
 
-      when(() => mockCreationService.recalculateLine(
-            originalLine,
-            newQuantity: 5.0,
-          )).thenAnswer((_) async => updatedLine);
+      when(
+        () =>
+            mockCreationService.recalculateLine(originalLine, newQuantity: 5.0),
+      ).thenAnswer((_) async => updatedLine);
 
       final result = await helper.updateLineQuantity(
         lines: [originalLine],
@@ -336,10 +337,12 @@ void main() {
       final originalLine = _productLine(id: 1, price: 10);
       final updatedLine = _productLine(id: 1, price: 20, priceTotal: 20);
 
-      when(() => mockCreationService.recalculateLine(
-            originalLine,
-            newPriceUnit: 20.0,
-          )).thenAnswer((_) async => updatedLine);
+      when(
+        () => mockCreationService.recalculateLine(
+          originalLine,
+          newPriceUnit: 20.0,
+        ),
+      ).thenAnswer((_) async => updatedLine);
 
       final result = await helper.updateLinePrice(
         lines: [originalLine],
@@ -370,10 +373,12 @@ void main() {
       final originalLine = _productLine(id: 1, discount: 0);
       final updatedLine = _productLine(id: 1, discount: 15);
 
-      when(() => mockCreationService.recalculateLine(
-            originalLine,
-            newDiscount: 15.0,
-          )).thenAnswer((_) async => updatedLine);
+      when(
+        () => mockCreationService.recalculateLine(
+          originalLine,
+          newDiscount: 15.0,
+        ),
+      ).thenAnswer((_) async => updatedLine);
 
       final result = await helper.updateLineDiscount(
         lines: [originalLine],
@@ -450,11 +455,7 @@ void main() {
         _productLine(id: 3, name: 'C', sequence: 30),
       ];
 
-      final result = helper.reorderLine(
-        lines: lines,
-        oldIndex: 0,
-        newIndex: 2,
-      );
+      final result = helper.reorderLine(lines: lines, oldIndex: 0, newIndex: 2);
 
       expect(result.success, isTrue);
       expect(result.lines[0].id, 2); // B moved up
@@ -469,11 +470,7 @@ void main() {
         _productLine(id: 3, sequence: 30),
       ];
 
-      final result = helper.reorderLine(
-        lines: lines,
-        oldIndex: 2,
-        newIndex: 0,
-      );
+      final result = helper.reorderLine(lines: lines, oldIndex: 2, newIndex: 0);
 
       expect(result.success, isTrue);
       expect(result.lines[0].sequence, 10);
@@ -484,11 +481,7 @@ void main() {
     test('returns noChange when old and new index are same', () {
       final lines = [_productLine(id: 1), _productLine(id: 2)];
 
-      final result = helper.reorderLine(
-        lines: lines,
-        oldIndex: 0,
-        newIndex: 0,
-      );
+      final result = helper.reorderLine(lines: lines, oldIndex: 0, newIndex: 0);
 
       expect(result.success, isTrue);
       // noChange
@@ -611,11 +604,13 @@ void main() {
         displayType: LineDisplayType.lineSection,
       );
 
-      when(() => mockCreationService.createSectionLine(
-            orderId: 100,
-            name: 'My Section',
-            sequence: 10,
-          )).thenReturn(section);
+      when(
+        () => mockCreationService.createSectionLine(
+          orderId: 100,
+          name: 'My Section',
+          sequence: 10,
+        ),
+      ).thenReturn(section);
 
       final result = helper.addSectionLine(
         lines: [],
@@ -639,11 +634,13 @@ void main() {
         displayType: LineDisplayType.lineNote,
       );
 
-      when(() => mockCreationService.createNoteLine(
-            orderId: 100,
-            name: 'My Note',
-            sequence: 10,
-          )).thenReturn(note);
+      when(
+        () => mockCreationService.createNoteLine(
+          orderId: 100,
+          name: 'My Note',
+          sequence: 10,
+        ),
+      ).thenReturn(note);
 
       final result = helper.addNoteLine(
         lines: [],
@@ -662,22 +659,24 @@ void main() {
   // ============================================================
   group('addProductLine()', () {
     test('returns error when creation service fails', () async {
-      when(() => mockCreationService.createLine(
-            orderId: any(named: 'orderId'),
-            productId: any(named: 'productId'),
-            productName: any(named: 'productName'),
-            quantity: any(named: 'quantity'),
-            pricelistId: any(named: 'pricelistId'),
-            priceUnit: any(named: 'priceUnit'),
-            discount: any(named: 'discount'),
-            uomId: any(named: 'uomId'),
-            uomName: any(named: 'uomName'),
-            productCode: any(named: 'productCode'),
-            taxIds: any(named: 'taxIds'),
-            taxNames: any(named: 'taxNames'),
-            taxPercent: any(named: 'taxPercent'),
-            sequence: any(named: 'sequence'),
-          )).thenAnswer(
+      when(
+        () => mockCreationService.createLine(
+          orderId: any(named: 'orderId'),
+          productId: any(named: 'productId'),
+          productName: any(named: 'productName'),
+          quantity: any(named: 'quantity'),
+          pricelistId: any(named: 'pricelistId'),
+          priceUnit: any(named: 'priceUnit'),
+          discount: any(named: 'discount'),
+          uomId: any(named: 'uomId'),
+          uomName: any(named: 'uomName'),
+          productCode: any(named: 'productCode'),
+          taxIds: any(named: 'taxIds'),
+          taxNames: any(named: 'taxNames'),
+          taxPercent: any(named: 'taxPercent'),
+          sequence: any(named: 'sequence'),
+        ),
+      ).thenAnswer(
         (_) async => OrderLineCreationResult.failure('Price lookup failed'),
       );
 
@@ -695,24 +694,24 @@ void main() {
     test('adds new line when no merge candidate', () async {
       final newLine = _productLine(id: -1, name: 'New Product');
 
-      when(() => mockCreationService.createLine(
-            orderId: any(named: 'orderId'),
-            productId: any(named: 'productId'),
-            productName: any(named: 'productName'),
-            quantity: any(named: 'quantity'),
-            pricelistId: any(named: 'pricelistId'),
-            priceUnit: any(named: 'priceUnit'),
-            discount: any(named: 'discount'),
-            uomId: any(named: 'uomId'),
-            uomName: any(named: 'uomName'),
-            productCode: any(named: 'productCode'),
-            taxIds: any(named: 'taxIds'),
-            taxNames: any(named: 'taxNames'),
-            taxPercent: any(named: 'taxPercent'),
-            sequence: any(named: 'sequence'),
-          )).thenAnswer(
-        (_) async => OrderLineCreationResult.success(newLine),
-      );
+      when(
+        () => mockCreationService.createLine(
+          orderId: any(named: 'orderId'),
+          productId: any(named: 'productId'),
+          productName: any(named: 'productName'),
+          quantity: any(named: 'quantity'),
+          pricelistId: any(named: 'pricelistId'),
+          priceUnit: any(named: 'priceUnit'),
+          discount: any(named: 'discount'),
+          uomId: any(named: 'uomId'),
+          uomName: any(named: 'uomName'),
+          productCode: any(named: 'productCode'),
+          taxIds: any(named: 'taxIds'),
+          taxNames: any(named: 'taxNames'),
+          taxPercent: any(named: 'taxPercent'),
+          sequence: any(named: 'sequence'),
+        ),
+      ).thenAnswer((_) async => OrderLineCreationResult.success(newLine));
 
       final result = await helper.addProductLine(
         lines: [],
@@ -740,17 +739,21 @@ void main() {
 
       // The helper calls _getNextSequence which returns maxSeq + 10
       // So with lines at seq 10 and 20, next should be 30
-      when(() => mockCreationService.createSectionLine(
-            orderId: 100,
-            name: 'Section',
-            sequence: 30, // 20 + 10
-          )).thenReturn(SaleOrderLine(
-        id: -1,
-        orderId: 100,
-        name: 'Section',
-        sequence: 30,
-        displayType: LineDisplayType.lineSection,
-      ));
+      when(
+        () => mockCreationService.createSectionLine(
+          orderId: 100,
+          name: 'Section',
+          sequence: 30, // 20 + 10
+        ),
+      ).thenReturn(
+        SaleOrderLine(
+          id: -1,
+          orderId: 100,
+          name: 'Section',
+          sequence: 30,
+          displayType: LineDisplayType.lineSection,
+        ),
+      );
 
       final result = helper.addSectionLine(
         lines: existingLines,
@@ -759,25 +762,31 @@ void main() {
       );
 
       expect(result.success, isTrue);
-      verify(() => mockCreationService.createSectionLine(
-            orderId: 100,
-            name: 'Section',
-            sequence: 30,
-          )).called(1);
+      verify(
+        () => mockCreationService.createSectionLine(
+          orderId: 100,
+          name: 'Section',
+          sequence: 30,
+        ),
+      ).called(1);
     });
 
     test('uses sequence 10 for empty list', () {
-      when(() => mockCreationService.createSectionLine(
-            orderId: 100,
-            name: 'First',
-            sequence: 10,
-          )).thenReturn(SaleOrderLine(
-        id: -1,
-        orderId: 100,
-        name: 'First',
-        sequence: 10,
-        displayType: LineDisplayType.lineSection,
-      ));
+      when(
+        () => mockCreationService.createSectionLine(
+          orderId: 100,
+          name: 'First',
+          sequence: 10,
+        ),
+      ).thenReturn(
+        SaleOrderLine(
+          id: -1,
+          orderId: 100,
+          name: 'First',
+          sequence: 10,
+          displayType: LineDisplayType.lineSection,
+        ),
+      );
 
       final result = helper.addSectionLine(
         lines: [],
@@ -786,11 +795,13 @@ void main() {
       );
 
       expect(result.success, isTrue);
-      verify(() => mockCreationService.createSectionLine(
-            orderId: 100,
-            name: 'First',
-            sequence: 10,
-          )).called(1);
+      verify(
+        () => mockCreationService.createSectionLine(
+          orderId: 100,
+          name: 'First',
+          sequence: 10,
+        ),
+      ).called(1);
     });
   });
 }

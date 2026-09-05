@@ -197,10 +197,7 @@ void main() {
         discount: 5.0,
       );
 
-      final updated = calculator.updateLineCalculations(
-        line,
-        taxPercent: 12.0,
-      );
+      final updated = calculator.updateLineCalculations(line, taxPercent: 12.0);
 
       // subtotalBeforeDiscount = 50 * 2 = 100
       // discountAmount = 100 * 0.05 = 5

@@ -221,7 +221,11 @@ class _OfflineModeSectionState extends ConsumerState<OfflineModeSection> {
           }
         } catch (e) {
           if (mounted) {
-            ref.showErrorNotification(context, title: 'Error de modo offline', message: '$e');
+            ref.showErrorNotification(
+              context,
+              title: 'Error de modo offline',
+              message: '$e',
+            );
           }
         }
       }
@@ -267,7 +271,11 @@ class _OfflineModeSectionState extends ConsumerState<OfflineModeSection> {
         }
       } catch (e) {
         if (mounted) {
-          ref.showErrorNotification(context, title: 'Error de modo offline', message: '$e');
+          ref.showErrorNotification(
+            context,
+            title: 'Error de modo offline',
+            message: '$e',
+          );
         }
       } finally {
         if (mounted) {
