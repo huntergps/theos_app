@@ -382,6 +382,7 @@ class BankRepository {
                   active: drift.Value(active),
                   writeDate: drift.Value(writeDate),
                 ),
+                target: [_db.resBank.odooId],
               ),
             );
         syncCount++;

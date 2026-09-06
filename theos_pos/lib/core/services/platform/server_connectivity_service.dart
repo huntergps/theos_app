@@ -190,7 +190,8 @@ final connectivityStatusProvider = StreamProvider<ConnectivityStatus>((ref) {
 /// Provider for simple online/offline check (convenience)
 final isServerOnlineProvider = Provider<bool>((ref) {
   final healthService = ref.watch(serverHealthServiceProvider);
-  return healthService.status.canAttemptRemote;
+  final status = ref.watch(connectivityStatusProvider).value;
+  return (status ?? healthService.status).canAttemptRemote;
 });
 
 /// Provider that returns OdooClient only if server is reachable
@@ -200,7 +201,12 @@ final healthAwareOdooClientProvider = Provider<OdooClient?>((ref) {
   if (effectiveClient == null) return null;
 
   final healthService = ref.watch(serverHealthServiceProvider);
-  if (healthService.status.shouldSkipRemote) {
+  // ServerHealthService is mutable. Watching only its Provider does not
+  // rebuild this gate when the status stream changes, so a repository created
+  // during the initial `unknown` state could remain offline forever even
+  // after the header already showed a healthy server.
+  final status = ref.watch(connectivityStatusProvider).value;
+  if ((status ?? healthService.status).shouldSkipRemote) {
     return null; // Server unreachable - don't even try
   }
 

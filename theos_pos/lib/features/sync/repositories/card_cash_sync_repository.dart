@@ -49,7 +49,7 @@ class CardCashSyncRepository {
         ['active', '=', true],
       ];
       if (sinceDate != null) {
-        domain.add(['write_date', '>=', sinceDate.toIso8601String()]);
+        domain.add(['write_date', '>=', formatOdooDateTime(sinceDate)]);
       }
 
       final result = await odooClient!.call(
@@ -128,7 +128,7 @@ class CardCashSyncRepository {
         ['active', '=', true],
       ];
       if (sinceDate != null) {
-        domain.add(['write_date', '>=', sinceDate.toIso8601String()]);
+        domain.add(['write_date', '>=', formatOdooDateTime(sinceDate)]);
       }
 
       final result = await odooClient!.call(
@@ -206,7 +206,7 @@ class CardCashSyncRepository {
     try {
       final domain = cardLoteSyncScope();
       if (sinceDate != null) {
-        domain.add(['write_date', '>=', sinceDate.toIso8601String()]);
+        domain.add(['write_date', '>=', formatOdooDateTime(sinceDate)]);
       }
 
       final result = await odooClient!.call(

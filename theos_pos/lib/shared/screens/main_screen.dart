@@ -481,44 +481,59 @@ class _MainScreenState extends ConsumerState<MainScreen> with WindowListener {
                       // Offline Mode Indicator
                       Consumer(
                         builder: (context, ref, child) {
-                          final isOffline = ref.watch(isOfflineModeProvider);
+                          // Use the same live authority as the green server
+                          // status badge. The old session flag meant "login
+                          // was restored offline" and remained true after the
+                          // connection recovered, showing both states at once.
+                          final isOffline = !ref.watch(isServerOnlineProvider);
                           if (!isOffline) return const SizedBox.shrink();
 
                           return Padding(
                             padding: EdgeInsets.only(right: spacing.sm),
                             child: Tooltip(
                               message: 'Sin internet — Sus ventas están seguras y se enviarán cuando vuelva la conexión',
-                              child: Container(
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 8,
-                                  vertical: 4,
-                                ),
-                                decoration: BoxDecoration(
-                                  color: Colors.orange.withValues(alpha: 0.2),
-                                  borderRadius: BorderRadius.circular(4),
-                                  border: Border.all(
-                                    color: Colors.orange,
-                                    width: 1,
+                              child: Semantics(
+                                label: 'Sin internet',
+                                child: ConstrainedBox(
+                                  constraints: const BoxConstraints(
+                                    minHeight: 44,
                                   ),
-                                ),
-                                child: Row(
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                    Icon(
-                                      FluentIcons.cloud_not_synced,
-                                      size: 14,
-                                      color: Colors.orange,
-                                    ),
-                                    const SizedBox(width: 4),
-                                    Text(
-                                      'Sin internet',
-                                      style: TextStyle(
-                                        fontSize: 11,
-                                        fontWeight: FontWeight.bold,
-                                        color: Colors.orange,
+                                  child: Center(
+                                    child: Container(
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 8,
+                                        vertical: 4,
+                                      ),
+                                      decoration: BoxDecoration(
+                                        color: Colors.orange.withValues(
+                                          alpha: 0.2,
+                                        ),
+                                        borderRadius: BorderRadius.circular(4),
+                                        border: Border.all(
+                                          color: Colors.orange,
+                                          width: 1,
+                                        ),
+                                      ),
+                                      child: Row(
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          Icon(
+                                            FluentIcons.cloud_not_synced,
+                                            size: 14,
+                                            color: Colors.orange,
+                                          ),
+                                          const SizedBox(width: 4),
+                                          Text(
+                                            'Sin internet',
+                                            style: TextStyle(
+                                              fontWeight: FontWeight.bold,
+                                              color: Colors.orange,
+                                            ),
+                                          ),
+                                        ],
                                       ),
                                     ),
-                                  ],
+                                  ),
                                 ),
                               ),
                             ),
@@ -544,43 +559,56 @@ class _MainScreenState extends ConsumerState<MainScreen> with WindowListener {
                             child: Tooltip(
                               message:
                                   '$pendingCount ${pendingCount == 1 ? 'operación pendiente' : 'operaciones pendientes'} de enviar al servidor',
-                              child: GestureDetector(
-                                onTap: () => context.go(AppRouter.offlineSync),
-                                child: MouseRegion(
-                                  cursor: SystemMouseCursors.click,
-                                  child: Container(
-                                    padding: const EdgeInsets.symmetric(
-                                      horizontal: 8,
-                                      vertical: 4,
-                                    ),
-                                    decoration: BoxDecoration(
-                                      color: Colors.orange.withValues(
-                                        alpha: 0.2,
+                              child: Semantics(
+                                button: true,
+                                label: label,
+                                child: GestureDetector(
+                                  onTap: () =>
+                                      context.go(AppRouter.offlineSync),
+                                  child: MouseRegion(
+                                    cursor: SystemMouseCursors.click,
+                                    child: ConstrainedBox(
+                                      constraints: const BoxConstraints(
+                                        minHeight: 44,
                                       ),
-                                      borderRadius: BorderRadius.circular(4),
-                                      border: Border.all(
-                                        color: Colors.orange,
-                                        width: 1,
-                                      ),
-                                    ),
-                                    child: Row(
-                                      mainAxisSize: MainAxisSize.min,
-                                      children: [
-                                        Icon(
-                                          FluentIcons.cloud_upload,
-                                          size: 14,
-                                          color: Colors.orange,
-                                        ),
-                                        const SizedBox(width: 4),
-                                        Text(
-                                          label,
-                                          style: TextStyle(
-                                            fontSize: 11,
-                                            fontWeight: FontWeight.bold,
-                                            color: Colors.orange,
+                                      child: Center(
+                                        child: Container(
+                                          padding: const EdgeInsets.symmetric(
+                                            horizontal: 8,
+                                            vertical: 4,
+                                          ),
+                                          decoration: BoxDecoration(
+                                            color: Colors.orange.withValues(
+                                              alpha: 0.2,
+                                            ),
+                                            borderRadius: BorderRadius.circular(
+                                              4,
+                                            ),
+                                            border: Border.all(
+                                              color: Colors.orange,
+                                              width: 1,
+                                            ),
+                                          ),
+                                          child: Row(
+                                            mainAxisSize: MainAxisSize.min,
+                                            children: [
+                                              Icon(
+                                                FluentIcons.cloud_upload,
+                                                size: 14,
+                                                color: Colors.orange,
+                                              ),
+                                              const SizedBox(width: 4),
+                                              Text(
+                                                label,
+                                                style: TextStyle(
+                                                  fontWeight: FontWeight.bold,
+                                                  color: Colors.orange,
+                                                ),
+                                              ),
+                                            ],
                                           ),
                                         ),
-                                      ],
+                                      ),
                                     ),
                                   ),
                                 ),

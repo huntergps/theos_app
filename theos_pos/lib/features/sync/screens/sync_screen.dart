@@ -12,6 +12,7 @@ import '../../../core/database/database_helper_file_ops.dart'
     if (dart.library.js_interop) '../../../core/database/database_helper_file_ops_stub.dart'
     as file_ops;
 import '../../../core/database/repositories/repository_providers.dart';
+import '../../../core/services/platform/server_connectivity_service.dart';
 import '../../../shared/providers/offline_queue_provider.dart';
 import '../../../shared/utils/platform_process.dart' as platform_process;
 import '../providers/sync_provider.dart';
@@ -186,6 +187,13 @@ class _SyncScreenState extends ConsumerState<SyncScreen> {
     await ref.read(syncProvider.notifier).forceFullSyncAll();
 
     if (mounted) {
+      final errors = _syncErrors();
+      if (errors.isNotEmpty) {
+        context.showSyncError(
+          'No se pudieron sincronizar ${errors.length} catalogos: ${errors.take(3).join(', ')}',
+        );
+        return;
+      }
       if (queueResult.synced > 0 || queueResult.failed > 0) {
         context.showSyncSuccess(
           'Sincronizacion completa finalizada. Cola: ${queueResult.synced} OK, ${queueResult.failed} errores',
@@ -208,6 +216,13 @@ class _SyncScreenState extends ConsumerState<SyncScreen> {
     await ref.read(syncProvider.notifier).syncAll();
 
     if (mounted) {
+      final errors = _syncErrors();
+      if (errors.isNotEmpty) {
+        context.showSyncError(
+          'No se pudieron sincronizar ${errors.length} catalogos: ${errors.take(3).join(', ')}',
+        );
+        return;
+      }
       if (queueResult.synced > 0 || queueResult.failed > 0) {
         context.showSyncSuccess(
           'Sincronizacion completada. Cola: ${queueResult.synced} OK, ${queueResult.failed} errores',
@@ -216,6 +231,16 @@ class _SyncScreenState extends ConsumerState<SyncScreen> {
         context.showSyncSuccess('Sincronizacion completada');
       }
     }
+  }
+
+  List<String> _syncErrors() {
+    final state = ref.read(syncProvider);
+    return SyncNotifier.syncItems
+        .where(
+          (item) => state.getItemState(item.name).status == SyncStatus.error,
+        )
+        .map((item) => item.description)
+        .toList();
   }
 
   Future<void> _handleClearAllTables() async {
@@ -378,101 +403,178 @@ class _SyncScreenState extends ConsumerState<SyncScreen> {
     final syncState = ref.watch(syncProvider);
     final syncNotifier = ref.read(syncProvider.notifier);
     final catalogSync = ref.watch(catalogSyncRepositoryProvider);
-    final isOnline = catalogSync?.isOnline ?? false;
+    final isOnline =
+        ref.watch(isServerOnlineProvider) && (catalogSync?.isOnline ?? false);
+    final mediaQuery = MediaQuery.of(context);
+    final currentTextScale = mediaQuery.textScaler.scale(1);
 
-    return ScaffoldPage.scrollable(
-      header: PageHeader(
-        title: const Text('Sincronizacion de Datos'),
-        commandBar: _SyncCommandBar(
-          isAnySyncing: syncState.isAnySyncing,
-          isOnline: isOnline,
-          onCancel: () {
-            syncNotifier.cancelSync();
-            if (context.mounted) {
-              context.showSyncError('Sincronizacion cancelada');
-            }
-          },
-          onClearAll: _handleClearAllTables,
-          onForceSync: _handleForceFullSync,
-          onSyncAll: _handleSyncAll,
+    return MediaQuery(
+      data: mediaQuery.copyWith(
+        // Esta pantalla se usa para preparar trabajo de campo. Mantiene el
+        // escalado mayor elegido por el usuario y garantiza un minimo legible
+        // sin modificar el tema global de Fluent UI.
+        textScaler: TextScaler.linear(
+          currentTextScale < 1.2 ? 1.2 : currentTextScale,
         ),
       ),
-      children: [
-        // Database path display
-        _DatabasePathDisplay(
-          databasePath: _databasePath,
-          onCopy: _copyDatabasePath,
-          onOpenFolder: _openDatabaseFolder,
-          onDelete: _handleDeleteDatabase,
+      child: ScaffoldPage.scrollable(
+        header: PageHeader(
+          title: const Text('Sincronizacion de Datos'),
+          commandBar: _SyncCommandBar(
+            isAnySyncing: syncState.isAnySyncing,
+            isOnline: isOnline,
+            onCancel: () {
+              syncNotifier.cancelSync();
+              if (context.mounted) {
+                context.showSyncError('Sincronizacion cancelada');
+              }
+            },
+            onClearAll: _handleClearAllTables,
+            onForceSync: _handleForceFullSync,
+            onSyncAll: _handleSyncAll,
+          ),
         ),
-        const SizedBox(height: 16),
+        children: [
+          // Status banners
+          SyncStatusBanners(
+            isOnline: isOnline,
+            isAnySyncing: syncState.isAnySyncing,
+            currentSyncingItem: syncState.currentSyncingItem,
+            getItemDescription: _getItemDescription,
+          ),
 
-        // Status banners
-        SyncStatusBanners(
-          isOnline: isOnline,
-          isAnySyncing: syncState.isAnySyncing,
-          currentSyncingItem: syncState.currentSyncingItem,
-          getItemDescription: _getItemDescription,
-        ),
+          const SizedBox(height: 16),
+          _PrimarySyncAction(
+            isOnline: isOnline,
+            isSyncing: syncState.isAnySyncing,
+            onSync: _handleSyncAll,
+            onCancel: syncNotifier.cancelSync,
+          ),
 
-        // Checklist "Listo para salir a campo"
-        const SizedBox(height: 16),
-        const SyncReadinessChecklist(),
+          // Checklist "Listo para salir a campo"
+          const SizedBox(height: 16),
+          const SyncReadinessChecklist(),
 
-        // Offline Mode Toggle Section (FASE 4)
-        const SizedBox(height: 16),
-        Card(
-          padding: const EdgeInsets.all(16),
-          child: const OfflineModeSection(),
-        ),
-        const SizedBox(height: 16),
+          // Offline Mode Toggle Section (FASE 4)
+          const SizedBox(height: 16),
+          Card(
+            padding: const EdgeInsets.all(16),
+            child: const OfflineModeSection(),
+          ),
+          const SizedBox(height: 16),
 
-        // Stock Changes Section (M7 FASE 3)
-        const StockChangesSection(),
-        const Divider(),
-        const SizedBox(height: 16),
+          // Stock Changes Section (M7 FASE 3)
+          const StockChangesSection(),
+          const Divider(),
+          const SizedBox(height: 16),
 
-        // Info text
-        _SyncDescription(theme: theme),
-        const SizedBox(height: 24),
+          // Info text
+          _SyncDescription(theme: theme),
+          const SizedBox(height: 24),
 
-        // Sync items grid
-        _SyncItemsGrid(
-          syncState: syncState,
-          isOnline: isOnline,
-          iconMap: _iconMap,
-          onSync: (itemName) {
-            if (!isOnline) {
-              context.showSyncError(
-                'Sin conexion a Odoo. Conecte al servidor primero.',
-              );
-              return;
-            }
-            syncNotifier.syncItem(itemName);
-          },
-          onForceSync: (itemName) {
-            if (!isOnline) {
-              context.showSyncError(
-                'Sin conexion a Odoo. Conecte al servidor primero.',
-              );
-              return;
-            }
-            syncNotifier.forceFullSyncItem(itemName);
-          },
-          onClear: (itemName, description, localCount) {
-            _handleClearTable(itemName, description, localCount);
-          },
-          onCancel: (itemName, description) {
-            syncNotifier.cancelItemSync(itemName);
-            context.showSyncError('Sincronizacion de $description cancelada');
-          },
-        ),
+          // Sync items grid
+          _SyncItemsGrid(
+            syncState: syncState,
+            isOnline: isOnline,
+            iconMap: _iconMap,
+            onSync: (itemName) {
+              if (!isOnline) {
+                context.showSyncError(
+                  'Sin conexion a Odoo. Conecte al servidor primero.',
+                );
+                return;
+              }
+              syncNotifier.syncItem(itemName);
+            },
+            onForceSync: (itemName) {
+              if (!isOnline) {
+                context.showSyncError(
+                  'Sin conexion a Odoo. Conecte al servidor primero.',
+                );
+                return;
+              }
+              syncNotifier.forceFullSyncItem(itemName);
+            },
+            onClear: (itemName, description, localCount) {
+              _handleClearTable(itemName, description, localCount);
+            },
+            onCancel: (itemName, description) {
+              syncNotifier.cancelItemSync(itemName);
+              context.showSyncError('Sincronizacion de $description cancelada');
+            },
+          ),
 
-        const SizedBox(height: 32),
+          const SizedBox(height: 32),
 
-        // Help section
-        _HelpSection(helpItems: _helpItems),
-      ],
+          Expander(
+            header: const Text('Diagnostico y mantenimiento'),
+            content: _DatabasePathDisplay(
+              databasePath: _databasePath,
+              onCopy: _copyDatabasePath,
+              onOpenFolder: _openDatabaseFolder,
+              onDelete: _handleDeleteDatabase,
+            ),
+          ),
+          const SizedBox(height: 16),
+
+          // Help section
+          _HelpSection(helpItems: _helpItems),
+        ],
+      ),
+    );
+  }
+}
+
+class _PrimarySyncAction extends StatelessWidget {
+  final bool isOnline;
+  final bool isSyncing;
+  final VoidCallback onSync;
+  final VoidCallback onCancel;
+
+  const _PrimarySyncAction({
+    required this.isOnline,
+    required this.isSyncing,
+    required this.onSync,
+    required this.onCancel,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = FluentTheme.of(context);
+    return Card(
+      padding: const EdgeInsets.all(20),
+      child: Row(
+        children: [
+          Icon(FluentIcons.sync, size: 32, color: theme.accentColor),
+          const SizedBox(width: 16),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Preparar datos para trabajar',
+                  style: theme.typography.subtitle,
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  isOnline
+                      ? 'Descarga productos, clientes y medios de pago para usarlos tambien sin internet.'
+                      : 'El servidor no esta disponible. Sus datos locales y operaciones pendientes se conservan.',
+                  style: theme.typography.body,
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 20),
+          FilledButton(
+            onPressed: isSyncing ? onCancel : (isOnline ? onSync : null),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              child: Text(isSyncing ? 'Cancelar' : 'Sincronizar todo'),
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
@@ -508,9 +610,9 @@ class _SyncCommandBar extends StatelessWidget {
           ),
         if (!isAnySyncing) ...[
           CommandBarButton(
-            icon: const Icon(FluentIcons.delete),
-            label: const Text('Vaciar Tablas'),
-            onPressed: onClearAll,
+            icon: const Icon(FluentIcons.sync),
+            label: const Text('Sincronizar Todo'),
+            onPressed: isOnline ? onSyncAll : null,
           ),
           CommandBarButton(
             icon: const Icon(FluentIcons.refresh),
@@ -518,9 +620,9 @@ class _SyncCommandBar extends StatelessWidget {
             onPressed: isOnline ? onForceSync : null,
           ),
           CommandBarButton(
-            icon: const Icon(FluentIcons.sync),
-            label: const Text('Sincronizar Todo'),
-            onPressed: isOnline ? onSyncAll : null,
+            icon: const Icon(FluentIcons.delete),
+            label: const Text('Vaciar Tablas'),
+            onPressed: onClearAll,
           ),
         ],
       ],

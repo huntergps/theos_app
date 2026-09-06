@@ -204,7 +204,7 @@ class CatalogSyncRepository {
 
   /// Sync partners/customers
   Future<int> syncPartners({
-    int batchSize = 500,
+    int batchSize = 200,
     SyncProgressCallback? onProgress,
     DateTime? sinceDate,
   }) => _partnerSync.syncPartners(

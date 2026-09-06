@@ -89,7 +89,9 @@ class ProductSyncRepository {
     'description',
     'description_sale',
     'product_tmpl_id',
-    'image_128',
+    // Las imagenes se consultan bajo demanda en ProductRepository.getDetailedInfo.
+    // Incluirlas en el catalogo completo infla cada pagina varios MB y puede
+    // cortar el transporte antes de terminar, dejando una sincronizacion parcial.
     'qty_available',
     'virtual_available',
     'write_date',

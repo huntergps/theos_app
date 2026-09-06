@@ -220,9 +220,10 @@ class _ChecklistHeader extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = FluentTheme.of(context);
 
+    final isDark = theme.brightness == Brightness.dark;
     final Color headerColor = allOk
-        ? const Color(0xFF107C10) // verde exito
-        : const Color(0xFFC50F1F); // rojo error
+        ? (isDark ? Colors.green.light : Colors.green.dark)
+        : (isDark ? Colors.red.light : Colors.red.dark);
 
     return GestureDetector(
       onTap: onToggle,
@@ -263,7 +264,7 @@ class _ChecklistHeader extends StatelessWidget {
                     allOk
                         ? 'Todos los datos estan disponibles offline'
                         : 'Resuelva los items en rojo antes de salir',
-                    style: theme.typography.caption?.copyWith(
+                    style: theme.typography.body?.copyWith(
                       color: theme.resources.textFillColorSecondary,
                     ),
                   ),
@@ -304,12 +305,13 @@ class _ChecklistRow extends StatelessWidget {
     final ok = item.isOk(syncState, queueState);
     final detail = item.detail(syncState, queueState);
 
+    final isDark = theme.brightness == Brightness.dark;
     final Color dotColor = ok
-        ? const Color(0xFF107C10)
-        : const Color(0xFFC50F1F);
+        ? (isDark ? Colors.green.light : Colors.green.dark)
+        : (isDark ? Colors.red.light : Colors.red.dark);
 
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 6),
+      padding: const EdgeInsets.symmetric(vertical: 9),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.center,
         children: [
@@ -334,17 +336,17 @@ class _ChecklistRow extends StatelessWidget {
           // Icono del catalogo
           Icon(
             item.icon,
-            size: 16,
+            size: 20,
             color: theme.resources.textFillColorSecondary,
           ),
           const SizedBox(width: 10),
 
           // Etiqueta
           SizedBox(
-            width: 140,
+            width: 180,
             child: Text(
               item.label,
-              style: theme.typography.body?.copyWith(
+              style: theme.typography.bodyStrong?.copyWith(
                 fontWeight: ok ? FontWeight.normal : FontWeight.w600,
               ),
             ),
@@ -354,12 +356,11 @@ class _ChecklistRow extends StatelessWidget {
           Expanded(
             child: Text(
               detail,
-              style: theme.typography.caption?.copyWith(
-                color: ok
-                    ? theme.resources.textFillColorSecondary
-                    : const Color(0xFFC50F1F),
+              style: theme.typography.body?.copyWith(
+                color: ok ? theme.resources.textFillColorSecondary : dotColor,
               ),
-              overflow: TextOverflow.ellipsis,
+              maxLines: 2,
+              overflow: TextOverflow.visible,
             ),
           ),
 
@@ -369,7 +370,7 @@ class _ChecklistRow extends StatelessWidget {
             ok
                 ? FluentIcons.skype_circle_check
                 : FluentIcons.status_circle_error_x,
-            size: 16,
+            size: 20,
             color: dotColor,
           ),
         ],
@@ -392,29 +393,26 @@ class _ChecklistFooter extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = theme.brightness == Brightness.dark;
+    final successColor = isDark ? Colors.green.light : Colors.green.dark;
+    final warningColor = isDark ? Colors.orange.light : Colors.orange.dark;
     if (allOk) {
       return Container(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
         decoration: BoxDecoration(
-          color: const Color(0xFF107C10).withValues(alpha: 0.08),
+          color: successColor.withValues(alpha: 0.10),
           borderRadius: BorderRadius.circular(6),
-          border: Border.all(
-            color: const Color(0xFF107C10).withValues(alpha: 0.25),
-          ),
+          border: Border.all(color: successColor.withValues(alpha: 0.35)),
         ),
         child: Row(
           children: [
-            const Icon(
-              FluentIcons.airplane,
-              size: 16,
-              color: Color(0xFF107C10),
-            ),
+            Icon(FluentIcons.airplane, size: 16, color: successColor),
             const SizedBox(width: 10),
             Expanded(
               child: Text(
                 'Puede salir a campo con confianza. Los datos estan listos para uso offline.',
-                style: theme.typography.caption?.copyWith(
-                  color: const Color(0xFF107C10),
+                style: theme.typography.body?.copyWith(
+                  color: successColor,
                   fontWeight: FontWeight.w500,
                 ),
               ),
@@ -427,21 +425,19 @@ class _ChecklistFooter extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
       decoration: BoxDecoration(
-        color: const Color(0xFFFFF4CE).withValues(alpha: 0.5),
+        color: warningColor.withValues(alpha: 0.10),
         borderRadius: BorderRadius.circular(6),
-        border: Border.all(
-          color: const Color(0xFFF7630C).withValues(alpha: 0.35),
-        ),
+        border: Border.all(color: warningColor.withValues(alpha: 0.40)),
       ),
       child: Row(
         children: [
-          const Icon(FluentIcons.warning, size: 16, color: Color(0xFFF7630C)),
+          Icon(FluentIcons.warning, size: 20, color: warningColor),
           const SizedBox(width: 10),
           Expanded(
             child: Text(
               '$failingCount item(s) requieren atencion. Use "Sincronizar Todo" en la barra superior antes de salir.',
-              style: theme.typography.caption?.copyWith(
-                color: const Color(0xFF8A4B00),
+              style: theme.typography.body?.copyWith(
+                color: theme.resources.textFillColorPrimary,
                 fontWeight: FontWeight.w500,
               ),
             ),

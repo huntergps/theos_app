@@ -59,29 +59,28 @@ class ServerStatusWidget extends ConsumerWidget {
   /// Vista cuando el modo offline está activado manualmente
   Widget _buildOfflineModeView(BuildContext context) {
     final color = FluentTheme.of(context).accentColor;
-    return Tooltip(
-      message: 'Modo offline activado manualmente.\nLos datos se guardan localmente.',
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-        decoration: BoxDecoration(
-          color: color.withValues(alpha: 0.1),
-          borderRadius: BorderRadius.circular(4),
-          border: Border.all(color: color.withValues(alpha: 0.3)),
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(FluentIcons.cloud_download, size: 12, color: color),
-            const SizedBox(width: 5),
-            Text(
-              'Modo Offline',
-              style: TextStyle(
-                fontSize: 11,
-                color: color,
-                fontWeight: FontWeight.w600,
+    return Semantics(
+      label: 'Modo Offline',
+      child: Tooltip(
+        message: 'Modo offline activado manualmente.\nLos datos se guardan localmente.',
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+          decoration: BoxDecoration(
+            color: color.withValues(alpha: 0.1),
+            borderRadius: BorderRadius.circular(4),
+            border: Border.all(color: color.withValues(alpha: 0.3)),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(FluentIcons.cloud_download, size: 12, color: color),
+              const SizedBox(width: 5),
+              Text(
+                'Modo Offline',
+                style: TextStyle(color: color, fontWeight: FontWeight.w600),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );
@@ -91,39 +90,35 @@ class ServerStatusWidget extends ConsumerWidget {
   Widget _buildCompactView(BuildContext context, ConnectivityStatus status) {
     final (color, icon, text) = _getStatusDisplay(status);
 
-    return Tooltip(
-      message: _getTooltipMessage(status),
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-        decoration: BoxDecoration(
-          color: color.withValues(alpha: 0.1),
-          borderRadius: BorderRadius.circular(4),
-          border: Border.all(color: color.withValues(alpha: 0.3)),
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(icon, size: 12, color: color),
-            const SizedBox(width: 5),
-            Text(
-              text,
-              style: TextStyle(
-                fontSize: 11,
-                color: color,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-            if (showLatency && status.latencyMs != null) ...[
-              const SizedBox(width: 4),
+    return Semantics(
+      label: text,
+      child: Tooltip(
+        message: _getTooltipMessage(status),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+          decoration: BoxDecoration(
+            color: color.withValues(alpha: 0.1),
+            borderRadius: BorderRadius.circular(4),
+            border: Border.all(color: color.withValues(alpha: 0.3)),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(icon, size: 12, color: color),
+              const SizedBox(width: 5),
               Text(
-                '${status.latencyMs}ms',
-                style: TextStyle(
-                  fontSize: 10,
-                  color: color.withValues(alpha: 0.7),
-                ),
+                text,
+                style: TextStyle(color: color, fontWeight: FontWeight.w600),
               ),
+              if (showLatency && status.latencyMs != null) ...[
+                const SizedBox(width: 4),
+                Text(
+                  '${status.latencyMs}ms',
+                  style: TextStyle(color: color.withValues(alpha: 0.7)),
+                ),
+              ],
             ],
-          ],
+          ),
         ),
       ),
     );
@@ -157,11 +152,7 @@ class ServerStatusWidget extends ConsumerWidget {
                 ),
                 child: Text(
                   text,
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: color,
-                    fontWeight: FontWeight.bold,
-                  ),
+                  style: TextStyle(color: color, fontWeight: FontWeight.bold),
                 ),
               ),
             ],
@@ -229,7 +220,8 @@ class ServerStatusWidget extends ConsumerWidget {
                 status.lastError!.length > 100
                     ? '${status.lastError!.substring(0, 100)}...'
                     : status.lastError!,
-                style: TextStyle(fontSize: 11, color: AppColors.danger),
+                style: FluentTheme.of(context).typography.caption
+                    ?.copyWith(color: AppColors.danger),
               ),
             ),
           ],
@@ -250,17 +242,12 @@ class ServerStatusWidget extends ConsumerWidget {
         Text(
           label,
           style: TextStyle(
-            fontSize: 12,
             color: FluentTheme.of(context).resources.textFillColorSecondary,
           ),
         ),
         Text(
           value,
-          style: TextStyle(
-            fontSize: 12,
-            fontWeight: FontWeight.w600,
-            color: valueColor,
-          ),
+          style: TextStyle(fontWeight: FontWeight.w600, color: valueColor),
         ),
       ],
     );

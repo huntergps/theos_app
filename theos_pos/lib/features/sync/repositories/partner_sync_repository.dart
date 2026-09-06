@@ -25,14 +25,19 @@ class PartnerSyncRepository {
 
   /// Sync all partners from Odoo
   Future<int> syncPartners({
-    int batchSize = 500,
+    int batchSize = 200,
     SyncProgressCallback? onProgress,
     DateTime? sinceDate,
   }) async {
     final result = await _syncRepo.syncModel(
       SyncConfigBuilder.create(
         model: 'res.partner',
-        fields: clientManager.odooFields,
+        // El avatar no interviene en ventas, credito ni cobros offline. Como
+        // binario base64 aumenta mucho la respuesta y se carga bajo demanda
+        // cuando una pantalla realmente lo necesita.
+        fields: clientManager.odooFields
+            .where((field) => field != 'avatar_128')
+            .toList(growable: false),
         domain: [
           ['active', '=', true],
         ],

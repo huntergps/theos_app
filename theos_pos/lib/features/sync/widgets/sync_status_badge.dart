@@ -69,7 +69,16 @@ class SyncStatusBadge extends ConsumerWidget {
       );
     }
 
-    return badge;
+    return Semantics(
+      button: onTap != null,
+      label: _getTooltipMessage(isSyncing, pendingCount, hasErrors),
+      child: onTap != null
+          ? ConstrainedBox(
+              constraints: const BoxConstraints(minWidth: 44, minHeight: 44),
+              child: Center(child: badge),
+            )
+          : badge,
+    );
   }
 
   Widget _buildSyncingBadge(
@@ -113,10 +122,7 @@ class SyncStatusBadge extends ConsumerWidget {
           ),
           // Progress text (only for larger sizes)
           if (size >= 32 && progressText.isNotEmpty)
-            Text(
-              progressText,
-              style: theme.typography.caption?.copyWith(fontSize: 8),
-            ),
+            Text(progressText, style: theme.typography.caption),
         ],
       ),
     );
@@ -147,7 +153,6 @@ class SyncStatusBadge extends ConsumerWidget {
                 style: theme.typography.caption?.copyWith(
                   color: Colors.white,
                   fontWeight: FontWeight.bold,
-                  fontSize: size * 0.45,
                 ),
               ),
       ),

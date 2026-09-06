@@ -56,7 +56,7 @@ part 'providers.g.dart';
 ///
 /// Returns the latest value from the stream. Consumers using `.when()` will
 /// auto-update when the order changes in the local DB.
-@Riverpod(keepAlive: true)
+@riverpod
 Future<SaleOrder?> saleOrderById(Ref ref, int orderId) async {
   // Delegate to stream provider - this makes the provider reactive
   final asyncValue = ref.watch(saleOrderStreamProvider(orderId));
@@ -67,7 +67,7 @@ Future<SaleOrder?> saleOrderById(Ref ref, int orderId) async {
 /// via repository logic (partner/product lookups) that streams don't do.
 ///
 /// For reactive line-only watching, use [saleOrderLinesStreamProvider].
-@Riverpod(keepAlive: true)
+@riverpod
 Future<(SaleOrder?, List<SaleOrderLine>)> saleOrderWithLines(
   Ref ref,
   int orderId,
@@ -87,14 +87,14 @@ Future<List<SaleOrder>> unsyncedSaleOrders(Ref ref) async {
 /// Order lines by orderId - reactive via [saleOrderLinesStreamProvider]
 ///
 /// Auto-updates when lines are added/removed/modified in local DB.
-@Riverpod(keepAlive: true)
+@riverpod
 Future<List<SaleOrderLine>> saleOrderLines(Ref ref, int orderId) async {
   final asyncValue = ref.watch(saleOrderLinesStreamProvider(orderId));
   return asyncValue.value ?? [];
 }
 
 /// Search orders - kept as FutureProvider (search involves repository logic)
-@Riverpod(keepAlive: true)
+@riverpod
 Future<List<SaleOrder>> saleOrderSearch(Ref ref, String query) async {
   final repo = ref.watch(salesRepositoryProvider);
   if (repo == null) return [];

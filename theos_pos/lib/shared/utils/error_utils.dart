@@ -4,6 +4,7 @@
 /// Keep raw `e.toString()` in logger calls for debugging.
 String friendlyErrorMessage(Object error) {
   final msg = error.toString().toLowerCase();
+  bool hasStatus(int status) => RegExp('\\b$status\\b').hasMatch(msg);
 
   if (msg.contains('connection') ||
       msg.contains('timeout') ||
@@ -14,15 +15,15 @@ String friendlyErrorMessage(Object error) {
   }
   if (msg.contains('permission') ||
       msg.contains('denied') ||
-      msg.contains('403') ||
+      hasStatus(403) ||
       msg.contains('unauthorized') ||
-      msg.contains('401')) {
+      hasStatus(401)) {
     return 'No tienes permisos para esta operación.';
   }
-  if (msg.contains('not found') || msg.contains('404')) {
+  if (msg.contains('not found') || hasStatus(404)) {
     return 'El recurso solicitado no fue encontrado.';
   }
-  if (msg.contains('500') ||
+  if (hasStatus(500) ||
       msg.contains('server error') ||
       msg.contains('internal server')) {
     return 'Error del servidor. Intenta nuevamente más tarde.';

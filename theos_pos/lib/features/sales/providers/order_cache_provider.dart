@@ -287,7 +287,7 @@ class OrderCache extends _$OrderCache {
 /// línea de la pestaña A recomputaba el provider de todas las demás órdenes
 /// cacheadas. El `.select()` sobre `orders[orderId]` ya dispara el rebuild
 /// correcto por igualdad estructural de Freezed cuando ESA orden cambia.
-@Riverpod(keepAlive: true)
+@riverpod
 SaleOrder? cachedOrder(Ref ref, int orderId) {
   return ref.watch(orderCacheProvider.select((s) => s.orders[orderId]));
 }
@@ -295,40 +295,40 @@ SaleOrder? cachedOrder(Ref ref, int orderId) {
 /// Get lines for a specific order from cache (reactive)
 ///
 /// Mismo fix que [cachedOrder]: no observamos `state.version` global.
-@Riverpod(keepAlive: true)
+@riverpod
 List<SaleOrderLine> cachedOrderLines(Ref ref, int orderId) {
   return ref.watch(orderCacheProvider.select((s) => s.orderLines[orderId])) ??
       const [];
 }
 
 /// Check if an order is in the cache
-@Riverpod(keepAlive: true)
+@riverpod
 bool isOrderCached(Ref ref, int orderId) {
   return ref.watch(orderCacheProvider.select((s) => s.hasOrder(orderId)));
 }
 
 /// Check if an order is loading
-@Riverpod(keepAlive: true)
+@riverpod
 bool isOrderLoading(Ref ref, int orderId) {
   return ref.watch(orderCacheProvider.select((s) => s.isLoading(orderId)));
 }
 
 /// Get order locked status directly
-@Riverpod(keepAlive: true)
+@riverpod
 bool orderLocked(Ref ref, int orderId) {
   final order = ref.watch(cachedOrderProvider(orderId));
   return order?.locked ?? false;
 }
 
 /// Get order state directly
-@Riverpod(keepAlive: true)
+@riverpod
 SaleOrderState? orderState(Ref ref, int orderId) {
   final order = ref.watch(cachedOrderProvider(orderId));
   return order?.state;
 }
 
 /// Get order with its lines as a tuple
-@Riverpod(keepAlive: true)
+@riverpod
 (SaleOrder?, List<SaleOrderLine>) cachedOrderWithLines(Ref ref, int orderId) {
   final order = ref.watch(cachedOrderProvider(orderId));
   final lines = ref.watch(cachedOrderLinesProvider(orderId));

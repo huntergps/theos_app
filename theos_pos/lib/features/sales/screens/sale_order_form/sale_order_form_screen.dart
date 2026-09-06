@@ -74,9 +74,15 @@ class SaleOrderFormScreen extends ConsumerStatefulWidget {
 }
 
 class _SaleOrderFormScreenState extends ConsumerState<SaleOrderFormScreen> {
+  late final SaleOrderFormNotifier _formNotifier;
+
   @override
   void initState() {
     super.initState();
+    // ConsumerState.ref cannot be used once unmount has started. Keep the
+    // notifier while the element is active so dispose can release edit mode
+    // without consulting a deactivated BuildContext.
+    _formNotifier = ref.read(saleOrderFormProvider.notifier);
     _initialize();
   }
 
@@ -153,9 +159,8 @@ class _SaleOrderFormScreenState extends ConsumerState<SaleOrderFormScreen> {
     // corregida). El flujo normal de "guardar y salir" no se ve afectado:
     // `saveOrder()` ya deja `isEditing=false` antes de que esta pantalla se
     // cierre, así que este guard no hace nada en ese caso.
-    if (ref.read(saleOrderFormProvider).isEditing) {
-      ref.read(saleOrderFormProvider.notifier).exitEditMode();
-    }
+    // exitEditMode is already a no-op when the form is not being edited.
+    _formNotifier.exitEditMode();
     super.dispose();
   }
 
