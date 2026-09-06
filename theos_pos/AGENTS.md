@@ -98,8 +98,11 @@ final tax = await taxManager.readLocal(1);
 
 ### Session and synchronization invariants
 
-- Authentication is API-key Bearer over `/json/2`; do not introduce
-  `/web/session/authenticate`, cookies, `withCredentials` or XML-RPC call sites.
+- Runtime ORM authentication is API-key Bearer over `/json/2`. The sole
+  exception is the native HTTPS login bootstrap: it may hold an ephemeral
+  `/web/session/authenticate` cookie just long enough to run Odoo's own API-key
+  wizard. Never persist that cookie or password, use it for runtime ORM calls,
+  enable it on Web, add `withCredentials`, or introduce XML-RPC call sites.
 - Native session restoration uses non-secret metadata plus a credential
   reference into the platform secure store. Web credentials are intentionally
   memory-only and require login after a page refresh.

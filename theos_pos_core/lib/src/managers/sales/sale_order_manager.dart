@@ -274,34 +274,79 @@ extension SaleOrderManagerBusiness on SaleOrderManager {
   // POS Screen Queries
   // ═══════════════════════════════════════════════════════════════════════════
 
-  /// Get sale orders for POS screen (seller workflow)
+  /// Get sale orders for the POS using an explicit caller-resolved scope.
   Future<List<SaleOrder>> getSaleOrdersForPOS({
-    required int userId,
+    int? userId,
+    List<int>? companyIds,
+    List<int>? collectionSessionIds,
+    List<String>? states,
+    List<String>? invoiceStatuses,
     int limit = 10,
     int offset = 0,
   }) async {
-    const allowedStates = ['draft', 'sent', 'waiting', 'approved', 'sale'];
+    final allowedStates =
+        states ?? const ['draft', 'sent', 'waiting', 'approved', 'sale'];
 
     final query = _db.select(_db.saleOrder)
-      ..where((t) => t.userId.equals(userId))
-      ..where((t) => t.invoiceStatus.isNotValue('invoiced'))
       ..where((t) => t.state.isIn(allowedStates))
       ..orderBy([(t) => drift.OrderingTerm.desc(t.dateOrder)])
       ..limit(limit, offset: offset);
+    if (userId != null) {
+      query.where((t) => t.userId.equals(userId));
+    }
+    if (companyIds != null) {
+      if (companyIds.isEmpty) return const [];
+      query.where((t) => t.companyId.isIn(companyIds));
+    }
+    if (collectionSessionIds != null) {
+      query.where(
+        (t) =>
+            t.collectionSessionId.isNull() |
+            t.collectionSessionId.isIn(collectionSessionIds),
+      );
+    }
+    if (invoiceStatuses == null) {
+      query.where((t) => t.invoiceStatus.isNotValue('invoiced'));
+    } else {
+      query.where((t) => t.invoiceStatus.isIn(invoiceStatuses));
+    }
 
     final results = await query.get();
     return results.map((row) => fromDrift(row)).toList();
   }
 
   /// Count total sale orders for POS
-  Future<int> countSaleOrdersForPOS({required int userId}) async {
-    const allowedStates = ['draft', 'sent', 'waiting', 'approved', 'sale'];
+  Future<int> countSaleOrdersForPOS({
+    int? userId,
+    List<int>? companyIds,
+    List<int>? collectionSessionIds,
+    List<String>? states,
+    List<String>? invoiceStatuses,
+  }) async {
+    final allowedStates =
+        states ?? const ['draft', 'sent', 'waiting', 'approved', 'sale'];
 
     final query = _db.selectOnly(_db.saleOrder)
       ..addColumns([_db.saleOrder.id.count()])
-      ..where(_db.saleOrder.userId.equals(userId))
-      ..where(_db.saleOrder.invoiceStatus.isNotValue('invoiced'))
       ..where(_db.saleOrder.state.isIn(allowedStates));
+    if (userId != null) {
+      query.where(_db.saleOrder.userId.equals(userId));
+    }
+    if (companyIds != null) {
+      if (companyIds.isEmpty) return 0;
+      query.where(_db.saleOrder.companyId.isIn(companyIds));
+    }
+    if (collectionSessionIds != null) {
+      query.where(
+        _db.saleOrder.collectionSessionId.isNull() |
+            _db.saleOrder.collectionSessionId.isIn(collectionSessionIds),
+      );
+    }
+    if (invoiceStatuses == null) {
+      query.where(_db.saleOrder.invoiceStatus.isNotValue('invoiced'));
+    } else {
+      query.where(_db.saleOrder.invoiceStatus.isIn(invoiceStatuses));
+    }
 
     final result = await query.getSingle();
     return result.read(_db.saleOrder.id.count()) ?? 0;
@@ -348,7 +393,11 @@ extension SaleOrderManagerBusiness on SaleOrderManager {
 
   /// Get editable orders for POS search dialog
   Future<List<Map<String, dynamic>>> getEditableOrdersForPOS({
-    required int userId,
+    int? userId,
+    List<int>? companyIds,
+    List<int>? collectionSessionIds,
+    List<String>? states,
+    List<String>? invoiceStatuses,
     String? query,
     int limit = 20,
     bool includeInvoiced = false,
@@ -356,18 +405,34 @@ extension SaleOrderManagerBusiness on SaleOrderManager {
     bool includeCancelled = false,
     bool allUsers = false,
   }) async {
-    final states = <String>['draft', 'sent', 'waiting', 'approved'];
-    if (includeConfirmed || includeInvoiced) states.add('sale');
-    if (includeCancelled) states.add('cancel');
+    final allowedStates =
+        states?.toList() ?? <String>['draft', 'sent', 'waiting', 'approved'];
+    if (includeConfirmed || includeInvoiced) allowedStates.add('sale');
+    if (includeCancelled) allowedStates.add('cancel');
 
     var selectQuery = _db.select(_db.saleOrder)
-      ..where((t) => t.state.isIn(states));
+      ..where((t) => t.state.isIn(allowedStates));
 
-    if (!allUsers) {
+    if (!allUsers && userId != null) {
       selectQuery = selectQuery..where((t) => t.userId.equals(userId));
     }
+    if (companyIds != null) {
+      if (companyIds.isEmpty) return const [];
+      selectQuery = selectQuery..where((t) => t.companyId.isIn(companyIds));
+    }
+    if (collectionSessionIds != null) {
+      selectQuery = selectQuery
+        ..where(
+          (t) =>
+              t.collectionSessionId.isNull() |
+              t.collectionSessionId.isIn(collectionSessionIds),
+        );
+    }
 
-    if (!includeInvoiced && !includeConfirmed) {
+    if (invoiceStatuses != null) {
+      selectQuery = selectQuery
+        ..where((t) => t.invoiceStatus.isIn(invoiceStatuses));
+    } else if (!includeInvoiced && !includeConfirmed) {
       selectQuery = selectQuery
         ..where((t) => t.invoiceStatus.isNotValue('invoiced'));
     } else if (includeInvoiced && !includeConfirmed) {

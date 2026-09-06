@@ -159,12 +159,18 @@ void main() {
       stubWizard(
         result: {
           'success': true,
+          'operation_uuid': 'receipt-42',
           'invoice_id': 901,
-          'receipt_id': 501,
           'payment_line_ids': [601],
           'payments': [
-            {'payment_line_id': 601, 'payment_id': 701, 'move_id': 801},
+            {
+              'line_uuid': 'line-42',
+              'payment_line_id': 601,
+              'payment_id': 701,
+              'move_id': 801,
+            },
           ],
+          'amount_residual': 0.0,
         },
       );
       await enqueueCollection();
@@ -185,6 +191,13 @@ void main() {
       expect(matching.odooId, 601);
       expect(unrelated.isSynced, isFalse);
       expect(unrelated.odooId, isNull);
+      final ledger =
+          await (database.select(database.accountPaymentTable)
+                ..where((row) => row.paymentUuid.equals('receipt-42:line-42')))
+              .getSingle();
+      expect(ledger.state, 'posted');
+      expect(ledger.isSynced, isTrue);
+      expect(ledger.odooId, 701);
       verifyNever(
         () => client.call(
           model: 'sale.order',
@@ -199,7 +212,7 @@ void main() {
   );
 
   test(
-    'retains collection when existing invoice response has no receipt',
+    'retains collection when existing invoice response has no ledger metadata',
     () async {
       await insertPaymentLines();
       stubWizard(result: {'success': true, 'invoice_id': 901});
@@ -240,12 +253,18 @@ void main() {
         if (applyCalls == 1) throw const OdooTimeoutException();
         return {
           'success': true,
+          'operation_uuid': 'receipt-42',
           'invoice_id': 901,
-          'receipt_id': 501,
           'payment_line_ids': [601],
           'payments': [
-            {'payment_line_id': 601, 'payment_id': 701, 'move_id': 801},
+            {
+              'line_uuid': 'line-42',
+              'payment_line_id': 601,
+              'payment_id': 701,
+              'move_id': 801,
+            },
           ],
+          'amount_residual': 0.0,
         };
       });
       final operationId = await enqueueCollection();
@@ -338,12 +357,18 @@ void main() {
         if (applyCalls == 1) {
           return {
             'success': true,
+            'operation_uuid': 'receipt-42',
             'invoice_id': 901,
-            'receipt_id': 501,
             'payment_line_ids': [601],
             'payments': [
-              {'payment_line_id': 601, 'payment_id': 701, 'move_id': 801},
+              {
+                'line_uuid': 'line-42',
+                'payment_line_id': 601,
+                'payment_id': 701,
+                'move_id': 801,
+              },
             ],
+            'amount_residual': 10.0,
           };
         }
         throw const OdooTimeoutException();
@@ -386,12 +411,18 @@ void main() {
     stubWizard(
       result: {
         'success': true,
+        'operation_uuid': 'receipt-42',
         'invoice_id': 901,
-        'receipt_id': 501,
         'payment_line_ids': [601],
         'payments': [
-          {'payment_line_id': 601, 'payment_id': false, 'move_id': 801},
+          {
+            'line_uuid': 'line-42',
+            'payment_line_id': 601,
+            'payment_id': false,
+            'move_id': 801,
+          },
         ],
+        'amount_residual': 0.0,
       },
     );
     final operationId = await enqueueCollection();
@@ -421,12 +452,18 @@ void main() {
       stubWizard(
         result: {
           'success': true,
+          'operation_uuid': 'receipt-42',
           'invoice_id': 901,
-          'receipt_id': 501,
           'payment_line_ids': [601],
           'payments': [
-            {'payment_line_id': 999, 'payment_id': 701, 'move_id': 801},
+            {
+              'line_uuid': 'line-42',
+              'payment_line_id': 999,
+              'payment_id': 701,
+              'move_id': 801,
+            },
           ],
+          'amount_residual': 0.0,
         },
       );
       final operationId = await enqueueCollection();
@@ -446,4 +483,183 @@ void main() {
       expect(ledger.isSynced, isFalse);
     },
   );
+
+  test(
+    'correlates multiple payment media by UUID, not response order',
+    () async {
+      await insertPaymentLines();
+      await database
+          .into(database.accountPaymentTable)
+          .insert(
+            AccountPaymentCompanion.insert(
+              paymentUuid: 'receipt-multi:line-42',
+              invoiceId: const drift.Value(901),
+              saleId: const drift.Value(42),
+              amount: const drift.Value(10),
+              date: drift.Value(DateTime(2026, 9, 5)),
+            ),
+          );
+      await database
+          .into(database.saleOrderPaymentLine)
+          .insert(
+            SaleOrderPaymentLineCompanion.insert(
+              orderId: 42,
+              paymentType: const drift.Value('inbound'),
+              journalId: const drift.Value(4),
+              paymentMethodLineId: const drift.Value(6),
+              amount: const drift.Value(7),
+              date: drift.Value(DateTime(2026, 9, 5)),
+              state: const drift.Value('draft'),
+              lineUuid: const drift.Value('line-43'),
+              isSynced: const drift.Value(false),
+            ),
+          );
+      await database
+          .into(database.accountPaymentTable)
+          .insert(
+            AccountPaymentCompanion.insert(
+              paymentUuid: 'receipt-multi:line-43',
+              invoiceId: const drift.Value(901),
+              saleId: const drift.Value(42),
+              amount: const drift.Value(7),
+              date: drift.Value(DateTime(2026, 9, 5)),
+            ),
+          );
+      stubWizard(
+        result: {
+          'success': true,
+          'operation_uuid': 'receipt-multi',
+          'invoice_id': 901,
+          'payment_line_ids': [602, 601],
+          'payments': [
+            {
+              'line_uuid': 'line-43',
+              'payment_line_id': 602,
+              'payment_id': 702,
+              'move_id': 802,
+            },
+            {
+              'line_uuid': 'line-42',
+              'payment_line_id': 601,
+              'payment_id': 701,
+              'move_id': 801,
+            },
+          ],
+          'amount_residual': 3.0,
+        },
+      );
+      await queue.queueCommand(
+        model: 'sale.order',
+        command: OfflineLocalCommand.invoiceCollectExisting,
+        parentOrderId: 42,
+        values: {
+          'sale_id': 42,
+          'invoice_id': 901,
+          'collection_session_id': 8,
+          'collection_op_uuid': 'receipt-multi',
+          'payment_lines': [
+            {
+              'amount': 10.0,
+              'journal_id': 4,
+              'payment_method_line_id': 6,
+              'date': '2026-09-05',
+            },
+            {
+              'amount': 7.0,
+              'journal_id': 4,
+              'payment_method_line_id': 6,
+              'date': '2026-09-05',
+            },
+          ],
+          'payment_line_uuids': ['line-42', 'line-43'],
+        },
+      );
+
+      final result = await service.processQueue();
+
+      expect(result.errors, isEmpty);
+      final lines = await database.select(database.saleOrderPaymentLine).get();
+      expect(
+        lines.singleWhere((line) => line.lineUuid == 'line-42').odooId,
+        601,
+      );
+      expect(
+        lines.singleWhere((line) => line.lineUuid == 'line-43').odooId,
+        602,
+      );
+      final ledger = await database.select(database.accountPaymentTable).get();
+      expect(
+        ledger
+            .singleWhere((row) => row.paymentUuid == 'receipt-multi:line-42')
+            .odooId,
+        701,
+      );
+      expect(
+        ledger
+            .singleWhere((row) => row.paymentUuid == 'receipt-multi:line-43')
+            .odooId,
+        702,
+      );
+      final createKwargs =
+          verify(
+                () => client.call(
+                  model: 'l10n_ec_collection_box.sale.order.payment.wizard',
+                  method: 'create',
+                  ids: null,
+                  // ignore: deprecated_member_use
+                  args: null,
+                  kwargs: captureAny(named: 'kwargs'),
+                ),
+              ).captured.single
+              as Map;
+      final commands =
+          ((createKwargs['vals_list'] as List).single as Map)['line_ids']
+              as List;
+      expect(
+        commands
+            .map((command) => (command as List)[2] as Map)
+            .map((values) => values['pos_collection_line_uuid']),
+        ['line-42', 'line-43'],
+      );
+    },
+  );
+
+  test('legacy command without line UUIDs stays pending without RPC', () async {
+    await insertPaymentLines();
+    final operationId = await queue.queueCommand(
+      model: 'sale.order',
+      command: OfflineLocalCommand.invoiceCollectExisting,
+      parentOrderId: 42,
+      values: {
+        'sale_id': 42,
+        'invoice_id': 901,
+        'collection_session_id': 8,
+        'collection_op_uuid': 'legacy-without-lines',
+        'payment_lines': [
+          {
+            'amount': 10.0,
+            'journal_id': 4,
+            'payment_method_line_id': 6,
+            'date': '2026-09-05',
+          },
+        ],
+      },
+    );
+
+    final result = await service.processQueue();
+
+    expect(result.synced, 0);
+    expect(result.errors, hasLength(1));
+    expect(await queue.getOperationById(operationId), isNotNull);
+    verifyNever(
+      () => client.call(
+        model: any(named: 'model'),
+        method: any(named: 'method'),
+        ids: any(named: 'ids'),
+        // ignore: deprecated_member_use
+        args: any(named: 'args'),
+        kwargs: any(named: 'kwargs'),
+      ),
+    );
+  });
 }

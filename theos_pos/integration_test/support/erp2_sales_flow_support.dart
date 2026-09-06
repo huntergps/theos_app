@@ -1,4 +1,5 @@
 import 'package:odoo_sdk/odoo_sdk.dart';
+import 'package:theos_pos/shared/constants/user_groups.dart';
 
 import 'environment_reader.dart';
 
@@ -16,21 +17,99 @@ final class Erp2SalesFlowIds {
   final int mixed;
   final int facturarSinCobro;
 
-  static Erp2SalesFlowIds fromEnvironment() => Erp2SalesFlowIds(
-    cash: _required('THEOS_E2E_CASH_ORDER_ID'),
-    credit: _required('THEOS_E2E_CREDIT_ORDER_ID'),
-    mixed: _required('THEOS_E2E_MIXED_ORDER_ID'),
-    facturarSinCobro: _required('THEOS_E2E_FSC_ORDER_ID'),
+  static const _cashDefine = String.fromEnvironment('THEOS_E2E_CASH_ORDER_ID');
+  static const _creditDefine = String.fromEnvironment(
+    'THEOS_E2E_CREDIT_ORDER_ID',
+  );
+  static const _mixedDefine = String.fromEnvironment(
+    'THEOS_E2E_MIXED_ORDER_ID',
+  );
+  static const _fscDefine = String.fromEnvironment('THEOS_E2E_FSC_ORDER_ID');
+  static const _approvalDefine = String.fromEnvironment(
+    'THEOS_E2E_FSC_APPROVAL_ID',
+  );
+  static const _cashSessionDefine = String.fromEnvironment(
+    'THEOS_E2E_CASH_SESSION_ID',
+  );
+  static const _cashJournalDefine = String.fromEnvironment(
+    'THEOS_E2E_CASH_JOURNAL_ID',
+  );
+  static const _cashMethodDefine = String.fromEnvironment(
+    'THEOS_E2E_CASH_METHOD_ID',
   );
 
-  static int _required(String name) {
-    final value = readProcessEnvironment(name) ?? String.fromEnvironment(name);
+  static Erp2SalesFlowIds fromEnvironment() => Erp2SalesFlowIds(
+    cash: _required('THEOS_E2E_CASH_ORDER_ID', _cashDefine),
+    credit: _required('THEOS_E2E_CREDIT_ORDER_ID', _creditDefine),
+    mixed: _required('THEOS_E2E_MIXED_ORDER_ID', _mixedDefine),
+    facturarSinCobro: _required('THEOS_E2E_FSC_ORDER_ID', _fscDefine),
+  );
+
+  static int? optional(String name) {
+    final define = switch (name) {
+      'THEOS_E2E_FSC_APPROVAL_ID' => _approvalDefine,
+      'THEOS_E2E_CASH_SESSION_ID' => _cashSessionDefine,
+      'THEOS_E2E_CASH_JOURNAL_ID' => _cashJournalDefine,
+      'THEOS_E2E_CASH_METHOD_ID' => _cashMethodDefine,
+      _ => '',
+    };
+    final value = readProcessEnvironment(name) ?? define;
+    final id = int.tryParse(value.trim());
+    if (id == null || id <= 0) return null;
+    return id;
+  }
+
+  static int _required(String name, String define) {
+    final value = readProcessEnvironment(name) ?? define;
     final id = int.tryParse(value.trim());
     if (id == null || id <= 0) {
       throw StateError('$name must be a positive ERP2 fixture ID.');
     }
     return id;
   }
+}
+
+void validateErp2StageActor({
+  required String stage,
+  required int? userId,
+  required int? configuredApproverUserId,
+  required Iterable<String> permissions,
+}) {
+  final expectedUserId = switch (stage) {
+    'seller' => 43,
+    'cashier' => 23,
+    'approver' => configuredApproverUserId,
+    _ => null,
+  };
+  if (expectedUserId == null || userId != expectedUserId) {
+    throw StateError(
+      'ERP2 $stage stage requires user $expectedUserId, got $userId.',
+    );
+  }
+  final permissionSet = permissions.toSet();
+  final hasRequiredGroup = switch (stage) {
+    'seller' => kSellerGroups.any(permissionSet.contains),
+    'cashier' => kCashierGroups.any(permissionSet.contains),
+    'approver' => permissionSet.contains(OdooUserGroup.creditApprover),
+    _ => false,
+  };
+  if (!hasRequiredGroup) {
+    throw StateError('ERP2 $stage user lacks the required Odoo group.');
+  }
+}
+
+const _flowStageDefine = String.fromEnvironment('THEOS_E2E_FLOW_STAGE');
+
+String erp2FlowStage() => parseErp2FlowStage(
+  readProcessEnvironment('THEOS_E2E_FLOW_STAGE') ?? _flowStageDefine,
+);
+
+String parseErp2FlowStage(String value) {
+  final normalized = value.trim().toLowerCase();
+  return switch (normalized) {
+    'seller' || 'cashier' || 'approver' => normalized,
+    _ => '',
+  };
 }
 
 const erp2SalesFlowFields = <String>[
@@ -44,7 +123,7 @@ const erp2SalesFlowFields = <String>[
   'invoice_status',
   'invoice_ids',
   'picking_ids',
-  'l10n_ec_collection_panel_origin',
+  'exige_pago_total_entrega',
 ];
 
 Future<Map<String, dynamic>> readErp2SaleOrder(

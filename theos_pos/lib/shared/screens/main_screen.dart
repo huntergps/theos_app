@@ -461,270 +461,276 @@ class _MainScreenState extends ConsumerState<MainScreen> with WindowListener {
         children: [
           Expanded(
             child: NavigationView(
-              titleBar: DragToMoveArea(
-                child: Row(
-                  children: [
-                    const Padding(
-                      padding: EdgeInsets.symmetric(horizontal: 12.0),
-                      child: Text('Orbi ERP'),
-                    ),
-                    const Spacer(),
-                    // Route Mode Badge — aparece cuando el vendedor activa Modo Ruta
-                    Padding(
-                      padding: EdgeInsets.only(right: spacing.sm),
-                      child: const RouteModeIndicatorBadge(),
-                    ),
-
-                    // Offline Mode Indicator
-                    Consumer(
-                      builder: (context, ref, child) {
-                        final isOffline = ref.watch(isOfflineModeProvider);
-                        if (!isOffline) return const SizedBox.shrink();
-
-                        return Padding(
-                          padding: EdgeInsets.only(right: spacing.sm),
-                          child: Tooltip(
-                            message: 'Sin internet — Sus ventas están seguras y se enviarán cuando vuelva la conexión',
-                            child: Container(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 8,
-                                vertical: 4,
-                              ),
-                              decoration: BoxDecoration(
-                                color: Colors.orange.withValues(alpha: 0.2),
-                                borderRadius: BorderRadius.circular(4),
-                                border: Border.all(
-                                  color: Colors.orange,
-                                  width: 1,
-                                ),
-                              ),
-                              child: Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  Icon(
-                                    FluentIcons.cloud_not_synced,
-                                    size: 14,
-                                    color: Colors.orange,
-                                  ),
-                                  const SizedBox(width: 4),
-                                  Text(
-                                    'Sin internet',
-                                    style: TextStyle(
-                                      fontSize: 11,
-                                      fontWeight: FontWeight.bold,
-                                      color: Colors.orange,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ),
-                        );
-                      },
-                    ),
-
-                    // Pending offline operations badge — always visible when there are ops queued
-                    Consumer(
-                      builder: (context, ref, child) {
-                        final offlineState = ref.watch(offlineQueueProvider);
-                        final pendingCount = offlineState.totalCount;
-                        if (pendingCount == 0 || !canAccessOfflineSync) {
-                          return const SizedBox.shrink();
-                        }
-
-                        final label = pendingCount == 1
-                            ? '1 pendiente'
-                            : '$pendingCount pendientes';
-
-                        return Padding(
-                          padding: EdgeInsets.only(right: spacing.sm),
-                          child: Tooltip(
-                            message:
-                                '$pendingCount ${pendingCount == 1 ? 'operación pendiente' : 'operaciones pendientes'} de enviar al servidor',
-                            child: GestureDetector(
-                              onTap: () => context.go(AppRouter.offlineSync),
-                              child: MouseRegion(
-                                cursor: SystemMouseCursors.click,
-                                child: Container(
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 8,
-                                    vertical: 4,
-                                  ),
-                                  decoration: BoxDecoration(
-                                    color: Colors.orange.withValues(alpha: 0.2),
-                                    borderRadius: BorderRadius.circular(4),
-                                    border: Border.all(
-                                      color: Colors.orange,
-                                      width: 1,
-                                    ),
-                                  ),
-                                  child: Row(
-                                    mainAxisSize: MainAxisSize.min,
-                                    children: [
-                                      Icon(
-                                        FluentIcons.cloud_upload,
-                                        size: 14,
-                                        color: Colors.orange,
-                                      ),
-                                      const SizedBox(width: 4),
-                                      Text(
-                                        label,
-                                        style: TextStyle(
-                                          fontSize: 11,
-                                          fontWeight: FontWeight.bold,
-                                          color: Colors.orange,
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                              ),
-                            ),
-                          ),
-                        );
-                      },
-                    ),
-
-                    // Sync Status Badge - shows sync progress and errors
-                    if (canAccessSync)
+              titleBar: SingleInsetTitleBar(
+                key: appShellHeaderKey,
+                content: DragToMoveArea(
+                  key: appShellHeaderContentKey,
+                  child: Row(
+                    children: [
+                      const Padding(
+                        padding: EdgeInsets.symmetric(horizontal: 12.0),
+                        child: Text('Orbi ERP'),
+                      ),
+                      const Spacer(),
+                      // Route Mode Badge — aparece cuando el vendedor activa Modo Ruta
                       Padding(
                         padding: EdgeInsets.only(right: spacing.sm),
-                        child: SyncStatusBadge(
-                          size: 24,
-                          showTooltip: true,
-                          onTap: () => context.go(AppRouter.sync),
-                        ),
+                        child: const RouteModeIndicatorBadge(),
                       ),
 
-                    // Activities
-                    if (canAccessActivities)
+                      // Offline Mode Indicator
                       Consumer(
                         builder: (context, ref, child) {
-                          final counters = ref.watch(
-                            notificationCounterProvider,
-                          );
-                          final activityCount = counters.activityCounter;
+                          final isOffline = ref.watch(isOfflineModeProvider);
+                          if (!isOffline) return const SizedBox.shrink();
 
-                          return Tooltip(
-                            message: 'Actividades pendientes',
-                            child: IconButton(
-                              icon: Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  Stack(
-                                    clipBehavior: Clip.none,
-                                    children: [
-                                      const Icon(FluentIcons.clock, size: 20),
-                                      if (activityCount > 0)
-                                        Positioned(
-                                          top: -4,
-                                          right: -4,
-                                          child: Container(
-                                            padding: const EdgeInsets.all(2),
-                                            decoration: BoxDecoration(
-                                              color: Colors.red,
-                                              shape: BoxShape.circle,
-                                            ),
-                                            constraints: const BoxConstraints(
-                                              minWidth: 14,
-                                              minHeight: 14,
-                                            ),
-                                            child: Text(
-                                              activityCount > 99
-                                                  ? '99+'
-                                                  : '$activityCount',
-                                              style: const TextStyle(
-                                                color: Colors.white,
-                                                fontSize: 9,
-                                                fontWeight: FontWeight.bold,
-                                              ),
-                                              textAlign: TextAlign.center,
-                                            ),
-                                          ),
-                                        ),
-                                    ],
+                          return Padding(
+                            padding: EdgeInsets.only(right: spacing.sm),
+                            child: Tooltip(
+                              message: 'Sin internet — Sus ventas están seguras y se enviarán cuando vuelva la conexión',
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 8,
+                                  vertical: 4,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: Colors.orange.withValues(alpha: 0.2),
+                                  borderRadius: BorderRadius.circular(4),
+                                  border: Border.all(
+                                    color: Colors.orange,
+                                    width: 1,
                                   ),
-                                  if (screenWidth >=
-                                      ScreenBreakpoints.tabletMaxWidth) ...[
+                                ),
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Icon(
+                                      FluentIcons.cloud_not_synced,
+                                      size: 14,
+                                      color: Colors.orange,
+                                    ),
                                     const SizedBox(width: 4),
-                                    const Text(
-                                      'Actividades',
-                                      style: TextStyle(fontSize: 11),
+                                    Text(
+                                      'Sin internet',
+                                      style: TextStyle(
+                                        fontSize: 11,
+                                        fontWeight: FontWeight.bold,
+                                        color: Colors.orange,
+                                      ),
                                     ),
                                   ],
-                                ],
+                                ),
                               ),
-                              onPressed: () {
-                                context.go(AppRouter.activities);
-                              },
                             ),
                           );
                         },
                       ),
-                    spacing.horizontal.sm,
 
-                    // Server Status Indicator
-                    const ServerStatusWidget(showLatency: true),
-                    spacing.horizontal.sm,
+                      // Pending offline operations badge — always visible when there are ops queued
+                      Consumer(
+                        builder: (context, ref, child) {
+                          final offlineState = ref.watch(offlineQueueProvider);
+                          final pendingCount = offlineState.totalCount;
+                          if (pendingCount == 0 || !canAccessOfflineSync) {
+                            return const SizedBox.shrink();
+                          }
 
-                    // Theme Toggle
-                    Tooltip(
-                      message: 'Cambiar Tema',
-                      child: IconButton(
-                        icon: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Icon(
-                              FluentTheme.of(context).brightness ==
-                                      Brightness.dark
-                                  ? FluentIcons.sunny
-                                  : FluentIcons.clear_night,
-                              size: 20,
-                            ),
-                            if (screenWidth >=
-                                ScreenBreakpoints.tabletMaxWidth) ...[
-                              const SizedBox(width: 4),
-                              Text(
-                                FluentTheme.of(context).brightness ==
-                                        Brightness.dark
-                                    ? 'Claro'
-                                    : 'Oscuro',
-                                style: const TextStyle(fontSize: 11),
+                          final label = pendingCount == 1
+                              ? '1 pendiente'
+                              : '$pendingCount pendientes';
+
+                          return Padding(
+                            padding: EdgeInsets.only(right: spacing.sm),
+                            child: Tooltip(
+                              message:
+                                  '$pendingCount ${pendingCount == 1 ? 'operación pendiente' : 'operaciones pendientes'} de enviar al servidor',
+                              child: GestureDetector(
+                                onTap: () => context.go(AppRouter.offlineSync),
+                                child: MouseRegion(
+                                  cursor: SystemMouseCursors.click,
+                                  child: Container(
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 8,
+                                      vertical: 4,
+                                    ),
+                                    decoration: BoxDecoration(
+                                      color: Colors.orange.withValues(
+                                        alpha: 0.2,
+                                      ),
+                                      borderRadius: BorderRadius.circular(4),
+                                      border: Border.all(
+                                        color: Colors.orange,
+                                        width: 1,
+                                      ),
+                                    ),
+                                    child: Row(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        Icon(
+                                          FluentIcons.cloud_upload,
+                                          size: 14,
+                                          color: Colors.orange,
+                                        ),
+                                        const SizedBox(width: 4),
+                                        Text(
+                                          label,
+                                          style: TextStyle(
+                                            fontSize: 11,
+                                            fontWeight: FontWeight.bold,
+                                            color: Colors.orange,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ),
                               ),
-                            ],
-                          ],
-                        ),
-                        onPressed: () {
-                          final currentMode = ref
-                              .read(configServiceProvider)
-                              .themeMode;
-                          final newMode = currentMode == ThemeMode.dark
-                              ? ThemeMode.light
-                              : ThemeMode.dark;
-                          ref
-                              .read(configServiceProvider.notifier)
-                              .setThemeMode(newMode);
+                            ),
+                          );
                         },
                       ),
-                    ),
-                    spacing.horizontal.md,
 
-                    // User Profile
-                    UserProfileBar(spacing: spacing),
+                      // Sync Status Badge - shows sync progress and errors
+                      if (canAccessSync)
+                        Padding(
+                          padding: EdgeInsets.only(right: spacing.sm),
+                          child: SyncStatusBadge(
+                            size: 24,
+                            showTooltip: true,
+                            onTap: () => context.go(AppRouter.sync),
+                          ),
+                        ),
 
-                    if (!kIsWeb &&
-                        (defaultTargetPlatform == TargetPlatform.windows ||
-                            defaultTargetPlatform == TargetPlatform.macOS ||
-                            defaultTargetPlatform == TargetPlatform.linux))
-                      SizedBox(
-                        width: 138,
-                        height: 50,
-                        child: WindowCaption(
-                          brightness: FluentTheme.of(context).brightness,
-                          backgroundColor: Colors.transparent,
+                      // Activities
+                      if (canAccessActivities)
+                        Consumer(
+                          builder: (context, ref, child) {
+                            final counters = ref.watch(
+                              notificationCounterProvider,
+                            );
+                            final activityCount = counters.activityCounter;
+
+                            return Tooltip(
+                              message: 'Actividades pendientes',
+                              child: IconButton(
+                                icon: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Stack(
+                                      clipBehavior: Clip.none,
+                                      children: [
+                                        const Icon(FluentIcons.clock, size: 20),
+                                        if (activityCount > 0)
+                                          Positioned(
+                                            top: -4,
+                                            right: -4,
+                                            child: Container(
+                                              padding: const EdgeInsets.all(2),
+                                              decoration: BoxDecoration(
+                                                color: Colors.red,
+                                                shape: BoxShape.circle,
+                                              ),
+                                              constraints: const BoxConstraints(
+                                                minWidth: 14,
+                                                minHeight: 14,
+                                              ),
+                                              child: Text(
+                                                activityCount > 99
+                                                    ? '99+'
+                                                    : '$activityCount',
+                                                style: const TextStyle(
+                                                  color: Colors.white,
+                                                  fontSize: 9,
+                                                  fontWeight: FontWeight.bold,
+                                                ),
+                                                textAlign: TextAlign.center,
+                                              ),
+                                            ),
+                                          ),
+                                      ],
+                                    ),
+                                    if (screenWidth >=
+                                        ScreenBreakpoints.tabletMaxWidth) ...[
+                                      const SizedBox(width: 4),
+                                      const Text(
+                                        'Actividades',
+                                        style: TextStyle(fontSize: 11),
+                                      ),
+                                    ],
+                                  ],
+                                ),
+                                onPressed: () {
+                                  context.go(AppRouter.activities);
+                                },
+                              ),
+                            );
+                          },
+                        ),
+                      spacing.horizontal.sm,
+
+                      // Server Status Indicator
+                      const ServerStatusWidget(showLatency: true),
+                      spacing.horizontal.sm,
+
+                      // Theme Toggle
+                      Tooltip(
+                        message: 'Cambiar Tema',
+                        child: IconButton(
+                          icon: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(
+                                FluentTheme.of(context).brightness ==
+                                        Brightness.dark
+                                    ? FluentIcons.sunny
+                                    : FluentIcons.clear_night,
+                                size: 20,
+                              ),
+                              if (screenWidth >=
+                                  ScreenBreakpoints.tabletMaxWidth) ...[
+                                const SizedBox(width: 4),
+                                Text(
+                                  FluentTheme.of(context).brightness ==
+                                          Brightness.dark
+                                      ? 'Claro'
+                                      : 'Oscuro',
+                                  style: const TextStyle(fontSize: 11),
+                                ),
+                              ],
+                            ],
+                          ),
+                          onPressed: () {
+                            final currentMode = ref
+                                .read(configServiceProvider)
+                                .themeMode;
+                            final newMode = currentMode == ThemeMode.dark
+                                ? ThemeMode.light
+                                : ThemeMode.dark;
+                            ref
+                                .read(configServiceProvider.notifier)
+                                .setThemeMode(newMode);
+                          },
                         ),
                       ),
-                  ],
+                      spacing.horizontal.md,
+
+                      // User Profile
+                      UserProfileBar(spacing: spacing),
+
+                      if (!kIsWeb &&
+                          (defaultTargetPlatform == TargetPlatform.windows ||
+                              defaultTargetPlatform == TargetPlatform.macOS ||
+                              defaultTargetPlatform == TargetPlatform.linux))
+                        SizedBox(
+                          width: 138,
+                          height: 50,
+                          child: WindowCaption(
+                            brightness: FluentTheme.of(context).brightness,
+                            backgroundColor: Colors.transparent,
+                          ),
+                        ),
+                    ],
+                  ),
                 ),
               ),
               pane: NavigationPane(
@@ -758,6 +764,35 @@ class _MainScreenState extends ConsumerState<MainScreen> with WindowListener {
           ),
           const ServerInfoBar(),
         ],
+      ),
+    );
+  }
+}
+
+const appShellHeaderHeight = 50.0;
+const appShellHeaderKey = ValueKey<String>('app-shell-header');
+const appShellHeaderContentKey = ValueKey<String>('app-shell-header-content');
+
+/// Fluent's stock [TitleBar] applies the system inset twice: once in its
+/// `SafeArea` and again in `calculateHeight`. This keeps the `TitleBar` type so
+/// NavigationView uses the correct effective height in its iPad pane modes,
+/// while applying the still-unconsumed inset exactly once to the controls.
+class SingleInsetTitleBar extends TitleBar {
+  const SingleInsetTitleBar({required super.content, super.key})
+    : super(height: appShellHeaderHeight, isBackButtonVisible: false);
+
+  @override
+  Widget build(BuildContext context) {
+    final topInset = MediaQuery.paddingOf(context).top;
+    return ColoredBox(
+      color: FluentTheme.of(context).scaffoldBackgroundColor,
+      child: SizedBox(
+        width: double.infinity,
+        height: appShellHeaderHeight + topInset,
+        child: Padding(
+          padding: EdgeInsets.only(top: topInset),
+          child: SizedBox(height: appShellHeaderHeight, child: content),
+        ),
       ),
     );
   }

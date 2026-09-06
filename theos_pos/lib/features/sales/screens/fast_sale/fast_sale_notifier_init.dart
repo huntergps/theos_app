@@ -6,6 +6,37 @@ part of 'fast_sale_providers.dart';
 /// Contains cache sync logic, order editability checks, and the main
 /// [initialize] method that loads the seller's orders into tabs.
 extension FastSaleNotifierInit on FastSaleNotifier {
+  Future<FastSaleOrderAccess?> resolveOrderAccess() async {
+    final userRepo = ref.read(userRepositoryProvider);
+    final currentUser = await userRepo?.getCurrentUser();
+    if (currentUser == null) return null;
+    return _resolveOrderAccess(currentUser);
+  }
+
+  Future<FastSaleOrderAccess> _resolveOrderAccess(User currentUser) async {
+    final roles = resolveTheosUserRoles(currentUser.permissions);
+    final isCashierOnly =
+        roles.contains(TheosUserRole.cashier) &&
+        !roles.contains(TheosUserRole.seller);
+    if (!isCashierOnly) {
+      return resolveFastSaleOrderAccess(
+        user: currentUser,
+        audience: ref.read(fastSaleOrderAudienceProvider),
+        configs: const [],
+        sessions: const [],
+      );
+    }
+
+    final configs = await collectionConfigManager.getAll();
+    final sessions = await collectionSessionManager.searchLocal();
+    return resolveFastSaleOrderAccess(
+      user: currentUser,
+      audience: ref.read(fastSaleOrderAudienceProvider),
+      configs: configs,
+      sessions: sessions,
+    );
+  }
+
   /// Sync open orders from the cache when it updates
   ///
   /// Called by the cache listener when version changes.
@@ -188,15 +219,39 @@ extension FastSaleNotifierInit on FastSaleNotifier {
       }
 
       final userId = currentUser.id;
+      final access = await _resolveOrderAccess(currentUser);
+
+      if (force) {
+        final catalogRepo = ref.read(catalogSyncRepositoryProvider);
+        try {
+          await refreshFastSaleOrderHeaders(
+            isOnline: catalogRepo?.isOnline == true,
+            sync: () => catalogRepo!.syncSaleOrders(batchSize: 200),
+          );
+        } catch (e) {
+          logger.w(
+            '[FastSale]',
+            'Remote order refresh failed; using the scoped local cache: $e',
+          );
+        }
+      }
 
       // Get total count of available orders
       final totalCount = await saleOrderManager.countSaleOrdersForPOS(
-        userId: userId,
+        userId: access.sellerUserId,
+        companyIds: access.companyIds,
+        collectionSessionIds: access.collectionSessionIds,
+        states: access.states,
+        invoiceStatuses: access.invoiceStatuses,
       );
 
       // Load orders (limited to maxTabs)
       final orders = await saleOrderManager.getSaleOrdersForPOS(
-        userId: userId,
+        userId: access.sellerUserId,
+        companyIds: access.companyIds,
+        collectionSessionIds: access.collectionSessionIds,
+        states: access.states,
+        invoiceStatuses: access.invoiceStatuses,
         limit: state.maxTabs,
       );
 

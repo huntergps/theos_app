@@ -12,9 +12,14 @@ abstract final class LoginFormKeys {
   static const server = ValueKey<String>('login.server');
   static const database = ValueKey<String>('login.database');
   static const apiKey = ValueKey<String>('login.api-key');
+  static const username = ValueKey<String>('login.username');
+  static const password = ValueKey<String>('login.password');
+  static const credentialMode = ValueKey<String>('login.credential-mode');
   static const submit = ValueKey<String>('login.submit');
   static const manageServers = ValueKey<String>('login.manage-servers');
 }
+
+enum LoginCredentialMode { password, apiKey }
 
 /// Formulario de acceso aislado de la gestión de sesión y ventanas.
 ///
@@ -24,6 +29,9 @@ class LoginForm extends StatelessWidget {
   const LoginForm({
     required this.formKey,
     required this.controller,
+    required this.usernameController,
+    required this.credentialMode,
+    required this.nativePasswordLoginAvailable,
     required this.servers,
     required this.selectedServer,
     required this.spacing,
@@ -32,6 +40,7 @@ class LoginForm extends StatelessWidget {
     required this.loadingStage,
     required this.onServerChanged,
     required this.onTogglePassword,
+    required this.onCredentialModeChanged,
     required this.onSubmit,
     required this.onManageServers,
     super.key,
@@ -39,6 +48,9 @@ class LoginForm extends StatelessWidget {
 
   final GlobalKey<FormState> formKey;
   final TextEditingController controller;
+  final TextEditingController usernameController;
+  final LoginCredentialMode credentialMode;
+  final bool nativePasswordLoginAvailable;
   final List<ServerConfig> servers;
   final ServerConfig? selectedServer;
   final ThemedSpacing spacing;
@@ -47,6 +59,7 @@ class LoginForm extends StatelessWidget {
   final String loadingStage;
   final ValueChanged<ServerConfig?> onServerChanged;
   final VoidCallback onTogglePassword;
+  final ValueChanged<LoginCredentialMode> onCredentialModeChanged;
   final VoidCallback onSubmit;
   final VoidCallback onManageServers;
 
@@ -90,11 +103,32 @@ class LoginForm extends StatelessWidget {
             ),
             spacing.vertical.md,
           ],
+          if (credentialMode == LoginCredentialMode.password) ...[
+            FormTextField(
+              key: LoginFormKeys.username,
+              label: 'Usuario',
+              controller: usernameController,
+              placeholder: 'Ingresa tu usuario',
+              prefix: Padding(
+                padding: EdgeInsets.only(left: spacing.sm),
+                child: const Icon(FluentIcons.contact),
+              ),
+              validator: (value) =>
+                  value == null || value.trim().isEmpty ? 'Requerido' : null,
+            ),
+            spacing.vertical.md,
+          ],
           FormTextField(
-            key: LoginFormKeys.apiKey,
-            label: 'Clave de acceso',
+            key: credentialMode == LoginCredentialMode.password
+                ? LoginFormKeys.password
+                : LoginFormKeys.apiKey,
+            label: credentialMode == LoginCredentialMode.password
+                ? 'Contraseña'
+                : 'Clave API',
             controller: controller,
-            placeholder: 'Ingresa tu clave de acceso',
+            placeholder: credentialMode == LoginCredentialMode.password
+                ? 'Ingresa tu contraseña'
+                : 'Ingresa tu clave API',
             obscureText: !showPassword,
             prefix: Padding(
               padding: EdgeInsets.only(left: spacing.sm),
@@ -107,6 +141,25 @@ class LoginForm extends StatelessWidget {
             validator: (value) =>
                 value == null || value.isEmpty ? 'Requerido' : null,
           ),
+          if (nativePasswordLoginAvailable) ...[
+            spacing.vertical.sm,
+            Align(
+              alignment: Alignment.centerRight,
+              child: HyperlinkButton(
+                key: LoginFormKeys.credentialMode,
+                onPressed: () => onCredentialModeChanged(
+                  credentialMode == LoginCredentialMode.password
+                      ? LoginCredentialMode.apiKey
+                      : LoginCredentialMode.password,
+                ),
+                child: Text(
+                  credentialMode == LoginCredentialMode.password
+                      ? 'Usar clave API (avanzado)'
+                      : 'Usar usuario y contraseña',
+                ),
+              ),
+            ),
+          ],
           spacing.vertical.lg,
           SizedBox(
             width: double.infinity,

@@ -12,6 +12,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'core/constants/app_constants.dart';
 import 'core/services/global_error_handler.dart';
 import 'core/services/config_service.dart';
+import 'features/authentication/services/branding_service.dart';
 import 'routes/app_routes.dart';
 
 import 'shared/models/app_config_model.dart';
@@ -137,6 +138,7 @@ class MyApp extends ConsumerWidget {
   FluentThemeData _buildThemeWithTypography(
     Brightness brightness,
     AppConfigModel config,
+    BrandingThemeTokens branding,
   ) {
     // Obtener tipografía base de Fluent UI con el brightness correcto
     final baseTypography = FluentThemeData(brightness: brightness).typography;
@@ -150,37 +152,57 @@ class MyApp extends ConsumerWidget {
     final customTypography = Typography.raw(
       display: _createTextStyleWithFactor(
         baseTypography.display,
-        config.displayFactor,
+        config.displayFactor * branding.textScale,
       ),
       titleLarge: _createTextStyleWithFactor(
         baseTypography.titleLarge,
-        config.titleLargeFactor,
+        config.titleLargeFactor * branding.textScale,
       ),
       title: _createTextStyleWithFactor(
         baseTypography.title,
-        config.titleFactor,
+        config.titleFactor * branding.textScale,
       ),
       bodyLarge: _createTextStyleWithFactor(
         baseTypography.bodyLarge,
-        config.bodyLargeFactor,
+        config.bodyLargeFactor * branding.textScale,
       ),
       bodyStrong: _createTextStyleWithFactor(
         baseTypography.bodyStrong,
-        config.bodyStrongFactor,
+        config.bodyStrongFactor * branding.textScale,
       ),
-      body: _createTextStyleWithFactor(baseTypography.body, config.bodyFactor),
+      body: _createTextStyleWithFactor(
+        baseTypography.body,
+        config.bodyFactor * branding.textScale,
+      ),
       caption: _createTextStyleWithFactor(
         baseTypography.caption,
-        config.captionFactor,
+        config.captionFactor * branding.textScale,
       ),
     );
 
+    final actionColor = branding.accentFor(brightness);
     return FluentThemeData(
       brightness: brightness,
-      accentColor: config.accentColor,
+      accentColor: actionColor == null
+          ? config.accentColor
+          : AccentColor.swatch({'normal': actionColor}),
+      scaffoldBackgroundColor: brightness == Brightness.dark
+          ? branding.darkSurfaceColor
+          : null,
       visualDensity: VisualDensity.standard,
       typography: customTypography,
       focusTheme: FocusThemeData(glowFactor: 0.0),
+      buttonTheme: branding.cornerRadius == null
+          ? null
+          : ButtonThemeData.all(
+              ButtonStyle(
+                shape: WidgetStatePropertyAll(
+                  RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(branding.cornerRadius!),
+                  ),
+                ),
+              ),
+            ),
     );
   }
 
@@ -194,6 +216,7 @@ class MyApp extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final config = ref.watch(configServiceProvider);
+    final branding = ref.watch(appBrandingProvider);
     ref.listen(configServiceProvider, (_, updatedConfig) {
       final currentSession = AppRouter.session.value;
       AppRouter.session.value = RouteSessionSnapshot(
@@ -213,11 +236,19 @@ class MyApp extends ConsumerWidget {
 
     return FluentApp.router(
       debugShowCheckedModeBanner: false,
-      title: 'Orbi ERP',
+      title: branding.title ?? 'Orbi ERP',
       themeMode: config.themeMode,
-      color: config.accentColor,
-      darkTheme: _buildThemeWithTypography(Brightness.dark, config),
-      theme: _buildThemeWithTypography(Brightness.light, config),
+      color: branding.theme.accentColor ?? config.accentColor,
+      darkTheme: _buildThemeWithTypography(
+        Brightness.dark,
+        config,
+        branding.theme,
+      ),
+      theme: _buildThemeWithTypography(
+        Brightness.light,
+        config,
+        branding.theme,
+      ),
       locale: const Locale('es'),
       routerConfig: appRouter,
       builder: (context, child) {

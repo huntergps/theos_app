@@ -55,6 +55,7 @@ class ServerConfig {
   final String name;
   final String url;
   final String database;
+  final String? login;
   final String? apiKey;
   final int? partnerId;
   final String? imStatusAccessToken;
@@ -63,6 +64,7 @@ class ServerConfig {
     required this.name,
     required this.url,
     required this.database,
+    this.login,
     this.apiKey,
     this.partnerId,
     this.imStatusAccessToken,
@@ -72,6 +74,7 @@ class ServerConfig {
     'name': name,
     'url': url,
     'database': database,
+    'login': login,
     'partnerId': partnerId,
   };
 
@@ -79,6 +82,7 @@ class ServerConfig {
     name: json['name'],
     url: json['url'],
     database: json['database'],
+    login: json['login'] as String?,
     partnerId: json['partnerId'],
   );
 
@@ -86,6 +90,7 @@ class ServerConfig {
     String? name,
     String? url,
     String? database,
+    String? login,
     String? apiKey,
     int? partnerId,
     String? imStatusAccessToken,
@@ -94,6 +99,7 @@ class ServerConfig {
       name: name ?? this.name,
       url: url ?? this.url,
       database: database ?? this.database,
+      login: login ?? this.login,
       apiKey: apiKey ?? this.apiKey,
       partnerId: partnerId ?? this.partnerId,
       imStatusAccessToken: imStatusAccessToken ?? this.imStatusAccessToken,
@@ -108,6 +114,7 @@ class ServerConfig {
         other.name == name &&
         other.url == url &&
         other.database == database &&
+        other.login == login &&
         other.apiKey == apiKey &&
         other.partnerId == partnerId &&
         other.imStatusAccessToken == imStatusAccessToken;
@@ -118,6 +125,7 @@ class ServerConfig {
       name.hashCode ^
       url.hashCode ^
       database.hashCode ^
+      login.hashCode ^
       apiKey.hashCode ^
       partnerId.hashCode ^
       imStatusAccessToken.hashCode;

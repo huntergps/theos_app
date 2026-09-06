@@ -6,9 +6,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:window_manager/window_manager.dart';
 
-import '../../../../core/constants/app_colors.dart';
 import '../../../../core/services/odoo_service.dart';
 import '../services/server_service.dart';
+import '../services/branding_service.dart';
 import '../services/offline_session_attempt_guard.dart';
 import '../../../../core/services/config_service.dart';
 import '../../../../core/services/app_initializer.dart';
@@ -23,15 +23,24 @@ import '../../../../core/theme/spacing.dart';
 import 'package:odoo_sdk/odoo_sdk.dart' show logger;
 
 import '../../../../shared/widgets/dialogs/copyable_info_bar.dart';
-import '../../../../shared/widgets/theos_logo.dart';
 import '../../../../shared/providers/user_provider.dart';
 
 import 'package:odoo_sdk/odoo_sdk.dart'
-    show OdooAuthenticationException, OdooAccessDeniedException;
+    show
+        NativeAuthBootstrapException,
+        NativeAuthBootstrapFailureKind,
+        NativeOdooAuthBootstrap,
+        OdooAuthenticationException,
+        OdooAccessDeniedException;
 import 'package:theos_pos_core/theos_pos_core.dart'
     show userManager, User, UserManagerBusiness;
 
 import '../widgets/login_form.dart';
+import '../widgets/login_branding_panel.dart';
+
+final nativeOdooAuthBootstrapProvider = Provider<NativeOdooAuthBootstrap>(
+  (ref) => NativeOdooAuthBootstrap(),
+);
 
 class LoginScreen extends ConsumerStatefulWidget {
   const LoginScreen({super.key});
@@ -42,7 +51,11 @@ class LoginScreen extends ConsumerStatefulWidget {
 
 class _LoginScreenState extends ConsumerState<LoginScreen> with WindowListener {
   final _formKey = GlobalKey<FormState>();
-  final _apiKeyController = TextEditingController();
+  final _credentialController = TextEditingController();
+  final _usernameController = TextEditingController();
+  LoginCredentialMode _credentialMode = kIsWeb
+      ? LoginCredentialMode.apiKey
+      : LoginCredentialMode.password;
 
   ServerConfig? _selectedServer;
   bool _isLoading = false;
@@ -50,6 +63,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> with WindowListener {
   String _loadingStage = '';
   Timer? _saveDebounceTimer;
   bool _isMaximized = false;
+  String? _requestedBrandingScope;
 
   bool get _isDesktop {
     if (kIsWeb) return false;
@@ -77,7 +91,8 @@ class _LoginScreenState extends ConsumerState<LoginScreen> with WindowListener {
     if (_isDesktop) {
       windowManager.removeListener(this);
     }
-    _apiKeyController.dispose();
+    _credentialController.dispose();
+    _usernameController.dispose();
     super.dispose();
   }
 
@@ -182,17 +197,23 @@ class _LoginScreenState extends ConsumerState<LoginScreen> with WindowListener {
   Widget build(BuildContext context) {
     final servers = ref.watch(serverServiceProvider);
     final spacing = ref.watch(themedSpacingProvider);
+    final branding = ref.watch(appBrandingProvider);
 
     // Auto-select first server if none selected
     if (_selectedServer == null && servers.isNotEmpty) {
       final initialServer = servers.first;
       _selectedServer = initialServer;
       final initialApiKey = initialServer.apiKey;
-      if (_apiKeyController.text.isEmpty &&
+      if (_usernameController.text.isEmpty && initialServer.login != null) {
+        _usernameController.text = initialServer.login!;
+      }
+      if (_credentialMode == LoginCredentialMode.apiKey &&
+          _credentialController.text.isEmpty &&
           initialApiKey != null &&
           initialApiKey.isNotEmpty) {
-        _apiKeyController.text = initialApiKey;
+        _credentialController.text = initialApiKey;
       }
+      _requestBranding(initialServer);
     }
 
     return ScaffoldPage(
@@ -205,8 +226,8 @@ class _LoginScreenState extends ConsumerState<LoginScreen> with WindowListener {
 
               if (isMobileLayout) {
                 // Mobile Layout (Single Column)
-                return Container(
-                  color: AppColors.loginBackground,
+                return LoginBrandingPanel(
+                  branding: branding,
                   child: Center(
                     child: SingleChildScrollView(
                       padding: spacing.all.lg,
@@ -214,7 +235,10 @@ class _LoginScreenState extends ConsumerState<LoginScreen> with WindowListener {
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
                           // Logo area
-                          TheosLogoName(height: 150, color: Colors.white),
+                          LoginBrandLogo(
+                            logoBytes: branding.logoBytes,
+                            height: 150,
+                          ),
                           spacing.vertical.xl,
                           // Form area
                           Container(
@@ -227,7 +251,10 @@ class _LoginScreenState extends ConsumerState<LoginScreen> with WindowListener {
                             ),
                             child: LoginForm(
                               formKey: _formKey,
-                              controller: _apiKeyController,
+                              controller: _credentialController,
+                              usernameController: _usernameController,
+                              credentialMode: _credentialMode,
+                              nativePasswordLoginAvailable: !kIsWeb,
                               servers: servers,
                               selectedServer: _selectedServer,
                               spacing: spacing,
@@ -237,16 +264,14 @@ class _LoginScreenState extends ConsumerState<LoginScreen> with WindowListener {
                               onServerChanged: (value) {
                                 setState(() {
                                   _selectedServer = value;
-                                  if (value?.apiKey != null) {
-                                    _apiKeyController.text = value!.apiKey!;
-                                  } else {
-                                    _apiKeyController.clear();
-                                  }
+                                  _applySelectedServerCredentials(value);
                                 });
+                                _requestBranding(value);
                               },
                               onTogglePassword: () => setState(
                                 () => _showPassword = !_showPassword,
                               ),
+                              onCredentialModeChanged: _changeCredentialMode,
                               onSubmit: _login,
                               onManageServers: () =>
                                   _showManageServersDialog(context),
@@ -264,12 +289,15 @@ class _LoginScreenState extends ConsumerState<LoginScreen> with WindowListener {
                     // Left Panel
                     Expanded(
                       flex: 3,
-                      child: Container(
-                        color: AppColors.loginBackground,
+                      child: LoginBrandingPanel(
+                        branding: branding,
                         child: Column(
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
-                            TheosLogoName(height: 300, color: Colors.white),
+                            LoginBrandLogo(
+                              logoBytes: branding.logoBytes,
+                              height: 300,
+                            ),
                           ],
                         ),
                       ),
@@ -288,9 +316,9 @@ class _LoginScreenState extends ConsumerState<LoginScreen> with WindowListener {
                                 mainAxisAlignment: MainAxisAlignment.center,
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
-                                  const Text(
-                                    'Bienvenido',
-                                    style: TextStyle(
+                                  Text(
+                                    branding.title ?? 'Bienvenido',
+                                    style: const TextStyle(
                                       fontSize: 40,
                                       fontWeight: FontWeight.bold,
                                     ),
@@ -306,7 +334,10 @@ class _LoginScreenState extends ConsumerState<LoginScreen> with WindowListener {
                                   spacing.vertical.xl,
                                   LoginForm(
                                     formKey: _formKey,
-                                    controller: _apiKeyController,
+                                    controller: _credentialController,
+                                    usernameController: _usernameController,
+                                    credentialMode: _credentialMode,
+                                    nativePasswordLoginAvailable: !kIsWeb,
                                     servers: servers,
                                     selectedServer: _selectedServer,
                                     spacing: spacing,
@@ -316,17 +347,15 @@ class _LoginScreenState extends ConsumerState<LoginScreen> with WindowListener {
                                     onServerChanged: (value) {
                                       setState(() {
                                         _selectedServer = value;
-                                        if (value?.apiKey != null) {
-                                          _apiKeyController.text =
-                                              value!.apiKey!;
-                                        } else {
-                                          _apiKeyController.clear();
-                                        }
+                                        _applySelectedServerCredentials(value);
                                       });
+                                      _requestBranding(value);
                                     },
                                     onTogglePassword: () => setState(
                                       () => _showPassword = !_showPassword,
                                     ),
+                                    onCredentialModeChanged:
+                                        _changeCredentialMode,
                                     onSubmit: _login,
                                     onManageServers: () =>
                                         _showManageServersDialog(context),
@@ -637,6 +666,39 @@ class _LoginScreenState extends ConsumerState<LoginScreen> with WindowListener {
     if (mounted) setState(() => _loadingStage = stage);
   }
 
+  void _applySelectedServerCredentials(ServerConfig? server) {
+    _usernameController.text = server?.login ?? '';
+    _credentialController.text = _credentialMode == LoginCredentialMode.apiKey
+        ? server?.apiKey ?? ''
+        : '';
+  }
+
+  void _requestBranding(ServerConfig? server) {
+    if (server == null) {
+      _requestedBrandingScope = null;
+      return;
+    }
+    final identity = '${server.url.trim()}\u0000${server.database.trim()}';
+    if (_requestedBrandingScope == identity) return;
+    _requestedBrandingScope = identity;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || _requestedBrandingScope != identity) return;
+      unawaited(
+        ref
+            .read(appBrandingProvider.notifier)
+            .selectServer(serverUrl: server.url, database: server.database),
+      );
+    });
+  }
+
+  void _changeCredentialMode(LoginCredentialMode mode) {
+    setState(() {
+      _credentialMode = mode;
+      _showPassword = false;
+      _applySelectedServerCredentials(_selectedServer);
+    });
+  }
+
   Future<void> _login() async {
     if (_formKey.currentState?.validate() != true) {
       logger.d('[LOGIN] ⚠️ Formulario inválido');
@@ -663,11 +725,30 @@ class _LoginScreenState extends ConsumerState<LoginScreen> with WindowListener {
 
     final url = _selectedServer!.url;
     final db = _selectedServer!.database;
-    final apiKey = _apiKeyController.text.trim();
+    var apiKey = _credentialMode == LoginCredentialMode.apiKey
+        ? _credentialController.text.trim()
+        : '';
+    final username = _usernameController.text.trim();
     var scopeActivated = false;
     var sessionCommitted = false;
 
     try {
+      int? bootstrappedUserId;
+      if (_credentialMode == LoginCredentialMode.password) {
+        _setStage('Autenticando usuario...');
+        final result = await ref
+            .read(nativeOdooAuthBootstrapProvider)
+            .authenticateAndCreateApiKey(
+              baseUrl: url,
+              database: db,
+              login: username,
+              password: _credentialController.text,
+            );
+        apiKey = result.apiKey;
+        bootstrappedUserId = result.userId;
+        _credentialController.clear();
+      }
+
       final odoo = ref.read(odooServiceProvider);
       odoo.setCredentials(url, apiKey, db);
 
@@ -679,6 +760,10 @@ class _LoginScreenState extends ConsumerState<LoginScreen> with WindowListener {
       try {
         _setStage('Verificando credenciales...');
         authenticatedUserId = await odoo.resolveCurrentUserId();
+        if (bootstrappedUserId != null &&
+            authenticatedUserId != bootstrappedUserId) {
+          throw StateError('La identidad de la credencial no coincide');
+        }
         success = true;
       } on OdooAuthenticationException {
         // HTTP 401 — API key is invalid/expired. Do NOT fall through to offline login.
@@ -737,6 +822,9 @@ class _LoginScreenState extends ConsumerState<LoginScreen> with WindowListener {
           name: _selectedServer!.name,
           url: url,
           database: db,
+          login: _credentialMode == LoginCredentialMode.password
+              ? username
+              : _selectedServer!.login,
           apiKey: apiKey,
         );
 
@@ -853,6 +941,18 @@ class _LoginScreenState extends ConsumerState<LoginScreen> with WindowListener {
             .read(userProvider.notifier)
             .setUser(finalUser, isOffline: false);
 
+        final companyId = finalUser.companyId;
+        if (companyId != null && companyId > 0) {
+          unawaited(
+            ref
+                .read(appBrandingProvider.notifier)
+                .applyAuthenticated(
+                  client: initResult.odooClient,
+                  companyId: companyId,
+                ),
+          );
+        }
+
         // Credential persistence is part of the login commit. Continuing
         // after a keychain failure would appear successful but force another
         // login on the next launch.
@@ -900,6 +1000,40 @@ class _LoginScreenState extends ConsumerState<LoginScreen> with WindowListener {
           );
         }
       }
+    } on NativeAuthBootstrapException catch (e) {
+      if (mounted) {
+        final (title, message) = switch (e.kind) {
+          NativeAuthBootstrapFailureKind.invalidCredentials => (
+            'Credenciales inválidas',
+            'El usuario o la contraseña no son válidos.',
+          ),
+          NativeAuthBootstrapFailureKind.additionalVerificationRequired => (
+            'Verificación adicional requerida',
+            'Esta cuenta requiere un segundo factor. Completa el acceso en Odoo o usa una clave API en Opciones avanzadas.',
+          ),
+          NativeAuthBootstrapFailureKind.insecureTransport => (
+            'Conexión no segura',
+            'El acceso con contraseña requiere un servidor HTTPS.',
+          ),
+          NativeAuthBootstrapFailureKind.unsupportedPlatform => (
+            'Acceso no disponible',
+            'En Web usa una clave API desde Opciones avanzadas.',
+          ),
+          NativeAuthBootstrapFailureKind.accessDenied => (
+            'Acceso denegado',
+            'Odoo no autorizó crear una credencial para esta cuenta.',
+          ),
+          NativeAuthBootstrapFailureKind.connection => (
+            'Sin conexión',
+            'El primer acceso con usuario y contraseña requiere conexión. Si ya iniciaste sesión antes, abre la aplicación normalmente para usar el modo offline.',
+          ),
+          NativeAuthBootstrapFailureKind.protocol => (
+            'Respuesta no válida',
+            'Odoo no pudo completar el acceso seguro.',
+          ),
+        };
+        CopyableInfoBar.showError(context, title: title, message: message);
+      }
     } catch (e) {
       if (scopeActivated && !sessionCommitted) {
         AppRouter.session.value = const RouteSessionSnapshot();
@@ -920,6 +1054,9 @@ class _LoginScreenState extends ConsumerState<LoginScreen> with WindowListener {
         );
       }
     } finally {
+      if (_credentialMode == LoginCredentialMode.password) {
+        _credentialController.clear();
+      }
       if (mounted) {
         setState(() => _isLoading = false);
       }

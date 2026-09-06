@@ -11,6 +11,7 @@ import '../../../../core/managers/manager_providers.dart'
     show appDatabaseProvider;
 import '../../../../shared/providers/company_config_provider.dart'
     show getMaxDiscountPercentage;
+import '../../../../shared/constants/user_groups.dart';
 
 import 'package:theos_pos_core/theos_pos_core.dart'
     hide DatabaseHelper, PartnerBank;
@@ -46,6 +47,89 @@ part 'fast_sale_notifier_state.dart';
 
 /// Sub-tab type for the order panel (Productos | Lineas | Pagos/Credito)
 enum OrderPanelTab { products, lines, payments }
+
+enum FastSaleOrderAudience { mine, all }
+
+class FastSaleOrderAudienceNotifier extends Notifier<FastSaleOrderAudience> {
+  @override
+  FastSaleOrderAudience build() => FastSaleOrderAudience.mine;
+
+  void setAudience(FastSaleOrderAudience audience) => state = audience;
+}
+
+final fastSaleOrderAudienceProvider =
+    NotifierProvider<FastSaleOrderAudienceNotifier, FastSaleOrderAudience>(
+      FastSaleOrderAudienceNotifier.new,
+    );
+
+Future<bool> refreshFastSaleOrderHeaders({
+  required bool isOnline,
+  required Future<void> Function() sync,
+}) async {
+  if (!isOnline) return false;
+  await sync();
+  return true;
+}
+
+class FastSaleOrderAccess {
+  final int? sellerUserId;
+  final List<int>? companyIds;
+  final List<int>? collectionSessionIds;
+  final List<String> states;
+  final List<String>? invoiceStatuses;
+
+  const FastSaleOrderAccess({
+    required this.sellerUserId,
+    required this.companyIds,
+    required this.collectionSessionIds,
+    required this.states,
+    required this.invoiceStatuses,
+  });
+}
+
+FastSaleOrderAccess resolveFastSaleOrderAccess({
+  required User user,
+  required FastSaleOrderAudience audience,
+  required List<CollectionConfig> configs,
+  required List<CollectionSession> sessions,
+}) {
+  final roles = resolveTheosUserRoles(user.permissions);
+  final isSeller = roles.contains(TheosUserRole.seller);
+  final isCashierOnly = roles.contains(TheosUserRole.cashier) && !isSeller;
+
+  if (!isCashierOnly) {
+    final mine = audience == FastSaleOrderAudience.mine;
+    return FastSaleOrderAccess(
+      sellerUserId: mine ? user.id : null,
+      companyIds: null,
+      collectionSessionIds: null,
+      states: const ['draft', 'sent', 'waiting', 'approved', 'sale'],
+      invoiceStatuses: null,
+    );
+  }
+
+  final authorizedConfigs = configs
+      .where((config) => config.userIds?.contains(user.id) == true)
+      .toList();
+  final configIds = authorizedConfigs.map((config) => config.id).toSet();
+  final companyIds = authorizedConfigs
+      .map((config) => config.companyId)
+      .whereType<int>()
+      .toSet()
+      .toList();
+  final sessionIds = sessions
+      .where((session) => configIds.contains(session.configId))
+      .map((session) => session.id)
+      .toList();
+
+  return FastSaleOrderAccess(
+    sellerUserId: null,
+    companyIds: companyIds,
+    collectionSessionIds: sessionIds,
+    states: const ['sale'],
+    invoiceStatuses: const ['to invoice'],
+  );
+}
 
 /// Notifier for the current panel tab (Productos | Lineas | Pagos)
 class OrderPanelTabNotifier extends Notifier<OrderPanelTab> {

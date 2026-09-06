@@ -62,6 +62,59 @@ typedef ExistingInvoiceCollector = Future<int> Function({
   required List<PaymentLine> lines,
 });
 
+/// Replaceable boundary around the dependencies used by the posted-invoice
+/// branch. Production still resolves the real repositories and persistence
+/// service; widget tests can exercise the real button without opening Drift or
+/// replacing the payment producer itself.
+class ExistingInvoiceCollectionUiGateway {
+  const ExistingInvoiceCollectionUiGateway({
+    required this.loadInvoices,
+    required this.loadQueuedLineUuids,
+    required this.collect,
+    required this.reloadPaymentLines,
+  });
+
+  final Future<List<AccountMove>> Function(int saleOrderId) loadInvoices;
+  final Future<Set<String>> Function(int saleOrderId) loadQueuedLineUuids;
+  final ExistingInvoiceCollector collect;
+  final Future<void> Function(int saleOrderId) reloadPaymentLines;
+}
+
+final existingInvoiceCollectionUiGatewayProvider =
+    Provider<ExistingInvoiceCollectionUiGateway>((ref) {
+      return ExistingInvoiceCollectionUiGateway(
+        loadInvoices: (saleOrderId) => ref
+            .read(invoiceRepositoryProvider)
+            .getInvoicesForSaleOrder(saleOrderId, forceRefresh: false),
+        loadQueuedLineUuids: (saleOrderId) async {
+          final queue = ref.read(offlineQueueDataSourceProvider);
+          if (queue == null) return const <String>{};
+          final operations = await queue.getOperationsForSaleOrder(saleOrderId);
+          final uuids = <String>{};
+          for (final operation in operations) {
+            if (operation.method ==
+                    OfflineLocalCommand.invoiceCollectExisting.storageName ||
+                operation.method ==
+                    OfflineLocalCommand.paymentWizardApply.storageName ||
+                operation.method ==
+                    OfflineLocalCommand.invoiceCreateWithPayments.storageName) {
+              final rawUuids = operation.values['payment_line_uuids'];
+              if (rawUuids is List) {
+                uuids.addAll(
+                  rawUuids.whereType<String>().where((id) => id.isNotEmpty),
+                );
+              }
+            }
+          }
+          return uuids;
+        },
+        collect: ref.read(paymentServiceProvider).collectExistingInvoiceOffline,
+        reloadPaymentLines: (saleOrderId) => ref
+            .read(posPaymentLinesByOrderProvider.notifier)
+            .loadFromDb(saleOrderId),
+      );
+    });
+
 /// UI adapter for collecting against an already-posted invoice. Keeping the
 /// policy here makes the screen testable without replacing the payment
 /// persistence service or weakening its native guards.
@@ -1278,8 +1331,6 @@ class _POSPaymentTabState extends ConsumerState<POSPaymentTab> {
     setState(() => _isSaving = true);
 
     try {
-      final paymentService = ref.read(paymentServiceProvider);
-      final salesRepo = ref.read(salesRepositoryProvider);
       final currentSession = ref.read(currentSessionProvider);
       if (currentSession?.canRegisterTransactions != true) {
         if (context.mounted) {
@@ -1302,11 +1353,8 @@ class _POSPaymentTabState extends ConsumerState<POSPaymentTab> {
       // only unsynced lines are submitted so a retry cannot duplicate old
       // collections.
       if (order.isFullyInvoiced) {
-        final invoiceRepository = ref.read(invoiceRepositoryProvider);
-        final invoices = await invoiceRepository.getInvoicesForSaleOrder(
-          order.id,
-          forceRefresh: false,
-        );
+        final gateway = ref.read(existingInvoiceCollectionUiGatewayProvider);
+        final invoices = await gateway.loadInvoices(order.id);
         final invoice = invoices
             .where(
               (candidate) =>
@@ -1315,33 +1363,13 @@ class _POSPaymentTabState extends ConsumerState<POSPaymentTab> {
                   candidate.amountResidual > 0.000001,
             )
             .firstOrNull;
-        final queuedLineUuids = <String>{};
-        final offlineQueue = ref.read(offlineQueueDataSourceProvider);
-        if (offlineQueue != null) {
-          final operations = await offlineQueue.getOperationsForSaleOrder(
-            order.id,
-          );
-          for (final operation in operations) {
-            if (operation.method ==
-                    OfflineLocalCommand.invoiceCollectExisting.storageName ||
-                operation.method ==
-                    OfflineLocalCommand.paymentWizardApply.storageName ||
-                operation.method ==
-                    OfflineLocalCommand.invoiceCreateWithPayments.storageName) {
-              final rawUuids = operation.values['payment_line_uuids'];
-              if (rawUuids is List) {
-                queuedLineUuids.addAll(
-                  rawUuids.whereType<String>().where((id) => id.isNotEmpty),
-                );
-              }
-            }
-          }
-        }
+        final queuedLineUuids = await gateway.loadQueuedLineUuids(order.id);
         final newLines = paymentLines
             .where((line) => !line.isSynced)
             .toList(growable: false);
-        final user = await ref.read(currentUserProvider.future);
-        final operatorId = currentSession?.userId ?? user?.id;
+        final operatorId =
+            currentSession?.userId ??
+            (await ref.read(currentUserProvider.future))?.id;
         if (invoice == null || operatorId == null) {
           throw StateError(
             'No se encontró una factura cobrable o un operador válido.',
@@ -1354,11 +1382,9 @@ class _POSPaymentTabState extends ConsumerState<POSPaymentTab> {
           operatorId: operatorId,
           lines: newLines,
           queuedLineUuids: queuedLineUuids,
-          collector: paymentService.collectExistingInvoiceOffline,
+          collector: gateway.collect,
         );
-        await ref
-            .read(posPaymentLinesByOrderProvider.notifier)
-            .loadFromDb(activeTab.orderId);
+        await gateway.reloadPaymentLines(activeTab.orderId);
         if (context.mounted) {
           CopyableInfoBar.showSuccess(
             context,
@@ -1368,6 +1394,9 @@ class _POSPaymentTabState extends ConsumerState<POSPaymentTab> {
         }
         return;
       }
+
+      final paymentService = ref.read(paymentServiceProvider);
+      final salesRepo = ref.read(salesRepositoryProvider);
 
       // NOTE: Withhold lines are already saved/queued when added via posWithholdLinesByOrderProvider.addLine()
       // No need to re-save them here - that would create duplicate operations

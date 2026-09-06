@@ -51,6 +51,7 @@ void main() {
       name: 'ERP2',
       url: 'https://erp2.example.com',
       database: 'erp2',
+      login: 'seller@example.com',
       apiKey: 'secret-api-key',
       imStatusAccessToken: 'secret-token',
       partnerId: 7,
@@ -62,10 +63,12 @@ void main() {
       'name': 'ERP2',
       'url': 'https://erp2.example.com',
       'database': 'erp2',
+      'login': 'seller@example.com',
       'partnerId': 7,
     });
     expect(json.values, isNot(contains('secret-api-key')));
     expect(json.values, isNot(contains('secret-token')));
+    expect(json.toString(), isNot(contains('password')));
   });
 
   test('clean install exposes only ERP2 as the built-in server', () async {

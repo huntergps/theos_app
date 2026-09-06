@@ -112,8 +112,8 @@ class _FastSaleScreenState extends ConsumerState<FastSaleScreen> {
         return KeyEventResult.handled;
 
       case POSShortcutAction.refresh:
-        // Reload the current order from cache/server
-        notifier.initialize();
+        // Refresh remote headers when online, then rebuild from scoped cache.
+        notifier.initialize(force: true);
         return KeyEventResult.handled;
 
       case POSShortcutAction.togglePaymentMode:

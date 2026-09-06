@@ -186,7 +186,7 @@ extension _OfflineSyncPayment on OfflineSyncService {
       throw StateError('Falta la identidad de la operación fiscal offline.');
     }
     // A linked invoice is not proof of a completed payment. The canonical
-    // wizard verifies the durable fiscal receipt and handles committed retries.
+    // wizard verifies its durable operation identity and committed retries.
 
     // A supervisor choosing "Mantener local" on an overpayment conflict is
     // explicit approval to continue the intermediate advance wizard. Resume
@@ -514,10 +514,14 @@ extension _OfflineSyncPayment on OfflineSyncService {
         'El cobro requiere factura, venta y turno sincronizados e identidad durable.',
       );
     }
-    final commands = await adaptPaymentWizardCommands(
-      client,
-      _paymentWizardLineCommands(paymentLines),
-    );
+    final rawCommands = _paymentWizardLineCommands(paymentLines);
+    for (var index = 0; index < rawCommands.length; index++) {
+      final command = rawCommands[index] as List;
+      final values = Map<String, dynamic>.from(command[2] as Map);
+      values['pos_collection_line_uuid'] = lineUuids[index] as String;
+      rawCommands[index] = [command[0], command[1], values];
+    }
+    final commands = await adaptPaymentWizardCommands(client, rawCommands);
     final created = await client.call(
       model: 'l10n_ec_collection_box.sale.order.payment.wizard',
       method: 'create',
@@ -546,17 +550,16 @@ extension _OfflineSyncPayment on OfflineSyncService {
     );
     if (result is! Map ||
         result['success'] != true ||
-        result['invoice_id'] != invoiceId ||
-        result['receipt_id'] is! int ||
-        (result['receipt_id'] as int) <= 0) {
-      throw StateError('Odoo no acreditó el recibo completo de este cobro.');
+        result['operation_uuid'] != operationUuid ||
+        result['invoice_id'] != invoiceId) {
+      throw StateError('Odoo no acreditó la operación completa de este cobro.');
     }
     final remoteLines = result['payment_line_ids'];
     if (remoteLines is! List ||
         remoteLines.length != lineUuids.length ||
         remoteLines.any((id) => id is! int || id <= 0) ||
         remoteLines.toSet().length != remoteLines.length) {
-      throw StateError('El recibo no identifica todas las líneas del cobro.');
+      throw StateError('La operación no identifica todas las líneas del cobro.');
     }
     final remotePayments = result['payments'];
     if (remotePayments is! List ||
@@ -564,20 +567,44 @@ extension _OfflineSyncPayment on OfflineSyncService {
         remotePayments.any(
           (item) =>
               item is! Map ||
+              item['line_uuid'] is! String ||
+              (item['line_uuid'] as String).isEmpty ||
               item['payment_line_id'] is! int ||
               (item['payment_line_id'] as int) <= 0 ||
               item['payment_id'] is! int ||
               (item['payment_id'] as int) <= 0 ||
               item['move_id'] is! int ||
               (item['move_id'] as int) <= 0,
-        ) ||
-        remotePayments.asMap().entries.any(
-          (entry) =>
-              (entry.value as Map)['payment_line_id'] != remoteLines[entry.key],
         )) {
       throw StateError(
-        'El recibo no devuelve la contabilidad completa del cobro.',
+        'La operación no devuelve la contabilidad completa del cobro.',
       );
+    }
+    final paymentsByLineUuid = <String, Map>{};
+    for (final item in remotePayments.cast<Map>()) {
+      final uuid = item['line_uuid'] as String;
+      if (paymentsByLineUuid.containsKey(uuid)) {
+        throw StateError('Odoo devolvió una línea de cobro duplicada.');
+      }
+      paymentsByLineUuid[uuid] = item;
+    }
+    final expectedUuids = lineUuids.cast<String>().toSet();
+    final metadataLineIds = remotePayments
+        .cast<Map>()
+        .map((item) => item['payment_line_id'] as int)
+        .toSet();
+    final returnedLineIds = remoteLines.cast<int>().toSet();
+    if (paymentsByLineUuid.length != expectedUuids.length ||
+        !paymentsByLineUuid.keys.toSet().containsAll(expectedUuids) ||
+        returnedLineIds.length != metadataLineIds.length ||
+        !returnedLineIds.containsAll(metadataLineIds)) {
+      throw StateError('Odoo devolvió identidades ajenas a este cobro.');
+    }
+    final remoteResidual = result['amount_residual'];
+    if (remoteResidual is! num ||
+        !remoteResidual.toDouble().isFinite ||
+        remoteResidual.toDouble() < 0) {
+      throw StateError('Odoo devolvió un saldo de factura inválido.');
     }
     await _appDb.transaction(() async {
       for (var i = 0; i < lineUuids.length; i++) {
@@ -603,6 +630,7 @@ extension _OfflineSyncPayment on OfflineSyncService {
         if (localPayment == null) {
           throw StateError('Falta el pago local correlacionado del cobro.');
         }
+        final remote = paymentsByLineUuid[lineUuids[i] as String]!;
         await (_appDb.update(_appDb.saleOrderPaymentLine)..where(
               (row) =>
                   row.orderId.equals(saleId) &
@@ -610,12 +638,11 @@ extension _OfflineSyncPayment on OfflineSyncService {
             ))
             .write(
               SaleOrderPaymentLineCompanion(
-                odooId: drift.Value(remoteLines[i] as int),
+                odooId: drift.Value(remote['payment_line_id'] as int),
                 state: const drift.Value('posted'),
                 isSynced: const drift.Value(true),
               ),
             );
-        final remote = remotePayments[i] as Map;
         final paymentId = remote['payment_id'] as int;
         final updated =
             await (_appDb.update(

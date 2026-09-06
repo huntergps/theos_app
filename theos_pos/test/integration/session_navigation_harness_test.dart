@@ -282,6 +282,7 @@ final class _HarnessLogin extends StatefulWidget {
 final class _HarnessLoginState extends State<_HarnessLogin> {
   final _formKey = GlobalKey<FormState>();
   final _controller = TextEditingController();
+  final _usernameController = TextEditingController(text: 'harness-user');
   late final ServerConfig _server = ServerConfig(
     name: 'Deterministic',
     url: 'https://example.invalid',
@@ -291,6 +292,7 @@ final class _HarnessLoginState extends State<_HarnessLogin> {
   @override
   void dispose() {
     _controller.dispose();
+    _usernameController.dispose();
     super.dispose();
   }
 
@@ -302,6 +304,9 @@ final class _HarnessLoginState extends State<_HarnessLogin> {
         child: LoginForm(
           formKey: _formKey,
           controller: _controller,
+          usernameController: _usernameController,
+          credentialMode: LoginCredentialMode.apiKey,
+          nativePasswordLoginAvailable: false,
           servers: [_server],
           selectedServer: _server,
           spacing: const ThemedSpacing(1),
@@ -310,6 +315,7 @@ final class _HarnessLoginState extends State<_HarnessLogin> {
           loadingStage: '',
           onServerChanged: (_) {},
           onTogglePassword: () {},
+          onCredentialModeChanged: (_) {},
           onSubmit: () {
             if (!(_formKey.currentState?.validate() ?? false)) return;
             widget.store.hasStoredSession = true;

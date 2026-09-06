@@ -44,14 +44,20 @@ export 'src/api/interceptors/metrics_interceptor.dart';
 export 'src/api/interceptors/rate_limit_interceptor.dart';
 export 'src/api/interceptors/retry_interceptor.dart';
 export 'src/api/interceptors/log_sanitizer_interceptor.dart';
+export 'src/auth/native_auth_bootstrap.dart';
+export 'src/auth/native_auth_bootstrap_types.dart';
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // Drift types needed by generated code
 // ═══════════════════════════════════════════════════════════════════════════════
 
 export 'package:drift/drift.dart'
-    show Variable, RawValuesInsertable, GeneratedDatabase, TableInfo,
-         CustomExpression;
+    show
+        Variable,
+        RawValuesInsertable,
+        GeneratedDatabase,
+        TableInfo,
+        CustomExpression;
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // Database

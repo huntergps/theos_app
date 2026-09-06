@@ -8,6 +8,7 @@ import 'package:theos_pos_core/theos_pos_core.dart'
 
 import '../../../../../core/theme/spacing.dart';
 import '../../../../../shared/providers/user_provider.dart';
+import '../../../../../shared/constants/user_groups.dart';
 import '../../../../../shared/utils/formatting_utils.dart';
 import '../fast_sale_providers.dart';
 
@@ -76,6 +77,12 @@ class POSOrderTabs extends ConsumerWidget {
       fastSaleProvider.select((s) => s.totalOrdersCount),
     );
     final notifier = ref.read(fastSaleProvider.notifier);
+    final currentUser = ref.watch(userProvider);
+    final isSeller =
+        currentUser != null &&
+        resolveTheosUserRoles(currentUser.permissions)
+            .contains(TheosUserRole.seller);
+    final audience = ref.watch(fastSaleOrderAudienceProvider);
 
     return Container(
       height: 40,
@@ -98,6 +105,37 @@ class POSOrderTabs extends ConsumerWidget {
               style: theme.typography.body?.copyWith(
                 color: theme.inactiveColor,
               ),
+            ),
+          ),
+
+          if (isSeller)
+            Tooltip(
+              message: audience == FastSaleOrderAudience.mine
+                  ? 'Mostrar todas las ventas accesibles'
+                  : 'Mostrar únicamente mis ventas',
+              child: Button(
+                onPressed: () async {
+                  final next = audience == FastSaleOrderAudience.mine
+                      ? FastSaleOrderAudience.all
+                      : FastSaleOrderAudience.mine;
+                  ref
+                      .read(fastSaleOrderAudienceProvider.notifier)
+                      .setAudience(next);
+                  await notifier.initialize(force: true);
+                },
+                child: Text(
+                  audience == FastSaleOrderAudience.mine
+                      ? 'Mis ventas'
+                      : 'Todas',
+                ),
+              ),
+            ),
+
+          Tooltip(
+            message: 'Actualizar órdenes',
+            child: IconButton(
+              icon: const Icon(FluentIcons.refresh, size: 16),
+              onPressed: () => notifier.initialize(force: true),
             ),
           ),
 
@@ -311,10 +349,7 @@ class _SearchOrdersDialogState extends ConsumerState<_SearchOrdersDialog> {
     super.dispose();
   }
 
-  /// Load pre-filtered orders for salespeople:
-  /// - Orders NOT in 'sale' state (only editable: draft, sent, waiting, approved)
-  /// - Belonging to current user
-  /// - Ordered by date_order DESC (newest first)
+  /// Load orders using the same seller/cashier scope as the initial tabs.
   Future<void> _loadInitialResults() async {
     setState(() => _isLoading = true);
 
@@ -324,11 +359,23 @@ class _SearchOrdersDialogState extends ConsumerState<_SearchOrdersDialog> {
         setState(() => _isLoading = false);
         return;
       }
+      final access = await ref
+          .read(fastSaleProvider.notifier)
+          .resolveOrderAccess();
+      if (access == null) {
+        setState(() => _isLoading = false);
+        return;
+      }
 
       final results = await saleOrderManager.getEditableOrdersForPOS(
         // IMPORTANT: User.id is the Odoo user ID
         // SaleOrder.userId stores the Odoo user ID
-        userId: currentUser.id,
+        userId: access.sellerUserId,
+        companyIds: access.companyIds,
+        collectionSessionIds: access.collectionSessionIds,
+        states: access.states,
+        invoiceStatuses: access.invoiceStatuses,
+        allUsers: access.sellerUserId == null,
         limit: 30,
         includeConfirmed: _includeConfirmed,
         includeInvoiced: _includeInvoiced,
@@ -373,11 +420,23 @@ class _SearchOrdersDialogState extends ConsumerState<_SearchOrdersDialog> {
         setState(() => _isLoading = false);
         return;
       }
+      final access = await ref
+          .read(fastSaleProvider.notifier)
+          .resolveOrderAccess();
+      if (access == null) {
+        setState(() => _isLoading = false);
+        return;
+      }
 
       final results = await saleOrderManager.getEditableOrdersForPOS(
         // IMPORTANT: User.id is the Odoo user ID
         // SaleOrder.userId stores the Odoo user ID
-        userId: currentUser.id,
+        userId: access.sellerUserId,
+        companyIds: access.companyIds,
+        collectionSessionIds: access.collectionSessionIds,
+        states: access.states,
+        invoiceStatuses: access.invoiceStatuses,
+        allUsers: access.sellerUserId == null,
         query: query.isEmpty ? null : query,
         limit: 30,
         includeConfirmed: _includeConfirmed,
