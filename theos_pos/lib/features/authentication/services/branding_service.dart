@@ -538,10 +538,15 @@ final class BrandingController extends Notifier<AppBranding> {
     required String database,
   }) async {
     final selection = ++_selection;
+    final previousScope = _scope;
+    final previousBranding = state;
     try {
       final scope = BrandingScope(serverUrl: serverUrl, database: database);
+      final isSameScope = previousScope?.identity == scope.identity;
       _scope = scope;
-      state = const AppBranding();
+      // Keep the last valid image visible while the same server refreshes.
+      // Clearing it here produced a flat panel whenever a refresh was slow.
+      if (!isSameScope) state = const AppBranding();
       final loaded = await ref
           .read(brandingServiceProvider)
           .loadAndRefreshPublic(scope);
@@ -549,7 +554,11 @@ final class BrandingController extends Notifier<AppBranding> {
         state = loaded;
       }
     } catch (_) {
-      if (selection == _selection) state = const AppBranding();
+      if (selection == _selection) {
+        state = previousScope?.identity == _scope?.identity
+            ? previousBranding
+            : const AppBranding();
+      }
     }
   }
 

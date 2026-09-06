@@ -280,7 +280,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> with WindowListener {
                                   _selectedServer = value;
                                   _applySelectedServerCredentials(value);
                                 });
-                                _requestBranding(value);
+                                _requestBranding(value, force: true);
                               },
                               onTogglePassword: () => setState(
                                 () => _showPassword = !_showPassword,
@@ -373,7 +373,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> with WindowListener {
                                         _selectedServer = value;
                                         _applySelectedServerCredentials(value);
                                       });
-                                      _requestBranding(value);
+                                      _requestBranding(value, force: true);
                                     },
                                     onTogglePassword: () => setState(
                                       () => _showPassword = !_showPassword,
@@ -698,13 +698,13 @@ class _LoginScreenState extends ConsumerState<LoginScreen> with WindowListener {
         : '';
   }
 
-  void _requestBranding(ServerConfig? server) {
+  void _requestBranding(ServerConfig? server, {bool force = false}) {
     if (server == null) {
       _requestedBrandingScope = null;
       return;
     }
     final identity = '${server.url.trim()}\u0000${server.database.trim()}';
-    if (_requestedBrandingScope == identity) return;
+    if (!force && _requestedBrandingScope == identity) return;
     _requestedBrandingScope = identity;
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted || _requestedBrandingScope != identity) return;

@@ -65,9 +65,9 @@ void main() {
     final neutral = await darkVeilAt(0);
     final recommended = await darkVeilAt(12);
     final branded = await darkVeilAt(100);
-    expect(neutral, const Color(0xb81c1c20).toARGB32());
+    expect(neutral, const Color(0x921c1c20).toARGB32());
     expect(recommended, isNot(neutral));
     expect(recommended, isNot(branded));
-    expect(branded, const Color(0xb8336699).toARGB32());
+    expect(branded, const Color(0x92336699).toARGB32());
   });
 }

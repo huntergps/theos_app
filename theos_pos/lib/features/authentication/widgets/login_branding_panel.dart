@@ -33,7 +33,7 @@ class LoginBrandingPanel extends StatelessWidget {
         ? branding.theme.darkSurfaceColor ?? const Color(0xff1c1c20)
         : safeLightTint;
     final veil = Color.fromARGB(
-      isDark ? 0xb8 : 0xa6,
+      isDark ? 0x92 : 0x82,
       (tint.r * 255).round(),
       (tint.g * 255).round(),
       (tint.b * 255).round(),
