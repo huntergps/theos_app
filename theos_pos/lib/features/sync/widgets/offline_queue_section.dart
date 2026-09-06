@@ -149,7 +149,10 @@ class _QueueHeader extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = FluentTheme.of(context);
 
-    return Row(
+    return Wrap(
+      spacing: 8,
+      runSpacing: 8,
+      crossAxisAlignment: WrapCrossAlignment.center,
       children: [
         Icon(
           FluentIcons.cloud_upload,
@@ -176,7 +179,6 @@ class _QueueHeader extends StatelessWidget {
               ),
             ),
           ),
-        const Spacer(),
         // Action buttons
         if (isProcessing)
           const Row(
@@ -187,14 +189,22 @@ class _QueueHeader extends StatelessWidget {
             ],
           )
         else ...[
-          IconButton(
-            icon: const Icon(FluentIcons.refresh, size: 16),
-            onPressed: onRefresh,
+          Semantics(
+            button: true,
+            label: 'Actualizar cola offline',
+            child: IconButton(
+              icon: const Icon(FluentIcons.refresh, size: 16),
+              onPressed: onRefresh,
+            ),
           ),
           if (onClearAll != null)
-            IconButton(
-              icon: Icon(FluentIcons.delete, size: 16, color: Colors.red),
-              onPressed: onClearAll,
+            Semantics(
+              button: true,
+              label: 'Vaciar cola offline',
+              child: IconButton(
+                icon: Icon(FluentIcons.delete, size: 16, color: Colors.red),
+                onPressed: onClearAll,
+              ),
             ),
           const SizedBox(width: 8),
           if (totalCount > 0)

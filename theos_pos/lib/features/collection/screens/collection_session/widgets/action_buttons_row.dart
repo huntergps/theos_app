@@ -26,7 +26,7 @@ class ActionButtonsRow extends StatelessWidget {
       spacing: 8,
       runSpacing: 8,
       children: [
-        Button(
+        _actionButton(
           onPressed: onRegisterFund,
           child: const Row(
             mainAxisSize: MainAxisSize.min,
@@ -37,7 +37,7 @@ class ActionButtonsRow extends StatelessWidget {
             ],
           ),
         ),
-        Button(
+        _actionButton(
           onPressed: onRegisterCash,
           child: const Row(
             mainAxisSize: MainAxisSize.min,
@@ -48,7 +48,7 @@ class ActionButtonsRow extends StatelessWidget {
             ],
           ),
         ),
-        Button(
+        _actionButton(
           onPressed: onRegisterCashOut,
           child: const Row(
             mainAxisSize: MainAxisSize.min,
@@ -59,7 +59,7 @@ class ActionButtonsRow extends StatelessWidget {
             ],
           ),
         ),
-        Button(
+        _actionButton(
           onPressed: onRegisterDeposit,
           child: const Row(
             mainAxisSize: MainAxisSize.min,
@@ -70,7 +70,7 @@ class ActionButtonsRow extends StatelessWidget {
             ],
           ),
         ),
-        Button(
+        _actionButton(
           onPressed: onRegisterAdvance,
           child: const Row(
             mainAxisSize: MainAxisSize.min,
@@ -82,6 +82,16 @@ class ActionButtonsRow extends StatelessWidget {
           ),
         ),
       ],
+    );
+  }
+
+  Widget _actionButton({
+    required VoidCallback? onPressed,
+    required Widget child,
+  }) {
+    return ConstrainedBox(
+      constraints: const BoxConstraints(minHeight: 44),
+      child: Button(onPressed: onPressed, child: child),
     );
   }
 }

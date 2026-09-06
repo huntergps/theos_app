@@ -38,11 +38,19 @@ class _ActionButton extends StatelessWidget {
     final effectiveColor = isEnabled ? action.color : theme.inactiveColor;
 
     if (isCompact) {
-      return Tooltip(
-        message: action.label,
-        child: IconButton(
-          icon: Icon(action.icon, size: 20, color: effectiveColor),
-          onPressed: action.onTap,
+      return Semantics(
+        button: true,
+        enabled: isEnabled,
+        label: action.label,
+        child: Tooltip(
+          message: action.label,
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(minWidth: 44, minHeight: 44),
+            child: IconButton(
+              icon: Icon(action.icon, size: 20, color: effectiveColor),
+              onPressed: action.onTap,
+            ),
+          ),
         ),
       );
     }
@@ -58,7 +66,6 @@ class _ActionButton extends StatelessWidget {
             Text(
               action.label,
               style: theme.typography.caption?.copyWith(
-                fontSize: 10,
                 color: isEnabled ? null : theme.inactiveColor,
               ),
               textAlign: TextAlign.center,

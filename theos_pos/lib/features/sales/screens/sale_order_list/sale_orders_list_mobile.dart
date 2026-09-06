@@ -49,20 +49,46 @@ class SaleOrdersMobile extends StatelessWidget {
                             ? DismissDirection.startToEnd
                             : DismissDirection.none)),
 
-            // DELETE Background (Red, Swipe Left)
+            // CONFIRM background (green, swipe right).
             background: Container(
               alignment: Alignment.centerLeft,
               padding: const EdgeInsets.only(left: 20),
               color: Colors.green,
-              child: const Icon(FluentIcons.accept, color: Colors.white),
+              child: const Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(FluentIcons.accept, color: Colors.white),
+                  SizedBox(width: 8),
+                  Text(
+                    'Confirmar',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ],
+              ),
             ),
 
-            // CONFIRM Background (Green, Swipe Right)
+            // DELETE background (red, swipe left).
             secondaryBackground: Container(
               alignment: Alignment.centerRight,
               padding: const EdgeInsets.only(right: 20),
               color: Colors.red,
-              child: const Icon(FluentIcons.delete, color: Colors.white),
+              child: const Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    'Eliminar',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  SizedBox(width: 8),
+                  Icon(FluentIcons.delete, color: Colors.white),
+                ],
+              ),
             ),
 
             confirmDismiss: (direction) async {

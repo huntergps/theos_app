@@ -344,28 +344,24 @@ class _POSPaymentTabState extends ConsumerState<POSPaymentTab> {
           style: theme.typography.caption?.copyWith(
             color: color ?? theme.inactiveColor,
             fontWeight: FontWeight.w600,
-            fontSize: 11,
           ),
         ),
         const SizedBox(height: Spacing.xxs),
-        FittedBox(
-          fit: BoxFit.scaleDown,
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              if (icon != null) ...[
-                Icon(icon, size: 20, color: color),
-                const SizedBox(width: Spacing.xxs),
-              ],
-              Text(
-                amount.toCurrency(),
-                style: theme.typography.subtitle?.copyWith(
-                  fontWeight: FontWeight.bold,
-                  color: color,
-                ),
-              ),
+        Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (icon != null) ...[
+              Icon(icon, size: 20, color: color),
+              const SizedBox(width: Spacing.xxs),
             ],
-          ),
+            Text(
+              amount.toCurrency(),
+              style: theme.typography.subtitle?.copyWith(
+                fontWeight: FontWeight.bold,
+                color: color,
+              ),
+            ),
+          ],
         ),
       ],
     );
@@ -783,21 +779,31 @@ class _POSPaymentTabState extends ConsumerState<POSPaymentTab> {
           const SizedBox(width: Spacing.sm),
           // Delete all button - hidden when invoiced
           if (!isInvoiced)
-            Tooltip(
-              message: 'Eliminar todas las retenciones',
-              child: IconButton(
-                icon: Icon(
-                  FluentIcons.delete,
-                  size: 14,
-                  color: AppColors.danger,
+            Semantics(
+              button: true,
+              label: 'Eliminar todas las retenciones',
+              child: Tooltip(
+                message: 'Eliminar todas las retenciones',
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(
+                    minWidth: 44,
+                    minHeight: 44,
+                  ),
+                  child: IconButton(
+                    icon: Icon(
+                      FluentIcons.delete,
+                      size: 16,
+                      color: AppColors.danger,
+                    ),
+                    onPressed: () {
+                      for (final line in allLines) {
+                        ref
+                            .read(posWithholdLinesByOrderProvider.notifier)
+                            .removeLine(orderId, line.lineUuid);
+                      }
+                    },
+                  ),
                 ),
-                onPressed: () {
-                  for (final line in allLines) {
-                    ref
-                        .read(posWithholdLinesByOrderProvider.notifier)
-                        .removeLine(orderId, line.lineUuid);
-                  }
-                },
               ),
             ),
         ],
@@ -981,25 +987,35 @@ class _POSPaymentTabState extends ConsumerState<POSPaymentTab> {
           // Delete button - hidden when order is invoiced
           if (!isInvoiced)
             SizedBox(
-              width: 32,
+              width: 44,
               child: Tooltip(
                 message: 'Eliminar retención',
-                child: IconButton(
-                  icon: Icon(
-                    FluentIcons.delete,
-                    size: 10,
-                    color: AppColors.danger,
+                child: Semantics(
+                  button: true,
+                  label: 'Eliminar retención',
+                  child: ConstrainedBox(
+                    constraints: const BoxConstraints(
+                      minWidth: 44,
+                      minHeight: 44,
+                    ),
+                    child: IconButton(
+                      icon: Icon(
+                        FluentIcons.delete,
+                        size: 16,
+                        color: AppColors.danger,
+                      ),
+                      onPressed: () {
+                        ref
+                            .read(posWithholdLinesByOrderProvider.notifier)
+                            .removeLine(orderId, line.lineUuid);
+                      },
+                    ),
                   ),
-                  onPressed: () {
-                    ref
-                        .read(posWithholdLinesByOrderProvider.notifier)
-                        .removeLine(orderId, line.lineUuid);
-                  },
                 ),
               ),
             )
           else
-            const SizedBox(width: 32), // Placeholder to maintain alignment
+            const SizedBox(width: 44), // Placeholder to maintain alignment
         ],
       ),
     );

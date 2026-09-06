@@ -111,10 +111,7 @@ class _StatButton extends StatelessWidget {
                   fontWeight: FontWeight.bold,
                 ),
               ),
-              Text(
-                label,
-                style: theme.typography.caption!.copyWith(fontSize: 11),
-              ),
+              Text(label, style: theme.typography.caption),
             ],
           ),
         ],

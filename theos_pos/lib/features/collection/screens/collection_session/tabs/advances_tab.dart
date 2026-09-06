@@ -160,10 +160,22 @@ class _AdvancesTabState extends ConsumerState<AdvancesTab> {
           const SizedBox(width: Spacing.sm),
 
           // Botón refrescar
-          IconButton(
-            icon: const Icon(FluentIcons.refresh),
-            onPressed: () =>
-                ref.invalidate(sessionAdvancesProvider(widget.session.id)),
+          Semantics(
+            button: true,
+            label: 'Actualizar anticipos',
+            child: Tooltip(
+              message: 'Actualizar anticipos',
+              child: SizedBox(
+                width: 44,
+                height: 44,
+                child: IconButton(
+                  icon: const Icon(FluentIcons.refresh),
+                  onPressed: () => ref.invalidate(
+                    sessionAdvancesProvider(widget.session.id),
+                  ),
+                ),
+              ),
+            ),
           ),
         ],
       ),

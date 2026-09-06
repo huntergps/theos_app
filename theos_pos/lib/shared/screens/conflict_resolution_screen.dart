@@ -137,11 +137,13 @@ class _ConflictResolutionScreenState
             );
           }
 
-          return Row(
-            children: [
-              // Conflict list
-              SizedBox(
-                width: 400,
+          return LayoutBuilder(
+            builder: (context, constraints) {
+              final isCompact = constraints.maxWidth < 840;
+              final conflictList = SizedBox(
+                width: isCompact ? double.infinity : 400,
+                height: isCompact ? 260 : null,
+                // Conflict list
                 child: Card(
                   padding: EdgeInsets.zero,
                   child: Column(
@@ -199,39 +201,49 @@ class _ConflictResolutionScreenState
                     ],
                   ),
                 ),
-              ),
-
-              const SizedBox(width: 16),
-
-              // Conflict details
-              Expanded(
-                child: _selectedConflictId != null
-                    ? _buildConflictDetails(
-                        conflicts.firstWhere(
-                          (c) => c.id == _selectedConflictId,
-                        ),
-                      )
-                    : Center(
-                        child: Column(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Icon(
-                              FluentIcons.info,
-                              size: 48,
+              );
+              final conflictDetails = _selectedConflictId != null
+                  ? _buildConflictDetails(
+                      conflicts.firstWhere((c) => c.id == _selectedConflictId),
+                    )
+                  : Center(
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(
+                            FluentIcons.info,
+                            size: 48,
+                            color: theme.resources.textFillColorSecondary,
+                          ),
+                          const SizedBox(height: 16),
+                          Text(
+                            'Selecciona un conflicto para ver los detalles',
+                            style: theme.typography.body?.copyWith(
                               color: theme.resources.textFillColorSecondary,
                             ),
-                            const SizedBox(height: 16),
-                            Text(
-                              'Selecciona un conflicto para ver los detalles',
-                              style: theme.typography.body?.copyWith(
-                                color: theme.resources.textFillColorSecondary,
-                              ),
-                            ),
-                          ],
-                        ),
+                          ),
+                        ],
                       ),
-              ),
-            ],
+                    );
+
+              if (isCompact) {
+                return Column(
+                  children: [
+                    conflictList,
+                    const SizedBox(height: 16),
+                    Expanded(child: conflictDetails),
+                  ],
+                );
+              }
+
+              return Row(
+                children: [
+                  conflictList,
+                  const SizedBox(width: 16),
+                  Expanded(child: conflictDetails),
+                ],
+              );
+            },
           );
         },
         loading: () => const Center(child: ProgressRing()),

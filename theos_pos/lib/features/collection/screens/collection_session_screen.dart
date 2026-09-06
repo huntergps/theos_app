@@ -501,7 +501,9 @@ class _CollectionSessionScreenState
     // Keep the tab within the page viewport in short landscape. The previous
     // 400px floor caused an overflow on 480px/landscape windows.
     final reservedHeight = compactLandscape ? 150.0 : 280.0;
-    final minimumHeight = compactLandscape ? 160.0 : 400.0;
+    final minimumHeight = compactLandscape
+        ? 160.0
+        : (MediaQuery.sizeOf(context).width < 600 ? 280.0 : 400.0);
     final calculatedHeight = availableHeight ?? (screenHeight - reservedHeight);
     final tabViewHeight = calculatedHeight.clamp(minimumHeight, 900.0);
     // Altura disponible para el cuerpo de cada tab (menos la barra de tabs ~42 px)

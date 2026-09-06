@@ -238,10 +238,21 @@ class _PaymentsTabState extends ConsumerState<PaymentsTab> {
           ),
 
           // Botón refrescar
-          IconButton(
-            icon: const Icon(FluentIcons.refresh),
-            onPressed: () => ref.invalidate(
-              sessionPaymentsMappedProvider(widget.session.id),
+          Semantics(
+            button: true,
+            label: 'Actualizar cobros',
+            child: Tooltip(
+              message: 'Actualizar cobros',
+              child: SizedBox(
+                width: 44,
+                height: 44,
+                child: IconButton(
+                  icon: const Icon(FluentIcons.refresh),
+                  onPressed: () => ref.invalidate(
+                    sessionPaymentsMappedProvider(widget.session.id),
+                  ),
+                ),
+              ),
             ),
           ),
         ],

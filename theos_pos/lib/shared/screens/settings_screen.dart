@@ -109,29 +109,47 @@ class _SettingsSectionProfiles extends StatelessWidget {
                 children: [
                   Tooltip(
                     message: 'Guardar actual como nuevo perfil',
-                    child: IconButton(
-                      icon: const Icon(FluentIcons.save),
-                      onPressed: () =>
-                          _showSaveProfileDialog(context, notifier),
+                    child: ConstrainedBox(
+                      constraints: const BoxConstraints(
+                        minWidth: 44,
+                        minHeight: 44,
+                      ),
+                      child: IconButton(
+                        icon: const Icon(FluentIcons.save),
+                        onPressed: () =>
+                            _showSaveProfileDialog(context, notifier),
+                      ),
                     ),
                   ),
                   const SizedBox(width: 10),
                   Tooltip(
                     message: 'Restablecer perfil a valores por defecto',
-                    child: IconButton(
-                      icon: const Icon(FluentIcons.reset),
-                      onPressed: config.activeProfileId != null
-                          ? () => notifier.resetCurrentProfile()
-                          : null,
+                    child: ConstrainedBox(
+                      constraints: const BoxConstraints(
+                        minWidth: 44,
+                        minHeight: 44,
+                      ),
+                      child: IconButton(
+                        icon: const Icon(FluentIcons.reset),
+                        onPressed: config.activeProfileId != null
+                            ? () => notifier.resetCurrentProfile()
+                            : null,
+                      ),
                     ),
                   ),
                   const SizedBox(width: 10),
                   Tooltip(
                     message: 'Eliminar perfil seleccionado',
-                    child: IconButton(
-                      icon: Icon(FluentIcons.delete, color: Colors.red),
-                      onPressed: () =>
-                          _showDeleteProfileDialog(context, config, notifier),
+                    child: ConstrainedBox(
+                      constraints: const BoxConstraints(
+                        minWidth: 44,
+                        minHeight: 44,
+                      ),
+                      child: IconButton(
+                        icon: Icon(FluentIcons.delete, color: Colors.red),
+                        onPressed: () =>
+                            _showDeleteProfileDialog(context, config, notifier),
+                      ),
                     ),
                   ),
                 ],
@@ -148,10 +166,20 @@ class _SettingsSectionProfiles extends StatelessWidget {
                 ],
               );
             } else {
-              return Row(
+              return Wrap(
+                spacing: 10,
+                runSpacing: 10,
+                crossAxisAlignment: WrapCrossAlignment.center,
                 children: [
-                  SizedBox(width: 300, child: buildComboBox()),
-                  const SizedBox(width: 10),
+                  ConstrainedBox(
+                    constraints: const BoxConstraints(maxWidth: 300),
+                    child: SizedBox(
+                      width: constraints.maxWidth > 320
+                          ? 300
+                          : constraints.maxWidth,
+                      child: buildComboBox(),
+                    ),
+                  ),
                   buildButtons(),
                 ],
               );

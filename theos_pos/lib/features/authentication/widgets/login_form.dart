@@ -65,6 +65,13 @@ class LoginForm extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final credentialLabel = credentialMode == LoginCredentialMode.password
+        ? 'contraseña'
+        : 'clave API';
+    final visibilityLabel = showPassword
+        ? 'Ocultar $credentialLabel'
+        : 'Mostrar $credentialLabel';
+
     return Form(
       key: formKey,
       child: Column(
@@ -142,9 +149,24 @@ class LoginForm extends StatelessWidget {
               padding: EdgeInsets.only(left: spacing.sm),
               child: const Icon(FluentIcons.lock),
             ),
-            suffix: IconButton(
-              icon: Icon(showPassword ? FluentIcons.view : FluentIcons.hide),
-              onPressed: onTogglePassword,
+            suffix: Semantics(
+              button: true,
+              label: visibilityLabel,
+              child: Tooltip(
+                message: visibilityLabel,
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(
+                    minWidth: 44,
+                    minHeight: 44,
+                  ),
+                  child: IconButton(
+                    icon: Icon(
+                      showPassword ? FluentIcons.view : FluentIcons.hide,
+                    ),
+                    onPressed: onTogglePassword,
+                  ),
+                ),
+              ),
             ),
             validator: (value) =>
                 value == null || value.isEmpty ? 'Requerido' : null,
@@ -177,28 +199,37 @@ class LoginForm extends StatelessWidget {
               child: Padding(
                 padding: spacing.symmetric.vSm(),
                 child: isLoading
-                    ? Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          const SizedBox(
-                            width: 16,
-                            height: 16,
-                            child: ProgressRing(
-                              activeColor: Colors.white,
-                              strokeWidth: 2,
-                            ),
-                          ),
-                          if (loadingStage.isNotEmpty) ...[
-                            const SizedBox(width: 8),
-                            Flexible(
-                              child: Text(
-                                loadingStage,
-                                style: const TextStyle(fontSize: 12),
-                                overflow: TextOverflow.ellipsis,
+                    ? Semantics(
+                        liveRegion: true,
+                        label: loadingStage.isEmpty
+                            ? 'Iniciando sesión'
+                            : loadingStage,
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            const SizedBox(
+                              width: 16,
+                              height: 16,
+                              child: ProgressRing(
+                                activeColor: Colors.white,
+                                strokeWidth: 2,
                               ),
                             ),
+                            if (loadingStage.isNotEmpty) ...[
+                              const SizedBox(width: 8),
+                              Flexible(
+                                child: Text(
+                                  loadingStage,
+                                  style: FluentTheme.of(context)
+                                      .typography
+                                      .caption
+                                      ?.copyWith(color: Colors.white),
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ),
+                            ],
                           ],
-                        ],
+                        ),
                       )
                     : const Text('Entrar'),
               ),

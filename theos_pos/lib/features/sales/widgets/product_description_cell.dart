@@ -101,38 +101,44 @@ class ProductDescriptionCell extends StatelessWidget {
             message: hasCustomText
                 ? 'Editar descripcion'
                 : 'Agregar descripcion',
-            child: Container(
-              width: 28,
-              height: 28,
-              alignment: Alignment.center,
-              child: IconButton(
-                icon: Icon(
-                  FluentIcons.text_field,
-                  size: 20,
-                  color: hasCustomText
-                      ? theme.accentColor
-                      : theme.inactiveColor,
+            child: Semantics(
+              button: true,
+              label: hasCustomText
+                  ? 'Editar descripción'
+                  : 'Agregar descripción',
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(minWidth: 44, minHeight: 44),
+                child: IconButton(
+                  icon: Icon(
+                    FluentIcons.text_field,
+                    size: 20,
+                    color: hasCustomText
+                        ? theme.accentColor
+                        : theme.inactiveColor,
+                  ),
+                  onPressed: () => _showEditDescriptionDialog(context),
                 ),
-                onPressed: () => _showEditDescriptionDialog(context),
               ),
             ),
           ),
-        SizedBox(width: 18),
+        SizedBox(width: 8),
         // Show product info button
         if (onShowProductInfo != null)
           Tooltip(
             message: 'Ver informacion del producto',
-            child: Container(
-              width: 28,
-              height: 28,
-              alignment: Alignment.center,
-              child: IconButton(
-                icon: Icon(
-                  FluentIcons.info,
-                  size: 20,
-                  color: theme.inactiveColor,
+            child: Semantics(
+              button: true,
+              label: 'Ver información del producto',
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(minWidth: 44, minHeight: 44),
+                child: IconButton(
+                  icon: Icon(
+                    FluentIcons.info,
+                    size: 20,
+                    color: theme.inactiveColor,
+                  ),
+                  onPressed: onShowProductInfo,
                 ),
-                onPressed: onShowProductInfo,
               ),
             ),
           ),
@@ -216,8 +222,7 @@ class _EditDescriptionDialogState extends State<_EditDescriptionDialog> {
             const SizedBox(height: 8),
             Text(
               'Use Enter para agregar nuevas lineas',
-              style: TextStyle(
-                fontSize: 11,
+              style: theme.typography.caption?.copyWith(
                 color: theme.inactiveColor,
                 fontStyle: FontStyle.italic,
               ),

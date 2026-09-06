@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:typed_data';
 
 import 'package:fluent_ui/fluent_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -974,7 +975,15 @@ class _ProductInfoContentState extends State<_ProductInfoContent> {
     dynamic image128, {
     required double size,
   }) {
-    if (image128 != null && image128 != false) {
+    final imageBase64 = _imageBase64Value(image128);
+    if (imageBase64 != null) {
+      Uint8List? imageBytes;
+      try {
+        imageBytes = base64Decode(imageBase64);
+      } on FormatException {
+        // Odoo may return an empty/malformed binary value; show the fallback.
+      }
+      if (imageBytes == null) return _buildImagePlaceholder(theme, size);
       return Container(
         width: size,
         height: size,
@@ -985,7 +994,7 @@ class _ProductInfoContentState extends State<_ProductInfoContent> {
         child: ClipRRect(
           borderRadius: BorderRadius.circular(6),
           child: Image.memory(
-            base64Decode(image128 as String),
+            imageBytes,
             fit: BoxFit.contain,
             errorBuilder: (_, _, _) => Icon(
               FluentIcons.product,
@@ -996,6 +1005,23 @@ class _ProductInfoContentState extends State<_ProductInfoContent> {
         ),
       );
     }
+    return _buildImagePlaceholder(theme, size);
+  }
+
+  String? _imageBase64Value(dynamic rawImage) {
+    if (rawImage is String && rawImage.trim().isNotEmpty) return rawImage;
+    if (rawImage is Map) {
+      // Keep compatibility with Odoo binary wrappers without widening the
+      // product contract: only decode string payloads.
+      for (final key in const ['content', 'data', 'base64', 'value']) {
+        final value = rawImage[key];
+        if (value is String && value.trim().isNotEmpty) return value;
+      }
+    }
+    return null;
+  }
+
+  Widget _buildImagePlaceholder(FluentThemeData theme, double size) {
     return Container(
       width: size,
       height: size,
