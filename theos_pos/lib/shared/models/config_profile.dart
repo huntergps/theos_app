@@ -1,6 +1,8 @@
 import 'package:fluent_ui/fluent_ui.dart';
 import 'package:flutter_acrylic/flutter_acrylic.dart';
 
+import '../../core/constants/app_colors.dart';
+
 class ConfigProfile {
   final String id;
   final String name;
@@ -59,7 +61,7 @@ class ConfigProfile {
   factory ConfigProfile.fromJson(Map<String, dynamic> json) {
     // Helper to parse AccentColor from int value
     AccentColor parseAccentColor(int value) {
-      for (final color in Colors.accentColors) {
+      for (final color in AppColors.fluentAccentColors) {
         if (color.toARGB32() == value) return color;
       }
       return Colors.blue;

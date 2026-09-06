@@ -198,17 +198,6 @@ class _LoginScreenState extends ConsumerState<LoginScreen> with WindowListener {
     final servers = ref.watch(serverServiceProvider);
     final spacing = ref.watch(themedSpacingProvider);
     final branding = ref.watch(appBrandingProvider);
-    final theme = FluentTheme.of(context);
-    final brandColor = branding.theme.brandColor ?? theme.accentColor;
-    final isDark = theme.brightness == Brightness.dark;
-    final formSurface = Color.alphaBlend(
-      brandColor.withValues(alpha: isDark ? .10 : .045),
-      theme.scaffoldBackgroundColor,
-    );
-    final formSurfaceEdge = Color.alphaBlend(
-      brandColor.withValues(alpha: isDark ? .18 : .085),
-      theme.scaffoldBackgroundColor,
-    );
 
     // Auto-select first server if none selected
     if (_selectedServer == null && servers.isNotEmpty) {
@@ -257,11 +246,9 @@ class _LoginScreenState extends ConsumerState<LoginScreen> with WindowListener {
                             constraints: const BoxConstraints(maxWidth: 400),
                             padding: spacing.all.lg,
                             decoration: BoxDecoration(
-                              color: formSurface,
+                              color: FluentTheme.of(context)
+                                  .scaffoldBackgroundColor,
                               borderRadius: BorderRadius.circular(spacing.sm),
-                              border: Border.all(
-                                color: brandColor.withValues(alpha: .16),
-                              ),
                             ),
                             child: LoginForm(
                               formKey: _formKey,
@@ -322,12 +309,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> with WindowListener {
                     Expanded(
                       flex: 2,
                       child: Container(
-                        decoration: BoxDecoration(
-                          gradient: LinearGradient(
-                            colors: [formSurfaceEdge, formSurface],
-                            stops: const [0, .24],
-                          ),
-                        ),
+                        color: FluentTheme.of(context).scaffoldBackgroundColor,
                         padding: EdgeInsets.symmetric(horizontal: spacing.xl),
                         child: Center(
                           child: ConstrainedBox(

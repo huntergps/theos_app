@@ -6,12 +6,10 @@ import 'package:flutter_acrylic/flutter_acrylic.dart';
 import '../../core/constants/app_colors.dart';
 import '../../core/constants/app_constants.dart';
 import '../../core/services/config_service.dart';
+import '../../features/authentication/services/branding_service.dart';
 import '../models/config_profile.dart';
 import '../widgets/form/form_fields.dart';
 import '../../features/sync/widgets/route_mode_indicator.dart';
-
-// Custom cyan/turquoise color using centralized constants
-final cyanAccentColor = AccentColor.swatch(AppColors.primaryVariants);
 
 class SettingsScreen extends ConsumerWidget {
   const SettingsScreen({super.key});
@@ -20,6 +18,11 @@ class SettingsScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final config = ref.watch(configServiceProvider);
     final notifier = ref.read(configServiceProvider.notifier);
+    final odooAccent = ref.watch(
+      appBrandingProvider.select(
+        (branding) => branding.theme.fluentAccentColor,
+      ),
+    );
 
     return ScaffoldPage.scrollable(
       header: const PageHeader(title: Text('Configuracion')),
@@ -28,7 +31,13 @@ class SettingsScreen extends ConsumerWidget {
         const SizedBox(height: 20),
         _SettingsSectionProfiles(config: config, notifier: notifier),
         const SizedBox(height: 24),
-        _SettingsSectionAppearance(config: config, notifier: notifier),
+        _SettingsSectionAppearance(
+          config: config,
+          notifier: notifier,
+          effectiveAccent: config.accentColorCustomized
+              ? config.accentColor
+              : odooAccent ?? config.accentColor,
+        ),
         const SizedBox(height: 24),
         _SettingsSectionSystem(config: config, notifier: notifier),
         const SizedBox(height: 32),
@@ -249,10 +258,12 @@ class _SettingsSectionProfiles extends StatelessWidget {
 class _SettingsSectionAppearance extends StatelessWidget {
   final dynamic config;
   final ConfigService notifier;
+  final AccentColor effectiveAccent;
 
   const _SettingsSectionAppearance({
     required this.config,
     required this.notifier,
+    required this.effectiveAccent,
   });
 
   @override
@@ -285,7 +296,7 @@ class _SettingsSectionAppearance extends StatelessWidget {
           child: Wrap(
             spacing: 10,
             runSpacing: 10,
-            children: [...Colors.accentColors, cyanAccentColor].map((color) {
+            children: AppColors.fluentAccentColors.map((color) {
               return Tooltip(
                 message: _getColorName(color),
                 child: IconButton(
@@ -295,7 +306,7 @@ class _SettingsSectionAppearance extends StatelessWidget {
                     decoration: BoxDecoration(
                       color: color,
                       shape: BoxShape.circle,
-                      border: config.accentColor == color
+                      border: effectiveAccent == color
                           ? Border.all(
                               color: FluentTheme.of(context)
                                   .typography
@@ -305,7 +316,7 @@ class _SettingsSectionAppearance extends StatelessWidget {
                             )
                           : null,
                     ),
-                    child: config.accentColor == color
+                    child: effectiveAccent == color
                         ? Icon(
                             FluentIcons.check_mark,
                             size: 16,
@@ -523,7 +534,7 @@ class _SettingsSectionAppearance extends StatelessWidget {
     if (color == Colors.blue) return 'Azul';
     if (color == Colors.teal) return 'Verde azulado';
     if (color == Colors.green) return 'Verde';
-    if (color == cyanAccentColor) return 'Cian';
+    if (color == AppColors.cyanAccent) return 'Cian';
     return 'Personalizado';
   }
 }

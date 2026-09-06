@@ -138,7 +138,7 @@ class MyApp extends ConsumerWidget {
   FluentThemeData _buildThemeWithTypography(
     Brightness brightness,
     AppConfigModel config,
-    BrandingThemeTokens branding,
+    AccentColor accentColor,
   ) {
     // Obtener tipografía base de Fluent UI con el brightness correcto
     final baseTypography = FluentThemeData(brightness: brightness).typography;
@@ -152,57 +152,37 @@ class MyApp extends ConsumerWidget {
     final customTypography = Typography.raw(
       display: _createTextStyleWithFactor(
         baseTypography.display,
-        config.displayFactor * branding.textScale,
+        config.displayFactor,
       ),
       titleLarge: _createTextStyleWithFactor(
         baseTypography.titleLarge,
-        config.titleLargeFactor * branding.textScale,
+        config.titleLargeFactor,
       ),
       title: _createTextStyleWithFactor(
         baseTypography.title,
-        config.titleFactor * branding.textScale,
+        config.titleFactor,
       ),
       bodyLarge: _createTextStyleWithFactor(
         baseTypography.bodyLarge,
-        config.bodyLargeFactor * branding.textScale,
+        config.bodyLargeFactor,
       ),
       bodyStrong: _createTextStyleWithFactor(
         baseTypography.bodyStrong,
-        config.bodyStrongFactor * branding.textScale,
+        config.bodyStrongFactor,
       ),
-      body: _createTextStyleWithFactor(
-        baseTypography.body,
-        config.bodyFactor * branding.textScale,
-      ),
+      body: _createTextStyleWithFactor(baseTypography.body, config.bodyFactor),
       caption: _createTextStyleWithFactor(
         baseTypography.caption,
-        config.captionFactor * branding.textScale,
+        config.captionFactor,
       ),
     );
 
-    final actionColor = branding.accentFor(brightness);
     return FluentThemeData(
       brightness: brightness,
-      accentColor: actionColor == null
-          ? config.accentColor
-          : AccentColor.swatch({'normal': actionColor}),
-      scaffoldBackgroundColor: brightness == Brightness.dark
-          ? branding.darkSurfaceColor
-          : null,
+      accentColor: accentColor,
       visualDensity: VisualDensity.standard,
       typography: customTypography,
       focusTheme: FocusThemeData(glowFactor: 0.0),
-      buttonTheme: branding.cornerRadius == null
-          ? null
-          : ButtonThemeData.all(
-              ButtonStyle(
-                shape: WidgetStatePropertyAll(
-                  RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(branding.cornerRadius!),
-                  ),
-                ),
-              ),
-            ),
     );
   }
 
@@ -217,6 +197,9 @@ class MyApp extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final config = ref.watch(configServiceProvider);
     final branding = ref.watch(appBrandingProvider);
+    final effectiveAccent = config.accentColorCustomized
+        ? config.accentColor
+        : branding.theme.fluentAccentColor ?? config.accentColor;
     ref.listen(configServiceProvider, (_, updatedConfig) {
       final currentSession = AppRouter.session.value;
       AppRouter.session.value = RouteSessionSnapshot(
@@ -238,16 +221,16 @@ class MyApp extends ConsumerWidget {
       debugShowCheckedModeBanner: false,
       title: branding.title ?? 'Orbi ERP',
       themeMode: config.themeMode,
-      color: branding.theme.accentColor ?? config.accentColor,
+      color: effectiveAccent,
       darkTheme: _buildThemeWithTypography(
         Brightness.dark,
         config,
-        branding.theme,
+        effectiveAccent,
       ),
       theme: _buildThemeWithTypography(
         Brightness.light,
         config,
-        branding.theme,
+        effectiveAccent,
       ),
       locale: const Locale('es'),
       routerConfig: appRouter,

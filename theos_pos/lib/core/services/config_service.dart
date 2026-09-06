@@ -8,6 +8,7 @@ import 'package:uuid/uuid.dart';
 
 import '../../shared/models/app_config_model.dart';
 import '../../shared/models/config_profile.dart';
+import '../constants/app_colors.dart';
 
 part 'config_service.g.dart';
 
@@ -21,6 +22,7 @@ class ConfigService extends _$ConfigService {
 
   static const _keyThemeMode = 'theme_mode';
   static const _keyAccentColor = 'accent_color';
+  static const _keyAccentColorCustomized = 'accent_color_customized';
   static const _keyWindowEffect = 'window_effect';
   static const _keyDisplayFactor = 'display_factor';
   static const _keyTitleLargeFactor = 'title_large_factor';
@@ -60,7 +62,7 @@ class ConfigService extends _$ConfigService {
     final accentColorValue = prefs.getInt(_keyAccentColor);
     AccentColor accentColor = Colors.blue;
     if (accentColorValue != null) {
-      for (final color in Colors.accentColors) {
+      for (final color in AppColors.fluentAccentColors) {
         if (color.toARGB32() == accentColorValue) {
           accentColor = color;
           break;
@@ -107,6 +109,7 @@ class ConfigService extends _$ConfigService {
     state = AppConfigModel(
       themeMode: themeMode,
       accentColor: accentColor,
+      accentColorCustomized: prefs.getBool(_keyAccentColorCustomized) ?? false,
       windowEffect: windowEffect,
       displayFactor: prefs.getDouble(_keyDisplayFactor) ?? 1.0,
       titleLargeFactor: prefs.getDouble(_keyTitleLargeFactor) ?? 1.0,
@@ -214,6 +217,7 @@ class ConfigService extends _$ConfigService {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString(_keyThemeMode, state.themeMode.toString());
     await prefs.setInt(_keyAccentColor, state.accentColor.toARGB32());
+    await prefs.setBool(_keyAccentColorCustomized, state.accentColorCustomized);
     await prefs.setString(_keyWindowEffect, state.windowEffect.toString());
     await prefs.setDouble(_keyDisplayFactor, state.displayFactor);
     await prefs.setDouble(_keyTitleLargeFactor, state.titleLargeFactor);
@@ -333,6 +337,7 @@ class ConfigService extends _$ConfigService {
     state = state.copyWith(
       themeMode: profile.themeMode,
       accentColor: profile.accentColor,
+      accentColorCustomized: true,
       windowEffect: profile.windowEffect,
       displayFactor: profile.displayFactor,
       titleLargeFactor: profile.titleLargeFactor,
@@ -443,7 +448,7 @@ class ConfigService extends _$ConfigService {
   }
 
   void setAccentColor(AccentColor color) {
-    state = state.copyWith(accentColor: color);
+    state = state.copyWith(accentColor: color, accentColorCustomized: true);
     _saveConfig();
     _updateActiveProfile();
   }

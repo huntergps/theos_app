@@ -74,6 +74,16 @@ abstract class AppColors {
     'lightest': Color(0xFF5CE5F5),
   };
 
+  /// Acento cian propio, integrado con las familias nativas de Fluent UI.
+  static final AccentColor cyanAccent = AccentColor.swatch(primaryVariants);
+
+  /// Familias completas disponibles tanto en Configuración como al traducir
+  /// el color de acción recibido desde Odoo.
+  static final List<AccentColor> fluentAccentColors = [
+    ...Colors.accentColors,
+    cyanAccent,
+  ];
+
   // === Colores para stock/inventario ===
 
   /// Verde para stock disponible

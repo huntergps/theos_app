@@ -7,6 +7,7 @@ import 'package:fluent_ui/fluent_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:odoo_sdk/odoo_sdk.dart' show OdooClient;
 
+import '../../../core/constants/app_colors.dart';
 import 'branding_cache_store.dart';
 
 const _loginBackgroundPath = '/base_gpstech/static/src/img/login_bg.jpg';
@@ -60,10 +61,27 @@ final class BrandingThemeTokens {
   final double textScale;
   final double? cornerRadius;
 
-  Color? accentFor(Brightness brightness) {
-    final color = accentColor;
-    if (color == null || brightness == Brightness.light) return color;
-    return Color.lerp(color, const Color(0xffffffff), .16);
+  /// Traduce el color libre de Odoo a la familia Fluent más cercana.
+  ///
+  /// Se compara contra todas las variantes de cada familia para que colores
+  /// corporativos oscuros (por ejemplo un naranja quemado) conserven su matiz
+  /// sin perder los estados hover/pressed que Fluent necesita.
+  AccentColor? get fluentAccentColor {
+    final target = accentColor;
+    if (target == null) return null;
+
+    AccentColor? closest;
+    var closestDistance = 1 << 62;
+    for (final candidate in AppColors.fluentAccentColors) {
+      for (final shade in candidate.swatch.values) {
+        final distance = _colorDistance(target, shade);
+        if (distance < closestDistance) {
+          closestDistance = distance;
+          closest = candidate;
+        }
+      }
+    }
+    return closest;
   }
 
   Color? get darkSurfaceColor {
@@ -112,6 +130,13 @@ final class BrandingThemeTokens {
 
   static double _contrastWithWhite(Color color) =>
       1.05 / (color.computeLuminance() + .05);
+
+  static int _colorDistance(Color first, Color second) {
+    final red = (first.r * 255).round() - (second.r * 255).round();
+    final green = (first.g * 255).round() - (second.g * 255).round();
+    final blue = (first.b * 255).round() - (second.b * 255).round();
+    return red * red + green * green + blue * blue;
+  }
 
   static Color _ensureDarkContrast(Color color) {
     var safe = color;

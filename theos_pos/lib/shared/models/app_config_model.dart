@@ -6,6 +6,7 @@ import 'config_profile.dart';
 class AppConfigModel {
   final ThemeMode themeMode;
   final AccentColor accentColor;
+  final bool accentColorCustomized;
   final WindowEffect windowEffect;
   final double displayFactor;
   final double titleLargeFactor;
@@ -45,6 +46,7 @@ class AppConfigModel {
   const AppConfigModel({
     required this.themeMode,
     required this.accentColor,
+    this.accentColorCustomized = false,
     required this.windowEffect,
     required this.displayFactor,
     required this.titleLargeFactor,
@@ -76,6 +78,7 @@ class AppConfigModel {
     return AppConfigModel(
       themeMode: ThemeMode.system,
       accentColor: Colors.blue,
+      accentColorCustomized: false,
       windowEffect: WindowEffect.disabled,
       displayFactor: 1.0,
       titleLargeFactor: 1.0,
@@ -102,6 +105,7 @@ class AppConfigModel {
   AppConfigModel copyWith({
     ThemeMode? themeMode,
     AccentColor? accentColor,
+    bool? accentColorCustomized,
     WindowEffect? windowEffect,
     double? displayFactor,
     double? titleLargeFactor,
@@ -130,6 +134,8 @@ class AppConfigModel {
     return AppConfigModel(
       themeMode: themeMode ?? this.themeMode,
       accentColor: accentColor ?? this.accentColor,
+      accentColorCustomized:
+          accentColorCustomized ?? this.accentColorCustomized,
       windowEffect: windowEffect ?? this.windowEffect,
       displayFactor: displayFactor ?? this.displayFactor,
       titleLargeFactor: titleLargeFactor ?? this.titleLargeFactor,

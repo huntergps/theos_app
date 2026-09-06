@@ -2,7 +2,7 @@ import 'dart:typed_data';
 
 import 'package:crypto/crypto.dart' show sha256;
 import 'package:dio/dio.dart';
-import 'package:fluent_ui/fluent_ui.dart' show Brightness, Color;
+import 'package:fluent_ui/fluent_ui.dart' show Brightness, Color, Colors;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:odoo_sdk/odoo_sdk.dart';
@@ -305,10 +305,10 @@ void main() {
         .12,
       )!.toARGB32(),
     );
-    expect(
-      darkTheme.accentFor(Brightness.dark)?.computeLuminance(),
-      greaterThan(darkTheme.accentColor!.computeLuminance()),
-    );
+    expect(darkTheme.fluentAccentColor, Colors.blue);
+
+    final erp2Theme = BrandingThemeTokens.fromJson({'action_color': '#9c4413'});
+    expect(erp2Theme.fluentAccentColor, Colors.orange);
   });
 
   test(
