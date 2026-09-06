@@ -116,6 +116,14 @@ class LoginForm extends StatelessWidget {
               validator: (value) =>
                   value == null || value.trim().isEmpty ? 'Requerido' : null,
             ),
+            Padding(
+              padding: EdgeInsets.only(top: spacing.xs),
+              child: Text(
+                'Recordaremos el usuario en este dispositivo; la contraseña no.',
+                style: FluentTheme.of(context).typography.caption
+                    ?.copyWith(color: FluentTheme.of(context).inactiveColor),
+              ),
+            ),
             spacing.vertical.md,
           ],
           FormTextField(

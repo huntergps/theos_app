@@ -198,6 +198,17 @@ class _LoginScreenState extends ConsumerState<LoginScreen> with WindowListener {
     final servers = ref.watch(serverServiceProvider);
     final spacing = ref.watch(themedSpacingProvider);
     final branding = ref.watch(appBrandingProvider);
+    final theme = FluentTheme.of(context);
+    final brandColor = branding.theme.brandColor ?? theme.accentColor;
+    final isDark = theme.brightness == Brightness.dark;
+    final formSurface = Color.alphaBlend(
+      brandColor.withValues(alpha: isDark ? .10 : .045),
+      theme.scaffoldBackgroundColor,
+    );
+    final formSurfaceEdge = Color.alphaBlend(
+      brandColor.withValues(alpha: isDark ? .18 : .085),
+      theme.scaffoldBackgroundColor,
+    );
 
     // Auto-select first server if none selected
     if (_selectedServer == null && servers.isNotEmpty) {
@@ -238,6 +249,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> with WindowListener {
                           LoginBrandLogo(
                             logoBytes: branding.logoBytes,
                             height: 150,
+                            maxWidth: 280,
                           ),
                           spacing.vertical.xl,
                           // Form area
@@ -245,9 +257,11 @@ class _LoginScreenState extends ConsumerState<LoginScreen> with WindowListener {
                             constraints: const BoxConstraints(maxWidth: 400),
                             padding: spacing.all.lg,
                             decoration: BoxDecoration(
-                              color: FluentTheme.of(context)
-                                  .scaffoldBackgroundColor,
+                              color: formSurface,
                               borderRadius: BorderRadius.circular(spacing.sm),
+                              border: Border.all(
+                                color: brandColor.withValues(alpha: .16),
+                              ),
                             ),
                             child: LoginForm(
                               formKey: _formKey,
@@ -291,14 +305,16 @@ class _LoginScreenState extends ConsumerState<LoginScreen> with WindowListener {
                       flex: 3,
                       child: LoginBrandingPanel(
                         branding: branding,
-                        child: Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            LoginBrandLogo(
+                        child: LayoutBuilder(
+                          builder: (context, panelConstraints) => Center(
+                            child: LoginBrandLogo(
                               logoBytes: branding.logoBytes,
-                              height: 300,
+                              height: panelConstraints.maxHeight < 900
+                                  ? 190
+                                  : 220,
+                              maxWidth: panelConstraints.maxWidth * .68,
                             ),
-                          ],
+                          ),
                         ),
                       ),
                     ),
@@ -306,7 +322,12 @@ class _LoginScreenState extends ConsumerState<LoginScreen> with WindowListener {
                     Expanded(
                       flex: 2,
                       child: Container(
-                        color: FluentTheme.of(context).scaffoldBackgroundColor,
+                        decoration: BoxDecoration(
+                          gradient: LinearGradient(
+                            colors: [formSurfaceEdge, formSurface],
+                            stops: const [0, .24],
+                          ),
+                        ),
                         padding: EdgeInsets.symmetric(horizontal: spacing.xl),
                         child: Center(
                           child: ConstrainedBox(
@@ -318,17 +339,20 @@ class _LoginScreenState extends ConsumerState<LoginScreen> with WindowListener {
                                 children: [
                                   Text(
                                     branding.title ?? 'Bienvenido',
-                                    style: const TextStyle(
-                                      fontSize: 40,
+                                    style: TextStyle(
+                                      fontSize: constraints.maxWidth < 1100
+                                          ? 34
+                                          : 40,
                                       fontWeight: FontWeight.bold,
                                     ),
                                   ),
                                   spacing.vertical.sm,
-                                  const Text(
+                                  Text(
                                     'Inicia sesión para continuar',
                                     style: TextStyle(
                                       fontSize: 16,
-                                      color: Colors.grey,
+                                      color: FluentTheme.of(context)
+                                          .inactiveColor,
                                     ),
                                   ),
                                   spacing.vertical.xl,
@@ -624,6 +648,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> with WindowListener {
                       name: nameCtrl.text,
                       url: urlCtrl.text,
                       database: dbCtrl.text,
+                      login: server?.login,
                       apiKey: apiKeyCtrl.text.isNotEmpty
                           ? apiKeyCtrl.text
                           : null,
@@ -817,8 +842,10 @@ class _LoginScreenState extends ConsumerState<LoginScreen> with WindowListener {
           sessionCommitted = true;
           return;
         }
-        // Update the selected server with the new API key if it changed
-        final updatedServer = ServerConfig(
+        // Update the selected server with the new API key if it changed.
+        // The resolved Odoo login is attached after loading res.users so API
+        // key users also get their username restored on the next visit.
+        var updatedServer = ServerConfig(
           name: _selectedServer!.name,
           url: url,
           database: db,
@@ -827,14 +854,6 @@ class _LoginScreenState extends ConsumerState<LoginScreen> with WindowListener {
               : _selectedServer!.login,
           apiKey: apiKey,
         );
-
-        // Update in the list
-        await ref.read(serverServiceProvider.notifier).addServer(updatedServer);
-
-        // Save as last used
-        await ref
-            .read(serverServiceProvider.notifier)
-            .saveLastServer(updatedServer);
 
         // Reset auth event service debounce on successful login
         final authEventService = ref.read(authEventServiceProvider);
@@ -940,6 +959,12 @@ class _LoginScreenState extends ConsumerState<LoginScreen> with WindowListener {
         await ref
             .read(userProvider.notifier)
             .setUser(finalUser, isOffline: false);
+
+        updatedServer = updatedServer.copyWith(login: finalUser.login);
+        await ref.read(serverServiceProvider.notifier).addServer(updatedServer);
+        await ref
+            .read(serverServiceProvider.notifier)
+            .saveLastServer(updatedServer);
 
         final companyId = finalUser.companyId;
         if (companyId != null && companyId > 0) {
@@ -1154,6 +1179,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> with WindowListener {
         name: _selectedServer!.name,
         url: url,
         database: db,
+        login: _selectedServer!.login,
         apiKey: apiKey,
       );
 

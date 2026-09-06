@@ -64,25 +64,29 @@ class LoginBrandLogo extends StatelessWidget {
   const LoginBrandLogo({
     required this.logoBytes,
     required this.height,
+    this.maxWidth,
     super.key,
   });
 
   final List<int>? logoBytes;
   final double height;
+  final double? maxWidth;
 
   @override
   Widget build(BuildContext context) {
     final logo = logoBytes;
-    if (logo == null) {
-      return TheosLogoName(height: height, color: Colors.white);
-    }
-    return Image.memory(
-      Uint8List.fromList(logo),
-      key: const Key('login-company-logo'),
-      height: height,
-      fit: BoxFit.contain,
-      errorBuilder: (_, _, _) =>
-          TheosLogoName(height: height, color: Colors.white),
+    return ConstrainedBox(
+      constraints: BoxConstraints(maxWidth: maxWidth ?? double.infinity),
+      child: logo == null
+          ? TheosLogoName(height: height, color: Colors.white)
+          : Image.memory(
+              Uint8List.fromList(logo),
+              key: const Key('login-company-logo'),
+              height: height,
+              fit: BoxFit.contain,
+              errorBuilder: (_, _, _) =>
+                  TheosLogoName(height: height, color: Colors.white),
+            ),
     );
   }
 }
