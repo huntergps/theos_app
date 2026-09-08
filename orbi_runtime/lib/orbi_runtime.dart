@@ -12,6 +12,7 @@ export 'src/storage/runtime_database_owner.dart';
 export 'src/sales/sale_runtime_adapters.dart';
 export 'src/sales/collection_operation_port.dart';
 export 'src/sales/durable_collection_producers.dart';
+export 'src/sales/payment_transaction_collection_port.dart';
 export 'src/sales/sale_command_port.dart';
 export 'src/sales/sale_draft_repository.dart';
 

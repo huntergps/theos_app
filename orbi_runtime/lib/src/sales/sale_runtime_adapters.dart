@@ -603,6 +603,15 @@ final class OdooOfflineOperationAdapter implements OfflineOperationAdapter {
       await _persistCollectionCreate(operation, id);
       return const OperationApplied();
     }
+    if (operation.model == 'collection.session.deposit' &&
+        operation.method == 'action_create_accounting_entry') {
+      final id = await _remoteId(operation);
+      if (id == null) return const OperationNotApplied();
+      final moveId = await _depositMoveId(id);
+      if (moveId == null) return const OperationNotApplied();
+      await _persistDepositAccounting(operation, moveId);
+      return const OperationApplied();
+    }
     if (operation.model == 'collection.session' &&
         (operation.method == 'session_closing_control' ||
             operation.method == 'session_close')) {
@@ -701,7 +710,42 @@ final class OdooOfflineOperationAdapter implements OfflineOperationAdapter {
     }
     final id = await _remoteId(operation);
     dynamic result;
-    if (operation.model == 'collection.session' &&
+    if (operation.model == 'collection.session.deposit' &&
+        operation.method == 'action_create_accounting_entry') {
+      if (id == null) {
+        throw StateError('deposit remote id unavailable');
+      }
+      result = await actions.call(
+        model: operation.model,
+        method: operation.method,
+        ids: [id],
+      );
+      if (_rejected(result)) {
+        return ConflictInfo(
+          operationId: operation.id,
+          model: operation.model,
+          recordId: operation.recordId,
+          localWriteDate: operation.createdAt,
+          serverWriteDate: DateTime.now().toUtc(),
+          localValues: Map<String, dynamic>.from(values),
+        );
+      }
+      final moveId = await _depositMoveId(id);
+      // Odoo may acknowledge the action before the move is visible. Keep the
+      // action pending and the local deposit unaccounted until move_id exists.
+      if (moveId == null) {
+        return ConflictInfo(
+          operationId: operation.id,
+          model: operation.model,
+          recordId: operation.recordId,
+          localWriteDate: operation.createdAt,
+          serverWriteDate: DateTime.now().toUtc(),
+          localValues: Map<String, dynamic>.from(values),
+        );
+      }
+      await _persistDepositAccounting(operation, moveId);
+      return null;
+    } else if (operation.model == 'collection.session' &&
         operation.method == 'session_closing_control') {
       if (id == null) throw StateError('collection session id unavailable');
       final amount = values['cash_register_balance_end_real'];
@@ -1201,9 +1245,23 @@ final class OdooOfflineOperationAdapter implements OfflineOperationAdapter {
   ) async {
     final ids = operation.values['withholdLineIds'];
     if (ids is List) {
-      // Native rows already have one official create intent each. The queue
-      // orders those intents before the parent payment wizard, so rebuilding
-      // them here would duplicate the same financial fact and Odoo rule.
+      // Native rows already have one official create intent each. Require
+      // every line to have completed that intent before applying the parent
+      // wizard; otherwise a payment could commit without its retention.
+      for (final rawId in ids) {
+        final localId = _positiveInt(rawId);
+        if (localId == null) {
+          throw StateError('withhold line id missing before payment apply');
+        }
+        final row = await (database.select(
+          database.saleOrderWithholdLine,
+        )..where((table) => table.id.equals(localId))).getSingleOrNull();
+        if (row == null || !row.isSynced || (row.odooId ?? 0) <= 0) {
+          throw StateError(
+            'withhold line $localId is not synchronized before payment apply',
+          );
+        }
+      }
       return;
     }
     await _ensureWithholdLines(saleId, operation.values['withholdLines']);
@@ -1687,6 +1745,26 @@ final class OdooOfflineOperationAdapter implements OfflineOperationAdapter {
     return null;
   }
 
+  Future<int?> _depositMoveId(int remoteId) async {
+    final result = await actions.call(
+      model: 'collection.session.deposit',
+      method: 'search_read',
+      kwargs: {
+        'domain': [
+          ['id', '=', remoteId],
+        ],
+        'fields': ['id', 'move_id'],
+        'limit': 1,
+      },
+    );
+    if (result is! List || result.length != 1 || result.first is! Map) {
+      return null;
+    }
+    final move = (result.first as Map)['move_id'];
+    if (move is List && move.isNotEmpty) return _positiveInt(move.first);
+    return _positiveInt(move);
+  }
+
   Future<void> _persistCreate(OfflineOperation operation, int remoteId) async {
     await database.transaction(() async {
       final values = Map<String, dynamic>.from(operation.values)
@@ -1782,6 +1860,26 @@ final class OdooOfflineOperationAdapter implements OfflineOperationAdapter {
         remoteId,
       );
     });
+  }
+
+  Future<void> _persistDepositAccounting(
+    OfflineOperation operation,
+    int moveId,
+  ) async {
+    // Deposits are created with a negative local id until Odoo assigns the
+    // durable record id. Keep that local identity while recording the move.
+    final localId = operation.values['local_id'];
+    if (localId is! int || localId == 0 || moveId <= 0) return;
+    await (database.update(
+      database.collectionSessionDeposit,
+    )..where((table) => table.id.equals(localId))).write(
+      CollectionSessionDepositCompanion(
+        moveId: drift.Value(moveId),
+        state: const drift.Value('posted'),
+        isSynced: const drift.Value(true),
+        lastSyncDate: drift.Value(DateTime.now().toUtc()),
+      ),
+    );
   }
 
   static List<int> _taxIds(String? encoded) {

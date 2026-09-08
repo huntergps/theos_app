@@ -194,6 +194,22 @@ final class DurableCollectionProducer {
         priority: OfflinePriority.high,
         replayPolicy: OfflineReplayPolicy.retrySafe,
       );
+      final accountingKey =
+          'collection.session.deposit:action_create_accounting_entry:$uuid';
+      await queue.queueOperation(
+        model: 'collection.session.deposit',
+        method: 'action_create_accounting_entry',
+        recordId: localId,
+        values: {
+          'deposit_uuid': uuid,
+          'local_id': localId,
+          'dependsOn': [operationKey],
+          '_operation_key': accountingKey,
+        },
+        operationKey: accountingKey,
+        priority: OfflinePriority.high,
+        replayPolicy: OfflineReplayPolicy.retrySafe,
+      );
     });
     return DurableCollectionResult.queued(localId);
   }
@@ -404,6 +420,7 @@ final class DurableCollectionProducer {
         paymentIds.add(id);
       }
       final withholdIds = <int>[];
+      final withholdOperationKeys = <String>[];
       for (final line in withholdLines) {
         final id = await database
             .into(database.saleOrderWithholdLine)
@@ -422,6 +439,8 @@ final class DurableCollectionProducer {
               ),
             );
         withholdIds.add(id);
+        final withholdOperationKey = '$uuid:withhold:${line.uuid}';
+        withholdOperationKeys.add(withholdOperationKey);
         await queue.queueOperation(
           model: 'sale.order.withhold.line',
           method: 'create',
@@ -432,10 +451,13 @@ final class DurableCollectionProducer {
             'local_id': id,
             'sale_id': saleOrderId,
             'uuid': line.uuid,
-            '_operation_key': '$uuid:withhold:${line.uuid}',
+            '_operation_key': withholdOperationKey,
           },
-          operationKey: '$uuid:withhold:${line.uuid}',
-          priority: OfflinePriority.high,
+          operationKey: withholdOperationKey,
+          // The parent wizard is high priority. Critical lines must replay
+          // first; the adapter still checks their local synced/remote IDs
+          // before it can apply the wizard.
+          priority: OfflinePriority.critical,
           replayPolicy: OfflineReplayPolicy.retrySafe,
         );
       }
@@ -446,6 +468,7 @@ final class DurableCollectionProducer {
         'amountMinor': amountMinor,
         'paymentLineIds': paymentIds,
         'withholdLineIds': withholdIds,
+        'dependsOn': withholdOperationKeys,
         ...?_presentValue('wizardId', wizardId),
         ...?_presentValue('collectionSessionId', collectionSessionId),
         if (method == 'cashInvoice') ...{

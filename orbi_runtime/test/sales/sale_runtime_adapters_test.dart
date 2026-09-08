@@ -341,6 +341,60 @@ void main() {
     );
   });
 
+  test(
+    'existing invoice refuses payment while a retention line is unsynced',
+    () async {
+      final db = AppDatabase(NativeDatabase.memory());
+      addTearDown(db.close);
+      final lineId = await db
+          .into(db.saleOrderWithholdLine)
+          .insert(
+            SaleOrderWithholdLineCompanion.insert(
+              lineUuid: const drift.Value('withhold-pending'),
+              orderId: 42,
+              taxId: 7,
+              taxName: 'IVA retenido',
+              withholdType: 'withhold_vat_sale',
+              base: const drift.Value(100.0),
+              amount: const drift.Value(10.0),
+            ),
+          );
+      final queue = OfflineQueueDataSource(db);
+      await queue.queueOperation(
+        model: 'l10n_ec_collection_box.sale.order.payment.wizard',
+        method: 'existingInvoice',
+        recordId: 52,
+        values: {
+          'commandId': 'existing-withhold-pending',
+          'saleOrderRemoteId': 42,
+          'wizardId': 52,
+          'paymentLines': [
+            {'type': 'payment', 'journalId': 7, 'amountMinor': 1000},
+          ],
+          'withholdLineIds': [lineId],
+        },
+        operationKey: 'existing-withhold-pending',
+        replayPolicy: OfflineReplayPolicy.retrySafe,
+      );
+      final actions = FakeActions();
+      final adapter = OdooOfflineOperationAdapter(
+        actions: actions,
+        database: db,
+        scope: AppScope(
+          appId: 'panel',
+          installationId: 'install',
+          normalizedServerUrl: 'https://erp.test',
+          database: 'db',
+          userId: 1,
+        ),
+        queue: queue,
+      );
+      final operation = (await queue.getPendingOperations()).single;
+      await expectLater(adapter.dispatch(operation), throwsStateError);
+      expect(actions.calls, isEmpty);
+    },
+  );
+
   test('local confirmation is durable and operationKey deduplicates', () async {
     final db = AppDatabase(NativeDatabase.memory());
     final order = await db

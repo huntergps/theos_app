@@ -8,6 +8,7 @@ import 'package:theos_pos_core/theos_pos_core.dart';
 final class _Actions implements SaleOdooActions {
   final calls = <String>[];
   final payloads = <Map<String, dynamic>>[];
+  bool depositHasMove = true;
   String sessionState = 'opened';
   @override
   Future<dynamic> call({
@@ -32,10 +33,10 @@ final class _Actions implements SaleOdooActions {
     }
     if (method == 'create') return 501;
     if (method == 'search_read' && model == 'collection.session.deposit') {
-      return const [
+      return [
         {
           'id': 501,
-          'move_id': [22, 'MVE/1'],
+          'move_id': depositHasMove ? [22, 'MVE/1'] : false,
         },
       ];
     }
@@ -86,7 +87,7 @@ void main() {
     );
     expect(
       (await queue.getOperationsForModel('collection.session.deposit')),
-      hasLength(1),
+      hasLength(2),
     );
     expect((await reopened.select(reopened.cashOut).get()), hasLength(1));
     expect(
@@ -99,9 +100,16 @@ void main() {
     expect(cashCreate.values.containsKey('cash_out_type'), isFalse);
     final depositCreate = (await queue.getOperationsForModel(
       'collection.session.deposit',
-    )).single;
+    )).singleWhere((operation) => operation.method == 'create');
     expect(depositCreate.values['deposit_type'], 'cash');
     expect(depositCreate.values.containsKey('cash_journal_id'), isFalse);
+    final depositAccounting =
+        (await queue.getOperationsForModel('collection.session.deposit'))
+            .singleWhere(
+              (operation) =>
+                  operation.method == 'action_create_accounting_entry',
+            );
+    expect(depositAccounting.values['dependsOn'], [depositCreate.operationKey]);
 
     final retry = DurableCollectionProducer(reopened, queue);
     await retry.cashOut(
@@ -319,6 +327,15 @@ void main() {
       ),
       hasLength(1),
     );
+    final withholdIndex = actions.calls.indexOf(
+      'sale.order.withhold.line.create:[]',
+    );
+    final wizardIndex = actions.calls.indexWhere(
+      (call) => call.contains(
+        'l10n_ec_collection_box.sale.order.payment.wizard.action_apply',
+      ),
+    );
+    expect(withholdIndex, lessThan(wizardIndex));
     expect(await reopened.select(reopened.offlineQueue).get(), isEmpty);
     expect(
       (await reopened.select(reopened.saleOrderWithholdLine).getSingle())
@@ -538,7 +555,7 @@ void main() {
     expect(result.state, DurableCollectionState.queued);
     final operation = (await queue.getOperationsForModel(
       'collection.session.deposit',
-    )).single;
+    )).singleWhere((operation) => operation.method == 'create');
     expect(operation.values['cash_amount'], 40.0);
     expect(operation.values['check_amount'], 60.0);
 
@@ -627,10 +644,10 @@ void main() {
         ),
         queue: queue,
       );
-      final operation = (await queue.getOperationsForModel(
+      final create = (await queue.getOperationsForModel(
         'collection.session.deposit',
-      )).single;
-      await adapter.dispatch(operation);
+      )).singleWhere((operation) => operation.method == 'create');
+      await adapter.dispatch(create);
       final createCall = actions.payloads.singleWhere(
         (call) =>
             call['model'] == 'collection.session.deposit' &&
@@ -642,12 +659,80 @@ void main() {
       expect(sentFields.containsKey('local_id'), isFalse);
       expect(sentFields.containsKey('_operation_key'), isFalse);
       expect(sentFields.containsKey('uuid'), isFalse);
-      final persisted = operation.values;
+      final persisted = create.values;
       expect(persisted['deposit_uuid'], 'deposit-reconcile-1');
       expect(persisted.containsKey('uuid'), isFalse);
       expect(persisted.containsKey('local_id'), isTrue);
       expect(persisted.containsKey('_operation_key'), isTrue);
-      expect(await adapter.reconcile(operation), isA<OperationApplied>());
+      final accounting =
+          (await queue.getOperationsForModel('collection.session.deposit'))
+              .singleWhere(
+                (operation) =>
+                    operation.method == 'action_create_accounting_entry',
+              );
+      await adapter.dispatch(accounting);
+      expect(
+        actions.calls,
+        contains(
+          'collection.session.deposit.action_create_accounting_entry:[501]',
+        ),
+      );
+      final row =
+          await (db.select(db.collectionSessionDeposit)..where(
+                (table) =>
+                    table.id.equals(accounting.values['local_id'] as int),
+              ))
+              .getSingle();
+      expect(row.moveId, 22);
+      expect(row.state, 'posted');
+      expect(await adapter.reconcile(accounting), isA<OperationApplied>());
     },
   );
+
+  test('deposit accounting stays pending without a remote move', () async {
+    final db = AppDatabase(NativeDatabase.memory());
+    addTearDown(db.close);
+    final queue = OfflineQueueDataSource(db);
+    await DurableCollectionProducer(db, queue).deposit(
+      commandId: 'deposit-no-move',
+      sessionId: 8,
+      bankJournalId: 4,
+      depositType: 'cash',
+      amountMinor: 2500,
+      cashAmountMinor: 2500,
+      checkAmountMinor: 0,
+      accountingDate: '2026-09-07',
+    );
+    final actions = _Actions()..depositHasMove = false;
+    final adapter = OdooOfflineOperationAdapter(
+      actions: actions,
+      database: db,
+      scope: AppScope(
+        appId: 'theos_panel',
+        installationId: 'install',
+        normalizedServerUrl: 'https://erp.test',
+        database: 'db',
+        userId: 7,
+      ),
+      queue: queue,
+    );
+    final create = (await queue.getOperationsForModel(
+      'collection.session.deposit',
+    )).singleWhere((operation) => operation.method == 'create');
+    await adapter.dispatch(create);
+    final accounting =
+        (await queue.getOperationsForModel('collection.session.deposit'))
+            .singleWhere(
+              (operation) =>
+                  operation.method == 'action_create_accounting_entry',
+            );
+    expect(await adapter.dispatch(accounting), isA<ConflictInfo>());
+    final row =
+        await (db.select(db.collectionSessionDeposit)..where(
+              (table) => table.id.equals(accounting.values['local_id'] as int),
+            ))
+            .getSingle();
+    expect(row.moveId, isNull);
+    expect(row.state, 'draft');
+  });
 }
