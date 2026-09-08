@@ -14,6 +14,36 @@ abstract interface class AuthServicePort {
   Future<void> close();
 }
 
+abstract interface class ApiKeyAuthServicePort {
+  Future<AuthServiceResult> loginWithApiKey({
+    required String serverUrl,
+    required String database,
+    required String login,
+    required String apiKey,
+  });
+}
+
+/// Optional extension for services that can enforce the UI's explicit
+/// credential-retention choice. Legacy test/embedded services keep the
+/// original AuthServicePort contract.
+abstract interface class CredentialPolicyAuthServicePort {
+  Future<AuthServiceResult> login({
+    required String serverUrl,
+    required String database,
+    required String login,
+    required String password,
+    bool persistCredential,
+  });
+
+  Future<AuthServiceResult> loginWithApiKey({
+    required String serverUrl,
+    required String database,
+    required String login,
+    required String apiKey,
+    bool persistCredential,
+  });
+}
+
 /// Performs exactly one online restore and, only when that attempt fails, one
 /// explicit offline restore. Callers own when this is invoked (normally cold
 /// start); it never schedules a retry loop.
@@ -29,7 +59,11 @@ Future<AuthServiceResult> restoreOnce(AuthServicePort service) async {
   }
 }
 
-class NativeAuthServicePort implements AuthServicePort {
+class NativeAuthServicePort
+    implements
+        AuthServicePort,
+        ApiKeyAuthServicePort,
+        CredentialPolicyAuthServicePort {
   NativeAuthServicePort(this.service);
   final NativeAuthService service;
   @override
@@ -38,11 +72,27 @@ class NativeAuthServicePort implements AuthServicePort {
     required String database,
     required String login,
     required String password,
+    bool persistCredential = true,
   }) => service.login(
     serverUrl: serverUrl,
     database: database,
     login: login,
     password: password,
+    persistCredential: persistCredential,
+  );
+  @override
+  Future<AuthServiceResult> loginWithApiKey({
+    required String serverUrl,
+    required String database,
+    required String login,
+    required String apiKey,
+    bool persistCredential = true,
+  }) => service.loginWithApiKey(
+    serverUrl: serverUrl,
+    database: database,
+    login: login,
+    apiKey: apiKey,
+    persistCredential: persistCredential,
   );
   @override
   Future<AuthServiceResult> restore({bool offline = false}) =>
@@ -122,6 +172,7 @@ final authControllerProvider = NotifierProvider<AuthNotifier, AuthViewState>(
 
 class AuthNotifier extends Notifier<AuthViewState> {
   AuthServicePort get _service => ref.read(authServiceProvider);
+  AuthViewState get currentState => state;
 
   @override
   AuthViewState build() => ref.watch(authInitialStateProvider);
@@ -131,18 +182,32 @@ class AuthNotifier extends Notifier<AuthViewState> {
     required String database,
     required String login,
     required String password,
+    bool persistCredential = true,
   }) async {
     state = const AuthViewState(status: AuthControllerStatus.loading);
     try {
-      state = _fromResult(
-        await _service.login(
+      final service = _service;
+      late final AuthServiceResult result;
+      if (service case final CredentialPolicyAuthServicePort policy) {
+        result = await policy.login(
           serverUrl: serverUrl,
           database: database,
           login: login,
           password: password,
-        ),
-      );
+          persistCredential: persistCredential,
+        );
+      } else {
+        result = await service.login(
+          serverUrl: serverUrl,
+          database: database,
+          login: login,
+          password: password,
+        );
+      }
+      if (!ref.mounted) return;
+      state = _fromResult(result);
     } catch (_) {
+      if (!ref.mounted) return;
       state = const AuthViewState(
         status: AuthControllerStatus.error,
         message:
@@ -151,11 +216,60 @@ class AuthNotifier extends Notifier<AuthViewState> {
     }
   }
 
+  Future<void> loginWithApiKey({
+    required String serverUrl,
+    required String database,
+    required String login,
+    required String apiKey,
+    bool persistCredential = true,
+  }) async {
+    final service = _service;
+    if (service is! ApiKeyAuthServicePort) {
+      state = const AuthViewState(
+        status: AuthControllerStatus.error,
+        message: 'El modo API key no está configurado en esta plataforma.',
+      );
+      return;
+    }
+    final apiService = service as ApiKeyAuthServicePort;
+    state = const AuthViewState(status: AuthControllerStatus.loading);
+    try {
+      late final AuthServiceResult result;
+      if (service case final CredentialPolicyAuthServicePort policy) {
+        result = await policy.loginWithApiKey(
+          serverUrl: serverUrl,
+          database: database,
+          login: login,
+          apiKey: apiKey,
+          persistCredential: persistCredential,
+        );
+      } else {
+        result = await apiService.loginWithApiKey(
+          serverUrl: serverUrl,
+          database: database,
+          login: login,
+          apiKey: apiKey,
+        );
+      }
+      if (!ref.mounted) return;
+      state = _fromResult(result);
+    } catch (_) {
+      if (!ref.mounted) return;
+      state = const AuthViewState(
+        status: AuthControllerStatus.error,
+        message: 'No se pudo validar la API key.',
+      );
+    }
+  }
+
   Future<void> restore({bool offline = false}) async {
     state = const AuthViewState(status: AuthControllerStatus.loading);
     try {
-      state = _fromResult(await _service.restore(offline: offline));
+      final result = await _service.restore(offline: offline);
+      if (!ref.mounted) return;
+      state = _fromResult(result);
     } catch (_) {
+      if (!ref.mounted) return;
       state = const AuthViewState(
         status: AuthControllerStatus.error,
         message: 'No se pudo restaurar la sesión.',
@@ -165,6 +279,7 @@ class AuthNotifier extends Notifier<AuthViewState> {
 
   Future<void> close() async {
     await _service.close();
+    if (!ref.mounted) return;
     // Drop profile/capabilities immediately so providers cannot retain the
     // previous user's company scope after teardown.
     state = const AuthViewState();
@@ -172,6 +287,7 @@ class AuthNotifier extends Notifier<AuthViewState> {
 
   Future<AuthProfile?> loadProfile() async {
     final profile = await _service.loadProfile();
+    if (!ref.mounted) return profile;
     if (profile != null && state.status == AuthControllerStatus.required) {
       state = AuthViewState(profile: profile);
     }

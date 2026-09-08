@@ -87,6 +87,10 @@ abstract interface class CapabilitySnapshotPort {
   Future<CapabilitySnapshot?> offline(AppScope scope, int companyId);
 }
 
+typedef ApiKeyIdentityProbe = Future<({int userId, String login})> Function(
+  OdooClient client,
+);
+
 abstract interface class AuthBootstrapPort {
   Future<NativeAuthBootstrapResult> authenticateAndCreateApiKey({
     required String baseUrl,
@@ -156,6 +160,7 @@ final class NativeAuthService {
     this.appId = 'theos_panel',
     this.identityReader,
     this.capabilityPort,
+    ApiKeyIdentityProbe? apiKeyIdentityProbe,
   }) : _bootstrap = bootstrapPort ?? NativeAuthBootstrapAdapter(bootstrap),
        _credentialStore = credentialStore,
        _preferences = preferences,
@@ -164,7 +169,8 @@ final class NativeAuthService {
            (sessionRuntime == null
                ? _MissingRuntime()
                : SessionRuntimeAdapter(sessionRuntime)),
-       _installationIds = installationIds;
+       _installationIds = installationIds,
+       _apiKeyIdentityProbe = apiKeyIdentityProbe ?? _probeApiKeyIdentity;
 
   final AuthBootstrapPort _bootstrap;
   final CredentialStore _credentialStore;
@@ -174,12 +180,14 @@ final class NativeAuthService {
   final String appId;
   final ActiveIdentityReader? identityReader;
   final CapabilitySnapshotPort? capabilityPort;
+  final ApiKeyIdentityProbe _apiKeyIdentityProbe;
 
   Future<AuthServiceResult> login({
     required String serverUrl,
     required String database,
     required String login,
     required String password,
+    bool persistCredential = true,
   }) async {
     final previousProfile = await loadProfile();
     int? authenticatedUserId;
@@ -203,7 +211,9 @@ final class NativeAuthService {
       );
       const reference = 'api-key';
       previousSecret = await _credentialStore.read(scope, reference);
-      await _credentialStore.write(scope, reference, result.apiKey);
+      if (persistCredential) {
+        await _credentialStore.write(scope, reference, result.apiKey);
+      }
       final profile = AuthProfile(
         serverUrl: scope.normalizedServerUrl,
         database: database,
@@ -230,6 +240,9 @@ final class NativeAuthService {
         );
         await _saveProfile(effectiveProfile);
         capabilities = await capabilityPort?.refresh(scope, identity.companyId);
+      }
+      if (!persistCredential) {
+        await _credentialStore.delete(scope, reference);
       }
       return AuthServiceResult(
         status: AuthServiceStatus.authenticated,
@@ -286,6 +299,147 @@ final class NativeAuthService {
       }
       rethrow;
     }
+  }
+
+  /// Activates a session with an already-issued API key. The key is accepted
+  /// only by native clients and is immediately moved into CredentialStore;
+  /// it never becomes profile metadata or a widget-owned session token.
+  Future<AuthServiceResult> loginWithApiKey({
+    required String serverUrl,
+    required String database,
+    required String login,
+    required String apiKey,
+    bool persistCredential = true,
+  }) async {
+    if (serverUrl.trim().isEmpty ||
+        database.trim().isEmpty ||
+        login.trim().isEmpty ||
+        apiKey.isEmpty) {
+      throw ArgumentError('server, database, login and apiKey are required');
+    }
+    final previousProfile = await loadProfile();
+    final previousLastProfileKey = _preferences.getString(_lastProfileKey);
+    AppScope? scope;
+    String? previousSecret;
+    bool activated = false;
+    try {
+      final installationId = await _installationIds.loadOrCreate(appId);
+      final probe = OdooClient(
+        config: OdooClientConfig(
+          baseUrl: serverUrl,
+          database: database,
+          apiKey: apiKey,
+        ),
+      );
+      final identity = await _apiKeyIdentityProbe(probe);
+      if (identity.userId <= 0 || identity.login.trim().isEmpty) {
+        throw StateError('API key did not return an authenticated identity');
+      }
+      if (identity.login.trim() != login.trim()) {
+        throw StateError('API key belongs to another Odoo user');
+      }
+      scope = AppScope(
+        appId: appId,
+        installationId: installationId,
+        normalizedServerUrl: serverUrl,
+        database: database,
+        userId: identity.userId,
+      );
+      const reference = 'api-key';
+      previousSecret = await _credentialStore.read(scope, reference);
+      final profile = AuthProfile(
+        serverUrl: scope.normalizedServerUrl,
+        database: database,
+        login: login.trim(),
+        userId: scope.userId,
+        installationId: installationId,
+        credentialReference: reference,
+      );
+      if (persistCredential) {
+        await _credentialStore.write(scope, reference, apiKey);
+      }
+      await _saveProfile(profile);
+      await _sessionRuntime.activate(scope, apiKey: apiKey);
+      activated = true;
+      final effectiveProfile = await _enrichProfile(scope, profile);
+      if (!persistCredential) {
+        await _credentialStore.delete(scope, reference);
+      }
+      return AuthServiceResult(
+        status: AuthServiceStatus.authenticated,
+        scope: scope,
+        profile: effectiveProfile,
+        capabilities: await _capabilitiesFor(scope, effectiveProfile),
+      );
+    } catch (_) {
+      try {
+        if (scope != null) {
+          if (previousSecret == null) {
+            await _credentialStore.delete(scope, 'api-key');
+          } else {
+            await _credentialStore.write(scope, 'api-key', previousSecret);
+          }
+        }
+        final attemptedKey = _profileKeyFor(serverUrl, database);
+        if (previousProfile == null) {
+          await _preferences.remove(attemptedKey);
+          await _preferences.remove(_lastProfileKey);
+        } else {
+          final previousProfileKey = _profileKeyFor(
+            previousProfile.serverUrl,
+            previousProfile.database,
+          );
+          if (attemptedKey != previousProfileKey) {
+            await _preferences.remove(attemptedKey);
+          }
+          await _saveProfile(previousProfile);
+          if (previousLastProfileKey == null) {
+            await _preferences.remove(_lastProfileKey);
+          } else {
+            await _preferences.setString(
+              _lastProfileKey,
+              previousLastProfileKey,
+            );
+          }
+        }
+      } catch (_) {
+        // Rollback is best effort; preserve the original authentication error.
+      }
+      if (activated) {
+        try {
+          await _sessionRuntime.close();
+        } catch (_) {}
+      }
+      rethrow;
+    }
+  }
+
+  Future<AuthProfile> _enrichProfile(
+    AppScope scope,
+    AuthProfile profile,
+  ) async {
+    if (identityReader == null) return profile;
+    final identity = await identityReader!.read(scope);
+    final enriched = AuthProfile(
+      serverUrl: profile.serverUrl,
+      database: profile.database,
+      login: profile.login,
+      userId: profile.userId,
+      installationId: profile.installationId,
+      credentialReference: profile.credentialReference,
+      companyId: identity.companyId,
+      allowedCompanyIds: identity.allowedCompanyIds,
+    );
+    await _saveProfile(enriched);
+    return enriched;
+  }
+
+  Future<CapabilitySnapshot?> _capabilitiesFor(
+    AppScope scope,
+    AuthProfile profile,
+  ) async {
+    final companyId = profile.companyId;
+    return companyId == null ? null : capabilityPort?.refresh(scope, companyId);
   }
 
   Future<AuthServiceResult> restore({bool offline = false}) async {
@@ -347,7 +501,27 @@ final class NativeAuthService {
     );
   }
 
-  Future<void> close() => _sessionRuntime.close();
+  Future<void> close() async {
+    // Keep non-secret identity metadata so the next actor can reuse the
+    // endpoint/database/login, but revoke this device's bearer credential
+    // before ending the runtime session. A subsequent restore must therefore
+    // require an explicit login again.
+    try {
+      final profile = await loadProfile();
+      if (profile != null) {
+        final scope = AppScope(
+          appId: appId,
+          installationId: profile.installationId,
+          normalizedServerUrl: profile.serverUrl,
+          database: profile.database,
+          userId: profile.userId,
+        );
+        await _credentialStore.delete(scope, profile.credentialReference);
+      }
+    } finally {
+      await _sessionRuntime.close();
+    }
+  }
 
   Future<AuthProfile?> loadProfile() async {
     final selectedKey = _preferences.getString(_lastProfileKey);
@@ -394,4 +568,39 @@ final class NativeAuthService {
         .replaceAll('=', '');
     return 'orbi/auth/profile/$appId/$encoded';
   }
+}
+
+Future<({int userId, String login})> _probeApiKeyIdentity(
+  OdooClient client,
+) async {
+  // JSON-2 derives the current user from the bearer key. `context_get` is the
+  // documented, read-only way to obtain that authenticated uid; never infer
+  // identity by searching for the login supplied by the UI.
+  final rawContext = await client.call(
+    model: 'res.users',
+    method: 'context_get',
+  );
+  final userId = rawContext is num
+      ? rawContext.toInt()
+      : rawContext is Map
+      ? ((rawContext['uid'] ?? rawContext['user_id']) as num?)?.toInt()
+      : null;
+  if (userId == null || userId <= 0) {
+    throw StateError('API key did not return an authenticated uid');
+  }
+  final users = await client.searchRead(
+    model: 'res.users',
+    fields: const ['id', 'login'],
+    domain: [
+      ['id', '=', userId],
+    ],
+    limit: 1,
+  );
+  if (users.length != 1 || users.single['id'] is! num) {
+    throw StateError('Authenticated Odoo user could not be read');
+  }
+  return (
+    userId: (users.single['id'] as num).toInt(),
+    login: users.single['login']?.toString() ?? '',
+  );
 }

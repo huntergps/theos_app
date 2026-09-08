@@ -14,6 +14,7 @@ final class OrbiSplashScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     final colors = Theme.of(context).colorScheme;
     return Scaffold(
+      key: const Key('orbi-splash'),
       body: DecoratedBox(
         decoration: BoxDecoration(
           gradient: LinearGradient(

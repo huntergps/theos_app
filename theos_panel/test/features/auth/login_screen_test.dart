@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -44,6 +46,52 @@ final class _ProfileService implements AuthServicePort {
     if (serverUrl == 'https://two.test') return _two;
     return null;
   }
+
+  @override
+  Future<void> close() async {}
+}
+
+final class _SlowLoginService
+    implements AuthServicePort, CredentialPolicyAuthServicePort {
+  final gate = Completer<AuthServiceResult>();
+  bool? persisted;
+
+  @override
+  Future<AuthServiceResult> login({
+    required String serverUrl,
+    required String database,
+    required String login,
+    required String password,
+    bool persistCredential = true,
+  }) {
+    persisted = persistCredential;
+    return gate.future;
+  }
+
+  @override
+  Future<AuthServiceResult> loginWithApiKey({
+    required String serverUrl,
+    required String database,
+    required String login,
+    required String apiKey,
+    bool persistCredential = true,
+  }) {
+    persisted = persistCredential;
+    return gate.future;
+  }
+
+  @override
+  Future<AuthServiceResult> restore({bool offline = false}) async =>
+      const AuthServiceResult(status: AuthServiceStatus.required);
+
+  @override
+  Future<AuthProfile?> loadProfile() async => null;
+
+  @override
+  Future<AuthProfile?> loadProfileFor(
+    String serverUrl,
+    String database,
+  ) async => null;
 
   @override
   Future<void> close() async {}
@@ -99,5 +147,33 @@ void main() {
     await tester.testTextInput.receiveAction(TextInputAction.done);
     await tester.pump();
     expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('login completion after unmount does not touch ref or context', (
+    tester,
+  ) async {
+    final service = _SlowLoginService();
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [authServiceProvider.overrideWithValue(service)],
+        child: MaterialApp(home: const LoginScreen()),
+      ),
+    );
+    await tester.pump();
+    final fields = find.byType(TextField);
+    await tester.enterText(fields.at(0), 'https://erp.test');
+    await tester.enterText(fields.at(1), 'db');
+    await tester.enterText(fields.at(2), 'user');
+    await tester.enterText(fields.at(3), 'secret');
+    await tester.ensureVisible(find.text('Iniciar sesión'));
+    await tester.tap(find.text('Iniciar sesión'));
+    await tester.pump();
+    await tester.pumpWidget(const SizedBox.shrink());
+    service.gate.complete(
+      const AuthServiceResult(status: AuthServiceStatus.authenticated),
+    );
+    await tester.pump();
+    expect(tester.takeException(), isNull);
+    expect(service.persisted, isFalse);
   });
 }

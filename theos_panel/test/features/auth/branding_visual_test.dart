@@ -55,6 +55,22 @@ Future<Widget> _loginHarness() async {
 }
 
 void main() {
+  test('login overlay keeps minimum contrast in both color schemes', () {
+    const representativeImageTones = [Color(0xFF526052), Color(0xFF858C85)];
+    for (final theme in [OrbiTheme.light, OrbiTheme.dark]) {
+      final overlay = loginBrandOverlayColor(theme.colorScheme, .46);
+      for (final imageTone in representativeImageTones) {
+        final composited = Color.alphaBlend(overlay, imageTone);
+        expect(
+          loginOverlayContrastRatio(theme.colorScheme.onPrimary, composited),
+          greaterThanOrEqualTo(3),
+          reason:
+              'Login branding text must remain readable in ${theme.brightness}.',
+        );
+      }
+    }
+  });
+
   testWidgets('login uses a compact single-column layout on narrow screens', (
     tester,
   ) async {
@@ -69,6 +85,7 @@ void main() {
     expect(find.text('Bienvenido'), findsOneWidget);
     expect(find.text('Ventas, caja y operaciones'), findsNothing);
     expect(find.byKey(const Key('compact-login-background')), findsOneWidget);
+    expect(find.byKey(const Key('save-credential-toggle')), findsOneWidget);
     expect(find.byType(TextField), findsNWidgets(4));
   });
 
@@ -104,6 +121,7 @@ void main() {
     expect(find.text('Restaurando sesión'), findsOneWidget);
     expect(find.byType(CircularProgressIndicator), findsOneWidget);
     expect(find.bySemanticsLabel('Marca Orbi ERP'), findsOneWidget);
+    expect(find.byKey(const Key('orbi-splash')), findsOneWidget);
   });
 
   testWidgets('restores saved selection before using the profile fallback', (

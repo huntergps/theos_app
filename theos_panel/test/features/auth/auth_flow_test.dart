@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:odoo_sdk/odoo_sdk.dart';
@@ -63,6 +65,36 @@ final class _RestoreSequence implements AuthServicePort {
   ) async => null;
   @override
   Future<void> close() async {}
+}
+
+final class _BlockingAuthService implements AuthServicePort {
+  final restoreCompleter = Completer<AuthServiceResult>();
+  final profileCompleter = Completer<AuthProfile?>();
+  final closeCompleter = Completer<void>();
+
+  @override
+  Future<AuthServiceResult> restore({bool offline = false}) =>
+      restoreCompleter.future;
+
+  @override
+  Future<AuthServiceResult> login({
+    required String serverUrl,
+    required String database,
+    required String login,
+    required String password,
+  }) => throw UnimplementedError();
+
+  @override
+  Future<AuthProfile?> loadProfile() => profileCompleter.future;
+
+  @override
+  Future<AuthProfile?> loadProfileFor(
+    String serverUrl,
+    String database,
+  ) async => null;
+
+  @override
+  Future<void> close() => closeCompleter.future;
 }
 
 class FakeBootstrap implements AuthBootstrapPort {
@@ -219,6 +251,65 @@ void main() {
     expect(service.calls, [false, true]);
   });
 
+  test('restore does not publish after notifier disposal', () async {
+    final service = _BlockingAuthService();
+    final container = ProviderContainer(
+      overrides: [authServiceProvider.overrideWithValue(service)],
+    );
+    final states = <AuthViewState>[];
+    container.listen(
+      authControllerProvider,
+      (_, next) => states.add(next),
+      fireImmediately: true,
+    );
+    final pending = container.read(authControllerProvider.notifier).restore();
+    container.dispose();
+    service.restoreCompleter.complete(
+      const AuthServiceResult(status: AuthServiceStatus.restored),
+    );
+    await pending;
+    expect(states, hasLength(2));
+    expect(states.last.status, AuthControllerStatus.loading);
+  });
+
+  test('close does not publish after notifier disposal', () async {
+    final service = _BlockingAuthService();
+    final container = ProviderContainer(
+      overrides: [authServiceProvider.overrideWithValue(service)],
+    );
+    final states = <AuthViewState>[];
+    container.listen(
+      authControllerProvider,
+      (_, next) => states.add(next),
+      fireImmediately: true,
+    );
+    final pending = container.read(authControllerProvider.notifier).close();
+    container.dispose();
+    service.closeCompleter.complete();
+    await pending;
+    expect(states, hasLength(1));
+  });
+
+  test('loadProfile does not publish after notifier disposal', () async {
+    final service = _BlockingAuthService();
+    final container = ProviderContainer(
+      overrides: [authServiceProvider.overrideWithValue(service)],
+    );
+    final states = <AuthViewState>[];
+    container.listen(
+      authControllerProvider,
+      (_, next) => states.add(next),
+      fireImmediately: true,
+    );
+    final pending = container
+        .read(authControllerProvider.notifier)
+        .loadProfile();
+    container.dispose();
+    service.profileCompleter.complete(profile);
+    await pending;
+    expect(states, hasLength(1));
+  });
+
   test('route policy defaults to deny and honors capability snapshot', () {
     const policy = RouteAccessPolicy();
     final capabilities = CapabilitySnapshot(
@@ -255,7 +346,7 @@ void main() {
   });
 
   test(
-    'native service stores only metadata in preferences and restores offline',
+    'native service stores metadata but logout prevents credential restore',
     () async {
       SharedPreferences.setMockInitialValues({});
       final preferences = await SharedPreferences.getInstance();
@@ -288,8 +379,12 @@ void main() {
       );
       await service.close();
       final restored = await service.restore(offline: true);
-      expect(restored.status, AuthServiceStatus.restored);
-      expect(runtime.active?.installationId, 'install-1');
+      expect(restored.status, AuthServiceStatus.required);
+      expect(runtime.active, isNull);
+      expect(
+        (await service.loadProfileFor('https://erp.test', 'demo'))?.login,
+        'seller',
+      );
     },
   );
 

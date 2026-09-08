@@ -10,6 +10,27 @@ import 'auth_controller.dart';
 import 'login_preferences.dart';
 import '../../app/theme/orbi_theme.dart';
 
+Color loginBrandOverlayColor(ColorScheme colors, double alpha) {
+  // Keep the photograph visible while choosing a neutral veil that supports
+  // the scheme's actual foreground (white in light mode, dark in dark mode).
+  final veil = colors.onPrimary.computeLuminance() > .5
+      ? Colors.black
+      : Colors.white;
+  return veil.withValues(alpha: alpha);
+}
+
+double loginOverlayContrastRatio(Color foreground, Color background) {
+  final foregroundLuminance = foreground.computeLuminance();
+  final backgroundLuminance = background.computeLuminance();
+  final lighter = foregroundLuminance > backgroundLuminance
+      ? foregroundLuminance
+      : backgroundLuminance;
+  final darker = foregroundLuminance > backgroundLuminance
+      ? backgroundLuminance
+      : foregroundLuminance;
+  return (lighter + .05) / (darker + .05);
+}
+
 class LoginScreen extends ConsumerStatefulWidget {
   const LoginScreen({super.key});
 
@@ -23,14 +44,10 @@ class _BrandingPane extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = Theme.of(context).colorScheme;
-    final brandGradient = LinearGradient(
+    final brandOverlay = LinearGradient(
       colors: [
-        colors.primary.withValues(alpha: .93),
-        Color.lerp(
-          colors.primary,
-          colors.tertiary,
-          .42,
-        )!.withValues(alpha: .88),
+        loginBrandOverlayColor(colors, .28),
+        loginBrandOverlayColor(colors, .46),
       ],
       begin: Alignment.topLeft,
       end: Alignment.bottomRight,
@@ -39,7 +56,7 @@ class _BrandingPane extends StatelessWidget {
       fit: StackFit.expand,
       children: [
         Image.asset('assets/images/login_bg.jpg', fit: BoxFit.cover),
-        DecoratedBox(decoration: BoxDecoration(gradient: brandGradient)),
+        DecoratedBox(decoration: BoxDecoration(gradient: brandOverlay)),
         SafeArea(
           child: Center(
             child: Padding(
@@ -95,6 +112,8 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   final _passwordFocus = FocusNode();
   int _profileLookupEpoch = 0;
   Timer? _loginPreferencesDebounce;
+  bool _apiKeyMode = false;
+  bool _saveCredential = false;
 
   @override
   void dispose() {
@@ -117,7 +136,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     });
   }
 
-  Future<void> _saveLoginPreferences() async {
+  Future<void> _saveLoginPreferences({LoginPreferencesStore? store}) async {
     final value = LoginPreferences(
       serverUrl: _server.text.trim(),
       database: _database.text.trim(),
@@ -125,7 +144,9 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     );
     if (value.isEmpty) return;
     try {
-      await ref.read(loginPreferencesStoreProvider).save(value);
+      final LoginPreferencesStore preferences =
+          store ?? ref.read(loginPreferencesStoreProvider);
+      await preferences.save(value);
     } catch (_) {
       // Login preferences are an optional convenience and never block login.
     }
@@ -237,8 +258,8 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                 decoration: BoxDecoration(
                   gradient: LinearGradient(
                     colors: [
-                      colors.primary.withValues(alpha: .62),
-                      colors.surface.withValues(alpha: .82),
+                      colors.scrim.withValues(alpha: .34),
+                      colors.surface.withValues(alpha: .88),
                     ],
                     begin: Alignment.topCenter,
                     end: Alignment.bottomCenter,
@@ -351,11 +372,39 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
             textInputAction: TextInputAction.done,
             onSubmitted: (_) => _submit(),
             obscureText: true,
-            decoration: const InputDecoration(
-              labelText: 'Contraseña',
+            decoration: InputDecoration(
+              labelText: _apiKeyMode ? 'API key' : 'Contraseña',
               prefixIcon: Icon(Icons.lock_outline),
             ),
             autofillHints: const [AutofillHints.password],
+          ),
+          Material(
+            type: MaterialType.transparency,
+            child: SwitchListTile.adaptive(
+              key: const Key('api-key-mode-toggle'),
+              contentPadding: EdgeInsets.zero,
+              title: const Text('Usar API key'),
+              subtitle: const Text(
+                'La clave se guarda sólo en el almacén seguro del dispositivo.',
+              ),
+              value: _apiKeyMode,
+              onChanged: (value) => setState(() => _apiKeyMode = value),
+            ),
+          ),
+          Material(
+            type: MaterialType.transparency,
+            child: SwitchListTile.adaptive(
+              key: const Key('save-credential-toggle'),
+              contentPadding: EdgeInsets.zero,
+              title: const Text('Guardar clave'),
+              subtitle: Text(
+                _apiKeyMode
+                    ? 'Guarda la API key sólo en el almacén seguro.'
+                    : 'Guarda la contraseña sólo en el almacén seguro.',
+              ),
+              value: _saveCredential,
+              onChanged: (value) => setState(() => _saveCredential = value),
+            ),
           ),
           if (state.message != null) ...[
             const SizedBox(height: OrbiTheme.space12),
@@ -387,19 +436,47 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   }
 
   Future<void> _submit() async {
-    await ref
-        .read(authControllerProvider.notifier)
-        .login(
-          serverUrl: _server.text.trim(),
-          database: _database.text.trim(),
-          login: _login.text.trim(),
-          password: _password.text,
-        );
-    final status = ref.read(authControllerProvider).status;
+    final auth = ref.read(authControllerProvider.notifier);
+    LoginPreferencesStore? loginPreferences;
+    try {
+      loginPreferences = ref.read(loginPreferencesStoreProvider);
+    } catch (_) {
+      // Embedders/tests may intentionally omit the convenience store.
+    }
+    final apiKeyMode = _apiKeyMode;
+    final persistCredential = _saveCredential;
+    final serverUrl = _server.text.trim();
+    final database = _database.text.trim();
+    final login = _login.text.trim();
+    final secret = _password.text;
+    if (apiKeyMode) {
+      await auth.loginWithApiKey(
+        serverUrl: serverUrl,
+        database: database,
+        login: login,
+        apiKey: secret,
+        persistCredential: persistCredential,
+      );
+    } else {
+      await auth.login(
+        serverUrl: serverUrl,
+        database: database,
+        login: login,
+        password: secret,
+        persistCredential: persistCredential,
+      );
+    }
+    if (!mounted) return;
+    final status = auth.currentState.status;
     final succeeded =
         status == AuthControllerStatus.authenticated ||
         status == AuthControllerStatus.restored;
-    if (succeeded) await _saveLoginPreferences();
+    if (succeeded) {
+      if (loginPreferences != null) {
+        await _saveLoginPreferences(store: loginPreferences);
+      }
+      if (!mounted) return;
+    }
     _password.clear();
     TextInput.finishAutofillContext(shouldSave: succeeded);
   }

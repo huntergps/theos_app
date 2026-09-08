@@ -53,7 +53,20 @@ class HomePage extends ConsumerWidget {
             )
             .toList();
     return Scaffold(
-      appBar: AppBar(title: const Text('Orbi ERP')),
+      appBar: AppBar(
+        title: const Text('Orbi ERP'),
+        actions: [
+          IconButton(
+            key: const Key('logout-button'),
+            tooltip: 'Cerrar sesión',
+            icon: const Icon(Icons.logout),
+            onPressed: () async {
+              await ref.read(authControllerProvider.notifier).close();
+              if (context.mounted) context.go('/login');
+            },
+          ),
+        ],
+      ),
       body: Padding(
         padding: const EdgeInsets.all(16),
         child: Column(
