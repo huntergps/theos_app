@@ -1,9 +1,11 @@
 # V01 ERP2 harness · contrato de ejecución
 
 `theos_panel/erp2_harness.dart` contiene las guardas, el plan de cuatro
-recorridos y el ejecutor JSON-2. `integration_test/orbi_erp2_test.dart` lo usa
-únicamente de forma opt-in. Importar la librería no hace red; el ejecutor no
-alcanza un método mutante si falla el preflight local o el preflight server-side.
+recorridos y el ejecutor JSON-2. `integration_test/orbi_erp2_test.dart` ejecuta
+el stage de escritura únicamente de forma opt-in; la aceptación UI nativa
+separada vive en `integration_test/orbi_erp2_ui_e2e_test.dart` y también exige
+su sentinel propio. Importar la librería no hace red; ningún ejecutor alcanza
+un método mutante si falla el preflight local o el preflight server-side.
 
 El destino permitido es exactamente `https://erp2.tecnosmart.com.ec` por HTTPS.
 `newerp`, cualquier puerto/ruta/query alterna y cualquier login `admin` son
@@ -24,7 +26,7 @@ proceso por el gestor de secretos del entorno.
 | --- | --- |
 | `ORBI_ERP2_SERVER_URL` | Debe ser la URL HTTPS exacta de ERP2. |
 | `ORBI_ERP2_DATABASE` | Base ERP2; nunca `newerp`. |
-| `ORBI_ERP2_PANEL_MODE` | `with-panel` o `without-panel`; el conector se verifica con `collection.config.pos_app_contract_version` y el panel por `counter_policies` Map/null. |
+| `ORBI_ERP2_PANEL_MODE` | `with-panel` o `without-panel`; el conector se verifica con `collection.config.pos_app_contract_version` y el panel efectivo por `counter_policies` Map/null. Módulos instalados no bastan: `Map` significa políticas presentes; `null` habilita el fallback `without-panel`. |
 | `ORBI_ERP2_ENABLE_WRITES` | Debe ser `I_UNDERSTAND_ORBI_E2E_WRITES`. |
 | `ORBI_ERP2_RUN_WRITES` | Segundo consentimiento, con el mismo valor, para alcanzar mutaciones. |
 | `ORBI_ERP2_WRITE_PREFIX` | `ORBI-E2E-` seguido por al menos ocho hexadecimales. |
@@ -40,26 +42,34 @@ Para cada valor de `SELLER`, `CASHIER`, `SUPERVISOR` y `WAREHOUSE` se requieren:
 * `ORBI_ERP2_<ACTOR>_USER_ID`
 * `ORBI_ERP2_<ACTOR>_API_KEY` (solo el stage de escritura)
 
+En V01 el actor de bodega está fijado a Miguel Mora: `WAREHOUSE_LOGIN` debe
+ser `miguel.mora` y `WAREHOUSE_USER_ID` debe ser `34`.
+
 ### Fixtures e infraestructura
 
 Cada flujo requiere `ORBI_ERP2_<FLOW>_ORDER_ID` y
 `ORBI_ERP2_<FLOW>_REFERENCE`, con `FLOW` igual a `CASH`, `CREDIT`, `MIXED` o
-`FSC`, más `ORBI_ERP2_<FLOW>_APPROVAL_ID` para la puerta de crédito común. Para
-FSC el nombre de esa puerta común es
-`ORBI_ERP2_FSC_COMMERCIAL_APPROVAL_ID` y requiere además un segundo
-`ORBI_ERP2_FSC_APPROVAL_ID`, enlazado a la venta y a una categoría FSC. La
-referencia debe comenzar por el prefijo de esta ejecución. FSC requiere además
-`ORBI_ERP2_FSC_PAYMENT_WIZARD_ID` para cobrar la factura ya emitida.
-El cobro posterior de la factura existente requiere
-`ORBI_ERP2_FSC_PAYMENT_WIZARD_ID`, un wizard ya creado que apunte a esa venta;
-si falta, el preflight bloquea antes de mutar.
+`FSC`. Una aprobación comercial preexistente puede darse como preferencia con
+`ORBI_ERP2_<FLOW>_APPROVAL_ID` (para FSC,
+`ORBI_ERP2_FSC_COMMERCIAL_APPROVAL_ID`), pero si la confirmación genera una
+solicitud el arnés la descubre y resuelve por venta; no es una fixture obligatoria.
+La referencia debe comenzar por el prefijo de esta ejecución.
 
-Mixto requiere además `ORBI_ERP2_MIXED_PAYMENT_WIZARD_ID` y
-`ORBI_ERP2_MIXED_CASH_AMOUNT`. El wizard debe apuntar a la venta mixta y sus
-líneas persistidas deben sumar exactamente ese importe. Al confirmar la venta
-mixta debe existir la factura, pero no un `stock.picking`; el wizard oficial
-`l10n_ec_collection_box.sale.order.payment.wizard.action_apply_and_create_invoice`
-persiste/cobra la parte inmediata y llama la generación nativa de despacho.
+La solicitud FSC y el wizard de cobro de factura existente nacen durante el
+recorrido y sus IDs se descubren server-side; no se declaran como variables ni
+se validan como fixtures estáticas en el preflight. El wizard se crea mediante
+el `create` nativo del modelo transient y se ejecuta con
+`action_apply_existing_invoice`.
+
+Mixto requiere `ORBI_ERP2_MIXED_CASH_AMOUNT`. Al confirmar la venta debe
+existir una factura publicada, pero no un `stock.picking`; el arnés crea o
+recupera el wizard transient de factura existente con un
+`pos_collection_op_uuid` estable y una línea nativa por el importe inmediato.
+Caja usa exclusivamente
+`l10n_ec_collection_box.sale.order.payment.wizard.action_apply_existing_invoice`.
+No se envían `pos_client_sequential`, `pos_emission_date` ni `pos_access_key`:
+`pos_client_op_uuid` activa la rama fiscal offline y no corresponde a este
+cobro mixto ya facturado. El servidor debe crear el picking después del cobro.
 Después de esa llamada, y solo si el servidor ya creó el picking, bodega puede
 usar `stock.picking.action_assign`. `action_regenerar_despacho_contado` queda
 fuera del recorrido operativo.
@@ -74,20 +84,23 @@ allowlisted y comprobados: `sale.order.action_pos_confirm`,
 `sale.order.action_l10n_ec_aprobar_fsc`, `approval.request.action_approve`,
 `collection.session.action_session_open`,
 `collection.session.close_control_session_pos`,
-`stock.picking.action_assign` y `stock.picking.button_validate`. Si falta un
-ID o contrato server-side, el preflight termina antes de mutar.
+`stock.picking.action_assign` y `stock.picking.button_validate`. Para el
+cobro FSC se usa además el `create` ORM estándar del wizard transient y su
+método comprobado `action_apply_existing_invoice`; no se añade un endpoint.
+Si falta un ID o contrato server-side, el preflight termina antes de mutar.
 
 La secuencia FSC confirma primero el contado; si `action_pos_confirm` deja
 `approval_required`, se localiza la solicitud enlazada y supervisor la aprueba.
-Luego vendedor solicita FSC, se localiza la segunda solicitud viva por venta y
-categoría FSC, supervisor la aprueba y recién entonces se ejecuta
-`action_l10n_ec_aprobar_fsc`. Nunca se aprueba ciegamente una solicitud común
-como si fuera la FSC.
+Luego vendedor solicita FSC, se localiza dinámicamente la segunda solicitud
+viva por venta y categoría FSC. El supervisor llama directamente
+`sale.order.action_l10n_ec_aprobar_fsc`, que delega en esa solicitud viva;
+nunca se llama antes `approval.request.action_approve` sobre la solicitud FSC.
 
 Para cobrar la factura FSC ya emitida se usa exclusivamente el wizard nativo
-`l10n_ec_collection_box.sale.order.payment.wizard.action_apply`, cuyo ID debe
-ser una fixture externa validada contra `sale_id`; no se crea un wizard ni se
-adivinan sus líneas dentro del harness.
+`l10n_ec_collection_box.sale.order.payment.wizard.action_apply_existing_invoice`.
+El arnés lo crea o recupera por venta, factura y `pos_collection_op_uuid`, con
+líneas nativas de diario/método/sesión; no inventa otro RPC ni repite una
+creación cuando la respuesta anterior fue ambigua.
 
 Los flujos normales deben producir sus `stock.picking` según el evento del
 servidor. El harness nunca llama una acción de despacho inventada sobre
@@ -122,3 +135,14 @@ intenta modificar `sale.order`, `account.move`, `stock.picking` ni pagos. La
 retención/finalización fiscal queda bajo el procedimiento ERP2 de pruebas.
 
 No se ejecutó el stage remoto de este cambio.
+
+### Bloqueo backend conocido del flujo mixto
+
+El checkout Odoo auditado implementa `action_apply_existing_invoice()` y
+reconcilia correctamente la línea nativa, pero su generación de despacho está
+condicionada a `sale.is_cash and not sale.is_credit`. Por tanto, una venta
+mixta (`is_cash=True`, `is_credit=True`) puede quedar cobrada sin
+`stock.picking`; el arnés lo deja fallar server-side en ese punto. No se agrega
+un RPC de reparación ni se llama `action_regenerar_despacho_contado` en E2E.
+Para cerrar el flujo mixto completo se requiere un cambio backend verificado
+que genere el picking desde la ruta nativa de cobro existente.
