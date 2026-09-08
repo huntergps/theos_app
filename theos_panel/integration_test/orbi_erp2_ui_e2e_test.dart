@@ -1,11 +1,15 @@
 import 'dart:io';
 
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:integration_test/integration_test.dart';
 import 'package:odoo_sdk/odoo_sdk.dart';
 import 'package:theos_panel/erp2_harness.dart';
 import 'package:theos_panel/main.dart' as application;
+import 'package:theos_panel/features/auth/auth_controller.dart';
+import 'package:theos_panel/features/auth/login_screen.dart';
+import 'package:theos_panel/ui/home_page.dart';
 
 /// Real macOS acceptance pass for the four ERP2 roles.
 ///
@@ -17,7 +21,9 @@ void main() {
 
   final enabled =
       Platform.environment['ORBI_ERP2_UI_E2E_RUN'] ==
-      'I_UNDERSTAND_ORBI_E2E_UI_WRITES';
+          'I_UNDERSTAND_ORBI_E2E_UI_WRITES' ||
+      Platform.environment['ORBI_ERP2_UI_E2E_LOGIN_ONLY'] == '1';
+  final loginOnly = Platform.environment['ORBI_ERP2_UI_E2E_LOGIN_ONLY'] == '1';
 
   testWidgets('ERP2 macOS UI acceptance: four actors and four fiscal flows', (
     tester,
@@ -32,7 +38,7 @@ void main() {
     if (targetErrors.isNotEmpty) fail(targetErrors.join('; '));
     if (!Platform.isMacOS) fail('This acceptance test requires -d macos.');
 
-    final actors = _UiActors.fromEnvironment(env);
+    final actors = _UiActors.fromEnvironment(env, loginOnly: loginOnly);
     final auditKey = env['ORBI_ERP2_AUDIT_API_KEY']?.trim() ?? '';
     if (auditKey.isEmpty) {
       fail('ORBI_ERP2_AUDIT_API_KEY is required for read-only assertions.');
@@ -46,10 +52,11 @@ void main() {
     );
 
     application.main();
-    await tester.pumpAndSettle(const Duration(seconds: 2));
+    await _settle(tester);
     await _assertLoginSurface(tester);
     await _login(tester, config, actors.seller);
     await _assertHomeRoleSurface(tester, required: const ['Ventas']);
+    if (loginOnly) return;
 
     await _runSellerFlows(tester, audit, config, actors, env);
     await _logout(tester);
@@ -74,6 +81,17 @@ Future<void> _assertLoginSurface(WidgetTester tester) async {
   expect(find.text('Contraseña'), findsOneWidget);
 }
 
+Future<void> _settle(WidgetTester tester) async {
+  // A duration passed positionally to pumpAndSettle is only the pump interval;
+  // its default timeout is ten minutes. Keep every UI wait bounded so a
+  // failed login or route cannot turn into an unbounded E2E run.
+  await tester.pumpAndSettle(
+    const Duration(milliseconds: 100),
+    EnginePhase.sendSemanticsUpdate,
+    const Duration(seconds: 15),
+  );
+}
+
 Future<void> _login(
   WidgetTester tester,
   Erp2HarnessConfig config,
@@ -91,7 +109,7 @@ Future<void> _login(
   await tester.ensureVisible(secretField);
   await tester.enterText(secretField, actor.apiKey);
   await _tapVisible(tester, find.text('Iniciar sesión'));
-  await tester.pumpAndSettle(const Duration(seconds: 8));
+  await _settle(tester);
   expect(find.text('Orbi ERP'), findsOneWidget);
 }
 
@@ -99,6 +117,46 @@ Future<void> _assertHomeRoleSurface(
   WidgetTester tester, {
   required List<String> required,
 }) async {
+  // Capability refresh is part of login, but it crosses the native/database
+  // boundary. Give the provider a bounded settling window before classifying
+  // a missing menu item as an authorization failure.
+  for (var attempt = 0; attempt < 20; attempt++) {
+    if (required.every((label) => find.text(label).evaluate().isNotEmpty)) {
+      for (final label in required) {
+        await tester.ensureVisible(find.text(label).first);
+      }
+      return;
+    }
+    await tester.pump(const Duration(milliseconds: 250));
+  }
+  final home = find.byType(HomePage);
+  final login = find.byType(LoginScreen);
+  if (home.evaluate().isNotEmpty) {
+    final container = ProviderScope.containerOf(
+      tester.element(home.first),
+      listen: false,
+    );
+    final state = container.read(authControllerProvider);
+    final buttons = tester
+        .widgetList<OutlinedButton>(find.byType(OutlinedButton))
+        .map(
+          (button) =>
+              button.child is Text ? (button.child as Text).data : '<non-text>',
+        )
+        .toList();
+    debugPrint(
+      'UI_E2E_HOME_DIAGNOSTIC '
+      'auth=${state.status.name} '
+      'profile=${state.profile != null} '
+      'capabilities=${state.capabilities != null} '
+      'permissions=${state.capabilities?.permissions.toList() ?? const []} '
+      'buttons=$buttons',
+    );
+  } else {
+    debugPrint(
+      'UI_E2E_HOME_DIAGNOSTIC home=false login=${login.evaluate().length}',
+    );
+  }
   for (final label in required) {
     expect(
       find.text(label),
@@ -111,10 +169,10 @@ Future<void> _assertHomeRoleSurface(
 Future<void> _logout(WidgetTester tester) async {
   if (find.byKey(const Key('home-button')).evaluate().isNotEmpty) {
     await _tapVisible(tester, find.byKey(const Key('home-button')));
-    await tester.pumpAndSettle(const Duration(seconds: 2));
+    await _settle(tester);
   }
   await _tapVisible(tester, find.byKey(const Key('logout-button')));
-  await tester.pumpAndSettle(const Duration(seconds: 2));
+  await _settle(tester);
   expect(find.text('Iniciar sesión'), findsOneWidget);
 }
 
@@ -127,14 +185,14 @@ Future<void> _runSellerFlows(
 ) async {
   await _assertRouteButton(tester, 'Ventas');
   await _tapVisible(tester, find.text('Ventas').first);
-  await tester.pumpAndSettle(const Duration(seconds: 3));
+  await _settle(tester);
   expect(find.text('Órdenes'), findsWidgets);
   await _tapVisible(tester, find.byKey(const Key('new-sale-button')));
-  await tester.pumpAndSettle(const Duration(seconds: 2));
+  await _settle(tester);
   expect(find.text('Venta mostrador'), findsOneWidget);
   expect(find.text('Solicitar aprobación'), findsOneWidget);
   await _tapVisible(tester, find.byKey(const Key('home-button')));
-  await tester.pumpAndSettle(const Duration(seconds: 2));
+  await _settle(tester);
   final fixtures = _UiFixtures.fromEnvironment(env);
   await _openFixture(tester, fixtures.cash.reference);
   await _openFixture(tester, fixtures.credit.reference);
@@ -160,10 +218,10 @@ Future<void> _openFixture(WidgetTester tester, String reference) async {
     reason: 'Fixture no visible en Ventas: $reference',
   );
   await _tapVisible(tester, fixture.first);
-  await tester.pumpAndSettle(const Duration(milliseconds: 300));
+  await _settle(tester);
   expect(find.text('Cerrar'), findsOneWidget);
   await _tapVisible(tester, find.text('Cerrar'));
-  await tester.pumpAndSettle(const Duration(milliseconds: 300));
+  await _settle(tester);
 }
 
 Future<void> _runSupervisorFsc(
@@ -174,12 +232,12 @@ Future<void> _runSupervisorFsc(
 ) async {
   await _assertRouteButton(tester, 'Aprobaciones');
   await _tapVisible(tester, find.text('Aprobaciones').first);
-  await tester.pumpAndSettle(const Duration(seconds: 3));
+  await _settle(tester);
   expect(find.text('Aprobaciones comerciales'), findsOneWidget);
   final approve = find.text('Aprobar');
   if (approve.evaluate().isNotEmpty) {
     await _tapVisible(tester, approve.first);
-    await tester.pumpAndSettle(const Duration(seconds: 3));
+    await _settle(tester);
   }
   expect(
     find.text('Preparar FSC'),
@@ -207,13 +265,13 @@ Future<void> _runCashierCollections(
 ) async {
   await _assertRouteButton(tester, 'Caja');
   await _tapVisible(tester, find.text('Caja').first);
-  await tester.pumpAndSettle(const Duration(seconds: 3));
+  await _settle(tester);
   expect(find.text('Caja y cobros'), findsOneWidget);
   final fixtures = _UiFixtures.fromEnvironment(env);
   final sale = find.text(fixtures.cash.reference);
   expect(sale, findsWidgets, reason: 'Cobro fixture no visible en Caja.');
   await _tapVisible(tester, sale.first);
-  await tester.pumpAndSettle(const Duration(milliseconds: 300));
+  await _settle(tester);
   expect(find.textContaining('Restante:'), findsOneWidget);
   expect(find.text('Cobrar'), findsWidgets);
   expect(find.text('Añadir medio'), findsWidgets);
@@ -237,14 +295,14 @@ Future<void> _runWarehouseDelivery(
 ) async {
   await _assertRouteButton(tester, 'Bodega');
   await _tapVisible(tester, find.text('Bodega').first);
-  await tester.pumpAndSettle(const Duration(seconds: 3));
+  await _settle(tester);
   expect(find.text('Bodega'), findsWidgets);
   final validate = find.text('Validar entrega');
   expect(validate, findsWidgets);
   final button = tester.widget<FilledButton>(find.byType(FilledButton).last);
   if (button.onPressed != null) {
     await _tapVisible(tester, validate.last);
-    await tester.pumpAndSettle(const Duration(seconds: 3));
+    await _settle(tester);
     expect(find.byKey(const Key('warehouse-result')), findsOneWidget);
   }
   expect(actor.login, isNotEmpty);
@@ -275,7 +333,7 @@ Future<void> _tapVisible(WidgetTester tester, Finder finder) async {
   expect(finder, findsWidgets);
   final target = finder.first;
   await tester.ensureVisible(target);
-  await tester.pumpAndSettle(const Duration(milliseconds: 100));
+  await _settle(tester);
   await tester.tap(target);
 }
 
@@ -315,11 +373,20 @@ final class _UiActors {
   final _UiActor cashier;
   final _UiActor warehouse;
 
-  factory _UiActors.fromEnvironment(Map<String, String> env) => _UiActors(
+  factory _UiActors.fromEnvironment(
+    Map<String, String> env, {
+    bool loginOnly = false,
+  }) => _UiActors(
     seller: _actor(env, 'SELLER'),
-    supervisor: _actor(env, 'SUPERVISOR'),
-    cashier: _actor(env, 'CASHIER'),
-    warehouse: _actor(env, 'WAREHOUSE'),
+    supervisor: loginOnly
+        ? _actorLoginOnly(env, 'SUPERVISOR')
+        : _actor(env, 'SUPERVISOR'),
+    cashier: loginOnly
+        ? _actorLoginOnly(env, 'CASHIER')
+        : _actor(env, 'CASHIER'),
+    warehouse: loginOnly
+        ? _actorLoginOnly(env, 'WAREHOUSE')
+        : _actor(env, 'WAREHOUSE'),
   );
 }
 
@@ -332,6 +399,14 @@ _UiActor _actor(Map<String, String> env, String key) {
     );
   }
   return _UiActor(login: login, apiKey: apiKey);
+}
+
+_UiActor _actorLoginOnly(Map<String, String> env, String key) {
+  final login = env['ORBI_ERP2_${key}_LOGIN']?.trim() ?? '';
+  if (login.isEmpty) {
+    fail('ORBI_ERP2_${key}_LOGIN is required; login-only reads no role key.');
+  }
+  return _UiActor(login: login, apiKey: '');
 }
 
 final class _UiFixtures {
