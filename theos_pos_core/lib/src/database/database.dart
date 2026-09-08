@@ -31,6 +31,7 @@ import 'tables/reporting_tables.dart';
 import 'tables/account_journal_table.dart';
 import 'tables/product_product_table.dart';
 import 'tables/sale_order_table.dart';
+import 'tables/notification_tables.dart';
 
 part 'database.g.dart';
 
@@ -135,6 +136,11 @@ part 'database.g.dart';
     // Report templates
     QwebReportTemplate,
     QwebPaperFormat,
+    // Notifications (append-only to preserve generated table ordering)
+    NotificationEntries,
+    NotificationDeliveries,
+    NotificationCursors,
+    NotificationSystemIds,
   ],
 )
 class AppDatabase extends _$AppDatabase {
@@ -170,7 +176,7 @@ class AppDatabase extends _$AppDatabase {
   }
 
   @override
-  int get schemaVersion => 13;
+  int get schemaVersion => 14;
 
   @override
   MigrationStrategy get migration {
@@ -184,6 +190,30 @@ class AppDatabase extends _$AppDatabase {
         logger.i('[Database]', 'All tables created successfully');
       },
       onUpgrade: (Migrator m, int from, int to) async {
+        if (from >= 10 && from < 13 && to >= 14) {
+          if (from == 10) {
+            await m.addColumn(advanceLinesTable, advanceLinesTable.advanceId);
+          }
+          if (from < 12) {
+            await m.addColumn(
+              collectionConfig,
+              collectionConfig.posAppCapabilitiesJson,
+            );
+          }
+          await m.addColumn(accountJournal, accountJournal.numberedByClient);
+          await m.createTable(notificationEntries);
+          await m.createTable(notificationDeliveries);
+          await m.createTable(notificationCursors);
+          await m.createTable(notificationSystemIds);
+          return;
+        }
+        if (from == 13 && to == 14) {
+          await m.createTable(notificationEntries);
+          await m.createTable(notificationDeliveries);
+          await m.createTable(notificationCursors);
+          await m.createTable(notificationSystemIds);
+          return;
+        }
         if (from >= 10 && from < 13 && to == 13) {
           // Preserve existing offline financial records and queued operations.
           if (from == 10) {
@@ -195,10 +225,7 @@ class AppDatabase extends _$AppDatabase {
               collectionConfig.posAppCapabilitiesJson,
             );
           }
-          await m.addColumn(
-            accountJournal,
-            accountJournal.numberedByClient,
-          );
+          await m.addColumn(accountJournal, accountJournal.numberedByClient);
           return;
         }
         logger.i(

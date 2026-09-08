@@ -12,6 +12,7 @@ import 'package:drift/drift.dart';
 import 'package:odoo_sdk/odoo_sdk.dart' as odoo;
 
 import '../../database/database.dart';
+import '../../services/catalog/journal_record_mapper.dart';
 
 /// Lightweight data class for journal
 class Journal {
@@ -83,31 +84,19 @@ class JournalManager {
 
   /// Upsert journal to local database
   Future<void> upsertLocal(Journal record) async {
-    final companion = AccountJournalCompanion(
-      odooId: Value(record.odooId),
-      name: Value(record.name),
-      code: Value(record.code),
-      type: Value(record.type),
-      companyId: Value(record.companyId),
-      currencyId: Value(record.currencyId),
-      l10nEcEntity: Value(record.l10nEcEntity),
-      l10nEcEmission: Value(record.l10nEcEmission),
-      active: Value(record.active),
-      numberedByClient: Value(record.numberedByClient),
-      writeDate: Value(record.writeDate),
-    );
-
-    final existing = await (_db.select(
-      _db.accountJournal,
-    )..where((t) => t.odooId.equals(record.odooId))).getSingleOrNull();
-
-    if (existing != null) {
-      await (_db.update(
-        _db.accountJournal,
-      )..where((t) => t.odooId.equals(record.odooId))).write(companion);
-    } else {
-      await _db.into(_db.accountJournal).insert(companion);
-    }
+    await JournalRecordMapper.upsert(_db, {
+      'id': record.odooId,
+      'name': record.name,
+      'code': record.code,
+      'type': record.type,
+      'company_id': record.companyId,
+      'currency_id': record.currencyId,
+      'l10n_ec_entity': record.l10nEcEntity,
+      'l10n_ec_emission': record.l10nEcEmission,
+      'active': record.active,
+      'numbered_by_client': record.numberedByClient,
+      'write_date': record.writeDate?.toIso8601String(),
+    });
   }
 
   String? _nullableString(Object? value) =>

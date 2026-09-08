@@ -2,7 +2,7 @@ import 'dart:typed_data';
 
 import 'package:crypto/crypto.dart' show sha256;
 import 'package:dio/dio.dart';
-import 'package:fluent_ui/fluent_ui.dart' show Brightness, Color, Colors;
+import 'package:fluent_ui/fluent_ui.dart' show Color, Colors;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:odoo_sdk/odoo_sdk.dart';

@@ -9,6 +9,11 @@ export 'prices/prices.dart';
 
 // Sales calculation services
 export 'sales/sales.dart';
+export 'sales/sale_draft_repository.dart';
 
 // Tax calculation services
 export 'taxes/taxes.dart';
+
+export 'operations/operation_commands.dart';
+export 'operations/operation_outcome.dart';
+export 'operations/order_query.dart';

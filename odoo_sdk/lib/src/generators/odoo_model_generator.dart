@@ -1551,6 +1551,10 @@ class OdooModelGenerator extends GeneratorForAnnotation<OdooModel> {
         if (field.isNonNullable) {
           final defaultVal = _getLocalOnlyDefault(field);
           buffer.writeln("      ${field.dartName}: $defaultVal,");
+        } else {
+          // Keep nullable local-only values out of the Odoo projection even
+          // when the model constructor declares a local default.
+          buffer.writeln("      ${field.dartName}: null,");
         }
         continue;
       }

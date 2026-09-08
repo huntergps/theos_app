@@ -1,0 +1,202 @@
+{
+  "schema_version": 1,
+  "product": "Orbi ERP",
+  "app": "theos_panel",
+  "stage": "erp2_validation_in_progress",
+  "default_worker_model": "gpt-5.6-luna",
+  "max_parallel_workers": 3,
+  "tasks": [
+    {
+      "id": "F01", "title": "Scaffold independiente y contratos iniciales", "owner": "integrator", "status": "done", "depends_on": [], "report": "reports/F01.md", "reviewed_by": "Codex integrator", "reviewed_at": "2026-09-06",
+      "docs": ["SPEC.md", "ARCHITECTURE.md", "CONTRACTS.md", "VALIDATION.md"],
+      "sources": ["theos_pos/pubspec.yaml", "theos_pos_core/pubspec.yaml", ".github/workflows/ci.yml"],
+      "writes": ["theos_panel/pubspec.yaml", "theos_panel/lib/app/", "theos_panel/lib/main.dart", "theos_panel/test/app/", "orbi_runtime/", "Makefile", ".github/workflows/"],
+      "acceptance": ["Scaffold de ambas bibliotecas/apps resuelve con SDK fijado y exports públicos", "theos_panel no depende directa o transitivamente de theos_pos, odoo_widgets ni fluent_ui", "App identificada como Orbi ERP con ID técnico distinto por plataforma", "Contratos iniciales C01/C05 tienen implementación o interfaces compilables sin éxito ficticio", "Makefile/CI configuran builds de scaffold por host; no certifican funciones ni W01. Seis plataformas funcionales pertenecen a V02"],
+      "verify": ["(cd orbi_runtime && flutter analyze)", "(cd theos_panel && flutter analyze)", "(cd theos_panel && flutter test test/app)", "git diff --check"]
+    },
+    {
+      "id": "F02", "title": "Sesión, almacenamiento y credenciales aislados", "owner": "runtime", "status": "done", "depends_on": ["F01"], "report": "reports/F02.md", "reviewed_by": "Codex integrator", "reviewed_at": "2026-09-06",
+      "docs": ["ARCHITECTURE.md", "CONTRACTS.md", "EXTRACTION.md"],
+      "sources": ["theos_pos/lib/core/session/", "theos_pos/lib/core/security/", "theos_pos/lib/core/database/database_helper.dart"],
+      "writes": ["orbi_runtime/lib/src/session/", "orbi_runtime/lib/src/storage/", "orbi_runtime/lib/src/auth/", "orbi_runtime/test/session/"],
+      "acceptance": ["Runtime crea executor/AppDatabase, espera apertura/migración y cierra; core define esquema sin abrir helper estático paralelo", "Una conexión dueña por scope, namespace por app y teardown idempotente", "Cambio de servidor/usuario y respuesta tardía no mezclan datos", "Restauración nativa y offline aprovisionado conservan identidad y cola", "Extracciones conservan fachada de theos_pos y sus pruebas relevantes"],
+      "verify": ["(cd orbi_runtime && flutter test test/session)", "(cd orbi_runtime && flutter analyze)"]
+    },
+    {
+      "id": "F03", "title": "Conectividad, catálogos y coordinador único", "owner": "runtime", "status": "done", "depends_on": ["F02"], "report": "reports/F03.md", "reviewed_by": "Codex integrator", "reviewed_at": "2026-09-06",
+      "docs": ["CONTRACTS.md", "EXTRACTION.md", "VALIDATION.md"],
+      "sources": ["theos_pos/lib/features/sync/", "theos_pos/lib/core/services/platform/server_connectivity_service.dart"],
+      "writes": ["orbi_runtime/lib/src/connectivity/", "orbi_runtime/lib/src/sync/", "orbi_runtime/test/sync/"],
+      "acceptance": ["Un coordinador serializa red, manual, resume y polling por scope", "Modo Ruta conserva operaciones y suspende sync automático", "Catálogos actualizan streams, contadores y cursores locales con errores visibles", "401, red disponible y Odoo inaccesible son estados distintos", "Reinicio y reintento conservan dependencias y UUID"],
+      "verify": ["(cd orbi_runtime && flutter test test/sync)", "(cd orbi_runtime && flutter analyze)"]
+    },
+    {
+      "id": "F04", "title": "Consultas y contratos de comandos de negocio", "owner": "domain", "status": "done", "depends_on": ["F01"], "report": "reports/F04.md", "reviewed_by": "Codex integrator", "reviewed_at": "2026-09-06",
+      "docs": ["CONTRACTS.md", "SPEC.md", "EXTRACTION.md"],
+      "sources": ["theos_pos_core/lib/src/models/", "theos_pos/lib/features/sales/services/sale_confirmation_contract.dart"],
+      "writes": ["theos_pos_core/lib/src/services/operations/", "theos_pos_core/test/operations/"],
+      "acceptance": ["C02/C03 se materializan reutilizando modelos y dinero existentes", "Estado local, sync y fiscal no colapsan en success", "Lista y contador comparten filtros autorizados y paginación estable", "API no contiene BuildContext, Ref ni tipos de widgets"],
+      "verify": ["(cd theos_pos_core && dart analyze)", "(cd theos_pos_core && dart test test/operations)"]
+    },
+    {
+      "id": "F05", "title": "Extraer contratos y servicios puros de ventas/caja", "owner": "integrator", "status": "done", "depends_on": ["F02", "F04"], "report": "reports/F05.md", "reviewed_by": "Codex integrator", "reviewed_at": "2026-09-06",
+      "docs": ["SPEC.md", "CONTRACTS.md", "EXTRACTION.md", "VALIDATION.md"],
+      "sources": ["theos_pos/lib/features/sales/services/", "theos_pos/lib/features/collection/services/", "theos_pos/lib/features/sync/services/offline_sync_payment.dart"],
+      "writes": ["theos_pos_core/lib/src/services/", "theos_pos_core/test/operations/"],
+      "acceptance": ["Dividir en subencargos por confirmar/cobrar/turno antes de editar", "Core recibe interfaces de transporte/BD/cola/repositorios y no importa OdooService de app, Ref, Flutter ni helpers de theos_pos", "Conservar pruebas de reglas extraídas sin reemplazar semántica financiera", "No retirar consumidores de theos_pos hasta F07", "Integrador revisa contrato y todo diff financiero"],
+      "verify": ["(cd theos_pos_core && dart test test/operations)", "(cd theos_pos_core && dart analyze)"]
+    },
+    {
+      "id": "F07", "title": "Adaptadores runtime y conexión de servicios extraídos", "owner": "integrator", "status": "done", "depends_on": ["F03", "F05"], "report": "reports/F07.md", "reviewed_by": "Codex integrator", "reviewed_at": "2026-09-07",
+      "docs": ["ARCHITECTURE.md", "CONTRACTS.md", "EXTRACTION.md", "VALIDATION.md"],
+      "sources": ["theos_pos/lib/core/services/odoo_service.dart", "theos_pos/lib/features/sales/services/", "theos_pos/lib/features/collection/services/", "theos_pos/lib/features/sync/services/"],
+      "writes": ["orbi_runtime/lib/src/", "orbi_runtime/test/operations/", "theos_pos/lib/core/", "theos_pos/lib/features/sales/services/", "theos_pos/lib/features/collection/services/", "theos_pos/lib/features/sync/services/"],
+      "acceptance": ["Adaptar interfaces F05 a cliente, BD, cola y repositorios reales sin imports inversos", "Ambas apps pueden consumir los servicios; fachadas antiguas delegan sin copiar reglas", "Migración de ownership de DB mantiene una instancia por scope en cada app", "Conservar atomicidad, replay y permisos de consumidores existentes", "Dividir cambios por operación y coordinar escrituras runtime con F06/N03"],
+      "verify": ["(cd orbi_runtime && flutter test)", "(cd theos_pos && flutter test test/features/sales/services)", "(cd theos_pos && flutter test test/features/sync/services)", "(cd theos_pos && flutter analyze)"]
+    },
+    {
+      "id": "F06", "title": "Resolver contrato W01 de autenticación y offline web", "owner": "integrator", "status": "in_progress", "depends_on": ["F02"], "report": "reports/F06.md",
+      "docs": ["SPEC.md", "ARCHITECTURE.md", "VALIDATION.md"],
+      "sources": ["odoo_sdk/lib/src/auth/native_auth_bootstrap_web.dart", "theos_pos/lib/core/security/platform_credential_store_web.dart"],
+      "writes": ["docs/orbi_panel/decisions/", "orbi_runtime/lib/src/auth/", "orbi_runtime/test/auth_web/", "theos_panel/web/"],
+      "acceptance": ["Documentar solución explícita de acceso simple, refresh y reinicio offline web", "Si necesita backend, entregar propuesta concreta y mantener blocked hasta autorización e implementación", "No presentar API key efímera como experiencia final equivalente", "Evidencia real en navegador de contrato implementado sin exponer secretos"],
+      "verify": ["(cd orbi_runtime && flutter test test/auth_web --platform chrome)", "Recorrido navegador según W01 documentado en informe"]
+    },
+    {
+      "id": "U01", "title": "Tema, componentes y galería Orbi", "owner": "ui", "status": "done", "depends_on": ["F01"], "report": "reports/U01.md", "reviewed_by": "Codex integrator", "reviewed_at": "2026-09-06",
+      "docs": ["DESIGN.md", "CONTRACTS.md"],
+      "sources": ["theos_pos/assets/images/", "odoo_widgets/lib/src/base/odoo_field_base.dart"],
+      "writes": ["theos_panel/lib/ui/", "theos_panel/lib/app/theme/", "theos_panel/assets/", "theos_panel/test/ui/", "theos_panel/dev/"],
+      "acceptance": ["Galería offline con marca existente y datos ficticios", "Layouts compacto/medio/amplio, claro/oscuro y texto ampliado sin perder contenido", "Campos compatibles con reactive_forms y estado preservado al resize", "MaterialUiCompatibilityBridge comprobado si lo necesitan dependencias"],
+      "verify": ["(cd theos_panel && flutter test test/ui)", "(cd theos_panel && flutter analyze)", "Capturas de galería según DESIGN.md"]
+    },
+    {
+      "id": "N01", "title": "Tipos y reglas de notificación", "owner": "notifications", "status": "done", "depends_on": ["F01"], "report": "reports/N01.md", "reviewed_by": "Codex integrator", "reviewed_at": "2026-09-06",
+      "docs": ["NOTIFICATIONS.md", "CONTRACTS.md"],
+      "sources": ["theos_pos/lib/shared/providers/notification_provider.dart", "theos_pos/lib/shared/widgets/credit_approval_notification.dart"],
+      "writes": ["theos_pos_core/lib/src/notifications/", "theos_pos_core/test/notifications/"],
+      "acceptance": ["Entrada, revisión, scope, objetivo, preferencias y entrega son contratos tipados", "Deduplicación semántica no depende de hora de polling", "Notificación nunca autoriza una operación financiera", "Casos de permiso denegado y capacidades no soportadas están modelados"],
+      "verify": ["(cd theos_pos_core && dart test test/notifications)", "(cd theos_pos_core && dart analyze)"]
+    },
+    {
+      "id": "N02", "title": "Bandeja y outbox de entrega persistentes", "owner": "integrator", "status": "done", "depends_on": ["N01", "F02"], "report": "reports/N02.md", "reviewed_by": "Codex integrator", "reviewed_at": "2026-09-06",
+      "docs": ["NOTIFICATIONS.md", "VALIDATION.md"],
+      "sources": ["theos_pos_core/lib/src/database/", "theos_pos_core/lib/src/models/activities/"],
+      "writes": ["theos_pos_core/lib/src/database/", "theos_pos_core/lib/src/notifications/", "theos_pos_core/test/notifications/"],
+      "acceptance": ["Migración aditiva, un único ejecutor de esquema/generación y compatibilidad con theos_pos", "Commit atómico de entrada y delivery con restricciones únicas", "Lectura, archivo, cursor y dedupe sobreviven al reinicio", "Lease vencido se recupera y limpieza no borra pendientes ni recrea avisos viejos"],
+      "verify": ["(cd theos_pos_core && dart test test/notifications)", "(cd theos_pos_core && dart test)", "git diff --check"]
+    },
+    {
+      "id": "N03", "title": "Adaptador de notificaciones del sistema", "owner": "notifications", "status": "done", "depends_on": ["N01", "F02"], "report": "reports/N03.md", "reviewed_by": "Codex integrator", "reviewed_at": "2026-09-06",
+      "docs": ["NOTIFICATIONS.md", "ARCHITECTURE.md"],
+      "sources": ["theos_pos/lib/core/services/platform/global_notification_service.dart"],
+      "writes": ["orbi_runtime/lib/src/notifications/", "orbi_runtime/test/notifications/", "theos_panel/android/", "theos_panel/ios/", "theos_panel/macos/", "theos_panel/windows/", "theos_panel/linux/", "theos_panel/web/"],
+      "acceptance": ["Plugin configurado por plataforma y permisos desde acción del usuario", "IDs persistentes y cancelación aislada por scope", "Unsupported/denied mantienen la bandeja utilizable", "No introduce infraestructura push ni afirma ejecución continua en background", "No editar shells concurrentemente con F06 o V02"],
+      "verify": ["(cd orbi_runtime && flutter test test/notifications)", "Prueba visible del SO por plataforma disponible y pendientes explícitos"]
+    },
+    {
+      "id": "N04", "title": "Productores, bandeja y navegación de avisos", "owner": "notifications", "status": "done", "depends_on": ["N02", "N03", "F03", "U01"], "report": "reports/N04.md", "reviewed_by": "Codex integrator", "reviewed_at": "2026-09-06",
+      "docs": ["NOTIFICATIONS.md", "DESIGN.md", "CONTRACTS.md"],
+      "sources": ["theos_pos/lib/features/activities/", "theos_pos/lib/shared/providers/notification_provider.dart"],
+      "writes": ["theos_panel/lib/features/notifications/", "orbi_runtime/lib/src/notifications/", "theos_panel/test/features/notifications/"],
+      "acceptance": ["Eventos locales/sync alimentan inbox sin timer paralelo ni ráfaga inicial", "Leer/archivar no resuelve negocio y badge deriva del mismo filtro", "Pulsación revalida identidad, compañía, permisos y objetivo", "Rebuild, doble evento y reinicio no duplican entrada; limitación de reentrega SO documentada"],
+      "verify": ["(cd theos_panel && flutter test test/features/notifications)", "Recorrido inbox + aviso SO + reapertura con identidad correcta"]
+    },
+    {
+      "id": "U02", "title": "Acceso, marca y navegación por permisos", "owner": "ui", "status": "done", "depends_on": ["F02", "U01"], "report": "reports/U02.md", "reviewed_by": "Codex integrator", "reviewed_at": "2026-09-07",
+      "docs": ["DESIGN.md", "CONTRACTS.md", "SPEC.md"],
+      "sources": ["theos_pos/lib/features/authentication/", "theos_pos/lib/core/navigation/route_access_policy.dart", "odoo_sdk/lib/src/auth/"],
+      "writes": ["orbi_runtime/lib/src/auth/", "theos_panel/lib/features/auth/", "theos_panel/test/features/auth/"],
+      "acceptance": ["Login conserva logo/fondo suave y usuario recordado por servidor", "Menú y enlaces usan misma política de acceso", "Native login/restore/offline funcionan con runtime", "Estado web W01 visible como pendiente hasta F06, no éxito simulado"],
+      "verify": ["(cd theos_panel && flutter test test/features/auth)", "Recorrido login/restauración/cambio de usuario"]
+    },
+    {
+      "id": "U03", "title": "Clientes y productos reactivos", "owner": "ui", "status": "done", "depends_on": ["F03", "U01"], "report": "reports/U03.md", "reviewed_by": "Codex integrator", "reviewed_at": "2026-09-07",
+      "docs": ["DESIGN.md", "CONTRACTS.md"],
+      "sources": ["theos_pos/lib/features/clients/", "theos_pos/lib/features/products/"],
+      "writes": ["theos_panel/lib/features/clients/", "theos_panel/lib/features/products/", "theos_panel/test/features/catalogs/"],
+      "acceptance": ["Búsqueda local paginada y selección reusable", "Vacío, carga inicial, datos y error no se confunden", "Edición dirty no se pierde al actualizar catálogos", "Datos offline disponibles tras reinicio"],
+      "verify": ["(cd theos_panel && flutter test test/features/catalogs)", "Medición de búsqueda con catálogo representativo"]
+    },
+    {
+      "id": "U04", "title": "Órdenes y pendientes", "owner": "ui", "status": "done", "depends_on": ["F04", "F03", "U01"], "report": "reports/U04.md", "reviewed_by": "Codex integrator", "reviewed_at": "2026-09-07",
+      "docs": ["SPEC.md", "DESIGN.md", "CONTRACTS.md"],
+      "sources": ["theos_pos/lib/features/sales/repositories/", "theos_pos/lib/shared/providers/list_filter_providers.dart"],
+      "writes": ["theos_panel/lib/features/orders/", "theos_panel/test/features/orders/"],
+      "acceptance": ["Mis ventas por defecto removible y Todas limitado por permisos", "Cajero encuentra pendientes por cobrar/facturar sin filtro indebido por vendedor", "Conteos/lista comparten filtro y scope", "Estado negocio/local/sync/fiscal visible y selección conservada al resize"],
+      "verify": ["(cd theos_panel && flutter test test/features/orders)"]
+    },
+    {
+      "id": "U05", "title": "Venta mostrador y consultiva", "owner": "ui", "status": "done", "depends_on": ["F07", "U03", "U04"], "report": "reports/U05.md", "reviewed_by": "Codex integrator", "reviewed_at": "2026-09-07",
+      "docs": ["SPEC.md", "DESIGN.md", "CONTRACTS.md"],
+      "sources": ["theos_pos/lib/features/sales/screens/fast_sale/", "theos_pos/lib/features/sales/screens/sale_order_form/"],
+      "writes": ["theos_panel/lib/features/sales/", "theos_panel/test/features/sales/"],
+      "acceptance": ["Ambas presentaciones usan mismos comandos y borrador", "Término de pago clasifica flujo, sin selector financiero paralelo", "Confirmación conserva aprobación, bloqueo y acciones pendientes", "Cambiar ventana, ruta o reiniciar no pierde trabajo persistido"],
+      "verify": ["(cd theos_panel && flutter test test/features/sales)", "Recorrido táctil y teclado con servicio real local"]
+    },
+    {
+      "id": "U06", "title": "Caja, cobro y turno", "owner": "ui", "status": "done", "depends_on": ["F07", "U04"], "report": "reports/U06.md", "reviewed_by": "Codex integrator", "reviewed_at": "2026-09-08",
+      "docs": ["SPEC.md", "DESIGN.md", "VALIDATION.md"],
+      "sources": ["theos_pos/lib/features/collection/", "theos_pos/lib/features/sales/screens/fast_sale/widgets/pos_payment_tab.dart"],
+      "writes": ["theos_panel/lib/features/collection/", "theos_panel/test/features/collection/"],
+      "acceptance": ["Apertura, recuperación, cobro, anticipos, retenciones, notas de crédito, salidas y depósitos según permisos", "Conteo y cierre coherentes con servicios y pendientes visibles", "Doble pulsación no duplica intención", "Cobro local completado no se presenta como ya conciliado/SRI autorizado"],
+      "verify": ["(cd theos_panel && flutter test test/features/collection)", "Turno local completo con reinicio y replay"]
+    },
+    {
+      "id": "U07", "title": "Aprobaciones comerciales, crédito y FSC", "owner": "ui", "status": "done", "depends_on": ["F07", "U04"], "report": "reports/U07.md", "reviewed_by": "Codex integrator", "reviewed_at": "2026-09-07",
+      "docs": ["SPEC.md", "CONTRACTS.md", "VALIDATION.md"],
+      "sources": ["theos_pos/lib/features/sales/services/credit_approval_service.dart", "theos_pos/lib/shared/providers/credit_approval_provider.dart"],
+      "writes": ["theos_panel/lib/features/approvals/", "theos_panel/test/features/approvals/"],
+      "acceptance": ["Solicitar/revisar/resolver según autoridad efectiva sin bypass por UI", "FSC explica factura/despacho adelantados y entrega condicionada al pago", "Acciones pendientes conservan identidad y contexto", "Autorización offline usa política documentada y no se sustituye por prohibición general"],
+      "verify": ["(cd theos_panel && flutter test test/features/approvals)"]
+    },
+    {
+      "id": "U08", "title": "Inicio, actividades y documentos", "owner": "ui", "status": "done", "depends_on": ["F03", "U01", "F04"], "report": "reports/U08.md", "reviewed_by": "Codex integrator", "reviewed_at": "2026-09-07",
+      "docs": ["DESIGN.md", "CONTRACTS.md"],
+      "sources": ["theos_pos/lib/features/activities/", "theos_pos/lib/features/reports/", "flutter_qweb/lib/"],
+      "writes": ["theos_panel/lib/features/home/", "theos_panel/lib/features/activities/", "theos_panel/lib/features/reports/", "theos_panel/test/features/reports/"],
+      "acceptance": ["Inicio por rol permite retomar trabajo real", "Actividades consumen datos locales y operaciones autorizadas", "Documentos usan plantilla/revisión cacheada y estado fiscal correcto", "PDF funciona sin recursos obligatorios de CDN"],
+      "verify": ["(cd theos_panel && flutter test test/features/reports)", "Abrir/generar documento offline en plataformas disponibles"]
+    },
+    {
+      "id": "U09", "title": "Centro de sincronización y recuperación", "owner": "ui", "status": "done", "depends_on": ["F03", "U01"], "report": "reports/U09.md", "reviewed_by": "Codex integrator", "reviewed_at": "2026-09-07",
+      "docs": ["SPEC.md", "DESIGN.md", "CONTRACTS.md"],
+      "sources": ["theos_pos/lib/features/sync/screens/", "theos_pos/lib/features/sync/providers/"],
+      "writes": ["theos_panel/lib/features/sync/", "theos_panel/test/features/sync/"],
+      "acceptance": ["Indicador coherente y resultado por catálogo con error legible", "Reintento coordinado, conflictos y cola fallida con acción concreta", "Sin conexión no elimina trabajo ni convierte todo en borradores", "No se propone vaciar BD/cola como recuperación normal"],
+      "verify": ["(cd theos_panel && flutter test test/features/sync)"]
+    },
+    {
+      "id": "U10", "title": "Configuración y preferencias", "owner": "ui", "status": "done", "depends_on": ["F02", "U01", "N03"], "report": "reports/U10.md", "reviewed_by": "Codex integrator", "reviewed_at": "2026-09-07",
+      "docs": ["DESIGN.md", "NOTIFICATIONS.md"],
+      "sources": ["theos_pos/lib/core/services/config_service.dart", "theos_pos/lib/features/sync/services/offline_mode_service.dart"],
+      "writes": ["theos_panel/lib/features/settings/", "theos_panel/test/features/settings/"],
+      "acceptance": ["Tema, acento, densidad y avisos tienen preferencias por scope", "Permisos SO se solicitan desde acción consciente y se distingue denegado", "Modo Ruta conserva operación local y suspende sync automático", "Preferencias visuales no cambian permisos de negocio"],
+      "verify": ["(cd theos_panel && flutter test test/features/settings)"]
+    },
+    {
+      "id": "B01", "title": "Resolver paridad backend y fiscal offline", "owner": "integrator", "status": "in_progress", "depends_on": ["F04"],
+      "docs": ["SPEC.md", "CONTRACTS.md", "VALIDATION.md"],
+      "sources": ["docs/ODOO_SALES_FLOW_AUDIT.md", "docs/specs/VENDEDOR_CAJERO_PANEL_19_5.md", "theos_pos/lib/features/sync/services/offline_sync_payment.dart"],
+      "writes": ["docs/orbi_panel/decisions/", "theos_pos_core/test/operations/"],
+      "acceptance": ["Contrastar código Odoo/custom y despliegue ERP2 real con los cuatro flujos", "Resolver numeración exclusiva, fecha/clave fiscal y cobro idempotente", "Documentar autorización local y reconciliación de aprobaciones/FSC", "Si requiere cambios backend, propuesta origen/destino/riesgo/prueba y autorización antes de aplicar", "No marcar done con hallazgos críticos abiertos; actualizar plan correctivo y dependencias"],
+      "verify": ["Evidencia contractual por modelo/método/capacidad y estado backend real", "Pruebas focales tras correcciones autorizadas"]
+    },
+    {
+      "id": "V01", "title": "Integración funcional ERP2 y regresión", "owner": "integrator", "status": "todo", "depends_on": ["F06", "B01", "U02", "U05", "U06", "U07", "U08", "U09", "U10", "N04"],
+      "docs": ["SPEC.md", "VALIDATION.md"],
+      "sources": ["theos_pos/integration_test/", "docs/ODOO_SALES_FLOW_AUDIT.md"],
+      "writes": ["theos_panel/integration_test/", "docs/orbi_panel/reports/"],
+      "acceptance": ["Aprobaciones, turno, cuatro flujos, con/sin panel verificados en ese orden", "Actores reales vendedor/cajero y supervisor autorizado, nunca admin como sustituto", "IDs/totales/estados cotejados en servidor", "Reinicio de proceso, reconexión y respuesta ambigua sin duplicar", "Regresión afectada de theos_pos pasa tras extracción"],
+      "verify": ["(cd theos_panel && flutter test integration_test/orbi_erp2_test.dart -d macos)", "Matriz VALIDATION.md con evidencias independientes"]
+    },
+    {
+      "id": "V02", "title": "Seis plataformas, notificaciones y rendimiento", "owner": "integrator", "status": "todo", "depends_on": ["V01"],
+      "docs": ["VALIDATION.md", "NOTIFICATIONS.md", "DESIGN.md"],
+      "sources": [".github/workflows/ci.yml"],
+      "writes": ["theos_panel/", ".github/workflows/", "docs/orbi_panel/reports/"],
+      "acceptance": ["Builds y recorridos por SO/navegador con límites de notificaciones explícitos", "Web refresh/offline validado, recursos empaquetados y contrato W01 completo", "Rendimiento profile/release, datos/hardware/tiempos/tamaños documentados", "Sin publicación externa ni acceso a producción", "Solo declarar app lista cuando no quedan bloqueos de alcance"],
+      "verify": ["Comandos de build por plataforma de VALIDATION.md", "Matriz funcional y mediciones adjuntas"]
+    }
+  ]
+}

@@ -39,6 +39,15 @@ typedef OfflineOperationHandler = Future<ConflictInfo?> Function(
   OfflineOperation op,
 );
 
+/// Signals a transient/authentication failure that must retain the durable
+/// operation for a later session instead of sending it to dead-letter.
+final class RetryableOfflineOperationException implements Exception {
+  const RetryableOfflineOperationException(this.message);
+  final String message;
+  @override
+  String toString() => message;
+}
+
 /// Audit logger for sync operations.
 abstract class OfflineQueueAuditLogger {
   Future<void> logOperation(
@@ -429,6 +438,26 @@ class OfflineQueueProcessor {
             ),
           );
         }
+      } on RetryableOfflineOperationException catch (e) {
+        failed++;
+        blockedDependencyKeys.addAll(dependencyKeys);
+        final message = _safeErrorMessage(e.message);
+        errors.add('Op ${currentOp.id}: $message');
+        await _queue.markOperationFailed(currentOp.id, message);
+        await _auditLogger?.logOperation(
+          currentOp,
+          result: 'retryable_error',
+          errorMessage: message,
+        );
+        _emitProgress(
+          SyncProgressEvent(
+            operationId: currentOp.id,
+            current: currentIndex,
+            total: totalOps,
+            status: SyncOperationStatus.failed,
+            error: message,
+          ),
+        );
       } on OperationSkippedException catch (e) {
         skipped++;
         final message = _safeErrorMessage(e.toString());

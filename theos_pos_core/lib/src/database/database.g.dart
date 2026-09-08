@@ -75226,6 +75226,2606 @@ class QwebPaperFormatCompanion extends UpdateCompanion<QwebPaperFormatData> {
   }
 }
 
+class $NotificationEntriesTable extends NotificationEntries
+    with TableInfo<$NotificationEntriesTable, NotificationEntry> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $NotificationEntriesTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<String> id = GeneratedColumn<String>(
+    'id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _scopeKeyMeta = const VerificationMeta(
+    'scopeKey',
+  );
+  @override
+  late final GeneratedColumn<String> scopeKey = GeneratedColumn<String>(
+    'scope_key',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _partitionKeyMeta = const VerificationMeta(
+    'partitionKey',
+  );
+  @override
+  late final GeneratedColumn<String> partitionKey = GeneratedColumn<String>(
+    'partition_key',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _companyIdMeta = const VerificationMeta(
+    'companyId',
+  );
+  @override
+  late final GeneratedColumn<int> companyId = GeneratedColumn<int>(
+    'company_id',
+    aliasedName,
+    true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _sourceKeyMeta = const VerificationMeta(
+    'sourceKey',
+  );
+  @override
+  late final GeneratedColumn<String> sourceKey = GeneratedColumn<String>(
+    'source_key',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _revisionMeta = const VerificationMeta(
+    'revision',
+  );
+  @override
+  late final GeneratedColumn<int> revision = GeneratedColumn<int>(
+    'revision',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _kindMeta = const VerificationMeta('kind');
+  @override
+  late final GeneratedColumn<String> kind = GeneratedColumn<String>(
+    'kind',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _severityMeta = const VerificationMeta(
+    'severity',
+  );
+  @override
+  late final GeneratedColumn<String> severity = GeneratedColumn<String>(
+    'severity',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _titleKeyMeta = const VerificationMeta(
+    'titleKey',
+  );
+  @override
+  late final GeneratedColumn<String> titleKey = GeneratedColumn<String>(
+    'title_key',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _bodyKeyMeta = const VerificationMeta(
+    'bodyKey',
+  );
+  @override
+  late final GeneratedColumn<String> bodyKey = GeneratedColumn<String>(
+    'body_key',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _argsJsonMeta = const VerificationMeta(
+    'argsJson',
+  );
+  @override
+  late final GeneratedColumn<String> argsJson = GeneratedColumn<String>(
+    'args_json',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant('{}'),
+  );
+  static const VerificationMeta _fallbackTextMeta = const VerificationMeta(
+    'fallbackText',
+  );
+  @override
+  late final GeneratedColumn<String> fallbackText = GeneratedColumn<String>(
+    'fallback_text',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _occurredAtMeta = const VerificationMeta(
+    'occurredAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> occurredAt = GeneratedColumn<DateTime>(
+    'occurred_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _createdAtMeta = const VerificationMeta(
+    'createdAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> createdAt = GeneratedColumn<DateTime>(
+    'created_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _updatedAtMeta = const VerificationMeta(
+    'updatedAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> updatedAt = GeneratedColumn<DateTime>(
+    'updated_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _readAtMeta = const VerificationMeta('readAt');
+  @override
+  late final GeneratedColumn<DateTime> readAt = GeneratedColumn<DateTime>(
+    'read_at',
+    aliasedName,
+    true,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _archivedAtMeta = const VerificationMeta(
+    'archivedAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> archivedAt = GeneratedColumn<DateTime>(
+    'archived_at',
+    aliasedName,
+    true,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _resolvedAtMeta = const VerificationMeta(
+    'resolvedAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> resolvedAt = GeneratedColumn<DateTime>(
+    'resolved_at',
+    aliasedName,
+    true,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _targetTypeMeta = const VerificationMeta(
+    'targetType',
+  );
+  @override
+  late final GeneratedColumn<String> targetType = GeneratedColumn<String>(
+    'target_type',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _targetReferenceMeta = const VerificationMeta(
+    'targetReference',
+  );
+  @override
+  late final GeneratedColumn<String> targetReference = GeneratedColumn<String>(
+    'target_reference',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _originMeta = const VerificationMeta('origin');
+  @override
+  late final GeneratedColumn<String> origin = GeneratedColumn<String>(
+    'origin',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _expiresAtMeta = const VerificationMeta(
+    'expiresAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> expiresAt = GeneratedColumn<DateTime>(
+    'expires_at',
+    aliasedName,
+    true,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: false,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    id,
+    scopeKey,
+    partitionKey,
+    companyId,
+    sourceKey,
+    revision,
+    kind,
+    severity,
+    titleKey,
+    bodyKey,
+    argsJson,
+    fallbackText,
+    occurredAt,
+    createdAt,
+    updatedAt,
+    readAt,
+    archivedAt,
+    resolvedAt,
+    targetType,
+    targetReference,
+    origin,
+    expiresAt,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'notification_entries';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<NotificationEntry> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    } else if (isInserting) {
+      context.missing(_idMeta);
+    }
+    if (data.containsKey('scope_key')) {
+      context.handle(
+        _scopeKeyMeta,
+        scopeKey.isAcceptableOrUnknown(data['scope_key']!, _scopeKeyMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_scopeKeyMeta);
+    }
+    if (data.containsKey('partition_key')) {
+      context.handle(
+        _partitionKeyMeta,
+        partitionKey.isAcceptableOrUnknown(
+          data['partition_key']!,
+          _partitionKeyMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_partitionKeyMeta);
+    }
+    if (data.containsKey('company_id')) {
+      context.handle(
+        _companyIdMeta,
+        companyId.isAcceptableOrUnknown(data['company_id']!, _companyIdMeta),
+      );
+    }
+    if (data.containsKey('source_key')) {
+      context.handle(
+        _sourceKeyMeta,
+        sourceKey.isAcceptableOrUnknown(data['source_key']!, _sourceKeyMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_sourceKeyMeta);
+    }
+    if (data.containsKey('revision')) {
+      context.handle(
+        _revisionMeta,
+        revision.isAcceptableOrUnknown(data['revision']!, _revisionMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_revisionMeta);
+    }
+    if (data.containsKey('kind')) {
+      context.handle(
+        _kindMeta,
+        kind.isAcceptableOrUnknown(data['kind']!, _kindMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_kindMeta);
+    }
+    if (data.containsKey('severity')) {
+      context.handle(
+        _severityMeta,
+        severity.isAcceptableOrUnknown(data['severity']!, _severityMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_severityMeta);
+    }
+    if (data.containsKey('title_key')) {
+      context.handle(
+        _titleKeyMeta,
+        titleKey.isAcceptableOrUnknown(data['title_key']!, _titleKeyMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_titleKeyMeta);
+    }
+    if (data.containsKey('body_key')) {
+      context.handle(
+        _bodyKeyMeta,
+        bodyKey.isAcceptableOrUnknown(data['body_key']!, _bodyKeyMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_bodyKeyMeta);
+    }
+    if (data.containsKey('args_json')) {
+      context.handle(
+        _argsJsonMeta,
+        argsJson.isAcceptableOrUnknown(data['args_json']!, _argsJsonMeta),
+      );
+    }
+    if (data.containsKey('fallback_text')) {
+      context.handle(
+        _fallbackTextMeta,
+        fallbackText.isAcceptableOrUnknown(
+          data['fallback_text']!,
+          _fallbackTextMeta,
+        ),
+      );
+    }
+    if (data.containsKey('occurred_at')) {
+      context.handle(
+        _occurredAtMeta,
+        occurredAt.isAcceptableOrUnknown(data['occurred_at']!, _occurredAtMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_occurredAtMeta);
+    }
+    if (data.containsKey('created_at')) {
+      context.handle(
+        _createdAtMeta,
+        createdAt.isAcceptableOrUnknown(data['created_at']!, _createdAtMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_createdAtMeta);
+    }
+    if (data.containsKey('updated_at')) {
+      context.handle(
+        _updatedAtMeta,
+        updatedAt.isAcceptableOrUnknown(data['updated_at']!, _updatedAtMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_updatedAtMeta);
+    }
+    if (data.containsKey('read_at')) {
+      context.handle(
+        _readAtMeta,
+        readAt.isAcceptableOrUnknown(data['read_at']!, _readAtMeta),
+      );
+    }
+    if (data.containsKey('archived_at')) {
+      context.handle(
+        _archivedAtMeta,
+        archivedAt.isAcceptableOrUnknown(data['archived_at']!, _archivedAtMeta),
+      );
+    }
+    if (data.containsKey('resolved_at')) {
+      context.handle(
+        _resolvedAtMeta,
+        resolvedAt.isAcceptableOrUnknown(data['resolved_at']!, _resolvedAtMeta),
+      );
+    }
+    if (data.containsKey('target_type')) {
+      context.handle(
+        _targetTypeMeta,
+        targetType.isAcceptableOrUnknown(data['target_type']!, _targetTypeMeta),
+      );
+    }
+    if (data.containsKey('target_reference')) {
+      context.handle(
+        _targetReferenceMeta,
+        targetReference.isAcceptableOrUnknown(
+          data['target_reference']!,
+          _targetReferenceMeta,
+        ),
+      );
+    }
+    if (data.containsKey('origin')) {
+      context.handle(
+        _originMeta,
+        origin.isAcceptableOrUnknown(data['origin']!, _originMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_originMeta);
+    }
+    if (data.containsKey('expires_at')) {
+      context.handle(
+        _expiresAtMeta,
+        expiresAt.isAcceptableOrUnknown(data['expires_at']!, _expiresAtMeta),
+      );
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  NotificationEntry map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return NotificationEntry(
+      id: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}id'],
+      )!,
+      scopeKey: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}scope_key'],
+      )!,
+      partitionKey: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}partition_key'],
+      )!,
+      companyId: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}company_id'],
+      ),
+      sourceKey: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}source_key'],
+      )!,
+      revision: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}revision'],
+      )!,
+      kind: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}kind'],
+      )!,
+      severity: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}severity'],
+      )!,
+      titleKey: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}title_key'],
+      )!,
+      bodyKey: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}body_key'],
+      )!,
+      argsJson: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}args_json'],
+      )!,
+      fallbackText: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}fallback_text'],
+      ),
+      occurredAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}occurred_at'],
+      )!,
+      createdAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}created_at'],
+      )!,
+      updatedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}updated_at'],
+      )!,
+      readAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}read_at'],
+      ),
+      archivedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}archived_at'],
+      ),
+      resolvedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}resolved_at'],
+      ),
+      targetType: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}target_type'],
+      ),
+      targetReference: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}target_reference'],
+      ),
+      origin: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}origin'],
+      )!,
+      expiresAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}expires_at'],
+      ),
+    );
+  }
+
+  @override
+  $NotificationEntriesTable createAlias(String alias) {
+    return $NotificationEntriesTable(attachedDatabase, alias);
+  }
+}
+
+class NotificationEntry extends DataClass
+    implements Insertable<NotificationEntry> {
+  final String id;
+  final String scopeKey;
+  final String partitionKey;
+  final int? companyId;
+  final String sourceKey;
+  final int revision;
+  final String kind;
+  final String severity;
+  final String titleKey;
+  final String bodyKey;
+  final String argsJson;
+  final String? fallbackText;
+  final DateTime occurredAt;
+  final DateTime createdAt;
+  final DateTime updatedAt;
+  final DateTime? readAt;
+  final DateTime? archivedAt;
+  final DateTime? resolvedAt;
+  final String? targetType;
+  final String? targetReference;
+  final String origin;
+  final DateTime? expiresAt;
+  const NotificationEntry({
+    required this.id,
+    required this.scopeKey,
+    required this.partitionKey,
+    this.companyId,
+    required this.sourceKey,
+    required this.revision,
+    required this.kind,
+    required this.severity,
+    required this.titleKey,
+    required this.bodyKey,
+    required this.argsJson,
+    this.fallbackText,
+    required this.occurredAt,
+    required this.createdAt,
+    required this.updatedAt,
+    this.readAt,
+    this.archivedAt,
+    this.resolvedAt,
+    this.targetType,
+    this.targetReference,
+    required this.origin,
+    this.expiresAt,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<String>(id);
+    map['scope_key'] = Variable<String>(scopeKey);
+    map['partition_key'] = Variable<String>(partitionKey);
+    if (!nullToAbsent || companyId != null) {
+      map['company_id'] = Variable<int>(companyId);
+    }
+    map['source_key'] = Variable<String>(sourceKey);
+    map['revision'] = Variable<int>(revision);
+    map['kind'] = Variable<String>(kind);
+    map['severity'] = Variable<String>(severity);
+    map['title_key'] = Variable<String>(titleKey);
+    map['body_key'] = Variable<String>(bodyKey);
+    map['args_json'] = Variable<String>(argsJson);
+    if (!nullToAbsent || fallbackText != null) {
+      map['fallback_text'] = Variable<String>(fallbackText);
+    }
+    map['occurred_at'] = Variable<DateTime>(occurredAt);
+    map['created_at'] = Variable<DateTime>(createdAt);
+    map['updated_at'] = Variable<DateTime>(updatedAt);
+    if (!nullToAbsent || readAt != null) {
+      map['read_at'] = Variable<DateTime>(readAt);
+    }
+    if (!nullToAbsent || archivedAt != null) {
+      map['archived_at'] = Variable<DateTime>(archivedAt);
+    }
+    if (!nullToAbsent || resolvedAt != null) {
+      map['resolved_at'] = Variable<DateTime>(resolvedAt);
+    }
+    if (!nullToAbsent || targetType != null) {
+      map['target_type'] = Variable<String>(targetType);
+    }
+    if (!nullToAbsent || targetReference != null) {
+      map['target_reference'] = Variable<String>(targetReference);
+    }
+    map['origin'] = Variable<String>(origin);
+    if (!nullToAbsent || expiresAt != null) {
+      map['expires_at'] = Variable<DateTime>(expiresAt);
+    }
+    return map;
+  }
+
+  NotificationEntriesCompanion toCompanion(bool nullToAbsent) {
+    return NotificationEntriesCompanion(
+      id: Value(id),
+      scopeKey: Value(scopeKey),
+      partitionKey: Value(partitionKey),
+      companyId: companyId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(companyId),
+      sourceKey: Value(sourceKey),
+      revision: Value(revision),
+      kind: Value(kind),
+      severity: Value(severity),
+      titleKey: Value(titleKey),
+      bodyKey: Value(bodyKey),
+      argsJson: Value(argsJson),
+      fallbackText: fallbackText == null && nullToAbsent
+          ? const Value.absent()
+          : Value(fallbackText),
+      occurredAt: Value(occurredAt),
+      createdAt: Value(createdAt),
+      updatedAt: Value(updatedAt),
+      readAt: readAt == null && nullToAbsent
+          ? const Value.absent()
+          : Value(readAt),
+      archivedAt: archivedAt == null && nullToAbsent
+          ? const Value.absent()
+          : Value(archivedAt),
+      resolvedAt: resolvedAt == null && nullToAbsent
+          ? const Value.absent()
+          : Value(resolvedAt),
+      targetType: targetType == null && nullToAbsent
+          ? const Value.absent()
+          : Value(targetType),
+      targetReference: targetReference == null && nullToAbsent
+          ? const Value.absent()
+          : Value(targetReference),
+      origin: Value(origin),
+      expiresAt: expiresAt == null && nullToAbsent
+          ? const Value.absent()
+          : Value(expiresAt),
+    );
+  }
+
+  factory NotificationEntry.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return NotificationEntry(
+      id: serializer.fromJson<String>(json['id']),
+      scopeKey: serializer.fromJson<String>(json['scopeKey']),
+      partitionKey: serializer.fromJson<String>(json['partitionKey']),
+      companyId: serializer.fromJson<int?>(json['companyId']),
+      sourceKey: serializer.fromJson<String>(json['sourceKey']),
+      revision: serializer.fromJson<int>(json['revision']),
+      kind: serializer.fromJson<String>(json['kind']),
+      severity: serializer.fromJson<String>(json['severity']),
+      titleKey: serializer.fromJson<String>(json['titleKey']),
+      bodyKey: serializer.fromJson<String>(json['bodyKey']),
+      argsJson: serializer.fromJson<String>(json['argsJson']),
+      fallbackText: serializer.fromJson<String?>(json['fallbackText']),
+      occurredAt: serializer.fromJson<DateTime>(json['occurredAt']),
+      createdAt: serializer.fromJson<DateTime>(json['createdAt']),
+      updatedAt: serializer.fromJson<DateTime>(json['updatedAt']),
+      readAt: serializer.fromJson<DateTime?>(json['readAt']),
+      archivedAt: serializer.fromJson<DateTime?>(json['archivedAt']),
+      resolvedAt: serializer.fromJson<DateTime?>(json['resolvedAt']),
+      targetType: serializer.fromJson<String?>(json['targetType']),
+      targetReference: serializer.fromJson<String?>(json['targetReference']),
+      origin: serializer.fromJson<String>(json['origin']),
+      expiresAt: serializer.fromJson<DateTime?>(json['expiresAt']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<String>(id),
+      'scopeKey': serializer.toJson<String>(scopeKey),
+      'partitionKey': serializer.toJson<String>(partitionKey),
+      'companyId': serializer.toJson<int?>(companyId),
+      'sourceKey': serializer.toJson<String>(sourceKey),
+      'revision': serializer.toJson<int>(revision),
+      'kind': serializer.toJson<String>(kind),
+      'severity': serializer.toJson<String>(severity),
+      'titleKey': serializer.toJson<String>(titleKey),
+      'bodyKey': serializer.toJson<String>(bodyKey),
+      'argsJson': serializer.toJson<String>(argsJson),
+      'fallbackText': serializer.toJson<String?>(fallbackText),
+      'occurredAt': serializer.toJson<DateTime>(occurredAt),
+      'createdAt': serializer.toJson<DateTime>(createdAt),
+      'updatedAt': serializer.toJson<DateTime>(updatedAt),
+      'readAt': serializer.toJson<DateTime?>(readAt),
+      'archivedAt': serializer.toJson<DateTime?>(archivedAt),
+      'resolvedAt': serializer.toJson<DateTime?>(resolvedAt),
+      'targetType': serializer.toJson<String?>(targetType),
+      'targetReference': serializer.toJson<String?>(targetReference),
+      'origin': serializer.toJson<String>(origin),
+      'expiresAt': serializer.toJson<DateTime?>(expiresAt),
+    };
+  }
+
+  NotificationEntry copyWith({
+    String? id,
+    String? scopeKey,
+    String? partitionKey,
+    Value<int?> companyId = const Value.absent(),
+    String? sourceKey,
+    int? revision,
+    String? kind,
+    String? severity,
+    String? titleKey,
+    String? bodyKey,
+    String? argsJson,
+    Value<String?> fallbackText = const Value.absent(),
+    DateTime? occurredAt,
+    DateTime? createdAt,
+    DateTime? updatedAt,
+    Value<DateTime?> readAt = const Value.absent(),
+    Value<DateTime?> archivedAt = const Value.absent(),
+    Value<DateTime?> resolvedAt = const Value.absent(),
+    Value<String?> targetType = const Value.absent(),
+    Value<String?> targetReference = const Value.absent(),
+    String? origin,
+    Value<DateTime?> expiresAt = const Value.absent(),
+  }) => NotificationEntry(
+    id: id ?? this.id,
+    scopeKey: scopeKey ?? this.scopeKey,
+    partitionKey: partitionKey ?? this.partitionKey,
+    companyId: companyId.present ? companyId.value : this.companyId,
+    sourceKey: sourceKey ?? this.sourceKey,
+    revision: revision ?? this.revision,
+    kind: kind ?? this.kind,
+    severity: severity ?? this.severity,
+    titleKey: titleKey ?? this.titleKey,
+    bodyKey: bodyKey ?? this.bodyKey,
+    argsJson: argsJson ?? this.argsJson,
+    fallbackText: fallbackText.present ? fallbackText.value : this.fallbackText,
+    occurredAt: occurredAt ?? this.occurredAt,
+    createdAt: createdAt ?? this.createdAt,
+    updatedAt: updatedAt ?? this.updatedAt,
+    readAt: readAt.present ? readAt.value : this.readAt,
+    archivedAt: archivedAt.present ? archivedAt.value : this.archivedAt,
+    resolvedAt: resolvedAt.present ? resolvedAt.value : this.resolvedAt,
+    targetType: targetType.present ? targetType.value : this.targetType,
+    targetReference: targetReference.present
+        ? targetReference.value
+        : this.targetReference,
+    origin: origin ?? this.origin,
+    expiresAt: expiresAt.present ? expiresAt.value : this.expiresAt,
+  );
+  NotificationEntry copyWithCompanion(NotificationEntriesCompanion data) {
+    return NotificationEntry(
+      id: data.id.present ? data.id.value : this.id,
+      scopeKey: data.scopeKey.present ? data.scopeKey.value : this.scopeKey,
+      partitionKey: data.partitionKey.present
+          ? data.partitionKey.value
+          : this.partitionKey,
+      companyId: data.companyId.present ? data.companyId.value : this.companyId,
+      sourceKey: data.sourceKey.present ? data.sourceKey.value : this.sourceKey,
+      revision: data.revision.present ? data.revision.value : this.revision,
+      kind: data.kind.present ? data.kind.value : this.kind,
+      severity: data.severity.present ? data.severity.value : this.severity,
+      titleKey: data.titleKey.present ? data.titleKey.value : this.titleKey,
+      bodyKey: data.bodyKey.present ? data.bodyKey.value : this.bodyKey,
+      argsJson: data.argsJson.present ? data.argsJson.value : this.argsJson,
+      fallbackText: data.fallbackText.present
+          ? data.fallbackText.value
+          : this.fallbackText,
+      occurredAt: data.occurredAt.present
+          ? data.occurredAt.value
+          : this.occurredAt,
+      createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
+      updatedAt: data.updatedAt.present ? data.updatedAt.value : this.updatedAt,
+      readAt: data.readAt.present ? data.readAt.value : this.readAt,
+      archivedAt: data.archivedAt.present
+          ? data.archivedAt.value
+          : this.archivedAt,
+      resolvedAt: data.resolvedAt.present
+          ? data.resolvedAt.value
+          : this.resolvedAt,
+      targetType: data.targetType.present
+          ? data.targetType.value
+          : this.targetType,
+      targetReference: data.targetReference.present
+          ? data.targetReference.value
+          : this.targetReference,
+      origin: data.origin.present ? data.origin.value : this.origin,
+      expiresAt: data.expiresAt.present ? data.expiresAt.value : this.expiresAt,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('NotificationEntry(')
+          ..write('id: $id, ')
+          ..write('scopeKey: $scopeKey, ')
+          ..write('partitionKey: $partitionKey, ')
+          ..write('companyId: $companyId, ')
+          ..write('sourceKey: $sourceKey, ')
+          ..write('revision: $revision, ')
+          ..write('kind: $kind, ')
+          ..write('severity: $severity, ')
+          ..write('titleKey: $titleKey, ')
+          ..write('bodyKey: $bodyKey, ')
+          ..write('argsJson: $argsJson, ')
+          ..write('fallbackText: $fallbackText, ')
+          ..write('occurredAt: $occurredAt, ')
+          ..write('createdAt: $createdAt, ')
+          ..write('updatedAt: $updatedAt, ')
+          ..write('readAt: $readAt, ')
+          ..write('archivedAt: $archivedAt, ')
+          ..write('resolvedAt: $resolvedAt, ')
+          ..write('targetType: $targetType, ')
+          ..write('targetReference: $targetReference, ')
+          ..write('origin: $origin, ')
+          ..write('expiresAt: $expiresAt')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hashAll([
+    id,
+    scopeKey,
+    partitionKey,
+    companyId,
+    sourceKey,
+    revision,
+    kind,
+    severity,
+    titleKey,
+    bodyKey,
+    argsJson,
+    fallbackText,
+    occurredAt,
+    createdAt,
+    updatedAt,
+    readAt,
+    archivedAt,
+    resolvedAt,
+    targetType,
+    targetReference,
+    origin,
+    expiresAt,
+  ]);
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is NotificationEntry &&
+          other.id == this.id &&
+          other.scopeKey == this.scopeKey &&
+          other.partitionKey == this.partitionKey &&
+          other.companyId == this.companyId &&
+          other.sourceKey == this.sourceKey &&
+          other.revision == this.revision &&
+          other.kind == this.kind &&
+          other.severity == this.severity &&
+          other.titleKey == this.titleKey &&
+          other.bodyKey == this.bodyKey &&
+          other.argsJson == this.argsJson &&
+          other.fallbackText == this.fallbackText &&
+          other.occurredAt == this.occurredAt &&
+          other.createdAt == this.createdAt &&
+          other.updatedAt == this.updatedAt &&
+          other.readAt == this.readAt &&
+          other.archivedAt == this.archivedAt &&
+          other.resolvedAt == this.resolvedAt &&
+          other.targetType == this.targetType &&
+          other.targetReference == this.targetReference &&
+          other.origin == this.origin &&
+          other.expiresAt == this.expiresAt);
+}
+
+class NotificationEntriesCompanion extends UpdateCompanion<NotificationEntry> {
+  final Value<String> id;
+  final Value<String> scopeKey;
+  final Value<String> partitionKey;
+  final Value<int?> companyId;
+  final Value<String> sourceKey;
+  final Value<int> revision;
+  final Value<String> kind;
+  final Value<String> severity;
+  final Value<String> titleKey;
+  final Value<String> bodyKey;
+  final Value<String> argsJson;
+  final Value<String?> fallbackText;
+  final Value<DateTime> occurredAt;
+  final Value<DateTime> createdAt;
+  final Value<DateTime> updatedAt;
+  final Value<DateTime?> readAt;
+  final Value<DateTime?> archivedAt;
+  final Value<DateTime?> resolvedAt;
+  final Value<String?> targetType;
+  final Value<String?> targetReference;
+  final Value<String> origin;
+  final Value<DateTime?> expiresAt;
+  final Value<int> rowid;
+  const NotificationEntriesCompanion({
+    this.id = const Value.absent(),
+    this.scopeKey = const Value.absent(),
+    this.partitionKey = const Value.absent(),
+    this.companyId = const Value.absent(),
+    this.sourceKey = const Value.absent(),
+    this.revision = const Value.absent(),
+    this.kind = const Value.absent(),
+    this.severity = const Value.absent(),
+    this.titleKey = const Value.absent(),
+    this.bodyKey = const Value.absent(),
+    this.argsJson = const Value.absent(),
+    this.fallbackText = const Value.absent(),
+    this.occurredAt = const Value.absent(),
+    this.createdAt = const Value.absent(),
+    this.updatedAt = const Value.absent(),
+    this.readAt = const Value.absent(),
+    this.archivedAt = const Value.absent(),
+    this.resolvedAt = const Value.absent(),
+    this.targetType = const Value.absent(),
+    this.targetReference = const Value.absent(),
+    this.origin = const Value.absent(),
+    this.expiresAt = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  NotificationEntriesCompanion.insert({
+    required String id,
+    required String scopeKey,
+    required String partitionKey,
+    this.companyId = const Value.absent(),
+    required String sourceKey,
+    required int revision,
+    required String kind,
+    required String severity,
+    required String titleKey,
+    required String bodyKey,
+    this.argsJson = const Value.absent(),
+    this.fallbackText = const Value.absent(),
+    required DateTime occurredAt,
+    required DateTime createdAt,
+    required DateTime updatedAt,
+    this.readAt = const Value.absent(),
+    this.archivedAt = const Value.absent(),
+    this.resolvedAt = const Value.absent(),
+    this.targetType = const Value.absent(),
+    this.targetReference = const Value.absent(),
+    required String origin,
+    this.expiresAt = const Value.absent(),
+    this.rowid = const Value.absent(),
+  }) : id = Value(id),
+       scopeKey = Value(scopeKey),
+       partitionKey = Value(partitionKey),
+       sourceKey = Value(sourceKey),
+       revision = Value(revision),
+       kind = Value(kind),
+       severity = Value(severity),
+       titleKey = Value(titleKey),
+       bodyKey = Value(bodyKey),
+       occurredAt = Value(occurredAt),
+       createdAt = Value(createdAt),
+       updatedAt = Value(updatedAt),
+       origin = Value(origin);
+  static Insertable<NotificationEntry> custom({
+    Expression<String>? id,
+    Expression<String>? scopeKey,
+    Expression<String>? partitionKey,
+    Expression<int>? companyId,
+    Expression<String>? sourceKey,
+    Expression<int>? revision,
+    Expression<String>? kind,
+    Expression<String>? severity,
+    Expression<String>? titleKey,
+    Expression<String>? bodyKey,
+    Expression<String>? argsJson,
+    Expression<String>? fallbackText,
+    Expression<DateTime>? occurredAt,
+    Expression<DateTime>? createdAt,
+    Expression<DateTime>? updatedAt,
+    Expression<DateTime>? readAt,
+    Expression<DateTime>? archivedAt,
+    Expression<DateTime>? resolvedAt,
+    Expression<String>? targetType,
+    Expression<String>? targetReference,
+    Expression<String>? origin,
+    Expression<DateTime>? expiresAt,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (scopeKey != null) 'scope_key': scopeKey,
+      if (partitionKey != null) 'partition_key': partitionKey,
+      if (companyId != null) 'company_id': companyId,
+      if (sourceKey != null) 'source_key': sourceKey,
+      if (revision != null) 'revision': revision,
+      if (kind != null) 'kind': kind,
+      if (severity != null) 'severity': severity,
+      if (titleKey != null) 'title_key': titleKey,
+      if (bodyKey != null) 'body_key': bodyKey,
+      if (argsJson != null) 'args_json': argsJson,
+      if (fallbackText != null) 'fallback_text': fallbackText,
+      if (occurredAt != null) 'occurred_at': occurredAt,
+      if (createdAt != null) 'created_at': createdAt,
+      if (updatedAt != null) 'updated_at': updatedAt,
+      if (readAt != null) 'read_at': readAt,
+      if (archivedAt != null) 'archived_at': archivedAt,
+      if (resolvedAt != null) 'resolved_at': resolvedAt,
+      if (targetType != null) 'target_type': targetType,
+      if (targetReference != null) 'target_reference': targetReference,
+      if (origin != null) 'origin': origin,
+      if (expiresAt != null) 'expires_at': expiresAt,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  NotificationEntriesCompanion copyWith({
+    Value<String>? id,
+    Value<String>? scopeKey,
+    Value<String>? partitionKey,
+    Value<int?>? companyId,
+    Value<String>? sourceKey,
+    Value<int>? revision,
+    Value<String>? kind,
+    Value<String>? severity,
+    Value<String>? titleKey,
+    Value<String>? bodyKey,
+    Value<String>? argsJson,
+    Value<String?>? fallbackText,
+    Value<DateTime>? occurredAt,
+    Value<DateTime>? createdAt,
+    Value<DateTime>? updatedAt,
+    Value<DateTime?>? readAt,
+    Value<DateTime?>? archivedAt,
+    Value<DateTime?>? resolvedAt,
+    Value<String?>? targetType,
+    Value<String?>? targetReference,
+    Value<String>? origin,
+    Value<DateTime?>? expiresAt,
+    Value<int>? rowid,
+  }) {
+    return NotificationEntriesCompanion(
+      id: id ?? this.id,
+      scopeKey: scopeKey ?? this.scopeKey,
+      partitionKey: partitionKey ?? this.partitionKey,
+      companyId: companyId ?? this.companyId,
+      sourceKey: sourceKey ?? this.sourceKey,
+      revision: revision ?? this.revision,
+      kind: kind ?? this.kind,
+      severity: severity ?? this.severity,
+      titleKey: titleKey ?? this.titleKey,
+      bodyKey: bodyKey ?? this.bodyKey,
+      argsJson: argsJson ?? this.argsJson,
+      fallbackText: fallbackText ?? this.fallbackText,
+      occurredAt: occurredAt ?? this.occurredAt,
+      createdAt: createdAt ?? this.createdAt,
+      updatedAt: updatedAt ?? this.updatedAt,
+      readAt: readAt ?? this.readAt,
+      archivedAt: archivedAt ?? this.archivedAt,
+      resolvedAt: resolvedAt ?? this.resolvedAt,
+      targetType: targetType ?? this.targetType,
+      targetReference: targetReference ?? this.targetReference,
+      origin: origin ?? this.origin,
+      expiresAt: expiresAt ?? this.expiresAt,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<String>(id.value);
+    }
+    if (scopeKey.present) {
+      map['scope_key'] = Variable<String>(scopeKey.value);
+    }
+    if (partitionKey.present) {
+      map['partition_key'] = Variable<String>(partitionKey.value);
+    }
+    if (companyId.present) {
+      map['company_id'] = Variable<int>(companyId.value);
+    }
+    if (sourceKey.present) {
+      map['source_key'] = Variable<String>(sourceKey.value);
+    }
+    if (revision.present) {
+      map['revision'] = Variable<int>(revision.value);
+    }
+    if (kind.present) {
+      map['kind'] = Variable<String>(kind.value);
+    }
+    if (severity.present) {
+      map['severity'] = Variable<String>(severity.value);
+    }
+    if (titleKey.present) {
+      map['title_key'] = Variable<String>(titleKey.value);
+    }
+    if (bodyKey.present) {
+      map['body_key'] = Variable<String>(bodyKey.value);
+    }
+    if (argsJson.present) {
+      map['args_json'] = Variable<String>(argsJson.value);
+    }
+    if (fallbackText.present) {
+      map['fallback_text'] = Variable<String>(fallbackText.value);
+    }
+    if (occurredAt.present) {
+      map['occurred_at'] = Variable<DateTime>(occurredAt.value);
+    }
+    if (createdAt.present) {
+      map['created_at'] = Variable<DateTime>(createdAt.value);
+    }
+    if (updatedAt.present) {
+      map['updated_at'] = Variable<DateTime>(updatedAt.value);
+    }
+    if (readAt.present) {
+      map['read_at'] = Variable<DateTime>(readAt.value);
+    }
+    if (archivedAt.present) {
+      map['archived_at'] = Variable<DateTime>(archivedAt.value);
+    }
+    if (resolvedAt.present) {
+      map['resolved_at'] = Variable<DateTime>(resolvedAt.value);
+    }
+    if (targetType.present) {
+      map['target_type'] = Variable<String>(targetType.value);
+    }
+    if (targetReference.present) {
+      map['target_reference'] = Variable<String>(targetReference.value);
+    }
+    if (origin.present) {
+      map['origin'] = Variable<String>(origin.value);
+    }
+    if (expiresAt.present) {
+      map['expires_at'] = Variable<DateTime>(expiresAt.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('NotificationEntriesCompanion(')
+          ..write('id: $id, ')
+          ..write('scopeKey: $scopeKey, ')
+          ..write('partitionKey: $partitionKey, ')
+          ..write('companyId: $companyId, ')
+          ..write('sourceKey: $sourceKey, ')
+          ..write('revision: $revision, ')
+          ..write('kind: $kind, ')
+          ..write('severity: $severity, ')
+          ..write('titleKey: $titleKey, ')
+          ..write('bodyKey: $bodyKey, ')
+          ..write('argsJson: $argsJson, ')
+          ..write('fallbackText: $fallbackText, ')
+          ..write('occurredAt: $occurredAt, ')
+          ..write('createdAt: $createdAt, ')
+          ..write('updatedAt: $updatedAt, ')
+          ..write('readAt: $readAt, ')
+          ..write('archivedAt: $archivedAt, ')
+          ..write('resolvedAt: $resolvedAt, ')
+          ..write('targetType: $targetType, ')
+          ..write('targetReference: $targetReference, ')
+          ..write('origin: $origin, ')
+          ..write('expiresAt: $expiresAt, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
+class $NotificationDeliveriesTable extends NotificationDeliveries
+    with TableInfo<$NotificationDeliveriesTable, NotificationDelivery> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $NotificationDeliveriesTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _entryIdMeta = const VerificationMeta(
+    'entryId',
+  );
+  @override
+  late final GeneratedColumn<String> entryId = GeneratedColumn<String>(
+    'entry_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _scopeKeyMeta = const VerificationMeta(
+    'scopeKey',
+  );
+  @override
+  late final GeneratedColumn<String> scopeKey = GeneratedColumn<String>(
+    'scope_key',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _revisionMeta = const VerificationMeta(
+    'revision',
+  );
+  @override
+  late final GeneratedColumn<int> revision = GeneratedColumn<int>(
+    'revision',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _channelMeta = const VerificationMeta(
+    'channel',
+  );
+  @override
+  late final GeneratedColumn<String> channel = GeneratedColumn<String>(
+    'channel',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _stateMeta = const VerificationMeta('state');
+  @override
+  late final GeneratedColumn<String> state = GeneratedColumn<String>(
+    'state',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _attemptsMeta = const VerificationMeta(
+    'attempts',
+  );
+  @override
+  late final GeneratedColumn<int> attempts = GeneratedColumn<int>(
+    'attempts',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(0),
+  );
+  static const VerificationMeta _nextAttemptAtMeta = const VerificationMeta(
+    'nextAttemptAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> nextAttemptAt =
+      GeneratedColumn<DateTime>(
+        'next_attempt_at',
+        aliasedName,
+        true,
+        type: DriftSqlType.dateTime,
+        requiredDuringInsert: false,
+      );
+  static const VerificationMeta _systemIdMeta = const VerificationMeta(
+    'systemId',
+  );
+  @override
+  late final GeneratedColumn<int> systemId = GeneratedColumn<int>(
+    'system_id',
+    aliasedName,
+    true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _leaseExpiresAtMeta = const VerificationMeta(
+    'leaseExpiresAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> leaseExpiresAt =
+      GeneratedColumn<DateTime>(
+        'lease_expires_at',
+        aliasedName,
+        true,
+        type: DriftSqlType.dateTime,
+        requiredDuringInsert: false,
+      );
+  static const VerificationMeta _errorKeyMeta = const VerificationMeta(
+    'errorKey',
+  );
+  @override
+  late final GeneratedColumn<String> errorKey = GeneratedColumn<String>(
+    'error_key',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    entryId,
+    scopeKey,
+    revision,
+    channel,
+    state,
+    attempts,
+    nextAttemptAt,
+    systemId,
+    leaseExpiresAt,
+    errorKey,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'notification_deliveries';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<NotificationDelivery> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('entry_id')) {
+      context.handle(
+        _entryIdMeta,
+        entryId.isAcceptableOrUnknown(data['entry_id']!, _entryIdMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_entryIdMeta);
+    }
+    if (data.containsKey('scope_key')) {
+      context.handle(
+        _scopeKeyMeta,
+        scopeKey.isAcceptableOrUnknown(data['scope_key']!, _scopeKeyMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_scopeKeyMeta);
+    }
+    if (data.containsKey('revision')) {
+      context.handle(
+        _revisionMeta,
+        revision.isAcceptableOrUnknown(data['revision']!, _revisionMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_revisionMeta);
+    }
+    if (data.containsKey('channel')) {
+      context.handle(
+        _channelMeta,
+        channel.isAcceptableOrUnknown(data['channel']!, _channelMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_channelMeta);
+    }
+    if (data.containsKey('state')) {
+      context.handle(
+        _stateMeta,
+        state.isAcceptableOrUnknown(data['state']!, _stateMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_stateMeta);
+    }
+    if (data.containsKey('attempts')) {
+      context.handle(
+        _attemptsMeta,
+        attempts.isAcceptableOrUnknown(data['attempts']!, _attemptsMeta),
+      );
+    }
+    if (data.containsKey('next_attempt_at')) {
+      context.handle(
+        _nextAttemptAtMeta,
+        nextAttemptAt.isAcceptableOrUnknown(
+          data['next_attempt_at']!,
+          _nextAttemptAtMeta,
+        ),
+      );
+    }
+    if (data.containsKey('system_id')) {
+      context.handle(
+        _systemIdMeta,
+        systemId.isAcceptableOrUnknown(data['system_id']!, _systemIdMeta),
+      );
+    }
+    if (data.containsKey('lease_expires_at')) {
+      context.handle(
+        _leaseExpiresAtMeta,
+        leaseExpiresAt.isAcceptableOrUnknown(
+          data['lease_expires_at']!,
+          _leaseExpiresAtMeta,
+        ),
+      );
+    }
+    if (data.containsKey('error_key')) {
+      context.handle(
+        _errorKeyMeta,
+        errorKey.isAcceptableOrUnknown(data['error_key']!, _errorKeyMeta),
+      );
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {
+    scopeKey,
+    entryId,
+    revision,
+    channel,
+  };
+  @override
+  NotificationDelivery map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return NotificationDelivery(
+      entryId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}entry_id'],
+      )!,
+      scopeKey: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}scope_key'],
+      )!,
+      revision: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}revision'],
+      )!,
+      channel: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}channel'],
+      )!,
+      state: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}state'],
+      )!,
+      attempts: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}attempts'],
+      )!,
+      nextAttemptAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}next_attempt_at'],
+      ),
+      systemId: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}system_id'],
+      ),
+      leaseExpiresAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}lease_expires_at'],
+      ),
+      errorKey: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}error_key'],
+      ),
+    );
+  }
+
+  @override
+  $NotificationDeliveriesTable createAlias(String alias) {
+    return $NotificationDeliveriesTable(attachedDatabase, alias);
+  }
+}
+
+class NotificationDelivery extends DataClass
+    implements Insertable<NotificationDelivery> {
+  final String entryId;
+  final String scopeKey;
+  final int revision;
+  final String channel;
+  final String state;
+  final int attempts;
+  final DateTime? nextAttemptAt;
+  final int? systemId;
+  final DateTime? leaseExpiresAt;
+  final String? errorKey;
+  const NotificationDelivery({
+    required this.entryId,
+    required this.scopeKey,
+    required this.revision,
+    required this.channel,
+    required this.state,
+    required this.attempts,
+    this.nextAttemptAt,
+    this.systemId,
+    this.leaseExpiresAt,
+    this.errorKey,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['entry_id'] = Variable<String>(entryId);
+    map['scope_key'] = Variable<String>(scopeKey);
+    map['revision'] = Variable<int>(revision);
+    map['channel'] = Variable<String>(channel);
+    map['state'] = Variable<String>(state);
+    map['attempts'] = Variable<int>(attempts);
+    if (!nullToAbsent || nextAttemptAt != null) {
+      map['next_attempt_at'] = Variable<DateTime>(nextAttemptAt);
+    }
+    if (!nullToAbsent || systemId != null) {
+      map['system_id'] = Variable<int>(systemId);
+    }
+    if (!nullToAbsent || leaseExpiresAt != null) {
+      map['lease_expires_at'] = Variable<DateTime>(leaseExpiresAt);
+    }
+    if (!nullToAbsent || errorKey != null) {
+      map['error_key'] = Variable<String>(errorKey);
+    }
+    return map;
+  }
+
+  NotificationDeliveriesCompanion toCompanion(bool nullToAbsent) {
+    return NotificationDeliveriesCompanion(
+      entryId: Value(entryId),
+      scopeKey: Value(scopeKey),
+      revision: Value(revision),
+      channel: Value(channel),
+      state: Value(state),
+      attempts: Value(attempts),
+      nextAttemptAt: nextAttemptAt == null && nullToAbsent
+          ? const Value.absent()
+          : Value(nextAttemptAt),
+      systemId: systemId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(systemId),
+      leaseExpiresAt: leaseExpiresAt == null && nullToAbsent
+          ? const Value.absent()
+          : Value(leaseExpiresAt),
+      errorKey: errorKey == null && nullToAbsent
+          ? const Value.absent()
+          : Value(errorKey),
+    );
+  }
+
+  factory NotificationDelivery.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return NotificationDelivery(
+      entryId: serializer.fromJson<String>(json['entryId']),
+      scopeKey: serializer.fromJson<String>(json['scopeKey']),
+      revision: serializer.fromJson<int>(json['revision']),
+      channel: serializer.fromJson<String>(json['channel']),
+      state: serializer.fromJson<String>(json['state']),
+      attempts: serializer.fromJson<int>(json['attempts']),
+      nextAttemptAt: serializer.fromJson<DateTime?>(json['nextAttemptAt']),
+      systemId: serializer.fromJson<int?>(json['systemId']),
+      leaseExpiresAt: serializer.fromJson<DateTime?>(json['leaseExpiresAt']),
+      errorKey: serializer.fromJson<String?>(json['errorKey']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'entryId': serializer.toJson<String>(entryId),
+      'scopeKey': serializer.toJson<String>(scopeKey),
+      'revision': serializer.toJson<int>(revision),
+      'channel': serializer.toJson<String>(channel),
+      'state': serializer.toJson<String>(state),
+      'attempts': serializer.toJson<int>(attempts),
+      'nextAttemptAt': serializer.toJson<DateTime?>(nextAttemptAt),
+      'systemId': serializer.toJson<int?>(systemId),
+      'leaseExpiresAt': serializer.toJson<DateTime?>(leaseExpiresAt),
+      'errorKey': serializer.toJson<String?>(errorKey),
+    };
+  }
+
+  NotificationDelivery copyWith({
+    String? entryId,
+    String? scopeKey,
+    int? revision,
+    String? channel,
+    String? state,
+    int? attempts,
+    Value<DateTime?> nextAttemptAt = const Value.absent(),
+    Value<int?> systemId = const Value.absent(),
+    Value<DateTime?> leaseExpiresAt = const Value.absent(),
+    Value<String?> errorKey = const Value.absent(),
+  }) => NotificationDelivery(
+    entryId: entryId ?? this.entryId,
+    scopeKey: scopeKey ?? this.scopeKey,
+    revision: revision ?? this.revision,
+    channel: channel ?? this.channel,
+    state: state ?? this.state,
+    attempts: attempts ?? this.attempts,
+    nextAttemptAt: nextAttemptAt.present
+        ? nextAttemptAt.value
+        : this.nextAttemptAt,
+    systemId: systemId.present ? systemId.value : this.systemId,
+    leaseExpiresAt: leaseExpiresAt.present
+        ? leaseExpiresAt.value
+        : this.leaseExpiresAt,
+    errorKey: errorKey.present ? errorKey.value : this.errorKey,
+  );
+  NotificationDelivery copyWithCompanion(NotificationDeliveriesCompanion data) {
+    return NotificationDelivery(
+      entryId: data.entryId.present ? data.entryId.value : this.entryId,
+      scopeKey: data.scopeKey.present ? data.scopeKey.value : this.scopeKey,
+      revision: data.revision.present ? data.revision.value : this.revision,
+      channel: data.channel.present ? data.channel.value : this.channel,
+      state: data.state.present ? data.state.value : this.state,
+      attempts: data.attempts.present ? data.attempts.value : this.attempts,
+      nextAttemptAt: data.nextAttemptAt.present
+          ? data.nextAttemptAt.value
+          : this.nextAttemptAt,
+      systemId: data.systemId.present ? data.systemId.value : this.systemId,
+      leaseExpiresAt: data.leaseExpiresAt.present
+          ? data.leaseExpiresAt.value
+          : this.leaseExpiresAt,
+      errorKey: data.errorKey.present ? data.errorKey.value : this.errorKey,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('NotificationDelivery(')
+          ..write('entryId: $entryId, ')
+          ..write('scopeKey: $scopeKey, ')
+          ..write('revision: $revision, ')
+          ..write('channel: $channel, ')
+          ..write('state: $state, ')
+          ..write('attempts: $attempts, ')
+          ..write('nextAttemptAt: $nextAttemptAt, ')
+          ..write('systemId: $systemId, ')
+          ..write('leaseExpiresAt: $leaseExpiresAt, ')
+          ..write('errorKey: $errorKey')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(
+    entryId,
+    scopeKey,
+    revision,
+    channel,
+    state,
+    attempts,
+    nextAttemptAt,
+    systemId,
+    leaseExpiresAt,
+    errorKey,
+  );
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is NotificationDelivery &&
+          other.entryId == this.entryId &&
+          other.scopeKey == this.scopeKey &&
+          other.revision == this.revision &&
+          other.channel == this.channel &&
+          other.state == this.state &&
+          other.attempts == this.attempts &&
+          other.nextAttemptAt == this.nextAttemptAt &&
+          other.systemId == this.systemId &&
+          other.leaseExpiresAt == this.leaseExpiresAt &&
+          other.errorKey == this.errorKey);
+}
+
+class NotificationDeliveriesCompanion
+    extends UpdateCompanion<NotificationDelivery> {
+  final Value<String> entryId;
+  final Value<String> scopeKey;
+  final Value<int> revision;
+  final Value<String> channel;
+  final Value<String> state;
+  final Value<int> attempts;
+  final Value<DateTime?> nextAttemptAt;
+  final Value<int?> systemId;
+  final Value<DateTime?> leaseExpiresAt;
+  final Value<String?> errorKey;
+  final Value<int> rowid;
+  const NotificationDeliveriesCompanion({
+    this.entryId = const Value.absent(),
+    this.scopeKey = const Value.absent(),
+    this.revision = const Value.absent(),
+    this.channel = const Value.absent(),
+    this.state = const Value.absent(),
+    this.attempts = const Value.absent(),
+    this.nextAttemptAt = const Value.absent(),
+    this.systemId = const Value.absent(),
+    this.leaseExpiresAt = const Value.absent(),
+    this.errorKey = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  NotificationDeliveriesCompanion.insert({
+    required String entryId,
+    required String scopeKey,
+    required int revision,
+    required String channel,
+    required String state,
+    this.attempts = const Value.absent(),
+    this.nextAttemptAt = const Value.absent(),
+    this.systemId = const Value.absent(),
+    this.leaseExpiresAt = const Value.absent(),
+    this.errorKey = const Value.absent(),
+    this.rowid = const Value.absent(),
+  }) : entryId = Value(entryId),
+       scopeKey = Value(scopeKey),
+       revision = Value(revision),
+       channel = Value(channel),
+       state = Value(state);
+  static Insertable<NotificationDelivery> custom({
+    Expression<String>? entryId,
+    Expression<String>? scopeKey,
+    Expression<int>? revision,
+    Expression<String>? channel,
+    Expression<String>? state,
+    Expression<int>? attempts,
+    Expression<DateTime>? nextAttemptAt,
+    Expression<int>? systemId,
+    Expression<DateTime>? leaseExpiresAt,
+    Expression<String>? errorKey,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (entryId != null) 'entry_id': entryId,
+      if (scopeKey != null) 'scope_key': scopeKey,
+      if (revision != null) 'revision': revision,
+      if (channel != null) 'channel': channel,
+      if (state != null) 'state': state,
+      if (attempts != null) 'attempts': attempts,
+      if (nextAttemptAt != null) 'next_attempt_at': nextAttemptAt,
+      if (systemId != null) 'system_id': systemId,
+      if (leaseExpiresAt != null) 'lease_expires_at': leaseExpiresAt,
+      if (errorKey != null) 'error_key': errorKey,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  NotificationDeliveriesCompanion copyWith({
+    Value<String>? entryId,
+    Value<String>? scopeKey,
+    Value<int>? revision,
+    Value<String>? channel,
+    Value<String>? state,
+    Value<int>? attempts,
+    Value<DateTime?>? nextAttemptAt,
+    Value<int?>? systemId,
+    Value<DateTime?>? leaseExpiresAt,
+    Value<String?>? errorKey,
+    Value<int>? rowid,
+  }) {
+    return NotificationDeliveriesCompanion(
+      entryId: entryId ?? this.entryId,
+      scopeKey: scopeKey ?? this.scopeKey,
+      revision: revision ?? this.revision,
+      channel: channel ?? this.channel,
+      state: state ?? this.state,
+      attempts: attempts ?? this.attempts,
+      nextAttemptAt: nextAttemptAt ?? this.nextAttemptAt,
+      systemId: systemId ?? this.systemId,
+      leaseExpiresAt: leaseExpiresAt ?? this.leaseExpiresAt,
+      errorKey: errorKey ?? this.errorKey,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (entryId.present) {
+      map['entry_id'] = Variable<String>(entryId.value);
+    }
+    if (scopeKey.present) {
+      map['scope_key'] = Variable<String>(scopeKey.value);
+    }
+    if (revision.present) {
+      map['revision'] = Variable<int>(revision.value);
+    }
+    if (channel.present) {
+      map['channel'] = Variable<String>(channel.value);
+    }
+    if (state.present) {
+      map['state'] = Variable<String>(state.value);
+    }
+    if (attempts.present) {
+      map['attempts'] = Variable<int>(attempts.value);
+    }
+    if (nextAttemptAt.present) {
+      map['next_attempt_at'] = Variable<DateTime>(nextAttemptAt.value);
+    }
+    if (systemId.present) {
+      map['system_id'] = Variable<int>(systemId.value);
+    }
+    if (leaseExpiresAt.present) {
+      map['lease_expires_at'] = Variable<DateTime>(leaseExpiresAt.value);
+    }
+    if (errorKey.present) {
+      map['error_key'] = Variable<String>(errorKey.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('NotificationDeliveriesCompanion(')
+          ..write('entryId: $entryId, ')
+          ..write('scopeKey: $scopeKey, ')
+          ..write('revision: $revision, ')
+          ..write('channel: $channel, ')
+          ..write('state: $state, ')
+          ..write('attempts: $attempts, ')
+          ..write('nextAttemptAt: $nextAttemptAt, ')
+          ..write('systemId: $systemId, ')
+          ..write('leaseExpiresAt: $leaseExpiresAt, ')
+          ..write('errorKey: $errorKey, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
+class $NotificationCursorsTable extends NotificationCursors
+    with TableInfo<$NotificationCursorsTable, NotificationCursor> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $NotificationCursorsTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _scopeKeyMeta = const VerificationMeta(
+    'scopeKey',
+  );
+  @override
+  late final GeneratedColumn<String> scopeKey = GeneratedColumn<String>(
+    'scope_key',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _partitionKeyMeta = const VerificationMeta(
+    'partitionKey',
+  );
+  @override
+  late final GeneratedColumn<String> partitionKey = GeneratedColumn<String>(
+    'partition_key',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _sourceMeta = const VerificationMeta('source');
+  @override
+  late final GeneratedColumn<String> source = GeneratedColumn<String>(
+    'source',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _cursorValueMeta = const VerificationMeta(
+    'cursorValue',
+  );
+  @override
+  late final GeneratedColumn<String> cursorValue = GeneratedColumn<String>(
+    'cursor_value',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _baselineCompleteMeta = const VerificationMeta(
+    'baselineComplete',
+  );
+  @override
+  late final GeneratedColumn<bool> baselineComplete = GeneratedColumn<bool>(
+    'baseline_complete',
+    aliasedName,
+    false,
+    type: DriftSqlType.bool,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'CHECK ("baseline_complete" IN (0, 1))',
+    ),
+    defaultValue: const Constant(false),
+  );
+  static const VerificationMeta _updatedAtMeta = const VerificationMeta(
+    'updatedAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> updatedAt = GeneratedColumn<DateTime>(
+    'updated_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: true,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    scopeKey,
+    partitionKey,
+    source,
+    cursorValue,
+    baselineComplete,
+    updatedAt,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'notification_cursors';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<NotificationCursor> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('scope_key')) {
+      context.handle(
+        _scopeKeyMeta,
+        scopeKey.isAcceptableOrUnknown(data['scope_key']!, _scopeKeyMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_scopeKeyMeta);
+    }
+    if (data.containsKey('partition_key')) {
+      context.handle(
+        _partitionKeyMeta,
+        partitionKey.isAcceptableOrUnknown(
+          data['partition_key']!,
+          _partitionKeyMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_partitionKeyMeta);
+    }
+    if (data.containsKey('source')) {
+      context.handle(
+        _sourceMeta,
+        source.isAcceptableOrUnknown(data['source']!, _sourceMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_sourceMeta);
+    }
+    if (data.containsKey('cursor_value')) {
+      context.handle(
+        _cursorValueMeta,
+        cursorValue.isAcceptableOrUnknown(
+          data['cursor_value']!,
+          _cursorValueMeta,
+        ),
+      );
+    }
+    if (data.containsKey('baseline_complete')) {
+      context.handle(
+        _baselineCompleteMeta,
+        baselineComplete.isAcceptableOrUnknown(
+          data['baseline_complete']!,
+          _baselineCompleteMeta,
+        ),
+      );
+    }
+    if (data.containsKey('updated_at')) {
+      context.handle(
+        _updatedAtMeta,
+        updatedAt.isAcceptableOrUnknown(data['updated_at']!, _updatedAtMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_updatedAtMeta);
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {scopeKey, partitionKey, source};
+  @override
+  NotificationCursor map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return NotificationCursor(
+      scopeKey: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}scope_key'],
+      )!,
+      partitionKey: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}partition_key'],
+      )!,
+      source: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}source'],
+      )!,
+      cursorValue: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}cursor_value'],
+      ),
+      baselineComplete: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}baseline_complete'],
+      )!,
+      updatedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}updated_at'],
+      )!,
+    );
+  }
+
+  @override
+  $NotificationCursorsTable createAlias(String alias) {
+    return $NotificationCursorsTable(attachedDatabase, alias);
+  }
+}
+
+class NotificationCursor extends DataClass
+    implements Insertable<NotificationCursor> {
+  final String scopeKey;
+  final String partitionKey;
+  final String source;
+  final String? cursorValue;
+  final bool baselineComplete;
+  final DateTime updatedAt;
+  const NotificationCursor({
+    required this.scopeKey,
+    required this.partitionKey,
+    required this.source,
+    this.cursorValue,
+    required this.baselineComplete,
+    required this.updatedAt,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['scope_key'] = Variable<String>(scopeKey);
+    map['partition_key'] = Variable<String>(partitionKey);
+    map['source'] = Variable<String>(source);
+    if (!nullToAbsent || cursorValue != null) {
+      map['cursor_value'] = Variable<String>(cursorValue);
+    }
+    map['baseline_complete'] = Variable<bool>(baselineComplete);
+    map['updated_at'] = Variable<DateTime>(updatedAt);
+    return map;
+  }
+
+  NotificationCursorsCompanion toCompanion(bool nullToAbsent) {
+    return NotificationCursorsCompanion(
+      scopeKey: Value(scopeKey),
+      partitionKey: Value(partitionKey),
+      source: Value(source),
+      cursorValue: cursorValue == null && nullToAbsent
+          ? const Value.absent()
+          : Value(cursorValue),
+      baselineComplete: Value(baselineComplete),
+      updatedAt: Value(updatedAt),
+    );
+  }
+
+  factory NotificationCursor.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return NotificationCursor(
+      scopeKey: serializer.fromJson<String>(json['scopeKey']),
+      partitionKey: serializer.fromJson<String>(json['partitionKey']),
+      source: serializer.fromJson<String>(json['source']),
+      cursorValue: serializer.fromJson<String?>(json['cursorValue']),
+      baselineComplete: serializer.fromJson<bool>(json['baselineComplete']),
+      updatedAt: serializer.fromJson<DateTime>(json['updatedAt']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'scopeKey': serializer.toJson<String>(scopeKey),
+      'partitionKey': serializer.toJson<String>(partitionKey),
+      'source': serializer.toJson<String>(source),
+      'cursorValue': serializer.toJson<String?>(cursorValue),
+      'baselineComplete': serializer.toJson<bool>(baselineComplete),
+      'updatedAt': serializer.toJson<DateTime>(updatedAt),
+    };
+  }
+
+  NotificationCursor copyWith({
+    String? scopeKey,
+    String? partitionKey,
+    String? source,
+    Value<String?> cursorValue = const Value.absent(),
+    bool? baselineComplete,
+    DateTime? updatedAt,
+  }) => NotificationCursor(
+    scopeKey: scopeKey ?? this.scopeKey,
+    partitionKey: partitionKey ?? this.partitionKey,
+    source: source ?? this.source,
+    cursorValue: cursorValue.present ? cursorValue.value : this.cursorValue,
+    baselineComplete: baselineComplete ?? this.baselineComplete,
+    updatedAt: updatedAt ?? this.updatedAt,
+  );
+  NotificationCursor copyWithCompanion(NotificationCursorsCompanion data) {
+    return NotificationCursor(
+      scopeKey: data.scopeKey.present ? data.scopeKey.value : this.scopeKey,
+      partitionKey: data.partitionKey.present
+          ? data.partitionKey.value
+          : this.partitionKey,
+      source: data.source.present ? data.source.value : this.source,
+      cursorValue: data.cursorValue.present
+          ? data.cursorValue.value
+          : this.cursorValue,
+      baselineComplete: data.baselineComplete.present
+          ? data.baselineComplete.value
+          : this.baselineComplete,
+      updatedAt: data.updatedAt.present ? data.updatedAt.value : this.updatedAt,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('NotificationCursor(')
+          ..write('scopeKey: $scopeKey, ')
+          ..write('partitionKey: $partitionKey, ')
+          ..write('source: $source, ')
+          ..write('cursorValue: $cursorValue, ')
+          ..write('baselineComplete: $baselineComplete, ')
+          ..write('updatedAt: $updatedAt')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(
+    scopeKey,
+    partitionKey,
+    source,
+    cursorValue,
+    baselineComplete,
+    updatedAt,
+  );
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is NotificationCursor &&
+          other.scopeKey == this.scopeKey &&
+          other.partitionKey == this.partitionKey &&
+          other.source == this.source &&
+          other.cursorValue == this.cursorValue &&
+          other.baselineComplete == this.baselineComplete &&
+          other.updatedAt == this.updatedAt);
+}
+
+class NotificationCursorsCompanion extends UpdateCompanion<NotificationCursor> {
+  final Value<String> scopeKey;
+  final Value<String> partitionKey;
+  final Value<String> source;
+  final Value<String?> cursorValue;
+  final Value<bool> baselineComplete;
+  final Value<DateTime> updatedAt;
+  final Value<int> rowid;
+  const NotificationCursorsCompanion({
+    this.scopeKey = const Value.absent(),
+    this.partitionKey = const Value.absent(),
+    this.source = const Value.absent(),
+    this.cursorValue = const Value.absent(),
+    this.baselineComplete = const Value.absent(),
+    this.updatedAt = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  NotificationCursorsCompanion.insert({
+    required String scopeKey,
+    required String partitionKey,
+    required String source,
+    this.cursorValue = const Value.absent(),
+    this.baselineComplete = const Value.absent(),
+    required DateTime updatedAt,
+    this.rowid = const Value.absent(),
+  }) : scopeKey = Value(scopeKey),
+       partitionKey = Value(partitionKey),
+       source = Value(source),
+       updatedAt = Value(updatedAt);
+  static Insertable<NotificationCursor> custom({
+    Expression<String>? scopeKey,
+    Expression<String>? partitionKey,
+    Expression<String>? source,
+    Expression<String>? cursorValue,
+    Expression<bool>? baselineComplete,
+    Expression<DateTime>? updatedAt,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (scopeKey != null) 'scope_key': scopeKey,
+      if (partitionKey != null) 'partition_key': partitionKey,
+      if (source != null) 'source': source,
+      if (cursorValue != null) 'cursor_value': cursorValue,
+      if (baselineComplete != null) 'baseline_complete': baselineComplete,
+      if (updatedAt != null) 'updated_at': updatedAt,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  NotificationCursorsCompanion copyWith({
+    Value<String>? scopeKey,
+    Value<String>? partitionKey,
+    Value<String>? source,
+    Value<String?>? cursorValue,
+    Value<bool>? baselineComplete,
+    Value<DateTime>? updatedAt,
+    Value<int>? rowid,
+  }) {
+    return NotificationCursorsCompanion(
+      scopeKey: scopeKey ?? this.scopeKey,
+      partitionKey: partitionKey ?? this.partitionKey,
+      source: source ?? this.source,
+      cursorValue: cursorValue ?? this.cursorValue,
+      baselineComplete: baselineComplete ?? this.baselineComplete,
+      updatedAt: updatedAt ?? this.updatedAt,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (scopeKey.present) {
+      map['scope_key'] = Variable<String>(scopeKey.value);
+    }
+    if (partitionKey.present) {
+      map['partition_key'] = Variable<String>(partitionKey.value);
+    }
+    if (source.present) {
+      map['source'] = Variable<String>(source.value);
+    }
+    if (cursorValue.present) {
+      map['cursor_value'] = Variable<String>(cursorValue.value);
+    }
+    if (baselineComplete.present) {
+      map['baseline_complete'] = Variable<bool>(baselineComplete.value);
+    }
+    if (updatedAt.present) {
+      map['updated_at'] = Variable<DateTime>(updatedAt.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('NotificationCursorsCompanion(')
+          ..write('scopeKey: $scopeKey, ')
+          ..write('partitionKey: $partitionKey, ')
+          ..write('source: $source, ')
+          ..write('cursorValue: $cursorValue, ')
+          ..write('baselineComplete: $baselineComplete, ')
+          ..write('updatedAt: $updatedAt, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
+class $NotificationSystemIdsTable extends NotificationSystemIds
+    with TableInfo<$NotificationSystemIdsTable, NotificationSystemId> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $NotificationSystemIdsTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _scopeKeyMeta = const VerificationMeta(
+    'scopeKey',
+  );
+  @override
+  late final GeneratedColumn<String> scopeKey = GeneratedColumn<String>(
+    'scope_key',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _entryIdMeta = const VerificationMeta(
+    'entryId',
+  );
+  @override
+  late final GeneratedColumn<String> entryId = GeneratedColumn<String>(
+    'entry_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _channelMeta = const VerificationMeta(
+    'channel',
+  );
+  @override
+  late final GeneratedColumn<String> channel = GeneratedColumn<String>(
+    'channel',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _systemIdMeta = const VerificationMeta(
+    'systemId',
+  );
+  @override
+  late final GeneratedColumn<int> systemId = GeneratedColumn<int>(
+    'system_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [scopeKey, entryId, channel, systemId];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'notification_system_ids';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<NotificationSystemId> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('scope_key')) {
+      context.handle(
+        _scopeKeyMeta,
+        scopeKey.isAcceptableOrUnknown(data['scope_key']!, _scopeKeyMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_scopeKeyMeta);
+    }
+    if (data.containsKey('entry_id')) {
+      context.handle(
+        _entryIdMeta,
+        entryId.isAcceptableOrUnknown(data['entry_id']!, _entryIdMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_entryIdMeta);
+    }
+    if (data.containsKey('channel')) {
+      context.handle(
+        _channelMeta,
+        channel.isAcceptableOrUnknown(data['channel']!, _channelMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_channelMeta);
+    }
+    if (data.containsKey('system_id')) {
+      context.handle(
+        _systemIdMeta,
+        systemId.isAcceptableOrUnknown(data['system_id']!, _systemIdMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_systemIdMeta);
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {scopeKey, entryId, channel};
+  @override
+  NotificationSystemId map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return NotificationSystemId(
+      scopeKey: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}scope_key'],
+      )!,
+      entryId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}entry_id'],
+      )!,
+      channel: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}channel'],
+      )!,
+      systemId: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}system_id'],
+      )!,
+    );
+  }
+
+  @override
+  $NotificationSystemIdsTable createAlias(String alias) {
+    return $NotificationSystemIdsTable(attachedDatabase, alias);
+  }
+}
+
+class NotificationSystemId extends DataClass
+    implements Insertable<NotificationSystemId> {
+  final String scopeKey;
+  final String entryId;
+  final String channel;
+  final int systemId;
+  const NotificationSystemId({
+    required this.scopeKey,
+    required this.entryId,
+    required this.channel,
+    required this.systemId,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['scope_key'] = Variable<String>(scopeKey);
+    map['entry_id'] = Variable<String>(entryId);
+    map['channel'] = Variable<String>(channel);
+    map['system_id'] = Variable<int>(systemId);
+    return map;
+  }
+
+  NotificationSystemIdsCompanion toCompanion(bool nullToAbsent) {
+    return NotificationSystemIdsCompanion(
+      scopeKey: Value(scopeKey),
+      entryId: Value(entryId),
+      channel: Value(channel),
+      systemId: Value(systemId),
+    );
+  }
+
+  factory NotificationSystemId.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return NotificationSystemId(
+      scopeKey: serializer.fromJson<String>(json['scopeKey']),
+      entryId: serializer.fromJson<String>(json['entryId']),
+      channel: serializer.fromJson<String>(json['channel']),
+      systemId: serializer.fromJson<int>(json['systemId']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'scopeKey': serializer.toJson<String>(scopeKey),
+      'entryId': serializer.toJson<String>(entryId),
+      'channel': serializer.toJson<String>(channel),
+      'systemId': serializer.toJson<int>(systemId),
+    };
+  }
+
+  NotificationSystemId copyWith({
+    String? scopeKey,
+    String? entryId,
+    String? channel,
+    int? systemId,
+  }) => NotificationSystemId(
+    scopeKey: scopeKey ?? this.scopeKey,
+    entryId: entryId ?? this.entryId,
+    channel: channel ?? this.channel,
+    systemId: systemId ?? this.systemId,
+  );
+  NotificationSystemId copyWithCompanion(NotificationSystemIdsCompanion data) {
+    return NotificationSystemId(
+      scopeKey: data.scopeKey.present ? data.scopeKey.value : this.scopeKey,
+      entryId: data.entryId.present ? data.entryId.value : this.entryId,
+      channel: data.channel.present ? data.channel.value : this.channel,
+      systemId: data.systemId.present ? data.systemId.value : this.systemId,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('NotificationSystemId(')
+          ..write('scopeKey: $scopeKey, ')
+          ..write('entryId: $entryId, ')
+          ..write('channel: $channel, ')
+          ..write('systemId: $systemId')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(scopeKey, entryId, channel, systemId);
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is NotificationSystemId &&
+          other.scopeKey == this.scopeKey &&
+          other.entryId == this.entryId &&
+          other.channel == this.channel &&
+          other.systemId == this.systemId);
+}
+
+class NotificationSystemIdsCompanion
+    extends UpdateCompanion<NotificationSystemId> {
+  final Value<String> scopeKey;
+  final Value<String> entryId;
+  final Value<String> channel;
+  final Value<int> systemId;
+  final Value<int> rowid;
+  const NotificationSystemIdsCompanion({
+    this.scopeKey = const Value.absent(),
+    this.entryId = const Value.absent(),
+    this.channel = const Value.absent(),
+    this.systemId = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  NotificationSystemIdsCompanion.insert({
+    required String scopeKey,
+    required String entryId,
+    required String channel,
+    required int systemId,
+    this.rowid = const Value.absent(),
+  }) : scopeKey = Value(scopeKey),
+       entryId = Value(entryId),
+       channel = Value(channel),
+       systemId = Value(systemId);
+  static Insertable<NotificationSystemId> custom({
+    Expression<String>? scopeKey,
+    Expression<String>? entryId,
+    Expression<String>? channel,
+    Expression<int>? systemId,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (scopeKey != null) 'scope_key': scopeKey,
+      if (entryId != null) 'entry_id': entryId,
+      if (channel != null) 'channel': channel,
+      if (systemId != null) 'system_id': systemId,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  NotificationSystemIdsCompanion copyWith({
+    Value<String>? scopeKey,
+    Value<String>? entryId,
+    Value<String>? channel,
+    Value<int>? systemId,
+    Value<int>? rowid,
+  }) {
+    return NotificationSystemIdsCompanion(
+      scopeKey: scopeKey ?? this.scopeKey,
+      entryId: entryId ?? this.entryId,
+      channel: channel ?? this.channel,
+      systemId: systemId ?? this.systemId,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (scopeKey.present) {
+      map['scope_key'] = Variable<String>(scopeKey.value);
+    }
+    if (entryId.present) {
+      map['entry_id'] = Variable<String>(entryId.value);
+    }
+    if (channel.present) {
+      map['channel'] = Variable<String>(channel.value);
+    }
+    if (systemId.present) {
+      map['system_id'] = Variable<int>(systemId.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('NotificationSystemIdsCompanion(')
+          ..write('scopeKey: $scopeKey, ')
+          ..write('entryId: $entryId, ')
+          ..write('channel: $channel, ')
+          ..write('systemId: $systemId, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
 abstract class _$AppDatabase extends GeneratedDatabase {
   _$AppDatabase(QueryExecutor e) : super(e);
   $AppDatabaseManager get managers => $AppDatabaseManager(this);
@@ -75331,6 +77931,14 @@ abstract class _$AppDatabase extends GeneratedDatabase {
   late final $QwebPaperFormatTable qwebPaperFormat = $QwebPaperFormatTable(
     this,
   );
+  late final $NotificationEntriesTable notificationEntries =
+      $NotificationEntriesTable(this);
+  late final $NotificationDeliveriesTable notificationDeliveries =
+      $NotificationDeliveriesTable(this);
+  late final $NotificationCursorsTable notificationCursors =
+      $NotificationCursorsTable(this);
+  late final $NotificationSystemIdsTable notificationSystemIds =
+      $NotificationSystemIdsTable(this);
   @override
   Iterable<TableInfo<Table, Object?>> get allTables =>
       allSchemaEntities.whereType<TableInfo<Table, Object?>>();
@@ -75394,6 +78002,10 @@ abstract class _$AppDatabase extends GeneratedDatabase {
     syncConflict,
     qwebReportTemplate,
     qwebPaperFormat,
+    notificationEntries,
+    notificationDeliveries,
+    notificationCursors,
+    notificationSystemIds,
   ];
 }
 
@@ -108238,6 +110850,1318 @@ typedef $$QwebPaperFormatTableProcessedTableManager =
       QwebPaperFormatData,
       PrefetchHooks Function()
     >;
+typedef $$NotificationEntriesTableCreateCompanionBuilder =
+    NotificationEntriesCompanion Function({
+      required String id,
+      required String scopeKey,
+      required String partitionKey,
+      Value<int?> companyId,
+      required String sourceKey,
+      required int revision,
+      required String kind,
+      required String severity,
+      required String titleKey,
+      required String bodyKey,
+      Value<String> argsJson,
+      Value<String?> fallbackText,
+      required DateTime occurredAt,
+      required DateTime createdAt,
+      required DateTime updatedAt,
+      Value<DateTime?> readAt,
+      Value<DateTime?> archivedAt,
+      Value<DateTime?> resolvedAt,
+      Value<String?> targetType,
+      Value<String?> targetReference,
+      required String origin,
+      Value<DateTime?> expiresAt,
+      Value<int> rowid,
+    });
+typedef $$NotificationEntriesTableUpdateCompanionBuilder =
+    NotificationEntriesCompanion Function({
+      Value<String> id,
+      Value<String> scopeKey,
+      Value<String> partitionKey,
+      Value<int?> companyId,
+      Value<String> sourceKey,
+      Value<int> revision,
+      Value<String> kind,
+      Value<String> severity,
+      Value<String> titleKey,
+      Value<String> bodyKey,
+      Value<String> argsJson,
+      Value<String?> fallbackText,
+      Value<DateTime> occurredAt,
+      Value<DateTime> createdAt,
+      Value<DateTime> updatedAt,
+      Value<DateTime?> readAt,
+      Value<DateTime?> archivedAt,
+      Value<DateTime?> resolvedAt,
+      Value<String?> targetType,
+      Value<String?> targetReference,
+      Value<String> origin,
+      Value<DateTime?> expiresAt,
+      Value<int> rowid,
+    });
+
+class $$NotificationEntriesTableFilterComposer
+    extends Composer<_$AppDatabase, $NotificationEntriesTable> {
+  $$NotificationEntriesTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get scopeKey => $composableBuilder(
+    column: $table.scopeKey,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get partitionKey => $composableBuilder(
+    column: $table.partitionKey,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get companyId => $composableBuilder(
+    column: $table.companyId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get sourceKey => $composableBuilder(
+    column: $table.sourceKey,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get revision => $composableBuilder(
+    column: $table.revision,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get kind => $composableBuilder(
+    column: $table.kind,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get severity => $composableBuilder(
+    column: $table.severity,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get titleKey => $composableBuilder(
+    column: $table.titleKey,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get bodyKey => $composableBuilder(
+    column: $table.bodyKey,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get argsJson => $composableBuilder(
+    column: $table.argsJson,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get fallbackText => $composableBuilder(
+    column: $table.fallbackText,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get occurredAt => $composableBuilder(
+    column: $table.occurredAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get createdAt => $composableBuilder(
+    column: $table.createdAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get updatedAt => $composableBuilder(
+    column: $table.updatedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get readAt => $composableBuilder(
+    column: $table.readAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get archivedAt => $composableBuilder(
+    column: $table.archivedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get resolvedAt => $composableBuilder(
+    column: $table.resolvedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get targetType => $composableBuilder(
+    column: $table.targetType,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get targetReference => $composableBuilder(
+    column: $table.targetReference,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get origin => $composableBuilder(
+    column: $table.origin,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get expiresAt => $composableBuilder(
+    column: $table.expiresAt,
+    builder: (column) => ColumnFilters(column),
+  );
+}
+
+class $$NotificationEntriesTableOrderingComposer
+    extends Composer<_$AppDatabase, $NotificationEntriesTable> {
+  $$NotificationEntriesTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get scopeKey => $composableBuilder(
+    column: $table.scopeKey,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get partitionKey => $composableBuilder(
+    column: $table.partitionKey,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get companyId => $composableBuilder(
+    column: $table.companyId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get sourceKey => $composableBuilder(
+    column: $table.sourceKey,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get revision => $composableBuilder(
+    column: $table.revision,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get kind => $composableBuilder(
+    column: $table.kind,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get severity => $composableBuilder(
+    column: $table.severity,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get titleKey => $composableBuilder(
+    column: $table.titleKey,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get bodyKey => $composableBuilder(
+    column: $table.bodyKey,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get argsJson => $composableBuilder(
+    column: $table.argsJson,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get fallbackText => $composableBuilder(
+    column: $table.fallbackText,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get occurredAt => $composableBuilder(
+    column: $table.occurredAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get createdAt => $composableBuilder(
+    column: $table.createdAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get updatedAt => $composableBuilder(
+    column: $table.updatedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get readAt => $composableBuilder(
+    column: $table.readAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get archivedAt => $composableBuilder(
+    column: $table.archivedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get resolvedAt => $composableBuilder(
+    column: $table.resolvedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get targetType => $composableBuilder(
+    column: $table.targetType,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get targetReference => $composableBuilder(
+    column: $table.targetReference,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get origin => $composableBuilder(
+    column: $table.origin,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get expiresAt => $composableBuilder(
+    column: $table.expiresAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+}
+
+class $$NotificationEntriesTableAnnotationComposer
+    extends Composer<_$AppDatabase, $NotificationEntriesTable> {
+  $$NotificationEntriesTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<String> get scopeKey =>
+      $composableBuilder(column: $table.scopeKey, builder: (column) => column);
+
+  GeneratedColumn<String> get partitionKey => $composableBuilder(
+    column: $table.partitionKey,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get companyId =>
+      $composableBuilder(column: $table.companyId, builder: (column) => column);
+
+  GeneratedColumn<String> get sourceKey =>
+      $composableBuilder(column: $table.sourceKey, builder: (column) => column);
+
+  GeneratedColumn<int> get revision =>
+      $composableBuilder(column: $table.revision, builder: (column) => column);
+
+  GeneratedColumn<String> get kind =>
+      $composableBuilder(column: $table.kind, builder: (column) => column);
+
+  GeneratedColumn<String> get severity =>
+      $composableBuilder(column: $table.severity, builder: (column) => column);
+
+  GeneratedColumn<String> get titleKey =>
+      $composableBuilder(column: $table.titleKey, builder: (column) => column);
+
+  GeneratedColumn<String> get bodyKey =>
+      $composableBuilder(column: $table.bodyKey, builder: (column) => column);
+
+  GeneratedColumn<String> get argsJson =>
+      $composableBuilder(column: $table.argsJson, builder: (column) => column);
+
+  GeneratedColumn<String> get fallbackText => $composableBuilder(
+    column: $table.fallbackText,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<DateTime> get occurredAt => $composableBuilder(
+    column: $table.occurredAt,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<DateTime> get createdAt =>
+      $composableBuilder(column: $table.createdAt, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get updatedAt =>
+      $composableBuilder(column: $table.updatedAt, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get readAt =>
+      $composableBuilder(column: $table.readAt, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get archivedAt => $composableBuilder(
+    column: $table.archivedAt,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<DateTime> get resolvedAt => $composableBuilder(
+    column: $table.resolvedAt,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get targetType => $composableBuilder(
+    column: $table.targetType,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get targetReference => $composableBuilder(
+    column: $table.targetReference,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get origin =>
+      $composableBuilder(column: $table.origin, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get expiresAt =>
+      $composableBuilder(column: $table.expiresAt, builder: (column) => column);
+}
+
+class $$NotificationEntriesTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $NotificationEntriesTable,
+          NotificationEntry,
+          $$NotificationEntriesTableFilterComposer,
+          $$NotificationEntriesTableOrderingComposer,
+          $$NotificationEntriesTableAnnotationComposer,
+          $$NotificationEntriesTableCreateCompanionBuilder,
+          $$NotificationEntriesTableUpdateCompanionBuilder,
+          (
+            NotificationEntry,
+            BaseReferences<
+              _$AppDatabase,
+              $NotificationEntriesTable,
+              NotificationEntry
+            >,
+          ),
+          NotificationEntry,
+          PrefetchHooks Function()
+        > {
+  $$NotificationEntriesTableTableManager(
+    _$AppDatabase db,
+    $NotificationEntriesTable table,
+  ) : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$NotificationEntriesTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$NotificationEntriesTableOrderingComposer(
+                $db: db,
+                $table: table,
+              ),
+          createComputedFieldComposer: () =>
+              $$NotificationEntriesTableAnnotationComposer(
+                $db: db,
+                $table: table,
+              ),
+          updateCompanionCallback:
+              ({
+                Value<String> id = const Value.absent(),
+                Value<String> scopeKey = const Value.absent(),
+                Value<String> partitionKey = const Value.absent(),
+                Value<int?> companyId = const Value.absent(),
+                Value<String> sourceKey = const Value.absent(),
+                Value<int> revision = const Value.absent(),
+                Value<String> kind = const Value.absent(),
+                Value<String> severity = const Value.absent(),
+                Value<String> titleKey = const Value.absent(),
+                Value<String> bodyKey = const Value.absent(),
+                Value<String> argsJson = const Value.absent(),
+                Value<String?> fallbackText = const Value.absent(),
+                Value<DateTime> occurredAt = const Value.absent(),
+                Value<DateTime> createdAt = const Value.absent(),
+                Value<DateTime> updatedAt = const Value.absent(),
+                Value<DateTime?> readAt = const Value.absent(),
+                Value<DateTime?> archivedAt = const Value.absent(),
+                Value<DateTime?> resolvedAt = const Value.absent(),
+                Value<String?> targetType = const Value.absent(),
+                Value<String?> targetReference = const Value.absent(),
+                Value<String> origin = const Value.absent(),
+                Value<DateTime?> expiresAt = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => NotificationEntriesCompanion(
+                id: id,
+                scopeKey: scopeKey,
+                partitionKey: partitionKey,
+                companyId: companyId,
+                sourceKey: sourceKey,
+                revision: revision,
+                kind: kind,
+                severity: severity,
+                titleKey: titleKey,
+                bodyKey: bodyKey,
+                argsJson: argsJson,
+                fallbackText: fallbackText,
+                occurredAt: occurredAt,
+                createdAt: createdAt,
+                updatedAt: updatedAt,
+                readAt: readAt,
+                archivedAt: archivedAt,
+                resolvedAt: resolvedAt,
+                targetType: targetType,
+                targetReference: targetReference,
+                origin: origin,
+                expiresAt: expiresAt,
+                rowid: rowid,
+              ),
+          createCompanionCallback:
+              ({
+                required String id,
+                required String scopeKey,
+                required String partitionKey,
+                Value<int?> companyId = const Value.absent(),
+                required String sourceKey,
+                required int revision,
+                required String kind,
+                required String severity,
+                required String titleKey,
+                required String bodyKey,
+                Value<String> argsJson = const Value.absent(),
+                Value<String?> fallbackText = const Value.absent(),
+                required DateTime occurredAt,
+                required DateTime createdAt,
+                required DateTime updatedAt,
+                Value<DateTime?> readAt = const Value.absent(),
+                Value<DateTime?> archivedAt = const Value.absent(),
+                Value<DateTime?> resolvedAt = const Value.absent(),
+                Value<String?> targetType = const Value.absent(),
+                Value<String?> targetReference = const Value.absent(),
+                required String origin,
+                Value<DateTime?> expiresAt = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => NotificationEntriesCompanion.insert(
+                id: id,
+                scopeKey: scopeKey,
+                partitionKey: partitionKey,
+                companyId: companyId,
+                sourceKey: sourceKey,
+                revision: revision,
+                kind: kind,
+                severity: severity,
+                titleKey: titleKey,
+                bodyKey: bodyKey,
+                argsJson: argsJson,
+                fallbackText: fallbackText,
+                occurredAt: occurredAt,
+                createdAt: createdAt,
+                updatedAt: updatedAt,
+                readAt: readAt,
+                archivedAt: archivedAt,
+                resolvedAt: resolvedAt,
+                targetType: targetType,
+                targetReference: targetReference,
+                origin: origin,
+                expiresAt: expiresAt,
+                rowid: rowid,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .toList(),
+          prefetchHooksCallback: null,
+        ),
+      );
+}
+
+typedef $$NotificationEntriesTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $NotificationEntriesTable,
+      NotificationEntry,
+      $$NotificationEntriesTableFilterComposer,
+      $$NotificationEntriesTableOrderingComposer,
+      $$NotificationEntriesTableAnnotationComposer,
+      $$NotificationEntriesTableCreateCompanionBuilder,
+      $$NotificationEntriesTableUpdateCompanionBuilder,
+      (
+        NotificationEntry,
+        BaseReferences<
+          _$AppDatabase,
+          $NotificationEntriesTable,
+          NotificationEntry
+        >,
+      ),
+      NotificationEntry,
+      PrefetchHooks Function()
+    >;
+typedef $$NotificationDeliveriesTableCreateCompanionBuilder =
+    NotificationDeliveriesCompanion Function({
+      required String entryId,
+      required String scopeKey,
+      required int revision,
+      required String channel,
+      required String state,
+      Value<int> attempts,
+      Value<DateTime?> nextAttemptAt,
+      Value<int?> systemId,
+      Value<DateTime?> leaseExpiresAt,
+      Value<String?> errorKey,
+      Value<int> rowid,
+    });
+typedef $$NotificationDeliveriesTableUpdateCompanionBuilder =
+    NotificationDeliveriesCompanion Function({
+      Value<String> entryId,
+      Value<String> scopeKey,
+      Value<int> revision,
+      Value<String> channel,
+      Value<String> state,
+      Value<int> attempts,
+      Value<DateTime?> nextAttemptAt,
+      Value<int?> systemId,
+      Value<DateTime?> leaseExpiresAt,
+      Value<String?> errorKey,
+      Value<int> rowid,
+    });
+
+class $$NotificationDeliveriesTableFilterComposer
+    extends Composer<_$AppDatabase, $NotificationDeliveriesTable> {
+  $$NotificationDeliveriesTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get entryId => $composableBuilder(
+    column: $table.entryId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get scopeKey => $composableBuilder(
+    column: $table.scopeKey,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get revision => $composableBuilder(
+    column: $table.revision,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get channel => $composableBuilder(
+    column: $table.channel,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get state => $composableBuilder(
+    column: $table.state,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get attempts => $composableBuilder(
+    column: $table.attempts,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get nextAttemptAt => $composableBuilder(
+    column: $table.nextAttemptAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get systemId => $composableBuilder(
+    column: $table.systemId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get leaseExpiresAt => $composableBuilder(
+    column: $table.leaseExpiresAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get errorKey => $composableBuilder(
+    column: $table.errorKey,
+    builder: (column) => ColumnFilters(column),
+  );
+}
+
+class $$NotificationDeliveriesTableOrderingComposer
+    extends Composer<_$AppDatabase, $NotificationDeliveriesTable> {
+  $$NotificationDeliveriesTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get entryId => $composableBuilder(
+    column: $table.entryId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get scopeKey => $composableBuilder(
+    column: $table.scopeKey,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get revision => $composableBuilder(
+    column: $table.revision,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get channel => $composableBuilder(
+    column: $table.channel,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get state => $composableBuilder(
+    column: $table.state,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get attempts => $composableBuilder(
+    column: $table.attempts,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get nextAttemptAt => $composableBuilder(
+    column: $table.nextAttemptAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get systemId => $composableBuilder(
+    column: $table.systemId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get leaseExpiresAt => $composableBuilder(
+    column: $table.leaseExpiresAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get errorKey => $composableBuilder(
+    column: $table.errorKey,
+    builder: (column) => ColumnOrderings(column),
+  );
+}
+
+class $$NotificationDeliveriesTableAnnotationComposer
+    extends Composer<_$AppDatabase, $NotificationDeliveriesTable> {
+  $$NotificationDeliveriesTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get entryId =>
+      $composableBuilder(column: $table.entryId, builder: (column) => column);
+
+  GeneratedColumn<String> get scopeKey =>
+      $composableBuilder(column: $table.scopeKey, builder: (column) => column);
+
+  GeneratedColumn<int> get revision =>
+      $composableBuilder(column: $table.revision, builder: (column) => column);
+
+  GeneratedColumn<String> get channel =>
+      $composableBuilder(column: $table.channel, builder: (column) => column);
+
+  GeneratedColumn<String> get state =>
+      $composableBuilder(column: $table.state, builder: (column) => column);
+
+  GeneratedColumn<int> get attempts =>
+      $composableBuilder(column: $table.attempts, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get nextAttemptAt => $composableBuilder(
+    column: $table.nextAttemptAt,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get systemId =>
+      $composableBuilder(column: $table.systemId, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get leaseExpiresAt => $composableBuilder(
+    column: $table.leaseExpiresAt,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get errorKey =>
+      $composableBuilder(column: $table.errorKey, builder: (column) => column);
+}
+
+class $$NotificationDeliveriesTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $NotificationDeliveriesTable,
+          NotificationDelivery,
+          $$NotificationDeliveriesTableFilterComposer,
+          $$NotificationDeliveriesTableOrderingComposer,
+          $$NotificationDeliveriesTableAnnotationComposer,
+          $$NotificationDeliveriesTableCreateCompanionBuilder,
+          $$NotificationDeliveriesTableUpdateCompanionBuilder,
+          (
+            NotificationDelivery,
+            BaseReferences<
+              _$AppDatabase,
+              $NotificationDeliveriesTable,
+              NotificationDelivery
+            >,
+          ),
+          NotificationDelivery,
+          PrefetchHooks Function()
+        > {
+  $$NotificationDeliveriesTableTableManager(
+    _$AppDatabase db,
+    $NotificationDeliveriesTable table,
+  ) : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$NotificationDeliveriesTableFilterComposer(
+                $db: db,
+                $table: table,
+              ),
+          createOrderingComposer: () =>
+              $$NotificationDeliveriesTableOrderingComposer(
+                $db: db,
+                $table: table,
+              ),
+          createComputedFieldComposer: () =>
+              $$NotificationDeliveriesTableAnnotationComposer(
+                $db: db,
+                $table: table,
+              ),
+          updateCompanionCallback:
+              ({
+                Value<String> entryId = const Value.absent(),
+                Value<String> scopeKey = const Value.absent(),
+                Value<int> revision = const Value.absent(),
+                Value<String> channel = const Value.absent(),
+                Value<String> state = const Value.absent(),
+                Value<int> attempts = const Value.absent(),
+                Value<DateTime?> nextAttemptAt = const Value.absent(),
+                Value<int?> systemId = const Value.absent(),
+                Value<DateTime?> leaseExpiresAt = const Value.absent(),
+                Value<String?> errorKey = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => NotificationDeliveriesCompanion(
+                entryId: entryId,
+                scopeKey: scopeKey,
+                revision: revision,
+                channel: channel,
+                state: state,
+                attempts: attempts,
+                nextAttemptAt: nextAttemptAt,
+                systemId: systemId,
+                leaseExpiresAt: leaseExpiresAt,
+                errorKey: errorKey,
+                rowid: rowid,
+              ),
+          createCompanionCallback:
+              ({
+                required String entryId,
+                required String scopeKey,
+                required int revision,
+                required String channel,
+                required String state,
+                Value<int> attempts = const Value.absent(),
+                Value<DateTime?> nextAttemptAt = const Value.absent(),
+                Value<int?> systemId = const Value.absent(),
+                Value<DateTime?> leaseExpiresAt = const Value.absent(),
+                Value<String?> errorKey = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => NotificationDeliveriesCompanion.insert(
+                entryId: entryId,
+                scopeKey: scopeKey,
+                revision: revision,
+                channel: channel,
+                state: state,
+                attempts: attempts,
+                nextAttemptAt: nextAttemptAt,
+                systemId: systemId,
+                leaseExpiresAt: leaseExpiresAt,
+                errorKey: errorKey,
+                rowid: rowid,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .toList(),
+          prefetchHooksCallback: null,
+        ),
+      );
+}
+
+typedef $$NotificationDeliveriesTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $NotificationDeliveriesTable,
+      NotificationDelivery,
+      $$NotificationDeliveriesTableFilterComposer,
+      $$NotificationDeliveriesTableOrderingComposer,
+      $$NotificationDeliveriesTableAnnotationComposer,
+      $$NotificationDeliveriesTableCreateCompanionBuilder,
+      $$NotificationDeliveriesTableUpdateCompanionBuilder,
+      (
+        NotificationDelivery,
+        BaseReferences<
+          _$AppDatabase,
+          $NotificationDeliveriesTable,
+          NotificationDelivery
+        >,
+      ),
+      NotificationDelivery,
+      PrefetchHooks Function()
+    >;
+typedef $$NotificationCursorsTableCreateCompanionBuilder =
+    NotificationCursorsCompanion Function({
+      required String scopeKey,
+      required String partitionKey,
+      required String source,
+      Value<String?> cursorValue,
+      Value<bool> baselineComplete,
+      required DateTime updatedAt,
+      Value<int> rowid,
+    });
+typedef $$NotificationCursorsTableUpdateCompanionBuilder =
+    NotificationCursorsCompanion Function({
+      Value<String> scopeKey,
+      Value<String> partitionKey,
+      Value<String> source,
+      Value<String?> cursorValue,
+      Value<bool> baselineComplete,
+      Value<DateTime> updatedAt,
+      Value<int> rowid,
+    });
+
+class $$NotificationCursorsTableFilterComposer
+    extends Composer<_$AppDatabase, $NotificationCursorsTable> {
+  $$NotificationCursorsTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get scopeKey => $composableBuilder(
+    column: $table.scopeKey,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get partitionKey => $composableBuilder(
+    column: $table.partitionKey,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get source => $composableBuilder(
+    column: $table.source,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get cursorValue => $composableBuilder(
+    column: $table.cursorValue,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<bool> get baselineComplete => $composableBuilder(
+    column: $table.baselineComplete,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get updatedAt => $composableBuilder(
+    column: $table.updatedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+}
+
+class $$NotificationCursorsTableOrderingComposer
+    extends Composer<_$AppDatabase, $NotificationCursorsTable> {
+  $$NotificationCursorsTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get scopeKey => $composableBuilder(
+    column: $table.scopeKey,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get partitionKey => $composableBuilder(
+    column: $table.partitionKey,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get source => $composableBuilder(
+    column: $table.source,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get cursorValue => $composableBuilder(
+    column: $table.cursorValue,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<bool> get baselineComplete => $composableBuilder(
+    column: $table.baselineComplete,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get updatedAt => $composableBuilder(
+    column: $table.updatedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+}
+
+class $$NotificationCursorsTableAnnotationComposer
+    extends Composer<_$AppDatabase, $NotificationCursorsTable> {
+  $$NotificationCursorsTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get scopeKey =>
+      $composableBuilder(column: $table.scopeKey, builder: (column) => column);
+
+  GeneratedColumn<String> get partitionKey => $composableBuilder(
+    column: $table.partitionKey,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get source =>
+      $composableBuilder(column: $table.source, builder: (column) => column);
+
+  GeneratedColumn<String> get cursorValue => $composableBuilder(
+    column: $table.cursorValue,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<bool> get baselineComplete => $composableBuilder(
+    column: $table.baselineComplete,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<DateTime> get updatedAt =>
+      $composableBuilder(column: $table.updatedAt, builder: (column) => column);
+}
+
+class $$NotificationCursorsTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $NotificationCursorsTable,
+          NotificationCursor,
+          $$NotificationCursorsTableFilterComposer,
+          $$NotificationCursorsTableOrderingComposer,
+          $$NotificationCursorsTableAnnotationComposer,
+          $$NotificationCursorsTableCreateCompanionBuilder,
+          $$NotificationCursorsTableUpdateCompanionBuilder,
+          (
+            NotificationCursor,
+            BaseReferences<
+              _$AppDatabase,
+              $NotificationCursorsTable,
+              NotificationCursor
+            >,
+          ),
+          NotificationCursor,
+          PrefetchHooks Function()
+        > {
+  $$NotificationCursorsTableTableManager(
+    _$AppDatabase db,
+    $NotificationCursorsTable table,
+  ) : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$NotificationCursorsTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$NotificationCursorsTableOrderingComposer(
+                $db: db,
+                $table: table,
+              ),
+          createComputedFieldComposer: () =>
+              $$NotificationCursorsTableAnnotationComposer(
+                $db: db,
+                $table: table,
+              ),
+          updateCompanionCallback:
+              ({
+                Value<String> scopeKey = const Value.absent(),
+                Value<String> partitionKey = const Value.absent(),
+                Value<String> source = const Value.absent(),
+                Value<String?> cursorValue = const Value.absent(),
+                Value<bool> baselineComplete = const Value.absent(),
+                Value<DateTime> updatedAt = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => NotificationCursorsCompanion(
+                scopeKey: scopeKey,
+                partitionKey: partitionKey,
+                source: source,
+                cursorValue: cursorValue,
+                baselineComplete: baselineComplete,
+                updatedAt: updatedAt,
+                rowid: rowid,
+              ),
+          createCompanionCallback:
+              ({
+                required String scopeKey,
+                required String partitionKey,
+                required String source,
+                Value<String?> cursorValue = const Value.absent(),
+                Value<bool> baselineComplete = const Value.absent(),
+                required DateTime updatedAt,
+                Value<int> rowid = const Value.absent(),
+              }) => NotificationCursorsCompanion.insert(
+                scopeKey: scopeKey,
+                partitionKey: partitionKey,
+                source: source,
+                cursorValue: cursorValue,
+                baselineComplete: baselineComplete,
+                updatedAt: updatedAt,
+                rowid: rowid,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .toList(),
+          prefetchHooksCallback: null,
+        ),
+      );
+}
+
+typedef $$NotificationCursorsTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $NotificationCursorsTable,
+      NotificationCursor,
+      $$NotificationCursorsTableFilterComposer,
+      $$NotificationCursorsTableOrderingComposer,
+      $$NotificationCursorsTableAnnotationComposer,
+      $$NotificationCursorsTableCreateCompanionBuilder,
+      $$NotificationCursorsTableUpdateCompanionBuilder,
+      (
+        NotificationCursor,
+        BaseReferences<
+          _$AppDatabase,
+          $NotificationCursorsTable,
+          NotificationCursor
+        >,
+      ),
+      NotificationCursor,
+      PrefetchHooks Function()
+    >;
+typedef $$NotificationSystemIdsTableCreateCompanionBuilder =
+    NotificationSystemIdsCompanion Function({
+      required String scopeKey,
+      required String entryId,
+      required String channel,
+      required int systemId,
+      Value<int> rowid,
+    });
+typedef $$NotificationSystemIdsTableUpdateCompanionBuilder =
+    NotificationSystemIdsCompanion Function({
+      Value<String> scopeKey,
+      Value<String> entryId,
+      Value<String> channel,
+      Value<int> systemId,
+      Value<int> rowid,
+    });
+
+class $$NotificationSystemIdsTableFilterComposer
+    extends Composer<_$AppDatabase, $NotificationSystemIdsTable> {
+  $$NotificationSystemIdsTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get scopeKey => $composableBuilder(
+    column: $table.scopeKey,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get entryId => $composableBuilder(
+    column: $table.entryId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get channel => $composableBuilder(
+    column: $table.channel,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get systemId => $composableBuilder(
+    column: $table.systemId,
+    builder: (column) => ColumnFilters(column),
+  );
+}
+
+class $$NotificationSystemIdsTableOrderingComposer
+    extends Composer<_$AppDatabase, $NotificationSystemIdsTable> {
+  $$NotificationSystemIdsTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get scopeKey => $composableBuilder(
+    column: $table.scopeKey,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get entryId => $composableBuilder(
+    column: $table.entryId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get channel => $composableBuilder(
+    column: $table.channel,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get systemId => $composableBuilder(
+    column: $table.systemId,
+    builder: (column) => ColumnOrderings(column),
+  );
+}
+
+class $$NotificationSystemIdsTableAnnotationComposer
+    extends Composer<_$AppDatabase, $NotificationSystemIdsTable> {
+  $$NotificationSystemIdsTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get scopeKey =>
+      $composableBuilder(column: $table.scopeKey, builder: (column) => column);
+
+  GeneratedColumn<String> get entryId =>
+      $composableBuilder(column: $table.entryId, builder: (column) => column);
+
+  GeneratedColumn<String> get channel =>
+      $composableBuilder(column: $table.channel, builder: (column) => column);
+
+  GeneratedColumn<int> get systemId =>
+      $composableBuilder(column: $table.systemId, builder: (column) => column);
+}
+
+class $$NotificationSystemIdsTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $NotificationSystemIdsTable,
+          NotificationSystemId,
+          $$NotificationSystemIdsTableFilterComposer,
+          $$NotificationSystemIdsTableOrderingComposer,
+          $$NotificationSystemIdsTableAnnotationComposer,
+          $$NotificationSystemIdsTableCreateCompanionBuilder,
+          $$NotificationSystemIdsTableUpdateCompanionBuilder,
+          (
+            NotificationSystemId,
+            BaseReferences<
+              _$AppDatabase,
+              $NotificationSystemIdsTable,
+              NotificationSystemId
+            >,
+          ),
+          NotificationSystemId,
+          PrefetchHooks Function()
+        > {
+  $$NotificationSystemIdsTableTableManager(
+    _$AppDatabase db,
+    $NotificationSystemIdsTable table,
+  ) : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$NotificationSystemIdsTableFilterComposer(
+                $db: db,
+                $table: table,
+              ),
+          createOrderingComposer: () =>
+              $$NotificationSystemIdsTableOrderingComposer(
+                $db: db,
+                $table: table,
+              ),
+          createComputedFieldComposer: () =>
+              $$NotificationSystemIdsTableAnnotationComposer(
+                $db: db,
+                $table: table,
+              ),
+          updateCompanionCallback:
+              ({
+                Value<String> scopeKey = const Value.absent(),
+                Value<String> entryId = const Value.absent(),
+                Value<String> channel = const Value.absent(),
+                Value<int> systemId = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => NotificationSystemIdsCompanion(
+                scopeKey: scopeKey,
+                entryId: entryId,
+                channel: channel,
+                systemId: systemId,
+                rowid: rowid,
+              ),
+          createCompanionCallback:
+              ({
+                required String scopeKey,
+                required String entryId,
+                required String channel,
+                required int systemId,
+                Value<int> rowid = const Value.absent(),
+              }) => NotificationSystemIdsCompanion.insert(
+                scopeKey: scopeKey,
+                entryId: entryId,
+                channel: channel,
+                systemId: systemId,
+                rowid: rowid,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .toList(),
+          prefetchHooksCallback: null,
+        ),
+      );
+}
+
+typedef $$NotificationSystemIdsTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $NotificationSystemIdsTable,
+      NotificationSystemId,
+      $$NotificationSystemIdsTableFilterComposer,
+      $$NotificationSystemIdsTableOrderingComposer,
+      $$NotificationSystemIdsTableAnnotationComposer,
+      $$NotificationSystemIdsTableCreateCompanionBuilder,
+      $$NotificationSystemIdsTableUpdateCompanionBuilder,
+      (
+        NotificationSystemId,
+        BaseReferences<
+          _$AppDatabase,
+          $NotificationSystemIdsTable,
+          NotificationSystemId
+        >,
+      ),
+      NotificationSystemId,
+      PrefetchHooks Function()
+    >;
 
 class $AppDatabaseManager {
   final _$AppDatabase _db;
@@ -108373,4 +112297,15 @@ class $AppDatabaseManager {
       $$QwebReportTemplateTableTableManager(_db, _db.qwebReportTemplate);
   $$QwebPaperFormatTableTableManager get qwebPaperFormat =>
       $$QwebPaperFormatTableTableManager(_db, _db.qwebPaperFormat);
+  $$NotificationEntriesTableTableManager get notificationEntries =>
+      $$NotificationEntriesTableTableManager(_db, _db.notificationEntries);
+  $$NotificationDeliveriesTableTableManager get notificationDeliveries =>
+      $$NotificationDeliveriesTableTableManager(
+        _db,
+        _db.notificationDeliveries,
+      );
+  $$NotificationCursorsTableTableManager get notificationCursors =>
+      $$NotificationCursorsTableTableManager(_db, _db.notificationCursors);
+  $$NotificationSystemIdsTableTableManager get notificationSystemIds =>
+      $$NotificationSystemIdsTableTableManager(_db, _db.notificationSystemIds);
 }

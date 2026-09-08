@@ -25,8 +25,8 @@ class OdooCrudApi {
   /// This is merged with any context provided in individual calls.
   /// The language is taken from `OdooClientConfig.defaultLanguage`.
   Map<String, dynamic> get _defaultContext => {
-        'lang': _httpClient.config.defaultLanguage,
-      };
+    'lang': _httpClient.config.defaultLanguage,
+  };
 
   /// Generic Odoo method call
   ///
@@ -68,18 +68,48 @@ class OdooCrudApi {
     if (ids != null) body['ids'] = ids;
 
     // Context is a dedicated transport parameter; method kwargs stay pure.
-    body['context'] = {
-      ..._defaultContext,
-      ...?context,
-    };
+    body['context'] = {..._defaultContext, ...?context};
 
     try {
-      final response = await _httpClient.postJson2(
-        '/$model/$method',
-        data: body,
-        cancelToken: cancelToken,
-      );
-      final data = response.data;
+      final dynamic data;
+      if (_httpClient.config.transportMode == OdooTransportMode.webSession) {
+        final positional = <dynamic>[];
+        if (ids != null) positional.add(ids);
+        if (args != null) positional.addAll(args);
+        final response = await _httpClient.postWebSessionRpc(
+          model: model,
+          method: method,
+          params: {
+            'model': model,
+            'method': method,
+            'args': positional,
+            'kwargs': {
+              ...?kwargs,
+              'context': {..._defaultContext, ...?context},
+            },
+          },
+          cancelToken: cancelToken,
+        );
+        final envelope = response.data;
+        if (envelope is Map<String, dynamic> && envelope.containsKey('error')) {
+          throw OdooErrorMapper.fromResponse(
+            envelope,
+            model: model,
+            method: method,
+          );
+        }
+        data =
+            envelope is Map<String, dynamic> && envelope.containsKey('result')
+            ? envelope['result']
+            : envelope;
+      } else {
+        final response = await _httpClient.postJson2(
+          '/$model/$method',
+          data: body,
+          cancelToken: cancelToken,
+        );
+        data = response.data;
+      }
 
       // Check for error in response body (Odoo validation errors, warnings, etc.)
       if (data is Map<String, dynamic>) {
@@ -90,7 +120,6 @@ class OdooCrudApi {
             method: method,
           );
         }
-
       }
 
       return data;
@@ -301,9 +330,7 @@ class OdooCrudApi {
     final response = await call(
       model: model,
       method: 'create',
-      kwargs: {
-        'vals_list': cleanValuesList,
-      },
+      kwargs: {'vals_list': cleanValuesList},
     );
 
     // Response is a list of IDs: [123, 124, 125]
@@ -494,10 +521,7 @@ class BatchUpdate {
   /// The values to set on the records.
   final Map<String, dynamic> values;
 
-  const BatchUpdate({
-    required this.ids,
-    required this.values,
-  });
+  const BatchUpdate({required this.ids, required this.values});
 
   /// Create from a map (convenience factory).
   factory BatchUpdate.fromMap(Map<String, dynamic> map) {
@@ -508,10 +532,7 @@ class BatchUpdate {
   }
 
   /// Convert to map representation.
-  Map<String, dynamic> toMap() => {
-        'ids': ids,
-        'values': values,
-      };
+  Map<String, dynamic> toMap() => {'ids': ids, 'values': values};
 }
 
 /// Result of a batch operation.
@@ -539,9 +560,7 @@ class BatchResult {
 
   /// Whether all operations succeeded without errors.
   bool get success =>
-      errors.isEmpty &&
-      deleteSuccess &&
-      updateResults.every((r) => r);
+      errors.isEmpty && deleteSuccess && updateResults.every((r) => r);
 
   /// Whether any operations failed.
   bool get hasErrors => errors.isNotEmpty;
@@ -556,7 +575,8 @@ class BatchResult {
   int get updateFailureCount => updateResults.where((r) => !r).length;
 
   @override
-  String toString() => 'BatchResult('
+  String toString() =>
+      'BatchResult('
       'created: $createCount, '
       'updates: ${updateResults.length} ($updateSuccessCount ok), '
       'delete: $deleteSuccess, '

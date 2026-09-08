@@ -1,0 +1,144 @@
+{
+  "mode": "read_only",
+  "target": "https://erp2.tecnosmart.com.ec",
+  "users": {
+    "seller": {
+      "id": 43,
+      "login": "sebastian.rodriguez",
+      "name": "R… R… M… S…",
+      "companyId": 1,
+      "relevantXmlIds": [
+        "l10n_ec_base.group_sale_confirm",
+        "l10n_ec_collection_box.group_facturar_sin_cobro",
+        "l10n_ec_sale_base.group_allow_postdated_invoice",
+        "l10n_ec_sale_base.group_edit_price_unit",
+        "sales_team.group_sale_salesman",
+        "sales_team.group_sale_salesman_all_leads",
+        "stock.group_stock_multi_warehouses"
+      ],
+      "derivedPermissions": [
+        "orders.view_all",
+        "seller"
+      ]
+    },
+    "cashier": {
+      "id": 23,
+      "login": "jacqueline.rizo",
+      "name": "R… A… J… K…",
+      "companyId": 1,
+      "relevantXmlIds": [
+        "l10n_ec_base.group_sale_confirm",
+        "l10n_ec_collection_box.group_collection_card_liquidation",
+        "l10n_ec_collection_box.group_collection_user",
+        "l10n_ec_collection_box.group_facturar_sin_cobro",
+        "l10n_ec_sale_base.group_edit_price_unit",
+        "sales_team.group_sale_salesman",
+        "sales_team.group_sale_salesman_all_leads",
+        "stock.group_stock_multi_warehouses"
+      ],
+      "derivedPermissions": [
+        "cashier",
+        "orders.view_all",
+        "seller"
+      ]
+    }
+  },
+  "supervisorCajaOrReceptionDispatch": [
+    {
+      "groupId": 98,
+      "groupName": "S… d… C…",
+      "users": [
+        {
+          "id": 2,
+          "login": "admin"
+        },
+        {
+          "id": 14,
+          "login": "erik.aldas"
+        },
+        {
+          "id": 41,
+          "login": "sara.portugal"
+        },
+        {
+          "id": 13,
+          "login": "elmer.salazar"
+        },
+        {
+          "id": 153,
+          "login": "tienda_web"
+        },
+        {
+          "id": 31,
+          "login": "maria.torres"
+        },
+        {
+          "id": 47,
+          "login": "worker_api"
+        },
+        {
+          "id": 24,
+          "login": "johanna.zambrano"
+        }
+      ]
+    },
+    {
+      "groupId": 96,
+      "groupName": "R… d… R…",
+      "users": [
+        {
+          "id": 2,
+          "login": "admin"
+        },
+        {
+          "id": 14,
+          "login": "erik.aldas"
+        },
+        {
+          "id": 11,
+          "login": "danny.bravo"
+        },
+        {
+          "id": 25,
+          "login": "jonathan.molina"
+        },
+        {
+          "id": 34,
+          "login": "miguel.mora"
+        },
+        {
+          "id": 41,
+          "login": "sara.portugal"
+        },
+        {
+          "id": 13,
+          "login": "elmer.salazar"
+        },
+        {
+          "id": 31,
+          "login": "maria.torres"
+        }
+      ]
+    }
+  ],
+  "matrix": {
+    "seller": [
+      "sales_team.group_sale_salesman",
+      "sales_team.group_sale_salesman_all_leads",
+      "sales_team.group_sale_manager"
+    ],
+    "cashier": [
+      "l10n_ec_collection_box.group_collection_user",
+      "l10n_ec_collection_box.group_collection_manager"
+    ],
+    "orders.view_all": [
+      "sales_team.group_sale_salesman_all_leads",
+      "sales_team.group_sale_manager"
+    ],
+    "approver": [
+      "approvals.group_approval_manager",
+      "l10n_ec_base.group_view_approvals_manager",
+      "l10n_ec_sale_credit.group_credit_approver"
+    ]
+  }
+}

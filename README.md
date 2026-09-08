@@ -1,5 +1,10 @@
 # Theos App
 
+The independent Orbi ERP application `theos_panel` is planned in the
+[Orbi implementation handoff](docs/orbi_panel/README.md), including architecture,
+notifications, extraction boundaries and an ordered backlog. That plan does not
+claim that the new application is already implemented or verified.
+
 Theos App is an offline-first Flutter client for selling, collecting payments,
 and invoicing against Odoo 19.x and 20.x. The product targets iPad first, then
 Android, macOS, Windows, and web.

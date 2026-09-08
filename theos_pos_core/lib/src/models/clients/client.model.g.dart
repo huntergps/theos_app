@@ -114,6 +114,8 @@ class ClientManager extends OdooModelManager<Client>
       allowOverCredit: parseOdooBool(data['allow_over_credit']),
       usePartnerCreditLimit: parseOdooBool(data['use_partner_credit_limit']),
       totalOverdue: parseOdooDouble(data['total_overdue']),
+      overdueInvoicesCount: null,
+      oldestOverdueDays: null,
       diasMaxFacturaPosterior: parseOdooInt(data['dias_max_factura_posterior']),
       tipoCliente: parseOdooSelection(data['tipo_cliente']),
       canalCliente: parseOdooSelection(data['canal_cliente']),

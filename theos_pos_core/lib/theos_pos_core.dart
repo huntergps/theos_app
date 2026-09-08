@@ -15,7 +15,8 @@ library theos_pos_core;
 // Database exports
 // AppDatabase and all Drift-generated types are now consolidated in theos_pos_core
 // The app (theos_pos) no longer has its own database, it uses core's database directly
-export 'src/database/database.dart';
+export 'src/database/database.dart'
+    hide NotificationEntry, NotificationDelivery;
 export 'src/database/database_helper.dart';
 
 // Models exports
@@ -31,6 +32,23 @@ export 'src/managers/managers.dart';
 
 // Services exports
 export 'src/services/services.dart';
+export 'src/services/catalog/product_record_mapper.dart';
+export 'src/services/catalog/warehouse_record_mapper.dart';
+export 'src/services/catalog/pricelist_record_mapper.dart';
+export 'src/services/catalog/payment_term_record_mapper.dart';
+export 'src/services/catalog/tax_record_mapper.dart';
+export 'src/services/catalog/partner_record_mapper.dart';
+export 'src/services/catalog/journal_record_mapper.dart';
+export 'src/services/catalog/uom_record_mapper.dart';
+export 'src/services/operations/capability_provisioner.dart';
+export 'src/services/operations/capability_snapshot_store.dart';
+export 'src/services/catalog/collection_config_record_mapper.dart';
+export 'src/services/catalog/collection_session_record_mapper.dart';
+export 'src/services/catalog/payment_config_record_mapper.dart';
+export 'src/notifications/notification_contracts.dart';
+export 'src/notifications/notification_delivery.dart';
+export 'src/notifications/notification_entry.dart';
+export 'src/notifications/notification_inbox_store.dart';
 
 // Utils exports
 export 'src/utils/utils.dart';

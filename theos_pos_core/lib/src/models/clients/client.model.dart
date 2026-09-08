@@ -249,8 +249,8 @@ abstract class Client with _$Client {
     // ============ Overdue Debt Fields ============
     @OdooFloat(odooName: 'total_overdue') double? totalOverdue,
     // ERP2 no expone un contador de facturas impagas. La columna local se
-    // conserva para un agregado offline futuro. La tabla Drift es NOT NULL,
-    // por eso el modelo debe materializar cero y no enviar NULL al batch.
+    // conserva para un agregado offline futuro; la proyección desde Odoo debe
+    // dejar este dato en null y Drift aplica su default local al persistir.
     @OdooLocalOnly(driftName: 'unpaidInvoicesCount')
     @Default(0)
     int? overdueInvoicesCount,

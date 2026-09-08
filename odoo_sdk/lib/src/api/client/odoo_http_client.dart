@@ -52,11 +52,16 @@ class CertificatePinningConfig {
   });
 }
 
+/// HTTP authentication/dispatch mode for an Odoo client.
+enum OdooTransportMode { json2Bearer, webSession }
+
 /// Configuration for Odoo HTTP client
 class OdooClientConfig {
   final String baseUrl;
   final String apiKey;
   final String? database;
+  final OdooTransportMode transportMode;
+  final String? csrfToken;
   final Duration sendTimeout;
   final Duration receiveTimeout;
 
@@ -120,6 +125,8 @@ class OdooClientConfig {
     required this.baseUrl,
     required this.apiKey,
     this.database,
+    this.transportMode = OdooTransportMode.json2Bearer,
+    this.csrfToken,
     this.sendTimeout = const Duration(seconds: 30),
     this.receiveTimeout = const Duration(seconds: 30),
     this.enableRetry = true,
@@ -182,6 +189,8 @@ class OdooClientConfig {
     String? baseUrl,
     String? apiKey,
     String? database,
+    OdooTransportMode? transportMode,
+    String? csrfToken,
     Duration? sendTimeout,
     Duration? receiveTimeout,
     bool? enableRetry,
@@ -198,6 +207,8 @@ class OdooClientConfig {
       baseUrl: baseUrl ?? this.baseUrl,
       apiKey: apiKey ?? this.apiKey,
       database: database ?? this.database,
+      transportMode: transportMode ?? this.transportMode,
+      csrfToken: csrfToken ?? this.csrfToken,
       sendTimeout: sendTimeout ?? this.sendTimeout,
       receiveTimeout: receiveTimeout ?? this.receiveTimeout,
       enableRetry: enableRetry ?? this.enableRetry,
@@ -287,14 +298,19 @@ class OdooHttpClient {
 
   void _applyConfig() {
     _dio.options
-      ..baseUrl = _config.json2Endpoint
+      ..baseUrl = _config.transportMode == OdooTransportMode.webSession
+          ? _config.normalizedBaseUrl
+          : _config.json2Endpoint
       ..headers = {
         'Content-Type': 'application/json',
-        'Authorization': 'Bearer ${_config.apiKey}',
+        if (_config.transportMode == OdooTransportMode.json2Bearer)
+          'Authorization': 'Bearer ${_config.apiKey}',
         // JSON-2 CORS explicitly allows X-Odoo-Database. Odoo needs this
         // header to select the requested database when the host serves more
         // than one database, including browser requests.
-        if (_config.database != null && _config.database!.isNotEmpty)
+        if (_config.transportMode == OdooTransportMode.json2Bearer &&
+            _config.database != null &&
+            _config.database!.isNotEmpty)
           'X-Odoo-Database': _config.database!,
       }
       ..connectTimeout = const Duration(seconds: 15)
@@ -327,7 +343,9 @@ class OdooHttpClient {
   Dio get dio => _dio;
 
   /// Whether the client has valid credentials
-  bool get isConfigured => _config.apiKey.isNotEmpty;
+  bool get isConfigured => _config.transportMode == OdooTransportMode.webSession
+      ? _config.baseUrl.isNotEmpty
+      : _config.apiKey.isNotEmpty;
 
   /// Make a POST request to JSON-2 API endpoint.
   ///
@@ -348,6 +366,28 @@ class OdooHttpClient {
       rethrow;
     }
   }
+
+  /// Call Odoo's standard cookie-session JSON-RPC dispatcher.
+  Future<Response<dynamic>> postWebSessionRpc({
+    required String model,
+    required String method,
+    required Map<String, dynamic> params,
+    CancelToken? cancelToken,
+  }) => _dio.post(
+    '/web/dataset/call_kw/$model.$method',
+    data: {
+      'jsonrpc': '2.0',
+      'id': DateTime.now().microsecondsSinceEpoch,
+      'params': params,
+    },
+    options: Options(
+      headers: {
+        if (_config.csrfToken != null) 'X-CSRFToken': _config.csrfToken!,
+      },
+      extra: {'withCredentials': true},
+    ),
+    cancelToken: cancelToken,
+  );
 
   /// Make a GET request to any Odoo endpoint.
   ///

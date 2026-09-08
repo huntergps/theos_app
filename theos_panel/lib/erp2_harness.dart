@@ -1,0 +1,1601 @@
+/// Safety and planning contracts for the opt-in ERP2 V01 journey.
+///
+/// This library contains no default credentials and makes no network request
+/// when imported.  The integration test supplies the Odoo client only after
+/// [Erp2HarnessConfig.requireWritePreflight] and the server-side read
+/// preflight have completed.
+library;
+
+import 'package:orbi_runtime/orbi_runtime.dart';
+
+enum Erp2Actor { seller, cashier, supervisor, warehouse }
+
+enum Erp2FlowKind { cash, credit, mixed, fsc }
+
+enum Erp2PanelMode { withPanel, withoutPanel }
+
+enum Erp2ReplayState { applied, rejected, ambiguous }
+
+final class Erp2ActorCredentials {
+  const Erp2ActorCredentials({
+    required this.actor,
+    required this.login,
+    required this.userId,
+  });
+
+  final Erp2Actor actor;
+  final String login;
+  final int? userId;
+
+  bool get configured => login.trim().isNotEmpty && userId != null;
+
+  bool get isAdminLike {
+    final normalized = login.trim().toLowerCase();
+    return normalized == 'admin' || normalized == 'administrator';
+  }
+
+  Map<String, Object?> toRedactedJson() => {
+    'actor': actor.name,
+    'loginConfigured': login.trim().isNotEmpty,
+    'userId': userId,
+  };
+}
+
+/// Exact method names are an input to V01.  A missing method blocks before any
+/// write; the harness never guesses a controller or an addon-specific RPC.
+/// Methods proven by the current runtime/addon contract.  They are constants,
+/// not environment variables: a missing or guessed RPC cannot reach ERP2.
+final class Erp2RpcContract {
+  const Erp2RpcContract();
+
+  static Erp2RpcContract fromEnvironment(Map<String, String> _) =>
+      const Erp2RpcContract();
+
+  String get confirm => 'action_pos_confirm';
+  String get cashInvoice => 'action_pos_confirm_and_invoice';
+  String get fscInvoiceAndDispatch => 'action_l10n_ec_aprobar_fsc';
+  String get fscRequest => 'action_l10n_ec_solicitar_facturar_sin_cobro';
+  String get approvalApprove => 'action_approve';
+  String get sessionOpen => 'action_session_open';
+  String get sessionClose => 'close_control_session_pos';
+  // Existing-invoice collection route implemented by the native payment
+  // wizard; this is not a sale.order action and is only used with a supplied
+  // wizard fixture ID.
+  String get existingInvoicePayment => 'action_apply';
+  // Official mixed-payment wizard route.  The supplied wizard already owns
+  // its persisted lines; the harness never invents line commands or kwargs.
+  String get mixedPaymentAndDispatch => 'action_apply_and_create_invoice';
+  String get assignPicking => 'action_assign';
+  String get validatePicking => 'button_validate';
+
+  Map<String, String> toRedactedJson() => {
+    'sale.order.confirm': confirm,
+    'sale.order.cashInvoice': cashInvoice,
+    'sale.order.fscInvoiceAndDispatch': fscInvoiceAndDispatch,
+    'sale.order.fscRequest': fscRequest,
+    'approval.request.approve': approvalApprove,
+    'collection.session.open': sessionOpen,
+    'collection.session.close': sessionClose,
+    'payment.wizard.existingInvoice': existingInvoicePayment,
+    'payment.wizard.mixedPaymentAndDispatch': mixedPaymentAndDispatch,
+    'stock.picking.assign': assignPicking,
+    'stock.picking.validate': validatePicking,
+  };
+}
+
+final class Erp2FlowFixture {
+  const Erp2FlowFixture({
+    required this.kind,
+    required this.orderId,
+    required this.reference,
+    this.approvalId,
+  });
+
+  final Erp2FlowKind kind;
+  final int orderId;
+  final String reference;
+  final int? approvalId;
+
+  bool get hasPositiveId => orderId > 0;
+
+  Map<String, Object?> toRedactedJson() => {
+    'kind': kind.name,
+    'orderId': orderId,
+    'reference': reference,
+    'approvalId': approvalId,
+  };
+}
+
+final class Erp2HarnessConfig {
+  const Erp2HarnessConfig({
+    required this.serverUrl,
+    required this.database,
+    required this.panelMode,
+    required this.writeEnabled,
+    required this.runEnabled,
+    required this.writePrefix,
+    required this.cleanupMode,
+    required this.evidenceFile,
+    required this.actors,
+    required this.fixtures,
+    required this.rpc,
+    required this.cashSessionId,
+    required this.cashJournalId,
+    required this.cashPaymentMethodId,
+    required this.fscPaymentWizardId,
+    required this.fscApprovalId,
+    required this.mixedPaymentWizardId,
+    required this.mixedCashAmount,
+  });
+
+  final String serverUrl;
+  final String database;
+  final Erp2PanelMode? panelMode;
+  final bool writeEnabled;
+  final bool runEnabled;
+  final String writePrefix;
+  final String cleanupMode;
+  final String evidenceFile;
+  final Map<Erp2Actor, Erp2ActorCredentials> actors;
+  final Map<Erp2FlowKind, Erp2FlowFixture> fixtures;
+  final Erp2RpcContract rpc;
+  final int? cashSessionId;
+  final int? cashJournalId;
+  final int? cashPaymentMethodId;
+  final int? fscPaymentWizardId;
+  final int? fscApprovalId;
+  final int? mixedPaymentWizardId;
+  final double? mixedCashAmount;
+
+  static Erp2HarnessConfig fromEnvironment(Map<String, String> env) {
+    Erp2ActorCredentials actor(Erp2Actor role, String key) =>
+        Erp2ActorCredentials(
+          actor: role,
+          login: env['ORBI_ERP2_${key}_LOGIN']?.trim() ?? '',
+          userId: _positiveInt(env['ORBI_ERP2_${key}_USER_ID']),
+        );
+
+    Erp2FlowFixture? fixture(Erp2FlowKind kind) {
+      final key = kind.name.toUpperCase();
+      final id = _positiveInt(env['ORBI_ERP2_${key}_ORDER_ID']);
+      final reference = env['ORBI_ERP2_${key}_REFERENCE']?.trim() ?? '';
+      if (id == null && reference.isEmpty) return null;
+      final approvalKey = kind == Erp2FlowKind.fsc
+          ? 'ORBI_ERP2_FSC_COMMERCIAL_APPROVAL_ID'
+          : 'ORBI_ERP2_${key}_APPROVAL_ID';
+      return Erp2FlowFixture(
+        kind: kind,
+        orderId: id ?? -1,
+        reference: reference,
+        approvalId: _positiveInt(env[approvalKey]),
+      );
+    }
+
+    final mode = env['ORBI_ERP2_PANEL_MODE']?.trim().toLowerCase();
+    final fixtures = <Erp2FlowKind, Erp2FlowFixture>{};
+    for (final kind in Erp2FlowKind.values) {
+      final item = fixture(kind);
+      if (item != null) fixtures[kind] = item;
+    }
+    return Erp2HarnessConfig(
+      serverUrl: env['ORBI_ERP2_SERVER_URL']?.trim() ?? '',
+      database: env['ORBI_ERP2_DATABASE']?.trim() ?? '',
+      panelMode: switch (mode) {
+        'with-panel' => Erp2PanelMode.withPanel,
+        'without-panel' => Erp2PanelMode.withoutPanel,
+        _ => null,
+      },
+      writeEnabled:
+          env['ORBI_ERP2_ENABLE_WRITES'] == 'I_UNDERSTAND_ORBI_E2E_WRITES',
+      runEnabled: env['ORBI_ERP2_RUN_WRITES'] == 'I_UNDERSTAND_ORBI_E2E_WRITES',
+      writePrefix: env['ORBI_ERP2_WRITE_PREFIX']?.trim() ?? '',
+      cleanupMode: env['ORBI_ERP2_CLEANUP_MODE']?.trim() ?? '',
+      evidenceFile: env['ORBI_ERP2_EVIDENCE_FILE']?.trim() ?? '',
+      actors: {
+        for (final pair in <Erp2Actor, String>{
+          Erp2Actor.seller: 'SELLER',
+          Erp2Actor.cashier: 'CASHIER',
+          Erp2Actor.supervisor: 'SUPERVISOR',
+          Erp2Actor.warehouse: 'WAREHOUSE',
+        }.entries)
+          pair.key: actor(pair.key, pair.value),
+      },
+      fixtures: fixtures,
+      rpc: Erp2RpcContract.fromEnvironment(env),
+      cashSessionId: _positiveInt(env['ORBI_ERP2_CASH_SESSION_ID']),
+      cashJournalId: _positiveInt(env['ORBI_ERP2_CASH_JOURNAL_ID']),
+      cashPaymentMethodId: _positiveInt(
+        env['ORBI_ERP2_CASH_PAYMENT_METHOD_ID'],
+      ),
+      fscPaymentWizardId: _positiveInt(env['ORBI_ERP2_FSC_PAYMENT_WIZARD_ID']),
+      fscApprovalId: _positiveInt(env['ORBI_ERP2_FSC_APPROVAL_ID']),
+      mixedPaymentWizardId: _positiveInt(
+        env['ORBI_ERP2_MIXED_PAYMENT_WIZARD_ID'],
+      ),
+      mixedCashAmount: _positiveDouble(env['ORBI_ERP2_MIXED_CASH_AMOUNT']),
+    );
+  }
+
+  /// Read guard.  The empty result means the target may be queried, not that
+  /// the ERP2 business contract has been certified.
+  List<String> targetErrors() {
+    final errors = <String>[];
+    final uri = Uri.tryParse(serverUrl);
+    if (uri == null ||
+        uri.scheme != 'https' ||
+        uri.host.toLowerCase() != 'erp2.tecnosmart.com.ec' ||
+        uri.hasPort ||
+        uri.userInfo.isNotEmpty ||
+        uri.query.isNotEmpty ||
+        uri.fragment.isNotEmpty ||
+        (uri.path.isNotEmpty && uri.path != '/')) {
+      errors.add('ORBI_ERP2_SERVER_URL must be the exact ERP2 HTTPS host');
+    }
+    if (database.isEmpty) errors.add('ORBI_ERP2_DATABASE is required');
+    if (serverUrl.toLowerCase().contains('newerp') ||
+        database.toLowerCase().contains('newerp')) {
+      errors.add('newerp is prohibited');
+    }
+    for (final actor in actors.values) {
+      if (actor.login.trim().isEmpty) {
+        errors.add('${actor.actor.name} login is required');
+      }
+      if (actor.isAdminLike) {
+        errors.add('${actor.actor.name} must not use admin');
+      }
+    }
+    return errors;
+  }
+
+  /// Write guard.  It is intentionally stricter than [targetErrors].
+  /// Callers must run the server-side read preflight after this check and
+  /// before reaching a mutating Odoo call.
+  List<String> writeErrors() {
+    final errors = [...targetErrors()];
+    if (!writeEnabled) errors.add('explicit write sentinel is missing');
+    if (!runEnabled) errors.add('explicit run sentinel is missing');
+    if (!RegExp(r'^ORBI-E2E-[0-9a-f]{8,}$').hasMatch(writePrefix)) {
+      errors.add('ORBI_ERP2_WRITE_PREFIX must match ORBI-E2E-<uuid>');
+    }
+    if (cleanupMode != 'retain-prefixed-fixtures') {
+      errors.add('cleanup must be retain-prefixed-fixtures');
+    }
+    if (evidenceFile.isEmpty) errors.add('ORBI_ERP2_EVIDENCE_FILE is required');
+    if (panelMode == null) errors.add('ORBI_ERP2_PANEL_MODE is required');
+    for (final role in Erp2Actor.values) {
+      final actor = actors[role]!;
+      if (actor.userId == null || actor.userId! <= 0) {
+        errors.add('${role.name} user ID is required');
+      }
+    }
+    final configuredLogins = actors.values
+        .map((actor) => actor.login.trim().toLowerCase())
+        .where((login) => login.isNotEmpty)
+        .toSet();
+    if (configuredLogins.length != actors.length) {
+      errors.add('seller, cashier, supervisor and warehouse must be distinct');
+    }
+    final configuredIds = actors.values
+        .map((actor) => actor.userId)
+        .whereType<int>()
+        .toSet();
+    if (configuredIds.length != actors.length) {
+      errors.add(
+        'seller, cashier, supervisor and warehouse IDs must be distinct',
+      );
+    }
+    if (fixtures.length != Erp2FlowKind.values.length) {
+      errors.add('four prefixed flow fixtures are required');
+    }
+    for (final kind in Erp2FlowKind.values) {
+      final fixture = fixtures[kind];
+      if (fixture == null || !fixture.hasPositiveId) {
+        errors.add('${kind.name} order ID is required');
+      } else if (!fixture.reference.startsWith(writePrefix)) {
+        errors.add('${kind.name} fixture is outside ORBI-E2E prefix');
+      }
+    }
+    if (cashSessionId == null ||
+        cashJournalId == null ||
+        cashPaymentMethodId == null) {
+      errors.add('cash session, journal and payment method IDs are required');
+    }
+    if (fscPaymentWizardId == null) {
+      errors.add('FSC existing-invoice payment wizard ID is required');
+    }
+    if (fscApprovalId == null) {
+      errors.add(
+        'FSC approval ID is required separately from commercial approval',
+      );
+    }
+    if (mixedPaymentWizardId == null) {
+      errors.add('mixed payment wizard ID is required');
+    }
+    if (mixedCashAmount == null || mixedCashAmount! <= 0) {
+      errors.add('mixed cash amount is required');
+    }
+    return errors;
+  }
+
+  void requireTargetPreflight() {
+    final errors = targetErrors();
+    if (errors.isNotEmpty) throw Erp2PreflightException(errors);
+  }
+
+  void requireWritePreflight() {
+    final errors = writeErrors();
+    if (errors.isNotEmpty) throw Erp2PreflightException(errors);
+  }
+
+  Map<String, Object?> toRedactedJson() => {
+    'serverUrl': serverUrl,
+    'database': database,
+    'panelMode': panelMode?.name,
+    'writeEnabled': writeEnabled,
+    'runEnabled': runEnabled,
+    'writePrefix': writePrefix,
+    'cleanupMode': cleanupMode,
+    'evidenceFileConfigured': evidenceFile.isNotEmpty,
+    'actors': {
+      for (final entry in actors.entries)
+        entry.key.name: entry.value.toRedactedJson(),
+    },
+    'fixtures': {
+      for (final entry in fixtures.entries)
+        entry.key.name: entry.value.toRedactedJson(),
+    },
+    'rpc': rpc.toRedactedJson(),
+    'mixedCashAmountConfigured': mixedCashAmount != null,
+    'fscApprovalConfigured': fscApprovalId != null,
+  };
+}
+
+final class Erp2FlowPlan {
+  const Erp2FlowPlan({
+    required this.kind,
+    required this.actor,
+    required this.confirmation,
+    required this.invoice,
+    required this.dispatch,
+    required this.requiresApproval,
+  });
+
+  final Erp2FlowKind kind;
+  final Erp2Actor actor;
+  final String confirmation;
+  final String invoice;
+  final String dispatch;
+  final bool requiresApproval;
+
+  static const all = <Erp2FlowPlan>[
+    Erp2FlowPlan(
+      kind: Erp2FlowKind.cash,
+      actor: Erp2Actor.cashier,
+      confirmation: 'cashier cash-and-invoice',
+      invoice: 'on-cobro',
+      dispatch: 'on-cobro',
+      requiresApproval: true,
+    ),
+    Erp2FlowPlan(
+      kind: Erp2FlowKind.credit,
+      actor: Erp2Actor.seller,
+      confirmation: 'seller confirm after approval',
+      invoice: 'on-confirm',
+      dispatch: 'on-confirm',
+      requiresApproval: true,
+    ),
+    Erp2FlowPlan(
+      kind: Erp2FlowKind.mixed,
+      actor: Erp2Actor.seller,
+      confirmation: 'seller confirm after approval',
+      invoice: 'on-confirm',
+      dispatch: 'none at confirm; official payment wizard creates picking',
+      requiresApproval: true,
+    ),
+    Erp2FlowPlan(
+      kind: Erp2FlowKind.fsc,
+      actor: Erp2Actor.supervisor,
+      confirmation: 'supervisor approve FSC',
+      invoice: 'on-FSC-approval',
+      dispatch: 'server-generated-picking; warehouse action_assign if needed',
+      requiresApproval: true,
+    ),
+  ];
+}
+
+Erp2FlowKind? classifyPaymentTerm({
+  required List<Map<String, dynamic>> lines,
+  required bool isFsc,
+}) {
+  var immediate = false;
+  var future = false;
+  for (final line in lines) {
+    final days = _lineDueDays(line);
+    final delayType = (line['delay_type'] ?? '').toString();
+    // A zero-day line is cash only when the server says it is a
+    // days-after/immediate line. Looking only at the numeric offset would
+    // misclassify end-of-month and other term semantics.
+    final immediateLine = days == 0 && delayType == 'days_after';
+    immediate |= immediateLine;
+    future |= days > 0;
+  }
+  if (immediate && future) return Erp2FlowKind.mixed;
+  if (immediate && !future) return isFsc ? Erp2FlowKind.fsc : Erp2FlowKind.cash;
+  if (future && !immediate) return Erp2FlowKind.credit;
+  return null;
+}
+
+int _lineDueDays(Map<String, dynamic> line) =>
+    line['nb_days'] is num ? (line['nb_days'] as num).toInt() : -1;
+
+int? _positiveInt(String? value) {
+  final parsed = value == null ? null : int.tryParse(value.trim());
+  return parsed != null && parsed > 0 ? parsed : null;
+}
+
+double? _positiveDouble(String? value) {
+  final parsed = value == null ? null : double.tryParse(value.trim());
+  return parsed != null && parsed.isFinite && parsed > 0 ? parsed : null;
+}
+
+final class Erp2ReplayObservation {
+  const Erp2ReplayObservation({
+    required this.transportSucceeded,
+    required this.transportError,
+    required this.serverStateMatches,
+  });
+
+  final bool? transportSucceeded;
+  final bool transportError;
+  final bool serverStateMatches;
+
+  Erp2ReplayState get state {
+    if (serverStateMatches) return Erp2ReplayState.applied;
+    if (transportError || transportSucceeded == null) {
+      return Erp2ReplayState.ambiguous;
+    }
+    if (transportSucceeded == false) return Erp2ReplayState.rejected;
+    // A successful HTTP response is not evidence of a committed business
+    // state; keep it replayable until a server read confirms the outcome.
+    return Erp2ReplayState.ambiguous;
+  }
+}
+
+final class Erp2ServerReadiness {
+  const Erp2ServerReadiness({
+    required this.errors,
+    required this.actorRows,
+    required this.orders,
+    required this.connectorInstalled,
+    required this.panelPoliciesPresent,
+  });
+
+  final List<String> errors;
+  final Map<Erp2Actor, Map<String, dynamic>> actorRows;
+  final Map<Erp2FlowKind, Map<String, dynamic>> orders;
+  final bool connectorInstalled;
+  final bool panelPoliciesPresent;
+
+  bool get ok => errors.isEmpty;
+
+  Map<String, Object?> toRedactedJson() => {
+    'ok': ok,
+    'errors': errors,
+    'connectorInstalled': connectorInstalled,
+    'panelPoliciesPresent': panelPoliciesPresent,
+    'actors': {
+      for (final entry in actorRows.entries)
+        entry.key.name: {
+          'id': entry.value['id'],
+          'companyId': _manyId(entry.value['company_id']),
+        },
+    },
+    'orders': {
+      for (final entry in orders.entries)
+        entry.key.name: {
+          'id': entry.value['id'],
+          'reference': entry.value['client_order_ref'],
+          'state': entry.value['state'],
+          'termKind': entry.value['_termKind'],
+          'creditSnapshot': entry.value['_creditSnapshot'],
+        },
+    },
+  };
+}
+
+/// Read-only contract probe.  It is deliberately independent of the Flutter
+/// widget driver so server state is the source of truth for every write.
+final class Erp2ServerPreflight {
+  const Erp2ServerPreflight({required this.client});
+
+  final OdooClient client;
+
+  Future<Erp2ServerReadiness> check(
+    Erp2HarnessConfig config, {
+    bool forWrites = false,
+    bool requirePendingApprovals = true,
+    bool requireDraftFixtures = true,
+  }) async {
+    final errors = <String>[];
+    if (forWrites) {
+      errors.addAll(config.writeErrors());
+    } else {
+      errors.addAll(config.targetErrors());
+    }
+    final actors = <Erp2Actor, Map<String, dynamic>>{};
+    final orders = <Erp2FlowKind, Map<String, dynamic>>{};
+    var connectorInstalled = false;
+    var panelPoliciesPresent = false;
+    if (errors.isNotEmpty && forWrites) {
+      // A write guard must fail before even a discovery call that could be
+      // confused with a successful write preflight.  Reads remain available
+      // to explain the missing variables through the dedicated read mode.
+      return Erp2ServerReadiness(
+        errors: List.unmodifiable(errors),
+        actorRows: actors,
+        orders: orders,
+        connectorInstalled: connectorInstalled,
+        panelPoliciesPresent: panelPoliciesPresent,
+      );
+    }
+    try {
+      for (final entry in config.actors.entries) {
+        final credentials = entry.value;
+        final rows = await client.searchRead(
+          model: 'res.users',
+          fields: const ['id', 'login', 'company_id', 'all_group_ids'],
+          domain: [
+            ['login', '=', credentials.login],
+            ['active', '=', true],
+          ],
+          limit: 2,
+        );
+        if (rows.length != 1) {
+          errors.add('${entry.key.name} login must resolve to one active user');
+          continue;
+        }
+        final row = rows.single;
+        if (credentials.userId != null && row['id'] != credentials.userId) {
+          errors.add('${entry.key.name} user ID does not match login');
+        }
+        actors[entry.key] = row;
+      }
+
+      final orderFields = await client.getModelFields('sale.order');
+      const requiredOrderFields = [
+        'id',
+        'client_order_ref',
+        'state',
+        'locked',
+        'payment_term_id',
+        'partner_id',
+        'invoice_ids',
+        'picking_ids',
+        'amount_total',
+      ];
+      for (final field in requiredOrderFields) {
+        if (!orderFields.containsKey(field)) {
+          errors.add('sale.order.$field is required by V01');
+        }
+      }
+
+      for (final kind in Erp2FlowKind.values) {
+        final fixture = config.fixtures[kind];
+        if (fixture == null || fixture.orderId <= 0) continue;
+        final rows = await client.searchRead(
+          model: 'sale.order',
+          fields: [
+            for (final field in requiredOrderFields)
+              if (orderFields.containsKey(field)) field,
+            if (orderFields.containsKey('exige_pago_total_entrega'))
+              'exige_pago_total_entrega',
+          ],
+          domain: [
+            ['id', '=', fixture.orderId],
+          ],
+          limit: 1,
+        );
+        if (rows.length != 1) {
+          errors.add('${kind.name} fixture order was not found');
+          continue;
+        }
+        final row = rows.single;
+        final reference = row['client_order_ref'];
+        if (reference is! String || !reference.startsWith(config.writePrefix)) {
+          errors.add('${kind.name} fixture is outside ORBI-E2E prefix');
+        }
+        if (forWrites &&
+            requireDraftFixtures &&
+            !const ['draft', 'sent'].contains(row['state'])) {
+          errors.add(
+            '${kind.name} fixture must be draft/sent before V01 writes',
+          );
+        }
+        final termId = _manyId(row['payment_term_id']);
+        if (termId == null) {
+          errors.add('${kind.name} fixture has no payment term');
+          continue;
+        }
+        final term = await _readTerm(termId);
+        final lineIds = _ids(term['line_ids']);
+        final lineFields = await client.getModelFields(
+          'account.payment.term.line',
+        );
+        for (final field in const ['nb_days', 'delay_type']) {
+          if (!lineFields.containsKey(field)) {
+            errors.add('account.payment.term.line.$field is required');
+          }
+        }
+        final readableLineFields = <String>[
+          'id',
+          for (final field in const ['nb_days', 'delay_type'])
+            if (lineFields.containsKey(field)) field,
+        ];
+        final lines = lineIds.isEmpty
+            ? const <Map<String, dynamic>>[]
+            : await client.read(
+                model: 'account.payment.term.line',
+                ids: lineIds,
+                fields: readableLineFields,
+              );
+        final termKind = classifyPaymentTerm(
+          lines: lines,
+          isFsc: kind == Erp2FlowKind.fsc,
+        );
+        if (termKind != kind) {
+          errors.add(
+            '${kind.name} fixture term classified as ${termKind?.name ?? 'unknown'}',
+          );
+        }
+        if (kind == Erp2FlowKind.credit || kind == Erp2FlowKind.mixed) {
+          final partnerId = _manyId(row['partner_id']);
+          if (partnerId == null) {
+            errors.add('${kind.name} fixture has no credit partner');
+          } else {
+            final credit = await _readCreditSnapshot(partnerId);
+            if (credit == null) {
+              errors.add('${kind.name} partner credit fields are unavailable');
+            } else {
+              row['_creditSnapshot'] = credit;
+              if (credit['credit_check_bypassed'] == true) {
+                errors.add('${kind.name} fixture bypasses credit controls');
+              }
+            }
+          }
+        }
+        row['_termKind'] = termKind?.name;
+        orders[kind] = row;
+      }
+
+      try {
+        connectorInstalled = await client.hasField(
+          'collection.config',
+          'pos_app_contract_version',
+        );
+      } catch (_) {
+        errors.add('collection.config capability metadata could not be read');
+      }
+      if (!connectorInstalled) {
+        errors.add('collection.config connector contract is absent');
+      }
+      if (connectorInstalled) {
+        final configs = await client.searchRead(
+          model: 'collection.config',
+          fields: const ['id', 'company_id', 'pos_app_contract_version'],
+          domain: const [
+            ['active', '=', true],
+          ],
+          limit: 1,
+        );
+        if (configs.isEmpty || configs.single['id'] is! num) {
+          errors.add('collection.config connector requires an active config');
+        } else {
+          final payload = await client.call(
+            model: 'collection.config',
+            method: 'pos_app_capabilities',
+            ids: [(configs.single['id'] as num).toInt()],
+          );
+          if (payload is! List ||
+              payload.length != 1 ||
+              payload.single is! Map) {
+            errors.add('with-panel capability payload is incomplete');
+          } else {
+            final capability = payload.single as Map;
+            if (!capability.containsKey('counter_policies')) {
+              errors.add('panel capability counter_policies is missing');
+            } else {
+              final policies = capability['counter_policies'];
+              if (policies is Map) {
+                panelPoliciesPresent = true;
+              } else if (policies == null) {
+                panelPoliciesPresent = false;
+              } else {
+                errors.add(
+                  'panel capability counter_policies has invalid shape',
+                );
+              }
+            }
+          }
+        }
+      }
+      if (config.panelMode == Erp2PanelMode.withPanel &&
+          !panelPoliciesPresent) {
+        errors.add('with-panel requested but panel policies are absent');
+      }
+      if (config.panelMode == Erp2PanelMode.withoutPanel &&
+          panelPoliciesPresent) {
+        errors.add('without-panel requested but panel policies are present');
+      }
+
+      if (forWrites && config.fscPaymentWizardId != null) {
+        final wizardRows = await client.searchRead(
+          model: 'l10n_ec_collection_box.sale.order.payment.wizard',
+          fields: const ['id', 'sale_id'],
+          domain: [
+            ['id', '=', config.fscPaymentWizardId],
+          ],
+          limit: 1,
+        );
+        final fscOrderId = config.fixtures[Erp2FlowKind.fsc]?.orderId;
+        if (wizardRows.length != 1 ||
+            _manyId(wizardRows.single['sale_id']) != fscOrderId) {
+          errors.add('FSC payment wizard must target the FSC order');
+        }
+      }
+      if (forWrites && config.mixedPaymentWizardId != null) {
+        const wizardModel = 'l10n_ec_collection_box.sale.order.payment.wizard';
+        const lineModel =
+            'l10n_ec_collection_box.sale.order.payment.wizard.line';
+        final wizardFields = await client.getModelFields(wizardModel);
+        for (final field in const ['sale_id', 'line_ids']) {
+          if (!wizardFields.containsKey(field)) {
+            errors.add('$wizardModel.$field is required for mixed payment');
+          }
+        }
+        final wizardRows = await client.searchRead(
+          model: wizardModel,
+          fields: [
+            'id',
+            if (wizardFields.containsKey('sale_id')) 'sale_id',
+            if (wizardFields.containsKey('line_ids')) 'line_ids',
+          ],
+          domain: [
+            ['id', '=', config.mixedPaymentWizardId],
+          ],
+          limit: 1,
+        );
+        final mixedOrderId = config.fixtures[Erp2FlowKind.mixed]?.orderId;
+        if (wizardRows.length != 1 ||
+            _manyId(wizardRows.single['sale_id']) != mixedOrderId) {
+          errors.add('mixed payment wizard must target the mixed order');
+        } else {
+          final lineFields = await client.getModelFields(lineModel);
+          if (!lineFields.containsKey('amount')) {
+            errors.add('$lineModel.amount is required for mixed payment');
+          } else {
+            final lineIds = _ids(wizardRows.single['line_ids']);
+            if (lineIds.isEmpty) {
+              errors.add('mixed payment wizard must have persisted lines');
+            } else {
+              final lines = await client.read(
+                model: lineModel,
+                ids: lineIds,
+                fields: const ['id', 'amount'],
+              );
+              final amount = lines.fold<double>(
+                0,
+                (sum, line) =>
+                    sum +
+                    (line['amount'] is num
+                        ? (line['amount'] as num).toDouble()
+                        : 0),
+              );
+              if (config.mixedCashAmount == null ||
+                  (amount - config.mixedCashAmount!).abs() > 0.01) {
+                errors.add(
+                  'mixed wizard line amount must equal ORBI_ERP2_MIXED_CASH_AMOUNT',
+                );
+              }
+            }
+          }
+        }
+      }
+      if (forWrites && requirePendingApprovals) {
+        for (final kind in Erp2FlowKind.values) {
+          final fixture = config.fixtures[kind];
+          final approvalId = fixture?.approvalId;
+          if (fixture == null || approvalId == null) continue;
+          final approvals = await client.searchRead(
+            model: 'approval.request',
+            fields: const ['id', 'sale_order_id', 'request_status'],
+            domain: [
+              ['id', '=', approvalId],
+            ],
+            limit: 1,
+          );
+          if (approvals.length != 1 ||
+              _manyId(approvals.single['sale_order_id']) != fixture.orderId ||
+              !const [
+                'new',
+                'pending',
+              ].contains(approvals.single['request_status'])) {
+            errors.add(
+              '${kind.name} approval fixture is not pending for its order',
+            );
+          }
+        }
+        final fscFixture = config.fixtures[Erp2FlowKind.fsc];
+        if (fscFixture != null && config.fscApprovalId != null) {
+          final approvalFields = await client.getModelFields(
+            'approval.request',
+          );
+          if (!approvalFields.containsKey('category_id')) {
+            errors.add(
+              'approval.request.category_id is required for FSC approval',
+            );
+          } else {
+            final rows = await client.searchRead(
+              model: 'approval.request',
+              fields: const [
+                'id',
+                'sale_order_id',
+                'request_status',
+                'category_id',
+              ],
+              domain: [
+                ['id', '=', config.fscApprovalId],
+              ],
+              limit: 1,
+            );
+            if (rows.length != 1 ||
+                _manyId(rows.single['sale_order_id']) != fscFixture.orderId ||
+                !const [
+                  'new',
+                  'pending',
+                ].contains(rows.single['request_status'])) {
+              errors.add(
+                'FSC approval fixture is not pending for the FSC order',
+              );
+            } else {
+              final categoryId = _manyId(rows.single['category_id']);
+              final categories = categoryId == null
+                  ? const <Map<String, dynamic>>[]
+                  : await client.searchRead(
+                      model: 'approval.category',
+                      fields: const ['id', 'name'],
+                      domain: [
+                        ['id', '=', categoryId],
+                      ],
+                      limit: 1,
+                    );
+              final name = categories.length == 1
+                  ? (categories.single['name'] ?? '').toString().toLowerCase()
+                  : '';
+              if (!name.contains('fsc') && !name.contains('sin cobro')) {
+                errors.add('FSC approval fixture must use an FSC category');
+              }
+            }
+          }
+        }
+      }
+    } catch (_) {
+      // Do not expose URL, authorization headers, or server exception payloads
+      // in test output/evidence.  The caller can rerun with the same external
+      // credentials after fixing the contract.
+      errors.add('ERP2 server preflight failed while reading the contract');
+    }
+    return Erp2ServerReadiness(
+      errors: List.unmodifiable(errors),
+      actorRows: actors,
+      orders: orders,
+      connectorInstalled: connectorInstalled,
+      panelPoliciesPresent: panelPoliciesPresent,
+    );
+  }
+
+  Future<Map<String, dynamic>> _readTerm(int id) async {
+    final rows = await client.searchRead(
+      model: 'account.payment.term',
+      fields: const ['id', 'line_ids'],
+      domain: [
+        ['id', '=', id],
+      ],
+      limit: 1,
+    );
+    if (rows.length != 1) throw StateError('payment term not found');
+    return rows.single;
+  }
+
+  Future<Map<String, dynamic>?> _readCreditSnapshot(int partnerId) async {
+    final fields = await client.getModelFields('res.partner');
+    const candidates = [
+      'credit_limit',
+      'credit',
+      'credit_to_invoice',
+      'use_partner_credit_limit',
+      'allow_over_credit',
+      'total_overdue',
+      'overdue_invoice_count',
+      'credit_check_bypassed',
+    ];
+    final readable = [
+      'id',
+      for (final field in candidates)
+        if (fields.containsKey(field)) field,
+    ];
+    final rows = await client.searchRead(
+      model: 'res.partner',
+      fields: readable,
+      domain: [
+        ['id', '=', partnerId],
+      ],
+      limit: 1,
+    );
+    if (rows.length != 1 ||
+        !fields.containsKey('credit_limit') ||
+        !fields.containsKey('total_overdue')) {
+      return null;
+    }
+    return rows.single;
+  }
+}
+
+/// Executes only configured, server-backed actions.  The class is not called
+/// by ordinary unit tests; callers must explicitly opt in and pass one client
+/// per actor.  A transport success never clears a replay until a fresh server
+/// read satisfies the flow assertion.
+final class Erp2WriteHarness {
+  const Erp2WriteHarness({
+    required this.config,
+    required this.auditClient,
+    required this.actorClients,
+  });
+
+  final Erp2HarnessConfig config;
+  final OdooClient auditClient;
+  final Map<Erp2Actor, OdooClient> actorClients;
+
+  Future<Map<String, Object?>> run() async {
+    final readiness = await Erp2ServerPreflight(client: auditClient)
+        .check(config, forWrites: true);
+    if (!readiness.ok) throw Erp2PreflightException(readiness.errors);
+    final outcomes = <String, Object?>{};
+    for (final plan in Erp2FlowPlan.all) {
+      final fixture = config.fixtures[plan.kind]!;
+      if (plan.kind == Erp2FlowKind.cash) {
+        final order = readiness.orders[plan.kind]!;
+        final amount = order['amount_total'];
+        if (amount is! num || amount <= 0) {
+          throw Erp2PreflightException(['cash amount_total is required']);
+        }
+        await _invokeWithCreditApproval(
+          actor: Erp2Actor.cashier,
+          orderId: fixture.orderId,
+          model: 'sale.order',
+          method: config.rpc.cashInvoice,
+          kwargs: {
+            'payment_lines': [
+              {
+                'line_type': 'payment',
+                'journal_id': config.cashJournalId,
+                'payment_method_line_id': config.cashPaymentMethodId,
+                'amount': amount,
+              },
+            ],
+            'collection_session_id': config.cashSessionId,
+            'client_op_uuid': '${config.writePrefix}-${plan.kind.name}',
+          },
+          verify: () =>
+              _cashApplied(fixture.orderId, expectedAmount: amount.toDouble()),
+        );
+      } else if (plan.kind == Erp2FlowKind.fsc) {
+        await _invokeWithCreditApproval(
+          actor: Erp2Actor.seller,
+          orderId: fixture.orderId,
+          model: 'sale.order',
+          method: config.rpc.confirm,
+          preferredApprovalId: fixture.approvalId,
+          verify: () => _orderConfirmed(fixture.orderId),
+        );
+        await _invokeAndVerify(
+          actor: Erp2Actor.seller,
+          model: 'sale.order',
+          method: config.rpc.fscRequest,
+          ids: [fixture.orderId],
+          verify: () async =>
+              await _findPendingFscApproval(
+                fixture.orderId,
+                preferredId: config.fscApprovalId,
+              ) !=
+              null,
+        );
+        final fscApprovalId = await _findPendingFscApproval(
+          fixture.orderId,
+          preferredId: config.fscApprovalId,
+        );
+        if (fscApprovalId == null) {
+          throw Erp2PreflightException([
+            'FSC approval request was not discoverable after solicitation',
+          ]);
+        }
+        await _invokeAndVerify(
+          actor: Erp2Actor.supervisor,
+          model: 'approval.request',
+          method: config.rpc.approvalApprove,
+          ids: [fscApprovalId],
+          verify: () => _approvalApplied(fscApprovalId),
+        );
+        await _invokeAndVerify(
+          actor: Erp2Actor.supervisor,
+          model: 'sale.order',
+          method: config.rpc.fscInvoiceAndDispatch,
+          ids: [fixture.orderId],
+          verify: () => _fscApplied(fixture.orderId),
+        );
+        await _preparePickingsIfNeeded(fixture.orderId);
+        if (!await _fscApplied(fixture.orderId)) {
+          throw StateError('FSC server state did not preserve payment gate');
+        }
+        await _assertFscDeliveryBlocked(fixture.orderId);
+        await _invokeAndVerify(
+          actor: Erp2Actor.cashier,
+          model: 'l10n_ec_collection_box.sale.order.payment.wizard',
+          method: config.rpc.existingInvoicePayment,
+          ids: [config.fscPaymentWizardId!],
+          verify: () => _invoicePaidForOrder(fixture.orderId),
+        );
+        await _validateFscDelivery(fixture.orderId);
+      } else {
+        await _invokeWithCreditApproval(
+          actor: Erp2Actor.seller,
+          orderId: fixture.orderId,
+          model: 'sale.order',
+          method: config.rpc.confirm,
+          preferredApprovalId: fixture.approvalId,
+          verify: () async {
+            final confirmed = await _confirmed(
+              fixture.orderId,
+              requirePicking: plan.kind != Erp2FlowKind.mixed,
+            );
+            return confirmed &&
+                (plan.kind == Erp2FlowKind.credit ||
+                        plan.kind == Erp2FlowKind.mixed
+                    ? await _creditControlsPresent(fixture.orderId)
+                    : true);
+          },
+        );
+        if (plan.kind == Erp2FlowKind.mixed) {
+          final confirmed = await _order(fixture.orderId);
+          if (_ids(confirmed['picking_ids']).isNotEmpty) {
+            throw StateError(
+              'mixed order received a picking before its official payment wizard',
+            );
+          }
+          if (_ids(confirmed['invoice_ids']).isEmpty ||
+              !await _invoicePostedForOrder(fixture.orderId)) {
+            throw StateError(
+              'mixed order must have a posted invoice at confirmation',
+            );
+          }
+          await _invokeAndVerify(
+            actor: Erp2Actor.cashier,
+            model: 'l10n_ec_collection_box.sale.order.payment.wizard',
+            method: config.rpc.mixedPaymentAndDispatch,
+            ids: [config.mixedPaymentWizardId!],
+            verify: () => _mixedPaymentApplied(fixture.orderId),
+          );
+          await _preparePickingsIfNeeded(fixture.orderId);
+          if (!await _dispatchApplied(fixture.orderId)) {
+            throw StateError('mixed fixture dispatch was not server-verified');
+          }
+        }
+      }
+      outcomes[plan.kind.name] = {
+        'orderId': fixture.orderId,
+        'status': 'server-verified',
+      };
+    }
+    return {
+      'prefix': config.writePrefix,
+      'mode': config.panelMode?.name,
+      'flows': outcomes,
+    };
+  }
+
+  Future<Map<String, Object?>> retainPrefixedFixtures() async {
+    final errors = config.writeErrors();
+    if (errors.isNotEmpty) throw Erp2PreflightException(errors);
+    final readiness = await Erp2ServerPreflight(client: auditClient).check(
+      config,
+      forWrites: true,
+      requirePendingApprovals: false,
+      requireDraftFixtures: false,
+    );
+    if (!readiness.ok) throw Erp2PreflightException(readiness.errors);
+    final orderRows = await auditClient.searchRead(
+      model: 'sale.order',
+      fields: const ['id', 'client_order_ref', 'invoice_ids', 'picking_ids'],
+      domain: [
+        ['client_order_ref', '=like', '${config.writePrefix}%'],
+      ],
+      limit: 500,
+    );
+    return {
+      'mode': 'retain-prefixed-fixtures',
+      'retainedOrderIds': [
+        for (final row in orderRows)
+          if (row['id'] is num) (row['id'] as num).toInt(),
+      ],
+      'note':
+          'ERP2 fixtures retained for audit; no archive or unlink was called',
+    };
+  }
+
+  Future<void> _invokeAndVerify({
+    required Erp2Actor actor,
+    required String model,
+    required String method,
+    required List<int> ids,
+    Map<String, dynamic>? kwargs,
+    required Future<bool> Function() verify,
+  }) async {
+    final client = actorClients[actor];
+    if (client == null) {
+      throw Erp2PreflightException(['${actor.name} client is required']);
+    }
+    dynamic response;
+    Object? transportError;
+    try {
+      response = await client.call(
+        model: model,
+        method: method,
+        ids: ids,
+        kwargs: kwargs,
+      );
+    } catch (_) {
+      transportError = Object();
+    }
+    final applied = await verify();
+    final observation = Erp2ReplayObservation(
+      transportSucceeded: transportError == null ? _accepted(response) : null,
+      transportError: transportError != null,
+      serverStateMatches: applied,
+    );
+    if (observation.state == Erp2ReplayState.applied) return;
+    if (observation.state == Erp2ReplayState.rejected) {
+      throw StateError('ERP2 action was rejected by the server');
+    }
+    throw StateError('ERP2 action result is ambiguous; replay remains pending');
+  }
+
+  Future<void> _invokeWithCreditApproval({
+    required Erp2Actor actor,
+    required int orderId,
+    required String model,
+    required String method,
+    required Future<bool> Function() verify,
+    int? preferredApprovalId,
+    Map<String, dynamic>? kwargs,
+  }) async {
+    final client = actorClients[actor];
+    if (client == null) {
+      throw Erp2PreflightException(['${actor.name} client is required']);
+    }
+    dynamic response;
+    Object? transportError;
+    try {
+      response = await client.call(
+        model: model,
+        method: method,
+        ids: [orderId],
+        kwargs: kwargs,
+      );
+    } catch (_) {
+      transportError = Object();
+    }
+    if (await verify()) return;
+
+    final approvalId = await _findPendingApproval(
+      orderId,
+      preferredId: preferredApprovalId,
+    );
+    if (approvalId == null) {
+      final observation = Erp2ReplayObservation(
+        transportSucceeded: transportError == null ? _accepted(response) : null,
+        transportError: transportError != null,
+        serverStateMatches: false,
+      );
+      throw StateError(
+        observation.state == Erp2ReplayState.ambiguous
+            ? 'ERP2 action result is ambiguous; approval request not discoverable'
+            : 'ERP2 action was rejected and no linked approval is pending',
+      );
+    }
+    await _invokeAndVerify(
+      actor: Erp2Actor.supervisor,
+      model: 'approval.request',
+      method: config.rpc.approvalApprove,
+      ids: [approvalId],
+      verify: () => _approvalApplied(approvalId),
+    );
+    await _invokeAndVerify(
+      actor: actor,
+      model: model,
+      method: method,
+      ids: [orderId],
+      kwargs: kwargs,
+      verify: verify,
+    );
+  }
+
+  Future<int?> _findPendingApproval(int orderId, {int? preferredId}) async {
+    final requestFields = await auditClient.getModelFields('approval.request');
+    final domain = <dynamic>[
+      ['sale_order_id', '=', orderId],
+      [
+        'request_status',
+        'in',
+        ['new', 'pending'],
+      ],
+    ];
+    if (preferredId != null) domain.add(['id', '=', preferredId]);
+    final rows = await auditClient.searchRead(
+      model: 'approval.request',
+      fields: [
+        'id',
+        'sale_order_id',
+        'request_status',
+        if (requestFields.containsKey('category_id')) 'category_id',
+      ],
+      domain: domain,
+      limit: 20,
+    );
+    if (preferredId != null && rows.length != 1) return null;
+    final ids = <int>[];
+    for (final row in rows) {
+      if (row['id'] is! num) continue;
+      final categoryId = _manyId(row['category_id']);
+      if (categoryId != null) {
+        final categories = await auditClient.searchRead(
+          model: 'approval.category',
+          fields: const ['name'],
+          domain: [
+            ['id', '=', categoryId],
+          ],
+          limit: 1,
+        );
+        final name = categories.length == 1
+            ? (categories.single['name'] ?? '').toString().toLowerCase()
+            : '';
+        if (name.contains('fsc') || name.contains('sin cobro')) continue;
+      }
+      ids.add((row['id'] as num).toInt());
+    }
+    return ids.length == 1 ? ids.single : null;
+  }
+
+  Future<int?> _findPendingFscApproval(int orderId, {int? preferredId}) async {
+    final fields = await auditClient.getModelFields('approval.request');
+    if (!fields.containsKey('category_id')) return null;
+    final domain = <dynamic>[
+      ['sale_order_id', '=', orderId],
+      [
+        'request_status',
+        'in',
+        ['new', 'pending'],
+      ],
+      if (preferredId != null) ['id', '=', preferredId],
+    ];
+    final rows = await auditClient.searchRead(
+      model: 'approval.request',
+      fields: const ['id', 'category_id'],
+      domain: domain,
+      limit: 20,
+    );
+    final matches = <int>[];
+    for (final row in rows) {
+      final categoryId = _manyId(row['category_id']);
+      if (categoryId == null) continue;
+      final categories = await auditClient.searchRead(
+        model: 'approval.category',
+        fields: const ['name'],
+        domain: [
+          ['id', '=', categoryId],
+        ],
+        limit: 1,
+      );
+      final name = categories.length == 1
+          ? (categories.single['name'] ?? '').toString().toLowerCase()
+          : '';
+      if ((name.contains('fsc') || name.contains('sin cobro')) &&
+          row['id'] is num) {
+        matches.add((row['id'] as num).toInt());
+      }
+    }
+    return matches.length == 1 ? matches.single : null;
+  }
+
+  Future<bool> _approvalApplied(int id) async {
+    final rows = await auditClient.searchRead(
+      model: 'approval.request',
+      fields: const ['request_status'],
+      domain: [
+        ['id', '=', id],
+      ],
+      limit: 1,
+    );
+    return rows.length == 1 && rows.single['request_status'] == 'approved';
+  }
+
+  Future<bool> _confirmed(int id, {bool requirePicking = true}) async {
+    final row = await _order(id);
+    return _orderConfirmedRow(row) &&
+        _ids(row['invoice_ids']).isNotEmpty &&
+        (!requirePicking || _ids(row['picking_ids']).isNotEmpty);
+  }
+
+  Future<bool> _orderConfirmed(int id) async {
+    return _orderConfirmedRow(await _order(id));
+  }
+
+  Future<bool> _cashApplied(int id, {required double expectedAmount}) async {
+    final row = await _order(id);
+    if (!_confirmedRow(row) || _ids(row['picking_ids']).isEmpty) return false;
+    return await _invoicePaidForOrder(id) &&
+        await _postedNativePayment(id, expectedAmount: expectedAmount);
+  }
+
+  Future<bool> _mixedPaymentApplied(int id) async {
+    final row = await _order(id);
+    if (!_confirmedRow(row) || _ids(row['picking_ids']).isEmpty) return false;
+    return await _invoicePostedForOrder(id) &&
+        await _postedNativePayment(id, expectedAmount: config.mixedCashAmount!);
+  }
+
+  Future<bool> _dispatchApplied(int id) async {
+    final row = await _order(id);
+    return _confirmedRow(row) && _ids(row['picking_ids']).isNotEmpty;
+  }
+
+  Future<bool> _creditControlsPresent(int orderId) async {
+    final row = await _order(orderId);
+    final partnerId = _manyId(row['partner_id']);
+    if (partnerId == null) return false;
+    final snapshot = await Erp2ServerPreflight(client: auditClient)
+        ._readCreditSnapshot(partnerId);
+    if (snapshot == null || snapshot['credit_check_bypassed'] == true) {
+      return false;
+    }
+    return snapshot['credit_limit'] is num && snapshot['total_overdue'] is num;
+  }
+
+  Future<void> _preparePickingsIfNeeded(int orderId) async {
+    final row = await _order(orderId);
+    final pickingIds = _ids(row['picking_ids']);
+    if (pickingIds.isEmpty) {
+      throw Erp2PreflightException([
+        'fixture has no server-generated stock.picking; '
+            'no sale.order dispatch RPC is permitted',
+      ]);
+    }
+    for (final pickingId in pickingIds) {
+      final picking = await _picking(pickingId);
+      final state = picking['state'];
+      if (state == 'done' || state == 'cancel' || state == 'assigned') continue;
+      await _invokeAndVerify(
+        actor: Erp2Actor.warehouse,
+        model: 'stock.picking',
+        method: config.rpc.assignPicking,
+        ids: [pickingId],
+        verify: () async => (await _picking(pickingId))['state'] == 'assigned',
+      );
+    }
+  }
+
+  Future<Map<String, dynamic>> _picking(int id) async {
+    final rows = await auditClient.searchRead(
+      model: 'stock.picking',
+      fields: const ['id', 'state'],
+      domain: [
+        ['id', '=', id],
+      ],
+      limit: 1,
+    );
+    if (rows.length != 1) throw StateError('ERP2 picking disappeared');
+    return rows.single;
+  }
+
+  Future<bool> _fscApplied(int id) async {
+    final row = await _order(id);
+    final pickingIds = _ids(row['picking_ids']);
+    if (!_confirmedRow(row) ||
+        pickingIds.isEmpty ||
+        row['exige_pago_total_entrega'] != true) {
+      return false;
+    }
+    final pickings = await Future.wait(pickingIds.map(_picking));
+    return pickings.every(
+      (picking) => picking['state'] != 'done' && picking['state'] != 'cancel',
+    );
+  }
+
+  Future<bool> _invoicePaidForOrder(int orderId) async {
+    final row = await _order(orderId);
+    final invoiceIds = _ids(row['invoice_ids']);
+    if (invoiceIds.isEmpty) return false;
+    final invoices = await auditClient.searchRead(
+      model: 'account.move',
+      fields: const [
+        'id',
+        'state',
+        'amount_total',
+        'amount_residual',
+        'payment_state',
+      ],
+      domain: [
+        ['id', 'in', invoiceIds],
+      ],
+      limit: invoiceIds.length,
+    );
+    return invoices.length == invoiceIds.length &&
+        invoices.every((invoice) {
+          final total = invoice['amount_total'];
+          final residual = invoice['amount_residual'];
+          return invoice['state'] == 'posted' &&
+              invoice['payment_state'] == 'paid' &&
+              total is num &&
+              residual is num &&
+              residual.abs() <= 0.01 &&
+              total > 0;
+        });
+  }
+
+  Future<bool> _invoicePostedForOrder(int orderId) async {
+    final row = await _order(orderId);
+    final invoiceIds = _ids(row['invoice_ids']);
+    if (invoiceIds.isEmpty) return false;
+    final invoices = await auditClient.searchRead(
+      model: 'account.move',
+      fields: const ['id', 'state', 'amount_total', 'amount_residual'],
+      domain: [
+        ['id', 'in', invoiceIds],
+      ],
+      limit: invoiceIds.length,
+    );
+    return invoices.length == invoiceIds.length &&
+        invoices.every((invoice) {
+          final total = invoice['amount_total'];
+          final residual = invoice['amount_residual'];
+          return invoice['state'] == 'posted' &&
+              total is num &&
+              residual is num &&
+              total > 0 &&
+              residual >= -0.01 &&
+              residual <= total + 0.01;
+        });
+  }
+
+  Future<bool> _postedNativePayment(
+    int orderId, {
+    required double expectedAmount,
+  }) async {
+    final rows = await auditClient.searchRead(
+      model: 'l10n_ec_collection_box.sale.order.payment',
+      fields: const ['id', 'state', 'amount', 'move_id'],
+      domain: [
+        ['sale_id', '=', orderId],
+      ],
+      limit: 100,
+    );
+    final total = rows.fold<double>(0, (sum, payment) {
+      final amount = payment['amount'];
+      final move = payment['move_id'];
+      if (payment['state'] != 'posted' ||
+          amount is! num ||
+          amount <= 0 ||
+          move is! List ||
+          move.isEmpty ||
+          move.first is! num) {
+        return sum;
+      }
+      return sum + amount.toDouble();
+    });
+    return (total - expectedAmount).abs() <= 0.01;
+  }
+
+  Future<void> _assertFscDeliveryBlocked(int orderId) async {
+    final row = await _order(orderId);
+    final pickingIds = _ids(row['picking_ids']);
+    if (pickingIds.isEmpty || await _invoicePaidForOrder(orderId)) {
+      throw StateError('FSC fixture must be unpaid before delivery gate test');
+    }
+    for (final pickingId in pickingIds) {
+      dynamic response;
+      Object? error;
+      try {
+        response = await actorClients[Erp2Actor.warehouse]!.call(
+          model: 'stock.picking',
+          method: config.rpc.validatePicking,
+          ids: [pickingId],
+        );
+      } catch (_) {
+        error = Object();
+      }
+      final state = (await _picking(pickingId))['state'];
+      final rejected = error != null || !_accepted(response);
+      if (!rejected || state == 'done') {
+        throw StateError('FSC delivery was not rejected while unpaid');
+      }
+    }
+  }
+
+  Future<void> _validateFscDelivery(int orderId) async {
+    final row = await _order(orderId);
+    final pickingIds = _ids(row['picking_ids']);
+    if (pickingIds.isEmpty || !await _invoicePaidForOrder(orderId)) {
+      throw StateError('FSC delivery requires a paid invoice');
+    }
+    for (final pickingId in pickingIds) {
+      await _invokeAndVerify(
+        actor: Erp2Actor.warehouse,
+        model: 'stock.picking',
+        method: config.rpc.validatePicking,
+        ids: [pickingId],
+        verify: () async => (await _picking(pickingId))['state'] == 'done',
+      );
+    }
+  }
+
+  Future<Map<String, dynamic>> _order(int id) async {
+    final rows = await auditClient.searchRead(
+      model: 'sale.order',
+      fields: const [
+        'id',
+        'state',
+        'locked',
+        'partner_id',
+        'invoice_ids',
+        'picking_ids',
+        'exige_pago_total_entrega',
+      ],
+      domain: [
+        ['id', '=', id],
+      ],
+      limit: 1,
+    );
+    if (rows.length != 1) throw StateError('ERP2 order disappeared');
+    return rows.single;
+  }
+
+  static bool _confirmedRow(Map<String, dynamic> row) =>
+      _orderConfirmedRow(row) && _ids(row['invoice_ids']).isNotEmpty;
+
+  static bool _orderConfirmedRow(Map<String, dynamic> row) =>
+      (row['state'] == 'sale' || row['state'] == 'done') &&
+      row['locked'] == true;
+
+  static bool _accepted(dynamic response) =>
+      response != false &&
+      !(response is Map &&
+          (response['success'] == false ||
+              response['error'] != null ||
+              response['warning'] != null));
+}
+
+final class Erp2PreflightException implements Exception {
+  const Erp2PreflightException(this.errors);
+  final List<String> errors;
+
+  @override
+  String toString() => 'ERP2 preflight blocked: ${errors.join('; ')}';
+}
+
+List<int> _ids(Object? value) => value is List
+    ? value.whereType<num>().map((item) => item.toInt()).toList()
+    : const [];
+
+int? _manyId(Object? value) => value is num
+    ? value.toInt()
+    : value is List && value.isNotEmpty && value.first is num
+    ? (value.first as num).toInt()
+    : null;
