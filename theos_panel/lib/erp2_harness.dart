@@ -41,6 +41,136 @@ final class Erp2ActorCredentials {
   };
 }
 
+/// Required capabilities are checked against Odoo's resolved group IDs, not
+/// actor names or assumed roles.
+final class Erp2ActorCapabilityContract {
+  static const requiredGroups = <Erp2Actor, List<String>>{
+    Erp2Actor.seller: ['sales_team.group_sale_salesman'],
+    Erp2Actor.cashier: ['l10n_ec_collection_box.group_collection_user'],
+    Erp2Actor.supervisor: [
+      'l10n_ec_collection_box.group_collection_manager',
+      'approvals.group_approval_user',
+    ],
+    Erp2Actor.warehouse: ['stock.group_stock_user'],
+  };
+
+  static List<String> errorsForRows(
+    Map<Erp2Actor, Map<String, dynamic>> rows,
+    Map<String, int> resolvedGroupIds,
+  ) {
+    final errors = <String>[];
+    for (final entry in requiredGroups.entries) {
+      final row = rows[entry.key];
+      final ids = _ids(row?['all_group_ids']).toSet();
+      for (final xmlId in entry.value) {
+        final groupId = resolvedGroupIds[xmlId];
+        if (groupId == null) {
+          errors.add('required group $xmlId could not be resolved');
+        } else if (!ids.contains(groupId)) {
+          errors.add('${entry.key.name} lacks required group $xmlId');
+        }
+      }
+    }
+    return errors;
+  }
+}
+
+final class Erp2FscApprovalInvocation {
+  const Erp2FscApprovalInvocation({required this.model, required this.method});
+
+  final String model;
+  final String method;
+}
+
+/// Contract guard used by the mock test and immediately before the real FSC
+/// approval call. FSC must have one native approval and no second generic
+/// approval request for the same operation.
+final class Erp2FscApprovalContract {
+  static List<String> errors(
+    List<Erp2FscApprovalInvocation> invocations,
+    Erp2RpcContract rpc,
+  ) {
+    final errors = <String>[];
+    final native = invocations
+        .where(
+          (call) =>
+              call.model == 'sale.order' &&
+              call.method == rpc.fscInvoiceAndDispatch,
+        )
+        .length;
+    if (native != 1) errors.add('FSC requires exactly one native approval');
+    final generic = invocations
+        .where(
+          (call) =>
+              call.model == 'approval.request' &&
+              call.method == rpc.approvalApprove,
+        )
+        .length;
+    if (generic != 0) errors.add('FSC must not use generic approval twice');
+    return errors;
+  }
+}
+
+/// Payment evidence is accepted only when it belongs to one native operation
+/// and every persisted line has a unique identity. A sale-wide sum is not
+/// sufficient evidence because it can combine unrelated/replayed collections.
+final class Erp2NativePaymentReconciliationContract {
+  static List<String> errors(
+    List<Map<String, dynamic>> rows, {
+    required String operationUuid,
+    required double expectedAmount,
+  }) {
+    final errors = <String>[];
+    if (rows.isEmpty) return ['native payment operation was not found'];
+    final lineUuids = <String>{};
+    var total = 0.0;
+    for (final payment in rows) {
+      final amount = payment['amount'];
+      final move = payment['move_id'];
+      final lineUuid = payment['pos_collection_line_uuid'];
+      if (payment['state'] != 'posted' ||
+          amount is! num ||
+          amount <= 0 ||
+          move is! List ||
+          move.isEmpty ||
+          move.first is! num ||
+          payment['pos_collection_op_uuid'] != operationUuid ||
+          lineUuid is! String ||
+          lineUuid.isEmpty ||
+          !lineUuids.add(lineUuid)) {
+        errors.add(
+          'native payment has invalid or mismatched operation identity',
+        );
+        continue;
+      }
+      total += amount.toDouble();
+    }
+    if ((total - expectedAmount).abs() > 0.01) {
+      errors.add('native payment amount does not match the operation');
+    }
+    return errors;
+  }
+}
+
+final class Erp2MixedPaymentContract {
+  static List<String> errors({
+    required bool invoiceAlreadyExists,
+    required String method,
+    required Erp2RpcContract rpc,
+  }) {
+    final expected = invoiceAlreadyExists
+        ? rpc.existingInvoicePayment
+        : rpc.mixedPaymentAndDispatch;
+    return method == expected
+        ? const []
+        : [
+            invoiceAlreadyExists
+                ? 'mixed existing invoice requires action_apply_existing_invoice'
+                : 'mixed invoice creation requires action_apply_and_create_invoice',
+          ];
+  }
+}
+
 /// Exact method names are an input to V01.  A missing method blocks before any
 /// write; the harness never guesses a controller or an addon-specific RPC.
 /// Methods proven by the current runtime/addon contract.  They are constants,
@@ -59,9 +189,12 @@ final class Erp2RpcContract {
   String get sessionOpen => 'action_session_open';
   String get sessionClose => 'close_control_session_pos';
   // Existing-invoice collection route implemented by the native payment
-  // wizard; this is not a sale.order action and is only used with a supplied
-  // wizard fixture ID.
-  String get existingInvoicePayment => 'action_apply';
+  // wizard; this is not a sale.order action and is resolved only after the
+  // FSC invoice exists.
+  // Existing-invoice collection is the POS extension's native route.  The
+  // base wizard's action_apply only persists a pending line and does not
+  // reconcile an already-posted invoice.
+  String get existingInvoicePayment => 'action_apply_existing_invoice';
   // Official mixed-payment wizard route.  The supplied wizard already owns
   // its persisted lines; the harness never invents line commands or kwargs.
   String get mixedPaymentAndDispatch => 'action_apply_and_create_invoice';
@@ -122,9 +255,6 @@ final class Erp2HarnessConfig {
     required this.cashSessionId,
     required this.cashJournalId,
     required this.cashPaymentMethodId,
-    required this.fscPaymentWizardId,
-    required this.fscApprovalId,
-    required this.mixedPaymentWizardId,
     required this.mixedCashAmount,
   });
 
@@ -142,9 +272,6 @@ final class Erp2HarnessConfig {
   final int? cashSessionId;
   final int? cashJournalId;
   final int? cashPaymentMethodId;
-  final int? fscPaymentWizardId;
-  final int? fscApprovalId;
-  final int? mixedPaymentWizardId;
   final double? mixedCashAmount;
 
   static Erp2HarnessConfig fromEnvironment(Map<String, String> env) {
@@ -206,11 +333,6 @@ final class Erp2HarnessConfig {
       cashJournalId: _positiveInt(env['ORBI_ERP2_CASH_JOURNAL_ID']),
       cashPaymentMethodId: _positiveInt(
         env['ORBI_ERP2_CASH_PAYMENT_METHOD_ID'],
-      ),
-      fscPaymentWizardId: _positiveInt(env['ORBI_ERP2_FSC_PAYMENT_WIZARD_ID']),
-      fscApprovalId: _positiveInt(env['ORBI_ERP2_FSC_APPROVAL_ID']),
-      mixedPaymentWizardId: _positiveInt(
-        env['ORBI_ERP2_MIXED_PAYMENT_WIZARD_ID'],
       ),
       mixedCashAmount: _positiveDouble(env['ORBI_ERP2_MIXED_CASH_AMOUNT']),
     );
@@ -284,6 +406,11 @@ final class Erp2HarnessConfig {
         'seller, cashier, supervisor and warehouse IDs must be distinct',
       );
     }
+    final warehouse = actors[Erp2Actor.warehouse]!;
+    if (warehouse.login.trim().toLowerCase() != 'miguel.mora' ||
+        warehouse.userId != 34) {
+      errors.add('warehouse must be Miguel Mora (miguel.mora, user ID 34)');
+    }
     if (fixtures.length != Erp2FlowKind.values.length) {
       errors.add('four prefixed flow fixtures are required');
     }
@@ -299,17 +426,6 @@ final class Erp2HarnessConfig {
         cashJournalId == null ||
         cashPaymentMethodId == null) {
       errors.add('cash session, journal and payment method IDs are required');
-    }
-    if (fscPaymentWizardId == null) {
-      errors.add('FSC existing-invoice payment wizard ID is required');
-    }
-    if (fscApprovalId == null) {
-      errors.add(
-        'FSC approval ID is required separately from commercial approval',
-      );
-    }
-    if (mixedPaymentWizardId == null) {
-      errors.add('mixed payment wizard ID is required');
     }
     if (mixedCashAmount == null || mixedCashAmount! <= 0) {
       errors.add('mixed cash amount is required');
@@ -346,7 +462,6 @@ final class Erp2HarnessConfig {
     },
     'rpc': rpc.toRedactedJson(),
     'mixedCashAmountConfigured': mixedCashAmount != null,
-    'fscApprovalConfigured': fscApprovalId != null,
   };
 }
 
@@ -560,6 +675,29 @@ final class Erp2ServerPreflight {
         }
         actors[entry.key] = row;
       }
+      final resolvedGroupIds = <String, int>{};
+      for (final xmlId
+          in Erp2ActorCapabilityContract.requiredGroups.values
+              .expand((groups) => groups)
+              .toSet()) {
+        final parts = xmlId.split('.');
+        if (parts.length != 2) continue;
+        final rows = await client.searchRead(
+          model: 'ir.model.data',
+          fields: const ['module', 'name', 'res_id'],
+          domain: [
+            ['module', '=', parts.first],
+            ['name', '=', parts.last],
+          ],
+          limit: 1,
+        );
+        if (rows.length == 1 && rows.single['res_id'] is num) {
+          resolvedGroupIds[xmlId] = (rows.single['res_id'] as num).toInt();
+        }
+      }
+      errors.addAll(
+        Erp2ActorCapabilityContract.errorsForRows(actors, resolvedGroupIds),
+      );
 
       final orderFields = await client.getModelFields('sale.order');
       const requiredOrderFields = [
@@ -727,76 +865,41 @@ final class Erp2ServerPreflight {
         errors.add('without-panel requested but panel policies are present');
       }
 
-      if (forWrites && config.fscPaymentWizardId != null) {
-        final wizardRows = await client.searchRead(
-          model: 'l10n_ec_collection_box.sale.order.payment.wizard',
-          fields: const ['id', 'sale_id'],
-          domain: [
-            ['id', '=', config.fscPaymentWizardId],
-          ],
-          limit: 1,
-        );
-        final fscOrderId = config.fixtures[Erp2FlowKind.fsc]?.orderId;
-        if (wizardRows.length != 1 ||
-            _manyId(wizardRows.single['sale_id']) != fscOrderId) {
-          errors.add('FSC payment wizard must target the FSC order');
-        }
-      }
-      if (forWrites && config.mixedPaymentWizardId != null) {
+      // The FSC approval and existing-invoice wizard are created only after
+      // the order is confirmed/approved. Their IDs are therefore discovered
+      // in the write stage, never required as stale preflight fixtures.
+      if (forWrites) {
         const wizardModel = 'l10n_ec_collection_box.sale.order.payment.wizard';
         const lineModel =
             'l10n_ec_collection_box.sale.order.payment.wizard.line';
         final wizardFields = await client.getModelFields(wizardModel);
-        for (final field in const ['sale_id', 'line_ids']) {
+        for (final field in const [
+          'sale_id',
+          'collection_session_id',
+          'line_ids',
+        ]) {
           if (!wizardFields.containsKey(field)) {
-            errors.add('$wizardModel.$field is required for mixed payment');
+            errors.add('$wizardModel.$field is required for payment wizard');
           }
         }
-        final wizardRows = await client.searchRead(
-          model: wizardModel,
-          fields: [
-            'id',
-            if (wizardFields.containsKey('sale_id')) 'sale_id',
-            if (wizardFields.containsKey('line_ids')) 'line_ids',
-          ],
-          domain: [
-            ['id', '=', config.mixedPaymentWizardId],
-          ],
-          limit: 1,
-        );
-        final mixedOrderId = config.fixtures[Erp2FlowKind.mixed]?.orderId;
-        if (wizardRows.length != 1 ||
-            _manyId(wizardRows.single['sale_id']) != mixedOrderId) {
-          errors.add('mixed payment wizard must target the mixed order');
-        } else {
-          final lineFields = await client.getModelFields(lineModel);
-          if (!lineFields.containsKey('amount')) {
-            errors.add('$lineModel.amount is required for mixed payment');
-          } else {
-            final lineIds = _ids(wizardRows.single['line_ids']);
-            if (lineIds.isEmpty) {
-              errors.add('mixed payment wizard must have persisted lines');
-            } else {
-              final lines = await client.read(
-                model: lineModel,
-                ids: lineIds,
-                fields: const ['id', 'amount'],
-              );
-              final amount = lines.fold<double>(
-                0,
-                (sum, line) =>
-                    sum +
-                    (line['amount'] is num
-                        ? (line['amount'] as num).toDouble()
-                        : 0),
-              );
-              if (config.mixedCashAmount == null ||
-                  (amount - config.mixedCashAmount!).abs() > 0.01) {
-                errors.add(
-                  'mixed wizard line amount must equal ORBI_ERP2_MIXED_CASH_AMOUNT',
-                );
-              }
-            }
+        for (final field in const [
+          'pos_existing_invoice_id',
+          'pos_collection_op_uuid',
+        ]) {
+          if (!wizardFields.containsKey(field)) {
+            errors.add('$wizardModel.$field is required for FSC payment');
+          }
+        }
+        final lineFields = await client.getModelFields(lineModel);
+        for (final field in const [
+          'line_type',
+          'amount',
+          'journal_id',
+          'payment_method_line_id',
+          'pos_collection_line_uuid',
+        ]) {
+          if (!lineFields.containsKey(field)) {
+            errors.add('$lineModel.$field is required for payment wizard');
           }
         }
       }
@@ -822,59 +925,6 @@ final class Erp2ServerPreflight {
             errors.add(
               '${kind.name} approval fixture is not pending for its order',
             );
-          }
-        }
-        final fscFixture = config.fixtures[Erp2FlowKind.fsc];
-        if (fscFixture != null && config.fscApprovalId != null) {
-          final approvalFields = await client.getModelFields(
-            'approval.request',
-          );
-          if (!approvalFields.containsKey('category_id')) {
-            errors.add(
-              'approval.request.category_id is required for FSC approval',
-            );
-          } else {
-            final rows = await client.searchRead(
-              model: 'approval.request',
-              fields: const [
-                'id',
-                'sale_order_id',
-                'request_status',
-                'category_id',
-              ],
-              domain: [
-                ['id', '=', config.fscApprovalId],
-              ],
-              limit: 1,
-            );
-            if (rows.length != 1 ||
-                _manyId(rows.single['sale_order_id']) != fscFixture.orderId ||
-                !const [
-                  'new',
-                  'pending',
-                ].contains(rows.single['request_status'])) {
-              errors.add(
-                'FSC approval fixture is not pending for the FSC order',
-              );
-            } else {
-              final categoryId = _manyId(rows.single['category_id']);
-              final categories = categoryId == null
-                  ? const <Map<String, dynamic>>[]
-                  : await client.searchRead(
-                      model: 'approval.category',
-                      fields: const ['id', 'name'],
-                      domain: [
-                        ['id', '=', categoryId],
-                      ],
-                      limit: 1,
-                    );
-              final name = categories.length == 1
-                  ? (categories.single['name'] ?? '').toString().toLowerCase()
-                  : '';
-              if (!name.contains('fsc') && !name.contains('sin cobro')) {
-                errors.add('FSC approval fixture must use an FSC category');
-              }
-            }
           }
         }
       }
@@ -1003,28 +1053,23 @@ final class Erp2WriteHarness {
           method: config.rpc.fscRequest,
           ids: [fixture.orderId],
           verify: () async =>
-              await _findPendingFscApproval(
-                fixture.orderId,
-                preferredId: config.fscApprovalId,
-              ) !=
-              null,
+              await _findPendingFscApproval(fixture.orderId) != null,
         );
-        final fscApprovalId = await _findPendingFscApproval(
-          fixture.orderId,
-          preferredId: config.fscApprovalId,
-        );
+        final fscApprovalId = await _findPendingFscApproval(fixture.orderId);
         if (fscApprovalId == null) {
           throw Erp2PreflightException([
             'FSC approval request was not discoverable after solicitation',
           ]);
         }
-        await _invokeAndVerify(
-          actor: Erp2Actor.supervisor,
-          model: 'approval.request',
-          method: config.rpc.approvalApprove,
-          ids: [fscApprovalId],
-          verify: () => _approvalApplied(fscApprovalId),
-        );
+        final fscApprovalErrors = Erp2FscApprovalContract.errors([
+          Erp2FscApprovalInvocation(
+            model: 'sale.order',
+            method: config.rpc.fscInvoiceAndDispatch,
+          ),
+        ], config.rpc);
+        if (fscApprovalErrors.isNotEmpty) {
+          throw Erp2PreflightException(fscApprovalErrors);
+        }
         await _invokeAndVerify(
           actor: Erp2Actor.supervisor,
           model: 'sale.order',
@@ -1037,12 +1082,21 @@ final class Erp2WriteHarness {
           throw StateError('FSC server state did not preserve payment gate');
         }
         await _assertFscDeliveryBlocked(fixture.orderId);
+        final fscWizardId = await _createOrDiscoverFscPaymentWizard(
+          orderId: fixture.orderId,
+        );
         await _invokeAndVerify(
           actor: Erp2Actor.cashier,
           model: 'l10n_ec_collection_box.sale.order.payment.wizard',
           method: config.rpc.existingInvoicePayment,
-          ids: [config.fscPaymentWizardId!],
-          verify: () => _invoicePaidForOrder(fixture.orderId),
+          ids: [fscWizardId],
+          verify: () async =>
+              await _invoicePaidForOrder(fixture.orderId) &&
+              await _postedNativePayment(
+                fixture.orderId,
+                expectedAmount: await _invoiceTotalForOrder(fixture.orderId),
+                operationUuid: '${config.writePrefix}-fsc-existing',
+              ),
         );
         await _validateFscDelivery(fixture.orderId);
       } else {
@@ -1077,11 +1131,25 @@ final class Erp2WriteHarness {
               'mixed order must have a posted invoice at confirmation',
             );
           }
+          final mixedRouteErrors = Erp2MixedPaymentContract.errors(
+            invoiceAlreadyExists: true,
+            method: config.rpc.existingInvoicePayment,
+            rpc: config.rpc,
+          );
+          if (mixedRouteErrors.isNotEmpty) {
+            throw Erp2PreflightException(mixedRouteErrors);
+          }
+          final mixedWizardId =
+              await _createOrDiscoverExistingInvoicePaymentWizard(
+                orderId: fixture.orderId,
+                operation: '${config.writePrefix}-mixed-existing',
+                expectedAmount: config.mixedCashAmount!,
+              );
           await _invokeAndVerify(
             actor: Erp2Actor.cashier,
             model: 'l10n_ec_collection_box.sale.order.payment.wizard',
-            method: config.rpc.mixedPaymentAndDispatch,
-            ids: [config.mixedPaymentWizardId!],
+            method: config.rpc.existingInvoicePayment,
+            ids: [mixedWizardId],
             verify: () => _mixedPaymentApplied(fixture.orderId),
           );
           await _preparePickingsIfNeeded(fixture.orderId);
@@ -1274,7 +1342,7 @@ final class Erp2WriteHarness {
     return ids.length == 1 ? ids.single : null;
   }
 
-  Future<int?> _findPendingFscApproval(int orderId, {int? preferredId}) async {
+  Future<int?> _findPendingFscApproval(int orderId) async {
     final fields = await auditClient.getModelFields('approval.request');
     if (!fields.containsKey('category_id')) return null;
     final domain = <dynamic>[
@@ -1284,7 +1352,6 @@ final class Erp2WriteHarness {
         'in',
         ['new', 'pending'],
       ],
-      if (preferredId != null) ['id', '=', preferredId],
     ];
     final rows = await auditClient.searchRead(
       model: 'approval.request',
@@ -1342,14 +1409,22 @@ final class Erp2WriteHarness {
     final row = await _order(id);
     if (!_confirmedRow(row) || _ids(row['picking_ids']).isEmpty) return false;
     return await _invoicePaidForOrder(id) &&
-        await _postedNativePayment(id, expectedAmount: expectedAmount);
+        await _invoiceHasClientOperation(id, '${config.writePrefix}-cash') &&
+        await _hasSinglePostedPayment(id, expectedAmount: expectedAmount);
   }
 
   Future<bool> _mixedPaymentApplied(int id) async {
     final row = await _order(id);
     if (!_confirmedRow(row) || _ids(row['picking_ids']).isEmpty) return false;
-    return await _invoicePostedForOrder(id) &&
-        await _postedNativePayment(id, expectedAmount: config.mixedCashAmount!);
+    return await _invoiceHasResidualAfterNativePayment(
+          id,
+          expectedAmount: config.mixedCashAmount!,
+        ) &&
+        await _postedNativePayment(
+          id,
+          expectedAmount: config.mixedCashAmount!,
+          operationUuid: '${config.writePrefix}-mixed-existing',
+        );
   }
 
   Future<bool> _dispatchApplied(int id) async {
@@ -1410,7 +1485,9 @@ final class Erp2WriteHarness {
     final pickingIds = _ids(row['picking_ids']);
     if (!_confirmedRow(row) ||
         pickingIds.isEmpty ||
-        row['exige_pago_total_entrega'] != true) {
+        row['exige_pago_total_entrega'] != true ||
+        !await _invoicePostedForOrder(id) ||
+        await _invoicePaidForOrder(id)) {
       return false;
     }
     final pickings = await Future.wait(pickingIds.map(_picking));
@@ -1450,6 +1527,110 @@ final class Erp2WriteHarness {
         });
   }
 
+  Future<bool> _invoiceHasResidualAfterNativePayment(
+    int orderId, {
+    required double expectedAmount,
+  }) async {
+    final row = await _order(orderId);
+    final invoiceIds = _ids(row['invoice_ids']);
+    if (invoiceIds.length != 1 || expectedAmount <= 0) return false;
+    final invoices = await auditClient.searchRead(
+      model: 'account.move',
+      fields: const [
+        'id',
+        'state',
+        'amount_total',
+        'amount_residual',
+        'payment_state',
+      ],
+      domain: [
+        ['id', '=', invoiceIds.single],
+      ],
+      limit: 1,
+    );
+    if (invoices.length != 1) return false;
+    final invoice = invoices.single;
+    final total = invoice['amount_total'];
+    final residual = invoice['amount_residual'];
+    if (invoice['state'] != 'posted' ||
+        invoice['payment_state'] != 'partial' ||
+        total is! num ||
+        residual is! num ||
+        total <= expectedAmount ||
+        residual <= 0 ||
+        (residual.toDouble() - (total.toDouble() - expectedAmount)).abs() >
+            0.01) {
+      return false;
+    }
+    return true;
+  }
+
+  Future<double> _invoiceTotalForOrder(int orderId) async {
+    final row = await _order(orderId);
+    final invoiceIds = _ids(row['invoice_ids']);
+    if (invoiceIds.isEmpty) return 0;
+    final invoices = await auditClient.searchRead(
+      model: 'account.move',
+      fields: const ['amount_total'],
+      domain: [
+        ['id', 'in', invoiceIds],
+      ],
+      limit: invoiceIds.length,
+    );
+    final totals = invoices
+        .map((invoice) => invoice['amount_total'])
+        .whereType<num>()
+        .map((value) => value.toDouble())
+        .where((value) => value > 0)
+        .toList();
+    return totals.length == 1 ? totals.single : 0;
+  }
+
+  Future<bool> _invoiceHasClientOperation(int orderId, String operation) async {
+    final row = await _order(orderId);
+    final invoiceIds = _ids(row['invoice_ids']);
+    if (invoiceIds.isEmpty) return false;
+    final invoices = await auditClient.searchRead(
+      model: 'account.move',
+      fields: const ['id', 'l10n_ec_pos_client_op_uuid'],
+      domain: [
+        ['id', 'in', invoiceIds],
+      ],
+      limit: invoiceIds.length,
+    );
+    final matches = invoices
+        .where((invoice) => invoice['l10n_ec_pos_client_op_uuid'] == operation)
+        .length;
+    return invoices.length == invoiceIds.length && matches == 1;
+  }
+
+  Future<bool> _hasSinglePostedPayment(
+    int orderId, {
+    required double expectedAmount,
+  }) async {
+    final rows = await auditClient.searchRead(
+      model: 'l10n_ec_collection_box.sale.order.payment',
+      fields: const ['id', 'state', 'amount', 'move_id'],
+      domain: [
+        ['sale_id', '=', orderId],
+      ],
+      limit: 100,
+    );
+    final posted = rows.where((payment) {
+      final amount = payment['amount'];
+      final move = payment['move_id'];
+      return payment['state'] == 'posted' &&
+          amount is num &&
+          amount > 0 &&
+          move is List &&
+          move.isNotEmpty &&
+          move.first is num;
+    }).toList();
+    if (posted.length != 1) return false;
+    final amount = posted.single['amount'];
+    return amount is num && (amount.toDouble() - expectedAmount).abs() <= 0.01;
+  }
+
   Future<bool> _invoicePostedForOrder(int orderId) async {
     final row = await _order(orderId);
     final invoiceIds = _ids(row['invoice_ids']);
@@ -1478,29 +1659,29 @@ final class Erp2WriteHarness {
   Future<bool> _postedNativePayment(
     int orderId, {
     required double expectedAmount,
+    required String operationUuid,
   }) async {
     final rows = await auditClient.searchRead(
       model: 'l10n_ec_collection_box.sale.order.payment',
-      fields: const ['id', 'state', 'amount', 'move_id'],
+      fields: const [
+        'id',
+        'state',
+        'amount',
+        'move_id',
+        'pos_collection_op_uuid',
+        'pos_collection_line_uuid',
+      ],
       domain: [
         ['sale_id', '=', orderId],
+        ['pos_collection_op_uuid', '=', operationUuid],
       ],
       limit: 100,
     );
-    final total = rows.fold<double>(0, (sum, payment) {
-      final amount = payment['amount'];
-      final move = payment['move_id'];
-      if (payment['state'] != 'posted' ||
-          amount is! num ||
-          amount <= 0 ||
-          move is! List ||
-          move.isEmpty ||
-          move.first is! num) {
-        return sum;
-      }
-      return sum + amount.toDouble();
-    });
-    return (total - expectedAmount).abs() <= 0.01;
+    return Erp2NativePaymentReconciliationContract.errors(
+      rows,
+      operationUuid: operationUuid,
+      expectedAmount: expectedAmount,
+    ).isEmpty;
   }
 
   Future<void> _assertFscDeliveryBlocked(int orderId) async {
@@ -1544,6 +1725,225 @@ final class Erp2WriteHarness {
         verify: () async => (await _picking(pickingId))['state'] == 'done',
       );
     }
+  }
+
+  /// Resolve the native existing-invoice wizard only after FSC has emitted its
+  /// invoice. The wizard is transient, so its ID is not a stable fixture and
+  /// must not be required by server preflight. A retry first reconciles by the
+  /// operation UUID; otherwise it uses Odoo's standard transient-model create
+  /// contract and the native existing-invoice action.
+  Future<int> _createOrDiscoverFscPaymentWizard({required int orderId}) async {
+    final order = await _order(orderId);
+    final invoiceIds = _ids(order['invoice_ids']);
+    if (invoiceIds.isEmpty) {
+      throw StateError(
+        'FSC invoice is required before creating its payment wizard',
+      );
+    }
+    final invoices = await auditClient.searchRead(
+      model: 'account.move',
+      fields: const ['id', 'state', 'amount_residual'],
+      domain: [
+        ['id', 'in', invoiceIds],
+      ],
+      limit: invoiceIds.length,
+    );
+    final posted = invoices
+        .where((invoice) {
+          final residual = invoice['amount_residual'];
+          return invoice['state'] == 'posted' &&
+              residual is num &&
+              residual > 0.01;
+        })
+        .toList(growable: false);
+    if (posted.length != 1) {
+      throw StateError(
+        'FSC existing-invoice wizard requires exactly one posted invoice with residual',
+      );
+    }
+    final invoiceId = (posted.single['id'] as num).toInt();
+    final residual = (posted.single['amount_residual'] as num).toDouble();
+    final operation = '${config.writePrefix}-fsc-existing';
+    const wizardModel = 'l10n_ec_collection_box.sale.order.payment.wizard';
+    final existing = await auditClient.searchRead(
+      model: wizardModel,
+      fields: const ['id', 'sale_id', 'pos_existing_invoice_id'],
+      domain: [
+        ['sale_id', '=', orderId],
+        ['pos_existing_invoice_id', '=', invoiceId],
+        ['pos_collection_op_uuid', '=', operation],
+      ],
+      limit: 2,
+    );
+    if (existing.length > 1) {
+      throw StateError('FSC existing-invoice wizard identity is ambiguous');
+    }
+    if (existing.length == 1 && existing.single['id'] is num) {
+      return (existing.single['id'] as num).toInt();
+    }
+
+    final cashier = actorClients[Erp2Actor.cashier];
+    if (cashier == null) {
+      throw Erp2PreflightException(['cashier client is required']);
+    }
+    final date = DateTime.now().toIso8601String().substring(0, 10);
+    final lineUuid = '$operation-line-0';
+    int? created;
+    try {
+      created = await cashier.create(
+        model: wizardModel,
+        values: {
+          'sale_id': orderId,
+          'collection_session_id': config.cashSessionId,
+          'pos_existing_invoice_id': invoiceId,
+          'pos_collection_op_uuid': operation,
+          'line_ids': [
+            [
+              0,
+              0,
+              {
+                'date': date,
+                'line_type': 'payment',
+                'amount': residual,
+                'pos_collection_line_uuid': lineUuid,
+                'journal_id': config.cashJournalId,
+                'payment_method_line_id': config.cashPaymentMethodId,
+              },
+            ],
+          ],
+        },
+      );
+    } catch (_) {
+      // Reconcile a lost response by the native operation identity before any
+      // retry; never create a second wizard blindly.
+    }
+    if (created != null && created > 0) return created;
+    final afterCreate = await auditClient.searchRead(
+      model: wizardModel,
+      fields: const ['id', 'sale_id', 'pos_existing_invoice_id'],
+      domain: [
+        ['sale_id', '=', orderId],
+        ['pos_existing_invoice_id', '=', invoiceId],
+        ['pos_collection_op_uuid', '=', operation],
+      ],
+      limit: 2,
+    );
+    if (afterCreate.length == 1 && afterCreate.single['id'] is num) {
+      return (afterCreate.single['id'] as num).toInt();
+    }
+    throw StateError(
+      'FSC payment wizard creation is ambiguous; server reconciliation required',
+    );
+  }
+
+  /// Resolve the native existing-invoice wizard after confirmation has emitted
+  /// the mixed invoice. A mixed payment is not an offline fiscal emission:
+  /// setting `pos_client_op_uuid` would activate the POS fiscal-identity
+  /// branch and incorrectly require sequential/access-key fields. The native
+  /// existing-invoice route uses its own collection operation UUID instead.
+  Future<int> _createOrDiscoverExistingInvoicePaymentWizard({
+    required int orderId,
+    required String operation,
+    required double expectedAmount,
+  }) async {
+    if (expectedAmount <= 0) {
+      throw Erp2PreflightException([
+        'existing-invoice payment amount is required',
+      ]);
+    }
+    final order = await _order(orderId);
+    final invoiceIds = _ids(order['invoice_ids']);
+    if (invoiceIds.length != 1) {
+      throw StateError(
+        'existing-invoice payment requires exactly one invoice after confirmation',
+      );
+    }
+    final invoices = await auditClient.searchRead(
+      model: 'account.move',
+      fields: const ['id', 'state', 'amount_total', 'amount_residual'],
+      domain: [
+        ['id', '=', invoiceIds.single],
+      ],
+      limit: 1,
+    );
+    if (invoices.length != 1 ||
+        invoices.single['state'] != 'posted' ||
+        invoices.single['amount_residual'] is! num ||
+        (invoices.single['amount_residual'] as num).toDouble() + 0.01 <
+            expectedAmount) {
+      throw StateError(
+        'existing-invoice payment requires one posted invoice with sufficient residual',
+      );
+    }
+    final invoiceId = invoiceIds.single;
+    const wizardModel = 'l10n_ec_collection_box.sale.order.payment.wizard';
+    final existing = await auditClient.searchRead(
+      model: wizardModel,
+      fields: const ['id', 'sale_id', 'pos_existing_invoice_id'],
+      domain: [
+        ['sale_id', '=', orderId],
+        ['pos_existing_invoice_id', '=', invoiceId],
+        ['pos_collection_op_uuid', '=', operation],
+      ],
+      limit: 2,
+    );
+    if (existing.length > 1) {
+      throw StateError('existing-invoice payment wizard identity is ambiguous');
+    }
+    if (existing.length == 1 && existing.single['id'] is num) {
+      return (existing.single['id'] as num).toInt();
+    }
+
+    final cashier = actorClients[Erp2Actor.cashier];
+    if (cashier == null) {
+      throw Erp2PreflightException(['cashier client is required']);
+    }
+    final date = DateTime.now().toIso8601String().substring(0, 10);
+    int? created;
+    try {
+      created = await cashier.create(
+        model: wizardModel,
+        values: {
+          'sale_id': orderId,
+          'collection_session_id': config.cashSessionId,
+          'pos_existing_invoice_id': invoiceId,
+          'pos_collection_op_uuid': operation,
+          'line_ids': [
+            [
+              0,
+              0,
+              {
+                'date': date,
+                'line_type': 'payment',
+                'amount': expectedAmount,
+                'pos_collection_line_uuid': '$operation-line-0',
+                'journal_id': config.cashJournalId,
+                'payment_method_line_id': config.cashPaymentMethodId,
+              },
+            ],
+          ],
+        },
+      );
+    } catch (_) {
+      // Reconcile a lost create response by the same native operation UUID.
+    }
+    if (created != null && created > 0) return created;
+    final afterCreate = await auditClient.searchRead(
+      model: wizardModel,
+      fields: const ['id', 'sale_id', 'pos_existing_invoice_id'],
+      domain: [
+        ['sale_id', '=', orderId],
+        ['pos_existing_invoice_id', '=', invoiceId],
+        ['pos_collection_op_uuid', '=', operation],
+      ],
+      limit: 2,
+    );
+    if (afterCreate.length == 1 && afterCreate.single['id'] is num) {
+      return (afterCreate.single['id'] as num).toInt();
+    }
+    throw StateError(
+      'existing-invoice payment wizard creation is ambiguous; server reconciliation required',
+    );
   }
 
   Future<Map<String, dynamic>> _order(int id) async {
