@@ -19,6 +19,46 @@ void main() {
     expect(errors, contains('seller must not use admin'));
   });
 
+  test('native payment wizard keeps line_type on parent, not child', () {
+    const rpc = Erp2RpcContract();
+    expect(rpc.paymentWizardLineType, 'payment');
+    expect(
+      Erp2PaymentWizardContract.errors(
+        wizardFields: {
+          'sale_id',
+          'collection_session_id',
+          'line_ids',
+          'line_type',
+        },
+        lineFields: {
+          'amount',
+          'journal_id',
+          'payment_method_line_id',
+          'pos_collection_line_uuid',
+        },
+      ),
+      isEmpty,
+    );
+    expect(
+      Erp2PaymentWizardContract.errors(
+        wizardFields: {'sale_id', 'collection_session_id', 'line_ids'},
+        lineFields: {
+          'line_type',
+          'amount',
+          'journal_id',
+          'payment_method_line_id',
+          'pos_collection_line_uuid',
+        },
+      ),
+      containsAll(<String>[
+        'l10n_ec_collection_box.sale.order.payment.wizard.line_type '
+            'is required for payment wizard',
+        'l10n_ec_collection_box.sale.order.payment.wizard.line.line_type '
+            'must be sent on the parent wizard',
+      ]),
+    );
+  });
+
   test('write guard requires four prefixed fixtures, actors and RPC', () {
     final config = Erp2HarnessConfig.fromEnvironment({
       ..._baseEnvironment,

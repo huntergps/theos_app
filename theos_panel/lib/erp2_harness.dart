@@ -198,6 +198,10 @@ final class Erp2RpcContract {
   // Official mixed-payment wizard route.  The supplied wizard already owns
   // its persisted lines; the harness never invents line commands or kwargs.
   String get mixedPaymentAndDispatch => 'action_apply_and_create_invoice';
+  // Native wizard field: line_type belongs to the wizard, not its line model.
+  // Odoo defines this selection with default='payment'; all three collection
+  // routes below are ordinary payments (not advances/credits/withholds).
+  String get paymentWizardLineType => 'payment';
   String get assignPicking => 'action_assign';
   String get validatePicking => 'button_validate';
 
@@ -211,9 +215,58 @@ final class Erp2RpcContract {
     'collection.session.close': sessionClose,
     'payment.wizard.existingInvoice': existingInvoicePayment,
     'payment.wizard.mixedPaymentAndDispatch': mixedPaymentAndDispatch,
+    'payment.wizard.lineType': paymentWizardLineType,
     'stock.picking.assign': assignPicking,
     'stock.picking.validate': validatePicking,
   };
+}
+
+/// Native schema contract for the collection payment wizard. Odoo's
+/// `line_type` is a required field on the transient wizard itself; the
+/// one2many line model has no such field. Keeping this distinction explicit
+/// prevents sending a plausible-looking but invalid child command.
+final class Erp2PaymentWizardContract {
+  static List<String> errors({
+    required Set<String> wizardFields,
+    required Set<String> lineFields,
+  }) {
+    const wizardRequired = {
+      'sale_id',
+      'collection_session_id',
+      'line_ids',
+      'line_type',
+    };
+    const lineRequired = {
+      'amount',
+      'journal_id',
+      'payment_method_line_id',
+      'pos_collection_line_uuid',
+    };
+    final errors = <String>[];
+    for (final field in wizardRequired) {
+      if (!wizardFields.contains(field)) {
+        errors.add(
+          'l10n_ec_collection_box.sale.order.payment.wizard.$field '
+          'is required for payment wizard',
+        );
+      }
+    }
+    for (final field in lineRequired) {
+      if (!lineFields.contains(field)) {
+        errors.add(
+          'l10n_ec_collection_box.sale.order.payment.wizard.line.$field '
+          'is required for payment wizard',
+        );
+      }
+    }
+    if (lineFields.contains('line_type')) {
+      errors.add(
+        'l10n_ec_collection_box.sale.order.payment.wizard.line.line_type '
+        'must be sent on the parent wizard',
+      );
+    }
+    return errors;
+  }
 }
 
 final class Erp2FlowFixture {
@@ -874,15 +927,6 @@ final class Erp2ServerPreflight {
             'l10n_ec_collection_box.sale.order.payment.wizard.line';
         final wizardFields = await client.getModelFields(wizardModel);
         for (final field in const [
-          'sale_id',
-          'collection_session_id',
-          'line_ids',
-        ]) {
-          if (!wizardFields.containsKey(field)) {
-            errors.add('$wizardModel.$field is required for payment wizard');
-          }
-        }
-        for (final field in const [
           'pos_existing_invoice_id',
           'pos_collection_op_uuid',
         ]) {
@@ -891,17 +935,12 @@ final class Erp2ServerPreflight {
           }
         }
         final lineFields = await client.getModelFields(lineModel);
-        for (final field in const [
-          'line_type',
-          'amount',
-          'journal_id',
-          'payment_method_line_id',
-          'pos_collection_line_uuid',
-        ]) {
-          if (!lineFields.containsKey(field)) {
-            errors.add('$lineModel.$field is required for payment wizard');
-          }
-        }
+        errors.addAll(
+          Erp2PaymentWizardContract.errors(
+            wizardFields: wizardFields.keys.toSet(),
+            lineFields: lineFields.keys.toSet(),
+          ),
+        );
       }
       if (forWrites && requirePendingApprovals) {
         for (final kind in Erp2FlowKind.values) {
@@ -1026,7 +1065,7 @@ final class Erp2WriteHarness {
           kwargs: {
             'payment_lines': [
               {
-                'line_type': 'payment',
+                'line_type': config.rpc.paymentWizardLineType,
                 'journal_id': config.cashJournalId,
                 'payment_method_line_id': config.cashPaymentMethodId,
                 'amount': amount,
@@ -1795,6 +1834,7 @@ final class Erp2WriteHarness {
         values: {
           'sale_id': orderId,
           'collection_session_id': config.cashSessionId,
+          'line_type': config.rpc.paymentWizardLineType,
           'pos_existing_invoice_id': invoiceId,
           'pos_collection_op_uuid': operation,
           'line_ids': [
@@ -1803,7 +1843,6 @@ final class Erp2WriteHarness {
               0,
               {
                 'date': date,
-                'line_type': 'payment',
                 'amount': residual,
                 'pos_collection_line_uuid': lineUuid,
                 'journal_id': config.cashJournalId,
@@ -1906,6 +1945,7 @@ final class Erp2WriteHarness {
         values: {
           'sale_id': orderId,
           'collection_session_id': config.cashSessionId,
+          'line_type': config.rpc.paymentWizardLineType,
           'pos_existing_invoice_id': invoiceId,
           'pos_collection_op_uuid': operation,
           'line_ids': [
@@ -1914,7 +1954,6 @@ final class Erp2WriteHarness {
               0,
               {
                 'date': date,
-                'line_type': 'payment',
                 'amount': expectedAmount,
                 'pos_collection_line_uuid': '$operation-line-0',
                 'journal_id': config.cashJournalId,
