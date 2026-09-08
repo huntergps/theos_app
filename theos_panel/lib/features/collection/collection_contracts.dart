@@ -49,6 +49,8 @@ class CollectionPendingSale {
   final int? remoteId;
   final String? commandId;
   final int? collectionSessionId;
+  final bool requiresDueConfirmation;
+  final int? calculatedDueMinor;
 
   /// The point of emission is the authority for these values when true.
   /// They are optional for server-numbered journals and are never generated
@@ -70,6 +72,8 @@ class CollectionPendingSale {
     this.remoteId,
     this.commandId,
     this.collectionSessionId,
+    this.requiresDueConfirmation = false,
+    this.calculatedDueMinor,
     this.numberedByClient = false,
     this.sequential,
     this.emissionDate,

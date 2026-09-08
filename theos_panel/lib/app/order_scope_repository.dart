@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:orbi_runtime/orbi_runtime.dart';
@@ -80,15 +81,29 @@ final class ScopeOrderRepository implements OrderRepository {
     return OrderListItem(
       localId: '${row['id']}',
       title: row['name'] as String? ?? '${row['id']}',
+      clientOrderRef: row['client_order_ref'] as String?,
       companyId: row['company_id'] as int? ?? 0,
       authorId: row['user_id'] as int? ?? 0,
       businessState: state,
       syncState: row['is_synced'] == true
           ? OperationSyncState.synced
           : OperationSyncState.localOnly,
-          pendingCollection: _pendingCollection(row),
-          pendingInvoicing: _pendingInvoicing(row),
-        );
+      pickingIds: _pickingIds(row['picking_ids']),
+      pendingCollection: _pendingCollection(row),
+      pendingInvoicing: _pendingInvoicing(row),
+    );
+  }
+
+  static List<int> _pickingIds(Object? raw) {
+    if (raw is! String || raw.trim().isEmpty) return const [];
+    try {
+      final value = jsonDecode(raw);
+      return value is List
+          ? value.whereType<num>().map((id) => id.toInt()).toList()
+          : const [];
+    } catch (_) {
+      return const [];
+    }
   }
 
   static bool _pendingCollection(Map<String, dynamic> row) {

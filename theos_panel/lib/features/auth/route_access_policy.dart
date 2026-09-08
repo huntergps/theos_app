@@ -21,16 +21,20 @@ final class RouteAccessPolicy {
     if (capabilities == null) return path == '/' || path == '/settings';
     final permissions = capabilities.permissions;
     if (path == '/collection') return permissions.contains('cashier');
+    if (path == '/warehouse') return permissions.contains('warehouse');
     if (path == '/sales' || path.startsWith('/sales/')) {
       return permissions.contains('seller') || permissions.contains('cashier');
     }
-    if (path == '/approvals') return permissions.contains('approver');
-    if (path == '/sync') return developerMode || permissions.contains('sync');
-    if (path == '/activities') return permissions.contains('activities');
     if (path == '/approvals') {
       return permissions.contains('approvals') ||
           permissions.contains('approver');
     }
+    if (path == '/sync') {
+      return developerMode ||
+          permissions.contains('sync') ||
+          permissions.contains('administrator');
+    }
+    if (path == '/activities') return permissions.contains('activities');
     if (path == '/notifications') return permissions.contains('notifications');
     if (path.startsWith('/reports/')) return permissions.contains('reports');
     return path == '/' || path == '/settings';

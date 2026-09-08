@@ -15,6 +15,8 @@ final class OrderListItem {
     required this.authorId,
     required this.businessState,
     required this.syncState,
+    this.clientOrderRef,
+    this.pickingIds = const [],
     this.fiscalState,
     this.pendingCollection = false,
     this.pendingInvoicing = false,
@@ -26,6 +28,8 @@ final class OrderListItem {
   final int authorId;
   final SaleOrderState businessState;
   final OperationSyncState syncState;
+  final String? clientOrderRef;
+  final List<int> pickingIds;
   final FiscalState? fiscalState;
   final bool pendingCollection;
   final bool pendingInvoicing;
@@ -63,13 +67,17 @@ final class OrderFilterPolicy {
   bool get canViewAll => capabilities.permissions.contains('orders.view_all');
   bool get isCashier => capabilities.permissions.contains('cashier');
   bool get isSeller => capabilities.permissions.contains('seller');
+  bool get isWarehouse => capabilities.permissions.contains('warehouse');
 
-  OrderFilter get initialFilter =>
-      isCashier ? OrderFilter.cashierPending : OrderFilter.mine;
+  OrderFilter get initialFilter => isCashier
+      ? OrderFilter.cashierPending
+      : isWarehouse
+      ? OrderFilter.all
+      : OrderFilter.mine;
 
   bool canSelect(OrderFilter filter) => switch (filter) {
     OrderFilter.mine => isSeller || !isCashier,
-    OrderFilter.all => canViewAll,
+    OrderFilter.all => canViewAll || isWarehouse,
     OrderFilter.cashierPending => isCashier,
   };
 

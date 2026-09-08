@@ -124,4 +124,92 @@ void main() {
     expect(authenticatedRouter.state.uri.path, '/approvals');
     expect(find.text('No hay aprobaciones pendientes'), findsOneWidget);
   });
+
+  testWidgets('sync route requires synchronized administrator capability', (
+    tester,
+  ) async {
+    final container = ProviderContainer(overrides: [
+      authServiceProvider.overrideWithValue(_Auth()),
+      capabilitySnapshotProvider.overrideWithValue(
+        CapabilitySnapshot(
+          scopeKey: 'scope',
+          companyId: 1,
+          revision: 1,
+          fetchedAt: DateTime(2026),
+          permissions: const ['seller'],
+        ),
+      ),
+      sharedPreferencesProvider.overrideWithValue(
+        await SharedPreferences.getInstance(),
+      ),
+    ]);
+    addTearDown(container.dispose);
+    final router = container.read(orbiRouterProvider);
+    await tester.pumpWidget(
+      UncontrolledProviderScope(
+        container: container,
+        child: MaterialApp.router(routerConfig: router),
+      ),
+    );
+    await container.read(authControllerProvider.notifier).login(
+      serverUrl: 'https://erp.test',
+      database: 'db',
+      login: 'seller',
+      password: 'secret',
+    );
+    final authenticatedRouter = container.read(orbiRouterProvider);
+    await tester.pumpWidget(
+      UncontrolledProviderScope(
+        container: container,
+        child: MaterialApp.router(routerConfig: authenticatedRouter),
+      ),
+    );
+    await tester.pumpAndSettle();
+    authenticatedRouter.go('/sync');
+    await tester.pumpAndSettle();
+    expect(authenticatedRouter.state.uri.path, '/');
+  });
+
+  testWidgets('synchronized administrator can enter sync route', (tester) async {
+    final container = ProviderContainer(overrides: [
+      authServiceProvider.overrideWithValue(_Auth()),
+      capabilitySnapshotProvider.overrideWithValue(
+        CapabilitySnapshot(
+          scopeKey: 'scope',
+          companyId: 1,
+          revision: 1,
+          fetchedAt: DateTime(2026),
+          permissions: const ['administrator', 'sync'],
+        ),
+      ),
+      sharedPreferencesProvider.overrideWithValue(
+        await SharedPreferences.getInstance(),
+      ),
+    ]);
+    addTearDown(container.dispose);
+    final router = container.read(orbiRouterProvider);
+    await tester.pumpWidget(
+      UncontrolledProviderScope(
+        container: container,
+        child: MaterialApp.router(routerConfig: router),
+      ),
+    );
+    await container.read(authControllerProvider.notifier).login(
+      serverUrl: 'https://erp.test',
+      database: 'db',
+      login: 'administrator',
+      password: 'secret',
+    );
+    final authenticatedRouter = container.read(orbiRouterProvider);
+    await tester.pumpWidget(
+      UncontrolledProviderScope(
+        container: container,
+        child: MaterialApp.router(routerConfig: authenticatedRouter),
+      ),
+    );
+    await tester.pumpAndSettle();
+    authenticatedRouter.go('/sync');
+    await tester.pumpAndSettle();
+    expect(authenticatedRouter.state.uri.path, '/sync');
+  });
 }

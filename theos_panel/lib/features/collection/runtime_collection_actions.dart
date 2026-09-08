@@ -97,10 +97,13 @@ final class RuntimeCollectionActions
       expectedVersion: shift.expectedVersion,
       state: state,
     );
+    final queued = outcome.syncState == OperationSyncState.queued;
     return CollectionShiftSnapshot(
       id: shift.id,
       state: outcome.syncState == OperationSyncState.conflict
           ? CollectionShiftState.conflict
+          : queued && state == SaleShiftState.closed
+          ? CollectionShiftState.closing
           : state == SaleShiftState.open
           ? CollectionShiftState.opened
           : CollectionShiftState.closed,

@@ -38,14 +38,17 @@ final class RuntimeLocalOrderReader {
       );
     }
     if (query.text case final text? when text.trim().isNotEmpty) {
-      where.add('name LIKE ?');
-      variables.add(Variable<String>('%${text.trim()}%'));
+      where.add('(name LIKE ? OR client_order_ref LIKE ?)');
+      final needle = '%${text.trim()}%';
+      variables.add(Variable<String>(needle));
+      variables.add(Variable<String>(needle));
     }
     final predicate = where.join(' AND ');
     final rows = await active.database.database
         .customSelect(
-          'SELECT id, name, state, user_id, company_id, invoice_status, '
+          'SELECT id, name, client_order_ref, state, user_id, company_id, invoice_status, '
           'payment_state, amount_unpaid, amount_to_invoice, has_queued_invoice, '
+          'picking_ids, '
           'is_synced '
           'FROM sale_order WHERE $predicate ORDER BY date_order DESC, id DESC LIMIT $limit',
           variables: variables,
@@ -78,6 +81,7 @@ final class RuntimeLocalOrderReader {
       fields: const [
         'id',
         'name',
+        'client_order_ref',
         'state',
         'user_id',
         'company_id',
@@ -86,6 +90,7 @@ final class RuntimeLocalOrderReader {
         'amount_unpaid',
         'amount_to_invoice',
         'has_queued_invoice',
+        'picking_ids',
       ],
       domain: [
         ['company_id', '=', query.companyId],
@@ -102,19 +107,21 @@ final class RuntimeLocalOrderReader {
         if (id is! int || id <= 0 || company != query.companyId) continue;
         await active.database.database.customStatement(
           'INSERT INTO sale_order '
-          '(odoo_id,name,state,user_id,company_id,invoice_status,payment_state, '
-          'amount_unpaid,amount_to_invoice,has_queued_invoice,is_synced) '
-          'VALUES (?,?,?,?,?,?,?,?,?, ?,1) '
+          '(odoo_id,name,client_order_ref,state,user_id,company_id,invoice_status,payment_state, '
+          'amount_unpaid,amount_to_invoice,has_queued_invoice,picking_ids,is_synced) '
+          'VALUES (?,?,?,?,?,?,?,?,?,?,?,?,1) '
           'ON CONFLICT(odoo_id) DO UPDATE SET name=excluded.name, '
-          'state=excluded.state, user_id=excluded.user_id, '
+          'state=excluded.state, client_order_ref=excluded.client_order_ref, user_id=excluded.user_id, '
           'company_id=excluded.company_id, invoice_status=excluded.invoice_status, '
           'payment_state=excluded.payment_state, amount_unpaid=excluded.amount_unpaid, '
           'amount_to_invoice=excluded.amount_to_invoice, '
           'has_queued_invoice=excluded.has_queued_invoice '
+          ', picking_ids=excluded.picking_ids '
           'WHERE sale_order.is_synced = 1',
           [
             id,
             row['name'] as String? ?? '$id',
+            row['client_order_ref'] as String?,
             row['state'] as String? ?? 'draft',
             user,
             company,
@@ -123,6 +130,7 @@ final class RuntimeLocalOrderReader {
             (row['amount_unpaid'] as num?)?.toDouble() ?? 0,
             (row['amount_to_invoice'] as num?)?.toDouble() ?? 0,
             row['has_queued_invoice'] == true,
+            _many2manyJson(row['picking_ids']),
           ],
         );
       }
@@ -135,4 +143,10 @@ final class RuntimeLocalOrderReader {
       pair.first as int,
     _ => null,
   };
+
+  static String? _many2manyJson(Object? value) {
+    if (value is! List) return null;
+    final ids = value.whereType<int>().where((id) => id > 0).toList();
+    return ids.isEmpty ? null : '[${ids.join(',')}]';
+  }
 }

@@ -266,7 +266,7 @@ Future<List<CollectionPendingSale>> _readLocalPending(
       )..where((table) => table.orderId.equals(row.odooId))).get();
       return CollectionPendingSale(
         id: row.odooId.toString(),
-        label: row.name,
+        label: row.clientOrderRef ?? row.name,
         amountMinor:
             ((row.amountUnpaid > 0 ? row.amountUnpaid : row.amountToInvoice) *
                     100)
@@ -280,6 +280,12 @@ Future<List<CollectionPendingSale>> _readLocalPending(
         // required. Never infer one from sale.order or local row IDs.
         commandId: 'collect-${active.scope.scopeKey}-${row.odooId}',
         collectionSessionId: row.collectionSessionId,
+        requiresDueConfirmation: row.isCash && row.isCredit,
+        calculatedDueMinor: row.isCash && row.isCredit
+            ? ((row.amountUnpaid > 0 ? row.amountUnpaid : row.amountToInvoice) *
+                      100)
+                  .round()
+            : null,
         cachedAdvances: advances,
         cachedCreditNotes: creditNotes,
         cachedWithholds: withholds

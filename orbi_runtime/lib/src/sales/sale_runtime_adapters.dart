@@ -357,7 +357,7 @@ final class OdooSaleCollectionPort {
             },
           );
     if (_rejected(result)) {
-      final approval = result is Map && result['approval_required'] == true;
+      final approval = _approvalPending(result);
       return OperationOutcome(
         commandId: commandId,
         entity: order,
@@ -2026,6 +2026,16 @@ bool _rejected(dynamic result) =>
             result['error'] != null ||
             result['warning'] != null));
 
+bool _approvalPending(dynamic result) {
+  if (result is! Map || result['approval_required'] != true) return false;
+  final status =
+      result['approval_status'] ?? result['request_status'] ?? result['status'];
+  return status != 'refused' &&
+      status != 'rejected' &&
+      result['approval_rejected'] != true &&
+      result['rejected'] != true;
+}
+
 Map<String, dynamic>? _present(String key, dynamic value) =>
     value == null ? null : {key: value};
 
@@ -2092,7 +2102,7 @@ final class OdooSaleConfirmationAdapter {
       );
     }
     if (_rejected(result)) {
-      final approval = result is Map && result['approval_required'] == true;
+      final approval = _approvalPending(result);
       return OperationOutcome(
         commandId: commandId,
         entity: order,

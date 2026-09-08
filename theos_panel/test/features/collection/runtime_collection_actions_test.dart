@@ -43,6 +43,26 @@ final class _Actions implements SaleOdooActions {
 
 void main() {
   test(
+    'generic queued close remains closing until replay confirms it',
+    () async {
+      final actions = _Actions();
+      final runtimeActions = RuntimeCollectionActions(
+        sales: null,
+        sessions: OdooCollectionSessionStore(actions, const _VersionReader()),
+        scopeKey: 'scope',
+      );
+      final next = await runtimeActions.close(
+        const CollectionShiftSnapshot(
+          id: '8',
+          state: CollectionShiftState.opened,
+          expectedVersion: 0,
+        ),
+      );
+      expect(next.state, CollectionShiftState.closing);
+    },
+  );
+
+  test(
     'offline cash collection survives reopen, dedupes and reconciles',
     () async {
       final directory = await Directory.systemTemp.createTemp('orbi-u06-');

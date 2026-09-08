@@ -281,11 +281,17 @@ final class SessionApprovalPort implements ApprovalPort {
         message: 'Cliente Odoo no disponible',
       );
     }
-    await rpcFactory(client).call(
+    final result = await rpcFactory(client).call(
       model: 'approval.request',
       method: method,
       ids: [_approvalId(request)],
     );
+    if (_rpcRejected(result)) {
+      return const ApprovalResult(
+        accepted: false,
+        message: 'Odoo rechazó la decisión de aprobación.',
+      );
+    }
     return ApprovalResult(
       accepted: true,
       message: 'Decisión registrada',
@@ -347,3 +353,10 @@ final class SessionApprovalPort implements ApprovalPort {
     );
   }
 }
+
+bool _rpcRejected(dynamic result) =>
+    result == false ||
+    (result is Map &&
+        (result['success'] == false ||
+            result['error'] != null ||
+            result['warning'] != null));

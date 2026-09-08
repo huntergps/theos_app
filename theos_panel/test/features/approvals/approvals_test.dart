@@ -140,6 +140,42 @@ SessionApprovalPort _runtimePort(_Rpc rpc, _Queue queue) {
 }
 
 void main() {
+  test(
+    'online approval refusal is terminal and has no pending action',
+    () async {
+      final rpc = _Rpc()
+        ..response = const {'success': false, 'error': 'refused'};
+      final caps = snapshot();
+      final request = ApprovalRequest(
+        commandId: 'approval-refused',
+        approvalRequestRemoteId: 91,
+        orderDisplayName: 'SO-91',
+        terms: ApprovalTerms.credit,
+        fsc: false,
+        status: ApprovalStatus.requested,
+      );
+      final port = SessionApprovalPort(
+        runtime: SessionRuntime(),
+        capabilities: caps,
+        offlineQueue: _Queue(),
+        rpcFactory: (_) => rpc,
+        sessionContext: () => const ApprovalSessionContext(
+          scopeKey: 'scope',
+          userId: 7,
+          client: null,
+        ),
+      );
+      final result = await port.resolve(
+        request: request,
+        decision: ApprovalDecision.reject,
+        snapshot: caps,
+        offline: false,
+      );
+      expect(result.accepted, isFalse);
+      expect(result.pendingAction, isNull);
+    },
+  );
+
   test('port rejects FSC for credit before any action', () {
     expect(
       () => ApprovalRequest(

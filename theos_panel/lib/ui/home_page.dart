@@ -24,6 +24,7 @@ class HomePage extends ConsumerWidget {
               (title: 'Clientes', path: '/clients', permission: 'seller'),
               (title: 'Productos', path: '/products', permission: 'seller'),
               (title: 'Caja', path: '/collection', permission: 'cashier'),
+              (title: 'Bodega', path: '/warehouse', permission: 'warehouse'),
               (
                 title: 'Aprobaciones',
                 path: '/approvals',

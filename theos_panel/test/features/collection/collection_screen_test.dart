@@ -137,4 +137,48 @@ void main() {
     expect(calls, 1);
     expect(find.text('Resultado: synced'), findsOneWidget);
   });
+
+  testWidgets('mixed amount requires explicit due confirmation', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        home: CollectionScreen(
+          shift: const CollectionShiftSnapshot(
+            id: '1',
+            state: CollectionShiftState.opened,
+            expectedVersion: 1,
+          ),
+          pending: const [
+            CollectionPendingSale(
+              id: 'mixed',
+              label: 'ORBI-E2E-MIXED',
+              amountMinor: 5000,
+              calculatedDueMinor: 2500,
+              requiresDueConfirmation: true,
+            ),
+          ],
+          capabilities: const CollectionCapabilitySnapshot(),
+          actions: _Actions(CollectionResultState.queued),
+          journals: const [CollectionJournalOption(id: 1, name: 'Caja')],
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('ORBI-E2E-MIXED'));
+    await tester.pump();
+    expect(find.byKey(const Key('mixed-due-confirmation')), findsOneWidget);
+    expect(find.text('Exigible calculado: 25.00'), findsOneWidget);
+    final before = tester.widget<FilledButton>(
+      find.widgetWithText(FilledButton, 'Cobrar'),
+    );
+    expect(before.onPressed, isNull);
+    await tester.ensureVisible(find.text('Confirmar monto mixto exigible'));
+    await tester.tap(find.text('Confirmar monto mixto exigible'));
+    await tester.pump();
+    final after = tester.widget<FilledButton>(
+      find.widgetWithText(FilledButton, 'Cobrar'),
+    );
+    expect(after.onPressed, isNotNull);
+  });
 }

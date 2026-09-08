@@ -17,6 +17,7 @@ import '../features/sales/sale_editor.dart';
 import '../features/settings/settings_screen.dart';
 import '../features/orders/orders_screen.dart';
 import '../features/orders/orders_contracts.dart';
+import '../features/warehouse/warehouse_screen.dart';
 import '../features/clients/catalog_contracts.dart';
 import '../features/clients/clients_screen.dart';
 import '../features/products/products_screen.dart';
@@ -446,6 +447,31 @@ final orbiRouterProvider = Provider<GoRouter>((ref) {
                     ),
                   ),
                 ),
+              ),
+            );
+          },
+        ),
+      ),
+      GoRoute(
+        path: '/warehouse',
+        builder: (context, state) => Consumer(
+          builder: (context, ref, _) {
+            final repository = ref.watch(scopeOrderRepositoryProvider);
+            final capabilities = ref.watch(capabilitySnapshotProvider);
+            final profile = ref.watch(authControllerProvider).profile;
+            if (repository == null || capabilities == null || profile == null) {
+              return const NotConfiguredPage(title: 'Bodega');
+            }
+            return WarehouseScreen(
+              repository: repository,
+              operations: RuntimeWarehouseOperationPort(
+                runtime: ref.watch(runtimeSessionProvider)!,
+                capabilities: capabilities,
+              ),
+              scopeKey: capabilities.scopeKey,
+              policy: OrderFilterPolicy(
+                userId: profile.userId,
+                capabilities: capabilities,
               ),
             );
           },

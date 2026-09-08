@@ -67,6 +67,31 @@ void main() {
     expect(snapshot.permissions, contains('approver'));
   });
 
+  test('only real administrator groups materialize synchronization access', () {
+    final administrator = CapabilityProvisioner.materialize(
+      scopeKey: 'erp2-administrator',
+      companyId: 1,
+      revision: 1,
+      fetchedAt: DateTime.utc(2026, 9, 8),
+      allGroupIds: [50],
+      externalIds: {50: 'base.group_system'},
+      hasGroup: (_) => true,
+    );
+    final seller = CapabilityProvisioner.materialize(
+      scopeKey: 'erp2-seller',
+      companyId: 1,
+      revision: 1,
+      fetchedAt: DateTime.utc(2026, 9, 8),
+      allGroupIds: [51],
+      externalIds: {51: 'sales_team.group_sale_salesman'},
+      hasGroup: (_) => true,
+    );
+
+    expect(administrator.permissions, containsAll(['administrator', 'sync']));
+    expect(seller.permissions, isNot(contains('administrator')));
+    expect(seller.permissions, isNot(contains('sync')));
+  });
+
   test('snapshot cache is identity-bound and survives close/reopen', () async {
     final db = AppDatabase(NativeDatabase.memory());
     addTearDown(db.close);

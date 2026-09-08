@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../ui/components/orbi_components.dart';
 import 'orders_contracts.dart';
@@ -42,6 +43,12 @@ class _OrdersScreenState extends State<OrdersScreen> {
     return OrbiPageShell(
       title: 'Órdenes',
       actions: [
+        FilledButton.icon(
+          key: const Key('new-sale-button'),
+          onPressed: () => context.go('/sales/counter'),
+          icon: const Icon(Icons.add),
+          label: const Text('Nueva venta'),
+        ),
         IconButton(
           tooltip: 'Actualizar órdenes',
           onPressed: _controller.refresh,
@@ -171,6 +178,9 @@ class _OrdersScreenState extends State<OrdersScreen> {
                   item.title,
                   style: Theme.of(context).textTheme.titleMedium,
                 ),
+                if (item.clientOrderRef case final reference?
+                    when reference.trim().isNotEmpty)
+                  Text(reference),
                 const SizedBox(height: 8),
                 Wrap(
                   spacing: 6,

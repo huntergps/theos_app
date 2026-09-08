@@ -31,6 +31,7 @@ class _CollectionScreenState extends State<CollectionScreen> {
   String? _error;
   late CollectionShiftSnapshot _currentShift = widget.shift;
   int? _selected;
+  bool _mixedDueConfirmed = false;
   final _amount = TextEditingController();
   final _countFields = <String, TextEditingController>{
     for (final denomination in [
@@ -234,7 +235,10 @@ class _CollectionScreenState extends State<CollectionScreen> {
               final sale = widget.pending[i];
               return ListTile(
                 selected: _selected == i,
-                onTap: () => setState(() => _selected = i),
+                onTap: () => setState(() {
+                  _selected = i;
+                  _mixedDueConfirmed = false;
+                }),
                 title: Text(sale.label),
                 subtitle: Text(
                   'Pendiente: ${(sale.amountMinor / 100).toStringAsFixed(2)}'
@@ -363,6 +367,25 @@ class _CollectionScreenState extends State<CollectionScreen> {
             decoration: const InputDecoration(labelText: 'Monto'),
           ),
           const SizedBox(height: 12),
+          if (_selected != null &&
+              widget.pending[_selected!].requiresDueConfirmation) ...[
+            Card(
+              key: const Key('mixed-due-confirmation'),
+              color: Theme.of(context).colorScheme.surfaceContainerHighest,
+              child: CheckboxListTile(
+                value: _mixedDueConfirmed,
+                onChanged: _busy == null
+                    ? (value) =>
+                          setState(() => _mixedDueConfirmed = value ?? false)
+                    : null,
+                title: const Text('Confirmar monto mixto exigible'),
+                subtitle: Text(
+                  'Exigible calculado: ${((widget.pending[_selected!].calculatedDueMinor ?? widget.pending[_selected!].amountMinor) / 100).toStringAsFixed(2)}',
+                ),
+              ),
+            ),
+            const SizedBox(height: 8),
+          ],
           if (_selected != null)
             Text(
               'Restante: ${((widget.pending[_selected!].amountMinor - collectionTotalMinor(_lines)) / 100).toStringAsFixed(2)}',
@@ -377,7 +400,13 @@ class _CollectionScreenState extends State<CollectionScreen> {
             child: const Text('Añadir medio'),
           ),
           FilledButton(
-            onPressed: _busy == 'collect' ? null : _collect,
+            onPressed:
+                _busy == 'collect' ||
+                    (_selected != null &&
+                        widget.pending[_selected!].requiresDueConfirmation &&
+                        !_mixedDueConfirmed)
+                ? null
+                : _collect,
             child: Text(_busy == 'collect' ? 'Procesando…' : 'Cobrar'),
           ),
           const SizedBox(height: 8),
@@ -533,6 +562,12 @@ class _CollectionScreenState extends State<CollectionScreen> {
   Future<void> _collect() async {
     if (_selected == null || _busy != null) return;
     final selectedSale = widget.pending[_selected!];
+    if (selectedSale.requiresDueConfirmation && !_mixedDueConfirmed) {
+      setState(
+        () => _error = 'Confirma el monto mixto exigible antes de cobrar.',
+      );
+      return;
+    }
     if (_currentShift.state != CollectionShiftState.opened) {
       setState(() => _error = 'Abre un turno antes de cobrar.');
       return;

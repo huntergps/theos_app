@@ -633,6 +633,26 @@ void main() {
     },
   );
 
+  test('explicit approval rejection never exposes a pending action', () async {
+    final fake = FakeActions()
+      ..response = {
+        'success': false,
+        'approval_required': true,
+        'approval_status': 'refused',
+      };
+    final adapter = OdooSaleConfirmationAdapter(
+      fake,
+      const FakeRemoteVersions(),
+    );
+    final result = await adapter.confirm(
+      order: EntityReference(localId: 'uuid', remoteId: 41),
+      commandId: 'confirm-refused',
+      expectedVersion: 2,
+    );
+    expect(result.pendingAction, isNull);
+    expect(result.syncState, OperationSyncState.failed);
+  });
+
   test('collection sends exact UUID and payment kwargs', () async {
     final fake = FakeActions();
     final adapter = OdooSaleCollectionPort(fake);

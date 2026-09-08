@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import 'package:reactive_forms/reactive_forms.dart';
 
 import '../../app/theme/orbi_theme.dart';
@@ -23,7 +24,18 @@ class OrbiPageShell extends StatelessWidget {
       explicitChildNodes: true,
       label: title,
       child: Scaffold(
-        appBar: AppBar(title: Text(title), actions: actions),
+        appBar: AppBar(
+          title: Text(title),
+          actions: [
+            ...(actions ?? const <Widget>[]),
+            IconButton(
+              key: const Key('home-button'),
+              tooltip: 'Inicio',
+              icon: const Icon(Icons.home_outlined),
+              onPressed: () => context.go('/'),
+            ),
+          ],
+        ),
         body: SafeArea(
           child: Align(
             alignment: Alignment.topCenter,

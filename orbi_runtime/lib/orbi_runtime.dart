@@ -8,6 +8,7 @@ export 'src/notifications/installation_system_id_registry.dart';
 export 'src/notifications/system_notification_presenter.dart';
 export 'src/notifications/runtime_notification_inbox.dart';
 export 'src/session/session_runtime.dart';
+export 'src/warehouse/warehouse_operation_port.dart';
 export 'src/storage/runtime_database_owner.dart';
 export 'src/sales/sale_runtime_adapters.dart';
 export 'src/sales/collection_operation_port.dart';

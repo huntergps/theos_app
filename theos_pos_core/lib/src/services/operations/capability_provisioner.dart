@@ -27,6 +27,11 @@ abstract final class CapabilityProvisioner {
       'sales_team.group_sale_salesman_all_leads',
       'sales_team.group_sale_manager',
     ]);
+    final canSynchronize = _any(effective, const [
+      'administrator',
+      'account.group_account_manager',
+      'base.group_system',
+    ]);
     final permissions = <String>{
       if (_any(effective, const [
         'salesman',
@@ -51,8 +56,16 @@ abstract final class CapabilityProvisioner {
         'l10n_ec_sale_credit.group_credit_approver',
       ]))
         'approver',
+      if (_any(effective, const [
+        'warehouse',
+        'stock.group_stock_user',
+        'stock.group_stock_manager',
+      ]))
+        'warehouse',
       if (canViewAllOrders) 'view_all',
       if (canViewAllOrders) 'orders.view_all',
+      if (canSynchronize) 'administrator',
+      if (canSynchronize) 'sync',
     };
     return CapabilitySnapshot(
       scopeKey: scopeKey,
