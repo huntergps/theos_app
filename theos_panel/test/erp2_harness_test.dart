@@ -59,6 +59,23 @@ void main() {
     );
   });
 
+  test('live runner timing and partial payment guard are explicit', () {
+    expect(Erp2HarnessTiming.serverCallTimeout, const Duration(minutes: 2));
+    expect(Erp2HarnessTiming.suiteTimeout, const Duration(minutes: 10));
+    expect(
+      Erp2PartialPaymentContract.errorsForRows([
+        {'id': 405, 'state': 'draft'},
+      ]),
+      contains(contains('id=405 state=draft; manual server reconciliation')),
+    );
+    expect(
+      Erp2PartialPaymentContract.errorsForRows([
+        {'id': 406, 'state': 'cancel'},
+      ]),
+      isEmpty,
+    );
+  });
+
   test('write guard requires four prefixed fixtures, actors and RPC', () {
     final config = Erp2HarnessConfig.fromEnvironment({
       ..._baseEnvironment,

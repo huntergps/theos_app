@@ -16,6 +16,14 @@ enum Erp2PanelMode { withPanel, withoutPanel }
 
 enum Erp2ReplayState { applied, rejected, ambiguous }
 
+/// Remote V01 calls can include invoice posting and accounting reconciliation;
+/// the Dart test package's default 30-second timeout is not an adequate
+/// boundary for that server transaction.
+final class Erp2HarnessTiming {
+  static const serverCallTimeout = Duration(minutes: 2);
+  static const suiteTimeout = Duration(minutes: 10);
+}
+
 final class Erp2ActorCredentials {
   const Erp2ActorCredentials({
     required this.actor,
@@ -149,6 +157,21 @@ final class Erp2NativePaymentReconciliationContract {
       errors.add('native payment amount does not match the operation');
     }
     return errors;
+  }
+}
+
+/// A timed-out cash flow may have persisted a draft native payment after the
+/// invoice was posted. Such a fixture is ambiguous and must be reconciled by
+/// an operator before V01 is allowed to send another mutating call.
+final class Erp2PartialPaymentContract {
+  static List<String> errorsForRows(List<Map<String, dynamic>> rows) {
+    final active = rows.where((row) => row['state'] != 'cancel').toList();
+    return [
+      for (final row in active)
+        'cash fixture has pre-existing collection payment '
+            'id=${row['id'] ?? '?'} state=${row['state'] ?? '?'}; '
+            'manual server reconciliation is required before retry',
+    ];
   }
 }
 
@@ -801,6 +824,31 @@ final class Erp2ServerPreflight {
           errors.add(
             '${kind.name} fixture must be draft/sent before V01 writes',
           );
+        }
+        if (forWrites && requireDraftFixtures && kind == Erp2FlowKind.cash) {
+          const paymentModel = 'l10n_ec_collection_box.sale.order.payment';
+          try {
+            final paymentFields = await client.getModelFields(paymentModel);
+            if (paymentFields.containsKey('sale_id')) {
+              final paymentRows = await client.searchRead(
+                model: paymentModel,
+                fields: ['id', if (paymentFields.containsKey('state')) 'state'],
+                domain: [
+                  ['sale_id', '=', fixture.orderId],
+                  if (paymentFields.containsKey('state'))
+                    ['state', '!=', 'cancel'],
+                ],
+                limit: 20,
+              );
+              errors.addAll(
+                Erp2PartialPaymentContract.errorsForRows(paymentRows),
+              );
+            }
+          } catch (_) {
+            errors.add(
+              'cash fixture payment state could not be checked safely',
+            );
+          }
         }
         final termId = _manyId(row['payment_term_id']);
         if (termId == null) {

@@ -29,6 +29,8 @@ void main() {
         baseUrl: config.serverUrl,
         database: config.database,
         apiKey: auditKey,
+        sendTimeout: Erp2HarnessTiming.serverCallTimeout,
+        receiveTimeout: Erp2HarnessTiming.serverCallTimeout,
       ),
     );
 
@@ -53,6 +55,8 @@ void main() {
           baseUrl: config.serverUrl,
           database: config.database,
           apiKey: key,
+          sendTimeout: Erp2HarnessTiming.serverCallTimeout,
+          receiveTimeout: Erp2HarnessTiming.serverCallTimeout,
         ),
       );
     }
@@ -71,5 +75,8 @@ void main() {
     }
     await File(config.evidenceFile)
         .writeAsString(const JsonEncoder.withIndent('  ').convert(evidence));
-  }, skip: runEnabled ? null : 'V01 remote stage disabled; set run sentinel');
+  },
+    skip: runEnabled ? null : 'V01 remote stage disabled; set run sentinel',
+    timeout: Timeout(Erp2HarnessTiming.suiteTimeout),
+  );
 }
