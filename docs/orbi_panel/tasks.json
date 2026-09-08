@@ -55,7 +55,7 @@
       "verify": ["(cd orbi_runtime && flutter test)", "(cd theos_pos && flutter test test/features/sales/services)", "(cd theos_pos && flutter test test/features/sync/services)", "(cd theos_pos && flutter analyze)"]
     },
     {
-      "id": "F06", "title": "Resolver contrato W01 de autenticación y offline web", "owner": "integrator", "status": "in_progress", "depends_on": ["F02"], "report": "reports/F06.md",
+      "id": "F06", "title": "Resolver contrato W01 de autenticación y offline web", "owner": "integrator", "status": "done", "depends_on": ["F02"], "report": "reports/F06.md", "reviewed_by": "Codex integrator", "reviewed_at": "2026-09-08",
       "docs": ["SPEC.md", "ARCHITECTURE.md", "VALIDATION.md"],
       "sources": ["odoo_sdk/lib/src/auth/native_auth_bootstrap_web.dart", "theos_pos/lib/core/security/platform_credential_store_web.dart"],
       "writes": ["docs/orbi_panel/decisions/", "orbi_runtime/lib/src/auth/", "orbi_runtime/test/auth_web/", "theos_panel/web/"],
