@@ -28,6 +28,9 @@ no se creó una tabla de recibos ni un circuito contable paralelo.
 - Adaptador `payment.transaction`: 7 pruebas, incluido reintento con la
   transacción ya cancelada y línea nativa existente.
 - `orbi_runtime`: análisis limpio; `git diff --check` limpio.
+- El probe read-only de ERP2 validó las formas JSON-2 de usuario, clientes,
+  productos, términos, impuestos, listas, bodegas, diarios y ventas; evidencia
+  redactada en `reports/erp2-verification.json`.
 
 ## Bloqueos restantes
 

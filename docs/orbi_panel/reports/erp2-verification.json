@@ -1,0 +1,126 @@
+{
+  "timestamp": "2026-09-08T07:23:06.048456+00:00",
+  "mode": "read_only",
+  "actors": [
+    "seller",
+    "cashier",
+    "approver",
+    "view_all",
+    "offline_operator"
+  ],
+  "scenarios": [
+    "cash",
+    "credit",
+    "mixed",
+    "FSC_cash",
+    "offline_create_replay",
+    "approval_required"
+  ],
+  "checks": [
+    {
+      "model": "res.users",
+      "method": "read",
+      "fields": [
+        "id",
+        "name",
+        "company_id",
+        "company_ids"
+      ],
+      "ok": true,
+      "shape": "list"
+    },
+    {
+      "model": "res.partner",
+      "method": "search_read",
+      "fields": [
+        "id",
+        "name",
+        "vat"
+      ],
+      "ok": true,
+      "shape": "list"
+    },
+    {
+      "model": "product.product",
+      "method": "search_read",
+      "fields": [
+        "id",
+        "name",
+        "list_price",
+        "uom_id",
+        "taxes_id"
+      ],
+      "ok": true,
+      "shape": "list"
+    },
+    {
+      "model": "account.payment.term",
+      "method": "search_read",
+      "fields": [
+        "id",
+        "name",
+        "line_ids"
+      ],
+      "ok": true,
+      "shape": "list"
+    },
+    {
+      "model": "account.tax",
+      "method": "search_read",
+      "fields": [
+        "id",
+        "name",
+        "amount"
+      ],
+      "ok": true,
+      "shape": "list"
+    },
+    {
+      "model": "product.pricelist",
+      "method": "search_read",
+      "fields": [
+        "id",
+        "name"
+      ],
+      "ok": true,
+      "shape": "list"
+    },
+    {
+      "model": "stock.warehouse",
+      "method": "search_read",
+      "fields": [
+        "id",
+        "name",
+        "company_id"
+      ],
+      "ok": true,
+      "shape": "list"
+    },
+    {
+      "model": "account.journal",
+      "method": "search_read",
+      "fields": [
+        "id",
+        "name",
+        "type",
+        "company_id"
+      ],
+      "ok": true,
+      "shape": "list"
+    },
+    {
+      "model": "sale.order",
+      "method": "search_read",
+      "fields": [
+        "id",
+        "name",
+        "state",
+        "partner_id",
+        "write_date"
+      ],
+      "ok": true,
+      "shape": "list"
+    }
+  ],
+  "ok": true
+}
