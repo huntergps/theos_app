@@ -11,11 +11,14 @@ class MainFlutterWindow: NSWindow {
       blue: 0.510,
       alpha: 1.0
     )
-    contentView?.wantsLayer = true
-    contentView?.layer?.backgroundColor = backgroundColor?.cgColor
     let flutterViewController = FlutterViewController()
     let windowFrame = self.frame
     self.contentViewController = flutterViewController
+    // Assign the launch color to the *new* Flutter view. Setting it on the
+    // previous contentView is ineffective because contentViewController
+    // replaces that view, exposing AppKit's black default until Flutter draws.
+    flutterViewController.view.wantsLayer = true
+    flutterViewController.view.layer?.backgroundColor = backgroundColor?.cgColor
     self.setFrame(windowFrame, display: true)
 
     RegisterGeneratedPlugins(registry: flutterViewController)

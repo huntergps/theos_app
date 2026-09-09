@@ -122,8 +122,20 @@ Future<void> _login(
   await tester.ensureVisible(secretField);
   await tester.enterText(secretField, actor.apiKey);
   await _tapVisible(tester, find.text('Iniciar sesión'));
-  await _settle(tester);
+  // Login keeps an indeterminate spinner alive while the real ERP2 request
+  // runs, so pumpAndSettle would time out even when authentication succeeds.
+  await _waitForHomeSurface(tester);
   expect(find.text('Orbi ERP'), findsOneWidget);
+}
+
+Future<void> _waitForHomeSurface(WidgetTester tester) async {
+  const interval = Duration(milliseconds: 250);
+  const maxAttempts = 520; // 130 seconds, just above the 2-minute RPC guard.
+  for (var attempt = 0; attempt < maxAttempts; attempt++) {
+    if (find.byType(HomePage).evaluate().isNotEmpty) return;
+    await tester.pump(interval, EnginePhase.sendSemanticsUpdate);
+  }
+  fail('Timed out waiting for HomePage after ERP2 login.');
 }
 
 Future<void> _assertHomeRoleSurface(

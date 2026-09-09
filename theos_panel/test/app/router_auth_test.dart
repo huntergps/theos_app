@@ -111,11 +111,21 @@ void main() {
     final fields = find.byType(TextField);
     final serverController = tester.widget<TextField>(fields.at(0)).controller;
     await tester.tap(fields.at(0));
-    await tester.enterText(fields.at(0), 'https://erp.test');
+    const server = 'https://erp.example.com';
+    for (var index = 1; index <= server.length; index++) {
+      await tester.enterText(fields.at(0), server.substring(0, index));
+      await tester.pump(const Duration(milliseconds: 20));
+    }
     await tester.tap(fields.at(1));
-    await tester.enterText(fields.at(1), 'db');
-    authService.profileReady.complete(_ProfileDuringLoginAuth.profile);
-    await tester.pump();
+    const database = 'panel_db';
+    for (var index = 1; index <= database.length; index++) {
+      await tester.enterText(fields.at(1), database.substring(0, index));
+      await tester.pump(const Duration(milliseconds: 20));
+      if (index == 3) {
+        authService.profileReady.complete(_ProfileDuringLoginAuth.profile);
+        await tester.pump();
+      }
+    }
     expect(identical(find.byType(LoginScreen).evaluate().single, loginElement), isTrue);
     expect(identical(tester.widget<TextField>(fields.at(0)).controller, serverController), isTrue);
     for (final entry in <({int index, String value})>[
