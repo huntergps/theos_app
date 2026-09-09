@@ -203,6 +203,23 @@ final class Erp2FscPickingContract {
     final retiring = _manyId(row['partner_venta_id']);
     return delivery != null && retiring == delivery;
   }
+
+  /// A sale is dispatched only when every customer-facing segment is done.
+  /// Checking `any` segment would let a split delivery report success while a
+  /// sibling customer picking is still waiting or has a different retirer.
+  static bool allCustomerDeliveriesDone(Iterable<Map<String, dynamic>> rows) {
+    var customerCount = 0;
+    for (final row in rows) {
+      final kind = classify(row);
+      if (kind == Erp2FscPickingKind.internal) continue;
+      if (kind != Erp2FscPickingKind.customerDelivery) return false;
+      customerCount++;
+      if (row['state'] != 'done' || !retiringPartnerMatches(row)) {
+        return false;
+      }
+    }
+    return customerCount > 0;
+  }
 }
 
 final class Erp2FscApprovalInvocation {
@@ -1418,6 +1435,10 @@ final class Erp2WriteHarness {
           verify: () =>
               _cashApplied(fixture.orderId, expectedAmount: amount.toDouble()),
         );
+        await _prepareAndValidateSalePickings(fixture.orderId);
+        if (!await _dispatchApplied(fixture.orderId)) {
+          throw StateError('cash fixture dispatch was not server-verified');
+        }
       } else if (plan.kind == Erp2FlowKind.fsc) {
         await _invokeWithCreditApproval(
           actor: Erp2Actor.seller,
@@ -1536,9 +1557,14 @@ final class Erp2WriteHarness {
             ids: [mixedWizardId],
             verify: () => _mixedPaymentApplied(fixture.orderId),
           );
-          await _preparePickingsIfNeeded(fixture.orderId);
+          await _prepareAndValidateSalePickings(fixture.orderId);
           if (!await _dispatchApplied(fixture.orderId)) {
             throw StateError('mixed fixture dispatch was not server-verified');
+          }
+        } else if (plan.kind == Erp2FlowKind.credit) {
+          await _prepareAndValidateSalePickings(fixture.orderId);
+          if (!await _dispatchApplied(fixture.orderId)) {
+            throw StateError('credit fixture dispatch was not server-verified');
           }
         }
       }
@@ -2065,7 +2091,13 @@ final class Erp2WriteHarness {
 
   Future<bool> _dispatchApplied(int id) async {
     final row = await _order(id);
-    return _confirmedRow(row) && _ids(row['picking_ids']).isNotEmpty;
+    if (!_confirmedRow(row)) return false;
+    final pickingIds = _ids(row['picking_ids']);
+    final pickings = <Map<String, dynamic>>[];
+    for (final pickingId in pickingIds) {
+      pickings.add(await _readFscPickingAsWarehouse(pickingId));
+    }
+    return Erp2FscPickingContract.allCustomerDeliveriesDone(pickings);
   }
 
   Future<bool> _creditControlsPresent(int orderId) async {
@@ -2143,6 +2175,12 @@ final class Erp2WriteHarness {
         'FSC server did not expose a customer delivery after internal preparation',
       );
     }
+    // Populate the native warehouse gate before the negative unpaid probe.  If
+    // this were deferred until after payment, a missing partner_venta_id would
+    // mask the invoice-payment lock with an unrelated validation error.
+    for (final pickingId in customerPickings) {
+      await _ensureFscRetiringPartner(pickingId);
+    }
   }
 
   Future<void> _assignFscPickingIfNeeded(
@@ -2214,28 +2252,73 @@ final class Erp2WriteHarness {
     return row;
   }
 
-  /// Credit/mixed retain their existing native dispatch path.  FSC deliberately
-  /// uses `_prepareFscInternalPickings`, because only FSC must prove the
-  /// internal-transfer/customer-delivery gate sequence.
-  Future<void> _preparePickingsIfNeeded(int orderId) async {
-    final row = await _order(orderId);
-    final pickingIds = _ids(row['picking_ids']);
+  /// Runs the native warehouse sequence for the ordinary flows:
+  /// prepare each server-generated internal transfer, refresh the sale
+  /// relation so chained customer pickings become visible, copy the delivery
+  /// partner through the public stock action, and validate the customer
+  /// delivery.  No picking is created, quantities are written, or sale-order
+  /// dispatch method is guessed here.
+  Future<void> _prepareAndValidateSalePickings(int orderId) async {
+    var row = await _order(orderId);
+    var pickingIds = _ids(row['picking_ids']);
     if (pickingIds.isEmpty) {
       throw Erp2PreflightException([
         'fixture has no server-generated stock.picking; '
             'no sale.order dispatch RPC is permitted',
       ]);
     }
+
+    var sawInternal = false;
     for (final pickingId in pickingIds) {
-      final picking = await _picking(pickingId);
-      final state = picking['state'];
-      if (state == 'done' || state == 'cancel' || state == 'assigned') continue;
-      await _invokeAndVerify(
-        actor: Erp2Actor.warehouse,
-        model: 'stock.picking',
-        method: config.rpc.assignPicking,
-        ids: [pickingId],
-        verify: () async => (await _picking(pickingId))['state'] == 'assigned',
+      final picking = await _readFscPickingAsWarehouse(pickingId);
+      final kind = Erp2FscPickingContract.classify(picking);
+      if (kind == null) {
+        throw StateError(
+          'sale fixture has an unsupported operation/destination shape',
+        );
+      }
+      if (kind != Erp2FscPickingKind.internal) continue;
+      sawInternal = true;
+      if (picking['state'] == 'cancel') {
+        throw StateError('sale fixture internal picking is cancelled');
+      }
+      await _assignFscPickingIfNeeded(pickingId, picking);
+      if ((await _picking(pickingId))['state'] != 'done') {
+        await _validatePickingWithNativeBackorder(pickingId);
+      }
+    }
+
+    // The outgoing picking in a two-step warehouse is chained and is not
+    // necessarily in sale.order.picking_ids until the internal transfer is
+    // done.  Always refresh after touching an internal segment.
+    if (sawInternal) {
+      row = await _order(orderId);
+      pickingIds = _ids(row['picking_ids']);
+    }
+
+    var customerCount = 0;
+    for (final pickingId in pickingIds) {
+      final picking = await _readFscPickingAsWarehouse(pickingId);
+      final kind = Erp2FscPickingContract.classify(picking);
+      if (kind == Erp2FscPickingKind.internal) continue;
+      if (kind != Erp2FscPickingKind.customerDelivery) {
+        throw StateError(
+          'sale fixture refresh exposed an unsupported picking shape',
+        );
+      }
+      customerCount++;
+      await _ensureFscRetiringPartner(pickingId);
+      if (picking['state'] == 'cancel') {
+        throw StateError('sale fixture customer picking is cancelled');
+      }
+      if (picking['state'] != 'done') {
+        await _assignFscPickingIfNeeded(pickingId, picking);
+        await _validatePickingWithNativeBackorder(pickingId);
+      }
+    }
+    if (customerCount == 0) {
+      throw StateError(
+        'sale fixture has no server-generated customer delivery',
       );
     }
   }
@@ -2529,11 +2612,19 @@ final class Erp2WriteHarness {
   }
 
   Future<void> _validatePaidCustomerPicking(int pickingId) async {
+    await _ensureFscRetiringPartner(pickingId);
+    await _validatePickingWithNativeBackorder(pickingId);
+  }
+
+  /// Calls the native warehouse validation and, only for the exact backorder
+  /// action returned by it, materializes/processes Odoo's own confirmation
+  /// wizard.  This helper is shared by cash, credit, mixed, and FSC so every
+  /// flow observes the same no-qty-write/no-skip-backorder policy.
+  Future<void> _validatePickingWithNativeBackorder(int pickingId) async {
     final warehouse = actorClients[Erp2Actor.warehouse];
     if (warehouse == null) {
-      throw Erp2PreflightException(['warehouse client is required for FSC']);
+      throw Erp2PreflightException(['warehouse client is required']);
     }
-    await _ensureFscRetiringPartner(pickingId);
     dynamic response;
     Object? transportError;
     try {
@@ -2547,12 +2638,12 @@ final class Erp2WriteHarness {
     }
     if ((await _picking(pickingId))['state'] == 'done') return;
     if (transportError != null) {
-      throw StateError('paid FSC delivery validation failed on the server');
+      throw StateError('warehouse picking validation failed on the server');
     }
     final context = Erp2FscPickingContract.backorderContext(response);
     if (context == null) {
       throw StateError(
-        'paid FSC delivery returned an unknown action; refusing to guess a wizard',
+        'warehouse validation returned an unknown action; refusing to guess a wizard',
       );
     }
     // JSON-2 returns the same action the web client opens, not a transient

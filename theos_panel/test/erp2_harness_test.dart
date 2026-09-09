@@ -171,10 +171,7 @@ void main() {
     expect(config.rpc.existingInvoicePayment, 'action_apply_existing_invoice');
     expect(config.rpc.assignPicking, 'action_assign');
     expect(config.rpc.validatePicking, 'button_validate');
-    expect(
-      config.rpc.copyRetiringPartner,
-      'action_copiar_quien_retira',
-    );
+    expect(config.rpc.copyRetiringPartner, 'action_copiar_quien_retira');
     expect(
       config.rpc.mixedPaymentAndDispatch,
       'action_apply_and_create_invoice',
@@ -502,6 +499,59 @@ void main() {
       isFalse,
     );
   });
+
+  test(
+    'dispatch requires every customer picking, not just one done segment',
+    () {
+      final internal = <String, dynamic>{
+        'picking_type_code': 'internal',
+        'location_dest_usage': 'internal',
+        'state': 'done',
+      };
+      final doneCustomer = <String, dynamic>{
+        'picking_type_code': 'outgoing',
+        'location_dest_usage': 'customer',
+        'state': 'done',
+        'partner_id': [30, 'Customer'],
+        'partner_venta_id': [30, 'Customer'],
+      };
+      final pendingCustomer = <String, dynamic>{
+        ...doneCustomer,
+        'state': 'assigned',
+      };
+
+      expect(
+        Erp2FscPickingContract.allCustomerDeliveriesDone([
+          internal,
+          doneCustomer,
+          doneCustomer,
+        ]),
+        isTrue,
+      );
+      expect(
+        Erp2FscPickingContract.allCustomerDeliveriesDone([
+          internal,
+          doneCustomer,
+          pendingCustomer,
+        ]),
+        isFalse,
+      );
+      expect(
+        Erp2FscPickingContract.allCustomerDeliveriesDone([
+          internal,
+          {
+            ...doneCustomer,
+            'partner_venta_id': [33, 'Other'],
+          },
+        ]),
+        isFalse,
+      );
+      expect(
+        Erp2FscPickingContract.allCustomerDeliveriesDone([internal]),
+        isFalse,
+      );
+    },
+  );
 
   test('FSC accepts only the native backorder wizard action', () {
     const rpc = Erp2RpcContract();
