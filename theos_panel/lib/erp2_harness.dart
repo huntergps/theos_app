@@ -52,6 +52,9 @@ final class Erp2ActorCredentials {
 /// Required capabilities are checked against Odoo's resolved group IDs, not
 /// actor names or assumed roles.
 final class Erp2ActorCapabilityContract {
+  static const fscRequesterGroup =
+      'l10n_ec_collection_box.group_facturar_sin_cobro';
+
   static const requiredGroups = <Erp2Actor, List<String>>{
     Erp2Actor.seller: ['sales_team.group_sale_salesman'],
     Erp2Actor.cashier: ['l10n_ec_collection_box.group_collection_user'],
@@ -80,6 +83,56 @@ final class Erp2ActorCapabilityContract {
       }
     }
     return errors;
+  }
+
+  /// The FSC requester is a seller, but FSC has an additional permission that
+  /// is not implied by the ordinary sales group. Keep it conditional: credit,
+  /// cash and mixed flows must not require the exceptional no-collection
+  /// permission.
+  static List<String> errorsForFscRequester(
+    Map<Erp2Actor, Map<String, dynamic>> rows,
+    Map<String, int> resolvedGroupIds,
+  ) {
+    final groupId = resolvedGroupIds[fscRequesterGroup];
+    if (groupId == null) {
+      return ['required group $fscRequesterGroup could not be resolved'];
+    }
+    final ids = _ids(rows[Erp2Actor.seller]?['all_group_ids']).toSet();
+    if (!ids.contains(groupId)) {
+      return ['seller lacks required group $fscRequesterGroup'];
+    }
+    return const [];
+  }
+}
+
+/// Server state is authoritative for the unpaid FSC delivery gate. A native
+/// picking validation can return a backorder/wizard action while leaving the
+/// picking assigned or waiting; that is still a blocked delivery, never an
+/// accepted shipment. Unknown structured responses fail closed.
+final class Erp2FscDeliveryGateContract {
+  static bool isBlocked({
+    required dynamic response,
+    required bool transportError,
+    required String state,
+  }) {
+    if (state == 'done') return false;
+    if (transportError || response == null || response == false) return true;
+    if (response is Map) {
+      if (response['success'] == false ||
+          response['error'] != null ||
+          response['warning'] != null) {
+        return true;
+      }
+      // Backorder and confirmation dialogs are actions, not delivery success.
+      if (response['type'] is String &&
+          (response['type'] as String).startsWith('ir.actions.')) {
+        return true;
+      }
+      return true;
+    }
+    // Even a bare true is not delivery success until the server read says
+    // state=done; for an unpaid invoice, any non-done state remains blocked.
+    return true;
   }
 }
 
@@ -585,8 +638,10 @@ final class Erp2FlowPlan {
     ),
     Erp2FlowPlan(
       kind: Erp2FlowKind.fsc,
-      actor: Erp2Actor.supervisor,
-      confirmation: 'supervisor approve FSC',
+      // The plan actor is the actor who requests the flow. The supervisor is
+      // the separate approver used explicitly by the FSC execution branch.
+      actor: Erp2Actor.seller,
+      confirmation: 'seller requests; supervisor approves FSC',
       invoice: 'on-FSC-approval',
       dispatch: 'server-generated-picking; warehouse action_assign if needed',
       requiresApproval: true,
@@ -752,10 +807,14 @@ final class Erp2ServerPreflight {
         actors[entry.key] = row;
       }
       final resolvedGroupIds = <String, int>{};
-      for (final xmlId
-          in Erp2ActorCapabilityContract.requiredGroups.values
-              .expand((groups) => groups)
-              .toSet()) {
+      final capabilityXmlIds = <String>{
+        ...Erp2ActorCapabilityContract.requiredGroups.values.expand(
+          (groups) => groups,
+        ),
+        if (config.fixtures[Erp2FlowKind.fsc] != null)
+          Erp2ActorCapabilityContract.fscRequesterGroup,
+      };
+      for (final xmlId in capabilityXmlIds) {
         final parts = xmlId.split('.');
         if (parts.length != 2) continue;
         final rows = await client.searchRead(
@@ -774,6 +833,14 @@ final class Erp2ServerPreflight {
       errors.addAll(
         Erp2ActorCapabilityContract.errorsForRows(actors, resolvedGroupIds),
       );
+      if (config.fixtures[Erp2FlowKind.fsc] != null) {
+        errors.addAll(
+          Erp2ActorCapabilityContract.errorsForFscRequester(
+            actors,
+            resolvedGroupIds,
+          ),
+        );
+      }
 
       final orderFields = await client.getModelFields('sale.order');
       const requiredOrderFields = [
@@ -1790,8 +1857,12 @@ final class Erp2WriteHarness {
         error = Object();
       }
       final state = (await _picking(pickingId))['state'];
-      final rejected = error != null || !_accepted(response);
-      if (!rejected || state == 'done') {
+      final rejected = Erp2FscDeliveryGateContract.isBlocked(
+        response: response,
+        transportError: error != null,
+        state: state?.toString() ?? '',
+      );
+      if (!rejected) {
         throw StateError('FSC delivery was not rejected while unpaid');
       }
     }

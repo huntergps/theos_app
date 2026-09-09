@@ -212,6 +212,18 @@ void main() {
             .invoice,
         'on-FSC-approval',
       );
+      expect(
+        Erp2FlowPlan.all
+            .singleWhere((plan) => plan.kind == Erp2FlowKind.fsc)
+            .actor,
+        Erp2Actor.seller,
+      );
+      expect(
+        Erp2FlowPlan.all
+            .singleWhere((plan) => plan.kind == Erp2FlowKind.fsc)
+            .confirmation,
+        contains('supervisor approves'),
+      );
     },
   );
 
@@ -330,6 +342,56 @@ void main() {
     expect(
       errors,
       contains('warehouse lacks required group stock.group_stock_user'),
+    );
+  });
+
+  test('FSC capability requires the explicit no-collection seller group', () {
+    const groupIds = {Erp2ActorCapabilityContract.fscRequesterGroup: 60};
+    final rows = <Erp2Actor, Map<String, dynamic>>{
+      Erp2Actor.seller: {'all_group_ids': <int>[]},
+    };
+    expect(
+      Erp2ActorCapabilityContract.errorsForFscRequester(rows, groupIds),
+      contains(
+        'seller lacks required group '
+        'l10n_ec_collection_box.group_facturar_sin_cobro',
+      ),
+    );
+    rows[Erp2Actor.seller]!['all_group_ids'] = [60];
+    expect(
+      Erp2ActorCapabilityContract.errorsForFscRequester(rows, groupIds),
+      isEmpty,
+    );
+  });
+
+  test('FSC unpaid delivery gate fails closed on wizard actions', () {
+    const backorderAction = {
+      'type': 'ir.actions.act_window',
+      'res_model': 'stock.backorder.confirmation',
+    };
+    expect(
+      Erp2FscDeliveryGateContract.isBlocked(
+        response: backorderAction,
+        transportError: false,
+        state: 'assigned',
+      ),
+      isTrue,
+    );
+    expect(
+      Erp2FscDeliveryGateContract.isBlocked(
+        response: {'unexpected': true},
+        transportError: false,
+        state: 'waiting',
+      ),
+      isTrue,
+    );
+    expect(
+      Erp2FscDeliveryGateContract.isBlocked(
+        response: true,
+        transportError: false,
+        state: 'done',
+      ),
+      isFalse,
     );
   });
 
