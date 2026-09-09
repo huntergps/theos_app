@@ -76,6 +76,59 @@ void main() {
     );
   });
 
+  test(
+    'collection payment domains use stored identity and filter state locally',
+    () {
+      final domain = Erp2PartialPaymentContract.domainForSale(
+        1929,
+        operationUuid: 'ORBI-E2E-payment-1',
+      );
+
+      expect(
+        domain.any((clause) => clause.isNotEmpty && clause.first == 'state'),
+        isFalse,
+      );
+      expect(
+        domain,
+        contains(
+          predicate<List<Object?>>((clause) {
+            return clause.length == 3 &&
+                clause[0] == 'sale_id' &&
+                clause[1] == '=' &&
+                clause[2] == 1929;
+          }),
+        ),
+      );
+      expect(
+        domain,
+        contains(
+          predicate<List<Object?>>((clause) {
+            return clause.length == 3 &&
+                clause[0] == 'pos_collection_op_uuid' &&
+                clause[1] == '=' &&
+                clause[2] == 'ORBI-E2E-payment-1';
+          }),
+        ),
+      );
+      expect(
+        Erp2PartialPaymentContract.activeRows([
+          {'id': 1, 'state': 'draft'},
+          {'id': 2, 'state': 'posted'},
+          {'id': 3, 'state': 'cancel'},
+        ]).map((row) => row['id']),
+        containsAll(<int>[1, 2]),
+      );
+      expect(
+        Erp2PartialPaymentContract.activeRows([
+          {'id': 1, 'state': 'draft'},
+          {'id': 2, 'state': 'posted'},
+          {'id': 3, 'state': 'cancel'},
+        ]).map((row) => row['id']),
+        isNot(contains(3)),
+      );
+    },
+  );
+
   test('write guard requires four prefixed fixtures, actors and RPC', () {
     final config = Erp2HarnessConfig.fromEnvironment({
       ..._baseEnvironment,

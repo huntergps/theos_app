@@ -217,8 +217,24 @@ final class Erp2NativePaymentReconciliationContract {
 /// invoice was posted. Such a fixture is ambiguous and must be reconciled by
 /// an operator before V01 is allowed to send another mutating call.
 final class Erp2PartialPaymentContract {
+  /// `state` is a non-stored/computed field on the deployed collection
+  /// payment model and cannot be used in a JSON-2 search domain.  Keep the
+  /// server query restricted to stored identity keys, then apply the state
+  /// predicate to the returned rows locally.
+  static List<List<Object?>> domainForSale(
+    int saleId, {
+    String? operationUuid,
+  }) => [
+    ['sale_id', '=', saleId],
+    if (operationUuid != null) ['pos_collection_op_uuid', '=', operationUuid],
+  ];
+
+  static List<Map<String, dynamic>> activeRows(
+    List<Map<String, dynamic>> rows,
+  ) => rows.where((row) => row['state'] != 'cancel').toList();
+
   static List<String> errorsForRows(List<Map<String, dynamic>> rows) {
-    final active = rows.where((row) => row['state'] != 'cancel').toList();
+    final active = activeRows(rows);
     return [
       for (final row in active)
         'cash fixture has pre-existing collection payment '
@@ -900,11 +916,9 @@ final class Erp2ServerPreflight {
               final paymentRows = await client.searchRead(
                 model: paymentModel,
                 fields: ['id', if (paymentFields.containsKey('state')) 'state'],
-                domain: [
-                  ['sale_id', '=', fixture.orderId],
-                  if (paymentFields.containsKey('state'))
-                    ['state', '!=', 'cancel'],
-                ],
+                domain: Erp2PartialPaymentContract.domainForSale(
+                  fixture.orderId,
+                ),
                 limit: 20,
               );
               errors.addAll(
@@ -1765,9 +1779,7 @@ final class Erp2WriteHarness {
     final rows = await auditClient.searchRead(
       model: 'l10n_ec_collection_box.sale.order.payment',
       fields: const ['id', 'state', 'amount', 'move_id'],
-      domain: [
-        ['sale_id', '=', orderId],
-      ],
+      domain: Erp2PartialPaymentContract.domainForSale(orderId),
       limit: 100,
     );
     final posted = rows.where((payment) {
@@ -1825,10 +1837,10 @@ final class Erp2WriteHarness {
         'pos_collection_op_uuid',
         'pos_collection_line_uuid',
       ],
-      domain: [
-        ['sale_id', '=', orderId],
-        ['pos_collection_op_uuid', '=', operationUuid],
-      ],
+      domain: Erp2PartialPaymentContract.domainForSale(
+        orderId,
+        operationUuid: operationUuid,
+      ),
       limit: 100,
     );
     return Erp2NativePaymentReconciliationContract.errors(
