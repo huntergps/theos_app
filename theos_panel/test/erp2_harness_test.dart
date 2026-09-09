@@ -448,6 +448,73 @@ void main() {
     );
   });
 
+  test(
+    'FSC classifies internal and customer segments by destination usage',
+    () {
+      expect(
+        Erp2FscPickingContract.classify({
+          'picking_type_code': 'internal',
+          'location_dest_usage': 'internal',
+        }),
+        Erp2FscPickingKind.internal,
+      );
+      expect(
+        Erp2FscPickingContract.classify({
+          'picking_type_code': 'outgoing',
+          'location_dest_usage': 'customer',
+        }),
+        Erp2FscPickingKind.customerDelivery,
+      );
+      expect(
+        Erp2FscPickingContract.classify({
+          'picking_type_code': 'outgoing',
+          'location_dest_usage': 'internal',
+        }),
+        isNull,
+      );
+    },
+  );
+
+  test('FSC accepts only the native backorder wizard action', () {
+    const rpc = Erp2RpcContract();
+    const action = {
+      'type': 'ir.actions.act_window',
+      'res_model': 'stock.backorder.confirmation',
+      'context': {
+        'button_validate_picking_ids': [7],
+        'default_pick_ids': [
+          [4, 7],
+        ],
+      },
+    };
+    expect(Erp2FscPickingContract.isKnownBackorderAction(action), isTrue);
+    expect(
+      Erp2FscPickingContract.backorderContext(action),
+      containsPair('button_validate_picking_ids', [7]),
+    );
+    expect(rpc.createBackorderWizard, 'create');
+    expect(rpc.processBackorder, 'process');
+    expect(
+      Erp2FscPickingContract.isKnownBackorderAction({
+        'type': 'ir.actions.act_window',
+        'res_model': 'l10n_ec_stock_base.delivery_guide_popup_wizard',
+        'res_id': 91,
+        'context': {
+          'button_validate_picking_ids': [7],
+        },
+      }),
+      isFalse,
+    );
+    expect(
+      Erp2FscPickingContract.isKnownBackorderAction({
+        'type': 'ir.actions.act_window',
+        'res_model': 'stock.backorder.confirmation',
+        'context': const {},
+      }),
+      isFalse,
+    );
+  });
+
   test('FSC mock contract permits one native approval only', () {
     const rpc = Erp2RpcContract();
     final native = [
