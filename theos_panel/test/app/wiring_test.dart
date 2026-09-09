@@ -1,9 +1,89 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:flutter/material.dart';
 import 'package:orbi_runtime/orbi_runtime.dart';
+import 'package:theos_panel/app/bootstrap.dart';
 import 'package:theos_panel/app/session_composition.dart';
 import 'package:theos_panel/features/auth/route_access_policy.dart';
 
 void main() {
+  test('reduced-motion falls back to platform accessibility features', () {
+    expect(
+      bootstrapDisableAnimations(
+        mediaQueryDisableAnimations: null,
+        platformDisableAnimations: true,
+      ),
+      isTrue,
+    );
+    expect(
+      bootstrapDisableAnimations(
+        mediaQueryDisableAnimations: false,
+        platformDisableAnimations: true,
+      ),
+      isFalse,
+    );
+  });
+
+  testWidgets('bootstrap content crossfades with overlapping surfaces', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      const MaterialApp(
+        home: BootstrapAnimatedContent(
+          phaseKey: 'splash',
+          child: ColoredBox(key: ValueKey('splash-surface'), color: Colors.red),
+        ),
+      ),
+    );
+    await tester.pump();
+
+    await tester.pumpWidget(
+      const MaterialApp(
+        home: BootstrapAnimatedContent(
+          phaseKey: 'application',
+          child: ColoredBox(
+            key: ValueKey('application-surface'),
+            color: Colors.green,
+          ),
+        ),
+      ),
+    );
+    await tester.pump(const Duration(milliseconds: 150));
+    expect(find.byKey(const ValueKey('splash-surface')), findsOneWidget);
+    expect(find.byKey(const ValueKey('application-surface')), findsOneWidget);
+
+    await tester.pump(const Duration(milliseconds: 200));
+    expect(find.byKey(const ValueKey('splash-surface')), findsNothing);
+    expect(find.byKey(const ValueKey('application-surface')), findsOneWidget);
+  });
+
+  test('splash budget waits only for the remaining fast-start time', () async {
+    final delays = <Duration>[];
+
+    await ensureMinimumSplashDuration(
+      elapsed: const Duration(milliseconds: 400),
+      delay: (duration) {
+        delays.add(duration);
+        return Future<void>.value();
+      },
+    );
+
+    expect(delays, [const Duration(milliseconds: 800)]);
+  });
+
+  test('slow initialization does not add another splash delay', () async {
+    var delayCalled = false;
+
+    await ensureMinimumSplashDuration(
+      elapsed: const Duration(milliseconds: 1201),
+      delay: (duration) {
+        delayCalled = true;
+        return Future<void>.value();
+      },
+    );
+
+    expect(delayCalled, isFalse);
+  });
+
   test('route policy keeps shell available without capabilities', () {
     const policy = RouteAccessPolicy();
     expect(policy.allows('/', authenticated: true, capabilities: null), isTrue);

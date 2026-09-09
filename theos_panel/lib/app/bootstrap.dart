@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:math';
 
@@ -13,6 +14,79 @@ import 'preferences/app_preferences.dart';
 import 'orbi_app.dart';
 import 'session_composition.dart';
 import 'web_redirect.dart';
+
+/// The splash is visible for about 1.2 seconds on a fast cold start. This is
+/// a lower bound, not an additional startup delay: slow initialization uses
+/// the time it already needed and does not wait again.
+const minimumSplashDuration = Duration(milliseconds: 1200);
+const _bootstrapTransitionDuration = Duration(milliseconds: 300);
+
+Future<void> _defaultSplashDelay(Duration duration) =>
+    Future<void>.delayed(duration);
+
+/// Waits only for the portion of the splash budget not already spent by
+/// initialization. The delay callback keeps this deterministic in tests.
+Future<void> ensureMinimumSplashDuration({
+  required Duration elapsed,
+  Duration minimum = minimumSplashDuration,
+  Future<void> Function(Duration) delay = _defaultSplashDelay,
+}) {
+  final remaining = minimum - elapsed;
+  if (remaining <= Duration.zero) return Future<void>.value();
+  return delay(remaining);
+}
+
+/// Resolves reduced-motion from the nearest [MediaQuery], or from the engine
+/// when bootstrap is still above [MaterialApp] and no inherited media query
+/// exists yet.
+bool bootstrapDisableAnimations({
+  required bool? mediaQueryDisableAnimations,
+  required bool platformDisableAnimations,
+}) => mediaQueryDisableAnimations ?? platformDisableAnimations;
+
+/// Crossfades the bootstrap surface without introducing a black frame or a
+/// spatial motion effect. [phaseKey] changes when the splash is replaced by
+/// the initialized app, allowing both surfaces to overlap during the fade.
+class BootstrapAnimatedContent extends StatelessWidget {
+  const BootstrapAnimatedContent({
+    required this.phaseKey,
+    required this.child,
+    super.key,
+  });
+
+  final Object phaseKey;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    final reduceMotion = bootstrapDisableAnimations(
+      mediaQueryDisableAnimations: MediaQuery.maybeOf(context)
+          ?.disableAnimations,
+      platformDisableAnimations: WidgetsBinding
+          .instance
+          .platformDispatcher
+          .accessibilityFeatures
+          .disableAnimations,
+    );
+    final duration = reduceMotion
+        ? Duration.zero
+        : _bootstrapTransitionDuration;
+    return ColoredBox(
+      color: const Color(0xFFF7F9FA),
+      child: AnimatedSwitcher(
+        duration: duration,
+        reverseDuration: duration,
+        layoutBuilder: (currentChild, previousChildren) => Stack(
+          fit: StackFit.expand,
+          children: [...previousChildren, ?currentChild],
+        ),
+        transitionBuilder: (transitionChild, animation) =>
+            FadeTransition(opacity: animation, child: transitionChild),
+        child: KeyedSubtree(key: ValueKey<Object>(phaseKey), child: child),
+      ),
+    );
+  }
+}
 
 /// Web-only authentication bridge. It consumes the existing Odoo HttpOnly
 /// session and never accepts a password or API key from browser state.
@@ -167,9 +241,13 @@ final class _BootstrapHostState extends State<_BootstrapHost> {
   Widget build(BuildContext context) => FutureBuilder<Widget>(
     future: _application,
     builder: (context, snapshot) {
-      if (snapshot.hasData) return snapshot.requireData;
-      if (snapshot.hasError) {
-        return MaterialApp(
+      final Widget content;
+      final Object phaseKey;
+      if (snapshot.hasData) {
+        content = snapshot.requireData;
+        phaseKey = 'application';
+      } else if (snapshot.hasError) {
+        content = MaterialApp(
           title: 'Orbi ERP',
           theme: ThemeData(useMaterial3: true),
           home: Scaffold(
@@ -208,30 +286,37 @@ final class _BootstrapHostState extends State<_BootstrapHost> {
             ),
           ),
         );
-      }
-      return MaterialApp(
-        title: 'Orbi ERP',
-        theme: ThemeData(
-          useMaterial3: true,
-          colorScheme: ColorScheme.fromSeed(seedColor: const Color(0xFF007E82)),
-        ),
-        darkTheme: ThemeData(
-          useMaterial3: true,
-          colorScheme: ColorScheme.fromSeed(
-            seedColor: const Color(0xFF007E82),
-            brightness: Brightness.dark,
+        phaseKey = 'error';
+      } else {
+        content = MaterialApp(
+          title: 'Orbi ERP',
+          theme: ThemeData(
+            useMaterial3: true,
+            colorScheme: ColorScheme.fromSeed(
+              seedColor: const Color(0xFF007E82),
+            ),
           ),
-        ),
-        home: const OrbiSplashScreen(),
-      );
+          darkTheme: ThemeData(
+            useMaterial3: true,
+            colorScheme: ColorScheme.fromSeed(
+              seedColor: const Color(0xFF007E82),
+              brightness: Brightness.dark,
+            ),
+          ),
+          home: const OrbiSplashScreen(),
+        );
+        phaseKey = 'splash';
+      }
+      return BootstrapAnimatedContent(phaseKey: phaseKey, child: content);
     },
   );
 }
 
 Future<Widget> _initializeApplication() async {
   // Keep a real Flutter surface visible while plugins, secure storage and the
-  // bounded session restore initialize. This replaces the previous blank wait
-  // before runApp without adding an artificial startup delay.
+  // bounded session restore initialize. The stopwatch makes the splash budget
+  // a minimum total duration, so a slow restore is never delayed twice.
+  final startupStopwatch = Stopwatch()..start();
   final preferences = await SharedPreferences.getInstance();
   final random = Random.secure();
   final sessionRuntime = SessionRuntime();
@@ -293,6 +378,7 @@ Future<Widget> _initializeApplication() async {
     notificationPresenter: notificationPresenter,
     notificationIds: notificationIds,
   );
+  await ensureMinimumSplashDuration(elapsed: startupStopwatch.elapsed);
   return ProviderScope(
     overrides: [
       sharedPreferencesProvider.overrideWithValue(preferences),
