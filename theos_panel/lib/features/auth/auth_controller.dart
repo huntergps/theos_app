@@ -286,12 +286,7 @@ class AuthNotifier extends Notifier<AuthViewState> {
   }
 
   Future<AuthProfile?> loadProfile() async {
-    final profile = await _service.loadProfile();
-    if (!ref.mounted) return profile;
-    if (profile != null && state.status == AuthControllerStatus.required) {
-      state = AuthViewState(profile: profile);
-    }
-    return profile;
+    return _service.loadProfile();
   }
 
   Future<AuthProfile?> loadProfileFor(String serverUrl, String database) =>
