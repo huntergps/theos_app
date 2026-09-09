@@ -78,6 +78,10 @@ class BootstrapAnimatedContent extends StatelessWidget {
         reverseDuration: duration,
         layoutBuilder: (currentChild, previousChildren) => Stack(
           fit: StackFit.expand,
+          // Bootstrap lives above MaterialApp, so no Directionality exists
+          // yet. Use an absolute alignment to avoid failing before the first
+          // splash frame on a real native runner.
+          alignment: Alignment.topLeft,
           children: [...previousChildren, ?currentChild],
         ),
         transitionBuilder: (transitionChild, animation) =>

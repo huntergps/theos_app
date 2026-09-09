@@ -56,6 +56,22 @@ void main() {
     expect(find.byKey(const ValueKey('application-surface')), findsOneWidget);
   });
 
+  testWidgets('bootstrap renders before MaterialApp provides Directionality', (
+    tester,
+  ) async {
+    // Production mounts BootstrapAnimatedContent above MaterialApp. Keep this
+    // exact topology covered: a directional Stack alignment crashes the real
+    // runner before it can paint the splash or login surface.
+    await tester.pumpWidget(
+      const BootstrapAnimatedContent(
+        phaseKey: 'splash',
+        child: ColoredBox(color: Colors.teal),
+      ),
+    );
+
+    expect(tester.takeException(), isNull);
+  });
+
   test('splash budget waits only for the remaining fast-start time', () async {
     final delays = <Duration>[];
 
