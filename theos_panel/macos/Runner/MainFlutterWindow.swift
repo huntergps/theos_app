@@ -21,5 +21,21 @@ class MainFlutterWindow: NSWindow {
     RegisterGeneratedPlugins(registry: flutterViewController)
 
     super.awakeFromNib()
+
+    // The macOS runner can finish launching without making its Flutter
+    // window key (notably when started from `flutter run`). Activate once
+    // after the view hierarchy exists so text fields receive keyboard input;
+    // do not repeat this on later focus changes or rebuilds.
+    DispatchQueue.main.async { [weak self] in
+      guard let self else { return }
+      NSApp.activate(ignoringOtherApps: true)
+      self.makeKeyAndOrderFront(nil)
+      // FlutterViewController's view is the responder that forwards native
+      // key events to Flutter's text-input plugin. Using the window's
+      // contentView wrapper can leave the window key while dropping typing.
+      if let flutterView = self.contentViewController?.view {
+        self.makeFirstResponder(flutterView)
+      }
+    }
   }
 }

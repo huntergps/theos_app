@@ -52,7 +52,10 @@ void main() {
     );
 
     application.main();
-    await _settle(tester);
+    // The bootstrap splash owns an indeterminate CircularProgressIndicator,
+    // so pumpAndSettle can never observe an idle frame while it is visible.
+    // Wait for the routed login surface with a bounded pump loop instead.
+    await _waitForLoginSurface(tester);
     await _assertLoginSurface(tester);
     await _login(tester, config, actors.seller);
     await _assertHomeRoleSurface(tester, required: const ['Ventas']);
@@ -79,6 +82,16 @@ Future<void> _assertLoginSurface(WidgetTester tester) async {
   expect(find.text('Base de datos'), findsOneWidget);
   expect(find.text('Usuario'), findsOneWidget);
   expect(find.text('Contraseña'), findsOneWidget);
+}
+
+Future<void> _waitForLoginSurface(WidgetTester tester) async {
+  const interval = Duration(milliseconds: 100);
+  const maxAttempts = 150; // 15 seconds, bounded cold-start allowance.
+  for (var attempt = 0; attempt < maxAttempts; attempt++) {
+    if (find.byType(LoginScreen).evaluate().isNotEmpty) return;
+    await tester.pump(interval, EnginePhase.sendSemanticsUpdate);
+  }
+  fail('Timed out waiting for the routed LoginScreen after bootstrap.');
 }
 
 Future<void> _settle(WidgetTester tester) async {
