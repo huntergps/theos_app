@@ -13,6 +13,7 @@ class FakeActions implements SaleOdooActions {
   Map<String, dynamic>? lastKwargs;
   dynamic response = true;
   dynamic accountMoveResponse = const <Map<String, dynamic>>[];
+  dynamic salePaymentResponse = const <Map<String, dynamic>>[];
   @override
   Future<dynamic> call({
     required String model,
@@ -25,6 +26,10 @@ class FakeActions implements SaleOdooActions {
     kwargsHistory.add(kwargs);
     if (model == 'account.move' && method == 'search_read') {
       return accountMoveResponse;
+    }
+    if (model == 'l10n_ec_collection_box.sale.order.payment' &&
+        method == 'search_read') {
+      return salePaymentResponse;
     }
     return response;
   }
@@ -117,6 +122,64 @@ class ExpiringWizardActions extends FakeActions {
   }
 }
 
+class ReplayCashActions extends FakeActions {
+  @override
+  Future<dynamic> call({
+    required String model,
+    required String method,
+    List<int>? ids,
+    Map<String, dynamic>? kwargs,
+  }) async {
+    if (model == 'sale.order' && method == 'action_pos_confirm_and_invoice') {
+      accountMoveResponse = const [
+        {
+          'id': 900,
+          'state': 'posted',
+          'payment_state': 'paid',
+          'amount_total': 12.0,
+          'amount_residual': 0.0,
+          'l10n_ec_pos_collection_completed': true,
+        },
+      ];
+    }
+    return super.call(model: model, method: method, ids: ids, kwargs: kwargs);
+  }
+}
+
+class ServerNumberedCashActions extends FakeActions {
+  int invoiceReads = 0;
+  @override
+  Future<dynamic> call({
+    required String model,
+    required String method,
+    List<int>? ids,
+    Map<String, dynamic>? kwargs,
+  }) async {
+    if (model == 'account.move' && method == 'search_read') {
+      if (invoiceReads++ == 0) return const <Map<String, dynamic>>[];
+      return const [
+        {
+          'id': 910,
+          'state': 'posted',
+          'payment_state': 'paid',
+          'amount_total': 12.50,
+          'amount_residual': 0.0,
+          'l10n_ec_pos_collection_completed': false,
+        },
+      ];
+    }
+    if (model == 'sale.order' && method == 'search_read') {
+      return const [
+        {
+          'id': 42,
+          'invoice_ids': [910],
+        },
+      ];
+    }
+    return super.call(model: model, method: method, ids: ids, kwargs: kwargs);
+  }
+}
+
 class FakeStates implements SaleRemoteConfirmationReader {
   final SaleOrderState value;
   const FakeStates(this.value);
@@ -125,6 +188,167 @@ class FakeStates implements SaleRemoteConfirmationReader {
 }
 
 void main() {
+  test(
+    'currencyDigits zero keeps native whole-unit amount and reconciliation',
+    () async {
+      const line = SalePaymentLinePayload(
+        journalId: 30,
+        amountMinor: 12,
+        currencyDigits: 0,
+      );
+      expect(line.toOdoo()['amount'], 12);
+
+      final db = AppDatabase(NativeDatabase.memory());
+      addTearDown(db.close);
+      final queue = OfflineQueueDataSource(db);
+      final actions = FakeActions()
+        ..accountMoveResponse = const [
+          {
+            'id': 901,
+            'state': 'posted',
+            'payment_state': 'paid',
+            'amount_total': 12,
+            'amount_residual': 0,
+            'l10n_ec_pos_collection_completed': true,
+          },
+        ];
+      final adapter = OdooOfflineOperationAdapter(
+        actions: actions,
+        database: db,
+        scope: AppScope(
+          appId: 'panel',
+          installationId: 'install',
+          normalizedServerUrl: 'https://erp.test',
+          database: 'db',
+          userId: 1,
+        ),
+        queue: queue,
+      );
+      final operation = OfflineOperation(
+        id: 1,
+        model: 'sale.order',
+        method: 'cashInvoice',
+        recordId: 42,
+        values: {
+          'commandId': 'cash-zero-digits',
+          'scopeKey': AppScope(
+            appId: 'panel',
+            installationId: 'install',
+            normalizedServerUrl: 'https://erp.test',
+            database: 'db',
+            userId: 1,
+          ).scopeKey,
+          'saleOrderRemoteId': 42,
+          'numberedByClient': false,
+          'currencyDigits': 0,
+          'paymentLines': [
+            {'journalId': 30, 'amountMinor': 12, 'currencyDigits': 0},
+          ],
+        },
+        createdAt: DateTime.utc(2026, 9, 8),
+      );
+      expect(await adapter.reconcile(operation), isA<OperationApplied>());
+    },
+  );
+
+  test(
+    'OperationsSyncJob replays cash once and removes the durable operation',
+    () async {
+      final db = AppDatabase(NativeDatabase.memory());
+      addTearDown(db.close);
+      final queue = OfflineQueueDataSource(db);
+      final scope = AppScope(
+        appId: 'panel',
+        installationId: 'install',
+        normalizedServerUrl: 'https://erp.test',
+        database: 'db',
+        userId: 1,
+      );
+      await queue.queueOperation(
+        model: 'sale.order',
+        method: 'cashInvoice',
+        recordId: 42,
+        values: {
+          'commandId': 'cash-replay-job',
+          'scopeKey': scope.scopeKey,
+          'saleOrderRemoteId': 42,
+          'numberedByClient': false,
+          'paymentLines': [
+            {'journalId': 30, 'amountMinor': 1200},
+          ],
+        },
+        operationKey: 'cash-replay-job',
+        replayPolicy: OfflineReplayPolicy.retrySafe,
+      );
+      final actions = ReplayCashActions();
+      final adapter = OdooOfflineOperationAdapter(
+        actions: actions,
+        database: db,
+        scope: scope,
+        queue: queue,
+      );
+      final job = OperationsSyncJob(queue: queue, adapter: adapter);
+      addTearDown(job.dispose);
+      expect((await job.run(scope)).cursorConfirmed, isTrue);
+      expect(
+        actions.calls,
+        contains('sale.order.action_pos_confirm_and_invoice'),
+      );
+      expect(await db.select(db.offlineQueue).get(), isEmpty);
+      expect((await job.run(scope)).cursorConfirmed, isTrue);
+      expect(
+        actions.calls.where(
+          (call) => call == 'sale.order.action_pos_confirm_and_invoice',
+        ),
+        hasLength(1),
+      );
+    },
+  );
+
+  test(
+    'server-numbered cash reconciles through the sale invoice relation',
+    () async {
+      final db = AppDatabase(NativeDatabase.memory());
+      addTearDown(db.close);
+      final queue = OfflineQueueDataSource(db);
+      final scope = AppScope(
+        appId: 'panel',
+        installationId: 'install',
+        normalizedServerUrl: 'https://erp.test',
+        database: 'db',
+        userId: 1,
+      );
+      final actions = ServerNumberedCashActions();
+      final adapter = OdooOfflineOperationAdapter(
+        actions: actions,
+        database: db,
+        scope: scope,
+        queue: queue,
+      );
+      final operation = OfflineOperation(
+        id: 1,
+        model: 'sale.order',
+        method: 'cashInvoice',
+        recordId: 42,
+        values: {
+          'commandId': 'cash-server-numbered',
+          'scopeKey': scope.scopeKey,
+          'saleOrderRemoteId': 42,
+          'numberedByClient': false,
+          'paymentLines': [
+            {'journalId': 30, 'amountMinor': 1250},
+          ],
+        },
+        createdAt: DateTime.utc(2026, 9, 8),
+      );
+      expect(await adapter.dispatch(operation), isNull);
+      expect(
+        actions.calls,
+        contains('sale.order.action_pos_confirm_and_invoice'),
+      );
+    },
+  );
+
   test('withhold line replays official sale.order.withhold.line without a new table', () async {
     final db = AppDatabase(NativeDatabase.memory());
     addTearDown(db.close);
@@ -205,6 +429,10 @@ void main() {
           ),
         ],
         collectionSessionId: 8,
+        numberedByClient: true,
+        sequential: 12,
+        emissionDate: '2026-09-07',
+        accessKey: '1234567890123456789012345678901234567890123456789',
       );
       expect(result.syncState, OperationSyncState.synced);
       expect(actions.calls, [
@@ -221,6 +449,25 @@ void main() {
       expect((lines[1] as List)[2], containsPair('credit_note_id', 73));
     },
   );
+
+  test('mixed server-numbered wizard fails closed before mutation', () async {
+    final actions = FakeActions();
+    final result = await OdooSaleCollectionPort(actions).confirmAndInvoice(
+      order: EntityReference(localId: 'sale-mixed', remoteId: 42),
+      commandId: 'mixed-server-numbered',
+      paymentLines: const [
+        SalePaymentLinePayload(
+          journalId: 0,
+          amountMinor: 100,
+          type: 'advance',
+          advanceId: 91,
+        ),
+      ],
+      collectionSessionId: 8,
+    );
+    expect(result.syncState, OperationSyncState.failed);
+    expect(actions.calls, isEmpty);
+  });
 
   test('existing invoice replay rebuilds official wizard lines after restart', () async {
     final file = File(
@@ -242,11 +489,13 @@ void main() {
             'amountMinor': 5000,
             'advanceId': 91,
             'journalId': 0,
+            'collectionLineUuid': 'existing-u06-restart:payment:0',
           },
           {
             'type': 'credit_note',
             'amountMinor': 2500,
             'creditNoteId': 73,
+            'collectionLineUuid': 'existing-u06-restart:payment:1',
             'journalId': 0,
           },
         ],
@@ -262,6 +511,26 @@ void main() {
     });
     final queue = OfflineQueueDataSource(db);
     final actions = FakeActions();
+    actions.salePaymentResponse = const [
+      {
+        'id': 91,
+        'sale_id': [42, 'SO/42'],
+        'amount': 50.0,
+        'state': 'posted',
+        'move_id': [801, 'PAY/1'],
+        'pos_collection_op_uuid': 'existing-u06-restart',
+        'pos_collection_line_uuid': 'existing-u06-restart:payment:0',
+      },
+      {
+        'id': 92,
+        'sale_id': [42, 'SO/42'],
+        'amount': 25.0,
+        'state': 'posted',
+        'move_id': [802, 'PAY/2'],
+        'pos_collection_op_uuid': 'existing-u06-restart',
+        'pos_collection_line_uuid': 'existing-u06-restart:payment:1',
+      },
+    ];
     final adapter = OdooOfflineOperationAdapter(
       actions: actions,
       database: db,
@@ -280,10 +549,18 @@ void main() {
       'l10n_ec_collection_box.sale.order.payment.wizard.search_read',
       'l10n_ec_collection_box.sale.order.payment.wizard.write',
       'l10n_ec_collection_box.sale.order.payment.wizard.action_apply',
+      'l10n_ec_collection_box.sale.order.payment.search_read',
     ]);
     final write = actions.kwargsHistory[1]!['vals'] as Map;
     final lines = write['line_ids'] as List;
     expect((lines[1] as List)[2], containsPair('line_type', 'advance'));
+    expect(
+      (lines[1] as List)[2],
+      containsPair(
+        'pos_collection_line_uuid',
+        'existing-u06-restart:payment:0',
+      ),
+    );
     expect((lines[2] as List)[2], containsPair('line_type', 'credit_note'));
   });
 
@@ -305,6 +582,7 @@ void main() {
             'amountMinor': 5000,
             'advanceId': 91,
             'journalId': 0,
+            'collectionLineUuid': 'existing-u06-expired:payment:0',
           },
         ],
       },
@@ -312,6 +590,17 @@ void main() {
       replayPolicy: OfflineReplayPolicy.retrySafe,
     );
     final actions = ExpiringWizardActions();
+    actions.salePaymentResponse = const [
+      {
+        'id': 93,
+        'sale_id': [42, 'SO/42'],
+        'amount': 50.0,
+        'state': 'posted',
+        'move_id': [803, 'PAY/3'],
+        'pos_collection_op_uuid': 'existing-u06-expired',
+        'pos_collection_line_uuid': 'existing-u06-expired:payment:0',
+      },
+    ];
     final adapter = OdooOfflineOperationAdapter(
       actions: actions,
       database: db,
@@ -330,6 +619,7 @@ void main() {
       'l10n_ec_collection_box.sale.order.payment.wizard.search_read',
       'l10n_ec_collection_box.sale.order.payment.wizard.create',
       'l10n_ec_collection_box.sale.order.payment.wizard.action_apply',
+      'l10n_ec_collection_box.sale.order.payment.search_read',
     ]);
     final created = actions.kwargsHistory[1]!['vals_list'] as List;
     final values = (created.single as Map).cast<String, dynamic>();
@@ -671,7 +961,10 @@ void main() {
     expect(fake.calls, ['sale.order.action_pos_confirm_and_invoice']);
     expect(fake.lastKwargs?['client_op_uuid'], 'pay-1');
     expect(fake.lastKwargs?['payment_lines'], isA<List<dynamic>>());
-    expect(fake.lastKwargs?.containsKey('sequential'), isTrue);
+    // Fiscal identity is omitted for a normal (server-numbered) journal.
+    expect(fake.lastKwargs?.containsKey('sequential'), isFalse);
+    expect(fake.lastKwargs?.containsKey('emission_date'), isFalse);
+    expect(fake.lastKwargs?.containsKey('access_key'), isFalse);
   });
 
   test(
@@ -730,6 +1023,16 @@ void main() {
       await expectLater(adapter.dispatch(missing), throwsStateError);
 
       final actions = FakeActions();
+      actions.accountMoveResponse = const [
+        {
+          'id': 404,
+          'state': 'posted',
+          'payment_state': 'paid',
+          'amount_total': 12.50,
+          'amount_residual': 0.0,
+          'l10n_ec_pos_collection_completed': true,
+        },
+      ];
       final validAdapter = OdooOfflineOperationAdapter(
         actions: actions,
         database: db,
@@ -761,9 +1064,12 @@ void main() {
             (operation) => operation.values['commandId'] == 'cash-fiscal-valid',
           );
       await validAdapter.dispatch(valid);
-      expect(actions.lastKwargs?['sequential'], 12);
-      expect(actions.lastKwargs?['emission_date'], '2026-09-07');
-      expect(actions.lastKwargs?['access_key'], key);
+      final actionKwargs = actions.kwargsHistory.firstWhere(
+        (kwargs) => kwargs?['sequential'] == 12,
+      );
+      expect(actionKwargs?['sequential'], 12);
+      expect(actionKwargs?['emission_date'], '2026-09-07');
+      expect(actionKwargs?['access_key'], key);
     },
   );
 
@@ -823,6 +1129,7 @@ void main() {
           'state': 'posted',
           'payment_state': 'paid',
           'amount_total': 12.50,
+          'amount_residual': 0.0,
           'l10n_ec_pos_collection_completed': true,
         },
       ];

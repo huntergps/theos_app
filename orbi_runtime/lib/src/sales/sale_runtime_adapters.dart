@@ -153,6 +153,7 @@ final class SalePaymentLinePayload {
   final int? cardBrandId;
   final int? cardDeadlineId;
   final int? loteId;
+  final String? collectionLineUuid;
 
   /// Official wizard discriminator.  `payment` is retained for the existing
   /// direct POS action; advance/creditNote are sent through the native wizard.
@@ -169,6 +170,7 @@ final class SalePaymentLinePayload {
     this.cardBrandId,
     this.cardDeadlineId,
     this.loteId,
+    this.collectionLineUuid,
     this.type = 'payment',
     this.advanceId,
     this.creditNoteId,
@@ -186,6 +188,7 @@ final class SalePaymentLinePayload {
     ...?_present('card_brand_id', cardBrandId),
     ...?_present('card_deadline_id', cardDeadlineId),
     ...?_present('lote_id', loteId),
+    ...?_present('pos_collection_line_uuid', collectionLineUuid),
   };
 }
 
@@ -200,6 +203,21 @@ final class OdooSaleCollectionPort {
     List<SalePaymentLinePayload> paymentLines = const [],
   }) async {
     if (paymentLines.isNotEmpty) {
+      if (paymentLines.any((line) => line.collectionLineUuid == null)) {
+        return OperationOutcome(
+          commandId: commandId,
+          entity: order,
+          businessState: SaleOrderState.sale,
+          syncState: OperationSyncState.conflict,
+          issues: [
+            OperationIssue(
+              code: 'invoice_collection_line_identity_missing',
+              messageKey: 'sale.invoice_collection_line_identity_missing',
+              retryable: false,
+            ),
+          ],
+        );
+      }
       final writeResult = await actions.call(
         model: 'l10n_ec_collection_box.sale.order.payment.wizard',
         method: 'write',
@@ -254,7 +272,13 @@ final class OdooSaleCollectionPort {
         result is Map &&
         result['res_model'] == 'account.move' &&
         _positiveIntValue(result['res_id']) != null;
-    if (!explicitInvoice && !await _existingPaymentApplied(commandId)) {
+    if (!explicitInvoice &&
+        !await _existingPaymentApplied(
+          commandId,
+          saleId: order.remoteId,
+          expectedAmountMinor: _paymentLinesExpectedMinor(paymentLines),
+          currencyDigits: _uniformCurrencyDigits(paymentLines),
+        )) {
       return OperationOutcome(
         commandId: commandId,
         entity: order,
@@ -277,26 +301,60 @@ final class OdooSaleCollectionPort {
     );
   }
 
-  Future<bool> _existingPaymentApplied(String commandId) async {
+  Future<bool> _existingPaymentApplied(
+    String commandId, {
+    int? saleId,
+    int? expectedAmountMinor,
+    int? currencyDigits,
+  }) async {
+    if (saleId == null || saleId <= 0) return false;
     final rows = await actions.call(
       model: 'l10n_ec_collection_box.sale.order.payment',
       method: 'search_read',
       kwargs: {
         'domain': [
+          ['sale_id', '=', saleId],
           ['pos_collection_op_uuid', '=', commandId],
         ],
-        'fields': ['id', 'state', 'move_id'],
+        'fields': [
+          'id',
+          'sale_id',
+          'state',
+          'move_id',
+          'amount',
+          'pos_collection_op_uuid',
+        ],
         'limit': 100,
       },
     );
     if (rows is! List || rows.isEmpty || rows.any((row) => row is! Map)) {
       return false;
     }
-    return rows.every((row) {
+    if (!rows.every((row) {
       final value = Map<String, dynamic>.from(row as Map);
       final move = value['move_id'];
-      return value['state'] == 'posted' && move is List && move.isNotEmpty;
-    });
+      final remoteSale = _relationIdValue(value['sale_id']);
+      return value['state'] == 'posted' &&
+          value['pos_collection_op_uuid'] == commandId &&
+          remoteSale == saleId &&
+          move is List &&
+          move.isNotEmpty &&
+          _positiveIntValue(move.first) != null;
+    })) {
+      return false;
+    }
+    if (expectedAmountMinor == null) return true;
+    // Mixed currency scales cannot be compared safely against one minor-unit
+    // total. Treat that as incomplete evidence instead of guessing 2 digits.
+    if (currencyDigits == null) return false;
+    final digits = currencyDigits;
+    var actualMinor = 0;
+    for (final row in rows.cast<Map>()) {
+      final amount = row['amount'];
+      if (amount is! num || !amount.isFinite || amount <= 0) return false;
+      actualMinor += _toMinor(amount, digits);
+    }
+    return actualMinor == expectedAmountMinor;
   }
 
   Future<OperationOutcome<SaleOrderState>> confirmAndInvoice({
@@ -334,12 +392,34 @@ final class OdooSaleCollectionPort {
       }
     }
     final typed = paymentLines.any((line) => line.type != 'payment');
+    if (typed && !numberedByClient) {
+      // The native wizard has no operation UUID field outside its fiscal
+      // identity path. A mixed/server-numbered call would therefore be
+      // non-replayable after an ambiguous response; fail before creating it.
+      return OperationOutcome(
+        commandId: commandId,
+        entity: order,
+        businessState: SaleOrderState.sale,
+        syncState: OperationSyncState.failed,
+        issues: [
+          OperationIssue(
+            code: 'mixed_requires_numbered_identity',
+            messageKey: 'sale.mixed_requires_numbered_identity',
+            retryable: false,
+          ),
+        ],
+      );
+    }
     final result = typed
         ? await _applyNativePaymentWizard(
             saleId: id,
             commandId: commandId,
             paymentLines: paymentLines,
             collectionSessionId: collectionSessionId,
+            numberedByClient: numberedByClient,
+            sequential: sequential,
+            emissionDate: emissionDate,
+            accessKey: accessKey,
           )
         : await actions.call(
             model: 'sale.order',
@@ -350,9 +430,11 @@ final class OdooSaleCollectionPort {
                   .map((line) => line.toOdoo())
                   .toList(),
               ...?_present('collection_session_id', collectionSessionId),
-              ...?_present('sequential', sequential),
-              ...?_present('emission_date', emissionDate),
-              ...?_present('access_key', accessKey),
+              if (numberedByClient) ...{
+                'sequential': sequential,
+                'emission_date': emissionDate,
+                'access_key': accessKey,
+              },
               'client_op_uuid': commandId,
             },
           );
@@ -393,7 +475,23 @@ final class OdooSaleCollectionPort {
     required String commandId,
     required List<SalePaymentLinePayload> paymentLines,
     int? collectionSessionId,
+    required bool numberedByClient,
+    int? sequential,
+    String? emissionDate,
+    String? accessKey,
   }) async {
+    // `pos_client_op_uuid` is part of the POS fiscal identity contract in
+    // Odoo, not a generic transient-wizard idempotency field. Sending it for
+    // a journal that is not numbered by the client makes the native wizard
+    // enter its offline-number validation path and fail closed.
+    if (numberedByClient &&
+        !OfflineFiscalInvoicePayload(
+          sequential: sequential,
+          emissionDate: emissionDate,
+          accessKey: accessKey,
+        ).isComplete) {
+      throw StateError('numbered payment wizard requires fiscal identity');
+    }
     final wizard = await actions.call(
       model: 'l10n_ec_collection_box.sale.order.payment.wizard',
       method: 'create',
@@ -402,7 +500,12 @@ final class OdooSaleCollectionPort {
           {
             'sale_id': saleId,
             ...?_present('collection_session_id', collectionSessionId),
-            'pos_client_op_uuid': commandId,
+            if (numberedByClient) ...{
+              'pos_client_sequential': sequential,
+              'pos_emission_date': emissionDate,
+              'pos_access_key': accessKey,
+              'pos_client_op_uuid': commandId,
+            },
             'line_ids': [
               for (final line in paymentLines) [0, 0, line.toOdoo()],
             ],
@@ -451,6 +554,7 @@ final class OdooCollectionReconciliationPort
           'state',
           'payment_state',
           'amount_total',
+          'amount_residual',
           'l10n_ec_pos_collection_completed',
         ],
         'limit': 2,
@@ -461,7 +565,8 @@ final class OdooCollectionReconciliationPort
       if (row['l10n_ec_pos_collection_completed'] != true ||
           row['payment_state'] != 'paid' ||
           row['state'] != 'posted' ||
-          !_amountMatches(row['amount_total'], expectedAmountMinor)) {
+          !_amountMatches(row['amount_total'], expectedAmountMinor) ||
+          !_isCurrencyZeroValue(row['amount_residual'], 2)) {
         return null;
       }
       return OperationOutcome(
@@ -481,6 +586,11 @@ final class OdooCollectionReconciliationPort
   }
 }
 
+bool _isCurrencyZeroValue(dynamic raw, int digits) {
+  if (raw is! num || !raw.isFinite) return false;
+  return _toMinor(raw, digits) == 0;
+}
+
 int? _createdIdValue(dynamic result) {
   if (result is num && result.toInt() > 0) return result.toInt();
   if (result is List && result.length == 1) {
@@ -494,6 +604,38 @@ int? _createdIdValue(dynamic result) {
 
 int? _positiveIntValue(dynamic value) {
   return value is num && value.toInt() > 0 ? value.toInt() : null;
+}
+
+/// JSON-2 serializes Many2one values as `[id, display_name]` while small
+/// fakes/older adapters may expose the bare integer. Accept both shapes, but
+/// never coerce arbitrary strings or names into an id.
+int? _relationIdValue(dynamic value) {
+  final direct = _positiveIntValue(value);
+  if (direct != null) return direct;
+  if (value is List && value.isNotEmpty) {
+    return _positiveIntValue(value.first);
+  }
+  return null;
+}
+
+int? _paymentLinesExpectedMinor(List<SalePaymentLinePayload> lines) {
+  if (lines.isEmpty) return null;
+  var total = 0;
+  for (final line in lines) {
+    if (line.amountMinor <= 0) return null;
+    total += line.amountMinor;
+  }
+  return total > 0 ? total : null;
+}
+
+int? _uniformCurrencyDigits(List<SalePaymentLinePayload> lines) {
+  if (lines.isEmpty) return null;
+  final digits = lines.first.currencyDigits;
+  return lines.every((line) => line.currencyDigits == digits) ? digits : null;
+}
+
+int _toMinor(num amount, int currencyDigits) {
+  return (amount * math.pow(10, currencyDigits)).round();
 }
 
 final class OdooClientSaleActions implements ContextualSaleOdooActions {
@@ -803,10 +945,6 @@ final class OdooOfflineOperationAdapter implements OfflineOperationAdapter {
         emissionDate: values['emissionDate'] as String?,
         accessKey: values['accessKey'] as String?,
       );
-      final hasFiscalValue =
-          values['sequential'] != null ||
-          values['emissionDate'] != null ||
-          values['accessKey'] != null;
       final numberedMarker = values['numberedByClient'];
       if (numberedMarker is! bool) {
         throw StateError(
@@ -814,7 +952,10 @@ final class OdooOfflineOperationAdapter implements OfflineOperationAdapter {
         );
       }
       final numberedByClient = numberedMarker;
-      if (numberedByClient || hasFiscalValue) {
+      // Fiscal identity belongs to the numbered-by-client contract. A stale
+      // identity in an older queue row must not accidentally switch a normal
+      // journal into the POS fiscal path.
+      if (numberedByClient) {
         if (!fiscal.isComplete) {
           throw StateError(
             'cashInvoice requires server-provisioned sequential, '
@@ -826,6 +967,15 @@ final class OdooOfflineOperationAdapter implements OfflineOperationAdapter {
         (line) => line['line_type'] != null && line['line_type'] != 'payment',
       );
       if (typed) {
+        if (!numberedByClient) {
+          // The POS wizard treats pos_client_op_uuid as fiscal identity. A
+          // server-numbered mixed operation has no native UUID marker that
+          // this durable adapter can reconcile after a timeout; do not create
+          // a payment that cannot be replayed safely.
+          throw StateError(
+            'durable mixed payment requires numberedByClient for replay',
+          );
+        }
         final wizard = await actions.call(
           model: 'l10n_ec_collection_box.sale.order.payment.wizard',
           method: 'create',
@@ -836,9 +986,14 @@ final class OdooOfflineOperationAdapter implements OfflineOperationAdapter {
                 if (values['collectionSessionId'] is num)
                   'collection_session_id':
                       (values['collectionSessionId'] as num).toInt(),
-                // This is the native idempotency marker consumed by the
-                // existing payment wizard, not a second payment record.
-                'pos_client_op_uuid': values['commandId'],
+                if (numberedByClient) ...{
+                  // This is the native fiscal identity consumed by the
+                  // existing payment wizard, not a second payment record.
+                  'pos_client_sequential': fiscal.sequential,
+                  'pos_emission_date': fiscal.emissionDate,
+                  'pos_access_key': fiscal.accessKey,
+                  'pos_client_op_uuid': values['commandId'],
+                },
                 'line_ids': [
                   for (final line in paymentLines) [0, 0, line],
                 ],
@@ -915,6 +1070,15 @@ final class OdooOfflineOperationAdapter implements OfflineOperationAdapter {
             'l10n_ec_collection_box.sale.order.payment.wizard' &&
         operation.method == 'existingInvoice') {
       final lines = await _operationPaymentLines(operation);
+      if (lines.any(
+        (line) =>
+            line['pos_collection_line_uuid'] is! String ||
+            (line['pos_collection_line_uuid'] as String).isEmpty,
+      )) {
+        throw StateError(
+          'existing invoice collection requires native line UUIDs',
+        );
+      }
       await _ensureOperationWithholdLines(
         _positiveInt(values['saleOrderRemoteId']) ?? id ?? 0,
         operation,
@@ -1005,6 +1169,21 @@ final class OdooOfflineOperationAdapter implements OfflineOperationAdapter {
         localValues: Map<String, dynamic>.from(values),
       );
     }
+    if (operation.method == 'cashInvoice' &&
+        !await _cashInvoiceApplied(operation)) {
+      // The action response is not proof of accounting completion. Do not
+      // mark local payment lines applied until the posted, fully reconciled
+      // native invoice is visible server-side.
+      throw const AmbiguousOperationException(
+        'cash invoice response lacked posted, zero-residual evidence',
+      );
+    }
+    if (operation.method == 'existingInvoice' &&
+        !await _existingInvoiceApplied(operation)) {
+      throw const AmbiguousOperationException(
+        'collection response lacked native posted-payment evidence',
+      );
+    }
     if ((operation.method == 'cashInvoice' ||
             operation.method == 'existingInvoice') &&
         operation.values['paymentLineIds'] is List) {
@@ -1040,7 +1219,7 @@ final class OdooOfflineOperationAdapter implements OfflineOperationAdapter {
     if (commandId is! String || commandId.isEmpty) return false;
     final expectedMinor = _expectedCollectionAmountMinor(operation.values);
     if (expectedMinor == null || expectedMinor <= 0) return false;
-    final result = await actions.call(
+    var result = await actions.call(
       model: 'account.move',
       method: 'search_read',
       kwargs: {
@@ -1055,21 +1234,84 @@ final class OdooOfflineOperationAdapter implements OfflineOperationAdapter {
           'state',
           'payment_state',
           'amount_total',
+          'amount_residual',
           'l10n_ec_pos_collection_completed',
         ],
         'limit': 1,
       },
     );
+    // Classic (server-numbered) POS invoices intentionally do not persist the
+    // client UUID on account.move. Reconcile those through the sale's native
+    // invoice relation instead of inventing a second marker or declaring the
+    // already-paid sale ambiguous forever.
+    if ((result is! List || result.isEmpty) &&
+        operation.values['numberedByClient'] != true) {
+      final saleId = _positiveInt(operation.values['saleOrderRemoteId']);
+      if (saleId != null) {
+        final saleRows = await actions.call(
+          model: 'sale.order',
+          method: 'search_read',
+          kwargs: {
+            'domain': [
+              ['id', '=', saleId],
+            ],
+            'fields': ['id', 'invoice_ids'],
+            'limit': 1,
+          },
+        );
+        final invoiceIds = <int>[];
+        if (saleRows is List && saleRows.length == 1 && saleRows.first is Map) {
+          final rawIds = (saleRows.first as Map)['invoice_ids'];
+          if (rawIds is List) {
+            for (final rawId in rawIds) {
+              final invoiceId = _positiveInt(rawId);
+              if (invoiceId != null) invoiceIds.add(invoiceId);
+            }
+          }
+        }
+        if (invoiceIds.length == 1) {
+          result = await actions.call(
+            model: 'account.move',
+            method: 'search_read',
+            kwargs: {
+              'domain': [
+                ['id', '=', invoiceIds.single],
+                ['move_type', '=', 'out_invoice'],
+                ['state', '=', 'posted'],
+              ],
+              'fields': [
+                'id',
+                'state',
+                'payment_state',
+                'amount_total',
+                'amount_residual',
+                'l10n_ec_pos_collection_completed',
+              ],
+              'limit': 1,
+            },
+          );
+        }
+      }
+    }
     if (result is! List || result.length != 1 || result.first is! Map) {
       return false;
     }
     final row = Map<String, dynamic>.from(result.first as Map);
-    final completed = row['l10n_ec_pos_collection_completed'] == true;
+    final requiresFiscalMarker = operation.values['numberedByClient'] == true;
+    final completed =
+        !requiresFiscalMarker ||
+        row['l10n_ec_pos_collection_completed'] == true;
     final paymentState = row['payment_state'];
     final paid = paymentState == 'paid';
     final total = row['amount_total'];
-    final actualMinor = total is num ? (total * 100).round() : null;
-    return completed && paid && actualMinor == expectedMinor;
+    final residual = row['amount_residual'];
+    final actualMinor = total is num
+        ? _toMinor(total, _currencyDigits(operation.values))
+        : null;
+    return completed &&
+        paid &&
+        actualMinor == expectedMinor &&
+        _isCurrencyZero(residual, _currencyDigits(operation.values));
   }
 
   Future<bool> _existingInvoiceApplied(OfflineOperation operation) async {
@@ -1080,10 +1322,17 @@ final class OdooOfflineOperationAdapter implements OfflineOperationAdapter {
       method: 'search_read',
       kwargs: {
         'domain': [
+          if (_positiveInt(operation.values['saleOrderRemoteId']) != null)
+            [
+              'sale_id',
+              '=',
+              _positiveInt(operation.values['saleOrderRemoteId']),
+            ],
           ['pos_collection_op_uuid', '=', commandId],
         ],
         'fields': [
           'id',
+          'sale_id',
           'amount',
           'state',
           'move_id',
@@ -1105,8 +1354,26 @@ final class OdooOfflineOperationAdapter implements OfflineOperationAdapter {
       return line['state'] != 'posted' ||
           move is! List ||
           move.isEmpty ||
-          move.first is! num;
+          _positiveInt(move.first) == null ||
+          line['pos_collection_op_uuid'] != commandId;
     })) {
+      return false;
+    }
+    final saleId = _positiveInt(operation.values['saleOrderRemoteId']);
+    if (saleId != null &&
+        lines.any((line) => _relationIdValue(line['sale_id']) != saleId)) {
+      return false;
+    }
+    final lineUuids = lines
+        .map((line) => line['pos_collection_line_uuid'])
+        .whereType<String>()
+        .where((uuid) => uuid.isNotEmpty)
+        .toSet();
+    if (lineUuids.length != lines.length) return false;
+    final expectedLineUuids = await _operationPaymentLineUuids(operation);
+    if (expectedLineUuids != null &&
+        (lineUuids.length != expectedLineUuids.length ||
+            !lineUuids.containsAll(expectedLineUuids))) {
       return false;
     }
     final expectedMinor = await _operationPaymentLinesExpectedMinor(operation);
@@ -1115,7 +1382,7 @@ final class OdooOfflineOperationAdapter implements OfflineOperationAdapter {
     for (final line in lines) {
       final amount = line['amount'];
       if (amount is! num || !amount.isFinite || amount <= 0) return false;
-      actualMinor += (amount * 100).round();
+      actualMinor += _toMinor(amount, _currencyDigits(operation.values));
     }
     return actualMinor == expectedMinor;
   }
@@ -1149,7 +1416,7 @@ final class OdooOfflineOperationAdapter implements OfflineOperationAdapter {
         database.saleOrderPaymentLine,
       )..where((table) => table.id.equals(localId))).getSingleOrNull();
       if (row == null || row.amount <= 0) return null;
-      total += (row.amount * 100).round();
+      total += _toMinor(row.amount, _currencyDigits(operation.values));
     }
     return total > 0 ? total : null;
   }
@@ -1169,6 +1436,35 @@ final class OdooOfflineOperationAdapter implements OfflineOperationAdapter {
     return total > 0 ? total : null;
   }
 
+  static int _currencyDigits(Map<String, dynamic> values) {
+    final raw = values['currencyDigits'];
+    return raw is num && raw.toInt() >= 0 && raw.toInt() <= 6 ? raw.toInt() : 2;
+  }
+
+  static bool _isCurrencyZero(dynamic raw, int digits) {
+    if (raw is! num || !raw.isFinite) return false;
+    return _toMinor(raw, digits) == 0;
+  }
+
+  Future<Set<String>?> _operationPaymentLineUuids(
+    OfflineOperation operation,
+  ) async {
+    final ids = operation.values['paymentLineIds'];
+    if (ids is! List || ids.isEmpty) return null;
+    final result = <String>{};
+    for (final rawId in ids) {
+      final localId = _positiveInt(rawId);
+      if (localId == null) return null;
+      final row = await (database.select(
+        database.saleOrderPaymentLine,
+      )..where((table) => table.id.equals(localId))).getSingleOrNull();
+      final uuid = row?.lineUuid;
+      if (uuid == null || uuid.isEmpty) return null;
+      result.add(uuid);
+    }
+    return result.length == ids.length ? result : null;
+  }
+
   static List<Map<String, dynamic>> _paymentLines(dynamic raw) {
     if (raw is! List || raw.isEmpty) {
       throw StateError('cash invoice requires payment lines');
@@ -1186,6 +1482,10 @@ final class OdooOfflineOperationAdapter implements OfflineOperationAdapter {
           }
           final journal = _positiveInt(entry['journalId']);
           final amountMinor = entry['amountMinor'];
+          final digits = entry['currencyDigits'];
+          final currencyDigits = digits is num && digits.toInt() >= 0
+              ? digits.toInt()
+              : 2;
           if (amountMinor is! num ||
               amountMinor <= 0 ||
               (kind == 'payment' && journal == null) ||
@@ -1197,7 +1497,7 @@ final class OdooOfflineOperationAdapter implements OfflineOperationAdapter {
           return {
             'line_type': kind,
             ...?_present('journal_id', journal),
-            'amount': amountMinor / 100,
+            'amount': amountMinor / math.pow(10, currencyDigits),
             if (_positiveInt(entry['advanceId']) != null)
               'advance_id': _positiveInt(entry['advanceId']),
             if (_positiveInt(entry['creditNoteId']) != null)
@@ -1206,6 +1506,9 @@ final class OdooOfflineOperationAdapter implements OfflineOperationAdapter {
               'payment_method_line_id': _positiveInt(
                 entry['paymentMethodLineId'],
               ),
+            if (entry['collectionLineUuid'] is String &&
+                (entry['collectionLineUuid'] as String).isNotEmpty)
+              'pos_collection_line_uuid': entry['collectionLineUuid'],
           };
         })
         .toList(growable: false);
@@ -1231,10 +1534,12 @@ final class OdooOfflineOperationAdapter implements OfflineOperationAdapter {
         {
           'type': row.type == 'credit_note' ? 'credit_note' : row.type,
           'journalId': row.journalId,
-          'amountMinor': (row.amount * 100).round(),
+          'amountMinor': _toMinor(row.amount, _currencyDigits(operation.values)),
           'advanceId': row.advanceId,
           'creditNoteId': row.creditNoteId,
           'paymentMethodLineId': row.paymentMethodLineId,
+          'currencyDigits': _currencyDigits(operation.values),
+          'collectionLineUuid': row.lineUuid,
         },
     ]);
   }

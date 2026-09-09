@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:drift/drift.dart' as drift;
 import 'package:drift/native.dart';
 import 'package:orbi_runtime/orbi_runtime.dart';
 import 'package:theos_pos_core/theos_pos_core.dart';
@@ -10,6 +11,7 @@ final class _Actions implements SaleOdooActions {
   final payloads = <Map<String, dynamic>>[];
   bool depositHasMove = true;
   String sessionState = 'opened';
+  int paymentSearches = 0;
   @override
   Future<dynamic> call({
     required String model,
@@ -40,11 +42,94 @@ final class _Actions implements SaleOdooActions {
         },
       ];
     }
+    if (model == 'l10n_ec_collection_box.sale.order.payment' &&
+        method == 'search_read') {
+      final domain = kwargs?['domain'];
+      String? uuid;
+      if (domain is List) {
+        for (final raw in domain) {
+          if (raw is List &&
+              raw.length >= 3 &&
+              raw[0] == 'pos_collection_op_uuid' &&
+              raw[2] is String) {
+            uuid = raw[2] as String;
+          }
+        }
+      }
+      if (uuid == null) return const <Map<String, dynamic>>[];
+      if (paymentSearches++ == 0) return const <Map<String, dynamic>>[];
+      return [
+        {
+          'id': 601,
+          'sale_id': 42,
+          'amount': 50.0,
+          'state': 'posted',
+          'move_id': [701, 'PAY/1'],
+          'pos_collection_op_uuid': uuid,
+          'pos_collection_line_uuid': '$uuid:payment:0',
+        },
+        {
+          'id': 602,
+          'sale_id': 42,
+          'amount': 25.0,
+          'state': 'posted',
+          'move_id': [702, 'PAY/2'],
+          'pos_collection_op_uuid': uuid,
+          'pos_collection_line_uuid': '$uuid:payment:1',
+        },
+      ];
+    }
     return const {'ok': true};
   }
 }
 
 void main() {
+  test('collection producer rolls back payment rows when a native line insert fails', () async {
+    final db = AppDatabase(NativeDatabase.memory());
+    addTearDown(db.close);
+    await db
+        .into(db.saleOrderWithholdLine)
+        .insert(
+          SaleOrderWithholdLineCompanion.insert(
+            lineUuid: const drift.Value('rollback-withhold'),
+            orderId: 42,
+            taxId: 7,
+            taxName: 'IVA retenido',
+            withholdType: 'withhold_vat_sale',
+            base: const drift.Value(100.0),
+            amount: const drift.Value(10.0),
+          ),
+        );
+    final queue = OfflineQueueDataSource(db);
+    final producer = DurableCollectionProducer(db, queue);
+    await expectLater(
+      producer.enqueueCollectionIntent(
+        commandId: 'rollback-collection',
+        saleOrderId: 42,
+        method: 'existingInvoice',
+        amountMinor: 1000,
+        paymentLines: const [
+          DurablePaymentLineDraft(
+            type: 'payment',
+            amountMinor: 1000,
+            journalId: 30,
+          ),
+        ],
+        withholdLines: const [
+          DurableWithholdLineDraft(
+            uuid: 'rollback-withhold',
+            taxId: 7,
+            baseMinor: 10000,
+            amountMinor: 1000,
+          ),
+        ],
+      ),
+      throwsA(isA<Exception>()),
+    );
+    expect(await db.select(db.saleOrderPaymentLine).get(), isEmpty);
+    expect(await db.select(db.offlineQueue).get(), isEmpty);
+  });
+
   test('cash-out and deposit snapshot plus outbox survive restart and dedupe', () async {
     final file = File(
       '${Directory.systemTemp.path}/orbi-u06-${DateTime.now().microsecondsSinceEpoch}.db',
