@@ -1,9 +1,14 @@
 import 'package:drift/drift.dart';
+import 'package:odoo_sdk/odoo_sdk.dart';
 import 'package:theos_pos_core/theos_pos_core.dart' as core;
 
+import 'json2_read_adapters.dart';
 import '../session/session_runtime.dart';
 
 final class RuntimeLocalOrderReader {
+  static final Expando<Future<void>> _remoteContractProbes =
+      Expando<Future<void>>('orbi_runtime_order_contract_probes');
+
   RuntimeLocalOrderReader(this.sessions);
   final SessionRuntime sessions;
 
@@ -16,9 +21,22 @@ final class RuntimeLocalOrderReader {
     final lease = active.lease;
     final where = <String>['company_id = ?'];
     final variables = <Variable<Object>>[Variable<int>(query.companyId)];
-    if (query.authorFilter != null) {
+    if (query.authorFilter != null &&
+        query.workQueue != core.OrderWorkQueue.cashierPending) {
       where.add('user_id = ?');
       variables.add(Variable<int>(query.authorFilter!));
+    }
+    if (query.dateFrom != null) {
+      where.add('date_order >= ?');
+      variables.add(Variable<String>(query.dateFrom!.toIso8601String()));
+    }
+    if (query.dateTo != null) {
+      where.add('date_order <= ?');
+      variables.add(Variable<String>(query.dateTo!.toIso8601String()));
+    }
+    if (query.afterId != null) {
+      where.add('odoo_id < ?');
+      variables.add(Variable<int>(query.afterId!));
     }
     if (query.workQueue == core.OrderWorkQueue.cashierPending) {
       where.add('state = ?');
@@ -50,7 +68,7 @@ final class RuntimeLocalOrderReader {
           'payment_state, amount_unpaid, amount_to_invoice, has_queued_invoice, '
           'picking_ids, '
           'is_synced '
-          'FROM sale_order WHERE $predicate ORDER BY date_order DESC, id DESC LIMIT $limit',
+          'FROM sale_order WHERE $predicate ORDER BY date_order DESC, odoo_id DESC LIMIT $limit',
           variables: variables,
         )
         .get();
@@ -68,36 +86,33 @@ final class RuntimeLocalOrderReader {
     );
   }
 
-  /// Pulls the bounded remote page and commits only the canonical summary
-  /// fields. Unsynced local work is never overwritten by this refresh.
+  /// Pulls the remote query pages and commits only canonical summary fields.
+  /// Unsynced local work is never overwritten by this refresh.
   Future<void> refreshOnline(core.OrderQuery query, {int limit = 50}) async {
     final active = sessions.active;
     if (active == null || active.client == null) {
       throw StateError('online order refresh requires an active client');
     }
     final lease = active.lease;
-    final rows = await active.client!.searchRead(
-      model: 'sale.order',
-      fields: const [
-        'id',
-        'name',
-        'client_order_ref',
-        'state',
-        'user_id',
-        'company_id',
-        'invoice_status',
-        'payment_state',
-        'amount_unpaid',
-        'amount_to_invoice',
-        'has_queued_invoice',
-        'picking_ids',
-      ],
-      domain: [
-        ['company_id', '=', query.companyId],
-      ],
-      limit: limit,
-      order: 'date_order desc,id desc',
-    );
+    final client = active.client!;
+    final cachedProbe = _remoteContractProbes[client];
+    if (cachedProbe != null) {
+      await cachedProbe;
+    } else {
+      final probe = RuntimeOrderReader(OdooJson2ReadPort(client))
+          .validateRemoteContract();
+      _remoteContractProbes[client] = probe;
+      try {
+        await probe;
+      } catch (_) {
+        // A failed contract probe must not poison future retries.
+        _remoteContractProbes[client] = null;
+        rethrow;
+      }
+    }
+    final effectiveQuery = _withLimit(query, limit);
+    final rows = await RuntimeOrderReader(OdooJson2ReadPort(client))
+        .read(effectiveQuery);
     if (!sessions.accepts(lease)) throw StateError('order scope changed');
     await active.database.database.transaction(() async {
       for (final row in rows) {
@@ -115,8 +130,9 @@ final class RuntimeLocalOrderReader {
           'company_id=excluded.company_id, invoice_status=excluded.invoice_status, '
           'payment_state=excluded.payment_state, amount_unpaid=excluded.amount_unpaid, '
           'amount_to_invoice=excluded.amount_to_invoice, '
-          'has_queued_invoice=excluded.has_queued_invoice '
-          ', picking_ids=excluded.picking_ids '
+          // has_queued_invoice is @OdooLocalOnly: preserve the existing
+          // offline queue marker when refreshing a known local order.
+          'picking_ids=excluded.picking_ids '
           'WHERE sale_order.is_synced = 1',
           [
             id,
@@ -148,5 +164,20 @@ final class RuntimeLocalOrderReader {
     if (value is! List) return null;
     final ids = value.whereType<int>().where((id) => id > 0).toList();
     return ids.isEmpty ? null : '[${ids.join(',')}]';
+  }
+
+  static core.OrderQuery _withLimit(core.OrderQuery query, int limit) {
+    if (limit == query.limit) return query;
+    return core.OrderQuery(
+      companyId: query.companyId,
+      authorFilter: query.authorFilter,
+      text: query.text,
+      states: query.states,
+      dateFrom: query.dateFrom,
+      dateTo: query.dateTo,
+      limit: limit,
+      afterId: query.afterId,
+      workQueue: query.workQueue,
+    );
   }
 }
