@@ -221,7 +221,16 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     return Scaffold(
       body: LayoutBuilder(
         builder: (context, constraints) {
-          final form = _buildLoginForm(context, state);
+          // A macOS window may be wide enough for the compact backdrop while
+          // still being too short for the normal form (for example 800x600).
+          // Measure height independently from the width breakpoint so the
+          // submit action remains reachable without changing the wide layout.
+          final compactHeight = constraints.maxHeight < 720;
+          final form = _buildLoginForm(
+            context,
+            state,
+            compactHeight: compactHeight,
+          );
           if (constraints.maxWidth >= OrbiTheme.mediumBreakpoint) {
             return Row(
               children: [
@@ -233,6 +242,8 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                     child: SafeArea(
                       child: Center(
                         child: SingleChildScrollView(
+                          keyboardDismissBehavior:
+                              ScrollViewKeyboardDismissBehavior.onDrag,
                           padding: const EdgeInsets.all(OrbiTheme.space32),
                           child: ConstrainedBox(
                             constraints: const BoxConstraints(maxWidth: 440),
@@ -269,6 +280,8 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
               SafeArea(
                 child: Center(
                   child: SingleChildScrollView(
+                    keyboardDismissBehavior:
+                        ScrollViewKeyboardDismissBehavior.onDrag,
                     padding: const EdgeInsets.all(OrbiTheme.space16),
                     child: ConstrainedBox(
                       constraints: const BoxConstraints(maxWidth: 520),
@@ -276,7 +289,11 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                         color: colors.surface.withValues(alpha: .94),
                         elevation: 2,
                         child: Padding(
-                          padding: const EdgeInsets.all(OrbiTheme.space24),
+                          padding: EdgeInsets.all(
+                            compactHeight
+                                ? OrbiTheme.space12
+                                : OrbiTheme.space24,
+                          ),
                           child: form,
                         ),
                       ),
@@ -291,9 +308,19 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     );
   }
 
-  Widget _buildLoginForm(BuildContext context, AuthViewState state) {
+  Widget _buildLoginForm(
+    BuildContext context,
+    AuthViewState state, {
+    required bool compactHeight,
+  }) {
     final theme = Theme.of(context);
     final colors = theme.colorScheme;
+    final fieldGap = compactHeight ? OrbiTheme.space8 : OrbiTheme.space12;
+    final headerGap = compactHeight ? OrbiTheme.space12 : OrbiTheme.space24;
+    final logoHeight = compactHeight ? 56.0 : 84.0;
+    final inputPadding = compactHeight
+        ? const EdgeInsets.symmetric(horizontal: 12, vertical: 8)
+        : null;
     return AutofillGroup(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -303,7 +330,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
             image: true,
             child: SvgPicture.asset(
               'assets/images/orbi_logo.svg',
-              height: 84,
+              height: logoHeight,
               colorFilter: ColorFilter.mode(colors.primary, BlendMode.srcIn),
             ),
           ),
@@ -319,7 +346,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
             style: theme.textTheme.headlineMedium,
             textAlign: TextAlign.center,
           ),
-          const SizedBox(height: OrbiTheme.space24),
+          SizedBox(height: headerGap),
           TextField(
             controller: _server,
             focusNode: _serverFocus,
@@ -330,14 +357,16 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
               _lookupRememberedProfile();
               _scheduleLoginPreferencesSave();
             },
-            decoration: const InputDecoration(
+            decoration: InputDecoration(
               labelText: 'Servidor',
               hintText: 'https://erp.example.com',
               prefixIcon: Icon(Icons.dns_outlined),
+              isDense: compactHeight,
+              contentPadding: inputPadding,
             ),
             keyboardType: TextInputType.url,
           ),
-          const SizedBox(height: OrbiTheme.space12),
+          SizedBox(height: fieldGap),
           TextField(
             controller: _database,
             focusNode: _databaseFocus,
@@ -347,25 +376,29 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
               _lookupRememberedProfile();
               _scheduleLoginPreferencesSave();
             },
-            decoration: const InputDecoration(
+            decoration: InputDecoration(
               labelText: 'Base de datos',
               prefixIcon: Icon(Icons.storage_outlined),
+              isDense: compactHeight,
+              contentPadding: inputPadding,
             ),
           ),
-          const SizedBox(height: OrbiTheme.space12),
+          SizedBox(height: fieldGap),
           TextField(
             controller: _login,
             focusNode: _loginFocus,
             textInputAction: TextInputAction.next,
             onSubmitted: (_) => _passwordFocus.requestFocus(),
-            decoration: const InputDecoration(
+            decoration: InputDecoration(
               labelText: 'Usuario',
               prefixIcon: Icon(Icons.person_outline),
+              isDense: compactHeight,
+              contentPadding: inputPadding,
             ),
             onChanged: (_) => _scheduleLoginPreferencesSave(),
             autofillHints: const [AutofillHints.username],
           ),
-          const SizedBox(height: OrbiTheme.space12),
+          SizedBox(height: fieldGap),
           TextField(
             controller: _password,
             focusNode: _passwordFocus,
@@ -375,6 +408,8 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
             decoration: InputDecoration(
               labelText: _apiKeyMode ? 'API key' : 'Contraseña',
               prefixIcon: Icon(Icons.lock_outline),
+              isDense: compactHeight,
+              contentPadding: inputPadding,
             ),
             autofillHints: const [AutofillHints.password],
           ),
@@ -384,9 +419,14 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
               key: const Key('api-key-mode-toggle'),
               contentPadding: EdgeInsets.zero,
               title: const Text('Usar API key'),
-              subtitle: const Text(
-                'La clave se guarda sólo en el almacén seguro del dispositivo.',
-              ),
+              // Secondary help is omitted only in a tight window; the switch
+              // title remains visible and keeps the compact form readable.
+              subtitle: compactHeight
+                  ? null
+                  : const Text(
+                      'La clave se guarda sólo en el almacén seguro del dispositivo.',
+                    ),
+              visualDensity: compactHeight ? VisualDensity.compact : null,
               value: _apiKeyMode,
               onChanged: (value) => setState(() => _apiKeyMode = value),
             ),
@@ -397,11 +437,14 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
               key: const Key('save-credential-toggle'),
               contentPadding: EdgeInsets.zero,
               title: const Text('Guardar clave'),
-              subtitle: Text(
-                _apiKeyMode
-                    ? 'Guarda la API key sólo en el almacén seguro.'
-                    : 'Guarda la contraseña sólo en el almacén seguro.',
-              ),
+              subtitle: compactHeight
+                  ? null
+                  : Text(
+                      _apiKeyMode
+                          ? 'Guarda la API key sólo en el almacén seguro.'
+                          : 'Guarda la contraseña sólo en el almacén seguro.',
+                    ),
+              visualDensity: compactHeight ? VisualDensity.compact : null,
               value: _saveCredential,
               onChanged: (value) => setState(() => _saveCredential = value),
             ),
@@ -418,7 +461,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
               ),
             ),
           ],
-          const SizedBox(height: OrbiTheme.space24),
+          SizedBox(height: headerGap),
           FilledButton.icon(
             onPressed: state.isBusy ? null : _submit,
             icon: state.isBusy

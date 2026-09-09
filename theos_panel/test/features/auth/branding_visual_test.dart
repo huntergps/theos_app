@@ -89,6 +89,25 @@ void main() {
     expect(find.byKey(const Key('compact-login-background')), findsOneWidget);
     expect(find.byKey(const Key('save-credential-toggle')), findsOneWidget);
     expect(find.byType(TextField), findsNWidgets(4));
+    final button = find.widgetWithText(FilledButton, 'Iniciar sesión');
+    await tester.ensureVisible(button);
+    expect(tester.getTopLeft(button).dy, lessThan(844));
+  });
+
+  testWidgets('login keeps submit action visible in a compact desktop window', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(800, 600);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    await tester.pumpWidget(await _loginHarness());
+    await tester.pump();
+
+    final button = find.widgetWithText(FilledButton, 'Iniciar sesión');
+    expect(button, findsOneWidget);
+    expect(tester.getBottomRight(button).dy, lessThanOrEqualTo(600));
   });
 
   testWidgets('login exposes the Orbi branding pane on wide screens', (
