@@ -54,6 +54,7 @@ final class Erp2ActorCredentials {
 final class Erp2ActorCapabilityContract {
   static const fscRequesterGroup =
       'l10n_ec_collection_box.group_facturar_sin_cobro';
+  static const creditWizardCreateGroup = 'sales_team.group_sale_salesman';
 
   static const requiredGroups = <Erp2Actor, List<String>>{
     Erp2Actor.seller: ['sales_team.group_sale_salesman'],
@@ -100,6 +101,31 @@ final class Erp2ActorCapabilityContract {
     final ids = _ids(rows[Erp2Actor.seller]?['all_group_ids']).toSet();
     if (!ids.contains(groupId)) {
       return ['seller lacks required group $fscRequesterGroup'];
+    }
+    return const [];
+  }
+
+  /// The native credit wizard is protected by the salesman ACL (`cru`).
+  /// Keep this check explicit because a collection user is not implicitly a
+  /// salesman; a cash flow that unexpectedly hits credit control must fail
+  /// closed before attempting to create the transient wizard.
+  static List<String> errorsForCreditWizardActor(
+    Erp2Actor actor,
+    Map<Erp2Actor, Map<String, dynamic>> rows,
+    Map<String, int> resolvedGroupIds,
+  ) {
+    final groupId = resolvedGroupIds[creditWizardCreateGroup];
+    if (groupId == null) {
+      return [
+        'credit wizard ACL group $creditWizardCreateGroup could not be resolved',
+      ];
+    }
+    final ids = _ids(rows[actor]?['all_group_ids']).toSet();
+    if (!ids.contains(groupId)) {
+      return [
+        '${actor.name} lacks $creditWizardCreateGroup required to create '
+            'credit.limit.exceeded.wizard',
+      ];
     }
     return const [];
   }
@@ -170,6 +196,123 @@ final class Erp2FscApprovalContract {
     if (generic != 0) errors.add('FSC must not use generic approval twice');
     return errors;
   }
+}
+
+/// Contract for the native credit-control detour returned by
+/// `sale.order.action_pos_confirm`.
+///
+/// The sale action does not create an `approval.request` itself when credit
+/// control blocks it.  It returns an action for
+/// `credit.limit.exceeded.wizard`; that transient wizard is the native public
+/// path that creates the linked request.  Keeping this contract pure makes the
+/// write runner testable without constructing an Odoo client or touching ERP2.
+final class Erp2CreditApprovalContract {
+  static const wizardModel = 'credit.limit.exceeded.wizard';
+
+  static List<dynamic> pendingDomain(int orderId) => [
+    ['sale_order_id', '=', orderId],
+    ['approval_type', '=', 'credit'],
+    [
+      'request_status',
+      'in',
+      ['new', 'pending'],
+    ],
+  ];
+
+  static Map<String, dynamic> wizardCreateContext(
+    Map<String, dynamic> nativeContext, {
+    required int paymentTermId,
+  }) {
+    if (paymentTermId <= 0) {
+      throw ArgumentError.value(paymentTermId, 'paymentTermId');
+    }
+    return {...nativeContext, 'default_payment_term_id': paymentTermId};
+  }
+
+  static bool approvalMatchesOrder({
+    required Map<String, dynamic> row,
+    required int orderId,
+    required int partnerId,
+    required double amount,
+    required int paymentTermId,
+  }) {
+    final rowAmount = row['amount'];
+    return _manyId(row['sale_order_id']) == orderId &&
+        _manyId(row['partner_id']) == partnerId &&
+        rowAmount is num &&
+        (rowAmount.toDouble() - amount).abs() <= 0.01 &&
+        _manyId(row['payment_term_id']) == paymentTermId;
+  }
+
+  static List<String> supervisorAssignmentErrors(
+    List<Map<String, dynamic>> approvers,
+    int? supervisorId,
+  ) {
+    if (supervisorId == null || supervisorId <= 0) {
+      return const ['supervisor user ID is required for approval'];
+    }
+    final assigned = approvers
+        .where((row) => _manyId(row['user_id']) == supervisorId)
+        .toList();
+    final pending = assigned.where((row) => row['status'] == 'pending').length;
+    if (assigned.length != 1 || pending != 1) {
+      return const [
+        'supervisor is not the unique pending approver for credit request',
+      ];
+    }
+    return const [];
+  }
+
+  /// Returns the action context only for the exact native credit wizard.
+  /// Malformed/other actions fail closed and are not treated as approval
+  /// requests.
+  static Map<String, dynamic>? creditWizardContext(
+    dynamic response, {
+    required int orderId,
+  }) {
+    if (response is! Map || response['approval_required'] != true) return null;
+    final action = response['action'];
+    if (action is! Map ||
+        action['type'] != 'ir.actions.act_window' ||
+        action['res_model'] != wizardModel) {
+      return null;
+    }
+    final rawContext = action['context'];
+    if (rawContext is! Map) return null;
+    final context = <String, dynamic>{
+      for (final entry in rawContext.entries)
+        if (entry.key is String) entry.key as String: entry.value,
+    };
+    final contextOrder = _int(context['default_sale_order_id']);
+    if (contextOrder != orderId ||
+        _int(context['default_partner_id']) == null ||
+        context['default_transaction_amount'] is! num ||
+        context['default_check_type'] is! String) {
+      return null;
+    }
+    return context;
+  }
+
+  /// Whether the original RPC still has work after supervisor approval.
+  /// Credit approval's native hook normally confirms the order itself.  A
+  /// bare `action_pos_confirm` must therefore not be replayed on `sale`; the
+  /// cash-and-invoice endpoint may still need its invoice/payment phase.
+  static bool shouldRetryAfterApproval({
+    required bool verified,
+    required String? orderState,
+    required String method,
+    required String confirmMethod,
+    required String cashInvoiceMethod,
+  }) {
+    if (verified) return false;
+    if (method == confirmMethod) {
+      return orderState == 'waiting' || orderState == 'approved';
+    }
+    if (method == cashInvoiceMethod) return orderState == 'sale';
+    return false;
+  }
+
+  static int? _int(Object? value) => value is num ? value.toInt() : null;
 }
 
 /// Payment evidence is accepted only when it belongs to one native operation
@@ -727,6 +870,7 @@ final class Erp2ServerReadiness {
   const Erp2ServerReadiness({
     required this.errors,
     required this.actorRows,
+    required this.resolvedGroupIds,
     required this.orders,
     required this.connectorInstalled,
     required this.panelPoliciesPresent,
@@ -734,6 +878,7 @@ final class Erp2ServerReadiness {
 
   final List<String> errors;
   final Map<Erp2Actor, Map<String, dynamic>> actorRows;
+  final Map<String, int> resolvedGroupIds;
   final Map<Erp2FlowKind, Map<String, dynamic>> orders;
   final bool connectorInstalled;
   final bool panelPoliciesPresent;
@@ -786,6 +931,7 @@ final class Erp2ServerPreflight {
     }
     final actors = <Erp2Actor, Map<String, dynamic>>{};
     final orders = <Erp2FlowKind, Map<String, dynamic>>{};
+    final resolvedGroupIds = <String, int>{};
     var connectorInstalled = false;
     var panelPoliciesPresent = false;
     if (errors.isNotEmpty && forWrites) {
@@ -795,6 +941,7 @@ final class Erp2ServerPreflight {
       return Erp2ServerReadiness(
         errors: List.unmodifiable(errors),
         actorRows: actors,
+        resolvedGroupIds: const {},
         orders: orders,
         connectorInstalled: connectorInstalled,
         panelPoliciesPresent: panelPoliciesPresent,
@@ -822,7 +969,6 @@ final class Erp2ServerPreflight {
         }
         actors[entry.key] = row;
       }
-      final resolvedGroupIds = <String, int>{};
       final capabilityXmlIds = <String>{
         ...Erp2ActorCapabilityContract.requiredGroups.values.expand(
           (groups) => groups,
@@ -848,6 +994,13 @@ final class Erp2ServerPreflight {
       }
       errors.addAll(
         Erp2ActorCapabilityContract.errorsForRows(actors, resolvedGroupIds),
+      );
+      errors.addAll(
+        Erp2ActorCapabilityContract.errorsForCreditWizardActor(
+          Erp2Actor.seller,
+          actors,
+          resolvedGroupIds,
+        ),
       );
       if (config.fixtures[Erp2FlowKind.fsc] != null) {
         errors.addAll(
@@ -1105,6 +1258,7 @@ final class Erp2ServerPreflight {
     return Erp2ServerReadiness(
       errors: List.unmodifiable(errors),
       actorRows: actors,
+      resolvedGroupIds: Map.unmodifiable(resolvedGroupIds),
       orders: orders,
       connectorInstalled: connectorInstalled,
       panelPoliciesPresent: panelPoliciesPresent,
@@ -1188,6 +1342,8 @@ final class Erp2WriteHarness {
         }
         await _invokeWithCreditApproval(
           actor: Erp2Actor.cashier,
+          actorRows: readiness.actorRows,
+          resolvedGroupIds: readiness.resolvedGroupIds,
           orderId: fixture.orderId,
           model: 'sale.order',
           method: config.rpc.cashInvoice,
@@ -1209,6 +1365,8 @@ final class Erp2WriteHarness {
       } else if (plan.kind == Erp2FlowKind.fsc) {
         await _invokeWithCreditApproval(
           actor: Erp2Actor.seller,
+          actorRows: readiness.actorRows,
+          resolvedGroupIds: readiness.resolvedGroupIds,
           orderId: fixture.orderId,
           model: 'sale.order',
           method: config.rpc.confirm,
@@ -1270,6 +1428,8 @@ final class Erp2WriteHarness {
       } else {
         await _invokeWithCreditApproval(
           actor: Erp2Actor.seller,
+          actorRows: readiness.actorRows,
+          resolvedGroupIds: readiness.resolvedGroupIds,
           orderId: fixture.orderId,
           model: 'sale.order',
           method: config.rpc.confirm,
@@ -1406,6 +1566,8 @@ final class Erp2WriteHarness {
 
   Future<void> _invokeWithCreditApproval({
     required Erp2Actor actor,
+    required Map<Erp2Actor, Map<String, dynamic>> actorRows,
+    required Map<String, int> resolvedGroupIds,
     required int orderId,
     required String model,
     required String method,
@@ -1431,11 +1593,39 @@ final class Erp2WriteHarness {
     }
     if (await verify()) return;
 
-    final approvalId = await _findPendingApproval(
+    final identity = await _readCreditOrderIdentity(orderId);
+    var approvalId = await _findPendingApproval(
       orderId,
       preferredId: preferredApprovalId,
+      expectedPartnerId: identity.partnerId,
+      expectedAmount: identity.amount,
+      expectedPaymentTermId: identity.paymentTermId,
     );
     if (approvalId == null) {
+      final wizardContext = Erp2CreditApprovalContract.creditWizardContext(
+        response,
+        orderId: orderId,
+      );
+      if (wizardContext != null) {
+        final capabilityErrors =
+            Erp2ActorCapabilityContract.errorsForCreditWizardActor(
+              actor,
+              actorRows,
+              resolvedGroupIds,
+            );
+        if (capabilityErrors.isNotEmpty) {
+          throw Erp2PreflightException(capabilityErrors);
+        }
+        approvalId = await _createOrDiscoverCreditApprovalRequest(
+          actor: actor,
+          orderId: orderId,
+          wizardContext: wizardContext,
+          identity: identity,
+        );
+      }
+    }
+    final resolvedApprovalId = approvalId;
+    if (resolvedApprovalId == null) {
       final observation = Erp2ReplayObservation(
         transportSucceeded: transportError == null ? _accepted(response) : null,
         transportError: transportError != null,
@@ -1447,13 +1637,29 @@ final class Erp2WriteHarness {
             : 'ERP2 action was rejected and no linked approval is pending',
       );
     }
+    await _requireSupervisorApprovalAssignment(resolvedApprovalId);
     await _invokeAndVerify(
       actor: Erp2Actor.supervisor,
       model: 'approval.request',
       method: config.rpc.approvalApprove,
-      ids: [approvalId],
-      verify: () => _approvalApplied(approvalId),
+      ids: [resolvedApprovalId],
+      verify: () => _approvalApplied(resolvedApprovalId),
     );
+    final appliedAfterApproval = await verify();
+    if (appliedAfterApproval) return;
+    final stateAfterApproval = (await _order(orderId))['state']?.toString();
+    if (!Erp2CreditApprovalContract.shouldRetryAfterApproval(
+      verified: appliedAfterApproval,
+      orderState: stateAfterApproval,
+      method: method,
+      confirmMethod: config.rpc.confirm,
+      cashInvoiceMethod: config.rpc.cashInvoice,
+    )) {
+      throw StateError(
+        'credit approval was applied but the server did not complete the '
+        'requested operation',
+      );
+    }
     await _invokeAndVerify(
       actor: actor,
       model: model,
@@ -1464,10 +1670,201 @@ final class Erp2WriteHarness {
     );
   }
 
-  Future<int?> _findPendingApproval(int orderId, {int? preferredId}) async {
+  /// Materialize the exact transient wizard returned by native credit control,
+  /// then let its public action create the linked approval request.  The
+  /// request itself is the durable identity; a transient wizard ID is never
+  /// persisted in fixtures and is reconciled after every uncertain RPC.
+  Future<int?> _createOrDiscoverCreditApprovalRequest({
+    required Erp2Actor actor,
+    required int orderId,
+    required Map<String, dynamic> wizardContext,
+    required _CreditOrderIdentity identity,
+  }) async {
+    final alreadyPending = await _findPendingApproval(
+      orderId,
+      expectedPartnerId: identity.partnerId,
+      expectedAmount: identity.amount,
+      expectedPaymentTermId: identity.paymentTermId,
+    );
+    if (alreadyPending != null) return alreadyPending;
+
+    final client = actorClients[actor];
+    if (client == null) {
+      throw Erp2PreflightException(['${actor.name} client is required']);
+    }
+    final partnerId =
+        _manyId(wizardContext['default_partner_id']) ?? identity.partnerId;
+    final amount = wizardContext['default_transaction_amount'] is num
+        ? (wizardContext['default_transaction_amount'] as num).toDouble()
+        : identity.amount;
+    final checkType = wizardContext['default_check_type'];
+    if (checkType is! String ||
+        partnerId != identity.partnerId ||
+        (amount.toDouble() - identity.amount).abs() > 0.01) {
+      throw StateError('native credit wizard context is incomplete');
+    }
+    final paymentTermId = identity.paymentTermId;
+    final values = <String, dynamic>{
+      'partner_id': partnerId,
+      'sale_order_id': orderId,
+      'transaction_amount': amount,
+      'current_credit_limit':
+          wizardContext['default_current_credit_limit'] ?? 0.0,
+      'authorization_type':
+          wizardContext['default_authorization_type'] ?? checkType,
+      'check_type': checkType,
+      'payment_term_id': paymentTermId,
+    };
+    final createContext = Erp2CreditApprovalContract.wizardCreateContext(
+      wizardContext,
+      paymentTermId: paymentTermId,
+    );
+
+    int? wizardId;
+    try {
+      final created = await client.call(
+        model: Erp2CreditApprovalContract.wizardModel,
+        method: 'create',
+        kwargs: {
+          'vals_list': [values],
+        },
+        context: createContext,
+      );
+      if (created is List && created.length == 1 && created.single is num) {
+        wizardId = (created.single as num).toInt();
+      }
+    } catch (_) {
+      // Reconcile below; never blindly create a second transient wizard.
+    }
+    if (wizardId == null || wizardId <= 0) {
+      final existing = await auditClient.searchRead(
+        model: Erp2CreditApprovalContract.wizardModel,
+        fields: const [
+          'id',
+          'sale_order_id',
+          'partner_id',
+          'transaction_amount',
+          'payment_term_id',
+        ],
+        domain: [
+          ['sale_order_id', '=', orderId],
+        ],
+        limit: 2,
+      );
+      if (existing.length > 1) {
+        throw StateError('credit approval wizard identity is ambiguous');
+      }
+      if (existing.length == 1 && existing.single['id'] is num) {
+        final wizard = existing.single;
+        if (_manyId(wizard['partner_id']) != identity.partnerId ||
+            wizard['transaction_amount'] is! num ||
+            ((wizard['transaction_amount'] as num).toDouble() - identity.amount)
+                    .abs() >
+                0.01 ||
+            _manyId(wizard['payment_term_id']) != identity.paymentTermId) {
+          throw StateError('credit approval wizard identity is ambiguous');
+        }
+        wizardId = (existing.single['id'] as num).toInt();
+      }
+    }
+    if (wizardId == null || wizardId <= 0) {
+      throw StateError(
+        'credit approval wizard creation is ambiguous; server reconciliation required',
+      );
+    }
+
+    try {
+      await client.call(
+        model: Erp2CreditApprovalContract.wizardModel,
+        method: 'action_create_approval_request',
+        ids: [wizardId],
+      );
+    } catch (_) {
+      // A lost response is resolved by the durable linked request below.
+    }
+    final requestId = await _findPendingApproval(
+      orderId,
+      expectedPartnerId: identity.partnerId,
+      expectedAmount: identity.amount,
+      expectedPaymentTermId: identity.paymentTermId,
+    );
+    if (requestId == null) {
+      throw StateError(
+        'credit approval request was not discoverable after wizard action',
+      );
+    }
+    return requestId;
+  }
+
+  Future<_CreditOrderIdentity> _readCreditOrderIdentity(int orderId) async {
+    final rows = await auditClient.searchRead(
+      model: 'sale.order',
+      fields: const ['id', 'partner_id', 'amount_total', 'payment_term_id'],
+      domain: [
+        ['id', '=', orderId],
+      ],
+      limit: 1,
+    );
+    if (rows.length != 1) {
+      throw StateError(
+        'credit approval order disappeared before wizard creation',
+      );
+    }
+    final row = rows.single;
+    final partnerId = _manyId(row['partner_id']);
+    final amount = row['amount_total'];
+    final paymentTermId = _manyId(row['payment_term_id']);
+    if (partnerId == null ||
+        amount is! num ||
+        amount <= 0 ||
+        paymentTermId == null) {
+      throw StateError('credit approval order identity is incomplete');
+    }
+    return _CreditOrderIdentity(
+      partnerId: partnerId,
+      amount: amount.toDouble(),
+      paymentTermId: paymentTermId,
+    );
+  }
+
+  Future<void> _requireSupervisorApprovalAssignment(int requestId) async {
+    final supervisorId = config.actors[Erp2Actor.supervisor]?.userId;
+    final rows = await auditClient.searchRead(
+      model: 'approval.approver',
+      fields: const ['id', 'request_id', 'user_id', 'status'],
+      domain: [
+        ['request_id', '=', requestId],
+      ],
+      limit: 50,
+    );
+    final errors = Erp2CreditApprovalContract.supervisorAssignmentErrors(
+      rows,
+      supervisorId,
+    );
+    if (errors.isNotEmpty) throw Erp2PreflightException(errors);
+  }
+
+  Future<int?> _findPendingApproval(
+    int orderId, {
+    int? preferredId,
+    required int expectedPartnerId,
+    required double expectedAmount,
+    required int expectedPaymentTermId,
+  }) async {
     final requestFields = await auditClient.getModelFields('approval.request');
+    if (!requestFields.containsKey('approval_type')) {
+      throw StateError(
+        'approval.request.approval_type is required for credit flow',
+      );
+    }
+    for (final field in const ['partner_id', 'amount', 'payment_term_id']) {
+      if (!requestFields.containsKey(field)) {
+        throw StateError('approval.request.$field is required for credit flow');
+      }
+    }
     final domain = <dynamic>[
       ['sale_order_id', '=', orderId],
+      ['approval_type', '=', 'credit'],
       [
         'request_status',
         'in',
@@ -1480,7 +1877,11 @@ final class Erp2WriteHarness {
       fields: [
         'id',
         'sale_order_id',
+        'approval_type',
         'request_status',
+        'partner_id',
+        'amount',
+        'payment_term_id',
         if (requestFields.containsKey('category_id')) 'category_id',
       ],
       domain: domain,
@@ -1504,6 +1905,15 @@ final class Erp2WriteHarness {
             ? (categories.single['name'] ?? '').toString().toLowerCase()
             : '';
         if (name.contains('fsc') || name.contains('sin cobro')) continue;
+      }
+      if (!Erp2CreditApprovalContract.approvalMatchesOrder(
+        row: row,
+        orderId: orderId,
+        partnerId: expectedPartnerId,
+        amount: expectedAmount,
+        paymentTermId: expectedPaymentTermId,
+      )) {
+        throw StateError('credit approval identity is ambiguous');
       }
       ids.add((row['id'] as num).toInt());
     }
@@ -2158,6 +2568,18 @@ final class Erp2PreflightException implements Exception {
 
   @override
   String toString() => 'ERP2 preflight blocked: ${errors.join('; ')}';
+}
+
+final class _CreditOrderIdentity {
+  const _CreditOrderIdentity({
+    required this.partnerId,
+    required this.amount,
+    required this.paymentTermId,
+  });
+
+  final int partnerId;
+  final double amount;
+  final int paymentTermId;
 }
 
 List<int> _ids(Object? value) => value is List

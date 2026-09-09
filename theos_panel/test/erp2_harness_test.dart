@@ -473,6 +473,214 @@ void main() {
     );
   });
 
+  test('credit action is materialized through the native wizard contract', () {
+    final context = Erp2CreditApprovalContract.creditWizardContext({
+      'success': false,
+      'approval_required': true,
+      'action': {
+        'type': 'ir.actions.act_window',
+        'res_model': Erp2CreditApprovalContract.wizardModel,
+        'context': {
+          'default_sale_order_id': 1929,
+          'default_partner_id': 42203,
+          'default_transaction_amount': 12.5,
+          'default_check_type': 'credit_limit_exceeded',
+          'default_authorization_type': 'credit_limit_exceeded',
+        },
+      },
+    }, orderId: 1929);
+
+    expect(context, isNotNull);
+    expect(context!['default_partner_id'], 42203);
+    expect(
+      Erp2CreditApprovalContract.pendingDomain(1929),
+      contains(
+        predicate<List<Object?>>(
+          (clause) =>
+              clause.length == 3 &&
+              clause[0] == 'approval_type' &&
+              clause[1] == '=' &&
+              clause[2] == 'credit',
+        ),
+      ),
+    );
+    expect(
+      Erp2CreditApprovalContract.creditWizardContext({
+        'success': false,
+        'approval_required': true,
+        'action': {
+          'type': 'ir.actions.act_window',
+          'res_model': 'credit.limit.exceeded.wizard',
+          'context': {'default_sale_order_id': 1930},
+        },
+      }, orderId: 1930),
+      isNull,
+    );
+  });
+
+  test('credit wizard creation merges native defaults into create context', () {
+    final context = Erp2CreditApprovalContract.wizardCreateContext({
+      'default_sale_order_id': 1929,
+      'default_partner_id': 42203,
+      'default_transaction_amount': 12.5,
+      'default_check_type': 'credit_limit_exceeded',
+    }, paymentTermId: 33);
+
+    expect(context['default_sale_order_id'], 1929);
+    expect(context['default_partner_id'], 42203);
+    expect(context['default_payment_term_id'], 33);
+    expect(
+      () => Erp2CreditApprovalContract.wizardCreateContext(
+        const {},
+        paymentTermId: 0,
+      ),
+      throwsArgumentError,
+    );
+  });
+
+  test('credit wizard ACL rejects a cashier without salesman capability', () {
+    const groupIds = {Erp2ActorCapabilityContract.creditWizardCreateGroup: 10};
+    final rows = <Erp2Actor, Map<String, dynamic>>{
+      Erp2Actor.seller: {
+        'all_group_ids': [10],
+      },
+      Erp2Actor.cashier: {'all_group_ids': <int>[]},
+    };
+
+    expect(
+      Erp2ActorCapabilityContract.errorsForCreditWizardActor(
+        Erp2Actor.seller,
+        rows,
+        groupIds,
+      ),
+      isEmpty,
+    );
+    expect(
+      Erp2ActorCapabilityContract.errorsForCreditWizardActor(
+        Erp2Actor.cashier,
+        rows,
+        groupIds,
+      ),
+      contains(contains('cashier lacks sales_team.group_sale_salesman')),
+    );
+  });
+
+  test('credit approval requires the supervisor assigned in approver_ids', () {
+    final approvers = <Map<String, dynamic>>[
+      {
+        'id': 1,
+        'user_id': [77, 'Erik'],
+        'status': 'pending',
+      },
+    ];
+    expect(
+      Erp2CreditApprovalContract.supervisorAssignmentErrors(approvers, 77),
+      isEmpty,
+    );
+    expect(
+      Erp2CreditApprovalContract.supervisorAssignmentErrors(approvers, 78),
+      contains(
+        'supervisor is not the unique pending approver for credit request',
+      ),
+    );
+    expect(
+      Erp2CreditApprovalContract.supervisorAssignmentErrors([
+        ...approvers,
+        {
+          'id': 2,
+          'user_id': [77, 'Erik'],
+          'status': 'pending',
+        },
+      ], 77),
+      contains(
+        'supervisor is not the unique pending approver for credit request',
+      ),
+    );
+  });
+
+  test('credit approval adoption requires order financial identity', () {
+    final matching = <String, dynamic>{
+      'sale_order_id': [1929, 'ORBI-E2E-CREDIT'],
+      'partner_id': [42203, 'Customer'],
+      'amount': 12.5,
+      'payment_term_id': [33, '30 days'],
+    };
+    expect(
+      Erp2CreditApprovalContract.approvalMatchesOrder(
+        row: matching,
+        orderId: 1929,
+        partnerId: 42203,
+        amount: 12.5,
+        paymentTermId: 33,
+      ),
+      isTrue,
+    );
+    expect(
+      Erp2CreditApprovalContract.approvalMatchesOrder(
+        row: matching,
+        orderId: 1929,
+        partnerId: 42203,
+        amount: 13.5,
+        paymentTermId: 33,
+      ),
+      isFalse,
+    );
+    expect(
+      Erp2CreditApprovalContract.approvalMatchesOrder(
+        row: matching,
+        orderId: 1929,
+        partnerId: 42203,
+        amount: 12.5,
+        paymentTermId: 26,
+      ),
+      isFalse,
+    );
+  });
+
+  test('credit approval does not replay a confirmed sale action', () {
+    const rpc = Erp2RpcContract();
+    expect(
+      Erp2CreditApprovalContract.shouldRetryAfterApproval(
+        verified: true,
+        orderState: 'sale',
+        method: rpc.confirm,
+        confirmMethod: rpc.confirm,
+        cashInvoiceMethod: rpc.cashInvoice,
+      ),
+      isFalse,
+    );
+    expect(
+      Erp2CreditApprovalContract.shouldRetryAfterApproval(
+        verified: false,
+        orderState: 'sale',
+        method: rpc.confirm,
+        confirmMethod: rpc.confirm,
+        cashInvoiceMethod: rpc.cashInvoice,
+      ),
+      isFalse,
+    );
+    expect(
+      Erp2CreditApprovalContract.shouldRetryAfterApproval(
+        verified: false,
+        orderState: 'sale',
+        method: rpc.cashInvoice,
+        confirmMethod: rpc.confirm,
+        cashInvoiceMethod: rpc.cashInvoice,
+      ),
+      isTrue,
+    );
+    expect(
+      Erp2CreditApprovalContract.shouldRetryAfterApproval(
+        verified: false,
+        orderState: 'waiting',
+        method: rpc.confirm,
+        confirmMethod: rpc.confirm,
+        cashInvoiceMethod: rpc.cashInvoice,
+      ),
+      isTrue,
+    );
+  });
+
   test('native payment reconciliation rejects a sale-wide aggregate', () {
     final row = <String, dynamic>{
       'state': 'posted',
