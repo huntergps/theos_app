@@ -172,6 +172,10 @@ void main() {
     expect(config.rpc.assignPicking, 'action_assign');
     expect(config.rpc.validatePicking, 'button_validate');
     expect(
+      config.rpc.copyRetiringPartner,
+      'action_copiar_quien_retira',
+    );
+    expect(
       config.rpc.mixedPaymentAndDispatch,
       'action_apply_and_create_invoice',
     );
@@ -474,6 +478,30 @@ void main() {
       );
     },
   );
+
+  test('FSC retiring partner contract accepts the copied delivery partner', () {
+    expect(
+      Erp2FscPickingContract.retiringPartnerMatches({
+        'partner_id': [30, 'Customer'],
+        'partner_venta_id': [30, 'Customer'],
+      }),
+      isTrue,
+    );
+    expect(
+      Erp2FscPickingContract.retiringPartnerMatches({
+        'partner_id': [30, 'Customer'],
+        'partner_venta_id': false,
+      }),
+      isFalse,
+    );
+    expect(
+      Erp2FscPickingContract.retiringPartnerMatches({
+        'partner_id': [30, 'Customer'],
+        'partner_venta_id': [33, 'Other'],
+      }),
+      isFalse,
+    );
+  });
 
   test('FSC accepts only the native backorder wizard action', () {
     const rpc = Erp2RpcContract();

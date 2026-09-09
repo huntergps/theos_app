@@ -197,6 +197,12 @@ final class Erp2FscPickingContract {
     if (!isKnownBackorderAction(response)) return null;
     return Map<String, dynamic>.from(response['context'] as Map);
   }
+
+  static bool retiringPartnerMatches(Map<String, dynamic> row) {
+    final delivery = _manyId(row['partner_id']);
+    final retiring = _manyId(row['partner_venta_id']);
+    return delivery != null && retiring == delivery;
+  }
 }
 
 final class Erp2FscApprovalInvocation {
@@ -476,6 +482,11 @@ final class Erp2RpcContract {
   String get paymentWizardLineType => 'payment';
   String get assignPicking => 'action_assign';
   String get validatePicking => 'button_validate';
+  // Public stock.picking form action from l10n_ec_stock_base.  It has no
+  // kwargs: the native method copies partner_id to partner_venta_id on the
+  // singleton picking.  Keep it in the fixed contract so the harness cannot
+  // drift into an invented field write or an alternate RPC name.
+  String get copyRetiringPartner => 'action_copiar_quien_retira';
   // Core stock.backorder.confirmation method returned by button_validate when
   // a native backorder decision is required.  It is accepted only for the
   // exact model/action shape checked by Erp2FscPickingContract.
@@ -495,6 +506,7 @@ final class Erp2RpcContract {
     'payment.wizard.lineType': paymentWizardLineType,
     'stock.picking.assign': assignPicking,
     'stock.picking.validate': validatePicking,
+    'stock.picking.copyRetiringPartner': copyRetiringPartner,
     'stock.backorder.confirmation.create': createBackorderWizard,
     'stock.backorder.confirmation.process': processBackorder,
   };
@@ -2168,6 +2180,8 @@ final class Erp2WriteHarness {
         'location_id',
         'location_dest_id',
         'user_id',
+        'partner_id',
+        'partner_venta_id',
       ],
     );
     if (rows.length != 1) throw StateError('FSC picking disappeared');
@@ -2519,6 +2533,7 @@ final class Erp2WriteHarness {
     if (warehouse == null) {
       throw Erp2PreflightException(['warehouse client is required for FSC']);
     }
+    await _ensureFscRetiringPartner(pickingId);
     dynamic response;
     Object? transportError;
     try {
@@ -2591,6 +2606,38 @@ final class Erp2WriteHarness {
       ids: [wizardId],
       context: context,
       verify: () async => (await _picking(pickingId))['state'] == 'done',
+    );
+  }
+
+  /// The Ecuador stock addon requires `partner_venta_id` on outgoing
+  /// pickings.  The public UI action copies the delivery partner and is the
+  /// supported path; writing this field from the harness would bypass the
+  /// same contract used by the warehouse screen.
+  Future<void> _ensureFscRetiringPartner(int pickingId) async {
+    final warehouse = actorClients[Erp2Actor.warehouse];
+    if (warehouse == null) {
+      throw Erp2PreflightException(['warehouse client is required for FSC']);
+    }
+    var picking = await _readFscPickingAsWarehouse(pickingId);
+    final deliveryPartnerId = _manyId(picking['partner_id']);
+    if (deliveryPartnerId == null) {
+      throw StateError('FSC customer picking has no delivery partner');
+    }
+    if (_manyId(picking['partner_venta_id']) == deliveryPartnerId) return;
+    if (_manyId(picking['partner_venta_id']) != null) {
+      throw StateError(
+        'FSC customer picking has a mismatched retiring partner',
+      );
+    }
+    await _invokeAndVerify(
+      actor: Erp2Actor.warehouse,
+      model: 'stock.picking',
+      method: config.rpc.copyRetiringPartner,
+      ids: [pickingId],
+      verify: () async {
+        picking = await _readFscPickingAsWarehouse(pickingId);
+        return Erp2FscPickingContract.retiringPartnerMatches(picking);
+      },
     );
   }
 
