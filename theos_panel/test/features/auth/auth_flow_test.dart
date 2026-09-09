@@ -388,6 +388,34 @@ void main() {
     },
   );
 
+  test('credential retention flag controls secure backend storage', () async {
+    SharedPreferences.setMockInitialValues({});
+    final preferences = await SharedPreferences.getInstance();
+    final backend = FakeBackend();
+    final service = NativeAuthService(
+      bootstrapPort: FakeBootstrap(),
+      credentialStore: CredentialStore(
+        backend,
+        durability: CredentialDurability.secureStore,
+      ),
+      preferences: preferences,
+      runtimePort: FakeRuntime(),
+      installationIds: InstallationIdStore(
+        backend,
+        generator: () => 'install-no-retain',
+      ),
+    );
+
+    await service.login(
+      serverUrl: 'https://erp.test',
+      database: 'demo',
+      login: 'seller',
+      password: 'secret',
+      persistCredential: false,
+    );
+    expect(backend.values.values, isNot(contains('secret-key')));
+  });
+
   test('profiles are selected by server and database without mixing', () async {
     SharedPreferences.setMockInitialValues({});
     final preferences = await SharedPreferences.getInstance();

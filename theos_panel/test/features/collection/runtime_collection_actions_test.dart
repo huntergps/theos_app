@@ -27,6 +27,7 @@ final class _Actions implements SaleOdooActions {
                 'state': 'posted',
                 'payment_state': 'paid',
                 'amount_total': 12.50,
+                'amount_residual': 0.0,
                 'l10n_ec_pos_collection_completed': true,
               },
             ]
@@ -36,6 +37,14 @@ final class _Actions implements SaleOdooActions {
       ambiguousCash = false;
       reconciled = true;
       throw const AmbiguousOperationException('timeout');
+    }
+    if (model == 'sale.order' && method == 'search_read') {
+      return const [
+        {
+          'id': 9,
+          'invoice_ids': [88],
+        },
+      ];
     }
     return true;
   }

@@ -13,9 +13,10 @@ import 'package:theos_panel/features/auth/login_preferences.dart';
 import 'package:theos_panel/features/auth/login_screen.dart';
 
 final class _VisualAuthService implements AuthServicePort {
-  const _VisualAuthService({this.profile});
+  const _VisualAuthService({this.profile, this.result});
 
   final AuthProfile? profile;
+  final AuthServiceResult? result;
 
   @override
   Future<AuthServiceResult> login({
@@ -23,7 +24,8 @@ final class _VisualAuthService implements AuthServicePort {
     required String database,
     required String login,
     required String password,
-  }) async => const AuthServiceResult(status: AuthServiceStatus.required);
+  }) async =>
+      result ?? const AuthServiceResult(status: AuthServiceStatus.required);
 
   @override
   Future<AuthServiceResult> restore({bool offline = false}) async =>
@@ -42,12 +44,12 @@ final class _VisualAuthService implements AuthServicePort {
   Future<void> close() async {}
 }
 
-Future<Widget> _loginHarness() async {
+Future<Widget> _loginHarness({AuthServiceResult? result}) async {
   SharedPreferences.setMockInitialValues({});
   final preferences = await SharedPreferences.getInstance();
   return ProviderScope(
     overrides: [
-      authServiceProvider.overrideWithValue(const _VisualAuthService()),
+      authServiceProvider.overrideWithValue(_VisualAuthService(result: result)),
       sharedPreferencesProvider.overrideWithValue(preferences),
     ],
     child: MaterialApp(theme: OrbiTheme.light, home: const LoginScreen()),
@@ -195,6 +197,59 @@ void main() {
     final raw = preferences.getString(LoginPreferencesStore.key);
     expect(raw, contains('saved_user'));
     expect(raw, isNot(contains('do-not-persist')));
+    expect(raw, isNot(contains('apiKey')));
+  });
+
+  testWidgets('successful login saves only the non-secret selection', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(1200, 900);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    SharedPreferences.setMockInitialValues({});
+    final preferences = await SharedPreferences.getInstance();
+    final profile = const AuthProfile(
+      serverUrl: 'https://login.test',
+      database: 'panel',
+      login: 'seller',
+      userId: 7,
+      installationId: 'test-install',
+      credentialReference: 'fake',
+    );
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          authServiceProvider.overrideWithValue(
+            _VisualAuthService(
+              result: AuthServiceResult(
+                status: AuthServiceStatus.authenticated,
+                profile: profile,
+              ),
+            ),
+          ),
+          sharedPreferencesProvider.overrideWithValue(preferences),
+        ],
+        child: MaterialApp(theme: OrbiTheme.light, home: const LoginScreen()),
+      ),
+    );
+    await tester.pump();
+    final fields = find.byType(TextField);
+    await tester.enterText(fields.at(0), 'https://login.test');
+    await tester.enterText(fields.at(1), 'panel');
+    await tester.enterText(fields.at(2), 'seller');
+    await tester.enterText(fields.at(3), 'not-persisted');
+    await tester.ensureVisible(find.text('Iniciar sesión'));
+    await tester.tap(find.text('Iniciar sesión'));
+    await tester.pump();
+
+    final saved = LoginPreferencesStore(preferences).load();
+    expect(saved.serverUrl, 'https://login.test');
+    expect(saved.database, 'panel');
+    expect(saved.login, 'seller');
+    final raw = preferences.getString(LoginPreferencesStore.key);
+    expect(raw, isNot(contains('not-persisted')));
+    expect(raw, isNot(contains('password')));
     expect(raw, isNot(contains('apiKey')));
   });
 
