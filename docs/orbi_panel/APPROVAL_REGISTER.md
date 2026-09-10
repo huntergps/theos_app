@@ -4,6 +4,10 @@ Actualizado: 2026-09-10. Reconstruido de las respuestas explícitas del usuario.
 Este registro distingue aprobación visual, definición funcional e implementación.
 No certifica que las pantallas estén implementadas o probadas.
 
+La [matriz maestra de cobertura](VISUAL_COVERAGE.md) enumera los listados,
+formularios, recorridos y estados todavía pendientes. Es obligatoria para no
+confundir una aprobación parcial con la aprobación del módulo completo.
+
 ## Aprobaciones anteriores
 
 | Bloque | Evidencia del usuario | Alcance y límites |
