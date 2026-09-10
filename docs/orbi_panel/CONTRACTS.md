@@ -95,6 +95,9 @@ en la misma transacción de ingesta, según NOTIFICATIONS.md.
 
 `BrandProfile`: servidor/base/empresa, logo/fondo en caché, colores de marca/acción
 como valores neutrales, revisión y fuente. Ningún `AccentColor` Fluent.
+Resolver por propiedad: override del usuario en Orbi → configuración Odoo →
+predeterminado Orbi. Heredar y personalizar son estados distintos; guardar en Orbi
+no escribe Odoo. Véase [PERSONALIZATION_SPEC.md](PERSONALIZATION_SPEC.md).
 `ReportRequest`: templateId/revision, entidad y snapshot de datos, formato.
 `ReportResult`: bytes, mimeType, nombre seguro, estado fiscal mostrado.
 QWeb produce documentos; la emisión/identidad fiscal pertenece al dominio.

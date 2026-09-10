@@ -34,9 +34,9 @@ visual se guarda como nueva versión propuesta y solicita aprobación específic
 | ID | Falta | Evidencia para cerrarlo |
 |---|---|---|
 | V01 | Normalizar menú, pie y marca entre rondas | Lámina de componentes globales con logo real, seis áreas y pie en cuatro formatos; correcciones nuevas, no sobrescrituras |
-| V02 | Tema oscuro completo | Variantes de las familias acceso, venta, caja, inventario/envases y sistema; confirmar legibilidad, jerarquía y cuatro formatos |
+| V02 | Tema compartido claro/oscuro | Colores semánticos y componentes; una comparación y 2–3 pantallas representativas, NO una imagen oscura por pantalla/tamaño |
 | V03 | Estados no representados | Matriz por recorrido de carga, vacío, error, permisos, offline, resultado parcial y recuperación; variantes compartidas sólo si realmente equivalentes |
-| I01 | Atajos, escáner y preferencias | Inventario contra theos_pos/Odoo, conflictos navegador/OS y alternativa táctil; no asignar nuevos atajos a ciegas |
+| I01 | Inventario completado; mapa final por validar | [Contrato de teclado/entrada](KEYBOARD_AND_INPUT_CONTRACT.md): evidencia local, colisiones y 18 escenarios; no pruebas ejecutadas |
 | B01 | Bindings por formulario y acción | Campo/modelo/método público, parámetros, permiso, efecto y respuesta verificados; especialmente operaciones auxiliares y Bodega |
 | B02 | Contrato de Envases | Identificar lo reutilizable y especificar ampliación: contenido separado, propiedad/custodia, presentaciones, múltiples líneas, factura/toma, parciales y trazabilidad |
 | O01 | Matriz offline ejecutable | Autorización provisionada por operación, identidad estable, dependencias, reconciliación y conflictos; no cupos inventados por equipo |
@@ -46,6 +46,9 @@ visual se guarda como nueva versión propuesta y solicita aprobación específic
 | Q01 | Superioridad frente a theos_pos | Mismas tareas/datos/equipo; medir tiempo, pasos, errores y recuperación con usuarios; no declararla sólo por estética |
 
 V01–V03 requieren imágenes nuevas y revisión, no rediseñar todas las pantallas desde cero.
+La aclaración posterior del dueño limita V02: no multiplicar imágenes para cambiar
+colores. [PERSONALIZATION_SPEC.md](PERSONALIZATION_SPEC.md) fija herencia por propiedad,
+tema compartido y validación visual representativa.
 B01–B02 requieren especificación sustentada en fuentes; escribirla no instala módulos.
 Las verificaciones de instancia, distribución y pruebas reales se harán únicamente en
 el entorno autorizado. ERP2 queda fuera de cambios y pruebas con efectos.
@@ -74,6 +77,7 @@ experto en Odoo 19.5. Este equipo entrega el
 [contrato de dominio propuesto](ENVASES_DOMAIN_CONTRACT.md); no implementa ese backend.
 El módulo debe operar completo desde Odoo web; Orbi consume los mismos datos/reglas
 y permisos. Se espera de vuelta el contrato real probado antes de enlazar Orbi.
+Su recepción se rige por [ENVASES_BACKEND_ACCEPTANCE.md](ENVASES_BACKEND_ACCEPTANCE.md).
 
 En paralelo: V01–V03 (variantes), I01 (inventario interacción), B01–B02/O01–O02
 (contratos). P01/L01 se preparan documentalmente sin instalar ni desplegar.

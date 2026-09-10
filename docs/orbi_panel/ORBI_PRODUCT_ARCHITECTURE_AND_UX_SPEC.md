@@ -1009,6 +1009,12 @@ estado vigente; dibujar un flujo no acredita sus bindings ni su ejecución real.
 
 ## 28. Expediente de cierre previo a implementación
 
+La personalización respeta la decisión posterior del dueño: cada propiedad toma
+primero el valor personalizado en Orbi, luego Odoo y finalmente el predeterminado.
+[PERSONALIZATION_SPEC.md](PERSONALIZATION_SPEC.md) define alcance, restablecimiento,
+offline y aislamiento. El tema claro/oscuro es compartido; no se exige duplicar
+las imágenes de todas las pantallas para revisar colores.
+
 [DESIGN_HANDOFF.md](DESIGN_HANDOFF.md) consolida las revisiones paralelas visual,
 de interacción y de contratos Odoo/offline, sus límites de evidencia y los pendientes
 identificados. Las especificaciones nuevas complementan las imágenes aprobadas;
