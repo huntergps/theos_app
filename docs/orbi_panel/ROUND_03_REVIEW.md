@@ -1,9 +1,10 @@
 # Ronda 03 — Experiencia transversal
 
-Estado: **aprobación parcial**. Fecha: 10/09/2026.
+Estado: **seis láminas aprobadas**. Fecha: 10/09/2026.
 SHELL-01, ALERT-01 y ALERT-02: aprobadas en las versiones abiertas en Vista Previa;
 originales en `visual_baselines/approved/round-03/`.
-CONT-01, OUT-01 y AI-01: pendientes de revisión. Revisiones posteriores no aprobadas.
+CONT-01, OUT-01 y AI-01: aprobadas tras abrirlas en Vista Previa y recibir
+«aprobado, que mas falta?». Revisiones posteriores no heredan aprobación.
 Esta ronda complementa, no sustituye, las 33 láminas aprobadas de round-02.
 No autoriza desarrollar ni modificar Odoo.
 

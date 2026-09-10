@@ -4,8 +4,8 @@ Actualizado 2026-09-10. Inventario de revisión, NO autorización de desarrollo.
 Complementa APPROVAL_REGISTER.md; una definición funcional aceptada no aprueba una imagen.
 
 Extensión de alcance documentada: [capacidades opcionales de Odoo](ODOO_OPTIONAL_CAPABILITIES.md).
-Pendientes visuales: asistente condicionado a IA instalada, salidas de impresión y
-canales WhatsApp/Telegram disponibles, configuración incompleta, resultado y fallo.
+Ronda 03 aprobada: propuestas de asistente condicionado a IA instalada, salidas,
+avisos, contexto y continuidad; sólo para los estados efectivamente representados.
 No se crean proveedores o canales independientes en Orbi.
 
 ## Ronda 02 generada
@@ -34,7 +34,7 @@ Esta regla prevalece sobre adaptaciones previas para las nuevas propuestas.
 - Los estados vacío, carga inicial, error, offline, permisos y resultado forman parte
   de la cobertura de cada recorrido; pueden ser variantes, no páginas separadas.
 
-## Matriz maestra
+## Matriz histórica anterior a round-02 (no estado vigente)
 
 | ID | Pantallas / recorrido a revisar | Situación actual |
 |---|---|---|
@@ -95,8 +95,9 @@ Ver [ROUND_03_REVIEW.md](ROUND_03_REVIEW.md): SHELL-01 (menú/pie), ALERT-01
 (avisos internos), ALERT-02 (avisos del dispositivo), CONT-01 (continuidad),
 OUT-01 (salidas Odoo) y AI-01 (asistente Odoo).
 SHELL-01, ALERT-01 y ALERT-02 **aprobadas el 10/09/2026**, versiones mostradas en
-Vista Previa archivadas en `approved/round-03/`. CONT-01, OUT-01 y AI-01 siguen
-pendientes, al igual que cualquier revisión posterior de las primeras tres.
+Vista Previa archivadas en `approved/round-03/`. CONT-01, OUT-01 y AI-01 fueron
+aprobadas posteriormente el mismo día, también archivadas. Las revisiones no
+mostradas de cualquiera de las seis no heredan aprobación.
 Complementan los diseños aprobados sin reemplazarlos. La definición textual
 está en SHELL_AND_INTERACTION_SPEC.md y ODOO_OPTIONAL_CAPABILITIES.md.
 
@@ -110,6 +111,7 @@ está en SHELL_AND_INTERACTION_SPEC.md y ODOO_OPTIONAL_CAPABILITIES.md.
 6. Actualizar esta matriz y APPROVAL_REGISTER.md. Ningún bloque queda aprobado
    por proximidad a otro, por una captura de theos_pos o por un «procede».
 
-Prioridad inmediata autorizada: VEN-01, CAJ-02, BOD-02, ENV-02 y ENV-03.
+La prioridad histórica VEN-01, CAJ-02, BOD-02, ENV-02 y ENV-03 ya tiene láminas
+aprobadas en round-02; no debe interpretarse como trabajo visual aún no presentado.
 Esta matriz hace visibles los huecos conocidos; no afirma que una auditoría de
 modelos haya probado todos los casos posibles ni añade reglas de negocio nuevas.

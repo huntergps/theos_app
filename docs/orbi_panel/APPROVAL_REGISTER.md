@@ -102,7 +102,10 @@ Se registra para SHELL-01, ALERT-01 y ALERT-02: las tres imágenes abiertas en
 Vista Previa y guardadas en `proposed/round-03/` antes de esa declaración.
 Copias idénticas preservadas en `approved/round-03/`.
 
-CONT-01, OUT-01 y AI-01 siguen pendientes. Las revisiones generadas después de
+Segunda declaración del usuario, después de abrir CONT-01, OUT-01 y AI-01:
+«aprobado, que mas falta?». Se aprueban esas tres versiones y se preservan
+copias idénticas en `approved/round-03/`. Quedan seis láminas aprobadas en esta ronda.
+Las revisiones generadas después de
 las versiones mostradas no heredan aprobación, especialmente ajustes de orientación.
 La aprobación visual no certifica implementación, bindings ni pruebas funcionales.
 Véase [índice de revisión](ROUND_03_REVIEW.md).
