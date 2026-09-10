@@ -6,6 +6,10 @@ Complementa APPROVAL_REGISTER.md; una definición funcional aceptada no aprueba 
 ## Ronda 02 generada
 
 Se generaron y archivaron 33 láminas: [índice y prompts](ROUND_02_REVIEW.md).
+**Aprobación posterior: el usuario revisó round-02 y aprobó todas sus imágenes.**
+Los 33 IDs quedan aprobados visualmente para el alcance representado y copiados
+a `visual_baselines/approved/round-02/`. Lo siguiente conserva el estado histórico
+de generación; no es el estado vigente de aprobación.
 Los IDs de la matriz que tienen enlace en ese índice pasan de «sin lámina» a
 **propuesta generada, pendiente de revisión y aprobación**. La situación anterior
 se conserva abajo como línea base; generar no cierra automáticamente la cobertura

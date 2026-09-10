@@ -74,9 +74,22 @@ no nuevas propuestas aprobadas de theos_panel.
 
 ## Nuevas propuestas
 
+### Aprobación completa de round-02 — 2026-09-10
+
+El usuario revisó la carpeta y declaró: «he revisado
+/Users/elmers/Documents/develop/2026/theos_app/docs/orbi_panel/visual_baselines/proposed/round-02
+y estan todas aprobadas».
+
+**Las 33 láminas de round-02 quedan aprobadas visualmente**, incluidos sus formatos
+representados y las seis revisiones de Caja. Copias originales preservadas en
+`visual_baselines/approved/round-02/`; las propuestas permanecen como evidencia.
+Esta aprobación sustituye el estado pendiente anotado en ROUND_02_REVIEW.md.
+No equivale a aprobación de imágenes/estados que no aparecen ni a cambiar reglas
+de Odoo, campos, permisos o el logo corporativo real.
+
 Ronda 02: [33 láminas archivadas e identificadas](ROUND_02_REVIEW.md), todas
-pendientes de revisión y aprobación. Las seis revisiones CAJ-04..09-v2 tampoco
-quedan aprobadas por reemplazar visualmente propuestas anteriores.
+aprobadas por la declaración anterior. Las seis revisiones CAJ-04..09-v2 están
+incluidas expresamente en el lote aprobado.
 
 Las nuevas láminas y sus referencias de código se enumeran en CASH_FORMS_REVIEW.md.
 Mostrar una imagen no la aprueba. Un «procede» autoriza preparar propuestas, no

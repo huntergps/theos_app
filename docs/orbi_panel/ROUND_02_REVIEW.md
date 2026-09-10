@@ -1,6 +1,9 @@
 # Ronda 02 — propuestas visuales
 
-2026-09-10. **33 láminas generadas; ninguna aprobada.** Imágenes estáticas, no app implementada.
+2026-09-10. **Las 33 láminas están aprobadas por el usuario tras revisar la carpeta completa.**
+Copias preservadas en `visual_baselines/approved/round-02/`.
+Imágenes estáticas, no app implementada. Las notas de generación y QA de abajo
+se conservan como historial anterior a la aprobación; no revocan ésta.
 
 Regla de esta ronda: rejillas en desktop/iPad horizontal cuando hay datos tabulares; listas, tarjetas y formularios sin rejillas en iPad vertical/teléfono. Syncfusion es la elección para implementación futura, no el motor de estas imágenes.
 
@@ -190,5 +193,4 @@ Fullwidth two grids sources RET01available50apply50 NC02available100apply100, de
 ### CAJ-09-v2 — Contexto de Caja revisión
 
 Persistent point005 sessionCS005 cashierJacqueline. All actions Nueva Orden Cobros de cartera Retención SRI Anticipo Depósito bancario Salida efectivo Cruce cuentas. Wide pendingordergrid, portrait ordercards. Mi turno accessible list Órdenes Facturas Pagos Anticipos Cheques Salidas Retenciones Cruces Cierre de caja; phone expandable actions panel all accessible. Not opening closing forms.
-
 
