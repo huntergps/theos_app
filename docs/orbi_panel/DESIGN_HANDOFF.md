@@ -31,6 +31,18 @@ visual se guarda como nueva versión propuesta y solicita aprobación específic
 
 ## Pendientes concretos, sin reabrir diseños aprobados
 
+### Consolidación documental incorporada
+
+| Encargo | Documento | Límite |
+|---|---|---|
+| Pantallas aprobadas | [Índice único](APPROVED_SCREEN_INDEX.md) | 46 PNG y recorridos/specs; no auditoría visual exhaustiva |
+| Navegación y permisos | [Matriz de navegación](NAVIGATION_CAPABILITY_MATRIX.md) | Menús y capacidades funcionales; ACL reales por verificar |
+| Interacciones y offline | [Matriz por operación](OPERATION_INTERACTION_OFFLINE_MATRIX.md) | Acciones, validaciones, retorno y efectos; no pruebas ejecutadas |
+| Componentes compartidos | [Widgets reactivos](REACTIVE_COMPONENTS_SPEC.md) | Núcleo offline, campos locales e imágenes editables; no implementación |
+
+Complementan las imágenes aprobadas sin sustituirlas. Las decisiones del dueño
+prevalecen sobre ejemplos y nombres técnicos propuestos.
+
 | ID | Falta | Evidencia para cerrarlo |
 |---|---|---|
 | V01 | Normalizar menú, pie y marca entre rondas | Lámina de componentes globales con logo real, seis áreas y pie en cuatro formatos; correcciones nuevas, no sobrescrituras |

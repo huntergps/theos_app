@@ -58,6 +58,10 @@ atómica frente a concurrencia.
 
 ## C04 · edición
 
+Detalle: [Componentes reactivos al núcleo offline](REACTIVE_COMPONENTS_SPEC.md).
+Incluye bindings tipados a campos locales, formularios e imágenes de producto/cliente
+editables con autorización, persistencia durable y reconciliación.
+
 `EntityPicker<T>` recibe consulta local asíncrona/observable, selección y callback.
 `MoneyField` recibe valor tipado, moneda/precisión, reglas y callback.
 `FieldIssue` es dato; su widget decide la representación.
