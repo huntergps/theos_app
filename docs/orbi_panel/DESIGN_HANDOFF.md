@@ -68,6 +68,13 @@ No llamar «E2E completo» a una captura, a un test con respuestas simuladas ni 
 
 ## Orden de continuación
 
+**Asignación del dueño:** el backend de Envases será desarrollado por otro agente
+experto en Odoo 19.5. Este equipo entrega el
+[prompt de encargo](PROMPT_ODOO_ENVASES_AGENT.md) y el
+[contrato de dominio propuesto](ENVASES_DOMAIN_CONTRACT.md); no implementa ese backend.
+El módulo debe operar completo desde Odoo web; Orbi consume los mismos datos/reglas
+y permisos. Se espera de vuelta el contrato real probado antes de enlazar Orbi.
+
 En paralelo: V01–V03 (variantes), I01 (inventario interacción), B01–B02/O01–O02
 (contratos). P01/L01 se preparan documentalmente sin instalar ni desplegar.
 Después revisión conjunta del expediente y autorización explícita para desarrollo.
