@@ -3,6 +3,18 @@
 Actualizado 2026-09-10. Inventario de revisión, NO autorización de desarrollo.
 Complementa APPROVAL_REGISTER.md; una definición funcional aceptada no aprueba una imagen.
 
+## Ronda 02 generada
+
+Se generaron y archivaron 33 láminas: [índice y prompts](ROUND_02_REVIEW.md).
+Los IDs de la matriz que tienen enlace en ese índice pasan de «sin lámina» a
+**propuesta generada, pendiente de revisión y aprobación**. La situación anterior
+se conserva abajo como línea base; generar no cierra automáticamente la cobertura
+de todos los estados/pestañas ni acredita fidelidad a Odoo.
+
+Última instrucción del usuario: **rejillas sólo en escritorio y tablet horizontal;
+tablet vertical y teléfono sin rejillas**, usando listas/tarjetas/formularios.
+Esta regla prevalece sobre adaptaciones previas para las nuevas propuestas.
+
 ## Estados y evidencia
 
 - **Aprobación parcial**: existe PNG aprobado, sólo para el alcance registrado.

@@ -74,6 +74,10 @@ no nuevas propuestas aprobadas de theos_panel.
 
 ## Nuevas propuestas
 
+Ronda 02: [33 láminas archivadas e identificadas](ROUND_02_REVIEW.md), todas
+pendientes de revisión y aprobación. Las seis revisiones CAJ-04..09-v2 tampoco
+quedan aprobadas por reemplazar visualmente propuestas anteriores.
+
 Las nuevas láminas y sus referencias de código se enumeran en CASH_FORMS_REVIEW.md.
 Mostrar una imagen no la aprueba. Un «procede» autoriza preparar propuestas, no
 implementarlas. Registrar cada aprobación posterior con el identificador de lámina.
