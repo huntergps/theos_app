@@ -3,6 +3,11 @@
 Actualizado 2026-09-10. Inventario de revisión, NO autorización de desarrollo.
 Complementa APPROVAL_REGISTER.md; una definición funcional aceptada no aprueba una imagen.
 
+Extensión de alcance documentada: [capacidades opcionales de Odoo](ODOO_OPTIONAL_CAPABILITIES.md).
+Pendientes visuales: asistente condicionado a IA instalada, salidas de impresión y
+canales WhatsApp/Telegram disponibles, configuración incompleta, resultado y fallo.
+No se crean proveedores o canales independientes en Orbi.
+
 ## Ronda 02 generada
 
 Se generaron y archivaron 33 láminas: [índice y prompts](ROUND_02_REVIEW.md).
