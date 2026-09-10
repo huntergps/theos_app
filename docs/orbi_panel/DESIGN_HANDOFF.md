@@ -1,0 +1,75 @@
+# Orbi ERP — expediente de cierre y entrega a desarrollo
+
+Fecha: 10/09/2026. Estado: cierre documental en revisión; **no autorización de implementación**.
+
+## Fuente de verdad y precedencia
+
+1. Decisiones explícitas del dueño y [registro de aprobaciones](APPROVAL_REGISTER.md).
+2. [Especificación de producto](ORBI_PRODUCT_ARCHITECTURE_AND_UX_SPEC.md).
+3. [Shell e interacción transversal](SHELL_AND_INTERACTION_SPEC.md), con menú/pie actuales.
+4. [Interacción y aceptación por familia](INTERACTION_ACCEPTANCE_SPEC.md).
+5. [Contratos de integración](CONTRACTS.md), [matriz Odoo/offline](ODOO_OFFLINE_CONTRACT_MATRIX.md)
+   y [capacidades opcionales](ODOO_OPTIONAL_CAPABILITIES.md).
+
+Si se contradicen, registrar el punto y resolverlo antes de implementar; no elegir
+la interpretación más fácil. Un nombre/importe/icono incidental generado en una imagen
+no crea un modelo, permiso ni regla comercial. Un método encontrado en fuente no
+demuestra instalación, configuración ni comportamiento de una instancia.
+
+## Trabajo paralelo integrado
+
+| Frente | Entregable | Resultado y límite |
+|---|---|---|
+| Visual | [Auditoría](VISUAL_CLOSURE_AUDIT.md) | 46 archivos aprobados inventariados; muestreo visual, no revisión exhaustiva de cada píxel/estado |
+| Interacción | [Specs y escenarios](INTERACTION_ACCEPTANCE_SPEC.md) | Familias operativas, foco, errores, continuidad, cuatro tamaños y criterios de pruebas; pruebas no ejecutadas |
+| Odoo/offline | [Matriz](ODOO_OFFLINE_CONTRACT_MATRIX.md) | Evidencia de fuente, operaciones condicionadas y garantías por verificar; sin acceso a BD/ERP2 |
+| Integración | Este expediente | Precedencia, pendientes y puertas de aceptación; no modifica la app |
+
+Los 46 archivos son 7 históricos, 33 de round-02 y 6 de round-03. No equivalen a
+46 recorridos completos probados. Las copias aprobadas son inmutables; una corrección
+visual se guarda como nueva versión propuesta y solicita aprobación específica.
+
+## Pendientes concretos, sin reabrir diseños aprobados
+
+| ID | Falta | Evidencia para cerrarlo |
+|---|---|---|
+| V01 | Normalizar menú, pie y marca entre rondas | Lámina de componentes globales con logo real, seis áreas y pie en cuatro formatos; correcciones nuevas, no sobrescrituras |
+| V02 | Tema oscuro completo | Variantes de las familias acceso, venta, caja, inventario/envases y sistema; confirmar legibilidad, jerarquía y cuatro formatos |
+| V03 | Estados no representados | Matriz por recorrido de carga, vacío, error, permisos, offline, resultado parcial y recuperación; variantes compartidas sólo si realmente equivalentes |
+| I01 | Atajos, escáner y preferencias | Inventario contra theos_pos/Odoo, conflictos navegador/OS y alternativa táctil; no asignar nuevos atajos a ciegas |
+| B01 | Bindings por formulario y acción | Campo/modelo/método público, parámetros, permiso, efecto y respuesta verificados; especialmente operaciones auxiliares y Bodega |
+| B02 | Contrato de Envases | Identificar lo reutilizable y especificar ampliación: contenido separado, propiedad/custodia, presentaciones, múltiples líneas, factura/toma, parciales y trazabilidad |
+| O01 | Matriz offline ejecutable | Autorización provisionada por operación, identidad estable, dependencias, reconciliación y conflictos; no cupos inventados por equipo |
+| O02 | Concurrencia e identidad fiscal | Prueba de restricción/operación atómica backend, numeración y consulta de resultado incierto; buscar antes de crear no basta |
+| P01 | Plataformas y periféricos | Web offline/login, almacén seguro, impresión/lector y notificaciones con app cerrada por plataforma; sin promesas universales |
+| L01 | Rejillas Syncfusion | Licencia aplicable confirmada antes de distribuir, componente/versión y soporte comprobados antes de implementar |
+| Q01 | Superioridad frente a theos_pos | Mismas tareas/datos/equipo; medir tiempo, pasos, errores y recuperación con usuarios; no declararla sólo por estética |
+
+V01–V03 requieren imágenes nuevas y revisión, no rediseñar todas las pantallas desde cero.
+B01–B02 requieren especificación sustentada en fuentes; escribirla no instala módulos.
+Las verificaciones de instancia, distribución y pruebas reales se harán únicamente en
+el entorno autorizado. ERP2 queda fuera de cambios y pruebas con efectos.
+
+## Puertas de aceptación para la fase futura
+
+- **Diseño:** imagen aprobada identificada, cuatro formatos, tema y estados requeridos.
+- **Contrato:** operación enlazada y garantías documentadas; los desconocidos no se ocultan con mocks.
+- **Prototipo:** si se autoriza después, fixtures prueban sólo interacción y navegación.
+- **Integración:** identidad, ACL, efecto local/remoto, impuestos, saldos y numeración comprobados en entorno autorizado.
+- **Resiliencia:** doble pulsación, respuesta perdida, reinicio offline, cambio A→B→A,
+  conflicto, disco insuficiente y actualización no pierden ni duplican hechos.
+- **Usabilidad:** entrada en cada campo comprobada, foco estable y sin bloqueos/parpadeo;
+  comparación con la baseline aprobada y tareas reales equivalentes a theos_pos.
+
+Para cada prueba conservar ID del escenario, commit, actor/capacidades, precondiciones,
+viewport/tema/entrada, pasos, resultado visible, efecto verificado y evidencia saneada.
+Estados: no ejecutado / bloqueado / falló / pasó en prototipo / pasó con integración.
+No llamar «E2E completo» a una captura, a un test con respuestas simuladas ni a que compile.
+
+## Orden de continuación
+
+En paralelo: V01–V03 (variantes), I01 (inventario interacción), B01–B02/O01–O02
+(contratos). P01/L01 se preparan documentalmente sin instalar ni desplegar.
+Después revisión conjunta del expediente y autorización explícita para desarrollo.
+El plan técnico previo de 24 tareas no acredita este cierre: `check_orbi_plan.py`
+no tiene tareas pendientes listas y no verifica app, build ni ERP2.
