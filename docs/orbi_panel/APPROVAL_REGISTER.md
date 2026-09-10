@@ -95,7 +95,19 @@ Las nuevas láminas y sus referencias de código se enumeran en CASH_FORMS_REVIE
 Mostrar una imagen no la aprueba. Un «procede» autoriza preparar propuestas, no
 implementarlas. Registrar cada aprobación posterior con el identificador de lámina.
 
-## Límite histórico
+## Ronda 03 — aprobación parcial, 10/09/2026
+
+Declaración del usuario: «aprobaas las propuestas que me mostraste».
+Se registra para SHELL-01, ALERT-01 y ALERT-02: las tres imágenes abiertas en
+Vista Previa y guardadas en `proposed/round-03/` antes de esa declaración.
+Copias idénticas preservadas en `approved/round-03/`.
+
+CONT-01, OUT-01 y AI-01 siguen pendientes. Las revisiones generadas después de
+las versiones mostradas no heredan aprobación, especialmente ajustes de orientación.
+La aprobación visual no certifica implementación, bindings ni pruebas funcionales.
+Véase [índice de revisión](ROUND_03_REVIEW.md).
+
+## Alcance del registro histórico
 
 Antes de este registro existían la especificación y una checklist de aceptación,
 pero no un registro completo de las aprobaciones recientes. No se atribuyen fechas

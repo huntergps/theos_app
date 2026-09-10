@@ -89,7 +89,18 @@ no sustituye la búsqueda **inline** de productos al editar líneas de una venta
 No representar acciones masivas financieras/inventario como autorizadas sin validar
 los métodos y permisos existentes en Odoo.
 
-## Cómo cerrar un hueco
+## Ampliación transversal — ronda 03
+
+Ver [ROUND_03_REVIEW.md](ROUND_03_REVIEW.md): SHELL-01 (menú/pie), ALERT-01
+(avisos internos), ALERT-02 (avisos del dispositivo), CONT-01 (continuidad),
+OUT-01 (salidas Odoo) y AI-01 (asistente Odoo).
+SHELL-01, ALERT-01 y ALERT-02 **aprobadas el 10/09/2026**, versiones mostradas en
+Vista Previa archivadas en `approved/round-03/`. CONT-01, OUT-01 y AI-01 siguen
+pendientes, al igual que cualquier revisión posterior de las primeras tres.
+Complementan los diseños aprobados sin reemplazarlos. La definición textual
+está en SHELL_AND_INTERACTION_SPEC.md y ODOO_OPTIONAL_CAPABILITIES.md.
+
+## Procedimiento para cerrar un hueco
 
 1. Crear imagen versionada en `visual_baselines/proposed/` y enlazarla al ID.
 2. Registrar dispositivos, tema, estados y alcance realmente representados.
