@@ -205,12 +205,24 @@ void main() {
       expect(find.text('Venta Jacqueline'), findsOneWidget);
       await tester.tap(find.byTooltip('Actualizar órdenes'));
       await tester.pump();
-      size.value = const Size(840, 600);
-      await tester.pump();
+      for (final viewport in const [
+        Size(1440, 900),
+        Size(1180, 820),
+        Size(820, 1180),
+        Size(390, 844),
+      ]) {
+        size.value = viewport;
+        await tester.pump();
+        expect(find.text('Venta Jacqueline'), findsOneWidget);
+        expect(tester.takeException(), isNull);
+      }
       size.value = const Size(599, 600);
       await tester.pump();
       expect(find.text('Venta Jacqueline'), findsOneWidget);
       expect(repository.queries.last.authorFilter, isNull);
+      await tester.tap(find.text('Venta Jacqueline'));
+      await tester.pumpAndSettle();
+      expect(find.text('Estado comercial: sale'), findsOneWidget);
       expect(tester.takeException(), isNull);
     },
   );

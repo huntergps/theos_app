@@ -4,6 +4,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:orbi_runtime/orbi_runtime.dart';
 import 'package:theos_panel/features/envases/envases_dashboard_screen.dart';
+import 'package:theos_panel/ui/components/records/orbi_record_list.dart';
+import 'package:syncfusion_flutter_datagrid/datagrid.dart';
 
 EnvasesDashboardRow _row(String name, {int id = 10}) => EnvasesDashboardRow(
   id: id,
@@ -33,13 +35,24 @@ Widget _host({
   required Stream<EnvasesDashboardSnapshot?> snapshots,
   bool connected = false,
   VoidCallback? onRefresh,
+  Size? size,
 }) => MaterialApp(
-  home: EnvasesDashboardScreen(
-    snapshots: snapshots,
-    workspaceEnvases: 'Envases',
-    isConnected: connected,
-    onRefresh: onRefresh,
-  ),
+  home: size == null
+      ? EnvasesDashboardScreen(
+          snapshots: snapshots,
+          workspaceEnvases: 'Envases',
+          isConnected: connected,
+          onRefresh: onRefresh,
+        )
+      : MediaQuery(
+          data: MediaQueryData(size: size),
+          child: EnvasesDashboardScreen(
+            snapshots: snapshots,
+            workspaceEnvases: 'Envases',
+            isConnected: connected,
+            onRefresh: onRefresh,
+          ),
+        ),
 );
 
 void main() {
@@ -55,9 +68,10 @@ void main() {
       find.textContaining('Última descarga en este equipo'),
       findsOneWidget,
     );
-    expect(find.text('10 Unidad'), findsOneWidget);
+    expect(find.text('10 propios'), findsOneWidget);
     expect(find.text('Sin conexión'), findsOneWidget);
-    expect(find.text('Dañados (incluidos en total)'), findsOneWidget);
+    expect(find.text('Dañados'), findsOneWidget);
+    expect(find.text('Mostrando 1 de 1 registros'), findsOneWidget);
     expect(
       find.textContaining('detalle por ubicación no disponible'),
       findsOneWidget,
@@ -102,10 +116,21 @@ void main() {
       await tester.pumpWidget(
         _host(
           snapshots: Stream<EnvasesDashboardSnapshot?>.value(_snapshot('Cola')),
+          size: size,
         ),
       );
       await tester.pump();
       expect(find.text('Cola'), findsOneWidget);
+      final horizontalGrid = size.width >= 840 && size.width >= size.height;
+      expect(
+        find.byType(SfDataGrid),
+        horizontalGrid ? findsOneWidget : findsNothing,
+      );
+      expect(
+        find.byType(OrbiRecordList<EnvasesDashboardRow>),
+        horizontalGrid ? findsNothing : findsOneWidget,
+      );
+      expect(tester.takeException(), isNull);
     }
     await tester.binding.setSurfaceSize(null);
   });

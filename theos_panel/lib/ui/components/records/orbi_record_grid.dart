@@ -16,6 +16,7 @@ class OrbiRecordGrid<T> extends StatefulWidget {
     required this.controller,
     required this.columns,
     this.onRecordTap,
+    this.cardBuilder,
     this.allowMultiSelect = false,
     this.headerRowHeight = 48,
     this.rowHeight = 52,
@@ -24,6 +25,7 @@ class OrbiRecordGrid<T> extends StatefulWidget {
   final OrbiRecordViewController<T> controller;
   final List<OrbiRecordColumn<T>> columns;
   final ValueChanged<OrbiRecord<T>>? onRecordTap;
+  final Widget Function(BuildContext, OrbiRecord<T>)? cardBuilder;
   final bool allowMultiSelect;
   final double headerRowHeight;
   final double rowHeight;
@@ -115,6 +117,7 @@ class _OrbiRecordGridState<T> extends State<OrbiRecordGrid<T>> {
             controller: widget.controller,
             columns: widget.columns,
             onRecordTap: widget.onRecordTap,
+            cardBuilder: widget.cardBuilder,
           );
         }
         return SfDataGrid(

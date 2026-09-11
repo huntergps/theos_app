@@ -1,7 +1,11 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../ui/bindings/record_view_controller.dart';
 import '../../ui/components/orbi_components.dart';
+import '../../ui/components/records/orbi_record_grid.dart';
 import 'orders_contracts.dart';
 
 class OrdersScreen extends StatefulWidget {
@@ -29,11 +33,30 @@ class _OrdersScreenState extends State<OrdersScreen> {
     filterStore: widget.filterStore,
     scopeKey: widget.scopeKey,
   );
+  late final OrbiRecordViewController<OrderListItem> _records =
+      OrbiRecordViewController();
   late final TextEditingController _search = TextEditingController();
+  late final StreamSubscription<OrderSnapshot> _recordSubscription;
+
+  @override
+  void initState() {
+    super.initState();
+    _recordSubscription = _controller.changes.listen(_syncRecords);
+  }
+
+  void _syncRecords(OrderSnapshot snapshot) {
+    _records.replaceRecords(
+      snapshot.items.map(
+        (item) => OrbiRecord<OrderListItem>(id: item.localId, value: item),
+      ),
+    );
+  }
 
   @override
   void dispose() {
     _search.dispose();
+    _recordSubscription.cancel();
+    _records.dispose();
     _controller.dispose();
     super.dispose();
   }
@@ -146,67 +169,72 @@ class _OrdersScreenState extends State<OrdersScreen> {
   }
 
   Widget _orderList(BuildContext context, double width, OrderSnapshot state) {
-    final cards = state.items
-        .map((item) => _orderCard(context, item))
-        .toList(growable: false);
-    if (width >= 840) {
-      return GridView.extent(
-        maxCrossAxisExtent: 420,
-        mainAxisSpacing: 8,
-        crossAxisSpacing: 8,
-        children: cards,
-      );
-    }
-    return ListView(children: cards);
+    return OrbiRecordGrid<OrderListItem>(
+      controller: _records,
+      columns: [
+        OrbiRecordColumn(
+          id: 'order',
+          label: 'Orden',
+          value: (item) => item.title,
+        ),
+        OrbiRecordColumn(
+          id: 'business',
+          label: 'Estado comercial',
+          value: (item) => item.businessState.code,
+        ),
+        OrbiRecordColumn(
+          id: 'sync',
+          label: 'Sincronización',
+          value: (item) => item.syncState.name,
+        ),
+        OrbiRecordColumn(
+          id: 'pending',
+          label: 'Pendiente',
+          value: (item) => item.pendingCollection
+              ? 'Cobro'
+              : item.pendingInvoicing
+              ? 'Facturación'
+              : '—',
+        ),
+      ],
+      cardBuilder: (context, record) => _orderCard(context, record.value),
+      onRecordTap: (record) => _showOrderDetail(context, record.value),
+    );
   }
 
   Widget _orderCard(BuildContext context, OrderListItem item) {
     return Card(
-      child: Semantics(
-        button: true,
-        container: true,
-        label:
-            '${item.title}. ${item.businessState.code}. ${item.syncState.name}. ${item.fiscalState?.name ?? 'Fiscal no requerido'}. Abrir detalle',
-        child: InkWell(
-          onTap: () => _showOrderDetail(context, item),
-          child: Padding(
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(item.title, style: Theme.of(context).textTheme.titleMedium),
+            if (item.clientOrderRef case final reference?
+                when reference.trim().isNotEmpty)
+              Text(reference),
+            const SizedBox(height: 8),
+            Wrap(
+              spacing: 6,
+              runSpacing: 6,
               children: [
-                Text(
-                  item.title,
-                  style: Theme.of(context).textTheme.titleMedium,
+                OrbiStatusChip(label: 'Negocio: ${item.businessState.code}'),
+                OrbiStatusChip(label: 'Local/sync: ${item.syncState.name}'),
+                OrbiStatusChip(
+                  label: 'Fiscal: ${item.fiscalState?.name ?? '—'}',
                 ),
-                if (item.clientOrderRef case final reference?
-                    when reference.trim().isNotEmpty)
-                  Text(reference),
-                const SizedBox(height: 8),
-                Wrap(
-                  spacing: 6,
-                  runSpacing: 6,
-                  children: [
-                    OrbiStatusChip(
-                      label: 'Negocio: ${item.businessState.code}',
-                    ),
-                    OrbiStatusChip(label: 'Local/sync: ${item.syncState.name}'),
-                    OrbiStatusChip(
-                      label: 'Fiscal: ${item.fiscalState?.name ?? '—'}',
-                    ),
-                  ],
-                ),
-                if (item.pendingCollection || item.pendingInvoicing) ...[
-                  const SizedBox(height: 8),
-                  Text(
-                    [
-                      if (item.pendingCollection) 'Pendiente por cobrar',
-                      if (item.pendingInvoicing) 'Pendiente por facturar',
-                    ].join(' · '),
-                  ),
-                ],
               ],
             ),
-          ),
+            if (item.pendingCollection || item.pendingInvoicing) ...[
+              const SizedBox(height: 8),
+              Text(
+                [
+                  if (item.pendingCollection) 'Pendiente por cobrar',
+                  if (item.pendingInvoicing) 'Pendiente por facturar',
+                ].join(' · '),
+              ),
+            ],
+          ],
         ),
       ),
     );

@@ -118,21 +118,45 @@ class _EnvasesDashboardScreenState extends State<EnvasesDashboardScreen> {
           if (_snapshot?.rows.isNotEmpty ?? false)
             Padding(
               padding: const EdgeInsets.only(bottom: 12),
-              child: TextField(
-                key: const Key('envases-product-filter'),
-                controller: _productFilter,
-                decoration: const InputDecoration(
-                  labelText: 'Filtrar por producto o envase',
-                  prefixIcon: Icon(Icons.search),
-                  border: OutlineInputBorder(),
+              child: Card(
+                elevation: 0,
+                color: Theme.of(context).colorScheme.surfaceContainerLow,
+                shape: RoundedRectangleBorder(
+                  side: BorderSide(
+                    color: Theme.of(context).colorScheme.outlineVariant,
+                  ),
+                  borderRadius: BorderRadius.circular(12),
                 ),
-                onChanged: (value) {
-                  setState(() => _productQuery = value.trim().toLowerCase());
-                  _controller.replaceRecords(_recordsFor(_snapshot));
-                },
+                child: Padding(
+                  padding: const EdgeInsets.all(12),
+                  child: TextField(
+                    key: const Key('envases-product-filter'),
+                    controller: _productFilter,
+                    decoration: const InputDecoration(
+                      labelText: 'Filtrar por producto o unidad',
+                      prefixIcon: Icon(Icons.search),
+                      border: OutlineInputBorder(),
+                    ),
+                    onChanged: (value) {
+                      setState(
+                        () => _productQuery = value.trim().toLowerCase(),
+                      );
+                      _controller.replaceRecords(_recordsFor(_snapshot));
+                    },
+                  ),
+                ),
               ),
             ),
           if (_error != null) _ErrorBanner(onRetry: widget.onRefresh),
+          if (_snapshot?.rows.isNotEmpty ?? false)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 12),
+              child: Text(
+                'Mostrando ${_filteredRows(_snapshot!.rows).length} de '
+                '${_snapshot!.rows.length} registros',
+                key: const Key('envases-filtered-count'),
+              ),
+            ),
           if (_waiting && _snapshot == null && _error == null)
             const Expanded(child: Center(child: CircularProgressIndicator()))
           else
@@ -181,12 +205,27 @@ class _EnvasesDashboardScreenState extends State<EnvasesDashboardScreen> {
             ),
           ),
         Expanded(
-          child: OrbiRecordGrid<EnvasesDashboardRow>(
-            controller: _controller,
-            columns: _columns,
-            onRecordTap: widget.onProductTap == null
-                ? null
-                : (record) => widget.onProductTap!(record.value.productId),
+          child: Card(
+            elevation: 0,
+            clipBehavior: Clip.antiAlias,
+            color: Theme.of(context).colorScheme.surface,
+            shape: RoundedRectangleBorder(
+              side: BorderSide(
+                color: Theme.of(context).colorScheme.outlineVariant,
+              ),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Padding(
+              padding: const EdgeInsets.all(8),
+              child: OrbiRecordGrid<EnvasesDashboardRow>(
+                controller: _controller,
+                columns: _columns,
+                cardBuilder: _envasesCard,
+                onRecordTap: widget.onProductTap == null
+                    ? null
+                    : (record) => widget.onProductTap!(record.value.productId),
+              ),
+            ),
           ),
         ),
       ],
@@ -255,6 +294,114 @@ class _EnvasesDashboardScreenState extends State<EnvasesDashboardScreen> {
     textAlign: TextAlign.end,
     value: (row) => '${_formatQuantity(value(row))} ${row.uomName}',
   );
+
+  Widget _envasesCard(
+    BuildContext context,
+    OrbiRecord<EnvasesDashboardRow> record,
+  ) {
+    final row = record.value;
+    final metrics = <String, double>{
+      'En sede': row.enSede,
+      'Custodia cliente': row.enCustodiaCliente,
+      'Custodia proveedor': row.enCustodiaProveedor,
+      'En tránsito': row.enTransito,
+      'Dañados': row.danados,
+    };
+    return Card(
+      margin: EdgeInsets.zero,
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            final columns = constraints.maxWidth >= 600 ? 2 : 1;
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            row.productName,
+                            style: Theme.of(context).textTheme.titleMedium,
+                          ),
+                          Text(row.uomName),
+                        ],
+                      ),
+                    ),
+                    Chip(
+                      label: Text(
+                        '${_formatQuantity(row.totalPropio)} propios',
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                for (var index = 0; index < metrics.length; index += columns)
+                  Padding(
+                    padding: EdgeInsets.only(
+                      bottom: index + columns < metrics.length ? 8 : 0,
+                    ),
+                    child: Row(
+                      children: [
+                        for (final entry
+                            in metrics.entries.skip(index).take(columns))
+                          Expanded(
+                            child: Padding(
+                              padding: EdgeInsetsDirectional.only(
+                                end:
+                                    entry.key ==
+                                        metrics.entries
+                                            .skip(index)
+                                            .take(columns)
+                                            .last
+                                            .key
+                                    ? 0
+                                    : 8,
+                              ),
+                              child: _metric(
+                                context,
+                                entry.key,
+                                entry.value,
+                                row.uomName,
+                              ),
+                            ),
+                          ),
+                      ],
+                    ),
+                  ),
+              ],
+            );
+          },
+        ),
+      ),
+    );
+  }
+
+  Widget _metric(
+    BuildContext context,
+    String label,
+    double value,
+    String unit,
+  ) => DecoratedBox(
+    decoration: BoxDecoration(
+      color: Theme.of(context).colorScheme.surfaceContainerLow,
+      borderRadius: BorderRadius.circular(8),
+    ),
+    child: Padding(
+      padding: const EdgeInsets.all(8),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(label, style: Theme.of(context).textTheme.labelMedium),
+          Text('${_formatQuantity(value)} $unit'),
+        ],
+      ),
+    ),
+  );
 }
 
 class _DashboardHeader extends StatelessWidget {
@@ -270,14 +417,19 @@ class _DashboardHeader extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(title, style: Theme.of(context).textTheme.headlineSmall),
-          const SizedBox(height: 4),
           Text(
-            snapshot == null
-                ? 'Consulta y control de envases por producto.'
-                : 'Última descarga en este equipo: ${_formatDate(snapshot!.cachedAt)}',
-            style: Theme.of(context).textTheme.bodyMedium,
+            'Estado de envases',
+            style: Theme.of(context).textTheme.headlineSmall,
           ),
+          const SizedBox(height: 4),
+          const Text('Consulta la propiedad de envases por producto y unidad.'),
+          if (snapshot != null) ...[
+            const SizedBox(height: 4),
+            Text(
+              'Última descarga en este equipo: ${_formatDate(snapshot!.cachedAt)}',
+              style: Theme.of(context).textTheme.bodyMedium,
+            ),
+          ],
         ],
       ),
     );

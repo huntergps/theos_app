@@ -33,11 +33,11 @@ Fecha: 2026-09-11. Alcance: runtime/UI local y verificación estática del addon
   (`stock_warehouse.py:120-174`; `stock_location.py:185-219`).
 - El panel agregado sigue siendo compatible: suma `stock.quant` por rol y
   producto/empresa (`envases_panel.py:78-105`).
-- El addon no tiene ACL de lectura para `l10n_ec.envases.saldo.tercero` en su
-  `security/ir.access.csv`; el botón nativo aún agrupa por
-  `envases_partner_id` (`envases_panel.py:155-165`), ya obsoleto para detalle.
-  La restricción actual tampoco obliga a que ese campo quede vacío
-  (`stock_location.py:113-138`).
+- Revalidación posterior del 11/09: el otro trabajo backend añadió ACL de
+  lectura de `l10n_ec.envases.saldo.tercero` en `security/ir.access.csv` y
+  `_accion_saldo_tercero` ahora agrupa por `partner_id` en ese modelo.
+  Corrige los dos hallazgos anteriores; inspección de fuentes, no prueba
+  de instalación en servidor ni autorización para tocar ERP2.
 
 ## Evidencia y pendientes
 

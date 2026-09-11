@@ -10,12 +10,14 @@ class OrbiRecordList<T> extends StatelessWidget {
     required this.controller,
     required this.columns,
     this.onRecordTap,
+    this.cardBuilder,
     this.padding = const EdgeInsets.symmetric(vertical: 4),
   });
 
   final OrbiRecordViewController<T> controller;
   final List<OrbiRecordColumn<T>> columns;
   final ValueChanged<OrbiRecord<T>>? onRecordTap;
+  final Widget Function(BuildContext, OrbiRecord<T>)? cardBuilder;
   final EdgeInsetsGeometry padding;
 
   @override
@@ -36,15 +38,31 @@ class OrbiRecordList<T> extends StatelessWidget {
               final record = records[index];
               final id = controller.idFor(record);
               final selectedRow = selected.contains(id);
+              void onTap() {
+                controller.select(record.id);
+                onRecordTap?.call(record);
+              }
+
+              if (cardBuilder != null) {
+                return Semantics(
+                  container: true,
+                  selected: selectedRow,
+                  label: columns.isEmpty
+                      ? record.id
+                      : columns.first.value(record.value),
+                  child: InkWell(
+                    key: ValueKey<String>(id),
+                    onTap: onTap,
+                    child: cardBuilder!(context, record),
+                  ),
+                );
+              }
               return _RecordCard<T>(
                 key: ValueKey<String>(id),
                 record: record,
                 columns: columns,
                 selected: selectedRow,
-                onTap: () {
-                  controller.select(record.id);
-                  onRecordTap?.call(record);
-                },
+                onTap: onTap,
               );
             },
           ),
