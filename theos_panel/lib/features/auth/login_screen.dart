@@ -3,12 +3,12 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:flutter_svg/flutter_svg.dart';
 import 'package:orbi_runtime/orbi_runtime.dart' show AuthProfile;
 
 import 'auth_controller.dart';
 import 'login_preferences.dart';
 import '../../app/theme/orbi_theme.dart';
+import '../../ui/components/orbi_brand.dart';
 
 Color loginBrandOverlayColor(ColorScheme colors, double alpha) {
   // Keep the photograph visible while choosing a neutral veil that supports
@@ -67,14 +67,7 @@ class _BrandingPane extends StatelessWidget {
                   Semantics(
                     label: 'Marca Orbi ERP',
                     image: true,
-                    child: SvgPicture.asset(
-                      'assets/images/orbi_logo.svg',
-                      height: 220,
-                      colorFilter: ColorFilter.mode(
-                        colors.onPrimary,
-                        BlendMode.srcIn,
-                      ),
-                    ),
+                    child: OrbiBrand(height: 220, color: colors.onPrimary),
                   ),
                   const SizedBox(height: OrbiTheme.space24),
                   Text(
@@ -232,21 +225,28 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
             compactHeight: compactHeight,
           );
           if (constraints.maxWidth >= OrbiTheme.mediumBreakpoint) {
-            return Row(
+            return Stack(
+              fit: StackFit.expand,
               children: [
-                const Expanded(flex: 3, child: _BrandingPane()),
-                Expanded(
-                  flex: 2,
-                  child: ColoredBox(
-                    color: colors.surface,
-                    child: SafeArea(
-                      child: Center(
-                        child: SingleChildScrollView(
-                          keyboardDismissBehavior:
-                              ScrollViewKeyboardDismissBehavior.onDrag,
-                          padding: const EdgeInsets.all(OrbiTheme.space32),
-                          child: ConstrainedBox(
-                            constraints: const BoxConstraints(maxWidth: 440),
+                const _BrandingPane(),
+                DecoratedBox(
+                  decoration: BoxDecoration(
+                    color: colors.scrim.withValues(alpha: .16),
+                  ),
+                ),
+                SafeArea(
+                  child: Center(
+                    child: SingleChildScrollView(
+                      keyboardDismissBehavior:
+                          ScrollViewKeyboardDismissBehavior.onDrag,
+                      padding: const EdgeInsets.all(OrbiTheme.space32),
+                      child: ConstrainedBox(
+                        constraints: const BoxConstraints(maxWidth: 440),
+                        child: Card(
+                          color: colors.surface.withValues(alpha: .96),
+                          elevation: 2,
+                          child: Padding(
+                            padding: const EdgeInsets.all(OrbiTheme.space24),
                             child: form,
                           ),
                         ),
@@ -328,11 +328,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
           Semantics(
             label: 'Logo de Orbi ERP',
             image: true,
-            child: SvgPicture.asset(
-              'assets/images/orbi_logo.svg',
-              height: logoHeight,
-              colorFilter: ColorFilter.mode(colors.primary, BlendMode.srcIn),
-            ),
+            child: OrbiBrand(height: logoHeight, color: colors.primary),
           ),
           const SizedBox(height: OrbiTheme.space16),
           Text(

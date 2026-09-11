@@ -6,6 +6,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:orbi_runtime/orbi_runtime.dart';
 import 'package:theos_panel/features/auth/auth_controller.dart';
 import 'package:theos_panel/features/auth/login_screen.dart';
+import 'package:theos_panel/app/theme/orbi_theme.dart';
 
 final class _ProfileService implements AuthServicePort {
   static const _one = AuthProfile(
@@ -176,4 +177,36 @@ void main() {
     expect(tester.takeException(), isNull);
     expect(service.persisted, isFalse);
   });
+
+  testWidgets(
+    'login remains editable and reachable across approved viewports',
+    (tester) async {
+      const sizes = [
+        Size(1440, 900),
+        Size(1180, 820),
+        Size(820, 1180),
+        Size(390, 844),
+      ];
+      for (final theme in [OrbiTheme.light, OrbiTheme.dark]) {
+        for (final size in sizes) {
+          await tester.binding.setSurfaceSize(size);
+          await tester.pumpWidget(
+            ProviderScope(
+              overrides: [
+                authServiceProvider.overrideWithValue(_ProfileService()),
+              ],
+              child: MaterialApp(theme: theme, home: const LoginScreen()),
+            ),
+          );
+          await tester.pump();
+          expect(find.byType(TextField), findsNWidgets(4));
+          expect(find.byType(Image), findsOneWidget);
+          await tester.ensureVisible(find.text('Iniciar sesión'));
+          expect(find.text('Iniciar sesión'), findsOneWidget);
+          expect(tester.takeException(), isNull);
+        }
+      }
+      await tester.binding.setSurfaceSize(null);
+    },
+  );
 }

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_svg/flutter_svg.dart';
+
+import '../components/orbi_brand.dart';
 
 /// A navigation entry supplied by the active capability catalog.
 final class OperationalDestination {
@@ -99,15 +100,7 @@ final class OperationalShell extends StatelessWidget {
     titleSpacing: desktop ? 20 : null,
     title: Row(
       children: [
-        SvgPicture.asset(
-          'assets/images/orbi_logo.svg',
-          height: 32,
-          colorFilter: ColorFilter.mode(
-            Theme.of(context).colorScheme.onSurface,
-            BlendMode.srcIn,
-          ),
-          semanticsLabel: 'ORBI ERP',
-        ),
+        OrbiBrand(height: 32, color: Theme.of(context).colorScheme.onSurface),
         const SizedBox(width: 16),
         Flexible(
           child: Text(

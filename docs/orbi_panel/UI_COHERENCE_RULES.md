@@ -22,3 +22,16 @@ no las reemplaza ni implica que la implementación ya tenga paridad visual.
   no se registra como aprobación visual ni como prueba financiera completa.
 
 Estado: integración de estructura común en curso; no paridad global acreditada.
+
+## Orden de implementación confirmado
+
+El usuario reitera el 2026-09-11 que se debe comenzar por **splash, login y
+shell**, revisados como una única experiencia. No continuar refinando pantallas
+de negocio antes de consolidar esa base. Referencias: ACC-01 y SHELL-01.
+Conservar los cambios de negocio ya realizados sin declararlos aprobados.
+
+La comprobación conjunta debe cubrir marca, fondo, tema claro/oscuro, tipografía,
+anchos, espaciados, campos, botones, foco y transición, en los cuatro tamaños.
+La fotografía del acceso y la estructura operativa del shell tienen funciones
+distintas; compartir identidad no implica usar fotografía detrás de las rejillas.
+ACC-02/PIN es otro flujo funcional: no simularlo con un login sin autorización.

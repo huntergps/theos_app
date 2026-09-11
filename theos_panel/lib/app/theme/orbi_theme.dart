@@ -35,13 +35,19 @@ abstract final class OrbiTheme {
       useMaterial3: true,
       visualDensity: visualDensity,
       scaffoldBackgroundColor: scheme.surface,
+      // Shared operational hierarchy: platform defaults must not center titles
+      // on macOS while the approved desktop/tablet layout is left aligned.
+      appBarTheme: const AppBarTheme(centerTitle: false, elevation: 0),
       textTheme: const TextTheme(
         bodyLarge: TextStyle(fontSize: 16),
         bodyMedium: TextStyle(fontSize: 14),
         labelLarge: TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
       ),
       inputDecorationTheme: const InputDecorationTheme(
-        border: OutlineInputBorder(),
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.all(Radius.circular(8)),
+        ),
+        contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 14),
         helperMaxLines: 3,
         errorMaxLines: 3,
       ),
@@ -49,10 +55,22 @@ abstract final class OrbiTheme {
         style: ButtonStyle(
           minimumSize: WidgetStatePropertyAll(Size(48, 48)),
           padding: WidgetStatePropertyAll(EdgeInsets.symmetric(horizontal: 16)),
+          shape: WidgetStatePropertyAll(
+            RoundedRectangleBorder(
+              borderRadius: BorderRadius.all(Radius.circular(8)),
+            ),
+          ),
         ),
       ),
       outlinedButtonTheme: OutlinedButtonThemeData(
-        style: ButtonStyle(minimumSize: WidgetStatePropertyAll(Size(48, 48))),
+        style: ButtonStyle(
+          minimumSize: WidgetStatePropertyAll(Size(48, 48)),
+          shape: WidgetStatePropertyAll(
+            RoundedRectangleBorder(
+              borderRadius: BorderRadius.all(Radius.circular(8)),
+            ),
+          ),
+        ),
       ),
     );
   }
