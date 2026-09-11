@@ -7,6 +7,7 @@ import 'package:orbi_runtime/orbi_runtime.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:theos_panel/features/auth/auth_controller.dart';
 import 'package:theos_panel/features/auth/login_screen.dart';
+import 'package:theos_panel/features/auth/saved_servers.dart';
 import 'package:theos_panel/app/preferences/app_preferences.dart';
 import 'package:theos_panel/app/theme/orbi_theme.dart';
 import 'package:theos_panel/ui/components/orbi_brand.dart';
@@ -102,6 +103,53 @@ final class _SlowLoginService
 }
 
 void main() {
+  testWidgets('saved server selection fills connection and clears old secret', (
+    tester,
+  ) async {
+    SharedPreferences.setMockInitialValues({});
+    final preferences = await tester.runAsync(
+      () => SharedPreferences.getInstance(),
+    );
+    final store = SavedServersStore(preferences!);
+    await tester.runAsync(
+      () => store.upsert(
+        SavedServer(
+          id: 'two',
+          name: 'Segundo entorno',
+          url: 'https://two.test',
+          database: 'db',
+        ),
+      ),
+    );
+    await tester.binding.setSurfaceSize(const Size(1200, 1000));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          authServiceProvider.overrideWithValue(_ProfileService()),
+          sharedPreferencesProvider.overrideWithValue(preferences),
+        ],
+        child: MaterialApp(theme: OrbiTheme.light, home: const LoginScreen()),
+      ),
+    );
+    await tester.pumpAndSettle();
+    await tester.enterText(find.byType(TextField).at(3), 'old-secret');
+    await tester.tap(find.byKey(const Key('manage-saved-servers')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('use_server')));
+    await tester.pumpAndSettle();
+    final fields = find.byType(TextField);
+    expect(
+      tester.widget<TextField>(fields.at(0)).controller!.text,
+      'https://two.test',
+    );
+    expect(tester.widget<TextField>(fields.at(1)).controller!.text, 'db');
+    expect(tester.widget<TextField>(fields.at(2)).controller!.text, 'bob');
+    expect(tester.widget<TextField>(fields.at(3)).controller!.text, isEmpty);
+    expect(tester.takeException(), isNull);
+    await tester.pump(const Duration(seconds: 1));
+  });
+
   testWidgets(
     'server switch ignores late profile and precaches selected server',
     (tester) async {

@@ -7,6 +7,8 @@ import 'package:orbi_runtime/orbi_runtime.dart' show AuthProfile;
 
 import 'auth_controller.dart';
 import 'login_preferences.dart';
+import 'saved_servers.dart';
+import 'server_manager_dialog.dart';
 import '../../app/theme/orbi_theme.dart';
 import '../../app/preferences/app_preferences.dart';
 import '../../ui/components/orbi_brand.dart';
@@ -107,6 +109,36 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     _loginPreferencesDebounce = Timer(const Duration(milliseconds: 400), () {
       unawaited(_saveLoginPreferences());
     });
+  }
+
+  Future<void> _manageServers() async {
+    try {
+      final selected = await showSavedServerManager(
+        context,
+        store: ref.read(savedServersStoreProvider),
+        initialUrl: _server.text.trim(),
+        initialDatabase: _database.text.trim(),
+      );
+      if (!mounted || selected == null) return;
+      // Invalidate an older server lookup before applying the new selection.
+      // No password/API key may cross to another server or database.
+      ++_profileLookupEpoch;
+      _loginPreferencesDebounce?.cancel();
+      _server.text = selected.url;
+      _database.text = selected.database;
+      _login.clear();
+      _password.clear();
+      _lookupRememberedProfile();
+      _scheduleLoginPreferencesSave();
+      _loginFocus.requestFocus();
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('No se pudo abrir la gestión de servidores.'),
+        ),
+      );
+    }
   }
 
   Future<void> _saveLoginPreferences({LoginPreferencesStore? store}) async {
@@ -367,6 +399,15 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
             textAlign: TextAlign.center,
           ),
           SizedBox(height: headerGap),
+          Align(
+            alignment: AlignmentDirectional.centerEnd,
+            child: TextButton.icon(
+              key: const Key('manage-saved-servers'),
+              onPressed: state.isBusy ? null : _manageServers,
+              icon: const Icon(Icons.dns_outlined, size: 18),
+              label: const Text('Gestionar servidores'),
+            ),
+          ),
           TextField(
             controller: _server,
             focusNode: _serverFocus,
