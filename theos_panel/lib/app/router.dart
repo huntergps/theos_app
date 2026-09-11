@@ -14,6 +14,7 @@ import '../features/approvals/approval_contracts.dart';
 import '../features/approvals/approvals_screen.dart';
 import '../features/notifications/notification_inbox.dart';
 import '../features/sales/sale_editor.dart';
+import '../features/sales/durable_sale_draft_store.dart';
 import '../features/settings/settings_screen.dart';
 import '../features/orders/orders_screen.dart';
 import '../features/orders/orders_contracts.dart';
@@ -234,10 +235,33 @@ final scopeProductsCatalogProvider =
       });
       return controller;
     });
-final saleDraftStoreProvider = Provider<SaleDraftStore>(
-  (ref) =>
-      SharedPreferencesSaleDraftStore(ref.watch(sharedPreferencesProvider)),
-);
+final saleDraftStoreProvider = Provider<SaleDraftStore>((ref) {
+  final runtime = ref.watch(runtimeSessionProvider);
+  final active = runtime?.active;
+  final capabilities = ref.watch(capabilitySnapshotProvider);
+  if (runtime == null ||
+      active == null ||
+      capabilities == null ||
+      active.scope.scopeKey != capabilities.scopeKey) {
+    return const UnavailableSaleDraftStore();
+  }
+  return DurableSaleDraftStore(
+    store: EditableDraftStore(
+      owner: runtime.databaseOwner,
+      lease: active.lease,
+      company: CompanyContext(
+        companyId: capabilities.companyId,
+        allowedCompanyIds: [capabilities.companyId],
+        scopeKey: capabilities.scopeKey,
+        capabilityRevision: capabilities.revision,
+      ),
+    ),
+    scopeKey: capabilities.scopeKey,
+    // The existing route owns one editor. Multi-document navigation must
+    // replace this slot with stable per-tab IDs, not command IDs.
+    draftId: 'workspace-active-editor',
+  );
+});
 SaleCatalogPort _saleCatalog(WidgetRef ref) {
   final composition = ref.watch(scopeCatalogCompositionProvider);
   final capabilities = ref.watch(capabilitySnapshotProvider);

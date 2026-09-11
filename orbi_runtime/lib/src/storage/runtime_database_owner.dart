@@ -32,6 +32,20 @@ final class RuntimeDatabaseOwner {
       // Drift opens lazily. A real query makes the opening/migration boundary
       // observable before this owner publishes the active connection.
       await database.customSelect('SELECT 1').get();
+      // Runtime-owned, additive schema: editable buffers are not commercial
+      // sale orders and must never enqueue confirmation merely by being saved.
+      // Keep this outside the shared POS schema/version: only Orbi opens it.
+      // Future changes require explicit migrations preserving these rows.
+      await database.customStatement('''
+        CREATE TABLE IF NOT EXISTS orbi_editable_draft (
+          scope_key TEXT NOT NULL,
+          company_id INTEGER NOT NULL CHECK (company_id > 0),
+          draft_id TEXT NOT NULL,
+          payload TEXT NOT NULL,
+          revision INTEGER NOT NULL CHECK (revision > 0),
+          PRIMARY KEY (scope_key, company_id, draft_id)
+        )
+      ''');
     } catch (_) {
       await database.close();
       rethrow;

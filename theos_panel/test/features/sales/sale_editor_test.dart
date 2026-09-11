@@ -257,6 +257,9 @@ void main() {
         ],
       );
       expect(first.draft.classification, SaleTermsClassification.mixed);
+      // Reopening must wait for the explicit durable boundary, not assume
+      // async writes finish after an arbitrary number of microtasks.
+      await first.flush();
       final restarted = SaleDraftController(
         port: _Port(),
         store: store,

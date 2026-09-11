@@ -1,6 +1,12 @@
 # Orbi ERP — expediente de cierre y entrega a desarrollo
 
-Fecha: 10/09/2026. Estado: cierre documental en revisión; **no autorización de implementación**.
+Actualizado: 11/09/2026. El dueño autorizó posteriormente el desarrollo local
+con agentes y Syncfusion. Las restricciones de ERP2 y las puertas de aceptación
+siguen vigentes; desarrollo autorizado no significa producto validado.
+
+Avances: [componentes reactivos](reports/REACTIVE_FOUNDATIONS_2026_09_10.md),
+[borradores durables](reports/DURABLE_DRAFTS_2026_09_11.md) y
+[revisión del backend Envases](ENVASES_BACKEND_HANDOFF_REVIEW.md).
 
 ## Fuente de verdad y precedencia
 

@@ -7,6 +7,20 @@
   "max_parallel_workers": 3,
   "tasks": [
     {
+      "id": "R05", "title": "RT02 parcial: almacén durable editable y codec completo", "owner": "integrator", "status": "done", "depends_on": ["R01", "R02"], "report": "reports/DURABLE_DRAFTS_2026_09_11.md", "reviewed_by": "Codex integrator", "reviewed_at": "2026-09-11",
+      "docs": ["LOCAL_STATE_DECISIONS.md"], "sources": ["orbi_runtime/lib/src/storage/runtime_database_owner.dart", "theos_panel/lib/features/sales/sale_editor.dart"],
+      "writes": ["orbi_runtime/lib/src/sales/editable_draft_store.dart", "orbi_runtime/lib/src/storage/runtime_database_owner.dart", "orbi_runtime/lib/orbi_runtime.dart", "theos_panel/lib/features/sales/", "theos_panel/lib/app/router.dart", "orbi_runtime/test/sales/editable_draft_store_test.dart", "theos_panel/test/features/sales/"],
+      "acceptance": ["Borrador separado de outbox por scope empresa draftId, CAS y reinicio", "Codec completo sin adivinar datos legacy", "Controller serializa guardados y conserva errores, composición usa runtime local"],
+      "verify": ["flutter test --no-pub --concurrency=1 test/sales/editable_draft_store_test.dart", "flutter test --no-pub --concurrency=1 test/features/sales test/app"]
+    },
+    {
+      "id": "E01", "title": "Revisión local de entrega backend Envases", "owner": "envases_handoff", "status": "done", "depends_on": [], "report": "ENVASES_BACKEND_HANDOFF_REVIEW.md", "reviewed_by": "Codex integrator", "reviewed_at": "2026-09-11",
+      "docs": ["ENVASES_DOMAIN_CONTRACT.md"], "sources": ["docs/orbi_panel/ENVASES_DOMAIN_CONTRACT.md"],
+      "writes": ["docs/orbi_panel/ENVASES_BACKEND_HANDOFF_REVIEW.md"],
+      "acceptance": ["Distinguir fuente, instalación y binding offline; no tocar Odoo/ERP2"],
+      "verify": ["Revisión de evidencias en contrato y fuentes locales del addon"]
+    },
+    {
       "id": "R01", "title": "RT01 parcial: catálogos observables y lifecycle", "owner": "implement_observables", "status": "done", "depends_on": [], "report": "reports/REACTIVE_FOUNDATIONS_2026_09_10.md", "reviewed_by": "Codex integrator", "reviewed_at": "2026-09-10",
       "docs": ["LOCAL_STATE_DECISIONS.md"], "sources": ["theos_panel/lib/app/scope_catalog_repository.dart"],
       "writes": ["theos_panel/lib/app/scope_catalog_repository.dart", "theos_panel/test/app/scope_catalog_repository_test.dart", "theos_panel/test/features/catalogs/runtime_scope_catalog_test.dart"],

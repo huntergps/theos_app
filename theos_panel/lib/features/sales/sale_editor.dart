@@ -366,15 +366,42 @@ final class SaleDraftController {
   final String scopeKey;
   SaleDraftSnapshot _draft;
   bool _busy = false;
+  bool _disposed = false;
+  int _editGeneration = 0;
+  Future<void> _saveTail = Future<void>.value();
+  final List<SaleDraftSnapshot> _pendingSaves = [];
+  bool _saving = false;
+  Object? _saveError;
+  Object? _restoreError;
+  Future<void> _restoreTail = Future<void>.value();
+  bool _restoring = false;
   final _changes = StreamController<SaleDraftSnapshot>.broadcast();
   SaleDraftSnapshot get draft => _draft;
   bool get busy => _busy;
+  Object? get saveError => _restoreError ?? _saveError;
   Stream<SaleDraftSnapshot> get changes => _changes.stream;
-  Future<void> restore() async {
-    final saved = await store.load(scopeKey);
-    if (saved != null) {
-      _draft = saved;
+  Future<void> restore() {
+    _restoring = true;
+    _restoreTail = _restore();
+    return _restoreTail;
+  }
+
+  Future<void> _restore() async {
+    try {
+      if (_disposed || _editGeneration != 0) return;
+      final generation = _editGeneration;
+      final saved = await store.load(scopeKey);
+      if (_disposed || generation != _editGeneration) return;
+      _restoreError = null;
+      if (saved != null) {
+        _draft = saved;
+        _publish();
+      }
+    } catch (error) {
+      _restoreError = error;
       _publish();
+    } finally {
+      _restoring = false;
     }
   }
 
@@ -392,6 +419,7 @@ final class SaleDraftController {
     List<PaymentTermInstallment>? installments,
     int? paymentTermId,
   }) {
+    if (_disposed || _busy) return;
     _draft = _draft.copyWith(
       clientName: clientName,
       partnerId: partnerId,
@@ -400,12 +428,47 @@ final class SaleDraftController {
       installments: installments,
       paymentTermId: paymentTermId,
     );
-    unawaited(store.save(_draft));
+    _editGeneration++;
+    _queueSave(_draft);
     _publish();
   }
 
+  void _queueSave(SaleDraftSnapshot snapshot) {
+    _pendingSaves.add(snapshot);
+    if (_saving) return;
+    _saving = true;
+    _saveTail = _drainSaves();
+  }
+
+  Future<void> _drainSaves() async {
+    try {
+      while (_pendingSaves.isNotEmpty) {
+        await _saveSnapshot(_pendingSaves.removeAt(0));
+      }
+    } finally {
+      _saving = false;
+    }
+  }
+
+  Future<void> _saveSnapshot(SaleDraftSnapshot snapshot) async {
+    try {
+      await store.save(snapshot);
+      _saveError = null;
+    } catch (error) {
+      _saveError = error;
+    }
+    _publish();
+  }
+
+  Future<void> flush() async {
+    if (_restoring) await _restoreTail;
+    if (_saving) await _saveTail;
+    final error = _restoreError ?? _saveError;
+    if (error != null) throw error;
+  }
+
   Future<SaleEditorResult> submit() async {
-    if (_busy) {
+    if (_disposed || _busy) {
       return const SaleEditorResult(
         accepted: false,
         message: 'Operación en curso',
@@ -414,6 +477,14 @@ final class SaleDraftController {
     _busy = true;
     _publish();
     try {
+      try {
+        await flush();
+      } catch (_) {
+        return const SaleEditorResult(
+          accepted: false,
+          message: 'No se pudo guardar el borrador',
+        );
+      }
       if (repository != null) {
         await _persistDraft();
       }
@@ -422,7 +493,12 @@ final class SaleDraftController {
         approval: result.approval,
         pendingAction: result.pendingAction,
       );
-      await store.save(_draft);
+      _queueSave(_draft);
+      try {
+        await flush();
+      } catch (_) {
+        // The service result remains authoritative; saveError is observable.
+      }
       _publish();
       return result;
     } finally {
@@ -432,7 +508,7 @@ final class SaleDraftController {
   }
 
   Future<ApprovalResult> requestApproval() async {
-    if (_busy) {
+    if (_disposed || _busy) {
       return const ApprovalResult(
         accepted: false,
         message: 'Operación en curso',
@@ -447,6 +523,14 @@ final class SaleDraftController {
     _busy = true;
     _publish();
     try {
+      try {
+        await flush();
+      } catch (_) {
+        return const ApprovalResult(
+          accepted: false,
+          message: 'No se pudo guardar el borrador',
+        );
+      }
       if (repository != null) await _persistDraft();
       final result = await approvalPort!.performAction(
         request: ApprovalRequest(
@@ -473,7 +557,12 @@ final class SaleDraftController {
             : SaleApprovalState.pending,
         pendingAction: true,
       );
-      await store.save(_draft);
+      _queueSave(_draft);
+      try {
+        await flush();
+      } catch (_) {
+        // The approval result remains authoritative; saveError is observable.
+      }
       _publish();
       return result;
     } finally {
@@ -513,10 +602,13 @@ final class SaleDraftController {
   );
 
   void _publish() {
-    if (!_changes.isClosed) _changes.add(_draft);
+    if (!_disposed && !_changes.isClosed) _changes.add(_draft);
   }
 
-  Future<void> dispose() => _changes.close();
+  Future<void> dispose() async {
+    _disposed = true;
+    await _changes.close();
+  }
 }
 
 class SaleEditorScreen extends StatefulWidget {
@@ -549,64 +641,109 @@ class _SaleEditorScreenState extends State<SaleEditorScreen> {
       validators: [Validators.required],
     ),
   });
-  late final StreamSubscription<dynamic> _clientChanges = _saleForm
-      .control('client')
-      .valueChanges
-      .listen(
-        (value) => widget.controller.update(clientName: value as String? ?? ''),
-      );
+  late final StreamSubscription<dynamic> _clientChanges;
+  late StreamSubscription<SaleDraftSnapshot> _draftChanges;
   late Future<List<SalePaymentTerm>> _terms;
   @override
   void initState() {
     super.initState();
     _terms = widget.catalog.paymentTerms();
+    _clientChanges = _saleForm
+        .control('client')
+        .valueChanges
+        .listen(
+          (value) =>
+              widget.controller.update(clientName: value as String? ?? ''),
+        );
+    _draftChanges = widget.controller.changes.listen(_syncFields);
     unawaited(widget.controller.restore());
   }
 
   @override
   void dispose() {
     _clientChanges.cancel();
+    _draftChanges.cancel();
     _saleForm.dispose();
     _note.dispose();
     super.dispose();
   }
 
   @override
+  void didUpdateWidget(covariant SaleEditorScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.controller == widget.controller) return;
+    _draftChanges.cancel();
+    _draftChanges = widget.controller.changes.listen(_syncFields);
+    _syncFields(widget.controller.draft);
+    unawaited(widget.controller.restore());
+  }
+
+  @override
   Widget build(BuildContext context) => StreamBuilder<SaleDraftSnapshot>(
     stream: widget.controller.changes,
     initialData: widget.controller.draft,
-    builder: (context, snapshot) => OrbiPageShell(
-      title: widget.presentation == SalePresentation.counter
-          ? 'Venta mostrador'
-          : 'Venta consultiva',
-      child: LayoutBuilder(
-        builder: (context, c) => _layout(
-          context,
-          c.maxWidth,
-          snapshot.data ?? widget.controller.draft,
+    builder: (context, snapshot) {
+      final draft = snapshot.data ?? widget.controller.draft;
+      return OrbiPageShell(
+        title: widget.presentation == SalePresentation.counter
+            ? 'Venta mostrador'
+            : 'Venta consultiva',
+        child: LayoutBuilder(
+          builder: (context, c) => _layout(context, c.maxWidth, draft),
         ),
-      ),
-    ),
+      );
+    },
   );
+
+  void _syncFields(SaleDraftSnapshot draft) {
+    final client = _saleForm.control('client');
+    if (client.value != draft.clientName) {
+      client.updateValue(draft.clientName, emitEvent: false);
+    }
+    if (_note.text == draft.note) return;
+    final offset = _note.selection.baseOffset.clamp(0, draft.note.length);
+    _note.value = TextEditingValue(
+      text: draft.note,
+      selection: TextSelection.collapsed(offset: offset),
+    );
+  }
+
   Widget _layout(BuildContext context, double width, SaleDraftSnapshot draft) {
     final form = _form(context, draft);
     final summary = _summary(context, draft);
     final scale = MediaQuery.textScalerOf(context).scale(1);
+    final banner = widget.controller.saveError == null
+        ? null
+        : const MaterialBanner(
+            content: Text(
+              'Cambios aún no guardados. Mantén esta pantalla abierta y revisa almacenamiento.',
+            ),
+            actions: [SizedBox.shrink()],
+          );
     if (width >= (scale >= 1.5 ? 1120 : 840)) {
-      final summaryWidth = (360 * scale).clamp(360.0, width * .42).toDouble();
-      return Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Expanded(child: SingleChildScrollView(child: form)),
-          const SizedBox(width: 24),
-          SizedBox(
-            width: summaryWidth,
-            child: SingleChildScrollView(child: summary),
+          ?banner,
+          Expanded(
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Expanded(child: SingleChildScrollView(child: form)),
+                const SizedBox(width: 24),
+                SizedBox(
+                  width: (360 * scale).clamp(360.0, width * .42).toDouble(),
+                  child: SingleChildScrollView(child: summary),
+                ),
+              ],
+            ),
           ),
         ],
       );
     }
-    return ListView(children: [form, const SizedBox(height: 16), summary]);
+    return ListView(
+      children: [?banner, form, const SizedBox(height: 16), summary],
+    );
   }
 
   Widget _form(BuildContext context, SaleDraftSnapshot draft) => ReactiveForm(
@@ -817,7 +954,8 @@ class _SaleEditorScreenState extends State<SaleEditorScreen> {
           const SizedBox(height: 16),
           if (draft.approval == SaleApprovalState.required)
             FilledButton.icon(
-              onPressed: widget.controller.busy
+              onPressed:
+                  widget.controller.busy || widget.controller.saveError != null
                   ? null
                   : () => widget.controller.requestApproval(),
               icon: const Icon(Icons.send),
@@ -826,6 +964,7 @@ class _SaleEditorScreenState extends State<SaleEditorScreen> {
           FilledButton.icon(
             onPressed:
                 widget.controller.busy ||
+                    widget.controller.saveError != null ||
                     draft.approval != SaleApprovalState.approved
                 ? null
                 : () => widget.controller.submit(),
