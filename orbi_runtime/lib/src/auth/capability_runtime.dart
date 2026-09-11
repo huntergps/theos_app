@@ -9,6 +9,14 @@ final class OdooCapabilityReader {
   final OdooClient client;
   const OdooCapabilityReader(this.client);
 
+  static const envasesUserGroup = 'l10n_ec_stock_envases.group_envases_user';
+  static const envasesManagerGroup =
+      'l10n_ec_stock_envases.group_envases_manager';
+
+  static bool hasEnvasesRead(Iterable<String> effectiveExternalIds) =>
+      effectiveExternalIds.contains(envasesUserGroup) ||
+      effectiveExternalIds.contains(envasesManagerGroup);
+
   Future<CapabilitySnapshot> read({
     required AppScope scope,
     required int companyId,
@@ -46,7 +54,7 @@ final class OdooCapabilityReader {
     // implied groups. Calling `has_group` once per XML ID repeated information
     // already returned by that field and made login cost O(number of groups).
     final effectiveXmlIds = external.values.toSet();
-    return CapabilityProvisioner.materialize(
+    final snapshot = CapabilityProvisioner.materialize(
       scopeKey: scope.scopeKey,
       companyId: companyId,
       pointId: pointId,
@@ -56,6 +64,17 @@ final class OdooCapabilityReader {
       externalIds: external,
       hasGroup: effectiveXmlIds.contains,
       offlineOperations: offlineOperations,
+    );
+    if (!hasEnvasesRead(effectiveXmlIds)) return snapshot;
+    return CapabilitySnapshot(
+      scopeKey: snapshot.scopeKey,
+      companyId: snapshot.companyId,
+      pointId: snapshot.pointId,
+      revision: snapshot.revision,
+      fetchedAt: snapshot.fetchedAt,
+      permissions: {...snapshot.permissions, 'envases_read'},
+      counterPolicies: snapshot.counterPolicies,
+      offlineOperations: snapshot.offlineOperations,
     );
   }
 }

@@ -15,6 +15,9 @@ import '../features/approvals/approvals_screen.dart';
 import '../features/notifications/notification_inbox.dart';
 import '../features/sales/sale_editor.dart';
 import '../features/sales/durable_sale_draft_store.dart';
+import '../features/sales/sale_draft_workspace.dart';
+import '../features/sales/sale_draft_workspace_bar.dart';
+import '../features/sales/legacy_draft_inspector.dart';
 import '../features/settings/settings_screen.dart';
 import '../features/orders/orders_screen.dart';
 import '../features/orders/orders_contracts.dart';
@@ -34,6 +37,7 @@ import 'order_scope_repository.dart';
 import 'collection_scope_composition.dart';
 import 'scope_catalog_repository.dart';
 import 'business_composition_factory.dart';
+import 'envases_composition.dart';
 
 final businessCompositionFactoryProvider =
     Provider<OrbiBusinessCompositionFactory>(
@@ -307,6 +311,105 @@ final saleDraftControllerProvider = Provider<SaleDraftController>((ref) {
   return controller;
 });
 
+/// One owner per authenticated company. Individual editors are keyed by durable
+/// draft ID, not by route, position or command identity. Switching presentation
+/// therefore retains the same open documents without duplicating their buffers.
+final saleDraftWorkspaceProvider = Provider<SaleDraftWorkspace?>((ref) {
+  final durable = ref.watch(saleDraftStoreProvider);
+  if (durable is! DurableSaleDraftStore) return null;
+  final runtime = ref.watch(runtimeSessionProvider);
+  final port = ref.watch(saleEditorPortProvider);
+  final approvals = ref.watch(approvalPortProvider);
+  final capabilities = ref.watch(capabilitySnapshotProvider);
+  final database = runtime?.active?.database.database;
+  final workspace = SaleDraftWorkspace(
+    store: durable.store,
+    scopeKey: durable.scopeKey,
+    controllerFactory: (store) => SaleDraftController(
+      port: port,
+      store: store,
+      repository: database == null ? null : DriftSaleDraftRepository(database),
+      approvalPort: approvals,
+      capabilities: capabilities,
+      scopeKey: durable.scopeKey,
+    ),
+  );
+  // The workspace exposes recovery errors in state. Never turn an invalid
+  // local document into a fresh empty one or an unhandled async exception.
+  unawaited(workspace.initialize().catchError((Object _) {}));
+  ref.onDispose(() => unawaited(workspace.disposeAsync()));
+  return workspace;
+});
+
+Widget _saleWorkspace(WidgetRef ref, SalePresentation presentation) {
+  final workspace = ref.watch(saleDraftWorkspaceProvider);
+  final clients = ref.watch(scopeClientsCatalogProvider);
+  final products = ref.watch(scopeProductsCatalogProvider);
+  final catalog = _saleCatalog(ref);
+  final warehouse =
+      ref
+          .watch(capabilitySnapshotProvider)
+          ?.permissions
+          .contains('warehouse_select') ??
+      false;
+  if (workspace == null) return const NotConfiguredPage(title: 'Ventas');
+  // Inspection is deliberately read-only: old preferences lack the company
+  // and complete amounts needed for a trustworthy automatic migration.
+  final legacy = LegacyDraftInspector(
+    ref.watch(sharedPreferencesProvider),
+  ).inspect(workspace.scopeKey);
+  return AnimatedBuilder(
+    animation: workspace,
+    builder: (context, _) {
+      final controller = workspace.selectedController;
+      return Material(
+        child: SafeArea(
+          child: Column(
+            children: [
+              SaleDraftWorkspaceBar(workspace: workspace),
+              if (legacy.rawPresent)
+                const Padding(
+                  padding: EdgeInsets.all(8),
+                  child: Text(
+                    'Hay un borrador de una versión anterior conservado. '
+                    'Requiere revisión antes de importarlo; no se ha modificado.',
+                  ),
+                ),
+              if (workspace.error != null)
+                const Padding(
+                  padding: EdgeInsets.all(8),
+                  child: Text(
+                    'No se pudo recuperar o guardar el borrador. '
+                    'Tus datos locales se conservan.',
+                  ),
+                ),
+              Expanded(
+                child: controller == null
+                    ? Center(
+                        child: workspace.busy
+                            ? const CircularProgressIndicator()
+                            : const Text(
+                                'Selecciona un borrador o crea una venta.',
+                              ),
+                      )
+                    : SaleEditorScreen(
+                        key: ValueKey(workspace.selectedDraftId),
+                        controller: controller,
+                        presentation: presentation,
+                        clients: clients,
+                        products: products,
+                        catalog: catalog,
+                        canSelectWarehouse: warehouse,
+                      ),
+              ),
+            ],
+          ),
+        ),
+      );
+    },
+  );
+}
+
 final orbiRouterProvider = Provider<GoRouter>((ref) {
   final auth = ref.watch(authControllerProvider);
   final capabilities = ref.watch(capabilitySnapshotProvider);
@@ -369,37 +472,15 @@ final orbiRouterProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: '/sales/counter',
         builder: (context, state) => Consumer(
-          builder: (context, ref, _) => SaleEditorScreen(
-            controller: ref.watch(saleDraftControllerProvider),
-            presentation: SalePresentation.counter,
-            clients: ref.watch(scopeClientsCatalogProvider),
-            products: ref.watch(scopeProductsCatalogProvider),
-            catalog: _saleCatalog(ref),
-            canSelectWarehouse:
-                ref
-                    .watch(capabilitySnapshotProvider)
-                    ?.permissions
-                    .contains('warehouse_select') ??
-                false,
-          ),
+          builder: (context, ref, _) =>
+              _saleWorkspace(ref, SalePresentation.counter),
         ),
       ),
       GoRoute(
         path: '/sales/consultive',
         builder: (context, state) => Consumer(
-          builder: (context, ref, _) => SaleEditorScreen(
-            controller: ref.watch(saleDraftControllerProvider),
-            presentation: SalePresentation.consultive,
-            clients: ref.watch(scopeClientsCatalogProvider),
-            products: ref.watch(scopeProductsCatalogProvider),
-            catalog: _saleCatalog(ref),
-            canSelectWarehouse:
-                ref
-                    .watch(capabilitySnapshotProvider)
-                    ?.permissions
-                    .contains('warehouse_select') ??
-                false,
-          ),
+          builder: (context, ref, _) =>
+              _saleWorkspace(ref, SalePresentation.consultive),
         ),
       ),
       GoRoute(
@@ -485,6 +566,10 @@ final orbiRouterProvider = Provider<GoRouter>((ref) {
             );
           },
         ),
+      ),
+      GoRoute(
+        path: '/envases',
+        builder: (context, state) => const EnvasesDashboardRoute(),
       ),
       GoRoute(
         path: '/warehouse',

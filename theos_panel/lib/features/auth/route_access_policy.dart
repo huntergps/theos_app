@@ -22,6 +22,7 @@ final class RouteAccessPolicy {
     final permissions = capabilities.permissions;
     if (path == '/collection') return permissions.contains('cashier');
     if (path == '/warehouse') return permissions.contains('warehouse');
+    if (path == '/envases') return permissions.contains('envases_read');
     if (path == '/sales' || path.startsWith('/sales/')) {
       return permissions.contains('seller') || permissions.contains('cashier');
     }

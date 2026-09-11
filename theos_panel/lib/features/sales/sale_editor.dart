@@ -12,6 +12,7 @@ import '../../ui/components/orbi_components.dart';
 import '../clients/catalog_contracts.dart';
 import '../clients/entity_picker.dart';
 import '../approvals/approval_contracts.dart';
+import 'sale_lines_editor.dart';
 
 enum SalePresentation { counter, consultive }
 
@@ -809,77 +810,13 @@ class _SaleEditorScreenState extends State<SaleEditorScreen> {
         Text('Clasificación: ${draft.classification.name}'),
         const SizedBox(height: 16),
         Text('Productos', style: Theme.of(context).textTheme.titleMedium),
-        if (widget.products != null)
-          SizedBox(
-            height: 260,
-            child: EntityPicker<SaleCatalogProduct>(
-              controller: widget.products!,
-              label: 'Buscar producto',
-              entityName: 'producto',
-            ),
-          ),
-        if (widget.products != null)
-          StreamBuilder<CatalogSnapshot<SaleCatalogProduct>>(
-            stream: widget.products!.changes,
-            initialData: widget.products!.snapshot,
-            builder: (context, snapshot) {
-              final selected = widget.products!.selected;
-              return Align(
-                alignment: Alignment.centerLeft,
-                child: FilledButton.icon(
-                  onPressed: selected == null
-                      ? null
-                      : () => _addProduct(selected),
-                  icon: const Icon(Icons.add),
-                  label: const Text('Añadir producto'),
-                ),
-              );
-            },
-          ),
-        const SizedBox(height: 8),
-        if (draft.lines.isEmpty)
-          const OrbiEmptyState(
-            title: 'Sin productos',
-            message: 'Añade productos para continuar.',
-          ),
-        for (final line in draft.lines)
-          Card(
-            child: Padding(
-              padding: const EdgeInsets.all(12),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  Text(line.name),
-                  Text(
-                    'Cantidad ${line.quantity} · Precio ${line.unitPrice} · Descuento ${line.discount}% · Impuesto ${line.tax}% · Total ${line.total}',
-                  ),
-                  Align(
-                    alignment: AlignmentDirectional.centerEnd,
-                    child: Wrap(
-                      spacing: 4,
-                      children: [
-                        IconButton(
-                          tooltip: 'Quitar',
-                          onPressed: () => _removeLine(line.uuid),
-                          icon: const Icon(Icons.delete_outline),
-                        ),
-                        IconButton(
-                          tooltip: 'Reducir cantidad',
-                          onPressed: () => _changeQuantity(line, -1),
-                          icon: const Icon(Icons.remove),
-                        ),
-                        IconButton(
-                          tooltip: 'Aumentar cantidad',
-                          onPressed: () => _changeQuantity(line, 1),
-                          icon: const Icon(Icons.add),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
+        SaleLinesEditor(
+          draft: draft,
+          products: widget.products,
+          onAddProduct: _addProduct,
+          onRemoveLine: _removeLine,
+          onQuantityChanged: _setQuantity,
+        ),
       ],
     ),
   );
@@ -911,13 +848,12 @@ class _SaleEditorScreenState extends State<SaleEditorScreen> {
         .where((line) => line.uuid != uuid)
         .toList(),
   );
-  void _changeQuantity(SaleDraftLine line, double delta) {
-    final quantity = line.quantity + delta;
-    if (quantity <= 0) return _removeLine(line.uuid);
+  void _setQuantity(String uuid, double quantity) {
+    if (quantity <= 0) return _removeLine(uuid);
     widget.controller.update(
       lines: [
         for (final current in widget.controller.draft.lines)
-          current.uuid == line.uuid
+          current.uuid == uuid
               ? SaleDraftLine(
                   uuid: current.uuid,
                   name: current.name,

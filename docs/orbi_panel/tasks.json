@@ -7,6 +7,20 @@
   "max_parallel_workers": 3,
   "tasks": [
     {
+      "id": "E04", "title": "Lectura del saldo por tercero según contrato corregido", "owner": "envases_cache", "status": "done", "depends_on": ["E02"], "report": "reports/DRAFT_ENVASES_INTEGRATION_2026_09_11.md", "reviewed_by": "Codex integrator", "reviewed_at": "2026-09-11",
+      "docs": ["ENVASES_BACKEND_HANDOFF_REVIEW.md"], "sources": ["orbi_runtime/lib/src/envases/envases_dashboard_reader.dart"],
+      "writes": ["orbi_runtime/lib/src/envases/envases_partner_balance_reader.dart", "orbi_runtime/test/envases/envases_partner_balance_reader_test.dart"],
+      "acceptance": ["Consulta modelo real de saldo tercero y no quants por envases_partner_id"],
+      "verify": ["flutter test --no-pub --concurrency=1 test/envases/envases_partner_balance_reader_test.dart"]
+    },
+    {
+      "id": "E05", "title": "Pantalla Envases conectada a copia observable", "owner": "ui_folders", "status": "in_progress", "depends_on": ["E03", "R08"],
+      "docs": ["APPROVED_SCREEN_INDEX.md"], "sources": ["orbi_runtime/lib/src/envases/envases_dashboard_cache.dart"],
+      "writes": ["theos_panel/lib/features/envases/", "theos_panel/test/features/envases/", "theos_panel/lib/app/envases_composition.dart"],
+      "acceptance": ["Snapshot observable, sin sumas entre productos, fecha local explícita y cuatro tamaños"],
+      "verify": ["flutter test --no-pub --concurrency=1 test/features/envases"]
+    },
+    {
       "id": "R08", "title": "Organizar UI interna sin paquetes nuevos", "owner": "ui_folders", "status": "done", "depends_on": ["R03"], "report": "reports/INTERNAL_UI_AND_LOCAL_READS_2026_09_11.md", "reviewed_by": "Codex integrator", "reviewed_at": "2026-09-11",
       "docs": ["REACTIVE_COMPONENTS_SPEC.md"], "sources": ["theos_panel/lib/ui/"],
       "writes": ["theos_panel/lib/ui/"],
@@ -35,14 +49,14 @@
       "verify": ["flutter test --no-pub --concurrency=1 test/envases/envases_dashboard_reader_test.dart"]
     },
     {
-      "id": "R06", "title": "Recuperación legacy y navegación multi-borrador", "owner": "integrator", "status": "todo", "depends_on": ["R05"],
+      "id": "R06", "title": "Recuperación legacy y navegación multi-borrador", "owner": "integrator", "status": "in_progress", "depends_on": ["R05"],
       "docs": ["LOCAL_STATE_DECISIONS.md", "reports/DURABLE_DRAFTS_2026_09_11.md"], "sources": ["theos_panel/lib/features/sales/durable_sale_draft_store.dart"],
       "writes": ["theos_panel/lib/features/sales/", "theos_panel/lib/app/router.dart", "theos_panel/test/features/sales/"],
       "acceptance": ["Recuperación explícita sin adivinar empresa ni campos perdidos; conservar raw", "IDs de borrador estables separados de commandId por pestaña"],
       "verify": ["Pruebas de recuperación legacy, multitab y reinicio de UI"]
     },
     {
-      "id": "R07", "title": "Integrar rejilla y lista en pantallas aprobadas", "owner": "ui", "status": "todo", "depends_on": ["R03", "R05"],
+      "id": "R07", "title": "Integrar rejilla y lista en pantallas aprobadas", "owner": "ui", "status": "in_progress", "depends_on": ["R03", "R05"],
       "docs": ["APPROVED_SCREEN_INDEX.md", "REACTIVE_COMPONENTS_SPEC.md"], "sources": ["theos_panel/lib/ui/components/orbi_record_grid.dart"],
       "writes": ["theos_panel/lib/features/", "theos_panel/test/features/"],
       "acceptance": ["Rejillas escritorio/horizontal y listas vertical/teléfono según imágenes aprobadas", "Búsqueda de producto inline, pruebas visibles web local cuatro tamaños"],
