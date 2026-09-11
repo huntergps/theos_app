@@ -85,6 +85,10 @@ No llamar «E2E completo» a una captura, a un test con respuestas simuladas ni 
 
 ### Contratos técnicos y tareas preparados
 
+Las [decisiones técnicas resueltas](TECHNICAL_DECISIONS.md) concretan persistencia,
+migración, observabilidad, tipos y recursos de imagen. Separan decisiones adoptadas
+de verificaciones que necesitan código ejecutado, licencia o entorno Odoo seguro.
+
 - [Auditoría del núcleo offline](OFFLINE_CORE_TECHNICAL_AUDIT.md): firmas reales,
   observabilidad, persistencia de borradores, comandos, archivos y huecos.
 - [Interfaces de componentes](COMPONENT_INTERFACE_CONTRACTS.md): entradas/eventos,

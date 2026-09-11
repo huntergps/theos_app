@@ -60,6 +60,14 @@ Las referencias sin guion en la tabla son abreviaciones, no casos nuevos.
 
 ## Pendientes reales antes de llamar cerrado al contrato
 
+**Resolución posterior:** [Decisiones técnicas](TECHNICAL_DECISIONS.md),
+[estado local](LOCAL_STATE_DECISIONS.md) e [imágenes](IMAGE_STORAGE_DECISIONS.md)
+cierran la elección de store, ownership, migración conservadora, observables,
+identidad/cursor y almacenamiento de blobs. RT01 no espera migración de drafts;
+RT02 sí integra esquema y migración con propiedad del integrador. Los puntos de
+pruebas/instancia siguientes permanecen como puertas de aceptación, no como nuevas
+decisiones de producto. Syncfusion está elegido; su licencia no se presume.
+
 - Firmas definitivas/imports frente a APIs existentes: propuestas no son compilación.
 - Estrategia durable de edición y migración de borradores actuales sin pérdida.
 - Ciclo de vida/paginación y contadores de cola verificados con fallos inducidos.
