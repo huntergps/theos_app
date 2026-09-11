@@ -201,13 +201,19 @@ final scopeClientsCatalogProvider =
       final composition = ref.watch(scopeCatalogCompositionProvider);
       final capabilities = ref.watch(capabilitySnapshotProvider);
       if (composition == null || capabilities == null) return null;
-      final controller = CatalogController<SaleCatalogPartner>(
-        repository: RuntimePartnerCatalogRepository(
-          store: composition.store('partner'),
-          scope: composition.activation.scope,
-        ),
+      final repository = RuntimePartnerCatalogRepository(
+        store: composition.store('partner'),
+        scope: composition.activation.scope,
       );
-      ref.onDispose(controller.dispose);
+      final controller = CatalogController<SaleCatalogPartner>(
+        repository: repository,
+      );
+      // Retire both presentation and query subscriptions with this scope.
+      // Disposing these owners must never delete the durable catalog.
+      ref.onDispose(() {
+        controller.dispose();
+        unawaited(repository.dispose());
+      });
       return controller;
     });
 final scopeProductsCatalogProvider =
@@ -215,13 +221,17 @@ final scopeProductsCatalogProvider =
       final composition = ref.watch(scopeCatalogCompositionProvider);
       final capabilities = ref.watch(capabilitySnapshotProvider);
       if (composition == null || capabilities == null) return null;
-      final controller = CatalogController<SaleCatalogProduct>(
-        repository: RuntimeProductCatalogRepository(
-          store: composition.store('product'),
-          scope: composition.activation.scope,
-        ),
+      final repository = RuntimeProductCatalogRepository(
+        store: composition.store('product'),
+        scope: composition.activation.scope,
       );
-      ref.onDispose(controller.dispose);
+      final controller = CatalogController<SaleCatalogProduct>(
+        repository: repository,
+      );
+      ref.onDispose(() {
+        controller.dispose();
+        unawaited(repository.dispose());
+      });
       return controller;
     });
 final saleDraftStoreProvider = Provider<SaleDraftStore>(

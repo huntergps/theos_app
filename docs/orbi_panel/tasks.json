@@ -2,10 +2,38 @@
   "schema_version": 1,
   "product": "Orbi ERP",
   "app": "theos_panel",
-  "stage": "erp2_validation_in_progress",
+  "stage": "local_reactive_foundations_in_progress",
   "default_worker_model": "gpt-5.6-luna",
   "max_parallel_workers": 3,
   "tasks": [
+    {
+      "id": "R01", "title": "RT01 parcial: catálogos observables y lifecycle", "owner": "implement_observables", "status": "done", "depends_on": [], "report": "reports/REACTIVE_FOUNDATIONS_2026_09_10.md", "reviewed_by": "Codex integrator", "reviewed_at": "2026-09-10",
+      "docs": ["LOCAL_STATE_DECISIONS.md"], "sources": ["theos_panel/lib/app/scope_catalog_repository.dart"],
+      "writes": ["theos_panel/lib/app/scope_catalog_repository.dart", "theos_panel/test/app/scope_catalog_repository_test.dart", "theos_panel/test/features/catalogs/runtime_scope_catalog_test.dart"],
+      "acceptance": ["Commit local reactualiza consulta; scopes aislados; replay y cierre sin listeners huérfanos"],
+      "verify": ["flutter test --no-pub --concurrency=1 test/app/scope_catalog_repository_test.dart test/features/catalogs/runtime_scope_catalog_test.dart"]
+    },
+    {
+      "id": "R02", "title": "CT01/UI01 parcial: campos tipados y foco estable", "owner": "implement_fields", "status": "done", "depends_on": [], "report": "reports/REACTIVE_FOUNDATIONS_2026_09_10.md", "reviewed_by": "Codex integrator", "reviewed_at": "2026-09-10",
+      "docs": ["LOCAL_STATE_DECISIONS.md"], "sources": ["theos_panel/lib/ui/bindings/field_binding.dart"],
+      "writes": ["theos_panel/lib/ui/bindings/field_binding.dart", "theos_panel/lib/ui/components/orbi_bound_fields.dart", "theos_panel/test/ui/bindings/field_binding_test.dart", "theos_panel/test/ui/bound_fields_test.dart"],
+      "acceptance": ["Sin escrituras concurrentes ni sobrescritura de conflictos; foco y texto conservados"],
+      "verify": ["flutter test --no-pub --concurrency=1 test/ui/bindings/field_binding_test.dart test/ui/bound_fields_test.dart"]
+    },
+    {
+      "id": "R03", "title": "UI02 parcial: grid Syncfusion y lista adaptable", "owner": "implement_record_views", "status": "done", "depends_on": [], "report": "reports/REACTIVE_FOUNDATIONS_2026_09_10.md", "reviewed_by": "Codex integrator", "reviewed_at": "2026-09-10",
+      "docs": ["IMPLEMENTATION_WORK_PACKAGES.md"], "sources": ["theos_panel/lib/ui/components/orbi_record_grid.dart"],
+      "writes": ["theos_panel/lib/ui/components/orbi_record_grid.dart", "theos_panel/lib/ui/components/orbi_record_list.dart", "theos_panel/lib/ui/bindings/record_view_controller.dart", "theos_panel/test/ui/record_views_test.dart"],
+      "acceptance": ["Grid escritorio/horizontal, lista vertical/teléfono; selección por ID; source estable"],
+      "verify": ["flutter test --no-pub --concurrency=1 test/ui/record_views_test.dart"]
+    },
+    {
+      "id": "R04", "title": "RT03 parcial: mensajes de resultado reales en venta", "owner": "implement_fields", "status": "done", "depends_on": [], "report": "reports/REACTIVE_FOUNDATIONS_2026_09_10.md", "reviewed_by": "Codex integrator", "reviewed_at": "2026-09-10",
+      "docs": ["LOCAL_STATE_DECISIONS.md"], "sources": ["theos_panel/lib/features/sales/sale_editor.dart"],
+      "writes": ["theos_panel/lib/features/sales/sale_editor.dart", "theos_panel/test/features/sales/runtime_sale_outcome_test.dart"],
+      "acceptance": ["No presentar todo issue como aprobación; conservar estados del contrato"],
+      "verify": ["flutter test --no-pub --concurrency=1 test/features/sales/runtime_sale_outcome_test.dart"]
+    },
     {
       "id": "F01", "title": "Scaffold independiente y contratos iniciales", "owner": "integrator", "status": "done", "depends_on": [], "report": "reports/F01.md", "reviewed_by": "Codex integrator", "reviewed_at": "2026-09-06",
       "docs": ["SPEC.md", "ARCHITECTURE.md", "CONTRACTS.md", "VALIDATION.md"],

@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:orbi_runtime/orbi_runtime.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:reactive_forms/reactive_forms.dart';
+import 'package:theos_pos_core/theos_pos_core.dart';
 
 import '../../ui/components/orbi_components.dart';
 import '../clients/catalog_contracts.dart';
@@ -137,11 +138,42 @@ final class SaleEditorResult {
     this.message,
     this.approval = SaleApprovalState.required,
     this.pendingAction = false,
+    this.businessState,
+    this.syncState,
+    this.fiscalState,
+    this.issues = const [],
   });
   final bool accepted;
   final String? message;
   final SaleApprovalState approval;
   final bool pendingAction;
+
+  /// Runtime outcome dimensions are kept separate for callers that need to
+  /// render transport/business state without inferring it from [accepted].
+  final SaleOrderState? businessState;
+  final OperationSyncState? syncState;
+  final FiscalState? fiscalState;
+  final List<OperationIssue> issues;
+}
+
+String _outcomeMessage(OperationOutcome<SaleOrderState> outcome) {
+  if (outcome.hasIssues) {
+    return switch (outcome.issues.first.messageKey) {
+      'sale.confirmation.rejected' => 'No se pudo confirmar la venta',
+      'sale.version_conflict' => 'La venta cambió y requiere revisión',
+      'sale.confirmation_blocked' => 'La venta no puede confirmarse todavía',
+      _ => 'No se pudo completar la operación',
+    };
+  }
+  return switch (outcome.syncState) {
+    OperationSyncState.localOnly => 'Resultado registrado localmente',
+    OperationSyncState.queued => 'Venta encolada',
+    OperationSyncState.sending => 'Procesando venta',
+    // Synchronization is not itself commercial confirmation or invoicing.
+    OperationSyncState.synced => 'Venta sincronizada',
+    OperationSyncState.conflict => 'La venta requiere revisión',
+    OperationSyncState.failed => 'No se pudo completar la operación',
+  };
 }
 
 /// F07 injects its command adapter. The UI never calls ERP/Odoo directly.
@@ -182,15 +214,17 @@ final class RuntimeSaleEditorPort implements SaleEditorPort {
     );
     final outcome = await commands.confirm(payload, commandId: draft.commandId);
     final pending = outcome.pendingAction != null;
+    final approvalPending =
+        outcome.pendingAction?.type == PendingActionType.approval;
     return SaleEditorResult(
       accepted: !outcome.hasIssues,
-      message: outcome.hasIssues
-          ? 'Aprobación comercial pendiente'
-          : 'Venta encolada',
-      approval: pending
-          ? SaleApprovalState.pending
-          : SaleApprovalState.approved,
+      message: _outcomeMessage(outcome),
+      approval: approvalPending ? SaleApprovalState.pending : draft.approval,
       pendingAction: pending,
+      businessState: outcome.businessState,
+      syncState: outcome.syncState,
+      fiscalState: outcome.fiscalState,
+      issues: outcome.issues,
     );
   }
 }
