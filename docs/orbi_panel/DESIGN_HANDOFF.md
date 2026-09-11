@@ -83,6 +83,22 @@ No llamar «E2E completo» a una captura, a un test con respuestas simuladas ni 
 
 ## Orden de continuación
 
+### Contratos técnicos y tareas preparados
+
+- [Auditoría del núcleo offline](OFFLINE_CORE_TECHNICAL_AUDIT.md): firmas reales,
+  observabilidad, persistencia de borradores, comandos, archivos y huecos.
+- [Interfaces de componentes](COMPONENT_INTERFACE_CONTRACTS.md): entradas/eventos,
+  validación y ownership; pseudocódigo propuesto, no APIs implementadas.
+- [Mapeo de acciones Odoo](ODOO_ACTION_BINDINGS.md): métodos/campos/guardas localizados;
+  ACL efectivas, transporte e instalación pendientes de pruebas seguras.
+- [Paquetes de desarrollo](IMPLEMENTATION_WORK_PACKAGES.md): doce tareas iniciales
+  con dependencias, propiedad de archivos y aceptación. No activan desarrollo ni
+  reemplazan silenciosamente el plan histórico.
+
+La integración prioriza observables conectados al store, borrador íntegro aislado
+por empresa y recursos de imagen durables. Las operaciones no auditadas por completo
+se conservan explícitas; documentación terminada no equivale a contrato probado.
+
 **Asignación del dueño:** el backend de Envases será desarrollado por otro agente
 experto en Odoo 19.5. Este equipo entrega el
 [prompt de encargo](PROMPT_ODOO_ENVASES_AGENT.md) y el

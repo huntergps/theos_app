@@ -58,6 +58,10 @@ atómica frente a concurrencia.
 
 ## C04 · edición
 
+Firmas propuestas y ownership: [interfaces de componentes](COMPONENT_INTERFACE_CONTRACTS.md).
+Capacidad actual del runtime: [auditoría técnica](OFFLINE_CORE_TECHNICAL_AUDIT.md).
+Antes de crear tipos nuevos, contrastar equivalentes existentes y revisar el puente.
+
 Detalle: [Componentes reactivos al núcleo offline](REACTIVE_COMPONENTS_SPEC.md).
 Incluye bindings tipados a campos locales, formularios e imágenes de producto/cliente
 editables con autorización, persistencia durable y reconciliación.
