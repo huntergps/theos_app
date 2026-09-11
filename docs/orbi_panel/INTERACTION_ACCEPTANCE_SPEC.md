@@ -253,6 +253,14 @@ no se confunden. El turno de otra persona no pasa a pertenecer a quien inicia se
 
 ### 6.1 Encontrar y cobrar
 
+**Precisión incorporada de fuentes Odoo:** [flujo detallado y aceptación CJ-8 a CJ-12](OPERATION_INTERACTION_OFFLINE_MATRIX.md#flujo-de-cobro-contrastado-con-el-wizard-y-panel-odoo).
+Abonar añade una línea al wizard; Guardar Abono persiste abonos sin facturar y no
+es un borrador; Cobrar procesa el flujo de factura/pagos; Pago Completo cubre el
+faltante en efectivo según disponibilidad. No fusionar estas cuatro acciones.
+Separar total comercial de importe exigible calculado por Odoo, especialmente en
+términos mixtos. Efectivo excedente es vuelto; sobrepago no efectivo sigue el
+procedimiento de anticipo. Los métodos existentes no demuestran soporte offline.
+
 **Recorrido I.** Buscar documento/cliente/vendedor en pendientes o cartera → seleccionar
 el documento → revisar cliente, importe debido hoy, pagos aplicados y saldo → elegir
 medio(s) autorizado(s) → revisar recibido/vuelto cuando aplica → registrar → resultado

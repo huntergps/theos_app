@@ -56,6 +56,64 @@ Véase [componentes reactivos](REACTIVE_COMPONENTS_SPEC.md).
 
 ## Caja: cobro y operaciones auxiliares
 
+### Flujo de cobro contrastado con el wizard y panel Odoo
+
+Esta precisión sustituye cualquier lectura genérica de «registrar» o «guardar»
+en la fila resumen. Fuente inspeccionada, no ejecución contra una instancia.
+
+| Acción visible | Método existente | Efecto y límite offline |
+|---|---|---|
+| Abonar | `action_add_line` | Valida y añade línea al wizard; recalcula pendiente/vuelto. No equivale a persistir el abono comercial ni terminar el cobro. La preparación local Orbi debe distinguirse de esta llamada remota. |
+| Guardar Abono | `action_apply` | Persiste líneas de pago y activa `exige_pago_total_entrega`; no factura. Es una mutación de negocio, NO guardar un borrador. El panel conserva su contexto aunque el wizard devuelva cierre. Offline requiere contrato específico, no basta persistir un formulario. |
+| Cobrar | `action_apply_and_create_invoice` | Procesa la entrada pendiente cuando corresponde, exige cubrir `amount_to_collect` y delega al flujo de factura/pagos aplicable. No sustituir por escrituras directas ni emitir otra factura si ya existe. |
+| Pago Completo | `action_full_payment` | Completa en efectivo el faltante `amount_to_collect - amount_paid` y delega al procesamiento completo. No es Guardar Abono ni liquidación automática de todas las cuotas futuras. Disponibilidad sujeta a la caja propia de la sesión según el wizard. |
+
+El panel actual etiqueta **Cobrar**, no «Cobrar <importe>». Mostrar el importe en el
+botón es una propuesta de presentación, no evidencia del comportamiento existente.
+Conservar visibles total comercial, importe exigible, pagado, pendiente y vuelto;
+no inferir su equivalencia por etiquetas o nombres de campos. El término mixto calcula
+el componente inmediato según el documento y lo que se factura; no cobrar por defecto
+el total del pedido ni inventar calendarios de cuotas en el widget.
+
+Efectivo entregado se limita al pendiente como importe aplicado y el excedente queda
+como vuelto, conservado después de limpiar la entrada. Sobrepago no efectivo sigue
+la confirmación/procedimiento de anticipo del backend, no se convierte en vuelto.
+Anticipo, nota de crédito, retención y cruce son tipos con validaciones específicas;
+no tratarlos como dinero nuevo recibido. Diario, medio, fecha y campos de tarjeta,
+cheque o transferencia se rigen por el wizard y configuración efectiva.
+
+La sesión efectiva se valida por el cajero/operación, no se copia sin más de la venta.
+La fuente contiene excepciones para supervisor/administrador y restricciones de diarios;
+reutilizarlas tras verificar capacidades, sin imponer ni conceder excepciones por UI.
+
+**Límite comprobado:** el panel usa RPC al wizard mediante su puente. Eso no acredita
+cola offline, identidad durable de comando ni deduplicación concurrente. Los métodos
+están identificados; siguen pendientes transporte de integración Orbi, permisos en
+instancia y pruebas de recuperación. No marcar todo el binding como desconocido ni
+marcarlo como resuelto porque exista el método.
+
+Fuentes locales (líneas de la revisión del 10/09/2026):
+
+- [Wizard: añadir línea](/Users/elmers/Documents/dev_odoo20/addons/l10n_ec_collection_box/wizards/sale_order_payment_wizard.py): `1491–1808`; acciones finales `2245–2349`; sobrepago `2351–2413`, `2821–2916`; sesión `2080–2107`.
+- Vista `addons/l10n_ec_collection_box/wizards/sale_order_payment_wizard_views.xml`: botones `342–346`, `402–403`.
+- Panel `addons/l10n_ec_collection_panel/static/src/panel/cobro_widget.js`: `672–682`, `721–777`; XML `cobro_widget.xml`: `39–72`, `534–548`.
+- Puente `addons/l10n_ec_collection_panel/models/collection_panel.py`: `1274–1365`; manejo de retorno en `static/src/panel/panel.js:2128–2140`.
+
+### Aceptación específica pendiente de ejecutar
+
+- CJ-8: Abonar modifica compositor; Guardar Abono persiste sin facturar; cerrar/volver
+  no vuelve a registrar las mismas líneas.
+- CJ-9: Cobrar exige el importe que devuelve el proceso; Pago Completo cubre sólo
+  el faltante correcto y respeta disponibilidad del botón.
+- CJ-10: Término mixto distingue total comercial y componente exigible; factura
+  existente se reutiliza por la ruta aplicable, sin duplicación.
+- CJ-11: Efectivo 20 para pendiente 18 aplica 18 y conserva vuelto 2; sobrepago
+  no efectivo abre el procedimiento correspondiente, no simula vuelto.
+- CJ-12: Respuesta perdida en Guardar Abono/Cobrar no se convierte en simple
+  borrador ni repetición ciega; comprobar resultado con contrato idempotente real.
+
+### Matriz general
+
 | Operación | Acción explícita y validación | Efecto local / expectativa del servidor | Resultado, rechazo, conflicto o incierto | Retorno / borrador |
 |---|---|---|---|---|
 | Encontrar cartera y cobrar | Seleccionar documento por identidad → revisar deuda, pagos y saldo → elegir medio(s) → recibido/vuelto si aplica → **Cobrar <importe>**. Validar sesión/punto, moneda, precisión, medios y abono permitido. Enter en importe/referencia sólo valida ese campo. | Puede conservar compositor y medios localmente. Servidor valida venta, sesión, diario, permisos, saldo y reglas fiscales; no inventar saldo ni autorización. | Aceptado separa cobro y salida de impresión. Sobrepago produce vuelto cuando el proceso lo permite. Doble pulsación no duplica. Timeout consulta UUID/clave; `unknown` no crea otro pago. | Cambiar documento abre compositor propio. Resultado persistente identifica cliente/documento, aplicado, saldo, vuelto y estados. Referencias: `CJ-2…CJ-6`, `KI-07`, `KI-08`, `KI-17`. |

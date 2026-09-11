@@ -1009,6 +1009,24 @@ estado vigente; dibujar un flujo no acredita sus bindings ni su ejecución real.
 
 ## 28. Expediente de cierre previo a implementación
 
+### Cobro: precisión obligatoria contrastada con Odoo
+
+La [matriz de interacción/offline](OPERATION_INTERACTION_OFFLINE_MATRIX.md#flujo-de-cobro-contrastado-con-el-wizard-y-panel-odoo)
+incorpora el wizard `sale_order_payment_wizard.py`, su vista XML y el panel de
+`l10n_ec_collection_panel/static/src/panel`. Son fuente del proceso de Caja.
+
+- **Abonar** añade línea al compositor del wizard.
+- **Guardar Abono** persiste abonos, aplica el candado de entrega y no factura;
+  nunca se representa como simple guardado de borrador.
+- **Cobrar** exige el importe requerido y procesa factura/pagos por el flujo vigente.
+- **Pago Completo** completa el faltante en efectivo; no cobra cuotas futuras por
+  confundir total comercial con importe exigible.
+
+Importes, términos mixtos, vuelto, sobrepago no efectivo, sesión, diarios y permisos
+se delegan al proceso real; no se reconstruyen como reglas de widgets genéricos.
+La inspección identifica métodos, no acredita funcionamiento offline, idempotencia
+concurrente ni pruebas ejecutadas. CJ-8 a CJ-12 cubren esas distinciones en la matriz.
+
 La personalización respeta la decisión posterior del dueño: cada propiedad toma
 primero el valor personalizado en Orbi, luego Odoo y finalmente el predeterminado.
 [PERSONALIZATION_SPEC.md](PERSONALIZATION_SPEC.md) define alcance, restablecimiento,
