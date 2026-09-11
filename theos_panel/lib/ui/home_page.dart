@@ -18,106 +18,48 @@ class HomePage extends ConsumerWidget {
     final composition = ref.watch(orbiSessionCompositionProvider);
     final homePort = composition.home ?? ref.watch(scopeHomeResumePortProvider);
     final policy = ref.watch(routeAccessPolicyProvider);
-    final links =
-        <({String title, String path, String permission})>[
-              (title: 'Ventas', path: '/sales', permission: 'seller'),
-              (title: 'Clientes', path: '/clients', permission: 'seller'),
-              (title: 'Productos', path: '/products', permission: 'seller'),
-              (title: 'Caja', path: '/collection', permission: 'cashier'),
-              (title: 'Bodega', path: '/warehouse', permission: 'warehouse'),
-              (title: 'Envases', path: '/envases', permission: 'envases_read'),
-              (
-                title: 'Aprobaciones',
-                path: '/approvals',
-                permission: 'approver',
-              ),
-              (
-                title: 'Actividades',
-                path: '/activities',
-                permission: 'activities',
-              ),
-              (title: 'Sincronización', path: '/sync', permission: 'sync'),
-              (
-                title: 'Avisos',
-                path: '/notifications',
-                permission: 'notifications',
-              ),
-              (title: 'Configuración', path: '/settings', permission: ''),
-            ]
-            .where(
-              (link) => link.permission.isEmpty
-                  ? true
-                  : policy.allows(
-                      link.path,
-                      authenticated: true,
-                      capabilities: capabilities,
-                    ),
-            )
-            .toList();
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Orbi ERP'),
-        actions: [
-          IconButton(
-            key: const Key('logout-button'),
-            tooltip: 'Cerrar sesión',
-            icon: const Icon(Icons.logout),
-            onPressed: () async {
-              await ref.read(authControllerProvider.notifier).close();
-              if (context.mounted) context.go('/login');
-            },
+    return Padding(
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Text('Inicio', style: Theme.of(context).textTheme.headlineMedium),
+          const SizedBox(height: 8),
+          Text(
+            'Continúa tu trabajo local y retoma borradores cuando estén disponibles.',
+            style: Theme.of(context).textTheme.bodyLarge,
           ),
-        ],
-      ),
-      body: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            if (homePort == null)
-              const Card(
-                child: ListTile(
-                  leading: Icon(Icons.info_outline),
-                  title: Text('Inicio no configurado'),
-                  subtitle: Text(
-                    'Conecta un servicio de sesión para retomar trabajo.',
-                  ),
+          const SizedBox(height: 16),
+          if (homePort == null)
+            const Card(
+              child: ListTile(
+                leading: Icon(Icons.info_outline),
+                title: Text('Trabajo local'),
+                subtitle: Text(
+                  'No hay un servicio de sesión disponible para retomar trabajo.',
                 ),
               ),
-            Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              children: links
-                  .map(
-                    (link) => OutlinedButton(
-                      onPressed: () => context.go(link.path),
-                      child: Text(link.title),
-                    ),
-                  )
-                  .toList(),
             ),
-            const SizedBox(height: 16),
-            Expanded(
-              child: homePort == null
-                  ? const SizedBox.shrink()
-                  : HomeCenterView(
-                      port: homePort,
-                      onResume: (item) async {
-                        final route = item.route;
-                        if (route == null ||
-                            !policy.allows(
-                              route,
-                              authenticated: true,
-                              capabilities: capabilities,
-                            )) {
-                          return;
-                        }
-                        if (context.mounted) context.go(route);
-                      },
-                    ),
-            ),
-          ],
-        ),
+          Expanded(
+            child: homePort == null
+                ? const SizedBox.shrink()
+                : HomeCenterView(
+                    port: homePort,
+                    onResume: (item) async {
+                      final route = item.route;
+                      if (route == null ||
+                          !policy.allows(
+                            route,
+                            authenticated: true,
+                            capabilities: capabilities,
+                          )) {
+                        return;
+                      }
+                      if (context.mounted) context.go(route);
+                    },
+                  ),
+          ),
+        ],
       ),
     );
   }

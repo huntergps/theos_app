@@ -8,7 +8,7 @@ import 'package:theos_panel/features/auth/auth_controller.dart';
 import 'package:theos_panel/ui/home_page.dart';
 
 void main() {
-  testWidgets('Carlos ERP2 sales group exposes Ventas at 800x600', (
+  testWidgets('home content is independent from shell navigation', (
     tester,
   ) async {
     tester.view.physicalSize = const Size(800, 600);
@@ -47,7 +47,31 @@ void main() {
     );
     await tester.pump();
 
-    expect(find.text('Ventas'), findsOneWidget);
+    expect(find.text('Inicio'), findsOneWidget);
+    expect(find.byKey(const Key('logout-button')), findsNothing);
+    expect(find.text('Ventas'), findsNothing);
     expect(find.text('Bodega'), findsNothing);
+  });
+
+  testWidgets('home without a resume port shows a useful local state', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          orbiSessionCompositionProvider.overrideWithValue(
+            const OrbiSessionComposition(),
+          ),
+          runtimeSessionProvider.overrideWithValue(null),
+          capabilitySnapshotProvider.overrideWithValue(null),
+        ],
+        child: const MaterialApp(home: HomePage()),
+      ),
+    );
+    await tester.pump();
+
+    expect(find.text('Trabajo local'), findsOneWidget);
+    expect(find.textContaining('No hay un servicio'), findsOneWidget);
+    expect(find.byKey(const Key('logout-button')), findsNothing);
   });
 }

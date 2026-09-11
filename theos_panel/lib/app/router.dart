@@ -31,6 +31,7 @@ import '../features/activities/activity_center.dart';
 import '../features/reports/document_view.dart';
 import '../features/sync/sync_center.dart';
 import '../ui/home_page.dart';
+import '../ui/layouts/operational_shell.dart';
 import 'session_composition.dart';
 import 'notification_scope_adapter.dart';
 import 'u08_scope_adapters.dart';
@@ -356,9 +357,8 @@ Widget _saleWorkspace(WidgetRef ref, SalePresentation presentation) {
   if (workspace == null) return const NotConfiguredPage(title: 'Ventas');
   // Inspection is deliberately read-only: old preferences lack the company
   // and complete amounts needed for a trustworthy automatic migration.
-  final legacy = LegacyDraftInspector(
-    ref.watch(sharedPreferencesProvider),
-  ).inspect(workspace.scopeKey);
+  final legacy = LegacyDraftInspector(ref.watch(sharedPreferencesProvider))
+      .inspect(workspace.scopeKey);
   return AnimatedBuilder(
     animation: workspace,
     builder: (context, _) {
@@ -438,292 +438,430 @@ final orbiRouterProvider = Provider<GoRouter>((ref) {
     },
     routes: [
       GoRoute(path: '/login', builder: (context, state) => const LoginScreen()),
-      GoRoute(path: '/', builder: (context, state) => const HomePage()),
-      GoRoute(
-        path: '/sales',
-        builder: (context, state) => Consumer(
-          builder: (context, ref, _) {
-            final repository = ref.watch(scopeOrderRepositoryProvider);
-            final capabilities = ref.watch(capabilitySnapshotProvider);
-            final profile = ref.watch(authControllerProvider).profile;
-            if (repository == null || capabilities == null || profile == null) {
-              return const NotConfiguredPage(title: 'Ventas');
-            }
-            return OrdersScreen(
-              repository: repository,
-              filterStore: SharedPreferencesOrderFilterStore(
-                ref.watch(sharedPreferencesProvider),
-              ),
-              scopeKey: capabilities.scopeKey,
-              policy: OrderFilterPolicy(
-                userId: profile.userId,
-                capabilities: capabilities,
-              ),
-            );
-          },
-        ),
-      ),
-      GoRoute(
-        path: '/sales/counter',
-        builder: (context, state) => Consumer(
-          builder: (context, ref, _) =>
-              _saleWorkspace(ref, SalePresentation.counter),
-        ),
-      ),
-      GoRoute(
-        path: '/sales/consultive',
-        builder: (context, state) => Consumer(
-          builder: (context, ref, _) =>
-              _saleWorkspace(ref, SalePresentation.consultive),
-        ),
-      ),
-      GoRoute(
-        path: '/clients',
-        builder: (context, state) => Consumer(
-          builder: (context, ref, _) {
-            final controller = ref.watch(scopeClientsCatalogProvider);
-            return ClientsScreen<SaleCatalogPartner>(controller: controller);
-          },
-        ),
-      ),
-      GoRoute(
-        path: '/products',
-        builder: (context, state) => Consumer(
-          builder: (context, ref, _) {
-            final controller = ref.watch(scopeProductsCatalogProvider);
-            return ProductsScreen<SaleCatalogProduct>(controller: controller);
-          },
-        ),
-      ),
-      GoRoute(
-        path: '/approvals',
-        builder: (context, state) => Consumer(
-          builder: (context, ref, _) {
-            final snapshot = ref.watch(capabilitySnapshotProvider);
-            if (snapshot == null ||
-                !snapshot.permissions.contains('approver')) {
-              return const NotConfiguredPage(title: 'Aprobaciones');
-            }
-            return ApprovalsScreen(
-              port: ref.watch(approvalPortProvider),
-              snapshot: snapshot,
-            );
-          },
-        ),
-      ),
-      GoRoute(
-        path: '/collection',
-        builder: (context, state) => Consumer(
-          builder: (context, ref, _) {
-            final shift = ref.watch(scopeCollectionShiftFutureProvider);
-            final pending = ref.watch(scopeCollectionPendingFutureProvider);
-            final journals = ref.watch(scopeCollectionJournalsFutureProvider);
-            final cashOutTypes = ref.watch(
-              scopeCollectionCashOutTypesFutureProvider,
-            );
-            return shift.when(
-              loading: () => const NotConfiguredPage(
-                title: 'Caja',
-                detail: 'Cargando turno y punto de cobro…',
-              ),
-              error: (error, stack) =>
-                  NotConfiguredPage(title: 'Caja', detail: '$error'),
-              data: (currentShift) => pending.when(
-                loading: () => const NotConfiguredPage(
-                  title: 'Caja',
-                  detail: 'Cargando pendientes…',
-                ),
-                error: (error, stack) =>
-                    NotConfiguredPage(title: 'Caja', detail: '$error'),
-                data: (sales) => journals.when(
+      ShellRoute(
+        builder: (context, state, child) {
+          final profile = auth.profile;
+          // Navigation shares the same gate as direct URLs. Missing context
+          // remains explicit; an authenticated client is not proof of network
+          // reachability, synchronization, or a fresh server clock.
+          final destinations =
+              <OperationalDestination>[
+                    const OperationalDestination(
+                      label: 'Inicio',
+                      path: '/',
+                      icon: Icons.home_outlined,
+                      group: 'Workspace',
+                    ),
+                    const OperationalDestination(
+                      label: 'Órdenes y cotizaciones',
+                      path: '/sales',
+                      icon: Icons.receipt_long_outlined,
+                      group: 'Ventas',
+                    ),
+                    const OperationalDestination(
+                      label: 'Mostrador',
+                      path: '/sales/counter',
+                      icon: Icons.point_of_sale_outlined,
+                      group: 'Ventas',
+                    ),
+                    const OperationalDestination(
+                      label: 'Venta consultiva',
+                      path: '/sales/consultive',
+                      icon: Icons.edit_note_outlined,
+                      group: 'Ventas',
+                    ),
+                    const OperationalDestination(
+                      label: 'Clientes',
+                      path: '/clients',
+                      icon: Icons.people_outline,
+                      group: 'Ventas',
+                    ),
+                    const OperationalDestination(
+                      label: 'Productos',
+                      path: '/products',
+                      icon: Icons.inventory_2_outlined,
+                      group: 'Ventas',
+                    ),
+                    const OperationalDestination(
+                      label: 'Punto de cobro',
+                      path: '/collection',
+                      icon: Icons.payments_outlined,
+                      group: 'Caja',
+                    ),
+                    const OperationalDestination(
+                      label: 'Operaciones de bodega',
+                      path: '/warehouse',
+                      icon: Icons.warehouse_outlined,
+                      group: 'Bodega',
+                    ),
+                    const OperationalDestination(
+                      label: 'Dashboard',
+                      path: '/envases',
+                      icon: Icons.local_shipping_outlined,
+                      group: 'Envases',
+                    ),
+                    const OperationalDestination(
+                      label: 'Solicitudes',
+                      path: '/approvals',
+                      icon: Icons.fact_check_outlined,
+                      group: 'Aprobaciones',
+                    ),
+                    const OperationalDestination(
+                      label: 'Actividades',
+                      path: '/activities',
+                      icon: Icons.event_note_outlined,
+                      group: 'Sistema',
+                    ),
+                    const OperationalDestination(
+                      label: 'Sincronización',
+                      path: '/sync',
+                      icon: Icons.sync,
+                      group: 'Sistema',
+                    ),
+                    const OperationalDestination(
+                      label: 'Avisos',
+                      path: '/notifications',
+                      icon: Icons.notifications_outlined,
+                      group: 'Sistema',
+                    ),
+                    const OperationalDestination(
+                      label: 'Configuración',
+                      path: '/settings',
+                      icon: Icons.settings_outlined,
+                      group: 'Sistema',
+                    ),
+                  ]
+                  .where(
+                    (entry) => policy.allows(
+                      entry.path,
+                      authenticated: authenticated,
+                      capabilities: capabilities,
+                    ),
+                  )
+                  .toList(growable: false);
+          return OperationalShell(
+            destinations: destinations,
+            selectedPath: state.uri.path,
+            onNavigate: (path) => context.go(path),
+            context: OperationalContext(
+              server: profile?.serverUrl ?? 'No disponible',
+              database: profile?.database ?? 'No disponible',
+              userLabel: profile?.login ?? 'Usuario no disponible',
+              companyLabel: profile?.companyId == null
+                  ? 'Empresa no disponible'
+                  : 'Empresa #${profile!.companyId}',
+              connectionLabel: 'Red sin verificar',
+              syncLabel: 'Sincronización no verificada',
+            ),
+            onLogout: () async {
+              await ref.read(authControllerProvider.notifier).close();
+              if (context.mounted) context.go('/login');
+            },
+            child: child,
+          );
+        },
+        routes: [
+          GoRoute(path: '/', builder: (context, state) => const HomePage()),
+          GoRoute(
+            path: '/sales',
+            builder: (context, state) => Consumer(
+              builder: (context, ref, _) {
+                final repository = ref.watch(scopeOrderRepositoryProvider);
+                final capabilities = ref.watch(capabilitySnapshotProvider);
+                final profile = ref.watch(authControllerProvider).profile;
+                if (repository == null ||
+                    capabilities == null ||
+                    profile == null) {
+                  return const NotConfiguredPage(title: 'Ventas');
+                }
+                return OrdersScreen(
+                  repository: repository,
+                  filterStore: SharedPreferencesOrderFilterStore(
+                    ref.watch(sharedPreferencesProvider),
+                  ),
+                  scopeKey: capabilities.scopeKey,
+                  policy: OrderFilterPolicy(
+                    userId: profile.userId,
+                    capabilities: capabilities,
+                  ),
+                );
+              },
+            ),
+          ),
+          GoRoute(
+            path: '/sales/counter',
+            builder: (context, state) => Consumer(
+              builder: (context, ref, _) =>
+                  _saleWorkspace(ref, SalePresentation.counter),
+            ),
+          ),
+          GoRoute(
+            path: '/sales/consultive',
+            builder: (context, state) => Consumer(
+              builder: (context, ref, _) =>
+                  _saleWorkspace(ref, SalePresentation.consultive),
+            ),
+          ),
+          GoRoute(
+            path: '/clients',
+            builder: (context, state) => Consumer(
+              builder: (context, ref, _) {
+                final controller = ref.watch(scopeClientsCatalogProvider);
+                return ClientsScreen<SaleCatalogPartner>(
+                  controller: controller,
+                );
+              },
+            ),
+          ),
+          GoRoute(
+            path: '/products',
+            builder: (context, state) => Consumer(
+              builder: (context, ref, _) {
+                final controller = ref.watch(scopeProductsCatalogProvider);
+                return ProductsScreen<SaleCatalogProduct>(
+                  controller: controller,
+                );
+              },
+            ),
+          ),
+          GoRoute(
+            path: '/approvals',
+            builder: (context, state) => Consumer(
+              builder: (context, ref, _) {
+                final snapshot = ref.watch(capabilitySnapshotProvider);
+                if (snapshot == null ||
+                    !snapshot.permissions.contains('approver')) {
+                  return const NotConfiguredPage(title: 'Aprobaciones');
+                }
+                return ApprovalsScreen(
+                  port: ref.watch(approvalPortProvider),
+                  snapshot: snapshot,
+                );
+              },
+            ),
+          ),
+          GoRoute(
+            path: '/collection',
+            builder: (context, state) => Consumer(
+              builder: (context, ref, _) {
+                final shift = ref.watch(scopeCollectionShiftFutureProvider);
+                final pending = ref.watch(scopeCollectionPendingFutureProvider);
+                final journals = ref.watch(
+                  scopeCollectionJournalsFutureProvider,
+                );
+                final cashOutTypes = ref.watch(
+                  scopeCollectionCashOutTypesFutureProvider,
+                );
+                return shift.when(
                   loading: () => const NotConfiguredPage(
                     title: 'Caja',
-                    detail: 'Cargando diarios permitidos…',
+                    detail: 'Cargando turno y punto de cobro…',
                   ),
                   error: (error, stack) =>
                       NotConfiguredPage(title: 'Caja', detail: '$error'),
-                  data: (journalOptions) => CollectionScreen(
-                    shift: currentShift,
-                    pending: sales,
-                    capabilities: ref.watch(
-                      scopeCollectionCapabilitiesProvider,
+                  data: (currentShift) => pending.when(
+                    loading: () => const NotConfiguredPage(
+                      title: 'Caja',
+                      detail: 'Cargando pendientes…',
                     ),
-                    actions: ref.watch(scopeCollectionActionsProvider),
-                    journals: journalOptions,
-                    cashOutTypes: cashOutTypes.asData?.value ?? const [],
-                    financialActions: ref.watch(
-                      collectionFinancialActionsProvider,
-                    ),
-                  ),
-                ),
-              ),
-            );
-          },
-        ),
-      ),
-      GoRoute(
-        path: '/envases',
-        builder: (context, state) => const EnvasesDashboardRoute(),
-      ),
-      GoRoute(
-        path: '/warehouse',
-        builder: (context, state) => Consumer(
-          builder: (context, ref, _) {
-            final repository = ref.watch(scopeOrderRepositoryProvider);
-            final capabilities = ref.watch(capabilitySnapshotProvider);
-            final profile = ref.watch(authControllerProvider).profile;
-            if (repository == null || capabilities == null || profile == null) {
-              return const NotConfiguredPage(title: 'Bodega');
-            }
-            return WarehouseScreen(
-              repository: repository,
-              operations: RuntimeWarehouseOperationPort(
-                runtime: ref.watch(runtimeSessionProvider)!,
-                capabilities: capabilities,
-              ),
-              scopeKey: capabilities.scopeKey,
-              policy: OrderFilterPolicy(
-                userId: profile.userId,
-                capabilities: capabilities,
-              ),
-            );
-          },
-        ),
-      ),
-      GoRoute(
-        path: '/settings',
-        builder: (context, state) => Consumer(
-          builder: (context, ref, _) {
-            final scope = ref.watch(preferencesScopeProvider);
-            final preferences = ref.watch(appPreferencesProvider(scope));
-            final presenter = ref.watch(notificationPresenterProvider);
-            final coordinator = composition.syncCoordinator;
-            return SettingsScreen(
-              controller: preferences,
-              permissionAction: presenter == null
-                  ? null
-                  : NotificationPermissionAction(presenter),
-              onRouteModeChanged: coordinator == null
-                  ? null
-                  : (enabled) => enabled
-                        ? coordinator.pause(PauseReason('route_mode'))
-                        : coordinator.resume(),
-            );
-          },
-        ),
-      ),
-      GoRoute(
-        path: '/activities',
-        builder: (context, state) =>
-            (composition.activities ?? ref.read(scopeActivityPortProvider)) ==
-                null
-            ? const NotConfiguredPage(title: 'Actividades')
-            : Scaffold(
-                appBar: AppBar(title: const Text('Actividades')),
-                body: ActivityCenterView(
-                  port:
-                      composition.activities ??
-                      ref.read(scopeActivityPortProvider)!,
-                ),
-              ),
-      ),
-      GoRoute(
-        path: '/sync',
-        builder: (context, state) =>
-            (composition.sync == null &&
-                ref.read(scopeSyncCoordinatorProvider) == null)
-            ? const NotConfiguredPage(title: 'Sincronización')
-            : ProviderScope(
-                overrides: [
-                  syncCenterPortProvider.overrideWithValue(
-                    composition.sync ??
-                        CoordinatorSyncCenterPort(
-                          ref.read(scopeSyncCoordinatorProvider)!,
-                          operations:
-                              composition.catalogs?.jobs['operations']
-                                  as OperationsSyncJob?,
+                    error: (error, stack) =>
+                        NotConfiguredPage(title: 'Caja', detail: '$error'),
+                    data: (sales) => journals.when(
+                      loading: () => const NotConfiguredPage(
+                        title: 'Caja',
+                        detail: 'Cargando diarios permitidos…',
+                      ),
+                      error: (error, stack) =>
+                          NotConfiguredPage(title: 'Caja', detail: '$error'),
+                      data: (journalOptions) => CollectionScreen(
+                        shift: currentShift,
+                        pending: sales,
+                        capabilities: ref.watch(
+                          scopeCollectionCapabilitiesProvider,
                         ),
-                  ),
-                ],
-                child: Scaffold(
-                  appBar: AppBar(title: Text('Sincronización')),
-                  body: SyncCenterView(
-                    onOpenConflicts: () => showDialog<void>(
-                      context: context,
-                      builder: (context) => const AlertDialog(
-                        title: Text('Conflictos de sincronización'),
-                        content: Text(
-                          'Hay operaciones que requieren revisión. '
-                          'No se reintentará ni resolverá automáticamente.',
+                        actions: ref.watch(scopeCollectionActionsProvider),
+                        journals: journalOptions,
+                        cashOutTypes: cashOutTypes.asData?.value ?? const [],
+                        financialActions: ref.watch(
+                          collectionFinancialActionsProvider,
                         ),
                       ),
                     ),
                   ),
-                ),
-              ),
-      ),
-      GoRoute(
-        path: '/notifications',
-        builder: (context, state) {
-          final port =
-              composition.notifications ??
-              ref.watch(sessionNotificationInboxPortProvider);
-          final active = ref.watch(runtimeSessionProvider)?.active;
-          final capabilities = ref.watch(capabilitySnapshotProvider);
-          if (port == null || active == null) {
-            return const NotConfiguredPage(title: 'Avisos');
-          }
-          final navigator =
-              composition.notificationNavigator ??
-              sessionNotificationNavigator(
-                runtime: active.database.lease == active.lease
-                    ? ref.read(runtimeSessionProvider)!
-                    : throw StateError('notification session changed'),
-                capabilities: capabilities,
-                opener: (target, scope) async {
-                  if (target.type == 'document') {
-                    context.go('/reports/${target.reference}');
-                  } else if (target.type == 'activity') {
-                    context.go('/activities');
-                  } else {
-                    context.go('/sales');
-                  }
-                },
-              );
-          final partition = capabilities?.companyId == null
-              ? 'global'
-              : 'company:${capabilities!.companyId}';
-          return ProviderScope(
-            overrides: [notificationInboxPortProvider.overrideWithValue(port)],
-            child: Scaffold(
-              appBar: AppBar(title: const Text('Avisos')),
-              body: NotificationInboxView(
-                query: NotificationQueryKey(
-                  scopeKey: active.scope.scopeKey,
-                  partitionKey: partition,
-                ),
-                navigator: navigator,
-              ),
+                );
+              },
             ),
-          );
-        },
-      ),
-      GoRoute(
-        path: '/reports/:documentId',
-        builder: (context, state) =>
-            (composition.documents ??
-                    ref.read(scopeDocumentRenderPortProvider)) ==
-                null
-            ? const NotConfiguredPage(title: 'Documentos')
-            : Scaffold(
-                appBar: AppBar(title: const Text('Documento')),
-                body: DocumentView(
-                  port:
-                      composition.documents ??
-                      ref.read(scopeDocumentRenderPortProvider)!,
-                  documentId: state.pathParameters['documentId']!,
+          ),
+          GoRoute(
+            path: '/envases',
+            builder: (context, state) => const EnvasesDashboardRoute(),
+          ),
+          GoRoute(
+            path: '/warehouse',
+            builder: (context, state) => Consumer(
+              builder: (context, ref, _) {
+                final repository = ref.watch(scopeOrderRepositoryProvider);
+                final capabilities = ref.watch(capabilitySnapshotProvider);
+                final profile = ref.watch(authControllerProvider).profile;
+                if (repository == null ||
+                    capabilities == null ||
+                    profile == null) {
+                  return const NotConfiguredPage(title: 'Bodega');
+                }
+                return WarehouseScreen(
+                  repository: repository,
+                  operations: RuntimeWarehouseOperationPort(
+                    runtime: ref.watch(runtimeSessionProvider)!,
+                    capabilities: capabilities,
+                  ),
+                  scopeKey: capabilities.scopeKey,
+                  policy: OrderFilterPolicy(
+                    userId: profile.userId,
+                    capabilities: capabilities,
+                  ),
+                );
+              },
+            ),
+          ),
+          GoRoute(
+            path: '/settings',
+            builder: (context, state) => Consumer(
+              builder: (context, ref, _) {
+                final scope = ref.watch(preferencesScopeProvider);
+                final preferences = ref.watch(appPreferencesProvider(scope));
+                final presenter = ref.watch(notificationPresenterProvider);
+                final coordinator = composition.syncCoordinator;
+                return SettingsScreen(
+                  controller: preferences,
+                  permissionAction: presenter == null
+                      ? null
+                      : NotificationPermissionAction(presenter),
+                  onRouteModeChanged: coordinator == null
+                      ? null
+                      : (enabled) => enabled
+                            ? coordinator.pause(PauseReason('route_mode'))
+                            : coordinator.resume(),
+                );
+              },
+            ),
+          ),
+          GoRoute(
+            path: '/activities',
+            builder: (context, state) =>
+                (composition.activities ??
+                        ref.read(scopeActivityPortProvider)) ==
+                    null
+                ? const NotConfiguredPage(title: 'Actividades')
+                : Scaffold(
+                    appBar: AppBar(title: const Text('Actividades')),
+                    body: ActivityCenterView(
+                      port:
+                          composition.activities ??
+                          ref.read(scopeActivityPortProvider)!,
+                    ),
+                  ),
+          ),
+          GoRoute(
+            path: '/sync',
+            builder: (context, state) =>
+                (composition.sync == null &&
+                    ref.read(scopeSyncCoordinatorProvider) == null)
+                ? const NotConfiguredPage(title: 'Sincronización')
+                : ProviderScope(
+                    overrides: [
+                      syncCenterPortProvider.overrideWithValue(
+                        composition.sync ??
+                            CoordinatorSyncCenterPort(
+                              ref.read(scopeSyncCoordinatorProvider)!,
+                              operations:
+                                  composition.catalogs?.jobs['operations']
+                                      as OperationsSyncJob?,
+                            ),
+                      ),
+                    ],
+                    child: Scaffold(
+                      appBar: AppBar(title: Text('Sincronización')),
+                      body: SyncCenterView(
+                        onOpenConflicts: () => showDialog<void>(
+                          context: context,
+                          builder: (context) => const AlertDialog(
+                            title: Text('Conflictos de sincronización'),
+                            content: Text(
+                              'Hay operaciones que requieren revisión. '
+                              'No se reintentará ni resolverá automáticamente.',
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+          ),
+          GoRoute(
+            path: '/notifications',
+            builder: (context, state) {
+              final port =
+                  composition.notifications ??
+                  ref.watch(sessionNotificationInboxPortProvider);
+              final active = ref.watch(runtimeSessionProvider)?.active;
+              final capabilities = ref.watch(capabilitySnapshotProvider);
+              if (port == null || active == null) {
+                return const NotConfiguredPage(title: 'Avisos');
+              }
+              final navigator =
+                  composition.notificationNavigator ??
+                  sessionNotificationNavigator(
+                    runtime: active.database.lease == active.lease
+                        ? ref.read(runtimeSessionProvider)!
+                        : throw StateError('notification session changed'),
+                    capabilities: capabilities,
+                    opener: (target, scope) async {
+                      if (target.type == 'document') {
+                        context.go('/reports/${target.reference}');
+                      } else if (target.type == 'activity') {
+                        context.go('/activities');
+                      } else {
+                        context.go('/sales');
+                      }
+                    },
+                  );
+              final partition = capabilities?.companyId == null
+                  ? 'global'
+                  : 'company:${capabilities!.companyId}';
+              return ProviderScope(
+                overrides: [
+                  notificationInboxPortProvider.overrideWithValue(port),
+                ],
+                child: Scaffold(
+                  appBar: AppBar(title: const Text('Avisos')),
+                  body: NotificationInboxView(
+                    query: NotificationQueryKey(
+                      scopeKey: active.scope.scopeKey,
+                      partitionKey: partition,
+                    ),
+                    navigator: navigator,
+                  ),
                 ),
-              ),
+              );
+            },
+          ),
+          GoRoute(
+            path: '/reports/:documentId',
+            builder: (context, state) =>
+                (composition.documents ??
+                        ref.read(scopeDocumentRenderPortProvider)) ==
+                    null
+                ? const NotConfiguredPage(title: 'Documentos')
+                : Scaffold(
+                    appBar: AppBar(title: const Text('Documento')),
+                    body: DocumentView(
+                      port:
+                          composition.documents ??
+                          ref.read(scopeDocumentRenderPortProvider)!,
+                      documentId: state.pathParameters['documentId']!,
+                    ),
+                  ),
+          ),
+        ],
       ),
     ],
   );
