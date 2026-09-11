@@ -75,6 +75,7 @@ flutter:
   assets:
     - assets/images/orbi_logo.svg
     - assets/images/login_bg.jpg
+    - assets/images/orbi_lake_sunrise.png
 
 flutter_launcher_icons:
   android: true

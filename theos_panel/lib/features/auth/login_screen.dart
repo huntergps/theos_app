@@ -8,6 +8,7 @@ import 'package:orbi_runtime/orbi_runtime.dart' show AuthProfile;
 import 'auth_controller.dart';
 import 'login_preferences.dart';
 import '../../app/theme/orbi_theme.dart';
+import '../../app/preferences/app_preferences.dart';
 import '../../ui/components/orbi_brand.dart';
 
 Color loginBrandOverlayColor(ColorScheme colors, double alpha) {
@@ -43,53 +44,32 @@ class _BrandingPane extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colors = Theme.of(context).colorScheme;
-    final brandOverlay = LinearGradient(
-      colors: [
-        loginBrandOverlayColor(colors, .28),
-        loginBrandOverlayColor(colors, .46),
-      ],
-      begin: Alignment.topLeft,
-      end: Alignment.bottomRight,
-    );
-    return Stack(
-      fit: StackFit.expand,
-      children: [
-        Image.asset('assets/images/login_bg.jpg', fit: BoxFit.cover),
-        DecoratedBox(decoration: BoxDecoration(gradient: brandOverlay)),
-        SafeArea(
-          child: Center(
-            child: Padding(
-              padding: const EdgeInsets.all(OrbiTheme.space32),
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Semantics(
-                    label: 'Marca Orbi ERP',
-                    image: true,
-                    child: OrbiBrand(height: 220, color: colors.onPrimary),
-                  ),
-                  const SizedBox(height: OrbiTheme.space24),
-                  Text(
-                    'Ventas, caja y operaciones',
-                    style: Theme.of(context).textTheme.titleLarge
-                        ?.copyWith(color: colors.onPrimary),
-                    textAlign: TextAlign.center,
-                  ),
-                  const SizedBox(height: OrbiTheme.space8),
-                  Text(
-                    'Trabaja con tu equipo desde un solo lugar.',
-                    style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                      color: colors.onPrimary.withValues(alpha: .86),
-                    ),
-                    textAlign: TextAlign.center,
-                  ),
-                ],
+    return SafeArea(
+      child: Center(
+        child: Padding(
+          padding: const EdgeInsets.all(OrbiTheme.space32),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const OrbiBrand(height: 220, color: orbiPhotoInk),
+              const SizedBox(height: OrbiTheme.space24),
+              Text(
+                'Ventas, caja y operaciones',
+                style: Theme.of(context).textTheme.titleLarge
+                    ?.copyWith(color: orbiPhotoInk),
+                textAlign: TextAlign.center,
               ),
-            ),
+              const SizedBox(height: OrbiTheme.space8),
+              Text(
+                'Trabaja con tu equipo desde un solo lugar.',
+                style: Theme.of(context).textTheme.bodyLarge
+                    ?.copyWith(color: orbiPhotoInk),
+                textAlign: TextAlign.center,
+              ),
+            ],
           ),
         ),
-      ],
+      ),
     );
   }
 }
@@ -212,6 +192,18 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     final state = ref.watch(authControllerProvider);
     final colors = Theme.of(context).colorScheme;
     return Scaffold(
+      bottomNavigationBar: SafeArea(
+        top: false,
+        child: Padding(
+          padding: const EdgeInsets.all(OrbiTheme.space12),
+          child: Text(
+            'Desarrollado por GalapagosTech · 2026',
+            textAlign: TextAlign.center,
+            style: Theme.of(context).textTheme.bodySmall
+                ?.copyWith(color: colors.onSurfaceVariant),
+          ),
+        ),
+      ),
       body: LayoutBuilder(
         builder: (context, constraints) {
           // A macOS window may be wide enough for the compact backdrop while
@@ -224,32 +216,40 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
             state,
             compactHeight: compactHeight,
           );
-          if (constraints.maxWidth >= OrbiTheme.mediumBreakpoint) {
+          // An iPad in portrait can exceed 840px: it still uses the approved
+          // stacked composition, not the horizontal two-column arrangement.
+          if (constraints.maxWidth >= OrbiTheme.mediumBreakpoint &&
+              constraints.maxWidth > constraints.maxHeight) {
             return Stack(
               fit: StackFit.expand,
               children: [
-                const _BrandingPane(),
-                DecoratedBox(
-                  decoration: BoxDecoration(
-                    color: colors.scrim.withValues(alpha: .16),
-                  ),
-                ),
+                const OrbiAuthBackdrop(),
                 SafeArea(
                   child: Center(
-                    child: SingleChildScrollView(
-                      keyboardDismissBehavior:
-                          ScrollViewKeyboardDismissBehavior.onDrag,
-                      padding: const EdgeInsets.all(OrbiTheme.space32),
-                      child: ConstrainedBox(
-                        constraints: const BoxConstraints(maxWidth: 440),
-                        child: Card(
-                          color: colors.surface.withValues(alpha: .96),
-                          elevation: 2,
-                          child: Padding(
-                            padding: const EdgeInsets.all(OrbiTheme.space24),
-                            child: form,
+                    child: ConstrainedBox(
+                      constraints: const BoxConstraints(maxWidth: 1200),
+                      child: Row(
+                        children: [
+                          const Expanded(child: _BrandingPane()),
+                          SizedBox(
+                            width: 440,
+                            child: SingleChildScrollView(
+                              keyboardDismissBehavior:
+                                  ScrollViewKeyboardDismissBehavior.onDrag,
+                              padding: const EdgeInsets.all(OrbiTheme.space16),
+                              child: Card(
+                                color: colors.surface.withValues(alpha: .96),
+                                elevation: 2,
+                                child: Padding(
+                                  padding: const EdgeInsets.all(
+                                    OrbiTheme.space24,
+                                  ),
+                                  child: form,
+                                ),
+                              ),
+                            ),
                           ),
-                        ),
+                        ],
                       ),
                     ),
                   ),
@@ -260,23 +260,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
           return Stack(
             fit: StackFit.expand,
             children: [
-              Image.asset(
-                'assets/images/login_bg.jpg',
-                key: const Key('compact-login-background'),
-                fit: BoxFit.cover,
-              ),
-              DecoratedBox(
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    colors: [
-                      colors.scrim.withValues(alpha: .34),
-                      colors.surface.withValues(alpha: .88),
-                    ],
-                    begin: Alignment.topCenter,
-                    end: Alignment.bottomCenter,
-                  ),
-                ),
-              ),
+              const OrbiAuthBackdrop(key: Key('compact-login-background')),
               SafeArea(
                 child: Center(
                   child: SingleChildScrollView(
@@ -286,7 +270,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                     child: ConstrainedBox(
                       constraints: const BoxConstraints(maxWidth: 520),
                       child: Card(
-                        color: colors.surface.withValues(alpha: .94),
+                        color: colors.surface.withValues(alpha: .96),
                         elevation: 2,
                         child: Padding(
                           padding: EdgeInsets.all(
@@ -325,21 +309,54 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Semantics(
-            label: 'Logo de Orbi ERP',
-            image: true,
-            child: OrbiBrand(height: logoHeight, color: colors.primary),
+          // Use the app preference rather than a login-only Theme override.
+          // This preserves one source of truth and the existing scope boundary.
+          Align(
+            alignment: AlignmentDirectional.centerEnd,
+            child: IconButton(
+              key: const Key('login-theme-toggle'),
+              tooltip: theme.brightness == Brightness.dark
+                  ? 'Cambiar a modo claro'
+                  : 'Cambiar a modo oscuro',
+              icon: Icon(
+                theme.brightness == Brightness.dark
+                    ? Icons.light_mode_outlined
+                    : Icons.dark_mode_outlined,
+              ),
+              onPressed: () async {
+                final dark = theme.brightness != Brightness.dark;
+                final preferences = ref.read(
+                  appPreferencesProvider(ref.read(preferencesScopeProvider)),
+                );
+                try {
+                  await preferences.setTheme(
+                    dark ? PreferenceThemeMode.dark : PreferenceThemeMode.light,
+                  );
+                } catch (_) {
+                  if (!context.mounted) return;
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('No se pudo guardar el tema.'),
+                    ),
+                  );
+                }
+              },
+            ),
           ),
+          const SizedBox(height: OrbiTheme.space12),
+          OrbiBrand(height: logoHeight, color: colors.primary),
           const SizedBox(height: OrbiTheme.space16),
           Text(
-            'Orbi ERP',
+            'Acceso a Orbi',
             style: theme.textTheme.titleLarge,
             textAlign: TextAlign.center,
           ),
           const SizedBox(height: OrbiTheme.space8),
           Text(
-            'Bienvenido',
-            style: theme.textTheme.headlineMedium,
+            'Conéctate a tu entorno de trabajo',
+            style: theme.textTheme.bodyMedium?.copyWith(
+              color: colors.onSurfaceVariant,
+            ),
             textAlign: TextAlign.center,
           ),
           SizedBox(height: headerGap),

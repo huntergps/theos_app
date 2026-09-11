@@ -62,6 +62,7 @@ void main() {
     await tester.pump();
     expect(find.text('Ventas'), findsOneWidget);
     expect(find.text('Órdenes'), findsOneWidget);
+    expect(find.bySemanticsLabel('Órdenes'), findsAtLeastNWidgets(1));
     expect(find.text('Servidor: erp.test'), findsOneWidget);
     expect(find.textContaining('Hora del servidor'), findsOneWidget);
     expect(find.byType(Drawer), findsNothing);

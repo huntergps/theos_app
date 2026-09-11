@@ -139,7 +139,26 @@ final class AppPreferencesStore {
 
   Future<AppPreferencesSnapshot> load() async {
     final raw = preferences.getString(key);
-    if (raw == null) return const AppPreferencesSnapshot();
+    if (raw == null) {
+      // A first-time user inherits only the explicitly chosen login theme.
+      // Never copy another user's preferences or override a saved user theme.
+      if (scope.scopeKey != 'anonymous') {
+        final loginKey =
+            'orbi/preferences/${jsonEncode([scope.appId, 'anonymous'])}';
+        final loginRaw = preferences.getString(loginKey);
+        if (loginRaw != null) {
+          try {
+            final login = AppPreferencesSnapshot.fromJson(
+              jsonDecode(loginRaw) as Map<String, dynamic>,
+            );
+            return AppPreferencesSnapshot(themeMode: login.themeMode);
+          } catch (_) {
+            // Corrupt non-secret preferences do not block authentication.
+          }
+        }
+      }
+      return const AppPreferencesSnapshot();
+    }
     try {
       return AppPreferencesSnapshot.fromJson(
         jsonDecode(raw) as Map<String, dynamic>,

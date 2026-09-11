@@ -4,9 +4,12 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:orbi_runtime/orbi_runtime.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:theos_panel/features/auth/auth_controller.dart';
 import 'package:theos_panel/features/auth/login_screen.dart';
+import 'package:theos_panel/app/preferences/app_preferences.dart';
 import 'package:theos_panel/app/theme/orbi_theme.dart';
+import 'package:theos_panel/ui/components/orbi_brand.dart';
 
 final class _ProfileService implements AuthServicePort {
   static const _one = AuthProfile(
@@ -132,6 +135,7 @@ void main() {
       ),
     );
     await tester.pump();
+    await tester.pumpAndSettle();
     final fields = find.byType(TextField);
     await tester.enterText(fields.at(0), 'https://erp.test');
     await tester.testTextInput.receiveAction(TextInputAction.next);
@@ -185,6 +189,7 @@ void main() {
         Size(1440, 900),
         Size(1180, 820),
         Size(820, 1180),
+        Size(1024, 1366),
         Size(390, 844),
       ];
       for (final theme in [OrbiTheme.light, OrbiTheme.dark]) {
@@ -200,7 +205,24 @@ void main() {
           );
           await tester.pump();
           expect(find.byType(TextField), findsNWidgets(4));
-          expect(find.byType(Image), findsOneWidget);
+          final background = tester.widget<Image>(find.byType(Image));
+          expect(background.image, isA<AssetImage>());
+          expect(
+            (background.image as AssetImage).assetName,
+            orbiAuthBackgroundAsset,
+          );
+          final isWideLandscape = size.width >= 840 && size.width > size.height;
+          if (isWideLandscape) {
+            final brandingCenter = tester.getCenter(
+              find.text('Ventas, caja y operaciones'),
+            );
+            final formCenter = tester.getCenter(find.byType(TextField).first);
+            expect(brandingCenter.dx, lessThan(formCenter.dx));
+          } else {
+            // Portrait keeps the form compact and does not render the lateral
+            // branding pane, including tall tablet widths.
+            expect(find.text('Ventas, caja y operaciones'), findsNothing);
+          }
           await tester.ensureVisible(find.text('Iniciar sesión'));
           expect(find.text('Iniciar sesión'), findsOneWidget);
           expect(tester.takeException(), isNull);
@@ -209,4 +231,62 @@ void main() {
       await tester.binding.setSurfaceSize(null);
     },
   );
+
+  testWidgets('login theme icon persists dark and light choices', (
+    tester,
+  ) async {
+    SharedPreferences.setMockInitialValues({});
+    final preferences = await SharedPreferences.getInstance();
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          authServiceProvider.overrideWithValue(_ProfileService()),
+          sharedPreferencesProvider.overrideWithValue(preferences),
+        ],
+        child: const _LoginThemeHarness(),
+      ),
+    );
+    await tester.pump();
+    await tester.pumpAndSettle();
+
+    final toggle = find.byKey(const Key('login-theme-toggle'));
+    expect(toggle, findsOneWidget);
+    expect(tester.widget<IconButton>(toggle).tooltip, 'Cambiar a modo oscuro');
+    expect(find.text('Desarrollado por GalapagosTech · 2026'), findsOneWidget);
+    await tester.tap(toggle);
+    await tester.pumpAndSettle();
+    expect(tester.widget<IconButton>(toggle).tooltip, 'Cambiar a modo claro');
+
+    final scope = const PreferencesScope(
+      appId: 'theos_panel',
+      scopeKey: 'anonymous',
+    );
+    final saved = AppPreferencesStore(preferences: preferences, scope: scope);
+    expect((await saved.load()).themeMode, PreferenceThemeMode.dark);
+
+    await tester.tap(toggle);
+    await tester.pumpAndSettle();
+    expect(tester.widget<IconButton>(toggle).tooltip, 'Cambiar a modo oscuro');
+    expect((await saved.load()).themeMode, PreferenceThemeMode.light);
+    expect(tester.takeException(), isNull);
+  });
+}
+
+final class _LoginThemeHarness extends ConsumerWidget {
+  const _LoginThemeHarness();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final scope = ref.watch(preferencesScopeProvider);
+    final preferences = ref.watch(appPreferencesProvider(scope));
+    return AnimatedBuilder(
+      animation: preferences,
+      builder: (context, _) => MaterialApp(
+        theme: OrbiTheme.light,
+        darkTheme: OrbiTheme.dark,
+        themeMode: preferences.snapshot.materialThemeMode,
+        home: const LoginScreen(),
+      ),
+    );
+  }
 }

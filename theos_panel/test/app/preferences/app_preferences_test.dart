@@ -41,6 +41,53 @@ void main() {
     expect(snapshot.textScale, 1.15);
   });
 
+  test('first user inherits only anonymous theme choice', () async {
+    SharedPreferences.setMockInitialValues({});
+    final preferences = await SharedPreferences.getInstance();
+    const anonymous = PreferencesScope(appId: 'panel', scopeKey: 'anonymous');
+    const user = PreferencesScope(appId: 'panel', scopeKey: 'server|db|7');
+    await AppPreferencesStore(preferences: preferences, scope: anonymous).save(
+      const AppPreferencesSnapshot(
+        themeMode: PreferenceThemeMode.dark,
+        accentSeed: 0xFF112233,
+        density: PreferenceDensity.compact,
+      ),
+    );
+
+    final inherited = await AppPreferencesStore(
+      preferences: preferences,
+      scope: user,
+    ).load();
+    expect(inherited.themeMode, PreferenceThemeMode.dark);
+    expect(inherited.accentSeed, const AppPreferencesSnapshot().accentSeed);
+    expect(inherited.density, PreferenceDensity.standard);
+  });
+
+  test('saved user theme is not overridden by anonymous changes', () async {
+    SharedPreferences.setMockInitialValues({});
+    final preferences = await SharedPreferences.getInstance();
+    const anonymous = PreferencesScope(appId: 'panel', scopeKey: 'anonymous');
+    const user = PreferencesScope(appId: 'panel', scopeKey: 'server|db|8');
+    final anonymousStore = AppPreferencesStore(
+      preferences: preferences,
+      scope: anonymous,
+    );
+    final userStore = AppPreferencesStore(
+      preferences: preferences,
+      scope: user,
+    );
+    await anonymousStore.save(
+      const AppPreferencesSnapshot(themeMode: PreferenceThemeMode.dark),
+    );
+    await userStore.save(
+      const AppPreferencesSnapshot(themeMode: PreferenceThemeMode.light),
+    );
+    await anonymousStore.save(
+      const AppPreferencesSnapshot(themeMode: PreferenceThemeMode.dark),
+    );
+    expect((await userStore.load()).themeMode, PreferenceThemeMode.light);
+  });
+
   test('permission denial is returned only through explicit action', () async {
     final plugin = _Plugin()..permission = PermissionState.denied;
     final presenter = SystemNotificationPresenter(

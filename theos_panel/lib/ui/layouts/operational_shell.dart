@@ -130,7 +130,6 @@ final class OperationalShell extends StatelessWidget {
     width: 256,
     child: Semantics(
       container: true,
-      explicitChildNodes: true,
       label: 'Navegación principal',
       child: Material(
         color: Theme.of(context).colorScheme.surfaceContainerLow,
@@ -174,15 +173,21 @@ final class OperationalShell extends StatelessWidget {
           child: Text(entry.key, style: Theme.of(context).textTheme.labelLarge),
         ),
         for (final destination in entry.value)
-          ListTile(
+          Semantics(
+            container: true,
+            button: true,
             selected: destination.path == selectedPath,
-            leading: Icon(destination.icon),
-            title: Text(destination.label),
-            onTap: () {
-              final scaffold = Scaffold.maybeOf(context);
-              if (scaffold?.isDrawerOpen ?? false) scaffold!.closeDrawer();
-              onNavigate(destination.path);
-            },
+            label: destination.label,
+            child: ListTile(
+              selected: destination.path == selectedPath,
+              leading: Icon(destination.icon, semanticLabel: ''),
+              title: Text(destination.label),
+              onTap: () {
+                final scaffold = Scaffold.maybeOf(context);
+                if (scaffold?.isDrawerOpen ?? false) scaffold!.closeDrawer();
+                onNavigate(destination.path);
+              },
+            ),
           ),
       ],
     ];
@@ -191,23 +196,26 @@ final class OperationalShell extends StatelessWidget {
   Widget _contextFooter(BuildContext context) => Semantics(
     container: true,
     label: 'Información de conexión',
-    child: Material(
-      color: Theme.of(context).colorScheme.surfaceContainerHighest,
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
-        child: Wrap(
-          spacing: 20,
-          runSpacing: 4,
-          children: [
-            _contextItem('Servidor', this.context.server),
-            _contextItem('BD', this.context.database),
-            _contextItem(
-              'Hora del servidor',
-              this.context.serverTime ?? 'Hora del servidor no disponible',
-            ),
-            _contextItem('Estado', this.context.connectionLabel),
-            _contextItem('Sincronización', this.context.syncLabel),
-          ],
+    child: SizedBox(
+      width: double.infinity,
+      child: Material(
+        color: Theme.of(context).colorScheme.surfaceContainerHighest,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+          child: Wrap(
+            spacing: 20,
+            runSpacing: 4,
+            children: [
+              _contextItem('Servidor', this.context.server),
+              _contextItem('BD', this.context.database),
+              _contextItem(
+                'Hora del servidor',
+                this.context.serverTime ?? 'Hora del servidor no disponible',
+              ),
+              _contextItem('Estado', this.context.connectionLabel),
+              _contextItem('Sincronización', this.context.syncLabel),
+            ],
+          ),
         ),
       ),
     ),

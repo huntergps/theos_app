@@ -5,6 +5,9 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:theos_panel/app/notification_scope_adapter.dart';
 import 'package:theos_panel/app/orbi_app.dart';
+import 'package:theos_panel/app/bootstrap.dart';
+import 'package:theos_panel/app/orbi_splash_screen.dart';
+import 'package:theos_panel/app/theme/orbi_theme.dart';
 import 'package:theos_panel/app/preferences/app_preferences.dart';
 import 'package:theos_panel/app/session_composition.dart';
 import 'package:theos_panel/app/router.dart';
@@ -20,6 +23,18 @@ const localWorkflowPassword = 'orbi-demo';
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   WidgetsBinding.instance.ensureSemantics();
+  // Exercise the same branded surface and crossfade as production without
+  // connecting the local fixture runner to an Odoo server.
+  final startup = Stopwatch()..start();
+  runApp(
+    BootstrapAnimatedContent(
+      phaseKey: 'local-startup',
+      child: MaterialApp(
+        theme: OrbiTheme.light,
+        home: const OrbiSplashScreen(),
+      ),
+    ),
+  );
   final preferences = await SharedPreferences.getInstance();
   final runtime = SessionRuntime();
   late ProviderContainer container;
@@ -43,8 +58,15 @@ Future<void> main() async {
       ),
     ],
   );
+  await ensureMinimumSplashDuration(elapsed: startup.elapsed);
   runApp(
-    UncontrolledProviderScope(container: container, child: const OrbiApp()),
+    BootstrapAnimatedContent(
+      phaseKey: 'local-ready',
+      child: UncontrolledProviderScope(
+        container: container,
+        child: const OrbiApp(),
+      ),
+    ),
   );
 }
 

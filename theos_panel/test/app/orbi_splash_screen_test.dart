@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:theos_panel/app/orbi_splash_screen.dart';
 import 'package:theos_panel/app/theme/orbi_theme.dart';
+import 'package:theos_panel/ui/components/orbi_brand.dart';
 
 void main() {
   testWidgets('splash keeps approved photo branding across viewports/themes', (
@@ -11,6 +12,7 @@ void main() {
       Size(1440, 900),
       Size(1180, 820),
       Size(820, 1180),
+      Size(1024, 1366),
       Size(390, 844),
     ];
     for (final theme in [OrbiTheme.light, OrbiTheme.dark]) {
@@ -21,7 +23,12 @@ void main() {
         );
         await tester.pump();
         expect(find.byKey(const Key('orbi-splash')), findsOneWidget);
-        expect(find.byType(Image), findsOneWidget);
+        final background = tester.widget<Image>(find.byType(Image));
+        expect(background.image, isA<AssetImage>());
+        expect(
+          (background.image as AssetImage).assetName,
+          orbiAuthBackgroundAsset,
+        );
         expect(find.byType(CircularProgressIndicator), findsOneWidget);
         expect(find.text('Preparando Orbi ERP…'), findsOneWidget);
         expect(tester.takeException(), isNull);

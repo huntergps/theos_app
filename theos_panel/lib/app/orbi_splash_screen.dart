@@ -12,25 +12,12 @@ final class OrbiSplashScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colors = Theme.of(context).colorScheme;
     return Scaffold(
       key: const Key('orbi-splash'),
       body: Stack(
         fit: StackFit.expand,
         children: [
-          Image.asset('assets/images/login_bg.jpg', fit: BoxFit.cover),
-          DecoratedBox(
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                colors: [
-                  colors.scrim.withValues(alpha: .24),
-                  colors.scrim.withValues(alpha: .48),
-                ],
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-              ),
-            ),
-          ),
+          const OrbiAuthBackdrop(),
           SafeArea(
             child: LayoutBuilder(
               builder: (context, constraints) {
@@ -46,14 +33,7 @@ final class OrbiSplashScreen extends StatelessWidget {
                       child: Column(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
-                          Semantics(
-                            label: 'Marca Orbi ERP',
-                            image: true,
-                            child: OrbiBrand(
-                              height: logoHeight,
-                              color: colors.onPrimary,
-                            ),
-                          ),
+                          OrbiBrand(height: logoHeight, color: orbiPhotoInk),
                           const SizedBox(height: OrbiTheme.space32),
                           Semantics(
                             liveRegion: true,
@@ -61,13 +41,13 @@ final class OrbiSplashScreen extends StatelessWidget {
                             child: Text(
                               message,
                               style: Theme.of(context).textTheme.bodyLarge
-                                  ?.copyWith(color: colors.onPrimary),
+                                  ?.copyWith(color: orbiPhotoInk),
                               textAlign: TextAlign.center,
                             ),
                           ),
                           const SizedBox(height: OrbiTheme.space16),
                           CircularProgressIndicator(
-                            color: colors.onPrimary,
+                            color: orbiPhotoInk,
                             semanticsLabel: 'Cargando',
                           ),
                         ],
