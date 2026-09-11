@@ -37,9 +37,11 @@ class _EnvasesDashboardScreenState extends State<EnvasesDashboardScreen> {
   int _streamGeneration = 0;
   late final OrbiRecordViewController<EnvasesDashboardRow> _controller =
       OrbiRecordViewController<EnvasesDashboardRow>();
+  late final TextEditingController _productFilter = TextEditingController();
   EnvasesDashboardSnapshot? _snapshot;
   Object? _error;
   bool _waiting = true;
+  String _productQuery = '';
 
   @override
   void initState() {
@@ -91,6 +93,7 @@ class _EnvasesDashboardScreenState extends State<EnvasesDashboardScreen> {
   @override
   void dispose() {
     _subscription?.cancel();
+    _productFilter.dispose();
     _controller.dispose();
     super.dispose();
   }
@@ -112,6 +115,23 @@ class _EnvasesDashboardScreenState extends State<EnvasesDashboardScreen> {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           _DashboardHeader(title: widget.workspaceEnvases, snapshot: _snapshot),
+          if (_snapshot?.rows.isNotEmpty ?? false)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 12),
+              child: TextField(
+                key: const Key('envases-product-filter'),
+                controller: _productFilter,
+                decoration: const InputDecoration(
+                  labelText: 'Filtrar por producto o envase',
+                  prefixIcon: Icon(Icons.search),
+                  border: OutlineInputBorder(),
+                ),
+                onChanged: (value) {
+                  setState(() => _productQuery = value.trim().toLowerCase());
+                  _controller.replaceRecords(_recordsFor(_snapshot));
+                },
+              ),
+            ),
           if (_error != null) _ErrorBanner(onRetry: widget.onRefresh),
           if (_waiting && _snapshot == null && _error == null)
             const Expanded(child: Center(child: CircularProgressIndicator()))
@@ -143,25 +163,56 @@ class _EnvasesDashboardScreenState extends State<EnvasesDashboardScreen> {
         message: 'No hay productos de envases en la copia local.',
       );
     }
-
-    return OrbiRecordGrid<EnvasesDashboardRow>(
-      controller: _controller,
-      columns: _columns,
-      onRecordTap: widget.onProductTap == null
-          ? null
-          : (record) => widget.onProductTap!(record.value.productId),
+    final filtered = _filteredRows(snapshot.rows);
+    if (filtered.isEmpty) {
+      return const OrbiEmptyState(
+        title: 'Sin coincidencias',
+        message: 'No hay productos que coincidan con el filtro.',
+      );
+    }
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        if (widget.onProductTap == null)
+          const Padding(
+            padding: EdgeInsets.only(bottom: 8),
+            child: Text(
+              'Vista agregada; detalle por ubicación no disponible en esta conexión',
+            ),
+          ),
+        Expanded(
+          child: OrbiRecordGrid<EnvasesDashboardRow>(
+            controller: _controller,
+            columns: _columns,
+            onRecordTap: widget.onProductTap == null
+                ? null
+                : (record) => widget.onProductTap!(record.value.productId),
+          ),
+        ),
+      ],
     );
   }
 
   List<OrbiRecord<EnvasesDashboardRow>> _recordsFor(
     EnvasesDashboardSnapshot? snapshot,
   ) => [
-    for (final row in snapshot?.rows ?? const <EnvasesDashboardRow>[])
+    for (final row in _filteredRows(snapshot?.rows ?? const []))
       OrbiRecord<EnvasesDashboardRow>(
         id: '${row.companyId}:${row.productId}',
         value: row,
       ),
   ];
+
+  List<EnvasesDashboardRow> _filteredRows(List<EnvasesDashboardRow> rows) =>
+      _productQuery.isEmpty
+      ? rows
+      : rows
+            .where(
+              (row) =>
+                  row.productName.toLowerCase().contains(_productQuery) ||
+                  row.uomName.toLowerCase().contains(_productQuery),
+            )
+            .toList(growable: false);
 
   List<OrbiRecordColumn<EnvasesDashboardRow>> get _columns => [
     OrbiRecordColumn(
@@ -187,7 +238,11 @@ class _EnvasesDashboardScreenState extends State<EnvasesDashboardScreen> {
       (row) => row.enCustodiaProveedor,
     ),
     _quantityColumn('en_transito', 'En tránsito', (row) => row.enTransito),
-    _quantityColumn('danados', 'Dañados', (row) => row.danados),
+    _quantityColumn(
+      'danados',
+      'Dañados (incluidos en total)',
+      (row) => row.danados,
+    ),
   ];
 
   OrbiRecordColumn<EnvasesDashboardRow> _quantityColumn(

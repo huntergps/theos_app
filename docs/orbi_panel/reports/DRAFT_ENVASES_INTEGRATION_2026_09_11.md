@@ -43,9 +43,14 @@ Fecha: 2026-09-11. Alcance: runtime/UI local y verificación estática del addon
 
 - Tests propios: cache 7, partner reader 4, capability 3, composición 3 y
   barra responsive 1; análisis dirigido sin errores.
-- Integrador ejecutó 42 pruebas dirigidas de ventas, borradores, rutas y Envases:
-  todas pasaron. Análisis dirigido pendiente de cierre de esta iteración.
+- Integrador ejecutó 88 pruebas de ventas, borradores, rutas, catálogos y Envases:
+  todas pasaron; análisis dirigido de ocho rutas de código/tests sin incidencias.
+- Codec v2 conserva procedencia de cálculo; v1 mantiene cifras históricas pero
+  no las declara calculadas. Cambio de cliente/líneas invalida esa procedencia.
+  Confirmar/solicitar aprobación con importes pendientes no genera comandos.
 - Navegador local: login digitado campo a campo, crear/cambiar borrador y
   recuperar cliente/nota verificados visualmente; dashboard cache visible.
-  Cuatro tamaños y recarga durable aún en progreso. Sin E2E financiero/Odoo.
+  Recarga durable comprobada y edición en teléfono capturada en
+  `evidence/2026-09-11/sales-phone.png`; evidencia final de cuatro tamaños
+  sigue pendiente. Sin E2E financiero/Odoo; ver informe de brecha de precios.
   Esto no declara R06/R07/E05 completos ni paridad visual total.

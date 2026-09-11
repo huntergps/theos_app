@@ -35,14 +35,15 @@ class _Repository implements CatalogRepository<SaleCatalogProduct> {
   Future<void> refresh(CatalogQuery query) async {}
 }
 
-SaleDraftSnapshot _draft() => SaleDraftSnapshot(
+SaleDraftSnapshot _draft({bool amountsCalculated = false}) => SaleDraftSnapshot(
   lines: [
-    const SaleDraftLine(
+    SaleDraftLine(
       uuid: 'line-a',
       name: 'Martillo',
       quantity: 2,
       unitPrice: 12.5,
       uomName: 'PZA',
+      amountsCalculated: amountsCalculated,
     ),
   ],
 );
@@ -82,6 +83,10 @@ void main() {
       await tester.pumpWidget(_host(_draft(), size: size));
       await tester.pump();
       expect(find.text('Martillo'), findsOneWidget);
+      final quantityField = tester.widget<TextField>(
+        find.byKey(const ValueKey('sale-quantity-line-a')),
+      );
+      expect(quantityField.decoration?.labelText, 'Cantidad · Martillo');
       final wide = size.width >= 840 && size.width >= size.height;
       expect(find.byType(SfDataGrid), wide ? findsOneWidget : findsNothing);
       expect(tester.takeException(), isNull);
@@ -140,8 +145,27 @@ void main() {
         find.byKey(const ValueKey('sale-quantity-line-a')),
         findsOneWidget,
       );
+      final wideQuantityField = tester.widget<TextField>(
+        find.byKey(const ValueKey('sale-quantity-line-a')),
+      );
+      expect(wideQuantityField.decoration?.labelText, 'Cantidad · Martillo');
       expect(find.text('2.5'), findsOneWidget);
       await tester.binding.setSurfaceSize(null);
     },
   );
+
+  testWidgets('marks uncalculated amounts and preserves calculated zero', (
+    tester,
+  ) async {
+    await tester.pumpWidget(_host(_draft()));
+    await tester.pump();
+    expect(find.textContaining('Pendiente de cálculo'), findsOneWidget);
+    expect(find.textContaining('Por validar'), findsOneWidget);
+
+    await tester.pumpWidget(_host(_draft(amountsCalculated: true)));
+    await tester.pump();
+    expect(find.textContaining('Total 0.00'), findsOneWidget);
+    expect(find.textContaining('Descuento 0.0%'), findsOneWidget);
+    expect(find.textContaining('Impuesto 0.0%'), findsOneWidget);
+  });
 }

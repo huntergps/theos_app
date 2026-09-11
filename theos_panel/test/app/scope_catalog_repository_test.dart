@@ -80,6 +80,117 @@ AppScope _scope() => AppScope(
 
 void main() {
   test(
+    'maps camelCase and Odoo product fields without changing identity',
+    () async {
+      final scope = _scope();
+      final store = _ObservableStore(scope)
+        ..records.addAll([
+          const CatalogRecord(
+            uuid: 'p-local',
+            value: {
+              'localId': 'p-local',
+              'remoteId': 5,
+              'name': 'Cinta',
+              'price': 3.25,
+              'uomId': 2,
+              'uomName': 'Unidad',
+              'taxIds': [1],
+            },
+          ),
+          const CatalogRecord(
+            uuid: 'product:7',
+            value: {
+              'id': 7,
+              'name': 'Taladro',
+              'list_price': 49.9,
+              'uom_id': [3, 'Unidad'],
+              'taxes_id': [4],
+            },
+          ),
+        ]);
+      final repository = RuntimeProductCatalogRepository(
+        store: store,
+        scope: scope,
+      );
+      final snapshot = await repository.watch(CatalogQuery()).first;
+      expect(snapshot.status, CatalogLoadStatus.data);
+      expect(snapshot.items[0].value?.localId, 'p-local');
+      expect(snapshot.items[0].value?.remoteId, 5);
+      expect(snapshot.items[0].value?.uomId, 2);
+      expect(snapshot.items[0].value?.taxIds, [1]);
+      expect(snapshot.items[1].value?.localId, 'product:7');
+      expect(snapshot.items[1].value?.remoteId, 7);
+      expect(snapshot.items[1].value?.uomId, 3);
+      expect(snapshot.items[1].value?.taxIds, [4]);
+      await repository.dispose();
+      await store.close();
+    },
+  );
+
+  test('invalid product numeric fields become an error snapshot', () async {
+    final scope = _scope();
+    final store = _ObservableStore(scope)
+      ..records.add(
+        const CatalogRecord(
+          uuid: 'product:8',
+          value: {'id': 8, 'name': 'Roto', 'list_price': double.nan},
+        ),
+      );
+    final repository = RuntimeProductCatalogRepository(
+      store: store,
+      scope: scope,
+    );
+    final snapshot = await repository.watch(CatalogQuery()).first;
+    expect(snapshot.status, CatalogLoadStatus.error);
+    expect(snapshot.items, isEmpty);
+    expect(snapshot.error, isA<FormatException>());
+    await repository.dispose();
+    await store.close();
+  });
+
+  test(
+    'normalizes optional partner false values and rejects wrong types',
+    () async {
+      final scope = _scope();
+      final store = _ObservableStore(scope)
+        ..records.add(
+          const CatalogRecord(
+            uuid: 'partner:9',
+            value: {'id': 9, 'name': 'Cliente', 'vat': false, 'email': false},
+          ),
+        );
+      final repository = RuntimePartnerCatalogRepository(
+        store: store,
+        scope: scope,
+      );
+      final valid = await repository.watch(CatalogQuery()).first;
+      expect(valid.status, CatalogLoadStatus.data);
+      expect(valid.items.single.value?.remoteId, 9);
+      expect(valid.items.single.value?.vat, isNull);
+      expect(valid.items.single.value?.email, isNull);
+      await repository.dispose();
+      await store.close();
+
+      final invalidStore = _ObservableStore(scope)
+        ..records.add(
+          const CatalogRecord(
+            uuid: 'partner:10',
+            value: {'id': 10, 'name': 'Cliente', 'email': 123},
+          ),
+        );
+      final invalidRepository = RuntimePartnerCatalogRepository(
+        store: invalidStore,
+        scope: scope,
+      );
+      final invalid = await invalidRepository.watch(CatalogQuery()).first;
+      expect(invalid.status, CatalogLoadStatus.error);
+      expect(invalid.error, isA<FormatException>());
+      await invalidRepository.dispose();
+      await invalidStore.close();
+    },
+  );
+
+  test(
     'dispose closes catalog stream without deleting durable records',
     () async {
       final scope = _scope();

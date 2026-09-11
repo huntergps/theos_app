@@ -2,9 +2,11 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:syncfusion_flutter_datagrid/datagrid.dart';
 import 'package:theos_panel/features/sales/sale_editor.dart';
 import 'package:orbi_runtime/orbi_runtime.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:theos_panel/features/approvals/approval_contracts.dart';
 
 final class _Port implements SaleEditorPort {
   SaleDraftSnapshot? submitted;
@@ -18,6 +20,40 @@ final class _Port implements SaleEditorPort {
       approval: SaleApprovalState.approved,
     );
   }
+}
+
+final class _Approval implements ApprovalPort {
+  int calls = 0;
+  @override
+  Future<List<ApprovalRequest>> pending() async => const [];
+  @override
+  Future<ApprovalResult> request(ApprovalRequest request) async =>
+      const ApprovalResult(accepted: true, message: 'ok');
+  @override
+  Future<ApprovalResult> resolve({
+    required ApprovalRequest request,
+    required ApprovalDecision decision,
+    required CapabilitySnapshot snapshot,
+    required bool offline,
+  }) async => const ApprovalResult(accepted: true, message: 'ok');
+  @override
+  Future<ApprovalResult> performAction({
+    required ApprovalRequest request,
+    required ApprovalAction action,
+    required CapabilitySnapshot snapshot,
+    required bool offline,
+  }) async {
+    calls++;
+    return const ApprovalResult(accepted: true, message: 'ok');
+  }
+}
+
+final class _TrackingStore implements SaleDraftStore {
+  SaleDraftSnapshot? saved;
+  @override
+  Future<SaleDraftSnapshot?> load(String scopeKey) async => saved;
+  @override
+  Future<void> save(SaleDraftSnapshot draft) async => saved = draft;
 }
 
 final class _Catalog implements SaleCatalogPort {
@@ -109,6 +145,90 @@ SaleDraftSnapshot _configuredDraft({String scopeKey = 'scope-a'}) =>
     );
 
 void main() {
+  test(
+    'unresolved amounts block submit and approval but remain editable',
+    () async {
+      final port = _Port();
+      final approval = _Approval();
+      final store = _TrackingStore();
+      final controller = SaleDraftController(
+        port: port,
+        approvalPort: approval,
+        capabilities: _capabilities('scope-a'),
+        store: store,
+        scopeKey: 'scope-a',
+      );
+      addTearDown(controller.dispose);
+      controller.update(
+        lines: const [SaleDraftLine(uuid: 'l', name: 'P', quantity: 1)],
+      );
+      final submit = await controller.submit();
+      expect(submit.accepted, isFalse);
+      expect(submit.message, contains('Importes pendientes'));
+      final approvalResult = await controller.requestApproval();
+      expect(approvalResult.accepted, isFalse);
+      expect(port.calls, 0);
+      expect(approval.calls, 0);
+      await controller.flush();
+      expect(store.saved!.lines.single.amountsCalculated, isFalse);
+      controller.update(
+        lines: const [
+          SaleDraftLine(
+            uuid: 'l',
+            name: 'P',
+            quantity: 2,
+            amountsCalculated: false,
+          ),
+        ],
+      );
+      expect(controller.draft.lines.single.amountsCalculated, isFalse);
+    },
+  );
+
+  test('pricing context and line edits invalidate calculated provenance', () {
+    final controller = SaleDraftController(
+      port: _Port(),
+      store: MemorySaleDraftStore(),
+      initial: SaleDraftSnapshot(
+        clientName: 'Cliente original',
+        lines: const [
+          SaleDraftLine(
+            uuid: 'line',
+            name: 'Producto',
+            quantity: 2,
+            unitPrice: 10,
+            total: 20,
+            amountsCalculated: true,
+          ),
+        ],
+      ),
+    );
+    addTearDown(controller.dispose);
+
+    controller.update(clientName: 'Cliente nuevo');
+
+    expect(controller.draft.lines.single.amountsCalculated, isFalse);
+    expect(controller.draft.lines.single.unitPrice, 10);
+    expect(controller.draft.lines.single.total, 20);
+
+    controller.update(
+      lines: const [
+        SaleDraftLine(
+          uuid: 'line',
+          name: 'Producto',
+          quantity: 3,
+          unitPrice: 10,
+          total: 30,
+          amountsCalculated: true,
+        ),
+      ],
+    );
+
+    expect(controller.draft.lines.single.amountsCalculated, isFalse);
+    expect(controller.draft.lines.single.quantity, 3);
+    expect(controller.draft.lines.single.total, 30);
+  });
+
   testWidgets('same draft and command survive counter/consultive resize', (
     tester,
   ) async {
@@ -116,14 +236,19 @@ void main() {
     final controller = SaleDraftController(
       port: port,
       store: MemorySaleDraftStore(),
+      initial: SaleDraftSnapshot(
+        clientName: 'Cliente Sebastián',
+        lines: const [
+          SaleDraftLine(
+            uuid: 'line-1',
+            name: 'Producto',
+            quantity: 2,
+            amountsCalculated: true,
+          ),
+        ],
+      ),
     );
     addTearDown(controller.dispose);
-    controller.update(
-      clientName: 'Cliente Sebastián',
-      lines: const [
-        SaleDraftLine(uuid: 'line-1', name: 'Producto', quantity: 2),
-      ],
-    );
     await tester.pumpWidget(
       MaterialApp(
         home: SizedBox(
@@ -179,7 +304,10 @@ void main() {
     addTearDown(() => tester.binding.setSurfaceSize(null));
     await tester.pumpWidget(
       MediaQuery(
-        data: const MediaQueryData(textScaler: TextScaler.linear(2)),
+        data: const MediaQueryData(
+          size: Size(360, 640),
+          textScaler: TextScaler.linear(2),
+        ),
         child: MaterialApp(home: SaleEditorScreen(controller: controller)),
       ),
     );
@@ -208,14 +336,62 @@ void main() {
     addTearDown(() => tester.binding.setSurfaceSize(null));
     await tester.pumpWidget(
       MediaQuery(
-        data: const MediaQueryData(textScaler: TextScaler.linear(2)),
+        data: const MediaQueryData(
+          size: Size(1200, 600),
+          textScaler: TextScaler.linear(2),
+        ),
         child: MaterialApp(home: SaleEditorScreen(controller: controller)),
       ),
     );
     await tester.pump();
-    expect(find.byType(SingleChildScrollView), findsNWidgets(2));
+    expect(find.byType(SingleChildScrollView), findsAtLeastNWidgets(1));
+    expect(find.byType(SfDataGrid), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
+
+  testWidgets(
+    'sale editor keeps context, lines and actions across four viewports',
+    (tester) async {
+      const sizes = [
+        Size(390, 844),
+        Size(820, 1180),
+        Size(1180, 820),
+        Size(1440, 900),
+      ];
+      for (final size in sizes) {
+        final controller = SaleDraftController(
+          port: _Port(),
+          store: MemorySaleDraftStore(),
+        );
+        controller.update(
+          clientName: 'Cliente de prueba',
+          lines: const [
+            SaleDraftLine(uuid: 'viewport-line', name: 'Producto', quantity: 1),
+          ],
+        );
+        addTearDown(controller.dispose);
+        await tester.binding.setSurfaceSize(size);
+        await tester.pumpWidget(
+          MaterialApp(
+            home: MediaQuery(
+              data: MediaQueryData(size: size),
+              child: SaleEditorScreen(controller: controller),
+            ),
+          ),
+        );
+        await tester.pump();
+
+        expect(find.text('Cliente'), findsOneWidget);
+        expect(find.text('Productos'), findsOneWidget);
+        final wide = size.width >= 840 && size.width >= size.height;
+        expect(find.byType(SfDataGrid), wide ? findsOneWidget : findsNothing);
+        await tester.ensureVisible(find.text('Continuar'));
+        expect(find.text('Continuar'), findsOneWidget);
+        expect(tester.takeException(), isNull);
+      }
+      await tester.binding.setSurfaceSize(null);
+    },
+  );
 
   test('dirty draft is not replaced by a refresh of the screen', () {
     final controller = SaleDraftController(
@@ -369,21 +545,22 @@ void main() {
       final controller = SaleDraftController(
         port: _Port(),
         store: MemorySaleDraftStore(),
+        initial: SaleDraftSnapshot(
+          lines: const [
+            SaleDraftLine(
+              uuid: 'l',
+              name: 'Producto',
+              quantity: 2,
+              unitPrice: 10,
+              discount: 5,
+              tax: 12,
+              total: 21.28,
+              amountsCalculated: true,
+            ),
+          ],
+        ),
       );
       addTearDown(controller.dispose);
-      controller.update(
-        lines: const [
-          SaleDraftLine(
-            uuid: 'l',
-            name: 'Producto',
-            quantity: 2,
-            unitPrice: 10,
-            discount: 5,
-            tax: 12,
-            total: 21.28,
-          ),
-        ],
-      );
       await tester.pumpWidget(
         MaterialApp(
           home: SaleEditorScreen(controller: controller, catalog: _Catalog()),

@@ -19,6 +19,7 @@ void main() {
           discount: 3.5,
           tax: 15,
           total: 26.8,
+          amountsCalculated: true,
           remoteId: 44,
           uomId: 7,
           uomName: 'Unidad',
@@ -40,7 +41,7 @@ void main() {
     );
 
     final encoded = SaleDraftCodec.encode(draft);
-    expect(encoded['payloadVersion'], 1);
+    expect(encoded['payloadVersion'], 2);
     expect(SaleDraftCodec.decode(encoded), isA<SaleDraftSnapshot>());
     final restored = SaleDraftCodec.decode(encoded);
     expect(restored.scopeKey, draft.scopeKey);
@@ -93,6 +94,31 @@ void main() {
       () => SaleDraftCodec.decode({...payload, 'payloadVersion': 0}),
       throwsFormatException,
     );
+  });
+
+  test('decodes v1 lines as unresolved and requires v2 provenance flag', () {
+    final v2 = SaleDraftCodec.encode(
+      SaleDraftSnapshot(
+        lines: const [
+          SaleDraftLine(
+            uuid: 'l',
+            name: 'P',
+            quantity: 1,
+            amountsCalculated: true,
+          ),
+        ],
+      ),
+    );
+    final v1 = <String, dynamic>{...v2, 'payloadVersion': 1};
+    v1['lines'] = [
+      Map<String, dynamic>.from(v2['lines'].first)..remove('amountsCalculated'),
+    ];
+    expect(SaleDraftCodec.decode(v1).lines.single.amountsCalculated, isFalse);
+    final missingFlag = <String, dynamic>{...v2};
+    missingFlag['lines'] = [
+      Map<String, dynamic>.from(v2['lines'].first)..remove('amountsCalculated'),
+    ];
+    expect(() => SaleDraftCodec.decode(missingFlag), throwsFormatException);
   });
 
   test(

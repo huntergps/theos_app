@@ -18,6 +18,7 @@ import '../features/sales/durable_sale_draft_store.dart';
 import '../features/sales/sale_draft_workspace.dart';
 import '../features/sales/sale_draft_workspace_bar.dart';
 import '../features/sales/legacy_draft_inspector.dart';
+import '../features/sales/legacy_draft_notice.dart';
 import '../features/settings/settings_screen.dart';
 import '../features/orders/orders_screen.dart';
 import '../features/orders/orders_contracts.dart';
@@ -367,14 +368,7 @@ Widget _saleWorkspace(WidgetRef ref, SalePresentation presentation) {
           child: Column(
             children: [
               SaleDraftWorkspaceBar(workspace: workspace),
-              if (legacy.rawPresent)
-                const Padding(
-                  padding: EdgeInsets.all(8),
-                  child: Text(
-                    'Hay un borrador de una versión anterior conservado. '
-                    'Requiere revisión antes de importarlo; no se ha modificado.',
-                  ),
-                ),
+              LegacyDraftNotice(inspection: legacy),
               if (workspace.error != null)
                 const Padding(
                   padding: EdgeInsets.all(8),

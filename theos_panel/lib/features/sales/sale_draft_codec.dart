@@ -4,7 +4,7 @@ import 'package:theos_pos_core/theos_pos_core.dart';
 
 /// Strict, versioned serialization for editable sale drafts.
 abstract final class SaleDraftCodec {
-  static const int _payloadVersion = 1;
+  static const int _payloadVersion = 2;
   static const Set<String> _snapshotKeys = {
     'payloadVersion',
     'scopeKey',
@@ -35,6 +35,7 @@ abstract final class SaleDraftCodec {
     'uomName',
     'taxIds',
   };
+  static const Set<String> _lineKeysV2 = {..._lineKeys, 'amountsCalculated'};
   static const Set<String> _installmentKeys = {'dueDays'};
 
   static Map<String, dynamic> encode(SaleDraftSnapshot draft) {
@@ -63,7 +64,7 @@ abstract final class SaleDraftCodec {
   static SaleDraftSnapshot decode(Map<String, dynamic> map) {
     _keys(map, _snapshotKeys, 'draft');
     final version = _int(map, 'payloadVersion');
-    if (version != _payloadVersion) {
+    if (version != 1 && version != _payloadVersion) {
       throw FormatException('unsupported payloadVersion: $version');
     }
     final rawLines = _list(map, 'lines');
@@ -80,7 +81,9 @@ abstract final class SaleDraftCodec {
         clientName: _string(map, 'clientName'),
         partnerId: _nullableInt(map, 'partnerId'),
         note: _string(map, 'note'),
-        lines: rawLines.map(_decodeLine).toList(growable: false),
+        lines: rawLines
+            .map((value) => _decodeLine(value, version: version))
+            .toList(growable: false),
         installments: rawInstallments
             .map(_decodeInstallment)
             .toList(growable: false),
@@ -118,12 +121,13 @@ abstract final class SaleDraftCodec {
       'uomId': line.uomId,
       'uomName': line.uomName,
       'taxIds': line.taxIds,
+      'amountsCalculated': line.amountsCalculated,
     };
   }
 
-  static SaleDraftLine _decodeLine(dynamic value) {
+  static SaleDraftLine _decodeLine(dynamic value, {required int version}) {
     final map = _object(value, 'line');
-    _keys(map, _lineKeys, 'line');
+    _keys(map, version == 1 ? _lineKeys : _lineKeysV2, 'line');
     final taxIds = _list(map, 'taxIds');
     return SaleDraftLine(
       uuid: _string(map, 'uuid'),
@@ -139,6 +143,7 @@ abstract final class SaleDraftCodec {
       taxIds: taxIds
           .map((v) => _intValue(v, 'taxIds item'))
           .toList(growable: false),
+      amountsCalculated: version == 1 ? false : _bool(map, 'amountsCalculated'),
     );
   }
 

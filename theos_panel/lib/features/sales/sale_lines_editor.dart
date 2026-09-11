@@ -6,6 +6,19 @@ import '../clients/catalog_contracts.dart';
 import '../clients/entity_picker.dart';
 import 'sale_editor.dart';
 
+String _priceLabel(SaleDraftLine line) =>
+    line.amountsCalculated ? 'Precio' : 'Precio catálogo';
+
+String _discountLabel(SaleDraftLine line) =>
+    line.amountsCalculated ? '${line.discount}%' : 'Por validar';
+
+String _taxLabel(SaleDraftLine line) =>
+    line.amountsCalculated ? '${line.tax}%' : 'Por validar';
+
+String _totalLabel(SaleDraftLine line) => line.amountsCalculated
+    ? line.total.toStringAsFixed(2)
+    : 'Pendiente de cálculo';
+
 /// Shared line presentation for sale forms. The runtime/controller remains the
 /// owner of the draft; this widget only forwards typed edits and catalog picks.
 class SaleLinesEditor extends StatefulWidget {
@@ -160,8 +173,9 @@ class _SaleLinesEditorState extends State<SaleLinesEditor> {
           children: [
             Text(line.name, style: Theme.of(context).textTheme.titleSmall),
             Text(
-              '${line.uomName ?? 'Unidad'} · Precio ${line.unitPrice} · '
-              'Descuento ${line.discount}% · Impuesto ${line.tax}% · Total ${line.total}',
+              '${line.uomName ?? 'Unidad'} · ${_priceLabel(line)} '
+              '${line.unitPrice} · Descuento ${_discountLabel(line)} · '
+              'Impuesto ${_taxLabel(line)} · Total ${_totalLabel(line)}',
             ),
             Wrap(
               crossAxisAlignment: WrapCrossAlignment.center,
@@ -190,6 +204,7 @@ class _SaleLinesEditorState extends State<SaleLinesEditor> {
         focusNode: _focusFor(line),
         decoration: InputDecoration(
           isDense: true,
+          labelText: 'Cantidad · ${line.name}',
           errorText: _quantityErrors[line.uuid],
         ),
         onChanged: (value) => _editQuantity(line.uuid, value),
@@ -263,13 +278,10 @@ final class _SaleLinesDataSource extends DataGridSource {
           ),
           DataGridCell<String>(
             columnName: 'discount',
-            value: '${line.discount}%',
+            value: _discountLabel(line),
           ),
-          DataGridCell<String>(columnName: 'tax', value: '${line.tax}%'),
-          DataGridCell<String>(
-            columnName: 'total',
-            value: line.total.toStringAsFixed(2),
-          ),
+          DataGridCell<String>(columnName: 'tax', value: _taxLabel(line)),
+          DataGridCell<String>(columnName: 'total', value: _totalLabel(line)),
           DataGridCell<String>(columnName: 'actions', value: line.uuid),
         ],
       ),
@@ -346,6 +358,7 @@ final class _SaleLinesDataSource extends DataGridSource {
     keyboardType: const TextInputType.numberWithOptions(decimal: true),
     decoration: InputDecoration(
       isDense: true,
+      labelText: 'Cantidad · ${line.name}',
       errorText: quantityError(line.uuid),
     ),
     onChanged: (value) => onQuantityTextChanged(line.uuid, value),

@@ -87,6 +87,7 @@ SaleDraftSnapshot _draft(SaleApprovalState approval) => SaleDraftSnapshot(
       name: 'Producto',
       quantity: 2,
       unitPrice: 3.5,
+      amountsCalculated: true,
       remoteId: 9,
       uomId: 1,
       taxIds: [5],
@@ -181,6 +182,40 @@ void main() {
       await controller.dispose();
     },
   );
+
+  test('submit with unresolved amounts does not persist or enqueue', () async {
+    final (db, file) = await _database();
+    addTearDown(() async {
+      await db.close();
+      if (file.existsSync()) await file.delete();
+    });
+    final controller = SaleDraftController(
+      port: LocalSaleEditorPort(),
+      store: MemorySaleDraftStore(),
+      repository: DriftSaleDraftRepository(db),
+      initial: _draft(SaleApprovalState.approved).copyWith(
+        lines: [
+          const SaleDraftLine(
+            uuid: 'unresolved-line',
+            name: 'Producto pendiente',
+            quantity: 1,
+            unitPrice: 3.5,
+            remoteId: 9,
+            uomId: 1,
+            taxIds: [5],
+          ),
+        ],
+      ),
+    );
+
+    final result = await controller.submit();
+
+    expect(result.accepted, isFalse);
+    expect(result.message, contains('Importes pendientes'));
+    expect(await db.select(db.saleOrder).get(), isEmpty);
+    expect(await db.select(db.offlineQueue).get(), isEmpty);
+    await controller.dispose();
+  });
 
   test('required approval is requested after draft persistence', () async {
     final (db, file) = await _database();

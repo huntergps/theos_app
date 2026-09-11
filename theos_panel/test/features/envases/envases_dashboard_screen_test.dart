@@ -21,6 +21,8 @@ EnvasesDashboardRow _row(String name, {int id = 10}) => EnvasesDashboardRow(
   enTransito: 4,
 );
 
+EnvasesDashboardRow _secondRow() => _row('Cerveza', id: 11);
+
 EnvasesDashboardSnapshot _snapshot(String name, {int id = 10}) =>
     EnvasesDashboardSnapshot(
       rows: [_row(name, id: id)],
@@ -55,6 +57,36 @@ void main() {
     );
     expect(find.text('10 Unidad'), findsOneWidget);
     expect(find.text('Sin conexión'), findsOneWidget);
+    expect(find.text('Dañados (incluidos en total)'), findsOneWidget);
+    expect(
+      find.textContaining('detalle por ubicación no disponible'),
+      findsOneWidget,
+    );
+  });
+
+  testWidgets('filters locally by product and keeps updated snapshots', (
+    tester,
+  ) async {
+    final stream = StreamController<EnvasesDashboardSnapshot?>();
+    addTearDown(stream.close);
+    await tester.pumpWidget(_host(snapshots: stream.stream));
+    stream.add(
+      EnvasesDashboardSnapshot(
+        rows: [_row('Cola'), _secondRow()],
+        cachedAt: DateTime.utc(2026, 9, 11),
+      ),
+    );
+    await tester.pump();
+    await tester.enterText(
+      find.byKey(const Key('envases-product-filter')),
+      'cerveza',
+    );
+    await tester.pump();
+    expect(find.text('Cerveza'), findsOneWidget);
+    expect(find.text('Cola'), findsNothing);
+    stream.add(_snapshot('Cerveza', id: 12));
+    await tester.pump();
+    expect(find.text('Cerveza'), findsOneWidget);
   });
 
   testWidgets('uses cards compact and grid only wide landscape', (

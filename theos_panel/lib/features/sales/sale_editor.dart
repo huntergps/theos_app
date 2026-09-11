@@ -25,6 +25,7 @@ final class SaleDraftLine {
     this.discount = 0,
     this.tax = 0,
     this.total = 0,
+    this.amountsCalculated = false,
     this.remoteId,
     this.uomId,
     this.uomName,
@@ -37,6 +38,10 @@ final class SaleDraftLine {
   final double discount;
   final double tax;
   final double total;
+
+  /// UI pricing provenance only; it is not server authorization. Any pricing
+  /// input change must reset this flag until a trusted calculation completes.
+  final bool amountsCalculated;
   final int? remoteId;
   final int? uomId;
   final String? uomName;
@@ -421,11 +426,23 @@ final class SaleDraftController {
     int? paymentTermId,
   }) {
     if (_disposed || _busy) return;
+    final clientChanged =
+        (clientName != null && clientName != _draft.clientName) ||
+        (partnerId != null && partnerId != _draft.partnerId);
+    // Any changed line collection must be recalculated, even if a caller
+    // accidentally carries over the previous provenance flag.
+    final linesChanged = lines != null && !_sameLines(lines);
+    final invalidateAmounts = clientChanged || linesChanged;
+    final nextLines = invalidateAmounts
+        ? (lines ?? _draft.lines)
+              .map(_withUncalculatedAmounts)
+              .toList(growable: false)
+        : lines;
     _draft = _draft.copyWith(
       clientName: clientName,
       partnerId: partnerId,
       note: note,
-      lines: lines,
+      lines: nextLines,
       installments: installments,
       paymentTermId: paymentTermId,
     );
@@ -433,6 +450,51 @@ final class SaleDraftController {
     _queueSave(_draft);
     _publish();
   }
+
+  bool _sameLines(List<SaleDraftLine> lines) {
+    if (lines.length != _draft.lines.length) return false;
+    for (var index = 0; index < lines.length; index++) {
+      final current = _draft.lines[index];
+      final next = lines[index];
+      if (current.uuid != next.uuid ||
+          current.name != next.name ||
+          current.quantity != next.quantity ||
+          current.unitPrice != next.unitPrice ||
+          current.discount != next.discount ||
+          current.tax != next.tax ||
+          current.total != next.total ||
+          current.remoteId != next.remoteId ||
+          current.uomId != next.uomId ||
+          current.uomName != next.uomName ||
+          !_sameInts(current.taxIds, next.taxIds)) {
+        return false;
+      }
+    }
+    return true;
+  }
+
+  static bool _sameInts(List<int> first, List<int> second) {
+    if (first.length != second.length) return false;
+    for (var index = 0; index < first.length; index++) {
+      if (first[index] != second[index]) return false;
+    }
+    return true;
+  }
+
+  static SaleDraftLine _withUncalculatedAmounts(SaleDraftLine line) =>
+      SaleDraftLine(
+        uuid: line.uuid,
+        name: line.name,
+        quantity: line.quantity,
+        unitPrice: line.unitPrice,
+        discount: line.discount,
+        tax: line.tax,
+        total: line.total,
+        remoteId: line.remoteId,
+        uomId: line.uomId,
+        uomName: line.uomName,
+        taxIds: line.taxIds,
+      );
 
   void _queueSave(SaleDraftSnapshot snapshot) {
     _pendingSaves.add(snapshot);
@@ -478,6 +540,12 @@ final class SaleDraftController {
     _busy = true;
     _publish();
     try {
+      if (_draft.lines.any((line) => !line.amountsCalculated)) {
+        return const SaleEditorResult(
+          accepted: false,
+          message: 'Importes pendientes de cálculo. El borrador se conserva.',
+        );
+      }
       try {
         await flush();
       } catch (_) {
@@ -524,6 +592,12 @@ final class SaleDraftController {
     _busy = true;
     _publish();
     try {
+      if (_draft.lines.any((line) => !line.amountsCalculated)) {
+        return const ApprovalResult(
+          accepted: false,
+          message: 'Importes pendientes de cálculo. El borrador se conserva.',
+        );
+      }
       try {
         await flush();
       } catch (_) {
@@ -722,24 +796,26 @@ class _SaleEditorScreenState extends State<SaleEditorScreen> {
             actions: [SizedBox.shrink()],
           );
     if (width >= (scale >= 1.5 ? 1120 : 840)) {
-      return Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          ?banner,
-          Expanded(
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Expanded(child: SingleChildScrollView(child: form)),
-                const SizedBox(width: 24),
-                SizedBox(
-                  width: (360 * scale).clamp(360.0, width * .42).toDouble(),
-                  child: SingleChildScrollView(child: summary),
+      return SingleChildScrollView(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            ?banner,
+            _form(context, draft, includeLines: false),
+            const SizedBox(height: 16),
+            _linesEditor(context, draft, constrainGrid: true),
+            const SizedBox(height: 16),
+            Align(
+              alignment: AlignmentDirectional.centerEnd,
+              child: ConstrainedBox(
+                constraints: BoxConstraints(
+                  maxWidth: (420 * scale).clamp(360.0, width).toDouble(),
                 ),
-              ],
+                child: summary,
+              ),
             ),
-          ),
-        ],
+          ],
+        ),
       );
     }
     return ListView(
@@ -747,7 +823,11 @@ class _SaleEditorScreenState extends State<SaleEditorScreen> {
     );
   }
 
-  Widget _form(BuildContext context, SaleDraftSnapshot draft) => ReactiveForm(
+  Widget _form(
+    BuildContext context,
+    SaleDraftSnapshot draft, {
+    bool includeLines = true,
+  }) => ReactiveForm(
     formGroup: _saleForm,
     child: Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -808,17 +888,36 @@ class _SaleEditorScreenState extends State<SaleEditorScreen> {
         if (widget.canSelectWarehouse)
           const TextField(decoration: InputDecoration(labelText: 'Almacén')),
         Text('Clasificación: ${draft.classification.name}'),
-        const SizedBox(height: 16),
-        Text('Productos', style: Theme.of(context).textTheme.titleMedium),
-        SaleLinesEditor(
-          draft: draft,
-          products: widget.products,
-          onAddProduct: _addProduct,
-          onRemoveLine: _removeLine,
-          onQuantityChanged: _setQuantity,
-        ),
+        if (includeLines) ...[
+          const SizedBox(height: 16),
+          _linesEditor(context, draft),
+        ],
       ],
     ),
+  );
+
+  Widget _linesEditor(
+    BuildContext context,
+    SaleDraftSnapshot draft, {
+    bool constrainGrid = false,
+  }) => Column(
+    crossAxisAlignment: CrossAxisAlignment.stretch,
+    children: [
+      Text('Productos', style: Theme.of(context).textTheme.titleMedium),
+      const SizedBox(height: 8),
+      if (constrainGrid)
+        SizedBox(height: 360, child: _saleLinesEditor(draft))
+      else
+        _saleLinesEditor(draft),
+    ],
+  );
+
+  Widget _saleLinesEditor(SaleDraftSnapshot draft) => SaleLinesEditor(
+    draft: draft,
+    products: widget.products,
+    onAddProduct: _addProduct,
+    onRemoveLine: _removeLine,
+    onQuantityChanged: _setQuantity,
   );
   void _addProduct(CatalogEntity<SaleCatalogProduct> product) {
     if (widget.controller.draft.lines.any(

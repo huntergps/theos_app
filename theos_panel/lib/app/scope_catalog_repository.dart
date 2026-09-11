@@ -127,7 +127,10 @@ final class RuntimeProductCatalogRepository
     try {
       final all = state.records
           .map(
-            (record) => (record.uuid, SaleCatalogProduct.fromMap(record.value)),
+            (record) => (
+              record.uuid,
+              SaleCatalogProduct.fromMap(_productValue(record)),
+            ),
           )
           .where(
             (item) =>
@@ -155,6 +158,59 @@ final class RuntimeProductCatalogRepository
       return CatalogSnapshot(status: CatalogLoadStatus.error, error: error);
     }
   };
+
+  static Map<String, dynamic> _productValue(
+    CatalogRecord<Map<String, dynamic>> record,
+  ) {
+    final raw = record.value;
+    final explicitRemote = raw['remoteId'] ?? raw['odooId'];
+    final legacyId = raw['id'];
+    final remoteId = explicitRemote ?? (legacyId is int ? legacyId : null);
+    if (explicitRemote != null &&
+        (explicitRemote is! int || explicitRemote <= 0)) {
+      throw const FormatException('product requires a positive remote id');
+    }
+    if (legacyId != null && legacyId is! int && raw['localId'] == null) {
+      throw const FormatException('product id');
+    }
+    final value = <String, dynamic>{...raw, 'localId': record.uuid};
+    if (remoteId != null) value['remoteId'] = remoteId;
+    final price = raw['price'] ?? raw['list_price'];
+    if (price != null) {
+      if (price is! num || !price.isFinite) {
+        throw const FormatException('product price');
+      }
+      value['price'] = price;
+    }
+    final uom = raw['uomId'] ?? raw['uom_id'];
+    if (uom != null) {
+      if (uom is int) {
+        if (uom <= 0) throw const FormatException('product uom');
+        value['uomId'] = uom;
+      } else if (uom is! List ||
+          uom.isEmpty ||
+          uom.first is! int ||
+          uom.first <= 0) {
+        throw const FormatException('product uom');
+      } else {
+        value['uomId'] = uom.first;
+        if (uom.length > 1) {
+          if (uom[1] is! String) {
+            throw const FormatException('product uom name');
+          }
+          value['uomName'] = uom[1];
+        }
+      }
+    }
+    final taxes = raw['taxIds'] ?? raw['taxes_id'];
+    if (taxes != null) {
+      if (taxes is! List || taxes.any((tax) => tax is! int || tax <= 0)) {
+        throw const FormatException('product taxes');
+      }
+      value['taxIds'] = taxes;
+    }
+    return value;
+  }
 
   @override
   Future<void> refresh(CatalogQuery query) async {
@@ -185,39 +241,102 @@ final class RuntimePartnerCatalogRepository
   RuntimePartnerCatalogRepository({required this.store, required this.scope});
   final LocalCatalogStore<Map<String, dynamic>> store;
   final AppScope scope;
-  late final RuntimeScopeCatalogRepository _repository =
-      RuntimeScopeCatalogRepository(store: store, scope: scope);
+  final _channels = <String, _CatalogChannel<SaleCatalogPartner>>{};
+  bool _disposed = false;
 
   @override
   Stream<CatalogSnapshot<SaleCatalogPartner>> watch(CatalogQuery query) async* {
-    await for (final snapshot in _repository.watch(query)) {
-      yield CatalogSnapshot(
-        status: snapshot.status,
-        nextCursor: snapshot.nextCursor,
-        totalCount: snapshot.totalCount,
-        error: snapshot.error,
+    if (_disposed) throw StateError('Catalog repository is disposed');
+    final channel = _channels.putIfAbsent(
+      _key(query),
+      () => _CatalogChannel<SaleCatalogPartner>(
+        map: _mapState(query),
+        subscribe: (emit, onError, onDone) =>
+            store.watch(scope).listen(emit, onError: onError, onDone: onDone),
+        read: () => store.read(scope),
+      ),
+    );
+    yield* channel.streamFor();
+  }
+
+  CatalogSnapshot<SaleCatalogPartner> Function(
+    CatalogState<Map<String, dynamic>>,
+  )
+  _mapState(CatalogQuery query) => (state) {
+    try {
+      final all = state.records
+          .map((record) {
+            final id = record.value['id'];
+            if (id is! int || id <= 0) {
+              throw const FormatException('partner requires a positive id');
+            }
+            final name = record.value['name'] ?? record.value['display_name'];
+            if (name is! String || name.trim().isEmpty) {
+              throw const FormatException('partner requires a non-empty name');
+            }
+            final value = <String, dynamic>{...record.value, 'name': name};
+            for (final field in ['vat', 'email']) {
+              final fieldValue = value[field];
+              if (fieldValue == false) {
+                value[field] = null;
+              } else if (fieldValue != null && fieldValue is! String) {
+                throw FormatException('partner $field');
+              }
+            }
+            final partner = SaleCatalogPartner.fromMap(value);
+            return (record.uuid, partner);
+          })
+          .where(
+            (item) =>
+                item.$2.name.toLowerCase().contains(query.search.toLowerCase()),
+          )
+          .toList(growable: false);
+      final offset = int.tryParse(query.cursor ?? '') ?? 0;
+      final page = all
+          .skip(offset)
+          .take(query.pageSize)
+          .toList(growable: false);
+      return CatalogSnapshot(
+        status: page.isEmpty ? CatalogLoadStatus.empty : CatalogLoadStatus.data,
         items: [
-          for (final item in snapshot.items)
+          for (final item in page)
             CatalogEntity(
-              uuid: item.uuid,
-              title: item.title,
-              subtitle: item.subtitle,
-              value: SaleCatalogPartner.fromMap({
-                'id': int.tryParse(item.uuid),
-                'name': item.title,
-                'email': item.subtitle,
-              }),
+              uuid: item.$1,
+              title: item.$2.name,
+              subtitle: item.$2.email,
+              value: item.$2,
             ),
         ],
+        nextCursor: offset + page.length < all.length
+            ? '${offset + page.length}'
+            : null,
+        totalCount: all.length,
+        error: state.error,
       );
+    } catch (error) {
+      return CatalogSnapshot(status: CatalogLoadStatus.error, error: error);
     }
+  };
+
+  String _key(CatalogQuery q) => '${q.search}|${q.cursor ?? ''}|${q.pageSize}';
+
+  @override
+  Future<void> refresh(CatalogQuery query) async {
+    final channel = _channels[_key(query)];
+    if (channel != null) await channel.refresh();
   }
 
   @override
-  Future<void> refresh(CatalogQuery query) => _repository.refresh(query);
-  @override
-  Future<void> loadNext(CatalogQuery query) => _repository.loadNext(query);
-  Future<void> dispose() => _repository.dispose();
+  Future<void> loadNext(CatalogQuery query) => refresh(query);
+  Future<void> dispose() async {
+    if (_disposed) return;
+    _disposed = true;
+    final channels = _channels.values.toList(growable: false);
+    _channels.clear();
+    for (final channel in channels) {
+      await channel.dispose();
+    }
+  }
 }
 
 final class RuntimeSaleCatalogPort implements SaleCatalogPort {
