@@ -1,5 +1,6 @@
 export 'src/contracts.dart';
 export 'src/sales/editable_draft_store.dart';
+export 'src/envases/envases_dashboard_reader.dart';
 export 'src/auth/credential_store.dart';
 export 'src/auth/native_auth_service.dart';
 export 'src/auth/capability_runtime.dart';

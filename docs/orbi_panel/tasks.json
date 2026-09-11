@@ -7,6 +7,27 @@
   "max_parallel_workers": 3,
   "tasks": [
     {
+      "id": "E02", "title": "Binding de lectura del dashboard Envases", "owner": "envases_handoff", "status": "done", "depends_on": ["E01"], "report": "reports/ENVASES_READER_2026_09_11.md", "reviewed_by": "Codex integrator", "reviewed_at": "2026-09-11",
+      "docs": ["ENVASES_BACKEND_HANDOFF_REVIEW.md"], "sources": ["docs/orbi_panel/ENVASES_DOMAIN_CONTRACT.md"],
+      "writes": ["orbi_runtime/lib/src/envases/envases_dashboard_reader.dart", "orbi_runtime/test/envases/envases_dashboard_reader_test.dart"],
+      "acceptance": ["Modelo y campos reales, consulta limitada por empresa, DTO estricto sin escrituras ni replay"],
+      "verify": ["flutter test --no-pub --concurrency=1 test/envases/envases_dashboard_reader_test.dart"]
+    },
+    {
+      "id": "R06", "title": "Recuperación legacy y navegación multi-borrador", "owner": "integrator", "status": "todo", "depends_on": ["R05"],
+      "docs": ["LOCAL_STATE_DECISIONS.md", "reports/DURABLE_DRAFTS_2026_09_11.md"], "sources": ["theos_panel/lib/features/sales/durable_sale_draft_store.dart"],
+      "writes": ["theos_panel/lib/features/sales/", "theos_panel/lib/app/router.dart", "theos_panel/test/features/sales/"],
+      "acceptance": ["Recuperación explícita sin adivinar empresa ni campos perdidos; conservar raw", "IDs de borrador estables separados de commandId por pestaña"],
+      "verify": ["Pruebas de recuperación legacy, multitab y reinicio de UI"]
+    },
+    {
+      "id": "R07", "title": "Integrar rejilla y lista en pantallas aprobadas", "owner": "ui", "status": "todo", "depends_on": ["R03", "R05"],
+      "docs": ["APPROVED_SCREEN_INDEX.md", "REACTIVE_COMPONENTS_SPEC.md"], "sources": ["theos_panel/lib/ui/components/orbi_record_grid.dart"],
+      "writes": ["theos_panel/lib/features/", "theos_panel/test/features/"],
+      "acceptance": ["Rejillas escritorio/horizontal y listas vertical/teléfono según imágenes aprobadas", "Búsqueda de producto inline, pruebas visibles web local cuatro tamaños"],
+      "verify": ["Pruebas de componentes y E2E web local sin ERP2"]
+    },
+    {
       "id": "R05", "title": "RT02 parcial: almacén durable editable y codec completo", "owner": "integrator", "status": "done", "depends_on": ["R01", "R02"], "report": "reports/DURABLE_DRAFTS_2026_09_11.md", "reviewed_by": "Codex integrator", "reviewed_at": "2026-09-11",
       "docs": ["LOCAL_STATE_DECISIONS.md"], "sources": ["orbi_runtime/lib/src/storage/runtime_database_owner.dart", "theos_panel/lib/features/sales/sale_editor.dart"],
       "writes": ["orbi_runtime/lib/src/sales/editable_draft_store.dart", "orbi_runtime/lib/src/storage/runtime_database_owner.dart", "orbi_runtime/lib/orbi_runtime.dart", "theos_panel/lib/features/sales/", "theos_panel/lib/app/router.dart", "orbi_runtime/test/sales/editable_draft_store_test.dart", "theos_panel/test/features/sales/"],
