@@ -129,3 +129,28 @@ En paralelo: V01–V03 (variantes), I01 (inventario interacción), B01–B02/O01
 Después revisión conjunta del expediente y autorización explícita para desarrollo.
 El plan técnico previo de 24 tareas no acredita este cierre: `check_orbi_plan.py`
 no tiene tareas pendientes listas y no verifica app, build ni ERP2.
+
+## Herramientas y skills usadas para activos visuales
+
+Esta sección registra las herramientas efectivamente utilizadas para que el siguiente
+coordinador pueda reproducir la revisión sin añadir dependencias innecesarias.
+
+- `create-odoo-app-icons`: skill aplicada al icono del módulo
+  `l10n_ec_stock_envases`. Se leyó el manifiesto, se contrastó el estilo de Odoo 19
+  local y se mantuvo SVG editable + PNG consumible por Odoo.
+- `flutter-design`: referencia para color semántico, contraste, tipografía, tema
+  claro/oscuro y componentes visuales de Orbi.
+- `flutter-adaptive-ui`: referencia para las composiciones desktop, tablet horizontal,
+  tablet vertical y teléfono.
+- `browser:control-in-app-browser`: usado para revisar visualmente el login y el
+  gestor de servidores en el build local, con datos ficticios únicamente.
+- `view_image`: usado para inspeccionar PNG original y escalas reducidas del icono.
+- ImageMagick (`magick`, herramienta CLI local): usado sólo para rasterizar SVG a
+  PNG RGBA 100×100 y generar copias temporales de revisión; no se añadió un paquete
+  Dart ni una biblioteca de runtime.
+- `xmllint`, `identify`, `file`, `git diff --check` y hooks del repositorio: usados
+  para validar SVG, dimensiones/canales, formato PNG y espacios/conflictos.
+
+No se usó ImageGen para el icono: su geometría simple se expresa de forma determinista
+en SVG. Tampoco se creó una librería nueva ni se cambió `pubspec.yaml`. Las herramientas
+de navegador no inspeccionaron cookies, almacenamiento, contraseñas ni sesiones reales.
