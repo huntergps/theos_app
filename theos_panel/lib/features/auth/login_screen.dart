@@ -192,15 +192,22 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     final state = ref.watch(authControllerProvider);
     final colors = Theme.of(context).colorScheme;
     return Scaffold(
-      bottomNavigationBar: SafeArea(
-        top: false,
-        child: Padding(
-          padding: const EdgeInsets.all(OrbiTheme.space12),
-          child: Text(
-            'Desarrollado por GalapagosTech · 2026',
-            textAlign: TextAlign.center,
-            style: Theme.of(context).textTheme.bodySmall
-                ?.copyWith(color: colors.onSurfaceVariant),
+      // Extend the photograph behind the translucent credit strip. SafeArea
+      // keeps the form clear of the footer and the device's bottom inset.
+      extendBody: true,
+      bottomNavigationBar: ColoredBox(
+        key: const Key('login-credit-footer'),
+        color: colors.surface.withValues(alpha: .72),
+        child: SafeArea(
+          top: false,
+          child: Padding(
+            padding: const EdgeInsets.all(OrbiTheme.space12),
+            child: Text(
+              'Desarrollado por GalapagosTech · 2026',
+              textAlign: TextAlign.center,
+              style: Theme.of(context).textTheme.bodySmall
+                  ?.copyWith(color: colors.onSurfaceVariant),
+            ),
           ),
         ),
       ),

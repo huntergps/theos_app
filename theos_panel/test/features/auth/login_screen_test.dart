@@ -253,6 +253,11 @@ void main() {
     expect(toggle, findsOneWidget);
     expect(tester.widget<IconButton>(toggle).tooltip, 'Cambiar a modo oscuro');
     expect(find.text('Desarrollado por GalapagosTech · 2026'), findsOneWidget);
+    expect(tester.widget<Scaffold>(find.byType(Scaffold)).extendBody, isTrue);
+    final footer = tester.widget<ColoredBox>(
+      find.byKey(const Key('login-credit-footer')),
+    );
+    expect(footer.color.a, closeTo(.72, .01));
     await tester.tap(toggle);
     await tester.pumpAndSettle();
     expect(tester.widget<IconButton>(toggle).tooltip, 'Cambiar a modo claro');
