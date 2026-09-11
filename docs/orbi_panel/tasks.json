@@ -7,6 +7,27 @@
   "max_parallel_workers": 3,
   "tasks": [
     {
+      "id": "R08", "title": "Organizar UI interna sin paquetes nuevos", "owner": "ui_folders", "status": "done", "depends_on": ["R03"], "report": "reports/INTERNAL_UI_AND_LOCAL_READS_2026_09_11.md", "reviewed_by": "Codex integrator", "reviewed_at": "2026-09-11",
+      "docs": ["REACTIVE_COMPONENTS_SPEC.md"], "sources": ["theos_panel/lib/ui/"],
+      "writes": ["theos_panel/lib/ui/"],
+      "acceptance": ["Controles agrupados en carpetas con imports compatibles y sin dependencias nuevas"],
+      "verify": ["flutter test --no-pub --concurrency=1 test/ui", "flutter analyze --no-pub lib/ui"]
+    },
+    {
+      "id": "R09", "title": "Listado observable de borradores durables", "owner": "draft_discovery", "status": "done", "depends_on": ["R05"], "report": "reports/INTERNAL_UI_AND_LOCAL_READS_2026_09_11.md", "reviewed_by": "Codex integrator", "reviewed_at": "2026-09-11",
+      "docs": ["LOCAL_STATE_DECISIONS.md"], "sources": ["orbi_runtime/lib/src/sales/editable_draft_store.dart"],
+      "writes": ["orbi_runtime/lib/src/sales/editable_draft_store.dart", "orbi_runtime/test/sales/editable_draft_listing_test.dart"],
+      "acceptance": ["Listar y observar IDs durables con paginación acotada y aislamiento por empresa y lease, sin migración automática"],
+      "verify": ["flutter test --no-pub --concurrency=1 test/sales/editable_draft_listing_test.dart"]
+    },
+    {
+      "id": "E03", "title": "Caché observable durable del dashboard Envases", "owner": "envases_cache", "status": "done", "depends_on": ["E02"], "report": "reports/INTERNAL_UI_AND_LOCAL_READS_2026_09_11.md", "reviewed_by": "Codex integrator", "reviewed_at": "2026-09-11",
+      "docs": ["ENVASES_BACKEND_HANDOFF_REVIEW.md"], "sources": ["orbi_runtime/lib/src/envases/envases_dashboard_reader.dart"],
+      "writes": ["orbi_runtime/lib/src/envases/envases_dashboard_cache.dart", "orbi_runtime/test/envases/envases_dashboard_cache_test.dart"],
+      "acceptance": ["Copia de consulta por empresa y lease; actualización completa atómica; fallo remoto conserva copia anterior y fecha local explícita"],
+      "verify": ["flutter test --no-pub --concurrency=1 test/envases/envases_dashboard_cache_test.dart"]
+    },
+    {
       "id": "E02", "title": "Binding de lectura del dashboard Envases", "owner": "envases_handoff", "status": "done", "depends_on": ["E01"], "report": "reports/ENVASES_READER_2026_09_11.md", "reviewed_by": "Codex integrator", "reviewed_at": "2026-09-11",
       "docs": ["ENVASES_BACKEND_HANDOFF_REVIEW.md"], "sources": ["docs/orbi_panel/ENVASES_DOMAIN_CONTRACT.md"],
       "writes": ["orbi_runtime/lib/src/envases/envases_dashboard_reader.dart", "orbi_runtime/test/envases/envases_dashboard_reader_test.dart"],

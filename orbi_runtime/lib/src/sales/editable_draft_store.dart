@@ -114,6 +114,54 @@ final class EditableDraftStore {
     return _record(key, rows.first.data);
   }
 
+  /// Reads a deterministic, company-isolated page of drafts.
+  ///
+  /// [afterDraftId] is an exclusive keyset cursor in ascending draft ID
+  /// order. Rows are decoded strictly: malformed rows surface an error rather
+  /// than being silently omitted.
+  Future<List<EditableDraftRecord>> list({
+    int limit = 50,
+    String? afterDraftId,
+  }) async {
+    _validateLimit(limit);
+    if (afterDraftId != null) _validateId(afterDraftId, 'afterDraftId');
+    final active = _checkedActive(writing: false);
+    if (active == null) return const <EditableDraftRecord>[];
+    final variables = <Variable<Object>>[
+      Variable<String>(_company.scopeKey),
+      Variable<int>(_company.companyId),
+    ];
+    final cursorClause = afterDraftId == null ? '' : ' AND draft_id > ?';
+    if (afterDraftId != null) variables.add(Variable<String>(afterDraftId));
+    variables.add(Variable<int>(limit));
+    final rows = await active.database
+        .customSelect(
+          'SELECT draft_id, payload, revision FROM $_tableName '
+          'WHERE scope_key = ? AND company_id = ?$cursorClause '
+          'ORDER BY draft_id ASC LIMIT ?',
+          variables: variables,
+        )
+        .get();
+    if (_checkedActive(writing: false) == null) return const [];
+    final records = rows
+        .map((row) {
+          final draftId = row.data['draft_id'];
+          if (draftId is! String) {
+            throw StateError('Malformed editable draft ID');
+          }
+          return _record(
+            EditableDraftKey(
+              scopeKey: _company.scopeKey,
+              companyId: _company.companyId,
+              draftId: draftId,
+            ),
+            row.data,
+          );
+        })
+        .toList(growable: false);
+    return List<EditableDraftRecord>.unmodifiable(records);
+  }
+
   Future<EditableDraftRecord> save(
     String draftId,
     Map<String, dynamic> payload, {
@@ -231,6 +279,54 @@ final class EditableDraftStore {
     });
   }
 
+  /// Watches [list] and re-reads it whenever the draft table changes.
+  Stream<List<EditableDraftRecord>> watchList({
+    int limit = 50,
+    String? afterDraftId,
+  }) {
+    _validateLimit(limit);
+    if (afterDraftId != null) _validateId(afterDraftId, 'afterDraftId');
+    return Stream.multi((controller) {
+      final active = _checkedActive(writing: false);
+      if (active == null) {
+        controller.close();
+        return;
+      }
+      var closed = false;
+      Future<void> emit() async {
+        if (closed) return;
+        final value = await list(limit: limit, afterDraftId: afterDraftId);
+        if (!closed) controller.add(value);
+      }
+
+      var pending = Future<void>.value();
+      void scheduleEmit() {
+        pending = pending.then((_) => emit()).catchError((
+          Object error,
+          StackTrace stack,
+        ) {
+          if (!closed) controller.addError(error, stack);
+        });
+      }
+
+      // Subscribe before the initial read so a commit cannot be missed.
+      final updates = active.database
+          .tableUpdates(const TableUpdateQuery.onTableName(_tableName))
+          .listen(
+            (_) => scheduleEmit(),
+            onError: controller.addError,
+            onDone: () {
+              if (!closed) controller.close();
+            },
+          );
+      controller.onCancel = () async {
+        closed = true;
+        await updates.cancel();
+      };
+      scheduleEmit();
+    });
+  }
+
   static List<Variable<Object>> _variables(EditableDraftKey key) => [
     Variable<String>(key.scopeKey),
     Variable<int>(key.companyId),
@@ -267,6 +363,12 @@ final class EditableDraftStore {
         name,
         'must be a non-empty safe identifier',
       );
+    }
+  }
+
+  static void _validateLimit(int limit) {
+    if (limit < 1 || limit > 200) {
+      throw ArgumentError.value(limit, 'limit', 'must be between 1 and 200');
     }
   }
 }

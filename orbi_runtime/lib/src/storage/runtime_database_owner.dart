@@ -46,6 +46,18 @@ final class RuntimeDatabaseOwner {
           PRIMARY KEY (scope_key, company_id, draft_id)
         )
       ''');
+      // Read cache only: Odoo remains the authority for envases quantities.
+      // A complete refresh replaces one company's snapshot atomically. The
+      // timestamp is local retrieval time, never presented as server time.
+      await database.customStatement('''
+        CREATE TABLE IF NOT EXISTS orbi_envases_dashboard_cache (
+          scope_key TEXT NOT NULL,
+          company_id INTEGER NOT NULL CHECK (company_id > 0),
+          payload TEXT NOT NULL,
+          cached_at TEXT NOT NULL,
+          PRIMARY KEY (scope_key, company_id)
+        )
+      ''');
     } catch (_) {
       await database.close();
       rethrow;

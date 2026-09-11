@@ -8,6 +8,13 @@ Avances: [componentes reactivos](reports/REACTIVE_FOUNDATIONS_2026_09_10.md),
 [borradores durables](reports/DURABLE_DRAFTS_2026_09_11.md) y
 [revisión del backend Envases](ENVASES_BACKEND_HANDOFF_REVIEW.md).
 
+Decisión del dueño 11/09/2026: componentes reutilizables organizados dentro de
+`theos_panel/lib/ui/`, **sin crear otro paquete**. Campos en `components/fields/`,
+rejillas/listas en `components/records/`, enlaces en `bindings/` y disposición
+adaptable en `layouts/`. Se conservan imports anteriores mediante exports, no
+copias de implementación. Runtime conserva datos y operaciones; `odoo_widgets`
+sigue siendo Fluent y no se incorpora al Panel Material.
+
 ## Fuente de verdad y precedencia
 
 1. Decisiones explícitas del dueño y [registro de aprobaciones](APPROVAL_REGISTER.md).

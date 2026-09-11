@@ -102,3 +102,24 @@ Se inspeccionaron manifest, modelos Python, wizard, XML de vistas/acciones/menú
 seguridad y nombres de pruebas con `find`, `sed` y `rg`. No se ejecutaron tests
 contra servidor ni comandos Odoo; por tanto las pruebas presentes son evidencia
 de código fuente, no evidencia de que el módulo esté instalado o disponible.
+# Corrección de custodia por tercero — 11/09/2026
+
+Prevalece sobre cualquier desglose anterior por tercero de ubicación:
+
+- Una ubicación compartida de clientes y otra de proveedores por bodega.
+  `envases_partner_id` de ubicación NO identifica al tenedor en Orbi.
+- El tercero procede de `stock.picking.partner_id`.
+- Saldos individuales: `l10n_ec.envases.saldo.tercero`, derivado de líneas de
+  movimiento hechas (`state = done`), con entregas menos devoluciones.
+- Totales agregados de custodia: siguen en `l10n_ec.envases.panel` desde quants.
+  Su lector/caché agregado no reparte cantidades entre clientes ni proveedores.
+
+Evidencia local revisada por agente: `models/envases_saldo_tercero.py:97-145`,
+`wizards/wizard_custodia.py:166-180`, `models/envases_panel.py:46-105` dentro de
+`addons/l10n_ec_stock_envases` del repositorio Odoo.
+
+Desajustes encontrados para el agente backend, no corregidos desde Orbi:
+`models/envases_panel.py:155-165` todavía agrupa el detalle por
+`envases_partner_id`; Orbi no debe reproducir ese desglose. La restricción en
+`models/stock_location.py:113-138` tampoco impone que dicho campo permanezca
+vacío en ubicaciones de custodia. La decisión del dueño sigue siendo vacío.
