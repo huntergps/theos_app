@@ -181,7 +181,6 @@ final class OperationalShell extends StatelessWidget {
           constraints.maxWidth >= constraints.maxHeight;
       return Column(
         children: [
-          _header(layoutContext),
           Expanded(
             child: NavigationView(
               pane: _pane(mode),
@@ -196,76 +195,6 @@ final class OperationalShell extends StatelessWidget {
       );
     },
   );
-
-  /// La cabecera: marca, empresa, usuario y las acciones de sesión.
-  ///
-  /// Es una fila propia y no el `TitleBar` de Fluent a propósito. Ese widget
-  /// es la barra de título de una VENTANA de escritorio —trae controles de
-  /// ventana y gestos de arrastre— y en ancho de teléfono revienta la
-  /// disposición con una aserción del propio marco, reproducida al aislarlo.
-  /// Lo que necesitamos aquí es la cabecera de la aplicación, que es otra cosa
-  /// y no depende del sistema operativo.
-  Widget _header(BuildContext buildContext) {
-    final theme = FluentTheme.of(buildContext);
-    return Container(
-      height: 48,
-      padding: const EdgeInsets.symmetric(horizontal: 12),
-      decoration: BoxDecoration(
-        color: theme.micaBackgroundColor,
-        border: Border(
-          bottom: BorderSide(color: theme.resources.dividerStrokeColorDefault),
-        ),
-      ),
-      child: Row(
-        children: [
-          OrbiBrand(height: 28, color: theme.typography.body?.color),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Text(
-              context.companyLabel,
-              overflow: TextOverflow.ellipsis,
-              maxLines: 1,
-              style: theme.typography.bodyStrong,
-            ),
-          ),
-          // El nombre se calla en estrecho: entre el nombre y poder cerrar
-          // sesión, en un teléfono manda el botón.
-          if (MediaQuery.sizeOf(buildContext).width >=
-              OrbiTheme.compactBreakpoint)
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 8),
-              child: Text(context.userLabel),
-            ),
-          if (onLock != null)
-            Tooltip(
-              message: 'Bloquear',
-              child: IconButton(
-                key: const Key('lock-button'),
-                icon: const Icon(FluentIcons.lock),
-                onPressed: onLock,
-              ),
-            ),
-          if (onSwitchUser != null)
-            Tooltip(
-              message: 'Cambiar de usuario',
-              child: IconButton(
-                key: const Key('switch-user-button'),
-                icon: const Icon(FluentIcons.switch_user),
-                onPressed: onSwitchUser,
-              ),
-            ),
-          Tooltip(
-            message: 'Cerrar sesión',
-            child: IconButton(
-              key: const Key('logout-button'),
-              icon: const Icon(FluentIcons.sign_out),
-              onPressed: onLogout,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
 
   /// El menú, con sus grupos.
   ///
@@ -287,6 +216,8 @@ final class OperationalShell extends StatelessWidget {
     return NavigationPane(
       displayMode: mode,
       selected: selected < 0 ? null : selected,
+      header: _paneHeader(),
+      footerItems: _sessionActions(),
       items: [
         for (final entry in grouped.entries)
           PaneItemExpander(
@@ -312,6 +243,78 @@ final class OperationalShell extends StatelessWidget {
       ],
     );
   }
+
+  /// La cabecera del panel: la marca y la empresa.
+  ///
+  /// Va en `NavigationPane.header` y no en una fila propia por encima de todo.
+  /// Antes era una fila escrita a mano, que es exactamente lo que esta
+  /// migración vino a quitar. Fluent la coloca, la alinea y la esconde en el
+  /// carril estrecho por sí solo, donde de todas formas no cabría un nombre
+  /// de empresa.
+  Widget _paneHeader() => Builder(
+    builder: (context) => Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      child: Row(
+        children: [
+          OrbiBrand(
+            height: 24,
+            color: FluentTheme.of(context).typography.body?.color,
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              this.context.companyLabel,
+              overflow: TextOverflow.ellipsis,
+              maxLines: 1,
+              style: FluentTheme.of(context).typography.bodyStrong,
+            ),
+          ),
+        ],
+      ),
+    ),
+  );
+
+  /// Las acciones de sesión, en el pie del panel.
+  ///
+  /// Son `PaneItemAction`, que es lo que Fluent ofrece para una acción que no
+  /// navega a ninguna parte. Así se ven como iconos en el carril estrecho y
+  /// con su nombre cuando el carril está abierto, sin que nadie decida cómo.
+  ///
+  /// Quién aparece sigue dependiendo de si hay con qué hacerlo: nunca un botón
+  /// que la persona no pueda usar.
+  List<NavigationPaneItem> _sessionActions() => [
+    PaneItemWidgetAdapter(
+      key: const Key('operational-user-label'),
+      child: Builder(
+        builder: (context) => Text(
+          this.context.userLabel,
+          overflow: TextOverflow.ellipsis,
+          maxLines: 1,
+          style: FluentTheme.of(context).typography.caption,
+        ),
+      ),
+    ),
+    if (onLock != null)
+      PaneItemAction(
+        key: const Key('lock-button'),
+        icon: const Icon(FluentIcons.lock),
+        title: const Text('Bloquear'),
+        onTap: onLock!,
+      ),
+    if (onSwitchUser != null)
+      PaneItemAction(
+        key: const Key('switch-user-button'),
+        icon: const Icon(FluentIcons.switch_user),
+        title: const Text('Cambiar de usuario'),
+        onTap: onSwitchUser!,
+      ),
+    PaneItemAction(
+      key: const Key('logout-button'),
+      icon: const Icon(FluentIcons.sign_out),
+      title: const Text('Cerrar sesión'),
+      onTap: onLogout,
+    ),
+  ];
 
   /// Los destinos agrupados, conservando el orden en que llegan dentro de cada
   /// grupo y el orden de aparición de los grupos. No se ordena

@@ -297,4 +297,29 @@ void main() {
       expect(ignora.ignoring, isTrue);
     });
   });
+
+  group('la cabecera y el pie los pone Fluent, no nosotros', () {
+    // Antes esto era una fila escrita a mano encima de todo. Ahora vive en
+    // `NavigationPane.header`, que Fluent coloca y esconde por su cuenta.
+    testWidgets('la empresa se ve en el carril abierto', (tester) async {
+      const size = Size(1920, 1080);
+      await _pump(tester, _host(size), size);
+
+      expect(find.text('Empresa Demo'), findsOneWidget);
+    });
+
+    // Fluent esconde la cabecera del panel en el carril de sólo iconos, donde
+    // un nombre de empresa no cabría de todas formas. Se fija aquí para que
+    // nadie lo tome por un fallo y le construya una fila propia encima.
+    testWidgets('en el carril de iconos Fluent la esconde, y está bien', (
+      tester,
+    ) async {
+      const size = Size(1366, 1024);
+      await _pump(tester, _host(size), size);
+
+      expect(find.text('Empresa Demo'), findsNothing);
+      // Lo que sí se ve siempre es el pie con el contexto del servidor.
+      expect(find.text('Servidor: erp.test'), findsOneWidget);
+    });
+  });
 }
