@@ -8,14 +8,28 @@ entra o sale, no al final de la sesión.
 
 ## Esperan una decisión del dueño
 
-Nada de esto avanza hasta que él responda. No son tareas: son preguntas.
-
-| # | Qué se le pregunta | Por qué importa |
-| --- | --- | --- |
-| D6 | ¿Se construye una ruta propia para listar las bases desde otro dominio? | **La recomendación es que no.** Ahorra escribir un nombre una vez, y a cambio normaliza en cada instalación un punto de entrada anónimo que enumera bases, justo lo contrario de por qué esa opción está apagada en producción. La aplicación de escritorio ya lo tiene resuelto |
+**Ninguna.** Todas contestadas el 12-sep-2026. Cuando aparezca una nueva se pone aquí
+antes de seguir trabajando en lo que dependa de ella.
 
 ## Resueltas, para que no se vuelvan a preguntar
 
+- **D6 — No se construye ninguna ruta propia para listar las bases.** No hace falta:
+  medido el 12-sep-2026 desde un origen ajeno de verdad (no localhost), la ruta estándar
+  de Odoo ya responde **200 con exactamente una base**, la de esa instancia, y el
+  preflight trae las dos cabeceras necesarias, el origen y `X-Odoo-Database`. El acceso
+  con usuario y contraseña también funciona desde ese origen y devuelve credencial con
+  caducidad. Tres de tres.
+  - ⚠️ **Se midió el servidor, no la aplicación.** Fue con peticiones directas, sin
+    pasar por ningún build de Flutter. Ayer el cliente web tenía un fallo propio que
+    hacía **cero peticiones**, así que «el servidor deja pasar» no es «la aplicación lo
+    aprovecha». Falta la comprobación en un navegador real servido desde otro puerto.
+  - 🔴 **El origen permitido es `*`, cualquiera.** Sumado a que el listado de bases es
+    anónimo y a que las cuatro cuentas de prueba tienen `12345`, ERP2 hoy es una puerta
+    abierta. Es aceptable en pruebas y **no** es aceptable al publicar.
+  - **En producción esto no va a funcionar igual, y está bien.** Allí el listado de
+    bases está apagado a propósito, así que la aplicación caerá a escribir el nombre de
+    la base a mano. Esa salida ya existe en el código (`server_manager_dialog.dart`), y
+    es lo correcto: enumerar bases sin autenticar no debe normalizarse.
 - **D5 — La aplicación web se sirve desde CUALQUIER dominio, incluido localhost.**
   Decisión del dueño, 12-sep-2026. Descarta la opción de atarla al propio dominio del
   Odoo, que era la cómoda. Consecuencia: el origen cruzado deja de ser un rodeo y pasa
