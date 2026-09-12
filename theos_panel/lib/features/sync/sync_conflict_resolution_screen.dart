@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:fluent_ui/fluent_ui.dart';
+import 'package:odoo_widgets/odoo_widgets.dart';
 // `odoo_sdk` is a dev_dependency of this package on purpose: production code
 // under `lib/` only sees the sync/offline types `orbi_runtime` chooses to
 // re-export, never the SDK directly. That is the same boundary every other
@@ -8,8 +9,6 @@ import 'package:fluent_ui/fluent_ui.dart';
 import 'package:orbi_runtime/orbi_runtime.dart'
     show ConflictInfo, OfflineOperation, OfflineQueueStore, OfflineReplayPolicy;
 
-import '../../ui/bindings/record_view_controller.dart';
-import '../../ui/components/records/orbi_record_grid.dart';
 import '../../ui/fluent/orbi_page.dart';
 
 /// SYN-03 — "Resolver conflicto": centro de sincronización y recuperación.
@@ -307,7 +306,7 @@ class _SyncConflictResolutionViewState
         return LayoutBuilder(
           builder: (context, constraints) {
             final size = MediaQuery.sizeOf(context);
-            // Mismo criterio que `OrbiRecordGrid`/`OperationalShell`: la
+            // Mismo criterio que `OrbiListing`/`OperationalShell`: la
             // relación ancho/alto decide, no un número de alto escrito a
             // mano. Un ancho generoso en una ventana en retrato (tablet
             // vertical) sigue pidiendo la composición apilada.
@@ -422,22 +421,14 @@ class _SyncConflictResolutionViewState
   };
 
   Widget _comparisonSection(SyncReviewItem item) {
-    // A fresh controller per build is deliberate: `OrbiRecordGrid` already
-    // reconciles a changed controller instance in `didUpdateWidget`, and the
-    // `ValueKey` below scopes its internal selection state to this item, so
-    // there is no state to preserve across rebuilds worth the extra
-    // bookkeeping of caching and disposing one controller per operation.
-    final controller = OrbiRecordViewController<SyncFieldDiff>(
-      records: [
-        for (var index = 0; index < item.fields.length; index++)
-          OrbiRecord<SyncFieldDiff>(
-            id: 'field_$index',
-            value: item.fields[index],
-          ),
-      ],
-    );
+    // `OrbiListing` owns its column-visibility state per instance; the row
+    // height (52) plus its toolbar, header and spacing is what the fixed
+    // height below approximates — there is no bare grid to size around
+    // anymore, so the box has to be tall enough for the whole widget.
     const rowHeight = 52.0;
-    final height = (item.fields.length * rowHeight + 56.0).clamp(160.0, 420.0).toDouble();
+    final height = (item.fields.length * rowHeight + 130.0)
+        .clamp(220.0, 480.0)
+        .toDouble();
     final typography = FluentTheme.of(context).typography;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -446,23 +437,30 @@ class _SyncConflictResolutionViewState
         const SizedBox(height: 8),
         SizedBox(
           height: height,
-          child: OrbiRecordGrid<SyncFieldDiff>(
+          child: OrbiListing<SyncFieldDiff>(
             key: ValueKey(item.operationId),
-            controller: controller,
+            rows: item.fields,
+            storageKey: 'sync-conflict-fields',
+            emptyMessage: 'Sin campos que comparar',
             columns: [
-              OrbiRecordColumn<SyncFieldDiff>(
+              OrbiColumn<SyncFieldDiff>(
+                key: 'field',
                 label: 'Campo',
                 value: (field) => field.field,
+                alwaysVisible: true,
               ),
-              OrbiRecordColumn<SyncFieldDiff>(
+              OrbiColumn<SyncFieldDiff>(
+                key: 'local',
                 label: 'Valor en ORBI (local)',
                 value: (field) => _display(field.localValue),
               ),
-              OrbiRecordColumn<SyncFieldDiff>(
+              OrbiColumn<SyncFieldDiff>(
+                key: 'server',
                 label: 'Valor en Odoo (servidor)',
                 value: (field) => _display(field.serverValue),
               ),
-              OrbiRecordColumn<SyncFieldDiff>(
+              OrbiColumn<SyncFieldDiff>(
+                key: 'status',
                 label: 'Estado',
                 value: (field) => field.statusLabel,
               ),

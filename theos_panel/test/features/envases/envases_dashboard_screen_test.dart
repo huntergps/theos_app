@@ -4,7 +4,6 @@ import 'package:fluent_ui/fluent_ui.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:orbi_runtime/orbi_runtime.dart';
 import 'package:theos_panel/features/envases/envases_dashboard_screen.dart';
-import 'package:theos_panel/ui/components/records/orbi_record_list.dart';
 import 'package:theos_panel/ui/fluent/orbi_fluent_theme.dart';
 import 'package:syncfusion_flutter_datagrid/datagrid.dart';
 
@@ -70,9 +69,14 @@ void main() {
       find.textContaining('Última descarga en este equipo'),
       findsOneWidget,
     );
+    // El distintivo de la esquina (`OrbiListing.cardBadge`) y una de las
+    // cinco cifras en su recuadro (`OrbiColumn.metric`), con su etiqueta y su
+    // valor concreto — no basta con que el widget exista.
     expect(find.text('10 propios'), findsOneWidget);
     expect(find.text('Sin conexión'), findsOneWidget);
-    expect(find.text('Dañados'), findsOneWidget);
+    expect(find.text('En sede'), findsOneWidget);
+    expect(find.text('8 Unidad'), findsOneWidget);
+    expect(find.text('Dañados (incluidos en total)'), findsOneWidget);
     expect(find.text('Mostrando 1 de 1 registros'), findsOneWidget);
     expect(
       find.textContaining('detalle por ubicación no disponible'),
@@ -93,8 +97,10 @@ void main() {
       ),
     );
     await tester.pump();
+    // El filtro ahora es el `TextBox` que trae `OrbiListing` de serie: ya no
+    // hay un segundo campo de búsqueda propio de esta pantalla.
     await tester.enterText(
-      find.byKey(const Key('envases-product-filter')),
+      find.byKey(const Key('orbi-listing-filter')),
       'cerveza',
     );
     await tester.pump();
@@ -129,7 +135,7 @@ void main() {
         horizontalGrid ? findsOneWidget : findsNothing,
       );
       expect(
-        find.byType(OrbiRecordList<EnvasesDashboardRow>),
+        find.byKey(const Key('orbi-listing-cards')),
         horizontalGrid ? findsNothing : findsOneWidget,
       );
       expect(tester.takeException(), isNull);

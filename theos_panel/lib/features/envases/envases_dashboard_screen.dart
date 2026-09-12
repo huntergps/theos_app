@@ -1,11 +1,10 @@
 import 'dart:async';
 
 import 'package:fluent_ui/fluent_ui.dart';
+import 'package:odoo_widgets/odoo_widgets.dart';
 import 'package:orbi_runtime/orbi_runtime.dart';
 
 import '../../ui/components/orbi_components.dart';
-import '../../ui/components/records/orbi_record_grid.dart';
-import '../../ui/bindings/record_view_controller.dart';
 import '../../ui/fluent/orbi_page.dart';
 
 /// Read-only Envases dashboard surface.
@@ -13,6 +12,14 @@ import '../../ui/fluent/orbi_page.dart';
 /// The runtime owns the query, cache and synchronization. This widget only
 /// renders snapshots supplied by [snapshots] and delegates refresh intent to
 /// [onRefresh].
+///
+/// Por orden del dueño (11-sep-2026) — *«todos los listados deben tener el
+/// mismo aspecto»* — la ficha en estrecho la pinta el `OrbiListing` estándar,
+/// no un `cardBuilder` propio: `OrbiColumn.subtitle` pone la unidad de medida
+/// bajo el nombre del producto, `OrbiColumn.metric` dibuja las cinco cifras en
+/// su cuadrícula de recuadros, y `OrbiListing.cardBadge` pinta «N propios» en
+/// la esquina del título. El total propio sigue siendo, además, una columna
+/// normal de la rejilla ancha, igual que antes.
 class EnvasesDashboardScreen extends StatefulWidget {
   const EnvasesDashboardScreen({
     super.key,
@@ -36,9 +43,6 @@ class EnvasesDashboardScreen extends StatefulWidget {
 class _EnvasesDashboardScreenState extends State<EnvasesDashboardScreen> {
   StreamSubscription<EnvasesDashboardSnapshot?>? _subscription;
   int _streamGeneration = 0;
-  late final OrbiRecordViewController<EnvasesDashboardRow> _controller =
-      OrbiRecordViewController<EnvasesDashboardRow>();
-  late final TextEditingController _productFilter = TextEditingController();
   EnvasesDashboardSnapshot? _snapshot;
   Object? _error;
   bool _waiting = true;
@@ -59,8 +63,6 @@ class _EnvasesDashboardScreenState extends State<EnvasesDashboardScreen> {
       _snapshot = null;
       _error = null;
       _waiting = true;
-      _controller.clearSelection();
-      _controller.replaceRecords(const <OrbiRecord<EnvasesDashboardRow>>[]);
       _listen();
     }
   }
@@ -70,7 +72,6 @@ class _EnvasesDashboardScreenState extends State<EnvasesDashboardScreen> {
     _subscription = widget.snapshots.listen(
       (value) {
         if (!mounted || generation != _streamGeneration) return;
-        _controller.replaceRecords(_recordsFor(value));
         setState(() {
           _snapshot = value;
           _error = null;
@@ -94,8 +95,6 @@ class _EnvasesDashboardScreenState extends State<EnvasesDashboardScreen> {
   @override
   void dispose() {
     _subscription?.cancel();
-    _productFilter.dispose();
-    _controller.dispose();
     super.dispose();
   }
 
@@ -117,36 +116,6 @@ class _EnvasesDashboardScreenState extends State<EnvasesDashboardScreen> {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           _DashboardHeader(title: widget.workspaceEnvases, snapshot: _snapshot),
-          if (_snapshot?.rows.isNotEmpty ?? false)
-            Padding(
-              padding: const EdgeInsets.only(bottom: 12),
-              child: Card(
-                backgroundColor: FluentTheme.of(
-                  context,
-                ).resources.cardBackgroundFillColorSecondary,
-                borderColor: FluentTheme.of(
-                  context,
-                ).resources.surfaceStrokeColorDefault,
-                borderRadius: BorderRadius.circular(12),
-                child: InfoLabel(
-                  label: 'Filtrar por producto o unidad',
-                  child: TextBox(
-                    key: const Key('envases-product-filter'),
-                    controller: _productFilter,
-                    prefix: const Padding(
-                      padding: EdgeInsets.only(left: 8),
-                      child: Icon(FluentIcons.search),
-                    ),
-                    onChanged: (value) {
-                      setState(
-                        () => _productQuery = value.trim().toLowerCase(),
-                      );
-                      _controller.replaceRecords(_recordsFor(_snapshot));
-                    },
-                  ),
-                ),
-              ),
-            ),
           if (_error != null) _ErrorBanner(onRetry: widget.onRefresh),
           if (_snapshot?.rows.isNotEmpty ?? false)
             Padding(
@@ -187,13 +156,6 @@ class _EnvasesDashboardScreenState extends State<EnvasesDashboardScreen> {
         message: 'No hay productos de envases en la copia local.',
       );
     }
-    final filtered = _filteredRows(snapshot.rows);
-    if (filtered.isEmpty) {
-      return const OrbiEmptyState(
-        title: 'Sin coincidencias',
-        message: 'No hay productos que coincidan con el filtro.',
-      );
-    }
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -212,29 +174,25 @@ class _EnvasesDashboardScreenState extends State<EnvasesDashboardScreen> {
             ).resources.surfaceStrokeColorDefault,
             borderRadius: BorderRadius.circular(12),
             padding: const EdgeInsets.all(8),
-            child: OrbiRecordGrid<EnvasesDashboardRow>(
-              controller: _controller,
+            child: OrbiListing<EnvasesDashboardRow>(
+              rows: _filteredRows(snapshot.rows),
               columns: _columns,
-              cardBuilder: _envasesCard,
-              onRecordTap: widget.onProductTap == null
+              storageKey: 'envases-dashboard',
+              filterText: _productQuery,
+              onFilterChanged: (value) =>
+                  setState(() => _productQuery = value.trim().toLowerCase()),
+              filterPlaceholder: 'Filtrar por producto o unidad',
+              onRowTap: widget.onProductTap == null
                   ? null
-                  : (record) => widget.onProductTap!(record.value.productId),
+                  : (row) => widget.onProductTap!(row.productId),
+              cardBadge: (row) => '${_formatQuantity(row.totalPropio)} propios',
+              emptyMessage: 'No hay productos que coincidan con el filtro.',
             ),
           ),
         ),
       ],
     );
   }
-
-  List<OrbiRecord<EnvasesDashboardRow>> _recordsFor(
-    EnvasesDashboardSnapshot? snapshot,
-  ) => [
-    for (final row in _filteredRows(snapshot?.rows ?? const []))
-      OrbiRecord<EnvasesDashboardRow>(
-        id: '${row.companyId}:${row.productId}',
-        value: row,
-      ),
-  ];
 
   List<EnvasesDashboardRow> _filteredRows(List<EnvasesDashboardRow> rows) =>
       _productQuery.isEmpty
@@ -247,149 +205,54 @@ class _EnvasesDashboardScreenState extends State<EnvasesDashboardScreen> {
             )
             .toList(growable: false);
 
-  List<OrbiRecordColumn<EnvasesDashboardRow>> get _columns => [
-    OrbiRecordColumn(
-      id: 'product',
+  List<OrbiColumn<EnvasesDashboardRow>> get _columns => [
+    OrbiColumn(
+      key: 'product',
       label: 'Producto',
       value: (row) => row.productName,
+      alwaysVisible: true,
     ),
-    OrbiRecordColumn(
-      id: 'packaging',
+    OrbiColumn(
+      key: 'packaging',
       label: 'Envase / unidad',
       value: (row) => row.uomName,
+      subtitle: true,
     ),
-    _quantityColumn('total_propio', 'Total propio', (row) => row.totalPropio),
-    _quantityColumn('en_sede', 'En sede', (row) => row.enSede),
-    _quantityColumn(
+    OrbiColumn(
+      key: 'total_propio',
+      label: 'Total propio',
+      numeric: true,
+      value: (row) => '${_formatQuantity(row.totalPropio)} ${row.uomName}',
+    ),
+    _metricColumn('en_sede', 'En sede', (row) => row.enSede),
+    _metricColumn(
       'en_custodia_cliente',
       'Custodia cliente',
       (row) => row.enCustodiaCliente,
     ),
-    _quantityColumn(
+    _metricColumn(
       'en_custodia_proveedor',
       'Custodia proveedor',
       (row) => row.enCustodiaProveedor,
     ),
-    _quantityColumn('en_transito', 'En tránsito', (row) => row.enTransito),
-    _quantityColumn(
+    _metricColumn('en_transito', 'En tránsito', (row) => row.enTransito),
+    _metricColumn(
       'danados',
       'Dañados (incluidos en total)',
       (row) => row.danados,
     ),
   ];
 
-  OrbiRecordColumn<EnvasesDashboardRow> _quantityColumn(
-    String id,
+  OrbiColumn<EnvasesDashboardRow> _metricColumn(
+    String key,
     String label,
     double Function(EnvasesDashboardRow) value,
-  ) => OrbiRecordColumn(
-    id: id,
+  ) => OrbiColumn(
+    key: key,
     label: label,
-    textAlign: TextAlign.end,
+    numeric: true,
+    metric: true,
     value: (row) => '${_formatQuantity(value(row))} ${row.uomName}',
-  );
-
-  Widget _envasesCard(
-    BuildContext context,
-    OrbiRecord<EnvasesDashboardRow> record,
-  ) {
-    final row = record.value;
-    final metrics = <String, double>{
-      'En sede': row.enSede,
-      'Custodia cliente': row.enCustodiaCliente,
-      'Custodia proveedor': row.enCustodiaProveedor,
-      'En tránsito': row.enTransito,
-      'Dañados': row.danados,
-    };
-    return Card(
-      margin: EdgeInsets.zero,
-      child: LayoutBuilder(
-        builder: (context, constraints) {
-          final columns = constraints.maxWidth >= 600 ? 2 : 1;
-          return Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          row.productName,
-                          style: FluentTheme.of(context).typography.bodyStrong,
-                        ),
-                        Text(row.uomName),
-                      ],
-                    ),
-                  ),
-                  OrbiStatusChip(
-                    label: '${_formatQuantity(row.totalPropio)} propios',
-                  ),
-                ],
-              ),
-              const SizedBox(height: 12),
-              for (var index = 0; index < metrics.length; index += columns)
-                Padding(
-                  padding: EdgeInsets.only(
-                    bottom: index + columns < metrics.length ? 8 : 0,
-                  ),
-                  child: Row(
-                    children: [
-                      for (final entry
-                          in metrics.entries.skip(index).take(columns))
-                        Expanded(
-                          child: Padding(
-                            padding: EdgeInsetsDirectional.only(
-                              end:
-                                  entry.key ==
-                                      metrics.entries
-                                          .skip(index)
-                                          .take(columns)
-                                          .last
-                                          .key
-                                  ? 0
-                                  : 8,
-                            ),
-                            child: _metric(
-                              context,
-                              entry.key,
-                              entry.value,
-                              row.uomName,
-                            ),
-                          ),
-                        ),
-                    ],
-                  ),
-                ),
-            ],
-          );
-        },
-      ),
-    );
-  }
-
-  Widget _metric(
-    BuildContext context,
-    String label,
-    double value,
-    String unit,
-  ) => DecoratedBox(
-    decoration: BoxDecoration(
-      color: FluentTheme.of(context).resources.cardBackgroundFillColorSecondary,
-      borderRadius: BorderRadius.circular(8),
-    ),
-    child: Padding(
-      padding: const EdgeInsets.all(8),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(label, style: FluentTheme.of(context).typography.caption),
-          Text('${_formatQuantity(value)} $unit'),
-        ],
-      ),
-    ),
   );
 }
 

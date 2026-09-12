@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:fluent_ui/fluent_ui.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:orbi_runtime/orbi_runtime.dart';
+import 'package:syncfusion_flutter_datagrid/datagrid.dart';
 import 'package:theos_panel/features/warehouse/warehouse_existences_contracts.dart';
 import 'package:theos_panel/features/warehouse/warehouse_existences_screen.dart';
 import 'package:theos_panel/ui/fluent/orbi_fluent_theme.dart';
@@ -198,8 +199,10 @@ void main() {
     await tester.pumpAndSettle();
     await tester.tap(find.text('Todos').last);
     await tester.pumpAndSettle();
+    // El filtro de texto libre ahora es el que trae `OrbiListing` de serie:
+    // ya no hay un segundo campo de búsqueda propio de esta pantalla.
     await tester.enterText(
-      find.byKey(const Key('existences-search-field')),
+      find.byKey(const Key('orbi-listing-filter')),
       'tornillo',
     );
     await tester.pumpAndSettle();
@@ -232,17 +235,19 @@ void main() {
     addTearDown(repository.dispose);
     addTearDown(() => tester.binding.setSurfaceSize(null));
 
-    // Phone layout so the detail renders as the labelled "Reservado por:"
-    // line (the wide table shows the same value under a plain "Detalle"
-    // column instead) — either way, no cost text may appear.
+    // Phone layout so the detail renders as an `OrbiListing` card row: the
+    // label ("Reservado por") and the value ("OUT/00042") are two separate
+    // `Text` widgets, not one concatenated string — either way, no cost text
+    // may appear anywhere.
     await _pumpAt(tester, repository, _phone);
     await tester.pumpAndSettle();
 
     expect(find.textContaining('osto', findRichText: true), findsNothing);
-    expect(find.text('Reservado por: OUT/00042'), findsOneWidget);
+    expect(find.text('Reservado por'), findsOneWidget);
+    expect(find.text('OUT/00042'), findsOneWidget);
   });
 
-  testWidgets('renders the table on wide layouts and the card list on narrow ones', (
+  testWidgets('renders the standard grid on wide layouts and cards on narrow ones', (
     tester,
   ) async {
     final repository = _FakeRepository()
@@ -252,12 +257,16 @@ void main() {
 
     await _pumpAt(tester, repository, _desktop);
     await tester.pumpAndSettle();
-    expect(find.byKey(const Key('existences-table')), findsOneWidget);
-    expect(find.byKey(const Key('existences-list')), findsNothing);
+    expect(find.byType(SfDataGrid), findsOneWidget);
+    expect(find.byKey(const Key('orbi-listing-cards')), findsNothing);
+    // A concrete row value is visible in the grid, not just its chrome.
+    expect(find.text('Tornillo 1/4'), findsOneWidget);
 
     await _pumpAt(tester, repository, _phone);
     await tester.pumpAndSettle();
-    expect(find.byKey(const Key('existences-list')), findsOneWidget);
-    expect(find.byKey(const Key('existences-table')), findsNothing);
+    expect(find.byKey(const Key('orbi-listing-cards')), findsOneWidget);
+    expect(find.byType(SfDataGrid), findsNothing);
+    // Same concrete row value, now rendered as a card.
+    expect(find.text('Tornillo 1/4'), findsOneWidget);
   });
 }

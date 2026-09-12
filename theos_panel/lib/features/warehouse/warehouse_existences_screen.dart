@@ -1,5 +1,5 @@
 import 'package:fluent_ui/fluent_ui.dart';
-import 'package:syncfusion_flutter_datagrid/datagrid.dart';
+import 'package:odoo_widgets/odoo_widgets.dart';
 
 import 'package:orbi_runtime/orbi_runtime.dart';
 
@@ -14,6 +14,14 @@ import 'warehouse_existences_contracts.dart';
 /// reactive local copy `StockQuantCache` exposes: once a sync completes and
 /// commits a new snapshot to SQLite, this screen updates on its own — it
 /// never re-queries Odoo just because it is on screen.
+///
+/// Por orden del dueño (11-sep-2026) — *«todos los listados deben tener el
+/// mismo aspecto»* — la tabla se pinta con el `OrbiListing` estándar en vez
+/// de una rejilla Syncfusion propia con una lista de tarjetas aparte: el
+/// filtro de almacén sigue siendo un `ComboBox` (no es texto libre, así que
+/// no encaja en el filtro de `OrbiListing`), pero el filtro de texto libre
+/// ahora escribe directamente en el `TextBox` que trae `OrbiListing`, en vez
+/// de duplicar un segundo campo de búsqueda.
 ///
 /// Deliberately absent: `costo_promedio` (`stock.quant`, gated behind
 /// `groups='stock.group_stock_manager'` in
@@ -48,6 +56,7 @@ class _WarehouseExistencesScreenState
   WarehouseExistencesFilter _filter = const WarehouseExistencesFilter();
   bool _refreshing = false;
   Object? _refreshError;
+  int _pageIndex = 0;
 
   // Captured once: `watch()` must stay the same subscription across
   // rebuilds (typing in the search field rebuilds this widget on every
@@ -73,6 +82,13 @@ class _WarehouseExistencesScreenState
     } finally {
       if (mounted) setState(() => _refreshing = false);
     }
+  }
+
+  void _updateFilter(WarehouseExistencesFilter Function() next) {
+    setState(() {
+      _filter = next();
+      _pageIndex = 0;
+    });
   }
 
   @override
@@ -137,28 +153,21 @@ class _WarehouseExistencesScreenState
         ),
         const SizedBox(height: OrbiTheme.space12),
         Expanded(
-          child: filtered.isEmpty
-              ? OrbiEmptyState(
-                  title: 'Sin existencias',
-                  message: data.rows.isEmpty
-                      ? 'No hay existencias registradas para esta compañía.'
-                      : 'Ningún producto coincide con el filtro aplicado.',
-                )
-              : LayoutBuilder(
-                  builder: (context, constraints) {
-                    // Real available space decides the layout — same rule
-                    // as CollectionSessionHubScreen and OperationalShell:
-                    // wide (desktop/tablet-landscape) gets the table, the
-                    // rest (tablet-portrait/phone) gets the card list. No
-                    // hardcoded height threshold.
-                    final wide =
-                        constraints.maxWidth >= OrbiTheme.compactBreakpoint &&
-                        constraints.maxWidth >= constraints.maxHeight;
-                    return wide
-                        ? _table(context, filtered)
-                        : _list(context, filtered);
-                  },
-                ),
+          child: OrbiListing<StockQuantRow>(
+            rows: filtered,
+            columns: _columns(),
+            storageKey: 'warehouse-existences',
+            filterText: _filter.text,
+            onFilterChanged: (value) =>
+                _updateFilter(() => _filter.copyWith(text: value)),
+            filterPlaceholder: 'Buscar producto o ubicación',
+            pageIndex: _pageIndex,
+            totalCount: filtered.length,
+            onPageChanged: (index) => setState(() => _pageIndex = index),
+            emptyMessage: data.rows.isEmpty
+                ? 'No hay existencias registradas para esta compañía.'
+                : 'Ningún producto coincide con el filtro aplicado.',
+          ),
         ),
       ],
     );
@@ -182,99 +191,51 @@ class _WarehouseExistencesScreenState
               for (final warehouse in warehouses)
                 ComboBoxItem(value: warehouse.$1, child: Text(warehouse.$2)),
             ],
-            onChanged: (value) => setState(
-              () => _filter = _filter.copyWith(warehouseId: () => value),
-            ),
-          ),
-        ),
-      ),
-      SizedBox(
-        width: 260,
-        child: OrbiField(
-          key: const Key('existences-search-field'),
-          label: 'Buscar producto o ubicación',
-          onChanged: (value) => setState(
-            () => _filter = _filter.copyWith(text: value),
+            onChanged: (value) =>
+                _updateFilter(() => _filter.copyWith(warehouseId: () => value)),
           ),
         ),
       ),
     ],
   );
 
-  Widget _table(BuildContext context, List<StockQuantRow> rows) => SfDataGrid(
-    key: const Key('existences-table'),
-    source: _ExistencesDataSource(rows),
-    columnWidthMode: ColumnWidthMode.fill,
-    columns: [
-      _column('product', 'Producto'),
-      _column('location', 'Ubicación'),
-      _column('warehouse', 'Almacén'),
-      _column('quantity', 'A mano', numeric: true),
-      _column('reserved', 'Reservado', numeric: true),
-      _column('available', 'Disponible', numeric: true),
-      _column('detail', 'Detalle'),
-    ],
-  );
-
-  GridColumn _column(String name, String label, {bool numeric = false}) =>
-      GridColumn(
-        columnName: name,
-        label: Container(
-          alignment: numeric ? Alignment.centerRight : Alignment.centerLeft,
-          padding: const EdgeInsets.symmetric(horizontal: 8),
-          child: Text(
-            label,
-            style: FluentTheme.of(context).typography.bodyStrong,
-          ),
-        ),
-      );
-
-  Widget _list(BuildContext context, List<StockQuantRow> rows) =>
-      ListView.separated(
-        key: const Key('existences-list'),
-        itemCount: rows.length,
-        separatorBuilder: (_, _) => const SizedBox(height: OrbiTheme.space8),
-        itemBuilder: (context, index) => _card(context, rows[index]),
-      );
-
-  Widget _card(BuildContext context, StockQuantRow row) => Card(
-    child: Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          row.productName,
-          style: FluentTheme.of(context).typography.bodyStrong,
-        ),
-        const SizedBox(height: OrbiTheme.space4),
-        Text('${row.locationName} · ${row.warehouseName ?? 'Sin almacén'}'),
-        const SizedBox(height: OrbiTheme.space8),
-        Wrap(
-          spacing: OrbiTheme.space8,
-          runSpacing: OrbiTheme.space4,
-          children: [
-            OrbiStatusChip(label: 'A mano: ${_qty(row.quantity)}'),
-            OrbiStatusChip(
-              label: 'Reservado: ${_qty(row.reservedQuantity)}',
-              icon: FluentIcons.lock,
-            ),
-            OrbiStatusChip(
-              label: 'Disponible: ${_qty(row.availableQuantity)}',
-              icon: FluentIcons.package,
-            ),
-          ],
-        ),
-        if (row.reservedBy != null) ...[
-          const SizedBox(height: OrbiTheme.space8),
-          Text(
-            'Reservado por: ${row.reservedBy}',
-            style: TextStyle(
-              color: FluentTheme.of(context).resources.textFillColorSecondary,
-            ),
-          ),
-        ],
-      ],
+  List<OrbiColumn<StockQuantRow>> _columns() => [
+    OrbiColumn(
+      key: 'product',
+      label: 'Producto',
+      value: (row) => row.productName,
+      alwaysVisible: true,
     ),
-  );
+    OrbiColumn(key: 'location', label: 'Ubicación', value: (row) => row.locationName),
+    OrbiColumn(
+      key: 'warehouse',
+      label: 'Almacén',
+      value: (row) => row.warehouseName ?? '—',
+    ),
+    OrbiColumn(
+      key: 'quantity',
+      label: 'A mano',
+      numeric: true,
+      value: (row) => _qty(row.quantity),
+    ),
+    OrbiColumn(
+      key: 'reserved',
+      label: 'Reservado',
+      numeric: true,
+      value: (row) => _qty(row.reservedQuantity),
+    ),
+    OrbiColumn(
+      key: 'available',
+      label: 'Disponible',
+      numeric: true,
+      value: (row) => _qty(row.availableQuantity),
+    ),
+    OrbiColumn(
+      key: 'reserved_by',
+      label: 'Reservado por',
+      value: (row) => row.reservedBy ?? '—',
+    ),
+  ];
 
   static String _formatCachedAt(DateTime utc) {
     final local = utc.toLocal();
@@ -282,65 +243,4 @@ class _WarehouseExistencesScreenState
     return '${local.year}-${two(local.month)}-${two(local.day)} '
         '${two(local.hour)}:${two(local.minute)}';
   }
-}
-
-/// A one-shot, read-only grid source: the screen rebuilds a fresh one on
-/// every `build()` (the underlying rows already come from a `watch()`
-/// stream, so there is no local selection or edit state to preserve across
-/// rebuilds here).
-class _ExistencesDataSource extends DataGridSource {
-  _ExistencesDataSource(List<StockQuantRow> rows)
-    : _rows = [
-        for (final row in rows)
-          DataGridRow(
-            cells: [
-              DataGridCell<String>(columnName: 'product', value: row.productName),
-              DataGridCell<String>(
-                columnName: 'location',
-                value: row.locationName,
-              ),
-              DataGridCell<String>(
-                columnName: 'warehouse',
-                value: row.warehouseName ?? '—',
-              ),
-              DataGridCell<String>(
-                columnName: 'quantity',
-                value: _qty(row.quantity),
-              ),
-              DataGridCell<String>(
-                columnName: 'reserved',
-                value: _qty(row.reservedQuantity),
-              ),
-              DataGridCell<String>(
-                columnName: 'available',
-                value: _qty(row.availableQuantity),
-              ),
-              DataGridCell<String>(
-                columnName: 'detail',
-                value: row.reservedBy ?? '',
-              ),
-            ],
-          ),
-      ];
-
-  final List<DataGridRow> _rows;
-
-  @override
-  List<DataGridRow> get rows => _rows;
-
-  @override
-  DataGridRowAdapter buildRow(DataGridRow row) => DataGridRowAdapter(
-    cells: row.getCells().map((cell) {
-      final numeric = const {
-        'quantity',
-        'reserved',
-        'available',
-      }.contains(cell.columnName);
-      return Container(
-        alignment: numeric ? Alignment.centerRight : Alignment.centerLeft,
-        padding: const EdgeInsets.symmetric(horizontal: 8),
-        child: Text('${cell.value}'),
-      );
-    }).toList(),
-  );
 }

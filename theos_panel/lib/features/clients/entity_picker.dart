@@ -1,22 +1,19 @@
-import 'dart:async';
-
 import 'package:fluent_ui/fluent_ui.dart';
+import 'package:odoo_widgets/odoo_widgets.dart';
 
-import '../../ui/bindings/record_view_controller.dart';
 import '../../ui/components/orbi_components.dart';
-import '../../ui/components/records/orbi_record_grid.dart';
 import 'catalog_contracts.dart';
 
-/// Search + grid/list picker shared by narrower dialogs (e.g. the sale
-/// editor's client picker) that need to pick one entity without the full
-/// browsing chrome (filter/pagination/export/columns) `OrbiListing` gives the
-/// top-level catalog screens (`ClientsScreen`, `ProductsScreen`).
+/// Search + listing picker shared by narrower dialogs (e.g. the sale
+/// editor's client picker) that need to pick one entity.
 ///
-/// The results surface reuses [OrbiRecordGrid]: a real Syncfusion grid on
-/// desktop/tablet-landscape and [OrbiRecordList] cards on tablet-portrait/
-/// phone. It intentionally does not reimplement a grid with `GridView.extent`,
-/// which produced fixed square cells that did not resize to the actual
-/// content.
+/// Por orden del dueño (11-sep-2026) — *«todos los listados deben tener el
+/// mismo aspecto»* — esta pantalla usa el mismo `OrbiListing` que
+/// `ClientsScreen`/`ProductsScreen`, en vez de la rejilla adaptativa propia
+/// (`OrbiRecordGrid`/`OrbiRecordList`) que usaba antes. `OrbiListing` trae su
+/// propio filtro, así que ya no hace falta un campo de búsqueda aparte por
+/// encima: el filtro que antes escribía en el `TextBox` de esta pantalla
+/// ahora escribe directamente en el de `OrbiListing`.
 class EntityPicker<T> extends StatefulWidget {
   const EntityPicker({
     super.key,
@@ -24,7 +21,6 @@ class EntityPicker<T> extends StatefulWidget {
     required this.label,
     this.entityName,
     this.onSelected,
-    this.searchBuilder,
   });
 
   final CatalogController<T> controller;
@@ -32,57 +28,14 @@ class EntityPicker<T> extends StatefulWidget {
   final String? entityName;
   final ValueChanged<CatalogEntity<T>>? onSelected;
 
-  /// Builds the search control shown above the grid/list. Defaults to a
-  /// plain search field with a refresh action. Pass a builder returning
-  /// `OrbiInlineCatalogPicker` to search inline instead of a separate bar
-  /// that would replace the grid with a bare results list
-  /// (REACTIVE_COMPONENTS_SPEC.md §5: product search stays inside the grid).
-  final Widget Function(BuildContext context, CatalogController<T> controller)?
-  searchBuilder;
-
   @override
   State<EntityPicker<T>> createState() => _EntityPickerState<T>();
 }
 
 class _EntityPickerState<T> extends State<EntityPicker<T>> {
-  late final TextEditingController _search = TextEditingController(
-    text: widget.controller.query.search,
-  );
-  late final OrbiRecordViewController<CatalogEntity<T>> _records =
-      OrbiRecordViewController<CatalogEntity<T>>(
-        idOf: (record) => record.value.uuid,
-      );
-  StreamSubscription<CatalogSnapshot<T>>? _subscription;
-
-  @override
-  void initState() {
-    super.initState();
-    // Seed synchronously from the current snapshot (mirrors the
-    // StreamBuilder's `initialData`), so the very first synchronous publish
-    // from the controller's constructor is never missed by this late
-    // subscription on its broadcast stream.
-    _syncRecords(widget.controller.snapshot);
-    _subscription = widget.controller.changes.listen(_syncRecords);
-  }
-
-  void _syncRecords(CatalogSnapshot<T> snapshot) {
-    _records.replaceRecords([
-      for (final entity in snapshot.items)
-        OrbiRecord<CatalogEntity<T>>(id: entity.uuid, value: entity),
-    ]);
-  }
-
-  @override
-  void dispose() {
-    _subscription?.cancel();
-    _records.dispose();
-    _search.dispose();
-    super.dispose();
-  }
-
-  void _onRecordTap(OrbiRecord<CatalogEntity<T>> record) {
-    widget.controller.select(record.value);
-    widget.onSelected?.call(record.value);
+  void _onRowTap(CatalogEntity<T> entity) {
+    widget.controller.select(entity);
+    widget.onSelected?.call(entity);
   }
 
   @override
@@ -92,100 +45,49 @@ class _EntityPickerState<T> extends State<EntityPicker<T>> {
       initialData: widget.controller.snapshot,
       builder: (context, snapshot) {
         final state = snapshot.data ?? widget.controller.snapshot;
-        return Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            widget.searchBuilder?.call(context, widget.controller) ??
-                _defaultSearch(),
-            const SizedBox(height: 12),
-            Expanded(child: _body(context, state)),
-          ],
-        );
+        return switch (state.status) {
+          CatalogLoadStatus.initial ||
+          CatalogLoadStatus.loading => const Center(child: ProgressRing()),
+          CatalogLoadStatus.error => OrbiErrorState(
+            message:
+                'No se pudo cargar ${widget.entityName ?? widget.label.toLowerCase()}.',
+            onRetry: widget.controller.refresh,
+          ),
+          CatalogLoadStatus.empty => const OrbiEmptyState(
+            title: 'Sin resultados',
+            message: 'Prueba otra búsqueda o actualiza el catálogo.',
+          ),
+          CatalogLoadStatus.data => _listing(context, state),
+        };
       },
     );
   }
 
-  Widget _defaultSearch() {
-    return TextBox(
-      controller: _search,
-      placeholder: widget.label,
-      onChanged: widget.controller.setSearch,
-      prefix: const Padding(
-        padding: EdgeInsets.only(left: 8),
-        child: Icon(FluentIcons.search),
-      ),
-      suffix: Tooltip(
-        message: 'Actualizar',
-        child: IconButton(
-          icon: const Icon(FluentIcons.refresh),
-          onPressed: widget.controller.refresh,
-        ),
-      ),
-    );
-  }
+  Widget _listing(BuildContext context, CatalogSnapshot<T> state) =>
+      OrbiListing<CatalogEntity<T>>(
+        rows: state.items,
+        columns: _columns(),
+        storageKey: 'entity-picker',
+        filterText: widget.controller.query.search,
+        onFilterChanged: widget.controller.setSearch,
+        filterPlaceholder: widget.label,
+        pageIndex: widget.controller.pageIndex,
+        rowsPerPage: widget.controller.query.pageSize,
+        totalCount: state.totalCount ?? state.items.length,
+        onPageChanged: widget.controller.setPage,
+        onRowTap: _onRowTap,
+        emptyMessage: 'Sin resultados',
+      );
 
-  Widget _body(BuildContext context, CatalogSnapshot<T> state) {
-    return switch (state.status) {
-      CatalogLoadStatus.initial ||
-      CatalogLoadStatus.loading => const Center(child: ProgressRing()),
-      CatalogLoadStatus.error => OrbiErrorState(
-        message:
-            'No se pudo cargar ${widget.entityName ?? widget.label.toLowerCase()}.',
-        onRetry: widget.controller.refresh,
-      ),
-      CatalogLoadStatus.empty => const OrbiEmptyState(
-        title: 'Sin resultados',
-        message: 'Prueba otra búsqueda o actualiza el catálogo.',
-      ),
-      CatalogLoadStatus.data => _grid(context, state),
-    };
-  }
-
-  Widget _grid(BuildContext context, CatalogSnapshot<T> state) {
-    return Column(
-      children: [
-        Expanded(
-          child: OrbiRecordGrid<CatalogEntity<T>>(
-            controller: _records,
-            columns: _columns(),
-            onRecordTap: _onRecordTap,
-          ),
-        ),
-        if (state.nextCursor != null)
-          Padding(
-            padding: const EdgeInsets.only(top: 4),
-            child: Button(
-              onPressed: widget.controller.loadNext,
-              child: const Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(FluentIcons.chevron_down),
-                  SizedBox(width: 6),
-                  Text('Cargar más'),
-                ],
-              ),
-            ),
-          ),
-        Semantics(
-          liveRegion: true,
-          label: '${state.items.length} resultados',
-          child: Text(
-            '${state.items.length} resultados',
-            textAlign: TextAlign.end,
-          ),
-        ),
-      ],
-    );
-  }
-
-  List<OrbiRecordColumn<CatalogEntity<T>>> _columns() => [
-    OrbiRecordColumn(
-      id: 'title',
+  List<OrbiColumn<CatalogEntity<T>>> _columns() => [
+    OrbiColumn(
+      key: 'title',
       label: widget.label,
       value: (entity) => entity.title,
+      alwaysVisible: true,
     ),
-    OrbiRecordColumn(
-      id: 'subtitle',
+    OrbiColumn(
+      key: 'subtitle',
       label: 'Detalle',
       value: (entity) => entity.subtitle ?? '—',
     ),
