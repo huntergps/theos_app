@@ -4,7 +4,7 @@ Este archivo existe porque las cosas se estaban perdiendo en la conversación. L
 que no está aquí, no está comprometido con nadie. Se actualiza en cuanto algo
 entra o sale, no al final de la sesión.
 
-Última actualización: 2026-09-12, madrugada.
+Última actualización: 2026-09-12, mañana.
 
 ## Esperan una decisión del dueño
 
@@ -46,6 +46,15 @@ Nada de esto avanza hasta que él responda. No son tareas: son preguntas.
   entrega es la vigilancia nueva**: la prueba existente comprobaba que algún
   permiso abriera cada ruta, nunca que algún menú apuntara a ella. Ahora
   comprueba las dos cosas, verificada en rojo antes que en verde.
+- 🟢 **El llavero de macOS funciona, y con él el desbloqueo sin conexión.** La
+  causa era que el proyecto no usaba la cuenta de firma que sí existía. Con el
+  equipo puesto y el permiso de llavero declarado, el acceso nativo completa y
+  el derivado **sobrevive a cerrar y reabrir la aplicación**, medido con dos
+  procesos distintos. Se refutaron cuatro hipótesis por el camino, tres mías.
+- 🟢 **Se entra desde el navegador con usuario y contraseña**, medido desde un
+  dominio ajeno y no desde el fácil. La credencial dura un día exacto y quien
+  entra llega al escritorio con pedidos, productos, clientes y facturas
+  legibles. Falta solo la comprobación visual en pantalla.
 - **El navegador sí guarda credenciales.** Orden del dueño del 11-sep-2026:
   *«yo he dicho que navegador también guarda igual que escritorio»*. Revoca la
   parte de `W02` y `W03` que decía lo contrario. El diseño está encargado y
@@ -64,31 +73,25 @@ Nada de esto avanza hasta que él responda. No son tareas: son preguntas.
 
 ## Defectos conocidos y sin arreglar
 
-- 🔴 **En el navegador no se puede entrar, y falla en silencio.** Medido el
-  12-sep-2026 con la pestaña de red abierta: al pulsar entrar hay **cero
-  peticiones**, cero errores en consola y **ningún mensaje en pantalla**. El
-  campo se limpia y no pasa nada. El servicio de acceso web devuelve «hace
-  falta entrar» sin tocar la red, y el texto previsto para ese caso es
-  inalcanzable. **No falla al entrar: no lo intenta.** Encargado.
-- 🔴 **El listado de bases tampoco se intenta en el navegador**, por el mismo
-  patrón y por un motivo distinto. Encender esa opción en el servidor no tuvo
-  ningún efecto visible, porque el cliente nunca pregunta. Encargado.
+- **La pantalla de acceso por PIN de vendedor existe y es inalcanzable.** Tiene
+  código y pruebas propias, y no la invoca nadie: ni el enrutador ni la pantalla
+  de acceso. Ahora es más urgente, porque ya se puede dar de alta un PIN y no
+  hay puerta que lo consuma.
+- **No existe enrolamiento de dispositivo en ningún sitio del monorepo.** El PIN
+  identifica una cuenta, no un equipo autorizado. Sin eso, «equipo compartido»
+  es una etiqueta de documento y no algo que el sistema aplique o revoque.
+- **Ningún lector de código de barras y ninguna impresión conectada**, aunque el
+  paquete de impresión ya viaje en el árbol. Ni rastro de cajón de dinero.
+- 🔴 **Las cuatro cuentas de prueba tienen la contraseña `12345`** por petición
+  del dueño, para poder entrar a mano. La base está expuesta en internet y la
+  ruta de acceso es pública. **Cambiarlas y cerrar la lista de orígenes antes de
+  publicar nada.**
 
 Ninguno de estos está encargado a nadie. Están aquí para que no se pierdan.
 
 - **Cada acceso fallido deja una credencial huérfana en el servidor.** El
   retroceso borra la copia local y nunca revoca la remota. Hay cuatro de `admin`
   en ERP2 de esta madrugada, sin revocar.
-- 🔴 **En macOS el llavero NO funciona, ni en depuración ni en distribución.**
-  Medido el 12-sep-2026 leyendo los registros del demonio de seguridad del
-  sistema, no la excepción de Flutter: falla igual con el confinamiento puesto
-  o quitado, y con el parámetro del llavero protegido en cualquier valor. El
-  sistema exige una autorización que **una firma improvisada sin equipo de
-  Apple no puede producir**, para cualquier acceso al llavero. Dos afirmaciones
-  anteriores quedan refutadas: que se arreglaba con un parámetro, y que en
-  depuración seguía funcionando. **Las dos eran falsas.** La salida elegida es
-  el archivo cifrado que pidió el dueño, con la llave derivada de la
-  contraseña.
 - **Un fallo de conexión se interpreta como falta de red** sin comprobarlo. El
   paquete de conectividad ya está declarado y sin usar.
 - **Los conflictos de sincronización llegan vacíos.** El trabajo que los calcula
