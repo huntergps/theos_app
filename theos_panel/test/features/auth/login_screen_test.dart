@@ -1476,7 +1476,7 @@ final class _LoginThemeHarness extends ConsumerWidget {
       builder: (context, _) => MaterialApp(
         theme: OrbiTheme.light,
         darkTheme: OrbiTheme.dark,
-        themeMode: preferences.snapshot.materialThemeMode,
+        themeMode: preferences.snapshot.appThemeMode,
         home: const LoginScreen(),
       ),
     );

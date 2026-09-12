@@ -21,17 +21,21 @@ abstract final class OrbiFluentTheme {
   /// así que no hay que elegir a mano ni un tono más.
   static AccentColor get accent => OrbiTheme.brand.toAccentColor();
 
-  static FluentThemeData get light => _build(Brightness.light);
-  static FluentThemeData get dark => _build(Brightness.dark);
+  static FluentThemeData get light => fromSeed(OrbiTheme.brand, Brightness.light);
+  static FluentThemeData get dark => fromSeed(OrbiTheme.brand, Brightness.dark);
 
-  static FluentThemeData of(Brightness brightness) => _build(brightness);
-
-  static FluentThemeData _build(Brightness brightness) => FluentThemeData(
+  /// El tema a partir del color que la persona haya elegido en Configuración.
+  ///
+  /// La densidad se respeta porque es una preferencia de accesibilidad: quien
+  /// la puso compacta lo hizo para ver más filas de un vistazo, y devolvérsela
+  /// a la estándar sin avisar le quita lo que había pedido.
+  static FluentThemeData fromSeed(
+    Color seed,
+    Brightness brightness, {
+    VisualDensity visualDensity = VisualDensity.standard,
+  }) => FluentThemeData(
     brightness: brightness,
-    accentColor: accent,
-    // La densidad estándar de Fluent está pensada para ratón. Estas pantallas
-    // se usan también en tableta y de pie, así que el objetivo táctil no puede
-    // encogerse por debajo de lo que un dedo acierta.
-    visualDensity: VisualDensity.standard,
+    accentColor: seed.toAccentColor(),
+    visualDensity: visualDensity,
   );
 }

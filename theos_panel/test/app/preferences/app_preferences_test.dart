@@ -35,7 +35,7 @@ void main() {
       themeMode: PreferenceThemeMode.dark,
       textScale: 1.15,
     );
-    expect(snapshot.materialThemeMode, ThemeMode.dark);
+    expect(snapshot.appThemeMode, ThemeMode.dark);
     final theme = OrbiTheme.fromSeed(const Color(0xFF6750A4), Brightness.dark);
     expect(theme.colorScheme.primary, isNotNull);
     expect(snapshot.textScale, 1.15);

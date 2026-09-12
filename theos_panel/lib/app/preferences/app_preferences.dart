@@ -78,7 +78,10 @@ final class AppPreferencesSnapshot {
     messageDurations: messageDurations ?? this.messageDurations,
   );
 
-  ThemeMode get materialThemeMode => switch (themeMode) {
+  /// Se llamaba `materialThemeMode` cuando la raíz era Material. `ThemeMode`
+  /// no es de Material: lo usan las dos raíces, y el nombre viejo hacía pensar
+  /// que había que cambiarlo al migrar a Fluent.
+  ThemeMode get appThemeMode => switch (themeMode) {
     PreferenceThemeMode.system => ThemeMode.system,
     PreferenceThemeMode.light => ThemeMode.light,
     PreferenceThemeMode.dark => ThemeMode.dark,

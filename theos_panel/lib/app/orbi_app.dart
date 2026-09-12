@@ -1,10 +1,16 @@
-import 'package:flutter/material.dart';
+import 'package:fluent_ui/fluent_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import 'router.dart';
-import 'theme/orbi_theme.dart';
+import '../ui/fluent/orbi_fluent_theme.dart';
 import 'preferences/app_preferences.dart';
+import 'router.dart';
 
+/// La raíz de Orbi.
+///
+/// Es `FluentApp`, no `MaterialApp`, por decisión del dueño del 11-sep-2026.
+/// La aplicación madura de este mismo repositorio lleva 518 ficheros sin una
+/// sola importación de Material y con las rejillas de Syncfusion dentro, así
+/// que el camino está probado aquí, no supuesto.
 class OrbiApp extends ConsumerWidget {
   const OrbiApp({super.key});
 
@@ -15,33 +21,34 @@ class OrbiApp extends ConsumerWidget {
     );
     return AnimatedBuilder(
       animation: preferences,
-      builder: (context, _) => MaterialApp.router(
-        title: 'Orbi ERP',
-        theme: OrbiTheme.fromSeed(
-          Color(preferences.snapshot.accentSeed),
-          Brightness.light,
-          visualDensity:
-              preferences.snapshot.density == PreferenceDensity.compact
-              ? VisualDensity.compact
-              : VisualDensity.standard,
-        ),
-        darkTheme: OrbiTheme.fromSeed(
-          Color(preferences.snapshot.accentSeed),
-          Brightness.dark,
-          visualDensity:
-              preferences.snapshot.density == PreferenceDensity.compact
-              ? VisualDensity.compact
-              : VisualDensity.standard,
-        ),
-        builder: (context, child) => MediaQuery(
-          data: MediaQuery.of(context).copyWith(
-            textScaler: TextScaler.linear(preferences.snapshot.textScale),
+      builder: (context, _) {
+        final snapshot = preferences.snapshot;
+        final density = snapshot.density == PreferenceDensity.compact
+            ? VisualDensity.compact
+            : VisualDensity.standard;
+        return FluentApp.router(
+          title: 'Orbi ERP',
+          debugShowCheckedModeBanner: false,
+          theme: OrbiFluentTheme.fromSeed(
+            Color(snapshot.accentSeed),
+            Brightness.light,
+            visualDensity: density,
           ),
-          child: child ?? const SizedBox.shrink(),
-        ),
-        themeMode: preferences.snapshot.materialThemeMode,
-        routerConfig: ref.watch(orbiRouterProvider),
-      ),
+          darkTheme: OrbiFluentTheme.fromSeed(
+            Color(snapshot.accentSeed),
+            Brightness.dark,
+            visualDensity: density,
+          ),
+          themeMode: snapshot.appThemeMode,
+          builder: (context, child) => MediaQuery(
+            data: MediaQuery.of(context).copyWith(
+              textScaler: TextScaler.linear(snapshot.textScale),
+            ),
+            child: child ?? const SizedBox.shrink(),
+          ),
+          routerConfig: ref.watch(orbiRouterProvider),
+        );
+      },
     );
   }
 }

@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:fluent_ui/fluent_ui.dart';
 import 'package:orbi_runtime/orbi_runtime.dart'
     show ConnectionStatus, connectionStatusLabel;
 
@@ -6,30 +6,7 @@ import '../../app/theme/orbi_theme.dart';
 import '../components/orbi_brand.dart';
 import 'workspace_lock_screen.dart';
 
-/// The three permanent-navigation tiers `OperationalShell` renders, chosen
-/// purely from the window's width and orientation (never a user setting —
-/// `docs/orbi_panel/reports/ESQUELETO_FLUENT_2026_09_12.md` recommends
-/// against a `PaneDisplayMode`-style user choice: "que el ancho decida").
-enum _NavMode {
-  /// No permanent rail at all: a `Drawer` behind the app bar's hamburger.
-  hidden,
-
-  /// Icon-only rail. A grouped destination collapses to one icon that opens
-  /// a flyout with its children, mirroring `fluent_ui`'s own `useFlyout`
-  /// behaviour for `PaneDisplayMode.compact`
-  /// (`navigation_view/pane_items.dart`) rather than nesting a submenu
-  /// inside a ~56px-wide rail item.
-  compact,
-
-  /// Full labeled rail. The group containing the current route expands
-  /// inline; every other multi-destination group collapses to a single row
-  /// (its own name, its first destination's icon, a chevron) that jumps to
-  /// its first destination — exactly what the lámina draws for "Ventas" vs.
-  /// "Caja"/"Bodega"/"Envases"/"Sistema" on the 1920px desktop view.
-  expanded,
-}
-
-/// A navigation entry supplied by the active capability catalog.
+/// Una entrada de navegación que aporta el catálogo de capacidades activo.
 final class OperationalDestination {
   const OperationalDestination({
     required this.label,
@@ -44,7 +21,7 @@ final class OperationalDestination {
   final String group;
 }
 
-/// Server and session context rendered by [OperationalShell].
+/// El contexto de servidor y sesión que pinta [OperationalShell].
 final class OperationalContext {
   const OperationalContext({
     required this.server,
@@ -63,25 +40,36 @@ final class OperationalContext {
   final String companyLabel;
   final String? serverTime;
 
-  /// Legacy, string-only connection text. Rendered only when
-  /// [connectionStatus] is `null` — kept so a caller that has not been
-  /// wired to a real measurement yet still compiles and still shows
-  /// something, never silently dropped.
+  /// Texto de conexión heredado, sólo de cadena. Se pinta únicamente cuando
+  /// [connectionStatus] es nulo: se conserva para que quien todavía no esté
+  /// conectado a una medida real siga enseñando algo, en vez de nada.
   final String connectionLabel;
 
-  /// The measured connection state, when a caller actually has one to give.
-  /// `null` means exactly what it says: nothing has been measured, so the
-  /// footer falls back to [connectionLabel] rather than guessing a color
-  /// from its text. See `ConnectionStatusResolver` in `orbi_runtime` for how
-  /// this is meant to be produced — from a real `NetworkSignal` and
-  /// `BackendProbeResult`, never invented here.
+  /// El estado medido. Cuando existe manda sobre [connectionLabel], para que
+  /// los dos no puedan decir cosas distintas.
   final ConnectionStatus? connectionStatus;
 
   final String syncLabel;
 }
 
-/// Shared operational frame. It deliberately owns no router, provider, or data
-/// source: callers provide destinations and handle navigation/capabilities.
+/// El marco sobre el que se muestra toda la aplicación.
+///
+/// 🔴 **Es `NavigationView` de Fluent, no un andamiaje propio.** Antes esta
+/// clase reimplementaba a mano los tres niveles de navegación —cajón, carril
+/// de iconos con desplegable y carril con etiquetas—, unas cuatrocientas
+/// líneas que Fluent ya trae y mantiene. La decisión del dueño del 11-sep-2026
+/// de usar `fluent_ui` retira esa duplicación.
+///
+/// Lo que sí se conserva es **dónde están los cortes**, que no son los de
+/// Fluent. Salen de la lámina aprobada `round-03/SHELL-01.png`, medidos sobre
+/// ella:
+///
+/// - 1920×1080 → carril con etiquetas.
+/// - 1366×1024 → carril de sólo iconos, donde Fluent ya habría abierto el suyo.
+/// - vertical a cualquier ancho, y teléfono → sin carril, con hamburguesa.
+///
+/// La orientación cuenta tanto como el ancho: un iPad vertical de 1024 de
+/// ancho **no** lleva carril, igual que el teléfono.
 final class OperationalShell extends StatelessWidget {
   const OperationalShell({
     super.key,
@@ -108,77 +96,73 @@ final class OperationalShell extends StatelessWidget {
   final OperationalContext context;
   final VoidCallback onLogout;
 
-  /// Whether the workspace is currently locked (ACC-03, "bloquear"). Purely
-  /// presentational: the caller owns this state so it survives whatever
-  /// else rebuilds around the shell (this widget "owns no router, provider,
-  /// or data source").
+  /// Si el puesto está bloqueado. Puramente de presentación: el estado es de
+  /// quien nos usa, para que sobreviva a lo que se reconstruya alrededor.
   final bool locked;
 
-  /// Locks the workspace. Absent means the shell does not offer locking at
-  /// all — never a button the user cannot actually use.
+  /// Bloquea el puesto. Ausente significa que este marco no ofrece bloqueo,
+  /// nunca un botón que la persona no pueda usar.
   final VoidCallback? onLock;
 
-  /// Revalidates the same identity to leave [locked]. Required whenever
-  /// [onLock] is provided (see the constructor assertion): a lock without an
-  /// unlock path would strand the operator.
+  /// Revalida la misma identidad para salir de [locked]. Obligatorio siempre
+  /// que haya [onLock]: un bloqueo sin salida deja a alguien encerrado.
   final Future<bool> Function(String password)? onUnlock;
 
-  /// Ends the current identity's Workspace access so a different person can
-  /// enter. Distinct action from locking and from [onLogout] — see
-  /// ORBI_PRODUCT_ARCHITECTURE_AND_UX_SPEC.md §8.
+  /// Cierra el acceso de la identidad actual para que entre otra persona. Es
+  /// una acción distinta de bloquear y de cerrar sesión.
   final VoidCallback? onSwitchUser;
 
-  /// Three render tiers for the permanent navigation, matching what the
-  /// approved lámina `visual_baselines/approved/round-03/SHELL-01.png`
-  /// actually shows at its four device sizes — not Fluent's own
-  /// `PaneDisplayMode.auto` cutoffs (`≤640 → minimal`, `≥1008 → expanded` per
-  /// `fluent_ui-4.16.1`'s `view.dart:541-543`), which the lámina's own
-  /// author deliberately did not copy: at 1366×1024 landscape (iPad
-  /// horizontal) the lámina shows the ICON-ONLY rail, not the labeled one
-  /// Fluent's own threshold would already have opened.
+  /// El ancho a partir del cual el carril enseña etiquetas.
   ///
-  /// Anchors actually measured on the lámina, landscape only:
-  /// - 1920×1080 → full labeled rail, active area's children shown inline.
-  /// - 1366×1024 → icon-only rail, no labels.
-  /// - 1024×1366 (portrait) and 390×844 (phone) → no permanent rail at all.
-  ///
-  /// [_compactBreakpoint] reuses `OrbiTheme.mediumBreakpoint` (840): the
-  /// same "wide" cutoff `login_screen.dart`, `pin_login_screen.dart` and
-  /// `collection_screen.dart` already use, safely below the 1366 anchor.
-  /// [_expandedBreakpoint] has no lámina data point between 1366 (icon-only)
-  /// and 1920 (labeled) — 1440 is a deliberate interpolation (a common
-  /// laptop width, comfortably above the confirmed icon-only anchor), not a
-  /// measured cutoff. If a lámina ever fixes this precisely, replace it.
+  /// Entre 1366 (sólo iconos, confirmado en la lámina) y 1920 (con etiquetas,
+  /// confirmado) la lámina no da ningún punto, así que 1440 es una
+  /// interpolación deliberada, no una medida. Si alguna lámina lo fija, se
+  /// cambia por el valor real.
   static const double _expandedBreakpoint = 1440;
 
-  _NavMode _navMode(BoxConstraints constraints) {
-    // Portrait never gets a permanent rail, at any width: the 1024-wide
-    // portrait iPad in the lámina still falls back to the hidden drawer,
-    // exactly like the 390-wide phone — this mirrors the same
-    // width-AND-orientation gate `login_screen.dart`, `pin_login_screen.dart`
-    // and `collection_session_hub_screen.dart` already use for "wide".
-    if (constraints.maxWidth < constraints.maxHeight) return _NavMode.hidden;
-    if (constraints.maxWidth >= _expandedBreakpoint) return _NavMode.expanded;
-    if (constraints.maxWidth >= OrbiTheme.mediumBreakpoint) {
-      return _NavMode.compact;
+  static const Color _footerBackground = Color(0xFF1B1B1F);
+  static const Color _footerForeground = Color(0xFFE6E1E5);
+  static const Color _footerMuted = Color(0xFF938F99);
+
+  /// El color por significado, tal como lo fija
+  /// `SHELL_AND_INTERACTION_SPEC.md`. Está escrito aquí y no tomado del tema
+  /// porque **el significado no cambia con la marca**: si mañana el acento
+  /// pasara a rojo, «pendiente» seguiría siendo ámbar y «error» rojo.
+  static const Color _ok = Color(0xFF2E7D32);
+  static const Color _pending = Color(0xFFF9A825);
+  static const Color _bad = Color(0xFFC62828);
+
+  PaneDisplayMode _displayMode(BoxConstraints constraints) {
+    // En vertical nunca hay carril permanente, a ningún ancho.
+    if (constraints.maxWidth < constraints.maxHeight) {
+      return PaneDisplayMode.minimal;
     }
-    return _NavMode.hidden;
+    if (constraints.maxWidth >= _expandedBreakpoint) {
+      return PaneDisplayMode.expanded;
+    }
+    if (constraints.maxWidth >= OrbiTheme.mediumBreakpoint) {
+      return PaneDisplayMode.compact;
+    }
+    return PaneDisplayMode.minimal;
   }
 
   @override
   Widget build(BuildContext buildContext) => Stack(
     children: [
-      // The real shell stays mounted even while locked: a draft mid-edit or
-      // an in-flight form must never be discarded just because someone
-      // pressed "Bloquear". Only its interactivity and semantics are
-      // suppressed; nothing underneath is rebuilt, disposed or reset.
-      IgnorePointer(
-        ignoring: locked,
-        child: ExcludeSemantics(
-          excluding: locked,
-          child: _scaffold(buildContext),
-        ),
-      ),
+      // El marco sigue montado aunque esté bloqueado: un borrador a medio
+      // escribir no puede perderse porque alguien pulsara «Bloquear». Sólo se
+      // suprime su interactividad; nada de debajo se reconstruye ni se tira.
+      // Los envoltorios de bloqueo se ponen SÓLO al bloquear. Dejarlos
+      // siempre puestos, aunque no hicieran nada, mete un nodo de semántica
+      // por encima de la navegación de Fluent y el marco lanza una aserción
+      // propia al recorrer el árbol de accesibilidad en anchos de teléfono.
+      if (locked)
+        IgnorePointer(
+          key: const Key('operational-shell-interactivity'),
+          child: ExcludeSemantics(child: _scaffold(buildContext)),
+        )
+      else
+        _scaffold(buildContext),
       if (locked)
         Positioned.fill(
           child: WorkspaceLockScreen(
@@ -192,388 +176,179 @@ final class OperationalShell extends StatelessWidget {
   );
 
   Widget _scaffold(BuildContext buildContext) => LayoutBuilder(
-    builder: (buildContext, constraints) {
-      final mode = _navMode(constraints);
-      final footer =
+    builder: (layoutContext, constraints) {
+      final mode = _displayMode(constraints);
+      final wideFooter =
           constraints.maxWidth >= 600 &&
           constraints.maxWidth >= constraints.maxHeight;
-      return Scaffold(
-        drawer: mode == _NavMode.hidden
-            ? _navigationDrawer(buildContext)
-            : null,
-        appBar: _appBar(buildContext, mode),
-        body: SafeArea(
-          child: Column(
-            children: [
-              Expanded(
-                child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    if (mode == _NavMode.expanded) _sidebar(buildContext),
-                    if (mode == _NavMode.compact) _compactRail(buildContext),
-                    Expanded(child: child),
-                  ],
-                ),
-              ),
-              if (footer)
-                _contextFooter(buildContext)
-              else
-                _compactContextButton(buildContext),
-            ],
+      return Column(
+        children: [
+          _header(layoutContext),
+          Expanded(
+            child: NavigationView(
+              pane: _pane(mode),
+              paneBodyBuilder: (item, _) => child,
+            ),
           ),
-        ),
+          if (wideFooter)
+            _contextFooter(layoutContext)
+          else
+            _compactContextButton(layoutContext),
+        ],
       );
     },
   );
 
-  PreferredSizeWidget _appBar(BuildContext context, _NavMode mode) => AppBar(
-    automaticallyImplyLeading: mode == _NavMode.hidden,
-    titleSpacing: mode == _NavMode.hidden ? null : 20,
-    title: Row(
-      children: [
-        OrbiBrand(height: 32, color: Theme.of(context).colorScheme.onSurface),
-        const SizedBox(width: 16),
-        Flexible(
-          child: Text(
-            this.context.companyLabel,
-            overflow: TextOverflow.ellipsis,
-            style: Theme.of(context).textTheme.titleMedium,
+  /// La cabecera: marca, empresa, usuario y las acciones de sesión.
+  ///
+  /// Es una fila propia y no el `TitleBar` de Fluent a propósito. Ese widget
+  /// es la barra de título de una VENTANA de escritorio —trae controles de
+  /// ventana y gestos de arrastre— y en ancho de teléfono revienta la
+  /// disposición con una aserción del propio marco, reproducida al aislarlo.
+  /// Lo que necesitamos aquí es la cabecera de la aplicación, que es otra cosa
+  /// y no depende del sistema operativo.
+  Widget _header(BuildContext buildContext) {
+    final theme = FluentTheme.of(buildContext);
+    return Container(
+      height: 48,
+      padding: const EdgeInsets.symmetric(horizontal: 12),
+      decoration: BoxDecoration(
+        color: theme.micaBackgroundColor,
+        border: Border(
+          bottom: BorderSide(color: theme.resources.dividerStrokeColorDefault),
+        ),
+      ),
+      child: Row(
+        children: [
+          OrbiBrand(height: 28, color: theme.typography.body?.color),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Text(
+              context.companyLabel,
+              overflow: TextOverflow.ellipsis,
+              maxLines: 1,
+              style: theme.typography.bodyStrong,
+            ),
           ),
-        ),
-      ],
-    ),
-    actions: [
-      if (mode != _NavMode.hidden)
-        Padding(
-          padding: const EdgeInsetsDirectional.only(end: 8),
-          child: Center(child: Text(this.context.userLabel)),
-        ),
-      if (onLock != null)
-        IconButton(
-          key: const Key('lock-button'),
-          tooltip: 'Bloquear',
-          icon: const Icon(Icons.lock_outline),
-          onPressed: onLock,
-        ),
-      if (onSwitchUser != null)
-        IconButton(
-          key: const Key('switch-user-button'),
-          tooltip: 'Cambiar de usuario',
-          icon: const Icon(Icons.switch_account_outlined),
-          onPressed: onSwitchUser,
-        ),
-      IconButton(
-        key: const Key('logout-button'),
-        tooltip: 'Cerrar sesión',
-        icon: const Icon(Icons.logout),
-        onPressed: onLogout,
-      ),
-    ],
-  );
-
-  /// Every destination bucketed by `group`, in the order the caller supplied
-  /// them (`router.dart`'s own stable group order, per
-  /// `SHELL_AND_INTERACTION_SPEC.md`: "Éste es también el orden estable de
-  /// grupos").
-  Map<String, List<OperationalDestination>> _groupedDestinations() {
-    final grouped = <String, List<OperationalDestination>>{};
-    for (final destination in destinations) {
-      grouped.putIfAbsent(destination.group, () => []).add(destination);
-    }
-    return grouped;
-  }
-
-  /// Whether [group] contains (or is a prefix-ancestor of) [selectedPath] —
-  /// the same rule `RouteAccessPolicy` itself uses for a nested screen under
-  /// an area's own route.
-  bool _isGroupActive(List<OperationalDestination> group) => group.any(
-    (d) => selectedPath == d.path || selectedPath.startsWith('${d.path}/'),
-  );
-
-  Widget _sidebar(BuildContext context) => SizedBox(
-    width: 256,
-    child: Semantics(
-      container: true,
-      label: 'Navegación principal',
-      child: Material(
-        color: Theme.of(context).colorScheme.surfaceContainerLow,
-        child: ListView(
-          padding: const EdgeInsets.symmetric(vertical: 16),
-          children: _expandedTiles(context),
-        ),
-      ),
-    ),
-  );
-
-  /// Full labeled rail. A group of exactly one destination renders exactly
-  /// as it always has (header + tile) — untouched, zero collapse risk. A
-  /// group of two or more collapses to a single row naming the GROUP (not
-  /// whichever destination happens to be first) when it does not contain
-  /// the current route, and expands inline — header, then every child tile,
-  /// same markup as before — when it does. This is what the lámina draws:
-  /// "Ventas" expanded because the shown screen is one of its own, "Caja"/
-  /// "Bodega"/"Envases"/"Sistema" collapsed to one row each.
-  List<Widget> _expandedTiles(BuildContext context) {
-    final tiles = <Widget>[];
-    for (final entry in _groupedDestinations().entries) {
-      final group = entry.value;
-      if (group.length == 1) {
-        tiles
-          ..add(_groupHeader(context, entry.key))
-          ..add(_destinationTile(context, group.single));
-        continue;
-      }
-      if (_isGroupActive(group)) {
-        tiles.add(_groupHeader(context, entry.key));
-        for (final destination in group) {
-          tiles.add(_destinationTile(context, destination));
-        }
-      } else {
-        tiles.add(_collapsedGroupTile(context, entry.key, group));
-      }
-    }
-    return tiles;
-  }
-
-  Widget _groupHeader(BuildContext context, String label) => Padding(
-    padding: const EdgeInsetsDirectional.fromSTEB(20, 12, 20, 4),
-    child: Text(label, style: Theme.of(context).textTheme.labelLarge),
-  );
-
-  Widget _destinationTile(
-    BuildContext context,
-    OperationalDestination destination,
-  ) => Semantics(
-    container: true,
-    button: true,
-    selected: destination.path == selectedPath,
-    label: destination.label,
-    child: ListTile(
-      selected: destination.path == selectedPath,
-      leading: Icon(destination.icon, semanticLabel: ''),
-      title: Text(destination.label),
-      onTap: () => _navigate(context, destination.path),
-    ),
-  );
-
-  /// The single row an inactive multi-destination group collapses to: the
-  /// GROUP's own name (never the first child's label, which would misname
-  /// e.g. Envases as "Dashboard"), that first child's icon, and a chevron —
-  /// tapping opens that first destination, which is what makes the group
-  /// active and expands it on the next build.
-  Widget _collapsedGroupTile(
-    BuildContext context,
-    String group,
-    List<OperationalDestination> children,
-  ) => Semantics(
-    container: true,
-    button: true,
-    label: group,
-    child: ListTile(
-      leading: Icon(children.first.icon, semanticLabel: ''),
-      title: Text(group),
-      trailing: const Icon(Icons.chevron_right, size: 20),
-      onTap: () => _navigate(context, children.first.path),
-    ),
-  );
-
-  void _navigate(BuildContext context, String path) {
-    final scaffold = Scaffold.maybeOf(context);
-    if (scaffold?.isDrawerOpen ?? false) scaffold!.closeDrawer();
-    onNavigate(path);
-  }
-
-  /// Icon-only rail (`_NavMode.compact`). Never nests a group's children
-  /// inside the ~56px-wide column — that is exactly the "uncomfortable with
-  /// a mouse, impossible with a finger" trap
-  /// `ESQUELETO_FLUENT_2026_09_12.md` flags. Instead it mirrors `fluent_ui`'s
-  /// own resolution for `PaneDisplayMode.compact`
-  /// (`navigation_view/pane_items.dart`, `useFlyout`): one destination per
-  /// icon, or for a group, one icon that opens a flyout menu of its
-  /// children anchored to its right. Group header labels are not shown at
-  /// all here, matching Fluent hiding `PaneItemHeader` in compact.
-  Widget _compactRail(BuildContext context) => SizedBox(
-    width: 72,
-    child: Semantics(
-      container: true,
-      label: 'Navegación principal',
-      child: Material(
-        color: Theme.of(context).colorScheme.surfaceContainerLow,
-        child: ListView(
-          padding: const EdgeInsets.symmetric(vertical: 16),
-          children: [
-            for (final entry in _groupedDestinations().entries)
-              entry.value.length == 1
-                  ? _compactTile(
-                      context,
-                      icon: entry.value.single.icon,
-                      label: entry.value.single.label,
-                      selected: entry.value.single.path == selectedPath,
-                      onTap: () => _navigate(context, entry.value.single.path),
-                    )
-                  : _compactGroupTile(context, entry.key, entry.value),
-          ],
-        ),
-      ),
-    ),
-  );
-
-  Widget _compactTile(
-    BuildContext context, {
-    required IconData icon,
-    required String label,
-    required bool selected,
-    required VoidCallback onTap,
-  }) => Padding(
-    padding: const EdgeInsets.symmetric(vertical: 4),
-    child: Tooltip(
-      message: label,
-      child: Semantics(
-        container: true,
-        button: true,
-        selected: selected,
-        label: label,
-        child: Material(
-          color: selected
-              ? Theme.of(context).colorScheme.secondaryContainer
-              : Colors.transparent,
-          borderRadius: BorderRadius.circular(12),
-          child: InkWell(
-            borderRadius: BorderRadius.circular(12),
-            onTap: onTap,
-            child: SizedBox(height: 48, child: Icon(icon, semanticLabel: '')),
-          ),
-        ),
-      ),
-    ),
-  );
-
-  /// The compact-mode flyout: `showMenu` anchored to the tapped icon's own
-  /// right edge, positioned from its `RenderBox` — Material's equivalent of
-  /// `fluent_ui`'s anchored flyout, not a re-implementation of it.
-  Widget _compactGroupTile(
-    BuildContext context,
-    String group,
-    List<OperationalDestination> children,
-  ) => Builder(
-    builder: (tileContext) => _compactTile(
-      context,
-      icon: children.first.icon,
-      label: group,
-      selected: _isGroupActive(children),
-      onTap: () async {
-        final box = tileContext.findRenderObject() as RenderBox;
-        final overlay =
-            Overlay.of(tileContext).context.findRenderObject() as RenderBox;
-        final topRight = box.localToGlobal(
-          box.size.topRight(Offset.zero),
-          ancestor: overlay,
-        );
-        final bottomRight = box.localToGlobal(
-          box.size.bottomRight(Offset.zero),
-          ancestor: overlay,
-        );
-        final path = await showMenu<String>(
-          context: tileContext,
-          position: RelativeRect.fromRect(
-            Rect.fromPoints(topRight, bottomRight),
-            Offset.zero & overlay.size,
-          ),
-          items: [
-            for (final destination in children)
-              PopupMenuItem<String>(
-                value: destination.path,
-                child: Row(
-                  children: [
-                    Icon(destination.icon, size: 20),
-                    const SizedBox(width: 12),
-                    Text(destination.label),
-                  ],
-                ),
-              ),
-          ],
-        );
-        if (path != null && tileContext.mounted) {
-          _navigate(tileContext, path);
-        }
-      },
-    ),
-  );
-
-  Widget _navigationDrawer(BuildContext context) => Drawer(
-    child: SafeArea(
-      child: Builder(
-        builder: (drawerContext) => ListView(
-          padding: const EdgeInsets.symmetric(vertical: 16),
-          children: [
+          // El nombre se calla en estrecho: entre el nombre y poder cerrar
+          // sesión, en un teléfono manda el botón.
+          if (MediaQuery.sizeOf(buildContext).width >=
+              OrbiTheme.compactBreakpoint)
             Padding(
-              padding: const EdgeInsetsDirectional.fromSTEB(20, 8, 20, 16),
-              child: Text(
-                this.context.companyLabel,
-                style: Theme.of(drawerContext).textTheme.titleMedium,
+              padding: const EdgeInsets.symmetric(horizontal: 8),
+              child: Text(context.userLabel),
+            ),
+          if (onLock != null)
+            Tooltip(
+              message: 'Bloquear',
+              child: IconButton(
+                key: const Key('lock-button'),
+                icon: const Icon(FluentIcons.lock),
+                onPressed: onLock,
               ),
             ),
-            ..._navigationTiles(drawerContext),
-          ],
-        ),
+          if (onSwitchUser != null)
+            Tooltip(
+              message: 'Cambiar de usuario',
+              child: IconButton(
+                key: const Key('switch-user-button'),
+                icon: const Icon(FluentIcons.switch_user),
+                onPressed: onSwitchUser,
+              ),
+            ),
+          Tooltip(
+            message: 'Cerrar sesión',
+            child: IconButton(
+              key: const Key('logout-button'),
+              icon: const Icon(FluentIcons.sign_out),
+              onPressed: onLogout,
+            ),
+          ),
+        ],
       ),
-    ),
-  );
-
-  /// The drawer (phone/portrait) never collapses a group: Material's own
-  /// convention there is inline expansion and there is room to spare — see
-  /// the class doc on [_NavMode.hidden]'s sibling comment above `_navMode`.
-  List<Widget> _navigationTiles(BuildContext context) {
-    final grouped = _groupedDestinations();
-    return [
-      for (final entry in grouped.entries) ...[
-        _groupHeader(context, entry.key),
-        for (final destination in entry.value)
-          _destinationTile(context, destination),
-      ],
-    ];
+    );
   }
 
-  /// Fixed, theme-independent dark tone — the lámina's footer stays dark in
-  /// its light-theme desktop view too, so this is deliberately not
-  /// `colorScheme.surfaceContainerHighest` (which would go pale in light
-  /// mode and read as "half of a gray page" rather than the lámina's own
-  /// "one dark strip, light text").
-  static const _footerBackground = Color(0xFF1B1D1F);
-  static const _footerForeground = Colors.white;
-  static const _footerMuted = Colors.white70;
+  /// El menú, con sus grupos.
+  ///
+  /// Cada área es un `PaneItemExpander` **sin cuerpo propio**: pulsarlo abre y
+  /// cierra el grupo, no navega a ningún sitio, porque un área no es una
+  /// pantalla. Fluent excluye de la cuenta de selección los que no tienen
+  /// cuerpo, así que el índice del destino elegido coincide con su posición
+  /// en la lista de destinos y no hay que llevar dos numeraciones en paralelo.
+  ///
+  /// En el carril de sólo iconos, Fluent enseña los hijos en un desplegable
+  /// por sí solo. Eso es exactamente lo que dibuja la lámina, y no hay que
+  /// escribirlo: era una de las cuatrocientas líneas que esta migración quitó.
+  NavigationPane _pane(PaneDisplayMode mode) {
+    final grouped = _groupedDestinations();
+    final ordered = [for (final entry in grouped.entries) ...entry.value];
+    final selected = ordered.indexWhere((d) => d.path == selectedPath);
+    final activeGroup = selected < 0 ? null : ordered[selected].group;
 
-  /// A single horizontal strip — never `Wrap`, which used to fold this into
-  /// three stacked lines of gray-on-gray and was a real part of "parece
-  /// rota". `SingleChildScrollView` is the safety net for a window too
-  /// narrow to fit everything (never truncate information silently); it is
-  /// not the lámina's own affordance, which assumes desktop width.
-  Widget _contextFooter(BuildContext context) => Semantics(
-    container: true,
-    label: 'Información de conexión',
-    child: Container(
+    return NavigationPane(
+      displayMode: mode,
+      selected: selected < 0 ? null : selected,
+      items: [
+        for (final entry in grouped.entries)
+          PaneItemExpander(
+            key: ValueKey('grupo-${entry.key}'),
+            // El icono del grupo es el de su primer destino: sin icono, en el
+            // carril estrecho el área se vuelve invisible.
+            icon: Icon(entry.value.first.icon),
+            title: Text(entry.key),
+            // El grupo de la pantalla que se está viendo nace abierto: cerrado
+            // obligaría a abrirlo para saber dónde se está.
+            initiallyExpanded: entry.key == activeGroup,
+            items: [
+              for (final destination in entry.value)
+                PaneItem(
+                  key: ValueKey(destination.path),
+                  icon: Icon(destination.icon),
+                  title: Text(destination.label),
+                  body: const SizedBox.shrink(),
+                  onTap: () => onNavigate(destination.path),
+                ),
+            ],
+          ),
+      ],
+    );
+  }
+
+  /// Los destinos agrupados, conservando el orden en que llegan dentro de cada
+  /// grupo y el orden de aparición de los grupos. No se ordena
+  /// alfabéticamente: el orden de las áreas lo fija el contrato del marco.
+  Map<String, List<OperationalDestination>> _groupedDestinations() {
+    final groups = <String, List<OperationalDestination>>{};
+    for (final destination in destinations) {
+      groups.putIfAbsent(destination.group, () => []).add(destination);
+    }
+    return groups;
+  }
+
+  // La semántica va DENTRO del desplazamiento, no envolviéndolo: envolviendo
+  // un scroll horizontal con un contenedor semántico, el árbol de
+  // accesibilidad se recorre antes de que termine la disposición y el marco
+  // lanza una aserción propia. Se ve sólo en anchos de teléfono.
+  Widget _contextFooter(BuildContext buildContext) => ColoredBox(
+    color: _footerBackground,
+    child: SizedBox(
       width: double.infinity,
-      color: _footerBackground,
-      child: SafeArea(
-        top: false,
-        child: SingleChildScrollView(
-          scrollDirection: Axis.horizontal,
-          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+      child: SingleChildScrollView(
+        scrollDirection: Axis.horizontal,
+        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+        child: Semantics(
+          label: 'Información de conexión',
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              _contextItem('Servidor', this.context.server),
+              _contextItem('Servidor', context.server),
               _footerGap(),
-              _contextItem('BD', this.context.database),
+              _contextItem('BD', context.database),
               _footerGap(),
               // El valor NO repite la etiqueta: «Hora del servidor: Hora del
-              // servidor no disponible» es lo que se leía en pantalla. Y el
-              // nombre corto es el que fija el contrato del pie en
-              // SHELL_AND_INTERACTION_SPEC.md.
-              _contextItem(
-                'Hora servidor',
-                this.context.serverTime ?? 'sin dato',
-              ),
+              // servidor no disponible» es lo que llegó a leerse en pantalla.
+              _contextItem('Hora servidor', context.serverTime ?? 'sin dato'),
               _footerGap(),
               _statusDot(_connectionColor()),
               const SizedBox(width: 6),
@@ -582,14 +357,10 @@ final class OperationalShell extends StatelessWidget {
                 style: const TextStyle(color: _footerForeground),
               ),
               _footerGap(),
-              const Icon(
-                Icons.notifications_outlined,
-                size: 14,
-                color: _footerMuted,
-              ),
+              const Icon(FluentIcons.ringer, size: 14, color: _footerMuted),
               const SizedBox(width: 4),
               Text(
-                this.context.syncLabel,
+                context.syncLabel,
                 style: const TextStyle(color: _footerForeground),
               ),
             ],
@@ -610,13 +381,9 @@ final class OperationalShell extends StatelessWidget {
     decoration: BoxDecoration(color: color, shape: BoxShape.circle),
   );
 
-  /// The text this footer actually shows: the measured
-  /// [OperationalContext.connectionStatus] when there is one, its own fixed
-  /// Spanish wording per state (`connectionStatusLabel`) — never the caller's
-  /// [OperationalContext.connectionLabel] string once a real status exists,
-  /// so the two can't say different things. Falls back to the legacy string
-  /// only when nothing has been measured, so a caller not yet wired to a
-  /// real signal still shows something instead of nothing.
+  /// Lo que el pie enseña de verdad: el estado medido cuando lo hay, con la
+  /// redacción fija de cada caso, y nunca la cadena de quien nos usa una vez
+  /// existe una medida, para que las dos no puedan decir cosas distintas.
   String _connectionText() {
     final status = context.connectionStatus;
     return status == null
@@ -624,14 +391,9 @@ final class OperationalShell extends StatelessWidget {
         : connectionStatusLabel(status);
   }
 
-  /// Honest, not decorative: derived from a measured [ConnectionStatus] when
-  /// there is one — green only for [ConnectionStatus.online], red for the
-  /// two states that mean something is actually broken (no network at all,
-  /// or a network with no server behind it), amber only for "not verified
-  /// yet". Without a measured status this falls back to guessing from the
-  /// legacy [OperationalContext.connectionLabel] string, which is the
-  /// behaviour this shell had before any caller could supply a real
-  /// [ConnectionStatus] — see `ConnectionStatusResolver` in `orbi_runtime`.
+  /// Honesto, no decorativo: verde sólo cuando el servidor contestó, rojo en
+  /// los tres casos en que algo está roto de verdad, y ámbar sólo mientras no
+  /// se haya medido nada.
   Color _connectionColor() {
     final status = context.connectionStatus;
     if (status != null) return _statusColorForStatus(status);
@@ -639,41 +401,50 @@ final class OperationalShell extends StatelessWidget {
   }
 
   Color _statusColorForStatus(ConnectionStatus status) => switch (status) {
-    ConnectionStatus.online => Colors.green,
-    ConnectionStatus.offline => Colors.red,
-    ConnectionStatus.backendUnreachable => Colors.red,
-    ConnectionStatus.backendUnauthorized => Colors.red,
-    ConnectionStatus.unknown => Colors.amber,
+    ConnectionStatus.online => _ok,
+    ConnectionStatus.offline => _bad,
+    ConnectionStatus.backendUnreachable => _bad,
+    ConnectionStatus.backendUnauthorized => _bad,
+    ConnectionStatus.unknown => _pending,
   };
 
-  /// Legacy fallback, kept only for callers that have not been wired to a
-  /// real [ConnectionStatus] yet (see [_connectionColor]). Guessing a color
-  /// from a free-text label is exactly the fragility this type was
-  /// introduced to retire — do not extend this list, wire the caller instead.
+  /// Resguardo heredado, sólo para quien todavía no pase un estado medido.
+  /// Adivinar un color a partir de un texto libre es justo la fragilidad que
+  /// el estado tipado vino a retirar: no amplíes esta lista, conecta a quien
+  /// llama.
   Color _statusColorFor(String label) {
     final normalized = label.toLowerCase();
-    if (normalized.contains('conectado')) return Colors.green;
+    if (normalized.contains('conectado')) return _ok;
     if (normalized.contains('sin conexión') || normalized.contains('error')) {
-      return Colors.red;
+      return _bad;
     }
-    return Colors.amber;
+    return _pending;
   }
 
   Widget _contextItem(String label, String value) =>
       Text('$label: $value', style: const TextStyle(color: _footerForeground));
 
-  Widget _compactContextButton(BuildContext context) => Align(
+  Widget _compactContextButton(BuildContext buildContext) => Align(
     alignment: AlignmentDirectional.centerEnd,
-    child: IconButton(
-      key: const Key('operational-context-button'),
-      tooltip: 'Detalle de conexión',
-      icon: const Icon(Icons.info_outline),
-      onPressed: () => showModalBottomSheet<void>(
-        context: context,
-        builder: (context) => SafeArea(
-          child: Padding(
-            padding: const EdgeInsets.all(20),
-            child: _contextFooter(context),
+    child: Tooltip(
+      message: 'Detalle de conexión',
+      child: IconButton(
+        key: const Key('operational-context-button'),
+        icon: const Icon(FluentIcons.info),
+        // En estrecho el pie no cabe, así que se pide. Un diálogo y no una
+        // hoja inferior porque Fluent no trae hoja inferior y fabricarse una
+        // sería justo el andamiaje propio que esta migración vino a quitar.
+        onPressed: () => showDialog<void>(
+          context: buildContext,
+          builder: (dialogContext) => ContentDialog(
+            title: const Text('Detalle de conexión'),
+            content: _contextFooter(dialogContext),
+            actions: [
+              FilledButton(
+                onPressed: () => Navigator.of(dialogContext).pop(),
+                child: const Text('Cerrar'),
+              ),
+            ],
           ),
         ),
       ),

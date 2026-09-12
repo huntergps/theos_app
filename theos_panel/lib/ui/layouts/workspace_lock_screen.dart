@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:fluent_ui/fluent_ui.dart';
 
 import '../../app/theme/orbi_theme.dart';
 import '../components/orbi_brand.dart';
@@ -112,92 +112,96 @@ class _WorkspaceLockScreenState extends State<WorkspaceLockScreen> {
   }
 
   @override
-  Widget build(BuildContext context) => Material(
-    color: Theme.of(context).colorScheme.surface,
-    child: SafeArea(
-      child: Center(
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 480),
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.all(OrbiTheme.space24),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                Center(
-                  child: OrbiBrand(
-                    height: 56,
-                    color: Theme.of(context).colorScheme.onSurface,
+  Widget build(BuildContext context) {
+    final theme = FluentTheme.of(context);
+    return ColoredBox(
+      color: theme.scaffoldBackgroundColor,
+      child: SafeArea(
+        child: Center(
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 480),
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.all(OrbiTheme.space24),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Center(
+                    child: OrbiBrand(
+                      height: 56,
+                      color: theme.typography.body?.color,
+                    ),
                   ),
-                ),
-                const SizedBox(height: OrbiTheme.space24),
-                Icon(
-                  Icons.lock_outline,
-                  size: 40,
-                  color: Theme.of(context).colorScheme.primary,
-                  semanticLabel: '',
-                ),
-                const SizedBox(height: OrbiTheme.space12),
-                Text(
-                  'Sesión bloqueada',
-                  textAlign: TextAlign.center,
-                  style: Theme.of(context).textTheme.headlineSmall,
-                ),
-                const SizedBox(height: OrbiTheme.space8),
-                Text(
-                  widget.userLabel,
-                  textAlign: TextAlign.center,
-                  style: Theme.of(context).textTheme.titleMedium,
-                ),
-                const SizedBox(height: OrbiTheme.space8),
-                Text(
-                  'Tu trabajo local sigue igual: ${widget.pendingSummary}. '
-                  'Nadie puede continuar en tu nombre hasta que ingreses tu '
-                  'contraseña.',
-                  textAlign: TextAlign.center,
-                  style: Theme.of(context).textTheme.bodyMedium,
-                ),
-                const SizedBox(height: OrbiTheme.space24),
-                TextField(
-                  key: const Key('workspace-lock-password'),
-                  controller: _passwordController,
-                  obscureText: true,
-                  autofocus: true,
-                  enabled: !_submitting,
-                  decoration: const InputDecoration(labelText: 'Contraseña'),
-                  onSubmitted: (_) => _submit(),
-                ),
-                if (_failure != null) ...[
+                  const SizedBox(height: OrbiTheme.space24),
+                  Icon(
+                    FluentIcons.lock,
+                    size: 40,
+                    color: theme.accentColor.defaultBrushFor(theme.brightness),
+                    semanticLabel: '',
+                  ),
                   const SizedBox(height: OrbiTheme.space12),
-                  _LockFailurePanel(failure: _failure!),
-                ],
-                const SizedBox(height: OrbiTheme.space16),
-                FilledButton(
-                  key: const Key('workspace-unlock-button'),
-                  onPressed: _submitting ? null : _submit,
-                  child: _submitting
-                      ? const SizedBox(
-                          height: 20,
-                          width: 20,
-                          child: CircularProgressIndicator(strokeWidth: 2),
-                        )
-                      : const Text('Desbloquear'),
-                ),
-                if (widget.onSwitchUser != null) ...[
-                  const SizedBox(height: OrbiTheme.space8),
-                  TextButton(
-                    key: const Key('workspace-lock-switch-user-button'),
-                    onPressed: _submitting ? null : widget.onSwitchUser,
-                    child: const Text('Cambiar de usuario'),
+                  Text(
+                    'Sesión bloqueada',
+                    textAlign: TextAlign.center,
+                    style: theme.typography.subtitle,
                   ),
+                  const SizedBox(height: OrbiTheme.space8),
+                  Text(
+                    widget.userLabel,
+                    textAlign: TextAlign.center,
+                    style: theme.typography.bodyStrong,
+                  ),
+                  const SizedBox(height: OrbiTheme.space8),
+                  Text(
+                    'Tu trabajo local sigue igual: ${widget.pendingSummary}. '
+                    'Nadie puede continuar en tu nombre hasta que ingreses tu '
+                    'contraseña.',
+                    textAlign: TextAlign.center,
+                    style: theme.typography.body,
+                  ),
+                  const SizedBox(height: OrbiTheme.space24),
+                  InfoLabel(
+                    label: 'Contraseña',
+                    child: PasswordBox(
+                      key: const Key('workspace-lock-password'),
+                      controller: _passwordController,
+                      autofocus: true,
+                      enabled: !_submitting,
+                      onSubmitted: (_) => _submit(),
+                    ),
+                  ),
+                  if (_failure != null) ...[
+                    const SizedBox(height: OrbiTheme.space12),
+                    _LockFailurePanel(failure: _failure!),
+                  ],
+                  const SizedBox(height: OrbiTheme.space16),
+                  FilledButton(
+                    key: const Key('workspace-unlock-button'),
+                    onPressed: _submitting ? null : _submit,
+                    child: _submitting
+                        ? const SizedBox(
+                            height: 20,
+                            width: 20,
+                            child: ProgressRing(strokeWidth: 2),
+                          )
+                        : const Text('Desbloquear'),
+                  ),
+                  if (widget.onSwitchUser != null) ...[
+                    const SizedBox(height: OrbiTheme.space8),
+                    HyperlinkButton(
+                      key: const Key('workspace-lock-switch-user-button'),
+                      onPressed: _submitting ? null : widget.onSwitchUser,
+                      child: const Text('Cambiar de usuario'),
+                    ),
+                  ],
                 ],
-              ],
+              ),
             ),
           ),
         ),
       ),
-    ),
-  );
+    );
+  }
 }
 
 /// A lock-screen failure in the two halves the owner asked for: WHAT happened
@@ -234,57 +238,21 @@ class _LockFailurePanel extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final colors = theme.colorScheme;
+    // `InfoBar` es el aviso propio de Fluent. Antes esto era un panel dibujado
+    // a mano con sus colores y su icono; el paquete ya lo trae y lo mantiene,
+    // y así el aviso se ve igual aquí que en el resto de la aplicación.
     return Semantics(
-      // Announced the moment it appears: someone who cannot see the panel must
-      // still learn the attempt failed, and why, without hunting for it.
+      // Se anuncia en cuanto aparece: quien no pueda ver el panel tiene que
+      // enterarse igual de que el intento falló, y de por qué.
       liveRegion: true,
       container: true,
       label: '${failure.title}. ${failure.guidance}',
       child: ExcludeSemantics(
-        child: DecoratedBox(
-          decoration: BoxDecoration(
-            color: colors.errorContainer,
-            borderRadius: const BorderRadius.all(Radius.circular(8)),
-            border: Border.all(color: colors.error.withValues(alpha: .48)),
-          ),
-          child: Padding(
-            padding: const EdgeInsets.all(OrbiTheme.space12),
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Icon(
-                  Icons.error_outline,
-                  size: 20,
-                  color: colors.onErrorContainer,
-                ),
-                const SizedBox(width: OrbiTheme.space12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Text(
-                        failure.title,
-                        style: theme.textTheme.titleSmall?.copyWith(
-                          color: colors.onErrorContainer,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                      const SizedBox(height: OrbiTheme.space4),
-                      Text(
-                        failure.guidance,
-                        style: theme.textTheme.bodySmall?.copyWith(
-                          color: colors.onErrorContainer,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-          ),
+        child: InfoBar(
+          title: Text(failure.title),
+          content: Text(failure.guidance),
+          severity: InfoBarSeverity.error,
+          isLong: true,
         ),
       ),
     );
