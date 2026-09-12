@@ -2,6 +2,7 @@ import 'package:fluent_ui/fluent_ui.dart';
 import 'package:syncfusion_flutter_core/theme.dart';
 import 'package:syncfusion_flutter_datagrid/datagrid.dart';
 import 'package:syncfusion_flutter_datagrid_export/export.dart';
+import 'package:syncfusion_flutter_xlsio/xlsio.dart' as xlsio;
 
 /// Una columna del listado estándar.
 ///
@@ -64,6 +65,15 @@ class OrbiListing<T> extends StatefulWidget {
     this.emptyMessage = 'No hay nada que mostrar todavía',
   });
 
+  /// Por debajo de este ancho la rejilla deja paso a tarjetas. Medido, no
+  /// elegido: es el mismo corte que ya usaba la rejilla adaptativa anterior
+  /// de Orbi, y coincide con el que reparte el panel de navegación.
+  static const double cardBreakpoint = 840;
+
+  /// Una tableta en vertical supera el corte de ancho y aun así necesita
+  /// leer hacia abajo en vez de columnas comprimidas.
+  static const double portraitCardBreakpoint = 1200;
+
   final List<T> rows;
   final List<OrbiColumn<T>> columns;
 
@@ -103,6 +113,10 @@ class OrbiListing<T> extends StatefulWidget {
 class _OrbiListingState<T> extends State<OrbiListing<T>> {
   final Set<String> _hidden = <String>{};
 
+  /// Qué se está viendo ahora mismo. Lo necesita la exportación: en tarjetas
+  /// no hay rejilla montada de la que sacar el libro de Excel.
+  bool _narrow = false;
+
   /// Hace falta para exportar: el generador de Excel de Syncfusion trabaja
   /// sobre el estado de la rejilla, no sobre los datos sueltos, y así lo que
   /// sale al fichero es exactamente lo que se está viendo —incluidas las
@@ -115,6 +129,14 @@ class _OrbiListingState<T> extends State<OrbiListing<T>> {
   // entera a la segunda letra.
   late final TextEditingController _filter = TextEditingController(
     text: widget.filterText,
+  );
+
+  // La fuente vive en el estado. Fabricarla dentro de `build` la reiniciaba en
+  // cada reconstrucción —o sea, en cada tecla del filtro—, y con ella se
+  // perdía el orden que la persona acababa de elegir en una cabecera.
+  late final _OrbiSource<T> _source = _OrbiSource<T>(
+    items: widget.rows,
+    columns: _visible,
   );
 
   @override
@@ -131,6 +153,7 @@ class _OrbiListingState<T> extends State<OrbiListing<T>> {
   @override
   void dispose() {
     _filter.dispose();
+    _source.dispose();
     super.dispose();
   }
 
@@ -157,6 +180,10 @@ class _OrbiListingState<T> extends State<OrbiListing<T>> {
     final total = widget.totalCount ?? widget.rows.length;
     final pages = total <= 0 ? 1 : ((total - 1) ~/ widget.rowsPerPage) + 1;
 
+    // Mantener la fuente al día en vez de fabricar otra: así el orden que la
+    // persona eligió en una cabecera sobrevive a que lleguen filas nuevas.
+    _source.update(items: widget.rows, columns: _visible);
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -165,58 +192,142 @@ class _OrbiListingState<T> extends State<OrbiListing<T>> {
         Expanded(
           child: widget.rows.isEmpty
               ? Center(child: Text(widget.emptyMessage))
-              : SfDataGridTheme(
-                  data: SfDataGridThemeData(headerColor: headerColor),
-                  child: SfDataGrid(
-                    key: _gridKey,
-                    source: _OrbiSource<T>(
-                      items: widget.rows,
-                      columns: _visible,
-                    ),
-                    columnWidthMode: ColumnWidthMode.fill,
-                    gridLinesVisibility: GridLinesVisibility.horizontal,
-                    headerGridLinesVisibility: GridLinesVisibility.none,
-                    allowSorting: true,
-                    selectionMode: SelectionMode.single,
-                    onCellTap: widget.onRowTap == null
-                        ? null
-                        : (details) {
-                            final index = details.rowColumnIndex.rowIndex - 1;
-                            if (index >= 0 && index < widget.rows.length) {
-                              widget.onRowTap!(widget.rows[index]);
-                            }
-                          },
-                    columns: [
-                      for (final column in _visible)
-                        GridColumn(
-                          columnName: column.key,
-                          width: column.width ?? double.nan,
-                          label: Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 8),
-                            alignment: column.numeric
-                                ? Alignment.centerRight
-                                : Alignment.centerLeft,
-                            // El texto de la cabecera lo decide Fluent a
-                            // partir del propio acento: `basedOnLuminance`
-                            // elige claro u oscuro según el color de fondo,
-                            // así que un acento claro no deja la cabecera
-                            // ilegible como haría un blanco fijo.
-                            child: Text(
-                              column.label,
-                              style: TextStyle(
-                                color: headerColor.basedOnLuminance(),
-                                fontWeight: FontWeight.w600,
-                              ),
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                          ),
-                        ),
-                    ],
-                  ),
+              : LayoutBuilder(
+                  builder: (context, constraints) {
+                    final window = MediaQuery.sizeOf(context);
+                    final portrait =
+                        window.height > window.width &&
+                        constraints.maxWidth <
+                            OrbiListing.portraitCardBreakpoint;
+                    _narrow =
+                        constraints.maxWidth < OrbiListing.cardBreakpoint ||
+                        portrait;
+                    return _narrow
+                        ? _cards(context)
+                        : _grid(context, headerColor);
+                  },
                 ),
         ),
         if (pages > 1) _pager(context, pages, total),
       ],
+    );
+  }
+
+  Widget _grid(BuildContext context, Color headerColor) => SfDataGridTheme(
+    data: SfDataGridThemeData(headerColor: headerColor),
+    child: SfDataGrid(
+      key: _gridKey,
+      source: _source,
+      columnWidthMode: ColumnWidthMode.fill,
+      gridLinesVisibility: GridLinesVisibility.horizontal,
+      headerGridLinesVisibility: GridLinesVisibility.none,
+      allowSorting: true,
+      selectionMode: SelectionMode.single,
+      onCellTap: widget.onRowTap == null
+          ? null
+          : (details) {
+              final index = details.rowColumnIndex.rowIndex - 1;
+              if (index >= 0 && index < widget.rows.length) {
+                widget.onRowTap!(widget.rows[index]);
+              }
+            },
+      columns: [
+        for (final column in _visible)
+          GridColumn(
+            columnName: column.key,
+            width: column.width ?? double.nan,
+            label: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8),
+              alignment: column.numeric
+                  ? Alignment.centerRight
+                  : Alignment.centerLeft,
+              // El texto de la cabecera lo decide Fluent a partir del propio
+              // acento: `basedOnLuminance` elige claro u oscuro según el color
+              // de fondo, así que un acento claro no deja la cabecera
+              // ilegible como haría un blanco fijo.
+              child: Text(
+                column.label,
+                style: TextStyle(
+                  color: headerColor.basedOnLuminance(),
+                  fontWeight: FontWeight.w600,
+                ),
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+          ),
+      ],
+    ),
+  );
+
+  /// La misma lista, leída hacia abajo.
+  ///
+  /// 🔴 No es un adorno para móvil: a 390 px una rejilla con seis columnas y
+  /// `ColumnWidthMode.fill` reparte 65 px por columna y **no se lee ninguna**.
+  /// Cada fila pasa a ser una ficha con su identificador arriba y el resto de
+  /// campos etiquetados debajo, que es como se lee un registro en vertical.
+  Widget _cards(BuildContext context) {
+    final theme = FluentTheme.of(context);
+    final columns = _visible;
+    if (columns.isEmpty) return Center(child: Text(widget.emptyMessage));
+    // La que identifica la fila hace de título; si nadie se declaró como tal,
+    // la primera, que es donde todo el mundo pone el nombre o el código.
+    final title = columns.firstWhere(
+      (c) => c.alwaysVisible,
+      orElse: () => columns.first,
+    );
+    final rest = columns.where((c) => c.key != title.key).toList();
+
+    return ListView.separated(
+      key: const Key('orbi-listing-cards'),
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      itemCount: widget.rows.length,
+      separatorBuilder: (_, _) => const SizedBox(height: 8),
+      itemBuilder: (context, index) {
+        final row = widget.rows[index];
+        final card = Card(
+          padding: const EdgeInsets.all(12),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                title.value(row),
+                style: theme.typography.bodyStrong,
+                overflow: TextOverflow.ellipsis,
+              ),
+              for (final column in rest) ...[
+                const SizedBox(height: 6),
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Expanded(
+                      flex: 2,
+                      child: Text(
+                        column.label,
+                        style: theme.typography.caption,
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      flex: 3,
+                      child: Text(
+                        column.value(row),
+                        textAlign: column.numeric
+                            ? TextAlign.right
+                            : TextAlign.start,
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ],
+          ),
+        );
+        if (widget.onRowTap == null) return card;
+        return GestureDetector(
+          onTap: () => widget.onRowTap!(row),
+          child: card,
+        );
+      },
     );
   }
 
@@ -258,11 +369,47 @@ class _OrbiListingState<T> extends State<OrbiListing<T>> {
   );
 
   void _export() {
-    final workbook = _gridKey.currentState?.exportToExcelWorkbook();
-    if (workbook == null) return;
+    // En rejilla se exporta LA REJILLA, para que el fichero salga con el orden
+    // que la persona acaba de elegir en una cabecera. En tarjetas no hay
+    // rejilla montada, así que el libro se arma con los mismos datos y las
+    // mismas columnas visibles: en los dos casos sale lo que se está viendo.
+    //
+    // 🔴 Antes esto era `if (workbook == null) return;`. Cuando la rejilla no
+    // estaba montada el botón no hacía nada y no lo decía — la segunda promesa
+    // vacía de este mismo botón. Ahora siempre hay un camino que produce el
+    // fichero.
+    final workbook = _narrow
+        ? null
+        : _gridKey.currentState?.exportToExcelWorkbook();
+    final bytes = workbook != null
+        ? _bytesOf(workbook)
+        : _bytesOf(_workbookFromData());
+    widget.onExport!(bytes, widget.exportFileName);
+  }
+
+  List<int> _bytesOf(xlsio.Workbook workbook) {
     final bytes = workbook.saveAsStream();
     workbook.dispose();
-    widget.onExport!(bytes, widget.exportFileName);
+    return bytes;
+  }
+
+  xlsio.Workbook _workbookFromData() {
+    final workbook = xlsio.Workbook();
+    final sheet = workbook.worksheets[0];
+    final columns = _visible;
+    for (var c = 0; c < columns.length; c++) {
+      final cell = sheet.getRangeByIndex(1, c + 1);
+      cell.setText(columns[c].label);
+      cell.cellStyle.bold = true;
+    }
+    for (var r = 0; r < widget.rows.length; r++) {
+      for (var c = 0; c < columns.length; c++) {
+        sheet
+            .getRangeByIndex(r + 2, c + 1)
+            .setText(columns[c].value(widget.rows[r]));
+      }
+    }
+    return workbook;
   }
 
   Widget _columnsButton(BuildContext context) => DropDownButton(
@@ -329,8 +476,24 @@ class _OrbiListingState<T> extends State<OrbiListing<T>> {
 class _OrbiSource<T> extends DataGridSource {
   _OrbiSource({required this.items, required this.columns});
 
-  final List<T> items;
-  final List<OrbiColumn<T>> columns;
+  List<T> items;
+  List<OrbiColumn<T>> columns;
+
+  /// Refrescar en vez de reemplazar. `notifyListeners` hace que la rejilla
+  /// vuelva a leer `rows`, y la fuente conserva el orden que tenía.
+  void update({required List<T> items, required List<OrbiColumn<T>> columns}) {
+    if (identical(items, this.items) &&
+        columns.length == this.columns.length &&
+        List.generate(
+          columns.length,
+          (i) => columns[i].key == this.columns[i].key,
+        ).every((same) => same)) {
+      return;
+    }
+    this.items = items;
+    this.columns = columns;
+    notifyListeners();
+  }
 
   // 🔴 Causa raíz de una tabla que sólo mostraba la cabecera, nunca una fila:
   // `DataGridSource` espera que quien lo extiende sobreescriba `rows`, no

@@ -1,6 +1,7 @@
 import 'package:fluent_ui/fluent_ui.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:odoo_widgets/odoo_widgets.dart';
+import 'package:syncfusion_flutter_datagrid/datagrid.dart';
 import 'package:syncfusion_flutter_core/theme.dart';
 
 /// El listado estándar, comprobado contra lo que pidió el dueño: *«todas
@@ -32,6 +33,27 @@ void main() {
     120,
     (i) => _Fila('Cliente ${i + 1}', (i + 1) * 3.5),
   );
+
+  Future<void> pumpAt(
+    WidgetTester tester,
+    Widget listado,
+    Size tamano,
+  ) async {
+    await tester.binding.setSurfaceSize(tamano);
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    await tester.pumpWidget(
+      FluentApp(
+        home: ScaffoldPage(
+          content: Padding(padding: const EdgeInsets.all(16), child: listado),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+  }
+
+  /// Un teléfono de verdad, no una ventana estrecha de escritorio: retrato.
+  Future<void> pumpTelefono(WidgetTester tester, Widget listado) =>
+      pumpAt(tester, listado, const Size(390, 844));
 
   Future<void> pump(WidgetTester tester, Widget listado) async {
     await tester.binding.setSurfaceSize(const Size(1440, 900));
@@ -236,5 +258,117 @@ void main() {
     expect(entregado!.length, greaterThan(0));
     expect(entregado![0], 0x50);
     expect(entregado![1], 0x4B);
+  });
+
+  // 🔴 A 390 px la rejilla repartía `ColumnWidthMode.fill` entre todas las
+  // columnas y no se leía ninguna. Por debajo del corte la misma lista se lee
+  // hacia abajo, en fichas.
+  testWidgets('en un teléfono la lista se lee en fichas, no en rejilla', (
+    tester,
+  ) async {
+    await pumpTelefono(
+      tester,
+      OrbiListing<_Fila>(
+        rows: filas.take(3).toList(),
+        columns: columnas,
+        storageKey: 'prueba',
+      ),
+    );
+
+    expect(find.byKey(const Key('orbi-listing-cards')), findsOneWidget);
+    expect(find.byType(SfDataGrid), findsNothing);
+    // El identificador hace de título y el resto va etiquetado: sin la
+    // etiqueta, un número suelto en una ficha no dice de qué es.
+    expect(find.text('Cliente 1'), findsOneWidget);
+    expect(find.text('Total'), findsWidgets);
+    expect(find.text('3.50'), findsOneWidget);
+  });
+
+  testWidgets('en escritorio ancho sigue siendo la rejilla', (tester) async {
+    await pump(
+      tester,
+      OrbiListing<_Fila>(
+        rows: filas.take(3).toList(),
+        columns: columnas,
+        storageKey: 'prueba',
+      ),
+    );
+
+    expect(find.byType(SfDataGrid), findsOneWidget);
+    expect(find.byKey(const Key('orbi-listing-cards')), findsNothing);
+  });
+
+  testWidgets('tocar una ficha abre el registro, igual que tocar una fila', (
+    tester,
+  ) async {
+    _Fila? tocada;
+    await pumpTelefono(
+      tester,
+      OrbiListing<_Fila>(
+        rows: filas.take(3).toList(),
+        columns: columnas,
+        storageKey: 'prueba',
+        onRowTap: (fila) => tocada = fila,
+      ),
+    );
+
+    await tester.tap(find.text('Cliente 2'));
+    await tester.pumpAndSettle();
+
+    expect(tocada?.nombre, 'Cliente 2');
+  });
+
+  // 🔴 La exportación sacaba el libro del estado de la rejilla. En fichas no
+  // hay rejilla montada, así que `exportToExcelWorkbook()` devolvía nulo y el
+  // botón **no hacía nada y no lo decía**. En un teléfono, que es donde más se
+  // pulsa, el botón estaba muerto.
+  testWidgets('exportar desde el teléfono también entrega el fichero', (
+    tester,
+  ) async {
+    List<int>? entregado;
+    await pumpTelefono(
+      tester,
+      OrbiListing<_Fila>(
+        rows: filas.take(4).toList(),
+        columns: columnas,
+        storageKey: 'prueba',
+        onExport: (bytes, _) => entregado = bytes,
+      ),
+    );
+
+    await tester.tap(find.byKey(const Key('orbi-listing-export')));
+    await tester.pumpAndSettle();
+
+    expect(entregado, isNotNull, reason: 'el botón no puede ser un adorno');
+    expect(entregado!.length, greaterThan(0));
+    expect(entregado![0], 0x50);
+    expect(entregado![1], 0x4B);
+  });
+
+  // Ocultar una columna y exportar tiene que sacar el fichero sin ella: lo que
+  // se exporta es lo que se ve, también en fichas.
+  testWidgets('la ficha no enseña las columnas que se ocultaron', (
+    tester,
+  ) async {
+    await pumpTelefono(
+      tester,
+      OrbiListing<_Fila>(
+        rows: filas.take(2).toList(),
+        columns: columnas,
+        storageKey: 'prueba',
+      ),
+    );
+
+    expect(find.text('3.50'), findsOneWidget);
+    await tester.tap(find.byKey(const Key('orbi-listing-columns')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Total').last);
+    await tester.pumpAndSettle();
+    // Cerrar el desplegable para que lo que quede en pantalla sea la lista.
+    await tester.tapAt(const Offset(10, 400));
+    await tester.pumpAndSettle();
+
+    expect(find.text('3.50'), findsNothing);
+    expect(find.text('Cliente 1'), findsOneWidget);
   });
 }

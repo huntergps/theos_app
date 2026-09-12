@@ -18,6 +18,7 @@ dependencies:
   syncfusion_flutter_core: ^34.2.5
   syncfusion_flutter_datagrid: ^34.2.5
   syncfusion_flutter_datagrid_export: ^34.2.5
+  syncfusion_flutter_xlsio: ^34.2.5
 
 dev_dependencies:
   flutter_test:
