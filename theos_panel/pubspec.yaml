@@ -45,6 +45,11 @@ dependencies:
   flutter_riverpod: ^3.4.2
   go_router: ^18.0.0
   reactive_forms: ^18.2.0
+  # Decisión del dueño (11-sep-2026), que revoca la recomendación contraria de
+  # `docs/orbi_panel/reports/ESQUELETO_FLUENT_2026_09_12.md`: Orbi usa Fluent.
+  # Misma versión que `theos_pos`, que además es la última publicada, para que
+  # las dos aplicaciones no diverjan en el paquete que da la interfaz.
+  fluent_ui: ^4.16.1
   flutter_svg: ^2.3.0
   shared_preferences: ^2.5.5
   # Already resolved transitively via odoo_sdk; declared directly because
