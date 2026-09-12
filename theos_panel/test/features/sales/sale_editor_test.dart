@@ -580,4 +580,62 @@ void main() {
       expect(tester.takeException(), isNull);
     },
   );
+
+  testWidgets(
+    'restored payment term surfaces even when the catalog resolves first '
+    '(twin of the async-note-restore defect)',
+    (tester) async {
+      // Mirrors production ordering: a catalog port answering from memory
+      // resolves before a Drift-backed store finishes its I/O. The dropdown
+      // must reflect whichever arrives later, exactly like the note field.
+      final gate = Completer<void>();
+      final restored = SaleDraftSnapshot(
+        paymentTermId: 99,
+        installments: [PaymentTermInstallment(dueDays: 45)],
+      );
+      final controller = SaleDraftController(
+        port: _Port(),
+        store: _GatedStore(gate, restored),
+      );
+      addTearDown(controller.dispose);
+      await tester.pumpWidget(
+        MaterialApp(
+          home: SaleEditorScreen(controller: controller, catalog: _Catalog()),
+        ),
+      );
+      // Let the catalog's already-resolved future settle while the draft
+      // restore stays blocked on `gate`.
+      await tester.pump();
+      await tester.pump();
+      expect(controller.draft.paymentTermId, isNull);
+      expect(find.text('Condición local'), findsNothing);
+
+      gate.complete();
+      await tester.pumpAndSettle();
+
+      expect(controller.draft.paymentTermId, 99);
+      expect(
+        find.text('Condición local'),
+        findsOneWidget,
+        reason:
+            'The payment-term dropdown must pick up a draft restored after '
+            'its first build, the same way the note field does.',
+      );
+      expect(tester.takeException(), isNull);
+    },
+  );
+}
+
+final class _GatedStore implements SaleDraftStore {
+  _GatedStore(this._gate, this._snapshot);
+  final Completer<void> _gate;
+  final SaleDraftSnapshot _snapshot;
+  @override
+  Future<SaleDraftSnapshot?> load(String scopeKey) async {
+    await _gate.future;
+    return _snapshot;
+  }
+
+  @override
+  Future<void> save(SaleDraftSnapshot draft) async {}
 }

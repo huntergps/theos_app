@@ -149,14 +149,34 @@ final class _ReopenButtonState extends State<_ReopenButton> {
   void initState() {
     super.initState();
     _available = widget.workspace.availableDraftIds();
+    widget.workspace.addListener(_refresh);
+  }
+
+  // A create/close elsewhere in the workspace must be reflected here without
+  // waiting for this widget's own State to be torn down and rebuilt — the
+  // same async-freshness defect that hid a restored note behind a collapsed
+  // section: a value fetched once at build time and never re-synced.
+  void _refresh() {
+    if (!mounted) return;
+    setState(() {
+      _available = widget.workspace.availableDraftIds();
+    });
   }
 
   @override
   void didUpdateWidget(covariant _ReopenButton oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.workspace != widget.workspace) {
+      oldWidget.workspace.removeListener(_refresh);
+      widget.workspace.addListener(_refresh);
       _available = widget.workspace.availableDraftIds();
     }
+  }
+
+  @override
+  void dispose() {
+    widget.workspace.removeListener(_refresh);
+    super.dispose();
   }
 
   @override

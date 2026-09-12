@@ -714,7 +714,7 @@ class _SaleEditorScreenState extends State<SaleEditorScreen> {
   // `initiallyExpanded` is only read once, at the tile's own initState. A
   // note restored asynchronously after that point would otherwise stay
   // hidden behind a collapsed, unmounted section forever.
-  final ExpansionTileController _notesController = ExpansionTileController();
+  final ExpansibleController _notesController = ExpansibleController();
   late final FormGroup _saleForm = FormGroup({
     'client': FormControl<String>(
       value: widget.controller.draft.clientName,
