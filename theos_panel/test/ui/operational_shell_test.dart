@@ -76,7 +76,7 @@ void main() {
     expect(find.text('Órdenes'), findsOneWidget);
     expect(find.bySemanticsLabel('Órdenes'), findsAtLeastNWidgets(1));
     expect(find.text('Servidor: erp.test'), findsOneWidget);
-    expect(find.textContaining('Hora del servidor'), findsOneWidget);
+    expect(find.text('Hora servidor: sin dato'), findsOneWidget);
     expect(find.byType(Drawer), findsNothing);
     expect(find.byKey(const Key('logout-button')), findsOneWidget);
     expect(find.bySemanticsLabel('Navegación principal'), findsOneWidget);
@@ -284,10 +284,9 @@ void main() {
         await tester.pumpAndSettle();
         expect(find.textContaining('Servidor: erp.test'), findsOneWidget);
         expect(find.textContaining('BD: orbi_test'), findsOneWidget);
-        expect(
-          find.textContaining('Hora del servidor no disponible'),
-          findsOneWidget,
-        );
+        // El pie no puede repetir su propia etiqueta dentro del valor.
+        expect(find.text('Hora servidor: sin dato'), findsOneWidget);
+        expect(find.textContaining('Hora del servidor'), findsNothing);
         Navigator.of(tester.element(find.byType(OperationalShell))).pop();
         await tester.pumpAndSettle();
       }

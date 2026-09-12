@@ -552,9 +552,13 @@ final class OperationalShell extends StatelessWidget {
               _footerGap(),
               _contextItem('BD', this.context.database),
               _footerGap(),
+              // El valor NO repite la etiqueta: «Hora del servidor: Hora del
+              // servidor no disponible» es lo que se leía en pantalla. Y el
+              // nombre corto es el que fija el contrato del pie en
+              // SHELL_AND_INTERACTION_SPEC.md.
               _contextItem(
-                'Hora del servidor',
-                this.context.serverTime ?? 'Hora del servidor no disponible',
+                'Hora servidor',
+                this.context.serverTime ?? 'sin dato',
               ),
               _footerGap(),
               _statusDot(_statusColorFor(this.context.connectionLabel)),
