@@ -286,8 +286,9 @@ class CardPaymentSyncService {
             (d) => CardDeadline(
               id: d.odooId,
               name: d.name,
-              deadlineDays: d.deadlineDays,
-              percentage: d.percentage,
+              months: d.months,
+              kind: d.kind,
+              hasInterest: d.hasInterest,
             ),
           )
           .toList();
@@ -329,8 +330,9 @@ class CardPaymentSyncService {
                   (d) => CardDeadline(
                     id: d.odooId,
                     name: d.name,
-                    deadlineDays: d.deadlineDays,
-                    percentage: d.percentage,
+                    months: d.months,
+                    kind: d.kind,
+                    hasInterest: d.hasInterest,
                   ),
                 )
                 .toList(),
@@ -371,10 +373,12 @@ class CardPaymentSyncService {
         final companion = AccountCreditCardDeadlineCompanion(
           odooId: Value(odooId),
           name: Value(d['name'] as String? ?? ''),
-          deadlineDays: Value(
-            d['meses'] as int? ?? d['deadline_days'] as int? ?? 0,
-          ),
-          percentage: Value((d['percentage'] as num? ?? 0.0).toDouble()),
+          // El resguardo a `deadline_days` sobraba: ese campo no existe en
+          // Odoo. El plazo siempre vino en `meses`; era la columna local la
+          // que estaba mal nombrada.
+          months: Value(d['meses'] as int? ?? 0),
+          kind: Value(d['type'] is String ? d['type'] as String : 'current'),
+          hasInterest: Value(d['interes'] as bool? ?? false),
           active: Value(d['active'] as bool? ?? true),
         );
 

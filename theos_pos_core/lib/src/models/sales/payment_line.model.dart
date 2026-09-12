@@ -549,8 +549,12 @@ abstract class CardDeadline with _$CardDeadline {
   const factory CardDeadline({
     required int id,
     required String name,
-    @Default(0) int deadlineDays,
-    @Default(0.0) double percentage,
+    // El plazo va en MESES. Antes esto eran días y un porcentaje, y ninguno
+    // de los dos existe en Odoo: se pedían al servidor, éste rechazaba la
+    // lectura y el catálogo entero se quedaba vacío.
+    @Default(0) int months,
+    @Default('current') String kind,
+    @Default(false) bool hasInterest,
   }) = _CardDeadline;
 
   factory CardDeadline.fromJson(Map<String, dynamic> json) =>
@@ -560,16 +564,16 @@ abstract class CardDeadline with _$CardDeadline {
     return CardDeadline(
       id: data['id'] as int,
       name: data['name'] as String,
-      deadlineDays: data['deadline_days'] as int? ?? 0,
-      percentage: (data['percentage'] as num?)?.toDouble() ?? 0.0,
+      months: data['meses'] as int? ?? 0,
+      kind: data['type'] is String ? data['type'] as String : 'current',
+      hasInterest: data['interes'] as bool? ?? false,
     );
   }
 
   String get displayName {
-    if (deadlineDays > 0) {
-      return '$name ($deadlineDays dias)';
-    }
-    return name;
+    if (months <= 0) return name;
+    final plazo = months == 1 ? '1 mes' : '$months meses';
+    return hasInterest ? '$name ($plazo con interés)' : '$name ($plazo)';
   }
 }
 

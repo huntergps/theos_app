@@ -176,7 +176,7 @@ class AppDatabase extends _$AppDatabase {
   }
 
   @override
-  int get schemaVersion => 14;
+  int get schemaVersion => 15;
 
   @override
   MigrationStrategy get migration {
@@ -189,9 +189,15 @@ class AppDatabase extends _$AppDatabase {
         await m.createAll();
         logger.i('[Database]', 'All tables created successfully');
       },
+      // Los pasos son ACUMULATIVOS y se aplican en orden, no por destino
+      // exacto. Antes cada rama miraba a qué versión se subía (`to == 14`) y
+      // devolvía; al subir el esquema a 15, una base en 13 dejó de encontrar
+      // su rama y se caía al camino destructivo del final, que **borra y
+      // recrea todas las tablas**. Escrito así, subir el esquema otra vez sólo
+      // pide añadir un paso al final.
       onUpgrade: (Migrator m, int from, int to) async {
-        if (from >= 10 && from < 13 && to >= 14) {
-          if (from == 10) {
+        if (from >= 10 && from <= schemaVersion) {
+          if (from < 11) {
             await m.addColumn(advanceLinesTable, advanceLinesTable.advanceId);
           }
           if (from < 12) {
@@ -200,32 +206,24 @@ class AppDatabase extends _$AppDatabase {
               collectionConfig.posAppCapabilitiesJson,
             );
           }
-          await m.addColumn(accountJournal, accountJournal.numberedByClient);
-          await m.createTable(notificationEntries);
-          await m.createTable(notificationDeliveries);
-          await m.createTable(notificationCursors);
-          await m.createTable(notificationSystemIds);
-          return;
-        }
-        if (from == 13 && to == 14) {
-          await m.createTable(notificationEntries);
-          await m.createTable(notificationDeliveries);
-          await m.createTable(notificationCursors);
-          await m.createTable(notificationSystemIds);
-          return;
-        }
-        if (from >= 10 && from < 13 && to == 13) {
-          // Preserve existing offline financial records and queued operations.
-          if (from == 10) {
-            await m.addColumn(advanceLinesTable, advanceLinesTable.advanceId);
+          if (from < 13) {
+            await m.addColumn(accountJournal, accountJournal.numberedByClient);
           }
-          if (from < 12) {
-            await m.addColumn(
-              collectionConfig,
-              collectionConfig.posAppCapabilitiesJson,
-            );
+          if (from < 14) {
+            await m.createTable(notificationEntries);
+            await m.createTable(notificationDeliveries);
+            await m.createTable(notificationCursors);
+            await m.createTable(notificationSystemIds);
           }
-          await m.addColumn(accountJournal, accountJournal.numberedByClient);
+          if (from < 15) {
+            // Los plazos de tarjeta cambian de columnas porque las que tenían
+            // —días y porcentaje— no existen en Odoo y esta tabla nunca llegó
+            // a llenarse. Es un catálogo: se recrea vacía y se vuelve a traer
+            // del servidor. **Sólo esa tabla**, para no rozar la cola sin
+            // conexión ni ningún documento financiero.
+            await m.deleteTable(accountCreditCardDeadline.actualTableName);
+            await m.createTable(accountCreditCardDeadline);
+          }
           return;
         }
         logger.i(

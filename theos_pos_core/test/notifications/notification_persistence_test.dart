@@ -83,7 +83,7 @@ void main() {
 
     db = AppDatabase(NativeDatabase(file));
     final version = await db.customSelect('PRAGMA user_version').getSingle();
-    expect(version.read<int>('user_version'), 14);
+    expect(version.read<int>('user_version'), db.schemaVersion);
     expect(await db.select(db.offlineQueue).get(), hasLength(1));
     expect(await db.select(db.notificationEntries).get(), isEmpty);
     expect(await db.select(db.notificationDeliveries).get(), isEmpty);

@@ -158,7 +158,9 @@ class CardCashSyncRepository {
         final companion = AccountCreditCardDeadlineCompanion(
           odooId: Value(odooId),
           name: Value(d['name'] as String? ?? ''),
-          deadlineDays: Value(d['meses'] as int? ?? 0),
+          months: Value(d['meses'] as int? ?? 0),
+          kind: Value(d['type'] is String ? d['type'] as String : 'current'),
+          hasInterest: Value(d['interes'] as bool? ?? false),
           active: Value(d['active'] as bool? ?? true),
           writeDate: Value(writeDate ?? DateTime.now()),
         );

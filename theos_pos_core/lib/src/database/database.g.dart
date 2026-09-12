@@ -62436,28 +62436,40 @@ class $AccountCreditCardDeadlineTable extends AccountCreditCardDeadline
     type: DriftSqlType.string,
     requiredDuringInsert: true,
   );
-  static const VerificationMeta _deadlineDaysMeta = const VerificationMeta(
-    'deadlineDays',
-  );
+  static const VerificationMeta _monthsMeta = const VerificationMeta('months');
   @override
-  late final GeneratedColumn<int> deadlineDays = GeneratedColumn<int>(
-    'deadline_days',
+  late final GeneratedColumn<int> months = GeneratedColumn<int>(
+    'months',
     aliasedName,
     false,
     type: DriftSqlType.int,
-    requiredDuringInsert: true,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(0),
   );
-  static const VerificationMeta _percentageMeta = const VerificationMeta(
-    'percentage',
-  );
+  static const VerificationMeta _kindMeta = const VerificationMeta('kind');
   @override
-  late final GeneratedColumn<double> percentage = GeneratedColumn<double>(
-    'percentage',
+  late final GeneratedColumn<String> kind = GeneratedColumn<String>(
+    'kind',
     aliasedName,
     false,
-    type: DriftSqlType.double,
+    type: DriftSqlType.string,
     requiredDuringInsert: false,
-    defaultValue: const Constant(0.0),
+    defaultValue: const Constant('current'),
+  );
+  static const VerificationMeta _hasInterestMeta = const VerificationMeta(
+    'hasInterest',
+  );
+  @override
+  late final GeneratedColumn<bool> hasInterest = GeneratedColumn<bool>(
+    'has_interest',
+    aliasedName,
+    false,
+    type: DriftSqlType.bool,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'CHECK ("has_interest" IN (0, 1))',
+    ),
+    defaultValue: const Constant(false),
   );
   static const VerificationMeta _activeMeta = const VerificationMeta('active');
   @override
@@ -62488,8 +62500,9 @@ class $AccountCreditCardDeadlineTable extends AccountCreditCardDeadline
     id,
     odooId,
     name,
-    deadlineDays,
-    percentage,
+    months,
+    kind,
+    hasInterest,
     active,
     writeDate,
   ];
@@ -62524,21 +62537,25 @@ class $AccountCreditCardDeadlineTable extends AccountCreditCardDeadline
     } else if (isInserting) {
       context.missing(_nameMeta);
     }
-    if (data.containsKey('deadline_days')) {
+    if (data.containsKey('months')) {
       context.handle(
-        _deadlineDaysMeta,
-        deadlineDays.isAcceptableOrUnknown(
-          data['deadline_days']!,
-          _deadlineDaysMeta,
-        ),
+        _monthsMeta,
+        months.isAcceptableOrUnknown(data['months']!, _monthsMeta),
       );
-    } else if (isInserting) {
-      context.missing(_deadlineDaysMeta);
     }
-    if (data.containsKey('percentage')) {
+    if (data.containsKey('kind')) {
       context.handle(
-        _percentageMeta,
-        percentage.isAcceptableOrUnknown(data['percentage']!, _percentageMeta),
+        _kindMeta,
+        kind.isAcceptableOrUnknown(data['kind']!, _kindMeta),
+      );
+    }
+    if (data.containsKey('has_interest')) {
+      context.handle(
+        _hasInterestMeta,
+        hasInterest.isAcceptableOrUnknown(
+          data['has_interest']!,
+          _hasInterestMeta,
+        ),
       );
     }
     if (data.containsKey('active')) {
@@ -62577,13 +62594,17 @@ class $AccountCreditCardDeadlineTable extends AccountCreditCardDeadline
         DriftSqlType.string,
         data['${effectivePrefix}name'],
       )!,
-      deadlineDays: attachedDatabase.typeMapping.read(
+      months: attachedDatabase.typeMapping.read(
         DriftSqlType.int,
-        data['${effectivePrefix}deadline_days'],
+        data['${effectivePrefix}months'],
       )!,
-      percentage: attachedDatabase.typeMapping.read(
-        DriftSqlType.double,
-        data['${effectivePrefix}percentage'],
+      kind: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}kind'],
+      )!,
+      hasInterest: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}has_interest'],
       )!,
       active: attachedDatabase.typeMapping.read(
         DriftSqlType.bool,
@@ -62607,16 +62628,20 @@ class AccountCreditCardDeadlineData extends DataClass
   final int id;
   final int odooId;
   final String name;
-  final int deadlineDays;
-  final double percentage;
+  final int months;
+
+  /// `current` (corriente) o `deferred` (diferido), tal como los nombra Odoo.
+  final String kind;
+  final bool hasInterest;
   final bool active;
   final DateTime? writeDate;
   const AccountCreditCardDeadlineData({
     required this.id,
     required this.odooId,
     required this.name,
-    required this.deadlineDays,
-    required this.percentage,
+    required this.months,
+    required this.kind,
+    required this.hasInterest,
     required this.active,
     this.writeDate,
   });
@@ -62626,8 +62651,9 @@ class AccountCreditCardDeadlineData extends DataClass
     map['id'] = Variable<int>(id);
     map['odoo_id'] = Variable<int>(odooId);
     map['name'] = Variable<String>(name);
-    map['deadline_days'] = Variable<int>(deadlineDays);
-    map['percentage'] = Variable<double>(percentage);
+    map['months'] = Variable<int>(months);
+    map['kind'] = Variable<String>(kind);
+    map['has_interest'] = Variable<bool>(hasInterest);
     map['active'] = Variable<bool>(active);
     if (!nullToAbsent || writeDate != null) {
       map['write_date'] = Variable<DateTime>(writeDate);
@@ -62640,8 +62666,9 @@ class AccountCreditCardDeadlineData extends DataClass
       id: Value(id),
       odooId: Value(odooId),
       name: Value(name),
-      deadlineDays: Value(deadlineDays),
-      percentage: Value(percentage),
+      months: Value(months),
+      kind: Value(kind),
+      hasInterest: Value(hasInterest),
       active: Value(active),
       writeDate: writeDate == null && nullToAbsent
           ? const Value.absent()
@@ -62658,8 +62685,9 @@ class AccountCreditCardDeadlineData extends DataClass
       id: serializer.fromJson<int>(json['id']),
       odooId: serializer.fromJson<int>(json['odooId']),
       name: serializer.fromJson<String>(json['name']),
-      deadlineDays: serializer.fromJson<int>(json['deadlineDays']),
-      percentage: serializer.fromJson<double>(json['percentage']),
+      months: serializer.fromJson<int>(json['months']),
+      kind: serializer.fromJson<String>(json['kind']),
+      hasInterest: serializer.fromJson<bool>(json['hasInterest']),
       active: serializer.fromJson<bool>(json['active']),
       writeDate: serializer.fromJson<DateTime?>(json['writeDate']),
     );
@@ -62671,8 +62699,9 @@ class AccountCreditCardDeadlineData extends DataClass
       'id': serializer.toJson<int>(id),
       'odooId': serializer.toJson<int>(odooId),
       'name': serializer.toJson<String>(name),
-      'deadlineDays': serializer.toJson<int>(deadlineDays),
-      'percentage': serializer.toJson<double>(percentage),
+      'months': serializer.toJson<int>(months),
+      'kind': serializer.toJson<String>(kind),
+      'hasInterest': serializer.toJson<bool>(hasInterest),
       'active': serializer.toJson<bool>(active),
       'writeDate': serializer.toJson<DateTime?>(writeDate),
     };
@@ -62682,16 +62711,18 @@ class AccountCreditCardDeadlineData extends DataClass
     int? id,
     int? odooId,
     String? name,
-    int? deadlineDays,
-    double? percentage,
+    int? months,
+    String? kind,
+    bool? hasInterest,
     bool? active,
     Value<DateTime?> writeDate = const Value.absent(),
   }) => AccountCreditCardDeadlineData(
     id: id ?? this.id,
     odooId: odooId ?? this.odooId,
     name: name ?? this.name,
-    deadlineDays: deadlineDays ?? this.deadlineDays,
-    percentage: percentage ?? this.percentage,
+    months: months ?? this.months,
+    kind: kind ?? this.kind,
+    hasInterest: hasInterest ?? this.hasInterest,
     active: active ?? this.active,
     writeDate: writeDate.present ? writeDate.value : this.writeDate,
   );
@@ -62702,12 +62733,11 @@ class AccountCreditCardDeadlineData extends DataClass
       id: data.id.present ? data.id.value : this.id,
       odooId: data.odooId.present ? data.odooId.value : this.odooId,
       name: data.name.present ? data.name.value : this.name,
-      deadlineDays: data.deadlineDays.present
-          ? data.deadlineDays.value
-          : this.deadlineDays,
-      percentage: data.percentage.present
-          ? data.percentage.value
-          : this.percentage,
+      months: data.months.present ? data.months.value : this.months,
+      kind: data.kind.present ? data.kind.value : this.kind,
+      hasInterest: data.hasInterest.present
+          ? data.hasInterest.value
+          : this.hasInterest,
       active: data.active.present ? data.active.value : this.active,
       writeDate: data.writeDate.present ? data.writeDate.value : this.writeDate,
     );
@@ -62719,8 +62749,9 @@ class AccountCreditCardDeadlineData extends DataClass
           ..write('id: $id, ')
           ..write('odooId: $odooId, ')
           ..write('name: $name, ')
-          ..write('deadlineDays: $deadlineDays, ')
-          ..write('percentage: $percentage, ')
+          ..write('months: $months, ')
+          ..write('kind: $kind, ')
+          ..write('hasInterest: $hasInterest, ')
           ..write('active: $active, ')
           ..write('writeDate: $writeDate')
           ..write(')'))
@@ -62732,8 +62763,9 @@ class AccountCreditCardDeadlineData extends DataClass
     id,
     odooId,
     name,
-    deadlineDays,
-    percentage,
+    months,
+    kind,
+    hasInterest,
     active,
     writeDate,
   );
@@ -62744,8 +62776,9 @@ class AccountCreditCardDeadlineData extends DataClass
           other.id == this.id &&
           other.odooId == this.odooId &&
           other.name == this.name &&
-          other.deadlineDays == this.deadlineDays &&
-          other.percentage == this.percentage &&
+          other.months == this.months &&
+          other.kind == this.kind &&
+          other.hasInterest == this.hasInterest &&
           other.active == this.active &&
           other.writeDate == this.writeDate);
 }
@@ -62755,16 +62788,18 @@ class AccountCreditCardDeadlineCompanion
   final Value<int> id;
   final Value<int> odooId;
   final Value<String> name;
-  final Value<int> deadlineDays;
-  final Value<double> percentage;
+  final Value<int> months;
+  final Value<String> kind;
+  final Value<bool> hasInterest;
   final Value<bool> active;
   final Value<DateTime?> writeDate;
   const AccountCreditCardDeadlineCompanion({
     this.id = const Value.absent(),
     this.odooId = const Value.absent(),
     this.name = const Value.absent(),
-    this.deadlineDays = const Value.absent(),
-    this.percentage = const Value.absent(),
+    this.months = const Value.absent(),
+    this.kind = const Value.absent(),
+    this.hasInterest = const Value.absent(),
     this.active = const Value.absent(),
     this.writeDate = const Value.absent(),
   });
@@ -62772,19 +62807,20 @@ class AccountCreditCardDeadlineCompanion
     this.id = const Value.absent(),
     required int odooId,
     required String name,
-    required int deadlineDays,
-    this.percentage = const Value.absent(),
+    this.months = const Value.absent(),
+    this.kind = const Value.absent(),
+    this.hasInterest = const Value.absent(),
     this.active = const Value.absent(),
     this.writeDate = const Value.absent(),
   }) : odooId = Value(odooId),
-       name = Value(name),
-       deadlineDays = Value(deadlineDays);
+       name = Value(name);
   static Insertable<AccountCreditCardDeadlineData> custom({
     Expression<int>? id,
     Expression<int>? odooId,
     Expression<String>? name,
-    Expression<int>? deadlineDays,
-    Expression<double>? percentage,
+    Expression<int>? months,
+    Expression<String>? kind,
+    Expression<bool>? hasInterest,
     Expression<bool>? active,
     Expression<DateTime>? writeDate,
   }) {
@@ -62792,8 +62828,9 @@ class AccountCreditCardDeadlineCompanion
       if (id != null) 'id': id,
       if (odooId != null) 'odoo_id': odooId,
       if (name != null) 'name': name,
-      if (deadlineDays != null) 'deadline_days': deadlineDays,
-      if (percentage != null) 'percentage': percentage,
+      if (months != null) 'months': months,
+      if (kind != null) 'kind': kind,
+      if (hasInterest != null) 'has_interest': hasInterest,
       if (active != null) 'active': active,
       if (writeDate != null) 'write_date': writeDate,
     });
@@ -62803,8 +62840,9 @@ class AccountCreditCardDeadlineCompanion
     Value<int>? id,
     Value<int>? odooId,
     Value<String>? name,
-    Value<int>? deadlineDays,
-    Value<double>? percentage,
+    Value<int>? months,
+    Value<String>? kind,
+    Value<bool>? hasInterest,
     Value<bool>? active,
     Value<DateTime?>? writeDate,
   }) {
@@ -62812,8 +62850,9 @@ class AccountCreditCardDeadlineCompanion
       id: id ?? this.id,
       odooId: odooId ?? this.odooId,
       name: name ?? this.name,
-      deadlineDays: deadlineDays ?? this.deadlineDays,
-      percentage: percentage ?? this.percentage,
+      months: months ?? this.months,
+      kind: kind ?? this.kind,
+      hasInterest: hasInterest ?? this.hasInterest,
       active: active ?? this.active,
       writeDate: writeDate ?? this.writeDate,
     );
@@ -62831,11 +62870,14 @@ class AccountCreditCardDeadlineCompanion
     if (name.present) {
       map['name'] = Variable<String>(name.value);
     }
-    if (deadlineDays.present) {
-      map['deadline_days'] = Variable<int>(deadlineDays.value);
+    if (months.present) {
+      map['months'] = Variable<int>(months.value);
     }
-    if (percentage.present) {
-      map['percentage'] = Variable<double>(percentage.value);
+    if (kind.present) {
+      map['kind'] = Variable<String>(kind.value);
+    }
+    if (hasInterest.present) {
+      map['has_interest'] = Variable<bool>(hasInterest.value);
     }
     if (active.present) {
       map['active'] = Variable<bool>(active.value);
@@ -62852,8 +62894,9 @@ class AccountCreditCardDeadlineCompanion
           ..write('id: $id, ')
           ..write('odooId: $odooId, ')
           ..write('name: $name, ')
-          ..write('deadlineDays: $deadlineDays, ')
-          ..write('percentage: $percentage, ')
+          ..write('months: $months, ')
+          ..write('kind: $kind, ')
+          ..write('hasInterest: $hasInterest, ')
           ..write('active: $active, ')
           ..write('writeDate: $writeDate')
           ..write(')'))
@@ -104889,8 +104932,9 @@ typedef $$AccountCreditCardDeadlineTableCreateCompanionBuilder =
       Value<int> id,
       required int odooId,
       required String name,
-      required int deadlineDays,
-      Value<double> percentage,
+      Value<int> months,
+      Value<String> kind,
+      Value<bool> hasInterest,
       Value<bool> active,
       Value<DateTime?> writeDate,
     });
@@ -104899,8 +104943,9 @@ typedef $$AccountCreditCardDeadlineTableUpdateCompanionBuilder =
       Value<int> id,
       Value<int> odooId,
       Value<String> name,
-      Value<int> deadlineDays,
-      Value<double> percentage,
+      Value<int> months,
+      Value<String> kind,
+      Value<bool> hasInterest,
       Value<bool> active,
       Value<DateTime?> writeDate,
     });
@@ -104929,13 +104974,18 @@ class $$AccountCreditCardDeadlineTableFilterComposer
     builder: (column) => ColumnFilters(column),
   );
 
-  ColumnFilters<int> get deadlineDays => $composableBuilder(
-    column: $table.deadlineDays,
+  ColumnFilters<int> get months => $composableBuilder(
+    column: $table.months,
     builder: (column) => ColumnFilters(column),
   );
 
-  ColumnFilters<double> get percentage => $composableBuilder(
-    column: $table.percentage,
+  ColumnFilters<String> get kind => $composableBuilder(
+    column: $table.kind,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<bool> get hasInterest => $composableBuilder(
+    column: $table.hasInterest,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -104974,13 +105024,18 @@ class $$AccountCreditCardDeadlineTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
-  ColumnOrderings<int> get deadlineDays => $composableBuilder(
-    column: $table.deadlineDays,
+  ColumnOrderings<int> get months => $composableBuilder(
+    column: $table.months,
     builder: (column) => ColumnOrderings(column),
   );
 
-  ColumnOrderings<double> get percentage => $composableBuilder(
-    column: $table.percentage,
+  ColumnOrderings<String> get kind => $composableBuilder(
+    column: $table.kind,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<bool> get hasInterest => $composableBuilder(
+    column: $table.hasInterest,
     builder: (column) => ColumnOrderings(column),
   );
 
@@ -105013,13 +105068,14 @@ class $$AccountCreditCardDeadlineTableAnnotationComposer
   GeneratedColumn<String> get name =>
       $composableBuilder(column: $table.name, builder: (column) => column);
 
-  GeneratedColumn<int> get deadlineDays => $composableBuilder(
-    column: $table.deadlineDays,
-    builder: (column) => column,
-  );
+  GeneratedColumn<int> get months =>
+      $composableBuilder(column: $table.months, builder: (column) => column);
 
-  GeneratedColumn<double> get percentage => $composableBuilder(
-    column: $table.percentage,
+  GeneratedColumn<String> get kind =>
+      $composableBuilder(column: $table.kind, builder: (column) => column);
+
+  GeneratedColumn<bool> get hasInterest => $composableBuilder(
+    column: $table.hasInterest,
     builder: (column) => column,
   );
 
@@ -105079,16 +105135,18 @@ class $$AccountCreditCardDeadlineTableTableManager
                 Value<int> id = const Value.absent(),
                 Value<int> odooId = const Value.absent(),
                 Value<String> name = const Value.absent(),
-                Value<int> deadlineDays = const Value.absent(),
-                Value<double> percentage = const Value.absent(),
+                Value<int> months = const Value.absent(),
+                Value<String> kind = const Value.absent(),
+                Value<bool> hasInterest = const Value.absent(),
                 Value<bool> active = const Value.absent(),
                 Value<DateTime?> writeDate = const Value.absent(),
               }) => AccountCreditCardDeadlineCompanion(
                 id: id,
                 odooId: odooId,
                 name: name,
-                deadlineDays: deadlineDays,
-                percentage: percentage,
+                months: months,
+                kind: kind,
+                hasInterest: hasInterest,
                 active: active,
                 writeDate: writeDate,
               ),
@@ -105097,16 +105155,18 @@ class $$AccountCreditCardDeadlineTableTableManager
                 Value<int> id = const Value.absent(),
                 required int odooId,
                 required String name,
-                required int deadlineDays,
-                Value<double> percentage = const Value.absent(),
+                Value<int> months = const Value.absent(),
+                Value<String> kind = const Value.absent(),
+                Value<bool> hasInterest = const Value.absent(),
                 Value<bool> active = const Value.absent(),
                 Value<DateTime?> writeDate = const Value.absent(),
               }) => AccountCreditCardDeadlineCompanion.insert(
                 id: id,
                 odooId: odooId,
                 name: name,
-                deadlineDays: deadlineDays,
-                percentage: percentage,
+                months: months,
+                kind: kind,
+                hasInterest: hasInterest,
                 active: active,
                 writeDate: writeDate,
               ),

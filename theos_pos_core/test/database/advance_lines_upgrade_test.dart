@@ -7,7 +7,7 @@ import 'package:theos_pos_core/theos_pos_core.dart';
 
 void main() {
   for (final from in [10, 11, 12]) {
-    test('v$from to v14 adds columns without dropping offline records', () async {
+    test('v$from al esquema vigente añade columnas sin borrar lo pendiente', () async {
       final directory = await Directory.systemTemp.createTemp(
         'advance-upgrade-',
       );
@@ -79,7 +79,10 @@ void main() {
       // The flag did not exist in v12; the v13 default must be false.
       expect(journal.numberedByClient, isFalse);
       final version = await db.customSelect('PRAGMA user_version').getSingle();
-      expect(version.read<int>('user_version'), 14);
+      // Contra el esquema VIGENTE, no contra un número escrito a mano: cuando
+      // se subió a 15 estas pruebas se pusieron rojas por el número, tapando
+      // que la migración de verdad sí funcionaba.
+      expect(version.read<int>('user_version'), db.schemaVersion);
       final columns = await db
           .customSelect('PRAGMA table_info(advance_lines)')
           .get();

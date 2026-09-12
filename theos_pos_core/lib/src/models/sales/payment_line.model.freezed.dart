@@ -2055,7 +2055,7 @@ as String,
 /// @nodoc
 mixin _$CardDeadline {
 
- int get id; String get name; int get deadlineDays; double get percentage;
+ int get id; String get name; int get months; String get kind; bool get hasInterest;
 /// Create a copy of CardDeadline
 /// with the given fields replaced by the non-null parameter values.
 @JsonKey(includeFromJson: false, includeToJson: false)
@@ -2068,16 +2068,16 @@ $CardDeadlineCopyWith<CardDeadline> get copyWith => _$CardDeadlineCopyWithImpl<C
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is CardDeadline&&(identical(other.id, id) || other.id == id)&&(identical(other.name, name) || other.name == name)&&(identical(other.deadlineDays, deadlineDays) || other.deadlineDays == deadlineDays)&&(identical(other.percentage, percentage) || other.percentage == percentage));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is CardDeadline&&(identical(other.id, id) || other.id == id)&&(identical(other.name, name) || other.name == name)&&(identical(other.months, months) || other.months == months)&&(identical(other.kind, kind) || other.kind == kind)&&(identical(other.hasInterest, hasInterest) || other.hasInterest == hasInterest));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,id,name,deadlineDays,percentage);
+int get hashCode => Object.hash(runtimeType,id,name,months,kind,hasInterest);
 
 @override
 String toString() {
-  return 'CardDeadline(id: $id, name: $name, deadlineDays: $deadlineDays, percentage: $percentage)';
+  return 'CardDeadline(id: $id, name: $name, months: $months, kind: $kind, hasInterest: $hasInterest)';
 }
 
 
@@ -2088,7 +2088,7 @@ abstract mixin class $CardDeadlineCopyWith<$Res>  {
   factory $CardDeadlineCopyWith(CardDeadline value, $Res Function(CardDeadline) _then) = _$CardDeadlineCopyWithImpl;
 @useResult
 $Res call({
- int id, String name, int deadlineDays, double percentage
+ int id, String name, int months, String kind, bool hasInterest
 });
 
 
@@ -2105,13 +2105,14 @@ class _$CardDeadlineCopyWithImpl<$Res>
 
 /// Create a copy of CardDeadline
 /// with the given fields replaced by the non-null parameter values.
-@pragma('vm:prefer-inline') @override $Res call({Object? id = null,Object? name = null,Object? deadlineDays = null,Object? percentage = null,}) {
+@pragma('vm:prefer-inline') @override $Res call({Object? id = null,Object? name = null,Object? months = null,Object? kind = null,Object? hasInterest = null,}) {
   return _then(CardDeadline(
 id: null == id ? _self.id : id // ignore: cast_nullable_to_non_nullable
 as int,name: null == name ? _self.name : name // ignore: cast_nullable_to_non_nullable
-as String,deadlineDays: null == deadlineDays ? _self.deadlineDays : deadlineDays // ignore: cast_nullable_to_non_nullable
-as int,percentage: null == percentage ? _self.percentage : percentage // ignore: cast_nullable_to_non_nullable
-as double,
+as String,months: null == months ? _self.months : months // ignore: cast_nullable_to_non_nullable
+as int,kind: null == kind ? _self.kind : kind // ignore: cast_nullable_to_non_nullable
+as String,hasInterest: null == hasInterest ? _self.hasInterest : hasInterest // ignore: cast_nullable_to_non_nullable
+as bool,
   ));
 }
 
@@ -2196,10 +2197,10 @@ return $default(_that);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( int id,  String name,  int deadlineDays,  double percentage)?  $default,{required TResult orElse(),}) {final _that = this;
+@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( int id,  String name,  int months,  String kind,  bool hasInterest)?  $default,{required TResult orElse(),}) {final _that = this;
 switch (_that) {
 case _CardDeadline() when $default != null:
-return $default(_that.id,_that.name,_that.deadlineDays,_that.percentage);case _:
+return $default(_that.id,_that.name,_that.months,_that.kind,_that.hasInterest);case _:
   return orElse();
 
 }
@@ -2217,10 +2218,10 @@ return $default(_that.id,_that.name,_that.deadlineDays,_that.percentage);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( int id,  String name,  int deadlineDays,  double percentage)  $default,) {final _that = this;
+@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( int id,  String name,  int months,  String kind,  bool hasInterest)  $default,) {final _that = this;
 switch (_that) {
 case _CardDeadline():
-return $default(_that.id,_that.name,_that.deadlineDays,_that.percentage);case _:
+return $default(_that.id,_that.name,_that.months,_that.kind,_that.hasInterest);case _:
   throw StateError('Unexpected subclass');
 
 }
@@ -2237,10 +2238,10 @@ return $default(_that.id,_that.name,_that.deadlineDays,_that.percentage);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( int id,  String name,  int deadlineDays,  double percentage)?  $default,) {final _that = this;
+@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( int id,  String name,  int months,  String kind,  bool hasInterest)?  $default,) {final _that = this;
 switch (_that) {
 case _CardDeadline() when $default != null:
-return $default(_that.id,_that.name,_that.deadlineDays,_that.percentage);case _:
+return $default(_that.id,_that.name,_that.months,_that.kind,_that.hasInterest);case _:
   return null;
 
 }
@@ -2252,13 +2253,14 @@ return $default(_that.id,_that.name,_that.deadlineDays,_that.percentage);case _:
 @JsonSerializable()
 
 class _CardDeadline extends CardDeadline {
-  const _CardDeadline({required this.id, required this.name, this.deadlineDays = 0, this.percentage = 0.0}): super._();
+  const _CardDeadline({required this.id, required this.name, this.months = 0, this.kind = 'current', this.hasInterest = false}): super._();
   factory _CardDeadline.fromJson(Map<String, dynamic> json) => _$CardDeadlineFromJson(json);
 
 @override final  int id;
 @override final  String name;
-@override@JsonKey() final  int deadlineDays;
-@override@JsonKey() final  double percentage;
+@override@JsonKey() final  int months;
+@override@JsonKey() final  String kind;
+@override@JsonKey() final  bool hasInterest;
 
 /// Create a copy of CardDeadline
 /// with the given fields replaced by the non-null parameter values.
@@ -2273,16 +2275,16 @@ Map<String, dynamic> toJson() {
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _CardDeadline&&(identical(other.id, id) || other.id == id)&&(identical(other.name, name) || other.name == name)&&(identical(other.deadlineDays, deadlineDays) || other.deadlineDays == deadlineDays)&&(identical(other.percentage, percentage) || other.percentage == percentage));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is _CardDeadline&&(identical(other.id, id) || other.id == id)&&(identical(other.name, name) || other.name == name)&&(identical(other.months, months) || other.months == months)&&(identical(other.kind, kind) || other.kind == kind)&&(identical(other.hasInterest, hasInterest) || other.hasInterest == hasInterest));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,id,name,deadlineDays,percentage);
+int get hashCode => Object.hash(runtimeType,id,name,months,kind,hasInterest);
 
 @override
 String toString() {
-  return 'CardDeadline(id: $id, name: $name, deadlineDays: $deadlineDays, percentage: $percentage)';
+  return 'CardDeadline(id: $id, name: $name, months: $months, kind: $kind, hasInterest: $hasInterest)';
 }
 
 
@@ -2293,7 +2295,7 @@ abstract mixin class _$CardDeadlineCopyWith<$Res> implements $CardDeadlineCopyWi
   factory _$CardDeadlineCopyWith(_CardDeadline value, $Res Function(_CardDeadline) _then) = __$CardDeadlineCopyWithImpl;
 @override @useResult
 $Res call({
- int id, String name, int deadlineDays, double percentage
+ int id, String name, int months, String kind, bool hasInterest
 });
 
 
@@ -2310,13 +2312,14 @@ class __$CardDeadlineCopyWithImpl<$Res>
 
 /// Create a copy of CardDeadline
 /// with the given fields replaced by the non-null parameter values.
-@override @pragma('vm:prefer-inline') $Res call({Object? id = null,Object? name = null,Object? deadlineDays = null,Object? percentage = null,}) {
+@override @pragma('vm:prefer-inline') $Res call({Object? id = null,Object? name = null,Object? months = null,Object? kind = null,Object? hasInterest = null,}) {
   return _then(_CardDeadline(
 id: null == id ? _self.id : id // ignore: cast_nullable_to_non_nullable
 as int,name: null == name ? _self.name : name // ignore: cast_nullable_to_non_nullable
-as String,deadlineDays: null == deadlineDays ? _self.deadlineDays : deadlineDays // ignore: cast_nullable_to_non_nullable
-as int,percentage: null == percentage ? _self.percentage : percentage // ignore: cast_nullable_to_non_nullable
-as double,
+as String,months: null == months ? _self.months : months // ignore: cast_nullable_to_non_nullable
+as int,kind: null == kind ? _self.kind : kind // ignore: cast_nullable_to_non_nullable
+as String,hasInterest: null == hasInterest ? _self.hasInterest : hasInterest // ignore: cast_nullable_to_non_nullable
+as bool,
   ));
 }
 

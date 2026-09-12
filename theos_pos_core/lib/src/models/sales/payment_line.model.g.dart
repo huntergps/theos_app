@@ -218,16 +218,18 @@ _CardDeadline _$CardDeadlineFromJson(Map<String, dynamic> json) =>
     _CardDeadline(
       id: (json['id'] as num).toInt(),
       name: json['name'] as String,
-      deadlineDays: (json['deadlineDays'] as num?)?.toInt() ?? 0,
-      percentage: (json['percentage'] as num?)?.toDouble() ?? 0.0,
+      months: (json['months'] as num?)?.toInt() ?? 0,
+      kind: json['kind'] as String? ?? 'current',
+      hasInterest: json['hasInterest'] as bool? ?? false,
     );
 
 Map<String, dynamic> _$CardDeadlineToJson(_CardDeadline instance) =>
     <String, dynamic>{
       'id': instance.id,
       'name': instance.name,
-      'deadlineDays': instance.deadlineDays,
-      'percentage': instance.percentage,
+      'months': instance.months,
+      'kind': instance.kind,
+      'hasInterest': instance.hasInterest,
     };
 
 _CardLote _$CardLoteFromJson(Map<String, dynamic> json) => _CardLote(

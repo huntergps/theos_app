@@ -15,8 +15,21 @@ class AccountCreditCardDeadline extends Table {
   IntColumn get id => integer().autoIncrement()();
   IntColumn get odooId => integer().unique()();
   TextColumn get name => text()();
-  IntColumn get deadlineDays => integer()();
-  RealColumn get percentage => real().withDefault(const Constant(0.0))();
+
+  // 🔴 Aquí había `deadlineDays` y `percentage`. **Ninguno de los dos existe
+  // en Odoo**, en ninguna versión: se pedían al servidor y éste rechazaba la
+  // lectura entera, así que esta tabla nunca se llenó. Medido el 12-sep-2026.
+  //
+  // El modelo real expresa el plazo en MESES, y distingue corriente de
+  // diferido y con interés de sin interés. Son esos tres los que se guardan.
+  IntColumn get months => integer().withDefault(const Constant(0))();
+
+  /// `current` (corriente) o `deferred` (diferido), tal como los nombra Odoo.
+  TextColumn get kind => text().withDefault(const Constant('current'))();
+
+  BoolColumn get hasInterest =>
+      boolean().withDefault(const Constant(false))();
+
   BoolColumn get active => boolean().withDefault(const Constant(true))();
   DateTimeColumn get writeDate => dateTime().nullable()();
 }

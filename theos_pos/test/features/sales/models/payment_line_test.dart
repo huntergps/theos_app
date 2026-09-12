@@ -425,30 +425,53 @@ void main() {
     });
   });
 
+  // 🔴 Estas pruebas daban por buenos `deadline_days` y `percentage`, que **no
+  // existen en Odoo** y nunca existieron: se pedían al servidor, éste rechazaba
+  // la lectura entera y el catálogo de plazos se quedaba vacío. Una prueba
+  // escrita contra un dato inventado no protege nada, lo consagra. Medido
+  // contra un Odoo real el 12-sep-2026; el plazo va en `meses`.
   group('CardDeadline', () {
-    test('should parse from Odoo data', () {
+    test('lee el plazo en meses, que es como lo manda Odoo', () {
       final data = {
         'id': 1,
         'name': 'Corriente',
-        'deadline_days': 30,
-        'percentage': 5.0,
+        'meses': 3,
+        'type': 'current',
+        'interes': false,
       };
 
       final deadline = CardDeadline.fromOdoo(data);
 
       expect(deadline.id, 1);
       expect(deadline.name, 'Corriente');
-      expect(deadline.deadlineDays, 30);
-      expect(deadline.percentage, 5.0);
+      expect(deadline.months, 3);
+      expect(deadline.kind, 'current');
+      expect(deadline.hasInterest, isFalse);
+      expect(deadline.displayName, 'Corriente (3 meses)');
     });
 
-    test('should handle missing deadline_days/percentage', () {
-      final data = {'id': 1, 'name': 'Diferido'};
+    test('sin plazo, enseña sólo el nombre y no un cero', () {
+      final deadline = CardDeadline.fromOdoo({'id': 1, 'name': 'Diferido'});
 
-      final deadline = CardDeadline.fromOdoo(data);
+      expect(deadline.months, 0);
+      expect(deadline.kind, 'current');
+      expect(deadline.hasInterest, isFalse);
+      expect(deadline.displayName, 'Diferido');
+    });
 
-      expect(deadline.deadlineDays, 0);
-      expect(deadline.percentage, 0.0);
+    // Odoo manda `false` en una selección vacía, no una cadena. Leerlo como
+    // texto sin comprobar reventaba la lectura del catálogo entero.
+    test('una selección vacía llega como falso y no rompe nada', () {
+      final deadline = CardDeadline.fromOdoo({
+        'id': 2,
+        'name': 'Diferido con interés',
+        'meses': 1,
+        'type': false,
+        'interes': true,
+      });
+
+      expect(deadline.kind, 'current');
+      expect(deadline.displayName, 'Diferido con interés (1 mes con interés)');
     });
   });
 

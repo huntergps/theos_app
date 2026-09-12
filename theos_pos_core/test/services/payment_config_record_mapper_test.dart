@@ -14,11 +14,15 @@ void main() {
         'name': 'Visa',
         'code': 'visa',
       });
+      // El plazo va en MESES. `deadline_days` y `percentage` no existen en
+      // Odoo, y esta prueba los daba por buenos mientras el catálogo real
+      // fallaba entero contra el servidor.
       await PaymentConfigRecordMapper.upsertCardDeadline(db, {
         'id': 2,
-        'name': '30 días',
-        'deadline_days': 30,
-        'percentage': 2.5,
+        'name': '3 meses',
+        'meses': 3,
+        'type': 'deferred',
+        'interes': true,
       });
       await PaymentConfigRecordMapper.upsertCardLote(db, {
         'id': 3,
@@ -43,11 +47,12 @@ void main() {
         (await PaymentConfigRecordMapper.readCardBrands(db)).single['name'],
         'Visa',
       );
-      expect(
-        (await PaymentConfigRecordMapper.readCardDeadlines(db))
-            .single['deadline_days'],
-        30,
-      );
+      final plazo = (await PaymentConfigRecordMapper.readCardDeadlines(
+        db,
+      )).single;
+      expect(plazo['meses'], 3);
+      expect(plazo['type'], 'deferred');
+      expect(plazo['interes'], isTrue);
       expect(
         (await PaymentConfigRecordMapper.readCardLotes(db))
             .single['journal_id'],

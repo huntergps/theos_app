@@ -20,14 +20,14 @@ abstract final class PaymentConfigRecordMapper {
   /// contra un Odoo real el 12-sep-2026.
   ///
   /// El modelo de verdad expresa el plazo con `meses` (entero) más `type`
-  /// (corriente o diferido) e `interes` (booleano). **No se traen todavía**
-  /// porque la tabla local los guarda como días y porcentaje, y meter meses en
-  /// una columna que se llama días sería cambiar un fallo visible por un dato
-  /// falso. Mientras tanto se sincroniza el nombre, que sí es real, y el plazo
-  /// queda en cero: la pantalla ya oculta un cero, así que no inventa nada.
+  /// (corriente o diferido) e `interes` (booleano), y son esos los que se
+  /// piden desde el esquema local v15.
   static const cardDeadlineFields = <String>[
     'id',
     'name',
+    'meses',
+    'type',
+    'interes',
     'active',
     'write_date',
   ];
@@ -94,8 +94,10 @@ abstract final class PaymentConfigRecordMapper {
     final row = AccountCreditCardDeadlineCompanion(
       odooId: Value(id),
       name: Value(data['name'] as String? ?? ''),
-      deadlineDays: Value(data['deadline_days'] as int? ?? 0),
-      percentage: Value((data['percentage'] as num?)?.toDouble() ?? 0),
+      months: Value(data['meses'] as int? ?? 0),
+      // Odoo manda `false` cuando una selección está vacía, no una cadena.
+      kind: Value(data['type'] is String ? data['type'] as String : 'current'),
+      hasInterest: Value(data['interes'] as bool? ?? false),
       active: Value(data['active'] as bool? ?? true),
       writeDate: Value(odoo.parseOdooDateTime(data['write_date'])),
     );
@@ -206,8 +208,9 @@ abstract final class PaymentConfigRecordMapper {
         (r) => {
           'id': r.odooId,
           'name': r.name,
-          'deadline_days': r.deadlineDays,
-          'percentage': r.percentage,
+          'meses': r.months,
+          'type': r.kind,
+          'interes': r.hasInterest,
           'active': r.active,
         },
       )
