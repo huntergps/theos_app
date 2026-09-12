@@ -325,4 +325,153 @@ void main() {
 
     expect(discovery.calls, ['https://b.example.com']);
   });
+
+  // ==========================================================================
+  // El formulario estándar (orden del dueño, 12-sep-2026): estos casos no
+  // comprueban que el widget exista, sino lo que la persona ve — la etiqueta
+  // de un campo concreto, que lo obligatorio se marque ANTES de escribir, y
+  // que un error de validación caiga pegado a su propio campo y no en un
+  // aviso genérico compartido por los tres.
+  // ==========================================================================
+  group('el editor usa el formulario estándar (OrbiField/OrbiForm)', () {
+    testWidgets(
+      'las tres etiquetas se ven, y lo obligatorio se marca antes de escribir',
+      (tester) async {
+        await open(tester);
+        for (final label in [
+          'Nombre del servidor',
+          'URL de Odoo',
+          'Base de datos',
+        ]) {
+          expect(
+            find.text(label),
+            findsOneWidget,
+            reason: 'Falta la etiqueta "$label" del formulario estándar.',
+          );
+        }
+        // El asterisco de obligatorio, uno por cada uno de los tres campos —
+        // y anunciado para lectores de pantalla, no sólo pintado.
+        expect(find.text('*'), findsNWidgets(3));
+        expect(find.bySemanticsLabel('obligatorio'), findsNWidgets(3));
+      },
+    );
+
+    testWidgets(
+      'guardar con el nombre vacío deja el error pegado a "Nombre del '
+      'servidor", no en un aviso genérico',
+      (tester) async {
+        await open(tester);
+        await tester.tap(find.byKey(const ValueKey('save_server')));
+        await tester.pump();
+        // Fluent's Button (HoverButton) schedules a 100ms Timer on tap-up to
+        // reset its own pressed visual state; flush it so the test does not
+        // end with a pending Timer.
+        await tester.pump(const Duration(milliseconds: 100));
+
+        const message = 'Escribe un nombre para identificar el servidor.';
+        expect(find.text(message), findsOneWidget);
+        expect(
+          tester.getCenter(find.text(message)).dy,
+          greaterThan(
+            tester.getCenter(find.text('Nombre del servidor')).dy,
+          ),
+          reason: 'El error debe quedar debajo de la etiqueta de su campo.',
+        );
+        // Y no bajo la etiqueta de otro campo: nada de un aviso a mitad de
+        // camino entre los tres que obligue a adivinar cuál falló.
+        expect(
+          tester.getCenter(find.text(message)).dy,
+          lessThan(tester.getCenter(find.text('URL de Odoo')).dy),
+        );
+        expect(tester.takeException(), isNull);
+      },
+    );
+
+    testWidgets(
+      'guardar con una URL inválida deja el error pegado a "URL de Odoo"',
+      (tester) async {
+        await open(tester);
+        await tester.enterText(
+          find.byKey(const ValueKey('server_name')),
+          'Con nombre',
+        );
+        await tester.enterText(
+          find.byKey(const ValueKey('server_url')),
+          'no-es-una-url',
+        );
+        await tester.pump(const Duration(milliseconds: 600));
+        await tester.pump();
+        await tester.tap(find.byKey(const ValueKey('save_server')));
+        await tester.pump();
+        await tester.pump(const Duration(milliseconds: 100));
+
+        const message = 'La URL debe ser absoluta y usar HTTP o HTTPS';
+        expect(find.text(message), findsOneWidget);
+        expect(
+          tester.getCenter(find.text(message)).dy,
+          greaterThan(tester.getCenter(find.text('URL de Odoo')).dy),
+        );
+        expect(
+          find.text('Escribe un nombre para identificar el servidor.'),
+          findsNothing,
+          reason: 'El campo "Nombre" ya es válido; no debe mostrar error.',
+        );
+        expect(tester.takeException(), isNull);
+      },
+    );
+
+    testWidgets(
+      'guardar con la base de datos vacía deja el error pegado a "Base de '
+      'datos"',
+      (tester) async {
+        await open(tester);
+        await tester.enterText(
+          find.byKey(const ValueKey('server_name')),
+          'Con nombre',
+        );
+        await tester.enterText(
+          find.byKey(const ValueKey('server_url')),
+          'https://valido.example.com',
+        );
+        await tester.pump(const Duration(milliseconds: 600));
+        await tester.pump();
+        await tester.tap(find.byKey(const ValueKey('save_server')));
+        await tester.pump();
+        await tester.pump(const Duration(milliseconds: 100));
+
+        const message = 'Escribe el nombre de la base de datos.';
+        expect(find.text(message), findsOneWidget);
+        expect(
+          tester.getCenter(find.text(message)).dy,
+          greaterThan(tester.getCenter(find.text('Base de datos')).dy),
+        );
+        expect(tester.takeException(), isNull);
+      },
+    );
+
+    testWidgets(
+      'corregir el campo y volver a guardar hace desaparecer su error',
+      (tester) async {
+        await open(tester);
+        await tester.tap(find.byKey(const ValueKey('save_server')));
+        await tester.pump();
+        await tester.pump(const Duration(milliseconds: 100));
+        expect(
+          find.text('Escribe un nombre para identificar el servidor.'),
+          findsOneWidget,
+        );
+        await tester.enterText(
+          find.byKey(const ValueKey('server_name')),
+          'Ya con nombre',
+        );
+        await tester.tap(find.byKey(const ValueKey('save_server')));
+        await tester.pump();
+        await tester.pump(const Duration(milliseconds: 100));
+        expect(
+          find.text('Escribe un nombre para identificar el servidor.'),
+          findsNothing,
+        );
+      },
+    );
+  });
 }

@@ -3,6 +3,7 @@ import 'dart:math';
 
 import 'package:fluent_ui/fluent_ui.dart';
 import 'package:odoo_sdk/odoo_sdk.dart';
+import 'package:odoo_widgets/odoo_widgets.dart';
 
 import '../../app/theme/orbi_theme.dart';
 import 'saved_servers.dart';
@@ -70,7 +71,14 @@ class _ServerManagerDialogState extends State<_ServerManagerDialog> {
   final _database = TextEditingController();
   List<SavedServer> _servers = const [];
   String? _loadError;
-  String? _error;
+  // El error va pegado a su campo (orden del dueño, 12-sep-2026): cada
+  // validación de _save() apunta a su propio OrbiField en vez de a un único
+  // aviso genérico. _generalError es lo único que de verdad no pertenece a
+  // un campo (falló guardar o eliminar contra el almacén).
+  String? _nameError;
+  String? _urlError;
+  String? _databaseError;
+  String? _generalError;
   String? _selectedId;
   String? _snapshot;
   bool _busy = false;
@@ -201,11 +209,18 @@ class _ServerManagerDialogState extends State<_ServerManagerDialog> {
     }
   }
 
+  void _clearFieldErrors() {
+    _nameError = null;
+    _urlError = null;
+    _databaseError = null;
+    _generalError = null;
+  }
+
   void _select(SavedServer server) {
     setState(() {
       _selectedId = server.id;
       _creating = false;
-      _error = null;
+      _clearFieldErrors();
       _name.text = server.name;
       _url.text = server.url;
       _database.text = server.database;
@@ -259,7 +274,7 @@ class _ServerManagerDialogState extends State<_ServerManagerDialog> {
     setState(() {
       _selectedId = null;
       _creating = true;
-      _error = null;
+      _clearFieldErrors();
       _name.clear();
       _url.text = _servers.isEmpty ? widget.initialUrl : '';
       _database.text = _servers.isEmpty ? widget.initialDatabase : '';
@@ -274,17 +289,20 @@ class _ServerManagerDialogState extends State<_ServerManagerDialog> {
     final name = _name.text.trim();
     final url = _url.text.trim();
     final database = _database.text.trim();
+    setState(_clearFieldErrors);
     if (name.isEmpty) {
       return setState(
-        () => _error = 'Escribe un nombre para identificar el servidor.',
+        () => _nameError = 'Escribe un nombre para identificar el servidor.',
       );
     }
     final urlError = SavedServersStore.validateUrl(url);
     if (urlError != null) {
-      return setState(() => _error = urlError);
+      return setState(() => _urlError = urlError);
     }
     if (database.isEmpty) {
-      return setState(() => _error = 'Escribe el nombre de la base de datos.');
+      return setState(
+        () => _databaseError = 'Escribe el nombre de la base de datos.',
+      );
     }
     SavedServer server;
     try {
@@ -295,23 +313,21 @@ class _ServerManagerDialogState extends State<_ServerManagerDialog> {
         database: database,
       );
     } on FormatException catch (e) {
-      return setState(() => _error = e.message);
+      // Lo único que aquí sigue fallando después de validateUrl() es una
+      // normalización de la URL que ese chequeo previo no cubre.
+      return setState(() => _urlError = e.message);
     }
-    setState(() {
-      _busy = true;
-      _error = null;
-    });
+    setState(() => _busy = true);
     try {
       await widget.store.upsert(server);
       if (!mounted) return;
       _servers = widget.store.load();
       _selectedId = server.id;
       _creating = false;
-      _error = null;
       _snapshot = _formSnapshot();
       setState(() {});
     } catch (error) {
-      if (mounted) setState(() => _error = 'No se pudo guardar: $error');
+      if (mounted) setState(() => _generalError = 'No se pudo guardar: $error');
     } finally {
       if (mounted) setState(() => _busy = false);
     }
@@ -354,7 +370,7 @@ class _ServerManagerDialogState extends State<_ServerManagerDialog> {
         _snapshot = _formSnapshot();
       });
     } catch (error) {
-      if (mounted) setState(() => _error = 'No se pudo eliminar: $error');
+      if (mounted) setState(() => _generalError = 'No se pudo eliminar: $error');
     } finally {
       if (mounted) setState(() => _busy = false);
     }
@@ -455,14 +471,49 @@ class _ServerManagerDialogState extends State<_ServerManagerDialog> {
     ],
   );
 
-  Widget _compactLayout() => SingleChildScrollView(
-    child: Column(
-      children: [
-        SizedBox(height: 190, child: _serverList()),
-        const SizedBox(height: OrbiTheme.space16),
-        _editor(),
-      ],
-    ),
+  // Ya no envuelve todo en un SingleChildScrollView propio: OrbiForm.filling
+  // trae su
+  // propio scroll interno (ver odoo_widgets/orbi_form.dart) y necesita que su
+  // ancestro le dé una altura acotada — un SingleChildScrollView por fuera se
+  // la da infinita y el Expanded de OrbiForm revienta con "RenderFlex
+  // children have non-zero flex but incoming height constraints are
+  // unbounded". La lista mantiene su alto fijo de siempre; el editor recibe
+  // el resto del alto disponible (que sigue siendo acotado, porque esta
+  // función corre dentro de un Expanded del Card — ver build()) y desplaza
+  // sólo por dentro si su contenido no cabe.
+  //
+  // Por debajo de [_editorFloor] ni siquiera la fila de acciones (Guardar /
+  // Usar servidor / Borrar, que OrbiForm deja siempre visible, nunca
+  // scrolleable) entra en el espacio restante — medido con la ventana
+  // 390x400 que ya cubría "renders legibly in compact and phone viewports".
+  // Ahí se vuelve al scroll único de toda la sección (lista + editor), tal
+  // como se comportaba antes de esta conversión, en vez de pedirle a un
+  // formulario más alto que su presupuesto que quepa donde no cabe.
+  static const _editorFloor = 420.0;
+
+  Widget _compactLayout() => LayoutBuilder(
+    builder: (context, constraints) {
+      const listHeight = 190.0;
+      const gap = OrbiTheme.space16;
+      if (constraints.maxHeight >= listHeight + gap + _editorFloor) {
+        return Column(
+          children: [
+            SizedBox(height: listHeight, child: _serverList()),
+            const SizedBox(height: gap),
+            Expanded(child: _editor()),
+          ],
+        );
+      }
+      return SingleChildScrollView(
+        child: Column(
+          children: [
+            SizedBox(height: listHeight, child: _serverList()),
+            const SizedBox(height: gap),
+            SizedBox(height: _editorFloor, child: _editor()),
+          ],
+        ),
+      );
+    },
   );
 
   Widget _serverList() => Column(
@@ -528,7 +579,13 @@ class _ServerManagerDialogState extends State<_ServerManagerDialog> {
   /// servidor no permite listar). Nunca deja a la persona sin forma de
   /// avanzar: el enlace "Escribir manualmente" siempre puede recuperar el
   /// campo de texto aunque haya un listado disponible.
-  Widget _databaseField() {
+  ///
+  /// La etiqueta, el asterisco de obligatorio y el error van por
+  /// [OrbiField] — lo único que este método sigue construyendo a mano es el
+  /// contenido propio del campo (el dropdown-o-texto, el enlace "Escribir
+  /// manualmente" y los avisos de descubrimiento), que no es "ayuda
+  /// genérica" sino parte del control mismo.
+  OrbiField _databaseField() {
     final suffix = _discovering
         ? const Padding(
             padding: EdgeInsets.all(OrbiTheme.space8),
@@ -544,12 +601,15 @@ class _ServerManagerDialogState extends State<_ServerManagerDialog> {
         databases != null && databases.length > 1 && !_manualDatabaseEntry;
     final caption = FluentTheme.of(context).typography.caption;
 
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        InfoLabel(
-          label: 'Base de datos',
-          child: showDropdown
+    return OrbiField(
+      label: 'Base de datos',
+      required: true,
+      error: _databaseError,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          showDropdown
               ? ComboBox<String>(
                   key: const ValueKey('server_database_dropdown'),
                   value: databases.contains(_database.text)
@@ -571,85 +631,110 @@ class _ServerManagerDialogState extends State<_ServerManagerDialog> {
                   enabled: !_busy,
                   suffix: suffix,
                 ),
-        ),
-        if (showDropdown)
-          Align(
-            alignment: Alignment.centerRight,
-            child: HyperlinkButton(
-              key: const ValueKey('database_manual_entry'),
-              onPressed: _busy
-                  ? null
-                  : () => setState(() => _manualDatabaseEntry = true),
-              child: const Text('Escribir manualmente'),
+          if (showDropdown)
+            Align(
+              alignment: Alignment.centerRight,
+              child: HyperlinkButton(
+                key: const ValueKey('database_manual_entry'),
+                onPressed: _busy
+                    ? null
+                    : () => setState(() => _manualDatabaseEntry = true),
+                child: const Text('Escribir manualmente'),
+              ),
             ),
-          ),
-        if (_discoveryNotice != null)
-          Padding(
-            padding: const EdgeInsets.only(top: OrbiTheme.space4),
-            child: Text(
-              _discoveryNotice!,
-              key: const ValueKey('database_discovery_notice'),
-              style: caption,
+          if (_discoveryNotice != null)
+            Padding(
+              padding: const EdgeInsets.only(top: OrbiTheme.space4),
+              child: Text(
+                _discoveryNotice!,
+                key: const ValueKey('database_discovery_notice'),
+                style: caption,
+              ),
+            )
+          else if (!showDropdown &&
+              databases != null &&
+              databases.length == 1)
+            Padding(
+              padding: const EdgeInsets.only(top: OrbiTheme.space4),
+              child: Text(
+                'Se detectó una sola base de datos y fue seleccionada.',
+                style: caption,
+              ),
             ),
-          )
-        else if (!showDropdown && databases != null && databases.length == 1)
-          Padding(
-            padding: const EdgeInsets.only(top: OrbiTheme.space4),
-            child: Text(
-              'Se detectó una sola base de datos y fue seleccionada.',
-              style: caption,
-            ),
-          ),
-      ],
+        ],
+      ),
     );
   }
 
-  Widget _editor() => Form(
-    child: SingleChildScrollView(
-      padding: const EdgeInsets.only(right: OrbiTheme.space4),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            _creating ? 'Nuevo servidor' : 'Editar servidor',
-            style: FluentTheme.of(context).typography.titleLarge,
-          ),
-          const SizedBox(height: OrbiTheme.space8),
-          Text(
-            _creating
-                ? 'Guarda sólo los datos de conexión. Las credenciales se solicitan al iniciar sesión.'
-                : 'Actualiza los datos de este acceso guardado.',
-          ),
-          const SizedBox(height: OrbiTheme.space16),
-          InfoLabel(
-            label: 'Nombre del servidor',
-            child: TextBox(
-              key: const ValueKey('server_name'),
-              controller: _name,
-              enabled: !_busy,
-              textInputAction: TextInputAction.next,
-              placeholder: 'Producción',
+  /// El formulario estándar (orden del dueño, 12-sep-2026): la etiqueta va
+  /// encima de cada campo, lo obligatorio se marca antes de escribir y el
+  /// error queda pegado al campo que falló, no en un aviso genérico como
+  /// antes. `OrbiForm.filling` necesita que quien lo envuelve le dé una
+  /// altura acotada (scrollea por dentro y deja las acciones fijas) — aquí se
+  /// la da el `Expanded` de este mismo método, que a su vez sólo funciona
+  /// porque
+  /// `_wideLayout`/`_compactLayout` ya acotan su propia altura desde
+  /// `build()`. Ver la nota en `_compactLayout`.
+  ///
+  /// La fila de Guardar/Usar servidor/Borrar NO pasa por `OrbiActionBar`:
+  /// ese widget está pensado para el par confirmar/cancelar (dos botones,
+  /// el segundo oculto entero cuando no aplica). Aquí hay tres acciones —
+  /// "Usar servidor" debe seguir viéndose DESHABILITADA cuando no hay
+  /// selección, no desaparecer — así que forzarla ahí habría cambiado el
+  /// comportamiento en vez de sólo estandarizar dónde se dibuja.
+  Widget _editor() => Column(
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: [
+      Text(
+        _creating ? 'Nuevo servidor' : 'Editar servidor',
+        style: FluentTheme.of(context).typography.titleLarge,
+      ),
+      const SizedBox(height: OrbiTheme.space8),
+      Text(
+        _creating
+            ? 'Guarda sólo los datos de conexión. Las credenciales se solicitan al iniciar sesión.'
+            : 'Actualiza los datos de este acceso guardado.',
+      ),
+      if (_generalError != null) ...[
+        const SizedBox(height: OrbiTheme.space12),
+        _message(_generalError!, true),
+      ],
+      const SizedBox(height: OrbiTheme.space16),
+      Expanded(
+        child: OrbiForm.filling(
+          sections: [
+            OrbiFormSection(
+              title: 'Datos de conexión',
+              fields: [
+                OrbiField(
+                  label: 'Nombre del servidor',
+                  required: true,
+                  error: _nameError,
+                  child: TextBox(
+                    key: const ValueKey('server_name'),
+                    controller: _name,
+                    enabled: !_busy,
+                    textInputAction: TextInputAction.next,
+                    placeholder: 'Producción',
+                  ),
+                ),
+                OrbiField(
+                  label: 'URL de Odoo',
+                  required: true,
+                  error: _urlError,
+                  child: TextBox(
+                    key: const ValueKey('server_url'),
+                    controller: _url,
+                    enabled: !_busy,
+                    keyboardType: TextInputType.url,
+                    placeholder: 'https://odoo.ejemplo.com',
+                  ),
+                ),
+                _databaseField(),
+              ],
             ),
-          ),
-          const SizedBox(height: OrbiTheme.space12),
-          InfoLabel(
-            label: 'URL de Odoo',
-            child: TextBox(
-              key: const ValueKey('server_url'),
-              controller: _url,
-              enabled: !_busy,
-              keyboardType: TextInputType.url,
-              placeholder: 'https://odoo.ejemplo.com',
-            ),
-          ),
-          const SizedBox(height: OrbiTheme.space12),
-          _databaseField(),
-          if (_error != null) ...[
-            const SizedBox(height: OrbiTheme.space12),
-            _message(_error!, true),
           ],
-          const SizedBox(height: OrbiTheme.space24),
-          Wrap(
+          actions: Wrap(
             spacing: OrbiTheme.space8,
             runSpacing: OrbiTheme.space8,
             children: [
@@ -700,8 +785,8 @@ class _ServerManagerDialogState extends State<_ServerManagerDialog> {
                 ),
             ],
           ),
-        ],
+        ),
       ),
-    ),
+    ],
   );
 }
