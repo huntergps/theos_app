@@ -1,6 +1,6 @@
 import 'dart:async';
 
-import 'package:flutter/material.dart';
+import 'package:fluent_ui/fluent_ui.dart';
 // `odoo_sdk` is a dev_dependency of this package on purpose: production code
 // under `lib/` only sees the sync/offline types `orbi_runtime` chooses to
 // re-export, never the SDK directly. That is the same boundary every other
@@ -10,6 +10,7 @@ import 'package:orbi_runtime/orbi_runtime.dart'
 
 import '../../ui/bindings/record_view_controller.dart';
 import '../../ui/components/records/orbi_record_grid.dart';
+import '../../ui/fluent/orbi_page.dart';
 
 /// SYN-03 — "Resolver conflicto": centro de sincronización y recuperación.
 ///
@@ -263,9 +264,9 @@ class _SyncConflictResolutionPageState
   }
 
   @override
-  Widget build(BuildContext context) => Scaffold(
-    appBar: AppBar(title: const Text('Resolver conflicto')),
-    body: SyncConflictResolutionView(port: _port),
+  Widget build(BuildContext context) => OrbiPage(
+    title: 'Resolver conflicto',
+    child: SyncConflictResolutionView(port: _port),
   );
 }
 
@@ -313,6 +314,7 @@ class _SyncConflictResolutionViewState
             final portraitNarrow =
                 size.height > size.width && constraints.maxWidth < 1200;
             final wide = constraints.maxWidth >= 840 && !portraitNarrow;
+            final typography = FluentTheme.of(context).typography;
             return SingleChildScrollView(
               padding: const EdgeInsets.all(16),
               child: Column(
@@ -320,13 +322,10 @@ class _SyncConflictResolutionViewState
                 children: [
                   Text(
                     'Ventas · Sincronización · Resolver conflicto',
-                    style: Theme.of(context).textTheme.bodySmall,
+                    style: typography.caption,
                   ),
                   const SizedBox(height: 4),
-                  Text(
-                    'Resolver conflicto',
-                    style: Theme.of(context).textTheme.headlineSmall,
-                  ),
+                  Text('Resolver conflicto', style: typography.title),
                   const SizedBox(height: 12),
                   _itemPicker(items, selected),
                   const SizedBox(height: 16),
@@ -354,78 +353,70 @@ class _SyncConflictResolutionViewState
       runSpacing: 8,
       children: [
         for (final item in items)
-          ChoiceChip(
-            label: Text('${item.documentLabel} · ${_kindLabel(item.kind)}'),
-            selected: item.operationId == selected.operationId,
-            onSelected: (_) => setState(() => _selectedId = item.operationId),
+          ToggleButton(
+            checked: item.operationId == selected.operationId,
+            onChanged: (_) => setState(() => _selectedId = item.operationId),
+            child: Text('${item.documentLabel} · ${_kindLabel(item.kind)}'),
           ),
       ],
     );
   }
 
   Widget _header(BuildContext context, SyncReviewItem item) {
+    final typography = FluentTheme.of(context).typography;
     return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Expanded(
-                  child: Text(
-                    item.documentLabel,
-                    style: Theme.of(context).textTheme.titleMedium,
-                  ),
-                ),
-                const SizedBox(width: 8),
-                _statusChip(context, item.kind),
-              ],
-            ),
-            const SizedBox(height: 4),
-            Text(item.commandLabel, style: Theme.of(context).textTheme.bodyMedium),
-            if (item.createdAt != null)
-              Padding(
-                padding: const EdgeInsets.only(top: 4),
-                child: Text(
-                  'Última actualización: ${item.createdAt}',
-                  style: Theme.of(context).textTheme.bodySmall,
-                ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(
+                child: Text(item.documentLabel, style: typography.subtitle),
               ),
-          ],
-        ),
+              const SizedBox(width: 8),
+              _statusChip(context, item.kind),
+            ],
+          ),
+          const SizedBox(height: 4),
+          Text(item.commandLabel, style: typography.body),
+          if (item.createdAt != null)
+            Padding(
+              padding: const EdgeInsets.only(top: 4),
+              child: Text(
+                'Última actualización: ${item.createdAt}',
+                style: typography.caption,
+              ),
+            ),
+        ],
       ),
     );
   }
 
+  /// El significado por color acordado con el dueño: ámbar para lo que
+  /// espera una decisión (un conflicto de datos todavía se puede resolver),
+  /// rojo para lo que no tiene camino automático (incierta o fallida).
+  ///
+  /// `InfoBadge` es el control de Fluent para esto — ninguna forma, borde ni
+  /// color se pinta a mano aquí; `severity` resuelve el color contra
+  /// `FluentTheme.of(context).resources` por su cuenta (ver
+  /// `info_badge.dart`).
   Widget _statusChip(BuildContext context, SyncReviewKind kind) {
-    final colors = Theme.of(context).colorScheme;
-    final (label, background, foreground) = switch (kind) {
-      SyncReviewKind.conflict => (
-          'En revisión',
-          colors.secondaryContainer,
-          colors.onSecondaryContainer,
-        ),
-      SyncReviewKind.uncertain => (
-          'Incierta',
-          colors.tertiaryContainer,
-          colors.onTertiaryContainer,
-        ),
-      SyncReviewKind.failed => (
-          'Fallida',
-          colors.errorContainer,
-          colors.onErrorContainer,
-        ),
+    final severity = switch (kind) {
+      SyncReviewKind.conflict => InfoBarSeverity.warning,
+      SyncReviewKind.uncertain || SyncReviewKind.failed => InfoBarSeverity.error,
     };
-    return Chip(
-      label: Text(label, style: TextStyle(color: foreground)),
-      backgroundColor: background,
+    final label = _kindLabel(kind);
+    return Semantics(
+      label: label,
+      child: ExcludeSemantics(
+        child: InfoBadge(source: Text(label), severity: severity),
+      ),
     );
   }
 
   String _kindLabel(SyncReviewKind kind) => switch (kind) {
-    SyncReviewKind.conflict => 'Diferente',
+    SyncReviewKind.conflict => 'En revisión',
     SyncReviewKind.uncertain => 'Incierta',
     SyncReviewKind.failed => 'Fallida',
   };
@@ -447,10 +438,11 @@ class _SyncConflictResolutionViewState
     );
     const rowHeight = 52.0;
     final height = (item.fields.length * rowHeight + 56.0).clamp(160.0, 420.0).toDouble();
+    final typography = FluentTheme.of(context).typography;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text('Comparación de datos', style: Theme.of(context).textTheme.titleSmall),
+        Text('Comparación de datos', style: typography.bodyStrong),
         const SizedBox(height: 8),
         SizedBox(
           height: height,
@@ -481,44 +473,33 @@ class _SyncConflictResolutionViewState
     );
   }
 
+  /// El `InfoBar` propio de Fluent, no un contenedor pintado a mano: resuelve
+  /// fondo, borde e icono por su cuenta a partir de `severity`.
   Widget _notice(BuildContext context, SyncReviewItem item) {
-    final colors = Theme.of(context).colorScheme;
     final uncertain = item.kind == SyncReviewKind.uncertain;
-    return Card(
-      color: uncertain ? colors.tertiaryContainer : colors.errorContainer,
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              uncertain
-                  ? 'Respuesta incierta: no llegó confirmación del servidor '
-                        'y este comando no tiene un identificador que permita '
-                        'saber si ya se aplicó. No se puede reintentar sin '
-                        'riesgo de duplicar el documento.'
-                  : 'Se agotaron los reintentos automáticos verificables. '
-                        'Requiere revisión manual antes de continuar.',
-              style: TextStyle(
-                color: uncertain
-                    ? colors.onTertiaryContainer
-                    : colors.onErrorContainer,
-              ),
-            ),
-            if (item.reason != null) ...[
-              const SizedBox(height: 8),
-              Text(
-                item.reason!,
-                style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                  color: uncertain
-                      ? colors.onTertiaryContainer
-                      : colors.onErrorContainer,
-                ),
-              ),
-            ],
+    return InfoBar(
+      title: Text(uncertain ? 'Incierta' : 'Fallida'),
+      content: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(
+            uncertain
+                ? 'Respuesta incierta: no llegó confirmación del servidor '
+                      'y este comando no tiene un identificador que permita '
+                      'saber si ya se aplicó. No se puede reintentar sin '
+                      'riesgo de duplicar el documento.'
+                : 'Se agotaron los reintentos automáticos verificables. '
+                      'Requiere revisión manual antes de continuar.',
+          ),
+          if (item.reason != null) ...[
+            const SizedBox(height: 8),
+            Text(item.reason!, style: FluentTheme.of(context).typography.caption),
           ],
-        ),
+        ],
       ),
+      severity: InfoBarSeverity.error,
+      isLong: true,
     );
   }
 
@@ -527,75 +508,80 @@ class _SyncConflictResolutionViewState
     SyncReviewItem item, {
     required bool wide,
   }) {
+    final typography = FluentTheme.of(context).typography;
     if (wide) {
       final current = _pendingSelection[item.operationId];
       return Card(
-        child: Padding(
-          padding: const EdgeInsets.all(16),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                'Acciones disponibles',
-                style: Theme.of(context).textTheme.titleSmall,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('Acciones disponibles', style: typography.bodyStrong),
+            RadioGroup<SyncReviewDecision>(
+              groupValue: current,
+              onChanged: (value) => setState(
+                () => _pendingSelection[item.operationId] = value,
               ),
-              RadioGroup<SyncReviewDecision>(
-                groupValue: current,
-                onChanged: (value) => setState(
-                  () => _pendingSelection[item.operationId] = value,
-                ),
-                child: const Column(
-                  children: [
-                    RadioListTile<SyncReviewDecision>(
-                      value: SyncReviewDecision.reviewWithSupervisor,
-                      title: Text('Revisar con supervisor'),
-                      subtitle: Text(
-                        'Enviar para revisión y mantener el documento en '
-                        'estado pendiente.',
-                      ),
-                    ),
-                    RadioListTile<SyncReviewDecision>(
-                      value: SyncReviewDecision.keepPending,
-                      title: Text('Mantener pendiente'),
-                      subtitle: Text(
-                        'Conservar el estado actual sin aplicar cambios '
-                        'hasta nueva indicación.',
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 8),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.end,
+              child: const Column(
                 children: [
-                  TextButton(
-                    onPressed: () => setState(
-                      () => _pendingSelection[item.operationId] = null,
+                  RadioButton<SyncReviewDecision>(
+                    value: SyncReviewDecision.reviewWithSupervisor,
+                    content: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text('Revisar con supervisor'),
+                        Text(
+                          'Enviar para revisión y mantener el documento en '
+                          'estado pendiente.',
+                        ),
+                      ],
                     ),
-                    child: const Text('Cancelar'),
                   ),
-                  const SizedBox(width: 8),
-                  FilledButton(
-                    onPressed: current == null
-                        ? null
-                        : () => _commit(item.operationId, current),
-                    child: const Text('Guardar decisión'),
+                  SizedBox(height: 8),
+                  RadioButton<SyncReviewDecision>(
+                    value: SyncReviewDecision.keepPending,
+                    content: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text('Mantener pendiente'),
+                        Text(
+                          'Conservar el estado actual sin aplicar cambios '
+                          'hasta nueva indicación.',
+                        ),
+                      ],
+                    ),
                   ),
                 ],
               ),
-            ],
-          ),
+            ),
+            const SizedBox(height: 8),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.end,
+              children: [
+                Button(
+                  onPressed: () => setState(
+                    () => _pendingSelection[item.operationId] = null,
+                  ),
+                  child: const Text('Cancelar'),
+                ),
+                const SizedBox(width: 8),
+                FilledButton(
+                  onPressed: current == null
+                      ? null
+                      : () => _commit(item.operationId, current),
+                  child: const Text('Guardar decisión'),
+                ),
+              ],
+            ),
+          ],
         ),
       );
     }
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        Text(
-          'Acciones disponibles',
-          style: Theme.of(context).textTheme.titleSmall,
-        ),
+        Text('Acciones disponibles', style: typography.bodyStrong),
         const SizedBox(height: 8),
         FilledButton(
           onPressed: () => _commit(

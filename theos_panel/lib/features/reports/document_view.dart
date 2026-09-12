@@ -1,6 +1,6 @@
 import 'dart:convert';
 
-import 'package:flutter/material.dart';
+import 'package:fluent_ui/fluent_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 enum DocumentFiscalState {
@@ -157,7 +157,7 @@ final class _DocumentViewState extends State<DocumentView> {
     future: _document,
     builder: (context, snapshot) {
       if (snapshot.connectionState == ConnectionState.waiting) {
-        return const Center(child: CircularProgressIndicator());
+        return const Center(child: ProgressRing());
       }
       if (snapshot.hasError) {
         return Center(
@@ -166,7 +166,7 @@ final class _DocumentViewState extends State<DocumentView> {
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                const Icon(Icons.description_outlined, size: 40),
+                const Icon(FluentIcons.text_document, size: 40),
                 const SizedBox(height: 12),
                 const Text(
                   'Documento no disponible sin conexión',
@@ -176,7 +176,7 @@ final class _DocumentViewState extends State<DocumentView> {
                 Text(
                   'Primero sincroniza una copia desde Odoo.',
                   textAlign: TextAlign.center,
-                  style: Theme.of(context).textTheme.bodySmall,
+                  style: FluentTheme.of(context).typography.caption,
                 ),
               ],
             ),
@@ -188,7 +188,10 @@ final class _DocumentViewState extends State<DocumentView> {
       return ListView(
         padding: const EdgeInsets.all(16),
         children: [
-          Text(document.title, style: Theme.of(context).textTheme.titleLarge),
+          Text(
+            document.title,
+            style: FluentTheme.of(context).typography.title,
+          ),
           Text('Estado fiscal: ${document.fiscalState.label}'),
           Text('Estado local: ${document.syncState.label}'),
           Text(

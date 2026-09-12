@@ -31,6 +31,15 @@ void main() {
     // `DOMException.name`, dentro de un StateError que nunca se pinta.
     r'${open.error?.name}',
     r'${request.error?.name}',
+    // Los cuatro que destapó la forma directa al estrenarla. Ninguno es un
+    // enum: son nombres de datos del negocio que SÍ hay que enseñar —el
+    // diario, el tipo de egreso, el producto de la línea y el servidor
+    // guardado—. Se listan uno a uno, no con un comodín, para que el
+    // siguiente enum que aparezca en un `Text(...)` siga cayendo.
+    'Text(j.name)',
+    'Text(type.name)',
+    'Text(line.name,',
+    'Text(server.name,',
   };
 
   // Contextos donde el nombre del enum ES el valor correcto porque no se
@@ -56,6 +65,12 @@ void main() {
     // `${item.fiscalState?.name ?? '—'}` seguía con un `??`, y un patrón que
     // pidiera el cierre inmediato lo habría dejado pasar.
     final pattern = RegExp(r'\$\{[^}]*\.name\b');
+    // 🔴 La interpolación no era la única forma de que un nombre interno
+    // llegara a pantalla. `Text(mode.name)` no lleva `${...}` y esta prueba lo
+    // dejaba pasar: aparecieron dos así en Configuración, para el tema y la
+    // densidad, y se vieron al migrar la pantalla, no aquí. Se caza también la
+    // forma directa.
+    final direct = RegExp(r'\bText\(\s*[A-Za-z_][A-Za-z0-9_.]*\.name\b');
 
     for (final entry in Directory('lib').listSync(recursive: true)) {
       if (entry is! File || !entry.path.endsWith('.dart')) continue;
@@ -68,7 +83,7 @@ void main() {
         // `toString()` es para depuración y registros, nunca para pantalla.
         if (line.contains('String toString()')) continue;
         if (identifierContexts.any((c) => c.hasMatch(line))) continue;
-        if (!pattern.hasMatch(line)) continue;
+        if (!pattern.hasMatch(line) && !direct.hasMatch(line)) continue;
         if (allowed.any(line.contains)) continue;
         offenders.add('$relative:${i + 1}  ${line.trim()}');
       }
@@ -103,5 +118,25 @@ void main() {
         reason: 'El patrón ya no reconoce el defecto que existe para cazar.',
       );
     }
+  });
+
+  test('la forma directa también se caza, no sólo la interpolada', () {
+    // El defecto real que se escapó: `Text(mode.name)` en Configuración, sin
+    // interpolación. Se vio migrando la pantalla, no aquí, que es tarde.
+    final direct = RegExp(r'\bText\(\s*[A-Za-z_][A-Za-z0-9_.]*\.name\b');
+    for (final original in [
+      'Text(mode.name)',
+      'Text(density.name)',
+      'Text(item.state.name, style: algo)',
+    ]) {
+      expect(
+        direct.hasMatch(original),
+        isTrue,
+        reason: 'el patrón dejó de reconocer «$original»',
+      );
+    }
+    // Y no muerde donde no debe: un nombre de persona o de producto sí se
+    // enseña, y para eso está la lista de excepciones, no un falso positivo.
+    expect(direct.hasMatch("Text('Nombre: \$nombre')"), isFalse);
   });
 }

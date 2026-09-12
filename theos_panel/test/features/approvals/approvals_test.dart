@@ -2,12 +2,13 @@ import 'dart:io';
 
 import 'package:drift/native.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:flutter/material.dart';
+import 'package:fluent_ui/fluent_ui.dart';
 import 'package:orbi_runtime/orbi_runtime.dart';
 import 'package:theos_panel/features/approvals/approval_contracts.dart';
 import 'package:theos_panel/features/approvals/approvals_screen.dart';
 import 'package:theos_panel/features/approvals/approval_runtime_adapter.dart';
 import 'package:theos_panel/app/business_composition_factory.dart';
+import 'package:theos_panel/ui/fluent/orbi_fluent_theme.dart';
 
 class FakeApprovalPort implements ApprovalPort {
   FakeApprovalPort(this.items);
@@ -330,7 +331,8 @@ void main() {
       );
       final port = FakeApprovalPort([request]);
       await tester.pumpWidget(
-        MaterialApp(
+        FluentApp(
+          theme: OrbiFluentTheme.light,
           home: ApprovalsScreen(port: port, snapshot: snapshot()),
         ),
       );
@@ -339,6 +341,11 @@ void main() {
       await tester.tap(find.text('Aprobar'));
       await tester.pump();
       expect(port.decisions, contains(ApprovalDecision.approve));
+      // The tap feeds a Fluent `InfoBar` confirmation (`displayInfoBar`),
+      // whose auto-dismiss is a real `Timer`, not an animation-driven one —
+      // it stays pending past a single frame. Advance past its default
+      // 3-second life (plus the closing fade) so it clears before teardown.
+      await tester.pump(const Duration(seconds: 4));
     },
   );
 
@@ -358,7 +365,8 @@ void main() {
     await tester.pumpWidget(
       MediaQuery(
         data: const MediaQueryData(textScaler: TextScaler.linear(2)),
-        child: MaterialApp(
+        child: FluentApp(
+          theme: OrbiFluentTheme.light,
           home: ApprovalsScreen(
             port: FakeApprovalPort([request]),
             snapshot: snapshot(),

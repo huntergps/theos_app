@@ -1,6 +1,6 @@
 import 'dart:async';
 
-import 'package:flutter/material.dart';
+import 'package:fluent_ui/fluent_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 enum HomeResumeState { loading, data, empty, error }
@@ -60,9 +60,7 @@ class HomeCenterView extends StatelessWidget {
     builder: (context, snapshot) {
       final state = snapshot.data ?? port.snapshot;
       return switch (state.state) {
-        HomeResumeState.loading => const Center(
-          child: CircularProgressIndicator(),
-        ),
+        HomeResumeState.loading => const Center(child: ProgressRing()),
         HomeResumeState.error => Center(
           child: Text(state.message ?? 'No se pudo cargar el inicio'),
         ),

@@ -1,6 +1,6 @@
 import 'dart:async';
 
-import 'package:flutter/material.dart';
+import 'package:fluent_ui/fluent_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:orbi_runtime/orbi_runtime.dart';
 
@@ -130,7 +130,7 @@ class SyncCenterView extends ConsumerWidget {
         final snapshot = state.data ?? port.snapshot;
         if (snapshot.state == SyncCenterLoadState.initial ||
             snapshot.state == SyncCenterLoadState.loading) {
-          return const Center(child: CircularProgressIndicator());
+          return const Center(child: ProgressRing());
         }
         if (snapshot.state == SyncCenterLoadState.error) {
           return Center(
@@ -153,6 +153,7 @@ class SyncCenterView extends ConsumerWidget {
     SyncCenterPort port,
     SyncCenterSnapshot snapshot,
   ) {
+    final theme = FluentTheme.of(context);
     final status = snapshot.offline
         ? 'Sin conexión; se conserva el trabajo local.'
         : snapshot.sync.active
@@ -166,10 +167,10 @@ class SyncCenterView extends ConsumerWidget {
         Semantics(
           liveRegion: true,
           label: status,
-          child: Text(status, style: Theme.of(context).textTheme.titleMedium),
+          child: Text(status, style: theme.typography.subtitle),
         ),
         const SizedBox(height: 8),
-        if (snapshot.sync.active) const LinearProgressIndicator(),
+        if (snapshot.sync.active) const ProgressBar(),
         if (snapshot.sync.queuedCount > 0)
           Text('En cola: ${snapshot.sync.queuedCount}'),
         // El número solo no sirve: «5 con error» no le dice a nadie qué
@@ -210,10 +211,16 @@ class SyncCenterView extends ConsumerWidget {
         if (snapshot.sync.conflictCount > 0 && onOpenConflicts != null)
           Align(
             alignment: Alignment.centerLeft,
-            child: OutlinedButton.icon(
+            child: Button(
               onPressed: onOpenConflicts,
-              icon: const Icon(Icons.open_in_new),
-              label: const Text('Abrir conflictos'),
+              child: const Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(FluentIcons.open_in_new_window, size: 16),
+                  SizedBox(width: 6),
+                  Text('Abrir conflictos'),
+                ],
+              ),
             ),
           ),
         const SizedBox(height: 12),
@@ -221,12 +228,18 @@ class SyncCenterView extends ConsumerWidget {
         if (snapshot.sync.failedCount > 0 || snapshot.offline)
           Align(
             alignment: Alignment.centerLeft,
-            child: FilledButton.icon(
+            child: FilledButton(
               onPressed: snapshot.offline
                   ? null
                   : () => unawaited(port.retry()),
-              icon: const Icon(Icons.refresh),
-              label: const Text('Reintentar sincronización'),
+              child: const Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(FluentIcons.refresh, size: 16),
+                  SizedBox(width: 6),
+                  Text('Reintentar sincronización'),
+                ],
+              ),
             ),
           ),
       ],
@@ -234,6 +247,7 @@ class SyncCenterView extends ConsumerWidget {
   }
 
   Widget _catalog(BuildContext context, SyncCatalogStatus catalog) {
+    final theme = FluentTheme.of(context);
     final detail =
         catalog.message ??
         switch (catalog.state) {
@@ -244,15 +258,25 @@ class SyncCenterView extends ConsumerWidget {
           SyncCatalogState.conflict => 'Requiere resolución',
         };
     return Card(
-      child: ListTile(
-        title: Text(catalog.label),
-        subtitle: Text(detail),
-        trailing: catalog.progress == null
-            ? null
-            : SizedBox(
-                width: 96,
-                child: LinearProgressIndicator(value: catalog.progress),
-              ),
+      margin: const EdgeInsets.only(bottom: 8),
+      child: Row(
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(catalog.label, style: theme.typography.bodyStrong),
+                Text(detail, style: theme.typography.caption),
+              ],
+            ),
+          ),
+          if (catalog.progress != null)
+            SizedBox(
+              width: 96,
+              child: ProgressBar(value: catalog.progress! * 100),
+            ),
+        ],
       ),
     );
   }

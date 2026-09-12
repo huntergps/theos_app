@@ -1,7 +1,8 @@
-import 'package:flutter/material.dart';
+import 'package:fluent_ui/fluent_ui.dart';
 import 'package:orbi_runtime/orbi_runtime.dart';
 
 import 'approval_contracts.dart';
+import '../../ui/fluent/orbi_page.dart';
 import '../../ui/state_labels.dart';
 
 class ApprovalsScreen extends StatefulWidget {
@@ -30,6 +31,20 @@ class _ApprovalsScreenState extends State<ApprovalsScreen> {
     _pending = widget.port.pending();
   });
 
+  void _notify(String message) {
+    if (!mounted) return;
+    displayInfoBar(
+      context,
+      builder: (context, close) => InfoBar(
+        title: Text(message),
+        action: IconButton(
+          icon: const Icon(FluentIcons.chrome_close),
+          onPressed: close,
+        ),
+      ),
+    );
+  }
+
   Future<void> _resolve(
     ApprovalRequest request,
     ApprovalDecision decision,
@@ -43,9 +58,7 @@ class _ApprovalsScreenState extends State<ApprovalsScreen> {
         snapshot: widget.snapshot,
         offline: false,
       );
-      if (!mounted) return;
-      ScaffoldMessenger.of(context)
-          .showSnackBar(SnackBar(content: Text(result.message)));
+      _notify(result.message);
       if (result.accepted) _reload();
     } finally {
       if (mounted) setState(() => _busy = false);
@@ -62,27 +75,25 @@ class _ApprovalsScreenState extends State<ApprovalsScreen> {
         snapshot: widget.snapshot,
         offline: false,
       );
-      if (!mounted) return;
-      ScaffoldMessenger.of(context)
-          .showSnackBar(SnackBar(content: Text(result.message)));
+      _notify(result.message);
     } finally {
       if (mounted) setState(() => _busy = false);
     }
   }
 
   @override
-  Widget build(BuildContext context) => Scaffold(
-    appBar: AppBar(title: const Text('Aprobaciones comerciales')),
-    body: FutureBuilder<List<ApprovalRequest>>(
+  Widget build(BuildContext context) => OrbiPage(
+    title: 'Aprobaciones comerciales',
+    child: FutureBuilder<List<ApprovalRequest>>(
       future: _pending,
       builder: (context, snapshot) {
         if (snapshot.connectionState != ConnectionState.done) {
-          return const Center(child: CircularProgressIndicator());
+          return const Center(child: ProgressRing());
         }
         if (snapshot.hasError) {
           return Semantics(
             liveRegion: true,
-            child: Center(
+            child: const Center(
               child: Text(
                 'No se pudieron cargar las aprobaciones',
                 semanticsLabel: 'Error: no se pudieron cargar las aprobaciones',
@@ -119,15 +130,15 @@ class _ApprovalsScreenState extends State<ApprovalsScreen> {
     ),
   );
 
-  Widget _card(BuildContext context, ApprovalRequest request) => Card(
-    child: Padding(
-      padding: const EdgeInsets.all(16),
+  Widget _card(BuildContext context, ApprovalRequest request) {
+    final typography = FluentTheme.of(context).typography;
+    return Card(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           Text(
             'Pedido ${request.orderDisplayName}',
-            style: Theme.of(context).textTheme.titleMedium,
+            style: typography.subtitle,
           ),
           Text(
             request.fsc ? 'FSC · contado' : 'Aprobación a ${approvalTermsLabel(request.terms)}',
@@ -150,7 +161,7 @@ class _ApprovalsScreenState extends State<ApprovalsScreen> {
                 child: const Text('Aprobar'),
               ),
               if (request.fsc && request.status == ApprovalStatus.approved)
-                TextButton(
+                Button(
                   onPressed: _busy ? null : () => _fsc(request),
                   child: const Text('Preparar FSC'),
                 ),
@@ -158,6 +169,6 @@ class _ApprovalsScreenState extends State<ApprovalsScreen> {
           ),
         ],
       ),
-    ),
-  );
+    );
+  }
 }

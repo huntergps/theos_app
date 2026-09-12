@@ -1,13 +1,14 @@
 import 'dart:async';
 
 import 'package:drift/native.dart';
-import 'package:flutter/material.dart';
+import 'package:fluent_ui/fluent_ui.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:theos_panel/features/notifications/notification_inbox.dart';
 import 'package:theos_panel/features/notifications/notification_navigator.dart';
 import 'package:theos_panel/app/notification_scope_adapter.dart';
 import 'package:orbi_runtime/orbi_runtime.dart';
+import 'package:theos_panel/ui/fluent/orbi_fluent_theme.dart';
 
 final class _Inbox implements NotificationInboxPort {
   final controller = StreamController<NotificationInboxSnapshot>.broadcast();
@@ -192,7 +193,8 @@ void main() {
     await tester.pumpWidget(
       ProviderScope(
         overrides: [notificationInboxPortProvider.overrideWithValue(inbox)],
-        child: MaterialApp(
+        child: FluentApp(
+          theme: OrbiFluentTheme.light,
           home: NotificationInboxView(
             query: const NotificationQueryKey(
               scopeKey: 'scope',
@@ -211,7 +213,10 @@ void main() {
     );
     await tester.pump();
     await tester.tap(find.text('Aviso'));
-    await tester.pump();
+    // Fluent's `ListTile` runs its press feedback through `HoverButton`,
+    // which schedules a 100ms timer to reset the pressed state after the
+    // tap. A single `pump()` leaves it pending at teardown.
+    await tester.pump(const Duration(milliseconds: 150));
     expect(calls.last, 'open');
     expect(inbox.reads, 1);
     expect(scope.scopeKey, 'scope');
@@ -230,7 +235,8 @@ void main() {
     await tester.pumpWidget(
       ProviderScope(
         overrides: [notificationInboxPortProvider.overrideWithValue(inbox)],
-        child: MaterialApp(
+        child: FluentApp(
+          theme: OrbiFluentTheme.light,
           home: NotificationInboxView(
             query: const NotificationQueryKey(
               scopeKey: 'scope',
@@ -253,7 +259,9 @@ void main() {
     );
     await tester.pump();
     await tester.tap(find.text('Aviso'));
-    await tester.pump();
+    // See the same note above: Fluent's `HoverButton` needs the press
+    // feedback timer to expire before teardown.
+    await tester.pump(const Duration(milliseconds: 150));
     expect(inbox.reads, 0);
     await inbox.controller.close();
   });
@@ -274,7 +282,8 @@ void main() {
         data: const MediaQueryData(textScaler: TextScaler.linear(2)),
         child: ProviderScope(
           overrides: [notificationInboxPortProvider.overrideWithValue(inbox)],
-          child: MaterialApp(
+          child: FluentApp(
+            theme: OrbiFluentTheme.light,
             home: NotificationInboxView(
               query: const NotificationQueryKey(
                 scopeKey: 'scope',

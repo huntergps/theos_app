@@ -1,6 +1,6 @@
 import 'dart:async';
 
-import 'package:flutter/material.dart';
+import 'package:fluent_ui/fluent_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 enum ActivityStatus { overdue, today, planned, done }
@@ -61,10 +61,12 @@ class ActivityCenterView extends StatelessWidget {
                   ActivityStatus.done => 'Completada',
                 }),
                 trailing: item.canComplete && item.status != ActivityStatus.done
-                    ? IconButton(
-                        tooltip: 'Completar actividad',
-                        icon: const Icon(Icons.check),
-                        onPressed: () => unawaited(port.complete(item)),
+                    ? Tooltip(
+                        message: 'Completar actividad',
+                        child: IconButton(
+                          icon: const Icon(FluentIcons.check_mark),
+                          onPressed: () => unawaited(port.complete(item)),
+                        ),
                       )
                     : null,
               ),

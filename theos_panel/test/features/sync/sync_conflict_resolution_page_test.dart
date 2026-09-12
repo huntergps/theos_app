@@ -6,10 +6,11 @@
 // (a hand-written fake, not a mock of business behaviour) rather than only
 // through the synthetic `SyncReviewItem` fixtures used elsewhere in this
 // suite.
-import 'package:flutter/material.dart';
+import 'package:fluent_ui/fluent_ui.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:orbi_runtime/orbi_runtime.dart';
 import 'package:theos_panel/features/sync/sync_conflict_resolution_screen.dart';
+import 'package:theos_panel/ui/fluent/orbi_fluent_theme.dart';
 
 final class _FakeOfflineQueueStore implements OfflineQueueStore {
   final List<OfflineOperation> deadLetter;
@@ -133,7 +134,7 @@ void main() {
     (tester) async {
       final queue = _FakeOfflineQueueStore([_uncertainOperation()]);
       await tester.pumpWidget(
-        MaterialApp(home: SyncConflictResolutionPage(queue: queue)),
+        FluentApp(theme: OrbiFluentTheme.light, home: SyncConflictResolutionPage(queue: queue)),
       );
       await tester.pumpAndSettle();
 
@@ -151,7 +152,7 @@ void main() {
     (tester) async {
       final queue = _FakeOfflineQueueStore([_uncertainOperation()]);
       await tester.pumpWidget(
-        MaterialApp(home: SyncConflictResolutionPage(queue: queue)),
+        FluentApp(theme: OrbiFluentTheme.light, home: SyncConflictResolutionPage(queue: queue)),
       );
       await tester.pumpAndSettle();
 

@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:fluent_ui/fluent_ui.dart';
 
 import '../../app/preferences/app_preferences.dart';
 import '../../ui/components/copyable_message.dart';
@@ -7,8 +7,8 @@ import '../../ui/components/copyable_message.dart';
 /// remembers it — the owner's "se debe escoger el tiempo a mostrar".
 ///
 /// A slider per severity, the same shape `theos_pos`'s settings screen uses
-/// (`settings_screen.dart`, "Duracion de Notificaciones"), rebuilt on
-/// Material. Two things are different on purpose:
+/// (`settings_screen.dart`, "Duracion de Notificaciones"), rebuilt on Fluent.
+/// Two things are different on purpose:
 ///
 ///  * **0 is a real, reachable value, and it means "no se cierra sola".** In
 ///    `theos_pos` the floor is 1 second and an error always expires. An error
@@ -38,7 +38,7 @@ class MessageDurationsSection extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
+    final theme = FluentTheme.of(context);
     return AnimatedBuilder(
       animation: controller,
       builder: (context, _) {
@@ -49,15 +49,15 @@ class MessageDurationsSection extends StatelessWidget {
             const Divider(),
             Text(
               'Duración de los mensajes',
-              style: theme.textTheme.titleMedium,
+              style: theme.typography.subtitle,
             ),
             const SizedBox(height: 4),
             Text(
               'Cuánto tiempo se queda en pantalla cada tipo de mensaje. '
               'Lleva el control hasta el mínimo para que no se cierre sola y '
               'te dé tiempo de leerla o copiarla.',
-              style: theme.textTheme.bodySmall?.copyWith(
-                color: theme.colorScheme.onSurfaceVariant,
+              style: theme.typography.caption?.copyWith(
+                color: theme.resources.textFillColorSecondary,
               ),
             ),
             for (final severity in OrbiMessageSeverity.values)
@@ -89,8 +89,9 @@ class _DurationSlider extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
+    final theme = FluentTheme.of(context);
     final description = MessageDurationsSection.describeSeconds(seconds);
+    final max = MessageDurations.maxSeconds;
     return Padding(
       padding: const EdgeInsets.only(top: 8),
       child: Column(
@@ -98,21 +99,36 @@ class _DurationSlider extends StatelessWidget {
         children: [
           Row(
             children: [
-              Expanded(child: Text(label, style: theme.textTheme.bodyMedium)),
-              Text(description, style: theme.textTheme.labelLarge),
+              Expanded(child: Text(label, style: theme.typography.body)),
+              Text(description, style: theme.typography.bodyStrong),
             ],
           ),
-          Slider(
-            value: seconds.toDouble(),
-            min: 0,
-            max: MessageDurations.maxSeconds.toDouble(),
-            divisions: MessageDurations.maxSeconds,
-            // Screen readers get the sentence, not the bare number: "0"
-            // announced alone would be read as "off".
-            label: description,
-            semanticFormatterCallback: (value) =>
-                '$label: ${MessageDurationsSection.describeSeconds(value.round())}',
-            onChanged: (value) => onChanged(value.round()),
+          // Fluent's Slider has no built-in accessibility announcement (no
+          // `semanticFormatterCallback` equivalent), so the sentence — not the
+          // bare number, which screen readers would read as "off" — is wired
+          // in by hand: same intent the Material version expressed.
+          Semantics(
+            slider: true,
+            label: label,
+            value: description,
+            increasedValue: MessageDurationsSection.describeSeconds(
+              (seconds + 1).clamp(0, max),
+            ),
+            decreasedValue: MessageDurationsSection.describeSeconds(
+              (seconds - 1).clamp(0, max),
+            ),
+            onIncrease: () => onChanged((seconds + 1).clamp(0, max)),
+            onDecrease: () => onChanged((seconds - 1).clamp(0, max)),
+            child: ExcludeSemantics(
+              child: Slider(
+                value: seconds.toDouble(),
+                min: 0,
+                max: max.toDouble(),
+                divisions: max,
+                label: description,
+                onChanged: (value) => onChanged(value.round()),
+              ),
+            ),
           ),
         ],
       ),

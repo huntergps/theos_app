@@ -1,8 +1,9 @@
 import 'dart:async';
 
-import 'package:flutter/material.dart';
+import 'package:fluent_ui/fluent_ui.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:theos_panel/features/sync/sync_conflict_resolution_screen.dart';
+import 'package:theos_panel/ui/fluent/orbi_fluent_theme.dart';
 
 final class _FakeSyncConflictPort implements SyncConflictPort {
   _FakeSyncConflictPort(List<SyncReviewItem> items) : _items = items;
@@ -68,10 +69,11 @@ Future<void> _pumpAt(
   tester.view.physicalSize = size;
   tester.view.devicePixelRatio = 1.0;
   await tester.pumpWidget(
-    MaterialApp(
+    FluentApp(
+      theme: OrbiFluentTheme.light,
       home: MediaQuery(
         data: MediaQueryData(size: size),
-        child: Scaffold(body: SyncConflictResolutionView(port: port)),
+        child: ScaffoldPage(content: SyncConflictResolutionView(port: port)),
       ),
     ),
   );
@@ -104,12 +106,7 @@ void main() {
       // exactly the sentence telling the person retry is unsafe here — so
       // this checks actionable buttons, not every Text node.)
       final buttonLabels = <String>{};
-      for (final type in [
-        FilledButton,
-        OutlinedButton,
-        TextButton,
-        ElevatedButton,
-      ]) {
+      for (final type in [FilledButton, OutlinedButton, Button]) {
         for (final widget in tester.widgetList(find.byType(type))) {
           final child = (widget as dynamic).child;
           if (child is Text && child.data != null) {

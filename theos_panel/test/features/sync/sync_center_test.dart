@@ -1,10 +1,11 @@
 import 'dart:async';
 
-import 'package:flutter/material.dart';
+import 'package:fluent_ui/fluent_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:orbi_runtime/orbi_runtime.dart';
 import 'package:theos_panel/features/sync/sync_center.dart';
+import 'package:theos_panel/ui/fluent/orbi_fluent_theme.dart';
 
 final class _SyncPort implements SyncCenterPort {
   _SyncPort(this._snapshot);
@@ -50,12 +51,19 @@ void main() {
     await tester.pumpWidget(
       ProviderScope(
         overrides: [syncCenterPortProvider.overrideWithValue(port)],
-        child: const MaterialApp(home: Scaffold(body: SyncCenterView())),
+        child: FluentApp(
+          theme: OrbiFluentTheme.light,
+          home: const ScaffoldPage(content: SyncCenterView()),
+        ),
       ),
     );
     expect(find.text('Cursor no confirmado'), findsOneWidget);
     expect(find.text('En cola: 1'), findsOneWidget);
     await tester.tap(find.text('Reintentar sincronización'));
+    // Fluent's `FilledButton` runs through `HoverButton`, which schedules a
+    // 100ms timer on tap-up to reset its pressed state; flush it before
+    // teardown.
+    await tester.pump(const Duration(milliseconds: 150));
     expect(port.retries, 1);
     await port.changes.close();
   });
@@ -69,7 +77,10 @@ void main() {
     await tester.pumpWidget(
       ProviderScope(
         overrides: [syncCenterPortProvider.overrideWithValue(port)],
-        child: const MaterialApp(home: Scaffold(body: SyncCenterView())),
+        child: FluentApp(
+          theme: OrbiFluentTheme.light,
+          home: const ScaffoldPage(content: SyncCenterView()),
+        ),
       ),
     );
     expect(

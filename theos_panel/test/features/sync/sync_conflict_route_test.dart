@@ -5,7 +5,7 @@
 // team notes on exact-path matching for a nested route).
 import 'dart:async';
 
-import 'package:flutter/material.dart';
+import 'package:fluent_ui/fluent_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:orbi_runtime/orbi_runtime.dart';
@@ -15,6 +15,7 @@ import 'package:theos_panel/app/router.dart';
 import 'package:theos_panel/app/session_composition.dart';
 import 'package:theos_panel/features/auth/auth_controller.dart';
 import 'package:theos_panel/features/sync/sync_center.dart';
+import 'package:theos_panel/ui/fluent/orbi_fluent_theme.dart';
 
 final class _Auth implements AuthServicePort {
   @override
@@ -94,7 +95,7 @@ void main() {
       await tester.pumpWidget(
         UncontrolledProviderScope(
           container: container,
-          child: MaterialApp.router(routerConfig: router),
+          child: FluentApp.router(theme: OrbiFluentTheme.light, routerConfig: router),
         ),
       );
       await container.read(authControllerProvider.notifier).login(
@@ -107,7 +108,7 @@ void main() {
       await tester.pumpWidget(
         UncontrolledProviderScope(
           container: container,
-          child: MaterialApp.router(routerConfig: authenticatedRouter),
+          child: FluentApp.router(theme: OrbiFluentTheme.light, routerConfig: authenticatedRouter),
         ),
       );
       await tester.pumpAndSettle();
@@ -124,7 +125,7 @@ void main() {
       await tester.pumpAndSettle();
 
       // The old, fixed placeholder must be gone for good.
-      expect(find.byType(AlertDialog), findsNothing);
+      expect(find.byType(ContentDialog), findsNothing);
       expect(find.text('Conflictos de sincronización'), findsNothing);
       expect(
         find.text(

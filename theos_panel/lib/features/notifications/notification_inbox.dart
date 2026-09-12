@@ -1,6 +1,6 @@
 import 'dart:async';
 
-import 'package:flutter/material.dart';
+import 'package:fluent_ui/fluent_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:orbi_runtime/orbi_runtime.dart';
 
@@ -149,7 +149,7 @@ class NotificationInboxView extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final state = ref.watch(notificationEntriesProvider(query));
     return state.when(
-      loading: () => const Center(child: CircularProgressIndicator()),
+      loading: () => const Center(child: ProgressRing()),
       error: (error, stack) => Semantics(
         liveRegion: true,
         child: const Center(child: Text('No se pudo cargar avisos')),
@@ -164,7 +164,7 @@ class NotificationInboxView extends ConsumerWidget {
               child: Semantics(
                 liveRegion: true,
                 label: '${snapshot.unreadCount} avisos no leídos',
-                child: Badge(label: Text('${snapshot.unreadCount}')),
+                child: InfoBadge(source: Text('${snapshot.unreadCount}')),
               ),
             ),
             Expanded(
@@ -174,46 +174,22 @@ class NotificationInboxView extends ConsumerWidget {
                       itemCount: items.length,
                       itemBuilder: (context, index) {
                         final item = items[index];
-                        return Material(
-                          child: ListTile(
-                            title: Text(item.titleKey),
-                            subtitle: Text(item.fallbackText ?? item.bodyKey),
-                            onTap: () => unawaited(_open(port, item)),
-                            trailing: PopupMenuButton<_NotificationAction>(
-                              tooltip: 'Acciones del aviso',
-                              onSelected: (action) {
-                                switch (action) {
-                                  case _NotificationAction.toggleRead:
-                                    unawaited(
-                                      item.readAt == null
-                                          ? port.markRead(item.id, item.scope)
-                                          : port.markUnread(
-                                              item.id,
-                                              item.scope,
-                                            ),
-                                    );
-                                  case _NotificationAction.archive:
-                                    unawaited(
-                                      port.archive(item.id, item.scope),
-                                    );
-                                }
-                              },
-                              itemBuilder: (context) => [
-                                PopupMenuItem(
-                                  value: _NotificationAction.toggleRead,
-                                  child: Text(
-                                    item.readAt == null
-                                        ? 'Marcar leído'
-                                        : 'Marcar no leído',
-                                  ),
-                                ),
-                                const PopupMenuItem(
-                                  value: _NotificationAction.archive,
-                                  child: Text('Archivar'),
-                                ),
-                              ],
-                            ),
-                          ),
+                        return _NotificationRow(
+                          key: ValueKey(item.id),
+                          item: item,
+                          onOpen: () => unawaited(_open(port, item)),
+                          onAction: (action) {
+                            switch (action) {
+                              case _NotificationAction.toggleRead:
+                                unawaited(
+                                  item.readAt == null
+                                      ? port.markRead(item.id, item.scope)
+                                      : port.markUnread(item.id, item.scope),
+                                );
+                              case _NotificationAction.archive:
+                                unawaited(port.archive(item.id, item.scope));
+                            }
+                          },
                         );
                       },
                     ),
@@ -234,5 +210,72 @@ class NotificationInboxView extends ConsumerWidget {
     if (result == NotificationNavigationResult.opened) {
       await port.markRead(item.id, item.scope);
     }
+  }
+}
+
+/// Una fila del listado, dueña de su propio [FlyoutController] — el menú de
+/// acciones necesita uno por fila y debe liberarse con ella, así que vive en
+/// un `StatefulWidget` propio en vez de fabricarse de nuevo en cada
+/// reconstrucción del `ListView.builder`.
+class _NotificationRow extends StatefulWidget {
+  const _NotificationRow({
+    super.key,
+    required this.item,
+    required this.onOpen,
+    required this.onAction,
+  });
+
+  final NotificationEntry item;
+  final VoidCallback onOpen;
+  final ValueChanged<_NotificationAction> onAction;
+
+  @override
+  State<_NotificationRow> createState() => _NotificationRowState();
+}
+
+class _NotificationRowState extends State<_NotificationRow> {
+  final _menuController = FlyoutController();
+
+  @override
+  void dispose() {
+    _menuController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final item = widget.item;
+    return ListTile(
+      title: Text(item.titleKey),
+      subtitle: Text(item.fallbackText ?? item.bodyKey),
+      onPressed: widget.onOpen,
+      trailing: FlyoutTarget(
+        controller: _menuController,
+        child: Tooltip(
+          message: 'Acciones del aviso',
+          child: IconButton(
+            icon: const Icon(FluentIcons.more_vertical),
+            onPressed: () => _menuController.showFlyout<void>(
+              builder: (context) => MenuFlyout(
+                items: [
+                  MenuFlyoutItem(
+                    text: Text(
+                      item.readAt == null ? 'Marcar leído' : 'Marcar no leído',
+                    ),
+                    onPressed: () =>
+                        widget.onAction(_NotificationAction.toggleRead),
+                  ),
+                  MenuFlyoutItem(
+                    text: const Text('Archivar'),
+                    onPressed: () =>
+                        widget.onAction(_NotificationAction.archive),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
   }
 }
