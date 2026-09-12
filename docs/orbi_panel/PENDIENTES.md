@@ -13,6 +13,27 @@ antes de seguir trabajando en lo que dependa de ella.
 
 ## Resueltas, para que no se vuelvan a preguntar
 
+- 🟢 **Los «5 con error» del pie, explicados y arreglados** (12-sep-2026). No eran
+  permisos ni el dominio de origen, que eran mis dos hipótesis, y las dos cayeron con
+  medición. Eran **cuatro catálogos pidiendo al servidor cosas que no tiene**, desde el
+  único commit que escribió los catorce descriptores de una vez **sin comprobar ninguno
+  contra un servidor**.
+  - Dos pedían el modelo con el nombre equivocado: les faltaba la palabra «credit».
+    Lo que hizo sobrevivir el error once meses es que un tercer modelo hermano,
+    los lotes de tarjeta, **sí va sin esa palabra**: el propio addon de Odoo los nombra
+    de dos formas distintas.
+  - Dos pedían **campos que nunca existieron en ninguna versión**: el símbolo de moneda
+    en la sesión de caja, que se resuelve desde la moneda y no es un campo del registro;
+    y días y porcentaje en los plazos de tarjeta, cuyo modelo real expresa el plazo en
+    **meses**.
+  - El redondeo de la unidad de medida sí existió y se retiró en las series nuevas de
+    Odoo. El lector local ya traía su propio valor por defecto.
+  - **El doble de la prueba devolvía una lista vacía ante un modelo que no reconocía**,
+    y por eso daba verde mientras el cliente pedía un modelo inexistente. Ahora falla y
+    dice cuál.
+  - 🟢 **La vigilancia nueva es lo que más vale**: una prueba recorre los catorce contra
+    un Odoo real y falla nombrando el modelo o el campo que el servidor rechaza. Corrida
+    contra ERP2: **catorce de catorce**. Se salta sola sin credenciales.
 - **D6 — No se construye ninguna ruta propia para listar las bases.** No hace falta:
   medido el 12-sep-2026 desde un origen ajeno de verdad (no localhost), la ruta estándar
   de Odoo ya responde **200 con exactamente una base**, la de esa instancia, y el
@@ -187,6 +208,19 @@ Ninguno de estos está encargado a nadie. Están aquí para que no se pierdan.
     **nada existía sólo en el servidor**. Sin esa comprobación previa no se toca.
   - Mientras siga así, **nadie puede decir qué código corre en ERP2** leyendo el
     repositorio, y una restauración partiría de un estado que no está en ninguna parte.
+
+- 🔴 **La tabla local de plazos de tarjeta se diseñó sobre campos que no existen.**
+  Guarda días y porcentaje; el servidor da meses, tipo e interés. Hoy se sincroniza sólo
+  el nombre y el plazo queda en cero, que la pantalla oculta, así que **no se inventa un
+  dato** — pero tampoco se puede mostrar el plazo. Arreglarlo toca el esquema compartido
+  con la aplicación madura y su modelo generado, y **subir la versión del esquema borra
+  y recrea todas las tablas** si no se le escribe su rama de migración. Por eso no se
+  hizo de paso: necesita decidirse aparte.
+- ⚠️ **Que un catálogo responda 200 no prueba que sus campos signifiquen lo que
+  creemos.** La vigilancia nueva comprueba que el nombre existe al otro lado, que es lo
+  único que una prueba con dobles no puede comprobar. Los diez catálogos que hoy pasan
+  limpio **nunca se han contrastado en significado**, y salieron del mismo commit que
+  los cuatro rotos.
 
 ## Configuración que falta en ERP2, y probablemente en producción
 
