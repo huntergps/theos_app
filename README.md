@@ -74,12 +74,14 @@ make build-web       # configurable hosting base path
 ```
 
 CI runs analysis and tests on Linux and builds iOS, Android, macOS, Windows,
-and web with Flutter 3.47.1. Signing, store publication, writes to `erp2`, and
-Odoo schema/module changes require separate authorization.
+and web with Flutter 3.47.1. Signing, store publication, and Odoo schema/module
+changes on production still require separate authorization.
 
 ## Odoo integration configuration
 
 Integration tests read `ODOO19_*` and `ODOO20_*` values from the environment.
 Never commit server passwords, API keys, cookies, certificates, database dumps,
-or populated `.env` files. Production and `erp2` remain read-only during
-diagnosis unless a controlled write test is explicitly authorized.
+or populated `.env` files. `erp2` is a test tenant: it can be read and written
+without case-by-case authorization. Production (`newerp`) stays off-limits —
+`scripts/verify_orbi_erp2.py` rejects any host containing `newerp`, and this
+never changes.

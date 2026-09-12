@@ -158,8 +158,10 @@ Cambios de negocio estaban pausados para atender prioridad de login/shell.
   personalización propia Orbi tiene prioridad, si no existe hereda la de Odoo.
 - Pie técnico: servidor, BD, hora servidor (desactualizada/ausente explícita), red
   y sincronización diferenciadas. No hacer pasar hora del equipo por servidor.
-- Sin ERP2/producción, sin simuladores ni cambios backend implícitos. No modificar
-  aprobados ni marcar pantallas aprobadas por el usuario sólo por pasar tests.
+- ERP2 admite pruebas y escrituras sin autorización caso por caso; producción
+  (`newerp`) sigue excluida sin excepción. Sin simuladores ni cambios backend
+  implícitos. No modificar aprobados ni marcar pantallas aprobadas por el usuario
+  sólo por pasar tests.
 
 ## Referencias de lectura dirigida
 

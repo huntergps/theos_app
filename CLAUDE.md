@@ -167,10 +167,13 @@ conocido de Flutter 3.47.1 con `integration_test`.
 
 - **No actualices lockfiles** como parte de un cambio ajeno. Se resolvieron con Flutter
   3.47.1 y solo se regeneran con ese SDK.
-- **ERP2 y producción son de solo lectura.** `scripts/verify_orbi_erp2.py` rechaza
-  cualquier host que contenga `newerp`, y las escrituras exigen `--allow-test-writes`
-  más el host exacto. Escribir en ERP2, firmar builds, publicar en tiendas y cambiar
-  esquemas o módulos de Odoo requieren autorización aparte.
+- **ERP2 es un entorno de pruebas; producción es intocable.** Escribir en ERP2 no
+  requiere autorización caso por caso. `scripts/verify_orbi_erp2.py` rechaza
+  cualquier host que contenga `newerp`, y las escrituras de prueba exigen
+  `--allow-test-writes` más el host exacto — ese freno es una protección contra
+  escribir por accidente, no una puerta de permiso que ya no existe. Producción
+  (`newerp`) no se toca, sin excepción. Firmar builds, publicar en tiendas y
+  cambiar esquemas o módulos de Odoo en producción sí requieren autorización aparte.
 - **Nada de secretos en el árbol.** `scripts/check_secrets.sh` corre en CI y busca
   archivos `.env`, claves PEM, tokens y URLs con credenciales embebidas.
 - Las evidencias de Orbi van a `docs/orbi_panel/reports/evidence/<AAAA-MM-DD>/`, y los

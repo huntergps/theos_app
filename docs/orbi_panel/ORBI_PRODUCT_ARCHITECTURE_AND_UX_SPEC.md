@@ -795,9 +795,9 @@ revisiones de agentes o personajes no sustituyen evidencia de uso.
 
 ### 20.3 Backend
 
-Las pruebas Odoo se ejecutan sólo cuando exista un cambio backend autorizado, primero en
-local y por tarea. ERP2 requiere despliegue/autorización expresa para esa fase. `newerp`
-no se toca.
+Las pruebas Odoo se ejecutan primero en local y por tarea. ERP2 es un entorno de
+pruebas: se puede desplegar, actualizar y escribir en él para esta fase sin pedir
+autorización caso por caso. `newerp` no se toca.
 
 ## 21. Criterios de aceptación funcional
 
@@ -849,7 +849,6 @@ no se toca.
 - Añadir o cambiar campos/modelos en addons Odoo.
 - Cambiar dependencias de manifests, incluida una dependencia de `hr`.
 - Trasladar lógica desde Panel hacia Caja/POS.
-- Desplegar o actualizar módulos en ERP2.
 - Añadir dependencias Flutter compartidas o cambiar esquema Drift.
 
 ### Nunca

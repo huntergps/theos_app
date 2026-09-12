@@ -22,8 +22,10 @@ Dependencia significa integrada y verificada, no «el otro agente casi acaba».
 El integrador posee exports, router raíz, composición global, pubspec/locks y
 migraciones. Cambios necesarios en core/paquetes compartidos se desglosan antes de
 autorizar; no se amplía el alcance de una fila por iniciativa del ejecutor.
-No usar ERP2 ni fixtures que escriban en servidores reales. Pruebas web locales,
-sin simuladores; entornos Odoo aislados sólo cuando estén identificados/autorizados.
+ERP2 es un entorno de pruebas: se puede escribir en él sin pedir autorización
+caso por caso; producción (`newerp`) sigue excluida, sin excepción. Pruebas web
+locales, sin simuladores; usar ERP2 sólo cuando el entorno/instancia estén
+identificados.
 
 ## Tareas acotadas
 

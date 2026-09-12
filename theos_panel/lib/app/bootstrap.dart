@@ -13,7 +13,6 @@ import 'orbi_splash_screen.dart';
 import 'preferences/app_preferences.dart';
 import 'orbi_app.dart';
 import 'session_composition.dart';
-import 'web_redirect.dart';
 
 /// The splash is visible for about 1.2 seconds on a fast cold start. This is
 /// a lower bound, not an additional startup delay: slow initialization uses
@@ -92,21 +91,96 @@ class BootstrapAnimatedContent extends StatelessWidget {
   }
 }
 
-/// Web-only authentication bridge. It consumes the existing Odoo HttpOnly
-/// session and never accepts a password or API key from browser state.
-final class _WebSessionAuthService implements AuthServicePort {
-  _WebSessionAuthService({
+/// In-memory-only [CredentialBackend]. Backs the web API-key path with
+/// `CredentialDurability.webSessionOnly` (declared in orbi_runtime and,
+/// before this, never wired to production): the secret lives only in this
+/// tab's Dart heap, never in SharedPreferences/localStorage, and a fresh
+/// instance — created on every cold start — begins empty. `clear()` lets
+/// [WebSessionAuthService.close] drop the key immediately on logout instead
+/// of waiting for a reload, in case the tab stays open.
+final class _InMemoryCredentialBackend implements CredentialBackend {
+  final _values = <String, String>{};
+
+  @override
+  Future<void> write(String key, String value) async => _values[key] = value;
+
+  @override
+  Future<String?> read(String key) async => _values[key];
+
+  @override
+  Future<void> delete(String key) async => _values.remove(key);
+
+  void clear() => _values.clear();
+}
+
+/// Web-only authentication bridge.
+///
+/// `restore()`/`login()` are unchanged: they only ever consume the existing
+/// Odoo HttpOnly session (the same-origin connector this app will use once
+/// an addon serves `/orbi/bootstrap`) and never accept a password from
+/// browser state. Password login in the browser stays unsupported here on
+/// purpose — that gap is a CORS/same-origin decision another workstream is
+/// resolving, not something this class can paper over.
+///
+/// `loginWithApiKey()` is what W02 unblocks: pasting an already-issued Odoo
+/// API key, exactly like theos_pos's own web build already does. It forwards
+/// to an internal [NativeAuthService] wired to [_InMemoryCredentialBackend]
+/// instead of secure storage, so the key never reaches browser storage; a
+/// page reload always starts from an empty store and the user must paste it
+/// again. That matches theos_pos's (undocumented) behavior — conservative,
+/// but a real recurring cost on every reload, which is the owner's call to
+/// change, not this class's.
+///
+/// This closes the API-key gap only. It does not close web/native parity:
+/// username+password in the browser is still blocked on the CORS decision
+/// above. See docs/orbi_panel/decisions/W02-web-clave-api-pegada.md.
+final class WebSessionAuthService
+    implements
+        AuthServicePort,
+        ApiKeyAuthServicePort,
+        CredentialPolicyAuthServicePort {
+  WebSessionAuthService({
     required this.runtime,
     required this.installationIds,
     required this.identityReader,
     required this.capabilityPort,
-  });
+    required SharedPreferences preferences,
+    // Test-only seams: production always probes the real Odoo server and
+    // shares the real session runtime declared above.
+    ApiKeyIdentityProbe? apiKeyIdentityProbe,
+    SessionRuntimePort? apiKeyRuntimePort,
+  }) {
+    _apiKeyPort = NativeAuthServicePort(
+      NativeAuthService(
+        credentialStore: CredentialStore(
+          _apiKeyBackend,
+          durability: CredentialDurability.webSessionOnly,
+        ),
+        preferences: preferences,
+        sessionRuntime: runtime,
+        runtimePort: apiKeyRuntimePort,
+        installationIds: installationIds,
+        identityReader: identityReader,
+        capabilityPort: capabilityPort,
+        apiKeyIdentityProbe: apiKeyIdentityProbe,
+      ),
+    );
+  }
 
   final SessionRuntime runtime;
   final InstallationIdStore installationIds;
   final ActiveIdentityReader identityReader;
   final CapabilitySnapshotPort capabilityPort;
+  final _InMemoryCredentialBackend _apiKeyBackend = _InMemoryCredentialBackend();
+  late final NativeAuthServicePort _apiKeyPort;
   AuthProfile? _profile;
+
+  /// Test-only window into the in-memory store, so a test can prove the
+  /// pasted key actually disappears on [close] instead of merely trusting a
+  /// comment. Never read in production code.
+  @visibleForTesting
+  Map<String, String> get debugStoredApiKeyValues =>
+      Map.unmodifiable(_apiKeyBackend._values);
 
   @override
   Future<AuthServiceResult> restore({bool offline = false}) async {
@@ -179,17 +253,51 @@ final class _WebSessionAuthService implements AuthServicePort {
     required String database,
     required String login,
     required String password,
+    bool persistCredential = true,
   }) async => const AuthServiceResult(status: AuthServiceStatus.required);
 
+  /// Activates a session from an already-issued Odoo API key, the same
+  /// pasted-key path theos_pos already ships in its web build. The key never
+  /// becomes profile metadata or touches browser storage: it is handed
+  /// straight to [_apiKeyBackend], an in-memory [CredentialBackend].
   @override
-  Future<AuthProfile?> loadProfile() async => _profile;
+  Future<AuthServiceResult> loginWithApiKey({
+    required String serverUrl,
+    required String database,
+    required String login,
+    required String apiKey,
+    bool persistCredential = true,
+  }) async {
+    final result = await _apiKeyPort.loginWithApiKey(
+      serverUrl: serverUrl,
+      database: database,
+      login: login,
+      apiKey: apiKey,
+      persistCredential: persistCredential,
+    );
+    if (result.status == AuthServiceStatus.authenticated) {
+      _profile = result.profile;
+    }
+    return result;
+  }
+
+  @override
+  Future<AuthProfile?> loadProfile() async =>
+      _profile ?? await _apiKeyPort.loadProfile();
   @override
   Future<AuthProfile?> loadProfileFor(
     String serverUrl,
     String database,
-  ) async => _profile;
+  ) async => _profile ?? await _apiKeyPort.loadProfileFor(serverUrl, database);
   @override
-  Future<void> close() => runtime.close();
+  Future<void> close() async {
+    // Drop the pasted key immediately on logout, in case the tab stays open
+    // instead of reloading — never rely solely on the next reload to clear
+    // it.
+    _apiKeyBackend.clear();
+    _profile = null;
+    await runtime.close();
+  }
 }
 
 final class _SessionIdentityReader implements ActiveIdentityReader {
@@ -358,7 +466,7 @@ Future<Widget> _initializeApplication() async {
       ),
     ),
   );
-  final webService = _WebSessionAuthService(
+  final webService = WebSessionAuthService(
     runtime: sessionRuntime,
     installationIds: installationIds,
     identityReader: _SessionIdentityReader(sessionRuntime),
@@ -368,14 +476,21 @@ Future<Widget> _initializeApplication() async {
         reader: _SessionCapabilityReader(sessionRuntime),
       ),
     ),
+    preferences: preferences,
   );
   // One bounded online restore, with one explicit offline fallback.
+  //
+  // This used to force-navigate to `/web/login` whenever the cookie-session
+  // restore above failed on web — a route that only exists once a same-
+  // origin Odoo connector serves `/orbi/bootstrap`. Nothing serves it yet,
+  // so that redirect fired on every real web cold start and sent the tab to
+  // a 404 before the Orbi login screen — with its API key toggle — ever
+  // painted, regardless of which credential mode the user wanted. Falling
+  // through to `required` instead lets the in-app router show /login, the
+  // same as every other unauthenticated status already does.
   final restored = await restoreOnce(
     kIsWeb ? webService : NativeAuthServicePort(service),
   );
-  if (kIsWeb && restored.status == AuthServiceStatus.required) {
-    redirectToOdooLogin();
-  }
   final composition = OrbiSessionComposition(
     authService: kIsWeb ? webService : NativeAuthServicePort(service),
     runtime: sessionRuntime,

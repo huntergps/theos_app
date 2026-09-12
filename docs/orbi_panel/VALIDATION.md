@@ -123,6 +123,7 @@ marca `done` después de comprobar diff, comandos y límites. `blocked` requiere
 motivo y dependencia explícitos. Un archivo de informe no demuestra por sí mismo
 que los comandos se ejecutaron; verificar logs/resultados indicados.
 
-Producción (`newerp`) excluida. ERP2 admite pruebas previamente autorizadas dentro
-del alcance; no usar la cuenta admin para demostrar permisos de vendedor/cajero.
+Producción (`newerp`) queda excluida siempre, sin excepción. ERP2 es un entorno
+de pruebas: se puede escribir y ejecutar pruebas ahí sin pedir autorización caso
+por caso; no usar la cuenta admin para demostrar permisos de vendedor/cajero.
 Cambios de módulos/reglas/permisos no se deducen de una autorización genérica de UI.

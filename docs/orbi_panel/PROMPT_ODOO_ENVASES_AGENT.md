@@ -18,10 +18,12 @@ dos inventarios independientes. Odoo debe funcionar sin Orbi abierta o instalada
   versión: confirma rama/runtime 19.5 y compatibilidad antes de implementar.
 - Documentación Orbi: `/Users/elmers/Documents/develop/2026/theos_app/docs/orbi_panel/`.
 - Lee `AGENTS.md` y la skill Odoo del repositorio. Respeta sus mecanismos de búsqueda.
-- Sólo trabajar en fuentes y entorno de desarrollo/pruebas autorizado. **No tocar
-  ERP2**, desplegar, instalar/actualizar módulos en producción ni alterar datos reales.
-  Si no existe entorno seguro identificado, continúa código/tests sin ejecutar contra
-  una instancia desconocida y reporta lo necesario para validarlo.
+- Trabajar en fuentes y en ERP2: es un entorno de pruebas donde se puede escribir
+  sin pedir autorización caso por caso. **No tocar `newerp`** (producción), ni
+  desplegar, instalar/actualizar módulos ni alterar datos ahí; esa prohibición no
+  admite excepción. Si no existe entorno de pruebas identificado, continúa
+  código/tests sin ejecutar contra una instancia desconocida y reporta lo
+  necesario para validarlo.
 - No modificar Flutter/theos_pos/theos_panel. No eliminar cambios ajenos.
 - Guarda avances en commits pequeños, sin secretos. Reporta pruebas realmente ejecutadas.
 

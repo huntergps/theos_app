@@ -1,8 +1,10 @@
 # Orbi ERP — expediente de cierre y entrega a desarrollo
 
 Actualizado: 11/09/2026. El dueño autorizó posteriormente el desarrollo local
-con agentes y Syncfusion. Las restricciones de ERP2 y las puertas de aceptación
-siguen vigentes; desarrollo autorizado no significa producto validado.
+con agentes y Syncfusion. ERP2 es un entorno de pruebas: se puede escribir en
+él sin pedir autorización caso por caso; producción (`newerp`) sigue prohibida,
+sin excepción. Las puertas de aceptación siguen vigentes; desarrollo autorizado
+no significa producto validado.
 
 Avances: [componentes reactivos](reports/REACTIVE_FOUNDATIONS_2026_09_10.md),
 [borradores durables](reports/DURABLE_DRAFTS_2026_09_11.md) y
@@ -89,8 +91,9 @@ La aclaración posterior del dueño limita VIS02: no multiplicar imágenes para 
 colores. [PERSONALIZATION_SPEC.md](PERSONALIZATION_SPEC.md) fija herencia por propiedad,
 tema compartido y validación visual representativa.
 BND01–BND02 requieren especificación sustentada en fuentes; escribirla no instala módulos.
-Las verificaciones de instancia, distribución y pruebas reales se harán únicamente en
-el entorno autorizado. ERP2 queda fuera de cambios y pruebas con efectos.
+Las verificaciones de instancia, distribución y pruebas reales se harán en ERP2, que
+admite pruebas y escrituras sin autorización caso por caso. Producción (`newerp`)
+queda excluida, sin excepción.
 
 ## Puertas de aceptación para la fase futura
 

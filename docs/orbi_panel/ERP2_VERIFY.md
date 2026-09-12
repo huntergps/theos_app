@@ -3,6 +3,11 @@
 `scripts/verify_orbi_erp2.py` is a contract probe, not an ERP migration or a
 production smoke test. It does not contact a server unless explicitly run.
 
+ERP2 is a test tenant: writing to it does not need case-by-case authorization.
+Production (`newerp`) is never touched, no exceptions. The flags below are not
+a permission gate — they exist so a run started to only read data cannot slip
+into writing by accident.
+
 Read-only use:
 
 ```sh

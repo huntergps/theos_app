@@ -33,21 +33,33 @@ const _destinations = [
   ),
 ];
 
-Widget _host(Size size, {ValueChanged<String>? onNavigate, ThemeData? theme}) =>
-    MaterialApp(
-      theme: theme,
-      home: MediaQuery(
-        data: MediaQueryData(size: size),
-        child: OperationalShell(
-          destinations: _destinations,
-          selectedPath: '/sales',
-          onNavigate: onNavigate ?? (_) {},
-          context: _context,
-          onLogout: () {},
-          child: const Center(child: Text('Contenido operativo')),
-        ),
-      ),
-    );
+Widget _host(
+  Size size, {
+  ValueChanged<String>? onNavigate,
+  ThemeData? theme,
+  bool locked = false,
+  VoidCallback? onLock,
+  Future<bool> Function(String password)? onUnlock,
+  VoidCallback? onSwitchUser,
+  Widget? child,
+}) => MaterialApp(
+  theme: theme,
+  home: MediaQuery(
+    data: MediaQueryData(size: size),
+    child: OperationalShell(
+      destinations: _destinations,
+      selectedPath: '/sales',
+      onNavigate: onNavigate ?? (_) {},
+      context: _context,
+      onLogout: () {},
+      locked: locked,
+      onLock: onLock,
+      onUnlock: onUnlock,
+      onSwitchUser: onSwitchUser,
+      child: child ?? const Center(child: Text('Contenido operativo')),
+    ),
+  ),
+);
 
 void main() {
   testWidgets('uses grouped sidebar on desktop and footer context', (
@@ -154,4 +166,168 @@ void main() {
     expect(selected, '/envases');
     expect(find.text('Dashboard'), findsNothing);
   });
+
+  testWidgets(
+    'sin onLock/onSwitchUser el shell no ofrece botones que no puede ejecutar',
+    (tester) async {
+      await tester.binding.setSurfaceSize(const Size(1440, 900));
+      addTearDown(() => tester.binding.setSurfaceSize(null));
+      await tester.pumpWidget(_host(const Size(1440, 900)));
+      await tester.pump();
+      expect(find.byKey(const Key('lock-button')), findsNothing);
+      expect(find.byKey(const Key('switch-user-button')), findsNothing);
+      expect(find.byKey(const Key('logout-button')), findsOneWidget);
+    },
+  );
+
+  testWidgets('cambiar de usuario es alcanzable desde el shell y es una acción '
+      'distinta de bloquear y de cerrar sesión', (tester) async {
+    var switchTapped = 0;
+    await tester.binding.setSurfaceSize(const Size(1440, 900));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    await tester.pumpWidget(
+      _host(
+        const Size(1440, 900),
+        onLock: () {},
+        onUnlock: (_) async => true,
+        onSwitchUser: () => switchTapped++,
+      ),
+    );
+    await tester.pump();
+    expect(find.byKey(const Key('lock-button')), findsOneWidget);
+    expect(find.byKey(const Key('switch-user-button')), findsOneWidget);
+    expect(find.byKey(const Key('logout-button')), findsOneWidget);
+    await tester.tap(find.byKey(const Key('switch-user-button')));
+    expect(switchTapped, 1);
+  });
+
+  testWidgets(
+    'bloquear cubre el contenido sin descartarlo: un borrador a medias '
+    'sobrevive el bloqueo y sale intacto al desbloquear con la contraseña '
+    'correcta; una contraseña incorrecta no expone el contenido ni lo borra',
+    (tester) async {
+      await tester.binding.setSurfaceSize(const Size(1440, 900));
+      addTearDown(() => tester.binding.setSurfaceSize(null));
+      final draftController = TextEditingController();
+      addTearDown(draftController.dispose);
+      var locked = false;
+
+      Future<bool> unlock(String password) async => password == 'correcta';
+
+      late StateSetter setState;
+      await tester.pumpWidget(
+        StatefulBuilder(
+          builder: (context, setter) {
+            setState = setter;
+            return _host(
+              const Size(1440, 900),
+              locked: locked,
+              onLock: () => setState(() => locked = true),
+              onUnlock: (password) async {
+                final ok = await unlock(password);
+                if (ok) setState(() => locked = false);
+                return ok;
+              },
+              child: TextField(
+                key: const Key('draft-field'),
+                controller: draftController,
+              ),
+            );
+          },
+        ),
+      );
+      await tester.pump();
+
+      await tester.enterText(
+        find.byKey(const Key('draft-field')),
+        'borrador a medias',
+      );
+      expect(draftController.text, 'borrador a medias');
+
+      await tester.tap(find.byKey(const Key('lock-button')));
+      await tester.pump();
+      expect(find.text('Sesión bloqueada'), findsOneWidget);
+      // The draft stays mounted underneath — nothing was discarded, only
+      // hidden and made unreachable.
+      expect(find.byKey(const Key('draft-field')), findsOneWidget);
+      expect(draftController.text, 'borrador a medias');
+
+      // A wrong password never unlocks, never touches the draft.
+      await tester.enterText(
+        find.byKey(const Key('workspace-lock-password')),
+        'incorrecta',
+      );
+      await tester.tap(find.byKey(const Key('workspace-unlock-button')));
+      await tester.pumpAndSettle();
+      expect(find.text('Sesión bloqueada'), findsOneWidget);
+      expect(
+        find.textContaining('No se pudo verificar la contraseña'),
+        findsOneWidget,
+      );
+      expect(draftController.text, 'borrador a medias');
+
+      // The right password unlocks and the draft comes back exactly as it
+      // was left, because it was never rebuilt or disposed.
+      await tester.enterText(
+        find.byKey(const Key('workspace-lock-password')),
+        'correcta',
+      );
+      await tester.tap(find.byKey(const Key('workspace-unlock-button')));
+      await tester.pumpAndSettle();
+      expect(find.text('Sesión bloqueada'), findsNothing);
+      expect(draftController.text, 'borrador a medias');
+    },
+  );
+
+  testWidgets(
+    'el shell bloqueado ignora los toques sobre el contenido cubierto, '
+    'aunque siga montado debajo del bloqueo',
+    (tester) async {
+      await tester.binding.setSurfaceSize(const Size(1440, 900));
+      addTearDown(() => tester.binding.setSurfaceSize(null));
+      var navigated = false;
+      await tester.pumpWidget(
+        _host(
+          const Size(1440, 900),
+          locked: true,
+          onLock: () {},
+          onUnlock: (_) async => false,
+          onNavigate: (_) => navigated = true,
+        ),
+      );
+      await tester.pump();
+      expect(find.text('Sesión bloqueada'), findsOneWidget);
+      // The sidebar destination is still mounted underneath (nothing was
+      // torn down by locking) but a tap on it must never reach onNavigate:
+      // the lock overlay sits on top and absorbs/ignores pointer events.
+      expect(find.text('Órdenes'), findsOneWidget);
+      await tester.tap(find.text('Órdenes'), warnIfMissed: false);
+      await tester.pump();
+      expect(navigated, isFalse);
+    },
+  );
+
+  testWidgets(
+    'cambiar de usuario también es alcanzable desde la propia pantalla de '
+    'bloqueo, como escape hatch distinto de reintentar la contraseña',
+    (tester) async {
+      await tester.binding.setSurfaceSize(const Size(1440, 900));
+      addTearDown(() => tester.binding.setSurfaceSize(null));
+      var switchTapped = 0;
+      await tester.pumpWidget(
+        _host(
+          const Size(1440, 900),
+          locked: true,
+          onLock: () {},
+          onUnlock: (_) async => false,
+          onSwitchUser: () => switchTapped++,
+        ),
+      );
+      await tester.pump();
+      await tester.tap(
+        find.byKey(const Key('workspace-lock-switch-user-button')),
+      );
+      expect(switchTapped, 1);
+    },
+  );
 }

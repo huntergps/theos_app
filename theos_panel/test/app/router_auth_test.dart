@@ -8,6 +8,7 @@ import 'package:theos_panel/app/router.dart';
 import 'package:theos_panel/app/orbi_app.dart';
 import 'package:theos_panel/features/auth/auth_controller.dart';
 import 'package:theos_panel/features/auth/login_screen.dart';
+import 'package:theos_panel/features/auth/saved_servers.dart';
 import 'package:theos_panel/app/preferences/app_preferences.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -89,6 +90,21 @@ void main() {
   testWidgets('bootstrap router keeps login stable while profile loads', (tester) async {
     SharedPreferences.setMockInitialValues({});
     final preferences = await SharedPreferences.getInstance();
+    // Seed a saved server that matches the remembered profile below, so
+    // LoginScreen's initState codepath (`_findServer` + `setState`) actually
+    // runs once `loadProfile()` resolves, instead of finding no match and
+    // doing nothing. That `setState` mid-typing is exactly what this test
+    // guards: it must not tear down the login form or clobber user input.
+    await tester.runAsync(
+      () => SavedServersStore(preferences).upsert(
+        SavedServer(
+          id: 'saved',
+          name: 'Guardado',
+          url: _ProfileDuringLoginAuth.profile.serverUrl,
+          database: _ProfileDuringLoginAuth.profile.database,
+        ),
+      ),
+    );
     final authService = _ProfileDuringLoginAuth();
     tester.view.physicalSize = const Size(800, 600);
     tester.view.devicePixelRatio = 1;
@@ -108,18 +124,18 @@ void main() {
     );
     await tester.pump();
     final loginElement = find.byType(LoginScreen).evaluate().single;
-    final fields = find.byType(TextField);
-    final serverController = tester.widget<TextField>(fields.at(0)).controller;
-    await tester.tap(fields.at(0));
-    const server = 'https://erp.example.com';
-    for (var index = 1; index <= server.length; index++) {
-      await tester.enterText(fields.at(0), server.substring(0, index));
-      await tester.pump(const Duration(milliseconds: 20));
-    }
-    await tester.tap(fields.at(1));
-    const database = 'panel_db';
-    for (var index = 1; index <= database.length; index++) {
-      await tester.enterText(fields.at(1), database.substring(0, index));
+    // The form today has no "servidor"/"base de datos" text fields (the
+    // environment is picked from a dropdown and the database never shows).
+    // Find the remaining fields by their label, not by index — see
+    // test/features/auth/login_screen_test.dart, already adapted to this
+    // shape, for the same convention.
+    final usuarioField = find.widgetWithText(TextField, 'Usuario');
+    final passwordField = find.widgetWithText(TextField, 'Contraseña');
+    final loginController = tester.widget<TextField>(usuarioField).controller;
+    await tester.tap(usuarioField);
+    const login = 'alice';
+    for (var index = 1; index <= login.length; index++) {
+      await tester.enterText(usuarioField, login.substring(0, index));
       await tester.pump(const Duration(milliseconds: 20));
       if (index == 3) {
         authService.profileReady.complete(_ProfileDuringLoginAuth.profile);
@@ -127,17 +143,15 @@ void main() {
       }
     }
     expect(identical(find.byType(LoginScreen).evaluate().single, loginElement), isTrue);
-    expect(identical(tester.widget<TextField>(fields.at(0)).controller, serverController), isTrue);
-    for (final entry in <({int index, String value})>[
-      (index: 2, value: 'user'),
-      (index: 3, value: 'password'),
-    ]) {
-      await tester.ensureVisible(fields.at(entry.index));
-      await tester.tap(fields.at(entry.index));
-      await tester.enterText(fields.at(entry.index), entry.value);
-    }
-    expect(tester.widget<TextField>(fields.at(3)).focusNode?.hasFocus, isTrue);
-    expect(tester.widget<TextField>(fields.at(3)).controller?.text, 'password');
+    expect(identical(tester.widget<TextField>(usuarioField).controller, loginController), isTrue);
+    // The user's own typing wins over the just-loaded remembered login: the
+    // background profile load must not overwrite what is already on screen.
+    expect(tester.widget<TextField>(usuarioField).controller?.text, login);
+    await tester.ensureVisible(passwordField);
+    await tester.tap(passwordField);
+    await tester.enterText(passwordField, 'password');
+    expect(tester.widget<TextField>(passwordField).focusNode?.hasFocus, isTrue);
+    expect(tester.widget<TextField>(passwordField).controller?.text, 'password');
   });
 
   testWidgets(
