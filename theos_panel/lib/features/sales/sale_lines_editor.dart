@@ -3,7 +3,7 @@ import 'package:syncfusion_flutter_datagrid/datagrid.dart';
 import 'package:theos_pos_core/theos_pos_core.dart' show SaleCatalogProduct;
 
 import '../clients/catalog_contracts.dart';
-import '../clients/entity_picker.dart';
+import '../../ui/components/fields/orbi_inline_catalog_picker.dart';
 import 'sale_editor.dart';
 
 String _priceLabel(SaleDraftLine line) =>
@@ -213,15 +213,11 @@ class _SaleLinesEditorState extends State<SaleLinesEditor> {
   Widget _productSearch(BuildContext context) {
     final products = widget.products;
     if (products == null) return const SizedBox.shrink();
-    return SizedBox(
-      height: 172,
-      child: EntityPicker<SaleCatalogProduct>(
-        key: const Key('sale-inline-product-search'),
-        controller: products,
-        label: 'Buscar producto para nueva línea',
-        entityName: 'producto',
-        onSelected: widget.onAddProduct,
-      ),
+    return OrbiInlineCatalogPicker<SaleCatalogProduct>(
+      key: const Key('sale-inline-product-search'),
+      controller: products,
+      label: 'Buscar producto para nueva línea',
+      onSelected: widget.onAddProduct,
     );
   }
 
@@ -313,18 +309,14 @@ final class _SaleLinesDataSource extends DataGridSource {
         cells: [
           for (final cell in row.getCells())
             cell.columnName == 'product'
-                ? SizedBox(
-                    height: 160,
-                    child: products == null
-                        ? const SizedBox.shrink()
-                        : EntityPicker<SaleCatalogProduct>(
-                            key: const Key('sale-inline-product-search'),
-                            controller: products!,
-                            label: 'Buscar producto para nueva línea',
-                            entityName: 'producto',
-                            onSelected: onAddProduct,
-                          ),
-                  )
+                ? products == null
+                      ? const SizedBox.shrink()
+                      : OrbiInlineCatalogPicker<SaleCatalogProduct>(
+                          key: const Key('sale-inline-product-search'),
+                          controller: products!,
+                          label: 'Buscar producto para nueva línea',
+                          onSelected: onAddProduct,
+                        )
                 : const SizedBox.shrink(),
         ],
       );

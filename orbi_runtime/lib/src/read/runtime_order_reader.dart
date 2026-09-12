@@ -64,7 +64,8 @@ final class RuntimeLocalOrderReader {
     final predicate = where.join(' AND ');
     final rows = await active.database.database
         .customSelect(
-          'SELECT id, name, client_order_ref, state, user_id, company_id, invoice_status, '
+          'SELECT id, name, client_order_ref, state, user_id, company_id, '
+          'partner_name, amount_total, date_order, currency_symbol, currency_id, invoice_status, '
           'payment_state, amount_unpaid, amount_to_invoice, has_queued_invoice, '
           'picking_ids, '
           'is_synced '
@@ -84,6 +85,95 @@ final class RuntimeLocalOrderReader {
       rows: rows.map((row) => row.data).toList(growable: false),
       count: (countRows.single.data['count'] as int?) ?? 0,
     );
+  }
+
+  /// Watches the same scoped local query used by [read]. No network refresh is
+  /// started here; callers decide when remote synchronization is appropriate.
+  /// A lease check is performed for every SQLite emission so an old scope
+  /// cannot publish rows after activation changes.
+  Stream<({List<Map<String, dynamic>> rows, int count})> watch(
+    core.OrderQuery query, {
+    int limit = 50,
+  }) {
+    final active = sessions.active;
+    if (active == null) {
+      return Stream.error(StateError('order scope is inactive'));
+    }
+    final lease = active.lease;
+    final where = <String>['company_id = ?'];
+    final variables = <Variable<Object>>[Variable<int>(query.companyId)];
+    if (query.authorFilter != null &&
+        query.workQueue != core.OrderWorkQueue.cashierPending) {
+      where.add('user_id = ?');
+      variables.add(Variable<int>(query.authorFilter!));
+    }
+    if (query.dateFrom != null) {
+      where.add('date_order >= ?');
+      variables.add(Variable<String>(query.dateFrom!.toIso8601String()));
+    }
+    if (query.dateTo != null) {
+      where.add('date_order <= ?');
+      variables.add(Variable<String>(query.dateTo!.toIso8601String()));
+    }
+    if (query.afterId != null) {
+      where.add('odoo_id < ?');
+      variables.add(Variable<int>(query.afterId!));
+    }
+    if (query.workQueue == core.OrderWorkQueue.cashierPending) {
+      where.add('state = ?');
+      variables.add(Variable<String>(core.SaleOrderState.sale.code));
+      where.add(
+        "(COALESCE(amount_unpaid, 0) > 0 OR "
+        "payment_state IN ('not_paid', 'partial', 'in_payment') OR "
+        "COALESCE(amount_to_invoice, 0) > 0 OR has_queued_invoice = 1)",
+      );
+    }
+    if (query.states.isNotEmpty) {
+      where.add(
+        'state IN (${List.filled(query.states.length, '?').join(',')})',
+      );
+      variables.addAll(
+        query.states.map((state) => Variable<String>(state.code)),
+      );
+    }
+    if (query.text case final text? when text.trim().isNotEmpty) {
+      where.add('(name LIKE ? OR client_order_ref LIKE ?)');
+      final needle = '%${text.trim()}%';
+      variables.add(Variable<String>(needle));
+      variables.add(Variable<String>(needle));
+    }
+    final predicate = where.join(' AND ');
+    final database = active.database.database;
+    return database
+        .customSelect(
+          'SELECT id, name, client_order_ref, state, user_id, company_id, '
+          'partner_name, amount_total, date_order, currency_symbol, currency_id, '
+          'invoice_status, payment_state, amount_unpaid, amount_to_invoice, '
+          'has_queued_invoice, picking_ids, is_synced '
+          'FROM sale_order WHERE $predicate '
+          'ORDER BY date_order DESC, odoo_id DESC LIMIT $limit',
+          variables: variables,
+          readsFrom: {database.saleOrder},
+        )
+        .watch()
+        .asyncMap((result) async {
+          if (!sessions.accepts(lease)) {
+            throw StateError('order scope changed');
+          }
+          final countRows = await database
+              .customSelect(
+                'SELECT COUNT(*) AS count FROM sale_order WHERE $predicate',
+                variables: variables,
+              )
+              .get();
+          if (!sessions.accepts(lease)) {
+            throw StateError('order scope changed');
+          }
+          return (
+            rows: result.map((row) => row.data).toList(growable: false),
+            count: (countRows.single.data['count'] as int?) ?? 0,
+          );
+        });
   }
 
   /// Pulls the remote query pages and commits only canonical summary fields.
@@ -122,12 +212,16 @@ final class RuntimeLocalOrderReader {
         if (id is! int || id <= 0 || company != query.companyId) continue;
         await active.database.database.customStatement(
           'INSERT INTO sale_order '
-          '(odoo_id,name,client_order_ref,state,user_id,company_id,invoice_status,payment_state, '
-          'amount_unpaid,amount_to_invoice,has_queued_invoice,picking_ids,is_synced) '
-          'VALUES (?,?,?,?,?,?,?,?,?,?,?,?,1) '
+          '(odoo_id,name,client_order_ref,state,user_id,company_id,partner_id,partner_name, '
+          'amount_total,date_order,currency_id,invoice_status,payment_state,amount_unpaid, '
+          'amount_to_invoice,has_queued_invoice,picking_ids,is_synced) '
+          'VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,1) '
           'ON CONFLICT(odoo_id) DO UPDATE SET name=excluded.name, '
           'state=excluded.state, client_order_ref=excluded.client_order_ref, user_id=excluded.user_id, '
-          'company_id=excluded.company_id, invoice_status=excluded.invoice_status, '
+          'company_id=excluded.company_id, partner_id=excluded.partner_id, '
+          'partner_name=excluded.partner_name, amount_total=excluded.amount_total, '
+          'date_order=excluded.date_order, currency_id=excluded.currency_id, '
+          'invoice_status=excluded.invoice_status, '
           'payment_state=excluded.payment_state, amount_unpaid=excluded.amount_unpaid, '
           'amount_to_invoice=excluded.amount_to_invoice, '
           // has_queued_invoice is @OdooLocalOnly: preserve the existing
@@ -141,6 +235,11 @@ final class RuntimeLocalOrderReader {
             row['state'] as String? ?? 'draft',
             user,
             company,
+            _many2oneId(row['partner_id']),
+            _many2oneName(row['partner_id']),
+            (row['amount_total'] as num?)?.toDouble(),
+            row['date_order'],
+            _many2oneId(row['currency_id']),
             row['invoice_status'] as String? ?? 'no',
             row['payment_state'] as String?,
             (row['amount_unpaid'] as num?)?.toDouble() ?? 0,
@@ -157,6 +256,12 @@ final class RuntimeLocalOrderReader {
     int id => id,
     List<dynamic> pair when pair.isNotEmpty && pair.first is int =>
       pair.first as int,
+    _ => null,
+  };
+
+  static String? _many2oneName(Object? value) => switch (value) {
+    List<dynamic> pair when pair.length > 1 && pair[1] is String =>
+      pair[1] as String,
     _ => null,
   };
 

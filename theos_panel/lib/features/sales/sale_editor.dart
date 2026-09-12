@@ -832,62 +832,105 @@ class _SaleEditorScreenState extends State<SaleEditorScreen> {
     child: Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        OrbiReactiveTextField(
-          control: _saleForm.control('client') as FormControl<String>,
-          label: 'Cliente',
-        ),
-        if (widget.clients != null)
-          SizedBox(
-            height: 260,
-            child: EntityPicker<SaleCatalogPartner>(
-              controller: widget.clients!,
-              label: 'Buscar cliente',
-              entityName: 'cliente',
-              onSelected: (entity) => widget.controller.update(
-                clientName: entity.title,
-                partnerId: entity.value?.remoteId,
+        LayoutBuilder(
+          builder: (context, constraints) {
+            final fields = <Widget>[
+              SizedBox(
+                width: 280,
+                child: OrbiReactiveTextField(
+                  control: _saleForm.control('client') as FormControl<String>,
+                  label: 'Cliente',
+                ),
               ),
-            ),
-          ),
-        const SizedBox(height: 12),
-        TextField(
-          controller: _note,
-          onChanged: (v) => widget.controller.update(note: v),
-          minLines: 2,
-          maxLines: 4,
-          decoration: const InputDecoration(labelText: 'Notas'),
-        ),
-        const SizedBox(height: 16),
-        FutureBuilder<List<SalePaymentTerm>>(
-          future: _terms,
-          builder: (context, snapshot) {
-            final terms = snapshot.data ?? const <SalePaymentTerm>[];
-            if (terms.isEmpty) return const Text('Términos no configurados');
-            return DropdownButtonFormField<int>(
-              initialValue: terms.any((t) => t.id == draft.paymentTermId)
-                  ? draft.paymentTermId
-                  : null,
-              decoration: const InputDecoration(
-                labelText: 'Término de pago',
-                hintText: 'Seleccionar término',
+              if (widget.clients != null)
+                OutlinedButton.icon(
+                  key: const Key('sale-client-picker-button'),
+                  onPressed: _openClientPicker,
+                  icon: const Icon(Icons.search),
+                  label: Text(
+                    draft.clientName.isEmpty
+                        ? 'Buscar cliente'
+                        : 'Cambiar cliente',
+                  ),
+                ),
+              SizedBox(
+                width: 240,
+                child: FutureBuilder<List<SalePaymentTerm>>(
+                  future: _terms,
+                  builder: (context, snapshot) {
+                    final terms = snapshot.data ?? const <SalePaymentTerm>[];
+                    if (terms.isEmpty) {
+                      return const Text('Términos no configurados');
+                    }
+                    return DropdownButtonFormField<int>(
+                      initialValue:
+                          terms.any((t) => t.id == draft.paymentTermId)
+                          ? draft.paymentTermId
+                          : null,
+                      decoration: const InputDecoration(
+                        labelText: 'Término de pago',
+                        hintText: 'Seleccionar término',
+                      ),
+                      items: [
+                        for (final term in terms)
+                          DropdownMenuItem(
+                            value: term.id,
+                            child: Text(term.label),
+                          ),
+                      ],
+                      onChanged: (value) {
+                        final term = terms.firstWhere((t) => t.id == value);
+                        widget.controller.update(
+                          paymentTermId: value,
+                          installments: term.installments,
+                        );
+                      },
+                    );
+                  },
+                ),
               ),
-              items: [
-                for (final term in terms)
-                  DropdownMenuItem(value: term.id, child: Text(term.label)),
-              ],
-              onChanged: (value) {
-                final term = terms.firstWhere((t) => t.id == value);
-                widget.controller.update(
-                  paymentTermId: value,
-                  installments: term.installments,
-                );
-              },
+              if (widget.canSelectWarehouse)
+                const SizedBox(
+                  width: 180,
+                  child: TextField(
+                    decoration: InputDecoration(labelText: 'Almacén'),
+                  ),
+                ),
+              Text('Clasificación: ${draft.classification.name}'),
+            ];
+            if (constraints.maxWidth < 840) {
+              return Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  for (final field in fields) ...[
+                    field,
+                    const SizedBox(height: 12),
+                  ],
+                ],
+              );
+            }
+            return Wrap(
+              spacing: 16,
+              runSpacing: 12,
+              crossAxisAlignment: WrapCrossAlignment.center,
+              children: fields,
             );
           },
         ),
-        if (widget.canSelectWarehouse)
-          const TextField(decoration: InputDecoration(labelText: 'Almacén')),
-        Text('Clasificación: ${draft.classification.name}'),
+        ExpansionTile(
+          tilePadding: EdgeInsets.zero,
+          title: const Text('Notas'),
+          initiallyExpanded: _note.text.isNotEmpty,
+          children: [
+            TextField(
+              controller: _note,
+              onChanged: (v) => widget.controller.update(note: v),
+              minLines: 2,
+              maxLines: 4,
+              decoration: const InputDecoration(labelText: 'Notas'),
+            ),
+          ],
+        ),
         if (includeLines) ...[
           const SizedBox(height: 16),
           _linesEditor(context, draft),
@@ -911,6 +954,33 @@ class _SaleEditorScreenState extends State<SaleEditorScreen> {
         _saleLinesEditor(draft),
     ],
   );
+
+  Future<void> _openClientPicker() async {
+    final clients = widget.clients;
+    if (clients == null) return;
+    await showDialog<void>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Seleccionar cliente'),
+        content: SizedBox(
+          width: 520,
+          height: 360,
+          child: EntityPicker<SaleCatalogPartner>(
+            controller: clients,
+            label: 'Buscar cliente',
+            entityName: 'cliente',
+            onSelected: (entity) {
+              widget.controller.update(
+                clientName: entity.title,
+                partnerId: entity.value?.remoteId,
+              );
+              Navigator.of(dialogContext).pop();
+            },
+          ),
+        ),
+      ),
+    );
+  }
 
   Widget _saleLinesEditor(SaleDraftSnapshot draft) => SaleLinesEditor(
     draft: draft,

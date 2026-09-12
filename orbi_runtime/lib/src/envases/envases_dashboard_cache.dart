@@ -6,9 +6,10 @@ import 'package:drift/drift.dart';
 import '../contracts.dart';
 import '../storage/runtime_database_owner.dart';
 import 'envases_dashboard_reader.dart';
+import 'envases_location_reader.dart';
 
 const _tableName = 'orbi_envases_dashboard_cache';
-const _snapshotVersion = 1;
+const _snapshotVersion = 2;
 
 /// A locally retrieved, read-only copy of the Envases dashboard.
 ///
@@ -19,10 +20,15 @@ final class EnvasesDashboardSnapshot {
   EnvasesDashboardSnapshot({
     required Iterable<EnvasesDashboardRow> rows,
     required DateTime cachedAt,
+    Iterable<EnvasesLocationRow>? locations,
   }) : rows = List.unmodifiable(rows),
+       locations = locations == null ? null : List.unmodifiable(locations),
        cachedAt = cachedAt.toUtc();
 
   final List<EnvasesDashboardRow> rows;
+
+  /// Null means detail was not downloaded; [] means downloaded and empty.
+  final List<EnvasesLocationRow>? locations;
   final DateTime cachedAt;
 }
 
@@ -140,12 +146,29 @@ final class EnvasesDashboardCache {
   }
 
   Future<EnvasesDashboardSnapshot> refresh(
-    EnvasesDashboardReader reader,
-  ) async {
+    EnvasesDashboardReader reader, {
+    EnvasesLocationReader? locationReader,
+  }) async {
     _active(writing: true);
     if (reader.company.scopeKey != _company.scopeKey ||
         reader.company.companyId != _company.companyId) {
       throw ArgumentError('Reader does not match the selected scope/company');
+    }
+    if (locationReader != null &&
+        (locationReader.company.scopeKey != _company.scopeKey ||
+            locationReader.company.companyId != _company.companyId)) {
+      throw ArgumentError(
+        'Location reader does not match the selected scope/company',
+      );
+    }
+    if (locationReader != null &&
+        (locationReader.productId != null ||
+            locationReader.locationId != null ||
+            locationReader.warehouseId != null ||
+            locationReader.originWarehouseId != null ||
+            locationReader.destinationWarehouseId != null ||
+            locationReader.role != null)) {
+      throw ArgumentError('Location reader must read the complete cache scope');
     }
     if (_refreshing) {
       throw StateError('Envases dashboard refresh already running');
@@ -157,10 +180,21 @@ final class EnvasesDashboardCache {
       _active(writing: true);
       // Complete the remote read before opening the write transaction. Any
       // failed or malformed fetch therefore leaves the previous copy intact.
+      // These are two separate remote reads, not one atomic server snapshot.
+      // Persisting them together only makes the local replacement atomic.
       final rows = await reader.readAll();
+      _active(writing: true);
+      final locations = locationReader == null
+          ? null
+          : await locationReader.readAll();
+      _active(writing: true);
       final active = _active(writing: true)!;
       final cachedAt = DateTime.now().toUtc();
-      final snapshot = EnvasesDashboardSnapshot(rows: rows, cachedAt: cachedAt);
+      final snapshot = EnvasesDashboardSnapshot(
+        rows: rows,
+        locations: locations,
+        cachedAt: cachedAt,
+      );
       final payload = _encode(snapshot);
       await active.database.transaction(() async {
         _active(writing: true);
@@ -192,6 +226,9 @@ final class EnvasesDashboardCache {
     'version': _snapshotVersion,
     'cached_at': snapshot.cachedAt.toIso8601String(),
     'rows': snapshot.rows.map(_rowToJson).toList(growable: false),
+    'locations': snapshot.locations
+        ?.map(_locationToJson)
+        .toList(growable: false),
   });
 
   EnvasesDashboardSnapshot _decode(
@@ -203,9 +240,9 @@ final class EnvasesDashboardCache {
       throw const FormatException('Invalid Envases cache payload');
     }
     final map = Map<String, dynamic>.from(decoded);
+    final version = map['version'];
     if (!map.keys.toSet().containsAll({'version', 'cached_at', 'rows'}) ||
-        map.keys.length != 3 ||
-        map['version'] != _snapshotVersion ||
+        (version != 1 && version != _snapshotVersion) ||
         map['cached_at'] != expectedCachedAt ||
         map['cached_at'] is! String ||
         map['rows'] is! List) {
@@ -251,7 +288,60 @@ final class EnvasesDashboardCache {
         );
       }
     }
-    return EnvasesDashboardSnapshot(rows: decodedRows, cachedAt: instant);
+    List<EnvasesLocationRow>? decodedLocations;
+    if (version == _snapshotVersion) {
+      if (!map.keys.toSet().contains('locations') ||
+          map.keys.length != 4 ||
+          (map['locations'] != null && map['locations'] is! List)) {
+        throw const FormatException('Invalid cached Envases locations schema');
+      }
+      final rawLocations = map['locations'];
+      if (rawLocations is List) {
+        decodedLocations = rawLocations
+            .map((item) {
+              if (item is! Map) {
+                throw const FormatException('Invalid cached Envases location');
+              }
+              final location = Map<String, dynamic>.from(item);
+              const fields = {
+                'id',
+                'product_id',
+                'uom_id',
+                'location_id',
+                'warehouse_id',
+                'company_id',
+                'envases_rol',
+                'envases_origen_id',
+                'envases_destino_id',
+                'quantity',
+              };
+              if (location.keys.toSet().length != fields.length ||
+                  !location.keys.toSet().containsAll(fields)) {
+                throw const FormatException(
+                  'Invalid cached Envases location schema',
+                );
+              }
+              return EnvasesLocationRow.fromJson(location);
+            })
+            .toList(growable: false);
+        final ids = <int>{};
+        for (final location in decodedLocations) {
+          if (location.companyId != _company.companyId ||
+              !ids.add(location.id)) {
+            throw const FormatException(
+              'Invalid duplicate or escaped cached Envases location',
+            );
+          }
+        }
+      }
+    } else if (map.keys.length != 3) {
+      throw const FormatException('Invalid v1 Envases cache payload schema');
+    }
+    return EnvasesDashboardSnapshot(
+      rows: decodedRows,
+      locations: decodedLocations,
+      cachedAt: instant,
+    );
   }
 
   static Map<String, dynamic> _rowToJson(EnvasesDashboardRow row) => {
@@ -265,5 +355,24 @@ final class EnvasesDashboardCache {
     'en_custodia_cliente': row.enCustodiaCliente,
     'en_custodia_proveedor': row.enCustodiaProveedor,
     'en_transito': row.enTransito,
+  };
+
+  static Map<String, dynamic> _locationToJson(EnvasesLocationRow row) => {
+    'id': row.id,
+    'product_id': [row.productId, row.productName],
+    'uom_id': [row.uomId, row.uomName],
+    'location_id': [row.locationId, row.locationName],
+    'warehouse_id': row.warehouseId == null
+        ? false
+        : [row.warehouseId, row.warehouseName ?? ''],
+    'company_id': [row.companyId, row.companyName],
+    'envases_rol': row.role,
+    'envases_origen_id': row.originWarehouseId == null
+        ? false
+        : [row.originWarehouseId, row.originWarehouseName ?? ''],
+    'envases_destino_id': row.destinationWarehouseId == null
+        ? false
+        : [row.destinationWarehouseId, row.destinationWarehouseName ?? ''],
+    'quantity': row.quantity,
   };
 }

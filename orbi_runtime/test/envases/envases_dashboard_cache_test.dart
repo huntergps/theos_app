@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:drift/native.dart';
@@ -7,6 +8,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:orbi_runtime/src/contracts.dart';
 import 'package:orbi_runtime/src/envases/envases_dashboard_cache.dart';
 import 'package:orbi_runtime/src/envases/envases_dashboard_reader.dart';
+import 'package:orbi_runtime/src/envases/envases_location_reader.dart';
 import 'package:orbi_runtime/src/storage/runtime_database_owner.dart';
 import 'package:theos_pos_core/theos_pos_core.dart';
 
@@ -63,6 +65,33 @@ void main() {
       required order,
     }) => fetch(),
   );
+  EnvasesLocationReader locationReader(
+    CompanyContext c,
+    Future<List<Map<String, dynamic>>> Function() fetch,
+  ) => EnvasesLocationReader(
+    company: c,
+    transport: ({
+      required model,
+      required domain,
+      required fields,
+      required context,
+      required limit,
+      required offset,
+      required order,
+    }) => fetch(),
+  );
+  Map<String, dynamic> locationRow({int companyId = 1, int id = 9}) => {
+    'id': id,
+    'product_id': [10, 'Envase'],
+    'uom_id': [1, 'Unidad'],
+    'location_id': [8, 'Sede'],
+    'warehouse_id': [3, 'Guayaquil'],
+    'company_id': [companyId, 'Empresa'],
+    'envases_rol': 'sede',
+    'envases_origen_id': false,
+    'envases_destino_id': null,
+    'quantity': 2.0,
+  };
 
   test('reopens and distinguishes unloaded from loaded-empty', () async {
     final firstOwner = owner();
@@ -132,6 +161,32 @@ void main() {
       throwsArgumentError,
     );
     expect(
+      cache.refresh(
+        reader(company(1), () async => []),
+        locationReader: locationReader(company(2), () async => []),
+      ),
+      throwsArgumentError,
+    );
+    expect(
+      cache.refresh(
+        reader(company(1), () async => []),
+        locationReader: EnvasesLocationReader(
+          company: company(1),
+          productId: 10,
+          transport: ({
+            required model,
+            required domain,
+            required fields,
+            required context,
+            required limit,
+            required offset,
+            required order,
+          }) async => [],
+        ),
+      ),
+      throwsArgumentError,
+    );
+    expect(
       await EnvasesDashboardCache(
         owner: o,
         lease: db.lease,
@@ -139,6 +194,138 @@ void main() {
       ).read(),
       isNull,
     );
+  });
+
+  test('persists optional locations and reopens them', () async {
+    final o = owner();
+    final db = await o.open(scope);
+    addTearDown(o.close);
+    final cache = EnvasesDashboardCache(
+      owner: o,
+      lease: db.lease,
+      company: company(1),
+    );
+    await cache.refresh(
+      reader(company(1), () async => [row()]),
+      locationReader: locationReader(company(1), () async => [locationRow()]),
+    );
+    expect((await cache.read())!.locations!.single.locationId, 8);
+    await o.close();
+    final reopenedOwner = owner();
+    final reopenedDb = await reopenedOwner.open(scope);
+    addTearDown(reopenedOwner.close);
+    final reopened = EnvasesDashboardCache(
+      owner: reopenedOwner,
+      lease: reopenedDb.lease,
+      company: company(1),
+    );
+    expect((await reopened.read())!.locations!.single.quantity, 2);
+  });
+
+  test('rejects every partial location reader filter', () async {
+    final o = owner();
+    final db = await o.open(scope);
+    addTearDown(o.close);
+    final cache = EnvasesDashboardCache(
+      owner: o,
+      lease: db.lease,
+      company: company(1),
+    );
+    final partial = <EnvasesLocationReader>[
+      EnvasesLocationReader(
+        company: company(1),
+        locationId: 8,
+        transport: _emptyLocation,
+      ),
+      EnvasesLocationReader(
+        company: company(1),
+        warehouseId: 3,
+        transport: _emptyLocation,
+      ),
+      EnvasesLocationReader(
+        company: company(1),
+        originWarehouseId: 3,
+        transport: _emptyLocation,
+      ),
+      EnvasesLocationReader(
+        company: company(1),
+        destinationWarehouseId: 4,
+        transport: _emptyLocation,
+      ),
+      EnvasesLocationReader(
+        company: company(1),
+        role: 'sede',
+        transport: _emptyLocation,
+      ),
+    ];
+    for (final location in partial) {
+      expect(
+        cache.refresh(
+          reader(company(1), () async => []),
+          locationReader: location,
+        ),
+        throwsArgumentError,
+      );
+    }
+  });
+
+  test(
+    'detail fetch failure preserves the previous aggregate snapshot',
+    () async {
+      final o = owner();
+      final db = await o.open(scope);
+      addTearDown(o.close);
+      final cache = EnvasesDashboardCache(
+        owner: o,
+        lease: db.lease,
+        company: company(1),
+      );
+      await cache.refresh(reader(company(1), () async => [row(total: 4)]));
+      final before = await cache.read();
+      expect(
+        cache.refresh(
+          reader(company(1), () async => [row(total: 9)]),
+          locationReader: locationReader(
+            company(1),
+            () async => throw StateError('denied'),
+          ),
+        ),
+        throwsStateError,
+      );
+      final after = await cache.read();
+      expect(after!.rows.single.totalPropio, before!.rows.single.totalPropio);
+      expect(after.locations, isNull);
+    },
+  );
+
+  test('decodes v1 payload with locations absent as null', () async {
+    final o = owner();
+    final db = await o.open(scope);
+    addTearDown(o.close);
+    final cachedAt = '2026-01-01T00:00:00.000Z';
+    await db.database.customInsert(
+      'INSERT INTO orbi_envases_dashboard_cache '
+      '(scope_key, company_id, payload, cached_at) VALUES (?, ?, ?, ?)',
+      variables: [
+        Variable<String>(scope.scopeKey),
+        Variable<int>(1),
+        Variable<String>(
+          jsonEncode({
+            'version': 1,
+            'cached_at': cachedAt,
+            'rows': [row()],
+          }),
+        ),
+        Variable<String>(cachedAt),
+      ],
+    );
+    final cache = EnvasesDashboardCache(
+      owner: o,
+      lease: db.lease,
+      company: company(1),
+    );
+    final snapshot = await cache.read();
+    expect(snapshot!.locations, isNull);
   });
 
   test(
@@ -253,3 +440,13 @@ void main() {
     await pending;
   });
 }
+
+Future<List<Map<String, dynamic>>> _emptyLocation({
+  required String model,
+  required List<dynamic> domain,
+  required List<String> fields,
+  required Map<String, dynamic> context,
+  required int limit,
+  required int offset,
+  required String order,
+}) async => [];

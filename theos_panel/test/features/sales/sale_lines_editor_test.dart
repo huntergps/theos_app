@@ -111,6 +111,8 @@ void main() {
       );
       await tester.pump();
       expect(find.text('Buscar producto para nueva línea'), findsOneWidget);
+      await tester.tap(find.byKey(const Key('sale-inline-product-search')));
+      await tester.pump();
       expect(find.text('Broca'), findsOneWidget);
       CatalogEntity<SaleCatalogProduct>? added;
       await tester.pumpWidget(
@@ -125,6 +127,8 @@ void main() {
       await tester.pump();
       // The inline picker is rendered in the final grid row on wide layouts;
       // selecting its catalog result invokes the same typed add callback.
+      await tester.tap(find.byKey(const Key('sale-inline-product-search')));
+      await tester.pump();
       await tester.tap(find.text('Broca'));
       expect(added?.title, 'Broca');
       final quantity = find.byKey(const ValueKey('sale-quantity-line-a'));
