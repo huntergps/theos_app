@@ -40,9 +40,9 @@ coverage/
 .test_runner/
 
 # Claude Code
-CLAUDE.md
+# CLAUDE.md se versiona: es la guía de arquitectura para agentes y para el equipo.
+# Solo se ignora la configuración local por máquina.
 .claude/
-**/CLAUDE.md
 **/.claude/
 
 # Old app directory

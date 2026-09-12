@@ -42,6 +42,20 @@ Los 46 archivos son 7 históricos, 33 de round-02 y 6 de round-03. No equivalen 
 46 recorridos completos probados. Las copias aprobadas son inmutables; una corrección
 visual se guarda como nueva versión propuesta y solicita aprobación específica.
 
+## Espacio de identificadores
+
+Los pendientes de este expediente usan prefijos propios, distintos de los de
+`tasks.json`. La razón: hasta hoy `V01`, `V02` y `B01` significaban una cosa aquí
+y otra distinta en el plan, así que un encargo que dijera «cierra V01» era ambiguo.
+
+| Aquí | En `tasks.json`, que es otra cosa |
+| --- | --- |
+| `VIS01`–`VIS03` visual, `BND01`–`BND02` enlaces | `V01` integración ERP2 y regresión |
+| `I01` interacción, `O01`–`O02` offline | `V02` seis plataformas y rendimiento |
+| `P01` plataformas, `L01` licencia, `Q01` usabilidad | `B01` paridad backend y fiscal offline |
+
+Al encargar trabajo, nombra siempre el documento junto al identificador.
+
 ## Pendientes concretos, sin reabrir diseños aprobados
 
 ### Consolidación documental incorporada
@@ -58,23 +72,23 @@ prevalecen sobre ejemplos y nombres técnicos propuestos.
 
 | ID | Falta | Evidencia para cerrarlo |
 |---|---|---|
-| V01 | Normalizar menú, pie y marca entre rondas | Lámina de componentes globales con logo real, seis áreas y pie en cuatro formatos; correcciones nuevas, no sobrescrituras |
-| V02 | Tema compartido claro/oscuro | Colores semánticos y componentes; una comparación y 2–3 pantallas representativas, NO una imagen oscura por pantalla/tamaño |
-| V03 | Estados no representados | Matriz por recorrido de carga, vacío, error, permisos, offline, resultado parcial y recuperación; variantes compartidas sólo si realmente equivalentes |
+| VIS01 | Normalizar menú, pie y marca entre rondas | Lámina de componentes globales con logo real, seis áreas y pie en cuatro formatos; correcciones nuevas, no sobrescrituras |
+| VIS02 | Tema compartido claro/oscuro | Colores semánticos y componentes; una comparación y 2–3 pantallas representativas, NO una imagen oscura por pantalla/tamaño |
+| VIS03 | Estados no representados | Matriz por recorrido de carga, vacío, error, permisos, offline, resultado parcial y recuperación; variantes compartidas sólo si realmente equivalentes |
 | I01 | Inventario completado; mapa final por validar | [Contrato de teclado/entrada](KEYBOARD_AND_INPUT_CONTRACT.md): evidencia local, colisiones y 18 escenarios; no pruebas ejecutadas |
-| B01 | Bindings por formulario y acción | Campo/modelo/método público, parámetros, permiso, efecto y respuesta verificados; especialmente operaciones auxiliares y Bodega |
-| B02 | Contrato de Envases | Identificar lo reutilizable y especificar ampliación: contenido separado, propiedad/custodia, presentaciones, múltiples líneas, factura/toma, parciales y trazabilidad |
+| BND01 | Bindings por formulario y acción | Campo/modelo/método público, parámetros, permiso, efecto y respuesta verificados; especialmente operaciones auxiliares y Bodega |
+| BND02 | Contrato de Envases | Identificar lo reutilizable y especificar ampliación: contenido separado, propiedad/custodia, presentaciones, múltiples líneas, factura/toma, parciales y trazabilidad |
 | O01 | Matriz offline ejecutable | Autorización provisionada por operación, identidad estable, dependencias, reconciliación y conflictos; no cupos inventados por equipo |
 | O02 | Concurrencia e identidad fiscal | Prueba de restricción/operación atómica backend, numeración y consulta de resultado incierto; buscar antes de crear no basta |
 | P01 | Plataformas y periféricos | Web offline/login, almacén seguro, impresión/lector y notificaciones con app cerrada por plataforma; sin promesas universales |
 | L01 | Rejillas Syncfusion | Licencia aplicable confirmada antes de distribuir, componente/versión y soporte comprobados antes de implementar |
 | Q01 | Superioridad frente a theos_pos | Mismas tareas/datos/equipo; medir tiempo, pasos, errores y recuperación con usuarios; no declararla sólo por estética |
 
-V01–V03 requieren imágenes nuevas y revisión, no rediseñar todas las pantallas desde cero.
-La aclaración posterior del dueño limita V02: no multiplicar imágenes para cambiar
+VIS01–VIS03 requieren imágenes nuevas y revisión, no rediseñar todas las pantallas desde cero.
+La aclaración posterior del dueño limita VIS02: no multiplicar imágenes para cambiar
 colores. [PERSONALIZATION_SPEC.md](PERSONALIZATION_SPEC.md) fija herencia por propiedad,
 tema compartido y validación visual representativa.
-B01–B02 requieren especificación sustentada en fuentes; escribirla no instala módulos.
+BND01–BND02 requieren especificación sustentada en fuentes; escribirla no instala módulos.
 Las verificaciones de instancia, distribución y pruebas reales se harán únicamente en
 el entorno autorizado. ERP2 queda fuera de cambios y pruebas con efectos.
 
@@ -124,11 +138,13 @@ El módulo debe operar completo desde Odoo web; Orbi consume los mismos datos/re
 y permisos. Se espera de vuelta el contrato real probado antes de enlazar Orbi.
 Su recepción se rige por [ENVASES_BACKEND_ACCEPTANCE.md](ENVASES_BACKEND_ACCEPTANCE.md).
 
-En paralelo: V01–V03 (variantes), I01 (inventario interacción), B01–B02/O01–O02
+En paralelo: VIS01–VIS03 (variantes), I01 (inventario interacción), BND01–BND02/O01–O02
 (contratos). P01/L01 se preparan documentalmente sin instalar ni desplegar.
 Después revisión conjunta del expediente y autorización explícita para desarrollo.
-El plan técnico previo de 24 tareas no acredita este cierre: `check_orbi_plan.py`
-no tiene tareas pendientes listas y no verifica app, build ni ERP2.
+El plan técnico previo, hoy de 38 tareas, no acredita este cierre: `check_orbi_plan.py`
+no verifica app, build ni ERP2. Su `--ready` devuelve vacío, pero eso NO significa
+que no haya trabajo: solo lista tareas en `todo` con prerrequisitos cumplidos, y las
+cuatro tareas vivas están en `in_progress`, que ese comando nunca muestra.
 
 ## Herramientas y skills usadas para activos visuales
 

@@ -8,8 +8,15 @@ aplicables a cada ruta. El dueño autoriza usar agentes baratos en tareas acotad
 
 - Integrador/cerebro: arquitectura, contratos, cambios de esquema, dependencias,
   revisión de transacciones/permisos y validación de evidencia.
-- Mano de obra: `gpt-5.6-luna`, esfuerzo medium, hasta tres agentes simultáneos
-  además del integrador cuando haya tres tareas independientes listas.
+- Mano de obra, y esta es la autoridad sobre el reparto: el modelo se elige por el
+  tipo de trabajo, nunca por prisa. `sonnet` para producir con criterio medio sobre
+  terreno ya fijado, como implementar contra un diseño dado, redactar specs o probar
+  por pantalla. `haiku` sólo para comprobar sin criterio: contar, extraer, cotejar,
+  correr un comando y traer la salida. Nunca `haiku` para juzgar si algo está bien.
+  Lo que exige decidir qué está bien no se delega: se queda con el integrador.
+- Hasta tres agentes simultáneos además del integrador cuando haya tres tareas
+  independientes listas. Cada agente se cierra en cuanto entrega y se le firma el
+  encargo; no se dejan vivos «por si acaso».
 - No delegación recursiva. Escalar dificultad al integrador con un hallazgo
   concreto; no ampliar el modelo ni repetir auditoría completa por iniciativa.
 - Encargos sin historial completo: objetivo, ID, rutas, documentos necesarios,
@@ -17,7 +24,10 @@ aplicables a cada ruta. El dueño autoriza usar agentes baratos en tareas acotad
 
 ## Comienzo de tarea
 
-1. Integrador ejecuta `python3 scripts/check_orbi_plan.py --ready`.
+1. Integrador revisa `tasks.json` completo. `python3 scripts/check_orbi_plan.py
+   --ready` sólo lista `todo` con prerrequisitos cumplidos, así que devuelve
+   vacío mientras el trabajo vivo esté en `in_progress`: vacío no es «no hay
+   trabajo».
 2. Selecciona tareas sin conflicto de archivos. `writes` marca propiedad amplia;
    antes del trabajo fijar hasta cinco archivos manuales concretos por subtarea.
 3. Scaffold de plataforma y generación pueden producir más archivos mecánicos;

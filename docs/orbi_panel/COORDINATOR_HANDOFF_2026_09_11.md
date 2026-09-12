@@ -8,13 +8,20 @@ agentes económicos. No hay autorización para declarar el proyecto terminado.
 Actúa como coordinador de Orbi ERP en `/Users/elmers/Documents/develop/2026/theos_app`.
 Continúa desde este documento, no desde cero. Aplica `docs/orbi_panel/AGENTS.md`
 expresamente a tus encargos de implementación, además de los AGENTS de cada ruta.
-Usa agentes `gpt-5.6-luna`, medium, para subtareas acotadas, hasta tres simultáneos
-sin solapamiento; sin subdelegación. Tú resuelves arquitectura, permisos, contratos
-y revisión final. No crees múltiples paquetes: componentes compartidos por carpetas.
+Reparte en agentes `sonnet` lo que se produce con criterio medio sobre terreno ya
+fijado, y en `haiku` lo que se comprueba sin criterio: contar, cotejar, correr un
+comando y traer la salida. Nunca `haiku` para juzgar. Sin subdelegación. Cierra cada
+agente en cuanto entregue. Tú resuelves arquitectura, permisos, contratos y revisión
+final. No crees múltiples paquetes: componentes compartidos por carpetas.
+El tope de agentes vivos a la vez lo fija `AGENTS.md`, que es la autoridad en esto.
 
-Primero identifica estado del worktree y ejecuta `python3 scripts/check_orbi_plan.py
---ready` (comando en una sola línea). Contrasta tasks.json con código y evidencia;
-no confíes en etiquetas done como prueba de calidad. No continúes todos los ámbitos
+Primero identifica estado del worktree y revisa `tasks.json` completo, no sólo
+`python3 scripts/check_orbi_plan.py --ready` (comando en una sola línea). **Ese
+comando devuelve vacío hoy y seguirá vacío**: sólo lista tareas en `todo` con
+prerrequisitos cumplidos, y las cuatro tareas vivas están en `in_progress`, que
+nunca muestra. La única en `todo` alcanzable, `V01`, está bloqueada tras `B01`.
+Vacío ahí NO significa que no haya trabajo. Contrasta tasks.json con código y
+evidencia; no confíes en etiquetas done como prueba de calidad. No continúes todos los ámbitos
 a la vez: prioridad actual del usuario es coherencia de splash, login y shell con
 las imágenes aprobadas. Luego avanza pantallas operativas con pruebas reales y
 revisiones parciales visibles, sin esperar a terminar todo para mostrarlas.
@@ -116,12 +123,13 @@ Cambios de negocio estaban pausados para atender prioridad de login/shell.
 
 1. Coordinador: revisar esta entrega y coherencia con aprobados; definir archivos
    propietarios. No afirmar que shell o todas las pantallas ya coinciden.
-2. Luna A: regresiones login/gestor (back/Escape con edición, errores persistencia,
+2. Agente A: regresiones login/gestor (back/Escape con edición, errores persistencia,
    teclado móvil y accesibilidad), máximo cinco archivos y pruebas específicas.
-3. Luna B: shell según `UI_COHERENCE_RULES.md`, `SHELL_AND_INTERACTION_SPEC.md` y
+3. Agente B: shell según `UI_COHERENCE_RULES.md`, `SHELL_AND_INTERACTION_SPEC.md` y
    `NAVIGATION_CAPABILITY_MATRIX.md`; tareas disjuntas de login, sin lógica financiera.
-4. Luna C: auditoría de correspondencia de pantallas aprobadas vs implementadas,
+4. Agente C: auditoría de correspondencia de pantallas aprobadas vs implementadas,
    sólo índice/reporte con gaps verificables; no generar otra ronda masiva de imágenes.
+   Asi para mas tareas.
 5. Coordinador integra/revisa capturas en desktop, iPad horizontal, iPad vertical
    y teléfono; muestra avances. Después asigna ventas/caja/envases en bloques
    independientes según contratos, sin inventar campos o acciones backend.
@@ -138,7 +146,7 @@ Cambios de negocio estaban pausados para atender prioridad de login/shell.
   imágenes producto/cliente editables sólo con permisos. No paquetes innecesarios.
 - Envases distinto de contenido y de inventario comercial; múltiples productos y
   cantidades, propiedad empresa, sin sesión de caja obligatoria. Backend entregado
-  en `/Users/elmers/Documents/dev_odoo20/addons/l10n_ec_stock_envase` por otro agente.
+  en `/Users/elmers/Documents/dev_odoo20/addons/l10n_ec_stock_envases` por otro agente.
 - Última corrección de envases: una ubicación de custodia clientes/proveedores por
   bodega, SIN tercero en ubicación; tercero en documento/transferencia. Saldo por
   tercero sale del modelo backend de entregas menos devoluciones hechas, no de quants

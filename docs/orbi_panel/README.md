@@ -1,11 +1,15 @@
 # Orbi ERP · preparación de `theos_panel`
 
-Fecha: 2026-09-06. Estado: **diseño y plan de implementación preparados; nueva app pendiente**.
+Fecha: 2026-09-11. Estado: **construcción avanzada y pausada; sin certificar contra ERP2**.
 
-El dueño autoriza preparar la nueva aplicación y el sistema de notificaciones,
-aprovechando `theos_pos` sin hacer que una aplicación dependa de la otra. Este
-paquete de trabajo concreta esa autorización para agentes de implementación.
-No certifica los flujos históricos ni un despliegue en ERP2.
+El dueño autorizó preparar la nueva aplicación y el sistema de notificaciones,
+aprovechando `theos_pos` sin hacer que una aplicación dependa de la otra. Ese
+trabajo ya está mayormente construido: la app existe, compila y tiene pruebas
+propias. Lo que este directorio **no** certifica es la integración funcional
+contra ERP2, la regresión en las seis plataformas ni ningún despliegue.
+
+El estado operativo del día a día vive en el handoff más reciente,
+`COORDINATOR_HANDOFF_<AAAA_MM_DD>.md`, no en este índice.
 
 ## Leer según el trabajo
 
@@ -38,9 +42,22 @@ No certifica los flujos históricos ni un despliegue en ERP2.
 ## Qué existe y qué todavía no
 
 Este directorio contiene especificación, contratos de diseño, backlog y un
-verificador estructural del plan. No contiene una app compilada, contratos Dart
-ya integrados, migraciones aplicadas ni un sistema de notificaciones ejecutándose.
-Todas las tareas de construcción comienzan en `todo` o `blocked`.
+verificador estructural del plan. El código de la app vive en `theos_panel/` y
+en `orbi_runtime/`, fuera de aquí.
+
+Al 2026-09-11, de las 38 tareas de `tasks.json`:
+
+| Estado | Cuántas | Cuáles |
+| --- | --- | --- |
+| `done` | 32 | Todo `F0*`, `N0*`, `U0*`, y la mayoría de `R0*`/`E0*` |
+| `in_progress` | 4 | `E05`, `R06`, `R07`, `B01` |
+| `todo` | 2 | `V01` integración ERP2 y regresión · `V02` seis plataformas |
+
+Es decir: el andamiaje, la sesión aislada, las notificaciones y las pantallas
+están construidos y con pruebas. Lo pendiente es la paridad fiscal offline
+(`B01`) y las dos tareas de validación, que son justamente las que convertirían
+esto en algo desplegable. **Ninguna tarea la marca `done` un agente: solo el
+integrador, y solo con la evidencia que exige `VALIDATION.md`.**
 
 Validación del paquete de trabajo, desde la raíz:
 
@@ -53,11 +70,12 @@ El primer comando comprueba estructura, referencias y dependencias, **no la app*
 El segundo enumera exclusivamente tareas pendientes cuyos prerrequisitos estén
 marcados terminados. La revisión humana del integrador sigue siendo necesaria.
 
-## Inicio autorizado para el equipo posterior
+## Por dónde sigue el trabajo
 
-Primero `F01` (scaffold y contratos Dart), luego las ramas independientes que
-enumere `--ready`. El integrador controla dependencias, archivos compartidos,
-contratos y evidencia. No lanzar todas las pantallas a la vez sobre APIs inventadas.
+`F01` y el resto del andamiaje ya están cerrados. Lo que queda abierto son las
+cuatro tareas en curso y las dos de validación; `--ready` enumera cuáles tienen
+sus prerrequisitos cumplidos. El integrador controla dependencias, archivos
+compartidos, contratos y evidencia.
 
 Los límites históricos de backend continúan: no tocar producción; propuestas de
 traslado de reglas entre addons deben presentarse al dueño antes de aplicarse.

@@ -17,7 +17,7 @@ help:
 	@echo "  make test-orbi        Test Orbi scaffold packages when present"
 	@echo "  make verify           Secret scan, generated check, analysis, and tests"
 	@echo "  make run-macos        Run macOS with the local ERP2 test credential"
-	@echo "  make run-web          Run Chrome with the local ERP2 test credential"
+	@echo "  make run-web          Run Chrome without any injected credential"
 	@echo "  make build-web        Build the web release"
 	@echo "  make build-appbundle  Build the Android App Bundle release"
 	@echo "  make build-ios        Build the unsigned iOS release"
@@ -89,7 +89,8 @@ run-macos:
 	./scripts/run_flutter_with_erp2.sh macos
 
 run-web:
-	./scripts/run_flutter_with_erp2.sh chrome
+	@echo "Web builds never receive THEOS_ERP2_API_KEY; sign in from the app."
+	cd theos_pos && $(FLUTTER) run -d chrome
 
 build-ios:
 	cd theos_pos && $(FLUTTER) build ios --release --no-codesign
