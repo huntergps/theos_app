@@ -64,6 +64,10 @@ dependencies:
   crypto: ^3.0.7
   syncfusion_flutter_datagrid: 34.2.5
   web: ^1.1.1
+  # Guardar el Excel que produce el listado. Ya venía de forma transitiva por
+  # la base de datos; se declara porque ahora se usa directamente, y depender
+  # de algo sin declararlo es como se rompe una compilación sin avisar.
+  path_provider: ^2.1.5
 
 dev_dependencies:
   flutter_test:

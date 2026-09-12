@@ -3,6 +3,7 @@ import 'package:go_router/go_router.dart';
 import 'package:odoo_widgets/odoo_widgets.dart';
 
 import '../../ui/components/orbi_components.dart';
+import '../../ui/export/export_listing.dart';
 import '../../ui/fluent/orbi_page.dart';
 import '../../ui/state_labels.dart';
 import 'orders_contracts.dart';
@@ -14,12 +15,17 @@ class OrdersScreen extends StatefulWidget {
     required this.policy,
     this.filterStore,
     this.scopeKey = 'unscoped',
+    this.onExport,
   });
 
   final OrderRepository repository;
   final OrderFilterPolicy policy;
   final OrderFilterStore? filterStore;
   final String scopeKey;
+
+  /// Cómo guardar el Excel. Lo pone la ruta, que sí tiene con qué leer
+  /// la preferencia de duración del aviso. Nulo esconde el botón.
+  final ListingExporter? onExport;
 
   @override
   State<OrdersScreen> createState() => _OrdersScreenState();
@@ -115,8 +121,7 @@ class _OrdersScreenState extends State<OrdersScreen> {
         if (widget.policy.canSelect(OrderFilter.cashierPending))
           ToggleButton(
             checked: _controller.filter == OrderFilter.cashierPending,
-            onChanged: (_) =>
-                _controller.setFilter(OrderFilter.cashierPending),
+            onChanged: (_) => _controller.setFilter(OrderFilter.cashierPending),
             child: const Text('Pendientes de caja'),
           ),
       ],
@@ -140,6 +145,10 @@ class _OrdersScreenState extends State<OrdersScreen> {
       rows: state.items,
       columns: _columns(),
       storageKey: 'orders-screen',
+      exportFileName: 'pedidos',
+      onExport: widget.onExport == null
+          ? null
+          : (bytes, name) => widget.onExport!(context, bytes, name),
       filterText: _controller.text,
       onFilterChanged: _controller.setText,
       filterPlaceholder: 'Buscar órdenes',

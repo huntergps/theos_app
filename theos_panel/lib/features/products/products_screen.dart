@@ -2,6 +2,7 @@ import 'package:fluent_ui/fluent_ui.dart';
 import 'package:odoo_widgets/odoo_widgets.dart';
 
 import '../../ui/components/orbi_components.dart';
+import '../../ui/export/export_listing.dart';
 import '../../ui/fluent/orbi_page.dart';
 import '../clients/catalog_contracts.dart';
 
@@ -12,9 +13,19 @@ import '../clients/catalog_contracts.dart';
 /// de ventas, donde se busca un producto para añadirlo a una línea; aquí la
 /// pantalla es de navegación y ya trae su propio filtro de serie.
 class ProductsScreen<T> extends StatefulWidget {
-  const ProductsScreen({super.key, this.repository, this.controller});
+  const ProductsScreen({
+    super.key,
+    this.repository,
+    this.controller,
+    this.onExport,
+  });
   final CatalogRepository<T>? repository;
   final CatalogController<T>? controller;
+
+  /// Cómo guardar el Excel. Lo pone la ruta, que sí tiene con qué leer
+  /// la preferencia de duración del aviso. Nulo esconde el botón.
+  final ListingExporter? onExport;
+
   @override
   State<ProductsScreen<T>> createState() => _ProductsScreenState<T>();
 }
@@ -81,6 +92,10 @@ class _ProductsScreenState<T> extends State<ProductsScreen<T>> {
       rows: state.items,
       columns: _columns(),
       storageKey: 'products-screen',
+      exportFileName: 'productos',
+      onExport: widget.onExport == null
+          ? null
+          : (bytes, name) => widget.onExport!(context, bytes, name),
       filterText: controller.query.search,
       onFilterChanged: controller.setSearch,
       filterPlaceholder: 'Buscar producto',
@@ -119,7 +134,10 @@ class _ProductsScreenState<T> extends State<ProductsScreen<T>> {
     }
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [Expanded(child: listing), detail],
+      children: [
+        Expanded(child: listing),
+        detail,
+      ],
     );
   }
 

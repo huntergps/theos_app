@@ -2,6 +2,7 @@ import 'package:fluent_ui/fluent_ui.dart';
 import 'package:odoo_widgets/odoo_widgets.dart';
 
 import '../../ui/components/orbi_components.dart';
+import '../../ui/export/export_listing.dart';
 import '../../ui/fluent/orbi_page.dart';
 import 'catalog_contracts.dart';
 
@@ -11,9 +12,19 @@ import 'catalog_contracts.dart';
 /// sólo como el selector embebido en diálogos más pequeños (el editor de
 /// ventas), no como la superficie de navegación de este catálogo.
 class ClientsScreen<T> extends StatefulWidget {
-  const ClientsScreen({super.key, this.repository, this.controller});
+  const ClientsScreen({
+    super.key,
+    this.repository,
+    this.controller,
+    this.onExport,
+  });
   final CatalogRepository<T>? repository;
   final CatalogController<T>? controller;
+
+  /// Cómo guardar el Excel. Lo pone la ruta, que sí tiene con qué leer
+  /// la preferencia de duración del aviso. Nulo esconde el botón.
+  final ListingExporter? onExport;
+
   @override
   State<ClientsScreen<T>> createState() => _ClientsScreenState<T>();
 }
@@ -80,6 +91,10 @@ class _ClientsScreenState<T> extends State<ClientsScreen<T>> {
       rows: state.items,
       columns: _columns(),
       storageKey: 'clients-screen',
+      exportFileName: 'clientes',
+      onExport: widget.onExport == null
+          ? null
+          : (bytes, name) => widget.onExport!(context, bytes, name),
       filterText: controller.query.search,
       onFilterChanged: controller.setSearch,
       filterPlaceholder: 'Buscar cliente',
@@ -118,7 +133,10 @@ class _ClientsScreenState<T> extends State<ClientsScreen<T>> {
     }
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [Expanded(child: listing), detail],
+      children: [
+        Expanded(child: listing),
+        detail,
+      ],
     );
   }
 

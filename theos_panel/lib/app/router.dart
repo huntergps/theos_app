@@ -37,6 +37,7 @@ import 'preferences/app_preferences.dart';
 import '../features/activities/activity_center.dart';
 import '../features/reports/document_view.dart';
 import '../features/sync/network_signal_provider.dart';
+import '../ui/export/export_listing.dart';
 import '../features/sync/sync_center.dart';
 import '../features/sync/sync_conflict_resolution_screen.dart';
 import '../ui/home_page.dart';
@@ -895,6 +896,8 @@ final orbiRouterProvider = Provider<GoRouter>((ref) {
                   return const NotConfiguredPage(title: 'Ventas');
                 }
                 return OrdersScreen(
+                  onExport: (ctx, bytes, name) =>
+                      exportListingBytes(ctx, ref, bytes, name),
                   repository: repository,
                   filterStore: SharedPreferencesOrderFilterStore(
                     ref.watch(sharedPreferencesProvider),
@@ -929,6 +932,11 @@ final orbiRouterProvider = Provider<GoRouter>((ref) {
                 final controller = ref.watch(scopeClientsCatalogProvider);
                 return ClientsScreen<SaleCatalogPartner>(
                   controller: controller,
+                  // La exportación se cablea aquí y no dentro de la pantalla
+                  // porque aquí es donde hay con qué leer la preferencia de
+                  // cuánto dura el aviso.
+                  onExport: (ctx, bytes, name) =>
+                      exportListingBytes(ctx, ref, bytes, name),
                 );
               },
             ),
@@ -940,6 +948,8 @@ final orbiRouterProvider = Provider<GoRouter>((ref) {
                 final controller = ref.watch(scopeProductsCatalogProvider);
                 return ProductsScreen<SaleCatalogProduct>(
                   controller: controller,
+                  onExport: (ctx, bytes, name) =>
+                      exportListingBytes(ctx, ref, bytes, name),
                 );
               },
             ),
