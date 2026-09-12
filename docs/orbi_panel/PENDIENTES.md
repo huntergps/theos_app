@@ -52,7 +52,12 @@ antes de seguir trabajando en lo que dependa de ella.
   dependen de él, con `UniqueViolation not raised`, y las otras tres verdes porque no
   dependen de la restricción—; y verde otra vez al recrearlo. El índice existe de verdad
   en la base, confirmado leyendo `pg_indexes`, con las condiciones parciales declaradas.
-  **Falta subirlo y actualizar el módulo en ERP2**, que no se ha hecho.
+  🟢 **Subido y desplegado en ERP2** el 12-sep-2026 por orden del dueño. La
+  pre-migración corrió y dejó dicho en el registro que no hay operaciones con dos
+  facturas vivas; el índice `account_move_pos_client_op_uuid_unique` **existe en la base
+  de verdad**, comprobado consultándola; el módulo quedó instalado en `19.1.4`; y el
+  servicio volvió a levantar sin un solo error, respondiendo el acceso, el listado de
+  bases desde un origen ajeno y la ruta de Orbi.
   - Las dos cosas que lo hacían viable ya existían: el cliente **ya manda** un
     identificador estable, persistido antes de imprimir, así que no hay que tocar la
     aplicación; y el addon ya tenía el patrón de índice y de pre-migración a copiar.
@@ -169,6 +174,19 @@ Ninguno de estos está encargado a nadie. Están aquí para que no se pierdan.
   servicio detrás el proxy devuelve error a todo ese dominio, incluida la
   comprobación que exige la autoridad de certificados. Que esté apagado parece
   deliberado, así que **nadie lo enciende sin decidirlo antes**.
+
+- 🔴 **El servidor de pruebas se edita a mano, y por eso su estado no se puede
+  reconstruir desde el repositorio.** Medido el 12-sep-2026 al ir a desplegar:
+  **298 ficheros modificados y 145 sin seguimiento**, y su rama local **571 commits por
+  detrás** de la publicada. La regla de oro del repositorio dice que nunca se editan
+  ficheros directamente en un servidor, y ahí se lleva haciendo tiempo.
+  - Por eso el despliegue de hoy **no fue una actualización normal**: traer los 571
+    commits sobre un árbol así arriesgaba el trabajo de otros. Se copiaron sólo los
+    ficheros de ese módulo, tras comprobar uno por uno que **112 de 118 ya eran
+    idénticos** a lo publicado, que los 4 distintos eran exactamente este cambio, y que
+    **nada existía sólo en el servidor**. Sin esa comprobación previa no se toca.
+  - Mientras siga así, **nadie puede decir qué código corre en ERP2** leyendo el
+    repositorio, y una restauración partiría de un estado que no está en ninguna parte.
 
 ## Configuración que falta en ERP2, y probablemente en producción
 
