@@ -130,6 +130,31 @@ es rápido de arreglar y fácil de olvidar.
 - Colateral: la aplicación vieja **se niega a emitir sin conexión** mientras
   falte esa marca, así que su camino sin conexión ni siquiera arranca en ERP2.
 
+## Envases: el contrato de Odoo cambió y el mío se quedó corto
+
+Avisado el 12-sep-2026 por la sesión que lleva el lado de Odoo. **El dueño decidió
+que los envases sí se ven desde Orbi**, apuntando a una instancia nueva de Odoo 19.5
+distinta de ERP2.
+
+- **Mis dos contratos no están equivocados, están callados.**
+  `ENVASES_DOMAIN_CONTRACT.md` y `ENVASES_BACKEND_ACCEPTANCE.md` nunca asumieron una
+  ubicación de custodia por cliente —tratan propiedad, custodia, ubicación y estado
+  como cuatro dimensiones distintas y no nombran ni un modelo—, así que el rediseño
+  del 11-sep no los invalida. Verificado con grep, no de memoria.
+- **Falta el enganche.** El desglose por tercero ahora vive en un modelo propio,
+  `l10n_ec.envases.saldo.tercero`, agrupado por tercero. Mi lado promete ese desglose
+  en pantalla y no dice de dónde sale. Hay que escribirlo.
+- ⚠️ **El tercero puede venir vacío, y es a propósito**, para que el total cuadre
+  contra lo físico. Si el panel no trata esa fila aparte, enseña una fila sin nombre
+  que parece un error de datos. Debe decir «sin cliente asignado».
+- 🔴 **La empresa nueva tiene una sola bodega de tránsito, sin sentido, y ahí está el
+  49,5% de su inventario** (28.774 de 58.162). Los dos contratos exigen tránsito por
+  sentido, así que **la mitad del dato no se puede clasificar al conectar**. Es
+  decisión del dueño: o se parte esa bodega en dos, o hay que decidir qué dice esa
+  columna mientras tanto. Se la traslada la sesión de Odoo, no esta.
+- Sin el grupo de permisos de envases dado de alta en esa base, **Orbi no enseña la
+  pantalla y no lo dice**: se comporta como si el área no existiera.
+
 ## Trabajo grande, pendiente de prioridad
 
 - **Dieciséis pantallas aprobadas sin código.** Dos son imposibles hoy sin
