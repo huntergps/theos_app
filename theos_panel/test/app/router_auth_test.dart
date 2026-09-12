@@ -1,6 +1,6 @@
 import 'dart:async';
 
-import 'package:flutter/material.dart';
+import 'package:fluent_ui/fluent_ui.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:orbi_runtime/orbi_runtime.dart';
@@ -58,7 +58,10 @@ final class _ProfileDuringLoginAuth implements AuthServicePort {
   @override
   Future<AuthProfile?> loadProfile() => profileReady.future;
   @override
-  Future<AuthProfile?> loadProfileFor(String serverUrl, String database) async => null;
+  Future<AuthProfile?> loadProfileFor(
+    String serverUrl,
+    String database,
+  ) async => null;
   @override
   Future<void> close() async {}
 }
@@ -69,14 +72,19 @@ void main() {
     'unauthenticated direct access redirects to login and safe returnTo',
     (tester) async {
       final container = ProviderContainer(
-        overrides: [authServiceProvider.overrideWithValue(_Auth()), sharedPreferencesProvider.overrideWithValue(await SharedPreferences.getInstance())],
+        overrides: [
+          authServiceProvider.overrideWithValue(_Auth()),
+          sharedPreferencesProvider.overrideWithValue(
+            await SharedPreferences.getInstance(),
+          ),
+        ],
       );
       addTearDown(container.dispose);
       final router = container.read(orbiRouterProvider);
       await tester.pumpWidget(
         UncontrolledProviderScope(
           container: container,
-          child: MaterialApp.router(routerConfig: router),
+          child: FluentApp.router(routerConfig: router),
         ),
       );
       await tester.pumpAndSettle();
@@ -87,7 +95,9 @@ void main() {
     },
   );
 
-  testWidgets('bootstrap router keeps login stable while profile loads', (tester) async {
+  testWidgets('bootstrap router keeps login stable while profile loads', (
+    tester,
+  ) async {
     SharedPreferences.setMockInitialValues({});
     final preferences = await SharedPreferences.getInstance();
     // Seed a saved server that matches the remembered profile below, so
@@ -124,14 +134,13 @@ void main() {
     );
     await tester.pump();
     final loginElement = find.byType(LoginScreen).evaluate().single;
-    // The form today has no "servidor"/"base de datos" text fields (the
-    // environment is picked from a dropdown and the database never shows).
-    // Find the remaining fields by their label, not by index — see
-    // test/features/auth/login_screen_test.dart, already adapted to this
-    // shape, for the same convention.
-    final usuarioField = find.widgetWithText(TextField, 'Usuario');
-    final passwordField = find.widgetWithText(TextField, 'Contraseña');
-    final loginController = tester.widget<TextField>(usuarioField).controller;
+    // En Fluent la etiqueta va FUERA del campo, en un `InfoLabel`, así que
+    // buscarlo «por su etiqueta» ya no encuentra nada: el campo no contiene
+    // ese texto. Se busca por posición, que es lo que hace también
+    // test/features/auth/login_screen_test.dart desde la migración.
+    final usuarioField = find.byType(TextBox).at(0);
+    final passwordField = find.byType(TextBox).at(1);
+    final loginController = tester.widget<TextBox>(usuarioField).controller;
     await tester.tap(usuarioField);
     const login = 'alice';
     for (var index = 1; index <= login.length; index++) {
@@ -142,16 +151,25 @@ void main() {
         await tester.pump();
       }
     }
-    expect(identical(find.byType(LoginScreen).evaluate().single, loginElement), isTrue);
-    expect(identical(tester.widget<TextField>(usuarioField).controller, loginController), isTrue);
+    expect(
+      identical(find.byType(LoginScreen).evaluate().single, loginElement),
+      isTrue,
+    );
+    expect(
+      identical(
+        tester.widget<TextBox>(usuarioField).controller,
+        loginController,
+      ),
+      isTrue,
+    );
     // The user's own typing wins over the just-loaded remembered login: the
     // background profile load must not overwrite what is already on screen.
-    expect(tester.widget<TextField>(usuarioField).controller?.text, login);
+    expect(tester.widget<TextBox>(usuarioField).controller?.text, login);
     await tester.ensureVisible(passwordField);
     await tester.tap(passwordField);
     await tester.enterText(passwordField, 'password');
-    expect(tester.widget<TextField>(passwordField).focusNode?.hasFocus, isTrue);
-    expect(tester.widget<TextField>(passwordField).controller?.text, 'password');
+    expect(tester.widget<TextBox>(passwordField).focusNode?.hasFocus, isTrue);
+    expect(tester.widget<TextBox>(passwordField).controller?.text, 'password');
   });
 
   testWidgets(
@@ -168,7 +186,9 @@ void main() {
         overrides: [
           authServiceProvider.overrideWithValue(_Auth()),
           capabilitySnapshotProvider.overrideWithValue(capabilities),
-          sharedPreferencesProvider.overrideWithValue(await SharedPreferences.getInstance()),
+          sharedPreferencesProvider.overrideWithValue(
+            await SharedPreferences.getInstance(),
+          ),
         ],
       );
       addTearDown(container.dispose);
@@ -176,7 +196,7 @@ void main() {
       await tester.pumpWidget(
         UncontrolledProviderScope(
           container: container,
-          child: MaterialApp.router(routerConfig: router),
+          child: FluentApp.router(routerConfig: router),
         ),
       );
       await tester.pumpAndSettle();
@@ -192,7 +212,7 @@ void main() {
       await tester.pumpWidget(
         UncontrolledProviderScope(
           container: container,
-          child: MaterialApp.router(routerConfig: authenticatedRouter),
+          child: FluentApp.router(routerConfig: authenticatedRouter),
         ),
       );
       await tester.pumpAndSettle();
@@ -205,20 +225,49 @@ void main() {
     },
   );
 
-  testWidgets('approvals route requires effective approver capability', (tester) async {
-    final capabilities = CapabilitySnapshot(scopeKey: 'scope', companyId: 1, revision: 1, fetchedAt: DateTime(2026), permissions: const ['approver']);
-    final container = ProviderContainer(overrides: [
-      authServiceProvider.overrideWithValue(_Auth()),
-      capabilitySnapshotProvider.overrideWithValue(capabilities),
-      sharedPreferencesProvider.overrideWithValue(await SharedPreferences.getInstance()),
-    ]);
+  testWidgets('approvals route requires effective approver capability', (
+    tester,
+  ) async {
+    final capabilities = CapabilitySnapshot(
+      scopeKey: 'scope',
+      companyId: 1,
+      revision: 1,
+      fetchedAt: DateTime(2026),
+      permissions: const ['approver'],
+    );
+    final container = ProviderContainer(
+      overrides: [
+        authServiceProvider.overrideWithValue(_Auth()),
+        capabilitySnapshotProvider.overrideWithValue(capabilities),
+        sharedPreferencesProvider.overrideWithValue(
+          await SharedPreferences.getInstance(),
+        ),
+      ],
+    );
     addTearDown(container.dispose);
     final router = container.read(orbiRouterProvider);
-    await tester.pumpWidget(UncontrolledProviderScope(container: container, child: MaterialApp.router(routerConfig: router)));
-    await container.read(authControllerProvider.notifier).login(serverUrl: 'https://erp.test', database: 'db', login: 'approver', password: 'secret');
+    await tester.pumpWidget(
+      UncontrolledProviderScope(
+        container: container,
+        child: FluentApp.router(routerConfig: router),
+      ),
+    );
+    await container
+        .read(authControllerProvider.notifier)
+        .login(
+          serverUrl: 'https://erp.test',
+          database: 'db',
+          login: 'approver',
+          password: 'secret',
+        );
     await tester.pumpAndSettle();
     final authenticatedRouter = container.read(orbiRouterProvider);
-    await tester.pumpWidget(UncontrolledProviderScope(container: container, child: MaterialApp.router(routerConfig: authenticatedRouter)));
+    await tester.pumpWidget(
+      UncontrolledProviderScope(
+        container: container,
+        child: FluentApp.router(routerConfig: authenticatedRouter),
+      ),
+    );
     await tester.pumpAndSettle();
     authenticatedRouter.go('/approvals');
     await tester.pumpAndSettle();
@@ -229,40 +278,44 @@ void main() {
   testWidgets('sync route requires synchronized administrator capability', (
     tester,
   ) async {
-    final container = ProviderContainer(overrides: [
-      authServiceProvider.overrideWithValue(_Auth()),
-      capabilitySnapshotProvider.overrideWithValue(
-        CapabilitySnapshot(
-          scopeKey: 'scope',
-          companyId: 1,
-          revision: 1,
-          fetchedAt: DateTime(2026),
-          permissions: const ['seller'],
+    final container = ProviderContainer(
+      overrides: [
+        authServiceProvider.overrideWithValue(_Auth()),
+        capabilitySnapshotProvider.overrideWithValue(
+          CapabilitySnapshot(
+            scopeKey: 'scope',
+            companyId: 1,
+            revision: 1,
+            fetchedAt: DateTime(2026),
+            permissions: const ['seller'],
+          ),
         ),
-      ),
-      sharedPreferencesProvider.overrideWithValue(
-        await SharedPreferences.getInstance(),
-      ),
-    ]);
+        sharedPreferencesProvider.overrideWithValue(
+          await SharedPreferences.getInstance(),
+        ),
+      ],
+    );
     addTearDown(container.dispose);
     final router = container.read(orbiRouterProvider);
     await tester.pumpWidget(
       UncontrolledProviderScope(
         container: container,
-        child: MaterialApp.router(routerConfig: router),
+        child: FluentApp.router(routerConfig: router),
       ),
     );
-    await container.read(authControllerProvider.notifier).login(
-      serverUrl: 'https://erp.test',
-      database: 'db',
-      login: 'seller',
-      password: 'secret',
-    );
+    await container
+        .read(authControllerProvider.notifier)
+        .login(
+          serverUrl: 'https://erp.test',
+          database: 'db',
+          login: 'seller',
+          password: 'secret',
+        );
     final authenticatedRouter = container.read(orbiRouterProvider);
     await tester.pumpWidget(
       UncontrolledProviderScope(
         container: container,
-        child: MaterialApp.router(routerConfig: authenticatedRouter),
+        child: FluentApp.router(routerConfig: authenticatedRouter),
       ),
     );
     await tester.pumpAndSettle();
@@ -271,41 +324,47 @@ void main() {
     expect(authenticatedRouter.state.uri.path, '/');
   });
 
-  testWidgets('synchronized administrator can enter sync route', (tester) async {
-    final container = ProviderContainer(overrides: [
-      authServiceProvider.overrideWithValue(_Auth()),
-      capabilitySnapshotProvider.overrideWithValue(
-        CapabilitySnapshot(
-          scopeKey: 'scope',
-          companyId: 1,
-          revision: 1,
-          fetchedAt: DateTime(2026),
-          permissions: const ['administrator', 'sync'],
+  testWidgets('synchronized administrator can enter sync route', (
+    tester,
+  ) async {
+    final container = ProviderContainer(
+      overrides: [
+        authServiceProvider.overrideWithValue(_Auth()),
+        capabilitySnapshotProvider.overrideWithValue(
+          CapabilitySnapshot(
+            scopeKey: 'scope',
+            companyId: 1,
+            revision: 1,
+            fetchedAt: DateTime(2026),
+            permissions: const ['administrator', 'sync'],
+          ),
         ),
-      ),
-      sharedPreferencesProvider.overrideWithValue(
-        await SharedPreferences.getInstance(),
-      ),
-    ]);
+        sharedPreferencesProvider.overrideWithValue(
+          await SharedPreferences.getInstance(),
+        ),
+      ],
+    );
     addTearDown(container.dispose);
     final router = container.read(orbiRouterProvider);
     await tester.pumpWidget(
       UncontrolledProviderScope(
         container: container,
-        child: MaterialApp.router(routerConfig: router),
+        child: FluentApp.router(routerConfig: router),
       ),
     );
-    await container.read(authControllerProvider.notifier).login(
-      serverUrl: 'https://erp.test',
-      database: 'db',
-      login: 'administrator',
-      password: 'secret',
-    );
+    await container
+        .read(authControllerProvider.notifier)
+        .login(
+          serverUrl: 'https://erp.test',
+          database: 'db',
+          login: 'administrator',
+          password: 'secret',
+        );
     final authenticatedRouter = container.read(orbiRouterProvider);
     await tester.pumpWidget(
       UncontrolledProviderScope(
         container: container,
-        child: MaterialApp.router(routerConfig: authenticatedRouter),
+        child: FluentApp.router(routerConfig: authenticatedRouter),
       ),
     );
     await tester.pumpAndSettle();

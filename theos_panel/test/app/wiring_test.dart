@@ -1,5 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:flutter/material.dart';
+import 'package:fluent_ui/fluent_ui.dart';
 import 'package:orbi_runtime/orbi_runtime.dart';
 import 'package:theos_panel/app/bootstrap.dart';
 import 'package:theos_panel/app/session_composition.dart';
@@ -27,22 +27,25 @@ void main() {
     tester,
   ) async {
     await tester.pumpWidget(
-      const MaterialApp(
+      const FluentApp(
         home: BootstrapAnimatedContent(
           phaseKey: 'splash',
-          child: ColoredBox(key: ValueKey('splash-surface'), color: Colors.red),
+          child: ColoredBox(
+            key: ValueKey('splash-surface'),
+            color: Color(0xFFFF0000),
+          ),
         ),
       ),
     );
     await tester.pump();
 
     await tester.pumpWidget(
-      const MaterialApp(
+      const FluentApp(
         home: BootstrapAnimatedContent(
           phaseKey: 'application',
           child: ColoredBox(
             key: ValueKey('application-surface'),
-            color: Colors.green,
+            color: Color(0xFF00FF00),
           ),
         ),
       ),
@@ -56,16 +59,16 @@ void main() {
     expect(find.byKey(const ValueKey('application-surface')), findsOneWidget);
   });
 
-  testWidgets('bootstrap renders before MaterialApp provides Directionality', (
+  testWidgets('bootstrap renders before FluentApp provides Directionality', (
     tester,
   ) async {
-    // Production mounts BootstrapAnimatedContent above MaterialApp. Keep this
+    // Production mounts BootstrapAnimatedContent above FluentApp. Keep this
     // exact topology covered: a directional Stack alignment crashes the real
     // runner before it can paint the splash or login surface.
     await tester.pumpWidget(
       const BootstrapAnimatedContent(
         phaseKey: 'splash',
-        child: ColoredBox(color: Colors.teal),
+        child: ColoredBox(color: Color(0xFF008080)),
       ),
     );
 

@@ -1,7 +1,7 @@
 import 'dart:async';
 import 'dart:math' as math;
 
-import 'package:flutter/material.dart';
+import 'package:fluent_ui/fluent_ui.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:orbi_runtime/orbi_runtime.dart' show AuthProfile;
@@ -64,21 +64,37 @@ String _saveCredentialSubtitleFor(bool apiKeyMode) => apiKeyMode
 ///    narrower card, or a larger accessibility text scale all change the
 ///    budget with no code change, because they change how many lines the
 ///    subtitle/switch descriptions actually wrap to.
-///  - The few constants below cover the parts of a Material TextField or
-///    SwitchListTile that TextPainter cannot see (borders, internal padding,
-///    the switch control itself). They are not guesses: each one was
-///    measured once against this app's actual Material 3 theme — see the
-///    "estimated layout-budget metrics keep matching the real widgets" test,
-///    which fails immediately if the theme ever changes one of these instead
-///    of letting the budget silently drift out from under it.
-///  - [kMinInteractiveDimension] (48.0, from package:flutter/material.dart)
-///    covers every other fixed-height row here: IconButton, TextButton.icon,
-///    a dense/compact TextField or SwitchListTile, and FilledButton.icon —
-///    Flutter's own default touch-target size, not something invented here.
-const double _kNormalTextFieldHeight = 52.0; // width-independent: our field labels/hints never wrap.
-const double _kSwitchTileTitleLineHeight = 24.0; // width-independent: "Usar API key" / "Guardar clave" never wrap.
-const double _kSwitchTileVerticalChrome = 16.0; // ListTile's own default top+bottom padding (8+8).
-const double _kSwitchTileTextInset = 76.0; // Switch control + ListTile's fixed horizontal padding.
+///  - The few constants below cover the parts of a Fluent [TextBox]/
+///    [PasswordBox]/[ComboBox] or [ToggleSwitch] row that [TextPainter]
+///    cannot see (the control's own minimum height, its knob, the
+///    [InfoLabel] gap). They replace the Material-3 constants this file used
+///    before the Fluent port (12-sep-2026) — see the "estimated layout-budget
+///    metrics keep matching the real widgets" test, which fails immediately
+///    if the theme ever changes one of these instead of letting the budget
+///    silently drift out from under it.
+///  - [_kMinInteractiveDimension] (48.0) covers every other fixed-height row
+///    here: an [IconButton], a [HyperlinkButton], or a [FilledButton] — a
+///    reasonable touch-target size, not tied to any framework constant now
+///    that Material's `kMinInteractiveDimension` is gone.
+const double _kMinInteractiveDimension = 48.0;
+// A field built from InfoLabel (its own body-text label line, plus a 4px
+// gap) over a Fluent TextBox/PasswordBox/ComboBox, whose own minimum height
+// is 32 at standard density. None of "Servidor"/"Usuario"/"Contraseña"/"API
+// key"/"Base de datos" ever wrap, so the label line is a fixed one-line
+// height rather than measured per-build.
+const double _kFieldLabelLineHeight = 20.0; // typography.body, one line.
+const double _kFieldLabelGap = 4.0; // InfoLabel's own spacing under the label.
+const double _kControlMinHeight = 32.0; // TextBox/PasswordBox/ComboBox at standard density.
+const double _kFieldHeight =
+    _kFieldLabelLineHeight + _kFieldLabelGap + _kControlMinHeight;
+// A ToggleSwitch row: its own 20px knob sits beside a body-text label of the
+// same one-line height, so the row itself never exceeds one text line.
+const double _kToggleRowHeight = 20.0;
+// Matches the real `Padding(top: OrbiTheme.space4)` between the ToggleSwitch
+// row and its subtitle — kept as its own named constant (rather than
+// OrbiTheme.space4 inline) so this budget documents every number it depends
+// on in one place, the same way the rest of this file does.
+const double _kToggleSubtitleGap = OrbiTheme.space4;
 
 double _measureTextHeight(
   String text,
@@ -105,13 +121,11 @@ double _estimateSwitchTileHeight({
   final subtitleHeight = _measureTextHeight(
     subtitle,
     subtitleStyle,
-    tileWidth - _kSwitchTileTextInset,
+    tileWidth,
     direction,
     textScaleFactor,
   );
-  return _kSwitchTileTitleLineHeight +
-      subtitleHeight +
-      _kSwitchTileVerticalChrome;
+  return _kToggleRowHeight + _kToggleSubtitleGap + subtitleHeight;
 }
 
 /// The height the NORMAL (non-compact) styling needs for the whole card
@@ -127,23 +141,24 @@ double _estimateSwitchTileHeight({
 /// keep matching the real widgets" test exists to catch.
 double _estimateNormalModeContentHeight({
   required double contentWidth,
-  required ThemeData theme,
+  required FluentThemeData theme,
   required TextDirection direction,
   required double textScaleFactor,
   required bool apiKeyMode,
   required String? errorMessage,
   bool serversUnreadable = false,
 }) {
+  final typography = theme.typography;
   final titleHeight = _measureTextHeight(
     'Acceso a Orbi',
-    theme.textTheme.titleLarge,
+    typography.title,
     contentWidth,
     direction,
     textScaleFactor,
   );
   final subtitleHeight = _measureTextHeight(
     'Conéctate a tu entorno de trabajo',
-    theme.textTheme.bodyMedium,
+    typography.body,
     contentWidth,
     direction,
     textScaleFactor,
@@ -151,19 +166,19 @@ double _estimateNormalModeContentHeight({
   final apiKeySubtitleHeight = _estimateSwitchTileHeight(
     subtitle: _kApiKeySubtitle,
     tileWidth: contentWidth,
-    subtitleStyle: theme.textTheme.bodyMedium,
+    subtitleStyle: typography.caption,
     direction: direction,
     textScaleFactor: textScaleFactor,
   );
   final saveCredentialSubtitleHeight = _estimateSwitchTileHeight(
     subtitle: _saveCredentialSubtitleFor(apiKeyMode),
     tileWidth: contentWidth,
-    subtitleStyle: theme.textTheme.bodyMedium,
+    subtitleStyle: typography.caption,
     direction: direction,
     textScaleFactor: textScaleFactor,
   );
   var total =
-      kMinInteractiveDimension + // top-right theme-toggle row
+      _kMinInteractiveDimension + // top-right theme-toggle row
       OrbiTheme.space12 + // gap under that row
       84.0 + // logo height (normal)
       OrbiTheme.space16 +
@@ -171,11 +186,11 @@ double _estimateNormalModeContentHeight({
       OrbiTheme.space8 +
       subtitleHeight +
       OrbiTheme.space24 + // headerGap (normal), before the fields
-      3 * (_kNormalTextFieldHeight + OrbiTheme.space12) + // server selector + usuario + contraseña, each + its gap
+      3 * (_kFieldHeight + OrbiTheme.space12) + // server selector + usuario + contraseña, each + its gap
       apiKeySubtitleHeight +
       saveCredentialSubtitleHeight +
       OrbiTheme.space24 + // headerGap (normal), before the submit button
-      kMinInteractiveDimension; // submit button
+      _kControlMinHeight; // submit button
   if (serversUnreadable) {
     // It renders as the same panel the sign-in failures use, so it costs the
     // same chrome — not one wrapped line.
@@ -208,13 +223,13 @@ double _estimateNormalModeContentHeight({
 /// both sides, its one-pixel border, the leading icon and the gap after it.
 /// Measured against the widget itself by the "estimated layout-budget metrics"
 /// test, same as every other constant in this budget.
-// The gap plus the action row. The button reports kMinInteractiveDimension
-// (48), not the 40 of ButtonStyle.minimumSize: Material's default
-// MaterialTapTargetSize.padded grows it to the minimum touch target. Pinned
-// by "the action row is the height the layout budget assumes" in
-// test/ui/copyable_message_test.dart.
+// The gap plus the action row. The button is a Fluent [Button], whose own
+// minimum height clusters around [_kControlMinHeight] the same as every
+// other single-row Fluent control in this file's budget (TextBox, PasswordBox,
+// ComboBox, ToggleSwitch). Pinned by "the action row is the height the
+// layout budget assumes" in test/ui/copyable_message_test.dart.
 const double _kFailurePanelActionRowHeight =
-    OrbiTheme.space4 + kMinInteractiveDimension;
+    OrbiTheme.space4 + _kControlMinHeight;
 const double _kFailurePanelVerticalChrome =
     OrbiTheme.space12 * 2 + 2 + // padding top+bottom + 1px border each side
     _kFailurePanelActionRowHeight;
@@ -230,7 +245,7 @@ const double _kFailurePanelTextInset =
 /// gone wrong and the form is at its tallest.
 double estimateLoginFailurePanelHeight({
   required String message,
-  required ThemeData theme,
+  required FluentThemeData theme,
   required double contentWidth,
   required TextDirection direction,
   required double textScaleFactor,
@@ -239,7 +254,7 @@ double estimateLoginFailurePanelHeight({
   if (failure == null) {
     return _measureTextHeight(
       message,
-      theme.textTheme.bodyMedium,
+      theme.typography.body,
       contentWidth,
       direction,
       textScaleFactor,
@@ -259,7 +274,7 @@ double estimateLoginFailurePanelHeight({
 double _failurePanelHeight({
   required String title,
   required String body,
-  required ThemeData theme,
+  required FluentThemeData theme,
   required double contentWidth,
   required TextDirection direction,
   required double textScaleFactor,
@@ -268,7 +283,7 @@ double _failurePanelHeight({
   return _kFailurePanelVerticalChrome +
       _measureTextHeight(
         title,
-        theme.textTheme.titleSmall,
+        theme.typography.bodyStrong,
         textWidth,
         direction,
         textScaleFactor,
@@ -276,7 +291,7 @@ double _failurePanelHeight({
       OrbiTheme.space4 +
       _measureTextHeight(
         body,
-        theme.textTheme.bodySmall,
+        theme.typography.caption,
         textWidth,
         direction,
         textScaleFactor,
@@ -323,15 +338,6 @@ class LoginFailurePanel extends StatelessWidget {
       CopyableMessagePanel(message: messageFor(failure));
 }
 
-Color loginBrandOverlayColor(ColorScheme colors, double alpha) {
-  // Keep the photograph visible while choosing a neutral veil that supports
-  // the scheme's actual foreground (white in light mode, dark in dark mode).
-  final veil = colors.onPrimary.computeLuminance() > .5
-      ? Colors.black
-      : Colors.white;
-  return veil.withValues(alpha: alpha);
-}
-
 double loginOverlayContrastRatio(Color foreground, Color background) {
   final foregroundLuminance = foreground.computeLuminance();
   final backgroundLuminance = background.computeLuminance();
@@ -367,14 +373,14 @@ class _BrandingPane extends StatelessWidget {
               const SizedBox(height: OrbiTheme.space24),
               Text(
                 'Ventas, caja y operaciones',
-                style: Theme.of(context).textTheme.titleLarge
+                style: FluentTheme.of(context).typography.title
                     ?.copyWith(color: orbiPhotoInk),
                 textAlign: TextAlign.center,
               ),
               const SizedBox(height: OrbiTheme.space8),
               Text(
                 'Trabaja con tu equipo desde un solo lugar.',
-                style: Theme.of(context).textTheme.bodyLarge
+                style: FluentTheme.of(context).typography.bodyLarge
                     ?.copyWith(color: orbiPhotoInk),
                 textAlign: TextAlign.center,
               ),
@@ -528,10 +534,17 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       if (selected != null) _selectServer(selected);
     } catch (_) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('No se pudo abrir la gestión de servidores.'),
+      final preferences = ref.read(
+        appPreferencesProvider(ref.read(preferencesScopeProvider)),
+      );
+      showCopyableMessage(
+        context,
+        const CopyableMessage(
+          title: 'No se pudo abrir la gestión de servidores',
+          body: 'Vuelve a intentarlo en unos segundos.',
+          severity: OrbiMessageSeverity.warning,
         ),
+        durations: preferences.snapshot.messageDurations,
       );
     }
   }
@@ -645,8 +658,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       );
     }
     final state = ref.watch(authControllerProvider);
-    final theme = Theme.of(context);
-    final colors = theme.colorScheme;
+    final theme = FluentTheme.of(context);
     final direction = Directionality.of(context);
     // Decide compact-vs-normal (and the two-column-vs-stacked branch below)
     // from the STABLE window/screen size, never from the body's LayoutBuilder
@@ -666,7 +678,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     final textScaleFactor = MediaQuery.textScalerOf(context).scale(14) / 14;
     final footerTextHeight = _measureTextHeight(
       _kFooterText,
-      theme.textTheme.bodySmall,
+      theme.typography.caption,
       math.max(screenSize.width - OrbiTheme.space12 * 2, 0),
       direction,
       textScaleFactor,
@@ -701,13 +713,18 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
         OrbiTheme.space24 * 2;
     final compactHeight = normalModeHeight > availableForNormalMode;
     final form = _buildLoginForm(context, state, compactHeight: compactHeight);
-    return Scaffold(
-      // Extend the photograph behind the translucent credit strip. SafeArea
-      // keeps the form clear of the footer and the device's bottom inset.
-      extendBody: true,
-      bottomNavigationBar: ColoredBox(
+    // Extend the photograph behind the credit strip. Unlike Material's
+    // Scaffold(extendBody: true), ScaffoldPage.bottomBar sits in its own row
+    // ABOVE the content, not overlapping it — so the footer is its own Stack
+    // layer, pinned to the bottom, rather than a separate scaffold slot.
+    // SafeArea keeps the form clear of the footer and the device's bottom
+    // inset. The footer's own background is the theme's, at full opacity —
+    // no hand-tuned translucency over the photo.
+    final footer = Align(
+      alignment: Alignment.bottomCenter,
+      child: ColoredBox(
         key: const Key('login-credit-footer'),
-        color: colors.surface.withValues(alpha: .72),
+        color: theme.scaffoldBackgroundColor,
         child: SafeArea(
           top: false,
           child: Padding(
@@ -715,14 +732,16 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
             child: Text(
               _kFooterText,
               textAlign: TextAlign.center,
-              style: theme.textTheme.bodySmall?.copyWith(
-                color: colors.onSurfaceVariant,
+              style: theme.typography.caption?.copyWith(
+                color: theme.resources.textFillColorSecondary,
               ),
             ),
           ),
         ),
       ),
-      body: isWideLandscape
+    );
+    return ScaffoldPage(
+      content: isWideLandscape
           ? Stack(
               fit: StackFit.expand,
               children: [
@@ -744,23 +763,19 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                                 // budget on top of the Padding above, which
                                 // already provides the intended spacing.
                                 margin: EdgeInsets.zero,
-                                color: colors.surface.withValues(alpha: .96),
-                                elevation: 2,
-                                child: Padding(
-                                  // Was hardcoded to space24 regardless of
-                                  // compactHeight, unlike the narrow branch
-                                  // below. That mismatch alone both starved
-                                  // the "manage servers" + theme-toggle row
-                                  // of width (a RenderFlex overflow) and ate
-                                  // vertical budget the submit button needed
-                                  // on a short-but-wide desktop window.
-                                  padding: EdgeInsets.all(
-                                    compactHeight
-                                        ? OrbiTheme.space12
-                                        : OrbiTheme.space24,
-                                  ),
-                                  child: form,
+                                // Was hardcoded to space24 regardless of
+                                // compactHeight, unlike the narrow branch
+                                // below. That mismatch alone both starved
+                                // the "manage servers" + theme-toggle row
+                                // of width (a RenderFlex overflow) and ate
+                                // vertical budget the submit button needed
+                                // on a short-but-wide desktop window.
+                                padding: EdgeInsets.all(
+                                  compactHeight
+                                      ? OrbiTheme.space12
+                                      : OrbiTheme.space24,
                                 ),
+                                child: form,
                               ),
                             ),
                           ),
@@ -769,6 +784,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                     ),
                   ),
                 ),
+                footer,
               ],
             )
           : Stack(
@@ -783,21 +799,18 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                         constraints: const BoxConstraints(maxWidth: 520),
                         child: Card(
                           margin: EdgeInsets.zero,
-                          color: colors.surface.withValues(alpha: .96),
-                          elevation: 2,
-                          child: Padding(
-                            padding: EdgeInsets.all(
-                              compactHeight
-                                  ? OrbiTheme.space12
-                                  : OrbiTheme.space24,
-                            ),
-                            child: form,
+                          padding: EdgeInsets.all(
+                            compactHeight
+                                ? OrbiTheme.space12
+                                : OrbiTheme.space24,
                           ),
+                          child: form,
                         ),
                       ),
                     ),
                   ),
                 ),
+                footer,
               ],
             ),
     );
@@ -806,17 +819,20 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   Widget _buildServerSelector({
     required bool compactHeight,
     required bool busy,
-    required EdgeInsetsGeometry? inputPadding,
-    required ColorScheme colors,
   }) {
     final hasServers = _servers.isNotEmpty;
-    final items = <DropdownMenuItem<String>>[
+    // ComboBox is a CONTROLLED widget (driven by `value`, unlike
+    // DropdownButtonFormField's FormField-only `initialValue`), so the
+    // ValueKey-per-selection trick the Material version needed to force a
+    // fresh seed no longer applies: a rename or a new selection is picked up
+    // on the very next build regardless.
+    final items = <ComboBoxItem<String>>[
       for (final server in _servers)
-        DropdownMenuItem(
+        ComboBoxItem(
           value: server.id,
           child: Text(server.name, overflow: TextOverflow.ellipsis),
         ),
-      const DropdownMenuItem(
+      const ComboBoxItem(
         key: Key('manage-servers-option'),
         value: _kManageServersOptionValue,
         child: Text(_kManageServersLabel),
@@ -825,34 +841,23 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        DropdownButtonFormField<String>(
-          // A DropdownButtonFormField only honors `initialValue` on its FIRST
-          // build (it is a plain FormField, not a controlled widget) — see
-          // the migration note on `value` in package:flutter's dropdown.dart.
-          // Keying it by the selection forces Flutter to recreate the field
-          // (and therefore re-seed initialValue) whenever the selection
-          // itself changes, which is exactly when a fresh seed is needed;
-          // renaming a server without changing its id keeps the same key and
-          // still picks up the new label on the next build, since `items` is
-          // rebuilt fresh every time regardless.
-          key: ValueKey('server-selector::${_selectedServer?.id}'),
-          initialValue: _selectedServer?.id,
-          items: items,
-          onChanged: busy ? null : _handleServerSelectionChanged,
-          // Without this, the field's internal Row sizes itself to the
-          // intrinsic width of the selected item/hint text and overflows
-          // against the dropdown arrow the moment a server name (or the
-          // "Gestionar servidores…" hint) is long enough for a narrow card.
-          isExpanded: true,
-          hint: Text(
-            hasServers ? 'Selecciona un servidor' : 'Ningún servidor guardado',
-            overflow: TextOverflow.ellipsis,
-          ),
-          decoration: InputDecoration(
-            labelText: 'Servidor',
-            prefixIcon: const Icon(Icons.dns_outlined),
-            isDense: compactHeight,
-            contentPadding: inputPadding,
+        InfoLabel(
+          label: 'Servidor',
+          child: ComboBox<String>(
+            value: _selectedServer?.id,
+            items: items,
+            onChanged: busy ? null : _handleServerSelectionChanged,
+            // Without this, the field's internal Row sizes itself to the
+            // intrinsic width of the selected item/hint text and overflows
+            // against the dropdown arrow the moment a server name (or the
+            // "Gestionar servidores…" hint) is long enough for a narrow card.
+            isExpanded: true,
+            placeholder: Text(
+              hasServers
+                  ? 'Selecciona un servidor'
+                  : 'Ningún servidor guardado',
+              overflow: TextOverflow.ellipsis,
+            ),
           ),
         ),
         if (_serversUnreadable) ...[
@@ -871,61 +876,61 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     AuthViewState state, {
     required bool compactHeight,
   }) {
-    final theme = Theme.of(context);
-    final colors = theme.colorScheme;
+    final theme = FluentTheme.of(context);
     final fieldGap = compactHeight ? OrbiTheme.space8 : OrbiTheme.space12;
     final headerGap = compactHeight ? OrbiTheme.space12 : OrbiTheme.space24;
     final logoHeight = compactHeight ? 56.0 : 84.0;
-    final inputPadding = compactHeight
-        ? const EdgeInsets.symmetric(horizontal: 12, vertical: 8)
-        : null;
-    final themeToggle = IconButton(
-      key: const Key('login-theme-toggle'),
-      tooltip: theme.brightness == Brightness.dark
+    final themeToggle = Tooltip(
+      message: theme.brightness == Brightness.dark
           ? 'Cambiar a modo claro'
           : 'Cambiar a modo oscuro',
-      icon: Icon(
-        theme.brightness == Brightness.dark
-            ? Icons.light_mode_outlined
-            : Icons.dark_mode_outlined,
+      child: IconButton(
+        key: const Key('login-theme-toggle'),
+        icon: Icon(
+          theme.brightness == Brightness.dark
+              ? FluentIcons.sunny
+              : FluentIcons.clear_night,
+        ),
+        onPressed: () async {
+          final dark = theme.brightness != Brightness.dark;
+          final preferences = ref.read(
+            appPreferencesProvider(ref.read(preferencesScopeProvider)),
+          );
+          try {
+            await preferences.setTheme(
+              dark ? PreferenceThemeMode.dark : PreferenceThemeMode.light,
+            );
+          } catch (_) {
+            if (!context.mounted) return;
+            showCopyableMessage(
+              context,
+              const CopyableMessage(
+                title: 'No se pudo guardar el tema',
+                body:
+                    'El cambio se ve ahora, pero no quedará guardado para la '
+                    'próxima vez que abras Orbi. Vuelve a intentarlo.',
+                severity: OrbiMessageSeverity.warning,
+              ),
+              durations: preferences.snapshot.messageDurations,
+            );
+          }
+        },
       ),
-      onPressed: () async {
-        final dark = theme.brightness != Brightness.dark;
-        final preferences = ref.read(
-          appPreferencesProvider(ref.read(preferencesScopeProvider)),
-        );
-        try {
-          await preferences.setTheme(
-            dark ? PreferenceThemeMode.dark : PreferenceThemeMode.light,
-          );
-        } catch (_) {
-          if (!context.mounted) return;
-          showCopyableMessage(
-            context,
-            const CopyableMessage(
-              title: 'No se pudo guardar el tema',
-              body:
-                  'El cambio se ve ahora, pero no quedará guardado para la '
-                  'próxima vez que abras Orbi. Vuelve a intentarlo.',
-              severity: OrbiMessageSeverity.warning,
-            ),
-            durations: preferences.snapshot.messageDurations,
-          );
-        }
-      },
     );
     // ACC-02's way in. Placed in the SAME row as the theme toggle, not as a
-    // row of its own: this row's height (kMinInteractiveDimension) is already
-    // part of _estimateNormalModeContentHeight's fixed budget, and a second
-    // affordance stacked below it would grow the real form without growing
-    // that estimate, silently drifting the compact/normal boundary the
-    // CASE 1-3 tests below pin down. Sharing the row keeps that budget true
-    // with no new term to add or forget.
-    final pinModeButton = IconButton(
-      key: const Key('login-pin-mode-button'),
-      tooltip: 'Modo vendedor (PIN)',
-      icon: const Icon(Icons.pin_outlined),
-      onPressed: () => setState(() => _pinMode = true),
+    // row of its own: this row's height (_kMinInteractiveDimension) is
+    // already part of _estimateNormalModeContentHeight's fixed budget, and a
+    // second affordance stacked below it would grow the real form without
+    // growing that estimate, silently drifting the compact/normal boundary
+    // the CASE 1-3 tests below pin down. Sharing the row keeps that budget
+    // true with no new term to add or forget.
+    final pinModeButton = Tooltip(
+      message: 'Modo vendedor (PIN)',
+      child: IconButton(
+        key: const Key('login-pin-mode-button'),
+        icon: const Icon(FluentIcons.pin),
+        onPressed: () => setState(() => _pinMode = true),
+      ),
     );
     // The submit button (and the header above it) must never end up behind
     // the translucent credit footer, no matter how short the window is. Only
@@ -947,87 +952,106 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
         children: [pinModeButton, themeToggle],
       ),
       SizedBox(height: compactHeight ? OrbiTheme.space8 : OrbiTheme.space12),
-      OrbiBrand(height: logoHeight, color: colors.primary),
+      OrbiBrand(height: logoHeight, color: theme.accentColor),
       const SizedBox(height: OrbiTheme.space16),
       Text(
         'Acceso a Orbi',
-        style: theme.textTheme.titleLarge,
+        style: theme.typography.title,
         textAlign: TextAlign.center,
       ),
       const SizedBox(height: OrbiTheme.space8),
       Text(
         'Conéctate a tu entorno de trabajo',
-        style: theme.textTheme.bodyMedium?.copyWith(
-          color: colors.onSurfaceVariant,
+        style: theme.typography.body?.copyWith(
+          color: theme.resources.textFillColorSecondary,
         ),
         textAlign: TextAlign.center,
       ),
       SizedBox(height: headerGap),
     ];
     final fieldsAndToggles = <Widget>[
-      _buildServerSelector(
-        compactHeight: compactHeight,
-        busy: state.isBusy,
-        inputPadding: inputPadding,
-        colors: colors,
+      _buildServerSelector(compactHeight: compactHeight, busy: state.isBusy),
+      SizedBox(height: fieldGap),
+      InfoLabel(
+        label: 'Usuario',
+        child: TextBox(
+          controller: _login,
+          focusNode: _loginFocus,
+          textInputAction: TextInputAction.next,
+          onSubmitted: (_) => _passwordFocus.requestFocus(),
+          prefix: const Padding(
+            padding: EdgeInsets.symmetric(horizontal: OrbiTheme.space8),
+            child: Icon(FluentIcons.contact, size: 16),
+          ),
+          onChanged: (_) => _scheduleLoginPreferencesSave(),
+          autofillHints: const [AutofillHints.username],
+        ),
       ),
       SizedBox(height: fieldGap),
-      TextField(
-        controller: _login,
-        focusNode: _loginFocus,
-        textInputAction: TextInputAction.next,
-        onSubmitted: (_) => _passwordFocus.requestFocus(),
-        decoration: InputDecoration(
-          labelText: 'Usuario',
-          prefixIcon: Icon(Icons.person_outline),
-          isDense: compactHeight,
-          contentPadding: inputPadding,
+      InfoLabel(
+        label: _apiKeyMode ? 'API key' : 'Contraseña',
+        // TextBox+obscureText rather than PasswordBox: PasswordBox has no
+        // `autofillHints`, and keeping password managers working matters
+        // more here than PasswordBox's reveal-button affordance.
+        child: TextBox(
+          controller: _password,
+          focusNode: _passwordFocus,
+          textInputAction: TextInputAction.done,
+          onSubmitted: (_) => _submit(),
+          obscureText: true,
+          prefix: const Padding(
+            padding: EdgeInsets.symmetric(horizontal: OrbiTheme.space8),
+            child: Icon(FluentIcons.lock, size: 16),
+          ),
+          autofillHints: const [AutofillHints.password],
         ),
-        onChanged: (_) => _scheduleLoginPreferencesSave(),
-        autofillHints: const [AutofillHints.username],
       ),
-      SizedBox(height: fieldGap),
-      TextField(
-        controller: _password,
-        focusNode: _passwordFocus,
-        textInputAction: TextInputAction.done,
-        onSubmitted: (_) => _submit(),
-        obscureText: true,
-        decoration: InputDecoration(
-          labelText: _apiKeyMode ? 'API key' : 'Contraseña',
-          prefixIcon: Icon(Icons.lock_outline),
-          isDense: compactHeight,
-          contentPadding: inputPadding,
-        ),
-        autofillHints: const [AutofillHints.password],
-      ),
-      Material(
-        type: MaterialType.transparency,
-        child: SwitchListTile.adaptive(
-          key: const Key('api-key-mode-toggle'),
-          contentPadding: EdgeInsets.zero,
-          title: const Text('Usar API key'),
+      Column(
+        key: const Key('api-key-toggle-block'),
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          ToggleSwitch(
+            key: const Key('api-key-mode-toggle'),
+            checked: _apiKeyMode,
+            onChanged: (value) => setState(() => _apiKeyMode = value),
+            content: const Text('Usar API key'),
+          ),
           // Secondary help is omitted only in a tight window; the switch
-          // title remains visible and keeps the compact form readable.
-          subtitle: compactHeight ? null : const Text(_kApiKeySubtitle),
-          visualDensity: compactHeight ? VisualDensity.compact : null,
-          value: _apiKeyMode,
-          onChanged: (value) => setState(() => _apiKeyMode = value),
-        ),
+          // label remains visible and keeps the compact form readable.
+          if (!compactHeight)
+            Padding(
+              padding: const EdgeInsets.only(top: OrbiTheme.space4),
+              child: Text(
+                _kApiKeySubtitle,
+                style: theme.typography.caption?.copyWith(
+                  color: theme.resources.textFillColorSecondary,
+                ),
+              ),
+            ),
+        ],
       ),
-      Material(
-        type: MaterialType.transparency,
-        child: SwitchListTile.adaptive(
-          key: const Key('save-credential-toggle'),
-          contentPadding: EdgeInsets.zero,
-          title: const Text('Guardar clave'),
-          subtitle: compactHeight
-              ? null
-              : Text(_saveCredentialSubtitleFor(_apiKeyMode)),
-          visualDensity: compactHeight ? VisualDensity.compact : null,
-          value: _saveCredential,
-          onChanged: (value) => setState(() => _saveCredential = value),
-        ),
+      Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          ToggleSwitch(
+            key: const Key('save-credential-toggle'),
+            checked: _saveCredential,
+            onChanged: (value) => setState(() => _saveCredential = value),
+            content: const Text('Guardar clave'),
+          ),
+          if (!compactHeight)
+            Padding(
+              padding: const EdgeInsets.only(top: OrbiTheme.space4),
+              child: Text(
+                _saveCredentialSubtitleFor(_apiKeyMode),
+                style: theme.typography.caption?.copyWith(
+                  color: theme.resources.textFillColorSecondary,
+                ),
+              ),
+            ),
+        ],
       ),
       // La sesión que el arranque encontró y decidió NO adoptar. Va ARRIBA
       // del mensaje de error y ABAJO de los campos: es una salida rápida, no
@@ -1058,7 +1082,12 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
             liveRegion: true,
             container: true,
             label: state.message,
-            child: Text(state.message!, style: TextStyle(color: colors.error)),
+            child: Text(
+              state.message!,
+              style: TextStyle(
+                color: theme.resources.systemFillColorCritical,
+              ),
+            ),
           ),
       ],
     ];
@@ -1080,18 +1109,25 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
             ),
           ),
           SizedBox(height: headerGap),
-          FilledButton.icon(
+          FilledButton(
             onPressed: (state.isBusy || _selectedServer == null)
                 ? null
                 : _submit,
-            icon: state.isBusy
-                ? const SizedBox(
-                    width: 18,
-                    height: 18,
-                    child: CircularProgressIndicator(strokeWidth: 2),
-                  )
-                : const Icon(Icons.login),
-            label: Text(state.isBusy ? 'Conectando…' : 'Iniciar sesión'),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                state.isBusy
+                    ? const SizedBox(
+                        width: 18,
+                        height: 18,
+                        child: ProgressRing(strokeWidth: 2),
+                      )
+                    : const Icon(FluentIcons.signin, size: 16),
+                const SizedBox(width: 8),
+                Text(state.isBusy ? 'Conectando…' : 'Iniciar sesión'),
+              ],
+            ),
           ),
         ],
       ),
@@ -1237,36 +1273,30 @@ class _OfferedSessionCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final colors = theme.colorScheme;
+    // Un aviso con color por significado se hace con InfoBar y su
+    // InfoBarSeverity, nunca pintado a mano: aquí es "info" porque es un
+    // hecho que conviene notar, no una advertencia ni un error. Nada de
+    // color, borde o relleno propio — todo lo resuelve el tema.
     return Semantics(
       container: true,
       label: '${offer.actionLabel}. ${offer.explanation}',
       child: ExcludeSemantics(
-        child: DecoratedBox(
-          decoration: BoxDecoration(
-            color: colors.secondaryContainer,
-            borderRadius: const BorderRadius.all(Radius.circular(8)),
-            border: Border.all(color: colors.secondary.withValues(alpha: .48)),
-          ),
-          child: Padding(
-            padding: const EdgeInsets.all(OrbiTheme.space12),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
+        child: InfoBar(
+          title: Text(offer.explanation),
+          isLong: true,
+          action: OutlinedButton(
+            key: const Key('continue-offered-session'),
+            onPressed: () => onContinue(),
+            child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                Text(
-                  offer.explanation,
-                  style: theme.textTheme.bodySmall?.copyWith(
-                    color: colors.onSecondaryContainer,
+                const Icon(FluentIcons.contact, size: 18),
+                const SizedBox(width: 8),
+                Flexible(
+                  child: Text(
+                    offer.actionLabel,
+                    overflow: TextOverflow.ellipsis,
                   ),
-                ),
-                const SizedBox(height: OrbiTheme.space8),
-                OutlinedButton.icon(
-                  key: const Key('continue-offered-session'),
-                  onPressed: () => onContinue(),
-                  icon: const Icon(Icons.person_outline, size: 18),
-                  label: Text(offer.actionLabel),
                 ),
               ],
             ),

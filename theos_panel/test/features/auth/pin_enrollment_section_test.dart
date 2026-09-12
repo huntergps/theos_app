@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:fluent_ui/fluent_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:orbi_runtime/orbi_runtime.dart';
@@ -55,8 +55,10 @@ Future<void> _pump(
         ),
         sharedPreferencesProvider.overrideWithValue(preferences),
       ],
-      child: const MaterialApp(
-        home: Scaffold(body: SingleChildScrollView(child: PinEnrollmentSection())),
+      child: const FluentApp(
+        home: ScaffoldPage(
+          content: SingleChildScrollView(child: PinEnrollmentSection()),
+        ),
       ),
     ),
   );
@@ -119,6 +121,10 @@ void main() {
       );
       await tester.tap(find.byKey(const Key('pin-enroll-submit')));
       await tester.pump();
+      // Fluent's Button (HoverButton) schedules a 100ms Timer on tap-up to
+      // reset its own pressed visual state; flush it so the test does not
+      // end with a pending Timer.
+      await tester.pump(const Duration(milliseconds: 100));
 
       expect(find.byKey(const Key('pin-enroll-error')), findsOneWidget);
       expect(PinCredentialStore(preferences).isEnrolled(_scopeKey), isFalse);
@@ -137,6 +143,7 @@ void main() {
 
       await tester.tap(find.byKey(const Key('pin-enroll-change-button')));
       await tester.pump();
+      await tester.pump(const Duration(milliseconds: 100));
       expect(find.byKey(const Key('pin-enroll-new-field')), findsOneWidget);
     },
   );

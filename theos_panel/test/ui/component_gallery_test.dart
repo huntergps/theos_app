@@ -1,9 +1,11 @@
-import 'package:flutter/material.dart';
+import 'package:fluent_ui/fluent_ui.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:reactive_forms/reactive_forms.dart';
 
-import 'package:theos_panel/app/theme/orbi_theme.dart';
+import 'package:theos_panel/ui/fluent/orbi_fluent_theme.dart';
+
 import '../../dev/component_gallery.dart';
+
 import 'package:theos_panel/ui/layouts/orbi_adaptive_layout.dart';
 
 void main() {
@@ -12,7 +14,9 @@ void main() {
       data: const MediaQueryData(textScaler: TextScaler.linear(2)),
       child: const ComponentGallery(),
     );
-    await tester.pumpWidget(MaterialApp(theme: OrbiTheme.dark, home: media));
+    await tester.pumpWidget(
+      FluentApp(theme: OrbiFluentTheme.dark, home: media),
+    );
     expect(find.bySemanticsLabel('Logo de Orbi ERP'), findsOneWidget);
     final field = find.byType(ReactiveTextField<String>);
     expect(find.text('Cliente ficticio'), findsOneWidget);

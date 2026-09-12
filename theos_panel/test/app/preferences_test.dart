@@ -6,9 +6,20 @@ void main() {
   test('preferences persist and remain isolated by scope', () async {
     SharedPreferences.setMockInitialValues({});
     final prefs = await SharedPreferences.getInstance();
-    final a = AppPreferencesStore(preferences: prefs, scope: const PreferencesScope(appId: 'panel', scopeKey: 'a'));
-    final b = AppPreferencesStore(preferences: prefs, scope: const PreferencesScope(appId: 'panel', scopeKey: 'b'));
-    await a.save(const AppPreferencesSnapshot(themeMode: PreferenceThemeMode.dark, syncRetries: 5));
+    final a = AppPreferencesStore(
+      preferences: prefs,
+      scope: const PreferencesScope(appId: 'panel', scopeKey: 'a'),
+    );
+    final b = AppPreferencesStore(
+      preferences: prefs,
+      scope: const PreferencesScope(appId: 'panel', scopeKey: 'b'),
+    );
+    await a.save(
+      const AppPreferencesSnapshot(
+        themeMode: PreferenceThemeMode.dark,
+        syncRetries: 5,
+      ),
+    );
     expect((await a.load()).themeMode, PreferenceThemeMode.dark);
     expect((await b.load()).themeMode, PreferenceThemeMode.system);
   });

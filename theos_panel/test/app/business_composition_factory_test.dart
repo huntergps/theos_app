@@ -66,9 +66,8 @@ void main() {
       var databaseNumber = 0;
       final runtime = SessionRuntime(
         databaseOwner: RuntimeDatabaseOwner(
-          factory: (_) => databaseNumber++ == 0
-              ? _ScopeADatabase()
-              : _ScopeBDatabase(),
+          factory: (_) =>
+              databaseNumber++ == 0 ? _ScopeADatabase() : _ScopeBDatabase(),
         ),
       );
       final factory = OrbiBusinessCompositionFactory(
@@ -139,9 +138,7 @@ void main() {
     () async {
       final scope = _scope('https://online.example');
       final runtime = SessionRuntime(
-        databaseOwner: RuntimeDatabaseOwner(
-          factory: (_) => _ScopeADatabase(),
-        ),
+        databaseOwner: RuntimeDatabaseOwner(factory: (_) => _ScopeADatabase()),
       );
       final factory = OrbiBusinessCompositionFactory(
         approvalBuilder: (_, _, _) => _Approval(),

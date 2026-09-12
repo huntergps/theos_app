@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:orbi_runtime/orbi_runtime.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:theos_panel/app/preferences/app_preferences.dart';
-import 'package:theos_panel/app/theme/orbi_theme.dart';
+import 'package:theos_panel/ui/fluent/orbi_fluent_theme.dart';
 
 void main() {
   test('preferences survive recreation and stay isolated by scope', () async {
@@ -36,8 +36,13 @@ void main() {
       textScale: 1.15,
     );
     expect(snapshot.appThemeMode, ThemeMode.dark);
-    final theme = OrbiTheme.fromSeed(const Color(0xFF6750A4), Brightness.dark);
-    expect(theme.colorScheme.primary, isNotNull);
+    // El tema ya no lo arma `OrbiTheme`, que sólo guarda la marca y las
+    // medidas: lo deriva `OrbiFluentTheme` a partir del color elegido.
+    final theme = OrbiFluentTheme.fromSeed(
+      const Color(0xFF6750A4),
+      Brightness.dark,
+    );
+    expect(theme.accentColor.normal, isNotNull);
     expect(snapshot.textScale, 1.15);
   });
 

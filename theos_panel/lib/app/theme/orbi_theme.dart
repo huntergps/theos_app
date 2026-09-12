@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:flutter/widgets.dart';
 
 abstract final class OrbiTheme {
   /// El color de marca, **coordinado con Odoo y no elegido aquí**.
@@ -24,66 +24,10 @@ abstract final class OrbiTheme {
   static const space24 = 24.0;
   static const space32 = 32.0;
 
-  static ThemeData get light => fromSeed(brand, Brightness.light);
-  static ThemeData get dark => fromSeed(brand, Brightness.dark);
-
-  static ThemeData fromSeed(
-    Color seedColor,
-    Brightness brightness, {
-    VisualDensity visualDensity = VisualDensity.standard,
-  }) => _build(brightness, seedColor, visualDensity);
-
-  static ThemeData _build(
-    Brightness brightness,
-    Color seedColor,
-    VisualDensity visualDensity,
-  ) {
-    final scheme = ColorScheme.fromSeed(
-      seedColor: seedColor,
-      brightness: brightness,
-    );
-    return ThemeData(
-      colorScheme: scheme,
-      useMaterial3: true,
-      visualDensity: visualDensity,
-      scaffoldBackgroundColor: scheme.surface,
-      // Shared operational hierarchy: platform defaults must not center titles
-      // on macOS while the approved desktop/tablet layout is left aligned.
-      appBarTheme: const AppBarTheme(centerTitle: false, elevation: 0),
-      textTheme: const TextTheme(
-        bodyLarge: TextStyle(fontSize: 16),
-        bodyMedium: TextStyle(fontSize: 14),
-        labelLarge: TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
-      ),
-      inputDecorationTheme: const InputDecorationTheme(
-        border: OutlineInputBorder(
-          borderRadius: BorderRadius.all(Radius.circular(8)),
-        ),
-        contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-        helperMaxLines: 3,
-        errorMaxLines: 3,
-      ),
-      filledButtonTheme: FilledButtonThemeData(
-        style: ButtonStyle(
-          minimumSize: WidgetStatePropertyAll(Size(48, 48)),
-          padding: WidgetStatePropertyAll(EdgeInsets.symmetric(horizontal: 16)),
-          shape: WidgetStatePropertyAll(
-            RoundedRectangleBorder(
-              borderRadius: BorderRadius.all(Radius.circular(8)),
-            ),
-          ),
-        ),
-      ),
-      outlinedButtonTheme: OutlinedButtonThemeData(
-        style: ButtonStyle(
-          minimumSize: WidgetStatePropertyAll(Size(48, 48)),
-          shape: WidgetStatePropertyAll(
-            RoundedRectangleBorder(
-              borderRadius: BorderRadius.all(Radius.circular(8)),
-            ),
-          ),
-        ),
-      ),
-    );
-  }
+  // 🔴 Aquí vivía el tema de Material entero: unas cien líneas construyendo
+  // `ThemeData` con su esquema de color, su densidad y sus estilos de barra y
+  // de tarjeta. **Ya no lo usa nadie**: la raíz es `FluentApp` y el tema lo
+  // arma `OrbiFluentTheme` a partir de esta misma marca. Se borra en vez de
+  // dejarlo por si acaso, que es como se acumula el código muerto que el
+  // dueño no quiere volver a tener.
 }

@@ -1,7 +1,7 @@
 import 'dart:async';
 import 'dart:math';
 
-import 'package:flutter/material.dart';
+import 'package:fluent_ui/fluent_ui.dart';
 import 'package:odoo_sdk/odoo_sdk.dart';
 
 import '../../app/theme/orbi_theme.dart';
@@ -229,13 +229,13 @@ class _ServerManagerDialogState extends State<_ServerManagerDialog> {
     if (!_hasChanges) return true;
     return await showDialog<bool>(
           context: context,
-          builder: (context) => AlertDialog(
+          builder: (context) => ContentDialog(
             title: const Text('¿Descartar cambios?'),
             content: const Text(
               'Hay cambios sin guardar. ¿Quieres descartarlos?',
             ),
             actions: [
-              TextButton(
+              HyperlinkButton(
                 onPressed: () => Navigator.pop(context, false),
                 child: const Text('Seguir editando'),
               ),
@@ -322,13 +322,13 @@ class _ServerManagerDialogState extends State<_ServerManagerDialog> {
     if (server == null) return;
     final confirmed = await showDialog<bool>(
       context: context,
-      builder: (context) => AlertDialog(
+      builder: (context) => ContentDialog(
         title: const Text('¿Eliminar servidor?'),
         content: const Text(
           'Sólo elimina el acceso guardado, no los datos de Odoo ni las operaciones locales.',
         ),
         actions: [
-          TextButton(
+          HyperlinkButton(
             onPressed: () => Navigator.pop(context, false),
             child: const Text('Cancelar'),
           ),
@@ -374,69 +374,83 @@ class _ServerManagerDialogState extends State<_ServerManagerDialog> {
   }
 
   @override
-  Widget build(BuildContext context) => Dialog(
-    insetPadding: MediaQuery.sizeOf(context).width < OrbiTheme.compactBreakpoint
-        ? EdgeInsets.zero
-        : const EdgeInsets.all(OrbiTheme.space16),
-    child: LayoutBuilder(
-      builder: (context, constraints) {
-        final compact = constraints.maxWidth < OrbiTheme.compactBreakpoint;
-        return ConstrainedBox(
-          constraints: BoxConstraints(
-            maxWidth: 900,
-            maxHeight: compact ? MediaQuery.sizeOf(context).height : 720,
-          ),
-          child: Padding(
-            padding: const EdgeInsets.all(OrbiTheme.space24),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    Expanded(
-                      child: Text(
-                        'Servidores Odoo',
-                        style: Theme.of(context).textTheme.headlineSmall,
-                      ),
-                    ),
-                    IconButton(
-                      onPressed: _busy
-                          ? null
-                          : () async {
-                              final navigator = Navigator.of(context);
-                              if (!await _confirmDiscard() || !mounted) return;
-                              navigator.pop();
-                            },
-                      icon: const Icon(Icons.close),
-                      tooltip: 'Cerrar',
-                    ),
-                  ],
-                ),
-                if (_loadError != null) _message(_loadError!, true),
-                const SizedBox(height: OrbiTheme.space12),
-                Expanded(child: compact ? _compactLayout() : _wideLayout()),
-              ],
+  Widget build(BuildContext context) => Align(
+    alignment: Alignment.center,
+    child: Padding(
+      padding: MediaQuery.sizeOf(context).width < OrbiTheme.compactBreakpoint
+          ? EdgeInsets.zero
+          : const EdgeInsets.all(OrbiTheme.space16),
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final compact = constraints.maxWidth < OrbiTheme.compactBreakpoint;
+          return ConstrainedBox(
+            constraints: BoxConstraints(
+              maxWidth: 900,
+              maxHeight: compact ? MediaQuery.sizeOf(context).height : 720,
             ),
-          ),
-        );
-      },
+            child: Card(
+              padding: const EdgeInsets.all(OrbiTheme.space24),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          'Servidores Odoo',
+                          style: FluentTheme.of(context).typography.title,
+                        ),
+                      ),
+                      Tooltip(
+                        message: 'Cerrar',
+                        child: IconButton(
+                          key: const ValueKey('server_manager_close'),
+                          onPressed: _busy
+                              ? null
+                              : () async {
+                                  final navigator = Navigator.of(context);
+                                  if (!await _confirmDiscard() || !mounted) {
+                                    return;
+                                  }
+                                  navigator.pop();
+                                },
+                          icon: const Icon(FluentIcons.chrome_close),
+                        ),
+                      ),
+                    ],
+                  ),
+                  if (_loadError != null) _message(_loadError!, true),
+                  const SizedBox(height: OrbiTheme.space12),
+                  Expanded(child: compact ? _compactLayout() : _wideLayout()),
+                ],
+              ),
+            ),
+          );
+        },
+      ),
     ),
   );
 
-  Widget _message(String message, bool error) => Container(
-    width: double.infinity,
-    padding: const EdgeInsets.all(OrbiTheme.space12),
-    color: (error
-        ? Theme.of(context).colorScheme.errorContainer
-        : Theme.of(context).colorScheme.surfaceContainerHighest),
-    child: Text(message),
-  );
+  Widget _message(String message, bool error) {
+    final resources = FluentTheme.of(context).resources;
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(OrbiTheme.space12),
+      color: error
+          ? resources.systemFillColorCriticalBackground
+          : resources.subtleFillColorSecondary,
+      child: Text(message),
+    );
+  }
 
   Widget _wideLayout() => Row(
     crossAxisAlignment: CrossAxisAlignment.stretch,
     children: [
       SizedBox(width: 280, child: _serverList()),
-      const VerticalDivider(width: OrbiTheme.space24),
+      const Padding(
+        padding: EdgeInsets.symmetric(horizontal: OrbiTheme.space12),
+        child: Divider(direction: Axis.vertical),
+      ),
       Expanded(child: _editor()),
     ],
   );
@@ -459,24 +473,26 @@ class _ServerManagerDialogState extends State<_ServerManagerDialog> {
           Expanded(
             child: Text(
               'Accesos guardados (${_servers.length})',
-              style: Theme.of(context).textTheme.titleMedium,
+              style: FluentTheme.of(context).typography.subtitle,
             ),
           ),
-          IconButton(
-            key: const ValueKey('new_server'),
-            onPressed: _busy ? null : _newServer,
-            icon: const Icon(Icons.add),
-            tooltip: 'Nuevo servidor',
+          Tooltip(
+            message: 'Nuevo servidor',
+            child: IconButton(
+              key: const ValueKey('new_server'),
+              onPressed: _busy ? null : _newServer,
+              icon: const Icon(FluentIcons.add),
+            ),
           ),
         ],
       ),
-      TextField(
+      TextBox(
         key: const ValueKey('server_search'),
         controller: _search,
-        decoration: const InputDecoration(
-          labelText: 'Buscar',
-          prefixIcon: Icon(Icons.search),
-          isDense: true,
+        placeholder: 'Buscar',
+        prefix: const Padding(
+          padding: EdgeInsets.symmetric(horizontal: OrbiTheme.space8),
+          child: Icon(FluentIcons.search, size: 16),
         ),
       ),
       const SizedBox(height: OrbiTheme.space8),
@@ -487,9 +503,9 @@ class _ServerManagerDialogState extends State<_ServerManagerDialog> {
                 itemCount: _filtered.length,
                 itemBuilder: (context, index) {
                   final server = _filtered[index];
-                  return ListTile(
+                  return ListTile.selectable(
                     selected: server.id == _selectedId,
-                    onTap: _busy ? null : () => _selectWithGuard(server),
+                    onPressed: _busy ? null : () => _selectWithGuard(server),
                     title: Text(
                       server.name,
                       maxLines: 1,
@@ -519,48 +535,47 @@ class _ServerManagerDialogState extends State<_ServerManagerDialog> {
             child: SizedBox(
               width: 16,
               height: 16,
-              child: CircularProgressIndicator(strokeWidth: 2),
+              child: ProgressRing(strokeWidth: 2),
             ),
           )
         : null;
     final databases = _discoveredDatabases;
     final showDropdown =
         databases != null && databases.length > 1 && !_manualDatabaseEntry;
+    final caption = FluentTheme.of(context).typography.caption;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        if (showDropdown)
-          DropdownButtonFormField<String>(
-            key: const ValueKey('server_database_dropdown'),
-            initialValue: databases.contains(_database.text)
-                ? _database.text
-                : null,
-            items: databases
-                .map((db) => DropdownMenuItem(value: db, child: Text(db)))
-                .toList(),
-            onChanged: _busy
-                ? null
-                : (value) => setState(() => _database.text = value ?? ''),
-            decoration: InputDecoration(
-              labelText: 'Base de datos',
-              suffixIcon: suffix,
-            ),
-          )
-        else
-          TextField(
-            key: const ValueKey('server_database'),
-            controller: _database,
-            enabled: !_busy,
-            decoration: InputDecoration(
-              labelText: 'Base de datos',
-              suffixIcon: suffix,
-            ),
-          ),
+        InfoLabel(
+          label: 'Base de datos',
+          child: showDropdown
+              ? ComboBox<String>(
+                  key: const ValueKey('server_database_dropdown'),
+                  value: databases.contains(_database.text)
+                      ? _database.text
+                      : null,
+                  isExpanded: true,
+                  items: [
+                    for (final db in databases)
+                      ComboBoxItem(value: db, child: Text(db)),
+                  ],
+                  onChanged: _busy
+                      ? null
+                      : (value) =>
+                            setState(() => _database.text = value ?? ''),
+                )
+              : TextBox(
+                  key: const ValueKey('server_database'),
+                  controller: _database,
+                  enabled: !_busy,
+                  suffix: suffix,
+                ),
+        ),
         if (showDropdown)
           Align(
             alignment: Alignment.centerRight,
-            child: TextButton(
+            child: HyperlinkButton(
               key: const ValueKey('database_manual_entry'),
               onPressed: _busy
                   ? null
@@ -574,9 +589,7 @@ class _ServerManagerDialogState extends State<_ServerManagerDialog> {
             child: Text(
               _discoveryNotice!,
               key: const ValueKey('database_discovery_notice'),
-              style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                color: Theme.of(context).colorScheme.onSurfaceVariant,
-              ),
+              style: caption,
             ),
           )
         else if (!showDropdown && databases != null && databases.length == 1)
@@ -584,9 +597,7 @@ class _ServerManagerDialogState extends State<_ServerManagerDialog> {
             padding: const EdgeInsets.only(top: OrbiTheme.space4),
             child: Text(
               'Se detectó una sola base de datos y fue seleccionada.',
-              style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                color: Theme.of(context).colorScheme.onSurfaceVariant,
-              ),
+              style: caption,
             ),
           ),
       ],
@@ -601,7 +612,7 @@ class _ServerManagerDialogState extends State<_ServerManagerDialog> {
         children: [
           Text(
             _creating ? 'Nuevo servidor' : 'Editar servidor',
-            style: Theme.of(context).textTheme.titleLarge,
+            style: FluentTheme.of(context).typography.titleLarge,
           ),
           const SizedBox(height: OrbiTheme.space8),
           Text(
@@ -610,25 +621,25 @@ class _ServerManagerDialogState extends State<_ServerManagerDialog> {
                 : 'Actualiza los datos de este acceso guardado.',
           ),
           const SizedBox(height: OrbiTheme.space16),
-          TextField(
-            key: const ValueKey('server_name'),
-            controller: _name,
-            enabled: !_busy,
-            textInputAction: TextInputAction.next,
-            decoration: const InputDecoration(
-              labelText: 'Nombre del servidor',
-              hintText: 'Producción',
+          InfoLabel(
+            label: 'Nombre del servidor',
+            child: TextBox(
+              key: const ValueKey('server_name'),
+              controller: _name,
+              enabled: !_busy,
+              textInputAction: TextInputAction.next,
+              placeholder: 'Producción',
             ),
           ),
           const SizedBox(height: OrbiTheme.space12),
-          TextField(
-            key: const ValueKey('server_url'),
-            controller: _url,
-            enabled: !_busy,
-            keyboardType: TextInputType.url,
-            decoration: const InputDecoration(
-              labelText: 'URL de Odoo',
-              hintText: 'https://odoo.ejemplo.com',
+          InfoLabel(
+            label: 'URL de Odoo',
+            child: TextBox(
+              key: const ValueKey('server_url'),
+              controller: _url,
+              enabled: !_busy,
+              keyboardType: TextInputType.url,
+              placeholder: 'https://odoo.ejemplo.com',
             ),
           ),
           const SizedBox(height: OrbiTheme.space12),
@@ -642,13 +653,19 @@ class _ServerManagerDialogState extends State<_ServerManagerDialog> {
             spacing: OrbiTheme.space8,
             runSpacing: OrbiTheme.space8,
             children: [
-              FilledButton.icon(
+              FilledButton(
                 key: const ValueKey('save_server'),
                 onPressed: _busy ? null : _save,
-                icon: const Icon(Icons.save_outlined),
-                label: const Text('Guardar'),
+                child: const Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(FluentIcons.save, size: 16),
+                    SizedBox(width: 8),
+                    Text('Guardar'),
+                  ],
+                ),
               ),
-              OutlinedButton.icon(
+              OutlinedButton(
                 key: const ValueKey('use_server'),
                 onPressed: _busy || _selectedId == null
                     ? null
@@ -660,14 +677,26 @@ class _ServerManagerDialogState extends State<_ServerManagerDialog> {
                           );
                         }
                       },
-                icon: const Icon(Icons.login),
-                label: const Text('Usar servidor'),
+                child: const Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(FluentIcons.signin, size: 16),
+                    SizedBox(width: 8),
+                    Text('Usar servidor'),
+                  ],
+                ),
               ),
               if (!_creating)
-                TextButton.icon(
+                HyperlinkButton(
                   onPressed: _busy ? null : _remove,
-                  icon: const Icon(Icons.delete_outline),
-                  label: const Text('Borrar'),
+                  child: const Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(FluentIcons.delete, size: 16),
+                      SizedBox(width: 8),
+                      Text('Borrar'),
+                    ],
+                  ),
                 ),
             ],
           ),

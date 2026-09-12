@@ -1,19 +1,21 @@
 import 'dart:convert';
 
-import 'package:flutter/material.dart';
+import 'package:fluent_ui/fluent_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:orbi_runtime/orbi_runtime.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:theos_panel/app/orbi_splash_screen.dart';
 import 'package:theos_panel/app/preferences/app_preferences.dart';
-import 'package:theos_panel/app/theme/orbi_theme.dart';
+import 'package:theos_panel/ui/fluent/orbi_fluent_theme.dart';
 import 'package:theos_panel/features/auth/auth_controller.dart';
 import 'package:odoo_sdk/odoo_sdk.dart';
 import 'package:theos_panel/features/auth/login_failure_messages.dart';
 import 'package:theos_panel/features/auth/login_preferences.dart';
 import 'package:theos_panel/features/auth/login_screen.dart';
 import 'package:theos_panel/features/auth/saved_servers.dart';
+import 'package:theos_panel/ui/components/copyable_message.dart';
+import 'package:theos_panel/ui/components/orbi_brand.dart';
 
 final class _VisualAuthService implements AuthServicePort {
   const _VisualAuthService({this.profile, this.result});
@@ -55,55 +57,55 @@ Future<Widget> _loginHarness({AuthServiceResult? result}) async {
       authServiceProvider.overrideWithValue(_VisualAuthService(result: result)),
       sharedPreferencesProvider.overrideWithValue(preferences),
     ],
-    child: MaterialApp(theme: OrbiTheme.light, home: const LoginScreen()),
+    child: FluentApp(theme: OrbiFluentTheme.light, home: const LoginScreen()),
   );
 }
 
 void main() {
-  test('login overlay keeps minimum contrast in both color schemes', () {
+  test('login overlay keeps minimum contrast against the real backdrop veil', () {
+    // orbiPhotoInk is the ACTUAL color the branding pane and the pin login
+    // screen paint over the photo, regardless of theme (see orbi_brand.dart:
+    // "Photo foreground is intentionally independent of the form's theme").
+    // The veil composited underneath it is the ACTUAL one OrbiAuthBackdrop
+    // paints — `Color(0x52FFFFFF)`, "one uniform veil: no breakpoint-specific
+    // or theme-specific gradients" — not a hand-picked stand-in: there used
+    // to be a separate, unused `loginBrandOverlayColor` inventing its own
+    // veil for this same photo, which nothing ever actually painted with.
+    const realBackdropVeil = Color(0x52FFFFFF);
     const representativeImageTones = [Color(0xFF526052), Color(0xFF858C85)];
-    for (final theme in [OrbiTheme.light, OrbiTheme.dark]) {
-      final overlay = loginBrandOverlayColor(theme.colorScheme, .46);
-      for (final imageTone in representativeImageTones) {
-        final composited = Color.alphaBlend(overlay, imageTone);
-        expect(
-          loginOverlayContrastRatio(theme.colorScheme.onPrimary, composited),
-          greaterThanOrEqualTo(3),
-          reason:
-              'Login branding text must remain readable in ${theme.brightness}.',
-        );
-      }
+    for (final imageTone in representativeImageTones) {
+      final composited = Color.alphaBlend(realBackdropVeil, imageTone);
+      expect(
+        loginOverlayContrastRatio(orbiPhotoInk, composited),
+        greaterThanOrEqualTo(3),
+        reason: 'Login branding text must remain readable over the photo.',
+      );
     }
   });
 
-  test('the failure panel stays readable in both color schemes', () {
+  test('the failure panel stays readable in both themes', () {
     // The owner's complaint was that errors "se ven simples" — one line of
     // red text. The replacement is a tinted panel, and a tinted panel is only
     // an improvement if its text still reads: red-on-red at 2:1 would be
     // worse than the plain line it replaced. Both severity tones are checked
-    // against WCAG AA for body text (4.5:1), in light and dark.
-    for (final theme in [OrbiTheme.light, OrbiTheme.dark]) {
-      final colors = theme.colorScheme;
-      final tones = {
-        NotificationSeverity.error: (
-          colors.onErrorContainer,
-          colors.errorContainer,
-        ),
-        NotificationSeverity.attention: (
-          colors.onSecondaryContainer,
-          colors.secondaryContainer,
-        ),
-      };
-      tones.forEach((severity, pair) {
-        final (foreground, background) = pair;
+    // against WCAG AA for body text (4.5:1), in light and dark — using the
+    // SAME orbiMessageTones() the real panel paints with, opaque-blended
+    // resources and all (see copyable_message.dart's own doc on why raw
+    // resources can't be compared directly).
+    for (final theme in [OrbiFluentTheme.light, OrbiFluentTheme.dark]) {
+      for (final severity in [
+        OrbiMessageSeverity.error,
+        OrbiMessageSeverity.warning,
+      ]) {
+        final tones = orbiMessageTones(theme, severity);
         expect(
-          loginOverlayContrastRatio(foreground, background),
+          loginOverlayContrastRatio(tones.foreground, tones.background),
           greaterThanOrEqualTo(4.5),
           reason:
               'The ${severity.name} failure panel is unreadable in '
               '${theme.brightness}.',
         );
-      });
+      }
     }
   });
 
@@ -111,11 +113,15 @@ void main() {
     // "Revisa tu wifi" and "pide a tu administrador que revise tus permisos"
     // are not the same kind of event, and the panel is the only place the
     // difference shows before the person reads a word.
-    for (final theme in [OrbiTheme.light, OrbiTheme.dark]) {
-      final colors = theme.colorScheme;
+    for (final theme in [OrbiFluentTheme.light, OrbiFluentTheme.dark]) {
+      final errorTones = orbiMessageTones(theme, OrbiMessageSeverity.error);
+      final warningTones = orbiMessageTones(
+        theme,
+        OrbiMessageSeverity.warning,
+      );
       expect(
-        colors.errorContainer,
-        isNot(colors.secondaryContainer),
+        errorTones.background,
+        isNot(warningTones.background),
         reason:
             'Both failure tones paint the same background in '
             '${theme.brightness}: the severity scale is decorative only.',
@@ -153,7 +159,7 @@ void main() {
             ),
           ),
         ],
-        child: MaterialApp(theme: OrbiTheme.light, home: const LoginScreen()),
+        child: FluentApp(theme: OrbiFluentTheme.light, home: const LoginScreen()),
       ),
     );
     await tester.pumpAndSettle();
@@ -165,9 +171,9 @@ void main() {
     expect(size.height, greaterThan(48));
     expect(
       size.width,
-      greaterThan(tester.getSize(find.byType(TextField).first).width * .9),
+      greaterThan(tester.getSize(find.byType(TextBox).first).width * .9),
     );
-    expect(find.byIcon(Icons.error_outline), findsOneWidget);
+    expect(find.byIcon(FluentIcons.status_error_full), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
 
@@ -188,7 +194,7 @@ void main() {
     expect(find.byKey(const Key('save-credential-toggle')), findsOneWidget);
     // Usuario + Contraseña only: the server selector is a dropdown, not a
     // TextField, and the database has no field anywhere in this form.
-    expect(find.byType(TextField), findsNWidgets(2));
+    expect(find.byType(TextBox), findsNWidgets(2));
     final button = find.widgetWithText(FilledButton, 'Iniciar sesión');
     await tester.ensureVisible(button);
     expect(tester.getTopLeft(button).dy, lessThan(844));
@@ -226,21 +232,21 @@ void main() {
       find.text('Trabaja con tu equipo desde un solo lugar.'),
       findsOneWidget,
     );
-    expect(find.byType(TextField), findsNWidgets(2));
+    expect(find.byType(TextBox), findsNWidgets(2));
   });
 
   testWidgets('splash is branded and reports its loading state', (
     tester,
   ) async {
     await tester.pumpWidget(
-      MaterialApp(
-        theme: OrbiTheme.light,
+      FluentApp(
+        theme: OrbiFluentTheme.light,
         home: const OrbiSplashScreen(message: 'Restaurando sesión'),
       ),
     );
 
     expect(find.text('Restaurando sesión'), findsOneWidget);
-    expect(find.byType(CircularProgressIndicator), findsOneWidget);
+    expect(find.byType(ProgressRing), findsOneWidget);
     expect(find.bySemanticsLabel('Marca Orbi ERP'), findsOneWidget);
     expect(find.byKey(const Key('orbi-splash')), findsOneWidget);
   });
@@ -282,7 +288,7 @@ void main() {
           ),
           sharedPreferencesProvider.overrideWithValue(preferences),
         ],
-        child: MaterialApp(theme: OrbiTheme.light, home: const LoginScreen()),
+        child: FluentApp(theme: OrbiFluentTheme.light, home: const LoginScreen()),
       ),
     );
     await tester.pump();
@@ -292,7 +298,7 @@ void main() {
     expect(find.text('Entorno guardado'), findsOneWidget);
     expect(find.text('Base de datos'), findsNothing);
     expect(
-      tester.widget<TextField>(find.byType(TextField).first).controller?.text,
+      tester.widget<TextBox>(find.byType(TextBox).first).controller?.text,
       'saved_user',
     );
   });
@@ -316,15 +322,15 @@ void main() {
           authServiceProvider.overrideWithValue(const _VisualAuthService()),
           sharedPreferencesProvider.overrideWithValue(preferences),
         ],
-        child: MaterialApp(theme: OrbiTheme.light, home: const LoginScreen()),
+        child: FluentApp(theme: OrbiFluentTheme.light, home: const LoginScreen()),
       ),
     );
     await tester.pump();
-    await tester.tap(find.byType(DropdownButtonFormField<String>));
+    await tester.tap(find.byType(ComboBox<String>));
     await tester.pumpAndSettle();
     await tester.tap(find.text('Entorno guardado'));
     await tester.pumpAndSettle();
-    final fields = find.byType(TextField);
+    final fields = find.byType(TextBox);
     await tester.enterText(fields.at(0), 'saved_user');
     await tester.enterText(fields.at(1), 'do-not-persist');
     await tester.pump(const Duration(milliseconds: 450));
@@ -374,20 +380,24 @@ void main() {
           ),
           sharedPreferencesProvider.overrideWithValue(preferences),
         ],
-        child: MaterialApp(theme: OrbiTheme.light, home: const LoginScreen()),
+        child: FluentApp(theme: OrbiFluentTheme.light, home: const LoginScreen()),
       ),
     );
     await tester.pump();
-    await tester.tap(find.byType(DropdownButtonFormField<String>));
+    await tester.tap(find.byType(ComboBox<String>));
     await tester.pumpAndSettle();
     await tester.tap(find.text('Panel'));
     await tester.pumpAndSettle();
-    final fields = find.byType(TextField);
+    final fields = find.byType(TextBox);
     await tester.enterText(fields.at(0), 'seller');
     await tester.enterText(fields.at(1), 'not-persisted');
     await tester.ensureVisible(find.text('Iniciar sesión'));
     await tester.tap(find.text('Iniciar sesión'));
     await tester.pump();
+    // Fluent's Button (HoverButton) schedules a 100ms Timer on tap-up to
+    // reset its own pressed visual state; flush it so the test does not end
+    // with a pending Timer.
+    await tester.pump(const Duration(milliseconds: 100));
 
     final saved = LoginPreferencesStore(preferences).load();
     expect(saved.serverUrl, 'https://login.test');
@@ -435,7 +445,7 @@ void main() {
             ),
             sharedPreferencesProvider.overrideWithValue(preferences),
           ],
-          child: MaterialApp(theme: OrbiTheme.light, home: const LoginScreen()),
+          child: FluentApp(theme: OrbiFluentTheme.light, home: const LoginScreen()),
         ),
       );
       await tester.pump();
@@ -445,7 +455,7 @@ void main() {
       // must not leak into the Usuario field for this one.
       expect(find.text('Entorno guardado'), findsOneWidget);
       expect(
-        tester.widget<TextField>(find.byType(TextField).first).controller?.text,
+        tester.widget<TextBox>(find.byType(TextBox).first).controller?.text,
         isEmpty,
       );
     },

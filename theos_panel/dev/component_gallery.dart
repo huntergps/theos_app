@@ -1,8 +1,9 @@
-import 'package:flutter/material.dart';
+import 'package:fluent_ui/fluent_ui.dart';
 import 'package:reactive_forms/reactive_forms.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 
 import 'package:theos_panel/app/theme/orbi_theme.dart';
+import 'package:theos_panel/ui/fluent/orbi_fluent_theme.dart';
 import 'package:theos_panel/ui/components/orbi_components.dart';
 import 'package:theos_panel/ui/layouts/orbi_adaptive_layout.dart';
 
@@ -44,7 +45,8 @@ class _ComponentGalleryState extends State<ComponentGallery> {
                 width: 220,
                 height: 72,
                 colorFilter: ColorFilter.mode(
-                  Theme.of(context).colorScheme.onSurface,
+                  FluentTheme.of(context).typography.body?.color ??
+                      const Color(0xFF000000),
                   BlendMode.srcIn,
                 ),
               ),
@@ -63,12 +65,25 @@ class _ComponentGalleryState extends State<ComponentGallery> {
 
   Widget _content(BuildContext context, OrbiLayoutSize size) {
     final children = <Widget>[
-        OrbiActionCard(title: 'Órdenes pendientes', subtitle: '12 por revisar · dato ficticio', onPressed: () {}),
-        OrbiStatusChip(label: 'Offline · cola pendiente', icon: Icons.cloud_off_outlined),
-        OrbiReactiveTextField(control: _reactiveSearchControl, label: 'Buscar cliente'),
-        const OrbiEmptyState(title: 'Sin resultados', message: 'Prueba con otro nombre o limpia el filtro.'),
-        OrbiErrorState(message: 'No se pudo cargar el catálogo.', onRetry: () {}),
-      ];
+      OrbiActionCard(
+        title: 'Órdenes pendientes',
+        subtitle: '12 por revisar · dato ficticio',
+        onPressed: () {},
+      ),
+      OrbiStatusChip(
+        label: 'Offline · cola pendiente',
+        icon: FluentIcons.cloud_weather,
+      ),
+      OrbiReactiveTextField(
+        control: _reactiveSearchControl,
+        label: 'Buscar cliente',
+      ),
+      const OrbiEmptyState(
+        title: 'Sin resultados',
+        message: 'Prueba con otro nombre o limpia el filtro.',
+      ),
+      OrbiErrorState(message: 'No se pudo cargar el catálogo.', onRetry: () {}),
+    ];
     if (size == OrbiLayoutSize.wide) {
       return GridView.count(
         crossAxisCount: 2,
@@ -84,7 +99,8 @@ class _ComponentGalleryState extends State<ComponentGallery> {
       shrinkWrap: true,
       physics: const NeverScrollableScrollPhysics(),
       itemCount: children.length,
-      separatorBuilder: (context, index) => const SizedBox(height: OrbiTheme.space16),
+      separatorBuilder: (context, index) =>
+          const SizedBox(height: OrbiTheme.space16),
       itemBuilder: (context, index) => children[index],
     );
   }
@@ -96,5 +112,6 @@ class _GalleryApp extends StatelessWidget {
   const _GalleryApp();
 
   @override
-  Widget build(BuildContext context) => MaterialApp(theme: OrbiTheme.light, home: const ComponentGallery());
+  Widget build(BuildContext context) =>
+      FluentApp(theme: OrbiFluentTheme.light, home: const ComponentGallery());
 }

@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:fluent_ui/fluent_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:orbi_runtime/orbi_runtime.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -8,6 +8,7 @@ import 'package:theos_panel/app/orbi_app.dart';
 import 'package:theos_panel/app/bootstrap.dart';
 import 'package:theos_panel/app/orbi_splash_screen.dart';
 import 'package:theos_panel/app/theme/orbi_theme.dart';
+import 'package:theos_panel/ui/fluent/orbi_fluent_theme.dart';
 import 'package:theos_panel/app/preferences/app_preferences.dart';
 import 'package:theos_panel/app/session_composition.dart';
 import 'package:theos_panel/app/router.dart';
@@ -29,8 +30,8 @@ Future<void> main() async {
   runApp(
     BootstrapAnimatedContent(
       phaseKey: 'local-startup',
-      child: MaterialApp(
-        theme: OrbiTheme.light,
+      child: FluentApp(
+        theme: OrbiFluentTheme.light,
         home: const OrbiSplashScreen(),
       ),
     ),

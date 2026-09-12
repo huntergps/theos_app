@@ -1,6 +1,6 @@
 import 'dart:async';
 
-import 'package:flutter/material.dart';
+import 'package:fluent_ui/fluent_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:orbi_runtime/orbi_runtime.dart';
@@ -38,6 +38,7 @@ import '../features/activities/activity_center.dart';
 import '../features/reports/document_view.dart';
 import '../features/sync/network_signal_provider.dart';
 import '../ui/export/export_listing.dart';
+import '../ui/fluent/orbi_page.dart';
 import '../features/sync/sync_center.dart';
 import '../features/sync/sync_conflict_resolution_screen.dart';
 import '../ui/home_page.dart';
@@ -204,7 +205,7 @@ Future<void> confirmSwitchWorkspaceUser(
 ) async {
   final confirmed = await showDialog<bool>(
     context: context,
-    builder: (dialogContext) => AlertDialog(
+    builder: (dialogContext) => ContentDialog(
       title: const Text('Cambiar de usuario'),
       content: const Text(
         'Se cerrará tu acceso a Workspace. Tu borrador y tus operaciones '
@@ -213,7 +214,7 @@ Future<void> confirmSwitchWorkspaceUser(
         'entre después. ¿Deseas continuar?',
       ),
       actions: [
-        TextButton(
+        Button(
           onPressed: () => Navigator.of(dialogContext).pop(false),
           child: const Text('Cancelar'),
         ),
@@ -554,7 +555,10 @@ Widget _saleWorkspace(WidgetRef ref, SalePresentation presentation) {
     animation: workspace,
     builder: (context, _) {
       final controller = workspace.selectedController;
-      return Material(
+      // `Material` sólo estaba aquí para dar una superficie donde pintar. En
+      // Fluent la superficie la pone el tema, así que sobra un widget entero.
+      return ColoredBox(
+        color: FluentTheme.of(context).scaffoldBackgroundColor,
         child: SafeArea(
           child: Column(
             children: [
@@ -572,7 +576,7 @@ Widget _saleWorkspace(WidgetRef ref, SalePresentation presentation) {
                 child: controller == null
                     ? Center(
                         child: workspace.busy
-                            ? const CircularProgressIndicator()
+                            ? const ProgressRing()
                             : const Text(
                                 'Selecciona un borrador o crea una venta.',
                               ),
@@ -673,97 +677,97 @@ final orbiRouterProvider = Provider<GoRouter>((ref) {
                       const OperationalDestination(
                         label: 'Inicio',
                         path: '/',
-                        icon: Icons.home_outlined,
+                        icon: FluentIcons.home,
                         group: 'Workspace',
                       ),
                       const OperationalDestination(
                         label: 'Órdenes y cotizaciones',
                         path: '/sales',
-                        icon: Icons.receipt_long_outlined,
+                        icon: FluentIcons.script,
                         group: 'Ventas',
                       ),
                       const OperationalDestination(
                         label: 'Mostrador',
                         path: '/sales/counter',
-                        icon: Icons.point_of_sale_outlined,
+                        icon: FluentIcons.shop,
                         group: 'Ventas',
                       ),
                       const OperationalDestination(
                         label: 'Venta consultiva',
                         path: '/sales/consultive',
-                        icon: Icons.edit_note_outlined,
+                        icon: FluentIcons.edit_note,
                         group: 'Ventas',
                       ),
                       const OperationalDestination(
                         label: 'Clientes',
                         path: '/clients',
-                        icon: Icons.people_outline,
+                        icon: FluentIcons.people,
                         group: 'Ventas',
                       ),
                       const OperationalDestination(
                         label: 'Productos',
                         path: '/products',
-                        icon: Icons.inventory_2_outlined,
+                        icon: FluentIcons.product,
                         group: 'Ventas',
                       ),
                       const OperationalDestination(
                         label: 'Punto de cobro',
                         path: '/collection',
-                        icon: Icons.payments_outlined,
+                        icon: FluentIcons.payment_card,
                         group: 'Caja',
                       ),
                       const OperationalDestination(
                         label: 'Mi turno',
                         path: '/collection/hub',
-                        icon: Icons.lock_clock_outlined,
+                        icon: FluentIcons.date_time,
                         group: 'Caja',
                       ),
                       const OperationalDestination(
                         label: 'Operaciones de bodega',
                         path: '/warehouse',
-                        icon: Icons.warehouse_outlined,
+                        icon: FluentIcons.bank_solid,
                         group: 'Bodega',
                       ),
                       const OperationalDestination(
                         label: 'Existencias',
                         path: '/warehouse/existences',
-                        icon: Icons.inventory_outlined,
+                        icon: FluentIcons.package,
                         group: 'Bodega',
                       ),
                       const OperationalDestination(
                         label: 'Dashboard',
                         path: '/envases',
-                        icon: Icons.local_shipping_outlined,
+                        icon: FluentIcons.delivery_truck,
                         group: 'Envases',
                       ),
                       const OperationalDestination(
                         label: 'Solicitudes',
                         path: '/approvals',
-                        icon: Icons.fact_check_outlined,
+                        icon: FluentIcons.check_list,
                         group: 'Aprobaciones',
                       ),
                       const OperationalDestination(
                         label: 'Actividades',
                         path: '/activities',
-                        icon: Icons.event_note_outlined,
+                        icon: FluentIcons.calendar,
                         group: 'Sistema',
                       ),
                       const OperationalDestination(
                         label: 'Sincronización',
                         path: '/sync',
-                        icon: Icons.sync,
+                        icon: FluentIcons.sync,
                         group: 'Sistema',
                       ),
                       const OperationalDestination(
                         label: 'Avisos',
                         path: '/notifications',
-                        icon: Icons.notifications_outlined,
+                        icon: FluentIcons.ringer,
                         group: 'Sistema',
                       ),
                       const OperationalDestination(
                         label: 'Configuración',
                         path: '/settings',
-                        icon: Icons.settings_outlined,
+                        icon: FluentIcons.settings,
                         group: 'Sistema',
                       ),
                     ]
@@ -1055,7 +1059,7 @@ final orbiRouterProvider = Provider<GoRouter>((ref) {
                       CollectionHubAction(
                         label: 'Anticipo',
                         description: 'Registrar un anticipo del cliente contra la sesión.',
-                        icon: Icons.savings_outlined,
+                        icon: FluentIcons.money,
                         availability:
                             capabilities.supports(CollectionCapability.advances)
                             ? CollectionHubActionAvailability.available
@@ -1065,7 +1069,7 @@ final orbiRouterProvider = Provider<GoRouter>((ref) {
                       CollectionHubAction(
                         label: 'Depósito',
                         description: 'Registrar un depósito de la sesión.',
-                        icon: Icons.account_balance_outlined,
+                        icon: FluentIcons.bank,
                         availability:
                             capabilities.supports(CollectionCapability.deposits)
                             ? CollectionHubActionAvailability.available
@@ -1076,7 +1080,7 @@ final orbiRouterProvider = Provider<GoRouter>((ref) {
                         label: 'Salida de efectivo',
                         description:
                             'Registrar una salida de efectivo de la sesión.',
-                        icon: Icons.outbond_outlined,
+                        icon: FluentIcons.share,
                         availability:
                             capabilities.supports(CollectionCapability.cashOuts)
                             ? CollectionHubActionAvailability.available
@@ -1092,14 +1096,14 @@ final orbiRouterProvider = Provider<GoRouter>((ref) {
                         label: 'Registros del turno',
                         description:
                             'Órdenes, facturas y pagos de la sesión abierta.',
-                        icon: Icons.list_alt_outlined,
+                        icon: FluentIcons.bulleted_list,
                       ),
                     ],
                     closing: CollectionHubAction(
                       label: 'Ir a cierre',
                       description:
                           'Iniciar el control de cierre de la sesión actual.',
-                      icon: Icons.lock_clock_outlined,
+                      icon: FluentIcons.date_time,
                       onOpen: () => context.go('/collection'),
                     ),
                   ),
@@ -1181,9 +1185,9 @@ final orbiRouterProvider = Provider<GoRouter>((ref) {
                         ref.read(scopeActivityPortProvider)) ==
                     null
                 ? const NotConfiguredPage(title: 'Actividades')
-                : Scaffold(
-                    appBar: AppBar(title: const Text('Actividades')),
-                    body: ActivityCenterView(
+                : OrbiPage(
+                    title: 'Actividades',
+                    child: ActivityCenterView(
                       port:
                           composition.activities ??
                           ref.read(scopeActivityPortProvider)!,
@@ -1214,13 +1218,13 @@ final orbiRouterProvider = Provider<GoRouter>((ref) {
                         ),
                   ),
                 ],
-                child: Scaffold(
-                  appBar: AppBar(title: Text('Sincronización')),
-                  body: SyncCenterView(
+                child: OrbiPage(
+                  title: 'Sincronización',
+                  child: SyncCenterView(
                     onOpenConflicts: () {
                       final queue = operationsJob?.queue;
                       Navigator.of(context).push(
-                        MaterialPageRoute<void>(
+                        FluentPageRoute<void>(
                           builder: (_) => queue == null
                               ? const NotConfiguredPage(
                                   title: 'Resolver conflicto',
@@ -1272,9 +1276,9 @@ final orbiRouterProvider = Provider<GoRouter>((ref) {
                 overrides: [
                   notificationInboxPortProvider.overrideWithValue(port),
                 ],
-                child: Scaffold(
-                  appBar: AppBar(title: const Text('Avisos')),
-                  body: NotificationInboxView(
+                child: OrbiPage(
+                  title: 'Avisos',
+                  child: NotificationInboxView(
                     query: NotificationQueryKey(
                       scopeKey: active.scope.scopeKey,
                       partitionKey: partition,
@@ -1292,9 +1296,9 @@ final orbiRouterProvider = Provider<GoRouter>((ref) {
                         ref.read(scopeDocumentRenderPortProvider)) ==
                     null
                 ? const NotConfiguredPage(title: 'Documentos')
-                : Scaffold(
-                    appBar: AppBar(title: const Text('Documento')),
-                    body: DocumentView(
+                : OrbiPage(
+                    title: 'Documento',
+                    child: DocumentView(
                       port:
                           composition.documents ??
                           ref.read(scopeDocumentRenderPortProvider)!,

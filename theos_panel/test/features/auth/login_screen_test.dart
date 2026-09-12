@@ -1,6 +1,6 @@
 import 'dart:async';
 
-import 'package:flutter/material.dart';
+import 'package:fluent_ui/fluent_ui.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -13,8 +13,19 @@ import 'package:theos_panel/features/auth/login_screen.dart';
 import 'package:theos_panel/features/auth/session_provenance.dart';
 import 'package:theos_panel/features/auth/saved_servers.dart';
 import 'package:theos_panel/app/preferences/app_preferences.dart';
-import 'package:theos_panel/app/theme/orbi_theme.dart';
+import 'package:theos_panel/ui/fluent/orbi_fluent_theme.dart';
 import 'package:theos_panel/ui/components/orbi_brand.dart';
+
+/// Fluent's `IconButton` has no `tooltip` property of its own — the tooltip
+/// text lives on the ancestor `Tooltip` widget that wraps it (see
+/// login_screen.dart, `themeToggle`).
+String? _tooltipMessage(WidgetTester tester, Finder iconButtonFinder) {
+  final tooltipFinder = find.ancestor(
+    of: iconButtonFinder,
+    matching: find.byType(Tooltip),
+  );
+  return tester.widget<Tooltip>(tooltipFinder).message;
+}
 
 /// Sets BOTH the render-surface size AND the ambient view's physical size.
 ///
@@ -218,23 +229,23 @@ void main() {
             authServiceProvider.overrideWithValue(_ProfileService()),
             sharedPreferencesProvider.overrideWithValue(preferences!),
           ],
-          child: MaterialApp(theme: OrbiTheme.light, home: const LoginScreen()),
+          child: FluentApp(theme: OrbiFluentTheme.light, home: const LoginScreen()),
         ),
       );
       await tester.pumpAndSettle();
       // Type a secret BEFORE ever touching the selector — this must not
       // survive the environment switch below.
-      await tester.enterText(find.byType(TextField).at(1), 'old-secret');
+      await tester.enterText(find.byType(TextBox).at(1), 'old-secret');
       // The selector lives in the form itself: open it directly, no separate
       // "manage servers" dialog is involved in reaching a saved environment.
-      await tester.tap(find.byType(DropdownButtonFormField<String>));
+      await tester.tap(find.byType(ComboBox<String>));
       await tester.pumpAndSettle();
       expect(find.text(_kManageServersLabel), findsOneWidget);
       await tester.tap(find.text('Segundo entorno'));
       await tester.pumpAndSettle();
-      final fields = find.byType(TextField);
-      expect(tester.widget<TextField>(fields.at(0)).controller!.text, 'bob');
-      expect(tester.widget<TextField>(fields.at(1)).controller!.text, isEmpty);
+      final fields = find.byType(TextBox);
+      expect(tester.widget<TextBox>(fields.at(0)).controller!.text, 'bob');
+      expect(tester.widget<TextBox>(fields.at(1)).controller!.text, isEmpty);
       expect(tester.takeException(), isNull);
       await tester.pump(const Duration(seconds: 1));
     },
@@ -254,11 +265,11 @@ void main() {
             authServiceProvider.overrideWithValue(_ProfileService()),
             sharedPreferencesProvider.overrideWithValue(preferences),
           ],
-          child: MaterialApp(theme: OrbiTheme.light, home: const LoginScreen()),
+          child: FluentApp(theme: OrbiFluentTheme.light, home: const LoginScreen()),
         ),
       );
       await tester.pumpAndSettle();
-      final selector = find.byType(DropdownButtonFormField<String>);
+      final selector = find.byType(ComboBox<String>);
       expect(selector, findsOneWidget);
       expect(find.text('Ningún servidor guardado'), findsOneWidget);
       await tester.tap(selector);
@@ -317,14 +328,14 @@ void main() {
             authServiceProvider.overrideWithValue(_ProfileService()),
             sharedPreferencesProvider.overrideWithValue(preferences!),
           ],
-          child: MaterialApp(theme: OrbiTheme.light, home: const LoginScreen()),
+          child: FluentApp(theme: OrbiFluentTheme.light, home: const LoginScreen()),
         ),
       );
       await tester.pumpAndSettle();
       expect(find.text('Base de datos'), findsNothing);
       expect(find.textContaining('super_secret_db'), findsNothing);
-      expect(find.byType(TextField), findsNWidgets(2));
-      await tester.tap(find.byType(DropdownButtonFormField<String>));
+      expect(find.byType(TextBox), findsNWidgets(2));
+      await tester.tap(find.byType(ComboBox<String>));
       await tester.pumpAndSettle();
       await tester.tap(find.text('Entorno'));
       await tester.pumpAndSettle();
@@ -356,26 +367,30 @@ void main() {
             authServiceProvider.overrideWithValue(_ProfileService()),
             sharedPreferencesProvider.overrideWithValue(preferences!),
           ],
-          child: MaterialApp(
-            theme: ThemeData(useMaterial3: true),
+          child: FluentApp(
+            theme: OrbiFluentTheme.light,
             home: const LoginScreen(),
           ),
         ),
       );
       await tester.pump();
-      await tester.tap(find.byType(DropdownButtonFormField<String>));
+      await tester.tap(find.byType(ComboBox<String>));
       await tester.pumpAndSettle();
       // Selecting "Uno" starts the slow (40ms) lookup for alice…
       await tester.tap(find.text('Uno'));
       await tester.pump();
-      await tester.tap(find.byType(DropdownButtonFormField<String>));
+      await tester.tap(find.byType(ComboBox<String>));
       await tester.pumpAndSettle();
       // …then switching to "Dos" before that lookup resolves must win.
       await tester.tap(find.text('Dos'));
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 60));
-      final fields = find.byType(TextField);
-      expect(tester.widget<TextField>(fields.at(0)).controller?.text, 'bob');
+      // Fluent's Button/HoverButton machinery schedules a 100ms Timer on
+      // tap-up to reset its own pressed visual state; flush it so the test
+      // does not end with a pending Timer.
+      await tester.pump(const Duration(milliseconds: 100));
+      final fields = find.byType(TextBox);
+      expect(tester.widget<TextBox>(fields.at(0)).controller?.text, 'bob');
     },
   );
 
@@ -398,22 +413,22 @@ void main() {
           authServiceProvider.overrideWithValue(_ProfileService()),
           sharedPreferencesProvider.overrideWithValue(preferences!),
         ],
-        child: MaterialApp(home: const LoginScreen()),
+        child: FluentApp(home: const LoginScreen()),
       ),
     );
     await tester.pump();
     await tester.pumpAndSettle();
-    await tester.tap(find.byType(DropdownButtonFormField<String>));
+    await tester.tap(find.byType(ComboBox<String>));
     await tester.pumpAndSettle();
     await tester.tap(find.text('ERP de prueba'));
     await tester.pumpAndSettle();
     // Selecting an environment moves focus straight to "Usuario".
-    final fields = find.byType(TextField);
-    expect(tester.widget<TextField>(fields.at(0)).focusNode?.hasFocus, isTrue);
+    final fields = find.byType(TextBox);
+    expect(tester.widget<TextBox>(fields.at(0)).focusNode?.hasFocus, isTrue);
     await tester.enterText(fields.at(0), 'user');
     await tester.testTextInput.receiveAction(TextInputAction.next);
     await tester.pump();
-    expect(tester.widget<TextField>(fields.at(1)).focusNode?.hasFocus, isTrue);
+    expect(tester.widget<TextBox>(fields.at(1)).focusNode?.hasFocus, isTrue);
     await tester.testTextInput.receiveAction(TextInputAction.done);
     await tester.pump();
     expect(tester.takeException(), isNull);
@@ -439,15 +454,15 @@ void main() {
           authServiceProvider.overrideWithValue(service),
           sharedPreferencesProvider.overrideWithValue(preferences!),
         ],
-        child: MaterialApp(home: const LoginScreen()),
+        child: FluentApp(home: const LoginScreen()),
       ),
     );
     await tester.pump();
-    await tester.tap(find.byType(DropdownButtonFormField<String>));
+    await tester.tap(find.byType(ComboBox<String>));
     await tester.pumpAndSettle();
     await tester.tap(find.text('ERP'));
     await tester.pumpAndSettle();
-    final fields = find.byType(TextField);
+    final fields = find.byType(TextBox);
     await tester.enterText(fields.at(0), 'user');
     await tester.enterText(fields.at(1), 'secret');
     await tester.ensureVisible(find.text('Iniciar sesión'));
@@ -458,6 +473,11 @@ void main() {
       const AuthServiceResult(status: AuthServiceStatus.authenticated),
     );
     await tester.pump();
+    // The tap above left Fluent's Button/HoverButton machinery with its own
+    // 100ms tap-up Timer pending — it survives the unmount above (it only
+    // checks `mounted` before calling setState, it does not cancel itself).
+    // Flush it so the test does not end with a pending Timer.
+    await tester.pump(const Duration(milliseconds: 100));
     expect(tester.takeException(), isNull);
     expect(service.persisted, isFalse);
   });
@@ -472,7 +492,7 @@ void main() {
         Size(1024, 1366),
         Size(390, 844),
       ];
-      for (final theme in [OrbiTheme.light, OrbiTheme.dark]) {
+      for (final theme in [OrbiFluentTheme.light, OrbiFluentTheme.dark]) {
         for (final size in sizes) {
           await setLoginTestWindowSize(tester, size);
           await tester.pumpWidget(
@@ -480,13 +500,13 @@ void main() {
               overrides: [
                 authServiceProvider.overrideWithValue(_ProfileService()),
               ],
-              child: MaterialApp(theme: theme, home: const LoginScreen()),
+              child: FluentApp(theme: theme, home: const LoginScreen()),
             ),
           );
           await tester.pump();
           // Usuario + Contraseña only: the server selector is a dropdown,
           // not a TextField, and the database no longer has a field at all.
-          expect(find.byType(TextField), findsNWidgets(2));
+          expect(find.byType(TextBox), findsNWidgets(2));
           final background = tester.widget<Image>(find.byType(Image));
           expect(background.image, isA<AssetImage>());
           expect(
@@ -498,7 +518,7 @@ void main() {
             final brandingCenter = tester.getCenter(
               find.text('Ventas, caja y operaciones'),
             );
-            final formCenter = tester.getCenter(find.byType(TextField).first);
+            final formCenter = tester.getCenter(find.byType(TextBox).first);
             expect(brandingCenter.dx, lessThan(formCenter.dx));
           } else {
             // Portrait keeps the form compact and does not render the lateral
@@ -522,7 +542,7 @@ void main() {
     await tester.pumpWidget(
       ProviderScope(
         overrides: [authServiceProvider.overrideWithValue(_ProfileService())],
-        child: MaterialApp(theme: OrbiTheme.dark, home: const LoginScreen()),
+        child: FluentApp(theme: OrbiFluentTheme.dark, home: const LoginScreen()),
       ),
     );
     await tester.pump();
@@ -533,7 +553,7 @@ void main() {
     );
     expect(buttonFinder, findsOneWidget);
 
-    final screenHeight = tester.getSize(find.byType(MaterialApp)).height;
+    final screenHeight = tester.getSize(find.byType(FluentApp)).height;
     final buttonBottom = tester.getBottomLeft(buttonFinder).dy;
     final footerTop = tester
         .getTopLeft(find.byKey(const Key('login-credit-footer')))
@@ -564,14 +584,14 @@ void main() {
   Future<void> pumpLoginScreen(
     WidgetTester tester,
     Size windowSize, {
-    ThemeData? theme,
+    FluentThemeData? theme,
   }) async {
     await setLoginTestWindowSize(tester, windowSize);
     await tester.pumpWidget(
       ProviderScope(
         overrides: [authServiceProvider.overrideWithValue(_ProfileService())],
-        child: MaterialApp(
-          theme: theme ?? OrbiTheme.dark,
+        child: FluentApp(
+          theme: theme ?? OrbiFluentTheme.dark,
           home: const LoginScreen(),
         ),
       ),
@@ -580,28 +600,25 @@ void main() {
   }
 
   // The three cases below are the owner's own three screenshots — a short
-  // window (compact, fine), a medium one (normal styling picked, and normal
-  // did not fit — this is the one that was broken) and a tall one (normal,
-  // fine). See the "estimated layout-budget metrics" test below for exactly
-  // how the budget is measured, and login_screen.dart's
+  // window (compact, fine), a medium one (right at the boundary) and a tall
+  // one (normal, fine). See the "estimated layout-budget metrics" test below
+  // for exactly how the budget is measured, and login_screen.dart's
   // _estimateNormalModeContentHeight for the formula itself.
   //
-  // Dropping the database field and the standalone "manage servers" row (see
-  // that same function) lowered the real budget at this card width from
-  // ~918px to 684px, which moves the real compact/normal boundary at 700px
-  // width from ~918px of window height down to ~804px (there is a constant
-  // ~120px of footer+padding taken off the window height before comparing
-  // against that budget — see `availableForNormalMode`). CASE 2 used to sit
-  // at 700x850, deliberately between the OLD flat 720 threshold and the OLD
-  // ~918px real requirement; 850 is now comfortably ABOVE the new ~804px
-  // boundary, so normal styling genuinely fits there — that is a real
-  // improvement, not a regression, and asserting "must be compact" at 850
-  // would be asserting a stale number. The case is kept meaningful by moving
-  // it to 700x780: still above the old flat-720 threshold (so it would still
-  // have hit the original bug on the old code) and still below the new real
-  // boundary, so it continues to prove the same thing the flat threshold
-  // could not: that compact is chosen exactly when normal actually would not
-  // fit, not according to a guess.
+  // 🔴 Recalibrated 12-sep-2026 for the Fluent port. Every control this
+  // budget accounts for got noticeably shorter than its Material
+  // counterpart — a Fluent TextBox/ComboBox's own minimum height is 32
+  // against Material's 52, and a ToggleSwitch row is a fraction of a
+  // SwitchListTile's. That drops the real normal-mode budget at this card
+  // width (472px) from ~684px to ~588px, which moves the real compact/normal
+  // boundary at 700px window width down to ~708px of window height (there is
+  // a constant ~72px of footer+padding taken off the window height before
+  // comparing against that budget — see `availableForNormalMode`). This is a
+  // real improvement (more content fits without falling back to compact),
+  // not a regression, so CASE 2 moves from 700x780 (which now genuinely fits
+  // normal styling) to 700x690 — comfortably below the new ~708px boundary —
+  // to keep proving the same thing: that compact is chosen exactly when
+  // normal actually would not fit, not according to a guess.
   testWidgets(
     'CASE 1 (short window): compact styling is chosen and fits without overlap',
     (tester) async {
@@ -617,23 +634,22 @@ void main() {
   );
 
   testWidgets(
-    'CASE 2 (medium window): normal styling used to be picked and not fit — '
-    'now compact is chosen and it fits',
+    'CASE 2 (medium window): right at the boundary, compact is chosen and '
+    'it fits',
     (tester) async {
-      await pumpLoginScreen(tester, const Size(700, 780));
+      await pumpLoginScreen(tester, const Size(700, 690));
       addTearDown(() => resetLoginTestWindowSize(tester));
       expect(
         isCompactModeIn(tester),
         isTrue,
         reason:
-            'At 700x780 the normal styling\'s own budget (~684px for this '
-            'card width, now that the form has three fields instead of four '
-            'and no separate "manage servers" row) still does not fit — the '
-            'old flat 720 threshold picked normal here anyway (720 <= 780), '
-            'which is exactly the reported bug. Compact must be chosen '
-            'instead, and it does fit.',
+            'At 700x690 the normal styling\'s own budget (~588px for this '
+            'card width, now that every Fluent control is shorter than its '
+            'Material counterpart) still does not fit once the ~72px of '
+            'footer/padding is taken off — the boundary sits at ~708px of '
+            'window height. Compact must be chosen instead, and it does fit.',
       );
-      await expectSubmitButtonReachable(tester, const Size(700, 780));
+      await expectSubmitButtonReachable(tester, const Size(700, 690));
     },
   );
 
@@ -655,37 +671,30 @@ void main() {
     'estimated layout-budget metrics keep matching the real widgets',
     (tester) async {
       // Guards the handful of named constants _estimateNormalModeContentHeight
-      // relies on for the parts TextPainter cannot see (ListTile/TextField
-      // chrome). If the Material theme ever changes these, this test fails
-      // loudly instead of the fits-or-not budget silently drifting out from
-      // under the real widgets.
+      // relies on for the parts TextPainter cannot see (a Fluent
+      // TextBox/ComboBox's own minimum height, a ToggleSwitch row). If the
+      // Fluent theme ever changes these, this test fails loudly instead of
+      // the fits-or-not budget silently drifting out from under the real
+      // widgets. Calibrated against Fluent's defaults, 12-sep-2026.
       await pumpLoginScreen(tester, const Size(700, 1400));
       expect(
-        tester.getSize(find.byType(TextField).first).height,
-        52.0,
-        reason: 'Normal-mode TextField height moved — update _kNormalTextFieldHeight.',
+        tester.getSize(find.byType(TextBox).first).height,
+        32.0,
+        reason: 'TextBox min height moved — update _kControlMinHeight.',
       );
-      final apiKeySwitchSize = tester.getSize(
-        find.byKey(const Key('api-key-mode-toggle')),
+      final apiKeyBlockSize = tester.getSize(
+        find.byKey(const Key('api-key-toggle-block')),
       );
       final apiKeySubtitleSize = tester.getSize(
         find.text(_kApiKeySubtitleText),
       );
-      final apiKeyTitleSize = tester.getSize(find.text('Usar API key'));
       expect(
-        apiKeySwitchSize.height,
-        apiKeyTitleSize.height + apiKeySubtitleSize.height + 16.0,
+        apiKeyBlockSize.height,
+        20.0 + 4.0 + apiKeySubtitleSize.height,
         reason:
-            'A normal-mode SwitchListTile\'s height moved away from '
-            'titleLineHeight + subtitleHeight + _kSwitchTileVerticalChrome — '
+            'The api-key toggle block\'s height moved away from '
+            '_kToggleRowHeight + _kToggleSubtitleGap + subtitleHeight — '
             'update the constant that drifted.',
-      );
-      expect(
-        apiKeySwitchSize.width - apiKeySubtitleSize.width,
-        76.0,
-        reason:
-            'The gap between a SwitchListTile\'s own width and its subtitle '
-            "text's width moved — update _kSwitchTileTextInset.",
       );
       resetLoginTestWindowSize(tester);
     },
@@ -716,7 +725,7 @@ void main() {
 
       final baselineCompact = isCompactModeIn(tester);
 
-      final fields = find.byType(TextField);
+      final fields = find.byType(TextBox);
       for (var i = 0; i < 2; i++) {
         await tester.tap(fields.at(i));
         await tester.pump();
@@ -791,16 +800,32 @@ void main() {
 
     final toggle = find.byKey(const Key('login-theme-toggle'));
     expect(toggle, findsOneWidget);
-    expect(tester.widget<IconButton>(toggle).tooltip, 'Cambiar a modo oscuro');
+    expect(_tooltipMessage(tester, toggle), 'Cambiar a modo oscuro');
     expect(find.text('Desarrollado por GalapagosTech · 2026'), findsOneWidget);
-    expect(tester.widget<Scaffold>(find.byType(Scaffold)).extendBody, isTrue);
+    // Fluent's ScaffoldPage has no Material Scaffold.extendBody flag: the
+    // "photo behind the translucent footer" effect is now structural (the
+    // footer is a Stack layer, not a separate bottomBar row) — see
+    // login_screen.dart's own comment on `footer`. Guarded here by asserting
+    // the backdrop extends the full screen underneath the footer's position.
+    final backdropBottom = tester.getBottomLeft(find.byType(Image)).dy;
+    final footerTop = tester
+        .getTopLeft(find.byKey(const Key('login-credit-footer')))
+        .dy;
+    expect(
+      backdropBottom,
+      greaterThan(footerTop),
+      reason: 'The backdrop must extend behind the translucent footer.',
+    );
+    // The footer's background is the theme's own scaffoldBackgroundColor at
+    // full opacity — no hand-tuned translucency over the photo (orden del
+    // dueño, 12-sep-2026: el color sale del tema, no se ajusta a mano).
     final footer = tester.widget<ColoredBox>(
       find.byKey(const Key('login-credit-footer')),
     );
-    expect(footer.color.a, closeTo(.72, .01));
+    expect(footer.color, FluentTheme.of(tester.element(toggle)).scaffoldBackgroundColor);
     await tester.tap(toggle);
     await tester.pumpAndSettle();
-    expect(tester.widget<IconButton>(toggle).tooltip, 'Cambiar a modo claro');
+    expect(_tooltipMessage(tester, toggle), 'Cambiar a modo claro');
 
     final scope = const PreferencesScope(
       appId: 'theos_panel',
@@ -811,7 +836,7 @@ void main() {
 
     await tester.tap(toggle);
     await tester.pumpAndSettle();
-    expect(tester.widget<IconButton>(toggle).tooltip, 'Cambiar a modo oscuro');
+    expect(_tooltipMessage(tester, toggle), 'Cambiar a modo oscuro');
     expect((await saved.load()).themeMode, PreferenceThemeMode.light);
     expect(tester.takeException(), isNull);
   });
@@ -861,11 +886,11 @@ void main() {
           if (networkProbe != null)
             networkPresenceProbeProvider.overrideWithValue(networkProbe),
         ],
-        child: MaterialApp(theme: OrbiTheme.light, home: const LoginScreen()),
+        child: FluentApp(theme: OrbiFluentTheme.light, home: const LoginScreen()),
       ),
     );
     await tester.pumpAndSettle();
-    await tester.tap(find.byType(DropdownButtonFormField<String>));
+    await tester.tap(find.byType(ComboBox<String>));
     await tester.pumpAndSettle();
     await tester.tap(find.text('Entorno de prueba').last);
     await tester.pumpAndSettle();
@@ -873,8 +898,8 @@ void main() {
       await tester.tap(find.byKey(const Key('api-key-mode-toggle')));
       await tester.pumpAndSettle();
     }
-    await tester.enterText(find.byType(TextField).at(0), 'alice');
-    await tester.enterText(find.byType(TextField).at(1), 'lo-que-sea');
+    await tester.enterText(find.byType(TextBox).at(0), 'alice');
+    await tester.enterText(find.byType(TextBox).at(1), 'lo-que-sea');
     await tester.tap(find.text('Iniciar sesión'));
     await tester.pumpAndSettle();
   }
@@ -1188,6 +1213,10 @@ void main() {
       );
       await tester.tap(find.byKey(const Key('copy-message-button')));
       await tester.pump();
+      // Fluent's Button (HoverButton) schedules a 100ms Timer on tap-up to
+      // reset its own pressed visual state; flush it so the test does not
+      // end with a pending Timer.
+      await tester.pump(const Duration(milliseconds: 100));
 
       final expected = loginFailureMessageFor(
         LoginFailureCause.credentialIssueFailed,
@@ -1218,6 +1247,7 @@ void main() {
       );
       await tester.tap(find.byKey(const Key('copy-message-button')));
       await tester.pump();
+      await tester.pump(const Duration(milliseconds: 100));
       for (final leak in [
         'AccessError',
         'res.users.apikeys',
@@ -1242,6 +1272,7 @@ void main() {
       );
       await tester.tap(find.byKey(const Key('copy-message-button')));
       await tester.pump();
+      await tester.pump(const Duration(milliseconds: 100));
       expect(find.text('Mensaje copiado'), findsOneWidget);
     });
 
@@ -1289,7 +1320,7 @@ void main() {
               ),
             ),
           ],
-          child: MaterialApp(theme: OrbiTheme.light, home: const LoginScreen()),
+          child: FluentApp(theme: OrbiFluentTheme.light, home: const LoginScreen()),
         ),
       );
       await tester.pumpAndSettle();
@@ -1336,7 +1367,7 @@ void main() {
             if (offer != null)
               offeredSessionProvider.overrideWithValue(offer),
           ],
-          child: MaterialApp(theme: OrbiTheme.light, home: const LoginScreen()),
+          child: FluentApp(theme: OrbiFluentTheme.light, home: const LoginScreen()),
         ),
       );
       await tester.pumpAndSettle();
@@ -1373,7 +1404,7 @@ void main() {
       // esa persona tiene el formulario delante, no escondido detrás de un
       // botón.
       await pumpWithOffer(tester, offer: const OfferedSession(inherited));
-      final fields = find.byType(TextField);
+      final fields = find.byType(TextBox);
       expect(fields, findsWidgets);
       expect(
         tester.getTopLeft(fields.last).dy,
@@ -1390,6 +1421,7 @@ void main() {
       await pumpWithOffer(tester, offer: const OfferedSession(inherited));
       await tester.tap(find.byKey(const Key('continue-offered-session')));
       await tester.pump();
+      await tester.pump(const Duration(milliseconds: 100));
       expect(tester.takeException(), isNull);
     });
 
@@ -1453,7 +1485,7 @@ void main() {
               ),
             ),
           ],
-          child: MaterialApp(theme: OrbiTheme.light, home: const LoginScreen()),
+          child: FluentApp(theme: OrbiFluentTheme.light, home: const LoginScreen()),
         ),
       );
       await tester.pumpAndSettle();
@@ -1473,9 +1505,9 @@ final class _LoginThemeHarness extends ConsumerWidget {
     final preferences = ref.watch(appPreferencesProvider(scope));
     return AnimatedBuilder(
       animation: preferences,
-      builder: (context, _) => MaterialApp(
-        theme: OrbiTheme.light,
-        darkTheme: OrbiTheme.dark,
+      builder: (context, _) => FluentApp(
+        theme: OrbiFluentTheme.light,
+        darkTheme: OrbiFluentTheme.dark,
         themeMode: preferences.snapshot.appThemeMode,
         home: const LoginScreen(),
       ),

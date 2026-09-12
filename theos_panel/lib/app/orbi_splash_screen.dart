@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:fluent_ui/fluent_ui.dart';
 
 import 'theme/orbi_theme.dart';
 import '../ui/components/orbi_brand.dart';
@@ -12,9 +12,9 @@ final class OrbiSplashScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
+    return ScaffoldPage(
       key: const Key('orbi-splash'),
-      body: Stack(
+      content: Stack(
         fit: StackFit.expand,
         children: [
           const OrbiAuthBackdrop(),
@@ -40,15 +40,15 @@ final class OrbiSplashScreen extends StatelessWidget {
                             label: message,
                             child: Text(
                               message,
-                              style: Theme.of(context).textTheme.bodyLarge
+                              style: FluentTheme.of(context).typography.bodyLarge
                                   ?.copyWith(color: orbiPhotoInk),
                               textAlign: TextAlign.center,
                             ),
                           ),
                           const SizedBox(height: OrbiTheme.space16),
-                          CircularProgressIndicator(
-                            color: orbiPhotoInk,
-                            semanticsLabel: 'Cargando',
+                          ProgressRing(
+                            activeColor: orbiPhotoInk,
+                            semanticLabel: 'Cargando',
                           ),
                         ],
                       ),

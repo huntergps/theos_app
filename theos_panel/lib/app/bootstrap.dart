@@ -2,8 +2,8 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:math';
 
+import 'package:fluent_ui/fluent_ui.dart';
 import 'package:flutter/foundation.dart';
-import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:orbi_runtime/orbi_runtime.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -15,6 +15,7 @@ import '../features/auth/session_provenance.dart';
 import '../features/auth/unlock_backend_factory.dart';
 import '../features/auth/web_token_auth.dart';
 import '../features/auth/workspace_unlock_store.dart';
+import '../ui/fluent/orbi_fluent_theme.dart';
 import 'orbi_splash_screen.dart';
 import 'preferences/app_preferences.dart';
 import 'orbi_app.dart';
@@ -42,7 +43,7 @@ Future<void> ensureMinimumSplashDuration({
 }
 
 /// Resolves reduced-motion from the nearest [MediaQuery], or from the engine
-/// when bootstrap is still above [MaterialApp] and no inherited media query
+/// when bootstrap is still above [FluentApp] and no inherited media query
 /// exists yet.
 bool bootstrapDisableAnimations({
   required bool? mediaQueryDisableAnimations,
@@ -83,7 +84,7 @@ class BootstrapAnimatedContent extends StatelessWidget {
         reverseDuration: duration,
         layoutBuilder: (currentChild, previousChildren) => Stack(
           fit: StackFit.expand,
-          // Bootstrap lives above MaterialApp, so no Directionality exists
+          // Bootstrap lives above FluentApp, so no Directionality exists
           // yet. Use an absolute alignment to avoid failing before the first
           // splash frame on a real native runner.
           alignment: Alignment.topLeft,
@@ -492,38 +493,50 @@ final class _BootstrapHostState extends State<_BootstrapHost> {
         content = snapshot.requireData;
         phaseKey = 'application';
       } else if (snapshot.hasError) {
-        content = MaterialApp(
+        content = FluentApp(
           title: 'Orbi ERP',
-          theme: ThemeData(useMaterial3: true),
-          home: Scaffold(
-            body: SafeArea(
+          theme: OrbiFluentTheme.light,
+          darkTheme: OrbiFluentTheme.dark,
+          home: ScaffoldPage(
+            content: SafeArea(
               child: Center(
                 child: Padding(
                   padding: const EdgeInsets.all(24),
                   child: ConstrainedBox(
                     constraints: const BoxConstraints(maxWidth: 480),
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        const Icon(Icons.cloud_off_outlined, size: 48),
-                        const SizedBox(height: 16),
-                        Text(
-                          'No se pudo preparar Orbi ERP.',
-                          style: Theme.of(context).textTheme.titleLarge,
-                          textAlign: TextAlign.center,
-                        ),
-                        const SizedBox(height: 8),
-                        const Text(
-                          'Tus datos locales no se han eliminado. Puedes intentarlo de nuevo.',
-                          textAlign: TextAlign.center,
-                        ),
-                        const SizedBox(height: 24),
-                        FilledButton.icon(
-                          onPressed: _retry,
-                          icon: const Icon(Icons.refresh),
-                          label: const Text('Reintentar'),
-                        ),
-                      ],
+                    child: Builder(
+                      builder: (context) {
+                        final typography = FluentTheme.of(context).typography;
+                        return Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            const Icon(FluentIcons.cloud, size: 48),
+                            const SizedBox(height: 16),
+                            Text(
+                              'No se pudo preparar Orbi ERP.',
+                              style: typography.title,
+                              textAlign: TextAlign.center,
+                            ),
+                            const SizedBox(height: 8),
+                            const Text(
+                              'Tus datos locales no se han eliminado. Puedes intentarlo de nuevo.',
+                              textAlign: TextAlign.center,
+                            ),
+                            const SizedBox(height: 24),
+                            FilledButton(
+                              onPressed: _retry,
+                              child: const Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Icon(FluentIcons.refresh, size: 16),
+                                  SizedBox(width: 8),
+                                  Text('Reintentar'),
+                                ],
+                              ),
+                            ),
+                          ],
+                        );
+                      },
                     ),
                   ),
                 ),
@@ -533,21 +546,10 @@ final class _BootstrapHostState extends State<_BootstrapHost> {
         );
         phaseKey = 'error';
       } else {
-        content = MaterialApp(
+        content = FluentApp(
           title: 'Orbi ERP',
-          theme: ThemeData(
-            useMaterial3: true,
-            colorScheme: ColorScheme.fromSeed(
-              seedColor: const Color(0xFF007E82),
-            ),
-          ),
-          darkTheme: ThemeData(
-            useMaterial3: true,
-            colorScheme: ColorScheme.fromSeed(
-              seedColor: const Color(0xFF007E82),
-              brightness: Brightness.dark,
-            ),
-          ),
+          theme: OrbiFluentTheme.light,
+          darkTheme: OrbiFluentTheme.dark,
           home: const OrbiSplashScreen(),
         );
         phaseKey = 'splash';

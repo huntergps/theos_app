@@ -1,13 +1,13 @@
-import 'package:flutter/material.dart';
+import 'package:fluent_ui/fluent_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:orbi_runtime/orbi_runtime.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:theos_panel/app/preferences/app_preferences.dart';
-import 'package:theos_panel/app/theme/orbi_theme.dart';
 import 'package:theos_panel/features/auth/auth_controller.dart';
 import 'package:theos_panel/features/auth/pin_credential_store.dart';
 import 'package:theos_panel/features/auth/pin_login_screen.dart';
+import 'package:theos_panel/ui/fluent/orbi_fluent_theme.dart';
 
 /// Mirrors login_screen_test.dart's own window-size helper: MediaQuery.sizeOf
 /// is what PinLoginScreen's compact-vs-normal decision reads, so a test that
@@ -109,8 +109,8 @@ void main() {
           ),
           sharedPreferencesProvider.overrideWithValue(preferences),
         ],
-        child: MaterialApp(
-          theme: OrbiTheme.light,
+        child: FluentApp(
+          theme: OrbiFluentTheme.light,
           home: PinLoginScreen(onCancel: () => cancelled = true),
         ),
       ),
@@ -122,6 +122,10 @@ void main() {
       findsOneWidget,
     );
     await tester.tap(find.byKey(const Key('pin-use-credentials')));
+    // Fluent's Button (HoverButton) schedules a 100ms Timer on tap-up to
+    // reset its own pressed visual state; flush it so the test does not end
+    // with a pending Timer.
+    await tester.pump(const Duration(milliseconds: 100));
     expect(cancelled, isTrue);
   });
 
@@ -145,7 +149,7 @@ void main() {
             ),
             sharedPreferencesProvider.overrideWithValue(preferences),
           ],
-          child: MaterialApp(theme: OrbiTheme.light, home: const PinLoginScreen()),
+          child: FluentApp(theme: OrbiFluentTheme.light, home: const PinLoginScreen()),
         ),
       );
       await tester.pump();
@@ -177,8 +181,8 @@ void main() {
           ),
           sharedPreferencesProvider.overrideWithValue(preferences),
         ],
-        child: MaterialApp(
-          theme: OrbiTheme.light,
+        child: FluentApp(
+          theme: OrbiFluentTheme.light,
           home: PinLoginScreen(onSellerAccessGranted: () => granted = true),
         ),
       ),
@@ -211,8 +215,8 @@ void main() {
             ),
             sharedPreferencesProvider.overrideWithValue(preferences),
           ],
-          child: MaterialApp(
-            theme: OrbiTheme.light,
+          child: FluentApp(
+            theme: OrbiFluentTheme.light,
             home: PinLoginScreen(onSellerAccessGranted: () => granted = true),
           ),
         ),
@@ -250,7 +254,7 @@ void main() {
           ),
           sharedPreferencesProvider.overrideWithValue(preferences),
         ],
-        child: MaterialApp(theme: OrbiTheme.light, home: const PinLoginScreen()),
+        child: FluentApp(theme: OrbiFluentTheme.light, home: const PinLoginScreen()),
       ),
     );
     await tester.pump();
@@ -283,8 +287,8 @@ void main() {
             ),
             sharedPreferencesProvider.overrideWithValue(preferences),
           ],
-          child: MaterialApp(
-            theme: OrbiTheme.light,
+          child: FluentApp(
+            theme: OrbiFluentTheme.light,
             home: PinLoginScreen(onCancel: () => cancelled = true),
           ),
         ),
@@ -302,6 +306,10 @@ void main() {
       expect(find.byKey(const Key('pin-lockout-countdown')), findsOneWidget);
       expect(find.byKey(const Key('pin-key-1')), findsNothing);
       await tester.tap(find.byKey(const Key('pin-locked-acknowledge')));
+      // Fluent's Button (HoverButton) schedules a 100ms Timer on tap-up to
+      // reset its own pressed visual state; flush it so the test does not
+      // end with a pending Timer.
+      await tester.pump(const Duration(milliseconds: 100));
       expect(cancelled, isTrue);
     },
   );
@@ -333,7 +341,7 @@ void main() {
             ),
             sharedPreferencesProvider.overrideWithValue(preferences),
           ],
-          child: MaterialApp(theme: OrbiTheme.light, home: const PinLoginScreen()),
+          child: FluentApp(theme: OrbiFluentTheme.light, home: const PinLoginScreen()),
         ),
       );
       await tester.pump();
@@ -364,8 +372,8 @@ void main() {
           ),
           sharedPreferencesProvider.overrideWithValue(preferences),
         ],
-        child: MaterialApp(
-          theme: OrbiTheme.light,
+        child: FluentApp(
+          theme: OrbiFluentTheme.light,
           home: const PinLoginScreen(equipmentLabel: 'Mostrador 02'),
         ),
       ),
@@ -395,8 +403,8 @@ void main() {
           ),
           sharedPreferencesProvider.overrideWithValue(preferences),
         ],
-        child: MaterialApp(
-          theme: OrbiTheme.light,
+        child: FluentApp(
+          theme: OrbiFluentTheme.light,
           home: const PinLoginScreen(equipmentLabel: 'Mostrador 02'),
         ),
       ),

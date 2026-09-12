@@ -136,28 +136,25 @@ void main() {
     },
   );
 
-  test(
-    'logging out clears the in-memory key immediately, without waiting for a reload',
-    () async {
-      final preferences = await SharedPreferences.getInstance();
-      final service = _buildService(
-        preferences: preferences,
-        runtimePort: _FakeSessionRuntimePort(),
-        probe: (_) async => (userId: 9, login: 'cashier'),
-      );
-      await service.loginWithApiKey(
-        serverUrl: 'https://erp2.tecnosmart.com.ec',
-        database: 'erp2_tecnosmart_com_ec',
-        login: 'cashier',
-        apiKey: 'the-key',
-      );
-      expect(service.debugStoredApiKeyValues.values, contains('the-key'));
+  test('logging out clears the in-memory key immediately, without waiting for a reload', () async {
+    final preferences = await SharedPreferences.getInstance();
+    final service = _buildService(
+      preferences: preferences,
+      runtimePort: _FakeSessionRuntimePort(),
+      probe: (_) async => (userId: 9, login: 'cashier'),
+    );
+    await service.loginWithApiKey(
+      serverUrl: 'https://erp2.tecnosmart.com.ec',
+      database: 'erp2_tecnosmart_com_ec',
+      login: 'cashier',
+      apiKey: 'the-key',
+    );
+    expect(service.debugStoredApiKeyValues.values, contains('the-key'));
 
-      await service.close();
+    await service.close();
 
-      expect(service.debugStoredApiKeyValues, isEmpty);
-    },
-  );
+    expect(service.debugStoredApiKeyValues, isEmpty);
+  });
 
   test(
     'auth_controller no longer reports the API key mode as unconfigured on web',

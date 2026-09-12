@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:fluent_ui/fluent_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'auth_controller.dart';
@@ -60,7 +60,7 @@ class _PinEnrollmentSectionState extends ConsumerState<PinEnrollmentSection> {
       profile.login,
     );
     final enrolled = store.isEnrolled(scopeKey);
-    final theme = Theme.of(context);
+    final typography = FluentTheme.of(context).typography;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -77,7 +77,7 @@ class _PinEnrollmentSectionState extends ConsumerState<PinEnrollmentSection> {
             child: Text(
               _notice!,
               key: const Key('pin-enroll-notice'),
-              style: theme.textTheme.bodySmall,
+              style: typography.caption,
             ),
           ),
       ],
@@ -90,7 +90,7 @@ class _PinEnrollmentSectionState extends ConsumerState<PinEnrollmentSection> {
       const ListTile(
         key: Key('pin-enroll-status'),
         contentPadding: EdgeInsets.zero,
-        leading: Icon(Icons.verified_user_outlined),
+        leading: Icon(FluentIcons.contact_lock),
         title: Text('PIN de vendedor configurado'),
         subtitle: Text(
           'Puedes usarlo para entrar directo a Ventas en este dispositivo.',
@@ -108,7 +108,7 @@ class _PinEnrollmentSectionState extends ConsumerState<PinEnrollmentSection> {
             child: const Text('Cambiar PIN'),
           ),
           const SizedBox(width: 8),
-          TextButton(
+          HyperlinkButton(
             key: const Key('pin-enroll-remove-button'),
             onPressed: _busy ? null : _confirmRemove,
             child: const Text('Quitar PIN'),
@@ -135,29 +135,34 @@ class _PinEnrollmentSectionState extends ConsumerState<PinEnrollmentSection> {
                   'añade permisos.',
       ),
       const SizedBox(height: 8),
-      TextField(
-        key: const Key('pin-enroll-new-field'),
-        controller: _pinController,
-        obscureText: true,
-        keyboardType: TextInputType.number,
-        maxLength: kSellerPinLength,
-        decoration: const InputDecoration(labelText: 'Nuevo PIN'),
+      InfoLabel(
+        label: 'Nuevo PIN',
+        child: TextBox(
+          key: const Key('pin-enroll-new-field'),
+          controller: _pinController,
+          obscureText: true,
+          keyboardType: TextInputType.number,
+          maxLength: kSellerPinLength,
+        ),
       ),
-      TextField(
-        key: const Key('pin-enroll-confirm-field'),
-        controller: _confirmController,
-        obscureText: true,
-        keyboardType: TextInputType.number,
-        maxLength: kSellerPinLength,
-        decoration: const InputDecoration(labelText: 'Confirmar PIN'),
+      const SizedBox(height: 8),
+      InfoLabel(
+        label: 'Confirmar PIN',
+        child: TextBox(
+          key: const Key('pin-enroll-confirm-field'),
+          controller: _confirmController,
+          obscureText: true,
+          keyboardType: TextInputType.number,
+          maxLength: kSellerPinLength,
+        ),
       ),
       if (_error != null)
         Padding(
-          padding: const EdgeInsets.only(bottom: 8),
+          padding: const EdgeInsets.only(top: 8, bottom: 8),
           child: Text(
             _error!,
             key: const Key('pin-enroll-error'),
-            style: TextStyle(color: Theme.of(context).colorScheme.error),
+            style: TextStyle(color: FluentTheme.of(context).resources.systemFillColorCritical),
           ),
         ),
       Row(
@@ -169,7 +174,7 @@ class _PinEnrollmentSectionState extends ConsumerState<PinEnrollmentSection> {
           ),
           if (enrolled) ...[
             const SizedBox(width: 8),
-            TextButton(
+            HyperlinkButton(
               key: const Key('pin-enroll-cancel'),
               onPressed: _busy ? null : _cancelEditing,
               child: const Text('Cancelar'),
@@ -233,14 +238,14 @@ class _PinEnrollmentSectionState extends ConsumerState<PinEnrollmentSection> {
     );
     final confirmed = await showDialog<bool>(
       context: context,
-      builder: (dialogContext) => AlertDialog(
+      builder: (dialogContext) => ContentDialog(
         title: const Text('Quitar PIN'),
         content: const Text(
           'Ya no podrás entrar directo a Ventas con este PIN desde este '
           'dispositivo.',
         ),
         actions: [
-          TextButton(
+          HyperlinkButton(
             onPressed: () => Navigator.of(dialogContext).pop(false),
             child: const Text('Cancelar'),
           ),

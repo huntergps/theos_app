@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:fluent_ui/fluent_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:orbi_runtime/orbi_runtime.dart';
@@ -107,11 +107,18 @@ void main() {
             password: 'secret',
           );
 
+      // Ventana ancha a propósito: por debajo de 840 el panel de navegación
+      // se esconde tras la hamburguesa, así que las acciones de sesión quedan
+      // fuera de pantalla. Esta prueba es sobre cambiar de usuario, no sobre
+      // el comportamiento en estrecho, que ya tiene la suya en el marco.
+      await tester.binding.setSurfaceSize(const Size(1440, 900));
+      addTearDown(() => tester.binding.setSurfaceSize(null));
+
       final router = container.read(orbiRouterProvider);
       await tester.pumpWidget(
         UncontrolledProviderScope(
           container: container,
-          child: MaterialApp.router(routerConfig: router),
+          child: FluentApp.router(routerConfig: router),
         ),
       );
       await tester.pumpAndSettle();
@@ -153,7 +160,7 @@ void main() {
       await tester.pumpWidget(
         UncontrolledProviderScope(
           container: container,
-          child: MaterialApp.router(routerConfig: loggedOutRouter),
+          child: FluentApp.router(routerConfig: loggedOutRouter),
         ),
       );
       await tester.pumpAndSettle();

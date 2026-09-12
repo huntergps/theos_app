@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:fluent_ui/fluent_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:orbi_runtime/orbi_runtime.dart';
@@ -52,7 +52,7 @@ void main() {
       await tester.pumpWidget(
         UncontrolledProviderScope(
           container: container,
-          child: MaterialApp.router(routerConfig: router),
+          child: FluentApp.router(routerConfig: router),
         ),
       );
       await tester.pumpAndSettle();
@@ -65,47 +65,43 @@ void main() {
     },
   );
 
-  testWidgets(
-    'a route the seller IS allowed into never shows a denial toast',
-    (tester) async {
-      SharedPreferences.setMockInitialValues({});
-      final preferences = await SharedPreferences.getInstance();
-      final container = ProviderContainer(
-        overrides: [
-          authInitialStateProvider.overrideWithValue(
-            AuthViewState(
-              status: AuthControllerStatus.authenticated,
-              profile: sellerProfile,
-              capabilities: CapabilitySnapshot(
-                scopeKey: 'scope',
-                companyId: 1,
-                revision: 1,
-                fetchedAt: DateTime.utc(2026, 9, 12),
-                permissions: const ['seller'],
-              ),
+  testWidgets('a route the seller IS allowed into never shows a denial toast', (
+    tester,
+  ) async {
+    SharedPreferences.setMockInitialValues({});
+    final preferences = await SharedPreferences.getInstance();
+    final container = ProviderContainer(
+      overrides: [
+        authInitialStateProvider.overrideWithValue(
+          AuthViewState(
+            status: AuthControllerStatus.authenticated,
+            profile: sellerProfile,
+            capabilities: CapabilitySnapshot(
+              scopeKey: 'scope',
+              companyId: 1,
+              revision: 1,
+              fetchedAt: DateTime.utc(2026, 9, 12),
+              permissions: const ['seller'],
             ),
           ),
-          sharedPreferencesProvider.overrideWithValue(preferences),
-        ],
-      );
-      addTearDown(container.dispose);
-      final router = container.read(orbiRouterProvider);
-      await tester.pumpWidget(
-        UncontrolledProviderScope(
-          container: container,
-          child: MaterialApp.router(routerConfig: router),
         ),
-      );
-      await tester.pumpAndSettle();
+        sharedPreferencesProvider.overrideWithValue(preferences),
+      ],
+    );
+    addTearDown(container.dispose);
+    final router = container.read(orbiRouterProvider);
+    await tester.pumpWidget(
+      UncontrolledProviderScope(
+        container: container,
+        child: FluentApp.router(routerConfig: router),
+      ),
+    );
+    await tester.pumpAndSettle();
 
-      router.go('/sales');
-      await tester.pumpAndSettle();
+    router.go('/sales');
+    await tester.pumpAndSettle();
 
-      expect(router.state.uri.path, '/sales');
-      expect(
-        find.textContaining('no está entre tus permisos'),
-        findsNothing,
-      );
-    },
-  );
+    expect(router.state.uri.path, '/sales');
+    expect(find.textContaining('no está entre tus permisos'), findsNothing);
+  });
 }

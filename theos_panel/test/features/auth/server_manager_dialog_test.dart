@@ -1,10 +1,10 @@
-import 'package:flutter/material.dart';
+import 'package:fluent_ui/fluent_ui.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:odoo_sdk/odoo_sdk.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:theos_panel/app/theme/orbi_theme.dart';
 import 'package:theos_panel/features/auth/saved_servers.dart';
 import 'package:theos_panel/features/auth/server_manager_dialog.dart';
+import 'package:theos_panel/ui/fluent/orbi_fluent_theme.dart';
 
 /// Never reaches the network: every test must inject one of these instead of
 /// the real [OdooServerDatabaseDiscovery], which would otherwise hit a real
@@ -52,11 +52,11 @@ void main() {
     await tester.binding.setSurfaceSize(Size(width, height));
     addTearDown(() => tester.binding.setSurfaceSize(null));
     await tester.pumpWidget(
-      MaterialApp(
-        theme: OrbiTheme.light,
-        home: Scaffold(
-          body: Builder(
-            builder: (context) => TextButton(
+      FluentApp(
+        theme: OrbiFluentTheme.light,
+        home: ScaffoldPage(
+          content: Builder(
+            builder: (context) => HyperlinkButton(
               onPressed: () async {
                 selected = await showSavedServerManager(
                   context,
@@ -155,14 +155,14 @@ void main() {
       find.byKey(const ValueKey('server_name')),
       'Borrador',
     );
-    await tester.tap(find.byTooltip('Cerrar'));
+    await tester.tap(find.byKey(const ValueKey('server_manager_close')));
     await tester.pumpAndSettle();
     expect(find.text('¿Descartar cambios?'), findsOneWidget);
     await tester.tap(find.text('Seguir editando'));
     await tester.pumpAndSettle();
     expect(
       tester
-          .widget<TextField>(find.byKey(const ValueKey('server_name')))
+          .widget<TextBox>(find.byKey(const ValueKey('server_name')))
           .controller!
           .text,
       'Borrador',
@@ -196,7 +196,7 @@ void main() {
     expect(discovery.calls, ['https://uno.example.com']);
     expect(
       tester
-          .widget<TextField>(find.byKey(const ValueKey('server_database')))
+          .widget<TextBox>(find.byKey(const ValueKey('server_database')))
           .controller!
           .text,
       'unica_bd',
@@ -254,6 +254,10 @@ void main() {
 
     await tester.tap(find.byKey(const ValueKey('database_manual_entry')));
     await tester.pump();
+    // Fluent's Button (HoverButton) schedules a 100ms Timer on tap-up to
+    // reset its own pressed visual state; flush it so the test does not end
+    // with a pending Timer.
+    await tester.pump(const Duration(milliseconds: 100));
 
     expect(find.byKey(const ValueKey('server_database')), findsOneWidget);
     expect(find.byKey(const ValueKey('server_database_dropdown')), findsNothing);

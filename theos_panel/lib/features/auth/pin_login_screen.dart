@@ -1,13 +1,18 @@
 import 'dart:async';
 import 'dart:math' as math;
 
-import 'package:flutter/material.dart';
+import 'package:fluent_ui/fluent_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'auth_controller.dart';
 import 'pin_credential_store.dart';
 import '../../app/theme/orbi_theme.dart';
 import '../../ui/components/orbi_brand.dart';
+
+/// El tamaño de tecla en modo compacto. Fluent no trae una constante
+/// equivalente a `kMinInteractiveDimension` de Material — 48px sigue siendo
+/// un objetivo táctil razonable, así que se fija aquí como valor propio.
+const double _kCompactKeySize = 48.0;
 
 const String _kFooterText = 'Desarrollado por GalapagosTech · 2026';
 const String _kTitle = 'Modo vendedor';
@@ -268,15 +273,15 @@ class _PinLoginScreenState extends ConsumerState<PinLoginScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final colors = theme.colorScheme;
+    final theme = FluentTheme.of(context);
+    final typography = theme.typography;
     final direction = Directionality.of(context);
     final screenSize = MediaQuery.sizeOf(context);
     final devicePadding = MediaQuery.paddingOf(context);
     final textScaleFactor = MediaQuery.textScalerOf(context).scale(14) / 14;
     final footerTextHeight = _measureTextHeight(
       _kFooterText,
-      theme.textTheme.bodySmall,
+      typography.caption,
       math.max(screenSize.width - OrbiTheme.space12 * 2, 0),
       direction,
       textScaleFactor,
@@ -306,11 +311,17 @@ class _PinLoginScreenState extends ConsumerState<PinLoginScreen> {
         OrbiTheme.space16 * 2 -
         OrbiTheme.space24 * 2;
     final compact = normalHeight > availableForNormalMode;
-    return Scaffold(
-      extendBody: true,
-      bottomNavigationBar: ColoredBox(
+    // Extend the photograph behind the credit strip. Unlike Material's
+    // Scaffold(extendBody: true), ScaffoldPage.bottomBar sits in its own row
+    // ABOVE the content, not overlapping it — so the footer is its own Stack
+    // layer, pinned to the bottom, rather than a separate scaffold slot. The
+    // footer's own background is the theme's, at full opacity — no
+    // hand-tuned translucency over the photo.
+    final footer = Align(
+      alignment: Alignment.bottomCenter,
+      child: ColoredBox(
         key: const Key('pin-login-credit-footer'),
-        color: colors.surface.withValues(alpha: .72),
+        color: theme.scaffoldBackgroundColor,
         child: SafeArea(
           top: false,
           child: Padding(
@@ -318,14 +329,16 @@ class _PinLoginScreenState extends ConsumerState<PinLoginScreen> {
             child: Text(
               _kFooterText,
               textAlign: TextAlign.center,
-              style: theme.textTheme.bodySmall?.copyWith(
-                color: colors.onSurfaceVariant,
+              style: typography.caption?.copyWith(
+                color: theme.resources.textFillColorSecondary,
               ),
             ),
           ),
         ),
       ),
-      body: Stack(
+    );
+    return ScaffoldPage(
+      content: Stack(
         fit: StackFit.expand,
         children: [
           const OrbiAuthBackdrop(),
@@ -337,23 +350,20 @@ class _PinLoginScreenState extends ConsumerState<PinLoginScreen> {
                   constraints: BoxConstraints(maxWidth: cardWidth),
                   child: Card(
                     margin: EdgeInsets.zero,
-                    color: colors.surface.withValues(alpha: .96),
-                    elevation: 2,
-                    child: Padding(
-                      padding: EdgeInsets.all(
-                        compact ? OrbiTheme.space12 : OrbiTheme.space24,
-                      ),
-                      child: _buildBody(
-                        context,
-                        isWideLandscape: isWideLandscape,
-                        compact: compact,
-                      ),
+                    padding: EdgeInsets.all(
+                      compact ? OrbiTheme.space12 : OrbiTheme.space24,
+                    ),
+                    child: _buildBody(
+                      context,
+                      isWideLandscape: isWideLandscape,
+                      compact: compact,
                     ),
                   ),
                 ),
               ),
             ),
           ),
+          footer,
         ],
       ),
     );
@@ -373,7 +383,7 @@ class _PinLoginScreenState extends ConsumerState<PinLoginScreen> {
     if (_phase == _PinPhase.bootstrapping) {
       return const SizedBox(
         height: 200,
-        child: Center(child: CircularProgressIndicator()),
+        child: Center(child: ProgressRing()),
       );
     }
     if (_phase == _PinPhase.blocked) {
@@ -426,23 +436,22 @@ class _PinLoginScreenState extends ConsumerState<PinLoginScreen> {
   }
 
   Widget _buildBlocked(BuildContext context) {
-    final theme = Theme.of(context);
-    final colors = theme.colorScheme;
+    final theme = FluentTheme.of(context);
     return Column(
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        Icon(Icons.storefront_outlined, size: 64, color: colors.primary),
+        Icon(FluentIcons.shop, size: 64, color: theme.accentColor),
         const SizedBox(height: OrbiTheme.space16),
         Text(
           _kTitle,
-          style: theme.textTheme.titleLarge,
+          style: theme.typography.title,
           textAlign: TextAlign.center,
         ),
         const SizedBox(height: OrbiTheme.space8),
         Text(
           _blockedMessage ?? _kNoProfileMessage,
-          style: theme.textTheme.bodyMedium,
+          style: theme.typography.body,
           textAlign: TextAlign.center,
         ),
         const SizedBox(height: OrbiTheme.space24),
@@ -456,23 +465,23 @@ class _PinLoginScreenState extends ConsumerState<PinLoginScreen> {
   }
 
   Widget _buildLocked(BuildContext context, {required bool compact}) {
-    final theme = Theme.of(context);
-    final colors = theme.colorScheme;
+    final theme = FluentTheme.of(context);
+    final critical = theme.resources.systemFillColorCritical;
     return Column(
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        Icon(Icons.lock_outline, size: 64, color: colors.error),
+        Icon(FluentIcons.lock, size: 64, color: critical),
         const SizedBox(height: OrbiTheme.space16),
         Text(
           _kLockedTitle,
-          style: theme.textTheme.titleLarge?.copyWith(color: colors.error),
+          style: theme.typography.title?.copyWith(color: critical),
           textAlign: TextAlign.center,
         ),
         const SizedBox(height: OrbiTheme.space8),
         Text(
           _kLockedBody,
-          style: theme.textTheme.bodyMedium,
+          style: theme.typography.body,
           textAlign: TextAlign.center,
         ),
         const SizedBox(height: OrbiTheme.space16),
@@ -482,8 +491,8 @@ class _PinLoginScreenState extends ConsumerState<PinLoginScreen> {
           child: Text(
             _formatCountdown(_remaining),
             key: const Key('pin-lockout-countdown'),
-            style: theme.textTheme.headlineSmall?.copyWith(
-              color: colors.error,
+            style: theme.typography.subtitle?.copyWith(
+              color: critical,
               fontFeatures: const [FontFeature.tabularFigures()],
             ),
             textAlign: TextAlign.center,
@@ -500,27 +509,26 @@ class _PinLoginScreenState extends ConsumerState<PinLoginScreen> {
   }
 
   Widget _buildHeader(BuildContext context, {required bool compact}) {
-    final theme = Theme.of(context);
-    final colors = theme.colorScheme;
+    final theme = FluentTheme.of(context);
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
         Icon(
-          Icons.storefront_outlined,
+          FluentIcons.shop,
           size: compact ? 48 : 64,
-          color: colors.primary,
+          color: theme.accentColor,
         ),
         SizedBox(height: compact ? OrbiTheme.space8 : OrbiTheme.space16),
         Text(
           _kTitle,
-          style: theme.textTheme.titleLarge,
+          style: theme.typography.title,
           textAlign: TextAlign.center,
         ),
         const SizedBox(height: OrbiTheme.space8),
         Text(
           _kSubtitle,
-          style: theme.textTheme.bodyMedium?.copyWith(
-            color: colors.onSurfaceVariant,
+          style: theme.typography.body?.copyWith(
+            color: theme.resources.textFillColorSecondary,
           ),
           textAlign: TextAlign.center,
         ),
@@ -532,7 +540,9 @@ class _PinLoginScreenState extends ConsumerState<PinLoginScreen> {
             liveRegion: true,
             child: Text(
               _errorMessage!,
-              style: TextStyle(color: colors.error),
+              style: TextStyle(
+                color: theme.resources.systemFillColorCritical,
+              ),
               textAlign: TextAlign.center,
             ),
           ),
@@ -542,8 +552,9 @@ class _PinLoginScreenState extends ConsumerState<PinLoginScreen> {
   }
 
   Widget _buildDots(BuildContext context) {
-    final colors = Theme.of(context).colorScheme;
+    final theme = FluentTheme.of(context);
     final invalid = _errorMessage != null;
+    final critical = theme.resources.systemFillColorCritical;
     return Row(
       key: const Key('pin-dots'),
       mainAxisAlignment: MainAxisAlignment.center,
@@ -557,10 +568,12 @@ class _PinLoginScreenState extends ConsumerState<PinLoginScreen> {
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
                 color: i < _pin.length
-                    ? (invalid ? colors.error : colors.primary)
+                    ? (invalid ? critical : theme.accentColor)
                     : Colors.transparent,
                 border: Border.all(
-                  color: invalid ? colors.error : colors.outline,
+                  color: invalid
+                      ? critical
+                      : theme.resources.controlStrokeColorDefault,
                 ),
               ),
             ),
@@ -570,7 +583,7 @@ class _PinLoginScreenState extends ConsumerState<PinLoginScreen> {
   }
 
   Widget _buildKeypad(BuildContext context, {required bool compact}) {
-    final size = compact ? kMinInteractiveDimension : 64.0;
+    final size = compact ? _kCompactKeySize : 64.0;
     final gap = compact ? OrbiTheme.space8 : OrbiTheme.space12;
     const rows = [
       ['1', '2', '3'],
@@ -604,16 +617,18 @@ class _PinLoginScreenState extends ConsumerState<PinLoginScreen> {
     required double size,
     required bool busy,
   }) {
-    final theme = Theme.of(context);
+    final theme = FluentTheme.of(context);
     if (key == 'back') {
       return SizedBox(
         width: size,
         height: size,
-        child: IconButton(
-          key: const Key('pin-key-backspace'),
-          tooltip: 'Borrar',
-          onPressed: busy ? null : _onBackspace,
-          icon: const Icon(Icons.backspace_outlined),
+        child: Tooltip(
+          message: 'Borrar',
+          child: IconButton(
+            key: const Key('pin-key-backspace'),
+            onPressed: busy ? null : _onBackspace,
+            icon: const Icon(FluentIcons.erase_tool),
+          ),
         ),
       );
     }
@@ -623,9 +638,9 @@ class _PinLoginScreenState extends ConsumerState<PinLoginScreen> {
         height: size,
         child: FilledButton(
           key: const Key('pin-key-enter'),
-          style: FilledButton.styleFrom(
-            shape: const CircleBorder(),
-            padding: EdgeInsets.zero,
+          style: const ButtonStyle(
+            shape: WidgetStatePropertyAll(CircleBorder()),
+            padding: WidgetStatePropertyAll(EdgeInsets.zero),
           ),
           onPressed: (busy || _pin.length != kSellerPinLength)
               ? null
@@ -634,9 +649,9 @@ class _PinLoginScreenState extends ConsumerState<PinLoginScreen> {
               ? const SizedBox(
                   width: 18,
                   height: 18,
-                  child: CircularProgressIndicator(strokeWidth: 2),
+                  child: ProgressRing(strokeWidth: 2),
                 )
-              : const Icon(Icons.check),
+              : const Icon(FluentIcons.accept),
         ),
       );
     }
@@ -645,10 +660,10 @@ class _PinLoginScreenState extends ConsumerState<PinLoginScreen> {
       height: size,
       child: OutlinedButton(
         key: Key('pin-key-$key'),
-        style: OutlinedButton.styleFrom(
-          shape: const CircleBorder(),
-          padding: EdgeInsets.zero,
-          textStyle: theme.textTheme.titleMedium,
+        style: ButtonStyle(
+          shape: const WidgetStatePropertyAll(CircleBorder()),
+          padding: const WidgetStatePropertyAll(EdgeInsets.zero),
+          textStyle: WidgetStatePropertyAll(theme.typography.subtitle),
         ),
         onPressed: busy ? null : () => _onDigit(key),
         child: Text(key),
@@ -657,8 +672,8 @@ class _PinLoginScreenState extends ConsumerState<PinLoginScreen> {
   }
 
   Widget _buildInfoPanel(BuildContext context) {
-    final theme = Theme.of(context);
-    final colors = theme.colorScheme;
+    final theme = FluentTheme.of(context);
+    final secondary = theme.resources.textFillColorSecondary;
     final equipmentLabel = widget.equipmentLabel;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -667,30 +682,31 @@ class _PinLoginScreenState extends ConsumerState<PinLoginScreen> {
         if (equipmentLabel != null) ...[
           Row(
             children: [
-              Icon(Icons.desktop_windows_outlined, color: colors.primary),
+              Icon(FluentIcons.pc1, color: theme.accentColor),
               const SizedBox(width: OrbiTheme.space8),
               Expanded(
-                child: Text('Equipo\n$equipmentLabel', style: theme.textTheme.bodyMedium),
+                child: Text(
+                  'Equipo\n$equipmentLabel',
+                  style: theme.typography.body,
+                ),
               ),
             ],
           ),
           const SizedBox(height: OrbiTheme.space16),
         ],
-        Text(_kSalesOnlyTitle, style: theme.textTheme.titleSmall),
+        Text(_kSalesOnlyTitle, style: theme.typography.bodyStrong),
         const SizedBox(height: OrbiTheme.space8),
-        Text(_kSalesOnlyBody, style: theme.textTheme.bodyMedium),
+        Text(_kSalesOnlyBody, style: theme.typography.body),
         const SizedBox(height: OrbiTheme.space16),
         Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Icon(Icons.info_outline, size: 18, color: colors.onSurfaceVariant),
+            Icon(FluentIcons.info, size: 18, color: secondary),
             const SizedBox(width: OrbiTheme.space8),
             Expanded(
               child: Text(
                 _kActivityNotice,
-                style: theme.textTheme.bodySmall?.copyWith(
-                  color: colors.onSurfaceVariant,
-                ),
+                style: theme.typography.caption?.copyWith(color: secondary),
               ),
             ),
           ],
@@ -712,22 +728,23 @@ double _estimateNormalModeHeight({
   required double keypadWidth,
   required double infoWidth,
   required bool stackedInfo,
-  required ThemeData theme,
+  required FluentThemeData theme,
   required TextDirection direction,
   required double textScaleFactor,
   String? equipmentLabel,
   String? message,
 }) {
+  final typography = theme.typography;
   final titleHeight = _measureTextHeight(
     _kTitle,
-    theme.textTheme.titleLarge,
+    typography.title,
     keypadWidth,
     direction,
     textScaleFactor,
   );
   final subtitleHeight = _measureTextHeight(
     _kSubtitle,
-    theme.textTheme.bodyMedium,
+    typography.body,
     keypadWidth,
     direction,
     textScaleFactor,
@@ -749,7 +766,7 @@ double _estimateNormalModeHeight({
       total +=
           _measureTextHeight(
             'Equipo\n$equipmentLabel',
-            theme.textTheme.bodyMedium,
+            typography.body,
             infoWidth - 32,
             direction,
             textScaleFactor,
@@ -759,7 +776,7 @@ double _estimateNormalModeHeight({
     total +=
         _measureTextHeight(
           _kSalesOnlyTitle,
-          theme.textTheme.titleSmall,
+          typography.bodyStrong,
           infoWidth,
           direction,
           textScaleFactor,
@@ -767,7 +784,7 @@ double _estimateNormalModeHeight({
         OrbiTheme.space8 +
         _measureTextHeight(
           _kSalesOnlyBody,
-          theme.textTheme.bodyMedium,
+          typography.body,
           infoWidth,
           direction,
           textScaleFactor,
@@ -775,7 +792,7 @@ double _estimateNormalModeHeight({
         OrbiTheme.space16 +
         _measureTextHeight(
           _kActivityNotice,
-          theme.textTheme.bodySmall,
+          typography.caption,
           infoWidth - 26,
           direction,
           textScaleFactor,
@@ -786,7 +803,7 @@ double _estimateNormalModeHeight({
         OrbiTheme.space8 +
         _measureTextHeight(
           message,
-          theme.textTheme.bodyMedium,
+          typography.body,
           keypadWidth,
           direction,
           textScaleFactor,

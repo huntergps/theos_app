@@ -1,8 +1,8 @@
-import 'package:flutter/material.dart';
+import 'package:fluent_ui/fluent_ui.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:theos_panel/app/orbi_splash_screen.dart';
-import 'package:theos_panel/app/theme/orbi_theme.dart';
 import 'package:theos_panel/ui/components/orbi_brand.dart';
+import 'package:theos_panel/ui/fluent/orbi_fluent_theme.dart';
 
 void main() {
   testWidgets('splash keeps approved photo branding across viewports/themes', (
@@ -15,11 +15,11 @@ void main() {
       Size(1024, 1366),
       Size(390, 844),
     ];
-    for (final theme in [OrbiTheme.light, OrbiTheme.dark]) {
+    for (final theme in [OrbiFluentTheme.light, OrbiFluentTheme.dark]) {
       for (final size in sizes) {
         await tester.binding.setSurfaceSize(size);
         await tester.pumpWidget(
-          MaterialApp(theme: theme, home: const OrbiSplashScreen()),
+          FluentApp(theme: theme, home: const OrbiSplashScreen()),
         );
         await tester.pump();
         expect(find.byKey(const Key('orbi-splash')), findsOneWidget);
@@ -29,7 +29,7 @@ void main() {
           (background.image as AssetImage).assetName,
           orbiAuthBackgroundAsset,
         );
-        expect(find.byType(CircularProgressIndicator), findsOneWidget);
+        expect(find.byType(ProgressRing), findsOneWidget);
         expect(find.text('Preparando Orbi ERP…'), findsOneWidget);
         expect(tester.takeException(), isNull);
       }

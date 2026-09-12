@@ -1,6 +1,8 @@
-import 'package:flutter/material.dart';
+import 'package:fluent_ui/fluent_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:orbi_runtime/orbi_runtime.dart';
+
+import '../ui/fluent/orbi_page.dart';
 
 import '../features/activities/activity_center.dart';
 import '../features/auth/auth_controller.dart';
@@ -90,23 +92,21 @@ class NotConfiguredPage extends StatelessWidget {
   final String? detail;
 
   @override
-  Widget build(BuildContext context) => Scaffold(
-    appBar: AppBar(title: Text(title)),
-    body: Center(
-      child: Padding(
-        padding: const EdgeInsets.all(24),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Icon(Icons.settings_outlined, size: 40),
-            const SizedBox(height: 12),
-            Text('$title no configurado', textAlign: TextAlign.center),
-            if (detail != null) ...[
-              const SizedBox(height: 8),
-              Text(detail!, textAlign: TextAlign.center),
-            ],
+  Widget build(BuildContext context) => OrbiPage(
+    title: title,
+    subtitle: 'Todavía no está configurado',
+    child: Center(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Icon(FluentIcons.settings, size: 40),
+          const SizedBox(height: 12),
+          Text('$title no configurado', textAlign: TextAlign.center),
+          if (detail != null) ...[
+            const SizedBox(height: 8),
+            Text(detail!, textAlign: TextAlign.center),
           ],
-        ),
+        ],
       ),
     ),
   );
