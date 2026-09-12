@@ -4,7 +4,7 @@ Este archivo existe porque las cosas se estaban perdiendo en la conversación. L
 que no está aquí, no está comprometido con nadie. Se actualiza en cuanto algo
 entra o sale, no al final de la sesión.
 
-Última actualización: 2026-09-12, tarde.
+Última actualización: 2026-09-12, tarde. El dueño respondió D2, D3, D5 y D7.
 
 ## Esperan una decisión del dueño
 
@@ -12,15 +12,34 @@ Nada de esto avanza hasta que él responda. No son tareas: son preguntas.
 
 | # | Qué se le pregunta | Por qué importa |
 | --- | --- | --- |
-| D2 | ¿Autorizar la restricción de unicidad sobre el identificador de operación en el servidor? | Él tenía razón: **no se pueden emitir dos facturas con el mismo número**, lo impide el propio Odoo y encima el SRI. Pero sí se pueden emitir **dos facturas distintas para una sola venta** tras un reintento, y esa restricción es lo único que lo cierra. No hay que limpiar nada antes: ERP2 tiene cero casos |
-| D3 | ¿Retirar o marcar como no funcional el despliegue web actual? | Lo publicado nunca pudo hablar con un Odoo. Retirar algo publicado es decisión suya |
-| D5 | ¿La aplicación web se sirve siempre desde el propio dominio del Odoo? | Medido el 12-sep-2026: servida desde ahí, **el problema de dominios distintos desaparece entero** y la lista de bases funciona sin tocar el servidor. ERP2 ya la sirve así desde esta madrugada. Convertirlo en la forma oficial cierra varios frentes de golpe |
 | D6 | ¿Se construye una ruta propia para listar las bases desde otro dominio? | **La recomendación es que no.** Ahorra escribir un nombre una vez, y a cambio normaliza en cada instalación un punto de entrada anónimo que enumera bases, justo lo contrario de por qué esa opción está apagada en producción. La aplicación de escritorio ya lo tiene resuelto |
-| D7 | ¿La barra superior lleva un buscador global, o cada pantalla se queda con el suyo? | Sale de estandarizar las 39 láminas: lo dibujan 17 de 39, no lo exige el contrato escrito y ninguna lámina manda sobre el tema, así que el empate no se resuelve solo. **No es cosmético**: buscar por número, cliente, producto y documento desde un único campo exige una ruta nueva en el servidor que cruce módulos. Decir que no cuesta cero y cada pantalla conserva el filtro que ya tiene |
-| D4 | ¿Guardar la credencial en archivo cifrado o arreglar la firma de la aplicación? | Pidió lo primero; la investigación (C01) dice que en Windows ya es un archivo cifrado de fábrica, y que el fallo de Mac era un parámetro, no el llavero |
 
 ## Resueltas, para que no se vuelvan a preguntar
 
+- **D5 — La aplicación web se sirve desde CUALQUIER dominio, incluido localhost.**
+  Decisión del dueño, 12-sep-2026. Descarta la opción de atarla al propio dominio del
+  Odoo, que era la cómoda. Consecuencia: el origen cruzado deja de ser un rodeo y pasa
+  a ser **requisito permanente**, así que el listado de bases y el acceso tienen que
+  funcionar desde fuera o la decisión no se cumple. En medición.
+- **D7 — No hay buscador global en la cabecera.** Decisión del dueño, 12-sep-2026.
+  Cada pantalla conserva el filtro de su propio contenido. Se ahorra la ruta nueva de
+  servidor que habría exigido cruzar módulos. Ya está escrito en
+  `SHELL_AND_INTERACTION_SPEC.md`.
+- **D3 — El despliegue web actual se retira.** Decisión del dueño, 12-sep-2026. Nunca
+  pudo hablar con un Odoo, así que no se marca como no funcional: se quita.
+- **D2 — Sí a la restricción de unicidad, y va dentro de `l10n_ec_collection_box_pos`.**
+  Decisión del dueño, 12-sep-2026. No es un módulo nuevo ni el core. En análisis: lo
+  que decide si sirve de algo es si el cliente manda hoy un identificador estable entre
+  reintentos, y si el índice restringe los valores vacíos —justo lo que dejó sin
+  estrenar la exclusividad de caja entre dispositivos.
+- **D4 — No era una pregunta abierta; estaba cerrada desde el 12-sep y yo la dejé en la
+  tabla por error.** `flutter_secure_storage` **ya es** el paquete universal que el
+  dueño pedía: una sola interfaz que por debajo usa el llavero en Apple, el gestor de
+  credenciales en Windows, el servicio de secretos en Linux, el almacén de claves en
+  Android y el navegador en web. El bloqueo de macOS era la firma, no el paquete, y ya
+  está arreglado. El envoltorio cifrado que se construyó por el camino se queda sólo
+  como respaldo de Linux sin escritorio, que es el único hueco real. Ver
+  `decisions/C01-credencial-en-archivo-cifrado.md`.
 - **El marco de las 39 láminas está estandarizado** (12-sep-2026,
   `ESTANDAR_LAMINAS_2026_09_12.md`). Se buscaron los choques elemento por elemento y
   salieron **siete**, todos resueltos con mayoría medida, con el contrato ya escrito

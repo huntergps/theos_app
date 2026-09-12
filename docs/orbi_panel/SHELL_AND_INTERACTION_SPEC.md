@@ -237,8 +237,11 @@ La forma del distintivo es libre: **no tiene que ser redondo** (decisión del du
 
 ### Lo que sigue abierto
 
-- **Buscador global en la cabecera.** Sin decidir (`PENDIENTES.md`, `D7`). Mientras no
-  se decida, **no se implementa**: cada pantalla usa su propio filtro de contenido.
+Queda uno solo.
+
+- ~~Buscador global en la cabecera.~~ **Decidido el 12-09-2026: no lo hay.** Cada
+  pantalla usa el filtro de su propio contenido. Las láminas que lo dibujan no mandan
+  sobre este punto.
 - **Vocabulario de los botones.** Cinco pares distintos conviven hoy sólo en Caja para
   lo que en el fondo es confirmar o cancelar. Es un glosario de textos por tipo de
   operación, no una regla de marco, y se resuelve aparte.
