@@ -311,6 +311,10 @@ despliega: memoria `orbi-galapagos-tech-hosting`.
 - **El paquete que sirve cada Odoo en `/orbi/` está atrasado** respecto a
   orbi.galapagos.tech. Hay que recompilarlo con `--base-href=/orbi/` cuando entren los
   arreglos de pantalla.
+- **La guía de Mepriga decía que su carpeta de módulos es un clon, y no lo es**: `git pull`
+  fallaba. Corregida el 12-sep-2026 (commit `37b3c1e` del repositorio `mepriga`, copiada al
+  servidor) junto con la trampa de `docker compose run` por SSH. `COMMIT_DE_ORIGEN.txt`
+  dice ahora qué commit corre en cada módulo, y marca lo que no se ha comparado.
 
 ## Envases: el contrato de Odoo cambió y el mío se quedó corto
 
