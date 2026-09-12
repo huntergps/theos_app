@@ -42,10 +42,23 @@ antes de seguir trabajando en lo que dependa de ella.
 - **D3 — El despliegue web actual se retira.** Decisión del dueño, 12-sep-2026. Nunca
   pudo hablar con un Odoo, así que no se marca como no funcional: se quita.
 - **D2 — Sí a la restricción de unicidad, y va dentro de `l10n_ec_collection_box_pos`.**
-  Decisión del dueño, 12-sep-2026. No es un módulo nuevo ni el core. En análisis: lo
-  que decide si sirve de algo es si el cliente manda hoy un identificador estable entre
-  reintentos, y si el índice restringe los valores vacíos —justo lo que dejó sin
-  estrenar la exclusividad de caja entre dispositivos.
+  Decisión del dueño, 12-sep-2026. **Escrito el mismo día**, commit `34f03c98e` de
+  `dev_odoo20`, rama `master`, sin subir todavía. Índice único parcial sobre
+  `(company_id, btrim(l10n_ec_pos_client_op_uuid))`, pre-migración que rechaza la
+  actualización nombrando los conflictos, y cinco pruebas nuevas. **Pendiente la
+  verificación en rojo antes que en verde**, borrando el índice por SQL para comprobar
+  que es Postgres quien rechaza y no una capa de Python.
+  - Las dos cosas que lo hacían viable ya existían: el cliente **ya manda** un
+    identificador estable, persistido antes de imprimir, así que no hay que tocar la
+    aplicación; y el addon ya tenía el patrón de índice y de pre-migración a copiar.
+    `account.move` era la única identidad offline sin restricción, justo el documento
+    fiscal.
+  - **El fallo real no era el que yo pensaba.** No es que el índice no cubriera los
+    vacíos: es que **no había índice en absoluto**. La idempotencia era buscar antes de
+    crear, sin lock de fila, y bajo READ COMMITTED el reintento no ve la transacción
+    original todavía abierta. Cuanto más lento el servidor, más probable el duplicado.
+  - Remedido en ERP2 el 12-sep: **cero conflictos** sobre 674 facturas vivas, así que el
+    índice se crea sin limpiar nada.
 - **D4 — No era una pregunta abierta; estaba cerrada desde el 12-sep y yo la dejé en la
   tabla por error.** `flutter_secure_storage` **ya es** el paquete universal que el
   dueño pedía: una sola interfaz que por debajo usa el llavero en Apple, el gestor de
