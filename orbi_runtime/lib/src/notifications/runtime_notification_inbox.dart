@@ -22,7 +22,16 @@ final class RuntimeNotificationInbox {
     );
   }
 
-  Stream<core.NotificationEntry> watch(core.NotificationQuery query) {
+  /// 🔴 `NotificationInboxStore.watch()` ya devuelve la página COMPLETA y
+  /// vigente en cada emisión (no una fila nueva por emisión), y sus filas ya
+  /// vienen tipadas como el `NotificationEntry` interno de Drift — un
+  /// `.map(_entry)` directo sobre ese stream le pasaba la LISTA entera a
+  /// `_entry`, que espera una fila suelta con `.id`/`.scopeKey`/etc.
+  /// Medido contra ERP2 el 12-sep-2026: en cuanto la validación de partición
+  /// dejaba pasar la consulta, esto reventaba con un `NoSuchMethodError`
+  /// («no instance getter 'id'» sobre una lista de filas) — Avisos seguía
+  /// sin cargar, ahora por una causa distinta a la de la partición.
+  Stream<List<core.NotificationEntry>> watch(core.NotificationQuery query) {
     final active = sessions.active;
     if (active == null) {
       return Stream.error(StateError('notification scope is inactive'));
@@ -32,7 +41,9 @@ final class RuntimeNotificationInbox {
         StateError('notification scope does not match session'),
       );
     }
-    return _store().watch(query).map(_entry);
+    return _store().watch(query).map(
+      (rows) => rows.map(_entry).toList(growable: false),
+    );
   }
 
   Future<void> ingest(

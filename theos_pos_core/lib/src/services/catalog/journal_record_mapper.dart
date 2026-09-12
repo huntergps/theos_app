@@ -29,9 +29,11 @@ abstract final class JournalRecordMapper {
     }
     final c = AccountJournalCompanion(
       odooId: Value(id),
-      name: Value(d['name'] as String? ?? ''),
-      code: Value(d['code'] as String? ?? ''),
-      type: Value(d['type'] as String? ?? 'general'),
+      // 🔴 Mismo patrón que en `PartnerRecordMapper`: `as String?` no filtra
+      // el `false` que Odoo manda para un texto vacío.
+      name: Value(odoo.toStringOrNull(d['name']) ?? ''),
+      code: Value(odoo.toStringOrNull(d['code']) ?? ''),
+      type: Value(odoo.toStringOrNull(d['type']) ?? 'general'),
       companyId: Value(odoo.extractMany2oneId(d['company_id'])),
       currencyId: Value(odoo.extractMany2oneId(d['currency_id'])),
       l10nEcEntity: Value(

@@ -47,6 +47,13 @@ class _Bootstrap implements AuthBootstrapPort {
   bool failRevoke = false;
   final revokedApiKeyIds = <int>[];
 
+  /// Whether the server accepts the password-free self-revoke RPC
+  /// (`res.users.apikeys.revoke`) — mirrors `base.enable_programmatic_api_keys`
+  /// being off by default in real Odoo, which is the common case a `close()`
+  /// revoke attempt must survive.
+  bool failOwnRevoke = false;
+  final revokedOwnApiKeys = <String>[];
+
   @override
   Future<NativeAuthBootstrapResult> authenticateAndCreateApiKey({
     required String baseUrl,
@@ -68,6 +75,18 @@ class _Bootstrap implements AuthBootstrapPort {
       throw const NativeAuthBootstrapRevocationException('revoke failed');
     }
     revokedApiKeyIds.add(apiKeyId);
+  }
+
+  @override
+  Future<void> revokeOwnApiKey({
+    required String baseUrl,
+    required String database,
+    required String apiKey,
+  }) async {
+    if (failOwnRevoke) {
+      throw StateError('Programmatic API keys are not enabled');
+    }
+    revokedOwnApiKeys.add(apiKey);
   }
 }
 
@@ -438,6 +457,65 @@ void main() {
       expect(profile?.serverUrl, 'https://erp.test');
       expect(profile?.database, 'db');
       expect(profile?.login, 'u');
+    },
+  );
+
+  test(
+    'close revokes this device\'s own key on the server before deleting '
+    'the local copy',
+    () async {
+      final b = _Backend(), r = _Runtime(), i = _Identity();
+      final bootstrap = _Bootstrap();
+      final s = await service(b, r, i, null, null, bootstrap);
+      await s.login(
+        serverUrl: 'https://erp.test',
+        database: 'db',
+        login: 'u',
+        password: 'p',
+      );
+      expect(bootstrap.revokedOwnApiKeys, isEmpty);
+
+      await s.close();
+
+      // The exact bearer secret that was in local storage is the one
+      // handed to the server-side self-revoke call — never a different key,
+      // never every key the user owns.
+      expect(bootstrap.revokedOwnApiKeys, ['secret']);
+      expect(b.values.values, isNot(contains('secret')));
+    },
+  );
+
+  test(
+    'close never blocks logout when the server refuses to revoke the key '
+    '(e.g. programmatic API keys disabled, or offline)',
+    () async {
+      final b = _Backend(), r = _Runtime(), i = _Identity();
+      final bootstrap = _Bootstrap()..failOwnRevoke = true;
+      final s = await service(b, r, i, null, null, bootstrap);
+      await s.login(
+        serverUrl: 'https://erp.test',
+        database: 'db',
+        login: 'u',
+        password: 'p',
+      );
+
+      final logs = <String>[];
+      final previousOutput = logger.logOutput;
+      logger.logOutput = (message) => logs.add(message.toString());
+      addTearDown(() => logger.logOutput = previousOutput);
+
+      // Must not throw: a cleanup failure must never prevent logout.
+      await s.close();
+
+      expect(r.active, isNull);
+      expect(b.values.values, isNot(contains('secret')));
+      expect(
+        logs.any(
+          (line) => line.contains('revoke') && line.contains('login=u'),
+        ),
+        isTrue,
+        reason: 'expected a revoke-failure log line, got: $logs',
+      );
     },
   );
 }

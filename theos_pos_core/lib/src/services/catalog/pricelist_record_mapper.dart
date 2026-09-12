@@ -25,7 +25,9 @@ abstract final class PricelistRecordMapper {
     }
     final c = ProductPricelistCompanion(
       odooId: Value(id),
-      name: Value(data['name'] as String? ?? ''),
+      // 🔴 Mismo patrón que en `PartnerRecordMapper`: `as String?` no filtra
+      // el `false` que Odoo manda para un texto vacío.
+      name: Value(odoo.toStringOrNull(data['name']) ?? ''),
       active: Value(data['active'] as bool? ?? true),
       currencyId: Value(odoo.extractMany2oneId(data['currency_id'])),
       currencyName: Value(odoo.extractMany2oneName(data['currency_id'])),

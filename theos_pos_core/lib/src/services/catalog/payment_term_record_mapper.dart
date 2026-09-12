@@ -25,7 +25,9 @@ abstract final class PaymentTermRecordMapper {
     }
     final c = AccountPaymentTermCompanion(
       odooId: Value(id),
-      name: Value(d['name'] as String? ?? ''),
+      // 🔴 Mismo patrón que en `PartnerRecordMapper`: `as String?` no filtra
+      // el `false` que Odoo manda para un texto vacío.
+      name: Value(odoo.toStringOrNull(d['name']) ?? ''),
       active: Value(d['active'] as bool? ?? true),
       note: Value(d['note'] is String? ? d['note'] : null),
       companyId: Value(odoo.extractMany2oneId(d['company_id'])),

@@ -8,6 +8,7 @@ import 'package:theos_panel/features/notifications/notification_inbox.dart';
 import 'package:theos_panel/features/notifications/notification_navigator.dart';
 import 'package:theos_panel/app/notification_scope_adapter.dart';
 import 'package:orbi_runtime/orbi_runtime.dart';
+import 'package:theos_panel/features/auth/auth_controller.dart';
 import 'package:theos_panel/ui/fluent/orbi_fluent_theme.dart';
 
 final class _Inbox implements NotificationInboxPort {
@@ -145,6 +146,63 @@ void main() {
           ),
         ),
         emitsError(isA<StateError>()),
+      );
+    },
+  );
+
+  test(
+    // 🔴 Regresión (12-sep-2026): `watch()` llamaba a `_validPartition` sin
+    // `companyId`, que por omisión es `null`. Para la partición normal de
+    // toda sesión con compañía activa —`company:<id>`, la que arma
+    // `router.dart` a partir de `capabilities.companyId`— la condición nunca
+    // podía cumplirse: rechazaba ANTES de tocar `runtime.watch`, sin una sola
+    // petición de red, y la pantalla de Avisos mostraba «No se pudo cargar
+    // avisos» para lo que en realidad era un rechazo de permisos. Esta prueba
+    // fija que una partición de compañía que SÍ coincide con las
+    // capacidades activas llega a la base local en vez de morir en la
+    // validación.
+    'active runtime adapter admits a company partition that matches capabilities',
+    () async {
+      final scope = AppScope(
+        appId: 'theos_panel',
+        installationId: 'install',
+        normalizedServerUrl: 'https://example.test',
+        database: 'db',
+        userId: 7,
+      );
+      final runtime = SessionRuntime(
+        databaseOwner: RuntimeDatabaseOwner(
+          factory: (_) => AppDatabase(NativeDatabase.memory()),
+        ),
+      );
+      await runtime.activate(scope);
+      final capabilities = CapabilitySnapshot(
+        scopeKey: scope.scopeKey,
+        companyId: 5,
+        revision: 1,
+        fetchedAt: DateTime.utc(2026),
+      );
+      final container = ProviderContainer(
+        overrides: [
+          runtimeSessionProvider.overrideWithValue(runtime),
+          notificationSystemIdAllocatorProvider.overrideWithValue(_Allocator()),
+          capabilitySnapshotProvider.overrideWithValue(capabilities),
+        ],
+      );
+      addTearDown(() async {
+        container.dispose();
+        await runtime.close();
+      });
+      final port = container.read(notificationInboxPortProvider);
+      expect(port, isA<SessionNotificationInboxPort>());
+      await expectLater(
+        port.watch(
+          NotificationQuery(
+            scopeKey: scope.scopeKey,
+            partitionKey: 'company:5',
+          ),
+        ),
+        emits(isA<NotificationInboxSnapshot>()),
       );
     },
   );

@@ -17,7 +17,9 @@ abstract final class WarehouseRecordMapper {
     }
     final c = StockWarehouseCompanion(
       odooId: Value(id),
-      name: Value(data['name'] as String? ?? ''),
+      // 🔴 Mismo patrón que en `PartnerRecordMapper`: `as String?` no filtra
+      // el `false` que Odoo manda para un texto vacío.
+      name: Value(odoo.toStringOrNull(data['name']) ?? ''),
       code: Value(data['code'] is String ? data['code'] as String : ''),
       writeDate: Value(odoo.parseOdooDateTime(data['write_date'])),
     );

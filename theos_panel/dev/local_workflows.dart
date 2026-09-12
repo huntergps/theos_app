@@ -7,7 +7,6 @@ import 'package:theos_panel/app/notification_scope_adapter.dart';
 import 'package:theos_panel/app/orbi_app.dart';
 import 'package:theos_panel/app/bootstrap.dart';
 import 'package:theos_panel/app/orbi_splash_screen.dart';
-import 'package:theos_panel/app/theme/orbi_theme.dart';
 import 'package:theos_panel/ui/fluent/orbi_fluent_theme.dart';
 import 'package:theos_panel/app/preferences/app_preferences.dart';
 import 'package:theos_panel/app/session_composition.dart';

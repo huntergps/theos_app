@@ -43,13 +43,15 @@ abstract final class ProductRecordMapper {
     }
     final c = ProductProductCompanion(
       odooId: Value(id),
-      name: Value(data['name'] as String? ?? ''),
-      displayName: Value(data['display_name'] as String?),
+      // 🔴 Mismo patrón que en `PartnerRecordMapper`: `as String?` no filtra
+      // el `false` que Odoo manda para un texto vacío.
+      name: Value(odoo.toStringOrNull(data['name']) ?? ''),
+      displayName: Value(odoo.toStringOrNull(data['display_name'])),
       defaultCode: Value(
         data['default_code'] is String ? data['default_code'] : null,
       ),
       barcode: Value(data['barcode'] is String ? data['barcode'] : null),
-      type: Value(data['type'] as String? ?? 'consu'),
+      type: Value(odoo.toStringOrNull(data['type']) ?? 'consu'),
       saleOk: Value(data['sale_ok'] as bool? ?? true),
       purchaseOk: Value(data['purchase_ok'] as bool? ?? true),
       active: Value(data['active'] as bool? ?? true),

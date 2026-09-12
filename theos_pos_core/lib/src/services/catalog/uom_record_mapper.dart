@@ -22,7 +22,9 @@ abstract final class UomRecordMapper {
     if (id is! int || id <= 0) throw const FormatException('uom.uom id');
     final c = UomUomCompanion(
       odooId: Value(id),
-      name: Value(d['name'] as String? ?? ''),
+      // 🔴 Mismo patrón que en `PartnerRecordMapper`: `as String?` no filtra
+      // el `false` que Odoo manda para un texto vacío.
+      name: Value(odoo.toStringOrNull(d['name']) ?? ''),
       factor: Value((d['factor'] as num?)?.toDouble() ?? 1),
       rounding: Value((d['rounding'] as num?)?.toDouble() ?? .01),
       active: Value(d['active'] as bool? ?? true),

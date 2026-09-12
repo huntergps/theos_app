@@ -45,15 +45,24 @@ final class SessionNotificationInboxPort implements NotificationInboxPort {
       );
       return;
     }
-    if (!_validPartition(query.partitionKey)) {
+    // 🔴 Antes se llamaba sin `companyId`, y el parámetro nombrado por
+    // omisión es `null`. Para cualquier partición `company:<id>` (que es la
+    // que arma el router para toda sesión con compañía activa, la normal) la
+    // condición de `_validPartition` exige `companyId != null` y nunca podía
+    // cumplirse: el `StateError` salía ANTES de tocar `runtime.watch`, sin
+    // una sola petición de red, y la UI lo mostraba como «No se pudo cargar
+    // avisos» — un mensaje de fallo de carga para lo que en realidad era un
+    // rechazo de permisos que ni llegaba a intentar la lectura.
+    if (!_validPartition(query.partitionKey, companyId: capabilities?.companyId)) {
       yield* Stream<NotificationInboxSnapshot>.error(
         StateError('notification partition does not match session'),
       );
       return;
     }
-    final entries = <NotificationEntry>[];
-    await for (final entry in runtime.watch(query)) {
-      entries.add(entry);
+    // `runtime.watch` emite la página COMPLETA y vigente en cada cambio (no
+    // una fila nueva por emisión) — se REEMPLAZA el snapshot, no se acumula;
+    // acumular volvería a agregar la misma fila en cada re-emisión.
+    await for (final entries in runtime.watch(query)) {
       yield NotificationInboxSnapshot(
         entries: entries,
         unreadCount: entries.where((item) => item.readAt == null).length,

@@ -124,6 +124,33 @@ abstract interface class AuthBootstrapPort {
     required String password,
     required int apiKeyId,
   });
+
+  /// Best-effort self-revoke for the device's own bearer credential at
+  /// logout, when no password is available to re-authenticate.
+  ///
+  /// [close] never has a password: it is never persisted anywhere (see
+  /// [NativeAuthService] class doc), so the session-cookie + `check_identity`
+  /// path behind [revokeApiKey] is unreachable from there. Odoo's JSON-2
+  /// bearer transport (`save_session=false`) can never satisfy
+  /// `check_identity` either, so `res.users.apikeys.remove` — the
+  /// password-guarded endpoint — cannot be called with just [apiKey].
+  ///
+  /// Odoo does expose a second, password-free endpoint for exactly this:
+  /// `res.users.apikeys.revoke(key)`, which lets a key authenticate and
+  /// revoke *itself* (verified by hash match against the caller's own
+  /// key material — never any other user's or any other key's). It is
+  /// gated server-side by the `base.enable_programmatic_api_keys` system
+  /// parameter (disabled by default) or by the caller being a system user;
+  /// when neither holds it fails with a benign "not enabled" error.
+  ///
+  /// Callers must treat any failure here as informational only — logged,
+  /// never surfaced, never blocking the logout it is part of — since there
+  /// is no user-facing recovery for it at this point.
+  Future<void> revokeOwnApiKey({
+    required String baseUrl,
+    required String database,
+    required String apiKey,
+  });
 }
 
 final class NativeAuthBootstrapAdapter implements AuthBootstrapPort {
@@ -158,6 +185,30 @@ final class NativeAuthBootstrapAdapter implements AuthBootstrapPort {
     password: password,
     apiKeyId: apiKeyId,
   );
+
+  @override
+  Future<void> revokeOwnApiKey({
+    required String baseUrl,
+    required String database,
+    required String apiKey,
+  }) async {
+    // Deliberately a plain OdooClient (JSON-2 bearer), not
+    // NativeOdooAuthBootstrap: `res.users.apikeys.revoke` is a normal public
+    // RPC method (unlike `remove`, it carries no @check_identity guard), so
+    // it needs none of the session-cookie machinery that class exists for.
+    final client = OdooClient(
+      config: OdooClientConfig(
+        baseUrl: baseUrl,
+        database: database,
+        apiKey: apiKey,
+      ),
+    );
+    await client.call(
+      model: 'res.users.apikeys',
+      method: 'revoke',
+      kwargs: {'key': apiKey},
+    );
+  }
 }
 
 abstract interface class SessionRuntimePort {
@@ -595,6 +646,37 @@ final class NativeAuthService {
           database: profile.database,
           userId: profile.userId,
         );
+        // Order matters: read and attempt to revoke the secret *before*
+        // deleting it locally. Once the local copy is gone there is nothing
+        // left to authenticate a revoke with — no password is ever retained
+        // (see class doc) — so this is the only point where revocation is
+        // still possible at all.
+        final secret = await _credentialStore.read(
+          scope,
+          profile.credentialReference,
+        );
+        if (secret != null && secret.isNotEmpty) {
+          try {
+            await _bootstrap.revokeOwnApiKey(
+              baseUrl: profile.serverUrl,
+              database: profile.database,
+              apiKey: secret,
+            );
+          } catch (error) {
+            // Best-effort: offline, the server not opting into
+            // `base.enable_programmatic_api_keys`, or any other failure must
+            // never block logout, and is never treated as if it succeeded —
+            // the key stays orphaned on the server, same as before this
+            // call existed, but now with a trace an administrator can act
+            // on. Never the key itself.
+            logger.w(
+              '[NativeAuthService]',
+              'Could not revoke this device\'s API key on logout for '
+                  'login=${profile.login} db=${profile.database} '
+                  'server=${profile.serverUrl}: $error',
+            );
+          }
+        }
         await _credentialStore.delete(scope, profile.credentialReference);
       }
     } finally {

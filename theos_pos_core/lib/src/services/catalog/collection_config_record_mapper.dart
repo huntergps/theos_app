@@ -44,8 +44,12 @@ abstract final class CollectionConfigRecordMapper {
         v is List ? jsonEncode(v.whereType<int>().toList()) : null;
     final c = CollectionConfigCompanion(
       odooId: Value(id),
-      name: Value(d['name'] as String? ?? ''),
-      code: Value(d['code'] as String?),
+      // 🔴 Igual que en `PartnerRecordMapper`: Odoo manda `false`, no `null`,
+      // en cualquier campo de texto vacío, y `as String?` no filtra `false`.
+      // `toStringOrNull` sí lo hace, y respeta `''` cuando de verdad es texto
+      // vacío devuelto como tal.
+      name: Value(odoo.toStringOrNull(d['name']) ?? ''),
+      code: Value(odoo.toStringOrNull(d['code'])),
       active: Value(d['active'] as bool? ?? true),
       companyId: Value(odoo.extractMany2oneId(d['company_id']) ?? 0),
       companyName: Value(odoo.extractMany2oneName(d['company_id'])),
@@ -64,10 +68,12 @@ abstract final class CollectionConfigRecordMapper {
         (d['amount_authorized_diff'] as num?)?.toDouble() ?? 0,
       ),
       userIds: Value(ids(d['user_ids'])),
-      posAppCapabilitiesJson: Value(d['pos_app_capabilities_json'] as String?),
+      posAppCapabilitiesJson: Value(
+        odoo.toStringOrNull(d['pos_app_capabilities_json']),
+      ),
       currentSessionId: Value(odoo.extractMany2oneId(d['current_session_id'])),
-      currentSessionState: Value(d['current_session_state'] as String?),
-      currentSessionName: Value(d['current_session_name'] as String?),
+      currentSessionState: Value(odoo.toStringOrNull(d['current_session_state'])),
+      currentSessionName: Value(odoo.toStringOrNull(d['current_session_name'])),
       numberOfOpenedSession: Value(d['number_of_opened_session'] as int? ?? 0),
       lastSessionClosingDate: Value(
         odoo.parseOdooDateTime(d['last_session_closing_date']),
@@ -76,10 +82,10 @@ abstract final class CollectionConfigRecordMapper {
         (d['last_session_closing_cash'] as num?)?.toDouble() ?? 0,
       ),
       collectionSessionUsername: Value(
-        d['collection_session_username'] as String?,
+        odoo.toStringOrNull(d['collection_session_username']),
       ),
       currentSessionStateDisplay: Value(
-        d['current_session_state_display'] as String?,
+        odoo.toStringOrNull(d['current_session_state_display']),
       ),
       numberOfRescueSession: Value(d['number_of_rescue_session'] as int? ?? 0),
       writeDate: Value(odoo.parseOdooDateTime(d['write_date'])),

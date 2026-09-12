@@ -39,8 +39,10 @@ abstract final class CollectionSessionRecordMapper {
     final c = CollectionSessionCompanion(
       odooId: Value(id),
       sessionUuid: Value(uuid),
-      name: Value(d['name'] as String? ?? ''),
-      state: Value(d['state'] as String? ?? 'opening_control'),
+      // 🔴 Mismo patrón que en `PartnerRecordMapper`: `as String?` no filtra
+      // el `false` que Odoo manda para un texto vacío.
+      name: Value(odoo.toStringOrNull(d['name']) ?? ''),
+      state: Value(odoo.toStringOrNull(d['state']) ?? 'opening_control'),
       configId: Value(odoo.extractMany2oneId(d['config_id']) ?? 0),
       configName: Value(odoo.extractMany2oneName(d['config_id'])),
       companyId: Value(odoo.extractMany2oneId(d['company_id']) ?? 0),
@@ -48,7 +50,7 @@ abstract final class CollectionSessionRecordMapper {
       userId: Value(odoo.extractMany2oneId(d['user_id']) ?? 0),
       userName: Value(odoo.extractMany2oneName(d['user_id'])),
       currencyId: Value(odoo.extractMany2oneId(d['currency_id']) ?? 0),
-      currencySymbol: Value(d['currency_symbol'] as String?),
+      currencySymbol: Value(odoo.toStringOrNull(d['currency_symbol'])),
       cashJournalId: Value(odoo.extractMany2oneId(d['cash_journal_id'])),
       cashJournalName: Value(odoo.extractMany2oneName(d['cash_journal_id'])),
       startAt: Value(start),

@@ -30,10 +30,12 @@ abstract final class TaxRecordMapper {
     if (id is! int || id <= 0) throw const FormatException('account.tax id');
     final c = AccountTaxCompanion(
       odooId: Value(id),
-      name: Value(d['name'] as String? ?? ''),
+      // 🔴 Mismo patrón que en `PartnerRecordMapper`: `as String?` no filtra
+      // el `false` que Odoo manda para un texto vacío.
+      name: Value(odoo.toStringOrNull(d['name']) ?? ''),
       description: Value(d['description'] is String? ? d['description'] : null),
-      typeTaxUse: Value(d['type_tax_use'] as String? ?? 'sale'),
-      amountType: Value(d['amount_type'] as String? ?? 'percent'),
+      typeTaxUse: Value(odoo.toStringOrNull(d['type_tax_use']) ?? 'sale'),
+      amountType: Value(odoo.toStringOrNull(d['amount_type']) ?? 'percent'),
       amount: Value((d['amount'] as num?)?.toDouble() ?? 0),
       active: Value(d['active'] as bool? ?? true),
       priceInclude: Value(d['price_include'] as bool? ?? false),

@@ -40,21 +40,28 @@ abstract final class PartnerRecordMapper {
     final commercialId = odoo.extractMany2oneId(d['commercial_partner_id']);
     final c = ResPartnerCompanion(
       odooId: Value(id),
-      name: Value(d['name'] as String? ?? ''),
-      displayName: Value(d['display_name'] as String?),
-      ref: Value(d['ref'] as String?),
-      vat: Value(d['vat'] as String?),
-      email: Value(d['email'] as String?),
-      phone: Value(d['phone'] as String?),
-      street: Value(d['street'] as String?),
-      street2: Value(d['street2'] as String?),
-      city: Value(d['city'] as String?),
-      zip: Value(d['zip'] as String?),
+      // 🔴 Odoo manda `false`, no `null` ni `''`, en cualquier campo de texto
+      // vacío (Char/Text/Selection). `d['name'] as String?` no lo filtra:
+      // `false as String?` lanza TypeError porque `bool` no es subtipo de
+      // `String?` — sólo `null` lo es. Medido contra ERP2 el 12-sep-2026:
+      // `TypeError: false: type 'bool' is not a subtype of type 'String'`
+      // tumbaba la lectura entera de Clientes. `toStringOrNull` sí filtra
+      // `false` (y preserva `''` tal cual, sin convertirla en null).
+      name: Value(odoo.toStringOrNull(d['name']) ?? ''),
+      displayName: Value(odoo.toStringOrNull(d['display_name'])),
+      ref: Value(odoo.toStringOrNull(d['ref'])),
+      vat: Value(odoo.toStringOrNull(d['vat'])),
+      email: Value(odoo.toStringOrNull(d['email'])),
+      phone: Value(odoo.toStringOrNull(d['phone'])),
+      street: Value(odoo.toStringOrNull(d['street'])),
+      street2: Value(odoo.toStringOrNull(d['street2'])),
+      city: Value(odoo.toStringOrNull(d['city'])),
+      zip: Value(odoo.toStringOrNull(d['zip'])),
       countryId: Value(odoo.extractMany2oneId(d['country_id'])),
       countryName: Value(odoo.extractMany2oneName(d['country_id'])),
       stateId: Value(odoo.extractMany2oneId(d['state_id'])),
       stateName: Value(odoo.extractMany2oneName(d['state_id'])),
-      avatar128: Value(d['avatar_128'] as String?),
+      avatar128: Value(odoo.toStringOrNull(d['avatar_128'])),
       isCompany: Value(d['is_company'] as bool? ?? false),
       active: Value(d['active'] as bool? ?? true),
       parentId: Value(odoo.extractMany2oneId(d['parent_id'])),
@@ -77,8 +84,8 @@ abstract final class PartnerRecordMapper {
       propertyPaymentTermName: Value(
         odoo.extractMany2oneName(d['property_payment_term_id']),
       ),
-      lang: Value(d['lang'] as String?),
-      comment: Value(d['comment'] as String?),
+      lang: Value(odoo.toStringOrNull(d['lang'])),
+      comment: Value(odoo.toStringOrNull(d['comment'])),
       customerRank: Value((d['customer_rank'] as num?)?.toInt() ?? 0),
       writeDate: Value(odoo.parseOdooDateTime(d['write_date'])),
     );

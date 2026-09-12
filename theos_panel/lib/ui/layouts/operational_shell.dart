@@ -226,7 +226,7 @@ final class OperationalShell extends StatelessWidget {
     return NavigationPane(
       displayMode: mode,
       selected: selected < 0 ? null : selected,
-      header: _paneHeader(),
+      header: _paneHeader(mode),
       footerItems: _sessionActions(),
       items: [
         for (final entry in grouped.entries)
@@ -315,7 +315,7 @@ final class OperationalShell extends StatelessWidget {
   /// migración vino a quitar. Fluent la coloca, la alinea y la esconde en el
   /// carril estrecho por sí solo, donde de todas formas no cabría un nombre
   /// de empresa.
-  Widget _paneHeader() => Builder(
+  Widget _paneHeader(PaneDisplayMode mode) => Builder(
     builder: (context) => Padding(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       child: Row(
@@ -324,15 +324,20 @@ final class OperationalShell extends StatelessWidget {
             height: 24,
             color: FluentTheme.of(context).typography.body?.color,
           ),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Text(
-              this.context.companyLabel,
-              overflow: TextOverflow.ellipsis,
-              maxLines: 1,
-              style: FluentTheme.of(context).typography.bodyStrong,
+          // La empresa NO se repite en estrecho: ahí ya la lleva la barra del
+          // contenido, que es la que se ve sin abrir el menú. Enseñarla en los
+          // dos sitios la duplicaba en pantalla.
+          if (mode != PaneDisplayMode.minimal) ...[
+            const SizedBox(width: 10),
+            Expanded(
+              child: Text(
+                this.context.companyLabel,
+                overflow: TextOverflow.ellipsis,
+                maxLines: 1,
+                style: FluentTheme.of(context).typography.bodyStrong,
+              ),
             ),
-          ),
+          ],
         ],
       ),
     ),

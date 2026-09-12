@@ -70,7 +70,10 @@ abstract final class PaymentConfigRecordMapper {
     final id = _id(data['id'], 'account.credit.card.brand');
     final row = AccountCreditCardBrandCompanion(
       odooId: Value(id),
-      name: Value(data['name'] as String? ?? ''),
+      // 🔴 `_string` (abajo) ya filtra el `false` que Odoo manda para un
+      // texto vacío; `as String?` no lo hace — `false as String?` lanza
+      // TypeError. `name` usaba el patrón sin filtrar.
+      name: Value(_string(data['name']) ?? ''),
       code: Value(_string(data['code'])),
       active: Value(data['active'] as bool? ?? true),
       writeDate: Value(odoo.parseOdooDateTime(data['write_date'])),
@@ -93,10 +96,10 @@ abstract final class PaymentConfigRecordMapper {
     final id = _id(data['id'], 'account.credit.card.deadline');
     final row = AccountCreditCardDeadlineCompanion(
       odooId: Value(id),
-      name: Value(data['name'] as String? ?? ''),
+      name: Value(_string(data['name']) ?? ''),
       months: Value(data['meses'] as int? ?? 0),
       // Odoo manda `false` cuando una selección está vacía, no una cadena.
-      kind: Value(data['type'] is String ? data['type'] as String : 'current'),
+      kind: Value(_string(data['type']) ?? 'current'),
       hasInterest: Value(data['interes'] as bool? ?? false),
       active: Value(data['active'] as bool? ?? true),
       writeDate: Value(odoo.parseOdooDateTime(data['write_date'])),
@@ -123,10 +126,10 @@ abstract final class PaymentConfigRecordMapper {
     }
     final row = AccountCardLoteCompanion(
       odooId: Value(id),
-      name: Value(data['name'] as String? ?? ''),
+      name: Value(_string(data['name']) ?? ''),
       journalId: Value(journalId),
       journalName: Value(odoo.extractMany2oneName(data['journal_id'])),
-      state: Value(data['state'] as String? ?? 'open'),
+      state: Value(_string(data['state']) ?? 'open'),
       date: Value(odoo.parseOdooDateTime(data['date'])),
       numeroLote: Value(_string(data['numero_lote'])),
       amountTotal: Value((data['amount_total'] as num?)?.toDouble() ?? 0),
@@ -163,7 +166,7 @@ abstract final class PaymentConfigRecordMapper {
         data['payment_type'] ?? data['payment_method_id.payment_type'];
     final row = AccountPaymentMethodLineCompanion(
       odooId: Value(id),
-      name: Value(data['name'] as String? ?? ''),
+      name: Value(_string(data['name']) ?? ''),
       code: Value(
         _string(data['code']) ?? _string(data['payment_method_id.code']),
       ),
@@ -173,7 +176,10 @@ abstract final class PaymentConfigRecordMapper {
       ),
       journalId: Value(journalId),
       journalName: Value(odoo.extractMany2oneName(data['journal_id'])),
-      paymentType: Value(paymentType as String? ?? 'inbound'),
+      // `paymentType` puede venir del propio `false` de Odoo cuando no hay
+      // `payment_type` ni `payment_method_id.payment_type`; `_string` lo
+      // filtra igual que en el resto de este archivo.
+      paymentType: Value(_string(paymentType) ?? 'inbound'),
       active: const Value(true),
       writeDate: Value(odoo.parseOdooDateTime(data['write_date'])),
     );

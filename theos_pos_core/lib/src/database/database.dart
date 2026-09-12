@@ -176,7 +176,7 @@ class AppDatabase extends _$AppDatabase {
   }
 
   @override
-  int get schemaVersion => 15;
+  int get schemaVersion => 16;
 
   @override
   MigrationStrategy get migration {
@@ -221,6 +221,26 @@ class AppDatabase extends _$AppDatabase {
             // a llenarse. Es un catálogo: se recrea vacía y se vuelve a traer
             // del servidor. **Sólo esa tabla**, para no rozar la cola sin
             // conexión ni ningún documento financiero.
+            await m.deleteTable(accountCreditCardDeadline.actualTableName);
+            await m.createTable(accountCreditCardDeadline);
+          }
+          if (from < 16) {
+            // 🔴 El paso `from < 15` de arriba y la subida de versión a 15
+            // se escribieron en el MISMO cambio que las columnas nuevas
+            // (`months`/`kind`/`has_interest`). Cualquier base que ya hubiera
+            // quedado marcada en v15 ANTES de que esa migración existiera de
+            // verdad — medido en el navegador: el IndexedDB de una pestaña no
+            // se limpia entre reinicios, así que una prueba anterior con el
+            // esquema a medio terminar deja el `user_version` en 15 con las
+            // columnas VIEJAS — nunca vuelve a pasar por `from < 15`, porque
+            // para Drift esa base ya está "al día". El síntoma medido fue
+            // `SqliteException: no such column: months`.
+            //
+            // Subir el esquema otra vez fuerza a CUALQUIER base por debajo de
+            // 16 a pasar por aquí, sin importar si su v15 ya tenía las
+            // columnas correctas o no. Repetir el mismo drop+recreate es
+            // inocuo dos veces: es un catálogo de sólo lectura, vacío o no,
+            // que se rellena de nuevo desde el servidor.
             await m.deleteTable(accountCreditCardDeadline.actualTableName);
             await m.createTable(accountCreditCardDeadline);
           }
