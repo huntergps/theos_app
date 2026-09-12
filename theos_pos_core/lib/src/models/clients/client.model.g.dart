@@ -72,6 +72,7 @@ class ClientManager extends OdooModelManager<Client>
   static Client fromOdooMap(Map<String, dynamic> data) {
     return Client(
       id: data['id'] as int? ?? 0,
+      uuid: null,
       isSynced: false,
       name: parseOdooStringRequired(data['name']),
       displayName: parseOdooString(data['display_name']),
@@ -79,6 +80,7 @@ class ClientManager extends OdooModelManager<Client>
       vat: parseOdooString(data['vat']),
       email: parseOdooString(data['email']),
       phone: parseOdooString(data['phone']),
+      mobile: null,
       street: parseOdooString(data['street']),
       street2: parseOdooString(data['street2']),
       city: parseOdooString(data['city']),
@@ -132,6 +134,7 @@ class ClientManager extends OdooModelManager<Client>
       partnerLongitude: parseOdooDouble(data['partner_longitude']),
       canUseCustomPayments: parseOdooBool(data['can_use_custom_payments']),
       writeDate: parseOdooDateTime(data['write_date']),
+      creditLastSyncDate: null,
     );
   }
 

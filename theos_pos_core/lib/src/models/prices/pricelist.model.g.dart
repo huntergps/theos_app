@@ -44,6 +44,7 @@ class PricelistManager extends OdooModelManager<Pricelist>
       companyId: extractMany2oneId(data['company_id']),
       companyName: extractMany2oneName(data['company_id']),
       sequence: parseOdooInt(data['sequence']) ?? 0,
+      discountPolicy: null,
       writeDate: parseOdooDateTime(data['write_date']),
     );
   }
@@ -375,6 +376,7 @@ class PricelistItemManager extends OdooModelManager<PricelistItem>
       computePrice: parseOdooSelection(data['compute_price']) ?? '',
       fixedPrice: parseOdooDouble(data['fixed_price']) ?? 0.0,
       percentPrice: parseOdooDouble(data['percent_price']) ?? 0.0,
+      uomId: null,
       base: parseOdooSelection(data['base']) ?? '',
       basePricelistId: extractMany2oneId(data['base_pricelist_id']),
       priceDiscount: parseOdooDouble(data['price_discount']) ?? 0.0,

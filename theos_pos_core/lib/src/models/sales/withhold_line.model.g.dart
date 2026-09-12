@@ -107,6 +107,7 @@ class WithholdLineManager extends OdooModelManager<WithholdLine>
     return WithholdLine(
       id: data['id'] as int? ?? 0,
       lineUuid: '',
+      orderId: null,
       taxId: extractMany2oneId(data['tax_id']) ?? 0,
       taxName: '',
       taxPercent: 0.0,

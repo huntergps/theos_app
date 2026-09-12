@@ -305,15 +305,25 @@ class PaymentLineManager extends OdooModelManager<PaymentLine>
   static PaymentLine fromOdooMap(Map<String, dynamic> data) {
     return PaymentLine(
       id: data['id'] as int? ?? 0,
+      lineUuid: null,
+      uuid: null,
       isSynced: false,
       type: PaymentLineType.values.first,
       date: parseOdooDate(data['date']) ?? DateTime(1970),
       amount: parseOdooDouble(data['amount']) ?? 0.0,
       reference: parseOdooString(data['payment_reference']),
+      orderId: null,
       state: parseOdooSelection(data['state']) ?? '',
       journalId: extractMany2oneId(data['journal_id']),
       journalName: extractMany2oneName(data['journal_id']),
+      journalType: null,
+      paymentMethodId: null,
       paymentMethodLineId: extractMany2oneId(data['payment_method_line_id']),
+      paymentMethodCode: null,
+      paymentMethodName: null,
+      bankId: null,
+      bankName: null,
+      cardType: null,
       cardBrandId: extractMany2oneId(data['card_brand_id']),
       cardBrandName: extractMany2oneName(data['card_brand_id']),
       cardDeadlineId: extractMany2oneId(data['card_deadline_id']),
@@ -326,8 +336,10 @@ class PaymentLineManager extends OdooModelManager<PaymentLine>
       effectiveDate: parseOdooDate(data['effective_date']),
       advanceId: extractMany2oneId(data['advance_id']),
       advanceName: extractMany2oneName(data['advance_id']),
+      advanceAvailable: null,
       creditNoteId: extractMany2oneId(data['credit_note_id']),
       creditNoteName: extractMany2oneName(data['credit_note_id']),
+      creditNoteAvailable: null,
     );
   }
 
@@ -905,6 +917,8 @@ class CardLoteManager extends OdooModelManager<CardLote>
   static CardLote fromOdooMap(Map<String, dynamic> data) {
     return CardLote(
       id: data['id'] as int? ?? 0,
+      localId: null,
+      loteUuid: null,
       name: parseOdooStringRequired(data['name']),
       journalId: extractMany2oneId(data['journal_id']) ?? 0,
       journalName: extractMany2oneName(data['journal_id']),

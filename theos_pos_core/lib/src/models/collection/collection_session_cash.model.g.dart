@@ -107,6 +107,7 @@ class CollectionSessionCashManager
     return CollectionSessionCash(
       id: data['id'] as int? ?? 0,
       isSynced: false,
+      lastSyncDate: null,
       collectionSessionId: extractMany2oneId(data['collection_session_id']),
       cashType: CashType.values.firstWhere(
         (e) => e.name == parseOdooSelection(data['cash_type']),

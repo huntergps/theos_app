@@ -107,7 +107,9 @@ class CashOutManager extends OdooModelManager<CashOut>
   static CashOut fromOdooMap(Map<String, dynamic> data) {
     return CashOut(
       id: data['id'] as int? ?? 0,
+      uuid: null,
       isSynced: false,
+      lastSyncDate: null,
       name: parseOdooString(data['name']),
       date: parseOdooDate(data['date']) ?? DateTime(1970),
       state: CashOutState.values.firstWhere(

@@ -353,6 +353,7 @@ class SaleOrderManager extends OdooModelManager<SaleOrder>
   static SaleOrder fromOdooMap(Map<String, dynamic> data) {
     return SaleOrder(
       id: data['id'] as int? ?? 0,
+      orderUuid: null,
       name: parseOdooStringRequired(data['name']),
       state: SaleOrderState.values.firstWhere(
         (e) => e.code == parseOdooSelection(data['state']),
@@ -364,6 +365,11 @@ class SaleOrderManager extends OdooModelManager<SaleOrder>
       expectedDate: parseOdooDateTime(data['expected_date']),
       partnerId: extractMany2oneId(data['partner_id']),
       partnerName: extractMany2oneName(data['partner_id']),
+      partnerVat: null,
+      partnerStreet: null,
+      partnerPhone: null,
+      partnerEmail: null,
+      partnerAvatar: null,
       partnerInvoiceId: extractMany2oneId(data['partner_invoice_id']),
       partnerInvoiceAddress: extractMany2oneName(data['partner_invoice_id']),
       partnerShippingId: extractMany2oneId(data['partner_shipping_id']),
@@ -379,6 +385,7 @@ class SaleOrderManager extends OdooModelManager<SaleOrder>
       pricelistId: extractMany2oneId(data['pricelist_id']),
       pricelistName: extractMany2oneName(data['pricelist_id']),
       currencyId: extractMany2oneId(data['currency_id']),
+      currencySymbol: null,
       currencyRate: parseOdooDouble(data['currency_rate']) ?? 0.0,
       paymentTermId: extractMany2oneId(data['payment_term_id']),
       paymentTermName: extractMany2oneName(data['payment_term_id']),
@@ -448,7 +455,9 @@ class SaleOrderManager extends OdooModelManager<SaleOrder>
       notaAdicional: parseOdooString(data['nota_adicional']),
       xUuid: parseOdooString(data['x_uuid']),
       isSynced: false,
+      lastSyncDate: null,
       syncRetryCount: 0,
+      lastSyncAttempt: null,
       writeDate: parseOdooDateTime(data['write_date']),
       hasQueuedInvoice: false,
     );

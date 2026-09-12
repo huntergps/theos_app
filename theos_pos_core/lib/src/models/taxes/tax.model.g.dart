@@ -62,6 +62,7 @@ class TaxManager extends OdooModelManager<Tax>
       companyName: extractMany2oneName(data['company_id']),
       taxGroupId: extractMany2oneId(data['tax_group_id']),
       taxGroupName: extractMany2oneName(data['tax_group_id']),
+      taxGroupL10nEcType: null,
       writeDate: parseOdooDateTime(data['write_date']),
     );
   }

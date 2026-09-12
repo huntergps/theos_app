@@ -61,6 +61,9 @@ class UserManager extends OdooModelManager<User>
       warehouseName: extractMany2oneName(data['property_warehouse_id']),
       avatar128: parseOdooString(data['avatar_128']),
       notificationType: parseOdooString(data['notification_type']),
+      workEmail: null,
+      workPhone: null,
+      mobilePhone: null,
       groupIds: const [],
       permissions: const [],
       isCurrentUser: false,
@@ -69,6 +72,10 @@ class UserManager extends OdooModelManager<User>
       outOfOfficeTo: parseOdooDateTime(data['out_of_office_to']),
       outOfOfficeMessage: parseOdooString(data['out_of_office_message']),
       calendarDefaultPrivacy: parseOdooString(data['calendar_default_privacy']),
+      workLocationId: null,
+      workLocationName: null,
+      resourceCalendarId: null,
+      resourceCalendarName: null,
     );
   }
 

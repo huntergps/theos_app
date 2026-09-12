@@ -222,6 +222,7 @@ class CompanyManager extends OdooModelManager<Company>
       stateId: extractMany2oneId(data['state_id']),
       stateName: extractMany2oneName(data['state_id']),
       phone: parseOdooString(data['phone']),
+      mobile: null,
       email: parseOdooString(data['email']),
       website: parseOdooString(data['website']),
       currencyId: extractMany2oneId(data['currency_id']),
@@ -237,6 +238,7 @@ class CompanyManager extends OdooModelManager<Company>
       primaryColor: parseOdooString(data['primary_color']),
       secondaryColor: parseOdooString(data['secondary_color']),
       font: parseOdooString(data['font']),
+      layoutBackground: null,
       externalReportLayoutId: extractMany2oneId(
         data['external_report_layout_id'],
       ),
@@ -254,9 +256,16 @@ class CompanyManager extends OdooModelManager<Company>
       ),
       defaultPartnerId: extractMany2oneId(data['partner_id']),
       defaultPartnerName: extractMany2oneName(data['partner_id']),
+      defaultWarehouseId: null,
+      defaultWarehouseName: null,
+      defaultPricelistId: null,
+      defaultPricelistName: null,
+      defaultPaymentTermId: null,
+      defaultPaymentTermName: null,
       pedirEndCustomerData: parseOdooBool(data['pedir_datos_consumidor_final']),
       pedirSaleReferrer: parseOdooBool(data['pedir_sale_referrer']),
       pedirTipoCanalCliente: parseOdooBool(data['pedir_tipo_canal_cliente']),
+      saleCustomerInvoiceLimitSri: null,
       maxDiscountPercentage:
           parseOdooDouble(data['max_discount_percentage']) ?? 0.0,
       creditOverdueDaysThreshold:
@@ -266,6 +275,8 @@ class CompanyManager extends OdooModelManager<Company>
       creditOfflineSafetyMargin: 0.0,
       creditDataMaxAgeHours: 0,
       reservationExpiryDays: parseOdooInt(data['reservation_expiry_days']) ?? 0,
+      reservationWarehouseId: null,
+      reservationWarehouseName: null,
       reservationLocationId: extractMany2oneId(data['reservation_location_id']),
       reservationLocationName: extractMany2oneName(
         data['reservation_location_id'],

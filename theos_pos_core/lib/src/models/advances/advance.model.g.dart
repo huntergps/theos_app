@@ -172,6 +172,7 @@ class AdvanceManager extends OdooModelManager<Advance>
   static Advance fromOdooMap(Map<String, dynamic> data) {
     return Advance(
       id: data['id'] as int? ?? 0,
+      advanceUuid: null,
       name: parseOdooString(data['name']),
       date: parseOdooDate(data['date']) ?? DateTime(1970),
       dateEstimated: parseOdooDate(data['date_estimated']),
@@ -650,8 +651,11 @@ class AdvanceLineManager extends OdooModelManager<AdvanceLine>
   static AdvanceLine fromOdooMap(Map<String, dynamic> data) {
     return AdvanceLine(
       id: data['id'] as int? ?? 0,
+      lineUuid: null,
+      advanceId: null,
       journalId: extractMany2oneId(data['journal_id']) ?? 0,
       journalName: extractMany2oneName(data['journal_id']),
+      journalType: null,
       advanceMethodLineId: extractMany2oneId(data['advance_method_line_id']),
       advanceMethodName: extractMany2oneName(data['advance_method_line_id']),
       amount: parseOdooDouble(data['amount']) ?? 0.0,

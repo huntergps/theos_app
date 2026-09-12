@@ -180,6 +180,11 @@ class AccountMoveManager extends OdooModelManager<AccountMove>
       date: parseOdooDate(data['date']),
       partnerId: extractMany2oneId(data['partner_id']),
       partnerName: extractMany2oneName(data['partner_id']),
+      partnerVat: null,
+      partnerStreet: null,
+      partnerCity: null,
+      partnerPhone: null,
+      partnerEmail: null,
       journalId: extractMany2oneId(data['journal_id']),
       journalName: extractMany2oneName(data['journal_id']),
       amountUntaxed: parseOdooDouble(data['amount_untaxed']) ?? 0.0,
@@ -191,8 +196,10 @@ class AccountMoveManager extends OdooModelManager<AccountMove>
       currencySymbol: extractMany2oneName(data['currency_id']),
       invoiceOrigin: parseOdooString(data['invoice_origin']),
       ref: parseOdooString(data['ref']),
+      saleOrderId: null,
       lines: const [],
       writeDate: parseOdooDateTime(data['write_date']),
+      lastSyncDate: null,
     );
   }
 

@@ -193,14 +193,41 @@ void main() {
 
   group('Schema Version Consistency', () {
     test('all databases use same schema version', () async {
-      final db1 = AppDatabase(NativeDatabase.memory());
-      final db2 = AppDatabase(NativeDatabase.memory());
+      // Lo que promete el nombre es que TODAS las bases coincidan, no que la
+      // version sea un numero concreto. Un literal escrito a mano aqui caduca
+      // en cada salto de esquema y no comprueba nada: dos instancias de la
+      // misma clase siempre declaran lo mismo. Lo que si vale la pena fijar es
+      // que la version declarada sea ademas la que SQLite graba en disco
+      // (PRAGMA user_version), en cada base de servidor.
+      final databases = [
+        AppDatabase(NativeDatabase.memory(), databaseName: 'server_a'),
+        AppDatabase(NativeDatabase.memory(), databaseName: 'server_b'),
+        AppDatabase(NativeDatabase.memory(), databaseName: 'server_c'),
+      ];
 
-      expect(db1.schemaVersion, equals(db2.schemaVersion));
-      expect(db1.schemaVersion, equals(13));
+      final declared = databases.map((db) => db.schemaVersion).toSet();
+      expect(
+        declared,
+        hasLength(1),
+        reason: 'todas las bases deben declarar la misma version de esquema',
+      );
 
-      await db1.close();
-      await db2.close();
+      final persisted = <int>{};
+      for (final db in databases) {
+        final row = await db.customSelect('PRAGMA user_version').getSingle();
+        persisted.add(row.read<int>('user_version'));
+      }
+      expect(
+        persisted,
+        equals(declared),
+        reason:
+            'la version grabada en disco debe coincidir con la declarada; '
+            'si difiere, la migracion no corrio como se esperaba',
+      );
+
+      for (final db in databases) {
+        await db.close();
+      }
     });
   });
 

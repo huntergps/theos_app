@@ -161,8 +161,10 @@ class AccountPaymentManager extends OdooModelManager<AccountPayment>
   static AccountPayment fromOdooMap(Map<String, dynamic> data) {
     return AccountPayment(
       id: data['id'] as int? ?? 0,
+      paymentUuid: null,
       isSynced: false,
       collectionSessionId: extractMany2oneId(data['collection_session_id']),
+      invoiceId: null,
       partnerId: extractMany2oneId(data['partner_id']),
       partnerName: extractMany2oneName(data['partner_id']),
       journalId: extractMany2oneId(data['journal_id']),
@@ -178,6 +180,8 @@ class AccountPaymentManager extends OdooModelManager<AccountPayment>
       paymentMethodCategory: parseOdooSelection(
         data['payment_method_category'],
       ),
+      bankId: null,
+      bankName: null,
       checkNumber: parseOdooString(data['check_number']),
       checkAmountInWords: parseOdooString(data['check_amount_in_words']),
       bankReferenceDate: parseOdooDate(data['bank_reference_date']),
@@ -187,6 +191,9 @@ class AccountPaymentManager extends OdooModelManager<AccountPayment>
       cardBrandName: extractMany2oneName(data['card_brand_id']),
       cardType: parseOdooSelection(data['card_type']),
       loteId: extractMany2oneId(data['lote_id']),
+      cardHolderName: null,
+      cardLast4: null,
+      authorizationCode: null,
       isCardPayment: parseOdooBool(data['is_card_payment']),
       isTransferPayment: parseOdooBool(data['is_transfer_payment']),
       isCheckPayment: parseOdooBool(data['is_check_payment']),
@@ -196,6 +203,8 @@ class AccountPaymentManager extends OdooModelManager<AccountPayment>
       collectionUserId: extractMany2oneId(data['collection_user_id']),
       date: parseOdooDate(data['date']),
       name: parseOdooString(data['name']),
+      ref: null,
+      lastSyncDate: null,
       writeDate: parseOdooDateTime(data['write_date']),
     );
   }

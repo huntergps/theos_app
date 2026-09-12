@@ -149,6 +149,7 @@ class CollectionConfigManager extends OdooModelManager<CollectionConfig>
       amountAuthorizedDiff:
           parseOdooDouble(data['amount_authorized_diff']) ?? 0.0,
       userIds: extractMany2manyIds(data['user_ids']),
+      posAppCapabilitiesJson: null,
       currentSessionId: extractMany2oneId(data['current_session_id']),
       currentSessionState: parseOdooSelection(data['current_session_state']),
       currentSessionName: parseOdooString(data['current_session_name']),

@@ -36,6 +36,8 @@ class UomManager extends OdooModelManager<Uom>
     return Uom(
       id: data['id'] as int? ?? 0,
       name: parseOdooStringRequired(data['name']),
+      categoryId: null,
+      categoryName: null,
       uomType: UomType.values.first,
       factor: parseOdooDouble(data['factor']) ?? 0.0,
       factorInv: 0.0,

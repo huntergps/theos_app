@@ -37,6 +37,7 @@ class CurrencyManager extends OdooModelManager<Currency>
   static Currency fromOdooMap(Map<String, dynamic> data) {
     return Currency(
       id: data['id'] as int? ?? 0,
+      uuid: null,
       name: parseOdooStringRequired(data['name']),
       symbol: parseOdooStringRequired(data['symbol']),
       decimalPlaces: parseOdooInt(data['decimal_places']) ?? 0,
@@ -323,6 +324,7 @@ class DecimalPrecisionManager extends OdooModelManager<DecimalPrecision>
   static DecimalPrecision fromOdooMap(Map<String, dynamic> data) {
     return DecimalPrecision(
       id: data['id'] as int? ?? 0,
+      uuid: null,
       name: parseOdooStringRequired(data['name']),
       digits: parseOdooInt(data['digits']) ?? 0,
       writeDate: parseOdooDateTime(data['write_date']),

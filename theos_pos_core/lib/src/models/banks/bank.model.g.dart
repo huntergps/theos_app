@@ -30,6 +30,8 @@ class BankManager extends OdooModelManager<Bank>
     return Bank(
       id: data['id'] as int? ?? 0,
       name: parseOdooStringRequired(data['name']),
+      bic: null,
+      countryId: null,
       active: parseOdooBool(data['active']),
       writeDate: parseOdooDateTime(data['write_date']),
     );
@@ -284,6 +286,7 @@ class PartnerBankManager extends OdooModelManager<PartnerBank>
     return PartnerBank(
       id: data['id'] as int? ?? 0,
       partnerId: extractMany2oneId(data['partner_id']) ?? 0,
+      bankId: null,
       bankName: parseOdooString(data['bank_name']),
       accNumber: parseOdooStringRequired(data['account_number']),
       writeDate: parseOdooDateTime(data['write_date']),

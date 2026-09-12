@@ -475,6 +475,7 @@ class CollectionSessionManager extends OdooModelManager<CollectionSession>
       userId: extractMany2oneId(data['user_id']),
       userName: extractMany2oneName(data['user_id']),
       currencyId: extractMany2oneId(data['currency_id']),
+      currencySymbol: null,
       cashJournalId: extractMany2oneId(data['cash_journal_id']),
       cashJournalName: extractMany2oneName(data['cash_journal_id']),
       startAt: parseOdooDateTime(data['start_at']),
@@ -629,7 +630,9 @@ class CollectionSessionManager extends OdooModelManager<CollectionSession>
       openingNotes: parseOdooString(data['opening_notes']),
       closingNotes: parseOdooString(data['closing_notes']),
       isSynced: false,
+      lastSyncDate: null,
       syncRetryCount: 0,
+      lastSyncAttempt: null,
       writeDate: parseOdooDateTime(data['write_date']),
     );
   }

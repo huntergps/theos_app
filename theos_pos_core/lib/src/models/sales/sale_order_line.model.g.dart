@@ -174,6 +174,7 @@ class SaleOrderLineManager extends OdooModelManager<SaleOrderLine>
   static SaleOrderLine fromOdooMap(Map<String, dynamic> data) {
     return SaleOrderLine(
       id: data['id'] as int? ?? 0,
+      lineUuid: null,
       orderId: extractMany2oneId(data['order_id']) ?? 0,
       sequence: parseOdooInt(data['sequence']) ?? 0,
       displayType: LineDisplayType.values.firstWhere(
@@ -183,8 +184,12 @@ class SaleOrderLineManager extends OdooModelManager<SaleOrderLine>
       isDownpayment: parseOdooBool(data['is_downpayment']),
       productId: extractMany2oneId(data['product_id']),
       productName: extractMany2oneName(data['product_id']),
+      productCode: null,
       productTemplateId: extractMany2oneId(data['product_template_id']),
       productTemplateName: extractMany2oneName(data['product_template_id']),
+      productType: null,
+      categId: null,
+      categName: null,
       name: parseOdooStringRequired(data['name']),
       productUomQty: parseOdooDouble(data['product_uom_qty']) ?? 0.0,
       productUomId: extractMany2oneId(data['product_uom_id']),
@@ -196,6 +201,8 @@ class SaleOrderLineManager extends OdooModelManager<SaleOrderLine>
       priceTax: parseOdooDouble(data['price_tax']) ?? 0.0,
       priceTotal: parseOdooDouble(data['price_total']) ?? 0.0,
       priceReduce: parseOdooDouble(data['price_reduce_taxexcl']) ?? 0.0,
+      taxIds: null,
+      taxNames: null,
       qtyDelivered: parseOdooDouble(data['qty_delivered']) ?? 0.0,
       customerLead: parseOdooDouble(data['customer_lead']) ?? 0.0,
       qtyInvoiced: parseOdooDouble(data['qty_invoiced']) ?? 0.0,
@@ -209,6 +216,7 @@ class SaleOrderLineManager extends OdooModelManager<SaleOrderLine>
       collapseComposition: parseOdooBool(data['collapse_composition']),
       isOptional: parseOdooBool(data['is_optional']),
       isSynced: false,
+      lastSyncDate: null,
       writeDate: parseOdooDateTime(data['write_date']),
       isUnitProduct: false,
     );

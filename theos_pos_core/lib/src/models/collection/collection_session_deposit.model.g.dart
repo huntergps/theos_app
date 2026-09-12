@@ -136,10 +136,13 @@ class CollectionSessionDepositManager
   static CollectionSessionDeposit fromOdooMap(Map<String, dynamic> data) {
     return CollectionSessionDeposit(
       id: data['id'] as int? ?? 0,
+      uuid: null,
       isSynced: false,
+      lastSyncDate: null,
       name: parseOdooString(data['name']),
       number: parseOdooString(data['number']),
       collectionSessionId: extractMany2oneId(data['collection_session_id']),
+      sessionUuid: null,
       userId: extractMany2oneId(data['user_id']),
       userName: extractMany2oneName(data['user_id']),
       depositDate: parseOdooDateTime(data['deposit_date']),
@@ -154,6 +157,8 @@ class CollectionSessionDepositManager
       checkCount: parseOdooInt(data['check_count']) ?? 0,
       bankJournalId: extractMany2oneId(data['bank_journal_id']),
       bankJournalName: extractMany2oneName(data['bank_journal_id']),
+      bankId: null,
+      bankName: null,
       state: '',
       writeDate: parseOdooDateTime(data['write_date']),
       depositSlipNumber: parseOdooString(data['deposit_slip_number']),
