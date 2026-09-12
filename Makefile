@@ -3,7 +3,7 @@ DART ?= dart
 
 .PHONY: help deps generate generated-check analyze analyze-orbi test test-orbi verify check-secrets \
 	run-macos run-web build-ios build-appbundle build-macos build-windows build-web \
-	run-orbi-macos run-orbi-web \
+	run-orbi-macos run-orbi-web dev-orbi-macos dev-orbi-web stop-orbi-web \
 	build-orbi-web build-orbi-appbundle build-orbi-ios build-orbi-macos \
 	build-orbi-windows build-orbi-linux
 
@@ -19,8 +19,11 @@ help:
 	@echo "  make verify           Secret scan, generated check, analysis, and tests"
 	@echo "  make run-macos        Run theos_pos (Fluent) on macOS with the local ERP2 test credential"
 	@echo "  make run-web          Run theos_pos (Fluent) in Chrome without any injected credential"
-	@echo "  make run-orbi-macos   Run theos_panel (Orbi) on macOS; sign in from the login screen"
-	@echo "  make run-orbi-web     Run theos_panel (Orbi) in Chrome; sign in from the login screen"
+	@echo "  make run-orbi-macos   Build theos_panel (Orbi) and open it on macOS; no terminal needed"
+	@echo "  make run-orbi-web     Build theos_panel (Orbi) and open it in the browser; no terminal needed"
+	@echo "  make stop-orbi-web    Stop the local server started by run-orbi-web"
+	@echo "  make dev-orbi-macos   Hot-reload session for Orbi on macOS; NEEDS a real terminal"
+	@echo "  make dev-orbi-web     Hot-reload session for Orbi in Chrome; NEEDS a real terminal"
 	@echo "  make build-web        Build the web release"
 	@echo "  make build-appbundle  Build the Android App Bundle release"
 	@echo "  make build-ios        Build the unsigned iOS release"
@@ -100,14 +103,62 @@ run-web:
 # fromEnvironment in the package is the E2E harness, which reads
 # Platform.environment at test time. Injecting one here would be dead weight
 # that also hides the login screen we want to exercise.
+#
+# WHY run-* BUILDS AND OPENS INSTEAD OF CALLING `flutter run`:
+# `flutter run` is an interactive session. Without a real TTY it waits forever
+# and prints nothing, so from a non-interactive caller it looks like a hung,
+# broken command (measured 2026-09-12). The plainly named target must be the
+# one that cannot hang; hot reload lives under dev-* and says it needs a
+# terminal.
+ORBI_WEB_PORT ?= 8099
+
 run-orbi-macos:
+	@if [ ! -f theos_panel/pubspec.yaml ]; then echo "SKIP: theos_panel scaffold is not present"; exit 0; fi; \
+	echo "==> Building Orbi for macOS (debug). First build takes several MINUTES; later ones are much faster."; \
+	echo "    Orbi never receives an injected credential; sign in from the login screen."; \
+	cd theos_panel && FLUTTER_XCODE_CODE_SIGNING_ALLOWED=NO FLUTTER_XCODE_CODE_SIGN_IDENTITY=- $(FLUTTER) build macos --debug || exit 1; \
+	app=$$(ls -d build/macos/Build/Products/Debug/*.app 2>/dev/null | head -1); \
+	if [ -z "$$app" ]; then echo "ERROR: no .app was produced under build/macos/Build/Products/Debug/"; exit 1; fi; \
+	built=$$(find "$$app" -type f -print0 | xargs -0 stat -f '%m' | sort -rn | head -1); \
+	echo "==> Opening $$app (freshest file inside: $$(date -r $$built '+%Y-%m-%d %H:%M:%S'))"; \
+	open "$$app"
+
+run-orbi-web:
+	@if [ ! -f theos_panel/pubspec.yaml ]; then echo "SKIP: theos_panel scaffold is not present"; exit 0; fi; \
+	echo "==> Building Orbi for the web. First build takes several MINUTES; later ones are much faster."; \
+	echo "    Web builds never receive THEOS_ERP2_API_KEY; sign in from the app."; \
+	cd theos_panel && $(FLUTTER) build web || exit 1; \
+	if [ ! -f build/web/index.html ]; then echo "ERROR: build/web/index.html was not produced"; exit 1; fi; \
+	built=$$(find build/web -type f -print0 | xargs -0 stat -f '%m' | sort -rn | head -1); \
+	echo "==> Built (freshest file: $$(date -r $$built '+%Y-%m-%d %H:%M:%S'))"; \
+	if [ -f build/.orbi_web_server.pid ] && kill -0 "$$(cat build/.orbi_web_server.pid)" 2>/dev/null; then \
+		kill "$$(cat build/.orbi_web_server.pid)" 2>/dev/null || true; sleep 1; \
+	fi; \
+	( cd build/web && exec nohup python3 -m http.server $(ORBI_WEB_PORT) --bind 127.0.0.1 >../orbi_web_server.log 2>&1 ) & \
+	echo $$! > build/.orbi_web_server.pid; \
+	sleep 2; \
+	echo "==> Serving on http://127.0.0.1:$(ORBI_WEB_PORT)/  (stop it with: make stop-orbi-web)"; \
+	open "http://127.0.0.1:$(ORBI_WEB_PORT)/"
+
+stop-orbi-web:
+	@pidfile=theos_panel/build/.orbi_web_server.pid; \
+	if [ -f "$$pidfile" ] && kill -0 "$$(cat $$pidfile)" 2>/dev/null; then \
+		kill "$$(cat $$pidfile)" && echo "Stopped the Orbi web server (pid $$(cat $$pidfile))."; \
+		rm -f "$$pidfile"; \
+	else echo "No Orbi web server is running."; rm -f "$$pidfile"; fi
+
+# Interactive sessions with hot reload. These REQUIRE a real terminal: run them
+# yourself in a shell, never from a non-interactive caller, or they will hang
+# with no output.
+dev-orbi-macos:
 	@if [ -f theos_panel/pubspec.yaml ]; then \
-		echo "Orbi never receives an injected credential; sign in from the login screen."; \
+		echo "Interactive session: this NEEDS a real terminal. Use run-orbi-macos otherwise."; \
 		cd theos_panel && $(FLUTTER) run -d macos; \
 	else echo "SKIP: theos_panel scaffold is not present"; fi
 
-run-orbi-web:
+dev-orbi-web:
 	@if [ -f theos_panel/pubspec.yaml ]; then \
+		echo "Interactive session: this NEEDS a real terminal. Use run-orbi-web otherwise."; \
 		echo "Web builds never receive THEOS_ERP2_API_KEY; sign in from the app."; \
 		cd theos_panel && $(FLUTTER) run -d chrome; \
 	else echo "SKIP: theos_panel scaffold is not present"; fi

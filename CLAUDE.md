@@ -42,8 +42,22 @@ Fluent. Los objetivos de Orbi llevan `orbi` en el nombre, sin excepción.
 |---|---|---|
 | `make run-macos` | `theos_pos` (Fluent) en macOS | inyecta `THEOS_ERP2_API_KEY` vía `scripts/run_flutter_with_erp2.sh` |
 | `make run-web` | `theos_pos` (Fluent) en Chrome | ninguna; se entra desde la app |
-| `make run-orbi-macos` | `theos_panel` (Orbi) en macOS | **ninguna**; se entra por la pantalla de acceso |
-| `make run-orbi-web` | `theos_panel` (Orbi) en Chrome | **ninguna**; se entra por la pantalla de acceso |
+| `make run-orbi-macos` | `theos_panel` (Orbi) en macOS: **compila y abre el paquete** | **ninguna**; se entra por la pantalla de acceso |
+| `make run-orbi-web` | `theos_panel` (Orbi): **compila, sirve en `127.0.0.1:8099` y abre el navegador** | **ninguna**; se entra por la pantalla de acceso |
+| `make stop-orbi-web` | detiene el servidor que levantó `run-orbi-web` | — |
+| `make dev-orbi-macos` | sesión interactiva de Orbi en macOS, con recarga en caliente | **ninguna** |
+| `make dev-orbi-web` | sesión interactiva de Orbi en Chrome, con recarga en caliente | **ninguna** |
+
+🔴 **`run-*` compila y abre; `dev-*` abre sesión interactiva y EXIGE una terminal de
+verdad.** Medido el 12-sep-2026: `flutter run` sin TTY **se queda esperando para siempre
+sin imprimir una sola línea**, así que desde cualquier invocador no interactivo —el
+prefijo de admiración de Claude Code, un guion, CI— parece un comando roto. Por eso los
+objetivos `run-orbi-*` **no** llaman a `flutter run`: compilan y abren el resultado, y no
+pueden colgarse. Si quieres recarga en caliente, `dev-orbi-*`, tecleado en tu terminal.
+
+La primera compilación tarda **minutos** (unos 2,5 min la web, algo menos macOS en
+incremental). Los objetivos lo avisan antes de empezar, porque un comando mudo durante
+minutos parece colgado aunque esté trabajando.
 
 **Orbi no recibe credencial inyectada en ningún destino, tampoco en escritorio.**
 `theos_panel` no tiene ni un `String.fromEnvironment` para una clave: el único
