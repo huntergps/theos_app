@@ -158,10 +158,13 @@ class _Field extends StatelessWidget {
             if (field.required)
               Padding(
                 padding: const EdgeInsets.only(left: 4),
+                // El rojo sale del tema, no de aquí: Fluent ya define cuál
+                // es su color de «crítico» y lo cambia solo entre claro y
+                // oscuro. Un rojo escrito a mano no lo hace.
                 child: Text(
                   '*',
                   style: TextStyle(
-                    color: Colors.red,
+                    color: theme.resources.systemFillColorCritical,
                     fontWeight: FontWeight.bold,
                   ),
                   semanticsLabel: 'obligatorio',
@@ -176,7 +179,9 @@ class _Field extends StatelessWidget {
             padding: const EdgeInsets.only(top: 4),
             child: Text(
               field.error!,
-              style: theme.typography.caption?.copyWith(color: Colors.red),
+              style: theme.typography.caption?.copyWith(
+                color: theme.resources.systemFillColorCritical,
+              ),
             ),
           )
         else if (field.hint != null)

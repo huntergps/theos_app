@@ -179,10 +179,15 @@ class _OrbiListingState<T> extends State<OrbiListing<T>> {
                             alignment: column.numeric
                                 ? Alignment.centerRight
                                 : Alignment.centerLeft,
+                            // El texto de la cabecera lo decide Fluent a
+                            // partir del propio acento: `basedOnLuminance`
+                            // elige claro u oscuro según el color de fondo,
+                            // así que un acento claro no deja la cabecera
+                            // ilegible como haría un blanco fijo.
                             child: Text(
                               column.label,
                               style: TextStyle(
-                                color: Colors.white,
+                                color: headerColor.basedOnLuminance(),
                                 fontWeight: FontWeight.w600,
                               ),
                               overflow: TextOverflow.ellipsis,

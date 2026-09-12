@@ -1,7 +1,19 @@
 import 'package:flutter/material.dart';
 
 abstract final class OrbiTheme {
-  static const brand = Color(0xFF007E82);
+  /// El color de marca, **coordinado con Odoo y no elegido aquí**.
+  ///
+  /// Sale del propio módulo de tema de la instancia
+  /// (`base_gpstech/static/src/scss/variables_backend.scss`), donde Odoo fija
+  /// `$o-main-link-color: #017e84` como color de acción. Orbi venía con
+  /// `#007E82`, a un tono de distancia: dos valores casi iguales para lo
+  /// mismo es como dos productos empiezan a parecer distintos sin que nadie
+  /// lo decida. Ahora es el mismo número.
+  ///
+  /// Odoo usa además `#0DAFC8` como marca. No se copia aquí: en Fluent el
+  /// acento tiñe controles pequeños sobre fondo claro, y el tono claro no
+  /// contrasta lo suficiente. Fluent deriva sus siete tonos de éste.
+  static const brand = Color(0xFF017E84);
   static const compactBreakpoint = 600.0;
   static const mediumBreakpoint = 840.0;
 

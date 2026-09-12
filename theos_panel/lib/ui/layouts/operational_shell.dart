@@ -120,17 +120,15 @@ final class OperationalShell extends StatelessWidget {
   /// cambia por el valor real.
   static const double _expandedBreakpoint = 1440;
 
-  static const Color _footerBackground = Color(0xFF1B1B1F);
-  static const Color _footerForeground = Color(0xFFE6E1E5);
-  static const Color _footerMuted = Color(0xFF938F99);
-
-  /// El color por significado, tal como lo fija
-  /// `SHELL_AND_INTERACTION_SPEC.md`. Está escrito aquí y no tomado del tema
-  /// porque **el significado no cambia con la marca**: si mañana el acento
-  /// pasara a rojo, «pendiente» seguiría siendo ámbar y «error» rojo.
-  static const Color _ok = Color(0xFF2E7D32);
-  static const Color _pending = Color(0xFFF9A825);
-  static const Color _bad = Color(0xFFC62828);
+  /// 🔴 Aquí había seis colores escritos a mano: tres para el pie y tres para
+  /// el estado. Ninguno se decide ya en este fichero. Orden del dueño del
+  /// 12-sep-2026: *«no tocar nada del estilo de fluent_ui, sólo escoger los
+  /// colores principales en coordinación con Odoo»*.
+  ///
+  /// Fluent ya trae los tres del significado —éxito, precaución y crítico— y
+  /// además los cambia solos entre tema claro y oscuro, cosa que un número
+  /// escrito a mano no hace: el pie oscuro fijo se veía bien en claro y se
+  /// perdía en oscuro.
 
   PaneDisplayMode _displayMode(BoxConstraints constraints) {
     // En vertical nunca hay carril permanente, a ningún ancho.
@@ -330,49 +328,59 @@ final class OperationalShell extends StatelessWidget {
   // un scroll horizontal con un contenedor semántico, el árbol de
   // accesibilidad se recorre antes de que termine la disposición y el marco
   // lanza una aserción propia. Se ve sólo en anchos de teléfono.
-  Widget _contextFooter(BuildContext buildContext) => ColoredBox(
-    color: _footerBackground,
-    child: SizedBox(
-      width: double.infinity,
-      child: SingleChildScrollView(
-        scrollDirection: Axis.horizontal,
-        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
-        child: Semantics(
-          label: 'Información de conexión',
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              _contextItem('Servidor', context.server),
-              _footerGap(),
-              _contextItem('BD', context.database),
-              _footerGap(),
-              // El valor NO repite la etiqueta: «Hora del servidor: Hora del
-              // servidor no disponible» es lo que llegó a leerse en pantalla.
-              _contextItem('Hora servidor', context.serverTime ?? 'sin dato'),
-              _footerGap(),
-              _statusDot(_connectionColor()),
-              const SizedBox(width: 6),
-              Text(
-                _connectionText(),
-                style: const TextStyle(color: _footerForeground),
+  Widget _contextFooter(BuildContext buildContext) {
+    // Todo el color sale del tema: el pie ya no lleva un fondo oscuro fijo,
+    // que se veía bien en tema claro y se perdía en oscuro.
+    final theme = FluentTheme.of(buildContext);
+    final r = theme.resources;
+    return ColoredBox(
+      color: r.solidBackgroundFillColorTertiary,
+      child: SizedBox(
+        width: double.infinity,
+        child: SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+          child: Semantics(
+            label: 'Información de conexión',
+            child: DefaultTextStyle(
+              style: theme.typography.caption ?? const TextStyle(),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  _contextItem('Servidor', context.server),
+                  _footerGap(r),
+                  _contextItem('BD', context.database),
+                  _footerGap(r),
+                  // El valor NO repite la etiqueta: «Hora del servidor: Hora
+                  // del servidor no disponible» es lo que llegó a leerse.
+                  _contextItem(
+                    'Hora servidor',
+                    context.serverTime ?? 'sin dato',
+                  ),
+                  _footerGap(r),
+                  _statusDot(_connectionColor(r)),
+                  const SizedBox(width: 6),
+                  Text(_connectionText()),
+                  _footerGap(r),
+                  Icon(
+                    FluentIcons.ringer,
+                    size: 14,
+                    color: r.textFillColorSecondary,
+                  ),
+                  const SizedBox(width: 4),
+                  Text(context.syncLabel),
+                ],
               ),
-              _footerGap(),
-              const Icon(FluentIcons.ringer, size: 14, color: _footerMuted),
-              const SizedBox(width: 4),
-              Text(
-                context.syncLabel,
-                style: const TextStyle(color: _footerForeground),
-              ),
-            ],
+            ),
           ),
         ),
       ),
-    ),
-  );
+    );
+  }
 
-  Widget _footerGap() => const Padding(
-    padding: EdgeInsets.symmetric(horizontal: 10),
-    child: Text('·', style: TextStyle(color: _footerMuted)),
+  Widget _footerGap(ResourceDictionary r) => Padding(
+    padding: const EdgeInsets.symmetric(horizontal: 10),
+    child: Text('·', style: TextStyle(color: r.textFillColorSecondary)),
   );
 
   Widget _statusDot(Color color) => Container(
@@ -380,6 +388,8 @@ final class OperationalShell extends StatelessWidget {
     height: 8,
     decoration: BoxDecoration(color: color, shape: BoxShape.circle),
   );
+
+  Widget _contextItem(String label, String value) => Text('$label: $value');
 
   /// Lo que el pie enseña de verdad: el estado medido cuando lo hay, con la
   /// redacción fija de cada caso, y nunca la cadena de quien nos usa una vez
@@ -394,35 +404,33 @@ final class OperationalShell extends StatelessWidget {
   /// Honesto, no decorativo: verde sólo cuando el servidor contestó, rojo en
   /// los tres casos en que algo está roto de verdad, y ámbar sólo mientras no
   /// se haya medido nada.
-  Color _connectionColor() {
+  Color _connectionColor(ResourceDictionary r) {
     final status = context.connectionStatus;
-    if (status != null) return _statusColorForStatus(status);
-    return _statusColorFor(context.connectionLabel);
+    if (status != null) return _statusColorForStatus(r, status);
+    return _statusColorFor(r, context.connectionLabel);
   }
 
-  Color _statusColorForStatus(ConnectionStatus status) => switch (status) {
-    ConnectionStatus.online => _ok,
-    ConnectionStatus.offline => _bad,
-    ConnectionStatus.backendUnreachable => _bad,
-    ConnectionStatus.backendUnauthorized => _bad,
-    ConnectionStatus.unknown => _pending,
-  };
+  Color _statusColorForStatus(ResourceDictionary r, ConnectionStatus status) =>
+      switch (status) {
+        ConnectionStatus.online => r.systemFillColorSuccess,
+        ConnectionStatus.offline => r.systemFillColorCritical,
+        ConnectionStatus.backendUnreachable => r.systemFillColorCritical,
+        ConnectionStatus.backendUnauthorized => r.systemFillColorCritical,
+        ConnectionStatus.unknown => r.systemFillColorCaution,
+      };
 
   /// Resguardo heredado, sólo para quien todavía no pase un estado medido.
   /// Adivinar un color a partir de un texto libre es justo la fragilidad que
   /// el estado tipado vino a retirar: no amplíes esta lista, conecta a quien
   /// llama.
-  Color _statusColorFor(String label) {
+  Color _statusColorFor(ResourceDictionary r, String label) {
     final normalized = label.toLowerCase();
-    if (normalized.contains('conectado')) return _ok;
+    if (normalized.contains('conectado')) return r.systemFillColorSuccess;
     if (normalized.contains('sin conexión') || normalized.contains('error')) {
-      return _bad;
+      return r.systemFillColorCritical;
     }
-    return _pending;
+    return r.systemFillColorCaution;
   }
-
-  Widget _contextItem(String label, String value) =>
-      Text('$label: $value', style: const TextStyle(color: _footerForeground));
 
   Widget _compactContextButton(BuildContext buildContext) => Align(
     alignment: AlignmentDirectional.centerEnd,
