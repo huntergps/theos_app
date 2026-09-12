@@ -1,6 +1,6 @@
 import 'dart:math' as math;
 
-import 'package:flutter/material.dart';
+import 'package:fluent_ui/fluent_ui.dart';
 import 'package:flutter/services.dart';
 
 import '../../../features/clients/catalog_contracts.dart';
@@ -95,6 +95,7 @@ class _OrbiInlineCatalogPickerState<T>
   Widget _overlay(BuildContext context) {
     final box = this.context.findRenderObject() as RenderBox?;
     final width = box?.size.width ?? 280;
+    final theme = FluentTheme.of(context);
     return Positioned.fill(
       child: IgnorePointer(
         ignoring: false,
@@ -104,15 +105,27 @@ class _OrbiInlineCatalogPickerState<T>
           targetAnchor: Alignment.bottomLeft,
           followerAnchor: Alignment.topLeft,
           offset: const Offset(0, 6),
-          child: Material(
-            elevation: 6,
-            clipBehavior: Clip.antiAlias,
-            borderRadius: BorderRadius.circular(8),
+          child: DecoratedBox(
+            decoration: BoxDecoration(
+              color: theme.cardColor,
+              borderRadius: const BorderRadius.all(Radius.circular(8)),
+              border: Border.all(color: theme.resources.cardStrokeColorDefault),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.14),
+                  blurRadius: 12,
+                  offset: const Offset(0, 4),
+                ),
+              ],
+            ),
             child: SizedBox(
               width: math.max(280, width),
               child: ConstrainedBox(
                 constraints: const BoxConstraints(maxHeight: 220),
-                child: _results(context),
+                child: ClipRRect(
+                  borderRadius: const BorderRadius.all(Radius.circular(8)),
+                  child: _results(context),
+                ),
               ),
             ),
           ),
@@ -126,14 +139,15 @@ class _OrbiInlineCatalogPickerState<T>
     initialData: widget.controller.snapshot,
     builder: (context, snapshot) {
       final state = snapshot.data ?? widget.controller.snapshot;
+      final theme = FluentTheme.of(context);
       return switch (state.status) {
         CatalogLoadStatus.initial ||
         CatalogLoadStatus.loading => const SizedBox(
           height: 48,
-          child: Center(child: CircularProgressIndicator(strokeWidth: 2)),
+          child: Center(child: ProgressRing(strokeWidth: 2)),
         ),
-        CatalogLoadStatus.error => Padding(
-          padding: const EdgeInsets.all(12),
+        CatalogLoadStatus.error => const Padding(
+          padding: EdgeInsets.all(12),
           child: Text('No se pudo cargar el catálogo.'),
         ),
         CatalogLoadStatus.empty => const Padding(
@@ -145,11 +159,26 @@ class _OrbiInlineCatalogPickerState<T>
           itemCount: state.items.length,
           itemBuilder: (context, index) {
             final item = state.items[index];
-            return ListTile(
-              dense: true,
-              title: Text(item.title),
-              subtitle: item.subtitle == null ? null : Text(item.subtitle!),
-              onTap: () => _select(item),
+            return MouseRegion(
+              cursor: SystemMouseCursors.click,
+              child: GestureDetector(
+                onTap: () => _select(item),
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 8,
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(item.title),
+                      if (item.subtitle != null)
+                        Text(item.subtitle!, style: theme.typography.caption),
+                    ],
+                  ),
+                ),
+              ),
             );
           },
         ),
@@ -160,14 +189,14 @@ class _OrbiInlineCatalogPickerState<T>
   @override
   Widget build(BuildContext context) => CompositedTransformTarget(
     link: _link,
-    child: TextField(
+    child: TextBox(
       controller: _search,
       focusNode: _focus,
       onChanged: _onChanged,
-      decoration: InputDecoration(
-        isDense: true,
-        labelText: widget.label,
-        prefixIcon: const Icon(Icons.search, size: 18),
+      placeholder: widget.label,
+      prefix: const Padding(
+        padding: EdgeInsets.only(left: 8),
+        child: Icon(FluentIcons.search, size: 18),
       ),
     ),
   );

@@ -1,9 +1,14 @@
-import 'package:flutter/material.dart';
+import 'package:fluent_ui/fluent_ui.dart';
 import 'package:go_router/go_router.dart';
 import 'package:reactive_forms/reactive_forms.dart';
 
 import '../../app/theme/orbi_theme.dart';
 
+/// 🔴 Predecesor de `OrbiPage` (`ui/fluent/orbi_page.dart`), que es el marco
+/// que deben usar las pantallas nuevas. Este widget se conserva porque varias
+/// pantallas de `features/` todavía lo llaman y esta conversión no cambia su
+/// API pública — sólo lo que dibuja por dentro. Migrarlas a `OrbiPage` es
+/// trabajo de quien convierta cada pantalla, no de este encargo.
 class OrbiPageShell extends StatelessWidget {
   const OrbiPageShell({
     super.key,
@@ -23,20 +28,25 @@ class OrbiPageShell extends StatelessWidget {
       namesRoute: true,
       explicitChildNodes: true,
       label: title,
-      child: Scaffold(
-        appBar: AppBar(
+      child: ScaffoldPage(
+        header: PageHeader(
           title: Text(title),
-          actions: [
-            ...(actions ?? const <Widget>[]),
-            IconButton(
-              key: const Key('home-button'),
-              tooltip: 'Inicio',
-              icon: const Icon(Icons.home_outlined),
-              onPressed: () => context.go('/'),
-            ),
-          ],
+          commandBar: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              ...(actions ?? const <Widget>[]),
+              Tooltip(
+                message: 'Inicio',
+                child: IconButton(
+                  key: const Key('home-button'),
+                  icon: const Icon(FluentIcons.home),
+                  onPressed: () => context.go('/'),
+                ),
+              ),
+            ],
+          ),
         ),
-        body: SafeArea(
+        content: SafeArea(
           child: Align(
             alignment: Alignment.topCenter,
             child: ConstrainedBox(
@@ -53,11 +63,14 @@ class OrbiPageShell extends StatelessWidget {
   }
 }
 
+/// Insignia de estado con texto. Fluent no trae `Chip`: la forma no importa
+/// (el dueño ya lo resolvió, no hace falta que sea redondo), así que esto es
+/// un contenedor propio con borde e icono, no un control de fábrica.
 class OrbiStatusChip extends StatelessWidget {
   const OrbiStatusChip({
     super.key,
     required this.label,
-    this.icon = Icons.info_outline,
+    this.icon = FluentIcons.info,
   });
 
   final String label;
@@ -65,11 +78,28 @@ class OrbiStatusChip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final theme = FluentTheme.of(context);
     return Semantics(
       label: label,
-      child: Chip(
-        avatar: Icon(icon, size: 18, semanticLabel: ''),
-        label: Text(label),
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          color: theme.resources.subtleFillColorSecondary,
+          borderRadius: const BorderRadius.all(Radius.circular(4)),
+          border: Border.all(color: theme.resources.controlStrokeColorDefault),
+        ),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              ExcludeSemantics(child: Icon(icon, size: 16)),
+              const SizedBox(width: 6),
+              ExcludeSemantics(
+                child: Text(label, style: theme.typography.caption),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }
@@ -89,6 +119,7 @@ class OrbiEmptyState extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final typography = FluentTheme.of(context).typography;
     return Center(
       child: Semantics(
         container: true,
@@ -98,11 +129,11 @@ class OrbiEmptyState extends StatelessWidget {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              const Icon(Icons.inbox_outlined, size: 48),
+              const Icon(FluentIcons.inbox, size: 48),
               const SizedBox(height: OrbiTheme.space12),
               Text(
                 title,
-                style: Theme.of(context).textTheme.titleLarge,
+                style: typography.subtitle,
                 textAlign: TextAlign.center,
               ),
               const SizedBox(height: OrbiTheme.space8),
@@ -127,6 +158,7 @@ class OrbiErrorState extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final theme = FluentTheme.of(context);
     return Center(
       child: Semantics(
         container: true,
@@ -138,18 +170,24 @@ class OrbiErrorState extends StatelessWidget {
             mainAxisSize: MainAxisSize.min,
             children: [
               Icon(
-                Icons.error_outline,
+                FluentIcons.error_badge,
                 size: 48,
-                color: Theme.of(context).colorScheme.error,
+                color: theme.resources.systemFillColorCritical,
               ),
               const SizedBox(height: OrbiTheme.space12),
               Text(message, textAlign: TextAlign.center),
               if (onRetry != null) ...[
                 const SizedBox(height: OrbiTheme.space16),
-                FilledButton.icon(
+                FilledButton(
                   onPressed: onRetry,
-                  icon: const Icon(Icons.refresh),
-                  label: const Text('Reintentar'),
+                  child: const Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(FluentIcons.refresh),
+                      SizedBox(width: 8),
+                      Text('Reintentar'),
+                    ],
+                  ),
                 ),
               ],
             ],
@@ -176,11 +214,14 @@ class OrbiField extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return TextField(
-      controller: controller,
-      onChanged: onChanged,
-      minLines: 1,
-      decoration: InputDecoration(labelText: label, hintText: hintText),
+    return InfoLabel(
+      label: label,
+      child: TextBox(
+        controller: controller,
+        onChanged: onChanged,
+        minLines: 1,
+        placeholder: hintText,
+      ),
     );
   }
 }
@@ -188,6 +229,11 @@ class OrbiField extends StatelessWidget {
 /// Adapter for a reactive form control owned by the screen/controller.
 /// The control is deliberately injected, so rebuilding or resizing the widget
 /// never recreates the form state.
+///
+/// Rebuilt directly on [ReactiveFormField] (the base every other reactive
+/// widget in the package extends) instead of on `reactive_forms`'s own
+/// `ReactiveTextField`, which renders a Material `TextField` internally and
+/// has no Fluent equivalent.
 class OrbiReactiveTextField extends StatelessWidget {
   const OrbiReactiveTextField({
     super.key,
@@ -202,9 +248,81 @@ class OrbiReactiveTextField extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return ReactiveTextField<String>(
+    return ReactiveFormField<String, String>(
       formControl: control,
-      decoration: InputDecoration(labelText: label, hintText: hintText),
+      builder: (field) =>
+          _ReactiveTextBoxBody(field: field, label: label, hintText: hintText),
+    );
+  }
+}
+
+class _ReactiveTextBoxBody extends StatefulWidget {
+  const _ReactiveTextBoxBody({
+    required this.field,
+    required this.label,
+    this.hintText,
+  });
+
+  final ReactiveFormFieldState<String, String> field;
+  final String label;
+  final String? hintText;
+
+  @override
+  State<_ReactiveTextBoxBody> createState() => _ReactiveTextBoxBodyState();
+}
+
+class _ReactiveTextBoxBodyState extends State<_ReactiveTextBoxBody> {
+  late final TextEditingController _controller = TextEditingController(
+    text: widget.field.value ?? '',
+  );
+
+  @override
+  void didUpdateWidget(covariant _ReactiveTextBoxBody oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    final value = widget.field.value ?? '';
+    if (_controller.text != value) {
+      _controller.value = TextEditingValue(
+        text: value,
+        selection: TextSelection.collapsed(offset: value.length),
+      );
+    }
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final errorText = widget.field.errorText;
+    final theme = FluentTheme.of(context);
+    return InfoLabel(
+      label: widget.label,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          TextBox(
+            controller: _controller,
+            placeholder: widget.hintText,
+            enabled: widget.field.control.enabled,
+            onChanged: widget.field.didChange,
+          ),
+          if (errorText != null)
+            Padding(
+              padding: const EdgeInsets.only(top: 4),
+              child: Text(
+                errorText,
+                style: TextStyle(
+                  color: theme.resources.systemFillColorCritical,
+                  fontSize: 12,
+                ),
+              ),
+            ),
+        ],
+      ),
     );
   }
 }
@@ -215,7 +333,7 @@ class OrbiActionCard extends StatelessWidget {
     required this.title,
     required this.subtitle,
     required this.onPressed,
-    this.icon = Icons.arrow_forward,
+    this.icon = FluentIcons.forward,
   });
 
   final String title;
@@ -225,15 +343,17 @@ class OrbiActionCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Card(
-      child: Semantics(
-        button: true,
-        excludeSemantics: true,
-        label: '$title. $subtitle',
-        child: InkWell(
+    final typography = FluentTheme.of(context).typography;
+    return Semantics(
+      button: true,
+      excludeSemantics: true,
+      label: '$title. $subtitle',
+      child: MouseRegion(
+        cursor: SystemMouseCursors.click,
+        child: GestureDetector(
           onTap: onPressed,
-          borderRadius: BorderRadius.circular(12),
-          child: Padding(
+          child: Card(
+            borderRadius: const BorderRadius.all(Radius.circular(12)),
             padding: const EdgeInsets.all(OrbiTheme.space16),
             child: Row(
               children: [
@@ -241,10 +361,7 @@ class OrbiActionCard extends StatelessWidget {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(
-                        title,
-                        style: Theme.of(context).textTheme.titleMedium,
-                      ),
+                      Text(title, style: typography.bodyStrong),
                       const SizedBox(height: OrbiTheme.space4),
                       Text(subtitle),
                     ],

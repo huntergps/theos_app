@@ -1,8 +1,8 @@
-import 'package:flutter/material.dart';
+import 'package:fluent_ui/fluent_ui.dart';
 
 import '../../bindings/field_binding.dart';
 
-/// Material text control backed by a typed [FieldBinding<String>].
+/// Fluent text control backed by a typed [FieldBinding<String>].
 class OrbiBoundTextField extends StatefulWidget {
   const OrbiBoundTextField({
     super.key,
@@ -88,37 +88,58 @@ class _OrbiBoundTextFieldState extends State<OrbiBoundTextField> {
   @override
   Widget build(BuildContext context) {
     final status = _statusLabel();
+    final theme = FluentTheme.of(context);
+    final errorText = _errorText;
     return Semantics(
       liveRegion: status.isNotEmpty,
       label: status.isEmpty ? widget.label : '${widget.label}. $status',
-      child: TextField(
-        controller: _controller,
-        focusNode: _focusNode,
-        enabled: widget.enabled,
-        textInputAction: widget.textInputAction,
-        onChanged: widget.binding.edit,
-        onSubmitted: (_) => widget.binding.save(),
-        decoration: InputDecoration(
-          labelText: widget.label,
-          hintText: widget.hintText,
-          errorText: _errorText,
-          helperText: status.isEmpty ? null : status,
-          suffixIcon: widget.binding.isSaving
-              ? const Padding(
-                  padding: EdgeInsets.all(12),
-                  child: SizedBox(
-                    width: 20,
-                    height: 20,
-                    child: CircularProgressIndicator(strokeWidth: 2),
+      child: InfoLabel(
+        label: widget.label,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextBox(
+              controller: _controller,
+              focusNode: _focusNode,
+              enabled: widget.enabled,
+              textInputAction: widget.textInputAction,
+              placeholder: widget.hintText,
+              onChanged: widget.binding.edit,
+              onSubmitted: (_) => widget.binding.save(),
+              suffix: widget.binding.isSaving
+                  ? const Padding(
+                      padding: EdgeInsets.all(8),
+                      child: SizedBox(
+                        width: 16,
+                        height: 16,
+                        child: ProgressRing(strokeWidth: 2),
+                      ),
+                    )
+                  : IconButton(
+                      icon: const Icon(FluentIcons.save),
+                      onPressed: widget.binding.isDirty
+                          ? widget.binding.save
+                          : null,
+                    ),
+            ),
+            if (errorText != null)
+              Padding(
+                padding: const EdgeInsets.only(top: 4),
+                child: Text(
+                  errorText,
+                  style: TextStyle(
+                    color: theme.resources.systemFillColorCritical,
+                    fontSize: 12,
                   ),
-                )
-              : IconButton(
-                  tooltip: 'Guardar',
-                  onPressed: widget.binding.isDirty
-                      ? widget.binding.save
-                      : null,
-                  icon: const Icon(Icons.save_outlined),
                 ),
+              )
+            else if (status.isNotEmpty)
+              Padding(
+                padding: const EdgeInsets.only(top: 4),
+                child: Text(status, style: theme.typography.caption),
+              ),
+          ],
         ),
       ),
     );

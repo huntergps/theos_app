@@ -1,4 +1,6 @@
-import 'package:flutter/material.dart';
+import 'dart:async';
+
+import 'package:fluent_ui/fluent_ui.dart';
 import 'package:flutter/services.dart';
 import 'package:orbi_runtime/orbi_runtime.dart' show NotificationSeverity;
 
@@ -159,34 +161,66 @@ final class CopyableMessage {
   }
 }
 
-/// The palette for one severity, resolved against the active scheme.
+/// The palette for one severity, resolved against the active Fluent theme.
+///
+/// Foreground is deliberately the SAME default text color for every
+/// severity — the same choice Fluent's own `InfoBar` makes
+/// (`InfoBarThemeData.standard`): only the background tint, the border and
+/// the icon carry the severity's color.
+///
+/// 🔴 Both halves of that pair are translucent scrims in `theme.resources`,
+/// not opaque colors — `systemFillColorAttentionBackground` in particular is
+/// a faint ~5%-alpha white in dark mode, and `textFillColorPrimary` itself
+/// carries alpha too. Fluent expects them composited over Mica, the way
+/// `InfoBar` does; handed out as-is, this panel's actual on-screen color
+/// would depend on whatever happens to sit behind it, which this function
+/// cannot see, and contrast is meaningless to compute against a color that
+/// is not fully painted yet (comparing raw RGB, as [Color.computeLuminance]
+/// does, ignores alpha entirely). [Color.alphaBlend] flattens the background
+/// tint against [FluentThemeData.micaBackgroundColor] — the one resource
+/// that actually is opaque — and then flattens the text color against THAT,
+/// so both halves returned here are fully opaque, paint the same regardless
+/// of what is behind the panel, and are the colors contrast is measured
+/// against.
 ({Color background, Color foreground, Color border, IconData icon})
-orbiMessageTones(ColorScheme colors, OrbiMessageSeverity severity) =>
+orbiMessageTones(FluentThemeData theme, OrbiMessageSeverity severity) {
+  final resources = theme.resources;
+  Color opaqueBackground(Color tint) =>
+      Color.alphaBlend(tint, theme.micaBackgroundColor);
+  Color opaqueForeground(Color background) =>
+      Color.alphaBlend(resources.textFillColorPrimary, background);
+
+  final tint = switch (severity) {
+    OrbiMessageSeverity.error => resources.systemFillColorCriticalBackground,
+    OrbiMessageSeverity.warning => resources.systemFillColorCautionBackground,
+    OrbiMessageSeverity.success => resources.systemFillColorSuccessBackground,
+    OrbiMessageSeverity.info => resources.systemFillColorAttentionBackground,
+  };
+  final background = opaqueBackground(tint);
+  return (
+    background: background,
+    foreground: opaqueForeground(background),
+    border: switch (severity) {
+      OrbiMessageSeverity.error => resources.systemFillColorCritical,
+      OrbiMessageSeverity.warning => resources.systemFillColorCaution,
+      OrbiMessageSeverity.success => resources.systemFillColorSuccess,
+      OrbiMessageSeverity.info => theme.accentColor.normal,
+    },
+    icon: switch (severity) {
+      OrbiMessageSeverity.error => FluentIcons.status_error_full,
+      OrbiMessageSeverity.warning => FluentIcons.warning,
+      OrbiMessageSeverity.success => FluentIcons.completed_solid,
+      OrbiMessageSeverity.info => FluentIcons.info_solid,
+    },
+  );
+}
+
+InfoBarSeverity _infoBarSeverityFor(OrbiMessageSeverity severity) =>
     switch (severity) {
-      OrbiMessageSeverity.error => (
-        background: colors.errorContainer,
-        foreground: colors.onErrorContainer,
-        border: colors.error,
-        icon: Icons.error_outline,
-      ),
-      OrbiMessageSeverity.warning => (
-        background: colors.secondaryContainer,
-        foreground: colors.onSecondaryContainer,
-        border: colors.secondary,
-        icon: Icons.warning_amber_rounded,
-      ),
-      OrbiMessageSeverity.success => (
-        background: colors.tertiaryContainer,
-        foreground: colors.onTertiaryContainer,
-        border: colors.tertiary,
-        icon: Icons.check_circle_outline,
-      ),
-      OrbiMessageSeverity.info => (
-        background: colors.surfaceContainerHighest,
-        foreground: colors.onSurface,
-        border: colors.outline,
-        icon: Icons.info_outline,
-      ),
+      OrbiMessageSeverity.error => InfoBarSeverity.error,
+      OrbiMessageSeverity.warning => InfoBarSeverity.warning,
+      OrbiMessageSeverity.success => InfoBarSeverity.success,
+      OrbiMessageSeverity.info => InfoBarSeverity.info,
     };
 
 /// Puts [message] on the clipboard and confirms it, briefly.
@@ -203,21 +237,29 @@ Future<bool> copyOrbiMessage(
     await Clipboard.setData(ClipboardData(text: message.clipboardText));
   } catch (_) {
     if (context.mounted) {
-      ScaffoldMessenger.maybeOf(context)?.showSnackBar(
-        const SnackBar(
-          key: Key('copy-failed-confirmation'),
-          content: Text('No se pudo copiar. Selecciona el texto y cópialo.'),
+      _showTransientBar(
+        context,
+        duration: const Duration(seconds: 4),
+        builder: (context, close) => InfoBar(
+          key: const Key('copy-failed-confirmation'),
+          title: const Text(
+            'No se pudo copiar. Selecciona el texto y cópialo.',
+          ),
+          severity: InfoBarSeverity.warning,
+          onClose: close,
         ),
       );
     }
     return false;
   }
   if (context.mounted) {
-    ScaffoldMessenger.maybeOf(context)?.showSnackBar(
-      const SnackBar(
+    _showTransientBar(
+      context,
+      duration: const Duration(seconds: 1),
+      builder: (context, close) => const InfoBar(
         key: Key('copy-confirmation'),
-        duration: Duration(seconds: 1),
-        content: Text('Mensaje copiado'),
+        title: Text('Mensaje copiado'),
+        severity: InfoBarSeverity.success,
       ),
     );
   }
@@ -232,7 +274,8 @@ Future<bool> copyOrbiMessage(
 /// (`copyable_info_bar.dart`), and at phone width that leaves a long headline
 /// fighting two icon buttons for the same line — the title wraps to three
 /// lines while a third of the row sits empty. Actions under the content is
-/// also just what Material does.
+/// also just what Material does — kept the same way on Fluent, since it is a
+/// layout decision, not one this port owes to either design system.
 class CopyableMessagePanel extends StatelessWidget {
   const CopyableMessagePanel({
     super.key,
@@ -248,8 +291,8 @@ class CopyableMessagePanel extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final tones = orbiMessageTones(theme.colorScheme, message.severity);
+    final theme = FluentTheme.of(context);
+    final tones = orbiMessageTones(theme, message.severity);
     return Semantics(
       liveRegion: true,
       container: true,
@@ -281,9 +324,8 @@ class CopyableMessagePanel extends StatelessWidget {
                         children: [
                           Text(
                             message.title,
-                            style: theme.textTheme.titleSmall?.copyWith(
+                            style: theme.typography.bodyStrong?.copyWith(
                               color: tones.foreground,
-                              fontWeight: FontWeight.w600,
                             ),
                           ),
                           const SizedBox(height: OrbiTheme.space4),
@@ -292,7 +334,7 @@ class CopyableMessagePanel extends StatelessWidget {
                           // it.
                           SelectableText(
                             message.body,
-                            style: theme.textTheme.bodySmall?.copyWith(
+                            style: theme.typography.caption?.copyWith(
                               color: tones.foreground,
                             ),
                           ),
@@ -306,24 +348,26 @@ class CopyableMessagePanel extends StatelessWidget {
               Row(
                 mainAxisAlignment: MainAxisAlignment.end,
                 children: [
-                  TextButton.icon(
+                  Button(
                     key: const Key('copy-message-button'),
                     onPressed: () => copyOrbiMessage(context, message),
-                    icon: const Icon(Icons.copy_all_outlined, size: 18),
-                    label: const Text('Copiar'),
-                    style: TextButton.styleFrom(
-                      foregroundColor: tones.foreground,
+                    child: const Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(FluentIcons.copy, size: 16),
+                        SizedBox(width: 6),
+                        Text('Copiar'),
+                      ],
                     ),
                   ),
-                  if (onDismiss != null)
-                    TextButton(
+                  if (onDismiss != null) ...[
+                    const SizedBox(width: 8),
+                    Button(
                       key: const Key('dismiss-message-button'),
                       onPressed: onDismiss,
-                      style: TextButton.styleFrom(
-                        foregroundColor: tones.foreground,
-                      ),
                       child: const Text('Cerrar'),
                     ),
+                  ],
                 ],
               ),
             ],
@@ -338,9 +382,11 @@ class CopyableMessagePanel extends StatelessWidget {
 ///
 /// One entry point, four severities, the duration injected from settings and
 /// overridable per call — the shape `theos_pos`'s
-/// `global_notification_service.dart` arrived at, rebuilt on Material.
+/// `global_notification_service.dart` arrived at, originally built on
+/// Material's `SnackBar`/`ScaffoldMessenger` and rebuilt here on Fluent's
+/// `InfoBar`.
 ///
-/// A severity configured as 0 seconds gets a snack bar with no timeout and an
+/// A severity configured as 0 seconds gets a bar with no timeout and an
 /// explicit "Cerrar": it stays until someone deals with it.
 void showCopyableMessage(
   BuildContext context,
@@ -348,82 +394,136 @@ void showCopyableMessage(
   required MessageDurations durations,
   Duration? overrideDuration,
 }) {
-  final messenger = ScaffoldMessenger.maybeOf(context);
-  if (messenger == null) return;
-  final theme = Theme.of(context);
-  final tones = orbiMessageTones(theme.colorScheme, message.severity);
   final duration = overrideDuration ?? durations.durationFor(message.severity);
-  messenger.showSnackBar(
-    SnackBar(
-      key: const Key('copyable-message-bar'),
-      backgroundColor: tones.background,
-      // Material requires *some* duration; a message that must not expire gets
-      // one long enough that only the explicit "Cerrar" ends it.
-      duration: duration ?? const Duration(days: 365),
-      behavior: SnackBarBehavior.floating,
-      content: Semantics(
-        liveRegion: true,
-        container: true,
-        label: '${message.title}. ${message.body}',
-        child: ExcludeSemantics(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+  late final _TransientBarHandle handle;
+  handle = _showTransientBar(
+    context,
+    // A message that must not expire gets a handle whose Timer is simply
+    // never scheduled (see _showTransientBar), instead of a duration long
+    // enough to outlast the test suite — the same intent the previous
+    // Material implementation expressed with `Duration(days: 365)`, done
+    // properly this time.
+    duration: duration,
+    builder: (context, _) => Semantics(
+      liveRegion: true,
+      container: true,
+      label: '${message.title}. ${message.body}',
+      child: ExcludeSemantics(
+        child: InfoBar(
+          key: const Key('copyable-message-bar'),
+          title: Text(message.title),
+          content: Text(message.body),
+          severity: _infoBarSeverityFor(message.severity),
+          isLong: true,
+          action: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Icon(tones.icon, size: 20, color: tones.foreground),
-                  const SizedBox(width: OrbiTheme.space12),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Text(
-                          message.title,
-                          style: theme.textTheme.titleSmall?.copyWith(
-                            color: tones.foreground,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                        const SizedBox(height: OrbiTheme.space4),
-                        Text(
-                          message.body,
-                          style: theme.textTheme.bodySmall?.copyWith(
-                            color: tones.foreground,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
+              Button(
+                key: const Key('copy-message-button'),
+                onPressed: () => copyOrbiMessage(context, message),
+                child: const Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(FluentIcons.copy, size: 16),
+                    SizedBox(width: 6),
+                    Text('Copiar'),
+                  ],
+                ),
               ),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.end,
-                children: [
-                  TextButton.icon(
-                    key: const Key('copy-message-button'),
-                    onPressed: () => copyOrbiMessage(context, message),
-                    icon: const Icon(Icons.copy_all_outlined, size: 18),
-                    label: const Text('Copiar'),
-                    style: TextButton.styleFrom(
-                      foregroundColor: tones.foreground,
-                    ),
-                  ),
-                  TextButton(
-                    key: const Key('dismiss-message-button'),
-                    onPressed: messenger.hideCurrentSnackBar,
-                    style: TextButton.styleFrom(
-                      foregroundColor: tones.foreground,
-                    ),
-                    child: const Text('Cerrar'),
-                  ),
-                ],
+              const SizedBox(width: 8),
+              Button(
+                key: const Key('dismiss-message-button'),
+                onPressed: () => handle.close(),
+                child: const Text('Cerrar'),
               ),
             ],
           ),
         ),
+      ),
+    ),
+  );
+}
+
+/// A single, minimal overlay slot for a transient Fluent-styled message.
+///
+/// Deliberately NOT `displayInfoBar` (the helper `package:fluent_ui` ships):
+/// that helper hides its content behind a themed fade-in for the whole first
+/// animation frame, so a caller cannot rely on the bar being visible the
+/// instant it is shown — and the copy confirmation, in particular, is
+/// expected to appear immediately. This inserts the widget synchronously and
+/// manages its own removal, either after [duration] or via the returned
+/// handle's `close`.
+_TransientBarHandle _showTransientBar(
+  BuildContext context, {
+  required Widget Function(BuildContext context, VoidCallback close) builder,
+  Duration? duration,
+}) {
+  final overlay = Overlay.of(context, rootOverlay: true);
+  late final OverlayEntry entry;
+  void close() {
+    if (entry.mounted) entry.remove();
+  }
+
+  entry = OverlayEntry(
+    builder: (context) => _TransientBarSlot(
+      duration: duration,
+      onExpire: close,
+      builder: (context) => builder(context, close),
+    ),
+  );
+  overlay.insert(entry);
+  return _TransientBarHandle(close);
+}
+
+final class _TransientBarHandle {
+  const _TransientBarHandle(this.close);
+  final VoidCallback close;
+}
+
+/// Owns the auto-dismiss [Timer], so it dies with the widget instead of
+/// outliving it — a bare top-level `Timer` has nothing to cancel it when the
+/// overlay is torn down (e.g. at the end of a widget test), and Flutter
+/// treats that as a leak.
+class _TransientBarSlot extends StatefulWidget {
+  const _TransientBarSlot({
+    required this.duration,
+    required this.onExpire,
+    required this.builder,
+  });
+
+  final Duration? duration;
+  final VoidCallback onExpire;
+  final WidgetBuilder builder;
+
+  @override
+  State<_TransientBarSlot> createState() => _TransientBarSlotState();
+}
+
+class _TransientBarSlotState extends State<_TransientBarSlot> {
+  Timer? _timer;
+
+  @override
+  void initState() {
+    super.initState();
+    final duration = widget.duration;
+    if (duration != null) {
+      _timer = Timer(duration, widget.onExpire);
+    }
+  }
+
+  @override
+  void dispose() {
+    _timer?.cancel();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => SafeArea(
+    child: Align(
+      alignment: Alignment.bottomCenter,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 24, horizontal: 16),
+        child: widget.builder(context),
       ),
     ),
   );

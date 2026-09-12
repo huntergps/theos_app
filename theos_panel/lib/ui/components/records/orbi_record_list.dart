@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:fluent_ui/fluent_ui.dart';
 
 import '../../bindings/record_view_controller.dart';
 
@@ -46,14 +46,24 @@ class OrbiRecordList<T> extends StatelessWidget {
               if (cardBuilder != null) {
                 return Semantics(
                   container: true,
+                  // Material's InkWell wraps its own tap semantics in a
+                  // second `container` boundary, so it never merged into
+                  // this label. Fluent's GestureDetector does not — without
+                  // `explicitChildNodes`, its tap action and every Text
+                  // child below fold into this node, turning "B" into
+                  // "B\nNombre\nB" and breaking exact-label lookups.
+                  explicitChildNodes: true,
                   selected: selectedRow,
                   label: columns.isEmpty
                       ? record.id
                       : columns.first.value(record.value),
-                  child: InkWell(
-                    key: ValueKey<String>(id),
-                    onTap: onTap,
-                    child: cardBuilder!(context, record),
+                  child: MouseRegion(
+                    cursor: SystemMouseCursors.click,
+                    child: GestureDetector(
+                      key: ValueKey<String>(id),
+                      onTap: onTap,
+                      child: cardBuilder!(context, record),
+                    ),
                   ),
                 );
               }
@@ -88,47 +98,56 @@ class _RecordCard<T> extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colors = Theme.of(context).colorScheme;
+    final theme = FluentTheme.of(context);
     return Semantics(
       container: true,
+      // See the matching note in OrbiRecordList._RecordCard's sibling
+      // branch above: without this, GestureDetector's tap semantics and
+      // every Text child merge into this node instead of staying separate.
+      explicitChildNodes: true,
       selected: selected,
       label: columns.isEmpty ? record.id : columns.first.value(record.value),
-      child: Card(
-        margin: EdgeInsets.zero,
-        clipBehavior: Clip.antiAlias,
-        color: selected ? colors.primaryContainer : colors.surface,
-        child: InkWell(
+      child: MouseRegion(
+        cursor: SystemMouseCursors.click,
+        child: GestureDetector(
           onTap: onTap,
-          child: Padding(
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                for (var i = 0; i < columns.length; i++)
-                  Padding(
-                    padding: EdgeInsets.only(
-                      bottom: i == columns.length - 1 ? 0 : 8,
-                    ),
-                    child: Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        SizedBox(
-                          width: 112,
-                          child: Text(
-                            columns[i].label,
-                            style: Theme.of(context).textTheme.labelMedium,
+          child: DecoratedBox(
+            decoration: BoxDecoration(
+              color: selected ? theme.accentColor.lightest : theme.cardColor,
+              borderRadius: const BorderRadius.all(Radius.circular(4)),
+              border: Border.all(color: theme.resources.cardStrokeColorDefault),
+            ),
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  for (var i = 0; i < columns.length; i++)
+                    Padding(
+                      padding: EdgeInsets.only(
+                        bottom: i == columns.length - 1 ? 0 : 8,
+                      ),
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          SizedBox(
+                            width: 112,
+                            child: Text(
+                              columns[i].label,
+                              style: theme.typography.caption,
+                            ),
                           ),
-                        ),
-                        Expanded(
-                          child: Text(
-                            columns[i].value(record.value),
-                            textAlign: columns[i].textAlign,
+                          Expanded(
+                            child: Text(
+                              columns[i].value(record.value),
+                              textAlign: columns[i].textAlign,
+                            ),
                           ),
-                        ),
-                      ],
+                        ],
+                      ),
                     ),
-                  ),
-              ],
+                ],
+              ),
             ),
           ),
         ),

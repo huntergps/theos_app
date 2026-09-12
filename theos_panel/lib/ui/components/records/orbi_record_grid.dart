@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:fluent_ui/fluent_ui.dart';
 import 'package:syncfusion_flutter_datagrid/datagrid.dart';
 
 import '../../bindings/record_view_controller.dart';
@@ -162,7 +162,7 @@ class _OrbiRecordGridState<T> extends State<OrbiRecordGrid<T>> {
                   padding: const EdgeInsets.symmetric(horizontal: 12),
                   child: Text(
                     column.label,
-                    style: Theme.of(context).textTheme.labelLarge,
+                    style: FluentTheme.of(context).typography.bodyStrong,
                   ),
                 ),
               ),

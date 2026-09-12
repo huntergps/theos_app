@@ -1,9 +1,10 @@
-import 'package:flutter/material.dart';
+import 'package:fluent_ui/fluent_ui.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:syncfusion_flutter_datagrid/datagrid.dart';
 
 import 'package:theos_panel/ui/bindings/record_view_controller.dart';
 import 'package:theos_panel/ui/components/orbi_record_grid.dart';
+import 'package:theos_panel/ui/fluent/orbi_fluent_theme.dart';
 
 void main() {
   final columns = <OrbiRecordColumn<String>>[
@@ -28,7 +29,8 @@ void main() {
     for (final width in [390.0, 599.0, 600.0, 839.0]) {
       await tester.binding.setSurfaceSize(Size(width, 480));
       await tester.pumpWidget(
-        MaterialApp(
+        FluentApp(
+          theme: OrbiFluentTheme.light,
           home: SizedBox.expand(
             child: OrbiRecordGrid(controller: view, columns: columns),
           ),
@@ -42,7 +44,8 @@ void main() {
     }
     await tester.binding.setSurfaceSize(const Size(1000, 480));
     await tester.pumpWidget(
-      MaterialApp(
+      FluentApp(
+        theme: OrbiFluentTheme.light,
         home: SizedBox.expand(
           child: OrbiRecordGrid(controller: view, columns: columns),
         ),
@@ -59,7 +62,8 @@ void main() {
     addTearDown(view.dispose);
     await tester.binding.setSurfaceSize(const Size(1000, 480));
     await tester.pumpWidget(
-      MaterialApp(
+      FluentApp(
+        theme: OrbiFluentTheme.light,
         home: SizedBox.expand(
           child: OrbiRecordGrid(controller: view, columns: columns),
         ),
@@ -85,7 +89,8 @@ void main() {
     addTearDown(view.dispose);
     await tester.binding.setSurfaceSize(const Size(1024, 1366));
     await tester.pumpWidget(
-      MaterialApp(
+      FluentApp(
+        theme: OrbiFluentTheme.light,
         home: MediaQuery(
           data: const MediaQueryData(size: Size(1024, 1366)),
           child: SizedBox.expand(
@@ -106,7 +111,8 @@ void main() {
     final semantics = tester.ensureSemantics();
     await tester.binding.setSurfaceSize(const Size(1000, 480));
     await tester.pumpWidget(
-      MaterialApp(
+      FluentApp(
+        theme: OrbiFluentTheme.light,
         home: SizedBox.expand(
           child: OrbiRecordGrid(controller: view, columns: columns),
         ),
@@ -137,7 +143,8 @@ void main() {
     final semantics = tester.ensureSemantics();
     await tester.binding.setSurfaceSize(const Size(1000, 480));
     await tester.pumpWidget(
-      MaterialApp(
+      FluentApp(
+        theme: OrbiFluentTheme.light,
         home: SizedBox.expand(
           child: OrbiRecordGrid(controller: view, columns: columns),
         ),
@@ -156,7 +163,8 @@ void main() {
     );
     await tester.binding.setSurfaceSize(const Size(1000, 480));
     await tester.pumpWidget(
-      MaterialApp(
+      FluentApp(
+        theme: OrbiFluentTheme.light,
         home: SizedBox.expand(
           child: OrbiRecordGrid(controller: view, columns: alternateColumns),
         ),

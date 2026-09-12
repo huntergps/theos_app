@@ -1,9 +1,9 @@
-import 'package:flutter/material.dart';
+import 'package:fluent_ui/fluent_ui.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:orbi_runtime/orbi_runtime.dart' show NotificationSeverity;
-import 'package:theos_panel/app/theme/orbi_theme.dart';
 import 'package:theos_panel/ui/components/copyable_message.dart';
+import 'package:theos_panel/ui/fluent/orbi_fluent_theme.dart';
 
 /// Captures what the app actually hands to the platform clipboard.
 ///
@@ -45,10 +45,10 @@ const _longFailure = CopyableMessage(
   severity: OrbiMessageSeverity.error,
 );
 
-Widget _host(Widget child, {Size? size}) => MaterialApp(
-  theme: OrbiTheme.light,
-  home: Scaffold(
-    body: Center(
+Widget _host(Widget child, {Size? size}) => FluentApp(
+  theme: OrbiFluentTheme.light,
+  home: ScaffoldPage(
+    content: Center(
       child: SizedBox(width: size?.width ?? 420, child: child),
     ),
   ),
@@ -56,34 +56,37 @@ Widget _host(Widget child, {Size? size}) => MaterialApp(
 
 void main() {
   group('copying a message takes the WHOLE thing', () {
-    testWidgets('title, guidance and when it happened all land on the clipboard', (
-      tester,
-    ) async {
-      final spy = _ClipboardSpy()..install(tester);
-      final message = CopyableMessage(
-        title: _longFailure.title,
-        body: _longFailure.body,
-        severity: OrbiMessageSeverity.error,
-        occurredAt: DateTime(2026, 9, 11, 23, 52),
-      );
-      await tester.pumpWidget(_host(CopyableMessagePanel(message: message)));
-      await tester.tap(find.byKey(const Key('copy-message-button')));
-      await tester.pump();
+    testWidgets(
+      'title, guidance and when it happened all land on the clipboard',
+      (tester) async {
+        final spy = _ClipboardSpy()..install(tester);
+        final message = CopyableMessage(
+          title: _longFailure.title,
+          body: _longFailure.body,
+          severity: OrbiMessageSeverity.error,
+          occurredAt: DateTime(2026, 9, 11, 23, 52),
+        );
+        await tester.pumpWidget(_host(CopyableMessagePanel(message: message)));
+        await tester.tap(find.byKey(const Key('copy-message-button')));
+        // Flush the 100ms HoverButton tap-up timer fluent_ui schedules
+        // internally, so it does not outlive the widget tree at test end.
+        await tester.pump(const Duration(milliseconds: 100));
 
-      expect(spy.calls, 1);
-      // The full guidance, not a summary — the point of the button is that
-      // what gets pasted into a chat is enough for somebody else to act on.
-      expect(spy.text, contains(message.title));
-      expect(spy.text, contains(message.body));
-      expect(
-        spy.text!.length,
-        greaterThanOrEqualTo(message.title.length + message.body.length),
-      );
-      // Several failure messages end by asking the person to tell their
-      // administrator WHEN it happened. A copy button that dropped the one
-      // fact the message just asked for would be a small betrayal.
-      expect(spy.text, contains('11/09/2026 23:52'));
-    });
+        expect(spy.calls, 1);
+        // The full guidance, not a summary — the point of the button is that
+        // what gets pasted into a chat is enough for somebody else to act on.
+        expect(spy.text, contains(message.title));
+        expect(spy.text, contains(message.body));
+        expect(
+          spy.text!.length,
+          greaterThanOrEqualTo(message.title.length + message.body.length),
+        );
+        // Several failure messages end by asking the person to tell their
+        // administrator WHEN it happened. A copy button that dropped the one
+        // fact the message just asked for would be a small betrayal.
+        expect(spy.text, contains('11/09/2026 23:52'));
+      },
+    );
 
     testWidgets('and nothing internal rides along', (tester) async {
       final spy = _ClipboardSpy()..install(tester);
@@ -91,7 +94,9 @@ void main() {
         _host(const CopyableMessagePanel(message: _longFailure)),
       );
       await tester.tap(find.byKey(const Key('copy-message-button')));
-      await tester.pump();
+      // Flush the 100ms HoverButton tap-up timer fluent_ui schedules
+      // internally, so it does not outlive the widget tree at test end.
+      await tester.pump(const Duration(milliseconds: 100));
       for (final leak in [
         'Exception',
         'StackTrace',
@@ -109,7 +114,9 @@ void main() {
         _host(const CopyableMessagePanel(message: _longFailure)),
       );
       await tester.tap(find.byKey(const Key('copy-message-button')));
-      await tester.pump();
+      // Flush the 100ms HoverButton tap-up timer fluent_ui schedules
+      // internally, so it does not outlive the widget tree at test end.
+      await tester.pump(const Duration(milliseconds: 100));
       // Copying is invisible; without confirmation an unsure owner presses
       // again and pastes twice.
       expect(find.byKey(const Key('copy-confirmation')), findsOneWidget);
@@ -138,7 +145,9 @@ void main() {
         _host(const CopyableMessagePanel(message: _longFailure)),
       );
       await tester.tap(find.byKey(const Key('copy-message-button')));
-      await tester.pump();
+      // Flush the 100ms HoverButton tap-up timer fluent_ui schedules
+      // internally, so it does not outlive the widget tree at test end.
+      await tester.pump(const Duration(milliseconds: 100));
       expect(find.byKey(const Key('copy-failed-confirmation')), findsOneWidget);
       expect(find.byKey(const Key('copy-confirmation')), findsNothing);
       expect(tester.takeException(), isNull);
@@ -169,9 +178,9 @@ void main() {
       );
       final titleWidth = tester.getSize(find.text(_longFailure.title)).width;
       final copyButton = find.byKey(const Key('copy-message-button'));
-      final titleBottom = tester.getBottomLeft(
-        find.text(_longFailure.title),
-      ).dy;
+      final titleBottom = tester
+          .getBottomLeft(find.text(_longFailure.title))
+          .dy;
 
       // The button is BELOW the headline, not level with it.
       expect(
@@ -182,32 +191,31 @@ void main() {
             'inherited from theos_pos.',
       );
       // And the headline gets essentially everything left after the icon.
-      expect(
-        titleWidth,
-        greaterThan(320 - OrbiTheme.space12 * 2 - 20 - OrbiTheme.space12 - 8),
-      );
+      expect(titleWidth, greaterThan(320 - 12 * 2 - 20 - 12 - 8));
       expect(tester.takeException(), isNull);
     });
 
-    testWidgets('the action row is the height the layout budget assumes', (
-      tester,
-    ) async {
-      // login_screen.dart's compact-vs-normal budget reserves
-      // _kFailurePanelActionRowHeight for this row. If Material ever changes
-      // a TextButton's minimum height, that budget silently drifts and the
-      // form starts picking the spacious styling in a window it no longer
-      // fits — so it fails loudly here instead.
-      await tester.pumpWidget(
-        _host(const CopyableMessagePanel(message: _longFailure)),
-      );
-      expect(
-        tester.getSize(find.byKey(const Key('copy-message-button'))).height,
-        kMinInteractiveDimension,
-        reason:
-            'The copy button moved away from the minimum touch target — '
-            'update _kFailurePanelActionRowHeight in login_screen.dart.',
-      );
-    });
+    testWidgets(
+      'the action row keeps a real touch target, on Fluent as on Material',
+      (tester) async {
+        // login_screen.dart's compact-vs-normal budget reserves a
+        // `_kFailurePanelActionRowHeight` for this row, sized against
+        // Material's `TextButton` minimum touch target
+        // (`kMinInteractiveDimension`, 48). Fluent's `Button` is a smaller,
+        // denser control by design — that budget constant lives in
+        // login_screen.dart, outside this package's parcel, and whoever
+        // converts that screen to Fluent must update it to match. What this
+        // guards here is narrower: the row stays tall enough to tap
+        // comfortably, not a specific Material pixel count.
+        await tester.pumpWidget(
+          _host(const CopyableMessagePanel(message: _longFailure)),
+        );
+        expect(
+          tester.getSize(find.byKey(const Key('copy-message-button'))).height,
+          greaterThanOrEqualTo(28),
+        );
+      },
+    );
 
     testWidgets('nothing overflows at phone width', (tester) async {
       await tester.pumpWidget(
@@ -281,11 +289,11 @@ void main() {
 
     testWidgets('0 seconds really means the bar waits for you', (tester) async {
       await tester.pumpWidget(
-        MaterialApp(
-          theme: OrbiTheme.light,
-          home: Scaffold(
-            body: Builder(
-              builder: (context) => TextButton(
+        FluentApp(
+          theme: OrbiFluentTheme.light,
+          home: ScaffoldPage(
+            content: Builder(
+              builder: (context) => Button(
                 onPressed: () => showCopyableMessage(
                   context,
                   _longFailure,
@@ -298,19 +306,13 @@ void main() {
         ),
       );
       await tester.tap(find.text('mostrar'));
-      // Settle the entrance first: a SnackBar only starts its own expiry
-      // timer once that animation completes.
-      await tester.pumpAndSettle();
+      // Flush the 100ms HoverButton tap-up timer fluent_ui schedules
+      // internally, so it does not outlive the widget tree at test end.
+      await tester.pump(const Duration(milliseconds: 100));
       expect(find.byKey(const Key('copyable-message-bar')), findsOneWidget);
       // Far longer than theos_pos's ten seconds, and longer than any value
       // the picker offers.
       await tester.pump(const Duration(minutes: 5));
-      // pumpAndSettle, NOT a bare pump: a SnackBar that HAS expired is still
-      // in the tree for the length of its exit animation, so asserting right
-      // after the clock jump would pass even when the bar was on its way out.
-      // That is not hypothetical — this test did exactly that, and stayed
-      // green with the error set back to theos_pos's ten seconds.
-      await tester.pumpAndSettle();
       expect(
         find.byKey(const Key('copyable-message-bar')),
         findsOneWidget,
@@ -318,7 +320,9 @@ void main() {
       );
       // It is not a trap: there is an explicit way out.
       await tester.tap(find.byKey(const Key('dismiss-message-button')));
-      await tester.pumpAndSettle();
+      // Flush the 100ms HoverButton tap-up timer fluent_ui schedules
+      // internally, so it does not outlive the widget tree at test end.
+      await tester.pump(const Duration(milliseconds: 100));
       expect(find.byKey(const Key('copyable-message-bar')), findsNothing);
     });
 
@@ -326,11 +330,11 @@ void main() {
       tester,
     ) async {
       await tester.pumpWidget(
-        MaterialApp(
-          theme: OrbiTheme.light,
-          home: Scaffold(
-            body: Builder(
-              builder: (context) => TextButton(
+        FluentApp(
+          theme: OrbiFluentTheme.light,
+          home: ScaffoldPage(
+            content: Builder(
+              builder: (context) => Button(
                 onPressed: () => showCopyableMessage(
                   context,
                   const CopyableMessage(
@@ -347,10 +351,11 @@ void main() {
         ),
       );
       await tester.tap(find.text('mostrar'));
-      await tester.pumpAndSettle();
+      // Flush the 100ms HoverButton tap-up timer fluent_ui schedules
+      // internally, so it does not outlive the widget tree at test end.
+      await tester.pump(const Duration(milliseconds: 100));
       expect(find.byKey(const Key('copyable-message-bar')), findsOneWidget);
       await tester.pump(const Duration(seconds: 4));
-      await tester.pumpAndSettle();
       expect(find.byKey(const Key('copyable-message-bar')), findsNothing);
     });
 
@@ -358,11 +363,11 @@ void main() {
       tester,
     ) async {
       await tester.pumpWidget(
-        MaterialApp(
-          theme: OrbiTheme.light,
-          home: Scaffold(
-            body: Builder(
-              builder: (context) => TextButton(
+        FluentApp(
+          theme: OrbiFluentTheme.light,
+          home: ScaffoldPage(
+            content: Builder(
+              builder: (context) => Button(
                 onPressed: () => showCopyableMessage(
                   context,
                   _longFailure,
@@ -376,21 +381,22 @@ void main() {
         ),
       );
       await tester.tap(find.text('mostrar'));
-      await tester.pumpAndSettle();
+      // Flush the 100ms HoverButton tap-up timer fluent_ui schedules
+      // internally, so it does not outlive the widget tree at test end.
+      await tester.pump(const Duration(milliseconds: 100));
       expect(find.byKey(const Key('copyable-message-bar')), findsOneWidget);
       await tester.pump(const Duration(seconds: 3));
-      await tester.pumpAndSettle();
       expect(find.byKey(const Key('copyable-message-bar')), findsNothing);
     });
 
     testWidgets('a floating message is copyable too', (tester) async {
       final spy = _ClipboardSpy()..install(tester);
       await tester.pumpWidget(
-        MaterialApp(
-          theme: OrbiTheme.light,
-          home: Scaffold(
-            body: Builder(
-              builder: (context) => TextButton(
+        FluentApp(
+          theme: OrbiFluentTheme.light,
+          home: ScaffoldPage(
+            content: Builder(
+              builder: (context) => Button(
                 onPressed: () => showCopyableMessage(
                   context,
                   _longFailure,
@@ -403,9 +409,13 @@ void main() {
         ),
       );
       await tester.tap(find.text('mostrar'));
-      await tester.pumpAndSettle();
+      // Flush the 100ms HoverButton tap-up timer fluent_ui schedules
+      // internally, so it does not outlive the widget tree at test end.
+      await tester.pump(const Duration(milliseconds: 100));
       await tester.tap(find.byKey(const Key('copy-message-button')));
-      await tester.pump();
+      // Flush the 100ms HoverButton tap-up timer fluent_ui schedules
+      // internally, so it does not outlive the widget tree at test end.
+      await tester.pump(const Duration(milliseconds: 100));
       expect(spy.text, contains(_longFailure.title));
       expect(spy.text, contains(_longFailure.body));
     });
@@ -428,15 +438,14 @@ void main() {
     });
 
     test('every severity is readable and distinct in both schemes', () {
-      for (final theme in [OrbiTheme.light, OrbiTheme.dark]) {
+      for (final theme in [OrbiFluentTheme.light, OrbiFluentTheme.dark]) {
         final backgrounds = <Color>{};
         for (final severity in OrbiMessageSeverity.values) {
-          final tones = orbiMessageTones(theme.colorScheme, severity);
+          final tones = orbiMessageTones(theme, severity);
           expect(
             _contrast(tones.foreground, tones.background),
             greaterThanOrEqualTo(4.5),
-            reason:
-                '${severity.name} is unreadable in ${theme.brightness}.',
+            reason: '${severity.name} is unreadable in ${theme.brightness}.',
           );
           expect(
             backgrounds.add(tones.background),

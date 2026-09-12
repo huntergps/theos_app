@@ -1,10 +1,10 @@
 import 'dart:async';
 
-import 'package:flutter/material.dart';
+import 'package:fluent_ui/fluent_ui.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:theos_panel/app/theme/orbi_theme.dart';
 import 'package:theos_panel/ui/bindings/field_binding.dart';
 import 'package:theos_panel/ui/components/orbi_bound_fields.dart';
+import 'package:theos_panel/ui/fluent/orbi_fluent_theme.dart';
 
 void main() {
   testWidgets('edits, saves on Enter, and preserves focus across rebuild', (
@@ -16,23 +16,23 @@ void main() {
     );
     addTearDown(binding.dispose);
     await tester.pumpWidget(
-      MaterialApp(
-        theme: OrbiTheme.light,
-        home: Scaffold(
-          body: OrbiBoundTextField(binding: binding, label: 'Nombre'),
+      FluentApp(
+        theme: OrbiFluentTheme.light,
+        home: ScaffoldPage(
+          content: OrbiBoundTextField(binding: binding, label: 'Nombre'),
         ),
       ),
     );
-    await tester.tap(find.byType(TextField));
-    await tester.enterText(find.byType(TextField), 'edited');
+    await tester.tap(find.byType(TextBox));
+    await tester.enterText(find.byType(TextBox), 'edited');
     expect(binding.status, FieldBindingStatus.dirty);
     expect(tester.binding.focusManager.primaryFocus, isNotNull);
 
     await tester.pumpWidget(
-      MaterialApp(
-        theme: OrbiTheme.dark,
-        home: Scaffold(
-          body: OrbiBoundTextField(binding: binding, label: 'Nombre'),
+      FluentApp(
+        theme: OrbiFluentTheme.dark,
+        home: ScaffoldPage(
+          content: OrbiBoundTextField(binding: binding, label: 'Nombre'),
         ),
       ),
     );
@@ -56,14 +56,14 @@ void main() {
     );
     addTearDown(binding.dispose);
     await tester.pumpWidget(
-      MaterialApp(
-        theme: OrbiTheme.light,
-        home: Scaffold(
-          body: OrbiBoundTextField(binding: binding, label: 'Código'),
+      FluentApp(
+        theme: OrbiFluentTheme.light,
+        home: ScaffoldPage(
+          content: OrbiBoundTextField(binding: binding, label: 'Código'),
         ),
       ),
     );
-    await tester.enterText(find.byType(TextField), 'draft');
+    await tester.enterText(find.byType(TextBox), 'draft');
     // Trigger the same injected command used by the suffix action; the
     // callback stays deterministic while the widget remains mounted.
     unawaited(binding.save());

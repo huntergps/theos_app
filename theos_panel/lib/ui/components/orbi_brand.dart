@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:fluent_ui/fluent_ui.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 
 /// Approved photographic backdrop shared by login and startup. Keep the logo
@@ -32,7 +32,7 @@ class OrbiBrand extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final tint = color ?? Theme.of(context).colorScheme.primary;
+    final tint = color ?? FluentTheme.of(context).accentColor;
     return Semantics(
       label: 'Marca Orbi ERP',
       image: true,
