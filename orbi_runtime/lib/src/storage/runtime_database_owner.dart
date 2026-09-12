@@ -58,6 +58,19 @@ final class RuntimeDatabaseOwner {
           PRIMARY KEY (scope_key, company_id)
         )
       ''');
+      // Read cache only: Odoo remains the authority for stock.quant. Same
+      // shape and same reasoning as orbi_envases_dashboard_cache above — kept
+      // as its own table (rather than folded into it) because BOD-01/02/03
+      // existence rows are keyed by product+location, not product+company.
+      await database.customStatement('''
+        CREATE TABLE IF NOT EXISTS orbi_stock_quant_cache (
+          scope_key TEXT NOT NULL,
+          company_id INTEGER NOT NULL CHECK (company_id > 0),
+          payload TEXT NOT NULL,
+          cached_at TEXT NOT NULL,
+          PRIMARY KEY (scope_key, company_id)
+        )
+      ''');
     } catch (_) {
       await database.close();
       rethrow;

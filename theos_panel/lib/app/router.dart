@@ -31,6 +31,7 @@ import 'preferences/app_preferences.dart';
 import '../features/activities/activity_center.dart';
 import '../features/reports/document_view.dart';
 import '../features/sync/sync_center.dart';
+import '../features/sync/sync_conflict_resolution_screen.dart';
 import '../ui/home_page.dart';
 import '../ui/layouts/operational_shell.dart';
 import 'session_composition.dart';
@@ -849,38 +850,50 @@ final orbiRouterProvider = Provider<GoRouter>((ref) {
           ),
           GoRoute(
             path: '/sync',
-            builder: (context, state) =>
-                (composition.sync == null &&
-                    ref.read(scopeSyncCoordinatorProvider) == null)
-                ? const NotConfiguredPage(title: 'Sincronización')
-                : ProviderScope(
-                    overrides: [
-                      syncCenterPortProvider.overrideWithValue(
-                        composition.sync ??
-                            CoordinatorSyncCenterPort(
-                              ref.read(scopeSyncCoordinatorProvider)!,
-                              operations:
-                                  composition.catalogs?.jobs['operations']
-                                      as OperationsSyncJob?,
-                            ),
-                      ),
-                    ],
-                    child: Scaffold(
-                      appBar: AppBar(title: Text('Sincronización')),
-                      body: SyncCenterView(
-                        onOpenConflicts: () => showDialog<void>(
-                          context: context,
-                          builder: (context) => const AlertDialog(
-                            title: Text('Conflictos de sincronización'),
-                            content: Text(
-                              'Hay operaciones que requieren revisión. '
-                              'No se reintentará ni resolverá automáticamente.',
-                            ),
-                          ),
+            builder: (context, state) {
+              // Same queue the "Operaciones pendientes" catalog status reads
+              // from (see `CoordinatorSyncCenterPort` below); the conflict
+              // resolution screen (SYN-03) is built on top of the identical
+              // live `OfflineQueueStore`, never a second one.
+              final operationsJob =
+                  composition.catalogs?.jobs['operations']
+                      as OperationsSyncJob?;
+              if (composition.sync == null &&
+                  ref.read(scopeSyncCoordinatorProvider) == null) {
+                return const NotConfiguredPage(title: 'Sincronización');
+              }
+              return ProviderScope(
+                overrides: [
+                  syncCenterPortProvider.overrideWithValue(
+                    composition.sync ??
+                        CoordinatorSyncCenterPort(
+                          ref.read(scopeSyncCoordinatorProvider)!,
+                          operations: operationsJob,
                         ),
-                      ),
-                    ),
                   ),
+                ],
+                child: Scaffold(
+                  appBar: AppBar(title: Text('Sincronización')),
+                  body: SyncCenterView(
+                    onOpenConflicts: () {
+                      final queue = operationsJob?.queue;
+                      Navigator.of(context).push(
+                        MaterialPageRoute<void>(
+                          builder: (_) => queue == null
+                              ? const NotConfiguredPage(
+                                  title: 'Resolver conflicto',
+                                  detail:
+                                      'Sin cola de operaciones disponible '
+                                      'en este scope.',
+                                )
+                              : SyncConflictResolutionPage(queue: queue),
+                        ),
+                      );
+                    },
+                  ),
+                ),
+              );
+            },
           ),
           GoRoute(
             path: '/notifications',
