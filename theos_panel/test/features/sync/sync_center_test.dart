@@ -26,7 +26,15 @@ void main() {
   ) async {
     final port = _SyncPort(
       SyncCenterSnapshot(
-        sync: SyncSnapshot(queuedCount: 1, failedCount: 1),
+        sync: SyncSnapshot(
+          queuedCount: 1,
+          failures: [
+            SyncFailure(
+              jobId: 'catalog:uom',
+              message: "Invalid field 'rounding' on 'uom.uom'",
+            ),
+          ],
+        ),
         catalogs: const [
           SyncCatalogStatus(
             id: 'orders',

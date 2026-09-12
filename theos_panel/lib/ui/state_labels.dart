@@ -110,3 +110,36 @@ String approvalStateLabel(SaleApprovalState state) => switch (state) {
   SaleApprovalState.approved => 'Aprobada',
   SaleApprovalState.rejected => 'Rechazada',
 };
+
+/// Cómo se llama en castellano el trabajo de sincronización que falló.
+///
+/// El identificador que usa el runtime (`catalog:cardBrand`) es un nombre de
+/// programador y no puede llegar a la pantalla. Cuando aparezca un catálogo
+/// nuevo sin traducir, se devuelve el identificador tal cual: es feo a
+/// propósito, para que se note y se traduzca, en vez de esconder el fallo.
+String syncJobLabel(String jobId) {
+  const catalogs = <String, String>{
+    'partner': 'Clientes',
+    'product': 'Productos',
+    'paymentTerm': 'Formas de pago',
+    'uom': 'Unidades de medida',
+    'collectionConfig': 'Puntos de cobro',
+    'collectionSession': 'Sesiones de caja',
+    'tax': 'Impuestos',
+    'pricelist': 'Listas de precios',
+    'warehouse': 'Bodegas',
+    'journal': 'Diarios',
+    'cardBrand': 'Marcas de tarjeta',
+    'cardDeadline': 'Plazos de tarjeta',
+    'cardLote': 'Lotes de tarjeta',
+    'paymentMethodLine': 'Métodos de pago',
+  };
+  if (jobId == 'operations') return 'Trabajo pendiente por enviar';
+  if (jobId == 'backend-probe') return 'Comprobación del servidor';
+  const prefix = 'catalog:';
+  if (jobId.startsWith(prefix)) {
+    final key = jobId.substring(prefix.length);
+    return catalogs[key] ?? jobId;
+  }
+  return jobId;
+}

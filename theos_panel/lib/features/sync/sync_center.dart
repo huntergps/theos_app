@@ -4,6 +4,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:orbi_runtime/orbi_runtime.dart';
 
+import '../../ui/components/copyable_message.dart';
+import '../../ui/state_labels.dart';
+
 enum SyncCatalogState { idle, syncing, succeeded, failed, conflict }
 
 enum SyncCenterLoadState { initial, loading, data, empty, error }
@@ -169,8 +172,24 @@ class SyncCenterView extends ConsumerWidget {
         if (snapshot.sync.active) const LinearProgressIndicator(),
         if (snapshot.sync.queuedCount > 0)
           Text('En cola: ${snapshot.sync.queuedCount}'),
-        if (snapshot.sync.failedCount > 0)
+        // El número solo no sirve: «5 con error» no le dice a nadie qué
+        // reintentar ni a quién llamar. El detalle ya viajaba en el resultado
+        // del trabajo y se descartaba al contarlo.
+        if (snapshot.sync.failures.isNotEmpty) ...[
           Text('Fallidos: ${snapshot.sync.failedCount}'),
+          const SizedBox(height: 4),
+          for (final failure in snapshot.sync.failures)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 4),
+              child: CopyableMessagePanel(
+                message: CopyableMessage(
+                  title: syncJobLabel(failure.jobId),
+                  body: failure.message,
+                  severity: OrbiMessageSeverity.error,
+                ),
+              ),
+            ),
+        ],
         if (snapshot.sync.conflictCount > 0)
           Text('Conflictos: ${snapshot.sync.conflictCount}'),
         if (snapshot.sync.conflictCount > 0 && onOpenConflicts != null)

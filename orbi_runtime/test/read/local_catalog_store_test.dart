@@ -120,6 +120,7 @@ void main() {
     addTearDown(owner.close);
     final store = DriftCatalogStore<Map<String, dynamic>>(
       owner: owner,
+      name: 'partner',
       writeRows: (_, _, _) async {},
     );
     final states = <CatalogState<Map<String, dynamic>>>[];
@@ -136,5 +137,52 @@ void main() {
     expect(states[1].cursor, 'next');
     expect(states[2].cursor, 'next');
     expect(states[2].error, contains('offline'));
+  });
+
+  // Los catorce catálogos comparten base y tabla de metadatos. Sin un nombre
+  // por catálogo, todos escribían en la fila `catalog:<scope>`: el último en
+  // sincronizar borraba el error del anterior — y, peor, su CURSOR, que es lo
+  // que decide desde dónde continúa la siguiente sincronización. Se vio en
+  // ERP2 el 12-sep-2026: cuatro catálogos fallando y el pie diciendo sólo «5
+  // con error», sin poder decir cuáles.
+  test('dos catálogos no se pisan el cursor ni el error entre ellos', () async {
+    final owner = RuntimeDatabaseOwner(
+      factory: (_) => AppDatabase(NativeDatabase.memory()),
+    );
+    final scope = AppScope(
+      appId: 'panel',
+      installationId: 'i',
+      normalizedServerUrl: 'https://erp.test',
+      database: 'db',
+      userId: 2,
+    );
+    await owner.open(scope);
+    addTearDown(owner.close);
+
+    DriftCatalogStore<Map<String, dynamic>> storeNamed(String name) =>
+        DriftCatalogStore<Map<String, dynamic>>(
+          owner: owner,
+          name: name,
+          writeRows: (_, _, _) async {},
+        );
+
+    final partner = storeNamed('partner');
+    final product = storeNamed('product');
+
+    await partner.commit(
+      scope,
+      const CatalogBatch(records: [], cursor: 'partner-7'),
+    );
+    await product.commit(
+      scope,
+      const CatalogBatch(records: [], cursor: 'product-3'),
+    );
+    await product.recordError(scope, StateError('uom.uom.rounding'));
+
+    expect((await partner.read(scope)).cursor, 'partner-7');
+    expect((await product.read(scope)).cursor, 'product-3');
+    // El fallo de uno no puede aparecer ni borrarse en el otro.
+    expect((await partner.read(scope)).error, null);
+    expect((await product.read(scope)).error, contains('rounding'));
   });
 }

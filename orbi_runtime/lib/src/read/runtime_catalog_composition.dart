@@ -86,6 +86,7 @@ final class RuntimeCatalogComposition {
     for (final entry in specs.entries) {
       final store = DriftCatalogStore<Map<String, dynamic>>(
         owner: owner,
+        name: entry.key,
         writeRows: writers[entry.key]!,
         readRows: readers[entry.key],
       );

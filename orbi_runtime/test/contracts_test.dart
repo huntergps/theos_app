@@ -93,7 +93,33 @@ void main() {
 
   test('SyncSnapshot rejects negative counters in release semantics', () {
     expect(() => SyncSnapshot(queuedCount: -1), throwsArgumentError);
-    expect(() => SyncSnapshot(failedCount: -1), throwsArgumentError);
     expect(() => SyncSnapshot(conflictCount: -1), throwsArgumentError);
+  });
+
+  // `failedCount` ya no se puede pasar suelto: se deriva del detalle. Así no
+  // puede volver a existir un número sin nada detrás que lo explique, que es
+  // justo lo que dejaba a la pantalla diciendo «5 con error» y nada más.
+  test('los fallos de sincronización llevan su detalle, no sólo su número', () {
+    final snapshot = SyncSnapshot(
+      failures: [
+        SyncFailure(jobId: 'catalog:uom', message: "Invalid field 'rounding'"),
+        SyncFailure(jobId: 'catalog:cardBrand', message: 'model does not exist'),
+      ],
+    );
+    expect(snapshot.failedCount, 2);
+    expect(snapshot.failures.first.jobId, 'catalog:uom');
+    expect(snapshot.failures.first.message, contains('rounding'));
+    expect(SyncSnapshot().failedCount, 0);
+  });
+
+  test('un fallo sin trabajo o sin mensaje no se acepta', () {
+    expect(
+      () => SyncFailure(jobId: '', message: 'algo'),
+      throwsArgumentError,
+    );
+    expect(
+      () => SyncFailure(jobId: 'catalog:uom', message: ''),
+      throwsArgumentError,
+    );
   });
 }

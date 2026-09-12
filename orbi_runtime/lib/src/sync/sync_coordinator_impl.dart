@@ -93,27 +93,47 @@ final class SyncCoordinatorImpl implements SyncCoordinator {
       lastProbe = await backendProbe!.probe(scope);
       if (!_isCurrent(scope, epoch)) return;
       if (lastProbe!.state != BackendProbeState.reachable) {
-        _publish(_snapshotFor(active: false, failedCount: 1, completed: true));
+        _publish(
+          _snapshotFor(
+            active: false,
+            completed: true,
+            failures: [
+              SyncFailure(
+                jobId: 'backend-probe',
+                message: 'El servidor no respondió a la comprobación previa.',
+              ),
+            ],
+          ),
+        );
         return;
       }
     }
 
-    var failed = 0;
+    // El error del trabajo se conserva entero. Contarlo y tirarlo era lo que
+    // dejaba a la pantalla sin poder decir qué había fallado.
+    final failures = <SyncFailure>[];
     _publish(_snapshotFor(active: true));
     for (final job in _jobs) {
       if (!_isCurrent(scope, epoch)) return;
       try {
         final result = await job.run(scope);
         if (!_isCurrent(scope, epoch)) return;
-        if (!result.cursorConfirmed) failed++;
-      } catch (_) {
+        if (!result.cursorConfirmed) {
+          failures.add(
+            SyncFailure(
+              jobId: job.id,
+              message: '${result.error ?? 'No se pudo confirmar el avance.'}',
+            ),
+          );
+        }
+      } catch (error) {
         if (!_isCurrent(scope, epoch)) return;
-        failed++;
+        failures.add(SyncFailure(jobId: job.id, message: '$error'));
       }
     }
     if (_isCurrent(scope, epoch)) {
       _publish(
-        _snapshotFor(active: false, failedCount: failed, completed: true),
+        _snapshotFor(active: false, failures: failures, completed: true),
       );
     }
   }
@@ -135,13 +155,13 @@ final class SyncCoordinatorImpl implements SyncCoordinator {
 
   SyncSnapshot _snapshotFor({
     required bool active,
-    int? failedCount,
+    List<SyncFailure>? failures,
     bool completed = false,
   }) {
     return SyncSnapshot(
       active: active,
       queuedCount: _pending ? _jobs.length : 0,
-      failedCount: failedCount ?? _snapshot.failedCount,
+      failures: failures ?? _snapshot.failures,
       conflictCount: _snapshot.conflictCount,
       lastCompletedAt: completed
           ? DateTime.now().toUtc()

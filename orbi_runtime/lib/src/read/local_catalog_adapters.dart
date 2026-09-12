@@ -317,8 +317,17 @@ final class DriftCatalogStore<T> implements LocalCatalogStore<T> {
   final CatalogRowsWriter<T> writeRows;
   final CatalogRowsReader<T>? readRows;
   final Map<String, StreamController<CatalogState<T>>> _controllers = {};
+  /// Nombre del catálogo. Es obligatorio porque la fila de metadatos se
+  /// direcciona con él: sin nombre, los catorce catálogos escribían su cursor
+  /// y su error en la MISMA fila (`catalog:<scope>`), y el último en
+  /// sincronizar pisaba a todos los anteriores. Eso no sólo perdía el error
+  /// —también el cursor, que es lo que decide desde dónde continúa la
+  /// siguiente sincronización.
+  final String name;
+
   DriftCatalogStore({
     required this.owner,
+    required this.name,
     required this.writeRows,
     this.readRows,
   });
@@ -390,5 +399,8 @@ final class DriftCatalogStore<T> implements LocalCatalogStore<T> {
     _controllers[scope.scopeKey]?.add(await read(scope));
   }
 
-  String _key(AppScope scope) => 'catalog:${scope.scopeKey}';
+  // Al estrenar el nombre, la fila vieja compartida queda huérfana y cada
+  // catálogo arranca sin cursor: hará una carga completa una vez y volverá a
+  // tener el suyo. Es preferible a seguir leyendo el cursor de otro catálogo.
+  String _key(AppScope scope) => 'catalog:$name:${scope.scopeKey}';
 }

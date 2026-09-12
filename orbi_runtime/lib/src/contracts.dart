@@ -161,22 +161,50 @@ final class BackendHealth {
 
 enum AuthStatus { authenticated, expired, required, unknown }
 
+/// Un trabajo de sincronización que no terminó, con lo suficiente para poder
+/// decírselo a alguien.
+///
+/// Existe porque el coordinador contaba los fallos y tiraba el error: la
+/// pantalla podía decir «5 con error» y nada más, ni siquiera cuáles. El
+/// trabajo ya devolvía el error tipado —modelo y campo incluidos— y se
+/// descartaba al convertirlo en un entero.
+final class SyncFailure {
+  SyncFailure({required String jobId, required String message})
+    : jobId = _required(jobId, 'jobId'),
+      message = _required(message, 'message');
+
+  /// El identificador del trabajo, tal cual lo declara él mismo.
+  final String jobId;
+
+  /// Lo que dijo el servidor, sin interpretar. La traducción a algo legible es
+  /// de la capa de presentación, no de aquí.
+  final String message;
+}
+
 final class SyncSnapshot {
   SyncSnapshot({
     this.active = false,
     int queuedCount = 0,
-    int failedCount = 0,
     int conflictCount = 0,
+    List<SyncFailure> failures = const [],
     this.lastCompletedAt,
   }) : queuedCount = _nonNegative(queuedCount, 'queuedCount'),
-       failedCount = _nonNegative(failedCount, 'failedCount'),
-       conflictCount = _nonNegative(conflictCount, 'conflictCount');
+       conflictCount = _nonNegative(conflictCount, 'conflictCount'),
+       failures = List.unmodifiable(failures);
 
   final bool active;
   final int queuedCount;
-  final int failedCount;
   final int conflictCount;
+
+  /// Qué falló, no sólo cuánto. Vacía cuando no falló nada.
+  final List<SyncFailure> failures;
+
   final DateTime? lastCompletedAt;
+
+  /// Derivado a propósito: mientras el número y el detalle fueran dos campos
+  /// independientes, podían contradecirse, que es como se llegó a un contador
+  /// sin nada detrás.
+  int get failedCount => failures.length;
 }
 
 final class SyncReason {
