@@ -14,11 +14,13 @@ final class _PaymentReader implements Json2ReadPort {
     int? offset,
     String? order,
   }) async => switch (model) {
-    'account.card.brand' => const [
+    'account.credit.card.brand' => const [
       {'id': 1, 'name': 'Visa', 'code': 'visa'},
     ],
-    'account.card.deadline' => const [
-      {'id': 2, 'name': '30 días', 'deadline_days': 30, 'percentage': 2.5},
+    // Sin `deadline_days` ni `percentage`: no existen en el modelo real y
+    // pedirlos tumbaba la lectura entera contra un Odoo de verdad.
+    'account.credit.card.deadline' => const [
+      {'id': 2, 'name': '30 días'},
     ],
     'account.card.lote' => const [
       {
@@ -38,7 +40,12 @@ final class _PaymentReader implements Json2ReadPort {
         'payment_type': 'inbound',
       },
     ],
-    _ => const [],
+    // 🔴 Antes esto devolvía una lista vacía para cualquier modelo
+    // desconocido, y por eso este doble daba verde mientras el cliente pedía
+    // `account.card.brand`, un modelo que no existe: el trabajo se daba por
+    // confirmado sin traer nada. Un doble que se calla ante un nombre que no
+    // reconoce no prueba nada; ahora falla y dice cuál.
+    _ => throw StateError('El cliente pidió un modelo desconocido: $model'),
   };
 }
 
@@ -80,12 +87,15 @@ void main() {
       (await second.select(second.accountCreditCardBrand).get()).single.name,
       'Visa',
     );
-    expect(
-      (await second.select(second.accountCreditCardDeadline).get())
-          .single
-          .deadlineDays,
-      30,
-    );
+    // El plazo llega en cero a propósito: el servidor lo expresa en meses y la
+    // tabla local lo guarda en días, así que hasta que se decida el esquema no
+    // se rellena. La pantalla oculta un cero, de modo que muestra el nombre y
+    // no un número inventado.
+    final deadline = (await second
+        .select(second.accountCreditCardDeadline)
+        .get()).single;
+    expect(deadline.name, '30 días');
+    expect(deadline.deadlineDays, 0);
     expect(
       (await second.select(second.accountCardLote).get()).single.odooId,
       3,

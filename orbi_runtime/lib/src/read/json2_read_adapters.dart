@@ -107,13 +107,17 @@ final class RuntimeCatalogDescriptor {
 abstract final class RuntimeCatalogs {
   static const cardBrands = RuntimeCatalogDescriptor(
     key: 'card_brands',
-    model: 'account.card.brand',
+    // El modelo lleva «credit» en el nombre. Sin esa palabra el servidor
+    // responde que no existe, y este catálogo llevaba así desde que se
+    // escribió. Ojo: `account.card.lote`, justo debajo, SÍ va sin «credit» —
+    // el addon de Odoo nombra los tres de dos formas distintas.
+    model: 'account.credit.card.brand',
     fields: PaymentConfigRecordMapper.cardBrandFields,
     order: 'name asc,id asc',
   );
   static const cardDeadlines = RuntimeCatalogDescriptor(
     key: 'card_deadlines',
-    model: 'account.card.deadline',
+    model: 'account.credit.card.deadline',
     fields: PaymentConfigRecordMapper.cardDeadlineFields,
     order: 'name asc,id asc',
   );
@@ -167,7 +171,11 @@ abstract final class RuntimeCatalogs {
   static const uoms = RuntimeCatalogDescriptor(
     key: 'uoms',
     model: 'uom.uom',
-    fields: ['id', 'name', 'factor', 'rounding', 'active', 'write_date'],
+    // `rounding` era un campo de `uom.uom` hasta las series viejas de Odoo y
+    // ya no existe: el servidor rechazaba la lectura entera por pedirlo. El
+    // lector local ya traía su propio valor por defecto, así que no se pierde
+    // nada al dejar de pedirlo.
+    fields: ['id', 'name', 'factor', 'active', 'write_date'],
     domain: [
       ['active', '=', true],
     ],
@@ -214,7 +222,9 @@ abstract final class RuntimeCatalogs {
       'company_id',
       'user_id',
       'currency_id',
-      'currency_symbol',
+      // `currency_symbol` nunca existió en `collection.session`. El símbolo se
+      // resuelve desde `currency_id`, no es un campo del propio registro.
+      // Pedirlo tumbaba la lectura completa de las sesiones de caja.
       'cash_journal_id',
       'start_at',
       'stop_at',
@@ -270,6 +280,30 @@ abstract final class RuntimeCatalogs {
     ],
     order: 'name asc,id asc',
   );
+
+  /// Los catorce, para poder recorrerlos.
+  ///
+  /// Existe porque los descriptores se escribieron todos de una vez y **nadie
+  /// los comprobó contra un servidor real**: cuatro pedían modelos o campos
+  /// que no existen, y el fallo no se vio hasta once meses después. Una lista
+  /// enumerable permite que una prueba los recorra y los valide de golpe, en
+  /// vez de descubrirlos de uno en uno cuando la sincronización falla.
+  static const all = <RuntimeCatalogDescriptor>[
+    cardBrands,
+    cardDeadlines,
+    cardLotes,
+    paymentMethodLines,
+    customers,
+    products,
+    paymentTerms,
+    uoms,
+    collectionConfigs,
+    collectionSessions,
+    taxes,
+    pricelists,
+    warehouses,
+    journals,
+  ];
 }
 
 final class RuntimeCatalogLoader {

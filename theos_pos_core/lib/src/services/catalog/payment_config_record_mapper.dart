@@ -14,11 +14,20 @@ abstract final class PaymentConfigRecordMapper {
     'write_date',
   ];
 
+  /// 🔴 `deadline_days` y `percentage` **no existen y nunca existieron** en
+  /// `account.credit.card.deadline`. Se pedían los dos y el servidor rechazaba
+  /// la lectura entera, así que este catálogo no sincronizaba nada. Medido
+  /// contra un Odoo real el 12-sep-2026.
+  ///
+  /// El modelo de verdad expresa el plazo con `meses` (entero) más `type`
+  /// (corriente o diferido) e `interes` (booleano). **No se traen todavía**
+  /// porque la tabla local los guarda como días y porcentaje, y meter meses en
+  /// una columna que se llama días sería cambiar un fallo visible por un dato
+  /// falso. Mientras tanto se sincroniza el nombre, que sí es real, y el plazo
+  /// queda en cero: la pantalla ya oculta un cero, así que no inventa nada.
   static const cardDeadlineFields = <String>[
     'id',
     'name',
-    'deadline_days',
-    'percentage',
     'active',
     'write_date',
   ];
@@ -58,7 +67,7 @@ abstract final class PaymentConfigRecordMapper {
     AppDatabase db,
     Map<String, dynamic> data,
   ) async {
-    final id = _id(data['id'], 'account.card.brand');
+    final id = _id(data['id'], 'account.credit.card.brand');
     final row = AccountCreditCardBrandCompanion(
       odooId: Value(id),
       name: Value(data['name'] as String? ?? ''),
@@ -81,7 +90,7 @@ abstract final class PaymentConfigRecordMapper {
     AppDatabase db,
     Map<String, dynamic> data,
   ) async {
-    final id = _id(data['id'], 'account.card.deadline');
+    final id = _id(data['id'], 'account.credit.card.deadline');
     final row = AccountCreditCardDeadlineCompanion(
       odooId: Value(id),
       name: Value(data['name'] as String? ?? ''),
