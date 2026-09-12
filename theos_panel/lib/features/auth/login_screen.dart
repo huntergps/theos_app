@@ -718,13 +718,13 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     // ABOVE the content, not overlapping it — so the footer is its own Stack
     // layer, pinned to the bottom, rather than a separate scaffold slot.
     // SafeArea keeps the form clear of the footer and the device's bottom
-    // inset. The footer's own background is the theme's, at full opacity —
-    // no hand-tuned translucency over the photo.
+    // inset. Acrylic — Fluent's own translucent-surface material — is what
+    // lets the photo show through legibly, with no tint/tintAlpha of our
+    // own: both default to the theme (orden del dueño, 12-sep-2026).
     final footer = Align(
       alignment: Alignment.bottomCenter,
-      child: ColoredBox(
+      child: Acrylic(
         key: const Key('login-credit-footer'),
-        color: theme.scaffoldBackgroundColor,
         child: SafeArea(
           top: false,
           child: Padding(
@@ -757,12 +757,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                             width: 440,
                             child: Padding(
                               padding: const EdgeInsets.all(OrbiTheme.space16),
-                              child: Card(
-                                // Card's own default margin (4 on every side)
-                                // was invisibly eating into the width/height
-                                // budget on top of the Padding above, which
-                                // already provides the intended spacing.
-                                margin: EdgeInsets.zero,
+                              child: Acrylic(
                                 // Was hardcoded to space24 regardless of
                                 // compactHeight, unlike the narrow branch
                                 // below. That mismatch alone both starved
@@ -770,12 +765,14 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                                 // of width (a RenderFlex overflow) and ate
                                 // vertical budget the submit button needed
                                 // on a short-but-wide desktop window.
-                                padding: EdgeInsets.all(
-                                  compactHeight
-                                      ? OrbiTheme.space12
-                                      : OrbiTheme.space24,
+                                child: Padding(
+                                  padding: EdgeInsets.all(
+                                    compactHeight
+                                        ? OrbiTheme.space12
+                                        : OrbiTheme.space24,
+                                  ),
+                                  child: form,
                                 ),
-                                child: form,
                               ),
                             ),
                           ),
@@ -797,14 +794,15 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                       padding: const EdgeInsets.all(OrbiTheme.space16),
                       child: ConstrainedBox(
                         constraints: const BoxConstraints(maxWidth: 520),
-                        child: Card(
-                          margin: EdgeInsets.zero,
-                          padding: EdgeInsets.all(
-                            compactHeight
-                                ? OrbiTheme.space12
-                                : OrbiTheme.space24,
+                        child: Acrylic(
+                          child: Padding(
+                            padding: EdgeInsets.all(
+                              compactHeight
+                                  ? OrbiTheme.space12
+                                  : OrbiTheme.space24,
+                            ),
+                            child: form,
                           ),
-                          child: form,
                         ),
                       ),
                     ),

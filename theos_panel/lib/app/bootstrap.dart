@@ -78,6 +78,12 @@ class BootstrapAnimatedContent extends StatelessWidget {
         ? Duration.zero
         : _bootstrapTransitionDuration;
     return ColoredBox(
+      // 🔴 Color escrito a mano A PROPÓSITO, no un olvido: este widget corre
+      // POR ENCIMA de FluentApp, antes de que exista ningún árbol — no hay
+      // FluentTheme del que heredar todavía (ver el comentario de más abajo,
+      // "Bootstrap lives above FluentApp"). No lo reemplaces por un color de
+      // tema ni lo quites creyendo que quedó suelto (orden del dueño,
+      // 12-sep-2026: fuera de esta excepción, todo color sale del tema).
       color: const Color(0xFFF7F9FA),
       child: AnimatedSwitcher(
         duration: duration,

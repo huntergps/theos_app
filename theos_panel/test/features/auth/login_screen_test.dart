@@ -816,13 +816,15 @@ void main() {
       greaterThan(footerTop),
       reason: 'The backdrop must extend behind the translucent footer.',
     );
-    // The footer's background is the theme's own scaffoldBackgroundColor at
-    // full opacity — no hand-tuned translucency over the photo (orden del
-    // dueño, 12-sep-2026: el color sale del tema, no se ajusta a mano).
-    final footer = tester.widget<ColoredBox>(
+    // The footer is Fluent's own Acrylic — the translucent-surface material
+    // that lets the photo show through legibly — with no tint/tintAlpha of
+    // our own (orden del dueño, 12-sep-2026: el color sale del tema, no se
+    // ajusta a mano).
+    final footer = tester.widget<Acrylic>(
       find.byKey(const Key('login-credit-footer')),
     );
-    expect(footer.color, FluentTheme.of(tester.element(toggle)).scaffoldBackgroundColor);
+    expect(footer.tint, isNull);
+    expect(footer.tintAlpha, isNull);
     await tester.tap(toggle);
     await tester.pumpAndSettle();
     expect(_tooltipMessage(tester, toggle), 'Cambiar a modo claro');

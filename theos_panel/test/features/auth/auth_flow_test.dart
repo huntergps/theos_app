@@ -118,6 +118,16 @@ class FakeBootstrap implements AuthBootstrapPort {
     required String password,
     required int apiKeyId,
   }) async {}
+
+  // Deliberately inert: nothing in this file exercises NativeAuthService's
+  // close(), which is the only caller. See AuthBootstrapPort.revokeOwnApiKey
+  // in orbi_runtime for when it is actually invoked.
+  @override
+  Future<void> revokeOwnApiKey({
+    required String baseUrl,
+    required String database,
+    required String apiKey,
+  }) async {}
 }
 
 class FakeRuntime implements SessionRuntimePort {

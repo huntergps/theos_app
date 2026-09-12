@@ -314,14 +314,14 @@ class _PinLoginScreenState extends ConsumerState<PinLoginScreen> {
     // Extend the photograph behind the credit strip. Unlike Material's
     // Scaffold(extendBody: true), ScaffoldPage.bottomBar sits in its own row
     // ABOVE the content, not overlapping it — so the footer is its own Stack
-    // layer, pinned to the bottom, rather than a separate scaffold slot. The
-    // footer's own background is the theme's, at full opacity — no
-    // hand-tuned translucency over the photo.
+    // layer, pinned to the bottom, rather than a separate scaffold slot.
+    // Acrylic — Fluent's own translucent-surface material — is what lets the
+    // photo show through legibly, with no tint/tintAlpha of our own: both
+    // default to the theme (orden del dueño, 12-sep-2026).
     final footer = Align(
       alignment: Alignment.bottomCenter,
-      child: ColoredBox(
+      child: Acrylic(
         key: const Key('pin-login-credit-footer'),
-        color: theme.scaffoldBackgroundColor,
         child: SafeArea(
           top: false,
           child: Padding(
@@ -348,15 +348,16 @@ class _PinLoginScreenState extends ConsumerState<PinLoginScreen> {
                 padding: const EdgeInsets.all(OrbiTheme.space16),
                 child: ConstrainedBox(
                   constraints: BoxConstraints(maxWidth: cardWidth),
-                  child: Card(
-                    margin: EdgeInsets.zero,
-                    padding: EdgeInsets.all(
-                      compact ? OrbiTheme.space12 : OrbiTheme.space24,
-                    ),
-                    child: _buildBody(
-                      context,
-                      isWideLandscape: isWideLandscape,
-                      compact: compact,
+                  child: Acrylic(
+                    child: Padding(
+                      padding: EdgeInsets.all(
+                        compact ? OrbiTheme.space12 : OrbiTheme.space24,
+                      ),
+                      child: _buildBody(
+                        context,
+                        isWideLandscape: isWideLandscape,
+                        compact: compact,
+                      ),
                     ),
                   ),
                 ),
