@@ -371,4 +371,80 @@ void main() {
     expect(find.text('3.50'), findsNothing);
     expect(find.text('Cliente 1'), findsOneWidget);
   });
+
+  // Las cifras en recuadro y el distintivo existen para que la única pantalla
+  // que tenía su propia ficha —el panel de envases— quepa en el listado
+  // estándar sin perder su diseño. Si esto no funciona, vuelve a haber dos
+  // formas de pintar una lista, que es lo que el dueño mandó quitar.
+  testWidgets('la ficha admite subtítulo, cifras en recuadro y distintivo', (
+    tester,
+  ) async {
+    final columnas = <OrbiColumn<_Fila>>[
+      OrbiColumn(
+        key: 'nombre',
+        label: 'Producto',
+        value: (f) => f.nombre,
+        alwaysVisible: true,
+      ),
+      OrbiColumn(
+        key: 'unidad',
+        label: 'Unidad',
+        value: (_) => 'Unidades',
+        subtitle: true,
+      ),
+      OrbiColumn(
+        key: 'sede',
+        label: 'En sede',
+        value: (f) => f.total.toStringAsFixed(0),
+        numeric: true,
+        metric: true,
+      ),
+      OrbiColumn(
+        key: 'transito',
+        label: 'En tránsito',
+        value: (_) => '9',
+        numeric: true,
+        metric: true,
+      ),
+    ];
+
+    await pumpTelefono(
+      tester,
+      OrbiListing<_Fila>(
+        rows: filas.take(1).toList(),
+        columns: columnas,
+        storageKey: 'prueba',
+        cardBadge: (f) => '${f.total.toStringAsFixed(0)} propios',
+      ),
+    );
+
+    expect(find.byKey(const Key('orbi-listing-cards')), findsOneWidget);
+    expect(find.text('Cliente 1'), findsOneWidget);
+    // El subtítulo va pegado al título, no como un campo más.
+    expect(find.text('Unidades'), findsOneWidget);
+    expect(find.text('Unidad'), findsNothing);
+    // Las cifras llevan su etiqueta encima, cada una en su recuadro.
+    expect(find.text('En sede'), findsOneWidget);
+    expect(find.text('En tránsito'), findsOneWidget);
+    // Cada cifra sale con su propio valor, no repetida.
+    expect(find.text('4'), findsOneWidget);
+    expect(find.text('9'), findsOneWidget);
+    // Y el distintivo resume la fila en la esquina del título.
+    expect(find.text('4 propios'), findsOneWidget);
+  });
+
+  testWidgets('sin distintivo la ficha no dibuja el recuadro de la esquina', (
+    tester,
+  ) async {
+    await pumpTelefono(
+      tester,
+      OrbiListing<_Fila>(
+        rows: filas.take(1).toList(),
+        columns: columnas,
+        storageKey: 'prueba',
+      ),
+    );
+
+    expect(find.textContaining('propios'), findsNothing);
+  });
 }

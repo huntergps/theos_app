@@ -18,6 +18,8 @@ class OrbiColumn<T> {
     this.width,
     this.numeric = false,
     this.alwaysVisible = false,
+    this.subtitle = false,
+    this.metric = false,
   });
 
   final String key;
@@ -36,6 +38,22 @@ class OrbiColumn<T> {
   /// Una columna que no se puede ocultar. Reservado para la que identifica la
   /// fila: sin ella la tabla deja de decir de qué es cada línea.
   final bool alwaysVisible;
+
+  /// En ficha, va pegada debajo del título en vez de como un campo más. Para
+  /// lo que califica al título y no se lee solo: la unidad de medida, el
+  /// código, la referencia.
+  final bool subtitle;
+
+  /// En ficha, se dibuja como una cifra en su propio recuadro dentro de una
+  /// cuadrícula, no como una línea «etiqueta: valor».
+  ///
+  /// 🔴 Está aquí, y no en cada pantalla, por lo que pidió el dueño: *«todos
+  /// los listados deben tener el mismo aspecto»*. Cinco cifras leídas como
+  /// cinco renglones seguidos se confunden entre sí; en recuadros se comparan
+  /// de un vistazo. Antes esto lo resolvía cada pantalla con su propia
+  /// función de ficha, que es justo lo que hacía que dos listados no se
+  /// parecieran.
+  final bool metric;
 }
 
 /// Lo que toda pantalla de listado comparte, por orden del dueño
@@ -63,6 +81,7 @@ class OrbiListing<T> extends StatefulWidget {
     this.exportFileName = 'listado',
     this.onRowTap,
     this.emptyMessage = 'No hay nada que mostrar todavía',
+    this.cardBadge,
   });
 
   /// Por debajo de este ancho la rejilla deja paso a tarjetas. Medido, no
@@ -105,6 +124,13 @@ class OrbiListing<T> extends StatefulWidget {
 
   final ValueChanged<T>? onRowTap;
   final String emptyMessage;
+
+  /// El dato que resume la fila, en la esquina del título de la ficha.
+  ///
+  /// Devuelve **texto**, no un widget, a propósito: quien nos usa decide QUÉ
+  /// resume la fila, y el listado decide CÓMO se ve. Aceptar un widget aquí
+  /// sería abrir otra vez la puerta a que cada pantalla se pinte el suyo.
+  final String Function(T row)? cardBadge;
 
   @override
   State<OrbiListing<T>> createState() => _OrbiListingState<T>();
@@ -264,9 +290,9 @@ class _OrbiListingState<T> extends State<OrbiListing<T>> {
   /// 🔴 No es un adorno para móvil: a 390 px una rejilla con seis columnas y
   /// `ColumnWidthMode.fill` reparte 65 px por columna y **no se lee ninguna**.
   /// Cada fila pasa a ser una ficha con su identificador arriba y el resto de
-  /// campos etiquetados debajo, que es como se lee un registro en vertical.
+  /// campos debajo, con tres papeles posibles: subtítulo pegado al título,
+  /// cifra en recuadro dentro de una cuadrícula, o línea «etiqueta: valor».
   Widget _cards(BuildContext context) {
-    final theme = FluentTheme.of(context);
     final columns = _visible;
     if (columns.isEmpty) return Center(child: Text(widget.emptyMessage));
     // La que identifica la fila hace de título; si nadie se declaró como tal,
@@ -275,7 +301,13 @@ class _OrbiListingState<T> extends State<OrbiListing<T>> {
       (c) => c.alwaysVisible,
       orElse: () => columns.first,
     );
-    final rest = columns.where((c) => c.key != title.key).toList();
+    final subtitles = columns.where((c) => c.subtitle && c.key != title.key);
+    final metrics = columns
+        .where((c) => c.metric && c.key != title.key && !c.subtitle)
+        .toList(growable: false);
+    final plain = columns
+        .where((c) => c.key != title.key && !c.subtitle && !c.metric)
+        .toList(growable: false);
 
     return ListView.separated(
       key: const Key('orbi-listing-cards'),
@@ -286,6 +318,40 @@ class _OrbiListingState<T> extends State<OrbiListing<T>> {
         final row = widget.rows[index];
         final card = Card(
           padding: const EdgeInsets.all(12),
+          child: LayoutBuilder(
+            builder: (context, constraints) => Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                _cardTitle(context, row, title, subtitles),
+                for (final column in plain) ...[
+                  const SizedBox(height: 6),
+                  _cardLine(context, row, column),
+                ],
+                if (metrics.isNotEmpty) ...[
+                  const SizedBox(height: 12),
+                  _cardMetrics(context, row, metrics, constraints.maxWidth),
+                ],
+              ],
+            ),
+          ),
+        );
+        if (widget.onRowTap == null) return card;
+        return GestureDetector(onTap: () => widget.onRowTap!(row), child: card);
+      },
+    );
+  }
+
+  Widget _cardTitle(
+    BuildContext context,
+    T row,
+    OrbiColumn<T> title,
+    Iterable<OrbiColumn<T>> subtitles,
+  ) {
+    final theme = FluentTheme.of(context);
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Expanded(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -294,40 +360,114 @@ class _OrbiListingState<T> extends State<OrbiListing<T>> {
                 style: theme.typography.bodyStrong,
                 overflow: TextOverflow.ellipsis,
               ),
-              for (final column in rest) ...[
-                const SizedBox(height: 6),
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Expanded(
-                      flex: 2,
-                      child: Text(
-                        column.label,
-                        style: theme.typography.caption,
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      flex: 3,
-                      child: Text(
-                        column.value(row),
-                        textAlign: column.numeric
-                            ? TextAlign.right
-                            : TextAlign.start,
-                      ),
-                    ),
-                  ],
-                ),
-              ],
+              for (final column in subtitles)
+                Text(column.value(row), style: theme.typography.caption),
             ],
           ),
-        );
-        if (widget.onRowTap == null) return card;
-        return GestureDetector(
-          onTap: () => widget.onRowTap!(row),
-          child: card,
-        );
-      },
+        ),
+        if (widget.cardBadge != null) ...[
+          const SizedBox(width: 8),
+          _badge(context, widget.cardBadge!(row)),
+        ],
+      ],
+    );
+  }
+
+  /// El distintivo lo dibuja el listado, con colores del tema. Ninguna
+  /// pantalla elige aquí su color: el dueño lo dijo expreso.
+  Widget _badge(BuildContext context, String text) {
+    final theme = FluentTheme.of(context);
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+      decoration: BoxDecoration(
+        color: theme.resources.subtleFillColorSecondary,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: theme.resources.controlStrokeColorDefault),
+      ),
+      child: Text(text, style: theme.typography.caption),
+    );
+  }
+
+  Widget _cardLine(BuildContext context, T row, OrbiColumn<T> column) {
+    final theme = FluentTheme.of(context);
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Expanded(
+          flex: 2,
+          child: Text(column.label, style: theme.typography.caption),
+        ),
+        const SizedBox(width: 8),
+        Expanded(
+          flex: 3,
+          child: Text(
+            column.value(row),
+            textAlign: column.numeric ? TextAlign.right : TextAlign.start,
+          ),
+        ),
+      ],
+    );
+  }
+
+  /// Las cifras en cuadrícula: dos por fila cuando cabe, una cuando no.
+  Widget _cardMetrics(
+    BuildContext context,
+    T row,
+    List<OrbiColumn<T>> metrics,
+    double width,
+  ) {
+    final perRow = width >= 600 ? 2 : 1;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        for (var index = 0; index < metrics.length; index += perRow)
+          Padding(
+            padding: EdgeInsets.only(
+              bottom: index + perRow < metrics.length ? 8 : 0,
+            ),
+            // `IntrinsicHeight` para que los dos recuadros de una fila midan
+            // lo mismo aunque una etiqueta parta en dos líneas. Sin él, un
+            // `stretch` dentro de una lista vertical no tiene altura contra la
+            // que estirarse y la maquetación revienta.
+            child: IntrinsicHeight(
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  for (var offset = 0; offset < perRow; offset++)
+                    Expanded(
+                      child: Padding(
+                        padding: EdgeInsetsDirectional.only(
+                          end: offset == perRow - 1 ? 0 : 8,
+                        ),
+                        child: index + offset < metrics.length
+                            ? _metricBox(context, row, metrics[index + offset])
+                            : const SizedBox.shrink(),
+                      ),
+                    ),
+                ],
+              ),
+            ),
+          ),
+      ],
+    );
+  }
+
+  Widget _metricBox(BuildContext context, T row, OrbiColumn<T> column) {
+    final theme = FluentTheme.of(context);
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+      decoration: BoxDecoration(
+        color: theme.resources.subtleFillColorSecondary,
+        borderRadius: BorderRadius.circular(4),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(column.label, style: theme.typography.caption),
+          const SizedBox(height: 2),
+          Text(column.value(row), style: theme.typography.bodyStrong),
+        ],
+      ),
     );
   }
 
