@@ -31,21 +31,24 @@ import 'package:theos_panel/features/auth/workspace_unlock_store.dart';
 /// is local by nature. The password used is a synthetic literal, never a real
 /// one, and never reaches a log line.
 ///
-/// ## 🔴 On macOS this is RED today, on purpose
+/// ## 🟢 On macOS this went from RED to GREEN on 12-sep-2026
 ///
-/// Measured 11-sep-2026 on a real macOS debug build: `SecItemAdd` fails with
-/// **−34018**, so nothing is ever stored and the offline unlock does not exist
-/// on this platform — not a durability problem, an "it never gets written"
-/// problem. `secd` demands a keychain-access-group for any Keychain Services
-/// call from an ad-hoc signed binary, sandboxed or not; only a real Apple
-/// signing team unblocks it (see the comment in
-/// `macos/Runner/DebugProfile.entitlements`, verified against secd's own logs).
+/// For a day this file was red, and deliberately not skipped: `SecItemAdd`
+/// failed with **−34018**, so nothing was ever stored and the offline unlock
+/// did not exist on macOS. A skip would have hidden a live blocker behind a
+/// green tick.
 ///
-/// It is deliberately NOT skipped. A skip would hide a live blocker behind a
-/// green tick, and this file is not part of `make verify` (`flutter test` only
-/// walks `test/`), so the red costs no gate — it is the record of what is
-/// missing. The day the signing account exists, this file is the proof that
-/// it worked.
+/// It is green now. `DEVELOPMENT_TEAM` plus `keychain-access-groups` landed on
+/// 12-sep-2026 and this file is, as promised, the proof that it worked — run
+/// twice, the second run finding what the first left:
+///
+/// ```
+/// DURABILIDAD: el derivado de una ejecución ANTERIOR sigue válido.
+/// Sobrevive a cerrar y reabrir la aplicación.
+/// ```
+///
+/// Keep it unskipped. It is now the regression guard for an entitlement that
+/// a project-file edit can silently remove again.
 void main() {
   IntegrationTestWidgetsFlutterBinding.ensureInitialized();
 

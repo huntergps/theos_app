@@ -313,22 +313,46 @@ void main() {
   });
 
   group('when a STORED credential must be thrown away, and when not', () {
-    // The persistence half asked the one question that decides this, and its
-    // worry was exact: a typed password and a stored key are both rejected
-    // with a plain 401, so cause alone cannot separate them. The type can.
-    test('nothing a typed sign-in throws ever discards a stored key', () async {
-      for (final kind in WebTokenAuthFailureKind.values) {
+    test('a typed secret that is refused is a typo, and typos cost nothing', () {
+      // Both doors a person types at: the sign-in form and the lock screen.
+      // The lock screen is the one the first version of this function got
+      // wrong — it reaches the same service but raises the NATIVE exception,
+      // so anything that tried to infer "did somebody type?" from the
+      // exception type discarded the derivation over a single wrong
+      // character.
+      for (final error in <Object>[
+        const WebTokenAuthException(
+          WebTokenAuthFailureKind.invalidCredentials,
+        ),
+        const NativeAuthBootstrapException(
+          NativeAuthBootstrapFailureKind.invalidCredentials,
+        ),
+        const OdooAuthenticationException('unauthorized'),
+      ]) {
         expect(
-          shouldDiscardStoredCredential(WebTokenAuthException(kind)),
+          shouldDiscardStoredCredential(error, someoneTyped: true),
           isFalse,
           reason:
-              '${kind.name} came from someone typing a password; a typo must '
-              'never cost anybody their offline unlock.',
+              'A mistyped password must never cost anybody their offline '
+              'unlock — ${error.runtimeType}.',
         );
       }
     });
 
-    test('a stored credential the server rejects IS discarded', () {
+    test('but an unambiguous refusal of the ACCOUNT discards even when typed', () {
+      // Nobody mistypes their way into "your account is not allowed".
+      for (final error in <Object>[
+        const OdooAccessDeniedException('forbidden'),
+        const OdooSessionExpiredException(),
+        StateError('API key belongs to another Odoo user'),
+      ]) {
+        expect(shouldDiscardStoredCredential(error, someoneTyped: true), isTrue);
+      }
+    });
+
+    test('with nobody typing, a rejected stored credential IS discarded', () {
+      // A restore: the credential is the only thing that could have been
+      // refused, so a plain 401 means the stored key is dead.
       for (final error in <Object>[
         const OdooAuthenticationException('unauthorized'),
         const OdooSessionExpiredException(),
@@ -336,24 +360,36 @@ void main() {
         StateError('API key belongs to another Odoo user'),
       ]) {
         expect(
-          shouldDiscardStoredCredential(error),
+          shouldDiscardStoredCredential(error, someoneTyped: false),
           isTrue,
           reason: 'A rejected stored credential must not be replayed forever.',
         );
       }
     });
 
-    test('a cooldown never discards: "not right now" is not "not valid"', () {
-      // Discarding here would turn a few minutes of waiting into the loss of
-      // the offline unlock.
+    test('the same 401 answers differently depending on who was at the keyboard', () {
+      // The whole point in one assertion: the exception is identical, and the
+      // verdict is opposite, because the question is not what the server said
+      // but whether a person had just typed something.
+      const sameError = OdooAuthenticationException('unauthorized');
       expect(
-        shouldDiscardStoredCredential(
-          const WebTokenAuthException(
-            WebTokenAuthFailureKind.tooManyAttempts,
-          ),
-        ),
+        shouldDiscardStoredCredential(sameError, someoneTyped: true),
         isFalse,
       );
+      expect(
+        shouldDiscardStoredCredential(sameError, someoneTyped: false),
+        isTrue,
+      );
+    });
+
+    test('a cooldown never discards, whoever was typing', () {
+      // "Not right now" is not "not valid". Discarding here would turn a few
+      // minutes of waiting into the loss of the offline unlock.
+      const cooldown = WebTokenAuthException(
+        WebTokenAuthFailureKind.tooManyAttempts,
+      );
+      expect(shouldDiscardStoredCredential(cooldown, someoneTyped: true), isFalse);
+      expect(shouldDiscardStoredCredential(cooldown, someoneTyped: false), isFalse);
     });
 
     test('a network problem never discards either', () {
@@ -362,7 +398,8 @@ void main() {
         const OdooTimeoutException(),
         const OdooServerException('boom'),
       ]) {
-        expect(shouldDiscardStoredCredential(error), isFalse);
+        expect(shouldDiscardStoredCredential(error, someoneTyped: true), isFalse);
+        expect(shouldDiscardStoredCredential(error, someoneTyped: false), isFalse);
       }
     });
   });

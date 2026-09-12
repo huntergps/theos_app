@@ -65,6 +65,18 @@ void main() {
     if (await tempDir.exists()) await tempDir.delete(recursive: true);
   });
 
+  test(
+    'es un LatePasswordCredentialBackend — mismo enganche de contraseña '
+    'que el de macOS, sin que quien llama necesite saber cuál es cuál',
+    () {
+      final backend = LinuxSecretServiceFallbackCredentialBackend(
+        directory: tempDir,
+        native: _FakeCredentialBackend(),
+      );
+      expect(backend, isA<LatePasswordCredentialBackend>());
+    },
+  );
+
   group(
     'camino feliz: libsecret funciona, el respaldo nunca es la fuente de verdad',
     () {

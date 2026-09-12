@@ -11,6 +11,26 @@ abstract interface class CredentialBackend {
   Future<void> delete(String key);
 }
 
+/// A [CredentialBackend] whose key is derived from a password it cannot
+/// know at construction time — the composition root builds its backend at
+/// bootstrap, before any operator has typed anything, so the password can
+/// only ever be set later, right when a login call already has it in scope.
+///
+/// Implemented by [EncryptedFileCredentialBackend] (macOS) and
+/// [LinuxSecretServiceFallbackCredentialBackend] (Linux, only used the
+/// moment its fallback actually fires). A caller that has a `CredentialStore`
+/// backed by one of these — and does not otherwise care which one — can set
+/// the password through this one shared interface:
+///
+/// ```dart
+/// final backend = credentialStore.backend;
+/// if (backend is LatePasswordCredentialBackend) backend.password = typed;
+/// ```
+abstract interface class LatePasswordCredentialBackend
+    implements CredentialBackend {
+  set password(String? value);
+}
+
 abstract interface class InstallationIdBackend {
   Future<String?> read(String key);
   Future<void> write(String key, String value);
@@ -117,6 +137,11 @@ final class CredentialStore {
 
   final CredentialBackend _backend;
   final CredentialDurability durability;
+
+  /// The backend underneath, exposed read-only so a caller can check for a
+  /// capability like [LatePasswordCredentialBackend] without this class
+  /// needing to know that capability exists.
+  CredentialBackend get backend => _backend;
 
   Future<void> write(AppScope scope, String reference, String secret) =>
       _backend.write(_key(scope, reference), secret);

@@ -164,7 +164,20 @@ Future<bool> attemptWorkspaceUnlock(WidgetRef ref, String password) async {
     // must never cost a legitimate operator their offline unlock. That
     // ambiguity cannot be closed from the client; it is a property of the
     // server's answer, not a gap in ours.
-    if (shouldDiscardStoredCredential(error)) {
+    // Unified with `shouldDiscardStoredCredential` instead of keeping a second
+    // copy of the rule here. The argument is the one `mensajes-acceso` used to
+    // delete his own duplicate of the token contract, and it applies just as
+    // well to this: two readings of one rule drift apart, and the field they
+    // would drift on decides whether a legitimate operator keeps their offline
+    // unlock. The six cases were measured to agree before swapping.
+    //
+    // `someoneTyped: true` is not a detail, it IS this call site's whole
+    // contribution: the lock screen's password was typed by the operator a
+    // second ago. That parameter is required precisely because an earlier
+    // version of this function tried to infer it from the exception type, and
+    // on this path it inferred wrong — a mistyped password deleted the
+    // derivation. Measured, then fixed on his side.
+    if (shouldDiscardStoredCredential(error, someoneTyped: true)) {
       await unlockStore.forget(scopeKey);
     }
     return false;

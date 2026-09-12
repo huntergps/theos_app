@@ -112,43 +112,55 @@ void main() {
       store = WebCredentialStore(backend);
     });
 
-    test('guarda y recupera la credencial', () async {
-      final credential = WebAuthCredential.fromResponse(response());
-      expect(await store.save(credential, now: now), isTrue);
-      final loaded = await store.load(now: now);
-      expect(loaded?.apiKey, 'clave-de-prueba');
-      expect(loaded?.remainingAt(now), const Duration(days: 1));
-    });
-
-    // Esta clase NO cifra y no debe pretenderlo: la confidencialidad la da el
-    // respaldo de plataforma. Con un respaldo falso —que guarda texto llano— la
-    // clave se ve, y está bien que se vea: lo afirma aquí para que nadie
-    // confunda dónde vive esa garantía. La prueba de verdad, contra el respaldo
-    // real del navegador, está en test/web/web_crypto_unlock_backend_test.dart.
-    test('esta clase no aporta el cifrado: lo aporta el respaldo de '
-        'plataforma, y conviene tenerlo explícito', () async {
-      const secret = 'clave-secreta-de-verdad';
-      await store.save(
+    // 🔴 La razón de ser del recorte: la clave ya la persiste
+    // NativeAuthService bajo su propia referencia, sobre este mismo respaldo.
+    // Dos copias vivas de una credencial es estrictamente peor que una.
+    test('NUNCA guarda la clave API: sólo cuándo muere', () async {
+      const secret = 'clave-que-no-debe-duplicarse';
+      await store.remember(
         WebAuthCredential.fromResponse(response(apiKey: secret)),
         now: now,
       );
-      expect(backend.entries.values.single.contains(secret), isTrue);
+      expect(backend.entries, isNotEmpty);
+      for (final value in backend.entries.values) {
+        expect(value.contains(secret), isFalse, reason: 'no se duplica');
+      }
     });
 
-    test('una credencial YA caducada no se guarda: sólo crearía un registro '
-        'cuyo único destino es borrarse', () async {
-      final expired = WebAuthCredential.fromResponse(
-        response(expiresAt: '2026-09-11 04:00:00'),
+    test('recuerda la caducidad y la devuelve en UTC', () async {
+      expect(
+        await store.remember(
+          WebAuthCredential.fromResponse(response()),
+          now: now,
+        ),
+        isTrue,
       );
-      expect(await store.save(expired, now: now), isFalse);
+      final loaded = await store.load(now: now);
+      expect(loaded?.expiresAt, DateTime.utc(2026, 9, 13, 4));
+      expect(loaded?.expiresAt.isUtc, isTrue);
+      expect(loaded?.uid, 7);
+      expect(loaded?.remainingAt(now), const Duration(days: 1));
+    });
+
+    test('una credencial YA muerta no se registra: el registro existiría sólo '
+        'para borrarse en la siguiente lectura', () async {
+      expect(
+        await store.remember(
+          WebAuthCredential.fromResponse(
+            response(expiresAt: '2026-09-11 04:00:00'),
+          ),
+          now: now,
+        ),
+        isFalse,
+      );
       expect(backend.entries, isEmpty);
     });
 
-    test('al caducar, load devuelve null Y borra el registro: una clave muerta '
-        'no se presenta ni se queda ahí', () async {
-      await store.save(WebAuthCredential.fromResponse(response()), now: now);
-      expect(backend.entries, isNotEmpty);
-
+    test('al caducar, load devuelve null Y borra el registro', () async {
+      await store.remember(
+        WebAuthCredential.fromResponse(response()),
+        now: now,
+      );
       final after = now.add(const Duration(days: 1, seconds: 1));
       expect(await store.load(now: after), isNull);
       expect(
@@ -159,26 +171,33 @@ void main() {
     });
 
     test('justo antes de caducar sigue sirviendo', () async {
-      await store.save(WebAuthCredential.fromResponse(response()), now: now);
-      final justBefore = now.add(const Duration(days: 1) - const Duration(seconds: 1));
-      expect(await store.load(now: justBefore), isNotNull);
-    });
-
-    test('una credencial de OTRA base no se ofrece y se descarta, igual que la '
-        'ruta rechaza un db que no es el suyo', () async {
-      await store.save(
-        WebAuthCredential.fromResponse(response(database: 'otra_base')),
+      await store.remember(
+        WebAuthCredential.fromResponse(response()),
         now: now,
       );
       expect(
-        await store.load(now: now, expectedDatabase: 'orbi'),
-        isNull,
+        await store.load(
+          now: now.add(const Duration(days: 1) - const Duration(seconds: 1)),
+        ),
+        isNotNull,
       );
+    });
+
+    test('un registro de OTRA base no se ofrece y se descarta, igual que la '
+        'ruta rechaza un db que no es el suyo', () async {
+      await store.remember(
+        WebAuthCredential.fromResponse(response(database: 'otra_base')),
+        now: now,
+      );
+      expect(await store.load(now: now, expectedDatabase: 'orbi'), isNull);
       expect(backend.entries, isEmpty);
     });
 
-    test('clear la borra — el gancho del cierre de sesión', () async {
-      await store.save(WebAuthCredential.fromResponse(response()), now: now);
+    test('clear lo borra — el gancho del cierre de sesión', () async {
+      await store.remember(
+        WebAuthCredential.fromResponse(response()),
+        now: now,
+      );
       await store.clear();
       expect(backend.entries, isEmpty);
       expect(await store.load(now: now), isNull);
@@ -186,7 +205,7 @@ void main() {
 
     test('un registro corrupto se descarta en vez de quedarse para siempre',
         () async {
-      await backend.write('orbi/auth/web/credential/v1', 'basura');
+      await backend.write('orbi/auth/web/expiry/v1', 'basura');
       expect(await store.load(now: now), isNull);
       expect(backend.entries, isEmpty);
     });
@@ -195,7 +214,7 @@ void main() {
       const nowhere = WebCredentialStore(null);
       expect(nowhere.isSupported, isFalse);
       expect(
-        await nowhere.save(
+        await nowhere.remember(
           WebAuthCredential.fromResponse(response()),
           now: now,
         ),
@@ -205,11 +224,11 @@ void main() {
       await nowhere.clear();
     });
 
-    test('un almacén que falla degrada a "la sesión no sobrevive a una '
-        'recarga", nunca rompe el acceso que acaba de funcionar', () async {
+    test('un almacén que falla degrada a "no sabemos cuándo muere", nunca '
+        'rompe el acceso que acaba de funcionar', () async {
       final hostile = WebCredentialStore(ThrowingCredentialBackend());
       expect(
-        await hostile.save(
+        await hostile.remember(
           WebAuthCredential.fromResponse(response()),
           now: now,
         ),

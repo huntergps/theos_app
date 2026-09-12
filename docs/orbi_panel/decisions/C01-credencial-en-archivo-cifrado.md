@@ -1,8 +1,60 @@
 # C01 — ¿Archivo cifrado universal en vez del llavero del sistema?
 
-Estado: **para decidir**. Encargo del dueño (11-sep-2026): *«sobre las credenciales deja en
-un archivo encriptado un paquete universal para no usar algo específico como el llavero de
-Mac»*. Paquetes consultados ese día en pub.dev, no de memoria.
+## 🟢 Conclusión, primero: el llavero funciona en las cinco plataformas
+
+**Estado: cerrado el 12-sep-2026.** `flutter_secure_storage` —el paquete que ya se usaba
+desde el principio, y que resultó ser el "paquete universal" que pedía el dueño (ver el
+malentendido, justo debajo)— funciona hoy en macOS, Windows, Linux, Android e iOS. El
+bloqueo de macOS no era el llavero: era que el proyecto compilaba con firma improvisada
+teniendo una cuenta de Apple Developer real y activa (`W8V3ANSPKT`) sin usarla. Configurada
+la firma y añadido el permiso de grupo de llavero (§4), **otro agente corrió la prueba de
+durabilidad del llavero real: cinco de cinco en verde, sin un solo −34018.**
+
+**El envoltorio cifrado que se construyó por el camino (§8) no se conecta en macOS.** Se
+queda únicamente como pieza interna del respaldo de Linux sin servicio de secretos (§8.6),
+que es donde siempre tuvo sentido y donde no hay alternativa. Un respaldo nativo alternativo
+para macOS, ahora que el llavero funciona, se descartó a propósito: **un respaldo que casi
+nunca se ejerce es un respaldo que se pudre** — si la firma llegara a fallar en la máquina
+de otra persona, debe fallar y verse, no caer en silencio a un mecanismo más débil que
+nadie ha probado en meses.
+
+**Este documento no se resume ni se borra.** Es el registro de cuatro hipótesis medidas y
+refutadas —el parámetro del plugin, el confinamiento, que no se compilaba Linux, y qué
+pedía en realidad el dueño— antes de llegar a la causa real. Vale más como evidencia de que
+se midió que como una conclusión sola.
+
+---
+
+Estado original de apertura, para el registro: **para decidir**. Encargo del dueño
+(11-sep-2026): *«sobre las credenciales deja en un archivo encriptado un paquete universal
+para no usar algo específico como el llavero de Mac»*. Paquetes consultados ese día en
+pub.dev, no de memoria.
+
+> ### 🔴 El malentendido que sostuvo todo §8 hasta hoy — aclarado por el dueño, 12-sep-2026
+>
+> El team-lead leyó el encargo de arriba como "construir un archivo cifrado a mano,
+> Argon2id + AES-256-GCM, en todas las plataformas" — y así se lo encargó a este agente en
+> §8. **Eso era una lectura suya, no lo que pidió el dueño.** El dueño, preguntado
+> directamente, aclaró que **«el paquete universal» al que se refería es `flutter_secure_storage`
+> mismo** — el que este documento ya usa desde el §1, el que envuelve
+> `FlutterSecureCredentialBackend` desde el principio. Su modelo mental: un solo paquete,
+> una sola interfaz, sin necesidad de saber que por debajo usa el llavero en Apple, el
+> gestor de credenciales en Windows, el servicio de secretos en Linux, el almacén de claves
+> en Android y el navegador en web. **Eso es exactamente lo que §7 ya documentó que existe
+> y funciona**, salvo el hueco real: Linux sin servicio de secretos.
+>
+> **Lo que esto cambia:** no hace falta construir nada nuevo para Windows, Android, iOS ni
+> desktop en general — ya lo tienen. El envoltorio de Argon2id + AES-256-GCM que se
+> construyó en §8 (con sus vectores publicados y su prueba de unicidad de nonce, que no se
+> tiran) **se queda exactamente donde tenía sentido antes de este malentendido: como el
+> respaldo interno de Linux sin servicio de secretos** (§8.6), no como sustituto de
+> `flutter_secure_storage` en ninguna otra plataforma. Universalizarlo a las cinco
+> plataformas — que es lo que este documento estuvo a punto de encargar — queda cancelado.
+>
+> La respuesta real al encargo del dueño es: **`flutter_secure_storage` ya es el paquete
+> universal que pidió; el bloqueo era la firma de macOS (§4), no el paquete.** Arreglada la
+> firma, no queda ningún hueco salvo Linux sin escritorio — ver la pregunta cerrada al
+> final de §8.
 
 ## La respuesta corta, y no es la que se pidió
 
@@ -218,17 +270,28 @@ disponible** — y ahí Windows es el peor caso verificado (riesgo de caída del
 un error manejable) y Linux el mejor manejado (una `PlatformException` legible), con la
 condición de tener las cabeceras de `libsecret` en el build.
 
-## 8. Diseño: el archivo cifrado para macOS (12-sep-2026)
+## 8. Diseño: el envoltorio cifrado — hoy, sólo el respaldo de Linux (12-sep-2026)
 
-Estado: **para decidir, sin código todavía.** El dueño ya pidió esto explícitamente —
-*«sobre las credenciales deja en un archivo encriptado, busca en pub.dev un paquete
-universal para no usar algo específico como el llavero de Mac»*— y §4/§7 acaban de
-demostrar que tenía razón: en macOS, hoy, con o sin sandbox, el llavero nativo **no
-funciona ni en debug ni en release** (ambos firman ad-hoc, ver `Makefile:77-78`, mismo
-`CODE_SIGN_IDENTITY = "-"` que debug). No hay atajo de código que lo arregle; solo una
-cuenta de firma real. Esto es el reemplazo mientras esa cuenta no exista.
+Estado: **cerrado, con alcance recortado por el malentendido de arriba.** Se escribió
+originalmente pensando en macOS al completo (ver el razonamiento tachado abajo, que se
+deja para que se vea qué se pensó y por qué se corrigió). Con la aclaración del dueño —
+«paquete universal» = `flutter_secure_storage`, ya en uso— y con la firma de macOS
+arreglándose de raíz (§4, cuenta `W8V3ANSPKT` activa), **este envoltorio deja de aplicarse
+a macOS**: una vez la firma esté configurada, macOS vuelve a `FlutterSecureCredentialBackend`
+igual que Windows, Android e iOS. Lo único que sobrevive de este diseño es §8.6, el
+respaldo de Linux sin servicio de secretos — el único hueco real que `flutter_secure_storage`
+no cubre por sí solo.
 
-### 8.1 Alcance: sólo macOS, sólo donde no hay almacén de sistema que funcione
+> ~~El dueño ya pidió esto explícitamente —«sobre las credenciales deja en un archivo
+> encriptado, busca en pub.dev un paquete universal para no usar algo específico como el
+> llavero de Mac»— y §4/§7 acaban de demostrar que tenía razón: en macOS, hoy, con o sin
+> sandbox, el llavero nativo no funciona ni en debug ni en release... Esto es el reemplazo
+> mientras esa cuenta no exista.~~ **REFUTADO por el propio dueño, 12-sep-2026: el "paquete
+> universal" que pedía era `flutter_secure_storage`, no un archivo construido a mano.** El
+> razonamiento técnico de §4 sobre la firma seguía siendo correcto — sólo la conclusión de
+> "por tanto hay que sustituir el llavero" estaba de más.
+
+### 8.1 Alcance histórico de este diseño — ya NO es sólo macOS, ya NO es macOS en absoluto
 
 Esto **no sustituye** `FlutterSecureCredentialBackend` en ningún otro sitio. Windows y
 Android usan de fábrica un almacén de sistema real (§7); iOS también, y además su modelo
@@ -242,21 +305,49 @@ hoy se construye `CredentialStore(FlutterSecureCredentialBackend(), durability:
 CredentialDurability.secureStore)` para el API key de Odoo. La propuesta es una nueva
 implementación de `CredentialBackend` (la interfaz ya existe en
 `orbi_runtime/lib/src/auth/credential_store.dart:8-12`, `write`/`read`/`delete`) que se
-selecciona en vez de `FlutterSecureCredentialBackend()` cuando `Platform.isMacOS` — mismo
-patrón de fábrica por plataforma que ya usa `unlock_backend_factory_io.dart` /
-`_web.dart` para el desbloqueo, sólo que aquí la elección es dentro de `_io.dart` según
-plataforma, no `_io` contra `_web`.
+selecciona en vez de `FlutterSecureCredentialBackend()` según la plataforma — mismo patrón
+de fábrica que ya usa `unlock_backend_factory_io.dart` / `_web.dart` para el desbloqueo,
+sólo que aquí la elección va dentro de `bootstrap.dart`, no en un archivo `_io` separado de
+uno `_web`.
+
+**Corrección del 12-sep-2026, medida por `desbloqueo-offline` antes de aplicar el
+fragmento:** esta sección decía `Platform.isMacOS` (de `dart:io`). **Eso compila para web
+sin error y truena en tiempo de ejecución** (`UnsupportedError:
+Platform._operatingSystem`), porque `bootstrap.dart` construye la rama nativa
+incondicionalmente antes de elegir entre `webService`/`service` con `kIsWeb`. El mecanismo
+correcto, verificado compilando y ejecutando de verdad (no sólo compilando), es
+`!kIsWeb && defaultTargetPlatform == TargetPlatform.macOS` — el guardia `!kIsWeb` es
+obligatorio porque un Mac corriendo Chrome también reporta
+`defaultTargetPlatform == TargetPlatform.macOS`.
+
+**Y esto entero queda cancelado por el malentendido de arriba.** No se conecta nada de
+esto en `bootstrap.dart`: macOS no usa `EncryptedFileCredentialBackend` — usa
+`FlutterSecureCredentialBackend()` sin condición de plataforma, igual que Windows, Android
+e iOS, en cuanto la firma de §4 esté configurada (ya lo está: equipo `W8V3ANSPKT`). El
+párrafo de arriba se deja porque el hallazgo de `desbloqueo-offline` sobre
+`Platform.isMacOS` sigue siendo correcto y reutilizable si algún día hace falta
+seleccionar por plataforma en `bootstrap.dart` por otro motivo — pero no por éste.
 
 **Un archivo que NO se toca en este encargo, pero que hay que nombrar:**
 `unlock_backend_factory_io.dart` hoy devuelve `FlutterSecureCredentialBackend()` para
 **cualquier** plataforma nativa, macOS incluido — así que la pantalla de bloqueo offline
 (`workspace_unlock_store.dart`, de `desbloqueo-offline`) hoy también está silenciosamente
 inactiva en macOS (`_reportUnavailable`, ya lo dice su propio comentario: *"a macOS
-keychain without the signing entitlements (SecItemAdd −34018)"*). El backend que aquí se
-propone, una vez exista, **podría** arreglar ese síntoma también como efecto colateral —
-pero esa decisión y ese cambio son de `desbloqueo-offline`, no míos. Se los dejo dicho para
-que no se le atribuya a una casualidad si un día alguien nota que el desbloqueo offline
-volvió a funcionar en macOS.
+keychain without the signing entitlements (SecItemAdd −34018)"*).
+
+~~El backend que aquí se propone, una vez exista, **podría** arreglar ese síntoma también
+como efecto colateral.~~ **REFUTADO por `desbloqueo-offline`, 12-sep-2026, y con razón:**
+`WorkspaceUnlockStore` sólo necesita *verificar* una contraseña candidata (un `SecretDerivation`
+de un solo sentido), nunca *recuperar* un secreto real. Enchufar aquí
+`EncryptedFileCredentialBackend` sería circular — para leer el `SecretDerivation` guardado
+haría falta descifrar con la MISMA contraseña candidata que se quiere comprobar, y un fallo
+de autenticación de AES-GCM llegaría como "nada inscrito" en vez de "contraseña
+incorrecta", perdiendo el contador de intentos que es la única defensa real de un derivado
+en reposo contra un ataque sin límite de ritmo. No es un efecto colateral gratis: es un
+diseño aparte que nadie ha hecho todavía, y no le corresponde a este encargo improvisarlo.
+**El desbloqueo sin conexión seguirá muerto en macOS** aunque el llavero nativo vuelva a
+funcionar algún día con firma real, salvo que alguien diseñe a propósito una variante de
+verificación por descifrado.
 
 ### 8.2 La pieza que hay que decirle al dueño sin adornos: **esto mata el arranque desatendido en macOS**
 
@@ -288,7 +379,7 @@ aprobar, no como "una mejora de seguridad" sin más.
 ya distingue `secureStore` de `webSessionOnly`, declarado pero sin consumidor todavía.
 Añadir un tercer valor (p. ej. `passwordDerivedFile`) le daría a la capa de UI un lugar
 único desde donde decidir si avisar "esta plataforma pide tu contraseña en cada arranque"
-en vez de inferirlo por `Platform.isMacOS` disperso por el código.
+en vez de inferirlo por la comprobación de plataforma dispersa por el código.
 
 ### 8.3 KDF y cifrado: Argon2id + AES-256-GCM — dos paquetes candidatos, no uno solo
 
@@ -361,8 +452,9 @@ Petición nueva del 12-sep-2026: que esto sirva también para Linux sin `gnome-k
 `kwallet` corriendo (§7). **No es el mismo caso que macOS y el diseño no puede ser
 idéntico**, por una razón concreta: en macOS el fallo es **incondicional y ya probado
 cuatro veces** (§4, y ahora confirmado por otro agente desde la aplicación) — no hay
-ninguna combinación que funcione hoy, así que elegir el backend en tiempo de compilación
-(`Platform.isMacOS`) es correcto. En Linux el fallo es **condicional**: la mayoría de
+ninguna combinación que funcione hoy, así que elegir el backend según la plataforma
+(`!kIsWeb && defaultTargetPlatform == TargetPlatform.macOS` — ver la corrección de §8.1
+sobre por qué no es `Platform.isMacOS`) es correcto. En Linux el fallo es **condicional**: la mayoría de
 escritorios (GNOME, KDE) sí tienen un servicio de secretos corriendo, y ahí
 `FlutterSecureCredentialBackend` funciona exactamente igual que hoy, con reconexión
 desatendida incluida. Sólo falla la minoría real: una terminal sin escritorio, un servidor,
@@ -381,14 +473,20 @@ Linux.** Un `CredentialBackend` que intenta primero `FlutterSecureCredentialBack
 - **`delete`**: intenta borrar en los dos sitios, sin fallar si uno de los dos no tiene nada
   que borrar — un huérfano en cualquiera de los dos lados es peor que un borrado de más.
 
-Esto es más complejo que el interruptor de macOS y trae una pregunta que no se debe
-decidir a mitad de la implementación: **¿qué error concreto de libsecret dispara la caída
-al archivo?** §7 ya identificó dos códigos reales (`"Libsecret error"` genérico y
+Esto es más complejo que el interruptor de macOS y traía una pregunta que no se decidió a
+mitad de la implementación: **¿qué error concreto de libsecret dispara la caída al
+archivo?** §7 ya identificó dos códigos reales (`"Libsecret error"` genérico y
 `"KeyringLocked"`); caer al archivo ante *cualquier* excepción es más simple pero también
 esconde errores que no son "no hay servicio" (un permiso de archivo, un disco lleno) detrás
-del mismo camino silencioso. Mi propuesta es acotar la caída a los dos códigos que §7 ya
-verificó, y dejar cualquier otro error como error visible — pero es una línea fina y la
-dejo escrita para que se discuta, no la resuelvo aquí en silencio.
+del mismo camino silencioso.
+
+**Decidido por el team-lead, 12-sep-2026: acotado a esos dos códigos exactos, nunca
+"cualquier excepción".** Implementado en
+`orbi_runtime/lib/src/auth/linux_secret_service_fallback_credential_backend.dart`: un
+código no reconocido se relanza tal cual — falla y se ve, no cae en silencio al respaldo.
+Cada caída real dispara un aviso en el registro (`logger.w`, sin secretos) con el código
+que la provocó. Diez pruebas cubren esto, incluida una que verifica explícitamente que el
+respaldo nunca se llama ante un código desconocido.
 
 **Consecuencia para la pregunta de "arranque desatendido", que ahora es distinta por
 plataforma:** en macOS, la respuesta sigue siendo **no**, siempre, sin condición. En Linux,
@@ -401,11 +499,23 @@ en un "se puede, con contraseña".
 
 ---
 
-**Respuesta directa a tu pregunta de cierre:** **macOS, no** — con este diseño, no puede
-arrancar y conectarse sin que alguien escriba su contraseña, ni online ni offline, en
-ningún arranque en frío del proceso. Es el precio exacto que pediste que se dijera aunque
-fuera que no. **Linux, depende**: sigue arrancando solo donde el servicio de secretos está
-vivo (la mayoría), y sólo pide contraseña donde hoy ya no había nada que arrancar.
+~~**Respuesta directa a tu pregunta de cierre:** macOS, no — con este diseño, no puede
+arrancar y conectarse sin que alguien escriba su contraseña... Linux, depende.~~ **Sin
+objeto tras el malentendido de arriba: macOS no usa este diseño.** La única pregunta de
+arranque desatendido que sigue en pie es la de Linux, y la respuesta no cambió: sigue
+arrancando sin contraseña en cualquier escritorio con servicio de secretos activo, y sólo
+la pide donde hoy ya no había nada que arrancar.
+
+### 8.7 La pregunta que queda, cerrada
+
+**¿Hay alguna plataforma, aparte de Linux sin servicio de secretos, donde
+`flutter_secure_storage` no baste?** No. §7, medido leyendo el código nativo de cada
+complemento, no la documentación: Windows (Administrador de Credenciales, AES-128 sobre un
+archivo, con el riesgo de excepción sin atrapar ya documentado como lectura de código, no
+medición en vivo), Android (`AndroidKeyStore` real, hardware-backed) e iOS funcionan de
+fábrica. El navegador tiene su propia pieza — la llave no extraíble de Web Crypto de
+`desbloqueo-offline`, ya construida y en uso, ajena a todo lo de este documento. El único
+hueco real es Linux sin escritorio, y §8.6 ya lo cubre. **Cerrado.**
 
 ---
 pub.dev consultado el 11-sep-2026, y `cryptography_plus`/`pointycastle`/`hive_ce`

@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:js_interop';
 import 'dart:math';
 import 'dart:typed_data';
@@ -72,7 +73,11 @@ final class WebCryptoCredentialBackend implements CredentialBackend {
                 .encrypt(
                   _gcmParams(iv),
                   cryptoKey,
-                  Uint8List.fromList(value.codeUnits).toJS,
+                  // utf8, NOT `codeUnits`: a code unit above 255 — an accent
+                  // in a database name, a non-ASCII character anywhere in the
+                  // stored payload — is silently TRUNCATED by `codeUnits`, and
+                  // the corruption only shows up on read, far from the cause.
+                  Uint8List.fromList(utf8.encode(value)).toJS,
                 )
                 .toDart
             as JSArrayBuffer;
@@ -128,7 +133,7 @@ final class WebCryptoCredentialBackend implements CredentialBackend {
                   )
                   .toDart
               as JSArrayBuffer;
-      return String.fromCharCodes(plain.toDart.asUint8List());
+      return utf8.decode(plain.toDart.asUint8List());
     } catch (_) {
       // Authentication failure: tampered, or written under an older key.
       await delete(key);

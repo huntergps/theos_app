@@ -32,7 +32,11 @@ import 'dart:io';
 import 'package:flutter/services.dart' show PlatformException;
 import 'package:odoo_sdk/odoo_sdk.dart' show logger;
 
-import 'credential_store.dart' show CredentialBackend, FlutterSecureCredentialBackend;
+import 'credential_store.dart'
+    show
+        CredentialBackend,
+        FlutterSecureCredentialBackend,
+        LatePasswordCredentialBackend;
 import 'encrypted_file_credential_backend.dart';
 
 const Set<String> _knownSecretServiceFailureCodes = {
@@ -52,7 +56,7 @@ const Set<String> _knownSecretServiceFailureCodes = {
 /// need the fallback. Most Linux sessions never touch it: the fallback only
 /// asks for it the moment it actually fires.
 final class LinuxSecretServiceFallbackCredentialBackend
-    implements CredentialBackend {
+    implements LatePasswordCredentialBackend {
   LinuxSecretServiceFallbackCredentialBackend({
     String? password,
     required Directory directory,
@@ -72,6 +76,7 @@ final class LinuxSecretServiceFallbackCredentialBackend
   /// Forwards to the underlying [EncryptedFileCredentialBackend]'s own
   /// late-bound password, when the fallback is that concrete type (always
   /// true outside of tests, which may inject a fake that ignores this).
+  @override
   set password(String? value) {
     final fallback = _fallback;
     if (fallback is EncryptedFileCredentialBackend) {

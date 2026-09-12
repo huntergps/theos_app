@@ -71,4 +71,99 @@ void main() {
       }, timeout: const Timeout(Duration(seconds: 30)));
     },
   );
+
+  // ==========================================================================
+  // The question the whole browser workstream exists to answer: can a person
+  // sign in with a username and a password, from a browser, against a real
+  // Odoo? Run with the ORBI_ERP2_TEST_SELLER_* variables, which are read from
+  // the environment and never logged.
+  //
+  // 🔴 Unlike the group above, this one DOES authenticate, so it spends an
+  // attempt against Odoo's per-IP cooldown and mints a real (expiring) key on
+  // the server. It is gated behind its own variables precisely so it never
+  // runs by accident in CI.
+  // ==========================================================================
+  final sellerUrl = Platform.environment['ORBI_ERP2_TEST_SELLER_SERVER_URL'];
+  final sellerLogin = Platform.environment['ORBI_ERP2_TEST_SELLER_LOGIN'];
+  final sellerPassword = Platform.environment['ORBI_ERP2_TEST_SELLER_PASSWORD'];
+  final sellerDatabase = Platform.environment['ORBI_ERP2_TEST_SELLER_DATABASE'];
+  final sellerUserId = Platform.environment['ORBI_ERP2_TEST_SELLER_USER_ID'];
+
+  group(
+    'signing in with a real password against a real Odoo',
+    skip: (sellerUrl == null || sellerLogin == null || sellerPassword == null)
+        ? 'set ORBI_ERP2_TEST_SELLER_* to run'
+        : null,
+    () {
+      test('returns a usable, expiring credential', () async {
+        final credential = await client.issue(
+          serverUrl: sellerUrl!,
+          login: sellerLogin!,
+          password: sellerPassword!,
+          database: sellerDatabase,
+        );
+
+        // The database the SERVER served, which is the authoritative one.
+        if (sellerDatabase != null) {
+          expect(credential.database, sellerDatabase);
+        }
+        if (sellerUserId != null) {
+          expect(credential.uid, int.parse(sellerUserId));
+        }
+        expect(credential.apiKey, isNotEmpty);
+        expect(credential.tokenType, 'bearer');
+        expect(credential.scope, 'rpc');
+
+        // 🔴 The expiry is the reason this credential is acceptable to keep
+        // in a browser at all, so it is asserted, not assumed: roughly a day,
+        // never absent and never open-ended.
+        final now = DateTime.now().toUtc();
+        expect(credential.expiresAt.isUtc, isTrue);
+        expect(credential.isExpiredAt(now), isFalse);
+        final life = credential.expiresAt.difference(now);
+        expect(life, greaterThan(const Duration(hours: 23)));
+        expect(
+          life,
+          lessThanOrEqualTo(const Duration(days: 1)),
+          reason:
+              'A longer life than a day is what made storing a real '
+              'credential in a browser unacceptable in the first place.',
+        );
+      }, timeout: const Timeout(Duration(seconds: 45)));
+
+      test('and a wrong password is refused without saying who exists', () async {
+        // Costs one cooldown attempt, deliberately: proving the rejection
+        // path against the real server is worth it, and the message must
+        // never hint at whether the login exists.
+        try {
+          await client.issue(
+            serverUrl: sellerUrl!,
+            login: sellerLogin!,
+            password: 'definitivamente-no-es-esta-contrasena',
+          );
+          fail('the server accepted a wrong password');
+        } on WebTokenAuthException catch (error) {
+          expect(
+            error.kind,
+            anyOf(
+              WebTokenAuthFailureKind.invalidCredentials,
+              // The owner's IP may already be in cooldown from earlier
+              // probing; that is a different true answer, not a failure.
+              WebTokenAuthFailureKind.tooManyAttempts,
+            ),
+          );
+          final message = describeLoginFailure(error);
+          for (final leak in ['no existe', 'unknown user', 'not found']) {
+            expect(message.guidance.toLowerCase(), isNot(contains(leak)));
+          }
+          // And a typed password that was refused never costs the stored
+          // credential.
+          expect(
+            shouldDiscardStoredCredential(error, someoneTyped: true),
+            isFalse,
+          );
+        }
+      }, timeout: const Timeout(Duration(seconds: 45)));
+    },
+  );
 }

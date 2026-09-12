@@ -2,34 +2,30 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
-	<!-- Sandbox off for local debug ONLY. With ad-hoc signing and no
-	     DEVELOPMENT_TEAM there is no keychain-access-group to grant, so
-	     SecItemAdd fails with -34018 ("a required entitlement isn't
-	     present") and every native login dies at the moment it tries to
-	     store the API key. Release keeps the sandbox. The real fix is a
-	     signing team plus keychain-access-groups in both entitlements;
-	     until that account exists, debug cannot reach the keychain at all.
-	     Consequence to keep in mind: debug no longer mirrors release, so a
-	     genuine entitlement problem will not surface until a release build.
-
-	     Verified 2026-09-11 by compiling and running the app, reading the
-	     system's own `secd` logs (not just the Flutter exception): the
-	     theory that flutter_secure_storage's macOS `usesDataProtectionKeychain
-	     = false` (the classic, non-protected keychain) would dodge the
-	     access-group requirement is WRONG. secd rejects the call with the
-	     exact same -34018 and the exact same message — "Client has neither
-	     com.apple.application-identifier nor
-	     com.apple.security.application-groups nor keychain-access-groups
-	     entitlements" — with the flag true or false, AND with this sandbox
-	     entitlement present or absent. On this macOS version, secd demands
-	     that entitlement for ANY Keychain Services call from an ad-hoc
-	     signed binary, sandboxed or not. There is no code-only fix; only a
-	     real signing team unblocks the keychain in debug. -->
+	<!-- 12-sep-2026: sandbox restored. The signing team (W8V3ANSPKT) is
+	     active and configured in project.pbxproj (DEVELOPMENT_TEAM), and
+	     `keychain-access-groups` below is exactly the entitlement `secd`
+	     was refusing without it — see the history this replaces, kept in
+	     git blame: 2026-09-11 measured that App Sandbox requires one of
+	     com.apple.application-identifier, com.apple.security.application-groups
+	     or keychain-access-groups for ANY Keychain Services call from an
+	     ad-hoc signed binary (-34018, "a required entitlement isn't
+	     present"), and that flutter_secure_storage's macOS
+	     `usesDataProtectionKeychain` flag makes no difference either way.
+	     Debug now matches Release again: same team, same keychain-access
+	     group, same sandbox. If the keychain still fails after this, that
+	     is a NEW finding, not a repeat of the old one — see C01 §4. -->
+	<key>com.apple.security.app-sandbox</key>
+	<true/>
 	<key>com.apple.security.cs.allow-jit</key>
 	<true/>
 	<key>com.apple.security.network.client</key>
 	<true/>
 	<key>com.apple.security.network.server</key>
 	<true/>
+	<key>keychain-access-groups</key>
+	<array>
+		<string>$(AppIdentifierPrefix)com.tecnosmart.theosPanel</string>
+	</array>
 </dict>
 </plist>

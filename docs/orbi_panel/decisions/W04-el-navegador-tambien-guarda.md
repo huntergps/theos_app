@@ -109,9 +109,26 @@ regla se puede cerrar bien.
 
 ## 6. Lo que no se arregla aquí
 
-**El llavero de macOS, y es peor de lo que escribí en la primera versión de este
-documento.** Dije que afectaba solo a la distribución. **Es falso, y lo corrijo con una
-medición mía del 11-sep-2026 sobre un macOS de depuración real:**
+**El llavero de macOS — RESUELTO el 12-sep-2026. Lo que sigue queda como historia,
+porque el diagnóstico costó horas y conviene que no se repita.**
+
+> 🟢 **Ya funciona.** La cuenta de desarrollador de Apple sí existía; lo que faltaba era
+> que el proyecto la usara. Con `DEVELOPMENT_TEAM = W8V3ANSPKT` y `keychain-access-groups`
+> en los entitlements, el llavero acepta. Medido con `workspace_unlock_durability_test.dart`
+> corrido **dos veces**, que es lo único que distingue «el llavero acepta» de «sobrevive a
+> cerrar y reabrir»:
+>
+> ```
+> 1ª: DURABILIDAD: primera ejecución, marcador plantado.        +5 All tests passed!
+> 2ª: DURABILIDAD: el derivado de una ejecución ANTERIOR sigue válido.
+>     Sobrevive a cerrar y reabrir la aplicación.               +5 All tests passed!
+> ```
+>
+> **La solución era la cuenta de Apple, no una línea de código.** Ni
+> `usesDataProtectionKeychain`, ni bajar el confinamiento, ni un archivo cifrado.
+
+Lo que sigue es lo que se medía antes de eso, y sigue siendo cierto para cualquier
+build sin equipo de firma:
 
 ```
 [WARN] [WorkspaceUnlock] Desbloqueo sin conexión INACTIVO: el almacén seguro rechazó
@@ -119,9 +136,8 @@ la escritura. La pantalla de bloqueo seguirá exigiendo red (PlatformException(U
 security result code, Code: -34018, Message: A required entitlement isn't present.)).
 ```
 
-Con el confinamiento **apagado**. `remember()` devuelve `false` y `verify()` responde
-`notEnrolled`: **en macOS el desbloqueo sin conexión no existe hoy, ni en depuración ni en
-distribución**. No es un problema de durabilidad, es que nunca llega a guardarse.
+Con el confinamiento apagado. `remember()` devolvía `false` y `verify()` respondía
+`notEnrolled`: no era un problema de durabilidad, es que nunca llegaba a guardarse.
 
 La causa está verificada contra los registros de `secd` del propio sistema (comentario de
 `macos/Runner/DebugProfile.entitlements`): `secd` exige un `keychain-access-group` para
@@ -130,10 +146,9 @@ confinamiento, y con `usesDataProtectionKeychain` en verdadero o en falso. **No 
 por código.** Hace falta un equipo de firma de Apple. Queda registrado como bloqueante, y
 no solo de distribución.
 
-Consecuencia que conviene tener presente: **en macOS, hoy, el único desbloqueo sin conexión
-que funciona de verdad es el del navegador** — el de este documento. Lo cual es irónico y
-vale la pena decirlo, porque la postura revocada era justamente que el navegador no podía
-guardar nada.
+Durante unas horas, **el único desbloqueo sin conexión que funcionaba de verdad fue el del
+navegador** — el de este documento —, mientras el escritorio estaba muerto. Irónico, porque
+la postura revocada era justamente que el navegador no podía guardar nada.
 
 La constancia en el registro (sección anterior) es lo que convierte esto en un hallazgo en
 vez de un misterio: sin esa línea, el desbloqueo sin conexión habría estado muerto en macOS

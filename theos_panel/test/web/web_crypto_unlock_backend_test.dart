@@ -68,6 +68,20 @@ void main() {
       expect(await reopened.read('k'), 'sobrevive');
     });
 
+    test('un valor con caracteres no ASCII vuelve INTACTO: `codeUnits` los '
+        'truncaba en silencio y la corrupción sólo aparecía al leer', () async {
+      const value = 'contraseña · año · ñandú · 漢字 · 🇪🇨';
+      await backend.write('k', value);
+      expect(await backend.read('k'), value);
+    });
+
+    test('un JSON con acentos en los campos sobrevive, que es lo que guarda '
+        'de verdad una credencial con nombre de base acentuado', () async {
+      const json = '{"database":"orbi_compañía","api_key":"ábc-123"}';
+      await backend.write('k', json);
+      expect(await backend.read('k'), json);
+    });
+
     test('una base distinta NO lo lee: cada llave está atada a su almacén',
         () async {
       await backend.write('k', 'secreto');
@@ -138,46 +152,47 @@ void main() {
     });
   });
 
-  group('la credencial de sesión web sobre el navegador', () {
-    // La otra mitad de W04: además del derivado, la CLAVE API que devuelve
-    // POST /orbi/auth/token. Esa sí es una credencial de verdad — quien la
-    // tenga habla con Odoo como ese usuario — así que lo que importa es que en
-    // reposo no esté legible y que la caducidad se cumpla.
+  group('el registro de caducidad sobre el navegador', () {
+    // La otra mitad de W04. Ojo con lo que este grupo NO afirma: la clave API
+    // no se guarda aquí — la persiste NativeAuthService bajo su propia
+    // referencia, sobre este mismo respaldo cifrado. Lo que se comprueba aquí
+    // es que la puerta de caducidad sobrevive a recargar y se borra sola.
     final issued = WebAuthCredential.fromResponse(const {
       'database': 'orbi',
       'uid': 7,
       'token_type': 'bearer',
       'scope': 'rpc',
-      'api_key': 'clave-api-que-no-debe-verse',
+      'api_key': 'clave-api-que-no-debe-guardarse-aqui',
       'expires_at': '2026-09-13 04:00:00',
     });
     final now = DateTime.utc(2026, 9, 12, 4);
 
-    test('sobrevive a recargar la página y sigue utilizable', () async {
-      final store = WebCredentialStore(backend);
-      expect(await store.save(issued, now: now), isTrue);
+    test('sobrevive a recargar la página y sigue diciendo cuándo muere',
+        () async {
+      expect(await WebCredentialStore(backend).remember(issued, now: now),
+          isTrue);
 
       final afterReload = WebCredentialStore(
         WebCryptoCredentialBackend(databaseName: databaseName),
       );
       final loaded = await afterReload.load(now: now);
-      expect(loaded?.apiKey, 'clave-api-que-no-debe-verse');
       expect(loaded?.expiresAt, DateTime.utc(2026, 9, 13, 4));
+      expect(loaded?.uid, 7);
     });
 
-    test('en reposo la clave API está CIFRADA: no aparece ni en claro ni en '
-        'base64 en lo que guarda el navegador', () async {
-      await WebCredentialStore(backend).save(issued, now: now);
+    test('la clave API NO llega a este registro, ni en claro ni en base64',
+        () async {
+      await WebCredentialStore(backend).remember(issued, now: now);
       for (final key in await _allKeys(databaseName)) {
         final raw = await _rawRecord(databaseName, key);
         if (raw == null) continue;
         expect(
-          String.fromCharCodes(raw).contains('clave-api-que-no-debe-verse'),
+          String.fromCharCodes(raw).contains('clave-api-que-no-debe-guardarse-aqui'),
           isFalse,
         );
         expect(
           base64Encode(raw).contains(
-            base64Encode('clave-api-que-no-debe-verse'.codeUnits),
+            base64Encode('clave-api-que-no-debe-guardarse-aqui'.codeUnits),
           ),
           isFalse,
         );
@@ -186,18 +201,20 @@ void main() {
 
     test('al caducar se borra del navegador, no se queda ahí', () async {
       final store = WebCredentialStore(backend);
-      await store.save(issued, now: now);
+      await store.remember(issued, now: now);
       expect(await _allKeys(databaseName), isNotEmpty);
 
-      final after = now.add(const Duration(days: 1, seconds: 1));
-      expect(await store.load(now: after), isNull);
+      expect(
+        await store.load(now: now.add(const Duration(days: 1, seconds: 1))),
+        isNull,
+      );
       expect(await _allKeys(databaseName), isEmpty);
     });
 
-    test('clear la borra: el gancho del cierre de sesión funciona en el '
+    test('clear lo borra: el gancho del cierre de sesión funciona en el '
         'navegador', () async {
       final store = WebCredentialStore(backend);
-      await store.save(issued, now: now);
+      await store.remember(issued, now: now);
       await store.clear();
       expect(await store.load(now: now), isNull);
       expect(await _allKeys(databaseName), isEmpty);

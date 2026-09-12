@@ -443,32 +443,49 @@ LoginFailureMessage describeSessionRestoreFailure(Object error) {
 /// eagerly and a typo costs someone their offline unlock; discard too rarely
 /// and a revoked key keeps being replayed forever.
 ///
-/// Two rules, and the first one is what makes the second safe:
+/// 🔴 [someoneTyped] is required, and that is the whole design.
 ///
-/// 1. **Anything thrown by [OrbiWebTokenAuthClient] means a person just typed
-///    a password**, because that client is only ever used by the interactive
-///    sign-in. A rejection there says nothing about any credential already on
-///    disk, so it never discards. This type check is what stops the generic
-///    401 of a typed password from being confused with the 401 of a stored
-///    key — the two are genuinely indistinguishable by cause alone, which is
-///    exactly what the persistence half worried about.
-/// 2. Everything else is read through [describeSessionRestoreFailure],
-///    because if we got here without anyone typing, the credential is the
-///    only thing that could have been rejected. That reading already turns a
-///    rejected stored credential into [LoginFailureCause.sessionExpired].
+/// The first version of this function tried to INFER it, from the fact that
+/// `WebTokenAuthException` is only ever thrown by the interactive web client.
+/// `desbloqueo-offline` measured that against the lock screen and it was
+/// wrong there: `attemptWorkspaceUnlock` also passes a password somebody just
+/// typed, but on native it arrives as `NativeAuthBootstrapException`, so the
+/// inference said "nobody typed", which routed it through
+/// [describeSessionRestoreFailure], which reads a rejected credential as
+/// [LoginFailureCause.sessionExpired] — and a single mistyped character would
+/// have cost the operator their offline unlock.
 ///
-/// [LoginFailureCause.tooManyAttempts] deliberately does NOT discard: the
-/// server did not say the credential is bad, it said "not right now".
+/// The inferred discriminator was "did the web client throw this?" when the
+/// real one is "did a person just type a password?". Those agree in the
+/// browser and part company at the lock screen. A caller always knows the
+/// answer; this function never can. So it is asked for, and being `required`
+/// means nobody can quietly inherit the wrong assumption.
+///
+///  * `someoneTyped: true` — a sign-in or an unlock. A rejected secret is a
+///    typo until proven otherwise, and a typo may never cost the offline
+///    unlock. Only an unambiguous refusal of the ACCOUNT (access denied, an
+///    expired session, a key that belongs to somebody else) discards.
+///  * `someoneTyped: false` — a restore, a background call. Nobody typed, so
+///    the stored credential is the only thing that could have been rejected,
+///    and [describeSessionRestoreFailure] already reads it that way.
+///
+/// [LoginFailureCause.tooManyAttempts] never discards, under either value:
+/// the server did not say the credential is bad, it said "not right now".
 /// Discarding on a cooldown would turn a few minutes' wait into the loss of
 /// offline unlock.
-bool shouldDiscardStoredCredential(Object error) {
-  if (error is WebTokenAuthException) return false;
+bool shouldDiscardStoredCredential(
+  Object error, {
+  required bool someoneTyped,
+}) {
   const discarding = {
     LoginFailureCause.sessionExpired,
     LoginFailureCause.accessDenied,
     LoginFailureCause.apiKeyRejected,
   };
-  return discarding.contains(describeSessionRestoreFailure(error).cause);
+  final cause = someoneTyped
+      ? classifyLoginFailure(error)
+      : describeSessionRestoreFailure(error).cause;
+  return discarding.contains(cause);
 }
 
 /// Recovers the structured message from the flat string carried by

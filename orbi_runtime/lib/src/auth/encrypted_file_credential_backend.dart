@@ -1,15 +1,19 @@
-/// macOS-only [CredentialBackend]: see
+/// [CredentialBackend] backed by a password-derived encrypted file — see
 /// `docs/orbi_panel/decisions/C01-credencial-en-archivo-cifrado.md` §8 for
-/// why this exists (the native Keychain rejects every call from this app's
-/// ad-hoc signature, sandboxed or not — §4) and what it costs (§8.2: no
-/// unattended cold start on this platform, ever, until real code signing
-/// exists).
+/// the full history and §8.6/§8.7 for the current scope.
 ///
-/// **Not wired in anywhere by this file.** Selecting this backend over
-/// [FlutterSecureCredentialBackend] at the composition root
-/// (`theos_panel/lib/app/bootstrap.dart`) is out of this package's scope —
-/// `theos_panel/lib/**` belongs to other work in progress. This is the piece
-/// that lives in `orbi_runtime`.
+/// **Not macOS-specific, not used there.** This was originally built to
+/// replace [FlutterSecureCredentialBackend] on macOS while its Keychain
+/// rejected every call (§4). That plan is cancelled: the dueño's "universal
+/// package" request meant `flutter_secure_storage` itself, and macOS's real
+/// fix is signing with a real Apple Developer team (configured — see §4),
+/// not a bespoke file format. macOS uses [FlutterSecureCredentialBackend]
+/// unconditionally, like every other platform.
+///
+/// The one place this still matters: it is the fallback storage inside
+/// [LinuxSecretServiceFallbackCredentialBackend], used only the moment
+/// `libsecret` genuinely has no secret service to answer. Nothing else in
+/// this codebase should construct this class directly.
 library;
 
 import 'dart:convert';
@@ -19,7 +23,7 @@ import 'dart:typed_data';
 import 'package:crypto/crypto.dart' show sha256;
 import 'package:flutter/foundation.dart' show compute;
 
-import 'credential_store.dart' show CredentialBackend;
+import 'credential_store.dart' show LatePasswordCredentialBackend;
 import 'encrypted_credential_envelope.dart';
 
 /// Reads/writes one encrypted file per credential key inside [directory],
@@ -41,7 +45,8 @@ import 'encrypted_credential_envelope.dart';
 /// clears it (`password = null` when done with it) — never written
 /// anywhere, never logged, and never captured by a closure that could
 /// outlive this instance.
-final class EncryptedFileCredentialBackend implements CredentialBackend {
+final class EncryptedFileCredentialBackend
+    implements LatePasswordCredentialBackend {
   // `this._password` would make the parameter itself private, so it could
   // only ever be passed from within this exact file — the public name has
   // to stay `password`, distinct from the private field it seeds.
@@ -60,15 +65,21 @@ final class EncryptedFileCredentialBackend implements CredentialBackend {
   /// password the operator just typed. Set it to `null` once done with it if
   /// the instance outlives that one operation, so it never lingers in memory
   /// longer than necessary.
+  @override
   set password(String? value) => _password = value;
 
+  /// Used by [write], where a missing password is a caller bug (write must
+  /// only ever be called right after a login that already has one) and
+  /// deserves a loud [StateError], never a silently-discarded credential.
+  /// [read] guards `_password == null` itself before reaching here — see its
+  /// comment for why a missing password there is not a bug.
   String get _requiredPassword {
     final password = _password;
     if (password == null) {
       throw StateError(
-        'EncryptedFileCredentialBackend.write/read called before a '
-        'password was set — the caller must set `password` with the '
-        "operator's freshly-typed password first.",
+        'EncryptedFileCredentialBackend.write called before a password was '
+        'set — the caller must set `password` with the operator\'s '
+        'freshly-typed password first.',
       );
     }
     return password;
@@ -86,6 +97,13 @@ final class EncryptedFileCredentialBackend implements CredentialBackend {
 
   @override
   Future<String?> read(String key) async {
+    // Unlike `write`, a missing password here is not a caller bug: the
+    // unattended cold-start path (`restoreOnce`, called with nobody around
+    // to type anything) is expected to call `read` before any password is
+    // known on this platform. That path already treats a `null` result as
+    // "nothing to restore, fall through to requiring login" — exactly
+    // right, so this degrades into that instead of throwing through it.
+    if (_password == null) return null;
     final file = _fileFor(key);
     if (!await file.exists()) return null;
     final Uint8List raw;

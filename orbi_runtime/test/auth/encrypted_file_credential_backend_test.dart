@@ -1,9 +1,23 @@
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:orbi_runtime/src/auth/credential_store.dart';
 import 'package:orbi_runtime/src/auth/encrypted_file_credential_backend.dart';
 
 void main() {
+  test(
+    'es un LatePasswordCredentialBackend — la selección por plataforma en '
+    'bootstrap.dart depende de esto para fijar la contraseña sin conocer '
+    'el tipo concreto',
+    () {
+      final backend = EncryptedFileCredentialBackend(
+        directory: Directory.systemTemp,
+      );
+      expect(backend, isA<LatePasswordCredentialBackend>());
+    },
+  );
+
+
   late Directory tempDir;
 
   setUp(() async {
@@ -34,6 +48,24 @@ void main() {
       backend.password = 'fijada-después';
       await backend.write('api-key', 'valor');
       expect(await backend.read('api-key'), 'valor');
+    },
+  );
+
+  test(
+    'read antes de fijar una contraseña da null, no truena — el arranque '
+    'desatendido debe poder llamarlo sin contraseña y sólo enterarse de '
+    'que no hay nada que restaurar',
+    () async {
+      final withPassword = EncryptedFileCredentialBackend(
+        directory: tempDir,
+        password: 'x',
+      );
+      await withPassword.write('api-key', 'valor-guardado');
+
+      final withoutPassword = EncryptedFileCredentialBackend(
+        directory: tempDir,
+      );
+      expect(await withoutPassword.read('api-key'), isNull);
     },
   );
 
