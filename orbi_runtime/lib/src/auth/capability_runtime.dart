@@ -84,9 +84,8 @@ final class OdooActiveIdentityReader implements ActiveIdentityReader {
   const OdooActiveIdentityReader(this.client);
 
   @override
-  Future<({int companyId, List<int> allowedCompanyIds})> read(
-    AppScope scope,
-  ) async {
+  Future<({int companyId, String? companyName, List<int> allowedCompanyIds})>
+  read(AppScope scope) async {
     final rows = await client.read(
       model: 'res.users',
       ids: [scope.userId],
@@ -101,6 +100,15 @@ final class OdooActiveIdentityReader implements ActiveIdentityReader {
         : (company is List && company.first is int
               ? company.first as int
               : null);
+    // Odoo's JSON-2 `read` returns a many2one as `[id, display_name]`. The id
+    // is validated above; the display name travels along in the very same
+    // response — reading it here is not a second request, just no longer
+    // throwing it away (`OperationalContext.companyLabel` used to show
+    // "Empresa #<id>" even though the real name had already arrived).
+    final companyName =
+        company is List && company.length > 1 && company[1] is String
+        ? company[1] as String
+        : null;
     final raw = rows.single['company_ids'];
     if (companyId == null || companyId <= 0 || raw is! List) {
       throw FormatException('Invalid company identity');
@@ -110,6 +118,10 @@ final class OdooActiveIdentityReader implements ActiveIdentityReader {
     if (!allowed.contains(companyId)) {
       throw FormatException('Selected company is not allowed');
     }
-    return (companyId: companyId, allowedCompanyIds: allowed);
+    return (
+      companyId: companyId,
+      companyName: companyName,
+      allowedCompanyIds: allowed,
+    );
   }
 }

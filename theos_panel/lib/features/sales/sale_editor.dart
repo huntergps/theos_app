@@ -13,6 +13,7 @@ import '../clients/catalog_contracts.dart';
 import '../clients/entity_picker.dart';
 import '../approvals/approval_contracts.dart';
 import 'sale_lines_editor.dart';
+import '../../ui/state_labels.dart';
 
 enum SalePresentation { counter, consultive }
 
@@ -907,7 +908,7 @@ class _SaleEditorScreenState extends State<SaleEditorScreen> {
                     decoration: InputDecoration(labelText: 'Almacén'),
                   ),
                 ),
-              Text('Clasificación: ${draft.classification.name}'),
+              Text('Clasificación: ${termsClassificationLabel(draft.classification)}'),
             ];
             if (constraints.maxWidth < 840) {
               return Column(

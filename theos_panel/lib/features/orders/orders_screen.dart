@@ -7,6 +7,7 @@ import '../../ui/bindings/record_view_controller.dart';
 import '../../ui/components/orbi_components.dart';
 import '../../ui/components/records/orbi_record_grid.dart';
 import 'orders_contracts.dart';
+import '../../ui/state_labels.dart';
 
 class OrdersScreen extends StatefulWidget {
   const OrdersScreen({
@@ -219,9 +220,9 @@ class _OrdersScreenState extends State<OrdersScreen> {
               runSpacing: 6,
               children: [
                 OrbiStatusChip(label: 'Negocio: ${item.businessState.code}'),
-                OrbiStatusChip(label: 'Local/sync: ${item.syncState.name}'),
+                OrbiStatusChip(label: syncStateLabel(item.syncState)),
                 OrbiStatusChip(
-                  label: 'Fiscal: ${item.fiscalState?.name ?? '—'}',
+                  label: fiscalStateLabelOrNone(item.fiscalState),
                 ),
               ],
             ),
@@ -249,9 +250,9 @@ class _OrdersScreenState extends State<OrdersScreen> {
           child: ListBody(
             children: [
               Text('Estado comercial: ${item.businessState.code}'),
-              Text('Estado local: ${item.syncState.name}'),
+              Text('Estado local: ${syncStateLabel(item.syncState)}'),
               Text(
-                'Estado fiscal: ${item.fiscalState?.name ?? 'No requerido'}',
+                'Estado fiscal: ${fiscalStateLabelOrNone(item.fiscalState)}',
               ),
               if (item.pendingCollection) const Text('Pendiente por cobrar'),
               if (item.pendingInvoicing) const Text('Pendiente por facturar'),

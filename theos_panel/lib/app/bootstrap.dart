@@ -270,6 +270,10 @@ final class WebSessionAuthService
         installationId: installationId,
         credentialReference: 'odoo-http-session',
         companyId: (company['id'] as num).toInt(),
+        // `/orbi/bootstrap` already returns `{'id', 'name'}` for `company`
+        // (`web_auth.py`'s `bootstrap()`) — this was being fetched and
+        // dropped, same defect as the native path's `res.users.company_id`.
+        companyName: company['name'] as String?,
         allowedCompanyIds: effective.allowedCompanyIds,
       );
       _profile = profile;
@@ -427,7 +431,8 @@ final class _SessionIdentityReader implements ActiveIdentityReader {
   const _SessionIdentityReader(this.runtime);
   final SessionRuntime runtime;
   @override
-  Future<({int companyId, List<int> allowedCompanyIds})> read(AppScope scope) {
+  Future<({int companyId, String? companyName, List<int> allowedCompanyIds})>
+  read(AppScope scope) {
     final active = runtime.active;
     if (active == null || active.scope != scope || active.client == null) {
       return Future.error(StateError('Active Odoo session is required'));

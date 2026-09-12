@@ -30,9 +30,9 @@ class _InstallationBackend implements InstallationIdBackend {
 
 class _Identity implements ActiveIdentityReader {
   @override
-  Future<({int companyId, List<int> allowedCompanyIds})> read(
-    AppScope scope,
-  ) async => (companyId: 1, allowedCompanyIds: const [1]);
+  Future<({int companyId, String? companyName, List<int> allowedCompanyIds})>
+  read(AppScope scope) async =>
+      (companyId: 1, companyName: null, allowedCompanyIds: const [1]);
 }
 
 class _Capabilities implements CapabilitySnapshotPort {

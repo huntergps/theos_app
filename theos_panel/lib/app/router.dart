@@ -8,6 +8,8 @@ import 'package:orbi_runtime/orbi_runtime.dart';
 import '../features/auth/auth_controller.dart';
 import '../features/auth/login_screen.dart';
 import '../features/auth/login_failure_messages.dart';
+import '../features/auth/route_access_messages.dart';
+import '../ui/components/copyable_message.dart';
 import '../features/auth/route_access_policy.dart';
 import '../features/auth/workspace_unlock_store.dart';
 import '../features/collection/collection_screen.dart';
@@ -585,6 +587,27 @@ Widget _saleWorkspace(WidgetRef ref, SalePresentation presentation) {
   );
 }
 
+/// Turns the coordinator's real state into the footer's one-line
+/// "Sincronización" label. `null` coordinator (no scope/session yet) reads as
+/// "no disponible", never as the old permanent "no verificada" — those are
+/// different facts and the label should not conflate them.
+String _syncStatusLabel(SyncCoordinatorImpl? coordinator, SyncSnapshot? raw) {
+  if (coordinator == null) return 'Sincronización no disponible';
+  final snapshot = raw ?? coordinator.snapshot;
+  if (coordinator.isPaused) return 'Sincronización pausada';
+  if (snapshot.active) return 'Sincronizando…';
+  if (snapshot.failedCount > 0) {
+    return '${snapshot.failedCount} con error';
+  }
+  if (snapshot.conflictCount > 0) {
+    return '${snapshot.conflictCount} en conflicto';
+  }
+  if (snapshot.queuedCount > 0) {
+    return '${snapshot.queuedCount} pendiente(s)';
+  }
+  return snapshot.lastCompletedAt == null ? 'Sin sincronizar aún' : 'Al día';
+}
+
 final orbiRouterProvider = Provider<GoRouter>((ref) {
   final auth = ref.watch(authControllerProvider);
   final capabilities = ref.watch(capabilitySnapshotProvider);
@@ -613,6 +636,12 @@ final orbiRouterProvider = Provider<GoRouter>((ref) {
         authenticated: true,
         capabilities: capabilities,
       )) {
+        // El redirect no puede hablar; deja dicho POR QUÉ y la pantalla de
+        // destino lo cuenta. Sin esto, el rechazo es indistinguible de que la
+        // aplicación esté rota (ver route_access_messages.dart).
+        ref
+            .read(routeAccessDenialProvider.notifier)
+            .report(location, capabilities: capabilities);
         return '/';
       }
       return null;
@@ -738,29 +767,98 @@ final orbiRouterProvider = Provider<GoRouter>((ref) {
                       ),
                     )
                     .toList(growable: false);
-            return OperationalShell(
-              destinations: destinations,
-              selectedPath: state.uri.path,
-              onNavigate: (path) => context.go(path),
-              context: OperationalContext(
-                server: profile?.serverUrl ?? 'No disponible',
-                database: profile?.database ?? 'No disponible',
-                userLabel: profile?.login ?? 'Usuario no disponible',
-                companyLabel: profile?.companyId == null
-                    ? 'Empresa no disponible'
-                    : 'Empresa #${profile!.companyId}',
-                connectionLabel: 'Red sin verificar',
-                syncLabel: 'Sincronización no verificada',
+            // The footer's "Sincronización" used to be a literal string that
+            // never changed regardless of what the coordinator was actually
+            // doing — one more "no verificado" next to two others that,
+            // unlike this one, really do lack a binding yet (server clock,
+            // connectivity — see PENDIENTES.md). This one already has a real
+            // source: `SyncCoordinatorImpl.snapshots`, the same stream `/sync`
+            // reads. Watched here, not hoisted into `orbiRouterProvider`,
+            // for the identical reason `workspaceLockProvider` is watched in
+            // this same inner `Consumer`: it must never force the whole
+            // `GoRouter` to rebuild.
+            final coordinator = ref.watch(scopeSyncCoordinatorProvider);
+            return StreamBuilder<SyncSnapshot>(
+              stream: coordinator?.snapshots ?? const Stream<SyncSnapshot>.empty(),
+              initialData: coordinator?.snapshot ?? SyncSnapshot(),
+              builder: (context, syncSnapshot) => OperationalShell(
+                destinations: destinations,
+                selectedPath: state.uri.path,
+                onNavigate: (path) => context.go(path),
+                context: OperationalContext(
+                  server: profile?.serverUrl ?? 'No disponible',
+                  database: profile?.database ?? 'No disponible',
+                  userLabel: profile?.login ?? 'Usuario no disponible',
+                  // The real name travels in the very same response that
+                  // already carries `companyId` (`res.users.company_id` on
+                  // native, `/orbi/bootstrap`'s `company` on web — see
+                  // `OdooActiveIdentityReader.read` and `bootstrap.dart`). The
+                  // numeric placeholder is now only what shows when a profile
+                  // predates this field or the reader genuinely could not
+                  // resolve one — never the default for an authenticated user.
+                  companyLabel: profile?.companyName ??
+                      (profile?.companyId == null
+                          ? 'Empresa no disponible'
+                          : 'Empresa #${profile!.companyId}'),
+                  // Deliberately left as a static "not verified" label, not
+                  // silently wired to a guess: PENDIENTES.md already tracks
+                  // that connectivity detection is declared and unused, and
+                  // fixing that here would be exactly the kind of shortcut
+                  // this project's rules forbid — it needs its own real
+                  // connectivity signal, not a footer-label patch.
+                  connectionLabel: 'Red sin verificar',
+                  syncLabel: _syncStatusLabel(coordinator, syncSnapshot.data),
+                ),
+                onLogout: () async {
+                  await ref.read(authControllerProvider.notifier).close();
+                  if (context.mounted) context.go('/login');
+                },
+                locked: locked,
+                onLock: () => ref.read(workspaceLockProvider.notifier).lock(),
+                onUnlock: (password) => attemptWorkspaceUnlock(ref, password),
+                onSwitchUser: () => confirmSwitchWorkspaceUser(context, ref),
+                // `Builder` gives the denial toast a BuildContext that is
+                // actually a descendant of `OperationalShell`'s own
+                // `Scaffold` — the outer `context` from this route builder
+                // is not, so `ScaffoldMessenger.maybeOf` would find nothing.
+                //
+                // The nested `Consumer` (not a postFrameCallback keyed to
+                // THIS widget rebuilding) is deliberate: a denial that
+                // redirects back to the page already on screen — the exact
+                // shape of "click a link to a forbidden area from Inicio" —
+                // resolves to the SAME final location, so go_router does not
+                // rebuild this subtree at all. `ref.listen` fires on the
+                // provider's own state change, independent of whether
+                // anything here rebuilds, so that case is not silently
+                // dropped.
+                child: Builder(
+                  builder: (innerContext) => Consumer(
+                    builder: (context, ref, _) {
+                      ref.listen<CopyableMessage?>(routeAccessDenialProvider, (
+                        _,
+                        next,
+                      ) {
+                        if (next == null || !innerContext.mounted) return;
+                        ref.read(routeAccessDenialProvider.notifier).take();
+                        final durations = ref
+                            .read(
+                              appPreferencesProvider(
+                                ref.read(preferencesScopeProvider),
+                              ),
+                            )
+                            .snapshot
+                            .messageDurations;
+                        showCopyableMessage(
+                          innerContext,
+                          next,
+                          durations: durations,
+                        );
+                      });
+                      return child;
+                    },
+                  ),
+                ),
               ),
-              onLogout: () async {
-                await ref.read(authControllerProvider.notifier).close();
-                if (context.mounted) context.go('/login');
-              },
-              locked: locked,
-              onLock: () => ref.read(workspaceLockProvider.notifier).lock(),
-              onUnlock: (password) => attemptWorkspaceUnlock(ref, password),
-              onSwitchUser: () => confirmSwitchWorkspaceUser(context, ref),
-              child: child,
             );
           },
         ),

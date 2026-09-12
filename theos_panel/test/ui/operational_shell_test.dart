@@ -85,6 +85,30 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
+  // Regression guard for the exact defect the dueño reported (2026-09-12):
+  // a desktop-sized window with no permanent navigation, only a hamburger.
+  // The old `_isDesktop` gate required >= 1200 logical px — nowhere else in
+  // this app's own responsive code (`OrbiTheme.mediumBreakpoint` = 840,
+  // already used by `login_screen.dart`, `pin_login_screen.dart` and
+  // `collection_screen.dart` for their own "wide" layout) draws that line
+  // that high. 1000px is comfortably "desktop" by every other screen in
+  // this app and was still getting the hidden drawer before this fix.
+  testWidgets(
+    'a 1000px-wide window — desktop by every other screen in this app — '
+    'gets the permanent sidebar, not a hidden hamburger drawer',
+    (tester) async {
+      const size = Size(1000, 700);
+      await tester.binding.setSurfaceSize(size);
+      addTearDown(() => tester.binding.setSurfaceSize(null));
+      await tester.pumpWidget(_host(size));
+      await tester.pump();
+      expect(find.bySemanticsLabel('Navegación principal'), findsOneWidget);
+      expect(find.text('Órdenes'), findsOneWidget);
+      expect(find.byType(Drawer), findsNothing);
+      expect(find.byTooltip('Open navigation menu'), findsNothing);
+    },
+  );
+
   testWidgets('tints the existing logo from the active theme', (tester) async {
     await tester.binding.setSurfaceSize(const Size(1440, 900));
     addTearDown(() => tester.binding.setSurfaceSize(null));

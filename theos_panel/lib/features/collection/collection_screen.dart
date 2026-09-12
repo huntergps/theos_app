@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../../app/theme/orbi_theme.dart';
 import '../../ui/components/orbi_components.dart';
 import 'collection_contracts.dart';
+import '../../ui/state_labels.dart';
 
 class CollectionScreen extends StatefulWidget {
   const CollectionScreen({
@@ -123,12 +124,12 @@ class _CollectionScreenState extends State<CollectionScreen> {
         children: [
           Semantics(
             liveRegion: true,
-            label: 'Turno ${_currentShift.state.name}',
+            label: 'Turno ${shiftStateLabel(_currentShift.state)}',
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  'Turno: ${_currentShift.state.name}',
+                  'Turno: ${shiftStateLabel(_currentShift.state)}',
                   style: Theme.of(context).textTheme.titleMedium,
                 ),
                 if (_currentShift.differenceMinor != null)
@@ -506,10 +507,15 @@ class _CollectionScreenState extends State<CollectionScreen> {
       if (result != CollectionResultState.synced &&
           result != CollectionResultState.queued &&
           result != CollectionResultState.local) {
-        setState(() => _error = 'Acción no confirmada: ${result.name}.');
+        setState(
+          () => _error =
+              'La acción no se confirmó. ${collectionResultLabel(result)}.',
+        );
       }
       ScaffoldMessenger.of(context)
-          .showSnackBar(SnackBar(content: Text('Resultado: ${result.name}')));
+          .showSnackBar(
+            SnackBar(content: Text(collectionResultLabel(result))),
+          );
     } finally {
       if (mounted) setState(() => _busy = null);
     }
@@ -548,8 +554,8 @@ class _CollectionScreenState extends State<CollectionScreen> {
           SnackBar(
             content: Text(
               closeResult == null
-                  ? 'Turno: ${next.state.name}'
-                  : 'Cierre: ${closeResult.name}',
+                  ? 'Turno: ${shiftStateLabel(next.state)}'
+                  : 'Cierre: ${collectionResultLabel(closeResult)}',
             ),
           ),
         );
@@ -596,11 +602,16 @@ class _CollectionScreenState extends State<CollectionScreen> {
           _error = null;
         });
       } else if (mounted) {
-        setState(() => _error = 'Cobro no confirmado: ${result.name}.');
+        setState(
+          () => _error =
+              'El cobro no se confirmó. ${collectionResultLabel(result)}.',
+        );
       }
       if (mounted) {
         ScaffoldMessenger.of(context)
-            .showSnackBar(SnackBar(content: Text('Cobro: ${result.name}')));
+            .showSnackBar(
+              SnackBar(content: Text(collectionResultLabel(result))),
+            );
       }
     } finally {
       if (mounted) setState(() => _busy = null);

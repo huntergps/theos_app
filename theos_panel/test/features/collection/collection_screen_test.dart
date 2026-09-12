@@ -64,7 +64,20 @@ void main() {
     await tester.tap(find.text('Cobrar'));
     await tester.pumpAndSettle();
     expect(actions.calls, 1);
-    expect(find.textContaining('no confirmado'), findsOneWidget);
+    // Sigue avisando de que el cobro NO se confirmó — que es lo que esta
+    // prueba protege — pero ya sin el nombre del enum en inglés detrás.
+    expect(find.textContaining('no se confirmó'), findsOneWidget);
+    // El estado es `ambiguous`, que es el más delicado de los cinco: no
+    // sabemos si el cobro llegó. El texto tiene que decirlo y advertir contra
+    // repetirlo, porque repetir un cobro ambiguo es cobrar dos veces.
+    // Aparece dos veces a propósito: en el aviso flotante y en el texto que
+    // se queda en el formulario. Quien lo vea pasar tiene que poder leerlo
+    // después.
+    expect(
+      find.textContaining('antes de volver a cobrar'),
+      findsWidgets,
+    );
+    expect(find.textContaining('ambiguous'), findsNothing);
   });
 
   testWidgets('compact collection scrolls at large text', (tester) async {
@@ -135,7 +148,10 @@ void main() {
     await tester.tap(find.text('Registrar depósito'));
     await tester.pumpAndSettle();
     expect(calls, 1);
-    expect(find.text('Resultado: synced'), findsOneWidget);
+    // Antes decía «Resultado: synced» — el nombre del enum, en inglés,
+    // delante de quien está cobrando. Ahora dice qué pasó de verdad.
+    expect(find.text('Enviado y confirmado'), findsOneWidget);
+    expect(find.textContaining('synced'), findsNothing);
   });
 
   testWidgets('mixed amount requires explicit due confirmation', (

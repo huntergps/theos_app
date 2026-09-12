@@ -81,6 +81,7 @@ void main() {
         installationId: scope.installationId,
         credentialReference: 'api-key',
         companyId: identity.companyId,
+        companyName: identity.companyName,
         allowedCompanyIds: identity.allowedCompanyIds,
       );
       final auth = _ReadOnlyErp2AuthService(
@@ -383,6 +384,7 @@ final class _ReadOnlyErp2AuthService implements AuthServicePort {
         installationId: profile.installationId,
         credentialReference: profile.credentialReference,
         companyId: identity.companyId,
+        companyName: identity.companyName,
         allowedCompanyIds: identity.allowedCompanyIds,
       );
     }

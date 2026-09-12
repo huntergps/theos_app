@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:orbi_runtime/orbi_runtime.dart';
 
 import 'approval_contracts.dart';
+import '../../ui/state_labels.dart';
 
 class ApprovalsScreen extends StatefulWidget {
   const ApprovalsScreen({
@@ -129,7 +130,7 @@ class _ApprovalsScreenState extends State<ApprovalsScreen> {
             style: Theme.of(context).textTheme.titleMedium,
           ),
           Text(
-            request.fsc ? 'FSC · contado' : 'Aprobación ${request.terms.name}',
+            request.fsc ? 'FSC · contado' : 'Aprobación a ${approvalTermsLabel(request.terms)}',
           ),
           const SizedBox(height: 12),
           Wrap(

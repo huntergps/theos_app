@@ -74,11 +74,10 @@ class _Bootstrap implements AuthBootstrapPort {
 class _Identity implements ActiveIdentityReader {
   bool invalid = false;
   @override
-  Future<({int companyId, List<int> allowedCompanyIds})> read(
-    AppScope s,
-  ) async {
+  Future<({int companyId, String? companyName, List<int> allowedCompanyIds})>
+  read(AppScope s) async {
     if (invalid) throw const FormatException('bad company');
-    return (companyId: 7, allowedCompanyIds: [7, 8]);
+    return (companyId: 7, companyName: 'Empresa de prueba', allowedCompanyIds: [7, 8]);
   }
 }
 
@@ -143,6 +142,7 @@ void main() {
       password: 'p',
     );
     expect(result.profile?.companyId, 7);
+    expect(result.profile?.companyName, 'Empresa de prueba');
     expect(result.profile?.allowedCompanyIds, [7, 8]);
     expect(result.capabilities?.permissions, contains('seller'));
   });

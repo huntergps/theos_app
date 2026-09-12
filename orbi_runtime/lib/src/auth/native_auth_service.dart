@@ -21,6 +21,7 @@ final class AuthProfile {
     required this.installationId,
     required this.credentialReference,
     this.companyId,
+    this.companyName,
     this.allowedCompanyIds = const [],
   });
 
@@ -31,6 +32,14 @@ final class AuthProfile {
   final String installationId;
   final String credentialReference;
   final int? companyId;
+
+  /// `res.company.name`, read alongside [companyId] (same `res.users` row on
+  /// native, the same `/orbi/bootstrap` payload on web — see
+  /// `OdooActiveIdentityReader.read` and `bootstrap.dart`'s web restore).
+  /// `null` only when it was never fetched (offline-restored profile from
+  /// before this field existed, or a reader that could not resolve it); the
+  /// UI falls back to a placeholder itself, this class never invents one.
+  final String? companyName;
   final List<int> allowedCompanyIds;
 
   Map<String, Object> toJson() => {
@@ -41,6 +50,7 @@ final class AuthProfile {
     'installationId': installationId,
     'credentialReference': credentialReference,
     'companyId': ?companyId,
+    'companyName': ?companyName,
     if (allowedCompanyIds.isNotEmpty) 'allowedCompanyIds': allowedCompanyIds,
   };
 
@@ -52,6 +62,7 @@ final class AuthProfile {
     installationId: json['installationId'] as String,
     credentialReference: json['credentialReference'] as String,
     companyId: (json['companyId'] as num?)?.toInt(),
+    companyName: json['companyName'] as String?,
     allowedCompanyIds:
         (json['allowedCompanyIds'] as List?)
             ?.whereType<num>()
@@ -79,7 +90,8 @@ final class AuthServiceResult {
 }
 
 abstract interface class ActiveIdentityReader {
-  Future<({int companyId, List<int> allowedCompanyIds})> read(AppScope scope);
+  Future<({int companyId, String? companyName, List<int> allowedCompanyIds})>
+  read(AppScope scope);
 }
 
 abstract interface class CapabilitySnapshotPort {
@@ -270,6 +282,7 @@ final class NativeAuthService {
           installationId: profile.installationId,
           credentialReference: profile.credentialReference,
           companyId: identity.companyId,
+          companyName: identity.companyName,
           allowedCompanyIds: identity.allowedCompanyIds,
         );
         await _saveProfile(effectiveProfile);
@@ -492,6 +505,7 @@ final class NativeAuthService {
       installationId: profile.installationId,
       credentialReference: profile.credentialReference,
       companyId: identity.companyId,
+      companyName: identity.companyName,
       allowedCompanyIds: identity.allowedCompanyIds,
     );
     await _saveProfile(enriched);
@@ -541,6 +555,7 @@ final class NativeAuthService {
           installationId: profile.installationId,
           credentialReference: profile.credentialReference,
           companyId: identity.companyId,
+          companyName: identity.companyName,
           allowedCompanyIds: identity.allowedCompanyIds,
         );
         await _saveProfile(refreshed);
