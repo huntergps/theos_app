@@ -64,7 +64,18 @@ void main() {
         permissions: const ['administrator', 'sync'],
       );
       final fakeSync = _FakeSyncCenterPort(
-        SyncCenterSnapshot(sync: SyncSnapshot(conflictCount: 1)),
+        SyncCenterSnapshot(
+          sync: SyncSnapshot(
+            conflicts: [
+              SyncConflict(
+                jobId: 'operations',
+                documentLabel: 'sale.order #482',
+                message:
+                    'El servidor cambió este registro después de encolarlo.',
+              ),
+            ],
+          ),
+        ),
       );
       final container = ProviderContainer(
         overrides: [

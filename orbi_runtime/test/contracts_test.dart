@@ -93,7 +93,42 @@ void main() {
 
   test('SyncSnapshot rejects negative counters in release semantics', () {
     expect(() => SyncSnapshot(queuedCount: -1), throwsArgumentError);
-    expect(() => SyncSnapshot(conflictCount: -1), throwsArgumentError);
+  });
+
+  // `conflictCount` tenía el mismo defecto que tuvo `failedCount`: era un
+  // entero suelto que `SyncCoordinatorImpl` sólo se copiaba a sí mismo de un
+  // snapshot al siguiente sin que nada lo calculara, así que se quedaba en
+  // cero para siempre aunque el detector real sí producía conflictos. Ahora
+  // se deriva del detalle, igual que `failedCount`.
+  test('los conflictos de sincronización llevan su detalle, no sólo su número', () {
+    final snapshot = SyncSnapshot(
+      conflicts: [
+        SyncConflict(
+          jobId: 'operations',
+          documentLabel: 'sale.order #482',
+          message: 'El servidor cambió este registro después de encolarlo.',
+        ),
+      ],
+    );
+    expect(snapshot.conflictCount, 1);
+    expect(snapshot.conflicts.first.jobId, 'operations');
+    expect(snapshot.conflicts.first.documentLabel, 'sale.order #482');
+    expect(SyncSnapshot().conflictCount, 0);
+  });
+
+  test('un conflicto sin trabajo, documento o mensaje no se acepta', () {
+    expect(
+      () => SyncConflict(jobId: '', documentLabel: 'sale.order #1', message: 'x'),
+      throwsArgumentError,
+    );
+    expect(
+      () => SyncConflict(jobId: 'operations', documentLabel: '', message: 'x'),
+      throwsArgumentError,
+    );
+    expect(
+      () => SyncConflict(jobId: 'operations', documentLabel: 'sale.order #1', message: ''),
+      throwsArgumentError,
+    );
   });
 
   // `failedCount` ya no se puede pasar suelto: se deriva del detalle. Así no

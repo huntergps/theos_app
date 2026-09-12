@@ -1,4 +1,10 @@
-import 'package:odoo_sdk/odoo_sdk.dart';
+// `odoo_sdk` has its own unused `SyncConflict<T>` (see
+// `odoo_sdk/lib/src/model/conflict_resolution.dart`: only its own test and
+// `manager_conflicts_mixin.dart` reference it, nothing wires it to the real
+// queue). This file's conflict type is `../contracts.dart`'s `SyncConflict`,
+// which is what actually reaches `SyncCoordinatorImpl`, so the SDK's name is
+// hidden here rather than renaming the live one.
+import 'package:odoo_sdk/odoo_sdk.dart' hide SyncConflict;
 
 import '../contracts.dart';
 import '../session/session_runtime.dart';
@@ -113,6 +119,10 @@ final class OperationsSyncJob implements SyncJob {
               StateError(
                 'Operation drain failed=${result.failed}, conflicts=${result.conflicts.length}',
               ),
+              conflicts: [
+                for (final conflict in result.conflicts)
+                  _toSyncConflict(id, conflict),
+              ],
             );
     } catch (error) {
       return SyncJobResult.failed(error);
@@ -178,6 +188,25 @@ final class OperationsSyncJob implements SyncJob {
   }
 
   Future<void> dispose() => _processor.shutdown();
+}
+
+/// Proyecta el [ConflictInfo] real del SDK (modelo, registro, valores local y
+/// de servidor) al [SyncConflict] mínimo que cruza a `SyncSnapshot`. La
+/// comparación de campos completa sigue viviendo en `queueSnapshot().conflicts`
+/// para la pantalla de resolución (SYN-03); esto es sólo lo que el centro de
+/// sincronización necesita para decir qué hay y contra qué documento.
+SyncConflict _toSyncConflict(String jobId, ConflictInfo info) {
+  final document = info.recordId == null
+      ? info.model
+      : '${info.model} #${info.recordId}';
+  return SyncConflict(
+    jobId: jobId,
+    documentLabel: document,
+    message:
+        'El servidor cambió este registro después de que se encoló '
+        'localmente (local: ${info.localWriteDate.toIso8601String()}, '
+        'servidor: ${info.serverWriteDate.toIso8601String()}).',
+  );
 }
 
 final class OperationsQueueSnapshot {

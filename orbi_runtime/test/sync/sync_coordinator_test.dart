@@ -164,6 +164,40 @@ void main() {
     },
   );
 
+  // Antes de este arreglo, `SyncSnapshot.conflictCount` era un entero que
+  // `_snapshotFor` sólo se copiaba a sí mismo de un snapshot al siguiente:
+  // nada en el coordinador leía `result.conflicts`, así que este número se
+  // quedaba en el cero inicial sin importar cuántos conflictos detectara el
+  // trabajo. El botón "Abrir conflictos" de `sync_center.dart` depende de
+  // este contador, así que nunca aparecía.
+  test('job conflict is visible with its detail, not just a count', () async {
+    final coordinator = SyncCoordinatorImpl(
+      jobs: [
+        _Job(
+          'operations',
+          (_) async => SyncJobResult.failed(
+            'conflict',
+            conflicts: [
+              SyncConflict(
+                jobId: 'operations',
+                documentLabel: 'sale.order #482',
+                message:
+                    'El servidor cambió este registro después de encolarlo.',
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+    await coordinator.start(scope(1));
+    expect(coordinator.snapshot.conflictCount, 1);
+    expect(
+      coordinator.snapshot.conflicts.single.documentLabel,
+      'sale.order #482',
+    );
+    await coordinator.dispose();
+  });
+
   test('job IDs must be non-empty and unique', () {
     expect(
       () => SyncCoordinatorImpl(

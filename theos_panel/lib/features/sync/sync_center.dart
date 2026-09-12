@@ -190,8 +190,23 @@ class SyncCenterView extends ConsumerWidget {
               ),
             ),
         ],
-        if (snapshot.sync.conflictCount > 0)
+        // Mismo patrón que los fallos: el número solo no dice contra qué
+        // documento hay que resolver nada.
+        if (snapshot.sync.conflicts.isNotEmpty) ...[
           Text('Conflictos: ${snapshot.sync.conflictCount}'),
+          const SizedBox(height: 4),
+          for (final conflict in snapshot.sync.conflicts)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 4),
+              child: CopyableMessagePanel(
+                message: CopyableMessage(
+                  title: conflict.documentLabel,
+                  body: conflict.message,
+                  severity: OrbiMessageSeverity.warning,
+                ),
+              ),
+            ),
+        ],
         if (snapshot.sync.conflictCount > 0 && onOpenConflicts != null)
           Align(
             alignment: Alignment.centerLeft,

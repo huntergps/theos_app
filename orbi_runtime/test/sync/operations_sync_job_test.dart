@@ -133,7 +133,14 @@ void main() {
         await job.dispose();
         await db.close();
       });
-      await job.run(_scope());
+      final result = await job.run(_scope());
+      // El resultado del trabajo, no sólo `queueSnapshot()`, es lo que llega
+      // al coordinador (`SyncCoordinatorImpl._drainOnce` sólo lee
+      // `result.conflicts`) — sin esto el conflicto nunca cruza a
+      // `SyncSnapshot.conflictCount`.
+      expect(result.conflicts, hasLength(1));
+      expect(result.conflicts.single.jobId, 'operations');
+      expect(result.conflicts.single.documentLabel, 'sale.order');
       final snapshot = await job.queueSnapshot();
       expect(snapshot.conflict, 1);
       // The recovery screen needs the actual conflict detail to compare

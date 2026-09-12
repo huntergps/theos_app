@@ -181,23 +181,59 @@ final class SyncFailure {
   final String message;
 }
 
+/// Un conflicto de sincronización detectado hoy, con lo suficiente para
+/// decírselo a alguien.
+///
+/// Antes de esto, `SyncSnapshot.conflictCount` era un entero que
+/// `SyncCoordinatorImpl._snapshotFor` sólo se copiaba a sí mismo de un
+/// snapshot al siguiente — nada en el coordinador lo asignaba jamás, así que
+/// se quedaba en el cero inicial para siempre. El detector real
+/// (`OperationsSyncJob` sobre `OfflineQueueProcessor` de `odoo_sdk`) sí
+/// produce el `ConflictInfo` completo —modelo, registro, valores local y de
+/// servidor— pero ese detalle no cruzaba nunca desde el resultado del
+/// trabajo hasta el snapshot que la pantalla lee: `SyncJobResult` no tenía
+/// dónde llevarlo. `SyncConflict` es ese lugar, con la misma forma mínima que
+/// [SyncFailure].
+final class SyncConflict {
+  SyncConflict({
+    required String jobId,
+    required String documentLabel,
+    required String message,
+  }) : jobId = _required(jobId, 'jobId'),
+       documentLabel = _required(documentLabel, 'documentLabel'),
+       message = _required(message, 'message');
+
+  /// El trabajo que lo detectó, igual que en [SyncFailure].
+  final String jobId;
+
+  /// Contra qué documento, para poder decírselo a alguien sin abrir la
+  /// pantalla de detalle: p. ej. "sale.order #482".
+  final String documentLabel;
+
+  /// Qué hay que resolver, sin interpretar.
+  final String message;
+}
+
 final class SyncSnapshot {
   SyncSnapshot({
     this.active = false,
     int queuedCount = 0,
-    int conflictCount = 0,
     List<SyncFailure> failures = const [],
+    List<SyncConflict> conflicts = const [],
     this.lastCompletedAt,
   }) : queuedCount = _nonNegative(queuedCount, 'queuedCount'),
-       conflictCount = _nonNegative(conflictCount, 'conflictCount'),
-       failures = List.unmodifiable(failures);
+       failures = List.unmodifiable(failures),
+       conflicts = List.unmodifiable(conflicts);
 
   final bool active;
   final int queuedCount;
-  final int conflictCount;
 
   /// Qué falló, no sólo cuánto. Vacía cuando no falló nada.
   final List<SyncFailure> failures;
+
+  /// Qué conflicto y contra qué documento, no sólo cuántos. Vacía cuando no
+  /// hay ninguno.
+  final List<SyncConflict> conflicts;
 
   final DateTime? lastCompletedAt;
 
@@ -205,6 +241,10 @@ final class SyncSnapshot {
   /// independientes, podían contradecirse, que es como se llegó a un contador
   /// sin nada detrás.
   int get failedCount => failures.length;
+
+  /// Igual de derivado, y por la misma razón: separado del detalle, era un
+  /// contador que nadie asignaba y que se quedó siempre en cero.
+  int get conflictCount => conflicts.length;
 }
 
 final class SyncReason {

@@ -112,12 +112,17 @@ final class SyncCoordinatorImpl implements SyncCoordinator {
     // El error del trabajo se conserva entero. Contarlo y tirarlo era lo que
     // dejaba a la pantalla sin poder decir qué había fallado.
     final failures = <SyncFailure>[];
+    // Igual con los conflictos: antes de esto, `result.conflicts` existía en
+    // el trabajo pero nada del coordinador lo leía, así que
+    // `SyncSnapshot.conflictCount` nunca se movía del cero inicial.
+    final conflicts = <SyncConflict>[];
     _publish(_snapshotFor(active: true));
     for (final job in _jobs) {
       if (!_isCurrent(scope, epoch)) return;
       try {
         final result = await job.run(scope);
         if (!_isCurrent(scope, epoch)) return;
+        conflicts.addAll(result.conflicts);
         if (!result.cursorConfirmed) {
           failures.add(
             SyncFailure(
@@ -133,7 +138,12 @@ final class SyncCoordinatorImpl implements SyncCoordinator {
     }
     if (_isCurrent(scope, epoch)) {
       _publish(
-        _snapshotFor(active: false, failures: failures, completed: true),
+        _snapshotFor(
+          active: false,
+          failures: failures,
+          conflicts: conflicts,
+          completed: true,
+        ),
       );
     }
   }
@@ -156,13 +166,14 @@ final class SyncCoordinatorImpl implements SyncCoordinator {
   SyncSnapshot _snapshotFor({
     required bool active,
     List<SyncFailure>? failures,
+    List<SyncConflict>? conflicts,
     bool completed = false,
   }) {
     return SyncSnapshot(
       active: active,
       queuedCount: _pending ? _jobs.length : 0,
       failures: failures ?? _snapshot.failures,
-      conflictCount: _snapshot.conflictCount,
+      conflicts: conflicts ?? _snapshot.conflicts,
       lastCompletedAt: completed
           ? DateTime.now().toUtc()
           : _snapshot.lastCompletedAt,
