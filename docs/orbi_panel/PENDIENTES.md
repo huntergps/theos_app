@@ -4,7 +4,7 @@ Este archivo existe porque las cosas se estaban perdiendo en la conversación. L
 que no está aquí, no está comprometido con nadie. Se actualiza en cuanto algo
 entra o sale, no al final de la sesión.
 
-Última actualización: 2026-09-12, tarde. El dueño respondió D2, D3, D5 y D7.
+Última actualización: 2026-09-12, noche. Orbi migrada a Fluent y desplegada en mepriga.
 
 ## Esperan una decisión del dueño
 
@@ -13,6 +13,21 @@ antes de seguir trabajando en lo que dependa de ella.
 
 ## Resueltas, para que no se vuelvan a preguntar
 
+- 🟢 **Orbi ya no usa Material: es `fluent_ui` entero** (12-sep-2026), por
+  decisión del dueño que revocó mi recomendación contraria. Cero importaciones de
+  Material en las 94 fuentes, y el tema viejo borrado en vez de dejado por si
+  acaso. El marco, el listado y el formulario son ahora piezas compartidas y
+  obligatorias, así que ninguna pantalla se fabrica su cabecera. El acento sale
+  del color exacto que usa Odoo en esta instalación, leído de su módulo de tema.
+  Compuertas en verde: 242 pruebas de runtime, 653 de aplicación, 1.152 de la
+  aplicación madura.
+  - **Lo que más costó no fue convertir, fue lo que apareció al hacerlo.** En
+    pantalla estrecha **no había forma de abrir el menú** y la persona quedaba
+    encerrada; el listado compartido **no enseñaba ni una fila**; el botón de
+    Excel **no producía ningún fichero**; los once mapeos de catálogo se rompían
+    porque Odoo manda `false` en un texto vacío; y avisos se rendía antes de
+    tocar la red. Ninguno lo cazó una prueba: todos salieron **abriendo la
+    aplicación**.
 - 🟢 **Los «5 con error» del pie, explicados y arreglados** (12-sep-2026). No eran
   permisos ni el dominio de origen, que eran mis dos hipótesis, y las dos cayeron con
   medición. Eran **cuatro catálogos pidiendo al servidor cosas que no tiene**, desde el
@@ -236,6 +251,29 @@ es rápido de arreglar y fácil de olvidar.
   restringen los valores vacíos.
 - Colateral: la aplicación vieja **se niega a emitir sin conexión** mientras
   falte esa marca, así que su camino sin conexión ni siquiera arranca en ERP2.
+
+## Orbi en mepriga, y lo que ERP2 debe a cambio
+
+Desplegada el 12-sep-2026 por orden del dueño, para probar envases:
+`https://mepriga.galapagos.tech/orbi/` responde 200, la ruta de credencial
+existe, el origen cruzado está abierto y la base se llama `envases`. El listado
+de bases está apagado ahí, que es lo correcto: se escribe el nombre a mano.
+
+- **Hubo que partir el conector.** El módulo que traía la página de Orbi depende
+  de ventas, contabilidad, inventario y la localización ecuatoriana entera, y esa
+  instancia **sólo lleva envases**: instalarlo habría cambiado lo que es esa
+  instalación. Los tres controladores que hacen falta —página, credencial y
+  cabeceras— **no tocan ni un modelo de negocio**, así que se **movieron** (no se
+  copiaron) a `l10n_ec_orbi_web`, y el conector grande depende de él.
+- 🔴 **ERP2 debe una actualización.** Su conector ya no trae esos controladores,
+  así que hay que instalar `l10n_ec_orbi_web` y actualizar
+  `l10n_ec_collection_box_pos` allí, o dejará de servir Orbi.
+- **Los ganchos del repositorio reescribían el paquete compilado**, quitándole
+  espacios a `main.dart.js` y a los ficheros de dibujo. Eso es editar un
+  binario. Ya están excluidos.
+- **Falta que el usuario de prueba tenga el grupo de envases.** Los dos grupos
+  existen («Envases / Usuario» y «Envases / Gerencia»). Sin él, Orbi **no dice
+  por qué**: se comporta como si el área no existiera.
 
 ## Envases: el contrato de Odoo cambió y el mío se quedó corto
 
