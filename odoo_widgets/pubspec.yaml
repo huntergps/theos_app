@@ -12,6 +12,12 @@ dependencies:
     sdk: flutter
   fluent_ui: ^4.16.1
   intl: ^0.20.3
+  # El listado estándar vive aquí para que las DOS aplicaciones usen el mismo,
+  # en vez de que cada una se fabrique el suyo: la duplicación entre ellas ya
+  # costó cara y está fichada. Las mismas versiones que `theos_pos`.
+  syncfusion_flutter_core: ^34.2.5
+  syncfusion_flutter_datagrid: ^34.2.5
+  syncfusion_flutter_datagrid_export: ^34.2.5
 
 dev_dependencies:
   flutter_test:

@@ -32,3 +32,7 @@ export 'src/composite/odoo_summary_row.dart';
 // Builders
 export 'src/builders/odoo_content_builder.dart';
 export 'src/builders/odoo_record_builder.dart';
+
+// El listado estándar, compartido por las dos aplicaciones.
+export 'src/listing/orbi_listing.dart';
+export 'src/listing/orbi_form.dart';
