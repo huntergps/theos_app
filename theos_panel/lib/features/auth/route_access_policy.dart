@@ -20,9 +20,20 @@ final class RouteAccessPolicy {
     // pending or unavailable; gated business routes stay closed.
     if (capabilities == null) return path == '/' || path == '/settings';
     final permissions = capabilities.permissions;
-    if (path == '/collection') return permissions.contains('cashier');
-    if (path == '/warehouse') return permissions.contains('warehouse');
-    if (path == '/envases') return permissions.contains('envases_read');
+    // Match the area prefix, not just the exact path. An area screen that
+    // lives under its own route (for example the cash shift hub) was
+    // otherwise unreachable: it fell through to the catch-all below and got
+    // redirected home. A child route needing a DIFFERENT permission than its
+    // area must be declared above this block, or it will inherit this one.
+    if (path == '/collection' || path.startsWith('/collection/')) {
+      return permissions.contains('cashier');
+    }
+    if (path == '/warehouse' || path.startsWith('/warehouse/')) {
+      return permissions.contains('warehouse');
+    }
+    if (path == '/envases' || path.startsWith('/envases/')) {
+      return permissions.contains('envases_read');
+    }
     if (path == '/sales' || path.startsWith('/sales/')) {
       return permissions.contains('seller') || permissions.contains('cashier');
     }

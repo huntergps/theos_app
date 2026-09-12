@@ -10,6 +10,7 @@ import '../features/auth/login_screen.dart';
 import '../features/auth/route_access_policy.dart';
 import '../features/collection/collection_screen.dart';
 import '../features/collection/collection_contracts.dart';
+import '../features/collection/collection_session_hub_screen.dart';
 import '../features/approvals/approval_contracts.dart';
 import '../features/approvals/approvals_screen.dart';
 import '../features/notifications/notification_inbox.dart';
@@ -686,6 +687,91 @@ final orbiRouterProvider = Provider<GoRouter>((ref) {
                           collectionFinancialActionsProvider,
                         ),
                       ),
+                    ),
+                  ),
+                );
+              },
+            ),
+          ),
+          GoRoute(
+            path: '/collection/hub',
+            builder: (context, state) => Consumer(
+              builder: (context, ref, _) {
+                final shift = ref.watch(scopeCollectionShiftFutureProvider);
+                final profile = ref.watch(authControllerProvider).profile;
+                final capabilities = ref.watch(
+                  scopeCollectionCapabilitiesProvider,
+                );
+                return shift.when(
+                  loading: () => const NotConfiguredPage(
+                    title: 'Caja',
+                    detail: 'Cargando turno y punto de cobro…',
+                  ),
+                  error: (error, stack) =>
+                      NotConfiguredPage(title: 'Caja', detail: '$error'),
+                  data: (currentShift) => CollectionSessionHubScreen(
+                    point: CollectionPointContext(
+                      // No hay hoy un mapeo de `collection.session.config_id`
+                      // a un nombre de punto (CAJA-BODEGA-01, sección
+                      // CAJ-09-v2); se usa el rótulo genérico ya usado para
+                      // esta área en el menú en vez de inventar uno.
+                      pointLabel: 'Punto de cobro',
+                      cashierLabel: profile?.login,
+                    ),
+                    shift: currentShift,
+                    // Anticipo/depósito/salida de efectivo ya viven dentro de
+                    // Caja (CAJ-05/06/07); retención SRI (CAJ-04-v2) sigue
+                    // sin conectar a propósito, así que no aparece aquí.
+                    turnActions: [
+                      CollectionHubAction(
+                        label: 'Anticipo',
+                        description:
+                            'Registrar un anticipo del cliente contra la sesión.',
+                        icon: Icons.savings_outlined,
+                        availability:
+                            capabilities.supports(CollectionCapability.advances)
+                            ? CollectionHubActionAvailability.available
+                            : CollectionHubActionAvailability.forbidden,
+                        onOpen: () => context.go('/collection'),
+                      ),
+                      CollectionHubAction(
+                        label: 'Depósito',
+                        description: 'Registrar un depósito de la sesión.',
+                        icon: Icons.account_balance_outlined,
+                        availability:
+                            capabilities.supports(CollectionCapability.deposits)
+                            ? CollectionHubActionAvailability.available
+                            : CollectionHubActionAvailability.forbidden,
+                        onOpen: () => context.go('/collection'),
+                      ),
+                      CollectionHubAction(
+                        label: 'Salida de efectivo',
+                        description: 'Registrar una salida de efectivo de la sesión.',
+                        icon: Icons.outbond_outlined,
+                        availability:
+                            capabilities.supports(CollectionCapability.cashOuts)
+                            ? CollectionHubActionAvailability.available
+                            : CollectionHubActionAvailability.forbidden,
+                        onOpen: () => context.go('/collection'),
+                      ),
+                    ],
+                    // CAJ-02 (registros del turno) todavía no tiene pantalla
+                    // propia: se deja sin `onOpen` a propósito, nunca un
+                    // destino inventado.
+                    recordActions: const [
+                      CollectionHubAction(
+                        label: 'Registros del turno',
+                        description:
+                            'Órdenes, facturas y pagos de la sesión abierta.',
+                        icon: Icons.list_alt_outlined,
+                      ),
+                    ],
+                    closing: CollectionHubAction(
+                      label: 'Ir a cierre',
+                      description:
+                          'Iniciar el control de cierre de la sesión actual.',
+                      icon: Icons.lock_clock_outlined,
+                      onOpen: () => context.go('/collection'),
                     ),
                   ),
                 );
