@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter_svg/flutter_svg.dart';
+import 'package:orbi_runtime/orbi_runtime.dart';
 import 'package:theos_panel/ui/layouts/operational_shell.dart';
 
 const _context = OperationalContext(
@@ -232,6 +233,104 @@ void main() {
             .first,
       );
       expect(container.color, const Color(0xFF1B1D1F));
+    },
+  );
+
+  Color dotColor(WidgetTester tester, Finder footer) {
+    final dot = tester.widget<Container>(
+      find
+          .descendant(
+            of: footer,
+            matching: find.byWidgetPredicate(
+              (widget) =>
+                  widget is Container &&
+                  widget.decoration is BoxDecoration &&
+                  (widget.decoration as BoxDecoration).shape ==
+                      BoxShape.circle,
+            ),
+          )
+          .first,
+    );
+    return (dot.decoration as BoxDecoration).color!;
+  }
+
+  testWidgets(
+    'a measured ConnectionStatus overrides the legacy label/color guess — '
+    'three real states rendered distinctly, never an optimistic default',
+    (tester) async {
+      Future<void> pumpContext(OperationalContext context) async {
+        await tester.pumpWidget(
+          MaterialApp(
+            home: MediaQuery(
+              data: const MediaQueryData(size: Size(1440, 900)),
+              child: OperationalShell(
+                destinations: _destinations,
+                selectedPath: '/sales',
+                onNavigate: (_) {},
+                context: context,
+                onLogout: () {},
+                child: const Center(child: Text('Contenido operativo')),
+              ),
+            ),
+          ),
+        );
+        await tester.pump();
+      }
+
+      await tester.binding.setSurfaceSize(const Size(1440, 900));
+      addTearDown(() => tester.binding.setSurfaceSize(null));
+
+      // Sin red: el dispositivo no tiene transporte. Nunca verde, nunca el
+      // mismo texto que "con red pero sin servidor".
+      await pumpContext(
+        const OperationalContext(
+          server: 'erp.test',
+          database: 'orbi_test',
+          userLabel: 'Erik',
+          companyLabel: 'Empresa Demo',
+          connectionLabel: 'placeholder legacy, ignorado cuando hay status',
+          connectionStatus: ConnectionStatus.offline,
+          syncLabel: '3 pendientes',
+        ),
+      );
+      final footer = find.bySemanticsLabel('Información de conexión');
+      expect(find.text('Sin red'), findsOneWidget);
+      expect(dotColor(tester, footer), Colors.red);
+
+      // Con red pero sin servidor: texto y color distintos de "sin red".
+      await pumpContext(
+        const OperationalContext(
+          server: 'erp.test',
+          database: 'orbi_test',
+          userLabel: 'Erik',
+          companyLabel: 'Empresa Demo',
+          connectionLabel: 'placeholder legacy, ignorado cuando hay status',
+          connectionStatus: ConnectionStatus.backendUnreachable,
+          syncLabel: '3 pendientes',
+        ),
+      );
+      expect(find.text('Red sin servidor'), findsOneWidget);
+      expect(find.text('Sin red'), findsNothing);
+
+      // Todo bien: verde, y sólo verde para este caso.
+      await pumpContext(
+        const OperationalContext(
+          server: 'erp.test',
+          database: 'orbi_test',
+          userLabel: 'Erik',
+          companyLabel: 'Empresa Demo',
+          connectionLabel: 'placeholder legacy, ignorado cuando hay status',
+          connectionStatus: ConnectionStatus.online,
+          syncLabel: '3 pendientes',
+        ),
+      );
+      expect(find.text('Conectado'), findsOneWidget);
+      expect(dotColor(tester, footer), Colors.green);
+
+      // No inventa un estado optimista: sin status medido, cae al texto
+      // legacy — nunca "Conectado" por defecto.
+      await pumpContext(_context);
+      expect(find.text('Conectado'), findsOneWidget);
     },
   );
 

@@ -88,3 +88,68 @@ final class BackendProbeResult {
 abstract interface class BackendProbe {
   Future<BackendProbeResult> probe(AppScope scope);
 }
+
+/// The states the operational shell's footer can honestly show for the
+/// connection. Three real cases, plus the honest admission that nothing has
+/// been measured yet — never an optimistic default.
+enum ConnectionStatus {
+  /// Nothing has been measured yet: no [NetworkSignal] has arrived, or one
+  /// arrived but the backend has never been probed. This is what "Red sin
+  /// verificar" should mean literally — a fact about measurement, not a
+  /// permanent placeholder.
+  unknown,
+
+  /// The device itself reports no network transport at all. This is the one
+  /// case [ConnectivityMonitor] can answer with confidence on every platform
+  /// except the web, where it can only ever report "the OS has an
+  /// interface" (`navigator.onLine`) — it cannot see a dead Wi-Fi router or a
+  /// cut cable behind a live interface.
+  offline,
+
+  /// There is a network transport, but the last backend probe did not get a
+  /// reachable answer (timeout, connection refused, 5xx, ...). Distinct from
+  /// [offline] on purpose: this is "the wifi is fine, the Odoo is down".
+  backendUnreachable,
+
+  /// There is a network transport and the backend answered, but rejected the
+  /// current credentials.
+  backendUnauthorized,
+
+  /// There is a network transport and the backend answered normally.
+  online,
+}
+
+/// Combines a device [NetworkSignal] with the most recent [BackendProbeResult]
+/// into one [ConnectionStatus].
+///
+/// Deliberately a pure function of its two inputs: it never talks to a
+/// plugin or the network itself, so every branch is testable with literal
+/// values instead of faking a platform channel or an HTTP call.
+final class ConnectionStatusResolver {
+  const ConnectionStatusResolver();
+
+  ConnectionStatus resolve({
+    required NetworkSignal? network,
+    required BackendProbeResult? backendProbe,
+  }) {
+    if (network == null) return ConnectionStatus.unknown;
+    if (!network.hasNetwork) return ConnectionStatus.offline;
+    if (backendProbe == null) return ConnectionStatus.unknown;
+    return switch (backendProbe.state) {
+      BackendProbeState.reachable => ConnectionStatus.online,
+      BackendProbeState.unreachable => ConnectionStatus.backendUnreachable,
+      BackendProbeState.unauthorized => ConnectionStatus.backendUnauthorized,
+    };
+  }
+}
+
+/// The Spanish label the operational shell's footer renders for [status].
+/// Kept next to the enum so the two can never drift apart, and so nothing
+/// else in the app has to reinvent this wording.
+String connectionStatusLabel(ConnectionStatus status) => switch (status) {
+  ConnectionStatus.unknown => 'Red sin verificar',
+  ConnectionStatus.offline => 'Sin red',
+  ConnectionStatus.backendUnreachable => 'Red sin servidor',
+  ConnectionStatus.backendUnauthorized => 'Servidor sin autorizar',
+  ConnectionStatus.online => 'Conectado',
+};

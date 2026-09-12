@@ -9,6 +9,7 @@ import 'package:orbi_runtime/orbi_runtime.dart' show AuthProfile;
 import 'auth_controller.dart';
 import 'login_failure_messages.dart';
 import 'login_preferences.dart';
+import 'pin_login_screen.dart';
 import 'session_provenance.dart';
 import 'saved_servers.dart';
 import 'server_manager_dialog.dart';
@@ -395,6 +396,16 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   bool _apiKeyMode = false;
   bool _saveCredential = false;
 
+  /// ACC-02's door, opened from here. Toggled purely by local widget state —
+  /// deliberately NOT a GoRoute: `/login` is the one pre-authentication path
+  /// RouteAccessPolicy and its own reachability tests know about
+  /// (route_access_policy_area_test.dart), and PIN only ever makes sense as a
+  /// sibling of this very form, never as an address someone could type or
+  /// bookmark on its own. See pin_login_screen.dart's class doc: it never
+  /// imports app/router, so this screen owns the way back exactly like it
+  /// owns the way in.
+  bool _pinMode = false;
+
   // The database travels with the saved server, not with anything the user
   // types: it is resolved the moment an environment is selected, and never
   // rendered anywhere in this form. See saved_servers.dart and
@@ -610,8 +621,29 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     });
   }
 
+  /// Returns to the credentials form. Shared by ACC-02's three ways out
+  /// (granted, cancelled, "use credentials instead") so none of them can
+  /// diverge from the others.
+  void _leavePinMode() {
+    if (!mounted) return;
+    setState(() => _pinMode = false);
+  }
+
   @override
   Widget build(BuildContext context) {
+    if (_pinMode) {
+      // PinLoginScreen owns its own Scaffold/background — it is a sibling
+      // screen, not a section nested inside this one's Card. Once it grants
+      // access, authControllerProvider becomes authenticated/restored and
+      // orbi_app.dart's own `ref.watch(orbiRouterProvider)` swaps in the
+      // authenticated router on its own, the same way a normal credentials
+      // login already does without an explicit navigation call here.
+      return PinLoginScreen(
+        onSellerAccessGranted: _leavePinMode,
+        onCancel: _leavePinMode,
+        onUseCredentials: _leavePinMode,
+      );
+    }
     final state = ref.watch(authControllerProvider);
     final theme = Theme.of(context);
     final colors = theme.colorScheme;
@@ -882,6 +914,19 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
         }
       },
     );
+    // ACC-02's way in. Placed in the SAME row as the theme toggle, not as a
+    // row of its own: this row's height (kMinInteractiveDimension) is already
+    // part of _estimateNormalModeContentHeight's fixed budget, and a second
+    // affordance stacked below it would grow the real form without growing
+    // that estimate, silently drifting the compact/normal boundary the
+    // CASE 1-3 tests below pin down. Sharing the row keeps that budget true
+    // with no new term to add or forget.
+    final pinModeButton = IconButton(
+      key: const Key('login-pin-mode-button'),
+      tooltip: 'Modo vendedor (PIN)',
+      icon: const Icon(Icons.pin_outlined),
+      onPressed: () => setState(() => _pinMode = true),
+    );
     // The submit button (and the header above it) must never end up behind
     // the translucent credit footer, no matter how short the window is. Only
     // the fields+toggles in between are allowed to scroll: they sit in a
@@ -897,7 +942,10 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       // ("Gestionar servidores"). That control now lives inside the server
       // selector itself (see _buildServerSelector), so this row only ever
       // holds the theme toggle, in both compact and normal styling.
-      Align(alignment: AlignmentDirectional.centerEnd, child: themeToggle),
+      Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [pinModeButton, themeToggle],
+      ),
       SizedBox(height: compactHeight ? OrbiTheme.space8 : OrbiTheme.space12),
       OrbiBrand(height: logoHeight, color: colors.primary),
       const SizedBox(height: OrbiTheme.space16),

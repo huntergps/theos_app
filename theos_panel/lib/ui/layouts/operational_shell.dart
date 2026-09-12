@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:orbi_runtime/orbi_runtime.dart'
+    show ConnectionStatus, connectionStatusLabel;
 
 import '../../app/theme/orbi_theme.dart';
 import '../components/orbi_brand.dart';
@@ -51,6 +53,7 @@ final class OperationalContext {
     required this.companyLabel,
     this.serverTime,
     required this.connectionLabel,
+    this.connectionStatus,
     required this.syncLabel,
   });
 
@@ -59,7 +62,21 @@ final class OperationalContext {
   final String userLabel;
   final String companyLabel;
   final String? serverTime;
+
+  /// Legacy, string-only connection text. Rendered only when
+  /// [connectionStatus] is `null` — kept so a caller that has not been
+  /// wired to a real measurement yet still compiles and still shows
+  /// something, never silently dropped.
   final String connectionLabel;
+
+  /// The measured connection state, when a caller actually has one to give.
+  /// `null` means exactly what it says: nothing has been measured, so the
+  /// footer falls back to [connectionLabel] rather than guessing a color
+  /// from its text. See `ConnectionStatusResolver` in `orbi_runtime` for how
+  /// this is meant to be produced — from a real `NetworkSignal` and
+  /// `BackendProbeResult`, never invented here.
+  final ConnectionStatus? connectionStatus;
+
   final String syncLabel;
 }
 
@@ -424,10 +441,7 @@ final class OperationalShell extends StatelessWidget {
           child: InkWell(
             borderRadius: BorderRadius.circular(12),
             onTap: onTap,
-            child: SizedBox(
-              height: 48,
-              child: Icon(icon, semanticLabel: ''),
-            ),
+            child: SizedBox(height: 48, child: Icon(icon, semanticLabel: '')),
           ),
         ),
       ),
@@ -561,10 +575,10 @@ final class OperationalShell extends StatelessWidget {
                 this.context.serverTime ?? 'sin dato',
               ),
               _footerGap(),
-              _statusDot(_statusColorFor(this.context.connectionLabel)),
+              _statusDot(_connectionColor()),
               const SizedBox(width: 6),
               Text(
-                this.context.connectionLabel,
+                _connectionText(),
                 style: const TextStyle(color: _footerForeground),
               ),
               _footerGap(),
@@ -596,12 +610,46 @@ final class OperationalShell extends StatelessWidget {
     decoration: BoxDecoration(color: color, shape: BoxShape.circle),
   );
 
-  /// Honest, not decorative: green only for a label this shell actually
-  /// knows means connected. Today's `connectionLabel` is always the "sin
-  /// verificar" placeholder (see `router.dart` — wiring real connectivity is
-  /// its own tracked defect, not something to fake green here), so this
-  /// renders amber for that case rather than inventing a status the app has
-  /// not verified. The rule is ready for the day that binding lands.
+  /// The text this footer actually shows: the measured
+  /// [OperationalContext.connectionStatus] when there is one, its own fixed
+  /// Spanish wording per state (`connectionStatusLabel`) — never the caller's
+  /// [OperationalContext.connectionLabel] string once a real status exists,
+  /// so the two can't say different things. Falls back to the legacy string
+  /// only when nothing has been measured, so a caller not yet wired to a
+  /// real signal still shows something instead of nothing.
+  String _connectionText() {
+    final status = context.connectionStatus;
+    return status == null
+        ? context.connectionLabel
+        : connectionStatusLabel(status);
+  }
+
+  /// Honest, not decorative: derived from a measured [ConnectionStatus] when
+  /// there is one — green only for [ConnectionStatus.online], red for the
+  /// two states that mean something is actually broken (no network at all,
+  /// or a network with no server behind it), amber only for "not verified
+  /// yet". Without a measured status this falls back to guessing from the
+  /// legacy [OperationalContext.connectionLabel] string, which is the
+  /// behaviour this shell had before any caller could supply a real
+  /// [ConnectionStatus] — see `ConnectionStatusResolver` in `orbi_runtime`.
+  Color _connectionColor() {
+    final status = context.connectionStatus;
+    if (status != null) return _statusColorForStatus(status);
+    return _statusColorFor(context.connectionLabel);
+  }
+
+  Color _statusColorForStatus(ConnectionStatus status) => switch (status) {
+    ConnectionStatus.online => Colors.green,
+    ConnectionStatus.offline => Colors.red,
+    ConnectionStatus.backendUnreachable => Colors.red,
+    ConnectionStatus.backendUnauthorized => Colors.red,
+    ConnectionStatus.unknown => Colors.amber,
+  };
+
+  /// Legacy fallback, kept only for callers that have not been wired to a
+  /// real [ConnectionStatus] yet (see [_connectionColor]). Guessing a color
+  /// from a free-text label is exactly the fragility this type was
+  /// introduced to retire — do not extend this list, wire the caller instead.
   Color _statusColorFor(String label) {
     final normalized = label.toLowerCase();
     if (normalized.contains('conectado')) return Colors.green;
@@ -611,10 +659,8 @@ final class OperationalShell extends StatelessWidget {
     return Colors.amber;
   }
 
-  Widget _contextItem(String label, String value) => Text(
-    '$label: $value',
-    style: const TextStyle(color: _footerForeground),
-  );
+  Widget _contextItem(String label, String value) =>
+      Text('$label: $value', style: const TextStyle(color: _footerForeground));
 
   Widget _compactContextButton(BuildContext context) => Align(
     alignment: AlignmentDirectional.centerEnd,

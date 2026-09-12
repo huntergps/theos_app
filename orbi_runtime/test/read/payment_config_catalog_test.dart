@@ -17,10 +17,11 @@ final class _PaymentReader implements Json2ReadPort {
     'account.credit.card.brand' => const [
       {'id': 1, 'name': 'Visa', 'code': 'visa'},
     ],
-    // Sin `deadline_days` ni `percentage`: no existen en el modelo real y
-    // pedirlos tumbaba la lectura entera contra un Odoo de verdad.
+    // El plazo va en MESES. `deadline_days` y `percentage` no existen en el
+    // modelo real y pedirlos tumbaba la lectura entera contra un Odoo.
     'account.credit.card.deadline' => const [
-      {'id': 2, 'name': '30 días'},
+      {'id': 2, 'name': '3 meses', 'meses': 3, 'type': 'deferred',
+       'interes': true},
     ],
     'account.card.lote' => const [
       {
@@ -87,15 +88,13 @@ void main() {
       (await second.select(second.accountCreditCardBrand).get()).single.name,
       'Visa',
     );
-    // El plazo llega en cero a propósito: el servidor lo expresa en meses y la
-    // tabla local lo guarda en días, así que hasta que se decida el esquema no
-    // se rellena. La pantalla oculta un cero, de modo que muestra el nombre y
-    // no un número inventado.
     final deadline = (await second
         .select(second.accountCreditCardDeadline)
         .get()).single;
-    expect(deadline.name, '30 días');
-    expect(deadline.deadlineDays, 0);
+    expect(deadline.name, '3 meses');
+    expect(deadline.months, 3);
+    expect(deadline.kind, 'deferred');
+    expect(deadline.hasInterest, isTrue);
     expect(
       (await second.select(second.accountCardLote).get()).single.odooId,
       3,

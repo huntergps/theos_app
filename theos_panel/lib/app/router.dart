@@ -36,6 +36,7 @@ import '../features/products/products_screen.dart';
 import 'preferences/app_preferences.dart';
 import '../features/activities/activity_center.dart';
 import '../features/reports/document_view.dart';
+import '../features/sync/network_signal_provider.dart';
 import '../features/sync/sync_center.dart';
 import '../features/sync/sync_conflict_resolution_screen.dart';
 import '../ui/home_page.dart';
@@ -381,7 +382,13 @@ final scopeSyncCoordinatorProvider = Provider<SyncCoordinatorImpl?>((ref) {
   final composition = ref.watch(scopeCatalogCompositionProvider);
   final active = ref.watch(runtimeSessionProvider)?.active;
   if (composition == null || active == null) return null;
-  final coordinator = SyncCoordinatorImpl(jobs: composition.jobs.values);
+  // El sondeo del servidor ya no es nulo. Mientras lo fue, `BackendProbe` era
+  // una interfaz que nadie implementaba y el pie sólo podía decir «sin
+  // verificar», con el Odoo respondiendo perfectamente.
+  final coordinator = SyncCoordinatorImpl(
+    jobs: composition.jobs.values,
+    backendProbe: Json2BackendProbe(composition.reader),
+  );
   unawaited(coordinator.start(active.scope));
   ref.onDispose(coordinator.dispose);
   return coordinator;
@@ -778,8 +785,18 @@ final orbiRouterProvider = Provider<GoRouter>((ref) {
             // this same inner `Consumer`: it must never force the whole
             // `GoRouter` to rebuild.
             final coordinator = ref.watch(scopeSyncCoordinatorProvider);
+            // Dos medidas, no una suposición: el transporte del aparato y la
+            // respuesta del servidor al último sondeo. Si falta cualquiera de
+            // las dos, el resultado dice «sin verificar», nunca «conectado».
+            // Y en el navegador el transporte casi siempre existe aunque el
+            // Odoo esté caído, así que por sí solo no basta para dar salud.
+            final connectionStatus = const ConnectionStatusResolver().resolve(
+              network: ref.watch(networkSignalProvider).value,
+              backendProbe: coordinator?.lastProbe,
+            );
             return StreamBuilder<SyncSnapshot>(
-              stream: coordinator?.snapshots ?? const Stream<SyncSnapshot>.empty(),
+              stream:
+                  coordinator?.snapshots ?? const Stream<SyncSnapshot>.empty(),
               initialData: coordinator?.snapshot ?? SyncSnapshot(),
               builder: (context, syncSnapshot) => OperationalShell(
                 destinations: destinations,
@@ -796,17 +813,18 @@ final orbiRouterProvider = Provider<GoRouter>((ref) {
                   // numeric placeholder is now only what shows when a profile
                   // predates this field or the reader genuinely could not
                   // resolve one — never the default for an authenticated user.
-                  companyLabel: profile?.companyName ??
+                  companyLabel:
+                      profile?.companyName ??
                       (profile?.companyId == null
                           ? 'Empresa no disponible'
                           : 'Empresa #${profile!.companyId}'),
-                  // Deliberately left as a static "not verified" label, not
-                  // silently wired to a guess: PENDIENTES.md already tracks
-                  // that connectivity detection is declared and unused, and
-                  // fixing that here would be exactly the kind of shortcut
-                  // this project's rules forbid — it needs its own real
-                  // connectivity signal, not a footer-label patch.
-                  connectionLabel: 'Red sin verificar',
+                  // Ya no es una cadena escrita a mano. El estado sale de
+                  // dos medidas: si el aparato tiene transporte de red, y si
+                  // el Odoo contestó al último sondeo. Cuando falta cualquiera
+                  // de las dos, el resultado es «sin verificar» —que es la
+                  // verdad— y nunca «conectado».
+                  connectionLabel: connectionStatusLabel(connectionStatus),
+                  connectionStatus: connectionStatus,
                   syncLabel: _syncStatusLabel(coordinator, syncSnapshot.data),
                 ),
                 onLogout: () async {

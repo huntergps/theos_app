@@ -14,11 +14,16 @@ final class RuntimeCatalogComposition {
   final Map<String, SyncJob> jobs;
   final Map<String, DriftCatalogStore<Map<String, dynamic>>> stores;
 
+  /// El lector que ya se construyó para los catálogos, expuesto para que el
+  /// sondeo del servidor lo reutilice en vez de fabricarse otro cliente.
+  final Json2ReadPort reader;
+
   RuntimeCatalogComposition._({
     required this.activation,
     required this.owner,
     required this.jobs,
     required this.stores,
+    required this.reader,
   });
 
   factory RuntimeCatalogComposition({
@@ -105,6 +110,7 @@ final class RuntimeCatalogComposition {
       owner: owner,
       jobs: jobs,
       stores: stores,
+      reader: effectiveReader,
     );
   }
 

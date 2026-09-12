@@ -11,6 +11,7 @@ export 'src/auth/native_auth_service.dart';
 export 'src/auth/capability_runtime.dart';
 export 'src/auth/runtime_capability_service.dart';
 export 'src/connectivity/connectivity_monitor.dart';
+export 'src/connectivity/json2_backend_probe.dart';
 export 'src/notifications/installation_system_id_registry.dart';
 export 'src/notifications/system_notification_presenter.dart';
 export 'src/notifications/runtime_notification_inbox.dart';

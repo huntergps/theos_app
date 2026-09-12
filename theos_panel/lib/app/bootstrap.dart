@@ -9,6 +9,7 @@ import 'package:orbi_runtime/orbi_runtime.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../features/auth/login_failure_messages.dart';
+import '../features/sync/network_signal_provider.dart';
 import '../features/auth/auth_controller.dart';
 import '../features/auth/session_provenance.dart';
 import '../features/auth/unlock_backend_factory.dart';
@@ -156,10 +157,12 @@ final class WebSessionAuthService
     required this.identityReader,
     required this.capabilityPort,
     required SharedPreferences preferences,
+
     /// Where the issued API key is kept. `null` keeps the historical
     /// tab-lifetime behaviour; the composition root passes the browser's
     /// durable, encrypted store so a reload no longer costs a new login.
     CredentialBackend? credentialBackend,
+
     /// Calls `POST /orbi/auth/token`. `null` leaves password login in the
     /// browser unavailable instead of half-working.
     this.tokenClient,
@@ -194,6 +197,7 @@ final class WebSessionAuthService
   final InstallationIdStore installationIds;
   final ActiveIdentityReader identityReader;
   final CapabilitySnapshotPort capabilityPort;
+
   /// Mints the scoped, expiring API key from a username and password.
   final OrbiWebTokenAuthClient? tokenClient;
   final CredentialBackend _apiKeyBackend;
@@ -694,6 +698,10 @@ Future<Widget> _initializeApplication() async {
       // fails. Registered here so only a real device consults it — see
       // `networkPresenceProbeProvider`.
       networkPresenceProbeOverride,
+      // El mismo motivo, para el pie de la aplicación operativa: sin esta
+      // sustitución no llega ninguna señal y el estado queda en «sin
+      // verificar», que es preferible a inventarlo.
+      networkSignalOverride,
       ...composition.overrides,
       if (offered != null) offeredSessionProvider.overrideWithValue(offered),
       authInitialStateProvider.overrideWithValue(
