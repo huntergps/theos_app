@@ -5,7 +5,7 @@ DART ?= dart
 	run-macos run-web build-ios build-appbundle build-macos build-windows build-web \
 	run-orbi-macos run-orbi-web dev-orbi-macos dev-orbi-web stop-orbi-web \
 	build-orbi-web build-orbi-appbundle build-orbi-ios build-orbi-macos \
-	build-orbi-windows build-orbi-linux
+	build-orbi-windows build-orbi-linux deploy-orbi-web
 
 help:
 	@echo "Theos App monorepo commands"
@@ -22,6 +22,7 @@ help:
 	@echo "  make run-orbi-macos   Build theos_panel (Orbi) and open it on macOS; no terminal needed"
 	@echo "  make run-orbi-web     Build theos_panel (Orbi) and open it in the browser; no terminal needed"
 	@echo "  make stop-orbi-web    Stop the local server started by run-orbi-web"
+	@echo "  make deploy-orbi-web  Publish Orbi web to orbi.galapagos.tech from a commit (COMMIT=<sha>, default HEAD)"
 	@echo "  make dev-orbi-macos   Hot-reload session for Orbi on macOS; NEEDS a real terminal"
 	@echo "  make dev-orbi-web     Hot-reload session for Orbi in Chrome; NEEDS a real terminal"
 	@echo "  make build-web        Build the web release"
@@ -146,6 +147,12 @@ stop-orbi-web:
 		kill "$$(cat $$pidfile)" && echo "Stopped the Orbi web server (pid $$(cat $$pidfile))."; \
 		rm -f "$$pidfile"; \
 	else echo "No Orbi web server is running."; rm -f "$$pidfile"; fi
+
+# Publishes Orbi web to https://orbi.galapagos.tech from a COMMIT, built in a
+# throwaway worktree, never from the working tree. See scripts/deploy_orbi_web.sh.
+COMMIT ?= HEAD
+deploy-orbi-web:
+	@FLUTTER="$(FLUTTER)" scripts/deploy_orbi_web.sh "$(COMMIT)"
 
 # Interactive sessions with hot reload. These REQUIRE a real terminal: run them
 # yourself in a shell, never from a non-interactive caller, or they will hang

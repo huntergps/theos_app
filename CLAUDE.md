@@ -47,6 +47,12 @@ Fluent. Los objetivos de Orbi llevan `orbi` en el nombre, sin excepción.
 | `make stop-orbi-web` | detiene el servidor que levantó `run-orbi-web` | — |
 | `make dev-orbi-macos` | sesión interactiva de Orbi en macOS, con recarga en caliente | **ninguna** |
 | `make dev-orbi-web` | sesión interactiva de Orbi en Chrome, con recarga en caliente | **ninguna** |
+| `make deploy-orbi-web` | **publica** Orbi web en `https://orbi.galapagos.tech` desde un commit (`COMMIT=<sha>`, por defecto `HEAD`), compilado en un worktree temporal | ninguna; usa la llave SSH del servidor |
+
+🔴 **`deploy-orbi-web` compila desde un commit, nunca desde el árbol de trabajo.** El
+árbol suele tener cambios a medio hacer de otros agentes; publicarlo los mandaría a todos
+los clientes. Lo publicado es exactamente un commit, y `https://orbi.galapagos.tech/orbi-commit.txt`
+dice cuál.
 
 🔴 **`run-*` compila y abre; `dev-*` abre sesión interactiva y EXIGE una terminal de
 verdad.** Medido el 12-sep-2026: `flutter run` sin TTY **se queda esperando para siempre
