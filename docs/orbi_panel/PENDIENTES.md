@@ -73,14 +73,18 @@ Nada de esto avanza hasta que él responda. No son tareas: son preguntas.
 
 ## En construcción ahora mismo
 
-| Frente | Qué entrega |
+**Nada.** Los seis frentes que estaban abiertos entregaron el 12-sep-2026 y sus
+agentes se cerraron ese mismo día. Se dejan listados con dónde quedó cada uno, para
+que nadie los vuelva a encargar:
+
+| Frente | Dónde quedó |
 | --- | --- |
-| Desbloqueo sin conexión | Guardar un derivado de la contraseña para poder desbloquear sin red, decisión ya tomada por el dueño |
-| Ruta de acceso en el conector | El punto de entrada en `l10n_ec_collection_box_pos` que recibe credenciales y devuelve la clave, aceptando cualquier dominio |
-| Mensajes de acceso | Que el error diga la causa real y se presente con el sistema de avisos, no como texto plano |
-| Credencial portable | Investigación sobre almacenamiento cifrado uniforme, plataforma por plataforma |
-| Guardado en navegador | Llave no extraíble en el almacén del navegador, en vez de dejarla junto al dato |
-| Despliegue en navegador | Levantar Orbi en local y medir dónde falla el acceso contra ERP2 |
+| Desbloqueo sin conexión | Funciona y sobrevive a cerrar y reabrir, medido con dos procesos |
+| Ruta de acceso en el conector | Construida, desplegada y medida desde un dominio ajeno |
+| Mensajes de acceso | Dieciséis causas distinguidas, copiables y con duración elegible |
+| Credencial portable | `decisions/C01-credencial-en-archivo-cifrado.md` |
+| Guardado en navegador | `decisions/W04-el-navegador-tambien-guarda.md`, implementado y medido en Chrome |
+| Despliegue en navegador | Se entra desde el navegador; falta sólo la comprobación visual en pantalla |
 
 ## Defectos conocidos y sin arreglar
 
