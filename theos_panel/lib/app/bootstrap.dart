@@ -10,6 +10,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../features/auth/login_failure_messages.dart';
 import '../features/auth/auth_controller.dart';
+import '../features/auth/session_provenance.dart';
 import '../features/auth/unlock_backend_factory.dart';
 import '../features/auth/web_token_auth.dart';
 import '../features/auth/workspace_unlock_store.dart';
@@ -552,6 +553,20 @@ final class _BootstrapHostState extends State<_BootstrapHost> {
   );
 }
 
+/// The auth state the app starts in, once an inherited browser session has
+/// been set aside to be offered rather than adopted.
+///
+/// Split out of `_initializeApplication` on purpose: that function builds
+/// plugins, databases and a session runtime, so no test can reach it. This is
+/// the part with a decision in it, and it is pure.
+@visibleForTesting
+AuthServiceResult effectiveRestoreResult(
+  AuthServiceResult restored, {
+  required OfferedSession? offered,
+}) => offered == null
+    ? restored
+    : const AuthServiceResult(status: AuthServiceStatus.required);
+
 Future<Widget> _initializeApplication() async {
   // Keep a real Flutter surface visible while plugins, secure storage and the
   // bounded session restore initialize. The stopwatch makes the splash budget
@@ -625,6 +640,33 @@ Future<Widget> _initializeApplication() async {
   final restored = await restoreOnce(
     kIsWeb ? webService : NativeAuthServicePort(service),
   );
+
+  // A session inherited from the browser was left by WHOEVER: entering with it
+  // unasked is impersonation by default. On a shared counter the next person
+  // would start selling and collecting under the previous operator's name, and
+  // neither of them would find out — and unlike a wrong screen, a wrong
+  // identity leaves facts signed by someone who did not do them.
+  //
+  // The shortcut is not lost: the login screen offers it by name, one click
+  // (see `login_screen.dart`, `_OfferedSessionCard`), and accepting it simply
+  // calls `restore()` again.
+  //
+  // A credential this person proved is adopted silently, exactly as before —
+  // making someone press a button to enter their own account is friction with
+  // nothing bought. Only the inherited-browser-session case changes.
+  final offered = sessionShouldBeOfferedNotAdopted(restored.profile)
+      ? OfferedSession(restored.profile!)
+      : null;
+  if (offered != null) {
+    // 🔴 Declining to adopt has to mean declining to HOLD it too. `restore()`
+    // already activated the runtime under that stranger's scope, which opens
+    // their database and their offline queue. Leaving it open while the login
+    // screen says "not signed in" would fix the visible half of the problem
+    // and keep the dangerous half. Accepting the offer re-restores, so nothing
+    // is lost by closing it here.
+    await sessionRuntime.close();
+  }
+  final effective = effectiveRestoreResult(restored, offered: offered);
   final composition = OrbiSessionComposition(
     authService: kIsWeb ? webService : NativeAuthServicePort(service),
     runtime: sessionRuntime,
@@ -653,8 +695,9 @@ Future<Widget> _initializeApplication() async {
       // `networkPresenceProbeProvider`.
       networkPresenceProbeOverride,
       ...composition.overrides,
+      if (offered != null) offeredSessionProvider.overrideWithValue(offered),
       authInitialStateProvider.overrideWithValue(
-        authViewStateFromResult(restored),
+        authViewStateFromResult(effective),
       ),
     ],
     child: const OrbiApp(),
