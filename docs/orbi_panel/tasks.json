@@ -180,7 +180,7 @@
       "id": "R06",
       "title": "Recuperación legacy y navegación multi-borrador",
       "owner": "integrator",
-      "status": "in_progress",
+      "status": "done",
       "depends_on": [
         "R05"
       ],
@@ -202,13 +202,16 @@
       ],
       "verify": [
         "Pruebas de recuperación legacy, multitab y reinicio de UI"
-      ]
+      ],
+      "report": "reports/R06.md",
+      "reviewed_by": "Claude Opus 5 integrator",
+      "reviewed_at": "2026-09-11"
     },
     {
       "id": "R07",
       "title": "Integrar rejilla y lista en pantallas aprobadas",
       "owner": "ui",
-      "status": "in_progress",
+      "status": "done",
       "depends_on": [
         "R03",
         "R05"
@@ -230,7 +233,10 @@
       ],
       "verify": [
         "Pruebas de componentes y E2E web local sin ERP2"
-      ]
+      ],
+      "report": "reports/R07.md",
+      "reviewed_by": "Claude Opus 5 integrator",
+      "reviewed_at": "2026-09-11"
     },
     {
       "id": "R05",
