@@ -1,6 +1,6 @@
 import 'dart:async';
 
-import 'package:flutter/material.dart';
+import 'package:fluent_ui/fluent_ui.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:syncfusion_flutter_datagrid/datagrid.dart';
 import 'package:theos_panel/features/sales/sale_editor.dart';
@@ -250,7 +250,7 @@ void main() {
     );
     addTearDown(controller.dispose);
     await tester.pumpWidget(
-      MaterialApp(
+      FluentApp(
         home: SizedBox(
           width: 599,
           height: 700,
@@ -263,7 +263,7 @@ void main() {
     );
     await tester.pump();
     await tester.pumpWidget(
-      MaterialApp(
+      FluentApp(
         home: SizedBox(
           width: 900,
           height: 700,
@@ -308,7 +308,7 @@ void main() {
           size: Size(360, 640),
           textScaler: TextScaler.linear(2),
         ),
-        child: MaterialApp(home: SaleEditorScreen(controller: controller)),
+        child: FluentApp(home: SaleEditorScreen(controller: controller)),
       ),
     );
     await tester.pump();
@@ -340,7 +340,7 @@ void main() {
           size: Size(1200, 600),
           textScaler: TextScaler.linear(2),
         ),
-        child: MaterialApp(home: SaleEditorScreen(controller: controller)),
+        child: FluentApp(home: SaleEditorScreen(controller: controller)),
       ),
     );
     await tester.pump();
@@ -372,7 +372,7 @@ void main() {
         addTearDown(controller.dispose);
         await tester.binding.setSurfaceSize(size);
         await tester.pumpWidget(
-          MaterialApp(
+          FluentApp(
             home: MediaQuery(
               data: MediaQueryData(size: size),
               child: SaleEditorScreen(controller: controller),
@@ -562,12 +562,12 @@ void main() {
       );
       addTearDown(controller.dispose);
       await tester.pumpWidget(
-        MaterialApp(
+        FluentApp(
           home: SaleEditorScreen(controller: controller, catalog: _Catalog()),
         ),
       );
       await tester.pumpAndSettle();
-      final termField = find.byType(DropdownButtonFormField<int>);
+      final termField = find.byType(ComboBox<int>);
       expect(termField, findsOneWidget);
       await tester.tap(termField);
       await tester.pumpAndSettle();
@@ -599,7 +599,7 @@ void main() {
       );
       addTearDown(controller.dispose);
       await tester.pumpWidget(
-        MaterialApp(
+        FluentApp(
           home: SaleEditorScreen(controller: controller, catalog: _Catalog()),
         ),
       );

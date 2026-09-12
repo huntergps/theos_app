@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:fluent_ui/fluent_ui.dart';
 
 import 'sale_draft_workspace.dart';
 
@@ -22,9 +22,9 @@ final class SaleDraftWorkspaceBar extends StatelessWidget {
   Widget build(BuildContext context) => AnimatedBuilder(
     animation: workspace,
     builder: (context, _) {
-      final colors = Theme.of(context).colorScheme;
-      return Material(
-        color: colors.surface,
+      final theme = FluentTheme.of(context);
+      return ColoredBox(
+        color: theme.scaffoldBackgroundColor,
         child: LayoutBuilder(
           builder: (context, constraints) => Row(
             children: [
@@ -39,18 +39,11 @@ final class SaleDraftWorkspaceBar extends StatelessWidget {
                           child: Row(
                             mainAxisSize: MainAxisSize.min,
                             children: [
-                              ChoiceChip(
-                                selected:
+                              ToggleButton(
+                                checked:
                                     workspace.draftIds[i] ==
                                     workspace.selectedDraftId,
-                                label: Text(
-                                  labelBuilder?.call(
-                                        workspace.draftIds[i],
-                                        i,
-                                      ) ??
-                                      _shortDraftLabel(workspace.draftIds[i]),
-                                ),
-                                onSelected: workspace.busy
+                                onChanged: workspace.busy
                                     ? null
                                     : (_) async {
                                         try {
@@ -66,19 +59,22 @@ final class SaleDraftWorkspaceBar extends StatelessWidget {
                                           // present it.
                                         }
                                       },
+                                child: Text(
+                                  labelBuilder?.call(
+                                        workspace.draftIds[i],
+                                        i,
+                                      ) ??
+                                      _shortDraftLabel(workspace.draftIds[i]),
+                                ),
                               ),
                               IconButton(
                                 key: ValueKey(
                                   'close-draft-${workspace.draftIds[i]}',
                                 ),
-                                tooltip:
-                                    'Cerrar ${_shortDraftLabel(workspace.draftIds[i])}',
-                                icon: const Icon(Icons.close, size: 18),
-                                constraints: const BoxConstraints(
-                                  minWidth: 44,
-                                  minHeight: 44,
+                                icon: const Icon(
+                                  FluentIcons.chrome_close,
+                                  size: 18,
                                 ),
-                                padding: EdgeInsets.zero,
                                 onPressed: workspace.busy
                                     ? null
                                     : () async {
@@ -99,7 +95,7 @@ final class SaleDraftWorkspaceBar extends StatelessWidget {
                 ),
               ),
               const SizedBox(width: 8),
-              FilledButton.icon(
+              FilledButton(
                 onPressed: workspace.busy
                     ? null
                     : () async {
@@ -114,16 +110,26 @@ final class SaleDraftWorkspaceBar extends StatelessWidget {
                           // bar free of unhandled UI futures.
                         }
                       },
-                icon: const Icon(Icons.add),
-                label: const Text('Nueva'),
+                child: const Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(FluentIcons.add),
+                    SizedBox(width: 6),
+                    Text('Nueva'),
+                  ],
+                ),
               ),
               _ReopenButton(workspace: workspace),
               if (constraints.maxWidth >= 600 && workspace.error != null)
                 Padding(
                   padding: const EdgeInsets.only(left: 8),
                   child: Tooltip(
-                    message: 'No se pudo recuperar el borrador. Revisa el almacenamiento local.',
-                    child: Icon(Icons.error_outline, color: colors.error),
+                    message:
+                        'No se pudo recuperar el borrador. Revisa el almacenamiento local.',
+                    child: Icon(
+                      FluentIcons.error_badge,
+                      color: theme.resources.systemFillColorCritical,
+                    ),
                   ),
                 ),
             ],
@@ -182,31 +188,40 @@ final class _ReopenButtonState extends State<_ReopenButton> {
   @override
   Widget build(BuildContext context) => FutureBuilder<List<String>>(
     future: _available,
-    builder: (context, snapshot) => PopupMenuButton<String>(
-      key: const Key('reopen-draft-button'),
-      tooltip: 'Reabrir borrador',
-      icon: const Icon(Icons.folder_open_outlined),
-      enabled:
-          !widget.workspace.busy &&
-          snapshot.connectionState == ConnectionState.done,
-      onSelected: (draftId) async {
-        try {
-          await widget.workspace.reopen(draftId);
-        } catch (_) {
-          // Keep errors in the workspace state.
-        }
-      },
-      itemBuilder: (context) => [
-        for (final id in snapshot.data ?? const <String>[])
-          PopupMenuItem<String>(value: id, child: Text(_shortDraftLabel(id))),
-        if (snapshot.connectionState == ConnectionState.done &&
-            (snapshot.data?.isEmpty ?? true))
-          const PopupMenuItem<String>(
-            enabled: false,
-            child: Text('No hay borradores cerrados'),
-          ),
-      ],
-    ),
+    builder: (context, snapshot) {
+      final ready = snapshot.connectionState == ConnectionState.done;
+      final enabled = !widget.workspace.busy && ready;
+      final ids = snapshot.data ?? const <String>[];
+      return Tooltip(
+        message: 'Reabrir borrador',
+        child: DropDownButton(
+          key: const Key('reopen-draft-button'),
+          disabled: !enabled,
+          leading: const Icon(FluentIcons.open_folder_horizontal),
+          items: ids.isEmpty
+              ? [
+                  MenuFlyoutItem(
+                    text: const Text('No hay borradores cerrados'),
+                    onPressed: null,
+                  ),
+                ]
+              : [
+                  for (final id in ids)
+                    MenuFlyoutItem(
+                      key: ValueKey('reopen-draft-item-$id'),
+                      text: Text(_shortDraftLabel(id)),
+                      onPressed: () async {
+                        try {
+                          await widget.workspace.reopen(id);
+                        } catch (_) {
+                          // Keep errors in the workspace state.
+                        }
+                      },
+                    ),
+                ],
+        ),
+      );
+    },
   );
 }
 

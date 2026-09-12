@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:fluent_ui/fluent_ui.dart';
 import 'package:syncfusion_flutter_datagrid/datagrid.dart';
 import 'package:theos_pos_core/theos_pos_core.dart' show SaleCatalogProduct;
 
@@ -21,6 +21,11 @@ String _totalLabel(SaleDraftLine line) => line.amountsCalculated
 
 /// Shared line presentation for sale forms. The runtime/controller remains the
 /// owner of the draft; this widget only forwards typed edits and catalog picks.
+///
+/// 🔴 No usa `OrbiListing`: esto no es un catálogo para navegar, es una tabla
+/// editable con cantidades, descuentos, impuestos y un total por línea — el
+/// dinero de la venta. `OrbiListing` no soporta edición de celdas, así que
+/// cambiarla habría significado perder la edición de cantidades, no ganarla.
 class SaleLinesEditor extends StatefulWidget {
   const SaleLinesEditor({
     super.key,
@@ -97,6 +102,7 @@ class _SaleLinesEditorState extends State<SaleLinesEditor> {
   );
 
   Widget _grid(BuildContext context) {
+    final theme = FluentTheme.of(context);
     final source = _SaleLinesDataSource(
       lines: widget.draft.lines,
       quantityController: _controllerFor,
@@ -106,6 +112,12 @@ class _SaleLinesEditorState extends State<SaleLinesEditor> {
       onRemoveLine: widget.onRemoveLine,
       products: widget.products,
       onAddProduct: widget.onAddProduct,
+      // El color por significado sí está fijado por contrato (rojo =
+      // error); el resto del estilo lo hereda del tema, nunca a mano. Se
+      // captura aquí porque `DataGridSource.buildRow` no recibe contexto.
+      errorTextStyle: theme.typography.caption?.copyWith(
+        color: theme.resources.systemFillColorCritical,
+      ),
     );
     return Column(
       children: [
@@ -164,6 +176,7 @@ class _SaleLinesEditorState extends State<SaleLinesEditor> {
 
   Widget _lineCard(BuildContext context, SaleDraftLine line) {
     final quantity = _controllerFor(line);
+    final typography = FluentTheme.of(context).typography;
     return Card(
       key: ValueKey('sale-line-${line.uuid}'),
       child: Padding(
@@ -171,7 +184,7 @@ class _SaleLinesEditorState extends State<SaleLinesEditor> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Text(line.name, style: Theme.of(context).textTheme.titleSmall),
+            Text(line.name, style: typography.bodyStrong),
             Text(
               '${line.uomName ?? 'Unidad'} · ${_priceLabel(line)} '
               '${line.unitPrice} · Descuento ${_discountLabel(line)} · '
@@ -182,11 +195,13 @@ class _SaleLinesEditorState extends State<SaleLinesEditor> {
               spacing: 8,
               children: [
                 const Text('Cantidad'),
-                SizedBox(width: 96, child: _quantityField(line, quantity)),
-                IconButton(
-                  tooltip: 'Quitar',
-                  onPressed: () => widget.onRemoveLine(line.uuid),
-                  icon: const Icon(Icons.delete_outline),
+                SizedBox(width: 96, child: _quantityField(context, line, quantity)),
+                Tooltip(
+                  message: 'Quitar',
+                  child: IconButton(
+                    onPressed: () => widget.onRemoveLine(line.uuid),
+                    icon: const Icon(FluentIcons.delete),
+                  ),
                 ),
               ],
             ),
@@ -196,19 +211,38 @@ class _SaleLinesEditorState extends State<SaleLinesEditor> {
     );
   }
 
-  Widget _quantityField(SaleDraftLine line, TextEditingController controller) =>
-      TextField(
-        key: ValueKey('sale-quantity-${line.uuid}'),
-        controller: controller,
-        keyboardType: const TextInputType.numberWithOptions(decimal: true),
-        focusNode: _focusFor(line),
-        decoration: InputDecoration(
-          isDense: true,
-          labelText: 'Cantidad · ${line.name}',
-          errorText: _quantityErrors[line.uuid],
+  Widget _quantityField(
+    BuildContext context,
+    SaleDraftLine line,
+    TextEditingController controller,
+  ) {
+    final error = _quantityErrors[line.uuid];
+    final theme = FluentTheme.of(context);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        TextBox(
+          key: ValueKey('sale-quantity-${line.uuid}'),
+          controller: controller,
+          keyboardType: const TextInputType.numberWithOptions(decimal: true),
+          focusNode: _focusFor(line),
+          placeholder: 'Cantidad · ${line.name}',
+          onChanged: (value) => _editQuantity(line.uuid, value),
         ),
-        onChanged: (value) => _editQuantity(line.uuid, value),
-      );
+        if (error != null)
+          Padding(
+            padding: const EdgeInsets.only(top: 2),
+            child: Text(
+              error,
+              style: theme.typography.caption?.copyWith(
+                color: theme.resources.systemFillColorCritical,
+              ),
+            ),
+          ),
+      ],
+    );
+  }
 
   Widget _productSearch(BuildContext context) {
     final products = widget.products;
@@ -242,6 +276,7 @@ final class _SaleLinesDataSource extends DataGridSource {
     required this.onRemoveLine,
     required this.products,
     required this.onAddProduct,
+    required this.errorTextStyle,
   });
 
   final List<SaleDraftLine> _lines;
@@ -252,6 +287,7 @@ final class _SaleLinesDataSource extends DataGridSource {
   final ValueChanged<String> onRemoveLine;
   final CatalogController<SaleCatalogProduct>? products;
   final ValueChanged<CatalogEntity<SaleCatalogProduct>> onAddProduct;
+  final TextStyle? errorTextStyle;
 
   @override
   List<DataGridRow> get rows => [
@@ -328,10 +364,12 @@ final class _SaleLinesDataSource extends DataGridSource {
           if (cell.columnName == 'quantity')
             SizedBox(width: 110, child: _quantity(line))
           else if (cell.columnName == 'actions')
-            IconButton(
-              tooltip: 'Quitar',
-              onPressed: () => onRemoveLine(line.uuid),
-              icon: const Icon(Icons.delete_outline),
+            Tooltip(
+              message: 'Quitar',
+              child: IconButton(
+                onPressed: () => onRemoveLine(line.uuid),
+                icon: const Icon(FluentIcons.delete),
+              ),
             )
           else
             Container(
@@ -343,18 +381,28 @@ final class _SaleLinesDataSource extends DataGridSource {
     );
   }
 
-  Widget _quantity(SaleDraftLine line) => TextField(
-    key: ValueKey('sale-quantity-${line.uuid}'),
-    controller: quantityController(line),
-    focusNode: quantityFocusNode(line),
-    keyboardType: const TextInputType.numberWithOptions(decimal: true),
-    decoration: InputDecoration(
-      isDense: true,
-      labelText: 'Cantidad · ${line.name}',
-      errorText: quantityError(line.uuid),
-    ),
-    onChanged: (value) => onQuantityTextChanged(line.uuid, value),
-  );
+  Widget _quantity(SaleDraftLine line) {
+    final error = quantityError(line.uuid);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        TextBox(
+          key: ValueKey('sale-quantity-${line.uuid}'),
+          controller: quantityController(line),
+          focusNode: quantityFocusNode(line),
+          keyboardType: const TextInputType.numberWithOptions(decimal: true),
+          placeholder: 'Cantidad · ${line.name}',
+          onChanged: (value) => onQuantityTextChanged(line.uuid, value),
+        ),
+        if (error != null)
+          Padding(
+            padding: const EdgeInsets.only(top: 2),
+            child: Text(error, style: errorTextStyle),
+          ),
+      ],
+    );
+  }
 }
 
 String _format(double value) => value == value.roundToDouble()

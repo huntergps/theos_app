@@ -1,11 +1,10 @@
 import 'dart:async';
 
-import 'package:flutter/material.dart';
+import 'package:fluent_ui/fluent_ui.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:syncfusion_flutter_datagrid/datagrid.dart';
 import 'package:theos_panel/features/clients/catalog_contracts.dart';
 import 'package:theos_panel/features/clients/clients_screen.dart';
-import 'package:theos_panel/ui/components/records/orbi_record_list.dart';
 
 /// Local catalog fake: watches never touch Odoo/ERP2, they only replay an
 /// in-memory list filtered by the current query, as [CatalogRepository]
@@ -38,6 +37,7 @@ final class _FakeClientRepository implements CatalogRepository<String> {
             ? CatalogLoadStatus.empty
             : CatalogLoadStatus.data,
         items: filtered,
+        totalCount: filtered.length,
       ),
     );
   }
@@ -77,8 +77,48 @@ const _sizes = [
 ];
 
 void main() {
-  testWidgets('clients screen shows a real grid on wide/landscape and a '
-      'list on portrait/phone, without overflow, at all four sizes', (
+  testWidgets(
+    'clients screen shows the standard listing (table, filter, columns) '
+    'without overflow at all four sizes',
+    (tester) async {
+      final repository = _FakeClientRepository(_clients());
+      addTearDown(repository.dispose);
+      final controller = CatalogController<String>(repository: repository);
+      addTearDown(controller.dispose);
+
+      for (final size in _sizes) {
+        await tester.binding.setSurfaceSize(size);
+        await tester.pumpWidget(
+          FluentApp(
+            home: MediaQuery(
+              data: MediaQueryData(size: size),
+              child: ClientsScreen<String>(controller: controller),
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        // `OrbiListing` always renders its table (no adaptive card fallback):
+        // the dueño's order was to use the shared component everywhere, not
+        // to keep the old grid/list split.
+        expect(
+          find.byType(SfDataGrid),
+          findsOneWidget,
+          reason: 'the standard listing table is expected at size=$size',
+        );
+        expect(find.byKey(const Key('orbi-listing-filter')), findsOneWidget);
+        expect(find.byKey(const Key('orbi-listing-columns')), findsOneWidget);
+        expect(
+          tester.takeException(),
+          isNull,
+          reason: 'no overflow/exception expected at size=$size',
+        );
+      }
+      await tester.binding.setSurfaceSize(null);
+    },
+  );
+
+  testWidgets('selecting a row shows its context in the detail panel', (
     tester,
   ) async {
     final repository = _FakeClientRepository(_clients());
@@ -86,35 +126,26 @@ void main() {
     final controller = CatalogController<String>(repository: repository);
     addTearDown(controller.dispose);
 
-    for (final size in _sizes) {
-      await tester.binding.setSurfaceSize(size);
-      await tester.pumpWidget(
-        MaterialApp(
-          home: MediaQuery(
-            data: MediaQueryData(size: size),
-            child: ClientsScreen<String>(controller: controller),
-          ),
+    await tester.binding.setSurfaceSize(const Size(1440, 900));
+    await tester.pumpWidget(
+      FluentApp(
+        home: MediaQuery(
+          data: const MediaQueryData(size: Size(1440, 900)),
+          child: ClientsScreen<String>(controller: controller),
         ),
-      );
-      await tester.pumpAndSettle();
+      ),
+    );
+    await tester.pumpAndSettle();
 
-      final isWideLandscape = size.width >= 840 && size.width > size.height;
-      expect(
-        find.byType(SfDataGrid),
-        isWideLandscape ? findsOneWidget : findsNothing,
-        reason: 'grid expected only on desktop/tablet horizontal, size=$size',
-      );
-      expect(
-        find.byType(OrbiRecordList<CatalogEntity<String>>),
-        isWideLandscape ? findsNothing : findsOneWidget,
-        reason: 'list expected on tablet vertical/phone, size=$size',
-      );
-      expect(
-        tester.takeException(),
-        isNull,
-        reason: 'no overflow/exception expected at size=$size',
-      );
-    }
+    expect(find.text('Selecciona un cliente para ver su contexto'), findsOneWidget);
+
+    await tester.tap(find.text('Ferretería Industrial El Constructor'));
+    await tester.pumpAndSettle();
+
+    expect(controller.selected?.uuid, 'c-3');
+    expect(find.text('Identidad local: c-3'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+
     await tester.binding.setSurfaceSize(null);
   });
 }

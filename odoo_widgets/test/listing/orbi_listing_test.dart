@@ -53,7 +53,7 @@ void main() {
         rows: filas.take(50).toList(),
         columns: columnas,
         storageKey: 'prueba',
-        onExport: () {},
+        onExport: (_, _) {},
       ),
     );
 
@@ -183,4 +183,58 @@ void main() {
       expect(find.text('Todavía no hay cobros de hoy'), findsOneWidget);
     },
   );
+
+  // 🔴 La prueba que faltaba, y que dejó pasar el defecto durante horas: todas
+  // las de arriba comprobaban la barra, la paginación y la cabecera, y ninguna
+  // comprobaba que **se vieran las filas**. El origen de datos sobreescribía
+  // `effectiveRows`, que es un getter interno alimentado desde `rows`, así que
+  // compilaba, pintaba la cabecera y no enseñaba ni una línea. Se descubrió al
+  // usarlo en una pantalla de verdad, no aquí.
+  testWidgets('las filas se ven, no sólo la cabecera', (tester) async {
+    await pump(
+      tester,
+      OrbiListing<_Fila>(
+        rows: filas.take(3).toList(),
+        columns: columnas,
+        storageKey: 'prueba',
+      ),
+    );
+
+    expect(find.text('Cliente 1'), findsOneWidget);
+    expect(find.text('Cliente 2'), findsOneWidget);
+    // Y el valor formateado por la columna, no el objeto crudo.
+    expect(find.text('3.50'), findsOneWidget);
+  });
+
+  // El botón de Excel llamaba a quien lo usaba y no había Excel por ninguna
+  // parte: era un aviso vacío. Ahora produce el fichero de verdad, y lo que
+  // sale es lo que se está viendo.
+  testWidgets('exportar entrega un fichero de Excel de verdad', (tester) async {
+    List<int>? entregado;
+    String? nombre;
+    await pump(
+      tester,
+      OrbiListing<_Fila>(
+        rows: filas.take(4).toList(),
+        columns: columnas,
+        storageKey: 'prueba',
+        exportFileName: 'clientes-de-hoy',
+        onExport: (bytes, suggested) {
+          entregado = bytes;
+          nombre = suggested;
+        },
+      ),
+    );
+
+    await tester.tap(find.byKey(const Key('orbi-listing-export')));
+    await tester.pumpAndSettle();
+
+    expect(entregado, isNotNull);
+    expect(nombre, 'clientes-de-hoy');
+    // Un .xlsx es un zip: empieza por «PK». Comprobar sólo que no está vacío
+    // dejaría pasar un fichero corrupto.
+    expect(entregado!.length, greaterThan(0));
+    expect(entregado![0], 0x50);
+    expect(entregado![1], 0x4B);
+  });
 }

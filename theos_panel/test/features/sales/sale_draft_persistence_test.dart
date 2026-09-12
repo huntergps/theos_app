@@ -1,6 +1,6 @@
 import 'dart:async';
 
-import 'package:flutter/material.dart';
+import 'package:fluent_ui/fluent_ui.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:orbi_runtime/orbi_runtime.dart';
 import 'package:theos_panel/features/approvals/approval_contracts.dart';
@@ -199,7 +199,7 @@ void main() {
     final store = _Store()..failure = StateError('private storage detail');
     final controller = SaleDraftController(port: _Port(), store: store);
     await tester.pumpWidget(
-      MaterialApp(home: SaleEditorScreen(controller: controller)),
+      FluentApp(home: SaleEditorScreen(controller: controller)),
     );
     controller.update(note: 'conservar');
     await tester.pump();
@@ -216,11 +216,11 @@ void main() {
       );
     final controller = SaleDraftController(port: _Port(), store: store);
     await tester.pumpWidget(
-      MaterialApp(home: SaleEditorScreen(controller: controller)),
+      FluentApp(home: SaleEditorScreen(controller: controller)),
     );
     await tester.pump();
     await tester.pump();
-    final field = tester.widget<TextField>(find.byType(TextField).last);
+    final field = tester.widget<TextBox>(find.byType(TextBox).last);
     expect(field.controller!.text, 'Nota restaurada');
     expect(find.text('Cliente restaurado'), findsWidgets);
     await controller.dispose();
@@ -230,9 +230,9 @@ void main() {
     final store = _Store();
     final controller = SaleDraftController(port: _Port(), store: store);
     await tester.pumpWidget(
-      MaterialApp(home: SaleEditorScreen(controller: controller)),
+      FluentApp(home: SaleEditorScreen(controller: controller)),
     );
-    final client = find.byType(TextField).first;
+    final client = find.byType(TextBox).first;
     await tester.enterText(client, 'Cliente digitado');
     await controller.flush();
     expect(controller.draft.clientName, 'Cliente digitado');
@@ -255,7 +255,7 @@ void main() {
       initial: SaleDraftSnapshot(clientName: 'Nuevo', note: 'Nota nueva'),
     );
     await tester.pumpWidget(
-      MaterialApp(
+      FluentApp(
         home: SaleEditorScreen(
           key: const ValueKey('editor'),
           controller: oldController,
@@ -263,7 +263,7 @@ void main() {
       ),
     );
     await tester.pumpWidget(
-      MaterialApp(
+      FluentApp(
         home: SaleEditorScreen(
           key: const ValueKey('editor'),
           controller: newController,
@@ -275,7 +275,7 @@ void main() {
     expect(newController.draft.clientName, 'Nuevo');
     expect(find.text('Viejo actualizado'), findsNothing);
     expect(
-      tester.widget<TextField>(find.byType(TextField).last).controller!.text,
+      tester.widget<TextBox>(find.byType(TextBox).last).controller!.text,
       'Nota nueva',
     );
     await oldController.dispose();

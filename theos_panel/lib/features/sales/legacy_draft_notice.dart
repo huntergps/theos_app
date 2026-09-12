@@ -1,5 +1,6 @@
-import 'package:flutter/material.dart';
+import 'package:fluent_ui/fluent_ui.dart';
 
+import '../../ui/components/orbi_components.dart';
 import 'legacy_draft_inspector.dart';
 
 /// A safe, non-blocking notice for legacy SharedPreferences drafts.
@@ -19,28 +20,34 @@ final class LegacyDraftNotice extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (!inspection.rawPresent) return const SizedBox.shrink();
-    final colors = Theme.of(context).colorScheme;
+    final theme = FluentTheme.of(context);
     return Card(
       margin: const EdgeInsets.all(8),
-      color: colors.surfaceContainerHighest,
+      backgroundColor: theme.resources.subtleFillColorSecondary,
       child: Padding(
         padding: const EdgeInsets.all(12),
         child: LayoutBuilder(
           builder: (context, constraints) {
             final compact = constraints.maxWidth < 420;
             final actions = <Widget>[
-              OutlinedButton.icon(
+              Button(
                 onPressed: () => _showReview(context),
-                icon: const Icon(Icons.visibility_outlined),
-                label: const Text('Revisar'),
+                child: const Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(FluentIcons.red_eye),
+                    SizedBox(width: 6),
+                    Text('Revisar'),
+                  ],
+                ),
               ),
               if (onDismiss != null)
-                TextButton(onPressed: onDismiss, child: const Text('Cerrar')),
+                Button(onPressed: onDismiss, child: const Text('Cerrar')),
             ];
             return Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Icon(Icons.info_outline, color: colors.primary),
+                Icon(FluentIcons.info, color: theme.accentColor),
                 const SizedBox(width: 10),
                 Expanded(
                   child: Column(
@@ -48,7 +55,7 @@ final class LegacyDraftNotice extends StatelessWidget {
                     children: [
                       Text(
                         'Hay un borrador local anterior para revisar',
-                        style: Theme.of(context).textTheme.titleSmall,
+                        style: theme.typography.bodyStrong,
                       ),
                       const SizedBox(height: 4),
                       const Text(
@@ -83,8 +90,8 @@ final class _LegacyDraftReviewDialog extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return AlertDialog(
+    final typography = FluentTheme.of(context).typography;
+    return ContentDialog(
       title: const Text('Revisión del borrador anterior'),
       content: ConstrainedBox(
         constraints: const BoxConstraints(maxWidth: 520),
@@ -95,7 +102,7 @@ final class _LegacyDraftReviewDialog extends StatelessWidget {
             children: [
               Text(
                 'Esta revisión no importa ni modifica datos.',
-                style: theme.textTheme.bodyMedium,
+                style: typography.body,
               ),
               const SizedBox(height: 12),
               _Section(
@@ -126,7 +133,7 @@ final class _LegacyDraftReviewDialog extends StatelessWidget {
         ),
       ),
       actions: [
-        TextButton(
+        Button(
           onPressed: () => Navigator.of(context).pop(),
           child: const Text('Cerrar'),
         ),
@@ -150,7 +157,7 @@ final class _Section extends StatelessWidget {
   Widget build(BuildContext context) => Column(
     crossAxisAlignment: CrossAxisAlignment.start,
     children: [
-      Text(title, style: Theme.of(context).textTheme.titleSmall),
+      Text(title, style: FluentTheme.of(context).typography.bodyStrong),
       const SizedBox(height: 2),
       if (values.isEmpty)
         Text(empty)
@@ -158,7 +165,12 @@ final class _Section extends StatelessWidget {
         Wrap(
           spacing: 6,
           runSpacing: 4,
-          children: [for (final value in values) Chip(label: Text(value))],
+          // El mismo badge que ya usa el resto de la aplicación
+          // (`OrbiStatusChip`, en el componente compartido) en vez de uno
+          // propio: ni color ni forma se deciden aquí, se heredan.
+          children: [
+            for (final value in values) OrbiStatusChip(label: value),
+          ],
         ),
     ],
   );

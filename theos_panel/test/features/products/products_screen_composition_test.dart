@@ -1,12 +1,10 @@
 import 'dart:async';
 
-import 'package:flutter/material.dart';
+import 'package:fluent_ui/fluent_ui.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:syncfusion_flutter_datagrid/datagrid.dart';
 import 'package:theos_panel/features/clients/catalog_contracts.dart';
 import 'package:theos_panel/features/products/products_screen.dart';
-import 'package:theos_panel/ui/components/fields/orbi_inline_catalog_picker.dart';
-import 'package:theos_panel/ui/components/records/orbi_record_list.dart';
 
 /// Local catalog fake: watches never touch Odoo/ERP2, they only replay an
 /// in-memory list filtered by the current query.
@@ -38,6 +36,7 @@ final class _FakeProductRepository implements CatalogRepository<String> {
             ? CatalogLoadStatus.empty
             : CatalogLoadStatus.data,
         items: filtered,
+        totalCount: filtered.length,
       ),
     );
   }
@@ -76,50 +75,50 @@ const _sizes = [
 ];
 
 void main() {
-  testWidgets('products screen shows a real grid on wide/landscape and a '
-      'list on portrait/phone, without overflow, at all four sizes', (
-    tester,
-  ) async {
-    final repository = _FakeProductRepository(_products());
-    addTearDown(repository.dispose);
-    final controller = CatalogController<String>(repository: repository);
-    addTearDown(controller.dispose);
+  testWidgets(
+    'products screen shows the standard listing (table, filter, columns) '
+    'without overflow at all four sizes',
+    (tester) async {
+      final repository = _FakeProductRepository(_products());
+      addTearDown(repository.dispose);
+      final controller = CatalogController<String>(repository: repository);
+      addTearDown(controller.dispose);
 
-    for (final size in _sizes) {
-      await tester.binding.setSurfaceSize(size);
-      await tester.pumpWidget(
-        MaterialApp(
-          home: MediaQuery(
-            data: MediaQueryData(size: size),
-            child: ProductsScreen<String>(controller: controller),
+      for (final size in _sizes) {
+        await tester.binding.setSurfaceSize(size);
+        await tester.pumpWidget(
+          FluentApp(
+            home: MediaQuery(
+              data: MediaQueryData(size: size),
+              child: ProductsScreen<String>(controller: controller),
+            ),
           ),
-        ),
-      );
-      await tester.pumpAndSettle();
+        );
+        await tester.pumpAndSettle();
 
-      final isWideLandscape = size.width >= 840 && size.width > size.height;
-      expect(
-        find.byType(SfDataGrid),
-        isWideLandscape ? findsOneWidget : findsNothing,
-        reason: 'grid expected only on desktop/tablet horizontal, size=$size',
-      );
-      expect(
-        find.byType(OrbiRecordList<CatalogEntity<String>>),
-        isWideLandscape ? findsNothing : findsOneWidget,
-        reason: 'list expected on tablet vertical/phone, size=$size',
-      );
-      expect(
-        tester.takeException(),
-        isNull,
-        reason: 'no overflow/exception expected at size=$size',
-      );
-    }
-    await tester.binding.setSurfaceSize(null);
-  });
+        // `OrbiListing` always renders its table (no adaptive card fallback):
+        // the dueño's order was to use the shared component everywhere, not
+        // to keep the old grid/list split.
+        expect(
+          find.byType(SfDataGrid),
+          findsOneWidget,
+          reason: 'the standard listing table is expected at size=$size',
+        );
+        expect(find.byKey(const Key('orbi-listing-filter')), findsOneWidget);
+        expect(find.byKey(const Key('orbi-listing-columns')), findsOneWidget);
+        expect(
+          tester.takeException(),
+          isNull,
+          reason: 'no overflow/exception expected at size=$size',
+        );
+      }
+      await tester.binding.setSurfaceSize(null);
+    },
+  );
 
   testWidgets(
-    'product search is inline inside the grid area, not an external '
-    'search bar replacing it',
+    'product search narrows the same table instead of replacing it with a '
+    'bare results list',
     (tester) async {
       final repository = _FakeProductRepository(_products());
       addTearDown(repository.dispose);
@@ -128,7 +127,7 @@ void main() {
 
       await tester.binding.setSurfaceSize(const Size(1440, 900));
       await tester.pumpWidget(
-        MaterialApp(
+        FluentApp(
           home: MediaQuery(
             data: const MediaQueryData(size: Size(1440, 900)),
             child: ProductsScreen<String>(controller: controller),
@@ -137,14 +136,35 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      // The reusable inline picker component is used for product search...
-      expect(find.byType(OrbiInlineCatalogPicker<String>), findsOneWidget);
-      // ...and the full catalog grid stays visible at the same time: the
-      // inline search augments the grid, it does not replace it with a bare
-      // results list.
-      expect(find.byType(SfDataGrid), findsOneWidget);
-      expect(find.text('Cemento Portland Tipo GU saco 50kg Holcim resistente a sulfatos'),
+      expect(
+        find.text(
+          'Cemento Portland Tipo GU saco 50kg Holcim resistente a sulfatos',
+        ),
+        findsWidgets,
+      );
+      expect(find.text('Varilla corrugada de acero 12mm x 12m grado 60 Adelca'),
           findsWidgets);
+
+      await tester.enterText(
+        find.byKey(const Key('orbi-listing-filter')),
+        'Cemento',
+      );
+      await tester.pumpAndSettle();
+
+      // The filter goes through the catalog controller (same query the
+      // repository already filters on), so the grid — not a separate
+      // results list — narrows to the match.
+      expect(find.byType(SfDataGrid), findsOneWidget);
+      expect(
+        find.text(
+          'Cemento Portland Tipo GU saco 50kg Holcim resistente a sulfatos',
+        ),
+        findsWidgets,
+      );
+      expect(
+        find.text('Varilla corrugada de acero 12mm x 12m grado 60 Adelca'),
+        findsNothing,
+      );
 
       await tester.binding.setSurfaceSize(null);
     },

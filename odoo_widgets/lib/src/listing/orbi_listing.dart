@@ -1,6 +1,7 @@
 import 'package:fluent_ui/fluent_ui.dart';
 import 'package:syncfusion_flutter_core/theme.dart';
 import 'package:syncfusion_flutter_datagrid/datagrid.dart';
+import 'package:syncfusion_flutter_datagrid_export/export.dart';
 
 /// Una columna del listado estándar.
 ///
@@ -58,6 +59,7 @@ class OrbiListing<T> extends StatefulWidget {
     this.totalCount,
     this.onPageChanged,
     this.onExport,
+    this.exportFileName = 'listado',
     this.onRowTap,
     this.emptyMessage = 'No hay nada que mostrar todavía',
   });
@@ -79,9 +81,17 @@ class OrbiListing<T> extends StatefulWidget {
   final int? totalCount;
   final ValueChanged<int>? onPageChanged;
 
-  /// Exportar a Excel. Nulo lo oculta, para las pocas listas que no deben
-  /// salir del sistema.
-  final VoidCallback? onExport;
+  /// Qué hacer con el Excel ya generado. Nulo esconde el botón, para las
+  /// pocas listas que no deben salir del sistema.
+  ///
+  /// El listado **produce los bytes**; guardarlos es de quien nos usa, porque
+  /// guardar un fichero es distinto en escritorio, en móvil y en navegador, y
+  /// un paquete de widgets no tiene por qué saber de eso. Antes esto era un
+  /// aviso sin contenido: el botón llamaba y no había Excel por ninguna parte.
+  final void Function(List<int> excel, String suggestedName)? onExport;
+
+  /// Cómo se llamará el fichero, sin extensión.
+  final String exportFileName;
 
   final ValueChanged<T>? onRowTap;
   final String emptyMessage;
@@ -92,6 +102,12 @@ class OrbiListing<T> extends StatefulWidget {
 
 class _OrbiListingState<T> extends State<OrbiListing<T>> {
   final Set<String> _hidden = <String>{};
+
+  /// Hace falta para exportar: el generador de Excel de Syncfusion trabaja
+  /// sobre el estado de la rejilla, no sobre los datos sueltos, y así lo que
+  /// sale al fichero es exactamente lo que se está viendo —incluidas las
+  /// columnas que la persona dejó ocultas.
+  final _gridKey = GlobalKey<SfDataGridState>();
 
   // El controlador vive en el estado, no en `build`. Fabricarlo en cada
   // reconstrucción le quita el foco y el cursor a quien está escribiendo, y en
@@ -152,6 +168,7 @@ class _OrbiListingState<T> extends State<OrbiListing<T>> {
               : SfDataGridTheme(
                   data: SfDataGridThemeData(headerColor: headerColor),
                   child: SfDataGrid(
+                    key: _gridKey,
                     source: _OrbiSource<T>(
                       items: widget.rows,
                       columns: _visible,
@@ -225,7 +242,7 @@ class _OrbiListingState<T> extends State<OrbiListing<T>> {
           message: 'Exportar a Excel',
           child: Button(
             key: const Key('orbi-listing-export'),
-            onPressed: widget.onExport,
+            onPressed: _export,
             child: const Row(
               mainAxisSize: MainAxisSize.min,
               children: [
@@ -239,6 +256,14 @@ class _OrbiListingState<T> extends State<OrbiListing<T>> {
       ],
     ],
   );
+
+  void _export() {
+    final workbook = _gridKey.currentState?.exportToExcelWorkbook();
+    if (workbook == null) return;
+    final bytes = workbook.saveAsStream();
+    workbook.dispose();
+    widget.onExport!(bytes, widget.exportFileName);
+  }
 
   Widget _columnsButton(BuildContext context) => DropDownButton(
     key: const Key('orbi-listing-columns'),
@@ -302,16 +327,20 @@ class _OrbiListingState<T> extends State<OrbiListing<T>> {
 }
 
 class _OrbiSource<T> extends DataGridSource {
-  // `rows` es un nombre que ya usa `DataGridSource` para otra cosa, así que
-  // aquí se llama distinto: colisionar con el de la clase base compila mal y
-  // el error no dice por qué.
   _OrbiSource({required this.items, required this.columns});
 
   final List<T> items;
   final List<OrbiColumn<T>> columns;
 
+  // 🔴 Causa raíz de una tabla que sólo mostraba la cabecera, nunca una fila:
+  // `DataGridSource` espera que quien lo extiende sobreescriba `rows`, no
+  // `effectiveRows` (ese es un getter interno del framework, alimentado
+  // desde `rows`; sobreescribirlo no hace nada — compila, pero la fuente
+  // real que arma la rejilla se queda vacía siempre). Medido: con
+  // `effectiveRows` sobreescrito, `SfDataGrid` pintaba la cabecera y cero
+  // filas de datos, incluso con `rows` no vacío en `OrbiListing`.
   @override
-  List<DataGridRow> get effectiveRows => [
+  List<DataGridRow> get rows => [
     for (final row in items)
       DataGridRow(
         cells: [

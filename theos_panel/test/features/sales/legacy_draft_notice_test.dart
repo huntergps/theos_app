@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:fluent_ui/fluent_ui.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:theos_panel/features/sales/legacy_draft_inspector.dart';
@@ -18,8 +18,10 @@ Future<void> _pumpNotice(WidgetTester tester, Size size) async {
   await tester.binding.setSurfaceSize(size);
   addTearDown(() => tester.binding.setSurfaceSize(null));
   await tester.pumpWidget(
-    MaterialApp(
-      home: Scaffold(body: LegacyDraftNotice(inspection: _inspection())),
+    FluentApp(
+      home: ScaffoldPage(
+        content: LegacyDraftNotice(inspection: _inspection()),
+      ),
     ),
   );
   await tester.pumpAndSettle();
@@ -47,7 +49,7 @@ void main() {
       expect(find.textContaining('No se asignará una empresa'), findsOneWidget);
       await tester.tap(
         find.descendant(
-          of: find.byType(AlertDialog),
+          of: find.byType(ContentDialog),
           matching: find.text('Cerrar'),
         ),
       );
@@ -61,9 +63,9 @@ void main() {
   ) async {
     var dismissed = false;
     await tester.pumpWidget(
-      MaterialApp(
-        home: Scaffold(
-          body: LegacyDraftNotice(
+      FluentApp(
+        home: ScaffoldPage(
+          content: LegacyDraftNotice(
             inspection: _inspection(),
             onDismiss: () => dismissed = true,
           ),
@@ -71,15 +73,19 @@ void main() {
       ),
     );
     await tester.tap(find.text('Cerrar'));
+    // Fluent's `Button` schedules a short internal timer for its press
+    // feedback; letting it settle before the test ends avoids a spurious
+    // "Timer still pending" teardown failure unrelated to this behavior.
+    await tester.pump(const Duration(milliseconds: 200));
     expect(dismissed, isTrue);
     expect(find.text('importó'), findsNothing);
   });
 
   testWidgets('missing legacy draft renders no notice', (tester) async {
     await tester.pumpWidget(
-      MaterialApp(
-        home: Scaffold(
-          body: LegacyDraftNotice(inspection: _inspection(rawPresent: false)),
+      FluentApp(
+        home: ScaffoldPage(
+          content: LegacyDraftNotice(inspection: _inspection(rawPresent: false)),
         ),
       ),
     );

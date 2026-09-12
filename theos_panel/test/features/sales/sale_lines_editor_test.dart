@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:fluent_ui/fluent_ui.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:syncfusion_flutter_datagrid/datagrid.dart';
 import 'package:theos_panel/features/clients/catalog_contracts.dart';
@@ -54,11 +54,11 @@ Widget _host(
   CatalogController<SaleCatalogProduct>? products,
   ValueChanged<CatalogEntity<SaleCatalogProduct>>? onAddProduct,
   void Function(String, double)? onQuantityChanged,
-}) => MaterialApp(
+}) => FluentApp(
   home: MediaQuery(
     data: MediaQueryData(size: size ?? const Size(390, 844)),
-    child: Scaffold(
-      body: SaleLinesEditor(
+    child: ScaffoldPage(
+      content: SaleLinesEditor(
         draft: draft,
         products: products,
         onAddProduct: onAddProduct ?? (_) {},
@@ -83,10 +83,10 @@ void main() {
       await tester.pumpWidget(_host(_draft(), size: size));
       await tester.pump();
       expect(find.text('Martillo'), findsOneWidget);
-      final quantityField = tester.widget<TextField>(
+      final quantityField = tester.widget<TextBox>(
         find.byKey(const ValueKey('sale-quantity-line-a')),
       );
-      expect(quantityField.decoration?.labelText, 'Cantidad · Martillo');
+      expect(quantityField.placeholder, 'Cantidad · Martillo');
       final wide = size.width >= 840 && size.width >= size.height;
       expect(find.byType(SfDataGrid), wide ? findsOneWidget : findsNothing);
       expect(tester.takeException(), isNull);
@@ -149,10 +149,10 @@ void main() {
         find.byKey(const ValueKey('sale-quantity-line-a')),
         findsOneWidget,
       );
-      final wideQuantityField = tester.widget<TextField>(
+      final wideQuantityField = tester.widget<TextBox>(
         find.byKey(const ValueKey('sale-quantity-line-a')),
       );
-      expect(wideQuantityField.decoration?.labelText, 'Cantidad · Martillo');
+      expect(wideQuantityField.placeholder, 'Cantidad · Martillo');
       expect(find.text('2.5'), findsOneWidget);
       await tester.binding.setSurfaceSize(null);
     },

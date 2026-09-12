@@ -1,5 +1,5 @@
 import 'package:drift/native.dart';
-import 'package:flutter/material.dart';
+import 'package:fluent_ui/fluent_ui.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:orbi_runtime/orbi_runtime.dart';
 import 'package:theos_panel/features/sales/sale_draft_workspace.dart';
@@ -49,7 +49,7 @@ void main() {
         await workspace.create();
       });
       await tester.pumpWidget(
-        MaterialApp(home: SaleDraftWorkspaceBar(workspace: workspace)),
+        FluentApp(home: SaleDraftWorkspaceBar(workspace: workspace)),
       );
       for (final size in [
         const Size(1440, 900),
@@ -117,7 +117,7 @@ void main() {
       );
       await tester.runAsync(() => workspace.initialize());
       await tester.pumpWidget(
-        MaterialApp(home: SaleDraftWorkspaceBar(workspace: workspace)),
+        FluentApp(home: SaleDraftWorkspaceBar(workspace: workspace)),
       );
       await tester.pumpAndSettle();
 
@@ -133,11 +133,11 @@ void main() {
         var enabled = false;
         for (var attempt = 0; attempt < 10 && !enabled; attempt++) {
           await tester.pump();
-          enabled = tester
-              .widget<PopupMenuButton<String>>(
+          enabled = !tester
+              .widget<DropDownButton>(
                 find.byKey(const Key('reopen-draft-button')),
               )
-              .enabled;
+              .disabled;
         }
         expect(enabled, isTrue, reason: 'Reopen menu never finished loading.');
         await tester.tap(find.byKey(const Key('reopen-draft-button')));
@@ -146,9 +146,7 @@ void main() {
       });
 
       expect(
-        find.byWidgetPredicate(
-          (widget) => widget is PopupMenuItem<String> && widget.value == secondId,
-        ),
+        find.byKey(ValueKey('reopen-draft-item-$secondId')),
         findsOneWidget,
         reason:
             'The reopen menu cached its list on first build and never '

@@ -1,6 +1,6 @@
 import 'dart:async';
 
-import 'package:flutter/material.dart';
+import 'package:fluent_ui/fluent_ui.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:theos_panel/features/clients/catalog_contracts.dart';
 import 'package:theos_panel/features/clients/entity_picker.dart';
@@ -86,15 +86,13 @@ void main() {
     final controller = CatalogController<String>(repository: repository);
     addTearDown(controller.dispose);
     await tester.pumpWidget(
-      MaterialApp(
-        home: Material(
-          child: SizedBox(
-            width: 599,
-            height: 500,
-            child: EntityPicker(
-              controller: controller,
-              label: 'Buscar producto',
-            ),
+      FluentApp(
+        home: SizedBox(
+          width: 599,
+          height: 500,
+          child: EntityPicker(
+            controller: controller,
+            label: 'Buscar producto',
           ),
         ),
       ),
@@ -103,15 +101,13 @@ void main() {
     controller.select(controller.snapshot.items.first);
     controller.setDraft('borrador');
     await tester.pumpWidget(
-      MaterialApp(
-        home: Material(
-          child: SizedBox(
-            width: 840,
-            height: 500,
-            child: EntityPicker(
-              controller: controller,
-              label: 'Buscar producto',
-            ),
+      FluentApp(
+        home: SizedBox(
+          width: 840,
+          height: 500,
+          child: EntityPicker(
+            controller: controller,
+            label: 'Buscar producto',
           ),
         ),
       ),
@@ -135,16 +131,14 @@ void main() {
     final controller = CatalogController<String>(repository: repository);
     addTearDown(controller.dispose);
     await tester.pumpWidget(
-      MaterialApp(
-        home: Material(
-          child: SizedBox(
-            width: 599,
-            height: 500,
-            child: EntityPicker(
-              controller: controller,
-              label: 'Buscar cliente',
-              entityName: 'clientes',
-            ),
+      FluentApp(
+        home: SizedBox(
+          width: 599,
+          height: 500,
+          child: EntityPicker(
+            controller: controller,
+            label: 'Buscar cliente',
+            entityName: 'clientes',
           ),
         ),
       ),

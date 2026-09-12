@@ -2,13 +2,14 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:math';
 
-import 'package:flutter/material.dart';
+import 'package:fluent_ui/fluent_ui.dart';
 import 'package:orbi_runtime/orbi_runtime.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:reactive_forms/reactive_forms.dart';
 import 'package:theos_pos_core/theos_pos_core.dart';
 
 import '../../ui/components/orbi_components.dart';
+import '../../ui/fluent/orbi_page.dart';
 import '../clients/catalog_contracts.dart';
 import '../clients/entity_picker.dart';
 import '../approvals/approval_contracts.dart';
@@ -711,11 +712,13 @@ class _SaleEditorScreenState extends State<SaleEditorScreen> {
   late final TextEditingController _note = TextEditingController(
     text: widget.controller.draft.note,
   );
-  // Owned explicitly (not left to ExpansionTile's default) because
-  // `initiallyExpanded` is only read once, at the tile's own initState. A
+  // Owned explicitly (not left to Expander's default) because
+  // `initiallyExpanded` is only read once, at the Expander's own initState. A
   // note restored asynchronously after that point would otherwise stay
-  // hidden behind a collapsed, unmounted section forever.
-  final ExpansibleController _notesController = ExpansibleController();
+  // hidden behind a collapsed, unmounted section forever. `ExpanderState`
+  // exposes a settable `isExpanded`, unlike Material's `ExpansionTile`, whose
+  // equivalent needed a dedicated `ExpansibleController`.
+  final _notesKey = GlobalKey<ExpanderState>();
   late final FormGroup _saleForm = FormGroup({
     'client': FormControl<String>(
       value: widget.controller.draft.clientName,
@@ -746,7 +749,6 @@ class _SaleEditorScreenState extends State<SaleEditorScreen> {
     _draftChanges.cancel();
     _saleForm.dispose();
     _note.dispose();
-    _notesController.dispose();
     super.dispose();
   }
 
@@ -766,10 +768,13 @@ class _SaleEditorScreenState extends State<SaleEditorScreen> {
     initialData: widget.controller.draft,
     builder: (context, snapshot) {
       final draft = snapshot.data ?? widget.controller.draft;
-      return OrbiPageShell(
+      return OrbiPage(
         title: widget.presentation == SalePresentation.counter
             ? 'Venta mostrador'
             : 'Venta consultiva',
+        subtitle: draft.clientName.isEmpty
+            ? 'Cliente pendiente'
+            : draft.clientName,
         child: LayoutBuilder(
           builder: (context, c) => _layout(context, c.maxWidth, draft),
         ),
@@ -784,8 +789,8 @@ class _SaleEditorScreenState extends State<SaleEditorScreen> {
     }
     // A restored/updated note must surface even if the section was
     // collapsed (or not yet mounted) when this snapshot arrived.
-    if (draft.note.isNotEmpty && !_notesController.isExpanded) {
-      _notesController.expand();
+    if (draft.note.isNotEmpty && _notesKey.currentState?.isExpanded != true) {
+      _notesKey.currentState?.isExpanded = true;
     }
     if (_note.text == draft.note) return;
     final offset = _note.selection.baseOffset.clamp(0, draft.note.length);
@@ -801,11 +806,15 @@ class _SaleEditorScreenState extends State<SaleEditorScreen> {
     final scale = MediaQuery.textScalerOf(context).scale(1);
     final banner = widget.controller.saveError == null
         ? null
-        : const MaterialBanner(
-            content: Text(
-              'Cambios aún no guardados. Mantén esta pantalla abierta y revisa almacenamiento.',
+        : const Padding(
+            padding: EdgeInsets.only(bottom: 8),
+            child: InfoBar(
+              title: Text('Cambios aún no guardados'),
+              content: Text(
+                'Mantén esta pantalla abierta y revisa almacenamiento.',
+              ),
+              severity: InfoBarSeverity.warning,
             ),
-            actions: [SizedBox.shrink()],
           );
     if (width >= (scale >= 1.5 ? 1120 : 840)) {
       return SingleChildScrollView(
@@ -855,14 +864,20 @@ class _SaleEditorScreenState extends State<SaleEditorScreen> {
                 ),
               ),
               if (widget.clients != null)
-                OutlinedButton.icon(
+                Button(
                   key: const Key('sale-client-picker-button'),
                   onPressed: _openClientPicker,
-                  icon: const Icon(Icons.search),
-                  label: Text(
-                    draft.clientName.isEmpty
-                        ? 'Buscar cliente'
-                        : 'Cambiar cliente',
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Icon(FluentIcons.search),
+                      const SizedBox(width: 6),
+                      Text(
+                        draft.clientName.isEmpty
+                            ? 'Buscar cliente'
+                            : 'Cambiar cliente',
+                      ),
+                    ],
                   ),
                 ),
               SizedBox(
@@ -874,38 +889,44 @@ class _SaleEditorScreenState extends State<SaleEditorScreen> {
                     if (terms.isEmpty) {
                       return const Text('Términos no configurados');
                     }
-                    return DropdownButtonFormField<int>(
-                      initialValue:
-                          terms.any((t) => t.id == draft.paymentTermId)
-                          ? draft.paymentTermId
-                          : null,
-                      decoration: const InputDecoration(
-                        labelText: 'Término de pago',
-                        hintText: 'Seleccionar término',
+                    return InfoLabel(
+                      label: 'Término de pago',
+                      child: ComboBox<int>(
+                        // Sin esto, el `ComboBox` se dimensiona a su
+                        // contenido (la etiqueta del término elegido) en vez
+                        // de al ancho que le da este `SizedBox`, y con una
+                        // etiqueta larga se desborda en vez de recortarse con
+                        // puntos suspensivos.
+                        isExpanded: true,
+                        placeholder: const Text('Seleccionar término'),
+                        value: terms.any((t) => t.id == draft.paymentTermId)
+                            ? draft.paymentTermId
+                            : null,
+                        items: [
+                          for (final term in terms)
+                            ComboBoxItem(
+                              value: term.id,
+                              child: Text(term.label),
+                            ),
+                        ],
+                        onChanged: (value) {
+                          final term = terms.firstWhere((t) => t.id == value);
+                          widget.controller.update(
+                            paymentTermId: value,
+                            installments: term.installments,
+                          );
+                        },
                       ),
-                      items: [
-                        for (final term in terms)
-                          DropdownMenuItem(
-                            value: term.id,
-                            child: Text(term.label),
-                          ),
-                      ],
-                      onChanged: (value) {
-                        final term = terms.firstWhere((t) => t.id == value);
-                        widget.controller.update(
-                          paymentTermId: value,
-                          installments: term.installments,
-                        );
-                      },
                     );
                   },
                 ),
               ),
               if (widget.canSelectWarehouse)
-                const SizedBox(
+                SizedBox(
                   width: 180,
-                  child: TextField(
-                    decoration: InputDecoration(labelText: 'Almacén'),
+                  child: InfoLabel(
+                    label: 'Almacén',
+                    child: const TextBox(key: Key('sale-warehouse-field')),
                   ),
                 ),
               Text('Clasificación: ${termsClassificationLabel(draft.classification)}'),
@@ -929,20 +950,17 @@ class _SaleEditorScreenState extends State<SaleEditorScreen> {
             );
           },
         ),
-        ExpansionTile(
-          controller: _notesController,
-          tilePadding: EdgeInsets.zero,
-          title: const Text('Notas'),
+        Expander(
+          key: _notesKey,
+          header: const Text('Notas'),
           initiallyExpanded: _note.text.isNotEmpty,
-          children: [
-            TextField(
-              controller: _note,
-              onChanged: (v) => widget.controller.update(note: v),
-              minLines: 2,
-              maxLines: 4,
-              decoration: const InputDecoration(labelText: 'Notas'),
-            ),
-          ],
+          content: TextBox(
+            controller: _note,
+            onChanged: (v) => widget.controller.update(note: v),
+            minLines: 2,
+            maxLines: 4,
+            placeholder: 'Notas',
+          ),
         ),
         if (includeLines) ...[
           const SizedBox(height: 16),
@@ -959,7 +977,7 @@ class _SaleEditorScreenState extends State<SaleEditorScreen> {
   }) => Column(
     crossAxisAlignment: CrossAxisAlignment.stretch,
     children: [
-      Text('Productos', style: Theme.of(context).textTheme.titleMedium),
+      Text('Productos', style: FluentTheme.of(context).typography.subtitle),
       const SizedBox(height: 8),
       if (constrainGrid)
         SizedBox(height: 360, child: _saleLinesEditor(draft))
@@ -973,7 +991,7 @@ class _SaleEditorScreenState extends State<SaleEditorScreen> {
     if (clients == null) return;
     await showDialog<void>(
       context: context,
-      builder: (dialogContext) => AlertDialog(
+      builder: (dialogContext) => ContentDialog(
         title: const Text('Seleccionar cliente'),
         content: SizedBox(
           width: 520,
@@ -1060,7 +1078,7 @@ class _SaleEditorScreenState extends State<SaleEditorScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Text('Resumen', style: Theme.of(context).textTheme.titleLarge),
+          Text('Resumen', style: FluentTheme.of(context).typography.title),
           const SizedBox(height: 8),
           Text(
             draft.clientName.isEmpty ? 'Cliente pendiente' : draft.clientName,
@@ -1071,23 +1089,49 @@ class _SaleEditorScreenState extends State<SaleEditorScreen> {
             const Text('La aprobación fue rechazada; revisa la cotización.'),
           const SizedBox(height: 16),
           if (draft.approval == SaleApprovalState.required)
-            FilledButton.icon(
+            FilledButton(
               onPressed:
                   widget.controller.busy || widget.controller.saveError != null
                   ? null
                   : () => widget.controller.requestApproval(),
-              icon: const Icon(Icons.send),
-              label: const Text('Solicitar aprobación'),
+              // `Flexible` + ellipsis, not a bare `Text`: at 390px (phone) the
+              // button's own padding already leaves less room than "Solicitar
+              // aprobación" needs, and a bare `Text` here overflows instead of
+              // shrinking — measured on the four-viewport sweep.
+              child: const Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(FluentIcons.send),
+                  SizedBox(width: 6),
+                  Flexible(
+                    child: Text(
+                      'Solicitar aprobación',
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                ],
+              ),
             ),
-          FilledButton.icon(
+          FilledButton(
             onPressed:
                 widget.controller.busy ||
                     widget.controller.saveError != null ||
                     draft.approval != SaleApprovalState.approved
                 ? null
                 : () => widget.controller.submit(),
-            icon: const Icon(Icons.check),
-            label: Text(widget.controller.busy ? 'Guardando…' : 'Continuar'),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Icon(FluentIcons.check_mark),
+                const SizedBox(width: 6),
+                Flexible(
+                  child: Text(
+                    widget.controller.busy ? 'Guardando…' : 'Continuar',
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+              ],
+            ),
           ),
         ],
       ),

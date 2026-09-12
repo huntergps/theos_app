@@ -105,9 +105,32 @@ final class CatalogController<T> {
   String get draft => _draft;
   Stream<CatalogSnapshot<T>> get changes => _changes.stream;
 
+  /// Página actual, derivada del cursor: aquí el cursor siempre fue un
+  /// desplazamiento codificado como texto (ver los `RuntimeXCatalogRepository`
+  /// de `app/scope_catalog_repository.dart`), nunca un cursor opaco de red, así
+  /// que ir hacia adelante y hacia atrás es seguro.
+  int get pageIndex {
+    final offset = int.tryParse(_query.cursor ?? '') ?? 0;
+    return _query.pageSize <= 0 ? 0 : offset ~/ _query.pageSize;
+  }
+
   void setSearch(String value) {
     final next = _query.copyWith(search: value, clearCursor: true);
     if (next.search == _query.search) return;
+    _query = next;
+    _subscribe();
+  }
+
+  /// Salta directamente a la página `index` (0-based), recalculando el cursor
+  /// como `index * pageSize`. Distinto de [loadNext]: éste sólo avanza una
+  /// página a partir de `nextCursor`; `setPage` permite retroceder también,
+  /// que es lo que pide un paginador real en vez de un «cargar más».
+  void setPage(int index) {
+    final safeIndex = index < 0 ? 0 : index;
+    final next = safeIndex <= 0
+        ? _query.copyWith(clearCursor: true)
+        : _query.copyWith(cursor: '${safeIndex * _query.pageSize}');
+    if (next.cursor == _query.cursor) return;
     _query = next;
     _subscribe();
   }

@@ -35,6 +35,12 @@ dependencies:
     path: ../orbi_runtime
   flutter_qweb:
     path: ../flutter_qweb
+  # El listado y el formulario estándar (`OrbiListing`/`OrbiForm`) viven aquí
+  # para que las dos aplicaciones usen el mismo, por orden del dueño
+  # (11-sep-2026): «todas las pantallas tienen listado, filtro, paginación,
+  # exportación a Excel, ocultar/mostrar columnas y título».
+  odoo_widgets:
+    path: ../odoo_widgets
   drift: ^2.34.3
   theos_pos_core:
     path: ../theos_pos_core

@@ -1,13 +1,11 @@
-import 'dart:async';
-
-import 'package:flutter/material.dart';
+import 'package:fluent_ui/fluent_ui.dart';
 import 'package:go_router/go_router.dart';
+import 'package:odoo_widgets/odoo_widgets.dart';
 
-import '../../ui/bindings/record_view_controller.dart';
 import '../../ui/components/orbi_components.dart';
-import '../../ui/components/records/orbi_record_grid.dart';
-import 'orders_contracts.dart';
+import '../../ui/fluent/orbi_page.dart';
 import '../../ui/state_labels.dart';
+import 'orders_contracts.dart';
 
 class OrdersScreen extends StatefulWidget {
   const OrdersScreen({
@@ -34,49 +32,31 @@ class _OrdersScreenState extends State<OrdersScreen> {
     filterStore: widget.filterStore,
     scopeKey: widget.scopeKey,
   );
-  late final OrbiRecordViewController<OrderListItem> _records =
-      OrbiRecordViewController();
-  late final TextEditingController _search = TextEditingController();
-  late final StreamSubscription<OrderSnapshot> _recordSubscription;
-
-  @override
-  void initState() {
-    super.initState();
-    _recordSubscription = _controller.changes.listen(_syncRecords);
-  }
-
-  void _syncRecords(OrderSnapshot snapshot) {
-    _records.replaceRecords(
-      snapshot.items.map(
-        (item) => OrbiRecord<OrderListItem>(id: item.localId, value: item),
-      ),
-    );
-  }
 
   @override
   void dispose() {
-    _search.dispose();
-    _recordSubscription.cancel();
-    _records.dispose();
     _controller.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-    return OrbiPageShell(
+    return OrbiPage(
       title: 'Órdenes',
-      actions: [
-        FilledButton.icon(
+      subtitle: 'Ventas y cotizaciones visibles para tu ámbito',
+      commands: [
+        CommandBarButton(
           key: const Key('new-sale-button'),
-          onPressed: () => context.go('/sales/counter'),
-          icon: const Icon(Icons.add),
+          icon: const Icon(FluentIcons.add),
           label: const Text('Nueva venta'),
+          onPressed: () => context.go('/sales/counter'),
         ),
-        IconButton(
+        CommandBarButton(
+          key: const Key('orders-refresh-button'),
+          icon: const Icon(FluentIcons.refresh),
+          label: const Text('Actualizar'),
           tooltip: 'Actualizar órdenes',
           onPressed: _controller.refresh,
-          icon: const Icon(Icons.refresh),
         ),
       ],
       child: StreamBuilder<OrderSnapshot>(
@@ -89,21 +69,23 @@ class _OrdersScreenState extends State<OrdersScreen> {
             children: [
               _filters(context),
               const SizedBox(height: 12),
-              Semantics(
-                liveRegion: true,
-                label: '${state.totalCount} órdenes',
-                child: Text(
-                  '${state.totalCount} órdenes',
-                  style: Theme.of(context).textTheme.titleMedium,
+              // El lector local siempre trae hasta 50 filas por consulta (sin
+              // desplazamiento: `RuntimeLocalOrderReader.read`, límite fijo).
+              // Cuando el total real es mayor, decirlo en vez de paginar en
+              // silencio hacia páginas vacías es lo honesto.
+              if (state.totalCount > state.items.length)
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 8),
+                  child: InfoBar(
+                    title: const Text('Hay más órdenes de las que se muestran'),
+                    content: Text(
+                      'Mostrando ${state.items.length} de ${state.totalCount}. '
+                      'Filtra o busca para acotar el resultado.',
+                    ),
+                    severity: InfoBarSeverity.info,
+                  ),
                 ),
-              ),
-              const SizedBox(height: 8),
-              Expanded(
-                child: LayoutBuilder(
-                  builder: (context, constraints) =>
-                      _body(context, constraints.maxWidth, state),
-                ),
-              ),
+              Expanded(child: _body(context, state)),
             ],
           );
         },
@@ -118,136 +100,99 @@ class _OrdersScreenState extends State<OrdersScreen> {
       runSpacing: 8,
       crossAxisAlignment: WrapCrossAlignment.center,
       children: [
-        SizedBox(
-          width: 320,
-          child: TextField(
-            controller: _search,
-            onChanged: _controller.setText,
-            decoration: const InputDecoration(
-              labelText: 'Buscar órdenes',
-              prefixIcon: Icon(Icons.search),
-            ),
-          ),
-        ),
         if (widget.policy.canSelect(OrderFilter.mine))
-          FilterChip(
-            label: const Text('Mis ventas'),
-            selected: _controller.filter == OrderFilter.mine,
-            onSelected: (_) => _controller.setFilter(OrderFilter.mine),
+          ToggleButton(
+            checked: _controller.filter == OrderFilter.mine,
+            onChanged: (_) => _controller.setFilter(OrderFilter.mine),
+            child: const Text('Mis ventas'),
           ),
         if (canAll)
-          FilterChip(
-            label: const Text('Todas'),
-            selected: _controller.filter == OrderFilter.all,
-            onSelected: (_) => _controller.setFilter(OrderFilter.all),
+          ToggleButton(
+            checked: _controller.filter == OrderFilter.all,
+            onChanged: (_) => _controller.setFilter(OrderFilter.all),
+            child: const Text('Todas'),
           ),
         if (widget.policy.canSelect(OrderFilter.cashierPending))
-          FilterChip(
-            label: const Text('Pendientes de caja'),
-            selected: _controller.filter == OrderFilter.cashierPending,
-            onSelected: (_) =>
+          ToggleButton(
+            checked: _controller.filter == OrderFilter.cashierPending,
+            onChanged: (_) =>
                 _controller.setFilter(OrderFilter.cashierPending),
+            child: const Text('Pendientes de caja'),
           ),
       ],
     );
   }
 
-  Widget _body(BuildContext context, double width, OrderSnapshot state) {
+  Widget _body(BuildContext context, OrderSnapshot state) {
     return switch (state.status) {
-      OrderLoadStatus.initial || OrderLoadStatus.loading => const Center(
-        child: CircularProgressIndicator(),
-      ),
-      OrderLoadStatus.empty => const OrbiEmptyState(
-        title: 'Sin órdenes',
-        message: 'No hay órdenes visibles con este filtro.',
-      ),
+      OrderLoadStatus.initial ||
+      OrderLoadStatus.loading => const Center(child: ProgressRing()),
       OrderLoadStatus.error => OrbiErrorState(
         message: 'No se pudieron cargar las órdenes.',
         onRetry: _controller.refresh,
       ),
-      OrderLoadStatus.data => _orderList(context, width, state),
+      OrderLoadStatus.empty || OrderLoadStatus.data => _listing(context, state),
     };
   }
 
-  Widget _orderList(BuildContext context, double width, OrderSnapshot state) {
-    return OrbiRecordGrid<OrderListItem>(
-      controller: _records,
-      columns: [
-        OrbiRecordColumn(
-          id: 'order',
-          label: 'Orden',
-          value: (item) => item.title,
-        ),
-        OrbiRecordColumn(
-          id: 'business',
-          label: 'Estado comercial',
-          value: (item) => item.businessState.code,
-        ),
-        OrbiRecordColumn(
-          id: 'sync',
-          label: 'Sincronización',
-          value: (item) => item.syncState.name,
-        ),
-        OrbiRecordColumn(
-          id: 'pending',
-          label: 'Pendiente',
-          value: (item) => item.pendingCollection
-              ? 'Cobro'
-              : item.pendingInvoicing
-              ? 'Facturación'
-              : '—',
-        ),
-      ],
-      cardBuilder: (context, record) => _orderCard(context, record.value),
-      onRecordTap: (record) => _showOrderDetail(context, record.value),
+  Widget _listing(BuildContext context, OrderSnapshot state) {
+    return OrbiListing<OrderListItem>(
+      rows: state.items,
+      columns: _columns(),
+      storageKey: 'orders-screen',
+      filterText: _controller.text,
+      onFilterChanged: _controller.setText,
+      filterPlaceholder: 'Buscar órdenes',
+      // Sin desplazamiento en el lector local (ver el aviso de arriba), el
+      // paginador sólo puede reflejar honestamente lo que ya está cargado.
+      totalCount: state.items.length,
+      onRowTap: (item) => _showOrderDetail(context, item),
+      emptyMessage: 'Sin órdenes: no hay órdenes visibles con este filtro.',
     );
   }
 
-  Widget _orderCard(BuildContext context, OrderListItem item) {
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(item.title, style: Theme.of(context).textTheme.titleMedium),
-            if (item.clientOrderRef case final reference?
-                when reference.trim().isNotEmpty)
-              Text(reference),
-            const SizedBox(height: 8),
-            Wrap(
-              spacing: 6,
-              runSpacing: 6,
-              children: [
-                OrbiStatusChip(label: 'Negocio: ${item.businessState.code}'),
-                OrbiStatusChip(label: syncStateLabel(item.syncState)),
-                OrbiStatusChip(
-                  label: fiscalStateLabelOrNone(item.fiscalState),
-                ),
-              ],
-            ),
-            if (item.pendingCollection || item.pendingInvoicing) ...[
-              const SizedBox(height: 8),
-              Text(
-                [
-                  if (item.pendingCollection) 'Pendiente por cobrar',
-                  if (item.pendingInvoicing) 'Pendiente por facturar',
-                ].join(' · '),
-              ),
-            ],
-          ],
-        ),
-      ),
-    );
-  }
+  List<OrbiColumn<OrderListItem>> _columns() => [
+    OrbiColumn(
+      key: 'order',
+      label: 'Orden',
+      value: (item) => item.title,
+      alwaysVisible: true,
+    ),
+    OrbiColumn(
+      key: 'business',
+      label: 'Estado comercial',
+      value: (item) => item.businessState.code,
+    ),
+    OrbiColumn(
+      key: 'sync',
+      label: 'Sincronización',
+      value: (item) => syncStateLabel(item.syncState),
+    ),
+    OrbiColumn(
+      key: 'fiscal',
+      label: 'Estado fiscal',
+      value: (item) => fiscalStateLabelOrNone(item.fiscalState),
+    ),
+    OrbiColumn(
+      key: 'pending',
+      label: 'Pendiente',
+      value: (item) => item.pendingCollection
+          ? 'Cobro'
+          : item.pendingInvoicing
+          ? 'Facturación'
+          : '—',
+    ),
+  ];
 
   Future<void> _showOrderDetail(BuildContext context, OrderListItem item) {
     return showDialog<void>(
       context: context,
-      builder: (context) => AlertDialog(
+      builder: (dialogContext) => ContentDialog(
         title: Text(item.title),
         content: SingleChildScrollView(
-          child: ListBody(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
             children: [
               Text('Estado comercial: ${item.businessState.code}'),
               Text('Estado local: ${syncStateLabel(item.syncState)}'),
@@ -260,8 +205,8 @@ class _OrdersScreenState extends State<OrdersScreen> {
           ),
         ),
         actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(),
+          Button(
+            onPressed: () => Navigator.of(dialogContext).pop(),
             child: const Text('Cerrar'),
           ),
         ],

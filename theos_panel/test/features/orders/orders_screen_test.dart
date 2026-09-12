@@ -1,6 +1,6 @@
 import 'dart:async';
 
-import 'package:flutter/material.dart';
+import 'package:fluent_ui/fluent_ui.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:orbi_runtime/orbi_runtime.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -182,7 +182,7 @@ void main() {
       final size = ValueNotifier(const Size(599, 600));
       addTearDown(size.dispose);
       await tester.pumpWidget(
-        MaterialApp(
+        FluentApp(
           home: ValueListenableBuilder<Size>(
             valueListenable: size,
             builder: (context, value, child) => SizedBox(
@@ -203,7 +203,7 @@ void main() {
       await tester.pump();
       expect(repository.queries.last.authorFilter, isNull);
       expect(find.text('Venta Jacqueline'), findsOneWidget);
-      await tester.tap(find.byTooltip('Actualizar órdenes'));
+      await tester.tap(find.byKey(const Key('orders-refresh-button')));
       await tester.pump();
       for (final viewport in const [
         Size(1440, 900),
@@ -293,7 +293,7 @@ void main() {
       capabilities: capabilities(['seller']),
     );
     await tester.pumpWidget(
-      MaterialApp(
+      FluentApp(
         home: OrdersScreen(repository: repository, policy: policy),
       ),
     );

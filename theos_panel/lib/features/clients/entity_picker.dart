@@ -1,20 +1,22 @@
 import 'dart:async';
 
-import 'package:flutter/material.dart';
+import 'package:fluent_ui/fluent_ui.dart';
 
 import '../../ui/bindings/record_view_controller.dart';
 import '../../ui/components/orbi_components.dart';
 import '../../ui/components/records/orbi_record_grid.dart';
 import 'catalog_contracts.dart';
 
-/// Search + grid/list picker shared by the catalog screens (clients,
-/// products) and by narrower dialogs (e.g. the sale editor's client picker).
+/// Search + grid/list picker shared by narrower dialogs (e.g. the sale
+/// editor's client picker) that need to pick one entity without the full
+/// browsing chrome (filter/pagination/export/columns) `OrbiListing` gives the
+/// top-level catalog screens (`ClientsScreen`, `ProductsScreen`).
 ///
 /// The results surface reuses [OrbiRecordGrid]: a real Syncfusion grid on
 /// desktop/tablet-landscape and [OrbiRecordList] cards on tablet-portrait/
-/// phone, the same adaptive component `OrdersScreen` uses. It intentionally
-/// does not reimplement a grid with `GridView.extent`, which produced fixed
-/// square cells that did not resize to the actual content.
+/// phone. It intentionally does not reimplement a grid with `GridView.extent`,
+/// which produced fixed square cells that did not resize to the actual
+/// content.
 class EntityPicker<T> extends StatefulWidget {
   const EntityPicker({
     super.key,
@@ -104,16 +106,19 @@ class _EntityPickerState<T> extends State<EntityPicker<T>> {
   }
 
   Widget _defaultSearch() {
-    return TextField(
+    return TextBox(
       controller: _search,
+      placeholder: widget.label,
       onChanged: widget.controller.setSearch,
-      decoration: InputDecoration(
-        labelText: widget.label,
-        prefixIcon: const Icon(Icons.search),
-        suffixIcon: IconButton(
-          tooltip: 'Actualizar',
+      prefix: const Padding(
+        padding: EdgeInsets.only(left: 8),
+        child: Icon(FluentIcons.search),
+      ),
+      suffix: Tooltip(
+        message: 'Actualizar',
+        child: IconButton(
+          icon: const Icon(FluentIcons.refresh),
           onPressed: widget.controller.refresh,
-          icon: const Icon(Icons.refresh),
         ),
       ),
     );
@@ -121,9 +126,8 @@ class _EntityPickerState<T> extends State<EntityPicker<T>> {
 
   Widget _body(BuildContext context, CatalogSnapshot<T> state) {
     return switch (state.status) {
-      CatalogLoadStatus.initial || CatalogLoadStatus.loading => const Center(
-        child: CircularProgressIndicator(),
-      ),
+      CatalogLoadStatus.initial ||
+      CatalogLoadStatus.loading => const Center(child: ProgressRing()),
       CatalogLoadStatus.error => OrbiErrorState(
         message:
             'No se pudo cargar ${widget.entityName ?? widget.label.toLowerCase()}.',
@@ -148,10 +152,19 @@ class _EntityPickerState<T> extends State<EntityPicker<T>> {
           ),
         ),
         if (state.nextCursor != null)
-          TextButton.icon(
-            onPressed: widget.controller.loadNext,
-            icon: const Icon(Icons.expand_more),
-            label: const Text('Cargar más'),
+          Padding(
+            padding: const EdgeInsets.only(top: 4),
+            child: Button(
+              onPressed: widget.controller.loadNext,
+              child: const Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(FluentIcons.chevron_down),
+                  SizedBox(width: 6),
+                  Text('Cargar más'),
+                ],
+              ),
+            ),
           ),
         Semantics(
           liveRegion: true,
