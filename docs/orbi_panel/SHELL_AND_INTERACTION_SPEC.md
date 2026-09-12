@@ -1,6 +1,7 @@
 # Orbi ERP: especificación de shell e interacción
 
-Fecha: 2026-09-10. Estado: propuesta de producto y contrato visual. No declara implementación terminada,
+Fecha: 2026-09-10, con el estándar del marco resuelto el 2026-09-12.
+Estado: propuesta de producto y contrato visual. No declara implementación terminada,
 ni inventa modelos, campos, ACL o endpoints. Las vinculaciones reales quedan pendientes.
 
 ## Principios
@@ -200,6 +201,55 @@ SHELL-01 (menú/pie), ALERT-01 (avisos internos), ALERT-02 (avisos OS), CONT-01
 (continuidad/interacciones), OUT-01 (salidas Odoo), AI-01 (asistente opcional).
 Las imágenes de round-02 conservan su aprobación; estas láminas las complementan.
 Las revisiones posteriores no heredan aprobación. Véase APPROVAL_REGISTER.md.
+
+## Estándar resuelto del marco (12-09-2026)
+
+Esta sección cierra las diferencias entre las 39 láminas aprobadas (33 de round-02 y 6
+de round-03). El análisis y la evidencia lámina por lámina están en
+`ESTANDAR_LAMINAS_2026_09_12.md`; aquí queda sólo lo que manda. **Donde una lámina
+dibuje otra cosa, manda esta sección.**
+
+| Elemento | Estándar |
+| --- | --- |
+| Teléfono, pantallas raíz | Barra inferior: Inicio más hasta cuatro de los seis grupos, y «Más» abre el resto. Sin hamburguesa además de la barra: son dos rutas al mismo sitio |
+| Teléfono, pantallas empujadas | Sin barra inferior. Vuelta atrás, como cualquier detalle abierto desde una lista |
+| Cabecera | Marca, empresa, ubicación, usuario activo y campana. En Caja se añaden punto y sesión efectivos. Nada más es obligatorio |
+| Sesión | «Bloquear» y «Cambiar usuario» viven dentro del menú del avatar, no sueltos en la cabecera |
+| Título | Dentro del contenido, bajo la cabecera, nunca dentro de ella. Con subtítulo de una línea. **El código de pantalla no se muestra**: es control de calidad de las láminas, no producto |
+| Barra de acciones | El secundario con contorno a la izquierda, el primario relleno con el color de acento a la derecha |
+| Anchos | Los del código (`OrbiTheme.compactBreakpoint` 600, `mediumBreakpoint` 840, y 1440 para el modo expandido). Los píxeles impresos en las láminas son ilustración, no especificación |
+| Pie | El formato ya fijado más arriba en este mismo documento, persistente en escritorio y tableta horizontal, compacto en vertical y teléfono |
+| Menú lateral | Los seis grupos de este documento —Ventas, Caja, Bodega, Envases, Aprobaciones, Sistema—, todos de primer nivel. Envases **no** cuelga de Inventario. Nada de grupos genéricos de ERP que ninguna lámina tenía por qué inventar |
+| Marca | «ORBI ERP» en mayúsculas con el anillo teal |
+
+### Color por significado
+
+La forma del distintivo es libre: **no tiene que ser redondo** (decisión del dueño,
+12-09-2026). Lo que no es libre es el color:
+
+| Significado | Color |
+| --- | --- |
+| Confirmado o correcto | Verde |
+| Pendiente | Ámbar |
+| Error, rechazado o diferente | Rojo |
+| Borrador | Gris |
+| En proceso o en tránsito | Azul |
+
+### Lo que sigue abierto
+
+- **Buscador global en la cabecera.** Sin decidir (`PENDIENTES.md`, `D7`). Mientras no
+  se decida, **no se implementa**: cada pantalla usa su propio filtro de contenido.
+- **Vocabulario de los botones.** Cinco pares distintos conviven hoy sólo en Caja para
+  lo que en el fondo es confirmar o cancelar. Es un glosario de textos por tipo de
+  operación, no una regla de marco, y se resuelve aparte.
+
+### Cómo se hace cumplir
+
+Un documento se puede no leer. Lo único que vuelve esto un hecho es que la cabecera,
+el pie, el título y la barra de acciones vivan en un widget de marco compartido que
+toda pantalla esté obligada a usar, sin poder fabricarse el suyo. Mientras eso no esté
+implementado, esta sección y la lámina correctiva `VIS01` son el mejor sustituto
+disponible, y no hay que confundirlas con la solución.
 
 ## Contratos pendientes de enlazar
 

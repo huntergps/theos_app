@@ -144,6 +144,31 @@ Mirando el conjunto para "alguien lo usa un día entero en un mostrador":
    entorno donde se va a probar "un día entero", esto se topa primero que
    cualquier pantalla que falte.
 
+## 6. Regla nueva: qué manda cuando dos láminas se contradicen
+
+Añadida el 2026-09-12 tras un choque real entre `SHELL-01.png` (round-03) y
+`ACC-03.png` (round-02): la primera dibuja una barra lateral y una cabecera
+distintas de la segunda, y la segunda dibuja un "Inicio operativo" completo
+que la primera ni siquiera intenta representar (usa Órdenes y cotizaciones
+como contenido de ejemplo). Ninguna de las dos está retirada — las dos siguen
+"aprobadas" en `APPROVED_SCREEN_INDEX.md`.
+
+**La regla, confirmada por el team-lead: la lámina más reciente manda, pero
+sólo sobre el tema que su propio título declara — no sobre todo lo que
+aparece dibujado en ella.**
+
+Aplicado a este choque:
+- `SHELL-01` ("Menú y contexto global", round-03) **manda** para la
+  estructura del menú lateral y de la barra superior — es su tema declarado.
+- `ACC-03` ("Workspace multirrol", round-02) **manda** para el contenido de
+  Inicio y para la idea de bloquear/cambiar usuario — SHELL-01 no declara ese
+  tema como suyo, así que no lo desplaza aunque sea más nueva.
+
+Esto no es "la más nueva gana en todo": una lámina posterior que sólo enseña
+el menú no revoca el contenido de Inicio que una anterior sí definió, y
+viceversa. Cuando aparezca el próximo choque, comprobar primero **qué declara
+ser el tema de cada lámina** antes de asumir que la fecha decide sola.
+
 ## Fuentes citadas
 
 - `docs/orbi_panel/APPROVED_SCREEN_INDEX.md`, `VISUAL_COVERAGE.md`,

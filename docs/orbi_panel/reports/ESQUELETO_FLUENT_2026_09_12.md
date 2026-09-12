@@ -770,3 +770,188 @@ cual **sin cambiar ni un píxel.**
 
 **Y no dentro de `fluent_ui`**, por lo que ya está dicho: no es visual, está
 atado a Odoo, y nadie aguas arriba lo aceptaría.
+
+---
+
+# Parte VII — El teléfono: decidido
+
+**Decisión tomada el 12-09-2026. Anotada aquí para que no se reabra.**
+
+## Lo que Fluent sí hace, y conviene no exagerar
+
+**Fluent funciona en teléfono.** Su modo `minimal` deja la hamburguesa y abre el
+panel encima del contenido, y su modo `top` pone la navegación arriba con
+desbordamiento. Las dos son usables con el dedo.
+
+Decir «el teléfono de la lámina no se puede construir con Fluent» era preciso —
+la pieza concreta no existe— pero se presta a leerse como «Fluent no sirve en
+teléfono», que es falso.
+
+## Lo que no tiene
+
+Verificado en `pane.dart:26-61`: `PaneDisplayMode` tiene **cinco** valores, de
+los cuales cuatro son visuales — `top`, `expanded`, `compact`, `minimal` — y
+`auto` sólo elige entre ellos por ancho. **Ninguno es una barra inferior.**
+
+## La decisión: se escribe a mano, y vive dentro de la aplicación Fluent
+
+**No rompe la regla de no mezclar sistemas visuales.** Esa regla existe para no
+tener dos temas peleándose por colores y tipografías, no para prohibir un
+widget suelto. Una barra inferior es una pieza, no un sistema, y ambas son
+Flutter: conviven.
+
+**Y va abajo, no arriba, por dos razones:**
+
+1. **El pulgar llega abajo y no arriba.** Esto se usa con una mano, en un
+   mostrador.
+2. **Hay demasiadas áreas para la navegación superior.** Fluent recomienda `top`
+   para **cinco o menos**, y el menú de Orbi tiene **siete** entradas de primer
+   nivel (`router.dart`): Workspace, Ventas, Caja, Bodega, Envases,
+   Aprobaciones y Sistema — las seis áreas de la matriz más el inicio. Con
+   `top`, **dos caerían al desbordamiento**, y serían las dos que menos se usan
+   sin que nadie haya decidido cuáles.
+
+## Lo que esto cambia en la decisión de fondo
+
+De los tres argumentos contra Fluent, **este se cae**. Quedan dos:
+
+- **El color de marca**: Material deriva el esquema entero de la semilla que da
+  Odoo; Fluent no (Parte V).
+- **Dieciocho pantallas** y ~14 000 líneas a rehacer (Parte V).
+
+Y a favor sigue el que nadie había contado: **34 ficheros de campos de Odoo que
+hoy se están duplicando** y dejarían de hacerlo.
+
+La decisión de fondo es del dueño. Esta parte sólo cierra el cabo del teléfono.
+
+---
+
+# Parte VIII — ¿Las láminas aprobadas se adaptan a Fluent?
+
+Fecha: 2026-09-12 · Autor: `pantallas-ausentes` · Encargo del dueño, relayado por
+el coordinador: *«¿se pueden adaptar las pantallas aprobadas a fluent_ui?»*
+**Análisis, no código** — no se tocó ningún fichero de `lib/`.
+
+## 0. Método, para que esto se pueda auditar
+
+- Catálogo completo de `fluent_ui-4.16.1` leído del paquete instalado
+  (`~/.pub-cache/hosted/pub.dev/fluent_ui-4.16.1/lib/src/controls/`), no de su
+  documentación.
+- Las 39 descripciones de generación de `ROUND_02_REVIEW.md` leídas enteras
+  (VEN, CAJ, BOD, ENV, SUP, SYN, CFG, NOT, OPS y la serie CAJ-*-v2).
+- Dos láminas abiertas y miradas directamente, por instrucción explícita de
+  mirar sobre todo Caja y Envases: `CAJ-05-v2.png` (Anticipo — revisión) y
+  `ENV-01.png` (Estado de envases). Sumadas a `SHELL-01.png` y `ACC-03.png`, ya
+  abiertas en fases previas de esta sesión.
+- `grep` dirigido de los widgets específicos de Material
+  (`FilterChip`/`Chip`/`ChoiceChip`, `AlertDialog`/`showDialog`,
+  `ExpansionTile`, `DataTable`, `DropdownButtonFormField`, `Slider`,
+  `SwitchListTile`, `Wrap`, `PopupMenuButton`, `showDatePicker`) sobre **los 22
+  ficheros de pantalla** bajo `lib/features/` — no sobre los 45 ficheros que
+  cita la Parte V (esos incluyen contratos y composición, que no pintan nada).
+  El comando y el resultado completo quedan en la evidencia de esta tarea; el
+  resumen por pantalla está en la tabla del punto 2.
+
+## 1. La lista que importa primero: lo que Fluent NO tiene
+
+Confirmado leyendo el paquete, no citando de memoria:
+
+- **No hay `Persona`/`Avatar`.**
+- **No hay `Chip` ni ninguna insignia de estado coloreada de fábrica** — sólo
+  `InfoBadge`, que es un punto/contador, no una etiqueta con texto y color por
+  estado.
+- **No hay barra de navegación inferior** (ya lo cerró la Parte VII).
+- **No hay tabla de datos nativa** — ni falta, `Syncfusion` es quien pinta las
+  tablas hoy y es agnóstico de sistema visual (ni Material ni Fluent la
+  reclaman).
+
+Contra la lista de arriba, revisé **cada lámina y cada pantalla ya escrita** que
+dibuja o usa algo parecido, y en los tres casos reales el resultado es el
+mismo: **ya se pinta a mano en Material también**, porque tampoco Material trae
+una insignia de estado de fábrica (el `Chip` de Flutter es un chip de filtro o
+de entrada, no una etiqueta de estado — por eso `envases_dashboard_screen.dart`
+y `sync_conflict_resolution_screen.dart` ya lo usan con color forzado a mano).
+Cambiar de sistema visual no gana ni pierde nada ahí: se sigue pintando a mano
+en cualquiera de los dos.
+
+**Conclusión de este punto, dicha en los términos exactos que pidió el
+encargo:** no encontré ninguna lámina aprobada que dibuje un control que
+Fluent no pueda reproducir. La única pieza real que faltaba —la barra inferior
+del teléfono— ya se decidió y ya se resolvió en la Parte VII, y esa decisión
+no depende de si el resto de la aplicación es Material o Fluent: se escribe a
+mano en cualquiera de los dos casos.
+
+## 2. Por tipo de pantalla, las tres preguntas del encargo
+
+| Tipo de pantalla (ficheros) | (1) ¿Contenido genérico o de un sistema visual concreto? | (2) ¿Qué dibuja que Fluent NO tiene? | (3) ¿Qué dibuja que Fluent da de fábrica y hoy hacemos a mano? |
+|---|---|---|---|
+| **Caja** — `collection_screen.dart`, `collection_session_hub_screen.dart` (turno, cobro, denominaciones) | Genérico: `Card`/`Column`/`Row` a mano, sin ningún widget exclusivo de Material en la estructura. Sólo 5× `DropdownButtonFormField` y 1× `ExpansionTile` son de Material. | **Nada.** Los conteos de denominación son `TextField` con `keyboardType: number`, sin `NumberBox`. | Dos cosas reales, confirmadas mirando `CAJ-05-v2.png`: el `CommandBar` con plegado automático de acciones (hoy la barra de 4 acciones «+Agregar pago · Filtrar · Columnas · Exportar» se apilaría a mano con `OverflowBar`, Fluent la pliega sola) y **`NumberBox`** para los conteos de denominación — hoy son `TextField` con validación numérica hecha a mano, `NumberBox` trae el incremento/decremento y la validación de fábrica. |
+| **Envases** — `envases_dashboard_screen.dart` | Genérico: tabla propia `OrbiRecordColumn` sobre `Card`/`Column`/`Row`, no una `DataTable` de Material. | **Nada.** Confirmado en `ENV-01.png`: filtros tipo `ComboBox`, fecha de sólo lectura (no hay `showDatePicker` en ningún fichero del repo todavía), tabla ordenable, tarjeta de detalle flotante — todo con analogía 1:1. | Los 2× `Chip` de cantidad/estado seguirían pintándose a mano igual (ver punto 1); nada que Fluent resuelva mejor aquí específicamente. |
+| **Selección de cliente** — `entity_picker.dart` (usado en `clients_screen.dart` y en `sale_editor.dart`) | Genérico, y notablemente sencillo: un `TextField` con `onChanged`, sin ningún widget de sugerencias de Material. | Nada — de hecho es al revés (ver siguiente columna). | ✅ **Gana Fluent, y es la ganancia más clara de todo el barrido**: hoy la búsqueda de cliente es un campo de texto plano con filtrado hecho a mano; `AutoSuggestBox` da esa misma búsqueda con sugerencias, resaltado y navegación por teclado de fábrica. |
+| **Ventas / documentos** — `orders_screen.dart`, `sale_editor.dart`, `sale_lines_editor.dart`, `sale_draft_workspace(_bar).dart` | Genérico. | Nada — `FilterChip`×3, `AlertDialog`×2, `ExpansionTile`×2, `ChoiceChip`, `PopupMenuButton`: los seis tienen análogo directo (`ToggleButton`, `ContentDialog`, `Expander`, `DropDownButton`/`Flyout`). | `Expander` es limpiamente mejor que anidar `ExpansionTile` dentro de `Card`, pero es una mejora de forma, no de fondo. |
+| **Aprobaciones, Sincronización (+ resolución de conflictos), Notificaciones, Actividad, Productos, Reportes** — `approvals_screen.dart`, `sync_center.dart`, `sync_conflict_resolution_screen.dart`, `notification_inbox.dart`, `activity_center.dart`, `products_screen.dart`, `document_view.dart` | Genérico en los siete. `sync_conflict_resolution_screen.dart` es el fichero más largo del barrido (622 líneas) y aun así sólo usa `AlertDialog`, `ChoiceChip` y `Chip` — nada estructural. | Nada. | `ChoiceChip`→`ToggleButton`/`RadioButton` es mecánico; el resto no pinta nada específico de Material. |
+| **Bodega** — `warehouse_screen.dart`, `warehouse_existences_screen.dart` | Genérico salvo un punto real. | **La única pantalla con un widget Material puro sin análogo en Fluent**: `warehouse_existences_screen.dart` usa la `DataTable` nativa de Flutter (`DataColumn`/`DataRow`), no Syncfusion. | Da igual para esta decisión: el plan del proyecto ya es migrar esa tabla a Syncfusion (agnóstica de sistema visual) — el coste de quitar `DataTable` existe **aunque nos quedemos en Material**, no lo crea Fluent. |
+| **Configuración** — `settings_screen.dart`, `message_durations_section.dart` | Mixto — aquí sí hay un vacío real, ver abajo. | Nada en los widgets ya escritos (`DropdownButtonFormField`×3, `Slider`, `SwitchListTile`×2 — los tres con análogo directo: `ComboBox`, `Slider`, `ToggleSwitch`). | Nada de fábrica que aplique aquí. |
+| **Acceso** — `login_screen.dart`, `pin_login_screen.dart`, `server_manager_dialog.dart` | Genérico. | Nada (`SwitchListTile`×4, `DropdownButtonFormField`×3, `AlertDialog`×2 — los tres con análogo directo). | Nada que destaque. |
+| **Home / ACC-03** | **Fuera de este recuento.** Es la pantalla grande y separada que el coordinador ya repartió aparte (Parte VII de esta sesión, mensaje del 12-09). No es una de las dieciocho ya escritas. | — | — |
+
+## 3. El único vacío real que encontré, y por qué no es un punto en contra de Fluent
+
+`settings_screen.dart` no tiene hoy la estructura de **navegación partida
+(«splitnav») en acordeón** que pide la lámina `CFG-01`: eso no existe todavía
+en ningún fichero, en ningún sistema visual. **Hay que construirla si nos
+quedamos en Material igual que si nos vamos a Fluent** — el vacío lo abrió la
+lámina, no el kit. No cuenta como coste de migración a Fluent porque es
+trabajo que había que hacer de todas formas.
+
+## 4. La comprobación anti-sesgo, con el resultado tal cual salió
+
+El encargo pedía explícitamente decir la verdad aunque no fuera la respuesta
+esperada: *«si encuentras que la mitad de las láminas usa controles que
+Fluent no tiene, esa es la respuesta»*. Barrí las 39 láminas vigentes por
+descripción de texto (`ROUND_02_REVIEW.md`, `ROUND_03_REVIEW.md`) y las 22
+pantallas ya escritas por código, y el resultado real —no el que "se supone"
+que hay que dar— es que **cero** de las 39 láminas dibuja un control que
+Fluent no pueda reproducir. Lo digo con la misma franqueza en el sentido
+contrario: en tres puntos concretos (`CommandBar` con plegado, `NumberBox`,
+`AutoSuggestBox`) Fluent **encaja mejor que Material hoy**, porque hoy esos
+tres patrones se están construyendo a mano en Material y Fluent los trae de
+fábrica. No es una opinión forzada para que cuadre con lo que se espera: es lo
+que salió de mirar el código y las láminas una por una.
+
+## 5. La pregunta mecánica-contra-rediseño, con número
+
+De las **18 pantallas ya escritas** (22 ficheros de pantalla, sin contar
+`home_center.dart`, que es un cascarón menor, ni los contratos/composición que
+no pintan nada):
+
+| | Pantallas | Motivo |
+|---|---:|---|
+| **Mecánico** (cambiar el nombre de unos widgets, sin repensar estructura) | **17 de 18** | Cada widget de Material que usan tiene un análogo directo de Fluent uno a uno: `AlertDialog→ContentDialog`, `ExpansionTile→Expander`, `DropdownButtonFormField→ComboBox`, `FilterChip/ChoiceChip→ToggleButton`, `SwitchListTile→ToggleSwitch`, `Slider→Slider` (existe igual en Fluent), `PopupMenuButton→DropDownButton`/`Flyout`. El resto de cada pantalla ya es `Card`/`Column`/`Row`/`ListView`, que no pertenecen a un sistema visual — se repintan solos con el tema nuevo. |
+| **Necesita construir algo que hoy no existe** (no es "rediseño" causado por Fluent, es una lámina sin implementar) | **1 de 18** — Configuración | El «splitnav» en acordeón de `CFG-01` no está escrito en ningún sistema visual. Ese trabajo se paga igual quedándose en Material. |
+| **Rediseño de verdad causado específicamente por el cambio a Fluent** | **0 de 18** | No encontré ninguna pantalla donde el cambio de kit obligue a repensar la estructura, no sólo el nombre de los widgets. |
+
+Esto es justo la distinción que pidió el encargo: **«catorce mil líneas
+tocadas» (Parte V) no es lo mismo que «catorce mil líneas repensadas».** Las
+14 000 líneas son una cuenta de cuánto código HAY que tocar (fichero por
+fichero, porque cada `import` y cada constructor cambia), no de cuánto hay que
+REPENSAR. El repensar real, con esta evidencia, es prácticamente cero: es
+básicamente una operación de buscar-y-reemplazar guiada por la tabla del
+punto 2, más una pantalla (Configuración) que hay que terminar de construir
+de todas formas.
+
+## Las dos respuestas directas que pidió el coordinador
+
+**¿Encajan las láminas en Fluent, sí o no? — Sí.** Las 39 láminas vigentes se
+pueden dibujar con controles de Fluent sin excepción; el único hueco que
+existió (la barra inferior del teléfono) ya se cerró en la Parte VII de forma
+independiente del kit. Y en tres patrones concretos de Caja y de selección de
+cliente, Fluent encaja **mejor** que Material tal como está hoy escrito.
+
+**¿Cuánto del trabajo de rehacer es mecánico y cuánto es rediseñar? — 17 de
+18 pantallas son cambio de nombre de widgets (mecánico); 1 (Configuración)
+necesita construirse porque nunca se terminó, no porque Fluent lo exija; y 0
+necesitan rediseño de verdad causado por el cambio de sistema visual.** Las
+14 000 líneas de la Parte V miden ficheros tocados, no decisiones repensadas
+— y las decisiones repensadas, con la evidencia código-a-código de esta
+parte, son casi ninguna.

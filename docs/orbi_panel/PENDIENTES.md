@@ -4,7 +4,7 @@ Este archivo existe porque las cosas se estaban perdiendo en la conversación. L
 que no está aquí, no está comprometido con nadie. Se actualiza en cuanto algo
 entra o sale, no al final de la sesión.
 
-Última actualización: 2026-09-12, mañana.
+Última actualización: 2026-09-12, tarde.
 
 ## Esperan una decisión del dueño
 
@@ -16,10 +16,21 @@ Nada de esto avanza hasta que él responda. No son tareas: son preguntas.
 | D3 | ¿Retirar o marcar como no funcional el despliegue web actual? | Lo publicado nunca pudo hablar con un Odoo. Retirar algo publicado es decisión suya |
 | D5 | ¿La aplicación web se sirve siempre desde el propio dominio del Odoo? | Medido el 12-sep-2026: servida desde ahí, **el problema de dominios distintos desaparece entero** y la lista de bases funciona sin tocar el servidor. ERP2 ya la sirve así desde esta madrugada. Convertirlo en la forma oficial cierra varios frentes de golpe |
 | D6 | ¿Se construye una ruta propia para listar las bases desde otro dominio? | **La recomendación es que no.** Ahorra escribir un nombre una vez, y a cambio normaliza en cada instalación un punto de entrada anónimo que enumera bases, justo lo contrario de por qué esa opción está apagada en producción. La aplicación de escritorio ya lo tiene resuelto |
+| D7 | ¿La barra superior lleva un buscador global, o cada pantalla se queda con el suyo? | Sale de estandarizar las 39 láminas: lo dibujan 17 de 39, no lo exige el contrato escrito y ninguna lámina manda sobre el tema, así que el empate no se resuelve solo. **No es cosmético**: buscar por número, cliente, producto y documento desde un único campo exige una ruta nueva en el servidor que cruce módulos. Decir que no cuesta cero y cada pantalla conserva el filtro que ya tiene |
 | D4 | ¿Guardar la credencial en archivo cifrado o arreglar la firma de la aplicación? | Pidió lo primero; la investigación (C01) dice que en Windows ya es un archivo cifrado de fábrica, y que el fallo de Mac era un parámetro, no el llavero |
 
 ## Resueltas, para que no se vuelvan a preguntar
 
+- **El marco de las 39 láminas está estandarizado** (12-sep-2026,
+  `ESTANDAR_LAMINAS_2026_09_12.md`). Se buscaron los choques elemento por elemento y
+  salieron **siete**, todos resueltos con mayoría medida, con el contrato ya escrito
+  o con una decisión previa del mismo día: teléfono, barra superior, título, anchos,
+  logo, vocabulario de acciones y agrupación del menú. **Dos que parecían choques no
+  lo eran**: el pie técnico y los colores de estado, donde las láminas resultaron más
+  coherentes de lo que se sospechaba. El teléfono deja de ser pregunta del dueño:
+  separando pantallas raíz de pantallas empujadas, **catorce de quince raíces ya
+  dibujaban barra inferior**, que es justo lo decidido esa mañana. Queda una sola
+  pregunta nueva, `D7`.
 - **D1 — El listado de bases en ERP2 está encendido** desde el 12-sep-2026. Se
   cambió `list_db` en el archivo propio de esa instancia y se reinició solo su
   servicio. Devuelve una sola base porque el filtro sigue puesto, así que no
