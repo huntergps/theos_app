@@ -37,6 +37,21 @@ final class RouteAccessPolicy {
     if (path == '/sales' || path.startsWith('/sales/')) {
       return permissions.contains('seller') || permissions.contains('cashier');
     }
+    // Clientes y Productos son del mismo área que Órdenes/cotizaciones y
+    // Mostrador, no rutas aparte: NAVIGATION_CAPABILITY_MATRIX.md las agrupa
+    // en la misma fila 1 ("Ventas — Órdenes/cotizaciones; Mostrador;
+    // Clientes; Productos | Ver: Documentos, clientes y productos
+    // visibles"), y en el menú lateral (router.dart) llevan el mismo
+    // `group: 'Ventas'` que /sales. Antes no tenían regla propia y caían al
+    // 'default' de más abajo (sólo "/" y "/settings"), dejándolas
+    // inalcanzables para cualquiera, admin incluido — el mismo defecto que
+    // ya mordió al hub de turno de Caja.
+    if (path == '/clients' || path.startsWith('/clients/')) {
+      return permissions.contains('seller') || permissions.contains('cashier');
+    }
+    if (path == '/products' || path.startsWith('/products/')) {
+      return permissions.contains('seller') || permissions.contains('cashier');
+    }
     if (path == '/approvals') {
       return permissions.contains('approvals') ||
           permissions.contains('approver');
