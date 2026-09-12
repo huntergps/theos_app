@@ -1,6 +1,8 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:orbi_runtime/orbi_runtime.dart';
 
+import 'pin_capability_limiter.dart';
+
 abstract interface class AuthServicePort {
   Future<AuthServiceResult> login({
     required String serverUrl,
@@ -273,6 +275,52 @@ class AuthNotifier extends Notifier<AuthViewState> {
       state = const AuthViewState(
         status: AuthControllerStatus.error,
         message: 'No se pudo restaurar la sesión.',
+      );
+    }
+  }
+
+  /// Restores the session exactly like [restore] does, then clamps whatever
+  /// capabilities come back to the seller-only ceiling PIN mode may ever
+  /// grant — see pin_capability_limiter.dart. This is the ONLY path the PIN
+  /// screen (ACC-02) may use to reach an authenticated state: it never calls
+  /// [login] or [restore] directly, so a multirole cashier+seller account
+  /// can never surface Caja/Aprobaciones/Administración permissions just by
+  /// coming in through PIN instead of Workspace credentials.
+  ///
+  /// A restored session without the seller permission is reported as
+  /// [AuthControllerStatus.error] rather than as a successful restore with an
+  /// empty permission set: PIN is the declared door for the seller role, and
+  /// a user without it has no door to walk through, not merely nothing to
+  /// see once inside.
+  Future<void> restoreForSellerPin({bool offline = false}) async {
+    state = const AuthViewState(status: AuthControllerStatus.loading);
+    try {
+      final result = await _service.restore(offline: offline);
+      if (!ref.mounted) return;
+      final restored = _fromResult(result);
+      if (restored.status != AuthControllerStatus.authenticated &&
+          restored.status != AuthControllerStatus.restored) {
+        state = restored;
+        return;
+      }
+      final capabilities = restored.capabilities;
+      if (capabilities == null || !snapshotAllowsSellerPin(capabilities)) {
+        state = const AuthViewState(
+          status: AuthControllerStatus.error,
+          message: 'Este usuario no tiene acceso de vendedor por PIN.',
+        );
+        return;
+      }
+      state = AuthViewState(
+        status: restored.status,
+        profile: restored.profile,
+        capabilities: restrictSnapshotToSellerPin(capabilities),
+      );
+    } catch (_) {
+      if (!ref.mounted) return;
+      state = const AuthViewState(
+        status: AuthControllerStatus.error,
+        message: 'No se pudo restaurar la sesión con PIN.',
       );
     }
   }

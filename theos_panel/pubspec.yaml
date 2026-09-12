@@ -43,6 +43,10 @@ dependencies:
   reactive_forms: ^18.2.0
   flutter_svg: ^2.3.0
   shared_preferences: ^2.5.5
+  # Already resolved transitively via odoo_sdk; declared directly because
+  # the seller-PIN credential store (pin_credential_store.dart) hashes PINs
+  # with it and must never rely on an undeclared transitive dependency.
+  crypto: ^3.0.7
   syncfusion_flutter_datagrid: 34.2.5
   web: ^1.1.1
 

@@ -1,0 +1,796 @@
+import 'dart:async';
+import 'dart:math' as math;
+
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+
+import 'auth_controller.dart';
+import 'pin_credential_store.dart';
+import '../../app/theme/orbi_theme.dart';
+import '../../ui/components/orbi_brand.dart';
+
+const String _kFooterText = 'Desarrollado por GalapagosTech · 2026';
+const String _kTitle = 'Modo vendedor';
+const String _kSubtitle = 'Ingresa tu PIN para continuar';
+const String _kSalesOnlyTitle = 'Solo ventas';
+const String _kSalesOnlyBody =
+    'Acceso para realizar ventas en el punto de venta.';
+const String _kActivityNotice =
+    'Por seguridad, tu actividad quedará registrada.';
+const String _kInvalidPinMessage = 'PIN inválido. Intenta nuevamente.';
+const String _kLockedTitle = 'Acceso bloqueado';
+const String _kLockedBody =
+    'Se ha alcanzado el número máximo de intentos. Intenta nuevamente en:';
+const String _kNoProfileMessage =
+    'Ingresa primero con tu usuario y contraseña para activar el acceso '
+    'por PIN.';
+const String _kNotEnrolledMessage =
+    'Aún no configuraste un PIN de vendedor en este dispositivo. Ingresa '
+    'con tu usuario y contraseña para activarlo.';
+const String _kDeniedRoleMessage =
+    'Este usuario no tiene permiso de vendedor: el acceso por PIN no está '
+    'disponible.';
+
+enum _PinPhase { bootstrapping, blocked, entering, verifying, locked }
+
+double _measureTextHeight(
+  String text,
+  TextStyle? style,
+  double maxWidth,
+  TextDirection direction,
+  double textScaleFactor,
+) {
+  final painter = TextPainter(
+    text: TextSpan(text: text, style: style),
+    textDirection: direction,
+    textScaler: TextScaler.linear(textScaleFactor),
+  )..layout(maxWidth: maxWidth > 0 ? maxWidth : 0);
+  return painter.height;
+}
+
+String _formatCountdown(Duration remaining) {
+  final clamped = remaining.isNegative ? Duration.zero : remaining;
+  final hours = clamped.inHours.remainder(24).toString().padLeft(2, '0');
+  final minutes = clamped.inMinutes.remainder(60).toString().padLeft(2, '0');
+  final seconds = clamped.inSeconds.remainder(60).toString().padLeft(2, '0');
+  return '$hours:$minutes:$seconds';
+}
+
+/// ACC-02 — the seller's PIN door. Restricted by construction: the only way
+/// this screen can reach an authenticated state is
+/// [AuthNotifier.restoreForSellerPin], which clamps capabilities to
+/// seller-only before this widget ever sees them — see
+/// pin_capability_limiter.dart and docs/orbi_panel/APPROVED_SCREEN_INDEX.md.
+class PinLoginScreen extends ConsumerStatefulWidget {
+  const PinLoginScreen({
+    super.key,
+    this.equipmentLabel,
+    this.onSellerAccessGranted,
+    this.onCancel,
+    this.onUseCredentials,
+  });
+
+  /// Device/point label such as "Mostrador 02" in ACC-02. Left `null` hides
+  /// the "Equipo" line rather than inventing a point/session Orbi does not
+  /// have a binding for yet (see NAVIGATION_CAPABILITY_MATRIX.md).
+  final String? equipmentLabel;
+
+  /// Fired once [AuthNotifier.restoreForSellerPin] leaves
+  /// `authControllerProvider` authenticated/restored with seller-only
+  /// capabilities already applied.
+  final VoidCallback? onSellerAccessGranted;
+
+  /// Fired from the locked state's "Entendido" acknowledgement and from the
+  /// "not enrolled"/"no profile" states' way out. Routing itself is owned by
+  /// the caller — this screen never imports app/router.
+  final VoidCallback? onCancel;
+
+  /// Offered as the way out of the "not enrolled" state. Optional: a caller
+  /// that has not wired Workspace credentials yet may omit it.
+  final VoidCallback? onUseCredentials;
+
+  @override
+  ConsumerState<PinLoginScreen> createState() => _PinLoginScreenState();
+}
+
+class _PinLoginScreenState extends ConsumerState<PinLoginScreen> {
+  _PinPhase _phase = _PinPhase.bootstrapping;
+  String _pin = '';
+  String? _scopeKey;
+  String? _blockedMessage;
+  String? _errorMessage;
+  Duration _remaining = Duration.zero;
+  Timer? _countdownTimer;
+  Timer? _invalidPinResetTimer;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) => _bootstrap());
+  }
+
+  @override
+  void dispose() {
+    _countdownTimer?.cancel();
+    _invalidPinResetTimer?.cancel();
+    super.dispose();
+  }
+
+  Future<void> _bootstrap() async {
+    final profile = await ref
+        .read(authControllerProvider.notifier)
+        .loadProfile();
+    if (!mounted) return;
+    if (profile == null) {
+      setState(() {
+        _phase = _PinPhase.blocked;
+        _blockedMessage = _kNoProfileMessage;
+      });
+      return;
+    }
+    final scopeKey = pinScopeKeyFor(
+      profile.serverUrl,
+      profile.database,
+      profile.login,
+    );
+    PinCredentialStore? store;
+    try {
+      store = ref.read(pinCredentialStoreProvider);
+    } catch (_) {
+      // Embedders/tests may intentionally omit the PIN store.
+    }
+    if (store == null || !store.isEnrolled(scopeKey)) {
+      setState(() {
+        _scopeKey = scopeKey;
+        _phase = _PinPhase.blocked;
+        _blockedMessage = _kNotEnrolledMessage;
+      });
+      return;
+    }
+    final attempts = store.readAttempts(scopeKey);
+    final now = DateTime.now();
+    setState(() {
+      _scopeKey = scopeKey;
+      if (attempts.isLockedAt(now)) {
+        _startLockout(attempts.lockedUntil!);
+      } else {
+        _phase = _PinPhase.entering;
+      }
+    });
+  }
+
+  void _startLockout(DateTime until) {
+    _countdownTimer?.cancel();
+    _phase = _PinPhase.locked;
+    _remaining = until.difference(DateTime.now());
+    _countdownTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
+      final left = until.difference(DateTime.now());
+      if (!mounted) {
+        timer.cancel();
+        return;
+      }
+      if (left <= Duration.zero) {
+        timer.cancel();
+        setState(() {
+          _phase = _PinPhase.entering;
+          _pin = '';
+          _remaining = Duration.zero;
+        });
+        return;
+      }
+      setState(() => _remaining = left);
+    });
+  }
+
+  void _onDigit(String digit) {
+    if (_phase != _PinPhase.entering || _pin.length >= kSellerPinLength) {
+      return;
+    }
+    setState(() {
+      _errorMessage = null;
+      _pin += digit;
+    });
+    if (_pin.length == kSellerPinLength) unawaited(_submit());
+  }
+
+  void _onBackspace() {
+    if (_phase != _PinPhase.entering || _pin.isEmpty) return;
+    setState(() => _pin = _pin.substring(0, _pin.length - 1));
+  }
+
+  Future<void> _submit() async {
+    final scopeKey = _scopeKey;
+    if (scopeKey == null || _phase != _PinPhase.entering) return;
+    if (_pin.length != kSellerPinLength) return;
+    PinCredentialStore? store;
+    try {
+      store = ref.read(pinCredentialStoreProvider);
+    } catch (_) {
+      // No store: nothing to verify against.
+    }
+    if (store == null) return;
+    setState(() => _phase = _PinPhase.verifying);
+    final ok = store.verify(scopeKey, _pin);
+    if (!ok) {
+      final next = await store.registerFailure(scopeKey);
+      if (!mounted) return;
+      final now = DateTime.now();
+      if (next.isLockedAt(now)) {
+        setState(() {
+          _pin = '';
+          _startLockout(next.lockedUntil!);
+        });
+        return;
+      }
+      setState(() => _errorMessage = _kInvalidPinMessage);
+      _invalidPinResetTimer?.cancel();
+      _invalidPinResetTimer = Timer(const Duration(milliseconds: 700), () {
+        if (!mounted) return;
+        setState(() {
+          _pin = '';
+          _errorMessage = null;
+          _phase = _PinPhase.entering;
+        });
+      });
+      return;
+    }
+    await store.clearAttempts(scopeKey);
+    await ref.read(authControllerProvider.notifier).restoreForSellerPin();
+    if (!mounted) return;
+    final state = ref.read(authControllerProvider);
+    final succeeded =
+        state.status == AuthControllerStatus.authenticated ||
+        state.status == AuthControllerStatus.restored;
+    if (succeeded) {
+      widget.onSellerAccessGranted?.call();
+      // The real navigation away from this screen is the caller's job (see
+      // the class doc: this widget never imports app/router). If it is
+      // still mounted after the callback returns — a caller that hasn't
+      // navigated yet, or a test — it must not stay stuck showing the
+      // "verifying" spinner forever, so it settles back to a normal,
+      // re-enterable keypad rather than an indefinitely animating one.
+      if (mounted) {
+        setState(() {
+          _phase = _PinPhase.entering;
+          _pin = '';
+        });
+      }
+      return;
+    }
+    setState(() {
+      _phase = _PinPhase.entering;
+      _pin = '';
+      _errorMessage = state.status == AuthControllerStatus.error
+          ? (state.message ?? _kDeniedRoleMessage)
+          : _kDeniedRoleMessage;
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final colors = theme.colorScheme;
+    final direction = Directionality.of(context);
+    final screenSize = MediaQuery.sizeOf(context);
+    final devicePadding = MediaQuery.paddingOf(context);
+    final textScaleFactor = MediaQuery.textScalerOf(context).scale(14) / 14;
+    final footerTextHeight = _measureTextHeight(
+      _kFooterText,
+      theme.textTheme.bodySmall,
+      math.max(screenSize.width - OrbiTheme.space12 * 2, 0),
+      direction,
+      textScaleFactor,
+    );
+    final footerHeight =
+        footerTextHeight + OrbiTheme.space12 * 2 + devicePadding.bottom;
+    final isWideLandscape =
+        screenSize.width >= OrbiTheme.mediumBreakpoint &&
+        screenSize.width > screenSize.height;
+    final cardWidth = isWideLandscape ? 720.0 : math.min(screenSize.width - OrbiTheme.space16 * 2, 480.0);
+    final contentWidth = cardWidth - OrbiTheme.space24 * 2;
+    final keypadWidth = isWideLandscape ? contentWidth * 0.55 : contentWidth;
+    final normalHeight = _estimateNormalModeHeight(
+      keypadWidth: keypadWidth,
+      infoWidth: isWideLandscape ? contentWidth * 0.4 : contentWidth,
+      stackedInfo: !isWideLandscape,
+      theme: theme,
+      direction: direction,
+      textScaleFactor: textScaleFactor,
+      equipmentLabel: widget.equipmentLabel,
+      message: _currentMessage,
+    );
+    final availableForNormalMode =
+        screenSize.height -
+        footerHeight -
+        devicePadding.top -
+        OrbiTheme.space16 * 2 -
+        OrbiTheme.space24 * 2;
+    final compact = normalHeight > availableForNormalMode;
+    return Scaffold(
+      extendBody: true,
+      bottomNavigationBar: ColoredBox(
+        key: const Key('pin-login-credit-footer'),
+        color: colors.surface.withValues(alpha: .72),
+        child: SafeArea(
+          top: false,
+          child: Padding(
+            padding: const EdgeInsets.all(OrbiTheme.space12),
+            child: Text(
+              _kFooterText,
+              textAlign: TextAlign.center,
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: colors.onSurfaceVariant,
+              ),
+            ),
+          ),
+        ),
+      ),
+      body: Stack(
+        fit: StackFit.expand,
+        children: [
+          const OrbiAuthBackdrop(),
+          SafeArea(
+            child: Center(
+              child: Padding(
+                padding: const EdgeInsets.all(OrbiTheme.space16),
+                child: ConstrainedBox(
+                  constraints: BoxConstraints(maxWidth: cardWidth),
+                  child: Card(
+                    margin: EdgeInsets.zero,
+                    color: colors.surface.withValues(alpha: .96),
+                    elevation: 2,
+                    child: Padding(
+                      padding: EdgeInsets.all(
+                        compact ? OrbiTheme.space12 : OrbiTheme.space24,
+                      ),
+                      child: _buildBody(
+                        context,
+                        isWideLandscape: isWideLandscape,
+                        compact: compact,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  String? get _currentMessage => switch (_phase) {
+    _PinPhase.blocked => _blockedMessage,
+    _PinPhase.locked => _kLockedBody,
+    _ => _errorMessage,
+  };
+
+  Widget _buildBody(
+    BuildContext context, {
+    required bool isWideLandscape,
+    required bool compact,
+  }) {
+    if (_phase == _PinPhase.bootstrapping) {
+      return const SizedBox(
+        height: 200,
+        child: Center(child: CircularProgressIndicator()),
+      );
+    }
+    if (_phase == _PinPhase.blocked) {
+      return _buildBlocked(context);
+    }
+    if (_phase == _PinPhase.locked) {
+      return _buildLocked(context, compact: compact);
+    }
+    final header = _buildHeader(context, compact: compact);
+    final keypad = _buildKeypad(context, compact: compact);
+    final info = _buildInfoPanel(context);
+    final infoGap = compact ? OrbiTheme.space12 : OrbiTheme.space24;
+    // Mirrors login_screen.dart's own safety net: [compact] only tunes
+    // padding/spacing for the comfortable case. It is a styling heuristic,
+    // not the thing that prevents an overflow — that guarantee comes from
+    // keeping the header pinned and letting everything below it (the keypad
+    // and, when stacked, the info panel) scroll on a window too short for
+    // even the compact styling to fit without it.
+    final middle = isWideLandscape
+        ? Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(flex: 55, child: keypad),
+              const SizedBox(width: OrbiTheme.space24),
+              Expanded(
+                flex: 40,
+                child: Padding(
+                  padding: const EdgeInsets.only(top: OrbiTheme.space8),
+                  child: info,
+                ),
+              ),
+            ],
+          )
+        : Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            mainAxisSize: MainAxisSize.min,
+            children: [keypad, SizedBox(height: infoGap), info],
+          );
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        header,
+        Flexible(
+          fit: FlexFit.loose,
+          child: SingleChildScrollView(child: middle),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildBlocked(BuildContext context) {
+    final theme = Theme.of(context);
+    final colors = theme.colorScheme;
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Icon(Icons.storefront_outlined, size: 64, color: colors.primary),
+        const SizedBox(height: OrbiTheme.space16),
+        Text(
+          _kTitle,
+          style: theme.textTheme.titleLarge,
+          textAlign: TextAlign.center,
+        ),
+        const SizedBox(height: OrbiTheme.space8),
+        Text(
+          _blockedMessage ?? _kNoProfileMessage,
+          style: theme.textTheme.bodyMedium,
+          textAlign: TextAlign.center,
+        ),
+        const SizedBox(height: OrbiTheme.space24),
+        FilledButton(
+          key: const Key('pin-use-credentials'),
+          onPressed: widget.onUseCredentials ?? widget.onCancel,
+          child: const Text('Ingresar con usuario y contraseña'),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildLocked(BuildContext context, {required bool compact}) {
+    final theme = Theme.of(context);
+    final colors = theme.colorScheme;
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Icon(Icons.lock_outline, size: 64, color: colors.error),
+        const SizedBox(height: OrbiTheme.space16),
+        Text(
+          _kLockedTitle,
+          style: theme.textTheme.titleLarge?.copyWith(color: colors.error),
+          textAlign: TextAlign.center,
+        ),
+        const SizedBox(height: OrbiTheme.space8),
+        Text(
+          _kLockedBody,
+          style: theme.textTheme.bodyMedium,
+          textAlign: TextAlign.center,
+        ),
+        const SizedBox(height: OrbiTheme.space16),
+        Semantics(
+          liveRegion: true,
+          label: 'Tiempo restante ${_formatCountdown(_remaining)}',
+          child: Text(
+            _formatCountdown(_remaining),
+            key: const Key('pin-lockout-countdown'),
+            style: theme.textTheme.headlineSmall?.copyWith(
+              color: colors.error,
+              fontFeatures: const [FontFeature.tabularFigures()],
+            ),
+            textAlign: TextAlign.center,
+          ),
+        ),
+        const SizedBox(height: OrbiTheme.space24),
+        OutlinedButton(
+          key: const Key('pin-locked-acknowledge'),
+          onPressed: widget.onCancel,
+          child: const Text('Entendido'),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildHeader(BuildContext context, {required bool compact}) {
+    final theme = Theme.of(context);
+    final colors = theme.colorScheme;
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Icon(
+          Icons.storefront_outlined,
+          size: compact ? 48 : 64,
+          color: colors.primary,
+        ),
+        SizedBox(height: compact ? OrbiTheme.space8 : OrbiTheme.space16),
+        Text(
+          _kTitle,
+          style: theme.textTheme.titleLarge,
+          textAlign: TextAlign.center,
+        ),
+        const SizedBox(height: OrbiTheme.space8),
+        Text(
+          _kSubtitle,
+          style: theme.textTheme.bodyMedium?.copyWith(
+            color: colors.onSurfaceVariant,
+          ),
+          textAlign: TextAlign.center,
+        ),
+        SizedBox(height: compact ? OrbiTheme.space12 : OrbiTheme.space24),
+        _buildDots(context),
+        if (_errorMessage != null) ...[
+          const SizedBox(height: OrbiTheme.space8),
+          Semantics(
+            liveRegion: true,
+            child: Text(
+              _errorMessage!,
+              style: TextStyle(color: colors.error),
+              textAlign: TextAlign.center,
+            ),
+          ),
+        ],
+      ],
+    );
+  }
+
+  Widget _buildDots(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    final invalid = _errorMessage != null;
+    return Row(
+      key: const Key('pin-dots'),
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        for (var i = 0; i < kSellerPinLength; i++)
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 6),
+            child: Container(
+              width: 16,
+              height: 16,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: i < _pin.length
+                    ? (invalid ? colors.error : colors.primary)
+                    : Colors.transparent,
+                border: Border.all(
+                  color: invalid ? colors.error : colors.outline,
+                ),
+              ),
+            ),
+          ),
+      ],
+    );
+  }
+
+  Widget _buildKeypad(BuildContext context, {required bool compact}) {
+    final size = compact ? kMinInteractiveDimension : 64.0;
+    final gap = compact ? OrbiTheme.space8 : OrbiTheme.space12;
+    const rows = [
+      ['1', '2', '3'],
+      ['4', '5', '6'],
+      ['7', '8', '9'],
+      ['back', '0', 'enter'],
+    ];
+    final busy = _phase == _PinPhase.verifying;
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        for (final row in rows) ...[
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              for (final key in row) ...[
+                _buildKey(context, key, size: size, busy: busy),
+                if (key != row.last) SizedBox(width: gap),
+              ],
+            ],
+          ),
+          if (row != rows.last) SizedBox(height: gap),
+        ],
+      ],
+    );
+  }
+
+  Widget _buildKey(
+    BuildContext context,
+    String key, {
+    required double size,
+    required bool busy,
+  }) {
+    final theme = Theme.of(context);
+    if (key == 'back') {
+      return SizedBox(
+        width: size,
+        height: size,
+        child: IconButton(
+          key: const Key('pin-key-backspace'),
+          tooltip: 'Borrar',
+          onPressed: busy ? null : _onBackspace,
+          icon: const Icon(Icons.backspace_outlined),
+        ),
+      );
+    }
+    if (key == 'enter') {
+      return SizedBox(
+        width: size,
+        height: size,
+        child: FilledButton(
+          key: const Key('pin-key-enter'),
+          style: FilledButton.styleFrom(
+            shape: const CircleBorder(),
+            padding: EdgeInsets.zero,
+          ),
+          onPressed: (busy || _pin.length != kSellerPinLength)
+              ? null
+              : () => unawaited(_submit()),
+          child: busy
+              ? const SizedBox(
+                  width: 18,
+                  height: 18,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                )
+              : const Icon(Icons.check),
+        ),
+      );
+    }
+    return SizedBox(
+      width: size,
+      height: size,
+      child: OutlinedButton(
+        key: Key('pin-key-$key'),
+        style: OutlinedButton.styleFrom(
+          shape: const CircleBorder(),
+          padding: EdgeInsets.zero,
+          textStyle: theme.textTheme.titleMedium,
+        ),
+        onPressed: busy ? null : () => _onDigit(key),
+        child: Text(key),
+      ),
+    );
+  }
+
+  Widget _buildInfoPanel(BuildContext context) {
+    final theme = Theme.of(context);
+    final colors = theme.colorScheme;
+    final equipmentLabel = widget.equipmentLabel;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        if (equipmentLabel != null) ...[
+          Row(
+            children: [
+              Icon(Icons.desktop_windows_outlined, color: colors.primary),
+              const SizedBox(width: OrbiTheme.space8),
+              Expanded(
+                child: Text('Equipo\n$equipmentLabel', style: theme.textTheme.bodyMedium),
+              ),
+            ],
+          ),
+          const SizedBox(height: OrbiTheme.space16),
+        ],
+        Text(_kSalesOnlyTitle, style: theme.textTheme.titleSmall),
+        const SizedBox(height: OrbiTheme.space8),
+        Text(_kSalesOnlyBody, style: theme.textTheme.bodyMedium),
+        const SizedBox(height: OrbiTheme.space16),
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Icon(Icons.info_outline, size: 18, color: colors.onSurfaceVariant),
+            const SizedBox(width: OrbiTheme.space8),
+            Expanded(
+              child: Text(
+                _kActivityNotice,
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: colors.onSurfaceVariant,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+}
+
+/// The height the normal (non-compact) styling needs for the header,
+/// four-row keypad and (when stacked, i.e. not wide-landscape) the info
+/// panel beneath it. Compared against the height actually available; see
+/// [_PinLoginScreenState.build]. Mirrors login_screen.dart's own
+/// `_estimateNormalModeContentHeight`: if you add content to [PinLoginScreen]
+/// that changes with width/text-scale, extend THIS budget, not the test that
+/// watches it (see the "estimated layout-budget metrics keep matching the
+/// real widgets" test in pin_login_screen_test.dart).
+double _estimateNormalModeHeight({
+  required double keypadWidth,
+  required double infoWidth,
+  required bool stackedInfo,
+  required ThemeData theme,
+  required TextDirection direction,
+  required double textScaleFactor,
+  String? equipmentLabel,
+  String? message,
+}) {
+  final titleHeight = _measureTextHeight(
+    _kTitle,
+    theme.textTheme.titleLarge,
+    keypadWidth,
+    direction,
+    textScaleFactor,
+  );
+  final subtitleHeight = _measureTextHeight(
+    _kSubtitle,
+    theme.textTheme.bodyMedium,
+    keypadWidth,
+    direction,
+    textScaleFactor,
+  );
+  var total =
+      64.0 + // header icon (normal)
+      OrbiTheme.space16 +
+      titleHeight +
+      OrbiTheme.space8 +
+      subtitleHeight +
+      OrbiTheme.space24 + // gap before the dot row
+      16.0 + // dot row (16px circles)
+      OrbiTheme.space24 + // gap before the keypad
+      4 * 64.0 +
+      3 * OrbiTheme.space12; // four 64px rows, three gaps between them
+  if (stackedInfo) {
+    total += OrbiTheme.space24;
+    if (equipmentLabel != null) {
+      total +=
+          _measureTextHeight(
+            'Equipo\n$equipmentLabel',
+            theme.textTheme.bodyMedium,
+            infoWidth - 32,
+            direction,
+            textScaleFactor,
+          ) +
+          OrbiTheme.space16;
+    }
+    total +=
+        _measureTextHeight(
+          _kSalesOnlyTitle,
+          theme.textTheme.titleSmall,
+          infoWidth,
+          direction,
+          textScaleFactor,
+        ) +
+        OrbiTheme.space8 +
+        _measureTextHeight(
+          _kSalesOnlyBody,
+          theme.textTheme.bodyMedium,
+          infoWidth,
+          direction,
+          textScaleFactor,
+        ) +
+        OrbiTheme.space16 +
+        _measureTextHeight(
+          _kActivityNotice,
+          theme.textTheme.bodySmall,
+          infoWidth - 26,
+          direction,
+          textScaleFactor,
+        );
+  }
+  if (message != null) {
+    total +=
+        OrbiTheme.space8 +
+        _measureTextHeight(
+          message,
+          theme.textTheme.bodyMedium,
+          keypadWidth,
+          direction,
+          textScaleFactor,
+        );
+  }
+  return total;
+}
