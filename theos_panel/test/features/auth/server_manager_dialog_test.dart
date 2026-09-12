@@ -1,9 +1,38 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:odoo_sdk/odoo_sdk.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:theos_panel/app/theme/orbi_theme.dart';
 import 'package:theos_panel/features/auth/saved_servers.dart';
 import 'package:theos_panel/features/auth/server_manager_dialog.dart';
+
+/// Never reaches the network: every test must inject one of these instead of
+/// the real [OdooServerDatabaseDiscovery], which would otherwise hit a real
+/// socket the moment a valid URL is typed.
+class _ScriptedDiscovery implements ServerDatabaseDiscovery {
+  _ScriptedDiscovery(this._script);
+  final Future<List<String>> Function(String baseUrl) _script;
+  final calls = <String>[];
+
+  @override
+  Future<List<String>> listDatabases(String baseUrl) {
+    calls.add(baseUrl);
+    return _script(baseUrl);
+  }
+}
+
+/// The default for tests that don't care about discovery: behaves like a
+/// server nobody can reach from this platform, same shape as a real
+/// unsupported-platform outcome, and resolves fast so no test hangs on it.
+class _UnavailableDiscovery implements ServerDatabaseDiscovery {
+  const _UnavailableDiscovery();
+
+  @override
+  Future<List<String>> listDatabases(String baseUrl) async =>
+      throw const DatabaseDiscoveryException(
+        DatabaseDiscoveryFailureKind.unsupportedPlatform,
+      );
+}
 
 void main() {
   late SavedServersStore store;
@@ -18,6 +47,7 @@ void main() {
     WidgetTester tester, {
     double width = 1000,
     double height = 760,
+    ServerDatabaseDiscovery discovery = const _UnavailableDiscovery(),
   }) async {
     await tester.binding.setSurfaceSize(Size(width, height));
     addTearDown(() => tester.binding.setSurfaceSize(null));
@@ -28,7 +58,11 @@ void main() {
           body: Builder(
             builder: (context) => TextButton(
               onPressed: () async {
-                selected = await showSavedServerManager(context, store: store);
+                selected = await showSavedServerManager(
+                  context,
+                  store: store,
+                  discovery: discovery,
+                );
               },
               child: const Text('open'),
             ),
@@ -47,6 +81,11 @@ void main() {
       find.byKey(const ValueKey('server_url')),
       'https://demo.example.com',
     );
+    // Flush the debounced database lookup so its Timer never lingers past
+    // this test; the default discovery just says "unavailable" and the
+    // manual field (already the one shown) is unaffected.
+    await tester.pump(const Duration(milliseconds: 600));
+    await tester.pump();
     await tester.enterText(
       find.byKey(const ValueKey('server_database')),
       'demo',
@@ -140,5 +179,146 @@ void main() {
     );
     await open(tester);
     expect(find.textContaining('No se pudieron leer'), findsOneWidget);
+  });
+
+  testWidgets('a single discovered database is selected automatically', (
+    tester,
+  ) async {
+    final discovery = _ScriptedDiscovery((_) async => ['unica_bd']);
+    await open(tester, discovery: discovery);
+    await tester.enterText(
+      find.byKey(const ValueKey('server_url')),
+      'https://uno.example.com',
+    );
+    await tester.pump(const Duration(milliseconds: 600));
+    await tester.pump();
+
+    expect(discovery.calls, ['https://uno.example.com']);
+    expect(
+      tester
+          .widget<TextField>(find.byKey(const ValueKey('server_database')))
+          .controller!
+          .text,
+      'unica_bd',
+    );
+    expect(
+      find.text('Se detectó una sola base de datos y fue seleccionada.'),
+      findsOneWidget,
+    );
+  });
+
+  testWidgets('multiple discovered databases show a dropdown to choose from', (
+    tester,
+  ) async {
+    final discovery = _ScriptedDiscovery((_) async => ['db_uno', 'db_dos']);
+    await open(tester, discovery: discovery);
+    await tester.enterText(
+      find.byKey(const ValueKey('server_name')),
+      'Con lista',
+    );
+    await tester.enterText(
+      find.byKey(const ValueKey('server_url')),
+      'https://dos.example.com',
+    );
+    await tester.pump(const Duration(milliseconds: 600));
+    await tester.pump();
+
+    expect(find.byKey(const ValueKey('server_database_dropdown')), findsOneWidget);
+    expect(find.byKey(const ValueKey('server_database')), findsNothing);
+
+    await tester.tap(find.byKey(const ValueKey('server_database_dropdown')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('db_dos').last);
+    await tester.pumpAndSettle();
+
+    await tester.runAsync(() async {
+      await tester.tap(find.byKey(const ValueKey('save_server')));
+    });
+    await tester.pumpAndSettle();
+
+    expect(store.load().single.database, 'db_dos');
+  });
+
+  testWidgets('the manual entry link recovers free text under a dropdown', (
+    tester,
+  ) async {
+    final discovery = _ScriptedDiscovery((_) async => ['a', 'b']);
+    await open(tester, discovery: discovery);
+    await tester.enterText(
+      find.byKey(const ValueKey('server_url')),
+      'https://tres.example.com',
+    );
+    await tester.pump(const Duration(milliseconds: 600));
+    await tester.pump();
+    expect(find.byKey(const ValueKey('server_database_dropdown')), findsOneWidget);
+
+    await tester.tap(find.byKey(const ValueKey('database_manual_entry')));
+    await tester.pump();
+
+    expect(find.byKey(const ValueKey('server_database')), findsOneWidget);
+    expect(find.byKey(const ValueKey('server_database_dropdown')), findsNothing);
+  });
+
+  testWidgets(
+    'when the server refuses to list databases, typing the name by hand '
+    'still saves the server',
+    (tester) async {
+      final discovery = _ScriptedDiscovery(
+        (_) async => throw const DatabaseDiscoveryException(
+          DatabaseDiscoveryFailureKind.disabled,
+        ),
+      );
+      await open(tester, discovery: discovery);
+      await tester.enterText(
+        find.byKey(const ValueKey('server_name')),
+        'Manual',
+      );
+      await tester.enterText(
+        find.byKey(const ValueKey('server_url')),
+        'https://cuatro.example.com',
+      );
+      await tester.pump(const Duration(milliseconds: 600));
+      await tester.pump();
+
+      // The reason is explained, and the ordinary text field is still there
+      // — this is the required fallback, never a dead end.
+      expect(
+        find.byKey(const ValueKey('database_discovery_notice')),
+        findsOneWidget,
+      );
+      expect(
+        find.textContaining('deshabilitado el listado'),
+        findsOneWidget,
+      );
+      expect(find.byKey(const ValueKey('server_database')), findsOneWidget);
+
+      await tester.enterText(
+        find.byKey(const ValueKey('server_database')),
+        'a_mano',
+      );
+      await tester.runAsync(() async {
+        await tester.tap(find.byKey(const ValueKey('save_server')));
+      });
+      await tester.pumpAndSettle();
+
+      expect(store.load().single.database, 'a_mano');
+      expect(tester.takeException(), isNull);
+    },
+  );
+
+  testWidgets('rapid edits cancel the previous pending lookup', (
+    tester,
+  ) async {
+    final discovery = _ScriptedDiscovery((_) async => ['db']);
+    await open(tester, discovery: discovery);
+    final field = find.byKey(const ValueKey('server_url'));
+
+    await tester.enterText(field, 'https://a.example.com');
+    await tester.pump(const Duration(milliseconds: 200));
+    await tester.enterText(field, 'https://b.example.com');
+    await tester.pump(const Duration(milliseconds: 600));
+    await tester.pump();
+
+    expect(discovery.calls, ['https://b.example.com']);
   });
 }

@@ -1,15 +1,41 @@
+import 'dart:async';
 import 'dart:math';
 
 import 'package:flutter/material.dart';
+import 'package:odoo_sdk/odoo_sdk.dart';
 
 import '../../app/theme/orbi_theme.dart';
 import 'saved_servers.dart';
+
+/// Looks up the databases a bare Odoo server offers, before login.
+///
+/// Exists only so tests can substitute a fake without touching the network.
+/// The real implementation ([OdooServerDatabaseDiscovery]) forwards to
+/// odoo_sdk's [OdooDatabaseDiscovery], which throws
+/// [DatabaseDiscoveryException] for every "not available" outcome (disabled
+/// listing, unreachable server, unsupported platform) — callers must catch
+/// that and fall back to manual entry, never treat it as a dead end.
+abstract class ServerDatabaseDiscovery {
+  Future<List<String>> listDatabases(String baseUrl);
+}
+
+class OdooServerDatabaseDiscovery implements ServerDatabaseDiscovery {
+  OdooServerDatabaseDiscovery([OdooDatabaseDiscovery? client])
+    : _client = client ?? OdooDatabaseDiscovery();
+
+  final OdooDatabaseDiscovery _client;
+
+  @override
+  Future<List<String>> listDatabases(String baseUrl) =>
+      _client.listDatabases(baseUrl);
+}
 
 Future<SavedServer?> showSavedServerManager(
   BuildContext context, {
   required SavedServersStore store,
   String initialUrl = '',
   String initialDatabase = '',
+  ServerDatabaseDiscovery? discovery,
 }) => showDialog<SavedServer?>(
   context: context,
   barrierDismissible: false,
@@ -17,6 +43,7 @@ Future<SavedServer?> showSavedServerManager(
     store: store,
     initialUrl: initialUrl,
     initialDatabase: initialDatabase,
+    discovery: discovery ?? OdooServerDatabaseDiscovery(),
   ),
 );
 
@@ -25,10 +52,12 @@ class _ServerManagerDialog extends StatefulWidget {
     required this.store,
     required this.initialUrl,
     required this.initialDatabase,
+    required this.discovery,
   });
   final SavedServersStore store;
   final String initialUrl;
   final String initialDatabase;
+  final ServerDatabaseDiscovery discovery;
 
   @override
   State<_ServerManagerDialog> createState() => _ServerManagerDialogState();
@@ -47,6 +76,13 @@ class _ServerManagerDialogState extends State<_ServerManagerDialog> {
   bool _busy = false;
   bool _creating = true;
 
+  Timer? _discoveryDebounce;
+  Object? _activeDiscoveryToken;
+  bool _discovering = false;
+  List<String>? _discoveredDatabases;
+  String? _discoveryNotice;
+  bool _manualDatabaseEntry = false;
+
   @override
   void initState() {
     super.initState();
@@ -55,6 +91,8 @@ class _ServerManagerDialogState extends State<_ServerManagerDialog> {
     _database.text = widget.initialDatabase;
     _readServers();
     _snapshot ??= _formSnapshot();
+    _url.addListener(_onUrlChanged);
+    _onUrlChanged();
   }
 
   void _readServers() {
@@ -81,11 +119,86 @@ class _ServerManagerDialogState extends State<_ServerManagerDialog> {
 
   @override
   void dispose() {
+    _discoveryDebounce?.cancel();
+    _activeDiscoveryToken = null;
+    _url.removeListener(_onUrlChanged);
     _search.dispose();
     _name.dispose();
     _url.dispose();
     _database.dispose();
     super.dispose();
+  }
+
+  /// Debounces database discovery while the URL is being typed, and resets
+  /// any previous result so a stale dropdown never lingers for a URL the
+  /// person already changed.
+  void _onUrlChanged() {
+    _discoveryDebounce?.cancel();
+    _activeDiscoveryToken = null;
+    final urlText = _url.text;
+    setState(() {
+      _discovering = false;
+      _discoveredDatabases = null;
+      _discoveryNotice = null;
+      _manualDatabaseEntry = false;
+    });
+    if (SavedServersStore.validateUrl(urlText) != null) return;
+    _discoveryDebounce = Timer(
+      const Duration(milliseconds: 500),
+      () => _discoverDatabases(urlText),
+    );
+  }
+
+  Future<void> _discoverDatabases(String url) async {
+    final token = Object();
+    _activeDiscoveryToken = token;
+    setState(() => _discovering = true);
+    List<String>? databases;
+    String? notice;
+    try {
+      databases = await widget.discovery.listDatabases(url.trim());
+    } on DatabaseDiscoveryException catch (e) {
+      notice = _noticeFor(e.kind);
+    } catch (_) {
+      notice =
+          'No se pudo consultar la lista de bases de datos. '
+          'Escribe el nombre manualmente.';
+    }
+    if (!mounted || _activeDiscoveryToken != token) return;
+    setState(() {
+      _discovering = false;
+      if (databases == null) {
+        _discoveryNotice = notice;
+        return;
+      }
+      if (databases.isEmpty) {
+        _discoveryNotice =
+            'El servidor no reporta bases de datos disponibles. '
+            'Escribe el nombre manualmente.';
+        return;
+      }
+      _discoveredDatabases = databases;
+      if (databases.length == 1 && _database.text.trim().isEmpty) {
+        _database.text = databases.first;
+      }
+    });
+  }
+
+  String _noticeFor(DatabaseDiscoveryFailureKind kind) {
+    switch (kind) {
+      case DatabaseDiscoveryFailureKind.disabled:
+        return 'El servidor tiene deshabilitado el listado de bases de '
+            'datos. Escribe el nombre manualmente.';
+      case DatabaseDiscoveryFailureKind.unsupportedPlatform:
+        return 'Desde esta plataforma no se puede consultar la lista de '
+            'bases. Escribe el nombre manualmente.';
+      case DatabaseDiscoveryFailureKind.connection:
+        return 'No se pudo conectar con el servidor para listar sus bases. '
+            'Escribe el nombre manualmente.';
+      case DatabaseDiscoveryFailureKind.protocol:
+        return 'El servidor respondió de forma inesperada al listar bases. '
+            'Escribe el nombre manualmente.';
+    }
   }
 
   void _select(SavedServer server) {
@@ -394,6 +507,92 @@ class _ServerManagerDialogState extends State<_ServerManagerDialog> {
     ],
   );
 
+  /// Base de datos: dropdown cuando el servidor ofreció varias, texto libre
+  /// en cualquier otro caso (aún consultando, sin datos todavía, o el
+  /// servidor no permite listar). Nunca deja a la persona sin forma de
+  /// avanzar: el enlace "Escribir manualmente" siempre puede recuperar el
+  /// campo de texto aunque haya un listado disponible.
+  Widget _databaseField() {
+    final suffix = _discovering
+        ? const Padding(
+            padding: EdgeInsets.all(OrbiTheme.space8),
+            child: SizedBox(
+              width: 16,
+              height: 16,
+              child: CircularProgressIndicator(strokeWidth: 2),
+            ),
+          )
+        : null;
+    final databases = _discoveredDatabases;
+    final showDropdown =
+        databases != null && databases.length > 1 && !_manualDatabaseEntry;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        if (showDropdown)
+          DropdownButtonFormField<String>(
+            key: const ValueKey('server_database_dropdown'),
+            initialValue: databases.contains(_database.text)
+                ? _database.text
+                : null,
+            items: databases
+                .map((db) => DropdownMenuItem(value: db, child: Text(db)))
+                .toList(),
+            onChanged: _busy
+                ? null
+                : (value) => setState(() => _database.text = value ?? ''),
+            decoration: InputDecoration(
+              labelText: 'Base de datos',
+              suffixIcon: suffix,
+            ),
+          )
+        else
+          TextField(
+            key: const ValueKey('server_database'),
+            controller: _database,
+            enabled: !_busy,
+            decoration: InputDecoration(
+              labelText: 'Base de datos',
+              suffixIcon: suffix,
+            ),
+          ),
+        if (showDropdown)
+          Align(
+            alignment: Alignment.centerRight,
+            child: TextButton(
+              key: const ValueKey('database_manual_entry'),
+              onPressed: _busy
+                  ? null
+                  : () => setState(() => _manualDatabaseEntry = true),
+              child: const Text('Escribir manualmente'),
+            ),
+          ),
+        if (_discoveryNotice != null)
+          Padding(
+            padding: const EdgeInsets.only(top: OrbiTheme.space4),
+            child: Text(
+              _discoveryNotice!,
+              key: const ValueKey('database_discovery_notice'),
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
+              ),
+            ),
+          )
+        else if (!showDropdown && databases != null && databases.length == 1)
+          Padding(
+            padding: const EdgeInsets.only(top: OrbiTheme.space4),
+            child: Text(
+              'Se detectó una sola base de datos y fue seleccionada.',
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
+              ),
+            ),
+          ),
+      ],
+    );
+  }
+
   Widget _editor() => Form(
     child: SingleChildScrollView(
       padding: const EdgeInsets.only(right: OrbiTheme.space4),
@@ -433,12 +632,7 @@ class _ServerManagerDialogState extends State<_ServerManagerDialog> {
             ),
           ),
           const SizedBox(height: OrbiTheme.space12),
-          TextField(
-            key: const ValueKey('server_database'),
-            controller: _database,
-            enabled: !_busy,
-            decoration: const InputDecoration(labelText: 'Base de datos'),
-          ),
+          _databaseField(),
           if (_error != null) ...[
             const SizedBox(height: OrbiTheme.space12),
             _message(_error!, true),

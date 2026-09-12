@@ -38,6 +38,10 @@ dependencies:
   drift: ^2.34.3
   theos_pos_core:
     path: ../theos_pos_core
+  # Was transitive-only until server_manager_dialog.dart started calling
+  # OdooDatabaseDiscovery directly to offer databases while typing the URL.
+  odoo_sdk:
+    path: ../odoo_sdk
   flutter_riverpod: ^3.4.2
   go_router: ^18.0.0
   reactive_forms: ^18.2.0
@@ -55,8 +59,6 @@ dev_dependencies:
     sdk: flutter
   integration_test:
     sdk: flutter
-  odoo_sdk:
-    path: ../odoo_sdk
   flutter_launcher_icons: ^0.14.4
 
   # The "flutter_lints" package below contains a set of recommended lints to

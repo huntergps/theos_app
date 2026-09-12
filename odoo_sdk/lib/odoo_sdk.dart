@@ -46,6 +46,8 @@ export 'src/api/interceptors/retry_interceptor.dart';
 export 'src/api/interceptors/log_sanitizer_interceptor.dart';
 export 'src/auth/native_auth_bootstrap.dart';
 export 'src/auth/native_auth_bootstrap_types.dart';
+export 'src/auth/database_discovery.dart';
+export 'src/auth/database_discovery_types.dart';
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // Drift types needed by generated code

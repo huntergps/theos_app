@@ -596,7 +596,7 @@ packages:
     source: hosted
     version: "9.6.0"
   odoo_sdk:
-    dependency: "direct dev"
+    dependency: "direct main"
     description:
       path: "../odoo_sdk"
       relative: true

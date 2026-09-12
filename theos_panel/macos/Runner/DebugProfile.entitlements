@@ -2,8 +2,15 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
-	<key>com.apple.security.app-sandbox</key>
-	<true/>
+	<!-- Sandbox off for local debug ONLY. With ad-hoc signing and no
+	     DEVELOPMENT_TEAM there is no keychain-access-group to grant, so
+	     SecItemAdd fails with -34018 ("a required entitlement isn't
+	     present") and every native login dies at the moment it tries to
+	     store the API key. Release keeps the sandbox. The real fix is a
+	     signing team plus keychain-access-groups in both entitlements;
+	     until that account exists, debug cannot reach the keychain at all.
+	     Consequence to keep in mind: debug no longer mirrors release, so a
+	     genuine entitlement problem will not surface until a release build. -->
 	<key>com.apple.security.cs.allow-jit</key>
 	<true/>
 	<key>com.apple.security.network.client</key>
