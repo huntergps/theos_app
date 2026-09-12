@@ -290,6 +290,13 @@ final class WorkspaceUnlockStore {
 
 /// Where the workspace unlock derivation may be kept on this platform.
 ///
+/// 📌 **Deuda de nombre, anotada a propósito y sin tocar.** Esto ya no es sólo
+/// del desbloqueo: `WebCredentialStore` comparte el mismo respaldo para la clave
+/// API de la sesión web (W04). El nombre refleja a su primer usuario, no a su
+/// único usuario. Renombrarlo a algo como `platformSecureBackendProvider` es
+/// barato y no cambia comportamiento, pero NO se hace mientras haya otro agente
+/// dentro de estos ficheros: un renombrado concurrente es un conflicto pedido.
+///
 /// **Inert by default, and the composition root supplies the real one** — the
 /// same shape `sharedPreferencesProvider` and `authServiceProvider` already
 /// use in this app. `null` means "this platform has nowhere to keep a

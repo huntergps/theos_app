@@ -164,11 +164,7 @@ Future<bool> attemptWorkspaceUnlock(WidgetRef ref, String password) async {
     // must never cost a legitimate operator their offline unlock. That
     // ambiguity cannot be closed from the client; it is a property of the
     // server's answer, not a gap in ours.
-    const revoked = {
-      LoginFailureCause.accessDenied,
-      LoginFailureCause.sessionExpired,
-    };
-    if (revoked.contains(describeLoginFailure(error).cause)) {
+    if (shouldDiscardStoredCredential(error)) {
       await unlockStore.forget(scopeKey);
     }
     return false;

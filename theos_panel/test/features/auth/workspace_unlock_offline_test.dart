@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:odoo_sdk/odoo_sdk.dart'
-    show OdooAccessDeniedException, OdooAuthenticationException,
+    show OdooAccessDeniedException, OdooAuthenticationException, OdooException,
         OdooOfflineException;
 import 'package:orbi_runtime/orbi_runtime.dart';
 import 'package:theos_panel/app/router.dart';
@@ -228,6 +228,44 @@ void main() {
       service.reachable = false;
       ref.read(workspaceLockProvider.notifier).lock();
       expect(await attemptWorkspaceUnlock(ref, password), isTrue);
+    },
+  );
+
+  testWidgets(
+    'un 429 por enfriamiento NO borra el derivado: el servidor dijo «ahora '
+    'no», no «esta credencial es mala» — borrarlo convertiría un límite de '
+    'ritmo en la pérdida de lo único que funciona sin red',
+    (tester) async {
+      await WorkspaceUnlockStore(backend).remember(scopeKey, password);
+      service.failWith = const OdooException(
+        message: 'too many attempts',
+        statusCode: 429,
+      );
+      final ref = await pumpRef(tester);
+
+      expect(await attemptWorkspaceUnlock(ref, 'mal'), isFalse);
+
+      expect(
+        await WorkspaceUnlockStore(backend).isRemembered(scopeKey),
+        isTrue,
+      );
+    },
+  );
+
+  testWidgets(
+    'una clave guardada que el servidor rechaza SÍ borra el derivado: nadie '
+    'teclea una clave, así que un rechazo no puede ser una errata',
+    (tester) async {
+      await WorkspaceUnlockStore(backend).remember(scopeKey, password);
+      service.failWith = StateError('stored API key was rejected');
+      final ref = await pumpRef(tester);
+
+      expect(await attemptWorkspaceUnlock(ref, 'lo-que-sea'), isFalse);
+
+      expect(
+        await WorkspaceUnlockStore(backend).isRemembered(scopeKey),
+        isFalse,
+      );
     },
   );
 

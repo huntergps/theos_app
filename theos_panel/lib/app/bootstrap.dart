@@ -10,6 +10,8 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../features/auth/login_failure_messages.dart';
 import '../features/auth/auth_controller.dart';
+import '../features/auth/unlock_backend_factory.dart';
+import '../features/auth/web_token_auth.dart';
 import '../features/auth/workspace_unlock_store.dart';
 import 'orbi_splash_screen.dart';
 import 'preferences/app_preferences.dart';
@@ -124,18 +126,24 @@ final class _InMemoryCredentialBackend implements CredentialBackend {
 /// purpose — that gap is a CORS/same-origin decision another workstream is
 /// resolving, not something this class can paper over.
 ///
-/// `loginWithApiKey()` is what W02 unblocks: pasting an already-issued Odoo
-/// API key, exactly like theos_pos's own web build already does. It forwards
-/// to an internal [NativeAuthService] wired to [_InMemoryCredentialBackend]
-/// instead of secure storage, so the key never reaches browser storage; a
-/// page reload always starts from an empty store and the user must paste it
-/// again. That matches theos_pos's (undocumented) behavior — conservative,
-/// but a real recurring cost on every reload, which is the owner's call to
-/// change, not this class's.
+/// `loginWithApiKey()` forwards to an internal [NativeAuthService] wired to
+/// whatever [CredentialBackend] the composition root supplies.
 ///
-/// This closes the API-key gap only. It does not close web/native parity:
-/// username+password in the browser is still blocked on the CORS decision
-/// above. See docs/orbi_panel/decisions/W02-web-clave-api-pegada.md.
+/// 🔴 **It used to be hard-wired to [_InMemoryCredentialBackend], so the key
+/// died with the tab and the user pasted it again on every reload.** That was
+/// this class's own call — the doc here said so — and the owner revoked it on
+/// 11-sep-2026: «yo he dicho que navegador también guarda igual que
+/// escritorio». The browser now persists, through
+/// `WebCryptoCredentialBackend`: AES-GCM under a **non-extractable** key kept
+/// in IndexedDB, which the page's code can use and cannot read. See
+/// `docs/orbi_panel/decisions/W04-el-navegador-tambien-guarda.md`, and with it
+/// [CredentialDurability.webSessionOnly] stops being the web's lot.
+///
+/// The backend stays **injected rather than constructed here**, and the
+/// default stays in-memory, for a reason measured the hard way: a
+/// plugin-backed or browser-backed store never completes inside a widget
+/// test's fake-async zone, so a durable default would deadlock every test that
+/// builds this service without asking for storage.
 final class WebSessionAuthService
     implements
         AuthServicePort,
@@ -147,16 +155,28 @@ final class WebSessionAuthService
     required this.identityReader,
     required this.capabilityPort,
     required SharedPreferences preferences,
+    /// Where the issued API key is kept. `null` keeps the historical
+    /// tab-lifetime behaviour; the composition root passes the browser's
+    /// durable, encrypted store so a reload no longer costs a new login.
+    CredentialBackend? credentialBackend,
+    /// Calls `POST /orbi/auth/token`. `null` leaves password login in the
+    /// browser unavailable instead of half-working.
+    this.tokenClient,
     // Test-only seams: production always probes the real Odoo server and
     // shares the real session runtime declared above.
     ApiKeyIdentityProbe? apiKeyIdentityProbe,
     SessionRuntimePort? apiKeyRuntimePort,
-  }) {
+  }) : _apiKeyBackend = credentialBackend ?? _InMemoryCredentialBackend(),
+       _durable = credentialBackend != null {
     _apiKeyPort = NativeAuthServicePort(
       NativeAuthService(
         credentialStore: CredentialStore(
           _apiKeyBackend,
-          durability: CredentialDurability.webSessionOnly,
+          // Says what is actually true of the backend above, instead of
+          // claiming session-only for a store that now survives the tab.
+          durability: _durable
+              ? CredentialDurability.secureStore
+              : CredentialDurability.webSessionOnly,
         ),
         preferences: preferences,
         sessionRuntime: runtime,
@@ -173,31 +193,48 @@ final class WebSessionAuthService
   final InstallationIdStore installationIds;
   final ActiveIdentityReader identityReader;
   final CapabilitySnapshotPort capabilityPort;
-  final _InMemoryCredentialBackend _apiKeyBackend = _InMemoryCredentialBackend();
+  /// Mints the scoped, expiring API key from a username and password.
+  final OrbiWebTokenAuthClient? tokenClient;
+  final CredentialBackend _apiKeyBackend;
+  final bool _durable;
   late final NativeAuthServicePort _apiKeyPort;
   AuthProfile? _profile;
 
+  /// Whether the issued key outlives the tab. `false` means a reload starts
+  /// from an empty store, which is the historical behaviour the owner revoked.
+  bool get keepsCredentialAcrossReloads => _durable;
+
   /// Test-only window into the in-memory store, so a test can prove the
   /// pasted key actually disappears on [close] instead of merely trusting a
-  /// comment. Never read in production code.
+  /// comment. Never read in production code. Empty for a durable backend,
+  /// whose contents are asserted against the real store in `test/web/`.
   @visibleForTesting
-  Map<String, String> get debugStoredApiKeyValues =>
-      Map.unmodifiable(_apiKeyBackend._values);
+  Map<String, String> get debugStoredApiKeyValues {
+    final backend = _apiKeyBackend;
+    return backend is _InMemoryCredentialBackend
+        ? Map.unmodifiable(backend._values)
+        : const {};
+  }
 
   @override
   Future<AuthServiceResult> restore({bool offline = false}) async {
-    if (offline) {
-      return const AuthServiceResult(status: AuthServiceStatus.required);
-    }
-    final client = OdooClient(
-      config: OdooClientConfig(
-        baseUrl: Uri.base.origin,
-        apiKey: '',
-        transportMode: OdooTransportMode.webSession,
-        allowInsecure: Uri.base.scheme != 'https',
-      ),
-    );
+    // An offline start has no cookie session to probe, so the only thing that
+    // can bring the session back is the stored credential.
+    if (offline) return _restoreFromStoredCredential(offline: true);
     try {
+      // Built INSIDE the try on purpose: `Uri.base.origin` throws outright for
+      // any scheme that is not http(s), and this method must never throw —
+      // every failure here means "go to the login screen", which is what the
+      // catch below decides. Outside the try it escaped instead, so a host
+      // without an http base took down the restore rather than falling back.
+      final client = OdooClient(
+        config: OdooClientConfig(
+          baseUrl: Uri.base.origin,
+          apiKey: '',
+          transportMode: OdooTransportMode.webSession,
+          allowInsecure: Uri.base.scheme != 'https',
+        ),
+      );
       final response = await client.http.get('/orbi/bootstrap');
       final payload = Map<String, dynamic>.from(response.data as Map);
       final identity = Map<String, dynamic>.from(payload['identity'] as Map);
@@ -243,12 +280,65 @@ final class WebSessionAuthService
         capabilities: await capabilityPort.refresh(scope, effective.companyId),
       );
     } catch (_) {
-      // Keep local durable queues untouched; an expired browser session simply
-      // returns to reauthentication and never falls back to bearer credentials.
+      // Keep local durable queues untouched.
+      //
+      // 🔴 This used to end here with `required` and a comment saying it
+      // "never falls back to bearer credentials". That was true and correct
+      // while the browser stored none: there was nothing to fall back TO. Now
+      // that it keeps an encrypted, expiring key (W04), stopping here would
+      // make persisting it pointless — the key would sit in IndexedDB while
+      // the user retyped their password on every reload, which is exactly the
+      // cost the owner asked us to remove.
+      return _restoreFromStoredCredential(offline: false);
+    }
+  }
+
+  /// Brings the session back from the API key kept by [_apiKeyBackend].
+  ///
+  /// Only when that backend is durable: with the tab-lifetime default there is
+  /// nothing stored and this would be a pointless round trip. The inner
+  /// service reads the saved profile, reads the credential under its scoped
+  /// name and reactivates the runtime — the same path native has always used
+  /// for a cold start, which is the whole point of "igual que escritorio".
+  ///
+  /// Never throws: a failed restore is a return to the login screen, never a
+  /// crash at startup.
+  Future<AuthServiceResult> _restoreFromStoredCredential({
+    required bool offline,
+  }) async {
+    if (!_durable) {
+      return const AuthServiceResult(status: AuthServiceStatus.required);
+    }
+    try {
+      return await _apiKeyPort.restore(offline: offline);
+    } catch (_) {
       return const AuthServiceResult(status: AuthServiceStatus.required);
     }
   }
 
+  @override
+  /// Username and password in the browser, in the two steps the route makes
+  /// possible: ask `POST /orbi/auth/token` for a scoped, expiring API key, then
+  /// hand that key to the path that already worked.
+  ///
+  /// 🔴 This used to `return required` without touching the network at all,
+  /// which is why pressing "Entrar" in the browser produced **zero requests,
+  /// zero messages and a cleared field**: the browser was not failing to log
+  /// in, it was not trying. See `WEB_AUTH.md` in
+  /// `l10n_ec_collection_box_pos` for why a token is needed instead of
+  /// `/web/session/authenticate` — that core route declares no CORS, so the
+  /// browser's preflight gets a 415 before the password ever leaves the page.
+  ///
+  /// Without a token client this keeps returning `required`, rather than
+  /// pretending: the client is inert by default and the composition root
+  /// supplies the real one (same reason as every other platform-backed seam
+  /// here — a real socket in a widget test's fake-async zone never completes).
+  ///
+  /// The client's exception is deliberately **allowed to propagate**.
+  /// `AuthNotifier.login` catches it and turns it into words with
+  /// `describeLoginFailure`, which knows sixteen distinct causes; flattening it
+  /// into `AuthServiceStatus.required` here would put back exactly the silent
+  /// failure that was just removed.
   @override
   Future<AuthServiceResult> login({
     required String serverUrl,
@@ -256,7 +346,28 @@ final class WebSessionAuthService
     required String login,
     required String password,
     bool persistCredential = true,
-  }) async => const AuthServiceResult(status: AuthServiceStatus.required);
+  }) async {
+    final client = tokenClient;
+    if (client == null) {
+      return const AuthServiceResult(status: AuthServiceStatus.required);
+    }
+    final token = await client.issue(
+      serverUrl: serverUrl,
+      login: login,
+      password: password,
+      database: database,
+    );
+    return _apiKeyPort.loginWithApiKey(
+      serverUrl: serverUrl,
+      // The database the SERVER says it served, never the one that was typed:
+      // the route refuses a mismatch rather than entering another database, so
+      // its answer is the authoritative one.
+      database: token.database,
+      login: login,
+      apiKey: token.apiKey,
+      persistCredential: persistCredential,
+    );
+  }
 
   /// Activates a session from an already-issued Odoo API key, the same
   /// pasted-key path theos_pos already ships in its web build. The key never
@@ -293,12 +404,22 @@ final class WebSessionAuthService
   ) async => _profile ?? await _apiKeyPort.loadProfileFor(serverUrl, database);
   @override
   Future<void> close() async {
-    // Drop the pasted key immediately on logout, in case the tab stays open
-    // instead of reloading — never rely solely on the next reload to clear
-    // it.
-    _apiKeyBackend.clear();
+    // 🔴 This used to just empty an in-memory map, which was enough only while
+    // the key died with the tab. The moment the browser started persisting
+    // (W04), clearing a map stopped deleting anything durable — a logout would
+    // have left a live, replayable API key in IndexedDB. Delegating to the
+    // inner service is what actually removes it: `NativeAuthService.close()`
+    // rebuilds the scope from the saved profile and deletes the namespaced
+    // credential, then ends the runtime session in its own `finally`.
+    //
+    // This is the single path behind both "Cerrar sesión" and "Cambiar de
+    // usuario", so it is the one place that has to be right.
+    await _apiKeyPort.close();
+    // Belt and braces for the tab-lifetime backend, whose entries are not
+    // namespaced by a profile that may never have been written.
+    final backend = _apiKeyBackend;
+    if (backend is _InMemoryCredentialBackend) backend.clear();
     _profile = null;
-    await runtime.close();
   }
 }
 
@@ -468,7 +589,13 @@ Future<Widget> _initializeApplication() async {
       ),
     ),
   );
+  // The browser keeps its credential now (W04). On a native target this
+  // service is never the one selected, so building its backend costs nothing.
   final webService = WebSessionAuthService(
+    credentialBackend: createUnlockCredentialBackend(),
+    // Password login in the browser, which until now returned `required`
+    // without sending a single request.
+    tokenClient: OrbiWebTokenAuthClient(transport: odooSdkTokenTransport()),
     runtime: sessionRuntime,
     installationIds: installationIds,
     identityReader: _SessionIdentityReader(sessionRuntime),
@@ -512,6 +639,9 @@ Future<Widget> _initializeApplication() async {
       // deadlocks every widget test that did not ask for storage. See
       // `workspaceUnlockBackendProvider`.
       workspaceUnlockBackendOverride,
+      // Anything that reads the client through Riverpod gets the real one too,
+      // not just the service built above.
+      orbiWebTokenClientOverride,
       // Same inert-by-default shape, same reason: the connectivity plugin is
       // a platform channel, and the login screen awaits it when a connection
       // fails. Registered here so only a real device consults it — see

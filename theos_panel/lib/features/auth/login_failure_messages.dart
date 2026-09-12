@@ -2,6 +2,8 @@ import 'dart:async';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:odoo_sdk/odoo_sdk.dart';
+
+import 'web_token_auth.dart';
 import 'package:orbi_runtime/orbi_runtime.dart'
     show ConnectivityMonitor, NotificationSeverity;
 
@@ -331,6 +333,28 @@ LoginFailureCause classifyLoginFailure(Object error) {
         LoginFailureCause.serverUnreachable,
     };
   }
+  if (error is WebTokenAuthException) {
+    return switch (error.kind) {
+      // A wrong password and a login that does not exist are the same answer
+      // from this route, on purpose. The message already says the honest
+      // ambiguous thing.
+      WebTokenAuthFailureKind.invalidCredentials =>
+        LoginFailureCause.invalidCredentials,
+      WebTokenAuthFailureKind.mfaRequired =>
+        LoginFailureCause.additionalVerificationRequired,
+      WebTokenAuthFailureKind.forbidden => LoginFailureCause.accessDenied,
+      WebTokenAuthFailureKind.tooManyAttempts =>
+        LoginFailureCause.tooManyAttempts,
+      WebTokenAuthFailureKind.badRequest => LoginFailureCause.incompleteForm,
+      WebTokenAuthFailureKind.serverError => LoginFailureCause.serverError,
+      WebTokenAuthFailureKind.transport => LoginFailureCause.serverUnreachable,
+      // The route answered 200 without the fields it promises: the password
+      // was accepted and the credential still did not arrive usable. Same
+      // situation the native path calls `protocol`.
+      WebTokenAuthFailureKind.malformedResponse =>
+        LoginFailureCause.credentialIssueFailed,
+    };
+  }
   if (error is OdooSessionExpiredException) {
     return LoginFailureCause.sessionExpired;
   }
@@ -410,6 +434,41 @@ LoginFailureMessage describeSessionRestoreFailure(Object error) {
     LoginFailureCause.loginNotAttempted => LoginFailureCause.unknown,
     _ => cause,
   });
+}
+
+/// Whether a failure means a STORED credential must be thrown away.
+///
+/// This is the one question the persistence half has to answer on every
+/// failure, and getting it wrong is expensive in both directions: discard too
+/// eagerly and a typo costs someone their offline unlock; discard too rarely
+/// and a revoked key keeps being replayed forever.
+///
+/// Two rules, and the first one is what makes the second safe:
+///
+/// 1. **Anything thrown by [OrbiWebTokenAuthClient] means a person just typed
+///    a password**, because that client is only ever used by the interactive
+///    sign-in. A rejection there says nothing about any credential already on
+///    disk, so it never discards. This type check is what stops the generic
+///    401 of a typed password from being confused with the 401 of a stored
+///    key — the two are genuinely indistinguishable by cause alone, which is
+///    exactly what the persistence half worried about.
+/// 2. Everything else is read through [describeSessionRestoreFailure],
+///    because if we got here without anyone typing, the credential is the
+///    only thing that could have been rejected. That reading already turns a
+///    rejected stored credential into [LoginFailureCause.sessionExpired].
+///
+/// [LoginFailureCause.tooManyAttempts] deliberately does NOT discard: the
+/// server did not say the credential is bad, it said "not right now".
+/// Discarding on a cooldown would turn a few minutes' wait into the loss of
+/// offline unlock.
+bool shouldDiscardStoredCredential(Object error) {
+  if (error is WebTokenAuthException) return false;
+  const discarding = {
+    LoginFailureCause.sessionExpired,
+    LoginFailureCause.accessDenied,
+    LoginFailureCause.apiKeyRejected,
+  };
+  return discarding.contains(describeSessionRestoreFailure(error).cause);
 }
 
 /// Recovers the structured message from the flat string carried by
