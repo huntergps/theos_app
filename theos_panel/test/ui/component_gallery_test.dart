@@ -1,6 +1,5 @@
 import 'package:fluent_ui/fluent_ui.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:reactive_forms/reactive_forms.dart';
 
 import 'package:theos_panel/ui/fluent/orbi_fluent_theme.dart';
 
@@ -18,7 +17,11 @@ void main() {
       FluentApp(theme: OrbiFluentTheme.dark, home: media),
     );
     expect(find.bySemanticsLabel('Logo de Orbi ERP'), findsOneWidget);
-    final field = find.byType(ReactiveTextField<String>);
+    // `OrbiReactiveTextField` ya no envuelve el `ReactiveTextField<String>` de
+    // `reactive_forms` (ese renderiza un `TextField` Material sin equivalente
+    // Fluent); se construye directo sobre `ReactiveFormField` y pinta un
+    // `TextBox` Fluent — ver `lib/ui/components/orbi_components.dart`.
+    final field = find.byType(TextBox);
     expect(find.text('Cliente ficticio'), findsOneWidget);
 
     await tester.enterText(field, 'Acme largo');
@@ -34,6 +37,14 @@ void main() {
             : OrbiLayoutSize.medium,
       );
       expect(find.text('Acme largo'), findsOneWidget);
+      // Este `expect` es el que de verdad ejercita `OrbiStatusChip`: sólo con
+      // los TRES a la vez — un ancho angosto (599, compacto), una etiqueta
+      // larga y la escala de texto 2x de arriba (justo lo que usa quien no ve
+      // bien) — se veía el `Row` interno del chip desbordar. Antes quedaba
+      // tapado porque esta prueba moría antes, en la línea del
+      // `ReactiveTextField` que ya no existe, así que nunca llegaba a este
+      // ancho con esta escala. Arreglado en `OrbiStatusChip` (`Flexible` +
+      // elipsis en la etiqueta), no aquí.
       expect(tester.takeException(), isNull);
     }
     addTearDown(() => tester.binding.setSurfaceSize(null));

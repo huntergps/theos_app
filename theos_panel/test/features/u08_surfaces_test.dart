@@ -1,8 +1,9 @@
-import 'package:flutter/material.dart';
+import 'package:fluent_ui/fluent_ui.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:theos_panel/features/home/home_center.dart';
 import 'package:theos_panel/features/activities/activity_center.dart';
 import 'package:theos_panel/features/reports/document_view.dart';
+import 'package:theos_panel/ui/fluent/orbi_fluent_theme.dart';
 
 void main() {
   test('home resumes authorized real work and exposes empty/error states', () {
@@ -37,9 +38,10 @@ void main() {
     );
     var resumed = false;
     await tester.pumpWidget(
-      MaterialApp(
-        home: Scaffold(
-          body: HomeCenterView(
+      FluentApp(
+        theme: OrbiFluentTheme.light,
+        home: ScaffoldPage(
+          content: HomeCenterView(
             port: _HomePort(item),
             onResume: (value) async => resumed = value.route == '/sales',
           ),
@@ -48,6 +50,9 @@ void main() {
     );
     await tester.tap(find.text('Continuar'));
     expect(resumed, isTrue);
+    // Fluent's `HoverButton` (under `FilledButton`) schedules a 100ms timer
+    // on tap-up to reset its pressed state; flush it before teardown.
+    await tester.pump(const Duration(milliseconds: 150));
   });
 
   test('activity operation is gated by port permission and status remains explicit', () async {

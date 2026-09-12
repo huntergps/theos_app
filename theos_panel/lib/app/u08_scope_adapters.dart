@@ -167,6 +167,7 @@ final class ScopeHomeResumePort implements HomeResumePort {
           subtitle == null) {
         continue;
       }
+      final count = raw['count'];
       decoded.add(
         HomeResumeItem(
           id: id,
@@ -174,6 +175,7 @@ final class ScopeHomeResumePort implements HomeResumePort {
           subtitle: subtitle,
           actionLabel: raw['actionLabel'] as String? ?? 'Abrir',
           route: raw['route'] as String?,
+          count: count is num ? count.toInt() : null,
         ),
       );
     }
@@ -209,6 +211,7 @@ final class ScopeHomeResumePort implements HomeResumePort {
                 '$count pedido${count == 1 ? '' : 's'} local${count == 1 ? '' : 'es'}',
             actionLabel: 'Ver ventas',
             route: '/sales',
+            count: count,
           ),
         );
       }
@@ -232,6 +235,7 @@ final class ScopeHomeResumePort implements HomeResumePort {
             subtitle: '$count pedido${count == 1 ? '' : 's'} por cobrar',
             actionLabel: 'Abrir caja',
             route: '/collection',
+            count: count,
           ),
         );
       }
@@ -257,6 +261,7 @@ final class ScopeHomeResumePort implements HomeResumePort {
               subtitle: '$count actividad${count == 1 ? '' : 'es'}',
               actionLabel: 'Ver actividades',
               route: '/activities',
+              count: count,
             ),
           );
         }
@@ -277,6 +282,7 @@ final class ScopeHomeResumePort implements HomeResumePort {
             subtitle: '$count operación${count == 1 ? '' : 'es'} por enviar',
             actionLabel: 'Revisar',
             route: '/sync',
+            count: count,
           ),
         );
       }

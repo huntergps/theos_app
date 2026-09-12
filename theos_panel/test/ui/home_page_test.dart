@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:fluent_ui/fluent_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:theos_pos_core/theos_pos_core.dart';
@@ -6,6 +6,7 @@ import 'package:theos_panel/app/session_composition.dart';
 import 'package:theos_panel/app/notification_scope_adapter.dart';
 import 'package:theos_panel/features/auth/auth_controller.dart';
 import 'package:theos_panel/ui/home_page.dart';
+import 'package:theos_panel/ui/fluent/orbi_fluent_theme.dart';
 
 void main() {
   testWidgets('home content is independent from shell navigation', (
@@ -42,12 +43,12 @@ void main() {
           runtimeSessionProvider.overrideWithValue(null),
           capabilitySnapshotProvider.overrideWithValue(capabilities),
         ],
-        child: const MaterialApp(home: HomePage()),
+        child: FluentApp(theme: OrbiFluentTheme.light, home: const HomePage()),
       ),
     );
     await tester.pump();
 
-    expect(find.text('Inicio'), findsOneWidget);
+    expect(find.text('Inicio operativo'), findsOneWidget);
     expect(find.byKey(const Key('logout-button')), findsNothing);
     expect(find.text('Ventas'), findsNothing);
     expect(find.text('Bodega'), findsNothing);
@@ -65,7 +66,7 @@ void main() {
           runtimeSessionProvider.overrideWithValue(null),
           capabilitySnapshotProvider.overrideWithValue(null),
         ],
-        child: const MaterialApp(home: HomePage()),
+        child: FluentApp(theme: OrbiFluentTheme.light, home: const HomePage()),
       ),
     );
     await tester.pump();

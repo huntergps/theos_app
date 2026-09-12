@@ -1,5 +1,6 @@
-import 'package:flutter/material.dart';
+import 'package:fluent_ui/fluent_ui.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:theos_panel/ui/fluent/orbi_fluent_theme.dart';
 import 'package:theos_panel/ui/layouts/workspace_lock_screen.dart';
 
 void main() {
@@ -8,8 +9,8 @@ void main() {
     Future<bool> Function(String password)? onUnlock,
   }) async {
     await tester.pumpWidget(
-      MaterialApp(
-        theme: ThemeData(useMaterial3: true),
+      FluentApp(
+        theme: OrbiFluentTheme.light,
         home: WorkspaceLockScreen(
           userLabel: 'vendedor@orbi',
           pendingSummary: '3 pendientes',
@@ -44,19 +45,34 @@ void main() {
         findsOneWidget,
         reason: 'la segunda mitad dice qué hacer, no sólo qué falló',
       );
-      expect(find.byIcon(Icons.error_outline), findsOneWidget);
+      // `InfoBar` es el aviso Fluent que dibuja el panel; no hay un icono
+      // Material suelto (`Icons.error_outline`) que buscar — el icono de
+      // severidad lo pinta el propio `InfoBar`.
+      expect(find.byType(InfoBar), findsOneWidget);
+      expect(
+        tester.widget<InfoBar>(find.byType(InfoBar)).severity,
+        InfoBarSeverity.error,
+        reason: 'la misma severidad que cualquier otro fallo, no una rebajada',
+      );
+      expect(
+        find.descendant(of: find.byType(InfoBar), matching: find.byType(Icon)),
+        findsWidgets,
+        reason: 'el panel lleva icono, no sólo texto',
+      );
 
-      final colors = ThemeData(useMaterial3: true).colorScheme;
-      final surface = tester.widget<DecoratedBox>(
-        find.ancestor(
-          of: find.byIcon(Icons.error_outline),
-          matching: find.byType(DecoratedBox),
+      final resources = FluentTheme.of(
+        tester.element(find.byType(WorkspaceLockScreen)),
+      ).resources;
+      final surface = tester.widget<Container>(
+        find.descendant(
+          of: find.byType(InfoBar),
+          matching: find.byType(Container),
         ),
       );
       expect(
         (surface.decoration as BoxDecoration).color,
-        colors.errorContainer,
-        reason: 'usa el contenedor de error del tema, no un rojo suelto',
+        resources.systemFillColorCriticalBackground,
+        reason: 'usa el color crítico del tema Fluent, no un rojo suelto',
       );
     },
   );
@@ -89,7 +105,12 @@ void main() {
 
       expect(find.text('Falta tu contraseña'), findsOneWidget);
       expect(find.textContaining('Escríbela'), findsOneWidget);
-      expect(find.byIcon(Icons.error_outline), findsOneWidget);
+      expect(find.byType(InfoBar), findsOneWidget);
+      expect(
+        tester.widget<InfoBar>(find.byType(InfoBar)).severity,
+        InfoBarSeverity.error,
+        reason: 'la misma severidad que una contraseña equivocada',
+      );
     },
   );
 
@@ -98,7 +119,7 @@ void main() {
   ) async {
     await pumpLock(tester, onUnlock: (password) async => password == 'buena');
     await attempt(tester, 'equivocada');
-    expect(find.byIcon(Icons.error_outline), findsOneWidget);
+    expect(find.byType(InfoBar), findsOneWidget);
 
     await tester.enterText(
       find.byKey(const Key('workspace-lock-password')),
@@ -110,9 +131,13 @@ void main() {
     // app the shell is what removes it. Settling here would wait forever on
     // that animation, which is the correct behaviour, not a defect.
     await tester.pump();
-    await tester.pump(const Duration(milliseconds: 50));
-    expect(find.byIcon(Icons.error_outline), findsNothing);
-    expect(find.byType(CircularProgressIndicator), findsOneWidget);
+    // 100ms, not 50: fluent_ui's `HoverButton` (under `FilledButton`) schedules
+    // its own tap-up timer on that duration, and a shorter pump leaves it
+    // pending when the test tears down the tree — same flush every other
+    // Fluent-button test in this package needs (see copyable_message_test.dart).
+    await tester.pump(const Duration(milliseconds: 100));
+    expect(find.byType(InfoBar), findsNothing);
+    expect(find.byType(ProgressRing), findsOneWidget);
   });
 
   testWidgets(

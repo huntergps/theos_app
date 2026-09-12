@@ -416,9 +416,6 @@ class _CollectionScreenState extends State<CollectionScreen> {
               widget.pending[_selected!].requiresDueConfirmation) ...[
             Card(
               key: const Key('mixed-due-confirmation'),
-              backgroundColor: FluentTheme.of(
-                context,
-              ).resources.subtleFillColorSecondary,
               child: Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [

@@ -156,9 +156,16 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      await tester.tap(
-        find.widgetWithText(FilledButton, 'Revisar con supervisor'),
+      // The default test surface is short enough that the explanatory
+      // `InfoBar` pushes the action below the fold of the page's
+      // `SingleChildScrollView`; scroll it into view before tapping.
+      final reviewButton = find.widgetWithText(
+        FilledButton,
+        'Revisar con supervisor',
       );
+      await tester.ensureVisible(reviewButton);
+      await tester.pumpAndSettle();
+      await tester.tap(reviewButton);
       await tester.pumpAndSettle();
 
       expect(queue.conflictCalledWith, 7);

@@ -1,10 +1,10 @@
-import 'package:flutter/material.dart';
+import 'package:fluent_ui/fluent_ui.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:theos_panel/app/preferences/app_preferences.dart';
-import 'package:theos_panel/app/theme/orbi_theme.dart';
 import 'package:theos_panel/features/settings/message_durations_section.dart';
 import 'package:theos_panel/ui/components/copyable_message.dart';
+import 'package:theos_panel/ui/fluent/orbi_fluent_theme.dart';
 
 /// The owner did not ask for the durations to merely EXIST in the code — he
 /// said "se debe escoger el tiempo a mostrar". So these tests are about the
@@ -21,10 +21,10 @@ Future<AppPreferencesController> _controller() async {
   return controller;
 }
 
-Widget _host(AppPreferencesController controller) => MaterialApp(
-  theme: OrbiTheme.light,
-  home: Scaffold(
-    body: SingleChildScrollView(
+Widget _host(AppPreferencesController controller) => FluentApp(
+  theme: OrbiFluentTheme.light,
+  home: ScaffoldPage(
+    content: SingleChildScrollView(
       child: MessageDurationsSection(controller: controller),
     ),
   ),

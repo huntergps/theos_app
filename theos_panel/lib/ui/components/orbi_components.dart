@@ -94,8 +94,24 @@ class OrbiStatusChip extends StatelessWidget {
             children: [
               ExcludeSemantics(child: Icon(icon, size: 16)),
               const SizedBox(width: 6),
-              ExcludeSemantics(
-                child: Text(label, style: theme.typography.caption),
+              // `Flexible`, no un `Text` suelto: en toda pantalla real este
+              // chip vive dentro de un `Wrap` o como hermano de un
+              // `Expanded` en un `Row` — nunca se le fuerza un ancho menor
+              // al que su contenido pide. Pero un `ListView` (como la
+              // galería de desarrollo) sí le da un ancho fijo y angosto a
+              // cada item, y a escala de texto 2x (accesibilidad) una
+              // etiqueta larga desborda el `Row` sin esto. Con `Flexible` +
+              // elipsis, la etiqueta normal se sigue viendo entera — sólo se
+              // recorta en esa combinación extrema de ancho angosto y texto
+              // grande.
+              Flexible(
+                child: ExcludeSemantics(
+                  child: Text(
+                    label,
+                    style: theme.typography.caption,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
               ),
             ],
           ),
