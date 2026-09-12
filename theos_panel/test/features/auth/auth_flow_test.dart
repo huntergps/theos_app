@@ -105,6 +105,19 @@ class FakeBootstrap implements AuthBootstrapPort {
     required String login,
     required String password,
   }) async => const NativeAuthBootstrapResult(userId: 7, apiKey: 'secret-key');
+
+  // Deliberately inert: nothing in this file exercises the rollback path that
+  // revokes an already-issued key, so recording the call would be state no
+  // test reads. See AuthBootstrapPort.revokeApiKey in orbi_runtime for when
+  // it is actually invoked.
+  @override
+  Future<void> revokeApiKey({
+    required String baseUrl,
+    required String database,
+    required String login,
+    required String password,
+    required int apiKeyId,
+  }) async {}
 }
 
 class FakeRuntime implements SessionRuntimePort {

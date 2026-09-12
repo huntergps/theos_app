@@ -1,7 +1,9 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:orbi_runtime/orbi_runtime.dart';
 
+import 'login_failure_messages.dart';
 import 'pin_capability_limiter.dart';
+import 'workspace_unlock_store.dart';
 
 abstract interface class AuthServicePort {
   Future<AuthServiceResult> login({
@@ -186,6 +188,9 @@ class AuthNotifier extends Notifier<AuthViewState> {
     required String password,
     bool persistCredential = true,
   }) async {
+    // Read before the first await: a ref that gets unmounted mid-login must
+    // not stop the derivation from being written (or, on close, erased).
+    final unlockStore = ref.read(workspaceUnlockStoreProvider);
     state = const AuthViewState(status: AuthControllerStatus.loading);
     try {
       final service = _service;
@@ -207,15 +212,53 @@ class AuthNotifier extends Notifier<AuthViewState> {
         );
       }
       if (!ref.mounted) return;
-      state = _fromResult(result);
-    } catch (_) {
+      final next = _fromAttempt(result);
+      state = next;
+      await _rememberUnlockSecret(
+        unlockStore,
+        next,
+        password,
+        persistCredential: persistCredential,
+      );
+    } catch (error) {
       if (!ref.mounted) return;
-      state = const AuthViewState(
+      state = AuthViewState(
         status: AuthControllerStatus.error,
-        message:
-            'No se pudo iniciar sesión. Revisa los datos e inténtalo de nuevo.',
+        message: describeLoginFailure(error).flatten(),
       );
     }
+  }
+
+  /// Enrols the just-proven password with [WorkspaceUnlockStore] so the shell's
+  /// lock screen can later be opened with no network at all.
+  ///
+  /// Only ever a derivation, never the password — see that class for what is
+  /// stored, where, and why the web stores nothing. Two refusals are
+  /// deliberate:
+  ///
+  /// * a login that did not actually succeed enrols nothing, so a rejected
+  ///   password can never become an offline unlock; and
+  /// * `persistCredential: false` enrols nothing either. That checkbox is the
+  ///   user saying "do not leave my credential on this device", and a
+  ///   derivation of their password is exactly the kind of thing they were
+  ///   declining. It costs them the offline unlock, which is the trade they
+  ///   asked for.
+  ///
+  /// Never throws: failing to save an optimization must not fail the login.
+  Future<void> _rememberUnlockSecret(
+    WorkspaceUnlockStore store,
+    AuthViewState authenticated,
+    String password, {
+    required bool persistCredential,
+  }) async {
+    if (!persistCredential) return;
+    final profile = authenticated.profile;
+    if (profile == null) return;
+    if (authenticated.status != AuthControllerStatus.authenticated &&
+        authenticated.status != AuthControllerStatus.restored) {
+      return;
+    }
+    await store.remember(workspaceUnlockScopeKeyFor(profile), password);
   }
 
   Future<void> loginWithApiKey({
@@ -254,12 +297,12 @@ class AuthNotifier extends Notifier<AuthViewState> {
         );
       }
       if (!ref.mounted) return;
-      state = _fromResult(result);
-    } catch (_) {
+      state = _fromAttempt(result);
+    } catch (error) {
       if (!ref.mounted) return;
-      state = const AuthViewState(
+      state = AuthViewState(
         status: AuthControllerStatus.error,
-        message: 'No se pudo validar la API key.',
+        message: describeLoginFailure(error).flatten(),
       );
     }
   }
@@ -270,11 +313,15 @@ class AuthNotifier extends Notifier<AuthViewState> {
       final result = await _service.restore(offline: offline);
       if (!ref.mounted) return;
       state = _fromResult(result);
-    } catch (_) {
+    } catch (error) {
       if (!ref.mounted) return;
-      state = const AuthViewState(
+      // Same flattening the login path had: "No se pudo restaurar la sesión"
+      // said nothing about whether to wait for the wifi, sign in again, or
+      // call an administrator. describeSessionRestoreFailure re-words the
+      // credential cases for a session nobody typed — see that function.
+      state = AuthViewState(
         status: AuthControllerStatus.error,
-        message: 'No se pudo restaurar la sesión.',
+        message: describeSessionRestoreFailure(error).flatten(),
       );
     }
   }
@@ -316,16 +363,31 @@ class AuthNotifier extends Notifier<AuthViewState> {
         profile: restored.profile,
         capabilities: restrictSnapshotToSellerPin(capabilities),
       );
-    } catch (_) {
+    } catch (error) {
       if (!ref.mounted) return;
-      state = const AuthViewState(
+      // Reports the same causes as [restore]: nothing here is derived from
+      // the PIN itself, so it leaks nothing about which PINs exist. The
+      // seller-permission refusal above stays its own separate message.
+      state = AuthViewState(
         status: AuthControllerStatus.error,
-        message: 'No se pudo restaurar la sesión con PIN.',
+        message: describeSessionRestoreFailure(error).flatten(),
       );
     }
   }
 
+  /// Ends the session. This is the single path behind both "Cerrar sesión" and
+  /// "Cambiar de usuario" (see `confirmSwitchWorkspaceUser`), which is exactly
+  /// why the workspace unlock derivation is erased here: whichever of the two
+  /// the operator chose, leaving a derivation of the previous identity's
+  /// password behind would be an orphan credential for someone who is no
+  /// longer on this device. Neither exit needs the network, and erasing a
+  /// local entry does not change that.
   Future<void> close() async {
+    final profile = state.profile;
+    final unlockStore = ref.read(workspaceUnlockStoreProvider);
+    if (profile != null) {
+      await unlockStore.forget(workspaceUnlockScopeKeyFor(profile));
+    }
     await _service.close();
     if (!ref.mounted) return;
     // Drop profile/capabilities immediately so providers cannot retain the
@@ -339,6 +401,26 @@ class AuthNotifier extends Notifier<AuthViewState> {
 
   Future<AuthProfile?> loadProfileFor(String serverUrl, String database) =>
       _service.loadProfileFor(serverUrl, database);
+
+  /// 🔴 A deliberate sign-in attempt that comes back [AuthServiceStatus
+  /// .required] did NOT succeed, and it is not the neutral "you are signed
+  /// out" state either — it is an attempt that produced nothing. `required`
+  /// carries no message, so rendering it as-is made the browser's login clear
+  /// the password field and say absolutely nothing: no request, no error, no
+  /// words. Measured against ERP2.
+  ///
+  /// This is the backstop, not the fix: the real repair is for the web
+  /// service to actually call the server. But a backstop is what guarantees
+  /// that no path — including one nobody anticipated — can end in silence.
+  AuthViewState _fromAttempt(AuthServiceResult result) {
+    if (result.status != AuthServiceStatus.required) return _fromResult(result);
+    return AuthViewState(
+      status: AuthControllerStatus.error,
+      message: loginFailureMessageFor(
+        LoginFailureCause.loginNotAttempted,
+      ).flatten(),
+    );
+  }
 
   AuthViewState _fromResult(AuthServiceResult result) =>
       switch (result.status) {

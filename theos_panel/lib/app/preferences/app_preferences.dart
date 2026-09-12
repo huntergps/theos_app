@@ -10,6 +10,8 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../features/auth/auth_controller.dart';
 
+import '../../ui/components/copyable_message.dart';
+
 final class PreferencesScope {
   const PreferencesScope({required this.appId, required this.scopeKey});
 
@@ -39,6 +41,7 @@ final class AppPreferencesSnapshot {
     this.routeMode = false,
     this.syncRetries = 3,
     this.notificationCategories = const {},
+    this.messageDurations = const MessageDurations(),
   });
 
   final PreferenceThemeMode themeMode;
@@ -49,6 +52,10 @@ final class AppPreferencesSnapshot {
   final int syncRetries;
   final Map<String, bool> notificationCategories;
 
+  /// How long a transient message of each severity stays on screen. See
+  /// [MessageDurations] for why an error defaults to "until dismissed".
+  final MessageDurations messageDurations;
+
   AppPreferencesSnapshot copyWith({
     PreferenceThemeMode? themeMode,
     int? accentSeed,
@@ -57,6 +64,7 @@ final class AppPreferencesSnapshot {
     bool? routeMode,
     int? syncRetries,
     Map<String, bool>? notificationCategories,
+    MessageDurations? messageDurations,
   }) => AppPreferencesSnapshot(
     themeMode: themeMode ?? this.themeMode,
     accentSeed: accentSeed ?? this.accentSeed,
@@ -67,6 +75,7 @@ final class AppPreferencesSnapshot {
     notificationCategories: Map.unmodifiable(
       notificationCategories ?? this.notificationCategories,
     ),
+    messageDurations: messageDurations ?? this.messageDurations,
   );
 
   ThemeMode get materialThemeMode => switch (themeMode) {
@@ -84,6 +93,7 @@ final class AppPreferencesSnapshot {
     'routeMode': routeMode,
     'syncRetries': syncRetries,
     'notificationCategories': notificationCategories,
+    'messageDurations': messageDurations.toJson(),
   };
 
   factory AppPreferencesSnapshot.fromJson(Map<String, dynamic> json) {
@@ -119,6 +129,12 @@ final class AppPreferencesSnapshot {
           if (entry.key is String && entry.value is bool)
             entry.key as String: entry.value as bool,
       },
+      // Read leniently and left out of the strict checks above ON PURPOSE:
+      // preferences written before message durations existed carry no such
+      // key, and `version` is still 1. Demanding it would make every existing
+      // installation throw FormatException and silently lose its theme,
+      // accent and text scale on the next start.
+      messageDurations: MessageDurations.fromJson(json['messageDurations']),
     );
   }
 
@@ -214,6 +230,16 @@ final class AppPreferencesController extends ChangeNotifier {
 
   Future<void> setSyncRetries(int retries) =>
       update(_snapshot.copyWith(syncRetries: retries));
+
+  Future<void> setMessageDurations(MessageDurations durations) =>
+      update(_snapshot.copyWith(messageDurations: durations));
+
+  Future<void> setMessageDuration(
+    OrbiMessageSeverity severity,
+    int seconds,
+  ) => setMessageDurations(
+    _snapshot.messageDurations.copyWithSeverity(severity, seconds),
+  );
 
   Future<void> setNotificationCategory(String category, bool enabled) => update(
     _snapshot.copyWith(

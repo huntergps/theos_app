@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:orbi_runtime/orbi_runtime.dart';
 
 import '../../app/preferences/app_preferences.dart';
+import '../auth/pin_enrollment_section.dart';
+import 'message_durations_section.dart';
 
 class SettingsScreen extends StatelessWidget {
   const SettingsScreen({
@@ -109,6 +111,8 @@ class SettingsScreen extends StatelessWidget {
             const SizedBox(height: 8),
             if (permissionAction != null)
               _PermissionButton(action: permissionAction!),
+            MessageDurationsSection(controller: controller),
+            const PinEnrollmentSection(),
           ],
         ),
       ),

@@ -119,21 +119,31 @@ void main() {
       final db = AppDatabase(NativeDatabase.memory());
       final queue = OfflineQueueDataSource(db);
       await _enqueue(queue, key: 'conflict');
-      final adapter = _Adapter()
-        ..conflict = ConflictInfo(
-          operationId: 1,
-          model: 'sale.order',
-          localWriteDate: DateTime(2026),
-          serverWriteDate: DateTime(2026),
-          localValues: const {},
-        );
+      final conflict = ConflictInfo(
+        operationId: 1,
+        model: 'sale.order',
+        localWriteDate: DateTime(2026),
+        serverWriteDate: DateTime(2026),
+        localValues: const {'amount_total': 15.0},
+        serverValues: const {'amount_total': 18.0},
+      );
+      final adapter = _Adapter()..conflict = conflict;
       final job = OperationsSyncJob(queue: queue, adapter: adapter);
       addTearDown(() async {
         await job.dispose();
         await db.close();
       });
       await job.run(_scope());
-      expect((await job.queueSnapshot()).conflict, 1);
+      final snapshot = await job.queueSnapshot();
+      expect(snapshot.conflict, 1);
+      // The recovery screen needs the actual conflict detail to compare
+      // local vs. server values, not just a count — a snapshot that only
+      // reports "1 conflict" gives it nothing to render.
+      expect(snapshot.conflicts, hasLength(1));
+      expect(snapshot.conflicts.single.operationId, conflict.operationId);
+      expect(snapshot.conflicts.single.model, conflict.model);
+      expect(snapshot.conflicts.single.localValues, conflict.localValues);
+      expect(snapshot.conflicts.single.serverValues, conflict.serverValues);
       for (var i = 0; i < RetryBackoff.maxRetries; i++) {
         await queue.markOperationFailed(1, 'temporary');
       }

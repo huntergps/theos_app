@@ -32,9 +32,29 @@ cd theos_pos_core && dart test    test/managers/algo_test.dart      --plain-name
 cinco son paquetes Flutter (`flutter test`, `flutter analyze`). El `Makefile` ya usa el
 comando correcto por paquete; al invocar a mano hay que respetarlo.
 
-Ejecutar la app contra ERP2: `make run-macos`. ⚠️ `make run-web` **está roto** —
-llama a `scripts/run_flutter_with_erp2.sh chrome` y ese script rechaza los targets web
-con código 2 a propósito (la inyección de credencial se limita a builds nativos debug).
+### Arrancar una de las dos apps — el nombre del objetivo dice cuál
+
+🔴 **`run-macos` y `run-web` arrancan `theos_pos`, NO Orbi.** El nombre no lo dice y eso
+ya hizo perder tiempo: quien creía estar probando Orbi estaba mirando la app vieja de
+Fluent. Los objetivos de Orbi llevan `orbi` en el nombre, sin excepción.
+
+| Objetivo | Qué arranca | Credencial |
+|---|---|---|
+| `make run-macos` | `theos_pos` (Fluent) en macOS | inyecta `THEOS_ERP2_API_KEY` vía `scripts/run_flutter_with_erp2.sh` |
+| `make run-web` | `theos_pos` (Fluent) en Chrome | ninguna; se entra desde la app |
+| `make run-orbi-macos` | `theos_panel` (Orbi) en macOS | **ninguna**; se entra por la pantalla de acceso |
+| `make run-orbi-web` | `theos_panel` (Orbi) en Chrome | **ninguna**; se entra por la pantalla de acceso |
+
+**Orbi no recibe credencial inyectada en ningún destino, tampoco en escritorio.**
+`theos_panel` no tiene ni un `String.fromEnvironment` para una clave: el único
+`fromEnvironment` del paquete es el arnés E2E (`lib/erp2_harness.dart`), que lee
+`Platform.environment` en tiempo de prueba. Inyectarla sería peso muerto, y además
+taparía justo la pantalla de acceso que se quiere probar.
+
+`scripts/run_flutter_with_erp2.sh` es **sólo de `theos_pos`**: hace `cd theos_pos` y
+rechaza los destinos web y las compilaciones que no sean debug nativo. Hay una prueba de
+arquitectura que lo vigila (`theos_pos/test/architecture/platform_security_config_test.dart`),
+así que no se toca sin mirarla.
 
 ## Las dos aplicaciones
 

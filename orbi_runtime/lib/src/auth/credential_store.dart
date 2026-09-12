@@ -77,6 +77,22 @@ final class InstallationIdStore {
 }
 
 final class FlutterSecureCredentialBackend implements CredentialBackend {
+  // macOS: NO se pasa `MacOsOptions(usesDataProtectionKeychain: false)` a
+  // propósito. Se probó exactamente esa opción (flutter_secure_storage
+  // ^11.0.0, macos_options.dart línea 24) creyendo que el llavero clásico de
+  // archivo evita la entitlement de grupo de acceso que el llavero protegido
+  // exige. Verificado 2026-09-11 compilando y ejecutando theos_panel en
+  // macOS, con logs del propio `secd` del sistema: el rechazo -34018 ocurre
+  // IDÉNTICO con el flag en true o en false, y también con o sin
+  // `com.apple.security.app-sandbox`. El mensaje exacto de secd es "Client
+  // has neither com.apple.application-identifier nor
+  // com.apple.security.application-groups nor keychain-access-groups
+  // entitlements": en esta versión de macOS, secd exige esa entitlement para
+  // CUALQUIER acceso a Keychain Services desde un binario firmado ad-hoc
+  // (CODE_SIGN_IDENTITY = "-", sin DEVELOPMENT_TEAM), sea llavero protegido o
+  // clásico, sandboxed o no. Apagar el flag sólo perdería la protección de
+  // llavero de datos sin arreglar nada — ver
+  // theos_panel/macos/Runner/DebugProfile.entitlements para el estado real.
   FlutterSecureCredentialBackend({FlutterSecureStorage? storage})
     : _storage = storage ?? const FlutterSecureStorage();
 

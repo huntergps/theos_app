@@ -5,8 +5,21 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 class _Backend implements CredentialBackend, InstallationIdBackend {
   final values = <String, String>{};
+
+  /// Simulates the real-world failure this fake exists to reproduce: a
+  /// secure-storage write that fails (e.g. the macOS keychain entitlement
+  /// gap tracked in `docs/orbi_panel/PENDIENTES.md`) while installation-id
+  /// bookkeeping — the same backend, a different key — keeps working.
+  bool failCredentialWrite = false;
+
   @override
-  Future<void> write(String key, String value) async => values[key] = value;
+  Future<void> write(String key, String value) async {
+    if (failCredentialWrite && !key.startsWith('orbi/installation/')) {
+      throw StateError('disk full');
+    }
+    values[key] = value;
+  }
+
   @override
   Future<String?> read(String key) async => values[key];
   @override
@@ -27,13 +40,35 @@ class _Runtime implements SessionRuntimePort {
 }
 
 class _Bootstrap implements AuthBootstrapPort {
+  /// The id `authenticateAndCreateApiKey` claims the server assigned to the
+  /// issued key — mirrors `NativeAuthBootstrapResult.apiKeyId` so a test can
+  /// force a real revoke attempt further down the login.
+  int? apiKeyId = 99;
+  bool failRevoke = false;
+  final revokedApiKeyIds = <int>[];
+
   @override
   Future<NativeAuthBootstrapResult> authenticateAndCreateApiKey({
     required String baseUrl,
     required String database,
     required String login,
     required String password,
-  }) async => const NativeAuthBootstrapResult(userId: 7, apiKey: 'secret');
+  }) async =>
+      NativeAuthBootstrapResult(userId: 7, apiKey: 'secret', apiKeyId: apiKeyId);
+
+  @override
+  Future<void> revokeApiKey({
+    required String baseUrl,
+    required String database,
+    required String login,
+    required String password,
+    required int apiKeyId,
+  }) async {
+    if (failRevoke) {
+      throw const NativeAuthBootstrapRevocationException('revoke failed');
+    }
+    revokedApiKeyIds.add(apiKeyId);
+  }
 }
 
 class _Identity implements ActiveIdentityReader {
@@ -79,11 +114,12 @@ void main() {
     _Identity identity, [
     ApiKeyIdentityProbe? apiKeyIdentityProbe,
     _Capabilities? capabilities,
+    _Bootstrap? bootstrap,
   ]) async {
     SharedPreferences.setMockInitialValues({});
     final prefs = await SharedPreferences.getInstance();
     return NativeAuthService(
-      bootstrapPort: _Bootstrap(),
+      bootstrapPort: bootstrap ?? _Bootstrap(),
       credentialStore: CredentialStore(
         backend,
         durability: CredentialDurability.secureStore,
@@ -123,6 +159,81 @@ void main() {
       throwsFormatException,
     );
   });
+
+  test(
+    'a failed local credential write revokes the just-issued API key',
+    () async {
+      final b = _Backend()..failCredentialWrite = true;
+      final r = _Runtime();
+      final i = _Identity();
+      final bootstrap = _Bootstrap();
+      final s = await service(b, r, i, null, null, bootstrap);
+
+      await expectLater(
+        s.login(
+          serverUrl: 'https://erp.test',
+          database: 'db',
+          login: 'u',
+          password: 'p',
+        ),
+        throwsStateError,
+      );
+
+      // The credential store write failed (`disk full`), but the server
+      // already created the key for it — the point of this defect. Without
+      // the fix, `revokedApiKeyIds` stays empty and that key is orphaned.
+      expect(bootstrap.revokedApiKeyIds, [99]);
+      expect(b.values.values, isNot(contains('secret')));
+    },
+  );
+
+  test(
+    'a failed revocation never replaces the original error, and is logged',
+    () async {
+      final b = _Backend()..failCredentialWrite = true;
+      final r = _Runtime();
+      final i = _Identity();
+      final bootstrap = _Bootstrap()..failRevoke = true;
+      final s = await service(b, r, i, null, null, bootstrap);
+
+      final logs = <String>[];
+      final previousOutput = logger.logOutput;
+      logger.logOutput = (message) => logs.add(message.toString());
+      addTearDown(() => logger.logOutput = previousOutput);
+
+      Object? failure;
+      try {
+        await s.login(
+          serverUrl: 'https://erp.test',
+          database: 'db',
+          login: 'u',
+          password: 'p',
+        );
+      } catch (error) {
+        failure = error;
+      }
+
+      // The ugly case the coordinator asked about: revocation fails too
+      // (typically the same connectivity problem that broke the local
+      // write). The original error must still be exactly what a caller
+      // sees — never replaced by the cleanup failure.
+      expect(failure, isA<StateError>());
+      expect((failure! as StateError).message, 'disk full');
+      // And the now-permanently-orphaned credential must leave a trace,
+      // naming the key and the user, never a secret.
+      expect(
+        logs.any(
+          (line) =>
+              line.contains('orphaned') &&
+              line.contains('id=99') &&
+              line.contains('login=u'),
+        ),
+        isTrue,
+        reason: 'expected an orphaned-credential log line, got: $logs',
+      );
+      expect(logs.any((line) => line.contains('disk full')), isFalse);
+    },
+  );
 
   test('non-persistent login keeps the secret out of storage', () async {
     final b = _Backend(), r = _Runtime(), i = _Identity();

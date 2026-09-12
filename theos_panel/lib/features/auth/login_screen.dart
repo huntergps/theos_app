@@ -7,16 +7,34 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:orbi_runtime/orbi_runtime.dart' show AuthProfile;
 
 import 'auth_controller.dart';
+import 'login_failure_messages.dart';
 import 'login_preferences.dart';
 import 'saved_servers.dart';
 import 'server_manager_dialog.dart';
 import '../../app/theme/orbi_theme.dart';
 import '../../app/preferences/app_preferences.dart';
+import '../../ui/components/copyable_message.dart';
 import '../../ui/components/orbi_brand.dart';
 
 const String _kApiKeySubtitle =
     'La clave se guarda sólo en el almacén seguro del dispositivo.';
 const String _kFooterText = 'Desarrollado por GalapagosTech · 2026';
+
+/// Shown when the saved-servers store cannot be read at all.
+///
+/// The FormatException's own text used to be interpolated into this line.
+/// That is an internal detail on a screen anyone can see, and the rule that
+/// governs the sign-in failures governs this one too: explaining is not
+/// dumping. What the person gets is what to DO; the copy button carries it to
+/// whoever can fix it.
+const CopyableMessage _kServersUnreadableMessage = CopyableMessage(
+  title: 'No se pudieron leer los servidores guardados',
+  body:
+      'La lista de entornos de este dispositivo quedó ilegible. Abre '
+      '«Gestionar servidores…» y vuelve a crear el entorno que uses; si te '
+      'pasa otra vez, copia este mensaje y mándaselo a tu administrador.',
+  severity: OrbiMessageSeverity.error,
+);
 
 // Sentinel item inside the server dropdown that opens the manager dialog
 // instead of selecting an environment. It can never collide with a real
@@ -112,7 +130,7 @@ double _estimateNormalModeContentHeight({
   required double textScaleFactor,
   required bool apiKeyMode,
   required String? errorMessage,
-  String? serversLoadError,
+  bool serversUnreadable = false,
 }) {
   final titleHeight = _measureTextHeight(
     'Acceso a Orbi',
@@ -156,29 +174,151 @@ double _estimateNormalModeContentHeight({
       saveCredentialSubtitleHeight +
       OrbiTheme.space24 + // headerGap (normal), before the submit button
       kMinInteractiveDimension; // submit button
-  if (serversLoadError != null) {
+  if (serversUnreadable) {
+    // It renders as the same panel the sign-in failures use, so it costs the
+    // same chrome — not one wrapped line.
     total +=
         OrbiTheme.space8 +
-        _measureTextHeight(
-          serversLoadError,
-          theme.textTheme.bodyMedium,
-          contentWidth,
-          direction,
-          textScaleFactor,
+        _failurePanelHeight(
+          title: _kServersUnreadableMessage.title,
+          body: _kServersUnreadableMessage.body,
+          theme: theme,
+          contentWidth: contentWidth,
+          direction: direction,
+          textScaleFactor: textScaleFactor,
         );
   }
   if (errorMessage != null) {
     total +=
         OrbiTheme.space12 +
-        _measureTextHeight(
-          errorMessage,
-          theme.textTheme.bodyMedium,
-          contentWidth,
-          direction,
-          textScaleFactor,
+        estimateLoginFailurePanelHeight(
+          message: errorMessage,
+          theme: theme,
+          contentWidth: contentWidth,
+          direction: direction,
+          textScaleFactor: textScaleFactor,
         );
   }
   return total;
+}
+
+/// Chrome [LoginFailurePanel] adds around its two text blocks: the padding on
+/// both sides, its one-pixel border, the leading icon and the gap after it.
+/// Measured against the widget itself by the "estimated layout-budget metrics"
+/// test, same as every other constant in this budget.
+// The gap plus the action row. The button reports kMinInteractiveDimension
+// (48), not the 40 of ButtonStyle.minimumSize: Material's default
+// MaterialTapTargetSize.padded grows it to the minimum touch target. Pinned
+// by "the action row is the height the layout budget assumes" in
+// test/ui/copyable_message_test.dart.
+const double _kFailurePanelActionRowHeight =
+    OrbiTheme.space4 + kMinInteractiveDimension;
+const double _kFailurePanelVerticalChrome =
+    OrbiTheme.space12 * 2 + 2 + // padding top+bottom + 1px border each side
+    _kFailurePanelActionRowHeight;
+const double _kFailurePanelTextInset =
+    OrbiTheme.space12 * 2 + 2 + 20 + OrbiTheme.space12; // padding + border + icon + gap
+
+/// The height the rendered error costs the form.
+///
+/// A failure that carries guidance is TWO text blocks inside a padded panel,
+/// not the single wrapped line the old flat `Text` was — so the budget has to
+/// ask [decodeLoginFailureMessage] what it is actually about to draw, or the
+/// compact/normal decision starts under-counting exactly when something has
+/// gone wrong and the form is at its tallest.
+double estimateLoginFailurePanelHeight({
+  required String message,
+  required ThemeData theme,
+  required double contentWidth,
+  required TextDirection direction,
+  required double textScaleFactor,
+}) {
+  final failure = decodeLoginFailureMessage(message);
+  if (failure == null) {
+    return _measureTextHeight(
+      message,
+      theme.textTheme.bodyMedium,
+      contentWidth,
+      direction,
+      textScaleFactor,
+    );
+  }
+  return _failurePanelHeight(
+    title: failure.title,
+    body: failure.guidance,
+    theme: theme,
+    contentWidth: contentWidth,
+    direction: direction,
+    textScaleFactor: textScaleFactor,
+  );
+}
+
+/// What one [CopyableMessagePanel] costs at [contentWidth].
+double _failurePanelHeight({
+  required String title,
+  required String body,
+  required ThemeData theme,
+  required double contentWidth,
+  required TextDirection direction,
+  required double textScaleFactor,
+}) {
+  final textWidth = contentWidth - _kFailurePanelTextInset;
+  return _kFailurePanelVerticalChrome +
+      _measureTextHeight(
+        title,
+        theme.textTheme.titleSmall,
+        textWidth,
+        direction,
+        textScaleFactor,
+      ) +
+      OrbiTheme.space4 +
+      _measureTextHeight(
+        body,
+        theme.textTheme.bodySmall,
+        textWidth,
+        direction,
+        textScaleFactor,
+      );
+}
+
+/// Presents a login failure the way a failed sign-in deserves: a bordered,
+/// tinted block with an icon, a headline saying WHAT happened, a second line
+/// saying WHAT TO DO — and a button that puts the whole thing on the
+/// clipboard. Instead of the one red sentence the owner saw ("No se pudo
+/// iniciar sesión. Revisa los datos e inténtalo de nuevo.").
+///
+/// It is a thin adapter over [CopyableMessagePanel]: the copy affordance, the
+/// tones and the four-severity vocabulary are shared with every other
+/// transient message in the app rather than reinvented per screen.
+///
+/// It carries NO duration. A sign-in failure is anchored to the form that
+/// produced it and stays until the next attempt replaces it — nothing to
+/// read against a countdown while you reach for the copy button. The
+/// configurable durations apply to the floating messages, which are not
+/// anchored to anything.
+///
+/// Why this and NOT a `flutter_local_notifications` system banner: see the
+/// note on [_LoginScreenState._refineLastFailure].
+class LoginFailurePanel extends StatelessWidget {
+  const LoginFailurePanel({super.key, required this.failure});
+
+  final LoginFailureMessage failure;
+
+  /// The clipboard payload for [failure] — headline, guidance and the moment
+  /// it happened. Exposed so a test can assert what actually gets pasted.
+  static CopyableMessage messageFor(
+    LoginFailureMessage failure, {
+    DateTime? occurredAt,
+  }) => CopyableMessage(
+    title: failure.title,
+    body: failure.guidance,
+    severity: orbiSeverityFor(failure.severity),
+    occurredAt: occurredAt,
+  );
+
+  @override
+  Widget build(BuildContext context) =>
+      CopyableMessagePanel(message: messageFor(failure));
 }
 
 Color loginBrandOverlayColor(ColorScheme colors, double alpha) {
@@ -260,7 +400,14 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   // docs/orbi_panel/COORDINATOR_HANDOFF_2026_09_11.md.
   List<SavedServer> _servers = const [];
   SavedServer? _selectedServer;
-  String? _serversLoadError;
+  bool _serversUnreadable = false;
+
+  /// A connection failure refined with what `connectivity_plus` actually
+  /// observed — see [_refineLastFailure]. Kept next to [_refinedFrom], the
+  /// controller message it was derived from, so a NEW failure can never be
+  /// shown wearing the previous one's explanation.
+  LoginFailureMessage? _refinedFailure;
+  String? _refinedFrom;
 
   @override
   void dispose() {
@@ -283,7 +430,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   /// field assignment, no `setState`: safe to call directly from `initState`
   /// (before the first build) and wrap in `setState(_readServers)` anywhere
   /// else. Corrupt local data is reported, never silently discarded — see
-  /// [_serversLoadError]. A store that isn't wired up at all (embedders and
+  /// [_serversUnreadable]. A store that isn't wired up at all (embedders and
   /// most widget tests never override `sharedPreferencesProvider`) is treated
   /// as "no servers yet", the same convention already used below for
   /// [LoginPreferencesStore].
@@ -291,23 +438,22 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     try {
       final servers = ref.read(savedServersStoreProvider).load();
       _servers = servers;
-      _serversLoadError = null;
+      _serversUnreadable = false;
       if (_selectedServer != null) {
         _selectedServer = servers.cast<SavedServer?>().firstWhere(
           (server) => server!.id == _selectedServer!.id,
           orElse: () => null,
         );
       }
-    } on FormatException catch (error) {
+    } on FormatException {
       _servers = const [];
       _selectedServer = null;
-      _serversLoadError =
-          'No se pudieron leer los servidores guardados: ${error.message}';
+      _serversUnreadable = true;
     } catch (_) {
       // Tests and embedders may intentionally omit the saved-servers store.
       _servers = const [];
       _selectedServer = null;
-      _serversLoadError = null;
+      _serversUnreadable = false;
     }
   }
 
@@ -512,7 +658,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       textScaleFactor: textScaleFactor,
       apiKeyMode: _apiKeyMode,
       errorMessage: state.message,
-      serversLoadError: _serversLoadError,
+      serversUnreadable: _serversUnreadable,
     );
     final availableForNormalMode =
         screenSize.height -
@@ -676,9 +822,12 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
             contentPadding: inputPadding,
           ),
         ),
-        if (_serversLoadError != null) ...[
+        if (_serversUnreadable) ...[
           const SizedBox(height: OrbiTheme.space8),
-          Text(_serversLoadError!, style: TextStyle(color: colors.error)),
+          const CopyableMessagePanel(
+            key: Key('servers-load-error-panel'),
+            message: _kServersUnreadableMessage,
+          ),
         ],
       ],
     );
@@ -718,9 +867,17 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
           );
         } catch (_) {
           if (!context.mounted) return;
-          ScaffoldMessenger.of(
+          showCopyableMessage(
             context,
-          ).showSnackBar(const SnackBar(content: Text('No se pudo guardar el tema.')));
+            const CopyableMessage(
+              title: 'No se pudo guardar el tema',
+              body:
+                  'El cambio se ve ahora, pero no quedará guardado para la '
+                  'próxima vez que abras Orbi. Vuelve a intentarlo.',
+              severity: OrbiMessageSeverity.warning,
+            ),
+            durations: preferences.snapshot.messageDurations,
+          );
         }
       },
     );
@@ -825,12 +982,22 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       ),
       if (state.message != null) ...[
         const SizedBox(height: OrbiTheme.space12),
-        Semantics(
-          liveRegion: true,
-          container: true,
-          label: state.message,
-          child: Text(state.message!, style: TextStyle(color: colors.error)),
-        ),
+        // A message the mapping recognises is drawn as a real panel; anything
+        // else (the handful of sentences the controller still writes by hand)
+        // keeps the plain treatment rather than being dressed up as a
+        // classified cause it is not.
+        if (_failureFor(state.message) case final LoginFailureMessage failure)
+          LoginFailurePanel(
+            key: const Key('login-failure-panel'),
+            failure: failure,
+          )
+        else
+          Semantics(
+            liveRegion: true,
+            container: true,
+            label: state.message,
+            child: Text(state.message!, style: TextStyle(color: colors.error)),
+          ),
       ],
     ];
     return AutofillGroup(
@@ -867,6 +1034,69 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
         ],
       ),
     );
+  }
+
+  /// What the form should actually show for [message].
+  ///
+  /// Prefers the connectivity-refined verdict when it was derived from this
+  /// very message; otherwise decodes the controller's message as it stands.
+  LoginFailureMessage? _failureFor(String? message) {
+    if (message == null) return null;
+    if (_refinedFailure != null && _refinedFrom == message) {
+      return _refinedFailure;
+    }
+    return decodeLoginFailureMessage(message);
+  }
+
+  /// Turns "no se pudo conectar" — which blames nobody and helps nobody —
+  /// into the measured answer.
+  ///
+  /// Our code has always treated any failed connection as "you are offline"
+  /// without ever checking. `connectivity_plus` (already a declared
+  /// dependency of `orbi_runtime`, reached here through its
+  /// `ConnectivityMonitor` adapter so this package needs no new dependency)
+  /// answers the one question that separates the two: does this DEVICE have a
+  /// transport right now? With a transport, the server is the one not
+  /// answering; without one, the person needs to fix their wifi and nothing
+  /// else will help. When the probe cannot be consulted at all we keep the
+  /// ambiguous message — a guess here would send someone to reboot a router
+  /// that was never the problem.
+  ///
+  /// 🔴 And the part that is deliberately NOT done here: no system
+  /// notification is raised. `SystemNotificationPresenter` and
+  /// `RuntimeNotificationInbox` are both bound to an ACTIVE session scope
+  /// (they refuse work, by design, when `sessions.active` is null or the
+  /// scope key does not match), and during a failed sign-in there is no
+  /// session at all — the durable inbox literally cannot hold this event.
+  /// Even if it could, an OS banner for a mistyped password would be noise:
+  /// the person is looking straight at the form. The error belongs IN the
+  /// form, stated seriously — which is what [LoginFailurePanel] does.
+  Future<void> _refineLastFailure(String? message) async {
+    final decoded = decodeLoginFailureMessage(message);
+    if (decoded == null ||
+        decoded.cause != LoginFailureCause.serverUnreachable) {
+      if (_refinedFailure != null && mounted) {
+        setState(() {
+          _refinedFailure = null;
+          _refinedFrom = null;
+        });
+      }
+      return;
+    }
+    bool? hasNetwork;
+    try {
+      hasNetwork = await ref.read(networkPresenceProbeProvider)();
+    } catch (_) {
+      // The probe itself misbehaved. Stay honest: the ambiguous message
+      // stands. (The probe is inert by default and answers null on its own
+      // when it cannot look — see networkPresenceProbeProvider.)
+      hasNetwork = null;
+    }
+    if (!mounted) return;
+    setState(() {
+      _refinedFailure = refineConnectionFailure(decoded, hasNetwork);
+      _refinedFrom = message;
+    });
   }
 
   Future<void> _submit() async {
@@ -907,6 +1137,10 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     final succeeded =
         status == AuthControllerStatus.authenticated ||
         status == AuthControllerStatus.restored;
+    if (!succeeded) {
+      await _refineLastFailure(auth.currentState.message);
+      if (!mounted) return;
+    }
     if (succeeded) {
       if (loginPreferences != null) {
         await _saveLoginPreferences(store: loginPreferences);

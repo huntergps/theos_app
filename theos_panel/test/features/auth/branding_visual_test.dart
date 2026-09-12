@@ -9,6 +9,8 @@ import 'package:theos_panel/app/orbi_splash_screen.dart';
 import 'package:theos_panel/app/preferences/app_preferences.dart';
 import 'package:theos_panel/app/theme/orbi_theme.dart';
 import 'package:theos_panel/features/auth/auth_controller.dart';
+import 'package:odoo_sdk/odoo_sdk.dart';
+import 'package:theos_panel/features/auth/login_failure_messages.dart';
 import 'package:theos_panel/features/auth/login_preferences.dart';
 import 'package:theos_panel/features/auth/login_screen.dart';
 import 'package:theos_panel/features/auth/saved_servers.dart';
@@ -72,6 +74,101 @@ void main() {
         );
       }
     }
+  });
+
+  test('the failure panel stays readable in both color schemes', () {
+    // The owner's complaint was that errors "se ven simples" — one line of
+    // red text. The replacement is a tinted panel, and a tinted panel is only
+    // an improvement if its text still reads: red-on-red at 2:1 would be
+    // worse than the plain line it replaced. Both severity tones are checked
+    // against WCAG AA for body text (4.5:1), in light and dark.
+    for (final theme in [OrbiTheme.light, OrbiTheme.dark]) {
+      final colors = theme.colorScheme;
+      final tones = {
+        NotificationSeverity.error: (
+          colors.onErrorContainer,
+          colors.errorContainer,
+        ),
+        NotificationSeverity.attention: (
+          colors.onSecondaryContainer,
+          colors.secondaryContainer,
+        ),
+      };
+      tones.forEach((severity, pair) {
+        final (foreground, background) = pair;
+        expect(
+          loginOverlayContrastRatio(foreground, background),
+          greaterThanOrEqualTo(4.5),
+          reason:
+              'The ${severity.name} failure panel is unreadable in '
+              '${theme.brightness}.',
+        );
+      });
+    }
+  });
+
+  test('the two severity tones are visibly different from each other', () {
+    // "Revisa tu wifi" and "pide a tu administrador que revise tus permisos"
+    // are not the same kind of event, and the panel is the only place the
+    // difference shows before the person reads a word.
+    for (final theme in [OrbiTheme.light, OrbiTheme.dark]) {
+      final colors = theme.colorScheme;
+      expect(
+        colors.errorContainer,
+        isNot(colors.secondaryContainer),
+        reason:
+            'Both failure tones paint the same background in '
+            '${theme.brightness}: the severity scale is decorative only.',
+      );
+    }
+  });
+
+  testWidgets('a failed sign-in is presented as a panel, not as a bare line', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(1200, 1000);
+    tester.view.devicePixelRatio = 1.0;
+    await tester.binding.setSurfaceSize(const Size(1200, 1000));
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+      tester.binding.setSurfaceSize(null);
+    });
+    SharedPreferences.setMockInitialValues({});
+    final preferences = await SharedPreferences.getInstance();
+    final failure = describeLoginFailure(
+      const NativeAuthBootstrapException(
+        NativeAuthBootstrapFailureKind.protocol,
+      ),
+    );
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          authServiceProvider.overrideWithValue(const _VisualAuthService()),
+          sharedPreferencesProvider.overrideWithValue(preferences),
+          authInitialStateProvider.overrideWithValue(
+            AuthViewState(
+              status: AuthControllerStatus.error,
+              message: failure.flatten(),
+            ),
+          ),
+        ],
+        child: MaterialApp(theme: OrbiTheme.light, home: const LoginScreen()),
+      ),
+    );
+    await tester.pumpAndSettle();
+    final panel = find.byKey(const Key('login-failure-panel'));
+    expect(panel, findsOneWidget);
+    // It is a block with real presence, not a sentence: it spans the form's
+    // width and is taller than a single line of body text.
+    final size = tester.getSize(panel);
+    expect(size.height, greaterThan(48));
+    expect(
+      size.width,
+      greaterThan(tester.getSize(find.byType(TextField).first).width * .9),
+    );
+    expect(find.byIcon(Icons.error_outline), findsOneWidget);
+    expect(tester.takeException(), isNull);
   });
 
   testWidgets('login uses a compact single-column layout on narrow screens', (

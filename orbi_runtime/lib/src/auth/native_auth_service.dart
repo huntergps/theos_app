@@ -98,6 +98,20 @@ abstract interface class AuthBootstrapPort {
     required String login,
     required String password,
   });
+
+  /// Best-effort cleanup for a key [authenticateAndCreateApiKey] already
+  /// issued when a *later* step (persisting it locally, activating the
+  /// session) fails — otherwise that credential is orphaned on the server
+  /// forever. Throws [NativeAuthBootstrapRevocationException] on failure;
+  /// callers must catch that separately and never let it replace the error
+  /// that triggered the cleanup.
+  Future<void> revokeApiKey({
+    required String baseUrl,
+    required String database,
+    required String login,
+    required String password,
+    required int apiKeyId,
+  });
 }
 
 final class NativeAuthBootstrapAdapter implements AuthBootstrapPort {
@@ -116,6 +130,21 @@ final class NativeAuthBootstrapAdapter implements AuthBootstrapPort {
     database: database,
     login: login,
     password: password,
+  );
+
+  @override
+  Future<void> revokeApiKey({
+    required String baseUrl,
+    required String database,
+    required String login,
+    required String password,
+    required int apiKeyId,
+  }) => _bootstrap.revokeApiKey(
+    baseUrl: baseUrl,
+    database: database,
+    login: login,
+    password: password,
+    apiKeyId: apiKeyId,
   );
 }
 
@@ -191,6 +220,7 @@ final class NativeAuthService {
   }) async {
     final previousProfile = await loadProfile();
     int? authenticatedUserId;
+    int? issuedApiKeyId;
     String? previousSecret;
     AppScope? scope;
     try {
@@ -202,6 +232,10 @@ final class NativeAuthService {
       );
       final installationId = await _installationIds.loadOrCreate(appId);
       authenticatedUserId = result.userId;
+      // From this point on the server already holds a real credential. Every
+      // failure path below must revoke it instead of just discarding the
+      // local copy — see the cleanup at the top of the `catch` block.
+      issuedApiKeyId = result.apiKeyId;
       scope = AppScope(
         appId: appId,
         installationId: installationId,
@@ -258,6 +292,36 @@ final class NativeAuthService {
       }
       rethrow;
     } catch (_) {
+      // The server already created `issuedApiKeyId` before whatever just
+      // failed. Revoking it is independent of every rollback step below —
+      // it talks to the server, they only touch local state — and its own
+      // failure must never replace the error this whole block is about to
+      // rethrow, which is why it gets its own try/catch right here instead
+      // of joining the others.
+      final apiKeyId = issuedApiKeyId;
+      if (apiKeyId != null) {
+        try {
+          await _bootstrap.revokeApiKey(
+            baseUrl: serverUrl,
+            database: database,
+            login: login,
+            password: password,
+            apiKeyId: apiKeyId,
+          );
+        } catch (revokeError) {
+          // Typically the same connectivity problem that caused the
+          // original failure: revoking over the network fails for the same
+          // reason persisting locally just did. The credential stays
+          // orphaned on the server — that must not happen silently, so an
+          // administrator has something to go on. Never the password or
+          // the key itself.
+          logger.e(
+            '[NativeAuthService]',
+            'Failed to revoke orphaned API key id=$apiKeyId for '
+                'login=$login db=$database server=$serverUrl: $revokeError',
+          );
+        }
+      }
       // Best-effort rollback prevents a failed activation from leaving a
       // credential/profile that claims to be usable.
       // Keep cleanup operations independent: a close failure must not prevent

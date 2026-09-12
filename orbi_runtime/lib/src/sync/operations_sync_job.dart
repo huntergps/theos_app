@@ -65,7 +65,7 @@ final class OperationsSyncJob implements SyncJob {
   AppScope? _scope;
   SessionLease? _lease;
   int _epoch = 0;
-  int _conflictCount = 0;
+  List<ConflictInfo> _conflicts = const [];
 
   @override
   String get id => 'operations';
@@ -77,7 +77,7 @@ final class OperationsSyncJob implements SyncJob {
           (stats['ready'] as int? ?? 0) + (stats['scheduled'] as int? ?? 0),
       scheduled: stats['scheduled'] as int? ?? 0,
       deadLetter: stats['dead_letter'] as int? ?? 0,
-      conflict: _conflictCount,
+      conflicts: _conflicts,
     );
   }
 
@@ -103,7 +103,7 @@ final class OperationsSyncJob implements SyncJob {
     }
     try {
       final result = await _processor.processQueue();
-      _conflictCount = result.conflicts.length;
+      _conflicts = result.conflicts;
       if (!_current(scope, token)) {
         return SyncJobResult.failed(StateError('Operation scope changed'));
       }
@@ -185,10 +185,18 @@ final class OperationsQueueSnapshot {
     required this.pending,
     required this.scheduled,
     required this.deadLetter,
-    required this.conflict,
+    required this.conflicts,
   });
   final int pending;
   final int scheduled;
   final int deadLetter;
-  final int conflict;
+
+  /// Full detail of every conflict the last `run()` detected, not just how
+  /// many there were. A sync-recovery screen needs the actual
+  /// [ConflictInfo] (model, record, local/server values) to let a person
+  /// compare and decide, not a bare count.
+  final List<ConflictInfo> conflicts;
+
+  /// Kept for existing callers that only ever needed the count.
+  int get conflict => conflicts.length;
 }

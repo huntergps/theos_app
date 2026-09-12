@@ -59,7 +59,7 @@ class WorkspaceLockScreen extends StatefulWidget {
 class _WorkspaceLockScreenState extends State<WorkspaceLockScreen> {
   final _passwordController = TextEditingController();
   bool _submitting = false;
-  String? _error;
+  _LockFailure? _failure;
 
   @override
   void dispose() {
@@ -71,12 +71,17 @@ class _WorkspaceLockScreenState extends State<WorkspaceLockScreen> {
     if (_submitting) return;
     final password = _passwordController.text;
     if (password.isEmpty) {
-      setState(() => _error = 'Ingresa tu contraseña para desbloquear.');
+      setState(
+        () => _failure = const _LockFailure(
+          title: 'Falta tu contraseña',
+          guidance: 'Escríbela para volver a tu trabajo.',
+        ),
+      );
       return;
     }
     setState(() {
       _submitting = true;
-      _error = null;
+      _failure = null;
     });
     var unlocked = false;
     try {
@@ -94,12 +99,15 @@ class _WorkspaceLockScreenState extends State<WorkspaceLockScreen> {
       // Connectivity is no longer the first thing to suspect: the unlock
       // check runs against a derivation kept on this device when there is one
       // (`WorkspaceUnlockStore`), so the usual cause is simply a wrong
-      // password. The second sentence names the one case where the network
+      // password. The guidance line names the one case where the network
       // genuinely is the obstacle — a password changed on the server, whose
       // new value only this device's next online attempt can learn.
-      _error =
-          'No se pudo verificar la contraseña. Si la cambiaste hace poco, '
-          'vuelve a intentarlo con conexión.';
+      _failure = const _LockFailure(
+        title: 'No se pudo verificar la contraseña',
+        guidance:
+            'Vuelve a escribirla. Si la cambiaste hace poco, necesitas '
+            'conexión para usar la nueva.',
+      );
     });
   }
 
@@ -159,15 +167,9 @@ class _WorkspaceLockScreenState extends State<WorkspaceLockScreen> {
                   decoration: const InputDecoration(labelText: 'Contraseña'),
                   onSubmitted: (_) => _submit(),
                 ),
-                if (_error != null) ...[
-                  const SizedBox(height: OrbiTheme.space8),
-                  Text(
-                    _error!,
-                    textAlign: TextAlign.center,
-                    style: TextStyle(
-                      color: Theme.of(context).colorScheme.error,
-                    ),
-                  ),
+                if (_failure != null) ...[
+                  const SizedBox(height: OrbiTheme.space12),
+                  _LockFailurePanel(failure: _failure!),
                 ],
                 const SizedBox(height: OrbiTheme.space16),
                 FilledButton(
@@ -196,4 +198,95 @@ class _WorkspaceLockScreenState extends State<WorkspaceLockScreen> {
       ),
     ),
   );
+}
+
+/// A lock-screen failure in the two halves the owner asked for: WHAT happened
+/// and WHAT TO DO. Never carries the server, the database or the identity.
+final class _LockFailure {
+  const _LockFailure({required this.title, required this.guidance});
+
+  final String title;
+  final String guidance;
+}
+
+/// The same tinted, bordered, icon-led surface `LoginFailurePanel` uses on the
+/// access screen, so a failure looks like the same kind of thing in both
+/// places instead of one red sentence here and a designed panel there.
+///
+/// It is a separate, smaller implementation on purpose, not an import: a shell
+/// layout must not depend on a feature screen (this file knows no router, no
+/// provider and no feature — see [WorkspaceLockScreen]). The clean end state
+/// is moving that panel into `lib/ui/components/`, which both could then
+/// share; that move touches the access screen, which this task does not own.
+///
+/// What it deliberately does NOT do is raise a system notification. A
+/// `flutter_local_notifications` banner paints on the operating system's own
+/// lock screen, so `no se pudo verificar la contraseña de <usuario>` would be
+/// readable by anyone walking past a locked device — the exact opposite of
+/// what locking is for, and `SHELL_AND_INTERACTION_SPEC.md` already forbids
+/// showing environment details on a locked screen. A mistyped password is also
+/// not an operational event: it does not belong in the notification inbox
+/// beside collections and approvals.
+class _LockFailurePanel extends StatelessWidget {
+  const _LockFailurePanel({required this.failure});
+
+  final _LockFailure failure;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final colors = theme.colorScheme;
+    return Semantics(
+      // Announced the moment it appears: someone who cannot see the panel must
+      // still learn the attempt failed, and why, without hunting for it.
+      liveRegion: true,
+      container: true,
+      label: '${failure.title}. ${failure.guidance}',
+      child: ExcludeSemantics(
+        child: DecoratedBox(
+          decoration: BoxDecoration(
+            color: colors.errorContainer,
+            borderRadius: const BorderRadius.all(Radius.circular(8)),
+            border: Border.all(color: colors.error.withValues(alpha: .48)),
+          ),
+          child: Padding(
+            padding: const EdgeInsets.all(OrbiTheme.space12),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Icon(
+                  Icons.error_outline,
+                  size: 20,
+                  color: colors.onErrorContainer,
+                ),
+                const SizedBox(width: OrbiTheme.space12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        failure.title,
+                        style: theme.textTheme.titleSmall?.copyWith(
+                          color: colors.onErrorContainer,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                      const SizedBox(height: OrbiTheme.space4),
+                      Text(
+                        failure.guidance,
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          color: colors.onErrorContainer,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
 }

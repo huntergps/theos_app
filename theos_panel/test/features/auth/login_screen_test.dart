@@ -1,11 +1,14 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:odoo_sdk/odoo_sdk.dart';
 import 'package:orbi_runtime/orbi_runtime.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:theos_panel/features/auth/auth_controller.dart';
+import 'package:theos_panel/features/auth/login_failure_messages.dart';
 import 'package:theos_panel/features/auth/login_screen.dart';
 import 'package:theos_panel/features/auth/saved_servers.dart';
 import 'package:theos_panel/app/preferences/app_preferences.dart';
@@ -133,6 +136,42 @@ final class _SlowLoginService
     String database,
   ) async => null;
 
+  @override
+  Future<void> close() async {}
+}
+
+/// Fails every sign-in with [error], exactly as `NativeAuthService` does:
+/// that class rolls back its own side effects and then RETHROWS the original
+/// exception, so what the controller catches is the kit's own typed failure.
+final class _ThrowingLoginService
+    implements AuthServicePort, ApiKeyAuthServicePort {
+  _ThrowingLoginService(this.error);
+  final Object error;
+
+  @override
+  Future<AuthServiceResult> login({
+    required String serverUrl,
+    required String database,
+    required String login,
+    required String password,
+  }) async => throw error;
+
+  @override
+  Future<AuthServiceResult> loginWithApiKey({
+    required String serverUrl,
+    required String database,
+    required String login,
+    required String apiKey,
+  }) async => throw error;
+
+  @override
+  Future<AuthServiceResult> restore({bool offline = false}) async =>
+      const AuthServiceResult(status: AuthServiceStatus.required);
+  @override
+  Future<AuthProfile?> loadProfile() async => null;
+  @override
+  Future<AuthProfile?> loadProfileFor(String serverUrl, String database) async =>
+      null;
   @override
   Future<void> close() async {}
 }
@@ -775,6 +814,548 @@ void main() {
     expect((await saved.load()).themeMode, PreferenceThemeMode.light);
     expect(tester.takeException(), isNull);
   });
+
+  // ==========================================================================
+  // The owner's report: "por que los mensajes de error se ven simples".
+  //
+  // Every sign-in failure used to end as ONE sentence in plain red text —
+  // "No se pudo iniciar sesión. Revisa los datos e inténtalo de nuevo." — no
+  // matter which of the kit's very different failures caused it. The tests
+  // below drive the real screen through the real controller with the real
+  // exceptions the kit raises, and assert the person is told what happened
+  // and what to do about it.
+  // ==========================================================================
+
+  const kOldFlatMessage =
+      'No se pudo iniciar sesión. Revisa los datos e inténtalo de nuevo.';
+
+  Future<void> pumpFailingLogin(
+    WidgetTester tester, {
+    required Object error,
+    NetworkPresenceProbe? networkProbe,
+    bool apiKeyMode = false,
+  }) async {
+    SharedPreferences.setMockInitialValues({});
+    final preferences = await tester.runAsync(
+      () => SharedPreferences.getInstance(),
+    );
+    await tester.runAsync(
+      () => _seedServer(
+        preferences!,
+        SavedServer(
+          id: 'e2e',
+          name: 'Entorno de prueba',
+          url: 'https://erp.test',
+          database: 'db',
+        ),
+      ),
+    );
+    await setLoginTestWindowSize(tester, const Size(1200, 1100));
+    addTearDown(() => resetLoginTestWindowSize(tester));
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          authServiceProvider.overrideWithValue(_ThrowingLoginService(error)),
+          sharedPreferencesProvider.overrideWithValue(preferences!),
+          if (networkProbe != null)
+            networkPresenceProbeProvider.overrideWithValue(networkProbe),
+        ],
+        child: MaterialApp(theme: OrbiTheme.light, home: const LoginScreen()),
+      ),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.byType(DropdownButtonFormField<String>));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Entorno de prueba').last);
+    await tester.pumpAndSettle();
+    if (apiKeyMode) {
+      await tester.tap(find.byKey(const Key('api-key-mode-toggle')));
+      await tester.pumpAndSettle();
+    }
+    await tester.enterText(find.byType(TextField).at(0), 'alice');
+    await tester.enterText(find.byType(TextField).at(1), 'lo-que-sea');
+    await tester.tap(find.text('Iniciar sesión'));
+    await tester.pumpAndSettle();
+  }
+
+  void expectFailureShown(WidgetTester tester, LoginFailureCause cause) {
+    final expected = loginFailureMessageFor(cause);
+    expect(
+      find.byKey(const Key('login-failure-panel')),
+      findsOneWidget,
+      reason: '${cause.name} was not presented as a failure panel.',
+    );
+    expect(
+      find.text(expected.title),
+      findsOneWidget,
+      reason: '${cause.name}: the headline is missing.',
+    );
+    expect(
+      find.text(expected.guidance),
+      findsOneWidget,
+      reason: '${cause.name}: the person is not told what to do.',
+    );
+    expect(
+      find.text(kOldFlatMessage),
+      findsNothing,
+      reason: '${cause.name} fell back to the old one-size-fits-all sentence.',
+    );
+  }
+
+  // One case per thing the kit can actually tell apart, driven end to end.
+  final endToEndCases = <String, (Object, LoginFailureCause)>{
+    'a wrong password': (
+      const NativeAuthBootstrapException(
+        NativeAuthBootstrapFailureKind.invalidCredentials,
+      ),
+      LoginFailureCause.invalidCredentials,
+    ),
+    'an account that needs a second factor': (
+      const NativeAuthBootstrapException(
+        NativeAuthBootstrapFailureKind.additionalVerificationRequired,
+      ),
+      LoginFailureCause.additionalVerificationRequired,
+    ),
+    'a server that refuses the account': (
+      const NativeAuthBootstrapException(
+        NativeAuthBootstrapFailureKind.accessDenied,
+      ),
+      LoginFailureCause.accessDenied,
+    ),
+    'a credential that could not be minted': (
+      const NativeAuthBootstrapException(
+        NativeAuthBootstrapFailureKind.protocol,
+      ),
+      LoginFailureCause.credentialIssueFailed,
+    ),
+    'an address that is not https': (
+      const NativeAuthBootstrapException(
+        NativeAuthBootstrapFailureKind.insecureTransport,
+      ),
+      LoginFailureCause.insecureAddress,
+    ),
+    'an expired session': (
+      const OdooSessionExpiredException(),
+      LoginFailureCause.sessionExpired,
+    ),
+    'a server that is missing what we need': (
+      const OdooMethodNotFoundException(
+        targetModel: 'res.users.apikeys.description',
+        methodName: 'make_key',
+        message: 'missing',
+      ),
+      LoginFailureCause.incompatibleServer,
+    ),
+    'a server that took too long': (
+      const OdooTimeoutException(),
+      LoginFailureCause.timeout,
+    ),
+    'a server that broke on its own': (
+      const OdooServerException('boom'),
+      LoginFailureCause.serverError,
+    ),
+  };
+
+  endToEndCases.forEach((label, pair) {
+    final (error, cause) = pair;
+    testWidgets('$label is explained as ${cause.name}, not as one red line', (
+      tester,
+    ) async {
+      await pumpFailingLogin(tester, error: error);
+      expectFailureShown(tester, cause);
+      expect(tester.takeException(), isNull);
+    });
+  });
+
+  testWidgets(
+    'a credential that could not be created does NOT look like a bad password',
+    (tester) async {
+      // The exact trap the owner named: signing in proves the password AND
+      // asks the server to mint this device's API key. When only the second
+      // one fails, nothing the person types will ever fix it — so the screen
+      // must stop telling them to check what they typed.
+      await pumpFailingLogin(
+        tester,
+        error: const NativeAuthBootstrapException(
+          NativeAuthBootstrapFailureKind.protocol,
+        ),
+      );
+      final wrongPassword = loginFailureMessageFor(
+        LoginFailureCause.invalidCredentials,
+      );
+      expect(find.text(wrongPassword.title), findsNothing);
+      expect(find.text(wrongPassword.guidance), findsNothing);
+      expect(
+        find.text('No se pudo crear la clave de acceso de este dispositivo'),
+        findsOneWidget,
+      );
+      expect(
+        find.textContaining('no es una contraseña equivocada'),
+        findsOneWidget,
+      );
+      expect(tester.takeException(), isNull);
+    },
+  );
+
+  testWidgets('an API key that is not this user\'s says exactly that', (
+    tester,
+  ) async {
+    await pumpFailingLogin(
+      tester,
+      error: StateError('API key belongs to another Odoo user'),
+      apiKeyMode: true,
+    );
+    expectFailureShown(tester, LoginFailureCause.apiKeyRejected);
+    expect(
+      find.text('No se pudo validar la API key.'),
+      findsNothing,
+      reason: 'The old flat API-key sentence is back.',
+    );
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets(
+    'no failure ever shows the raw exception to the person',
+    (tester) async {
+      // A server payload, a model name and a status code, all in one object.
+      await pumpFailingLogin(
+        tester,
+        error: OdooException(
+          message: 'AccessError: user 42 cannot write res.users.apikeys',
+          statusCode: 403,
+          model: 'res.users.apikeys.description',
+          method: 'make_key',
+          technicalDetails: 'Traceback (most recent call last): ...',
+        ),
+      );
+      for (final leak in [
+        'AccessError',
+        'res.users.apikeys',
+        'Traceback',
+        '403',
+        'user 42',
+      ]) {
+        expect(
+          find.textContaining(leak),
+          findsNothing,
+          reason: 'The screen is showing "$leak" to someone at a counter.',
+        );
+      }
+      expect(tester.takeException(), isNull);
+    },
+  );
+
+  group('connectivity separates "no hay red" from "el servidor no responde"', () {
+    const connectionFailed = NativeAuthBootstrapException(
+      NativeAuthBootstrapFailureKind.connection,
+    );
+
+    testWidgets('with no transport at all, the device is named', (tester) async {
+      await pumpFailingLogin(
+        tester,
+        error: connectionFailed,
+        networkProbe: () async => false,
+      );
+      expectFailureShown(tester, LoginFailureCause.noNetwork);
+      // And it explicitly clears the two things the person would otherwise
+      // waste time re-checking.
+      expect(
+        find.textContaining('no es un problema del servidor'),
+        findsOneWidget,
+      );
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('with a transport up, the server is named', (tester) async {
+      await pumpFailingLogin(
+        tester,
+        error: connectionFailed,
+        networkProbe: () async => true,
+      );
+      expectFailureShown(tester, LoginFailureCause.serverNotResponding);
+      expect(
+        find.text(loginFailureMessageFor(LoginFailureCause.noNetwork).title),
+        findsNothing,
+        reason:
+            'Blaming the wifi when the wifi is fine is the old bug, just '
+            'better dressed.',
+      );
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets(
+      'with NO probe override at all, the screen neither hangs nor guesses',
+      (tester) async {
+        // The regression this guards is not a wrong message, it is a DEADLOCK.
+        // A live connectivity default would await a platform channel that
+        // never completes inside a widget test's fake-async zone, and
+        // pumpAndSettle would sit on it for its whole ten-minute budget. The
+        // probe is inert by default (the composition root hands in the real
+        // one), so this must finish immediately — and, knowing nothing, must
+        // keep the honest ambiguous message rather than blaming the wifi.
+        await pumpFailingLogin(tester, error: connectionFailed);
+        expectFailureShown(tester, LoginFailureCause.serverUnreachable);
+        expect(
+          find.text(loginFailureMessageFor(LoginFailureCause.noNetwork).title),
+          findsNothing,
+        );
+        expect(tester.takeException(), isNull);
+      },
+    );
+
+    testWidgets('when the probe cannot answer, neither side is blamed', (
+      tester,
+    ) async {
+      await pumpFailingLogin(
+        tester,
+        error: connectionFailed,
+        networkProbe: () async => throw StateError('no connectivity plugin'),
+      );
+      expectFailureShown(tester, LoginFailureCause.serverUnreachable);
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('a refined verdict never survives onto the next attempt', (
+      tester,
+    ) async {
+      // The refinement is screen-local state. If it outlived the message it
+      // was derived from, a later wrong password would be reported as a
+      // network problem.
+      await pumpFailingLogin(
+        tester,
+        error: connectionFailed,
+        networkProbe: () async => false,
+      );
+      expectFailureShown(tester, LoginFailureCause.noNetwork);
+      await tester.tap(find.text('Iniciar sesión'));
+      await tester.pumpAndSettle();
+      expectFailureShown(tester, LoginFailureCause.noNetwork);
+      expect(tester.takeException(), isNull);
+    });
+  });
+
+
+  group('a failed sign-in can be taken away, not just read', () {
+    // The owner's second ask: "deben permitir copiar el contenido de los
+    // mensajes". This is what turns "no pude entrar" into something he can
+    // paste to somebody who can act on it — so it is asserted end to end,
+    // from the real screen through the real controller, and against what
+    // actually reaches the platform clipboard rather than an internal getter.
+    String? copied;
+
+    void spyOnClipboard(WidgetTester tester) {
+      copied = null;
+      tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+        SystemChannels.platform,
+        (call) async {
+          if (call.method == 'Clipboard.setData') {
+            copied = (call.arguments as Map)['text'] as String?;
+          }
+          return null;
+        },
+      );
+      addTearDown(
+        () => tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+          SystemChannels.platform,
+          null,
+        ),
+      );
+    }
+
+    testWidgets('the copy button is right there on the login form', (
+      tester,
+    ) async {
+      await pumpFailingLogin(
+        tester,
+        error: const NativeAuthBootstrapException(
+          NativeAuthBootstrapFailureKind.protocol,
+        ),
+      );
+      expect(find.byKey(const Key('copy-message-button')), findsOneWidget);
+      expect(find.text('Copiar'), findsOneWidget);
+    });
+
+    testWidgets('and it copies the WHOLE message, not a summary', (
+      tester,
+    ) async {
+      spyOnClipboard(tester);
+      await pumpFailingLogin(
+        tester,
+        error: const NativeAuthBootstrapException(
+          NativeAuthBootstrapFailureKind.protocol,
+        ),
+      );
+      await tester.tap(find.byKey(const Key('copy-message-button')));
+      await tester.pump();
+
+      final expected = loginFailureMessageFor(
+        LoginFailureCause.credentialIssueFailed,
+      );
+      expect(copied, isNotNull);
+      expect(copied, contains(expected.title));
+      expect(
+        copied,
+        contains(expected.guidance),
+        reason:
+            'Only the headline was copied. The instruction is the half that '
+            'tells whoever reads it what to do.',
+      );
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('what gets pasted carries no internals', (tester) async {
+      spyOnClipboard(tester);
+      await pumpFailingLogin(
+        tester,
+        error: OdooException(
+          message: 'AccessError: user 42 cannot write res.users.apikeys',
+          statusCode: 403,
+          model: 'res.users.apikeys.description',
+          method: 'make_key',
+          technicalDetails: 'Traceback (most recent call last): ...',
+        ),
+      );
+      await tester.tap(find.byKey(const Key('copy-message-button')));
+      await tester.pump();
+      for (final leak in [
+        'AccessError',
+        'res.users.apikeys',
+        'Traceback',
+        'user 42',
+      ]) {
+        expect(
+          copied,
+          isNot(contains(leak)),
+          reason: 'The clipboard is leaking "$leak" into a chat message.',
+        );
+      }
+    });
+
+    testWidgets('the person is told the copy worked', (tester) async {
+      spyOnClipboard(tester);
+      await pumpFailingLogin(
+        tester,
+        error: const NativeAuthBootstrapException(
+          NativeAuthBootstrapFailureKind.invalidCredentials,
+        ),
+      );
+      await tester.tap(find.byKey(const Key('copy-message-button')));
+      await tester.pump();
+      expect(find.text('Mensaje copiado'), findsOneWidget);
+    });
+
+    testWidgets('the failure does not expire while you reach for it', (
+      tester,
+    ) async {
+      // A sign-in failure is anchored to the form, not on a countdown. The
+      // owner is expected to copy it and send it; ten seconds — what
+      // theos_pos gives an error — would not be enough.
+      await pumpFailingLogin(
+        tester,
+        error: const NativeAuthBootstrapException(
+          NativeAuthBootstrapFailureKind.protocol,
+        ),
+      );
+      await tester.pump(const Duration(minutes: 2));
+      await tester.pump();
+      expectFailureShown(tester, LoginFailureCause.credentialIssueFailed);
+    });
+
+    testWidgets('at phone width the copy button does not squeeze the headline', (
+      tester,
+    ) async {
+      // theos_pos keeps the copy button on the title row, beside the close
+      // button. Checked here on the narrowest supported screen, with the
+      // longest headline the mapping can produce.
+      SharedPreferences.setMockInitialValues({});
+      final preferences = await tester.runAsync(
+        () => SharedPreferences.getInstance(),
+      );
+      await setLoginTestWindowSize(tester, const Size(390, 844));
+      addTearDown(() => resetLoginTestWindowSize(tester));
+      final failure = loginFailureMessageFor(
+        LoginFailureCause.credentialIssueFailed,
+      );
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            authServiceProvider.overrideWithValue(_ProfileService()),
+            sharedPreferencesProvider.overrideWithValue(preferences!),
+            authInitialStateProvider.overrideWithValue(
+              AuthViewState(
+                status: AuthControllerStatus.error,
+                message: failure.flatten(),
+              ),
+            ),
+          ],
+          child: MaterialApp(theme: OrbiTheme.light, home: const LoginScreen()),
+        ),
+      );
+      await tester.pumpAndSettle();
+      final title = find.text(failure.title);
+      expect(title, findsOneWidget);
+      expect(
+        tester.getTopLeft(find.byKey(const Key('copy-message-button'))).dy,
+        greaterThanOrEqualTo(tester.getBottomLeft(title).dy),
+        reason: 'The copy button is level with the headline, crowding it.',
+      );
+      expect(tester.takeException(), isNull);
+    });
+  });
+
+  testWidgets(
+    'the failure panel is announced to screen readers with both halves',
+    (tester) async {
+      final handle = tester.ensureSemantics();
+      await pumpFailingLogin(
+        tester,
+        error: const NativeAuthBootstrapException(
+          NativeAuthBootstrapFailureKind.protocol,
+        ),
+      );
+      final expected = loginFailureMessageFor(
+        LoginFailureCause.credentialIssueFailed,
+      );
+      expect(
+        tester.getSemantics(find.byKey(const Key('login-failure-panel'))),
+        matchesSemantics(
+          isLiveRegion: true,
+          label: '${expected.title}. ${expected.guidance}',
+        ),
+      );
+      handle.dispose();
+    },
+  );
+
+  testWidgets(
+    'a message the mapping does not know is printed as-is, not mislabelled',
+    (tester) async {
+      // AuthNotifier still writes a few sentences by hand (PIN, W01, the
+      // unavailable API-key mode). Those must keep the plain treatment
+      // instead of being dressed up as a classified cause.
+      const handWritten = 'El acceso web con contraseña está pendiente de W01.';
+      await setLoginTestWindowSize(tester, const Size(1200, 1000));
+      addTearDown(() => resetLoginTestWindowSize(tester));
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            authServiceProvider.overrideWithValue(_ProfileService()),
+            authInitialStateProvider.overrideWithValue(
+              const AuthViewState(
+                status: AuthControllerStatus.error,
+                message: handWritten,
+              ),
+            ),
+          ],
+          child: MaterialApp(theme: OrbiTheme.light, home: const LoginScreen()),
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(find.text(handWritten), findsOneWidget);
+      expect(find.byKey(const Key('login-failure-panel')), findsNothing);
+      expect(tester.takeException(), isNull);
+    },
+  );
 }
 
 final class _LoginThemeHarness extends ConsumerWidget {

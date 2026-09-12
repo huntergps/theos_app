@@ -69,7 +69,16 @@ class NativeOdooAuthBootstrap {
           NativeAuthBootstrapFailureKind.protocol,
         );
       }
-      return NativeAuthBootstrapResult(userId: userId, apiKey: apiKey);
+      final apiKeyId = await _resolveCreatedApiKeyId(
+        normalizedUrl,
+        userId: userId,
+        name: apiKeyName,
+      );
+      return NativeAuthBootstrapResult(
+        userId: userId,
+        apiKey: apiKey,
+        apiKeyId: apiKeyId,
+      );
     } on NativeAuthBootstrapException {
       rethrow;
     } on DioException {
@@ -78,6 +87,111 @@ class NativeOdooAuthBootstrap {
       );
     } finally {
       _sessionCookie = null;
+    }
+  }
+
+  /// Revokes an API key already issued by [authenticateAndCreateApiKey].
+  ///
+  /// Intended for a caller whose own post-login step (typically persisting
+  /// [NativeAuthBootstrapResult.apiKey] locally) failed *after* the server
+  /// already created the credential: without this call that credential is
+  /// orphaned on the server forever, since nothing else references it.
+  ///
+  /// Revoking requires Odoo's own fresh-identity check
+  /// (`res.users.apikeys.remove` is `@check_identity`-guarded), which is
+  /// tied to the short-lived session cookie from the original login and is
+  /// gone by the time a caller can react to a local failure. This
+  /// re-authenticates with [login]/[password] — the same credentials the
+  /// caller just used successfully — to obtain a fresh session and identity
+  /// check, then removes the key.
+  ///
+  /// Throws [NativeAuthBootstrapRevocationException] if the key could not be
+  /// revoked. Callers must catch that separately from whatever error caused
+  /// them to call this in the first place: a cleanup failure must never hide
+  /// the original error.
+  Future<void> revokeApiKey({
+    required String baseUrl,
+    required String database,
+    required String login,
+    required String password,
+    required int apiKeyId,
+  }) async {
+    _sessionCookie = null;
+    try {
+      final normalizedUrl = _validatedBaseUrl(baseUrl);
+      final session = await _rpc(
+        normalizedUrl,
+        '/web/session/authenticate',
+        {'db': database, 'login': login, 'password': password},
+        captureCookie: true,
+        errorKind: NativeAuthBootstrapFailureKind.invalidCredentials,
+      );
+      final userId = _positiveInt((session as Map?)?['uid']);
+      if (userId == null || _sessionCookie == null) {
+        throw const NativeAuthBootstrapException(
+          NativeAuthBootstrapFailureKind.invalidCredentials,
+        );
+      }
+      await _confirmFreshIdentity(normalizedUrl, password);
+      await _callKw(
+        normalizedUrl,
+        model: 'res.users.apikeys',
+        method: 'remove',
+        args: [
+          [apiKeyId],
+        ],
+      );
+    } on NativeAuthBootstrapException catch (error) {
+      throw NativeAuthBootstrapRevocationException(
+        'Could not revoke API key $apiKeyId: ${error.kind.name}',
+      );
+    } on DioException {
+      throw NativeAuthBootstrapRevocationException(
+        'Could not revoke API key $apiKeyId: connection error',
+      );
+    } finally {
+      _sessionCookie = null;
+    }
+  }
+
+  /// Best-effort lookup of the `res.users.apikeys` record id that
+  /// `make_key` just created. `make_key` itself only returns the raw secret
+  /// (never a record id), so the freshly created row is identified by the
+  /// same (user, scope, name) tuple used to create it, taking the most
+  /// recent match. A failure here never fails the login that already
+  /// succeeded — it only means [NativeAuthBootstrapResult.apiKeyId] is
+  /// unavailable for a later [revokeApiKey] call.
+  Future<int?> _resolveCreatedApiKeyId(
+    String baseUrl, {
+    required int userId,
+    required String name,
+  }) async {
+    try {
+      final result = await _callKw(
+        baseUrl,
+        model: 'res.users.apikeys',
+        method: 'search_read',
+        args: const [],
+        kwargs: {
+          'domain': [
+            ['user_id', '=', userId],
+            ['scope', '=', 'rpc'],
+            ['name', '=', name],
+          ],
+          'fields': ['id'],
+          'order': 'id desc',
+          'limit': 1,
+        },
+      );
+      if (result is List && result.isNotEmpty) {
+        final row = result.first;
+        if (row is Map) return _positiveInt(row['id']);
+      }
+      return null;
+    } on NativeAuthBootstrapException {
+      return null;
+    } on DioException {
+      return null;
     }
   }
 

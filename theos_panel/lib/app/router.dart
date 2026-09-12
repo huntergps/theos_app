@@ -7,7 +7,9 @@ import 'package:orbi_runtime/orbi_runtime.dart';
 
 import '../features/auth/auth_controller.dart';
 import '../features/auth/login_screen.dart';
+import '../features/auth/login_failure_messages.dart';
 import '../features/auth/route_access_policy.dart';
+import '../features/auth/workspace_unlock_store.dart';
 import '../features/collection/collection_screen.dart';
 import '../features/collection/collection_contracts.dart';
 import '../features/collection/collection_session_hub_screen.dart';
@@ -24,6 +26,8 @@ import '../features/settings/settings_screen.dart';
 import '../features/orders/orders_screen.dart';
 import '../features/orders/orders_contracts.dart';
 import '../features/warehouse/warehouse_screen.dart';
+import '../features/warehouse/warehouse_existences_screen.dart';
+import 'warehouse_existences_composition.dart';
 import '../features/clients/catalog_contracts.dart';
 import '../features/clients/clients_screen.dart';
 import '../features/products/products_screen.dart';
@@ -47,6 +51,172 @@ final businessCompositionFactoryProvider =
     Provider<OrbiBusinessCompositionFactory>(
       (ref) => OrbiBusinessCompositionFactory(),
     );
+
+/// Manual privacy gate for the operational shell (ACC-03, "bloquear").
+/// Deliberately a plain, always-on provider outside [orbiRouterProvider]:
+/// that provider rebuilds the whole [GoRouter] (and therefore resets
+/// navigation) whenever auth/capabilities change, so a lock flag watched
+/// there would risk being silently dropped by an unrelated capability
+/// refresh. It also must never expire on its own — the shell spec is
+/// explicit that no new timeout is invented here.
+final workspaceLockProvider = NotifierProvider<WorkspaceLockNotifier, bool>(
+  WorkspaceLockNotifier.new,
+);
+
+class WorkspaceLockNotifier extends Notifier<bool> {
+  @override
+  bool build() => false;
+
+  void lock() => state = true;
+
+  void unlock() => state = false;
+}
+
+/// Revalidates the currently authenticated identity for
+/// [OperationalShell.onUnlock], **without requiring a network** whenever this
+/// device has a derivation of the password stored (see
+/// [WorkspaceUnlockStore]).
+///
+/// Two independent reasons this never goes through
+/// `authControllerProvider.notifier.login`:
+///
+/// * a wrong password during unlock must never clear the already-authenticated
+///   profile/capabilities the way a failed `AuthNotifier.login()` would — see
+///   its catch/error branch. Locking is reversible privacy, not a new
+///   authentication attempt, so its failure must stay local to the lock
+///   screen; and
+/// * `NativeAuthService.login` does far more than check a password: it mints a
+///   fresh API key, rewrites the stored credential and profile, and closes and
+///   reactivates the session runtime. That is the right thing for a login and
+///   the wrong thing for reopening a screen the same operator never left.
+///
+/// ## The order, and why
+///
+/// The local derivation is consulted **first**, and the server only as a
+/// fallback. That is what makes the gate usable in a basement with no signal,
+/// and it also keeps the common case from tearing the session down and
+/// rebuilding it. The server is still reached in the three cases where the
+/// local answer cannot be trusted as final:
+///
+/// * nothing is enrolled yet ([WorkspaceUnlockVerdict.notEnrolled]) — the
+///   first unlock after a cold start, which is also what enrols it;
+/// * the platform has nowhere safe to store one
+///   ([WorkspaceUnlockVerdict.unavailable]) — the web; and
+/// * the password does not match the derivation
+///   ([WorkspaceUnlockVerdict.rejected]). This is exactly what a password
+///   changed on the server looks like from here, so the *new* password is
+///   given its chance online and, when the server accepts it, it replaces the
+///   stale derivation on the spot.
+///
+/// [WorkspaceUnlockVerdict.lockedOut] is the one verdict that refuses outright,
+/// server included: a cap on attempts that the network can step around is not
+/// a cap. The operator is never stranded by it — "Cambiar de usuario" and
+/// "Cerrar sesión" stay available on the lock screen and neither needs a
+/// network.
+Future<bool> attemptWorkspaceUnlock(WidgetRef ref, String password) async {
+  final profile = ref.read(authControllerProvider).profile;
+  if (profile == null) return false;
+  final unlockStore = ref.read(workspaceUnlockStoreProvider);
+  final scopeKey = workspaceUnlockScopeKeyFor(profile);
+  final verdict = await unlockStore.verify(scopeKey, password);
+  switch (verdict) {
+    case WorkspaceUnlockVerdict.unlocked:
+      ref.read(workspaceLockProvider.notifier).unlock();
+      return true;
+    case WorkspaceUnlockVerdict.lockedOut:
+      return false;
+    case WorkspaceUnlockVerdict.rejected:
+    case WorkspaceUnlockVerdict.notEnrolled:
+    case WorkspaceUnlockVerdict.unavailable:
+      break;
+  }
+  try {
+    final result = await ref
+        .read(authServiceProvider)
+        .login(
+          serverUrl: profile.serverUrl,
+          database: profile.database,
+          login: profile.login,
+          password: password,
+        );
+    final unlocked =
+        result.status == AuthServiceStatus.authenticated ||
+        result.status == AuthServiceStatus.restored;
+    if (unlocked) {
+      // Enrol (or replace) the derivation with the password the server just
+      // accepted, so the next unlock needs no network — and so a password
+      // changed on the server stops being able to be opened by the old one.
+      await unlockStore.remember(scopeKey, password);
+      ref.read(workspaceLockProvider.notifier).unlock();
+    }
+    return unlocked;
+  } catch (error) {
+    // A rejection the server is UNAMBIGUOUS about means this identity no
+    // longer has access on this device, so the stored derivation must not
+    // outlive it: an offline unlock that still opens for a revoked account is
+    // a credential nobody can revoke.
+    //
+    // What is NOT in this list matters as much as what is.
+    // [LoginFailureCause.invalidCredentials] is deliberately absent: the
+    // server answers a mistyped password and a password changed elsewhere
+    // with the SAME rejection, on purpose — telling them apart would be free
+    // reconnaissance for whoever is trying logins. So a typo while online
+    // must never cost a legitimate operator their offline unlock. That
+    // ambiguity cannot be closed from the client; it is a property of the
+    // server's answer, not a gap in ours.
+    const revoked = {
+      LoginFailureCause.accessDenied,
+      LoginFailureCause.sessionExpired,
+    };
+    if (revoked.contains(describeLoginFailure(error).cause)) {
+      await unlockStore.forget(scopeKey);
+    }
+    return false;
+  }
+}
+
+/// "Cambiar de usuario": a distinct, explained action from "Cerrar sesión"
+/// and from "Bloquear" (ORBI_PRODUCT_ARCHITECTURE_AND_UX_SPEC.md §8). Never
+/// discards a draft or the offline queue — both stay durable and isolated
+/// per scope (`AppScope.scopeKey` includes `userId`, so
+/// `RuntimeDatabaseOwner` opens a distinct database per user;
+/// `docs/orbi_panel/decisions/
+/// B01-paridad-fiscal-offline-identidad-y-numeracion.md`). This dialog is
+/// the explicit warning the spec requires before ending the current
+/// identity's access; confirming closes that identity's session before any
+/// other identity can authenticate, so the new person can never inherit it.
+Future<void> confirmSwitchWorkspaceUser(
+  BuildContext context,
+  WidgetRef ref,
+) async {
+  final confirmed = await showDialog<bool>(
+    context: context,
+    builder: (dialogContext) => AlertDialog(
+      title: const Text('Cambiar de usuario'),
+      content: const Text(
+        'Se cerrará tu acceso a Workspace. Tu borrador y tus operaciones '
+        'pendientes de sincronizar quedan guardados con tu propia '
+        'identidad: nunca se envían ni se muestran con el usuario que '
+        'entre después. ¿Deseas continuar?',
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(dialogContext).pop(false),
+          child: const Text('Cancelar'),
+        ),
+        FilledButton(
+          key: const Key('confirm-switch-user-button'),
+          onPressed: () => Navigator.of(dialogContext).pop(true),
+          child: const Text('Cambiar de usuario'),
+        ),
+      ],
+    ),
+  );
+  if (confirmed != true) return;
+  ref.read(workspaceLockProvider.notifier).unlock();
+  await ref.read(authControllerProvider.notifier).close();
+  if (context.mounted) context.go('/login');
+}
 
 final businessCompositionProvider = Provider<OrbiBusinessComposition?>((ref) {
   final supplied = ref.watch(orbiSessionCompositionProvider).business;
@@ -441,127 +611,150 @@ final orbiRouterProvider = Provider<GoRouter>((ref) {
     routes: [
       GoRoute(path: '/login', builder: (context, state) => const LoginScreen()),
       ShellRoute(
-        builder: (context, state, child) {
-          final profile = auth.profile;
-          // Navigation shares the same gate as direct URLs. Missing context
-          // remains explicit; an authenticated client is not proof of network
-          // reachability, synchronization, or a fresh server clock.
-          final destinations =
-              <OperationalDestination>[
-                    const OperationalDestination(
-                      label: 'Inicio',
-                      path: '/',
-                      icon: Icons.home_outlined,
-                      group: 'Workspace',
-                    ),
-                    const OperationalDestination(
-                      label: 'Órdenes y cotizaciones',
-                      path: '/sales',
-                      icon: Icons.receipt_long_outlined,
-                      group: 'Ventas',
-                    ),
-                    const OperationalDestination(
-                      label: 'Mostrador',
-                      path: '/sales/counter',
-                      icon: Icons.point_of_sale_outlined,
-                      group: 'Ventas',
-                    ),
-                    const OperationalDestination(
-                      label: 'Venta consultiva',
-                      path: '/sales/consultive',
-                      icon: Icons.edit_note_outlined,
-                      group: 'Ventas',
-                    ),
-                    const OperationalDestination(
-                      label: 'Clientes',
-                      path: '/clients',
-                      icon: Icons.people_outline,
-                      group: 'Ventas',
-                    ),
-                    const OperationalDestination(
-                      label: 'Productos',
-                      path: '/products',
-                      icon: Icons.inventory_2_outlined,
-                      group: 'Ventas',
-                    ),
-                    const OperationalDestination(
-                      label: 'Punto de cobro',
-                      path: '/collection',
-                      icon: Icons.payments_outlined,
-                      group: 'Caja',
-                    ),
-                    const OperationalDestination(
-                      label: 'Operaciones de bodega',
-                      path: '/warehouse',
-                      icon: Icons.warehouse_outlined,
-                      group: 'Bodega',
-                    ),
-                    const OperationalDestination(
-                      label: 'Dashboard',
-                      path: '/envases',
-                      icon: Icons.local_shipping_outlined,
-                      group: 'Envases',
-                    ),
-                    const OperationalDestination(
-                      label: 'Solicitudes',
-                      path: '/approvals',
-                      icon: Icons.fact_check_outlined,
-                      group: 'Aprobaciones',
-                    ),
-                    const OperationalDestination(
-                      label: 'Actividades',
-                      path: '/activities',
-                      icon: Icons.event_note_outlined,
-                      group: 'Sistema',
-                    ),
-                    const OperationalDestination(
-                      label: 'Sincronización',
-                      path: '/sync',
-                      icon: Icons.sync,
-                      group: 'Sistema',
-                    ),
-                    const OperationalDestination(
-                      label: 'Avisos',
-                      path: '/notifications',
-                      icon: Icons.notifications_outlined,
-                      group: 'Sistema',
-                    ),
-                    const OperationalDestination(
-                      label: 'Configuración',
-                      path: '/settings',
-                      icon: Icons.settings_outlined,
-                      group: 'Sistema',
-                    ),
-                  ]
-                  .where(
-                    (entry) => policy.allows(
-                      entry.path,
-                      authenticated: authenticated,
-                      capabilities: capabilities,
-                    ),
-                  )
-                  .toList(growable: false);
-          return OperationalShell(
-            destinations: destinations,
-            selectedPath: state.uri.path,
-            onNavigate: (path) => context.go(path),
-            context: OperationalContext(
-              server: profile?.serverUrl ?? 'No disponible',
-              database: profile?.database ?? 'No disponible',
-              userLabel: profile?.login ?? 'Usuario no disponible',
-              companyLabel: profile?.companyId == null
-                  ? 'Empresa no disponible'
-                  : 'Empresa #${profile!.companyId}',
-              connectionLabel: 'Red sin verificar',
-              syncLabel: 'Sincronización no verificada',
-            ),
-            onLogout: () async {
-              await ref.read(authControllerProvider.notifier).close();
-              if (context.mounted) context.go('/login');
-            },
-            child: child,
-          );
-        },
+        builder: (context, state, child) => Consumer(
+          builder: (context, ref, _) {
+            final profile = auth.profile;
+            // Locking lives in its own small `Consumer`, not in this
+            // provider's outer scope: watching it up there would make every
+            // lock/unlock rebuild the whole `GoRouter` (see
+            // `workspaceLockProvider`'s doc comment).
+            final locked = ref.watch(workspaceLockProvider);
+            // Navigation shares the same gate as direct URLs. Missing context
+            // remains explicit; an authenticated client is not proof of network
+            // reachability, synchronization, or a fresh server clock.
+            final destinations =
+                <OperationalDestination>[
+                      const OperationalDestination(
+                        label: 'Inicio',
+                        path: '/',
+                        icon: Icons.home_outlined,
+                        group: 'Workspace',
+                      ),
+                      const OperationalDestination(
+                        label: 'Órdenes y cotizaciones',
+                        path: '/sales',
+                        icon: Icons.receipt_long_outlined,
+                        group: 'Ventas',
+                      ),
+                      const OperationalDestination(
+                        label: 'Mostrador',
+                        path: '/sales/counter',
+                        icon: Icons.point_of_sale_outlined,
+                        group: 'Ventas',
+                      ),
+                      const OperationalDestination(
+                        label: 'Venta consultiva',
+                        path: '/sales/consultive',
+                        icon: Icons.edit_note_outlined,
+                        group: 'Ventas',
+                      ),
+                      const OperationalDestination(
+                        label: 'Clientes',
+                        path: '/clients',
+                        icon: Icons.people_outline,
+                        group: 'Ventas',
+                      ),
+                      const OperationalDestination(
+                        label: 'Productos',
+                        path: '/products',
+                        icon: Icons.inventory_2_outlined,
+                        group: 'Ventas',
+                      ),
+                      const OperationalDestination(
+                        label: 'Punto de cobro',
+                        path: '/collection',
+                        icon: Icons.payments_outlined,
+                        group: 'Caja',
+                      ),
+                      const OperationalDestination(
+                        label: 'Mi turno',
+                        path: '/collection/hub',
+                        icon: Icons.lock_clock_outlined,
+                        group: 'Caja',
+                      ),
+                      const OperationalDestination(
+                        label: 'Operaciones de bodega',
+                        path: '/warehouse',
+                        icon: Icons.warehouse_outlined,
+                        group: 'Bodega',
+                      ),
+                      const OperationalDestination(
+                        label: 'Existencias',
+                        path: '/warehouse/existences',
+                        icon: Icons.inventory_outlined,
+                        group: 'Bodega',
+                      ),
+                      const OperationalDestination(
+                        label: 'Dashboard',
+                        path: '/envases',
+                        icon: Icons.local_shipping_outlined,
+                        group: 'Envases',
+                      ),
+                      const OperationalDestination(
+                        label: 'Solicitudes',
+                        path: '/approvals',
+                        icon: Icons.fact_check_outlined,
+                        group: 'Aprobaciones',
+                      ),
+                      const OperationalDestination(
+                        label: 'Actividades',
+                        path: '/activities',
+                        icon: Icons.event_note_outlined,
+                        group: 'Sistema',
+                      ),
+                      const OperationalDestination(
+                        label: 'Sincronización',
+                        path: '/sync',
+                        icon: Icons.sync,
+                        group: 'Sistema',
+                      ),
+                      const OperationalDestination(
+                        label: 'Avisos',
+                        path: '/notifications',
+                        icon: Icons.notifications_outlined,
+                        group: 'Sistema',
+                      ),
+                      const OperationalDestination(
+                        label: 'Configuración',
+                        path: '/settings',
+                        icon: Icons.settings_outlined,
+                        group: 'Sistema',
+                      ),
+                    ]
+                    .where(
+                      (entry) => policy.allows(
+                        entry.path,
+                        authenticated: authenticated,
+                        capabilities: capabilities,
+                      ),
+                    )
+                    .toList(growable: false);
+            return OperationalShell(
+              destinations: destinations,
+              selectedPath: state.uri.path,
+              onNavigate: (path) => context.go(path),
+              context: OperationalContext(
+                server: profile?.serverUrl ?? 'No disponible',
+                database: profile?.database ?? 'No disponible',
+                userLabel: profile?.login ?? 'Usuario no disponible',
+                companyLabel: profile?.companyId == null
+                    ? 'Empresa no disponible'
+                    : 'Empresa #${profile!.companyId}',
+                connectionLabel: 'Red sin verificar',
+                syncLabel: 'Sincronización no verificada',
+              ),
+              onLogout: () async {
+                await ref.read(authControllerProvider.notifier).close();
+                if (context.mounted) context.go('/login');
+              },
+              locked: locked,
+              onLock: () => ref.read(workspaceLockProvider.notifier).lock(),
+              onUnlock: (password) => attemptWorkspaceUnlock(ref, password),
+              onSwitchUser: () => confirmSwitchWorkspaceUser(context, ref),
+              child: child,
+            );
+          },
+        ),
         routes: [
           GoRoute(path: '/', builder: (context, state) => const HomePage()),
           GoRoute(
@@ -726,8 +919,7 @@ final orbiRouterProvider = Provider<GoRouter>((ref) {
                     turnActions: [
                       CollectionHubAction(
                         label: 'Anticipo',
-                        description:
-                            'Registrar un anticipo del cliente contra la sesión.',
+                        description: 'Registrar un anticipo del cliente contra la sesión.',
                         icon: Icons.savings_outlined,
                         availability:
                             capabilities.supports(CollectionCapability.advances)
@@ -747,7 +939,8 @@ final orbiRouterProvider = Provider<GoRouter>((ref) {
                       ),
                       CollectionHubAction(
                         label: 'Salida de efectivo',
-                        description: 'Registrar una salida de efectivo de la sesión.',
+                        description:
+                            'Registrar una salida de efectivo de la sesión.',
                         icon: Icons.outbond_outlined,
                         availability:
                             capabilities.supports(CollectionCapability.cashOuts)
@@ -807,6 +1000,20 @@ final orbiRouterProvider = Provider<GoRouter>((ref) {
                     capabilities: capabilities,
                   ),
                 );
+              },
+            ),
+          ),
+          GoRoute(
+            path: '/warehouse/existences',
+            builder: (context, state) => Consumer(
+              builder: (context, ref, _) {
+                final repository = ref.watch(
+                  warehouseExistencesRepositoryProvider,
+                );
+                if (repository == null) {
+                  return const NotConfiguredPage(title: 'Existencias');
+                }
+                return WarehouseExistencesScreen(repository: repository);
               },
             ),
           ),

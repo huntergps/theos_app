@@ -15,4 +15,16 @@ class NativeOdooAuthBootstrap {
       NativeAuthBootstrapFailureKind.unsupportedPlatform,
     );
   }
+
+  Future<void> revokeApiKey({
+    required String baseUrl,
+    required String database,
+    required String login,
+    required String password,
+    required int apiKeyId,
+  }) async {
+    throw const NativeAuthBootstrapException(
+      NativeAuthBootstrapFailureKind.unsupportedPlatform,
+    );
+  }
 }

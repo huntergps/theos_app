@@ -8,6 +8,13 @@ import 'database_discovery_types.dart';
 /// `type='jsonrpc'`) — the same route Odoo's official mobile app uses to let
 /// a person pick a database instead of typing it. It sends no credentials.
 ///
+/// Serves every platform this SDK runs on, Flutter web included — plain
+/// `Dio()` already resolves to a browser-compatible adapter (the same
+/// unconditional `Dio()` `OdooHttpClient` uses for real web traffic), and
+/// there is nothing platform-specific left to do here. See
+/// `database_discovery.dart` for why an earlier web-only stub that refused
+/// to even try was wrong.
+///
 /// Many deployments disable this on purpose (`--no-database-list` /
 /// `list_db=False` in the server config) precisely so a stranger cannot
 /// enumerate what databases exist. [DatabaseDiscoveryFailureKind.disabled]

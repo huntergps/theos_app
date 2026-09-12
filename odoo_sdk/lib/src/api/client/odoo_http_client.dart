@@ -305,9 +305,32 @@ class OdooHttpClient {
         'Content-Type': 'application/json',
         if (_config.transportMode == OdooTransportMode.json2Bearer)
           'Authorization': 'Bearer ${_config.apiKey}',
-        // JSON-2 CORS explicitly allows X-Odoo-Database. Odoo needs this
-        // header to select the requested database when the host serves more
-        // than one database, including browser requests.
+        // Odoo uses this header to select the requested database when the
+        // host serves more than one — including from a browser. Whether a
+        // browser is actually ALLOWED to send it cross-origin depends
+        // entirely on the specific server, never on Odoo by itself:
+        //   - Stock Odoo (the `rpc` module's JSON-2 controller,
+        //     `odoo/addons/rpc/controllers/json2.py`) declares no `cors` at
+        //     all on `/json/2/...` — a different origin is rejected
+        //     outright, preflight or not.
+        //   - This project's ERP2 test instance allows it, but only because
+        //     of two separate, independently-installed addons:
+        //     `l10n_ec_collection_box`'s `cors_controller.py` re-declares
+        //     the `/json/2` routes with `cors='*'` (that alone only grants
+        //     Access-Control-Allow-Origin/-Methods), and
+        //     `l10n_ec_collection_box_pos`'s `ir_http.py` separately
+        //     monkey-patches Odoo's `Dispatcher.pre_dispatch` to add this
+        //     exact header — and `X-Openerp-Session-Id` — to the preflight
+        //     Access-Control-Allow-Headers list. Odoo's own unpatched list
+        //     (`odoo/http/dispatcher.py`) never includes it, which is also
+        //     what Odoo's own `test_http` suite asserts. The first addon
+        //     without the second still gets this header rejected by the
+        //     browser.
+        //   - The reverse proxy in front (nginx, on ERP2) adds none of
+        //     this — measured directly against a route Odoo does not
+        //     declare `cors` on: zero `Access-Control-*` headers came back.
+        // None of the above is guaranteed on any other installation. Check
+        // the actual target server; never assume this comment describes it.
         if (_config.transportMode == OdooTransportMode.json2Bearer &&
             _config.database != null &&
             _config.database!.isNotEmpty)

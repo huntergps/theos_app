@@ -1,3 +1,7 @@
+import 'dart:convert';
+import 'dart:typed_data';
+
+import 'package:crypto/crypto.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:theos_panel/features/auth/pin_credential_store.dart';
@@ -77,6 +81,41 @@ void main() {
     expect(first, isNot(second));
     // Yet both still verify the same PIN.
     expect(store.verify(scopeKey, '1234'), isTrue);
+  });
+
+  // The hashing mechanism moved out to `secret_derivation.dart` so the
+  // workspace lock screen could reuse it instead of growing a second copy.
+  // That refactor is only safe if the payload on disk stayed byte-compatible:
+  // a device that enrolled a PIN before the move must not be asked to enrol
+  // again. This builds the payload from an independent reimplementation of the
+  // original algorithm and requires the store to still accept it.
+  test('a PIN enrolled before the mechanism was extracted still verifies, '
+      'because the stored payload format did not change', () async {
+    const pin = '5108';
+    const iterations = 10000;
+    final salt = Uint8List.fromList(List<int>.generate(16, (i) => i * 7 % 256));
+    var block = Uint8List.fromList(utf8.encode(pin));
+    for (var round = 0; round < iterations; round++) {
+      block = Uint8List.fromList(Hmac(sha256, salt).convert(block).bytes);
+    }
+    await preferences.setString(
+      'orbi/auth/pin/hash/$scopeKey',
+      jsonEncode({
+        'version': 1,
+        'salt': base64Encode(salt),
+        'hash': base64Encode(block),
+        'iterations': iterations,
+      }),
+    );
+
+    expect(store.isEnrolled(scopeKey), isTrue);
+    expect(store.verify(scopeKey, pin), isTrue);
+    expect(store.verify(scopeKey, '5107'), isFalse);
+  });
+
+  test('a corrupt payload never verifies and never throws', () async {
+    await preferences.setString('orbi/auth/pin/hash/$scopeKey', 'basura');
+    expect(store.verify(scopeKey, '1234'), isFalse);
   });
 
   test('forget removes the PIN and its attempt bookkeeping', () async {

@@ -5,12 +5,26 @@
 /// as an expected outcome and fall back to letting the person type the
 /// database name by hand.
 enum DatabaseDiscoveryFailureKind {
-  /// The current platform cannot reach `/web/database/list` at all.
+  /// No platform this SDK runs on actually produces this today — kept only
+  /// so existing callers that switch on this enum exhaustively (e.g.
+  /// `theos_panel`'s server picker) keep compiling.
   ///
-  /// Browser builds hit this unconditionally: Odoo does not declare a CORS
-  /// policy on that controller (measured against a real server — unlike the
-  /// JSON-2 data interface, which explicitly allows any origin), so the
-  /// browser blocks the cross-origin request before it reaches the server.
+  /// This used to be thrown unconditionally on Flutter web, on the
+  /// assumption that a browser build is always cross-origin from the target
+  /// Odoo host and therefore always CORS-blocked on `/web/database/list`.
+  /// That assumption does not hold: CORS only restricts *cross-origin*
+  /// requests, and Odoo does not declare a CORS policy on this controller
+  /// either way (measured against a real server, and no addon in this
+  /// project overrides it — that is unrelated to whether the JSON-2 data
+  /// interface allows cross-origin calls on some server, which depends
+  /// entirely on that installation's addons; see the `X-Odoo-Database`
+  /// header comment in `odoo_http_client.dart`). A browser build served
+  /// from the SAME origin as the Odoo host — the deployment
+  /// `docs/orbi_panel/decisions/W01-web-auth.md` recommends — is not
+  /// cross-origin at all and the call succeeds like any other client's.
+  /// Web now actually attempts the request (see `database_discovery.dart`);
+  /// a genuinely cross-origin, unsupported deployment surfaces as
+  /// [connection], not this.
   unsupportedPlatform,
 
   /// The server reachable, but the deployment turned listing off on

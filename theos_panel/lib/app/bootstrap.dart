@@ -8,7 +8,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:orbi_runtime/orbi_runtime.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../features/auth/login_failure_messages.dart';
 import '../features/auth/auth_controller.dart';
+import '../features/auth/workspace_unlock_store.dart';
 import 'orbi_splash_screen.dart';
 import 'preferences/app_preferences.dart';
 import 'orbi_app.dart';
@@ -501,6 +503,20 @@ Future<Widget> _initializeApplication() async {
   return ProviderScope(
     overrides: [
       sharedPreferencesProvider.overrideWithValue(preferences),
+      // Hands the workspace lock screen somewhere to keep a derivation of the
+      // password, so it can be opened with no network — the operating system's
+      // secure store on native, nothing at all on the web. It lives here and
+      // not in the provider's own default on purpose: a plugin-backed platform
+      // channel never completes inside a widget test's fake-async zone, and
+      // `AuthNotifier.login`/`close` await this store, so a live default
+      // deadlocks every widget test that did not ask for storage. See
+      // `workspaceUnlockBackendProvider`.
+      workspaceUnlockBackendOverride,
+      // Same inert-by-default shape, same reason: the connectivity plugin is
+      // a platform channel, and the login screen awaits it when a connection
+      // fails. Registered here so only a real device consults it — see
+      // `networkPresenceProbeProvider`.
+      networkPresenceProbeOverride,
       ...composition.overrides,
       authInitialStateProvider.overrideWithValue(
         authViewStateFromResult(restored),

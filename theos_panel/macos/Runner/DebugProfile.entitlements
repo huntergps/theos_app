@@ -10,7 +10,21 @@
 	     signing team plus keychain-access-groups in both entitlements;
 	     until that account exists, debug cannot reach the keychain at all.
 	     Consequence to keep in mind: debug no longer mirrors release, so a
-	     genuine entitlement problem will not surface until a release build. -->
+	     genuine entitlement problem will not surface until a release build.
+
+	     Verified 2026-09-11 by compiling and running the app, reading the
+	     system's own `secd` logs (not just the Flutter exception): the
+	     theory that flutter_secure_storage's macOS `usesDataProtectionKeychain
+	     = false` (the classic, non-protected keychain) would dodge the
+	     access-group requirement is WRONG. secd rejects the call with the
+	     exact same -34018 and the exact same message — "Client has neither
+	     com.apple.application-identifier nor
+	     com.apple.security.application-groups nor keychain-access-groups
+	     entitlements" — with the flag true or false, AND with this sandbox
+	     entitlement present or absent. On this macOS version, secd demands
+	     that entitlement for ANY Keychain Services call from an ad-hoc
+	     signed binary, sandboxed or not. There is no code-only fix; only a
+	     real signing team unblocks the keychain in debug. -->
 	<key>com.apple.security.cs.allow-jit</key>
 	<true/>
 	<key>com.apple.security.network.client</key>

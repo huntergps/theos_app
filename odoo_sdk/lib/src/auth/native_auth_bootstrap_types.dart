@@ -1,9 +1,22 @@
 /// Result of exchanging an interactive Odoo login for a short-lived RPC key.
 final class NativeAuthBootstrapResult {
-  const NativeAuthBootstrapResult({required this.userId, required this.apiKey});
+  const NativeAuthBootstrapResult({
+    required this.userId,
+    required this.apiKey,
+    this.apiKeyId,
+  });
 
   final int userId;
   final String apiKey;
+
+  /// The `res.users.apikeys` record id backing [apiKey], resolved right
+  /// after creation so a caller that fails to persist [apiKey] locally can
+  /// pass it to [NativeOdooAuthBootstrap.revokeApiKey] and avoid leaving an
+  /// orphaned credential on the server. `null` only when that best-effort
+  /// lookup itself failed to find the record — the login already succeeded
+  /// and is never rolled back because of it, but revocation is then not
+  /// possible and the caller must decide how to surface that.
+  final int? apiKeyId;
 }
 
 enum NativeAuthBootstrapFailureKind {
@@ -25,4 +38,20 @@ final class NativeAuthBootstrapException implements Exception {
 
   @override
   String toString() => 'NativeAuthBootstrapException(${kind.name})';
+}
+
+/// Thrown by [NativeOdooAuthBootstrap.revokeApiKey] when the best-effort
+/// cleanup of an already-issued API key does not succeed.
+///
+/// A caller that revokes a key because some *other* step failed (typically
+/// persisting it locally) MUST catch this separately from that original
+/// failure: a cleanup error must never replace or hide the error that
+/// triggered the cleanup in the first place.
+final class NativeAuthBootstrapRevocationException implements Exception {
+  const NativeAuthBootstrapRevocationException(this.message);
+
+  final String message;
+
+  @override
+  String toString() => 'NativeAuthBootstrapRevocationException($message)';
 }

@@ -155,4 +155,72 @@ void main() {
       },
     );
   });
+
+  // A second, DIFFERENT way for a screen to go missing: the route above can
+  // have a permission rule and still be unreachable, because nothing in the
+  // sidebar ever points at it. This is exactly what happened twice
+  // (docs/orbi_panel/PENDIENTES.md, "Dos pantallas construidas no están en
+  // el menú"): the warehouse existences screen (BOD-01) had no route AND no
+  // menu entry, and the cash shift hub (`/collection/hub`) had a route and a
+  // working RouteAccessPolicy rule (the very fixture at the top of this
+  // file) but still no `OperationalDestination` pointing at it — someone
+  // had to type the address. The group above would have stayed green for
+  // both, because it only asks "is there a permission that opens this
+  // path", never "can a user actually click their way here".
+  group('every registered route also has a menu entry pointing at it', () {
+    final routerSource = File('lib/app/router.dart').readAsStringSync();
+
+    // GoRoute's own path, straight from its constructor call — not the
+    // OperationalDestination mirror, so this set is independent of the menu
+    // list below.
+    final goRoutePaths = RegExp(
+      r"GoRoute\(\s*path:\s*'([^']+)'",
+    ).allMatches(routerSource).map((m) => m.group(1)!).toSet();
+
+    // Every path a sidebar OperationalDestination actually points at.
+    // `label:` is matched right before `path:` because every entry in the
+    // destinations list writes them in that order — see router.dart's own
+    // list literal.
+    final destinationPaths = RegExp(
+      r"OperationalDestination\(\s*label:\s*'[^']*',\s*path:\s*'([^']+)'",
+    ).allMatches(routerSource).map((m) => m.group(1)!).toSet();
+
+    test(
+      'the source extraction itself is not silently finding nothing',
+      () {
+        expect(goRoutePaths, isNotEmpty);
+        expect(goRoutePaths, contains('/sales'));
+        expect(destinationPaths, isNotEmpty);
+        expect(destinationPaths, contains('/sales'));
+      },
+    );
+
+    test(
+      'no static route is reachable only by typing its address',
+      () {
+        // '/login' is pre-authentication and deliberately outside the shell
+        // menu; a dynamic segment (':documentId') is opened by reference
+        // (from a notification or a document link), never by a fixed menu
+        // entry — RouteAccessPolicy's own prefix rule already covers it.
+        final orphaned =
+            goRoutePaths
+                .where((path) => path != '/login' && !path.contains(':'))
+                .where((path) => !destinationPaths.contains(path))
+                .toList()
+              ..sort();
+        expect(
+          orphaned,
+          isEmpty,
+          reason:
+              'These routes exist in router.dart but no OperationalDestination '
+              'in the sidebar menu ever points at them, so nobody can reach '
+              'them by navigating, only by typing the address: $orphaned. '
+              'Add a destination for each one (gated by the right '
+              'permission, see RouteAccessPolicy) before this route ships — '
+              'this is exactly how the warehouse existences screen and the '
+              'cash shift hub were missed.',
+        );
+      },
+    );
+  });
 }

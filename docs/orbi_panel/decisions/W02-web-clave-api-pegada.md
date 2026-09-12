@@ -1,5 +1,12 @@
 # W02 — La web sí puede conectar: corrección a W01
 
+> 🔴 **REVOCADO EN PARTE** el 11-sep-2026 por orden del dueño («yo he dicho que
+> navegador también guarda igual que escritorio»): el punto 2 de «Lo que falta»,
+> que pedía un `CredentialBackend` **en memoria** con `CredentialDurability.
+> webSessionOnly`, ya no vale — el navegador persiste. Ver
+> [`W04-el-navegador-tambien-guarda.md`](W04-el-navegador-tambien-guarda.md).
+> El resto de este documento sigue vigente.
+
 Estado: **para decidir**. Corrige una afirmación falsa de `W01-web-auth.md`.
 
 ## La respuesta corta

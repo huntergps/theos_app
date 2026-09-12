@@ -3,6 +3,7 @@ DART ?= dart
 
 .PHONY: help deps generate generated-check analyze analyze-orbi test test-orbi verify check-secrets \
 	run-macos run-web build-ios build-appbundle build-macos build-windows build-web \
+	run-orbi-macos run-orbi-web \
 	build-orbi-web build-orbi-appbundle build-orbi-ios build-orbi-macos \
 	build-orbi-windows build-orbi-linux
 
@@ -16,8 +17,10 @@ help:
 	@echo "  make test             Test all existing packages"
 	@echo "  make test-orbi        Test Orbi scaffold packages when present"
 	@echo "  make verify           Secret scan, generated check, analysis, and tests"
-	@echo "  make run-macos        Run macOS with the local ERP2 test credential"
-	@echo "  make run-web          Run Chrome without any injected credential"
+	@echo "  make run-macos        Run theos_pos (Fluent) on macOS with the local ERP2 test credential"
+	@echo "  make run-web          Run theos_pos (Fluent) in Chrome without any injected credential"
+	@echo "  make run-orbi-macos   Run theos_panel (Orbi) on macOS; sign in from the login screen"
+	@echo "  make run-orbi-web     Run theos_panel (Orbi) in Chrome; sign in from the login screen"
 	@echo "  make build-web        Build the web release"
 	@echo "  make build-appbundle  Build the Android App Bundle release"
 	@echo "  make build-ios        Build the unsigned iOS release"
@@ -91,6 +94,23 @@ run-macos:
 run-web:
 	@echo "Web builds never receive THEOS_ERP2_API_KEY; sign in from the app."
 	cd theos_pos && $(FLUTTER) run -d chrome
+
+# Orbi is launched without any injected credential on every target, desktop
+# included. theos_panel has no String.fromEnvironment for a key: the only
+# fromEnvironment in the package is the E2E harness, which reads
+# Platform.environment at test time. Injecting one here would be dead weight
+# that also hides the login screen we want to exercise.
+run-orbi-macos:
+	@if [ -f theos_panel/pubspec.yaml ]; then \
+		echo "Orbi never receives an injected credential; sign in from the login screen."; \
+		cd theos_panel && $(FLUTTER) run -d macos; \
+	else echo "SKIP: theos_panel scaffold is not present"; fi
+
+run-orbi-web:
+	@if [ -f theos_panel/pubspec.yaml ]; then \
+		echo "Web builds never receive THEOS_ERP2_API_KEY; sign in from the app."; \
+		cd theos_panel && $(FLUTTER) run -d chrome; \
+	else echo "SKIP: theos_panel scaffold is not present"; fi
 
 build-ios:
 	cd theos_pos && $(FLUTTER) build ios --release --no-codesign

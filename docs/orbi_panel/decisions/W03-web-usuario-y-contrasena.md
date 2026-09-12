@@ -1,5 +1,14 @@
 # W03 — Orbi web desde un dominio propio, contra un Odoo en otro dominio
 
+> 🔴 **REVOCADO EN PARTE** el 11-sep-2026 por orden del dueño («yo he dicho que
+> navegador también guarda igual que escritorio»): de la sección 4, que «no hay caja
+> fuerte del sistema» y que la única persistencia posible es una que «lee cualquier
+> guion de nuestro dominio»; y del punto 2 de la sección 5, el respaldo con
+> `CredentialDurability.webSessionOnly`. Existe una garantía comparable al llavero —
+> una llave AES-GCM **no extraíble** en IndexedDB. Ver
+> [`W04-el-navegador-tambien-guarda.md`](W04-el-navegador-tambien-guarda.md).
+> El resto de este documento —dominio propio, bearer sin cookies— sigue vigente.
+
 Estado: **vía elegida por el dueño el 12-sep-2026** («no entiendo para qué hay que bajar la
 aplicación, debe ser como cualquier web y no necesariamente en el mismo dominio que Odoo»).
 Este documento diseña ESE camino. Sustituye a `W01-web-auth.md` y corrige la sección 3 de

@@ -98,6 +98,24 @@ y luego actualiza `orbi_erp2_actors.env` con las claves nuevas.
    puede autenticar contra ERP2 a propósito, y sigue bloqueado esperando
    autorización. **La prueba debe hacerse en escritorio nativo
    (`make run-macos`), no en Chrome.**
+
+   > 🔴 **CORRECCIÓN (2026-09-11).** La frase de arriba se deja tal como se
+   > escribió, porque es evidencia de por qué se perdió tiempo. **Es errónea:
+   > `make run-macos` arranca `theos_pos` —la app vieja de Fluent—, no Orbi.**
+   > El guion que invoca, `scripts/run_flutter_with_erp2.sh`, hace
+   > `cd "$repo_root/theos_pos"` en su línea 40. Cuando se escribió este
+   > informe **no existía ningún objetivo del `Makefile` capaz de arrancar
+   > Orbi**: había siete `build-orbi-*` y ni un solo `run-orbi-*`.
+   >
+   > **El comando correcto es `make run-orbi-macos`** (y `make run-orbi-web`
+   > para navegador), añadidos hoy. Ninguno de los dos inyecta credencial:
+   > `theos_panel` no tiene un solo consumidor de clave por compilación, así
+   > que se entra por la pantalla de acceso.
+   >
+   > Quien siguiera esta instrucción estaba probando la aplicación
+   > equivocada sin saberlo. Es la explicación más probable de los informes
+   > de «compilé y no conecta a ERP2».
+
 4. **Con una clave viva**, aún falta confirmar si el usuario de prueba tiene
    los grupos que el shell necesita para el menú completo
    (`sales_team.group_sale_salesman`, `l10n_ec_collection_box.*`, `stock.*`)
