@@ -14,9 +14,13 @@ aplicables a cada ruta. El dueño autoriza usar agentes baratos en tareas acotad
   por pantalla. `haiku` sólo para comprobar sin criterio: contar, extraer, cotejar,
   correr un comando y traer la salida. Nunca `haiku` para juzgar si algo está bien.
   Lo que exige decidir qué está bien no se delega: se queda con el integrador.
-- Hasta tres agentes simultáneos además del integrador cuando haya tres tareas
-  independientes listas. Cada agente se cierra en cuanto entrega y se le firma el
-  encargo; no se dejan vivos «por si acaso».
+- El límite real no es un número, es el solapamiento: dos agentes nunca escriben
+  el mismo archivo. Mientras cada uno tenga su territorio disjunto y declarado en
+  el encargo, se lanzan a la vez. El techo duro son diez vivos, y por encima de eso
+  la saturación empieza a fabricar fallos que parecen del código y no lo son.
+- Cada agente se cierra en cuanto entrega y se le firma el encargo; no se dejan
+  vivos «por si acaso». Reutilizar uno que ya conoce el terreno sale más barato
+  que crear otro virgen.
 - No delegación recursiva. Escalar dificultad al integrador con un hallazgo
   concreto; no ampliar el modelo ni repetir auditoría completa por iniciativa.
 - Encargos sin historial completo: objetivo, ID, rutas, documentos necesarios,

@@ -16,7 +16,7 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    expect(find.text('Orbi ERP'), findsOneWidget);
+    expect(find.text('Acceso a Orbi'), findsOneWidget);
     expect(find.text('Iniciar sesión'), findsOneWidget);
   });
 }

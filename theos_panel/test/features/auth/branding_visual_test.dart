@@ -84,7 +84,7 @@ void main() {
     await tester.pumpWidget(await _loginHarness());
     await tester.pump();
 
-    expect(find.text('Bienvenido'), findsOneWidget);
+    expect(find.text('Acceso a Orbi'), findsOneWidget);
     expect(find.text('Ventas, caja y operaciones'), findsNothing);
     expect(find.byKey(const Key('compact-login-background')), findsOneWidget);
     expect(find.byKey(const Key('save-credential-toggle')), findsOneWidget);

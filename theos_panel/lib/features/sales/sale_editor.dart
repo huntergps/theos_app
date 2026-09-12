@@ -710,6 +710,11 @@ class _SaleEditorScreenState extends State<SaleEditorScreen> {
   late final TextEditingController _note = TextEditingController(
     text: widget.controller.draft.note,
   );
+  // Owned explicitly (not left to ExpansionTile's default) because
+  // `initiallyExpanded` is only read once, at the tile's own initState. A
+  // note restored asynchronously after that point would otherwise stay
+  // hidden behind a collapsed, unmounted section forever.
+  final ExpansionTileController _notesController = ExpansionTileController();
   late final FormGroup _saleForm = FormGroup({
     'client': FormControl<String>(
       value: widget.controller.draft.clientName,
@@ -740,6 +745,7 @@ class _SaleEditorScreenState extends State<SaleEditorScreen> {
     _draftChanges.cancel();
     _saleForm.dispose();
     _note.dispose();
+    _notesController.dispose();
     super.dispose();
   }
 
@@ -774,6 +780,11 @@ class _SaleEditorScreenState extends State<SaleEditorScreen> {
     final client = _saleForm.control('client');
     if (client.value != draft.clientName) {
       client.updateValue(draft.clientName, emitEvent: false);
+    }
+    // A restored/updated note must surface even if the section was
+    // collapsed (or not yet mounted) when this snapshot arrived.
+    if (draft.note.isNotEmpty && !_notesController.isExpanded) {
+      _notesController.expand();
     }
     if (_note.text == draft.note) return;
     final offset = _note.selection.baseOffset.clamp(0, draft.note.length);
@@ -918,6 +929,7 @@ class _SaleEditorScreenState extends State<SaleEditorScreen> {
           },
         ),
         ExpansionTile(
+          controller: _notesController,
           tilePadding: EdgeInsets.zero,
           title: const Text('Notas'),
           initiallyExpanded: _note.text.isNotEmpty,

@@ -344,45 +344,56 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     final inputPadding = compactHeight
         ? const EdgeInsets.symmetric(horizontal: 12, vertical: 8)
         : null;
+    final themeToggle = IconButton(
+      key: const Key('login-theme-toggle'),
+      tooltip: theme.brightness == Brightness.dark
+          ? 'Cambiar a modo claro'
+          : 'Cambiar a modo oscuro',
+      icon: Icon(
+        theme.brightness == Brightness.dark
+            ? Icons.light_mode_outlined
+            : Icons.dark_mode_outlined,
+      ),
+      onPressed: () async {
+        final dark = theme.brightness != Brightness.dark;
+        final preferences = ref.read(
+          appPreferencesProvider(ref.read(preferencesScopeProvider)),
+        );
+        try {
+          await preferences.setTheme(
+            dark ? PreferenceThemeMode.dark : PreferenceThemeMode.light,
+          );
+        } catch (_) {
+          if (!context.mounted) return;
+          ScaffoldMessenger.of(
+            context,
+          ).showSnackBar(const SnackBar(content: Text('No se pudo guardar el tema.')));
+        }
+      },
+    );
+    final manageServers = TextButton.icon(
+      key: const Key('manage-saved-servers'),
+      onPressed: state.isBusy ? null : _manageServers,
+      icon: const Icon(Icons.dns_outlined, size: 18),
+      label: const Text('Gestionar servidores'),
+    );
     return AutofillGroup(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           // Use the app preference rather than a login-only Theme override.
           // This preserves one source of truth and the existing scope boundary.
-          Align(
-            alignment: AlignmentDirectional.centerEnd,
-            child: IconButton(
-              key: const Key('login-theme-toggle'),
-              tooltip: theme.brightness == Brightness.dark
-                  ? 'Cambiar a modo claro'
-                  : 'Cambiar a modo oscuro',
-              icon: Icon(
-                theme.brightness == Brightness.dark
-                    ? Icons.light_mode_outlined
-                    : Icons.dark_mode_outlined,
-              ),
-              onPressed: () async {
-                final dark = theme.brightness != Brightness.dark;
-                final preferences = ref.read(
-                  appPreferencesProvider(ref.read(preferencesScopeProvider)),
-                );
-                try {
-                  await preferences.setTheme(
-                    dark ? PreferenceThemeMode.dark : PreferenceThemeMode.light,
-                  );
-                } catch (_) {
-                  if (!context.mounted) return;
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text('No se pudo guardar el tema.'),
-                    ),
-                  );
-                }
-              },
-            ),
-          ),
-          const SizedBox(height: OrbiTheme.space12),
+          // A very short desktop window (for example 800x600) has no vertical
+          // room to spare, so these two utility actions share one row instead
+          // of stacking as two separate rows above the branding block.
+          if (compactHeight)
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [manageServers, themeToggle],
+            )
+          else
+            Align(alignment: AlignmentDirectional.centerEnd, child: themeToggle),
+          SizedBox(height: compactHeight ? OrbiTheme.space8 : OrbiTheme.space12),
           OrbiBrand(height: logoHeight, color: colors.primary),
           const SizedBox(height: OrbiTheme.space16),
           Text(
@@ -399,15 +410,11 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
             textAlign: TextAlign.center,
           ),
           SizedBox(height: headerGap),
-          Align(
-            alignment: AlignmentDirectional.centerEnd,
-            child: TextButton.icon(
-              key: const Key('manage-saved-servers'),
-              onPressed: state.isBusy ? null : _manageServers,
-              icon: const Icon(Icons.dns_outlined, size: 18),
-              label: const Text('Gestionar servidores'),
+          if (!compactHeight)
+            Align(
+              alignment: AlignmentDirectional.centerEnd,
+              child: manageServers,
             ),
-          ),
           TextField(
             controller: _server,
             focusNode: _serverFocus,
