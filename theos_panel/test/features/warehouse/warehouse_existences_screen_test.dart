@@ -1,10 +1,11 @@
 import 'dart:async';
 
-import 'package:flutter/material.dart';
+import 'package:fluent_ui/fluent_ui.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:orbi_runtime/orbi_runtime.dart';
 import 'package:theos_panel/features/warehouse/warehouse_existences_contracts.dart';
 import 'package:theos_panel/features/warehouse/warehouse_existences_screen.dart';
+import 'package:theos_panel/ui/fluent/orbi_fluent_theme.dart';
 
 /// Mirrors `StockQuantCache.watch()`'s real contract: every new subscriber
 /// gets the CURRENT value immediately (never only future events — a plain
@@ -81,7 +82,8 @@ Future<void> _pumpAt(
   tester.view.physicalSize = size;
   tester.view.devicePixelRatio = 1.0;
   await tester.pumpWidget(
-    MaterialApp(
+    FluentApp(
+      theme: OrbiFluentTheme.light,
       home: MediaQuery(
         data: MediaQueryData(size: size),
         child: WarehouseExistencesScreen(repository: repository),

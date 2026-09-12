@@ -1,7 +1,8 @@
-import 'package:flutter/material.dart';
+import 'package:fluent_ui/fluent_ui.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:theos_panel/features/collection/collection_contracts.dart';
 import 'package:theos_panel/features/collection/collection_screen.dart';
+import 'package:theos_panel/ui/fluent/orbi_fluent_theme.dart';
 
 class _Actions implements CollectionActions {
   int calls = 0;
@@ -30,7 +31,7 @@ void main() {
     await tester.binding.setSurfaceSize(const Size(1400, 1000));
     addTearDown(() => tester.binding.setSurfaceSize(null));
     await tester.pumpWidget(
-      MaterialApp(
+      FluentApp(theme: OrbiFluentTheme.light,
         home: CollectionScreen(
           shift: const CollectionShiftSnapshot(
             id: '1',
@@ -54,10 +55,10 @@ void main() {
     );
     await tester.pumpAndSettle();
     await tester.tap(find.text('Venta'));
-    await tester.tap(find.byType(DropdownButtonFormField<int>));
+    await tester.tap(find.byType(ComboBox<int>));
     await tester.pumpAndSettle();
     await tester.tap(find.text('Caja').last);
-    await tester.enterText(find.byType(TextField).first, '5');
+    await tester.enterText(find.byType(TextBox).first, '5');
     await tester.tap(find.text('Añadir medio'));
     await tester.pump();
     await tester.tap(find.text('Cobrar'));
@@ -86,7 +87,7 @@ void main() {
     await tester.pumpWidget(
       MediaQuery(
         data: const MediaQueryData(textScaler: TextScaler.linear(2)),
-        child: MaterialApp(
+        child: FluentApp(theme: OrbiFluentTheme.light,
           home: CollectionScreen(
             shift: const CollectionShiftSnapshot(
               id: '1',
@@ -118,7 +119,7 @@ void main() {
   ) async {
     var calls = 0;
     await tester.pumpWidget(
-      MaterialApp(
+      FluentApp(theme: OrbiFluentTheme.light,
         home: CollectionScreen(
           shift: const CollectionShiftSnapshot(
             id: '1',
@@ -158,7 +159,7 @@ void main() {
     tester,
   ) async {
     await tester.pumpWidget(
-      MaterialApp(
+      FluentApp(theme: OrbiFluentTheme.light,
         home: CollectionScreen(
           shift: const CollectionShiftSnapshot(
             id: '1',
@@ -182,7 +183,11 @@ void main() {
     );
     await tester.pumpAndSettle();
     await tester.tap(find.text('ORBI-E2E-MIXED'));
-    await tester.pump();
+    // pumpAndSettle, no un pump suelto: los controles de Fluent (Button,
+    // Checkbox, ListTile...) agendan un `Timer` corto e interno de hover al
+    // recibir un toque sintético; un `pump()` a secas lo deja pendiente y la
+    // prueba revienta al desmontar el árbol con "A Timer is still pending".
+    await tester.pumpAndSettle();
     expect(find.byKey(const Key('mixed-due-confirmation')), findsOneWidget);
     expect(find.text('Exigible calculado: 25.00'), findsOneWidget);
     final before = tester.widget<FilledButton>(
@@ -191,7 +196,7 @@ void main() {
     expect(before.onPressed, isNull);
     await tester.ensureVisible(find.text('Confirmar monto mixto exigible'));
     await tester.tap(find.text('Confirmar monto mixto exigible'));
-    await tester.pump();
+    await tester.pumpAndSettle();
     final after = tester.widget<FilledButton>(
       find.widgetWithText(FilledButton, 'Cobrar'),
     );

@@ -1,7 +1,8 @@
-import 'package:flutter/material.dart';
+import 'package:fluent_ui/fluent_ui.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:theos_panel/features/collection/collection_contracts.dart';
 import 'package:theos_panel/features/collection/collection_session_hub_screen.dart';
+import 'package:theos_panel/ui/fluent/orbi_fluent_theme.dart';
 
 void main() {
   CollectionSessionHubScreen buildScreen({
@@ -27,14 +28,14 @@ void main() {
       CollectionHubAction(
         label: 'Anticipo',
         description: 'Registrar un anticipo del cliente contra la sesión.',
-        icon: Icons.savings_outlined,
+        icon: FluentIcons.savings,
         onOpen: onOpenTurn,
       ),
       const CollectionHubAction(
         label: 'Retención SRI',
         description:
             'Consultar la clave de acceso, revisar los datos descargados y registrar la retención electrónica del SRI.',
-        icon: Icons.receipt_long_outlined,
+        icon: FluentIcons.invoice,
         availability: CollectionHubActionAvailability.forbidden,
       ),
     ],
@@ -42,14 +43,14 @@ void main() {
       CollectionHubAction(
         label: 'Registros del turno',
         description: 'Órdenes, facturas y pagos de la sesión abierta.',
-        icon: Icons.list_alt_outlined,
+        icon: FluentIcons.clipboard_list,
         onOpen: onOpenRecords,
       ),
     ],
     closing: CollectionHubAction(
       label: 'Ir a cierre',
       description: 'Iniciar el control de cierre de la sesión actual.',
-      icon: Icons.lock_clock_outlined,
+      icon: FluentIcons.clock,
       availability: closingAvailability,
       onOpen: onGoToClosing,
     ),
@@ -69,7 +70,7 @@ void main() {
           size: size,
           textScaler: TextScaler.linear(textScale),
         ),
-        child: MaterialApp(home: child),
+        child: FluentApp(theme: OrbiFluentTheme.light, home: child),
       ),
     );
     await tester.pump();

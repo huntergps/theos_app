@@ -1,10 +1,11 @@
 import 'dart:async';
 
-import 'package:flutter/material.dart';
+import 'package:fluent_ui/fluent_ui.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:orbi_runtime/orbi_runtime.dart';
 import 'package:theos_panel/features/envases/envases_dashboard_screen.dart';
 import 'package:theos_panel/ui/components/records/orbi_record_list.dart';
+import 'package:theos_panel/ui/fluent/orbi_fluent_theme.dart';
 import 'package:syncfusion_flutter_datagrid/datagrid.dart';
 
 EnvasesDashboardRow _row(String name, {int id = 10}) => EnvasesDashboardRow(
@@ -36,7 +37,8 @@ Widget _host({
   bool connected = false,
   VoidCallback? onRefresh,
   Size? size,
-}) => MaterialApp(
+}) => FluentApp(
+  theme: OrbiFluentTheme.light,
   home: size == null
       ? EnvasesDashboardScreen(
           snapshots: snapshots,

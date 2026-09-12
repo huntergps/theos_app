@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:fluent_ui/fluent_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:orbi_runtime/orbi_runtime.dart';
@@ -9,6 +9,7 @@ import 'package:theos_panel/app/router.dart';
 import 'package:theos_panel/features/auth/auth_controller.dart';
 import 'package:theos_panel/features/collection/collection_contracts.dart';
 import 'package:theos_panel/features/collection/collection_session_hub_screen.dart';
+import 'package:theos_panel/ui/fluent/orbi_fluent_theme.dart';
 
 /// A minimal `AuthServicePort` fake, same shape as `test/app/router_auth_test.dart`.
 final class _Auth implements AuthServicePort {
@@ -72,7 +73,10 @@ void main() {
       await tester.pumpWidget(
         UncontrolledProviderScope(
           container: container,
-          child: MaterialApp.router(routerConfig: router),
+          child: FluentApp.router(
+            theme: OrbiFluentTheme.light,
+            routerConfig: router,
+          ),
         ),
       );
       await tester.pumpAndSettle();
@@ -88,7 +92,10 @@ void main() {
       await tester.pumpWidget(
         UncontrolledProviderScope(
           container: container,
-          child: MaterialApp.router(routerConfig: authenticatedRouter),
+          child: FluentApp.router(
+            theme: OrbiFluentTheme.light,
+            routerConfig: authenticatedRouter,
+          ),
         ),
       );
       await tester.pumpAndSettle();

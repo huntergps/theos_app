@@ -1,6 +1,7 @@
-import 'package:flutter/material.dart';
+import 'package:fluent_ui/fluent_ui.dart';
 
 import '../../ui/components/orbi_components.dart';
+import '../../ui/fluent/orbi_page.dart';
 import '../orders/orders_contracts.dart';
 
 import 'package:orbi_runtime/orbi_runtime.dart';
@@ -42,14 +43,15 @@ class _WarehouseScreenState extends State<WarehouseScreen> {
   }
 
   @override
-  Widget build(BuildContext context) => OrbiPageShell(
+  Widget build(BuildContext context) => OrbiPage(
     title: 'Bodega',
-    actions: [
-      IconButton(
+    commands: [
+      CommandBarButton(
         key: const Key('warehouse-refresh-button'),
+        icon: const Icon(FluentIcons.refresh),
+        label: const Text('Actualizar'),
         tooltip: 'Actualizar despachos',
         onPressed: _controller.refresh,
-        icon: const Icon(Icons.refresh),
       ),
     ],
     child: Column(
@@ -68,7 +70,7 @@ class _WarehouseScreenState extends State<WarehouseScreen> {
               final state = snapshot.data ?? _controller.snapshot;
               return switch (state.status) {
                 OrderLoadStatus.initial || OrderLoadStatus.loading =>
-                  const Center(child: CircularProgressIndicator()),
+                  const Center(child: ProgressRing()),
                 OrderLoadStatus.empty => const OrbiEmptyState(
                   title: 'Sin despachos',
                   message: 'No hay órdenes listas para revisar en bodega.',
@@ -93,56 +95,62 @@ class _WarehouseScreenState extends State<WarehouseScreen> {
       final item = items[index];
       final locked = item.pendingCollection;
       return Card(
-        child: Padding(
-          padding: const EdgeInsets.all(16),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Text(item.title, style: Theme.of(context).textTheme.titleMedium),
-              const SizedBox(height: 8),
-              Wrap(
-                spacing: 8,
-                runSpacing: 8,
-                children: [
-                  OrbiStatusChip(label: 'Negocio: ${item.businessState.code}'),
-                  OrbiStatusChip(
-                    label: locked ? 'Cobro pendiente' : 'Cobro completo',
-                    icon: locked ? Icons.lock_outline : Icons.lock_open,
-                  ),
-                ],
-              ),
-              const SizedBox(height: 8),
-              if (locked)
-                const Text(
-                  'Entrega bloqueada: se requiere cobro completo.',
-                  key: Key('delivery-payment-lock'),
-                )
-              else if (item.pickingIds.isEmpty)
-                const Text('Sin picking pendiente en el alcance local.')
-              else
-                const Text(
-                  'Entrega habilitada; ejecutar flujo oficial de picking.',
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Text(
+              item.title,
+              style: FluentTheme.of(context).typography.bodyStrong,
+            ),
+            const SizedBox(height: 8),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                OrbiStatusChip(label: 'Negocio: ${item.businessState.code}'),
+                OrbiStatusChip(
+                  label: locked ? 'Cobro pendiente' : 'Cobro completo',
+                  icon: locked ? FluentIcons.lock : FluentIcons.unlock,
                 ),
-              const SizedBox(height: 8),
-              Semantics(
-                button: true,
-                enabled: !locked && item.pickingIds.isNotEmpty,
-                label: locked
-                    ? 'Validar entrega bloqueada por cobro pendiente'
-                    : item.pickingIds.isEmpty
-                    ? 'Validar entrega sin picking disponible'
-                    : 'Validar entrega mediante flujo oficial',
-                child: FilledButton.icon(
-                  onPressed:
-                      locked || item.pickingIds.isEmpty || _busyPicking != null
-                      ? null
-                      : () => _validate(item),
-                  icon: const Icon(Icons.local_shipping_outlined),
-                  label: const Text('Validar entrega'),
+              ],
+            ),
+            const SizedBox(height: 8),
+            if (locked)
+              const Text(
+                'Entrega bloqueada: se requiere cobro completo.',
+                key: Key('delivery-payment-lock'),
+              )
+            else if (item.pickingIds.isEmpty)
+              const Text('Sin picking pendiente en el alcance local.')
+            else
+              const Text(
+                'Entrega habilitada; ejecutar flujo oficial de picking.',
+              ),
+            const SizedBox(height: 8),
+            Semantics(
+              button: true,
+              enabled: !locked && item.pickingIds.isNotEmpty,
+              label: locked
+                  ? 'Validar entrega bloqueada por cobro pendiente'
+                  : item.pickingIds.isEmpty
+                  ? 'Validar entrega sin picking disponible'
+                  : 'Validar entrega mediante flujo oficial',
+              child: FilledButton(
+                onPressed:
+                    locked || item.pickingIds.isEmpty || _busyPicking != null
+                    ? null
+                    : () => _validate(item),
+                child: const Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(FluentIcons.delivery_truck),
+                    SizedBox(width: 8),
+                    Text('Validar entrega'),
+                  ],
                 ),
               ),
-            ],
-          ),
+            ),
+          ],
         ),
       );
     },
@@ -177,11 +185,11 @@ class _WarehouseScreenState extends State<WarehouseScreen> {
     final confirm = await showDialog<bool>(
       context: context,
       barrierDismissible: false,
-      builder: (context) => AlertDialog(
+      builder: (context) => ContentDialog(
         title: const Text('Backorder requerido'),
         content: Text(pending.message),
         actions: [
-          TextButton(
+          Button(
             key: const Key('backorder-cancel-button'),
             onPressed: () => Navigator.of(context).pop(false),
             child: const Text('Cerrar sin backorder'),

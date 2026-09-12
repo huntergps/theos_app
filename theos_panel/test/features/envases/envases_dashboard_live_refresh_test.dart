@@ -1,11 +1,12 @@
 
-import 'package:flutter/material.dart';
+import 'package:fluent_ui/fluent_ui.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:orbi_runtime/orbi_runtime.dart';
 import 'package:drift/native.dart';
 
 import 'package:theos_panel/app/envases_composition.dart';
 import 'package:theos_panel/features/envases/envases_dashboard_screen.dart';
+import 'package:theos_panel/ui/fluent/orbi_fluent_theme.dart';
 
 /// Exercises the real, disk-backed [EnvasesDashboardCache] behind
 /// [EnvasesDashboardController] and [EnvasesDashboardScreen] together,
@@ -81,7 +82,8 @@ void main() {
       addTearDown(controller.dispose);
 
       await tester.pumpWidget(
-        MaterialApp(
+        FluentApp(
+          theme: OrbiFluentTheme.light,
           home: EnvasesDashboardScreen(
             snapshots: controller.snapshots,
             onRefresh: controller.refresh,

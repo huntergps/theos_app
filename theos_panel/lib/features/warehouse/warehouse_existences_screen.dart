@@ -1,9 +1,11 @@
-import 'package:flutter/material.dart';
+import 'package:fluent_ui/fluent_ui.dart';
+import 'package:syncfusion_flutter_datagrid/datagrid.dart';
 
 import 'package:orbi_runtime/orbi_runtime.dart';
 
 import '../../app/theme/orbi_theme.dart';
 import '../../ui/components/orbi_components.dart';
+import '../../ui/fluent/orbi_page.dart';
 import 'warehouse_existences_contracts.dart';
 
 /// BOD-01 — inventario de existencias.
@@ -36,6 +38,10 @@ class WarehouseExistencesScreen extends StatefulWidget {
   State<WarehouseExistencesScreen> createState() =>
       _WarehouseExistencesScreenState();
 }
+
+String _qty(double value) => value == value.roundToDouble()
+    ? value.toStringAsFixed(0)
+    : value.toStringAsFixed(2);
 
 class _WarehouseExistencesScreenState
     extends State<WarehouseExistencesScreen> {
@@ -70,20 +76,21 @@ class _WarehouseExistencesScreenState
   }
 
   @override
-  Widget build(BuildContext context) => OrbiPageShell(
+  Widget build(BuildContext context) => OrbiPage(
     title: 'Inventario de existencias',
-    actions: [
-      IconButton(
+    commands: [
+      CommandBarButton(
         key: const Key('existences-refresh-button'),
-        tooltip: 'Actualizar inventario',
-        onPressed: _refreshing ? null : _refresh,
         icon: _refreshing
             ? const SizedBox(
-                width: 18,
-                height: 18,
-                child: CircularProgressIndicator(strokeWidth: 2),
+                width: 16,
+                height: 16,
+                child: ProgressRing(strokeWidth: 2),
               )
-            : const Icon(Icons.refresh),
+            : const Icon(FluentIcons.refresh),
+        label: const Text('Actualizar'),
+        tooltip: 'Actualizar inventario',
+        onPressed: _refreshing ? null : _refresh,
       ),
     ],
     child: StreamBuilder<StockQuantSnapshot?>(
@@ -107,9 +114,7 @@ class _WarehouseExistencesScreenState
             );
           }
           return const Center(
-            child: CircularProgressIndicator(
-              key: Key('existences-loading'),
-            ),
+            child: ProgressRing(key: Key('existences-loading')),
           );
         }
         return _body(context, data);
@@ -128,7 +133,7 @@ class _WarehouseExistencesScreenState
         Text(
           key: const Key('existences-updated-at'),
           'Copia local actualizada: ${_formatCachedAt(data.cachedAt)}',
-          style: Theme.of(context).textTheme.bodySmall,
+          style: FluentTheme.of(context).typography.caption,
         ),
         const SizedBox(height: OrbiTheme.space12),
         Expanded(
@@ -166,17 +171,20 @@ class _WarehouseExistencesScreenState
     children: [
       SizedBox(
         width: 220,
-        child: DropdownButtonFormField<int?>(
-          key: const Key('existences-warehouse-filter'),
-          initialValue: _filter.warehouseId,
-          decoration: const InputDecoration(labelText: 'Almacén'),
-          items: [
-            const DropdownMenuItem(value: null, child: Text('Todos')),
-            for (final warehouse in warehouses)
-              DropdownMenuItem(value: warehouse.$1, child: Text(warehouse.$2)),
-          ],
-          onChanged: (value) => setState(
-            () => _filter = _filter.copyWith(warehouseId: () => value),
+        child: InfoLabel(
+          label: 'Almacén',
+          child: ComboBox<int?>(
+            key: const Key('existences-warehouse-filter'),
+            value: _filter.warehouseId,
+            isExpanded: true,
+            items: [
+              const ComboBoxItem(value: null, child: Text('Todos')),
+              for (final warehouse in warehouses)
+                ComboBoxItem(value: warehouse.$1, child: Text(warehouse.$2)),
+            ],
+            onChanged: (value) => setState(
+              () => _filter = _filter.copyWith(warehouseId: () => value),
+            ),
           ),
         ),
       ),
@@ -193,35 +201,30 @@ class _WarehouseExistencesScreenState
     ],
   );
 
-  Widget _table(BuildContext context, List<StockQuantRow> rows) =>
-      SingleChildScrollView(
-        child: SingleChildScrollView(
-          scrollDirection: Axis.horizontal,
-          child: DataTable(
-            key: const Key('existences-table'),
-            columns: const [
-              DataColumn(label: Text('Producto')),
-              DataColumn(label: Text('Ubicación')),
-              DataColumn(label: Text('Almacén')),
-              DataColumn(label: Text('A mano'), numeric: true),
-              DataColumn(label: Text('Reservado'), numeric: true),
-              DataColumn(label: Text('Disponible'), numeric: true),
-              DataColumn(label: Text('Detalle')),
-            ],
-            rows: [
-              for (final row in rows)
-                DataRow(
-                  cells: [
-                    DataCell(Text(row.productName)),
-                    DataCell(Text(row.locationName)),
-                    DataCell(Text(row.warehouseName ?? '—')),
-                    DataCell(Text(_qty(row.quantity))),
-                    DataCell(Text(_qty(row.reservedQuantity))),
-                    DataCell(Text(_qty(row.availableQuantity))),
-                    DataCell(Text(row.reservedBy ?? '')),
-                  ],
-                ),
-            ],
+  Widget _table(BuildContext context, List<StockQuantRow> rows) => SfDataGrid(
+    key: const Key('existences-table'),
+    source: _ExistencesDataSource(rows),
+    columnWidthMode: ColumnWidthMode.fill,
+    columns: [
+      _column('product', 'Producto'),
+      _column('location', 'Ubicación'),
+      _column('warehouse', 'Almacén'),
+      _column('quantity', 'A mano', numeric: true),
+      _column('reserved', 'Reservado', numeric: true),
+      _column('available', 'Disponible', numeric: true),
+      _column('detail', 'Detalle'),
+    ],
+  );
+
+  GridColumn _column(String name, String label, {bool numeric = false}) =>
+      GridColumn(
+        columnName: name,
+        label: Container(
+          alignment: numeric ? Alignment.centerRight : Alignment.centerLeft,
+          padding: const EdgeInsets.symmetric(horizontal: 8),
+          child: Text(
+            label,
+            style: FluentTheme.of(context).typography.bodyStrong,
           ),
         ),
       );
@@ -235,48 +238,43 @@ class _WarehouseExistencesScreenState
       );
 
   Widget _card(BuildContext context, StockQuantRow row) => Card(
-    child: Padding(
-      padding: const EdgeInsets.all(OrbiTheme.space16),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(row.productName, style: Theme.of(context).textTheme.titleMedium),
-          const SizedBox(height: OrbiTheme.space4),
-          Text('${row.locationName} · ${row.warehouseName ?? 'Sin almacén'}'),
-          const SizedBox(height: OrbiTheme.space8),
-          Wrap(
-            spacing: OrbiTheme.space8,
-            runSpacing: OrbiTheme.space4,
-            children: [
-              OrbiStatusChip(label: 'A mano: ${_qty(row.quantity)}'),
-              OrbiStatusChip(
-                label: 'Reservado: ${_qty(row.reservedQuantity)}',
-                icon: Icons.lock_outline,
-              ),
-              OrbiStatusChip(
-                label: 'Disponible: ${_qty(row.availableQuantity)}',
-                icon: Icons.inventory_2_outlined,
-              ),
-            ],
-          ),
-          if (row.reservedBy != null) ...[
-            const SizedBox(height: OrbiTheme.space8),
-            Text(
-              'Reservado por: ${row.reservedBy}',
-              style: TextStyle(
-                color: Theme.of(context).colorScheme.onSurfaceVariant,
-              ),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          row.productName,
+          style: FluentTheme.of(context).typography.bodyStrong,
+        ),
+        const SizedBox(height: OrbiTheme.space4),
+        Text('${row.locationName} · ${row.warehouseName ?? 'Sin almacén'}'),
+        const SizedBox(height: OrbiTheme.space8),
+        Wrap(
+          spacing: OrbiTheme.space8,
+          runSpacing: OrbiTheme.space4,
+          children: [
+            OrbiStatusChip(label: 'A mano: ${_qty(row.quantity)}'),
+            OrbiStatusChip(
+              label: 'Reservado: ${_qty(row.reservedQuantity)}',
+              icon: FluentIcons.lock,
+            ),
+            OrbiStatusChip(
+              label: 'Disponible: ${_qty(row.availableQuantity)}',
+              icon: FluentIcons.package,
             ),
           ],
+        ),
+        if (row.reservedBy != null) ...[
+          const SizedBox(height: OrbiTheme.space8),
+          Text(
+            'Reservado por: ${row.reservedBy}',
+            style: TextStyle(
+              color: FluentTheme.of(context).resources.textFillColorSecondary,
+            ),
+          ),
         ],
-      ),
+      ],
     ),
   );
-
-  static String _qty(double value) =>
-      value == value.roundToDouble()
-          ? value.toStringAsFixed(0)
-          : value.toStringAsFixed(2);
 
   static String _formatCachedAt(DateTime utc) {
     final local = utc.toLocal();
@@ -284,4 +282,65 @@ class _WarehouseExistencesScreenState
     return '${local.year}-${two(local.month)}-${two(local.day)} '
         '${two(local.hour)}:${two(local.minute)}';
   }
+}
+
+/// A one-shot, read-only grid source: the screen rebuilds a fresh one on
+/// every `build()` (the underlying rows already come from a `watch()`
+/// stream, so there is no local selection or edit state to preserve across
+/// rebuilds here).
+class _ExistencesDataSource extends DataGridSource {
+  _ExistencesDataSource(List<StockQuantRow> rows)
+    : _rows = [
+        for (final row in rows)
+          DataGridRow(
+            cells: [
+              DataGridCell<String>(columnName: 'product', value: row.productName),
+              DataGridCell<String>(
+                columnName: 'location',
+                value: row.locationName,
+              ),
+              DataGridCell<String>(
+                columnName: 'warehouse',
+                value: row.warehouseName ?? '—',
+              ),
+              DataGridCell<String>(
+                columnName: 'quantity',
+                value: _qty(row.quantity),
+              ),
+              DataGridCell<String>(
+                columnName: 'reserved',
+                value: _qty(row.reservedQuantity),
+              ),
+              DataGridCell<String>(
+                columnName: 'available',
+                value: _qty(row.availableQuantity),
+              ),
+              DataGridCell<String>(
+                columnName: 'detail',
+                value: row.reservedBy ?? '',
+              ),
+            ],
+          ),
+      ];
+
+  final List<DataGridRow> _rows;
+
+  @override
+  List<DataGridRow> get rows => _rows;
+
+  @override
+  DataGridRowAdapter buildRow(DataGridRow row) => DataGridRowAdapter(
+    cells: row.getCells().map((cell) {
+      final numeric = const {
+        'quantity',
+        'reserved',
+        'available',
+      }.contains(cell.columnName);
+      return Container(
+        alignment: numeric ? Alignment.centerRight : Alignment.centerLeft,
+        padding: const EdgeInsets.symmetric(horizontal: 8),
+        child: Text('${cell.value}'),
+      );
+    }).toList(),
+  );
 }

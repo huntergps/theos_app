@@ -1,7 +1,7 @@
-import 'package:flutter/material.dart';
+import 'package:fluent_ui/fluent_ui.dart';
 
 import '../../app/theme/orbi_theme.dart';
-import '../../ui/components/orbi_components.dart';
+import '../../ui/fluent/orbi_page.dart';
 import 'collection_contracts.dart';
 import '../../ui/state_labels.dart';
 
@@ -30,6 +30,15 @@ class CollectionScreen extends StatefulWidget {
 class _CollectionScreenState extends State<CollectionScreen> {
   String? _busy;
   String? _error;
+  // El resultado de la última acción se muestra en un `InfoBar` DENTRO del
+  // árbol de widgets, nunca con `displayInfoBar` (que agenda su propio
+  // `Timer` de auto-cierre a 3 segundos reales): en una prueba de widgets
+  // ese temporizador sigue vivo después de que `pumpAndSettle` decide que
+  // ya no hay más cuadros pendientes, y la prueba revienta con "A Timer is
+  // still pending even after the widget tree was disposed". Aquí el cierre
+  // lo decide la persona (botón de cerrar) o la siguiente acción.
+  String? _resultMessage;
+  InfoBarSeverity _resultSeverity = InfoBarSeverity.info;
   late CollectionShiftSnapshot _currentShift = widget.shift;
   int? _selected;
   bool _mixedDueConfirmed = false;
@@ -67,7 +76,7 @@ class _CollectionScreenState extends State<CollectionScreen> {
   }
 
   @override
-  Widget build(BuildContext context) => OrbiPageShell(
+  Widget build(BuildContext context) => OrbiPage(
     title: 'Caja y cobros',
     child: LayoutBuilder(
       builder: (context, c) {
@@ -76,6 +85,15 @@ class _CollectionScreenState extends State<CollectionScreen> {
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             _shiftCard(context),
+            if (_resultMessage != null)
+              Padding(
+                padding: const EdgeInsets.only(top: 8),
+                child: InfoBar(
+                  title: Text(_resultMessage!),
+                  severity: _resultSeverity,
+                  onClose: () => setState(() => _resultMessage = null),
+                ),
+              ),
             if (_error != null)
               Semantics(
                 liveRegion: true,
@@ -84,7 +102,9 @@ class _CollectionScreenState extends State<CollectionScreen> {
                   child: Text(
                     _error!,
                     style: TextStyle(
-                      color: Theme.of(context).colorScheme.error,
+                      color: FluentTheme.of(
+                        context,
+                      ).resources.systemFillColorCritical,
                     ),
                   ),
                 ),
@@ -130,12 +150,12 @@ class _CollectionScreenState extends State<CollectionScreen> {
               children: [
                 Text(
                   'Turno: ${shiftStateLabel(_currentShift.state)}',
-                  style: Theme.of(context).textTheme.titleMedium,
+                  style: FluentTheme.of(context).typography.bodyStrong,
                 ),
                 if (_currentShift.differenceMinor != null)
                   Text(
                     'Diferencia reportada: ${(_currentShift.differenceMinor! / 100).toStringAsFixed(2)}',
-                    style: Theme.of(context).textTheme.bodyMedium,
+                    style: FluentTheme.of(context).typography.body,
                   ),
               ],
             ),
@@ -164,34 +184,38 @@ class _CollectionScreenState extends State<CollectionScreen> {
 
   Widget _cashCountEditor(BuildContext context) => Padding(
     padding: const EdgeInsets.only(top: 12),
-    child: ExpansionTile(
-      title: const Text('Conteo de cierre'),
-      subtitle: const Text(
-        'Usa denominaciones; el total se calcula automáticamente.',
-      ),
-      children: [
-        Padding(
-          padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-          child: Wrap(
-            spacing: 8,
-            runSpacing: 8,
-            children: [
-              for (final entry in _countFields.entries)
-                SizedBox(
-                  width: 92,
-                  child: TextField(
-                    controller: entry.value,
-                    keyboardType: TextInputType.number,
-                    decoration: InputDecoration(
-                      labelText: _countLabel(entry.key),
-                      isDense: true,
+    child: Expander(
+      header: const Text('Conteo de cierre'),
+      content: Padding(
+        padding: const EdgeInsets.only(top: 12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Text(
+              'Usa denominaciones; el total se calcula automáticamente.',
+            ),
+            const SizedBox(height: 8),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                for (final entry in _countFields.entries)
+                  SizedBox(
+                    width: 92,
+                    child: InfoLabel(
+                      label: _countLabel(entry.key),
+                      child: TextBox(
+                        controller: entry.value,
+                        keyboardType: TextInputType.number,
+                      ),
                     ),
                   ),
-                ),
-            ],
-          ),
+              ],
+            ),
+          ],
         ),
-      ],
+      ),
     ),
   );
 
@@ -234,9 +258,9 @@ class _CollectionScreenState extends State<CollectionScreen> {
             itemCount: widget.pending.length,
             itemBuilder: (context, i) {
               final sale = widget.pending[i];
-              return ListTile(
+              return ListTile.selectable(
                 selected: _selected == i,
-                onTap: () => setState(() {
+                onPressed: () => setState(() {
                   _selected = i;
                   _mixedDueConfirmed = false;
                 }),
@@ -245,7 +269,7 @@ class _CollectionScreenState extends State<CollectionScreen> {
                   'Pendiente: ${(sale.amountMinor / 100).toStringAsFixed(2)}'
                   '${sale.route == CollectionSaleRoute.existingInvoice && sale.wizardId == null ? ' · Requiere wizard nativo' : ''}',
                 ),
-                trailing: const Icon(Icons.chevron_right),
+                trailing: const Icon(FluentIcons.chevron_right),
               );
             },
           ),
@@ -259,130 +283,172 @@ class _CollectionScreenState extends State<CollectionScreen> {
         children: [
           Text(
             'Medio de cobro',
-            style: Theme.of(context).textTheme.titleMedium,
+            style: FluentTheme.of(context).typography.bodyStrong,
           ),
           const SizedBox(height: 8),
-          DropdownButtonFormField<CollectionPaymentLineKind>(
-            initialValue: _lineKind,
-            isExpanded: true,
-            decoration: const InputDecoration(labelText: 'Tipo de línea'),
-            items: const [
-              DropdownMenuItem(
-                value: CollectionPaymentLineKind.payment,
-                child: Text('Pago'),
-              ),
-              DropdownMenuItem(
-                value: CollectionPaymentLineKind.advance,
-                child: Text('Anticipo'),
-              ),
-              DropdownMenuItem(
-                value: CollectionPaymentLineKind.creditNote,
-                child: Text('NC cacheada'),
-              ),
-            ],
-            onChanged: _busy == null
-                ? (value) => setState(() {
-                    _lineKind = value ?? CollectionPaymentLineKind.payment;
-                    _advanceId = null;
-                    _creditNoteId = null;
-                  })
-                : null,
+          InfoLabel(
+            label: 'Tipo de línea',
+            child: ComboBox<CollectionPaymentLineKind>(
+              value: _lineKind,
+              isExpanded: true,
+              items: const [
+                ComboBoxItem(
+                  value: CollectionPaymentLineKind.payment,
+                  child: Text('Pago'),
+                ),
+                ComboBoxItem(
+                  value: CollectionPaymentLineKind.advance,
+                  child: Text('Anticipo'),
+                ),
+                ComboBoxItem(
+                  value: CollectionPaymentLineKind.creditNote,
+                  child: Text('NC cacheada'),
+                ),
+              ],
+              onChanged: _busy == null
+                  ? (value) => setState(() {
+                      _lineKind = value ?? CollectionPaymentLineKind.payment;
+                      _advanceId = null;
+                      _creditNoteId = null;
+                    })
+                  : null,
+            ),
           ),
           if (_lineKind == CollectionPaymentLineKind.advance &&
-              _selected != null)
-            DropdownButtonFormField<int>(
-              initialValue: _advanceId,
-              isExpanded: true,
-              decoration: const InputDecoration(labelText: 'Anticipo'),
-              items: widget.pending[_selected!].cachedAdvances
-                  .map(
-                    (item) => DropdownMenuItem(
-                      value: item.id,
-                      child: Text(
-                        '${item.label} · ${(item.amountMinor / 100).toStringAsFixed(2)}',
+              _selected != null) ...[
+            const SizedBox(height: 8),
+            InfoLabel(
+              label: 'Anticipo',
+              child: ComboBox<int>(
+                value: _advanceId,
+                isExpanded: true,
+                items: widget.pending[_selected!].cachedAdvances
+                    .map(
+                      (item) => ComboBoxItem(
+                        value: item.id,
+                        child: Text(
+                          '${item.label} · ${(item.amountMinor / 100).toStringAsFixed(2)}',
+                        ),
                       ),
-                    ),
-                  )
-                  .toList(),
-              onChanged: _busy == null
-                  ? (value) => setState(() => _advanceId = value)
-                  : null,
+                    )
+                    .toList(),
+                onChanged: _busy == null
+                    ? (value) => setState(() => _advanceId = value)
+                    : null,
+              ),
             ),
+          ],
           if (_lineKind == CollectionPaymentLineKind.creditNote &&
-              _selected != null)
-            DropdownButtonFormField<int>(
-              initialValue: _creditNoteId,
-              isExpanded: true,
-              decoration: const InputDecoration(labelText: 'Nota de crédito'),
-              items: widget.pending[_selected!].cachedCreditNotes
-                  .map(
-                    (item) => DropdownMenuItem(
-                      value: item.id,
-                      child: Text(
-                        '${item.label} · ${(item.amountMinor / 100).toStringAsFixed(2)}',
+              _selected != null) ...[
+            const SizedBox(height: 8),
+            InfoLabel(
+              label: 'Nota de crédito',
+              child: ComboBox<int>(
+                value: _creditNoteId,
+                isExpanded: true,
+                items: widget.pending[_selected!].cachedCreditNotes
+                    .map(
+                      (item) => ComboBoxItem(
+                        value: item.id,
+                        child: Text(
+                          '${item.label} · ${(item.amountMinor / 100).toStringAsFixed(2)}',
+                        ),
                       ),
-                    ),
-                  )
-                  .toList(),
-              onChanged: _busy == null
-                  ? (value) => setState(() => _creditNoteId = value)
-                  : null,
+                    )
+                    .toList(),
+                onChanged: _busy == null
+                    ? (value) => setState(() => _creditNoteId = value)
+                    : null,
+              ),
             ),
-          if (_lineKind == CollectionPaymentLineKind.payment)
-            DropdownButtonFormField<int>(
-              initialValue: _journalId,
-              isExpanded: true,
-              decoration: const InputDecoration(labelText: 'Medio de cobro'),
-              items: widget.journals
-                  .map(
-                    (j) => DropdownMenuItem(value: j.id, child: Text(j.name)),
-                  )
-                  .toList(),
-              onChanged: _busy == null
-                  ? (value) => setState(() => _journalId = value)
-                  : null,
+          ],
+          if (_lineKind == CollectionPaymentLineKind.payment) ...[
+            const SizedBox(height: 8),
+            InfoLabel(
+              label: 'Medio de cobro',
+              child: ComboBox<int>(
+                value: _journalId,
+                isExpanded: true,
+                items: widget.journals
+                    .map(
+                      (j) => ComboBoxItem(value: j.id, child: Text(j.name)),
+                    )
+                    .toList(),
+                onChanged: _busy == null
+                    ? (value) => setState(() => _journalId = value)
+                    : null,
+              ),
             ),
+          ],
           if (widget.cashOutTypes.isNotEmpty) ...[
             const SizedBox(height: 8),
-            DropdownButtonFormField<int>(
-              initialValue: _cashOutTypeId,
-              isExpanded: true,
-              decoration: const InputDecoration(labelText: 'Tipo de salida'),
-              items: widget.cashOutTypes
-                  .map(
-                    (type) => DropdownMenuItem(
-                      value: type.id,
-                      child: Text(type.name),
-                    ),
-                  )
-                  .toList(),
-              onChanged: _busy == null
-                  ? (value) => setState(() => _cashOutTypeId = value)
-                  : null,
+            InfoLabel(
+              label: 'Tipo de salida',
+              child: ComboBox<int>(
+                value: _cashOutTypeId,
+                isExpanded: true,
+                items: widget.cashOutTypes
+                    .map(
+                      (type) => ComboBoxItem(
+                        value: type.id,
+                        child: Text(type.name),
+                      ),
+                    )
+                    .toList(),
+                onChanged: _busy == null
+                    ? (value) => setState(() => _cashOutTypeId = value)
+                    : null,
+              ),
             ),
           ],
           const SizedBox(height: 8),
-          TextField(
-            controller: _amount,
-            keyboardType: TextInputType.number,
-            decoration: const InputDecoration(labelText: 'Monto'),
+          InfoLabel(
+            label: 'Monto',
+            child: TextBox(
+              controller: _amount,
+              keyboardType: const TextInputType.numberWithOptions(
+                decimal: true,
+              ),
+            ),
           ),
           const SizedBox(height: 12),
           if (_selected != null &&
               widget.pending[_selected!].requiresDueConfirmation) ...[
             Card(
               key: const Key('mixed-due-confirmation'),
-              color: Theme.of(context).colorScheme.surfaceContainerHighest,
-              child: CheckboxListTile(
-                value: _mixedDueConfirmed,
-                onChanged: _busy == null
-                    ? (value) =>
-                          setState(() => _mixedDueConfirmed = value ?? false)
-                    : null,
-                title: const Text('Confirmar monto mixto exigible'),
-                subtitle: Text(
-                  'Exigible calculado: ${((widget.pending[_selected!].calculatedDueMinor ?? widget.pending[_selected!].amountMinor) / 100).toStringAsFixed(2)}',
-                ),
+              backgroundColor: FluentTheme.of(
+                context,
+              ).resources.subtleFillColorSecondary,
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Checkbox(
+                    checked: _mixedDueConfirmed,
+                    onChanged: _busy == null
+                        ? (value) =>
+                              setState(() => _mixedDueConfirmed = value ?? false)
+                        : null,
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: GestureDetector(
+                      onTap: _busy == null
+                          ? () => setState(
+                              () => _mixedDueConfirmed = !_mixedDueConfirmed,
+                            )
+                          : null,
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text('Confirmar monto mixto exigible'),
+                          Text(
+                            'Exigible calculado: ${((widget.pending[_selected!].calculatedDueMinor ?? widget.pending[_selected!].amountMinor) / 100).toStringAsFixed(2)}',
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
               ),
             ),
             const SizedBox(height: 8),
@@ -396,10 +462,15 @@ class _CollectionScreenState extends State<CollectionScreen> {
             'Medios añadidos: ${_lines.length} · Total: ${(collectionTotalMinor(_lines) / 100).toStringAsFixed(2)}',
             textAlign: TextAlign.right,
           ),
-          OutlinedButton(
-            onPressed: _busy == null ? _addPaymentLine : null,
-            child: const Text('Añadir medio'),
+          const SizedBox(height: 8),
+          Align(
+            alignment: Alignment.centerRight,
+            child: OutlinedButton(
+              onPressed: _busy == null ? _addPaymentLine : null,
+              child: const Text('Añadir medio'),
+            ),
           ),
+          const SizedBox(height: 8),
           FilledButton(
             onPressed:
                 _busy == 'collect' ||
@@ -431,7 +502,9 @@ class _CollectionScreenState extends State<CollectionScreen> {
       label: 'Acciones no disponibles: $unavailable',
       child: Text(
         'No disponible en este alcance: $unavailable',
-        style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant),
+        style: TextStyle(
+          color: FluentTheme.of(context).resources.textFillColorSecondary,
+        ),
       ),
     );
   }
@@ -476,7 +549,9 @@ class _CollectionScreenState extends State<CollectionScreen> {
       label: 'Operaciones no disponibles: ${unavailable.join(', ')}',
       child: Text(
         'No disponible en este alcance: ${unavailable.join(' · ')}',
-        style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant),
+        style: TextStyle(
+          color: FluentTheme.of(context).resources.textFillColorSecondary,
+        ),
       ),
     );
   }
@@ -512,10 +587,12 @@ class _CollectionScreenState extends State<CollectionScreen> {
               'La acción no se confirmó. ${collectionResultLabel(result)}.',
         );
       }
-      ScaffoldMessenger.of(context)
-          .showSnackBar(
-            SnackBar(content: Text(collectionResultLabel(result))),
-          );
+      if (mounted) {
+        setState(() {
+          _resultMessage = collectionResultLabel(result);
+          _resultSeverity = _severityFor(result);
+        });
+      }
     } finally {
       if (mounted) setState(() => _busy = null);
     }
@@ -550,15 +627,14 @@ class _CollectionScreenState extends State<CollectionScreen> {
         });
       }
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              closeResult == null
-                  ? 'Turno: ${shiftStateLabel(next.state)}'
-                  : 'Cierre: ${collectionResultLabel(closeResult)}',
-            ),
-          ),
-        );
+        setState(() {
+          _resultMessage = closeResult == null
+              ? 'Turno: ${shiftStateLabel(next.state)}'
+              : 'Cierre: ${collectionResultLabel(closeResult)}';
+          _resultSeverity = closeResult == null
+              ? InfoBarSeverity.info
+              : _severityFor(closeResult);
+        });
       }
     } finally {
       if (mounted) setState(() => _busy = null);
@@ -608,15 +684,24 @@ class _CollectionScreenState extends State<CollectionScreen> {
         );
       }
       if (mounted) {
-        ScaffoldMessenger.of(context)
-            .showSnackBar(
-              SnackBar(content: Text(collectionResultLabel(result))),
-            );
+        setState(() {
+          _resultMessage = collectionResultLabel(result);
+          _resultSeverity = _severityFor(result);
+        });
       }
     } finally {
       if (mounted) setState(() => _busy = null);
     }
   }
+
+  InfoBarSeverity _severityFor(CollectionResultState result) =>
+      switch (result) {
+        CollectionResultState.synced => InfoBarSeverity.success,
+        CollectionResultState.queued ||
+        CollectionResultState.local => InfoBarSeverity.info,
+        CollectionResultState.ambiguous ||
+        CollectionResultState.conflict => InfoBarSeverity.warning,
+      };
 
   void _addPaymentLine() {
     if (_selected == null) return;

@@ -1,11 +1,12 @@
 import 'dart:async';
 
-import 'package:flutter/material.dart';
+import 'package:fluent_ui/fluent_ui.dart';
 import 'package:orbi_runtime/orbi_runtime.dart';
 
 import '../../ui/components/orbi_components.dart';
 import '../../ui/components/records/orbi_record_grid.dart';
 import '../../ui/bindings/record_view_controller.dart';
+import '../../ui/fluent/orbi_page.dart';
 
 /// Read-only Envases dashboard surface.
 ///
@@ -100,15 +101,16 @@ class _EnvasesDashboardScreenState extends State<EnvasesDashboardScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return OrbiPageShell(
+    return OrbiPage(
       title: widget.workspaceEnvases,
-      actions: [
-        _ConnectionStatus(connected: widget.isConnected),
-        IconButton(
+      commands: [
+        _WidgetCommandBarItem(_ConnectionStatus(connected: widget.isConnected)),
+        CommandBarButton(
           key: const Key('envases-refresh-button'),
+          icon: const Icon(FluentIcons.refresh),
+          label: const Text('Actualizar'),
           tooltip: 'Actualizar envases',
           onPressed: widget.onRefresh,
-          icon: const Icon(Icons.refresh),
         ),
       ],
       child: Column(
@@ -119,23 +121,21 @@ class _EnvasesDashboardScreenState extends State<EnvasesDashboardScreen> {
             Padding(
               padding: const EdgeInsets.only(bottom: 12),
               child: Card(
-                elevation: 0,
-                color: Theme.of(context).colorScheme.surfaceContainerLow,
-                shape: RoundedRectangleBorder(
-                  side: BorderSide(
-                    color: Theme.of(context).colorScheme.outlineVariant,
-                  ),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Padding(
-                  padding: const EdgeInsets.all(12),
-                  child: TextField(
+                backgroundColor: FluentTheme.of(
+                  context,
+                ).resources.cardBackgroundFillColorSecondary,
+                borderColor: FluentTheme.of(
+                  context,
+                ).resources.surfaceStrokeColorDefault,
+                borderRadius: BorderRadius.circular(12),
+                child: InfoLabel(
+                  label: 'Filtrar por producto o unidad',
+                  child: TextBox(
                     key: const Key('envases-product-filter'),
                     controller: _productFilter,
-                    decoration: const InputDecoration(
-                      labelText: 'Filtrar por producto o unidad',
-                      prefixIcon: Icon(Icons.search),
-                      border: OutlineInputBorder(),
+                    prefix: const Padding(
+                      padding: EdgeInsets.only(left: 8),
+                      child: Icon(FluentIcons.search),
                     ),
                     onChanged: (value) {
                       setState(
@@ -158,7 +158,7 @@ class _EnvasesDashboardScreenState extends State<EnvasesDashboardScreen> {
               ),
             ),
           if (_waiting && _snapshot == null && _error == null)
-            const Expanded(child: Center(child: CircularProgressIndicator()))
+            const Expanded(child: Center(child: ProgressRing()))
           else
             Expanded(
               child: _error != null && _snapshot == null
@@ -206,25 +206,19 @@ class _EnvasesDashboardScreenState extends State<EnvasesDashboardScreen> {
           ),
         Expanded(
           child: Card(
-            elevation: 0,
-            clipBehavior: Clip.antiAlias,
-            color: Theme.of(context).colorScheme.surface,
-            shape: RoundedRectangleBorder(
-              side: BorderSide(
-                color: Theme.of(context).colorScheme.outlineVariant,
-              ),
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: Padding(
-              padding: const EdgeInsets.all(8),
-              child: OrbiRecordGrid<EnvasesDashboardRow>(
-                controller: _controller,
-                columns: _columns,
-                cardBuilder: _envasesCard,
-                onRecordTap: widget.onProductTap == null
-                    ? null
-                    : (record) => widget.onProductTap!(record.value.productId),
-              ),
+            backgroundColor: FluentTheme.of(context).scaffoldBackgroundColor,
+            borderColor: FluentTheme.of(
+              context,
+            ).resources.surfaceStrokeColorDefault,
+            borderRadius: BorderRadius.circular(12),
+            padding: const EdgeInsets.all(8),
+            child: OrbiRecordGrid<EnvasesDashboardRow>(
+              controller: _controller,
+              columns: _columns,
+              cardBuilder: _envasesCard,
+              onRecordTap: widget.onProductTap == null
+                  ? null
+                  : (record) => widget.onProductTap!(record.value.productId),
             ),
           ),
         ),
@@ -309,74 +303,69 @@ class _EnvasesDashboardScreenState extends State<EnvasesDashboardScreen> {
     };
     return Card(
       margin: EdgeInsets.zero,
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: LayoutBuilder(
-          builder: (context, constraints) {
-            final columns = constraints.maxWidth >= 600 ? 2 : 1;
-            return Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            row.productName,
-                            style: Theme.of(context).textTheme.titleMedium,
-                          ),
-                          Text(row.uomName),
-                        ],
-                      ),
-                    ),
-                    Chip(
-                      label: Text(
-                        '${_formatQuantity(row.totalPropio)} propios',
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 12),
-                for (var index = 0; index < metrics.length; index += columns)
-                  Padding(
-                    padding: EdgeInsets.only(
-                      bottom: index + columns < metrics.length ? 8 : 0,
-                    ),
-                    child: Row(
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final columns = constraints.maxWidth >= 600 ? 2 : 1;
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        for (final entry
-                            in metrics.entries.skip(index).take(columns))
-                          Expanded(
-                            child: Padding(
-                              padding: EdgeInsetsDirectional.only(
-                                end:
-                                    entry.key ==
-                                        metrics.entries
-                                            .skip(index)
-                                            .take(columns)
-                                            .last
-                                            .key
-                                    ? 0
-                                    : 8,
-                              ),
-                              child: _metric(
-                                context,
-                                entry.key,
-                                entry.value,
-                                row.uomName,
-                              ),
-                            ),
-                          ),
+                        Text(
+                          row.productName,
+                          style: FluentTheme.of(context).typography.bodyStrong,
+                        ),
+                        Text(row.uomName),
                       ],
                     ),
                   ),
-              ],
-            );
-          },
-        ),
+                  OrbiStatusChip(
+                    label: '${_formatQuantity(row.totalPropio)} propios',
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
+              for (var index = 0; index < metrics.length; index += columns)
+                Padding(
+                  padding: EdgeInsets.only(
+                    bottom: index + columns < metrics.length ? 8 : 0,
+                  ),
+                  child: Row(
+                    children: [
+                      for (final entry
+                          in metrics.entries.skip(index).take(columns))
+                        Expanded(
+                          child: Padding(
+                            padding: EdgeInsetsDirectional.only(
+                              end:
+                                  entry.key ==
+                                      metrics.entries
+                                          .skip(index)
+                                          .take(columns)
+                                          .last
+                                          .key
+                                  ? 0
+                                  : 8,
+                            ),
+                            child: _metric(
+                              context,
+                              entry.key,
+                              entry.value,
+                              row.uomName,
+                            ),
+                          ),
+                        ),
+                    ],
+                  ),
+                ),
+            ],
+          );
+        },
       ),
     );
   }
@@ -388,7 +377,7 @@ class _EnvasesDashboardScreenState extends State<EnvasesDashboardScreen> {
     String unit,
   ) => DecoratedBox(
     decoration: BoxDecoration(
-      color: Theme.of(context).colorScheme.surfaceContainerLow,
+      color: FluentTheme.of(context).resources.cardBackgroundFillColorSecondary,
       borderRadius: BorderRadius.circular(8),
     ),
     child: Padding(
@@ -396,7 +385,7 @@ class _EnvasesDashboardScreenState extends State<EnvasesDashboardScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(label, style: Theme.of(context).textTheme.labelMedium),
+          Text(label, style: FluentTheme.of(context).typography.caption),
           Text('${_formatQuantity(value)} $unit'),
         ],
       ),
@@ -412,22 +401,20 @@ class _DashboardHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final typography = FluentTheme.of(context).typography;
     return Padding(
       padding: const EdgeInsets.only(bottom: 16),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            'Estado de envases',
-            style: Theme.of(context).textTheme.headlineSmall,
-          ),
+          Text('Estado de envases', style: typography.subtitle),
           const SizedBox(height: 4),
           const Text('Consulta la propiedad de envases por producto y unidad.'),
           if (snapshot != null) ...[
             const SizedBox(height: 4),
             Text(
               'Última descarga en este equipo: ${_formatDate(snapshot!.cachedAt)}',
-              style: Theme.of(context).textTheme.bodyMedium,
+              style: typography.body,
             ),
           ],
         ],
@@ -436,29 +423,53 @@ class _DashboardHeader extends StatelessWidget {
   }
 }
 
+/// Insignia de estado de conexión. El color sigue el significado, no la
+/// forma: verde cuando hay conexión confirmada, rojo cuando se sabe que no
+/// la hay, gris cuando todavía no se ha verificado — nunca al revés.
 class _ConnectionStatus extends StatelessWidget {
   const _ConnectionStatus({required this.connected});
 
   final bool? connected;
 
   @override
-  Widget build(BuildContext context) => Chip(
-    avatar: Icon(
-      connected == null
-          ? Icons.cloud_outlined
-          : connected!
-          ? Icons.cloud_done_outlined
-          : Icons.cloud_off_outlined,
-      size: 18,
-    ),
-    label: Text(
-      connected == null
-          ? 'Red sin verificar'
-          : connected!
-          ? 'Conectado'
-          : 'Sin conexión',
-    ),
-  );
+  Widget build(BuildContext context) {
+    final resources = FluentTheme.of(context).resources;
+    final (icon, color, label) = switch (connected) {
+      null => (FluentIcons.cloud, resources.textFillColorSecondary, 'Red sin verificar'),
+      true => (FluentIcons.cloud, resources.systemFillColorSuccess, 'Conectado'),
+      false => (
+        FluentIcons.cloud_not_synced,
+        resources.systemFillColorCritical,
+        'Sin conexión',
+      ),
+    };
+    return Semantics(
+      label: label,
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          color: resources.subtleFillColorSecondary,
+          borderRadius: const BorderRadius.all(Radius.circular(4)),
+          border: Border.all(color: color),
+        ),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              ExcludeSemantics(child: Icon(icon, size: 16, color: color)),
+              const SizedBox(width: 6),
+              ExcludeSemantics(
+                child: Text(
+                  label,
+                  style: FluentTheme.of(context).typography.caption,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
 }
 
 class _ErrorBanner extends StatelessWidget {
@@ -467,24 +478,51 @@ class _ErrorBanner extends StatelessWidget {
   final VoidCallback? onRetry;
 
   @override
-  Widget build(BuildContext context) => Padding(
-    padding: const EdgeInsets.only(bottom: 12),
-    child: Material(
-      color: Theme.of(context).colorScheme.errorContainer,
-      borderRadius: BorderRadius.circular(12),
-      child: ListTile(
-        leading: Icon(
-          Icons.error_outline,
-          color: Theme.of(context).colorScheme.onErrorContainer,
+  Widget build(BuildContext context) {
+    final resources = FluentTheme.of(context).resources;
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: Card(
+        backgroundColor: resources.systemFillColorCriticalBackground,
+        borderColor: resources.systemFillColorCritical,
+        borderRadius: BorderRadius.circular(12),
+        child: Row(
+          children: [
+            Icon(FluentIcons.error_badge, color: resources.systemFillColorCritical),
+            const SizedBox(width: 12),
+            const Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text('No se pudo actualizar el dashboard.'),
+                  Text('Se conserva la última copia disponible.'),
+                ],
+              ),
+            ),
+            if (onRetry != null)
+              Button(onPressed: onRetry, child: const Text('Reintentar')),
+          ],
         ),
-        title: const Text('No se pudo actualizar el dashboard.'),
-        subtitle: const Text('Se conserva la última copia disponible.'),
-        trailing: onRetry == null
-            ? null
-            : TextButton(onPressed: onRetry, child: const Text('Reintentar')),
       ),
-    ),
-  );
+    );
+  }
+}
+
+/// Adapta un widget cualquiera (no un botón) para la barra de acciones de
+/// [OrbiPage], que sólo entiende [CommandBarItem]. Existe porque el estado de
+/// conexión no es una acción: es una insignia informativa.
+class _WidgetCommandBarItem extends CommandBarItem {
+  const _WidgetCommandBarItem(this.child) : super(key: null);
+
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context, CommandBarItemDisplayMode displayMode) =>
+      Padding(
+        padding: const EdgeInsetsDirectional.symmetric(horizontal: 4),
+        child: child,
+      );
 }
 
 String _formatQuantity(double value) => value == value.roundToDouble()

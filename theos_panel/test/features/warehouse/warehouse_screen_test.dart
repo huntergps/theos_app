@@ -1,9 +1,10 @@
 import 'dart:async';
 
-import 'package:flutter/material.dart';
+import 'package:fluent_ui/fluent_ui.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:theos_panel/features/orders/orders_contracts.dart';
 import 'package:theos_panel/features/warehouse/warehouse_screen.dart';
+import 'package:theos_panel/ui/fluent/orbi_fluent_theme.dart';
 import 'package:orbi_runtime/orbi_runtime.dart';
 
 final class _Operations implements WarehouseOperationPort {
@@ -88,7 +89,7 @@ void main() {
       permissions: const ['warehouse'],
     );
     await tester.pumpWidget(
-      MaterialApp(
+      FluentApp(theme: OrbiFluentTheme.light,
         home: WarehouseScreen(
           repository: repository,
           operations: operations,
@@ -121,7 +122,7 @@ void main() {
       permissions: const ['warehouse'],
     );
     await tester.pumpWidget(
-      MaterialApp(
+      FluentApp(theme: OrbiFluentTheme.light,
         home: WarehouseScreen(
           repository: repository,
           operations: operations,
@@ -155,7 +156,7 @@ void main() {
       permissions: const ['warehouse'],
     );
     await tester.pumpWidget(
-      MaterialApp(
+      FluentApp(theme: OrbiFluentTheme.light,
         home: WarehouseScreen(
           repository: repository,
           operations: operations,

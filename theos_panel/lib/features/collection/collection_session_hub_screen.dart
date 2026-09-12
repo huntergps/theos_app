@@ -1,7 +1,8 @@
-import 'package:flutter/material.dart';
+import 'package:fluent_ui/fluent_ui.dart';
 
 import '../../app/theme/orbi_theme.dart';
 import '../../ui/components/orbi_components.dart';
+import '../../ui/fluent/orbi_page.dart';
 import 'collection_contracts.dart';
 
 /// Point-of-collection identity for the hub header. A read-only projection of
@@ -114,7 +115,7 @@ class CollectionSessionHubScreen extends StatelessWidget {
   final CollectionSessionRecordCounts? counts;
 
   @override
-  Widget build(BuildContext context) => OrbiPageShell(
+  Widget build(BuildContext context) => OrbiPage(
     title: 'Caja: punto y sesión',
     child: LayoutBuilder(
       builder: (context, constraints) {
@@ -136,7 +137,10 @@ class CollectionSessionHubScreen extends StatelessWidget {
               const SizedBox(height: OrbiTheme.space16),
               _section(context, 'Registros', recordActions, wide),
               const SizedBox(height: OrbiTheme.space16),
-              Text('Cierre', style: Theme.of(context).textTheme.titleMedium),
+              Text(
+                'Cierre',
+                style: FluentTheme.of(context).typography.bodyStrong,
+              ),
               const SizedBox(height: OrbiTheme.space8),
               _tile(context, closing),
             ],
@@ -162,7 +166,7 @@ class CollectionSessionHubScreen extends StatelessWidget {
               children: [
                 Text(
                   point.pointLabel,
-                  style: Theme.of(context).textTheme.titleMedium,
+                  style: FluentTheme.of(context).typography.subtitle,
                 ),
                 if (point.cashierLabel != null) Text(point.cashierLabel!),
                 Text('Turno: ${_stateLabel(shift.state)}'),
@@ -190,7 +194,7 @@ class CollectionSessionHubScreen extends StatelessWidget {
 
   Widget _countChip(String label, int? value) => OrbiStatusChip(
     label: '$label: ${value?.toString() ?? 'No disponible'}',
-    icon: Icons.list_alt,
+    icon: FluentIcons.clipboard_list,
   );
 
   Widget _section(
@@ -203,7 +207,7 @@ class CollectionSessionHubScreen extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(title, style: Theme.of(context).textTheme.titleMedium),
+        Text(title, style: FluentTheme.of(context).typography.bodyStrong),
         const SizedBox(height: OrbiTheme.space8),
         wide ? _grid(context, actions) : _list(context, actions),
       ],
@@ -245,45 +249,52 @@ class CollectionSessionHubScreen extends StatelessWidget {
   Widget _tile(BuildContext context, CollectionHubAction action) {
     final status = action.statusLabel;
     return Card(
+      padding: EdgeInsets.zero,
       child: Semantics(
         button: action.isEnabled,
         label: status == null
             ? '${action.label}. ${action.description}'
             : '${action.label}. ${action.description}. $status',
-        child: InkWell(
-          onTap: action.isEnabled ? action.onOpen : null,
-          borderRadius: BorderRadius.circular(12),
-          child: Padding(
-            padding: const EdgeInsets.all(OrbiTheme.space16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Row(
-                  children: [
-                    Icon(action.icon, semanticLabel: ''),
-                    const SizedBox(width: OrbiTheme.space8),
-                    Expanded(
-                      child: Text(
-                        action.label,
-                        style: Theme.of(context).textTheme.titleMedium,
+        child: MouseRegion(
+          cursor: action.isEnabled
+              ? SystemMouseCursors.click
+              : SystemMouseCursors.basic,
+          child: GestureDetector(
+            onTap: action.isEnabled ? action.onOpen : null,
+            child: Padding(
+              padding: const EdgeInsets.all(OrbiTheme.space16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Row(
+                    children: [
+                      Icon(action.icon, semanticLabel: ''),
+                      const SizedBox(width: OrbiTheme.space8),
+                      Expanded(
+                        child: Text(
+                          action.label,
+                          style: FluentTheme.of(context).typography.bodyStrong,
+                        ),
+                      ),
+                      const Icon(FluentIcons.chevron_right, semanticLabel: ''),
+                    ],
+                  ),
+                  const SizedBox(height: OrbiTheme.space4),
+                  Text(action.description),
+                  if (status != null) ...[
+                    const SizedBox(height: OrbiTheme.space8),
+                    Text(
+                      status,
+                      style: TextStyle(
+                        color: FluentTheme.of(
+                          context,
+                        ).resources.textFillColorSecondary,
                       ),
                     ),
-                    const Icon(Icons.chevron_right, semanticLabel: ''),
                   ],
-                ),
-                const SizedBox(height: OrbiTheme.space4),
-                Text(action.description),
-                if (status != null) ...[
-                  const SizedBox(height: OrbiTheme.space8),
-                  Text(
-                    status,
-                    style: TextStyle(
-                      color: Theme.of(context).colorScheme.onSurfaceVariant,
-                    ),
-                  ),
                 ],
-              ],
+              ),
             ),
           ),
         ),
