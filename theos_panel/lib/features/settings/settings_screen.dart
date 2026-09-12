@@ -1,4 +1,5 @@
 import 'package:fluent_ui/fluent_ui.dart';
+import 'package:odoo_widgets/odoo_widgets.dart';
 import 'package:orbi_runtime/orbi_runtime.dart';
 
 import '../../app/preferences/app_preferences.dart';
@@ -41,56 +42,75 @@ class SettingsScreen extends StatelessWidget {
             vertical: 16,
           ),
           children: [
-            InfoLabel(
-              label: 'Tema',
-              child: ComboBox<PreferenceThemeMode>(
-                isExpanded: true,
-                value: controller.snapshot.themeMode,
-                items: [
-                  for (final mode in PreferenceThemeMode.values)
-                    ComboBoxItem(
-                      value: mode,
-                      child: Text(_themeModeLabel(mode)),
+            // El formulario estándar (orden del dueño, 12-sep-2026): sólo
+            // estos tres son de verdad un formulario (una elección con
+            // etiqueta). `OrbiForm` a secas — sin `.filling` — porque este
+            // trozo vive dentro del `ListView` de esta pantalla, que sigue
+            // scrolleando el resto (deslizador, interruptores, PIN...) tal
+            // como antes.
+            OrbiForm(
+              sections: [
+                OrbiFormSection(
+                  title: 'Apariencia',
+                  fields: [
+                    OrbiField(
+                      label: 'Tema',
+                      child: ComboBox<PreferenceThemeMode>(
+                        isExpanded: true,
+                        value: controller.snapshot.themeMode,
+                        items: [
+                          for (final mode in PreferenceThemeMode.values)
+                            ComboBoxItem(
+                              value: mode,
+                              child: Text(_themeModeLabel(mode)),
+                            ),
+                        ],
+                        onChanged: (value) {
+                          if (value != null) controller.setTheme(value);
+                        },
+                      ),
                     ),
-                ],
-                onChanged: (value) {
-                  if (value != null) controller.setTheme(value);
-                },
-              ),
-            ),
-            const SizedBox(height: 16),
-            InfoLabel(
-              label: 'Densidad',
-              child: ComboBox<PreferenceDensity>(
-                isExpanded: true,
-                value: controller.snapshot.density,
-                items: [
-                  for (final density in PreferenceDensity.values)
-                    ComboBoxItem(
-                      value: density,
-                      child: Text(_densityLabel(density)),
+                    OrbiField(
+                      label: 'Densidad',
+                      child: ComboBox<PreferenceDensity>(
+                        isExpanded: true,
+                        value: controller.snapshot.density,
+                        items: [
+                          for (final density in PreferenceDensity.values)
+                            ComboBoxItem(
+                              value: density,
+                              child: Text(_densityLabel(density)),
+                            ),
+                        ],
+                        onChanged: (value) {
+                          if (value != null) controller.setDensity(value);
+                        },
+                      ),
                     ),
-                ],
-                onChanged: (value) {
-                  if (value != null) controller.setDensity(value);
-                },
-              ),
-            ),
-            const SizedBox(height: 16),
-            InfoLabel(
-              label: 'Acento',
-              child: ComboBox<int>(
-                isExpanded: true,
-                value: controller.snapshot.accentSeed,
-                items: const [
-                  ComboBoxItem(value: 0xFF007E82, child: Text('Orbi teal')),
-                  ComboBoxItem(value: 0xFF1565C0, child: Text('Azul')),
-                  ComboBoxItem(value: 0xFF8D4E00, child: Text('Ámbar')),
-                ],
-                onChanged: (value) {
-                  if (value != null) controller.setAccentSeed(value);
-                },
-              ),
+                    OrbiField(
+                      label: 'Acento',
+                      child: ComboBox<int>(
+                        isExpanded: true,
+                        value: controller.snapshot.accentSeed,
+                        items: const [
+                          ComboBoxItem(
+                            value: 0xFF007E82,
+                            child: Text('Orbi teal'),
+                          ),
+                          ComboBoxItem(value: 0xFF1565C0, child: Text('Azul')),
+                          ComboBoxItem(
+                            value: 0xFF8D4E00,
+                            child: Text('Ámbar'),
+                          ),
+                        ],
+                        onChanged: (value) {
+                          if (value != null) controller.setAccentSeed(value);
+                        },
+                      ),
+                    ),
+                  ],
+                ),
+              ],
             ),
             const SizedBox(height: 16),
             Text(

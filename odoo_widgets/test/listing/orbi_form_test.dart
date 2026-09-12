@@ -242,4 +242,53 @@ void main() {
       reason: 'la última sección queda fuera de la ventana, sin scrollear',
     );
   });
+
+  // 🔴 La etiqueta iba en una fila sin límite de ancho. Con letra grande en un
+  // teléfono, una etiqueta larga desbordaba por la derecha: rompió la prueba
+  // de cobros a 360 px y 2x, y quedaba latente en el alta de PIN y el editor
+  // de venta. Tiene que partir en líneas, NO recortarse: una etiqueta cortada
+  // esconde de qué es el campo.
+  testWidgets(
+    'una etiqueta larga con letra grande parte en líneas, no desborda',
+    (tester) async {
+      await tester.binding.setSurfaceSize(const Size(360, 800));
+      addTearDown(() => tester.binding.setSurfaceSize(null));
+      await tester.pumpWidget(
+        FluentApp(
+          home: Builder(
+            builder: (context) => MediaQuery(
+              data: MediaQuery.of(context)
+                  .copyWith(textScaler: const TextScaler.linear(2)),
+              child: ScaffoldPage(
+                content: SingleChildScrollView(
+                  child: OrbiForm(
+                    sections: [
+                      OrbiFormSection(
+                        title: 'Datos',
+                        fields: [
+                          OrbiField(
+                            label: 'Confirmar el número de identificación',
+                            required: true,
+                            child: const TextBox(),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(tester.takeException(), isNull, reason: 'la etiqueta desbordó');
+      expect(
+        find.text('Confirmar el número de identificación'),
+        findsOneWidget,
+      );
+      expect(find.text('*'), findsOneWidget);
+    },
+  );
 }

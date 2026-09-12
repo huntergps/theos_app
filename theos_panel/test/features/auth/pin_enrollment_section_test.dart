@@ -126,7 +126,16 @@ void main() {
       // end with a pending Timer.
       await tester.pump(const Duration(milliseconds: 100));
 
-      expect(find.byKey(const Key('pin-enroll-error')), findsOneWidget);
+      // El error va pegado al campo de OrbiField ("formulario estándar",
+      // orden del dueño 12-sep-2026) en vez de en un Text con clave propia
+      // como antes — se comprueba por su texto, y que quede bajo SU campo.
+      const message = 'Los PIN ingresados no coinciden';
+      expect(find.text(message), findsOneWidget);
+      expect(
+        tester.getCenter(find.text(message)).dy,
+        greaterThan(tester.getCenter(find.text('Confirmar PIN')).dy),
+        reason: 'El error debe quedar debajo de la etiqueta de su campo.',
+      );
       expect(PinCredentialStore(preferences).isEnrolled(_scopeKey), isFalse);
     },
   );
@@ -171,4 +180,59 @@ void main() {
       expect(find.byKey(const Key('pin-enroll-new-field')), findsOneWidget);
     },
   );
+
+  // ==========================================================================
+  // El formulario estándar (orden del dueño, 12-sep-2026): estos casos miran
+  // lo que la persona ve, no que el widget exista.
+  // ==========================================================================
+  group('el formulario de PIN usa OrbiField/OrbiForm', () {
+    testWidgets(
+      'las dos etiquetas se ven, y lo obligatorio se marca antes de escribir',
+      (tester) async {
+        final preferences = await _preferences();
+        await _pump(tester, preferences);
+
+        expect(find.text('Nuevo PIN'), findsOneWidget);
+        expect(find.text('Confirmar PIN'), findsOneWidget);
+        expect(find.text('*'), findsNWidgets(2));
+        expect(find.bySemanticsLabel('obligatorio'), findsNWidgets(2));
+      },
+    );
+
+    testWidgets(
+      'un PIN con formato inválido deja el error pegado a "Nuevo PIN"',
+      (tester) async {
+        final preferences = await _preferences();
+        await _pump(tester, preferences);
+
+        await tester.enterText(
+          find.byKey(const Key('pin-enroll-new-field')),
+          '12',
+        );
+        await tester.enterText(
+          find.byKey(const Key('pin-enroll-confirm-field')),
+          '12',
+        );
+        await tester.tap(find.byKey(const Key('pin-enroll-submit')));
+        await tester.pump();
+        await tester.pump(const Duration(milliseconds: 100));
+
+        const message = 'El PIN debe tener 4 dígitos';
+        expect(find.text(message), findsOneWidget);
+        expect(
+          tester.getCenter(find.text(message)).dy,
+          greaterThan(tester.getCenter(find.text('Nuevo PIN')).dy),
+        );
+        expect(
+          find.text('Los PIN ingresados no coinciden'),
+          findsNothing,
+          reason: 'Con el formato ya inválido no debe llegar a comparar.',
+        );
+        expect(
+          PinCredentialStore(preferences).isEnrolled(_scopeKey),
+          isFalse,
+        );
+      },
+    );
+  });
 }

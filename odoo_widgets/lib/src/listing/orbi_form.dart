@@ -181,10 +181,16 @@ class _Field extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       mainAxisSize: MainAxisSize.min,
       children: [
+        // La etiqueta PARTE en líneas dentro de su espacio; no se recorta. Sin
+        // el Flexible la fila no tenía límite de ancho y, con letra grande en
+        // un teléfono, una etiqueta larga desbordaba por la derecha.
         Row(
           mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(field.label, style: theme.typography.bodyStrong),
+            Flexible(
+              child: Text(field.label, style: theme.typography.bodyStrong),
+            ),
             if (field.required)
               Padding(
                 padding: const EdgeInsets.only(left: 4),

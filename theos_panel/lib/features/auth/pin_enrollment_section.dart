@@ -1,5 +1,6 @@
 import 'package:fluent_ui/fluent_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:odoo_widgets/odoo_widgets.dart';
 
 import 'auth_controller.dart';
 import 'pin_credential_store.dart';
@@ -36,7 +37,12 @@ class _PinEnrollmentSectionState extends ConsumerState<PinEnrollmentSection> {
   final _confirmController = TextEditingController();
   bool _editingOpen = false;
   bool _busy = false;
-  String? _error;
+  // El error va pegado a su campo (orden del dueño, 12-sep-2026): el formato
+  // inválido se queda en "Nuevo PIN" y el desacuerdo en "Confirmar PIN".
+  // _generalError es lo único que no es de un campo (falló el guardado).
+  String? _pinError;
+  String? _confirmError;
+  String? _generalError;
   String? _notice;
 
   @override
@@ -102,7 +108,9 @@ class _PinEnrollmentSectionState extends ConsumerState<PinEnrollmentSection> {
             key: const Key('pin-enroll-change-button'),
             onPressed: () => setState(() {
               _editingOpen = true;
-              _error = null;
+              _pinError = null;
+              _confirmError = null;
+              _generalError = null;
               _notice = null;
             }),
             child: const Text('Cambiar PIN'),
@@ -118,6 +126,11 @@ class _PinEnrollmentSectionState extends ConsumerState<PinEnrollmentSection> {
     ],
   );
 
+  /// El formulario estándar (orden del dueño, 12-sep-2026): etiqueta encima,
+  /// obligatorio marcado antes de escribir, error pegado al campo que
+  /// falló. `OrbiForm` a secas (sin `.filling`) porque este trozo vive
+  /// dentro del `ListView` de Configuración, que ya scrollea el resto de la
+  /// pantalla — no le hace falta ni le corresponde su propio scroll.
   Widget _form(
     BuildContext context, {
     required PinCredentialStore store,
@@ -135,33 +148,44 @@ class _PinEnrollmentSectionState extends ConsumerState<PinEnrollmentSection> {
                   'añade permisos.',
       ),
       const SizedBox(height: 8),
-      InfoLabel(
-        label: 'Nuevo PIN',
-        child: TextBox(
-          key: const Key('pin-enroll-new-field'),
-          controller: _pinController,
-          obscureText: true,
-          keyboardType: TextInputType.number,
-          maxLength: kSellerPinLength,
-        ),
+      OrbiForm(
+        sections: [
+          OrbiFormSection(
+            title: 'PIN de acceso rápido',
+            fields: [
+              OrbiField(
+                label: 'Nuevo PIN',
+                required: true,
+                error: _pinError,
+                child: TextBox(
+                  key: const Key('pin-enroll-new-field'),
+                  controller: _pinController,
+                  obscureText: true,
+                  keyboardType: TextInputType.number,
+                  maxLength: kSellerPinLength,
+                ),
+              ),
+              OrbiField(
+                label: 'Confirmar PIN',
+                required: true,
+                error: _confirmError,
+                child: TextBox(
+                  key: const Key('pin-enroll-confirm-field'),
+                  controller: _confirmController,
+                  obscureText: true,
+                  keyboardType: TextInputType.number,
+                  maxLength: kSellerPinLength,
+                ),
+              ),
+            ],
+          ),
+        ],
       ),
-      const SizedBox(height: 8),
-      InfoLabel(
-        label: 'Confirmar PIN',
-        child: TextBox(
-          key: const Key('pin-enroll-confirm-field'),
-          controller: _confirmController,
-          obscureText: true,
-          keyboardType: TextInputType.number,
-          maxLength: kSellerPinLength,
-        ),
-      ),
-      if (_error != null)
+      if (_generalError != null)
         Padding(
-          padding: const EdgeInsets.only(top: 8, bottom: 8),
+          padding: const EdgeInsets.only(bottom: 8),
           child: Text(
-            _error!,
-            key: const Key('pin-enroll-error'),
+            _generalError!,
             style: TextStyle(color: FluentTheme.of(context).resources.systemFillColorCritical),
           ),
         ),
@@ -187,7 +211,9 @@ class _PinEnrollmentSectionState extends ConsumerState<PinEnrollmentSection> {
 
   void _cancelEditing() => setState(() {
     _editingOpen = false;
-    _error = null;
+    _pinError = null;
+    _confirmError = null;
+    _generalError = null;
     _pinController.clear();
     _confirmController.clear();
   });
@@ -195,19 +221,21 @@ class _PinEnrollmentSectionState extends ConsumerState<PinEnrollmentSection> {
   Future<void> _submit(PinCredentialStore store, String scopeKey) async {
     final pin = _pinController.text;
     final confirm = _confirmController.text;
+    setState(() {
+      _pinError = null;
+      _confirmError = null;
+      _generalError = null;
+    });
     final validation = validateSellerPin(pin);
     if (validation != null) {
-      setState(() => _error = validation);
+      setState(() => _pinError = validation);
       return;
     }
     if (pin != confirm) {
-      setState(() => _error = 'Los PIN ingresados no coinciden');
+      setState(() => _confirmError = 'Los PIN ingresados no coinciden');
       return;
     }
-    setState(() {
-      _busy = true;
-      _error = null;
-    });
+    setState(() => _busy = true);
     try {
       await store.enroll(scopeKey, pin);
       if (!mounted) return;
@@ -222,7 +250,7 @@ class _PinEnrollmentSectionState extends ConsumerState<PinEnrollmentSection> {
       if (!mounted) return;
       setState(() {
         _busy = false;
-        _error = 'No se pudo guardar el PIN. Intenta nuevamente.';
+        _generalError = 'No se pudo guardar el PIN. Intenta nuevamente.';
       });
     }
   }

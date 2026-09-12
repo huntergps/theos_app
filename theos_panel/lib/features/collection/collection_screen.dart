@@ -1,4 +1,5 @@
 import 'package:fluent_ui/fluent_ui.dart';
+import 'package:odoo_widgets/odoo_widgets.dart';
 
 import '../../app/theme/orbi_theme.dart';
 import '../../ui/fluent/orbi_page.dart';
@@ -281,135 +282,139 @@ class _CollectionScreenState extends State<CollectionScreen> {
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Text(
-            'Medio de cobro',
-            style: FluentTheme.of(context).typography.bodyStrong,
-          ),
-          const SizedBox(height: 8),
-          InfoLabel(
-            label: 'Tipo de línea',
-            child: ComboBox<CollectionPaymentLineKind>(
-              value: _lineKind,
-              isExpanded: true,
-              items: const [
-                ComboBoxItem(
-                  value: CollectionPaymentLineKind.payment,
-                  child: Text('Pago'),
-                ),
-                ComboBoxItem(
-                  value: CollectionPaymentLineKind.advance,
-                  child: Text('Anticipo'),
-                ),
-                ComboBoxItem(
-                  value: CollectionPaymentLineKind.creditNote,
-                  child: Text('NC cacheada'),
-                ),
-              ],
-              onChanged: _busy == null
-                  ? (value) => setState(() {
-                      _lineKind = value ?? CollectionPaymentLineKind.payment;
-                      _advanceId = null;
-                      _creditNoteId = null;
-                    })
-                  : null,
-            ),
-          ),
-          if (_lineKind == CollectionPaymentLineKind.advance &&
-              _selected != null) ...[
-            const SizedBox(height: 8),
-            InfoLabel(
-              label: 'Anticipo',
-              child: ComboBox<int>(
-                value: _advanceId,
-                isExpanded: true,
-                items: widget.pending[_selected!].cachedAdvances
-                    .map(
-                      (item) => ComboBoxItem(
-                        value: item.id,
-                        child: Text(
-                          '${item.label} · ${(item.amountMinor / 100).toStringAsFixed(2)}',
+          // El formulario estándar (orden del dueño, 12-sep-2026): sólo los
+          // campos que de verdad se rellenan pasan por aquí. `OrbiForm` a
+          // secas — sin `.filling` — porque esta tarjeta ya vive dentro del
+          // scroll de la pantalla en la vista angosta (ver build()). La
+          // tarjeta de confirmación, los totales calculados y las acciones
+          // financieras se quedan fuera: no son campos, son resultado o
+          // acción, no algo que se rellena.
+          OrbiForm(
+            sections: [
+              OrbiFormSection(
+                title: 'Medio de cobro',
+                fields: [
+                  OrbiField(
+                    label: 'Tipo de línea',
+                    child: ComboBox<CollectionPaymentLineKind>(
+                      value: _lineKind,
+                      isExpanded: true,
+                      items: const [
+                        ComboBoxItem(
+                          value: CollectionPaymentLineKind.payment,
+                          child: Text('Pago'),
                         ),
-                      ),
-                    )
-                    .toList(),
-                onChanged: _busy == null
-                    ? (value) => setState(() => _advanceId = value)
-                    : null,
-              ),
-            ),
-          ],
-          if (_lineKind == CollectionPaymentLineKind.creditNote &&
-              _selected != null) ...[
-            const SizedBox(height: 8),
-            InfoLabel(
-              label: 'Nota de crédito',
-              child: ComboBox<int>(
-                value: _creditNoteId,
-                isExpanded: true,
-                items: widget.pending[_selected!].cachedCreditNotes
-                    .map(
-                      (item) => ComboBoxItem(
-                        value: item.id,
-                        child: Text(
-                          '${item.label} · ${(item.amountMinor / 100).toStringAsFixed(2)}',
+                        ComboBoxItem(
+                          value: CollectionPaymentLineKind.advance,
+                          child: Text('Anticipo'),
                         ),
+                        ComboBoxItem(
+                          value: CollectionPaymentLineKind.creditNote,
+                          child: Text('NC cacheada'),
+                        ),
+                      ],
+                      onChanged: _busy == null
+                          ? (value) => setState(() {
+                              _lineKind =
+                                  value ?? CollectionPaymentLineKind.payment;
+                              _advanceId = null;
+                              _creditNoteId = null;
+                            })
+                          : null,
+                    ),
+                  ),
+                  if (_lineKind == CollectionPaymentLineKind.advance &&
+                      _selected != null)
+                    OrbiField(
+                      label: 'Anticipo',
+                      child: ComboBox<int>(
+                        value: _advanceId,
+                        isExpanded: true,
+                        items: widget.pending[_selected!].cachedAdvances
+                            .map(
+                              (item) => ComboBoxItem(
+                                value: item.id,
+                                child: Text(
+                                  '${item.label} · ${(item.amountMinor / 100).toStringAsFixed(2)}',
+                                ),
+                              ),
+                            )
+                            .toList(),
+                        onChanged: _busy == null
+                            ? (value) => setState(() => _advanceId = value)
+                            : null,
                       ),
-                    )
-                    .toList(),
-                onChanged: _busy == null
-                    ? (value) => setState(() => _creditNoteId = value)
-                    : null,
-              ),
-            ),
-          ],
-          if (_lineKind == CollectionPaymentLineKind.payment) ...[
-            const SizedBox(height: 8),
-            InfoLabel(
-              label: 'Medio de cobro',
-              child: ComboBox<int>(
-                value: _journalId,
-                isExpanded: true,
-                items: widget.journals
-                    .map(
-                      (j) => ComboBoxItem(value: j.id, child: Text(j.name)),
-                    )
-                    .toList(),
-                onChanged: _busy == null
-                    ? (value) => setState(() => _journalId = value)
-                    : null,
-              ),
-            ),
-          ],
-          if (widget.cashOutTypes.isNotEmpty) ...[
-            const SizedBox(height: 8),
-            InfoLabel(
-              label: 'Tipo de salida',
-              child: ComboBox<int>(
-                value: _cashOutTypeId,
-                isExpanded: true,
-                items: widget.cashOutTypes
-                    .map(
-                      (type) => ComboBoxItem(
-                        value: type.id,
-                        child: Text(type.name),
+                    ),
+                  if (_lineKind == CollectionPaymentLineKind.creditNote &&
+                      _selected != null)
+                    OrbiField(
+                      label: 'Nota de crédito',
+                      child: ComboBox<int>(
+                        value: _creditNoteId,
+                        isExpanded: true,
+                        items: widget.pending[_selected!].cachedCreditNotes
+                            .map(
+                              (item) => ComboBoxItem(
+                                value: item.id,
+                                child: Text(
+                                  '${item.label} · ${(item.amountMinor / 100).toStringAsFixed(2)}',
+                                ),
+                              ),
+                            )
+                            .toList(),
+                        onChanged: _busy == null
+                            ? (value) => setState(() => _creditNoteId = value)
+                            : null,
                       ),
-                    )
-                    .toList(),
-                onChanged: _busy == null
-                    ? (value) => setState(() => _cashOutTypeId = value)
-                    : null,
+                    ),
+                  if (_lineKind == CollectionPaymentLineKind.payment)
+                    OrbiField(
+                      label: 'Medio de cobro',
+                      child: ComboBox<int>(
+                        value: _journalId,
+                        isExpanded: true,
+                        items: widget.journals
+                            .map(
+                              (j) =>
+                                  ComboBoxItem(value: j.id, child: Text(j.name)),
+                            )
+                            .toList(),
+                        onChanged: _busy == null
+                            ? (value) => setState(() => _journalId = value)
+                            : null,
+                      ),
+                    ),
+                  if (widget.cashOutTypes.isNotEmpty)
+                    OrbiField(
+                      label: 'Tipo de salida',
+                      child: ComboBox<int>(
+                        value: _cashOutTypeId,
+                        isExpanded: true,
+                        items: widget.cashOutTypes
+                            .map(
+                              (type) => ComboBoxItem(
+                                value: type.id,
+                                child: Text(type.name),
+                              ),
+                            )
+                            .toList(),
+                        onChanged: _busy == null
+                            ? (value) => setState(() => _cashOutTypeId = value)
+                            : null,
+                      ),
+                    ),
+                  OrbiField(
+                    label: 'Monto',
+                    child: TextBox(
+                      controller: _amount,
+                      keyboardType: const TextInputType.numberWithOptions(
+                        decimal: true,
+                      ),
+                    ),
+                  ),
+                ],
               ),
-            ),
-          ],
-          const SizedBox(height: 8),
-          InfoLabel(
-            label: 'Monto',
-            child: TextBox(
-              controller: _amount,
-              keyboardType: const TextInputType.numberWithOptions(
-                decimal: true,
-              ),
-            ),
+            ],
           ),
           const SizedBox(height: 12),
           if (_selected != null &&

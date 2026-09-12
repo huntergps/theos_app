@@ -624,6 +624,39 @@ void main() {
       expect(tester.takeException(), isNull);
     },
   );
+
+  // ==========================================================================
+  // El formulario estándar (orden del dueño, 12-sep-2026): "Término de pago"
+  // y "Almacén" pasan por OrbiField/OrbiForm. Ninguno de los dos valida nada
+  // en esta pantalla (no hay mensaje de error que pegar), así que aquí sólo
+  // se comprueba lo que sí aplica: que la etiqueta se ve.
+  // ==========================================================================
+  testWidgets(
+    '"Término de pago" y "Almacén" muestran su etiqueta con el formulario '
+    'estándar',
+    (tester) async {
+      final controller = SaleDraftController(
+        port: _Port(),
+        store: MemorySaleDraftStore(),
+      );
+      addTearDown(controller.dispose);
+      await tester.pumpWidget(
+        FluentApp(
+          home: SaleEditorScreen(
+            controller: controller,
+            catalog: _Catalog(),
+            canSelectWarehouse: true,
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('Término de pago'), findsOneWidget);
+      expect(find.text('Almacén'), findsOneWidget);
+      expect(find.byKey(const Key('sale-warehouse-field')), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    },
+  );
 }
 
 final class _GatedStore implements SaleDraftStore {

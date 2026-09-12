@@ -3,6 +3,8 @@ import 'dart:convert';
 import 'dart:math';
 
 import 'package:fluent_ui/fluent_ui.dart';
+import 'package:odoo_widgets/odoo_widgets.dart' hide OrbiField;
+import 'package:odoo_widgets/odoo_widgets.dart' as orbi_widgets show OrbiField;
 import 'package:orbi_runtime/orbi_runtime.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:reactive_forms/reactive_forms.dart';
@@ -889,44 +891,74 @@ class _SaleEditorScreenState extends State<SaleEditorScreen> {
                     if (terms.isEmpty) {
                       return const Text('Términos no configurados');
                     }
-                    return InfoLabel(
-                      label: 'Término de pago',
-                      child: ComboBox<int>(
-                        // Sin esto, el `ComboBox` se dimensiona a su
-                        // contenido (la etiqueta del término elegido) en vez
-                        // de al ancho que le da este `SizedBox`, y con una
-                        // etiqueta larga se desborda en vez de recortarse con
-                        // puntos suspensivos.
-                        isExpanded: true,
-                        placeholder: const Text('Seleccionar término'),
-                        value: terms.any((t) => t.id == draft.paymentTermId)
-                            ? draft.paymentTermId
-                            : null,
-                        items: [
-                          for (final term in terms)
-                            ComboBoxItem(
-                              value: term.id,
-                              child: Text(term.label),
+                    // El formulario estándar (orden del dueño, 12-sep-2026):
+                    // etiqueta encima, sin `.filling` porque este trozo vive
+                    // dentro del `LayoutBuilder`/`Wrap` de esta pantalla, que
+                    // ya scrollea junto al resto (líneas, resumen).
+                    return OrbiForm(
+                      sections: [
+                        OrbiFormSection(
+                          title: 'Condiciones de pago',
+                          fields: [
+                            orbi_widgets.OrbiField(
+                              label: 'Término de pago',
+                              child: ComboBox<int>(
+                                // Sin esto, el `ComboBox` se dimensiona a su
+                                // contenido (la etiqueta del término elegido)
+                                // en vez de al ancho que le da este
+                                // `SizedBox`, y con una etiqueta larga se
+                                // desborda en vez de recortarse con puntos
+                                // suspensivos.
+                                isExpanded: true,
+                                placeholder: const Text('Seleccionar término'),
+                                value:
+                                    terms.any(
+                                      (t) => t.id == draft.paymentTermId,
+                                    )
+                                    ? draft.paymentTermId
+                                    : null,
+                                items: [
+                                  for (final term in terms)
+                                    ComboBoxItem(
+                                      value: term.id,
+                                      child: Text(term.label),
+                                    ),
+                                ],
+                                onChanged: (value) {
+                                  final term = terms.firstWhere(
+                                    (t) => t.id == value,
+                                  );
+                                  widget.controller.update(
+                                    paymentTermId: value,
+                                    installments: term.installments,
+                                  );
+                                },
+                              ),
                             ),
-                        ],
-                        onChanged: (value) {
-                          final term = terms.firstWhere((t) => t.id == value);
-                          widget.controller.update(
-                            paymentTermId: value,
-                            installments: term.installments,
-                          );
-                        },
-                      ),
+                          ],
+                        ),
+                      ],
                     );
                   },
                 ),
               ),
               if (widget.canSelectWarehouse)
                 SizedBox(
-                  width: 180,
-                  child: InfoLabel(
-                    label: 'Almacén',
-                    child: const TextBox(key: Key('sale-warehouse-field')),
+                  width: 200,
+                  child: OrbiForm(
+                    sections: [
+                      OrbiFormSection(
+                        title: 'Inventario',
+                        fields: [
+                          orbi_widgets.OrbiField(
+                            label: 'Almacén',
+                            child: const TextBox(
+                              key: Key('sale-warehouse-field'),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
                   ),
                 ),
               Text('Clasificación: ${termsClassificationLabel(draft.classification)}'),
