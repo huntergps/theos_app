@@ -60,7 +60,7 @@ class _OperationalShellGalleryState extends State<OperationalShellGallery> {
     final compact = width < 600;
     final medium = width >= 600 && width < 1000;
     final destinations = _destinations;
-    final selected = _destination.clamp(0, destinations.length - 1) as int;
+    final selected = _destination.clamp(0, destinations.length - 1);
     if (selected != _destination) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (mounted) setState(() => _destination = selected);
@@ -148,7 +148,11 @@ class _Header extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = Theme.of(context).colorScheme;
-    final compact = MediaQuery.sizeOf(context).width < 600;
+    final width = MediaQuery.sizeOf(context).width;
+    final compact = width < 600;
+    // El subtítulo y los chips de estado son adorno de escritorio: a ancho
+    // medio (tablet) no caben junto al selector de rol sin desbordar la fila.
+    final expanded = width >= 1000;
     return Material(
       color: colors.surface,
       child: Padding(
@@ -162,13 +166,13 @@ class _Header extends StatelessWidget {
               style: TextStyle(fontWeight: FontWeight.w800),
             ),
             const SizedBox(width: 16),
-            if (!compact)
+            if (expanded)
               Text(
                 'Panel de operaciones',
                 style: Theme.of(context).textTheme.bodyMedium,
               ),
             const Spacer(),
-            if (!compact) ...[
+            if (expanded) ...[
               const Chip(
                 avatar: Icon(Icons.cloud_done_outlined, size: 17),
                 label: Text('Online'),

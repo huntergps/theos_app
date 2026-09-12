@@ -232,7 +232,9 @@ class _OrbiSalesPreviewState extends State<OrbiSalesPreview> {
 
   Widget _compact(BuildContext context) => ListView(
     children: [
-      const SizedBox(height: 286, child: _CustomerPanel()),
+      // Sin alto fijo: el contenido del cliente (RUC, vendedor, bloqueo) no
+      // cabía en 286px y desbordaba la columna en pantallas de teléfono.
+      const _CustomerPanel(),
       const SizedBox(height: 12),
       SizedBox(height: 500, child: _catalog(context)),
       const SizedBox(height: 12),
@@ -268,7 +270,7 @@ class _OrbiSalesPreviewState extends State<OrbiSalesPreview> {
         Expanded(
           child: ListView.separated(
             itemCount: _filtered.length,
-            separatorBuilder: (_, __) => const Divider(height: 1),
+            separatorBuilder: (_, _) => const Divider(height: 1),
             itemBuilder: (_, i) {
               final item = _filtered[i];
               return ListTile(
@@ -370,7 +372,7 @@ class _OrbiSalesPreviewState extends State<OrbiSalesPreview> {
                 )
               : ListView.separated(
                   itemCount: _cart.length,
-                  separatorBuilder: (_, __) => const Divider(height: 1),
+                  separatorBuilder: (_, _) => const Divider(height: 1),
                   itemBuilder: (_, i) {
                     final item = _cart[i];
                     return ListTile(
@@ -530,8 +532,7 @@ class _OrbiSalesPreviewState extends State<OrbiSalesPreview> {
 }
 
 class _CustomerPanel extends StatelessWidget {
-  const _CustomerPanel({this.inline = false});
-  final bool inline;
+  const _CustomerPanel();
   @override
   Widget build(BuildContext context) => _Panel(
     title: 'Contexto comercial',
@@ -557,14 +558,14 @@ class _CustomerPanel extends StatelessWidget {
             'Laura Méndez',
             style: TextStyle(fontWeight: FontWeight.w800),
           ),
-          subtitle: const Text(
+          subtitle: Text(
             'RUC 0912345678001 · Cliente frecuente',
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
           ),
           trailing: Icon(Icons.chevron_right),
         ),
-        if (!inline) const Divider(),
+        const Divider(),
         _info('Vendedor', 'Ana Morales'),
         _info('Almacén', 'Matriz · Quito'),
         _info('Término', 'Contado'),
@@ -597,10 +598,15 @@ class _CustomerPanel extends StatelessWidget {
     child: Row(
       children: [
         Text(label, style: const TextStyle(color: Colors.grey, fontSize: 12)),
-        const Spacer(),
-        Text(
-          value,
-          style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 12),
+        const SizedBox(width: 8),
+        Expanded(
+          child: Text(
+            value,
+            textAlign: TextAlign.right,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 12),
+          ),
         ),
       ],
     ),
@@ -628,7 +634,7 @@ class _Panel extends StatelessWidget {
       border: Border.all(color: Theme.of(context).colorScheme.outlineVariant),
       boxShadow: [
         BoxShadow(
-          color: Colors.black.withOpacity(.04),
+          color: Colors.black.withValues(alpha: .04),
           blurRadius: 12,
           offset: const Offset(0, 3),
         ),

@@ -1,8 +1,20 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 
+import '../../ui/bindings/record_view_controller.dart';
 import '../../ui/components/orbi_components.dart';
+import '../../ui/components/records/orbi_record_grid.dart';
 import 'catalog_contracts.dart';
 
+/// Search + grid/list picker shared by the catalog screens (clients,
+/// products) and by narrower dialogs (e.g. the sale editor's client picker).
+///
+/// The results surface reuses [OrbiRecordGrid]: a real Syncfusion grid on
+/// desktop/tablet-landscape and [OrbiRecordList] cards on tablet-portrait/
+/// phone, the same adaptive component `OrdersScreen` uses. It intentionally
+/// does not reimplement a grid with `GridView.extent`, which produced fixed
+/// square cells that did not resize to the actual content.
 class EntityPicker<T> extends StatefulWidget {
   const EntityPicker({
     super.key,
@@ -10,6 +22,7 @@ class EntityPicker<T> extends StatefulWidget {
     required this.label,
     this.entityName,
     this.onSelected,
+    this.searchBuilder,
   });
 
   final CatalogController<T> controller;
@@ -17,23 +30,57 @@ class EntityPicker<T> extends StatefulWidget {
   final String? entityName;
   final ValueChanged<CatalogEntity<T>>? onSelected;
 
+  /// Builds the search control shown above the grid/list. Defaults to a
+  /// plain search field with a refresh action. Pass a builder returning
+  /// `OrbiInlineCatalogPicker` to search inline instead of a separate bar
+  /// that would replace the grid with a bare results list
+  /// (REACTIVE_COMPONENTS_SPEC.md §5: product search stays inside the grid).
+  final Widget Function(BuildContext context, CatalogController<T> controller)?
+  searchBuilder;
+
   @override
   State<EntityPicker<T>> createState() => _EntityPickerState<T>();
 }
 
 class _EntityPickerState<T> extends State<EntityPicker<T>> {
-  late final TextEditingController _search;
+  late final TextEditingController _search = TextEditingController(
+    text: widget.controller.query.search,
+  );
+  late final OrbiRecordViewController<CatalogEntity<T>> _records =
+      OrbiRecordViewController<CatalogEntity<T>>(
+        idOf: (record) => record.value.uuid,
+      );
+  StreamSubscription<CatalogSnapshot<T>>? _subscription;
 
   @override
   void initState() {
     super.initState();
-    _search = TextEditingController(text: widget.controller.query.search);
+    // Seed synchronously from the current snapshot (mirrors the
+    // StreamBuilder's `initialData`), so the very first synchronous publish
+    // from the controller's constructor is never missed by this late
+    // subscription on its broadcast stream.
+    _syncRecords(widget.controller.snapshot);
+    _subscription = widget.controller.changes.listen(_syncRecords);
+  }
+
+  void _syncRecords(CatalogSnapshot<T> snapshot) {
+    _records.replaceRecords([
+      for (final entity in snapshot.items)
+        OrbiRecord<CatalogEntity<T>>(id: entity.uuid, value: entity),
+    ]);
   }
 
   @override
   void dispose() {
+    _subscription?.cancel();
+    _records.dispose();
     _search.dispose();
     super.dispose();
+  }
+
+  void _onRecordTap(OrbiRecord<CatalogEntity<T>> record) {
+    widget.controller.select(record.value);
+    widget.onSelected?.call(record.value);
   }
 
   @override
@@ -43,33 +90,36 @@ class _EntityPickerState<T> extends State<EntityPicker<T>> {
       initialData: widget.controller.snapshot,
       builder: (context, snapshot) {
         final state = snapshot.data ?? widget.controller.snapshot;
-        return LayoutBuilder(
-          builder: (context, constraints) => Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              TextField(
-                controller: _search,
-                onChanged: widget.controller.setSearch,
-                decoration: InputDecoration(
-                  labelText: widget.label,
-                  prefixIcon: const Icon(Icons.search),
-                  suffixIcon: IconButton(
-                    tooltip: 'Actualizar',
-                    onPressed: widget.controller.refresh,
-                    icon: const Icon(Icons.refresh),
-                  ),
-                ),
-              ),
-              const SizedBox(height: 12),
-              Expanded(child: _body(context, constraints.maxWidth, state)),
-            ],
-          ),
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            widget.searchBuilder?.call(context, widget.controller) ??
+                _defaultSearch(),
+            const SizedBox(height: 12),
+            Expanded(child: _body(context, state)),
+          ],
         );
       },
     );
   }
 
-  Widget _body(BuildContext context, double width, CatalogSnapshot<T> state) {
+  Widget _defaultSearch() {
+    return TextField(
+      controller: _search,
+      onChanged: widget.controller.setSearch,
+      decoration: InputDecoration(
+        labelText: widget.label,
+        prefixIcon: const Icon(Icons.search),
+        suffixIcon: IconButton(
+          tooltip: 'Actualizar',
+          onPressed: widget.controller.refresh,
+          icon: const Icon(Icons.refresh),
+        ),
+      ),
+    );
+  }
+
+  Widget _body(BuildContext context, CatalogSnapshot<T> state) {
     return switch (state.status) {
       CatalogLoadStatus.initial || CatalogLoadStatus.loading => const Center(
         child: CircularProgressIndicator(),
@@ -83,46 +133,20 @@ class _EntityPickerState<T> extends State<EntityPicker<T>> {
         title: 'Sin resultados',
         message: 'Prueba otra búsqueda o actualiza el catálogo.',
       ),
-      CatalogLoadStatus.data => _list(context, width, state),
+      CatalogLoadStatus.data => _grid(context, state),
     };
   }
 
-  Widget _list(BuildContext context, double width, CatalogSnapshot<T> state) {
-    final wide = width >= 840;
-    final children = [
-      for (final entity in state.items)
-        MergeSemantics(
-          child: Semantics(
-            selected: widget.controller.selected?.uuid == entity.uuid,
-            label:
-                '${entity.title}${entity.subtitle == null ? '' : '. ${entity.subtitle}'}',
-            child: Card(
-              child: ListTile(
-                title: Text(entity.title),
-                subtitle: entity.subtitle == null
-                    ? null
-                    : Text(entity.subtitle!),
-                selected: widget.controller.selected?.uuid == entity.uuid,
-                onTap: () {
-                  setState(() => widget.controller.select(entity));
-                  widget.onSelected?.call(entity);
-                },
-              ),
-            ),
-          ),
-        ),
-    ];
-    final content = wide
-        ? GridView.extent(
-            maxCrossAxisExtent: 360,
-            mainAxisSpacing: 8,
-            crossAxisSpacing: 8,
-            children: children,
-          )
-        : ListView(children: children);
+  Widget _grid(BuildContext context, CatalogSnapshot<T> state) {
     return Column(
       children: [
-        Expanded(child: content),
+        Expanded(
+          child: OrbiRecordGrid<CatalogEntity<T>>(
+            controller: _records,
+            columns: _columns(),
+            onRecordTap: _onRecordTap,
+          ),
+        ),
         if (state.nextCursor != null)
           TextButton.icon(
             onPressed: widget.controller.loadNext,
@@ -140,4 +164,17 @@ class _EntityPickerState<T> extends State<EntityPicker<T>> {
       ],
     );
   }
+
+  List<OrbiRecordColumn<CatalogEntity<T>>> _columns() => [
+    OrbiRecordColumn(
+      id: 'title',
+      label: widget.label,
+      value: (entity) => entity.title,
+    ),
+    OrbiRecordColumn(
+      id: 'subtitle',
+      label: 'Detalle',
+      value: (entity) => entity.subtitle ?? '—',
+    ),
+  ];
 }

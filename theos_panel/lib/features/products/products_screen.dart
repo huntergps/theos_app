@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../ui/components/fields/orbi_inline_catalog_picker.dart';
 import '../../ui/components/orbi_components.dart';
 import '../clients/catalog_contracts.dart';
 import '../clients/entity_picker.dart';
@@ -44,17 +45,37 @@ class _ProductsScreenState<T> extends State<ProductsScreen<T>> {
             controller: controller,
             label: 'Buscar producto',
             entityName: 'productos',
+            // Product search stays inline inside the grid area (the same
+            // reusable overlay picker the sale line editor uses), instead of
+            // an external search bar that would replace the record grid.
+            searchBuilder: (context, controller) =>
+                OrbiInlineCatalogPicker<T>(
+                  controller: controller,
+                  label: 'Buscar producto',
+                  onSelected: (_) {},
+                ),
           );
           final detail = StreamBuilder<CatalogSnapshot<T>>(
             stream: controller.changes,
             initialData: controller.snapshot,
             builder: (context, _) => _detail(context, controller),
           );
-          if (constraints.maxWidth >= 840) {
-            final detailWidth =
-                (320 * MediaQuery.textScalerOf(context).scale(1))
-                    .clamp(320.0, constraints.maxWidth * .45)
-                    .toDouble();
+          // The side-by-side detail panel is desktop-shaped content: it must
+          // not steal so much width that the record grid below 840px falls
+          // back to a compressed list on tablet horizontal. Only split when
+          // there is still room left over for a real grid after reserving
+          // the panel and the gap between them; otherwise stack instead.
+          const detailReserve = 320.0 + 16.0;
+          final canConsiderSplit = constraints.maxWidth >= 840 + detailReserve;
+          double detailWidth = 320;
+          var canSplit = false;
+          if (canConsiderSplit) {
+            detailWidth = (320 * MediaQuery.textScalerOf(context).scale(1))
+                .clamp(320.0, constraints.maxWidth * .45)
+                .toDouble();
+            canSplit = constraints.maxWidth - detailWidth - 16 >= 840;
+          }
+          if (canSplit) {
             return Row(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [

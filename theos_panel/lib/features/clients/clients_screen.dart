@@ -50,11 +50,22 @@ class _ClientsScreenState<T> extends State<ClientsScreen<T>> {
             initialData: controller.snapshot,
             builder: (context, _) => _detail(context, controller),
           );
-          if (constraints.maxWidth >= 840) {
-            final detailWidth =
-                (320 * MediaQuery.textScalerOf(context).scale(1))
-                    .clamp(320.0, constraints.maxWidth * .45)
-                    .toDouble();
+          // The side-by-side detail panel is desktop-shaped content: it must
+          // not steal so much width that the record grid below 840px falls
+          // back to a compressed list on tablet horizontal. Only split when
+          // there is still room left over for a real grid after reserving
+          // the panel and the gap between them; otherwise stack instead.
+          const detailReserve = 320.0 + 16.0;
+          final canConsiderSplit = constraints.maxWidth >= 840 + detailReserve;
+          double detailWidth = 320;
+          var canSplit = false;
+          if (canConsiderSplit) {
+            detailWidth = (320 * MediaQuery.textScalerOf(context).scale(1))
+                .clamp(320.0, constraints.maxWidth * .45)
+                .toDouble();
+            canSplit = constraints.maxWidth - detailWidth - 16 >= 840;
+          }
+          if (canSplit) {
             return Row(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [

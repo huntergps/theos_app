@@ -53,7 +53,7 @@ class _OrbiWorkspaceConceptBState extends State<OrbiWorkspaceConceptB> {
     builder: (context, c) {
       final compact = c.maxWidth < 600;
       final tablet = c.maxWidth >= 600 && c.maxWidth < 1000;
-      final index = selected.clamp(0, nav.length - 1) as int;
+      final index = selected.clamp(0, nav.length - 1);
       return Scaffold(
         backgroundColor: const Color(0xfff5f7f8),
         bottomNavigationBar: compact
@@ -183,32 +183,71 @@ class _SideNav extends StatelessWidget {
   final bool rail;
   final ValueChanged<int> onTap;
   @override
-  Widget build(BuildContext context) => Container(
-    width: rail ? 84 : 232,
+  Widget build(BuildContext context) => Material(
+    // Material en vez de Container con color: ListTile pinta su fondo y el
+    // ink splash sobre el Material más cercano, y un ColoredBox de por medio
+    // los deja invisibles (aviso de Flutter).
     color: const Color(0xff202b31),
-    child: ListView(
-      padding: const EdgeInsets.symmetric(vertical: 18, horizontal: 10),
-      children: [
-        for (var i = 0; i < nav.length; i++)
-          Tooltip(
-            message: nav[i].label,
-            child: ListTile(
-              selected: i == selected,
-              selectedTileColor: const Color(0xff315d5e),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(10),
-              ),
-              leading: Icon(nav[i].icon, color: Colors.white70),
-              title: rail
-                  ? null
-                  : Text(
-                      nav[i].label,
-                      style: const TextStyle(color: Colors.white),
+    child: SizedBox(
+      width: rail ? 84 : 232,
+      child: ListView(
+        padding: const EdgeInsets.symmetric(vertical: 18, horizontal: 10),
+        children: [
+          for (var i = 0; i < nav.length; i++)
+            Tooltip(
+              message: nav[i].label,
+              // En modo riel (icono sin texto) el ListTile no cabe: su
+              // ancho mínimo de leading + contentPadding excede los ~64px
+              // de contenido disponibles. Se usa una tarjeta compacta propia.
+              child: rail
+                  ? _RailTile(
+                      icon: nav[i].icon,
+                      selected: i == selected,
+                      onTap: () => onTap(i),
+                    )
+                  : ListTile(
+                      selected: i == selected,
+                      selectedTileColor: const Color(0xff315d5e),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      leading: Icon(nav[i].icon, color: Colors.white70),
+                      title: Text(
+                        nav[i].label,
+                        style: const TextStyle(color: Colors.white),
+                      ),
+                      onTap: () => onTap(i),
                     ),
-              onTap: () => onTap(i),
             ),
-          ),
-      ],
+        ],
+      ),
+    ),
+  );
+}
+
+class _RailTile extends StatelessWidget {
+  const _RailTile({
+    required this.icon,
+    required this.selected,
+    required this.onTap,
+  });
+  final IconData icon;
+  final bool selected;
+  final VoidCallback onTap;
+  @override
+  Widget build(BuildContext context) => Padding(
+    padding: const EdgeInsets.symmetric(vertical: 3),
+    child: Material(
+      color: selected ? const Color(0xff315d5e) : Colors.transparent,
+      borderRadius: BorderRadius.circular(10),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(10),
+        onTap: onTap,
+        child: SizedBox(
+          height: 48,
+          child: Center(child: Icon(icon, color: Colors.white70)),
+        ),
+      ),
     ),
   );
 }

@@ -155,8 +155,9 @@ class _OrbiOperationsPreviewState extends State<OrbiOperationsPreview> {
       subtitle: 'El borrador de cobro queda aislado por documento y cajera',
       child: _cashDetail(context),
     );
-    if (compact)
+    if (compact) {
       return Column(children: [list, const SizedBox(height: 12), detail]);
+    }
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -217,7 +218,7 @@ class _OrbiOperationsPreviewState extends State<OrbiOperationsPreview> {
   );
 
   Widget _cashDetail(BuildContext context) {
-    if (_selectedOrder == null)
+    if (_selectedOrder == null) {
       return Center(
         child: Text(
           'Elige un pendiente para ver cliente, documento y medios de pago.',
@@ -227,6 +228,7 @@ class _OrbiOperationsPreviewState extends State<OrbiOperationsPreview> {
           ),
         ),
       );
+    }
     final total = _selectedOrder == 'SO-1043' ? 118.40 : 42.56;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -397,8 +399,9 @@ class _OrbiOperationsPreviewState extends State<OrbiOperationsPreview> {
         ],
       ),
     );
-    if (compact)
+    if (compact) {
       return Column(children: [prep, const SizedBox(height: 12), ready]);
+    }
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [

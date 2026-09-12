@@ -282,7 +282,7 @@ class _OrbiWorkspaceConceptAState extends State<OrbiWorkspaceConceptA> {
             LayoutBuilder(
               builder: (context, c) {
                 final twoColumns = c.maxWidth >= 680;
-                if (!twoColumns)
+                if (!twoColumns) {
                   return Column(
                     children: [
                       _priorityQueue(),
@@ -290,6 +290,7 @@ class _OrbiWorkspaceConceptAState extends State<OrbiWorkspaceConceptA> {
                       side,
                     ],
                   );
+                }
                 return Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
