@@ -520,27 +520,60 @@ final class OperationalShell extends StatelessWidget {
     ];
   }
 
+  /// Fixed, theme-independent dark tone — the lámina's footer stays dark in
+  /// its light-theme desktop view too, so this is deliberately not
+  /// `colorScheme.surfaceContainerHighest` (which would go pale in light
+  /// mode and read as "half of a gray page" rather than the lámina's own
+  /// "one dark strip, light text").
+  static const _footerBackground = Color(0xFF1B1D1F);
+  static const _footerForeground = Colors.white;
+  static const _footerMuted = Colors.white70;
+
+  /// A single horizontal strip — never `Wrap`, which used to fold this into
+  /// three stacked lines of gray-on-gray and was a real part of "parece
+  /// rota". `SingleChildScrollView` is the safety net for a window too
+  /// narrow to fit everything (never truncate information silently); it is
+  /// not the lámina's own affordance, which assumes desktop width.
   Widget _contextFooter(BuildContext context) => Semantics(
     container: true,
     label: 'Información de conexión',
-    child: SizedBox(
+    child: Container(
       width: double.infinity,
-      child: Material(
-        color: Theme.of(context).colorScheme.surfaceContainerHighest,
-        child: Padding(
+      color: _footerBackground,
+      child: SafeArea(
+        top: false,
+        child: SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
           padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
-          child: Wrap(
-            spacing: 20,
-            runSpacing: 4,
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
             children: [
               _contextItem('Servidor', this.context.server),
+              _footerGap(),
               _contextItem('BD', this.context.database),
+              _footerGap(),
               _contextItem(
                 'Hora del servidor',
                 this.context.serverTime ?? 'Hora del servidor no disponible',
               ),
-              _contextItem('Estado', this.context.connectionLabel),
-              _contextItem('Sincronización', this.context.syncLabel),
+              _footerGap(),
+              _statusDot(_statusColorFor(this.context.connectionLabel)),
+              const SizedBox(width: 6),
+              Text(
+                this.context.connectionLabel,
+                style: const TextStyle(color: _footerForeground),
+              ),
+              _footerGap(),
+              const Icon(
+                Icons.notifications_outlined,
+                size: 14,
+                color: _footerMuted,
+              ),
+              const SizedBox(width: 4),
+              Text(
+                this.context.syncLabel,
+                style: const TextStyle(color: _footerForeground),
+              ),
             ],
           ),
         ),
@@ -548,7 +581,36 @@ final class OperationalShell extends StatelessWidget {
     ),
   );
 
-  Widget _contextItem(String label, String value) => Text('$label: $value');
+  Widget _footerGap() => const Padding(
+    padding: EdgeInsets.symmetric(horizontal: 10),
+    child: Text('·', style: TextStyle(color: _footerMuted)),
+  );
+
+  Widget _statusDot(Color color) => Container(
+    width: 8,
+    height: 8,
+    decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+  );
+
+  /// Honest, not decorative: green only for a label this shell actually
+  /// knows means connected. Today's `connectionLabel` is always the "sin
+  /// verificar" placeholder (see `router.dart` — wiring real connectivity is
+  /// its own tracked defect, not something to fake green here), so this
+  /// renders amber for that case rather than inventing a status the app has
+  /// not verified. The rule is ready for the day that binding lands.
+  Color _statusColorFor(String label) {
+    final normalized = label.toLowerCase();
+    if (normalized.contains('conectado')) return Colors.green;
+    if (normalized.contains('sin conexión') || normalized.contains('error')) {
+      return Colors.red;
+    }
+    return Colors.amber;
+  }
+
+  Widget _contextItem(String label, String value) => Text(
+    '$label: $value',
+    style: const TextStyle(color: _footerForeground),
+  );
 
   Widget _compactContextButton(BuildContext context) => Align(
     alignment: AlignmentDirectional.centerEnd,

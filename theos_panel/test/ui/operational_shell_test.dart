@@ -85,6 +85,87 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
+  testWidgets(
+    'expanded tier: an inactive multi-destination group collapses to its '
+    'OWN name (not its first child\'s label) with a chevron, and opening it '
+    'expands it inline exactly like the lámina draws Ventas vs. Caja',
+    (tester) async {
+      const destinations = [
+        OperationalDestination(
+          label: 'Órdenes',
+          path: '/sales',
+          icon: Icons.shopping_cart_outlined,
+          group: 'Ventas',
+        ),
+        OperationalDestination(
+          label: 'Clientes',
+          path: '/clients',
+          icon: Icons.people_outline,
+          group: 'Ventas',
+        ),
+        OperationalDestination(
+          label: 'Punto de cobro',
+          path: '/collection',
+          icon: Icons.payments_outlined,
+          group: 'Caja',
+        ),
+        OperationalDestination(
+          label: 'Mi turno',
+          path: '/collection/hub',
+          icon: Icons.lock_clock_outlined,
+          group: 'Caja',
+        ),
+      ];
+      const size = Size(1600, 1000);
+      await tester.binding.setSurfaceSize(size);
+      addTearDown(() => tester.binding.setSurfaceSize(null));
+      await tester.pumpWidget(
+        MaterialApp(
+          home: MediaQuery(
+            data: const MediaQueryData(size: size),
+            child: OperationalShell(
+              destinations: destinations,
+              selectedPath: '/sales',
+              onNavigate: (_) {},
+              context: _context,
+              onLogout: () {},
+              child: const SizedBox.shrink(),
+            ),
+          ),
+        ),
+      );
+      await tester.pump();
+
+      // Ventas (active) is expanded: header + both children, inline.
+      expect(find.text('Ventas'), findsOneWidget);
+      expect(find.text('Órdenes'), findsOneWidget);
+      expect(find.text('Clientes'), findsOneWidget);
+      // Caja (inactive) collapses to ONE row named "Caja" — never "Punto de
+      // cobro", which would misname the group as its first child.
+      expect(find.text('Caja'), findsOneWidget);
+      expect(find.text('Punto de cobro'), findsNothing);
+      expect(find.text('Mi turno'), findsNothing);
+
+      await tester.tap(find.text('Caja'));
+      await tester.pump();
+      expect(tester.takeException(), isNull);
+    },
+  );
+
+  testWidgets(
+    'a very wide but PORTRAIT window still gets no permanent rail — width '
+    'alone is not the rule, the lámina gates on orientation too',
+    (tester) async {
+      const size = Size(1600, 2000);
+      await tester.binding.setSurfaceSize(size);
+      addTearDown(() => tester.binding.setSurfaceSize(null));
+      await tester.pumpWidget(_host(size));
+      await tester.pump();
+      expect(find.bySemanticsLabel('Navegación principal'), findsNothing);
+      expect(find.byTooltip('Open navigation menu'), findsOneWidget);
+    },
+  );
+
   // Regression guard for the exact defect the dueño reported (2026-09-12):
   // a desktop-sized window with no permanent navigation, only a hamburger.
   // The old `_isDesktop` gate required >= 1200 logical px — nowhere else in
@@ -95,17 +176,62 @@ void main() {
   // this app and was still getting the hidden drawer before this fix.
   testWidgets(
     'a 1000px-wide window — desktop by every other screen in this app — '
-    'gets the permanent sidebar, not a hidden hamburger drawer',
+    'gets the permanent icon rail (compact tier), not a hidden hamburger '
+    'drawer, and its flyout still reaches every destination',
     (tester) async {
+      String? selected;
       const size = Size(1000, 700);
       await tester.binding.setSurfaceSize(size);
       addTearDown(() => tester.binding.setSurfaceSize(null));
-      await tester.pumpWidget(_host(size));
+      await tester.pumpWidget(
+        _host(size, onNavigate: (path) => selected = path),
+      );
       await tester.pump();
       expect(find.bySemanticsLabel('Navegación principal'), findsOneWidget);
-      expect(find.text('Órdenes'), findsOneWidget);
       expect(find.byType(Drawer), findsNothing);
       expect(find.byTooltip('Open navigation menu'), findsNothing);
+      // Compact never shows the label directly — this is the whole point of
+      // the tier — but the destination is still reachable: the "Ventas"
+      // group (2 destinations) collapses to one icon whose flyout lists
+      // "Órdenes" by name.
+      expect(find.text('Órdenes'), findsNothing);
+      expect(find.byTooltip('Ventas'), findsOneWidget);
+      await tester.tap(find.byTooltip('Ventas'));
+      await tester.pumpAndSettle();
+      expect(find.text('Órdenes'), findsOneWidget);
+      await tester.tap(find.text('Órdenes'));
+      await tester.pumpAndSettle();
+      expect(selected, '/sales');
+    },
+  );
+
+  testWidgets(
+    'the footer is one horizontal strip, not the old three stacked lines '
+    'of gray-on-gray, and the connection dot is honest about not knowing',
+    (tester) async {
+      await tester.binding.setSurfaceSize(const Size(1440, 900));
+      addTearDown(() => tester.binding.setSurfaceSize(null));
+      await tester.pumpWidget(_host(const Size(1440, 900)));
+      await tester.pump();
+      final footer = find.bySemanticsLabel('Información de conexión');
+      expect(footer, findsOneWidget);
+      // No `Wrap` left in the footer's subtree — that was the mechanism
+      // that folded it into multiple lines.
+      expect(
+        find.descendant(of: footer, matching: find.byType(Wrap)),
+        findsNothing,
+      );
+      expect(find.textContaining('Servidor: erp.test'), findsOneWidget);
+      // `_context.connectionLabel` in this fixture is 'Conectado' (see
+      // `_context` above) — a label this shell actually recognizes as
+      // connected gets the green dot; an unrecognized "sin verificar" would
+      // not (covered by `_statusColorFor`'s own doc comment/reasoning).
+      final container = tester.widget<Container>(
+        find
+            .descendant(of: footer, matching: find.byType(Container))
+            .first,
+      );
+      expect(container.color, const Color(0xFF1B1D1F));
     },
   );
 

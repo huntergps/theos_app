@@ -9,6 +9,7 @@ import 'package:orbi_runtime/orbi_runtime.dart' show AuthProfile;
 import 'auth_controller.dart';
 import 'login_failure_messages.dart';
 import 'login_preferences.dart';
+import 'session_provenance.dart';
 import 'saved_servers.dart';
 import 'server_manager_dialog.dart';
 import '../../app/theme/orbi_theme.dart';
@@ -980,6 +981,19 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
           onChanged: (value) => setState(() => _saveCredential = value),
         ),
       ),
+      // La sesión que el arranque encontró y decidió NO adoptar. Va ARRIBA
+      // del mensaje de error y ABAJO de los campos: es una salida rápida, no
+      // el camino principal — quien no sea esa persona tiene el formulario
+      // justo encima, ya relleno y listo.
+      if (ref.watch(offeredSessionProvider) case final OfferedSession offer)
+        ...[
+          const SizedBox(height: OrbiTheme.space12),
+          _OfferedSessionCard(
+            key: const Key('offered-session-card'),
+            offer: offer,
+            onContinue: _continueWithOfferedSession,
+          ),
+        ],
       if (state.message != null) ...[
         const SizedBox(height: OrbiTheme.space12),
         // A message the mapping recognises is drawn as a real panel; anything
@@ -1099,6 +1113,12 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     });
   }
 
+  /// Acepta la sesión que ya estaba abierta. El atajo del dueño, intacto:
+  /// sigue siendo un clic. Lo único que cambió es que lo da una persona.
+  Future<void> _continueWithOfferedSession() async {
+    await ref.read(authControllerProvider.notifier).restore();
+  }
+
   Future<void> _submit() async {
     final selected = _selectedServer;
     if (selected == null) return;
@@ -1149,5 +1169,62 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     }
     _password.clear();
     TextInput.finishAutofillContext(shouldSave: succeeded);
+  }
+}
+
+/// La oferta de una sesión ajena, en la propia pantalla de acceso.
+///
+/// Deliberadamente NO es un botón suelto: nombra a la persona y dice la
+/// consecuencia. «Continuar con la sesión abierta» no deja ver a quién estás a
+/// punto de suplantar; «Continuar como jacqueline.rizo» sí.
+class _OfferedSessionCard extends StatelessWidget {
+  const _OfferedSessionCard({
+    super.key,
+    required this.offer,
+    required this.onContinue,
+  });
+
+  final OfferedSession offer;
+  final Future<void> Function() onContinue;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final colors = theme.colorScheme;
+    return Semantics(
+      container: true,
+      label: '${offer.actionLabel}. ${offer.explanation}',
+      child: ExcludeSemantics(
+        child: DecoratedBox(
+          decoration: BoxDecoration(
+            color: colors.secondaryContainer,
+            borderRadius: const BorderRadius.all(Radius.circular(8)),
+            border: Border.all(color: colors.secondary.withValues(alpha: .48)),
+          ),
+          child: Padding(
+            padding: const EdgeInsets.all(OrbiTheme.space12),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  offer.explanation,
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: colors.onSecondaryContainer,
+                  ),
+                ),
+                const SizedBox(height: OrbiTheme.space8),
+                OutlinedButton.icon(
+                  key: const Key('continue-offered-session'),
+                  onPressed: () => onContinue(),
+                  icon: const Icon(Icons.person_outline, size: 18),
+                  label: Text(offer.actionLabel),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
   }
 }

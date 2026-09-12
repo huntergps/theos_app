@@ -10,6 +10,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:theos_panel/features/auth/auth_controller.dart';
 import 'package:theos_panel/features/auth/login_failure_messages.dart';
 import 'package:theos_panel/features/auth/login_screen.dart';
+import 'package:theos_panel/features/auth/session_provenance.dart';
 import 'package:theos_panel/features/auth/saved_servers.dart';
 import 'package:theos_panel/app/preferences/app_preferences.dart';
 import 'package:theos_panel/app/theme/orbi_theme.dart';
@@ -1300,6 +1301,111 @@ void main() {
         reason: 'The copy button is level with the headline, crowding it.',
       );
       expect(tester.takeException(), isNull);
+    });
+  });
+
+
+  group('una sesión ajena se OFRECE, no se adopta', () {
+    // El tercer caso del mismo silencio: la aplicación cambiaba de identidad
+    // sin decir nada. En un mostrador compartido eso es que alguien venda y
+    // cobre con el nombre de un compañero sin que ninguno se entere.
+    const inherited = AuthProfile(
+      serverUrl: 'https://erp2.tecnosmart.com.ec',
+      database: 'erp2_tecnosmart_com_ec',
+      login: 'jacqueline.rizo',
+      userId: 23,
+      installationId: 'i',
+      credentialReference: 'odoo-http-session',
+    );
+
+    Future<void> pumpWithOffer(
+      WidgetTester tester, {
+      OfferedSession? offer,
+    }) async {
+      SharedPreferences.setMockInitialValues({});
+      final preferences = await tester.runAsync(
+        () => SharedPreferences.getInstance(),
+      );
+      await setLoginTestWindowSize(tester, const Size(1200, 1100));
+      addTearDown(() => resetLoginTestWindowSize(tester));
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            authServiceProvider.overrideWithValue(_ProfileService()),
+            sharedPreferencesProvider.overrideWithValue(preferences!),
+            if (offer != null)
+              offeredSessionProvider.overrideWithValue(offer),
+          ],
+          child: MaterialApp(theme: OrbiTheme.light, home: const LoginScreen()),
+        ),
+      );
+      await tester.pumpAndSettle();
+    }
+
+    testWidgets('sin oferta, la pantalla de acceso es la de siempre', (
+      tester,
+    ) async {
+      await pumpWithOffer(tester);
+      expect(find.byKey(const Key('offered-session-card')), findsNothing);
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('con oferta, NOMBRA a la persona en el botón', (tester) async {
+      // «Continuar con la sesión abierta» no deja ver a quién vas a
+      // suplantar. «Continuar como jacqueline.rizo» sí.
+      await pumpWithOffer(tester, offer: const OfferedSession(inherited));
+      expect(find.byKey(const Key('offered-session-card')), findsOneWidget);
+      expect(find.text('Continuar como jacqueline.rizo'), findsOneWidget);
+    });
+
+    testWidgets('y dice la consecuencia, no sólo el hecho', (tester) async {
+      await pumpWithOffer(tester, offer: const OfferedSession(inherited));
+      expect(
+        find.textContaining('lo que hagas quedará a su nombre'),
+        findsOneWidget,
+      );
+    });
+
+    testWidgets('el formulario sigue estando, y por encima de la oferta', (
+      tester,
+    ) async {
+      // La oferta es una salida rápida, no el camino principal: quien NO sea
+      // esa persona tiene el formulario delante, no escondido detrás de un
+      // botón.
+      await pumpWithOffer(tester, offer: const OfferedSession(inherited));
+      final fields = find.byType(TextField);
+      expect(fields, findsWidgets);
+      expect(
+        tester.getTopLeft(fields.last).dy,
+        lessThan(
+          tester.getTopLeft(find.byKey(const Key('offered-session-card'))).dy,
+        ),
+        reason: 'La oferta tapó el formulario en vez de acompañarlo.',
+      );
+    });
+
+    testWidgets('el atajo sigue siendo UN clic', (tester) async {
+      // Ofrecer no mata el atajo que pidió el dueño: sólo cambia de mano
+      // quién lo da.
+      await pumpWithOffer(tester, offer: const OfferedSession(inherited));
+      await tester.tap(find.byKey(const Key('continue-offered-session')));
+      await tester.pump();
+      expect(tester.takeException(), isNull);
+    });
+
+    test('una credencial propia NO se ofrece: se adopta en silencio', () {
+      // Hacer pulsar un botón para entrar en tu propia cuenta es fricción sin
+      // ganancia. El corte es por origen, no por entorno.
+      const own = AuthProfile(
+        serverUrl: 'https://erp2.tecnosmart.com.ec',
+        database: 'erp2_tecnosmart_com_ec',
+        login: 'carlos.guajala',
+        userId: 9,
+        installationId: 'i',
+        credentialReference: 'api-key',
+      );
+      expect(sessionShouldBeOfferedNotAdopted(own), isFalse);
+      expect(sessionShouldBeOfferedNotAdopted(inherited), isTrue);
     });
   });
 

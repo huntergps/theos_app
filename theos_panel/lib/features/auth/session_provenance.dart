@@ -20,6 +20,7 @@
 /// todo el árbol antes de este fichero.
 library;
 
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:orbi_runtime/orbi_runtime.dart' show AuthProfile;
 
 import '../../ui/components/copyable_message.dart';
@@ -87,3 +88,46 @@ CopyableMessage inheritedSessionNotice(AuthProfile profile) => CopyableMessage(
 /// una explicación cada vez sería ruido diario.
 String? inheritedSessionBadge(AuthProfile? profile) =>
     sessionNeedsIdentityNotice(profile) ? 'sesión heredada de Odoo' : null;
+
+/// Una sesión heredada que está **ofrecida, no adoptada**.
+///
+/// 🔴 La diferencia entre ofrecer y adoptar es quién decide.
+///
+/// Hoy la aplicación adopta: encuentra una sesión de Odoo abierta y entra con
+/// ella sin preguntar. El atajo es cómodo y el dueño lo quiere — pero esa
+/// sesión la dejó **quien fuera** que usó el navegador, así que adoptarla es
+/// suplantar por omisión. Ofrecerla conserva el atajo entero (sigue siendo un
+/// clic) y sólo cambia de mano quién lo da.
+///
+/// El corte NO es por entorno —«equipo de una persona» contra «mostrador
+/// compartido» es algo que la aplicación no puede saber— sino por el origen de
+/// la credencial, que sí está en los datos: ver [sessionProvenanceOf].
+final class OfferedSession {
+  const OfferedSession(this.profile);
+
+  final AuthProfile profile;
+
+  /// Lo que dice el botón. Nombra a la persona a propósito: «continuar con la
+  /// sesión abierta» no deja ver a quién estás a punto de suplantar.
+  String get actionLabel => 'Continuar como ${profile.login}';
+
+  /// La línea que acompaña al botón en la pantalla de acceso.
+  String get explanation =>
+      'Hay una sesión de Odoo abierta en este dispositivo. Si no eres '
+      '${profile.login}, entra con tu propia cuenta: lo que hagas quedará a '
+      'su nombre.';
+}
+
+/// Dónde el arranque deja la sesión que encontró y decidió NO adoptar.
+///
+/// Inerte por omisión, como el resto de puertos de este paquete: sin oferta,
+/// la pantalla de acceso es exactamente la de siempre.
+final offeredSessionProvider = Provider<OfferedSession?>((ref) => null);
+
+/// Si una sesión restaurada debe ofrecerse en vez de adoptarse.
+///
+/// Devuelve `false` para una credencial propia: la puso quien está delante, y
+/// hacerle pulsar un botón para entrar en su propia cuenta es fricción sin
+/// ganancia.
+bool sessionShouldBeOfferedNotAdopted(AuthProfile? profile) =>
+    sessionProvenanceOf(profile) == SessionProvenance.inheritedBrowserSession;

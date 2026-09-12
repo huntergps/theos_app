@@ -629,3 +629,144 @@ está en la disciplina de quien lo usó.**
 
 **Conclusión: la decisión de Material fue correcta y está bien razonada.** Lo
 que faltó no fue el paquete: fue escribir el marco que ningún paquete da.
+
+---
+
+# Parte V — ¿Y adoptar `fluent_ui` en Orbi?
+
+La pregunta que el dueño ha señalado dos veces, puesta a prueba contra la
+recomendación de la Parte III en vez de defenderla.
+
+## 1. ¿Existe la razón escrita? — **Sí, y se sostiene**
+
+Está dispersa en cuatro documentos:
+
+- **`ORBI_PRODUCT_ARCHITECTURE_AND_UX_SPEC.md:358`** — «Material 3 oficial; no
+  Fluent UI.» Decisión explícita.
+- **`DESIGN_HANDOFF.md`** — decisión del dueño del **11-09-2026**: componentes
+  dentro de `theos_panel/lib/ui/`, **«sin crear otro paquete»**. En la jerarquía
+  de ese mismo documento, las decisiones del dueño son precedencia 1.
+- **La razón técnica**, en el mismo apartado del spec: «El tema visual de Odoo
+  proporciona el color de acento/semilla. Material conserva la generación
+  coherente de superficies claras y oscuras.» Eso es `ColorScheme.fromSeed`:
+  **cada empresa trae su color y Material deriva todo el esquema, claro y
+  oscuro.** Fluent no; `CONTRACTS.md:105` prohíbe expresamente su `AccentColor`.
+- **`ARCHITECTURE.md`, ADR-04** — «Material oficial ya aporta navegación,
+  selección, menús y entradas.»
+
+## 2. ¿Qué se rompería?
+
+| | |
+|---|---|
+| **Pantallas Material ya escritas** | **18 pantallas**, 45 ficheros, **14 113 líneas** |
+| **Tema de marca** | `OrbiTheme` entero: la generación desde la semilla de Odoo **desaparece** |
+| **Láminas aprobadas** | **6**, y aquí la sospecha era razonable: están dibujadas sobre Fluent en escritorio, así que se romperían **menos** de lo que parece — salvo el teléfono |
+| **El teléfono de la lámina** | 🔴 **No se puede construir con Fluent.** Su barra inferior de navegación no existe en el paquete |
+| **`odoo_widgets`** | ✅ **Aquí Fluent GANA**, y hay que decirlo: son 34 ficheros de campos Odoo ya escritos en Fluent que Orbi hoy **no puede usar** y está reescribiendo en `lib/ui/components/fields/` |
+
+## 3. ¿Cuánto costaría? — **18 pantallas**
+
+Más `OrbiTheme`, más el shell, más los componentes de `lib/ui/`. Grueso: **entre
+14 000 y 15 000 líneas tocadas**, contra las **~100 líneas** que cuesta
+completar el marco en Material (Parte III).
+
+## Las dos caras, honestamente
+
+**A favor de Fluent, y es más de lo que esperaba:**
+
+1. Trae hechas **las dos únicas piezas que faltan**: el director de modos y el
+   plegado de acciones. Se lleva exactamente los dos huecos que quedan.
+2. **Ocho años probado en esta casa**, con sus rarezas ya conocidas.
+3. **Desbloquearía `odoo_widgets`** — 34 ficheros de campos Odoo que hoy se
+   están reescribiendo.
+
+**En contra, y pesa más:**
+
+1. **Perdería la generación de esquema desde la semilla de Odoo**, que es
+   requisito de producto, no preferencia. Habría que teñir superficies a mano,
+   que el spec prohíbe dos líneas más abajo.
+2. **No puede dibujar el teléfono de la lámina.**
+3. **Contradice una decisión del dueño de hace un día.**
+4. **14 000 líneas contra 100.**
+
+## 🔴 Y lo que zanja: la uniformidad que se quiere comprar no está en el paquete
+
+La Parte II lo midió: **`theos_pos` no tiene ningún widget compartido de
+página.** Sus quince pantallas repiten `ScaffoldPage + PageHeader + CommandBar`
+a mano, y por eso tienen grietas —una sin barra de acciones, el scroll repartido
+2 contra 4.
+
+**Adoptar Fluent traería sus piezas, no su uniformidad, porque su uniformidad
+no existe en el paquete: está en la disciplina de quien lo usó.** Y esa
+disciplina se puede tener en Material mañana, gratis, haciendo obligatorio
+`OrbiPageShell`.
+
+**Veredicto: no adoptar `fluent_ui`.** La decisión de Material fue correcta y
+está razonada. Lo que faltó no fue el paquete: fue escribir el marco que ningún
+paquete da. Pero **el punto de `odoo_widgets` es real** y merece su propia
+decisión: 34 ficheros reescribiéndose es un coste que nadie ha contado.
+
+---
+
+# Parte VI — El paquete de arranque, acceso y credenciales
+
+## 🔴 El dato que lo decide: tres de los cuatro defectos de anoche siguen vivos en la app vieja
+
+Medido en `theos_pos/lib/`:
+
+| Defecto arreglado anoche en Orbi | ¿Vivo en `theos_pos`? |
+|---|---|
+| **A.** Nombres de enum en crudo en pantalla | 🔴 **Sí** — 4 sitios, incluidos tres combos de Configuración que muestran `auto`, `compact`, `minimal`, `acrylic`, `mica` |
+| **B.** Fallo mudo al entrar | ✅ **No** |
+| **C.** Credencial huérfana al cerrar sesión | ✅ **No** |
+| **D.** Errores sin causa | 🔴 **Sí** — y es el peor: **`toString()` de la excepción mostrado al usuario en 7 ficheros**, incluido el propio `login_screen.dart:1056` |
+
+**La duplicación ya cuesta dinero, y no es teórica.**
+
+## Y algo que no esperaba, que vuelve el argumento MÁS fuerte
+
+**En dos de los cuatro, la aplicación vieja estaba MEJOR que la nueva.**
+
+- Su acceso ya distinguía las causas con un `switch` sobre los siete
+  `NativeAuthBootstrapFailureKind` — **lo mismo que construí anoche para Orbi,
+  creyendo que era nuevo.**
+- Su cierre de sesión ya borraba API key y testigo del almacén seguro por dos
+  caminos. Orbi lo tenía roto hasta anoche.
+
+O sea: **no es sólo que haya que arreglar dos veces. Es que la copia nueva
+perdió arreglos que la vieja ya tenía**, y nadie se dio cuenta hasta que el
+defecto volvió a morder en producción. Eso es exactamente lo que un paquete
+compartido impide.
+
+## Las tres preguntas
+
+**1. ¿Se puede hacer agnóstico del sistema visual? — Sí, y ya está medio
+demostrado.** El patrón que usé anoche lo prueba: `login_failure_messages.dart`
+es **texto y clasificación, sin un solo widget**. Las dos apps podrían compartir
+eso mañana. Lo que no se comparte es el widget que lo pinta — y no hace falta:
+son treinta líneas por lado.
+
+**2. ¿Qué se comparte de verdad? — La sospecha es correcta, y el paquete es más
+pequeño de lo que parece.** La lógica ya está en `orbi_runtime`. Lo que se
+duplica es **la clasificación de errores, los textos y las reglas de decisión**
+— qué causa borra una credencial, qué caduca, qué se puede copiar. Nada de eso
+es visual. Un paquete de **texto y reglas**, no de pantallas.
+
+**3. ¿Estorba a la aplicación vieja? — No, si se corta así.** Adoptar un mapa de
+mensajes es cambiar una cadena por una llamada, pantalla a pantalla. `theos_pos`
+podría empezar por sus 7 `toString()` sin tocar nada más.
+
+## Recomendación: sí, pero no lo que parece
+
+**No un paquete de pantallas de arranque y acceso.** Eso obligaría a las dos
+apps a compartir disposición, y cada una tiene su lenguaje visual — sería el
+paquete mal cortado que peor sale.
+
+**Sí un paquete de texto y reglas de sesión**, la otra mitad de `orbi_runtime`:
+clasificación de fallos, mensajes al usuario, qué hacer con una credencial ante
+cada fallo, y las etiquetas de estado (`state_labels.dart`). Lo que anoche
+resultó ser el trabajo de verdad, y lo único que las dos apps podrían usar tal
+cual **sin cambiar ni un píxel.**
+
+**Y no dentro de `fluent_ui`**, por lo que ya está dicho: no es visual, está
+atado a Odoo, y nadie aguas arriba lo aceptaría.
