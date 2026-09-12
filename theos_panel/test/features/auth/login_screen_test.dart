@@ -43,6 +43,10 @@ void resetLoginTestWindowSize(WidgetTester tester) {
 const String _kApiKeySubtitleText =
     'La clave se guarda sólo en el almacén seguro del dispositivo.';
 
+// The "Gestionar servidores…" entry inside the server selector's own dropdown
+// menu — mirrors login_screen.dart's private _kManageServersLabel.
+const String _kManageServersLabel = 'Gestionar servidores…';
+
 final class _ProfileService implements AuthServicePort {
   static const _one = AuthProfile(
     serverUrl: 'https://one.test',
@@ -133,60 +137,185 @@ final class _SlowLoginService
   Future<void> close() async {}
 }
 
+/// Saves [server] into a freshly created [SavedServersStore] backed by
+/// [preferences], and returns that store. Every test below that needs a
+/// saved environment to pick from goes through this instead of typing a raw
+/// URL/database into the form — the form no longer accepts either as text.
+Future<SavedServersStore> _seedServer(
+  SharedPreferences preferences,
+  SavedServer server,
+) async {
+  final store = SavedServersStore(preferences);
+  await store.upsert(server);
+  return store;
+}
+
 void main() {
-  testWidgets('saved server selection fills connection and clears old secret', (
-    tester,
-  ) async {
-    SharedPreferences.setMockInitialValues({});
-    final preferences = await tester.runAsync(
-      () => SharedPreferences.getInstance(),
-    );
-    final store = SavedServersStore(preferences!);
-    await tester.runAsync(
-      () => store.upsert(
-        SavedServer(
-          id: 'two',
-          name: 'Segundo entorno',
-          url: 'https://two.test',
-          database: 'db',
+  testWidgets(
+    'selecting a saved server from its own dropdown fills the login and '
+    'clears the old secret — no dialog involved',
+    (tester) async {
+      SharedPreferences.setMockInitialValues({});
+      final preferences = await tester.runAsync(
+        () => SharedPreferences.getInstance(),
+      );
+      await tester.runAsync(
+        () => _seedServer(
+          preferences!,
+          SavedServer(
+            id: 'two',
+            name: 'Segundo entorno',
+            url: 'https://two.test',
+            database: 'db',
+          ),
         ),
-      ),
-    );
-    await setLoginTestWindowSize(tester, const Size(1200, 1000));
-    addTearDown(() => resetLoginTestWindowSize(tester));
-    await tester.pumpWidget(
-      ProviderScope(
-        overrides: [
-          authServiceProvider.overrideWithValue(_ProfileService()),
-          sharedPreferencesProvider.overrideWithValue(preferences),
-        ],
-        child: MaterialApp(theme: OrbiTheme.light, home: const LoginScreen()),
-      ),
-    );
-    await tester.pumpAndSettle();
-    await tester.enterText(find.byType(TextField).at(3), 'old-secret');
-    await tester.tap(find.byKey(const Key('manage-saved-servers')));
-    await tester.pumpAndSettle();
-    await tester.tap(find.byKey(const ValueKey('use_server')));
-    await tester.pumpAndSettle();
-    final fields = find.byType(TextField);
-    expect(
-      tester.widget<TextField>(fields.at(0)).controller!.text,
-      'https://two.test',
-    );
-    expect(tester.widget<TextField>(fields.at(1)).controller!.text, 'db');
-    expect(tester.widget<TextField>(fields.at(2)).controller!.text, 'bob');
-    expect(tester.widget<TextField>(fields.at(3)).controller!.text, isEmpty);
-    expect(tester.takeException(), isNull);
-    await tester.pump(const Duration(seconds: 1));
-  });
+      );
+      await setLoginTestWindowSize(tester, const Size(1200, 1000));
+      addTearDown(() => resetLoginTestWindowSize(tester));
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            authServiceProvider.overrideWithValue(_ProfileService()),
+            sharedPreferencesProvider.overrideWithValue(preferences!),
+          ],
+          child: MaterialApp(theme: OrbiTheme.light, home: const LoginScreen()),
+        ),
+      );
+      await tester.pumpAndSettle();
+      // Type a secret BEFORE ever touching the selector — this must not
+      // survive the environment switch below.
+      await tester.enterText(find.byType(TextField).at(1), 'old-secret');
+      // The selector lives in the form itself: open it directly, no separate
+      // "manage servers" dialog is involved in reaching a saved environment.
+      await tester.tap(find.byType(DropdownButtonFormField<String>));
+      await tester.pumpAndSettle();
+      expect(find.text(_kManageServersLabel), findsOneWidget);
+      await tester.tap(find.text('Segundo entorno'));
+      await tester.pumpAndSettle();
+      final fields = find.byType(TextField);
+      expect(tester.widget<TextField>(fields.at(0)).controller!.text, 'bob');
+      expect(tester.widget<TextField>(fields.at(1)).controller!.text, isEmpty);
+      expect(tester.takeException(), isNull);
+      await tester.pump(const Duration(seconds: 1));
+    },
+  );
+
+  testWidgets(
+    'first launch with no saved servers is never a dead end: the selector '
+    'itself opens the manager to create the first one',
+    (tester) async {
+      SharedPreferences.setMockInitialValues({});
+      final preferences = await SharedPreferences.getInstance();
+      await setLoginTestWindowSize(tester, const Size(1200, 1000));
+      addTearDown(() => resetLoginTestWindowSize(tester));
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            authServiceProvider.overrideWithValue(_ProfileService()),
+            sharedPreferencesProvider.overrideWithValue(preferences),
+          ],
+          child: MaterialApp(theme: OrbiTheme.light, home: const LoginScreen()),
+        ),
+      );
+      await tester.pumpAndSettle();
+      final selector = find.byType(DropdownButtonFormField<String>);
+      expect(selector, findsOneWidget);
+      expect(find.text('Ningún servidor guardado'), findsOneWidget);
+      await tester.tap(selector);
+      await tester.pumpAndSettle();
+      // The only option offered is the way out: reaching the manager.
+      expect(find.text(_kManageServersLabel), findsOneWidget);
+      await tester.tap(find.text(_kManageServersLabel));
+      await tester.pumpAndSettle();
+      expect(find.text('Nuevo servidor'), findsOneWidget);
+      await tester.enterText(
+        find.byKey(const ValueKey('server_name')),
+        'Primer entorno',
+      );
+      await tester.enterText(
+        find.byKey(const ValueKey('server_url')),
+        'https://first.test',
+      );
+      await tester.enterText(
+        find.byKey(const ValueKey('server_database')),
+        'first_db',
+      );
+      await tester.runAsync(
+        () => tester.tap(find.byKey(const ValueKey('save_server'))),
+      );
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const ValueKey('use_server')));
+      await tester.pumpAndSettle();
+      expect(find.text('Primer entorno'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    },
+  );
+
+  testWidgets(
+    'the database never appears anywhere in the normal login form',
+    (tester) async {
+      SharedPreferences.setMockInitialValues({});
+      final preferences = await tester.runAsync(
+        () => SharedPreferences.getInstance(),
+      );
+      await tester.runAsync(
+        () => _seedServer(
+          preferences!,
+          SavedServer(
+            id: 'x',
+            name: 'Entorno',
+            url: 'https://env.test',
+            database: 'super_secret_db',
+          ),
+        ),
+      );
+      await setLoginTestWindowSize(tester, const Size(1200, 1000));
+      addTearDown(() => resetLoginTestWindowSize(tester));
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            authServiceProvider.overrideWithValue(_ProfileService()),
+            sharedPreferencesProvider.overrideWithValue(preferences!),
+          ],
+          child: MaterialApp(theme: OrbiTheme.light, home: const LoginScreen()),
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(find.text('Base de datos'), findsNothing);
+      expect(find.textContaining('super_secret_db'), findsNothing);
+      expect(find.byType(TextField), findsNWidgets(2));
+      await tester.tap(find.byType(DropdownButtonFormField<String>));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Entorno'));
+      await tester.pumpAndSettle();
+      expect(find.text('Base de datos'), findsNothing);
+      expect(find.textContaining('super_secret_db'), findsNothing);
+      expect(tester.takeException(), isNull);
+    },
+  );
 
   testWidgets(
     'server switch ignores late profile and precaches selected server',
     (tester) async {
+      SharedPreferences.setMockInitialValues({});
+      final preferences = await tester.runAsync(
+        () => SharedPreferences.getInstance(),
+      );
+      await tester.runAsync(() async {
+        final store = SavedServersStore(preferences!);
+        await store.upsert(
+          SavedServer(id: 'one', name: 'Uno', url: 'https://one.test', database: 'db'),
+        );
+        await store.upsert(
+          SavedServer(id: 'two', name: 'Dos', url: 'https://two.test', database: 'db'),
+        );
+      });
       await tester.pumpWidget(
         ProviderScope(
-          overrides: [authServiceProvider.overrideWithValue(_ProfileService())],
+          overrides: [
+            authServiceProvider.overrideWithValue(_ProfileService()),
+            sharedPreferencesProvider.overrideWithValue(preferences!),
+          ],
           child: MaterialApp(
             theme: ThemeData(useMaterial3: true),
             home: const LoginScreen(),
@@ -194,40 +323,57 @@ void main() {
         ),
       );
       await tester.pump();
-      final fields = find.byType(TextField);
-      await tester.enterText(fields.at(0), 'https://one.test');
-      await tester.enterText(fields.at(1), 'db');
-      await tester.enterText(fields.at(0), 'https://two.test');
+      await tester.tap(find.byType(DropdownButtonFormField<String>));
+      await tester.pumpAndSettle();
+      // Selecting "Uno" starts the slow (40ms) lookup for alice…
+      await tester.tap(find.text('Uno'));
+      await tester.pump();
+      await tester.tap(find.byType(DropdownButtonFormField<String>));
+      await tester.pumpAndSettle();
+      // …then switching to "Dos" before that lookup resolves must win.
+      await tester.tap(find.text('Dos'));
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 60));
-      expect(tester.widget<TextField>(fields.at(2)).controller?.text, 'bob');
+      final fields = find.byType(TextField);
+      expect(tester.widget<TextField>(fields.at(0)).controller?.text, 'bob');
     },
   );
 
   testWidgets('login fields advance focus and submit from keyboard', (
     tester,
   ) async {
+    SharedPreferences.setMockInitialValues({});
+    final preferences = await tester.runAsync(
+      () => SharedPreferences.getInstance(),
+    );
+    await tester.runAsync(
+      () => _seedServer(
+        preferences!,
+        SavedServer(id: 'erp', name: 'ERP de prueba', url: 'https://erp.test', database: 'db'),
+      ),
+    );
     await tester.pumpWidget(
       ProviderScope(
-        overrides: [authServiceProvider.overrideWithValue(_ProfileService())],
+        overrides: [
+          authServiceProvider.overrideWithValue(_ProfileService()),
+          sharedPreferencesProvider.overrideWithValue(preferences!),
+        ],
         child: MaterialApp(home: const LoginScreen()),
       ),
     );
     await tester.pump();
     await tester.pumpAndSettle();
+    await tester.tap(find.byType(DropdownButtonFormField<String>));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('ERP de prueba'));
+    await tester.pumpAndSettle();
+    // Selecting an environment moves focus straight to "Usuario".
     final fields = find.byType(TextField);
-    await tester.enterText(fields.at(0), 'https://erp.test');
+    expect(tester.widget<TextField>(fields.at(0)).focusNode?.hasFocus, isTrue);
+    await tester.enterText(fields.at(0), 'user');
     await tester.testTextInput.receiveAction(TextInputAction.next);
     await tester.pump();
     expect(tester.widget<TextField>(fields.at(1)).focusNode?.hasFocus, isTrue);
-    await tester.enterText(fields.at(1), 'db');
-    await tester.testTextInput.receiveAction(TextInputAction.next);
-    await tester.pump();
-    expect(tester.widget<TextField>(fields.at(2)).focusNode?.hasFocus, isTrue);
-    await tester.enterText(fields.at(2), 'user');
-    await tester.testTextInput.receiveAction(TextInputAction.next);
-    await tester.pump();
-    expect(tester.widget<TextField>(fields.at(3)).focusNode?.hasFocus, isTrue);
     await tester.testTextInput.receiveAction(TextInputAction.done);
     await tester.pump();
     expect(tester.takeException(), isNull);
@@ -236,19 +382,34 @@ void main() {
   testWidgets('login completion after unmount does not touch ref or context', (
     tester,
   ) async {
+    SharedPreferences.setMockInitialValues({});
+    final preferences = await tester.runAsync(
+      () => SharedPreferences.getInstance(),
+    );
+    await tester.runAsync(
+      () => _seedServer(
+        preferences!,
+        SavedServer(id: 'erp', name: 'ERP', url: 'https://erp.test', database: 'db'),
+      ),
+    );
     final service = _SlowLoginService();
     await tester.pumpWidget(
       ProviderScope(
-        overrides: [authServiceProvider.overrideWithValue(service)],
+        overrides: [
+          authServiceProvider.overrideWithValue(service),
+          sharedPreferencesProvider.overrideWithValue(preferences!),
+        ],
         child: MaterialApp(home: const LoginScreen()),
       ),
     );
     await tester.pump();
+    await tester.tap(find.byType(DropdownButtonFormField<String>));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('ERP'));
+    await tester.pumpAndSettle();
     final fields = find.byType(TextField);
-    await tester.enterText(fields.at(0), 'https://erp.test');
-    await tester.enterText(fields.at(1), 'db');
-    await tester.enterText(fields.at(2), 'user');
-    await tester.enterText(fields.at(3), 'secret');
+    await tester.enterText(fields.at(0), 'user');
+    await tester.enterText(fields.at(1), 'secret');
     await tester.ensureVisible(find.text('Iniciar sesión'));
     await tester.tap(find.text('Iniciar sesión'));
     await tester.pump();
@@ -283,7 +444,9 @@ void main() {
             ),
           );
           await tester.pump();
-          expect(find.byType(TextField), findsNWidgets(4));
+          // Usuario + Contraseña only: the server selector is a dropdown,
+          // not a TextField, and the database no longer has a field at all.
+          expect(find.byType(TextField), findsNWidgets(2));
           final background = tester.widget<Image>(find.byType(Image));
           expect(background.image, isA<AssetImage>());
           expect(
@@ -354,20 +517,9 @@ void main() {
 
   // Compact mode is recognized the same way the owner described the
   // screenshots: the "API key" switch's descriptive subtitle is gone (it is
-  // the first thing compact styling drops), and "manage servers" shares its
-  // row with the theme toggle instead of getting a row of its own.
+  // the first thing compact styling drops).
   bool isCompactModeIn(WidgetTester tester) =>
       !tester.any(find.text(_kApiKeySubtitleText));
-
-  bool manageServersSharesRowWithThemeToggle(WidgetTester tester) {
-    final manageServersY = tester
-        .getCenter(find.byKey(const Key('manage-saved-servers')))
-        .dy;
-    final themeToggleY = tester
-        .getCenter(find.byKey(const Key('login-theme-toggle')))
-        .dy;
-    return (manageServersY - themeToggleY).abs() < 1.0;
-  }
 
   Future<void> pumpLoginScreen(
     WidgetTester tester,
@@ -390,11 +542,26 @@ void main() {
   // The three cases below are the owner's own three screenshots — a short
   // window (compact, fine), a medium one (normal styling picked, and normal
   // did not fit — this is the one that was broken) and a tall one (normal,
-  // fine). The medium size (700x850) is deliberately BETWEEN the old flat
-  // 720 threshold and the ~918px this app's own normal-mode content (at this
-  // card width) really needs — see the "estimated layout-budget metrics"
-  // test below for exactly how that number was measured, and
-  // login_screen.dart's _estimateNormalModeContentHeight for the budget.
+  // fine). See the "estimated layout-budget metrics" test below for exactly
+  // how the budget is measured, and login_screen.dart's
+  // _estimateNormalModeContentHeight for the formula itself.
+  //
+  // Dropping the database field and the standalone "manage servers" row (see
+  // that same function) lowered the real budget at this card width from
+  // ~918px to 684px, which moves the real compact/normal boundary at 700px
+  // width from ~918px of window height down to ~804px (there is a constant
+  // ~120px of footer+padding taken off the window height before comparing
+  // against that budget — see `availableForNormalMode`). CASE 2 used to sit
+  // at 700x850, deliberately between the OLD flat 720 threshold and the OLD
+  // ~918px real requirement; 850 is now comfortably ABOVE the new ~804px
+  // boundary, so normal styling genuinely fits there — that is a real
+  // improvement, not a regression, and asserting "must be compact" at 850
+  // would be asserting a stale number. The case is kept meaningful by moving
+  // it to 700x780: still above the old flat-720 threshold (so it would still
+  // have hit the original bug on the old code) and still below the new real
+  // boundary, so it continues to prove the same thing the flat threshold
+  // could not: that compact is chosen exactly when normal actually would not
+  // fit, not according to a guess.
   testWidgets(
     'CASE 1 (short window): compact styling is chosen and fits without overlap',
     (tester) async {
@@ -405,13 +572,6 @@ void main() {
         isTrue,
         reason: 'A short window must pick the compact styling.',
       );
-      expect(
-        manageServersSharesRowWithThemeToggle(tester),
-        isTrue,
-        reason:
-            '"Gestionar servidores" must share the top row with the theme '
-            'icon in compact mode.',
-      );
       await expectSubmitButtonReachable(tester, const Size(700, 650));
     },
   );
@@ -420,21 +580,20 @@ void main() {
     'CASE 2 (medium window): normal styling used to be picked and not fit — '
     'now compact is chosen and it fits',
     (tester) async {
-      await pumpLoginScreen(tester, const Size(700, 850));
+      await pumpLoginScreen(tester, const Size(700, 780));
       addTearDown(() => resetLoginTestWindowSize(tester));
       expect(
         isCompactModeIn(tester),
         isTrue,
         reason:
-            'At 700x850 the normal styling\'s own budget (~918px for this '
-            'card width, measured in "estimated layout-budget metrics keep '
-            'matching the real widgets") does not fit — the previous flat '
-            '720 threshold picked normal here anyway (720 <= 850), which is '
-            'exactly the reported bug: content ending at "Guardar clave" '
-            'with the footer right below, submit button gone. Compact must '
-            'be chosen instead, and it does fit.',
+            'At 700x780 the normal styling\'s own budget (~684px for this '
+            'card width, now that the form has three fields instead of four '
+            'and no separate "manage servers" row) still does not fit — the '
+            'old flat 720 threshold picked normal here anyway (720 <= 780), '
+            'which is exactly the reported bug. Compact must be chosen '
+            'instead, and it does fit.',
       );
-      await expectSubmitButtonReachable(tester, const Size(700, 850));
+      await expectSubmitButtonReachable(tester, const Size(700, 780));
     },
   );
 
@@ -447,11 +606,6 @@ void main() {
         isCompactModeIn(tester),
         isFalse,
         reason: 'A tall window has room for the spacious normal styling.',
-      );
-      expect(
-        manageServersSharesRowWithThemeToggle(tester),
-        isFalse,
-        reason: '"Gestionar servidores" gets its own row in normal mode.',
       );
       await expectSubmitButtonReachable(tester, const Size(700, 1000));
     },
@@ -506,23 +660,24 @@ void main() {
       // LayoutBuilder's body constraints, which shrink whenever
       // Scaffold.resizeToAvoidBottomInset reacts to MediaQuery.viewInsets —
       // and this window is deliberately picked right at the compact/normal
-      // boundary (~918px for this card width) so even a few stray pixels of
-      // inset would have flipped it. The fix reads MediaQuery.sizeOf instead,
-      // which does not move when viewInsets does — proven directly below by
-      // forcing a viewInsets change and confirming nothing about the layout
-      // reacts to it, regardless of what was really nudging it on the
-      // reporter's machine.
-      await pumpLoginScreen(tester, const Size(700, 915));
+      // boundary so even a few stray pixels of inset would have flipped it.
+      // The fix reads MediaQuery.sizeOf instead, which does not move when
+      // viewInsets does — proven directly below by forcing a viewInsets
+      // change and confirming nothing about the layout reacts to it,
+      // regardless of what was really nudging it on the reporter's machine.
+      //
+      // Only the two remaining TextFields (Usuario, Contraseña) are looped
+      // over: the server selector is a dropdown now, and tapping it opens an
+      // overlay rather than just taking focus, which is a different — and
+      // separately covered — interaction.
+      await pumpLoginScreen(tester, const Size(700, 800));
       addTearDown(() => resetLoginTestWindowSize(tester));
       addTearDown(() => tester.view.resetViewInsets());
 
       final baselineCompact = isCompactModeIn(tester);
-      final baselineSharesRow = manageServersSharesRowWithThemeToggle(
-        tester,
-      );
 
       final fields = find.byType(TextField);
-      for (var i = 0; i < 4; i++) {
+      for (var i = 0; i < 2; i++) {
         await tester.tap(fields.at(i));
         await tester.pump();
         expect(
@@ -531,11 +686,6 @@ void main() {
           reason:
               'Focusing field #$i changed compact-vs-normal — the form '
               'reflowed under the user, exactly the reported symptom.',
-        );
-        expect(
-          manageServersSharesRowWithThemeToggle(tester),
-          baselineSharesRow,
-          reason: 'Focusing field #$i moved "Gestionar servidores".',
         );
         expect(tester.takeException(), isNull);
       }
@@ -551,10 +701,6 @@ void main() {
         reason:
             'A transient viewInsets change (simulating whatever a real '
             'keyboard-like overlay does) must not flip the layout mode.',
-      );
-      expect(
-        manageServersSharesRowWithThemeToggle(tester),
-        baselineSharesRow,
       );
     },
   );

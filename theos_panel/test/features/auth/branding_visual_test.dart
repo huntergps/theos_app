@@ -11,6 +11,7 @@ import 'package:theos_panel/app/theme/orbi_theme.dart';
 import 'package:theos_panel/features/auth/auth_controller.dart';
 import 'package:theos_panel/features/auth/login_preferences.dart';
 import 'package:theos_panel/features/auth/login_screen.dart';
+import 'package:theos_panel/features/auth/saved_servers.dart';
 
 final class _VisualAuthService implements AuthServicePort {
   const _VisualAuthService({this.profile, this.result});
@@ -88,7 +89,9 @@ void main() {
     expect(find.text('Ventas, caja y operaciones'), findsNothing);
     expect(find.byKey(const Key('compact-login-background')), findsOneWidget);
     expect(find.byKey(const Key('save-credential-toggle')), findsOneWidget);
-    expect(find.byType(TextField), findsNWidgets(4));
+    // Usuario + Contraseña only: the server selector is a dropdown, not a
+    // TextField, and the database has no field anywhere in this form.
+    expect(find.byType(TextField), findsNWidgets(2));
     final button = find.widgetWithText(FilledButton, 'Iniciar sesión');
     await tester.ensureVisible(button);
     expect(tester.getTopLeft(button).dy, lessThan(844));
@@ -126,7 +129,7 @@ void main() {
       find.text('Trabaja con tu equipo desde un solo lugar.'),
       findsOneWidget,
     );
-    expect(find.byType(TextField), findsNWidgets(4));
+    expect(find.byType(TextField), findsNWidgets(2));
   });
 
   testWidgets('splash is branded and reports its loading state', (
@@ -158,6 +161,14 @@ void main() {
       ),
     });
     final preferences = await SharedPreferences.getInstance();
+    await SavedServersStore(preferences).upsert(
+      SavedServer(
+        id: 'saved',
+        name: 'Entorno guardado',
+        url: 'https://saved.test',
+        database: 'saved_db',
+      ),
+    );
     const profile = AuthProfile(
       serverUrl: 'https://profile.test',
       database: 'profile_db',
@@ -179,14 +190,12 @@ void main() {
     );
     await tester.pump();
 
-    final fields = find.byType(TextField);
+    // The remembered environment is selected — its name shows directly in
+    // the (closed) selector — and the database it carries never appears.
+    expect(find.text('Entorno guardado'), findsOneWidget);
+    expect(find.text('Base de datos'), findsNothing);
     expect(
-      tester.widget<TextField>(fields.at(0)).controller?.text,
-      'https://saved.test',
-    );
-    expect(tester.widget<TextField>(fields.at(1)).controller?.text, 'saved_db');
-    expect(
-      tester.widget<TextField>(fields.at(2)).controller?.text,
+      tester.widget<TextField>(find.byType(TextField).first).controller?.text,
       'saved_user',
     );
   });
@@ -196,6 +205,14 @@ void main() {
   ) async {
     SharedPreferences.setMockInitialValues({});
     final preferences = await SharedPreferences.getInstance();
+    await SavedServersStore(preferences).upsert(
+      SavedServer(
+        id: 'saved',
+        name: 'Entorno guardado',
+        url: 'https://saved.test',
+        database: 'saved_db',
+      ),
+    );
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
@@ -206,15 +223,18 @@ void main() {
       ),
     );
     await tester.pump();
+    await tester.tap(find.byType(DropdownButtonFormField<String>));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Entorno guardado'));
+    await tester.pumpAndSettle();
     final fields = find.byType(TextField);
-    await tester.enterText(fields.at(0), 'https://saved.test');
-    await tester.enterText(fields.at(1), 'saved_db');
-    await tester.enterText(fields.at(2), 'saved_user');
-    await tester.enterText(fields.at(3), 'do-not-persist');
+    await tester.enterText(fields.at(0), 'saved_user');
+    await tester.enterText(fields.at(1), 'do-not-persist');
     await tester.pump(const Duration(milliseconds: 450));
 
     final raw = preferences.getString(LoginPreferencesStore.key);
     expect(raw, contains('saved_user'));
+    expect(raw, contains('saved.test'));
     expect(raw, isNot(contains('do-not-persist')));
     expect(raw, isNot(contains('apiKey')));
   });
@@ -228,6 +248,14 @@ void main() {
     addTearDown(tester.view.resetDevicePixelRatio);
     SharedPreferences.setMockInitialValues({});
     final preferences = await SharedPreferences.getInstance();
+    await SavedServersStore(preferences).upsert(
+      SavedServer(
+        id: 'login-env',
+        name: 'Panel',
+        url: 'https://login.test',
+        database: 'panel',
+      ),
+    );
     final profile = const AuthProfile(
       serverUrl: 'https://login.test',
       database: 'panel',
@@ -253,11 +281,13 @@ void main() {
       ),
     );
     await tester.pump();
+    await tester.tap(find.byType(DropdownButtonFormField<String>));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Panel'));
+    await tester.pumpAndSettle();
     final fields = find.byType(TextField);
-    await tester.enterText(fields.at(0), 'https://login.test');
-    await tester.enterText(fields.at(1), 'panel');
-    await tester.enterText(fields.at(2), 'seller');
-    await tester.enterText(fields.at(3), 'not-persisted');
+    await tester.enterText(fields.at(0), 'seller');
+    await tester.enterText(fields.at(1), 'not-persisted');
     await tester.ensureVisible(find.text('Iniciar sesión'));
     await tester.tap(find.text('Iniciar sesión'));
     await tester.pump();
@@ -284,6 +314,14 @@ void main() {
         ),
       });
       final preferences = await SharedPreferences.getInstance();
+      await SavedServersStore(preferences).upsert(
+        SavedServer(
+          id: 'saved',
+          name: 'Entorno guardado',
+          url: 'https://saved.test',
+          database: 'saved_db',
+        ),
+      );
       const profile = AuthProfile(
         serverUrl: 'https://other.test',
         database: 'other_db',
@@ -305,16 +343,14 @@ void main() {
       );
       await tester.pump();
 
-      final fields = find.byType(TextField);
+      // The remembered selection (matching a saved server) wins, but the
+      // cached profile belongs to a DIFFERENT server/database — its login
+      // must not leak into the Usuario field for this one.
+      expect(find.text('Entorno guardado'), findsOneWidget);
       expect(
-        tester.widget<TextField>(fields.at(0)).controller?.text,
-        'https://saved.test',
+        tester.widget<TextField>(find.byType(TextField).first).controller?.text,
+        isEmpty,
       );
-      expect(
-        tester.widget<TextField>(fields.at(1)).controller?.text,
-        'saved_db',
-      );
-      expect(tester.widget<TextField>(fields.at(2)).controller?.text, isEmpty);
     },
   );
 }

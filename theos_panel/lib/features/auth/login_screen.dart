@@ -18,6 +18,12 @@ const String _kApiKeySubtitle =
     'La clave se guarda sólo en el almacén seguro del dispositivo.';
 const String _kFooterText = 'Desarrollado por GalapagosTech · 2026';
 
+// Sentinel item inside the server dropdown that opens the manager dialog
+// instead of selecting an environment. It can never collide with a real
+// SavedServer.id (those are timestamp-based, see server_manager_dialog.dart).
+const String _kManageServersOptionValue = '__manage_servers__';
+const String _kManageServersLabel = 'Gestionar servidores…';
+
 String _saveCredentialSubtitleFor(bool apiKeyMode) => apiKeyMode
     ? 'Guarda la API key sólo en el almacén seguro.'
     : 'Guarda la contraseña sólo en el almacén seguro.';
@@ -91,6 +97,14 @@ double _estimateSwitchTileHeight({
 /// The height the NORMAL (non-compact) styling needs for the whole card
 /// content — header through the submit button — at [contentWidth]. Compared
 /// against the height actually available; see [_LoginScreenState.build].
+///
+/// The form now has THREE field-shaped rows, not four: the database field is
+/// gone (it travels with the chosen saved server instead of being typed), and
+/// the "Gestionar servidores" link no longer gets its own header row — it is
+/// a menu entry inside the server selector itself. Both of those used to add
+/// their own term to this budget; dropping either without dropping the term
+/// here is exactly the kind of drift the "estimated layout-budget metrics
+/// keep matching the real widgets" test exists to catch.
 double _estimateNormalModeContentHeight({
   required double contentWidth,
   required ThemeData theme,
@@ -98,6 +112,7 @@ double _estimateNormalModeContentHeight({
   required double textScaleFactor,
   required bool apiKeyMode,
   required String? errorMessage,
+  String? serversLoadError,
 }) {
   final titleHeight = _measureTextHeight(
     'Acceso a Orbi',
@@ -135,13 +150,23 @@ double _estimateNormalModeContentHeight({
       titleHeight +
       OrbiTheme.space8 +
       subtitleHeight +
-      OrbiTheme.space24 + // headerGap (normal), before "manage servers"
-      kMinInteractiveDimension + // "manage servers" own row (normal)
-      4 * (_kNormalTextFieldHeight + OrbiTheme.space12) + // 4 fields + gaps
+      OrbiTheme.space24 + // headerGap (normal), before the fields
+      3 * (_kNormalTextFieldHeight + OrbiTheme.space12) + // server selector + usuario + contraseña, each + its gap
       apiKeySubtitleHeight +
       saveCredentialSubtitleHeight +
       OrbiTheme.space24 + // headerGap (normal), before the submit button
       kMinInteractiveDimension; // submit button
+  if (serversLoadError != null) {
+    total +=
+        OrbiTheme.space8 +
+        _measureTextHeight(
+          serversLoadError,
+          theme.textTheme.bodyMedium,
+          contentWidth,
+          direction,
+          textScaleFactor,
+        );
+  }
   if (errorMessage != null) {
     total +=
         OrbiTheme.space12 +
@@ -220,12 +245,8 @@ class _BrandingPane extends StatelessWidget {
 }
 
 class _LoginScreenState extends ConsumerState<LoginScreen> {
-  final _server = TextEditingController();
-  final _database = TextEditingController();
   final _login = TextEditingController();
   final _password = TextEditingController();
-  final _serverFocus = FocusNode();
-  final _databaseFocus = FocusNode();
   final _loginFocus = FocusNode();
   final _passwordFocus = FocusNode();
   int _profileLookupEpoch = 0;
@@ -233,14 +254,18 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   bool _apiKeyMode = false;
   bool _saveCredential = false;
 
+  // The database travels with the saved server, not with anything the user
+  // types: it is resolved the moment an environment is selected, and never
+  // rendered anywhere in this form. See saved_servers.dart and
+  // docs/orbi_panel/COORDINATOR_HANDOFF_2026_09_11.md.
+  List<SavedServer> _servers = const [];
+  SavedServer? _selectedServer;
+  String? _serversLoadError;
+
   @override
   void dispose() {
-    _server.dispose();
-    _database.dispose();
     _login.dispose();
     _password.dispose();
-    _serverFocus.dispose();
-    _databaseFocus.dispose();
     _loginFocus.dispose();
     _passwordFocus.dispose();
     _loginPreferencesDebounce?.cancel();
@@ -254,26 +279,95 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     });
   }
 
-  Future<void> _manageServers() async {
+  /// Reads the saved-servers store into [_servers]/[_selectedServer]. Pure
+  /// field assignment, no `setState`: safe to call directly from `initState`
+  /// (before the first build) and wrap in `setState(_readServers)` anywhere
+  /// else. Corrupt local data is reported, never silently discarded — see
+  /// [_serversLoadError]. A store that isn't wired up at all (embedders and
+  /// most widget tests never override `sharedPreferencesProvider`) is treated
+  /// as "no servers yet", the same convention already used below for
+  /// [LoginPreferencesStore].
+  void _readServers() {
+    try {
+      final servers = ref.read(savedServersStoreProvider).load();
+      _servers = servers;
+      _serversLoadError = null;
+      if (_selectedServer != null) {
+        _selectedServer = servers.cast<SavedServer?>().firstWhere(
+          (server) => server!.id == _selectedServer!.id,
+          orElse: () => null,
+        );
+      }
+    } on FormatException catch (error) {
+      _servers = const [];
+      _selectedServer = null;
+      _serversLoadError =
+          'No se pudieron leer los servidores guardados: ${error.message}';
+    } catch (_) {
+      // Tests and embedders may intentionally omit the saved-servers store.
+      _servers = const [];
+      _selectedServer = null;
+      _serversLoadError = null;
+    }
+  }
+
+  SavedServer? _findServer(String url, String database) {
+    if (url.isEmpty || database.isEmpty) return null;
+    String normalizedUrl;
+    try {
+      normalizedUrl = SavedServersStore.normalizeUrl(url);
+    } catch (_) {
+      normalizedUrl = url;
+    }
+    for (final server in _servers) {
+      if (server.url == normalizedUrl && server.database == database) {
+        return server;
+      }
+    }
+    return null;
+  }
+
+  void _selectServer(SavedServer server) {
+    if (_selectedServer?.id == server.id) return;
+    // Invalidate an older server lookup before applying the new selection.
+    // No password/API key may cross to another server or database.
+    ++_profileLookupEpoch;
+    _loginPreferencesDebounce?.cancel();
+    setState(() {
+      _selectedServer = server;
+      _login.clear();
+      _password.clear();
+    });
+    _lookupRememberedProfile();
+    _scheduleLoginPreferencesSave();
+    _loginFocus.requestFocus();
+  }
+
+  void _handleServerSelectionChanged(String? value) {
+    if (value == null) return;
+    if (value == _kManageServersOptionValue) {
+      unawaited(_openServerManager());
+      return;
+    }
+    for (final server in _servers) {
+      if (server.id == value) {
+        _selectServer(server);
+        return;
+      }
+    }
+  }
+
+  Future<void> _openServerManager() async {
     try {
       final selected = await showSavedServerManager(
         context,
         store: ref.read(savedServersStoreProvider),
-        initialUrl: _server.text.trim(),
-        initialDatabase: _database.text.trim(),
+        initialUrl: _selectedServer?.url ?? '',
+        initialDatabase: _selectedServer?.database ?? '',
       );
-      if (!mounted || selected == null) return;
-      // Invalidate an older server lookup before applying the new selection.
-      // No password/API key may cross to another server or database.
-      ++_profileLookupEpoch;
-      _loginPreferencesDebounce?.cancel();
-      _server.text = selected.url;
-      _database.text = selected.database;
-      _login.clear();
-      _password.clear();
-      _lookupRememberedProfile();
-      _scheduleLoginPreferencesSave();
-      _loginFocus.requestFocus();
+      if (!mounted) return;
+      setState(_readServers);
+      if (selected != null) _selectServer(selected);
     } catch (_) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -285,9 +379,10 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   }
 
   Future<void> _saveLoginPreferences({LoginPreferencesStore? store}) async {
+    final server = _selectedServer;
     final value = LoginPreferences(
-      serverUrl: _server.text.trim(),
-      database: _database.text.trim(),
+      serverUrl: server?.url ?? '',
+      database: server?.database ?? '',
       login: _login.text.trim(),
     );
     if (value.isEmpty) return;
@@ -301,9 +396,8 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   }
 
   void _lookupRememberedProfile() {
-    final server = _server.text.trim();
-    final database = _database.text.trim();
-    if (server.isEmpty || database.isEmpty) return;
+    final server = _selectedServer;
+    if (server == null) return;
     final epoch = ++_profileLookupEpoch;
     final loginBeforeLookup = _login.text;
     unawaited(() async {
@@ -311,14 +405,13 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       try {
         profile = await ref
             .read(authControllerProvider.notifier)
-            .loadProfileFor(server, database);
+            .loadProfileFor(server.url, server.database);
       } catch (_) {
         return;
       }
       if (!mounted ||
           epoch != _profileLookupEpoch ||
-          _server.text.trim() != server ||
-          _database.text.trim() != database ||
+          _selectedServer?.id != server.id ||
           _login.text != loginBeforeLookup) {
         return;
       }
@@ -332,6 +425,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   @override
   void initState() {
     super.initState();
+    _readServers();
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       LoginPreferences? remembered;
       try {
@@ -341,23 +435,30 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       }
       if (!mounted) return;
       if (remembered != null && !remembered.isEmpty) {
-        _server.text = remembered.serverUrl;
-        _database.text = remembered.database;
-        _login.text = remembered.login;
+        final match = _findServer(remembered.serverUrl, remembered.database);
+        if (match != null) {
+          setState(() {
+            _selectedServer = match;
+            _login.text = remembered!.login;
+          });
+        }
       }
       final profile = await ref
           .read(authControllerProvider.notifier)
           .loadProfile();
       if (!mounted || profile == null) return;
-      final selectedServer = _server.text.trim();
-      final selectedDatabase = _database.text.trim();
-      final profileMatchesSelection =
-          (selectedServer.isEmpty || selectedServer == profile.serverUrl) &&
-          (selectedDatabase.isEmpty || selectedDatabase == profile.database);
-      if (_server.text.trim().isEmpty) _server.text = profile.serverUrl;
-      if (_database.text.trim().isEmpty) _database.text = profile.database;
-      if (_login.text.trim().isEmpty && profileMatchesSelection) {
-        _login.text = profile.login;
+      if (_selectedServer == null) {
+        final match = _findServer(profile.serverUrl, profile.database);
+        if (match != null) {
+          setState(() {
+            _selectedServer = match;
+            if (_login.text.trim().isEmpty) _login.text = profile.login;
+          });
+        }
+      } else if (_selectedServer!.url == profile.serverUrl &&
+          _selectedServer!.database == profile.database &&
+          _login.text.trim().isEmpty) {
+        setState(() => _login.text = profile.login);
       }
     });
   }
@@ -411,6 +512,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       textScaleFactor: textScaleFactor,
       apiKeyMode: _apiKeyMode,
       errorMessage: state.message,
+      serversLoadError: _serversLoadError,
     );
     final availableForNormalMode =
         screenSize.height -
@@ -522,6 +624,66 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     );
   }
 
+  Widget _buildServerSelector({
+    required bool compactHeight,
+    required bool busy,
+    required EdgeInsetsGeometry? inputPadding,
+    required ColorScheme colors,
+  }) {
+    final hasServers = _servers.isNotEmpty;
+    final items = <DropdownMenuItem<String>>[
+      for (final server in _servers)
+        DropdownMenuItem(
+          value: server.id,
+          child: Text(server.name, overflow: TextOverflow.ellipsis),
+        ),
+      const DropdownMenuItem(
+        key: Key('manage-servers-option'),
+        value: _kManageServersOptionValue,
+        child: Text(_kManageServersLabel),
+      ),
+    ];
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        DropdownButtonFormField<String>(
+          // A DropdownButtonFormField only honors `initialValue` on its FIRST
+          // build (it is a plain FormField, not a controlled widget) — see
+          // the migration note on `value` in package:flutter's dropdown.dart.
+          // Keying it by the selection forces Flutter to recreate the field
+          // (and therefore re-seed initialValue) whenever the selection
+          // itself changes, which is exactly when a fresh seed is needed;
+          // renaming a server without changing its id keeps the same key and
+          // still picks up the new label on the next build, since `items` is
+          // rebuilt fresh every time regardless.
+          key: ValueKey('server-selector::${_selectedServer?.id}'),
+          initialValue: _selectedServer?.id,
+          items: items,
+          onChanged: busy ? null : _handleServerSelectionChanged,
+          // Without this, the field's internal Row sizes itself to the
+          // intrinsic width of the selected item/hint text and overflows
+          // against the dropdown arrow the moment a server name (or the
+          // "Gestionar servidores…" hint) is long enough for a narrow card.
+          isExpanded: true,
+          hint: Text(
+            hasServers ? 'Selecciona un servidor' : 'Ningún servidor guardado',
+            overflow: TextOverflow.ellipsis,
+          ),
+          decoration: InputDecoration(
+            labelText: 'Servidor',
+            prefixIcon: const Icon(Icons.dns_outlined),
+            isDense: compactHeight,
+            contentPadding: inputPadding,
+          ),
+        ),
+        if (_serversLoadError != null) ...[
+          const SizedBox(height: OrbiTheme.space8),
+          Text(_serversLoadError!, style: TextStyle(color: colors.error)),
+        ],
+      ],
+    );
+  }
+
   Widget _buildLoginForm(
     BuildContext context,
     AuthViewState state, {
@@ -562,25 +724,6 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
         }
       },
     );
-    final manageServers = TextButton.icon(
-      key: const Key('manage-saved-servers'),
-      onPressed: state.isBusy ? null : _manageServers,
-      icon: const Icon(Icons.dns_outlined, size: 18),
-      label: const Text('Gestionar servidores'),
-    );
-    // The shared row (below) also has to hold the theme toggle, and on a
-    // narrow phone width there isn't room for both the icon AND the
-    // "Gestionar servidores" label next to it (this is exactly what
-    // overflowed at a 390-wide compact window). Icon-only with a tooltip
-    // fits any reasonable width — kMinInteractiveDimension for the icon
-    // button, same as the theme toggle next to it — and this is the only
-    // place that needs it: the "own row" version above stays fully labeled.
-    final manageServersCompact = IconButton(
-      key: const Key('manage-saved-servers'),
-      tooltip: 'Gestionar servidores',
-      onPressed: state.isBusy ? null : _manageServers,
-      icon: const Icon(Icons.dns_outlined),
-    );
     // The submit button (and the header above it) must never end up behind
     // the translucent credit footer, no matter how short the window is. Only
     // the fields+toggles in between are allowed to scroll: they sit in a
@@ -592,16 +735,11 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     final header = <Widget>[
       // Use the app preference rather than a login-only Theme override.
       // This preserves one source of truth and the existing scope boundary.
-      // A very short desktop window (for example 800x600) has no vertical
-      // room to spare, so these two utility actions share one row instead
-      // of stacking as two separate rows above the branding block.
-      if (compactHeight)
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [manageServersCompact, themeToggle],
-        )
-      else
-        Align(alignment: AlignmentDirectional.centerEnd, child: themeToggle),
+      // Choosing an environment used to need a second, separate header row
+      // ("Gestionar servidores"). That control now lives inside the server
+      // selector itself (see _buildServerSelector), so this row only ever
+      // holds the theme toggle, in both compact and normal styling.
+      Align(alignment: AlignmentDirectional.centerEnd, child: themeToggle),
       SizedBox(height: compactHeight ? OrbiTheme.space8 : OrbiTheme.space12),
       OrbiBrand(height: logoHeight, color: colors.primary),
       const SizedBox(height: OrbiTheme.space16),
@@ -619,48 +757,13 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
         textAlign: TextAlign.center,
       ),
       SizedBox(height: headerGap),
-      if (!compactHeight)
-        Align(
-          alignment: AlignmentDirectional.centerEnd,
-          child: manageServers,
-        ),
     ];
     final fieldsAndToggles = <Widget>[
-      TextField(
-        controller: _server,
-        focusNode: _serverFocus,
-        autofocus: true,
-        textInputAction: TextInputAction.next,
-        onSubmitted: (_) => _databaseFocus.requestFocus(),
-        onChanged: (_) {
-          _lookupRememberedProfile();
-          _scheduleLoginPreferencesSave();
-        },
-        decoration: InputDecoration(
-          labelText: 'Servidor',
-          hintText: 'https://erp.example.com',
-          prefixIcon: Icon(Icons.dns_outlined),
-          isDense: compactHeight,
-          contentPadding: inputPadding,
-        ),
-        keyboardType: TextInputType.url,
-      ),
-      SizedBox(height: fieldGap),
-      TextField(
-        controller: _database,
-        focusNode: _databaseFocus,
-        textInputAction: TextInputAction.next,
-        onSubmitted: (_) => _loginFocus.requestFocus(),
-        onChanged: (_) {
-          _lookupRememberedProfile();
-          _scheduleLoginPreferencesSave();
-        },
-        decoration: InputDecoration(
-          labelText: 'Base de datos',
-          prefixIcon: Icon(Icons.storage_outlined),
-          isDense: compactHeight,
-          contentPadding: inputPadding,
-        ),
+      _buildServerSelector(
+        compactHeight: compactHeight,
+        busy: state.isBusy,
+        inputPadding: inputPadding,
+        colors: colors,
       ),
       SizedBox(height: fieldGap),
       TextField(
@@ -749,7 +852,9 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
           ),
           SizedBox(height: headerGap),
           FilledButton.icon(
-            onPressed: state.isBusy ? null : _submit,
+            onPressed: (state.isBusy || _selectedServer == null)
+                ? null
+                : _submit,
             icon: state.isBusy
                 ? const SizedBox(
                     width: 18,
@@ -765,6 +870,8 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   }
 
   Future<void> _submit() async {
+    final selected = _selectedServer;
+    if (selected == null) return;
     final auth = ref.read(authControllerProvider.notifier);
     LoginPreferencesStore? loginPreferences;
     try {
@@ -774,8 +881,8 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     }
     final apiKeyMode = _apiKeyMode;
     final persistCredential = _saveCredential;
-    final serverUrl = _server.text.trim();
-    final database = _database.text.trim();
+    final serverUrl = selected.url;
+    final database = selected.database;
     final login = _login.text.trim();
     final secret = _password.text;
     if (apiKeyMode) {
