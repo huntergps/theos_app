@@ -117,4 +117,129 @@ void main() {
     final identificacion = tester.getTopLeft(find.byKey(const Key('campo-id')));
     expect(identificacion.dy > nombre.dy, isTrue);
   });
+
+  // 🔴 El formulario compartido sólo sabía ser el cuerpo entero de una página:
+  // envolvía sus secciones en `Expanded` + scroll, así que exigía altura
+  // acotada y **reventaba** dentro de un `ListView`. Como casi ningún
+  // formulario es la pantalla entera —los ajustes, el editor de cobro y el
+  // resumen de venta son trozos de pantallas que ya scrollean—, eso dejaba
+  // fuera del estándar justo a las que más falta les hacía: estandarizar la
+  // etiqueta obligaba a rehacer el scroll de la pantalla completa.
+  testWidgets('cabe dentro de una lista que ya scrollea, sin reventar', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      FluentApp(
+        home: ScaffoldPage(
+          content: ListView(
+            children: [
+              const Text('Algo que va antes del formulario'),
+              OrbiForm(
+                sections: [
+                  OrbiFormSection(
+                    title: 'Datos',
+                    fields: [
+                      OrbiField(
+                        label: 'Nombre',
+                        required: true,
+                        child: const TextBox(),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+              const Text('Y algo que va después'),
+            ],
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(tester.takeException(), isNull);
+    expect(find.text('Algo que va antes del formulario'), findsOneWidget);
+    expect(find.text('Y algo que va después'), findsOneWidget);
+    expect(find.text('Nombre'), findsOneWidget);
+  });
+
+  testWidgets('midiendo lo suyo, no se come el alto de lo que va debajo', (
+    tester,
+  ) async {
+    await tester.binding.setSurfaceSize(const Size(600, 800));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    await tester.pumpWidget(
+      FluentApp(
+        home: ScaffoldPage(
+          content: Column(
+            children: [
+              OrbiForm(
+                sections: [
+                  OrbiFormSection(
+                    title: 'Datos',
+                    fields: [
+                      OrbiField(label: 'Nombre', child: const TextBox()),
+                    ],
+                  ),
+                ],
+              ),
+              const Text('Acciones de abajo'),
+            ],
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(tester.takeException(), isNull);
+    // Si el formulario se comiera el alto sobrante, esto quedaría empujado
+    // fuera de pantalla o la columna reventaría.
+    expect(find.text('Acciones de abajo'), findsOneWidget);
+    expect(
+      tester.getSize(find.byType(OrbiForm)).height,
+      lessThan(400),
+      reason: 'debe medir sus campos, no todo el alto disponible',
+    );
+  });
+
+  testWidgets('la variante de página deja las acciones fijas abajo', (
+    tester,
+  ) async {
+    await tester.binding.setSurfaceSize(const Size(600, 800));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    await tester.pumpWidget(
+      FluentApp(
+        home: ScaffoldPage(
+          content: OrbiForm.filling(
+            sections: [
+              for (var i = 0; i < 20; i++)
+                OrbiFormSection(
+                  title: 'Sección $i',
+                  fields: [
+                    OrbiField(label: 'Campo $i', child: const TextBox()),
+                  ],
+                ),
+            ],
+            actions: const Text('Guardar'),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(tester.takeException(), isNull);
+    // Con veinte secciones la última cae fuera de la ventana, pero el botón
+    // sigue dentro: eso es lo que aporta la variante de página. Se comprueba
+    // por geometría, no con `findsNothing`: un `SingleChildScrollView`
+    // construye TODOS sus hijos, así que la sección 19 existe en el árbol
+    // aunque nadie pueda verla.
+    expect(
+      tester.getBottomLeft(find.text('Guardar')).dy,
+      lessThanOrEqualTo(800),
+    );
+    expect(
+      tester.getTopLeft(find.text('Sección 19')).dy,
+      greaterThan(800),
+      reason: 'la última sección queda fuera de la ventana, sin scrollear',
+    );
+  });
 }

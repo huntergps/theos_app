@@ -52,12 +52,37 @@ class OrbiFormSection {
 /// - El error del campo va **pegado al campo**, no en un aviso arriba que
 ///   obliga a adivinar cuál falló.
 class OrbiForm extends StatelessWidget {
+  /// Un formulario que ocupa **lo que miden sus campos**, ni más ni menos.
+  ///
+  /// Es el que sirve casi siempre, porque casi ningún formulario es la
+  /// pantalla entera: suele ser un trozo de una pantalla que ya scrollea con
+  /// otras cosas debajo —los ajustes, el editor de cobro, el resumen de una
+  /// venta—. Así se puede meter dentro de un `ListView` o de un
+  /// `SingleChildScrollView` que ya existe, sin tocar cómo scrollea la
+  /// pantalla.
   const OrbiForm({
     super.key,
     required this.sections,
     this.actions,
     this.twoColumnBreakpoint = 840,
-  });
+  }) : fillsHeight = false;
+
+  /// El formulario **es** el cuerpo de la página: los campos scrollean por
+  /// dentro y la barra de acciones se queda fija abajo, siempre visible.
+  ///
+  /// 🔴 Exige altura acotada. Dentro de un `ListView` o de un
+  /// `SingleChildScrollView` la altura es infinita y Flutter revienta con
+  /// *«RenderFlex children have non-zero flex but incoming height constraints
+  /// are unbounded»*. Ése era el comportamiento ÚNICO de este widget, y por
+  /// eso no se podía usar en las cuatro pantallas donde el formulario es sólo
+  /// una parte: estandarizar la etiqueta obligaba a rehacer el scroll de la
+  /// pantalla entera. Ahora es una variante, no la regla.
+  const OrbiForm.filling({
+    super.key,
+    required this.sections,
+    this.actions,
+    this.twoColumnBreakpoint = 840,
+  }) : fillsHeight = true;
 
   final List<OrbiFormSection> sections;
 
@@ -68,25 +93,30 @@ class OrbiForm extends StatelessWidget {
   /// corte medio que ya usa el resto de la aplicación.
   final double twoColumnBreakpoint;
 
+  /// Si scrollea por dentro con las acciones fijas ([OrbiForm.filling]) o si
+  /// mide lo que miden sus campos ([OrbiForm.new]).
+  final bool fillsHeight;
+
   @override
   Widget build(BuildContext context) {
     return LayoutBuilder(
       builder: (context, constraints) {
         final columns = constraints.maxWidth >= twoColumnBreakpoint ? 2 : 1;
-        return Column(
+        final campos = Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Expanded(
-              child: SingleChildScrollView(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    for (final section in sections)
-                      _Section(section: section, columns: columns),
-                  ],
-                ),
-              ),
-            ),
+            for (final section in sections)
+              _Section(section: section, columns: columns),
+          ],
+        );
+        return Column(
+          mainAxisSize: fillsHeight ? MainAxisSize.max : MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            if (fillsHeight)
+              Expanded(child: SingleChildScrollView(child: campos))
+            else
+              campos,
             if (actions != null)
               Padding(padding: const EdgeInsets.only(top: 16), child: actions),
           ],
