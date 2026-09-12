@@ -4,15 +4,39 @@ Este archivo existe porque las cosas se estaban perdiendo en la conversación. L
 que no está aquí, no está comprometido con nadie. Se actualiza en cuanto algo
 entra o sale, no al final de la sesión.
 
-Última actualización: 2026-09-12, noche. Orbi migrada a Fluent y desplegada en mepriga.
+Última actualización: 2026-09-12, noche. Orbi web en su propio dominio para todos los clientes; arreglos de pantalla en curso.
 
 ## Esperan una decisión del dueño
 
-**Ninguna.** Todas contestadas el 12-sep-2026. Cuando aparezca una nueva se pone aquí
-antes de seguir trabajando en lo que dependa de ella.
+Cuando aparezca una nueva se pone aquí antes de seguir trabajando en lo que dependa de
+ella. Hasta el 12-sep-2026 esta sección decía «ninguna» con cinco abiertas, y una ni
+siquiera estaba anotada.
+
+- **¿Hay otro cliente que use la conexión en vivo con la sesión en la dirección?** Es la
+  mitad del parche del despachador de `l10n_ec_collection_box_pos` (`models/ir_http.py`),
+  que **pidió el dueño** en nov-2025 y que no se toca sin él. Revisado el 12-sep-2026: la
+  parte de cabeceras es fiel al núcleo que corre en ERP2. La de la conexión en vivo acepta
+  el identificador de sesión en la URL, que acaba en los registros, y el propio parche
+  escribe parte en el log. Además se salta comprobaciones que el núcleo sí hace al elegir
+  sesión y base, y fabrica con el superusuario el token de una sesión que no lo tiene.
+  **Ninguna de las dos apps de este repositorio la usa.** Si nadie más la usa, se puede
+  quitar.
+- **Encender `base.enable_programmatic_api_keys`.** Sin él, cerrar sesión no puede revocar
+  en el servidor la clave de quien no es administrador, y cada acceso deja la suya viva
+  hasta que caduca. Encenderlo da a cualquier clave del usuario poder de emitir y revocar
+  sus propias claves.
+- **Las cuatro cuentas de prueba con `12345` y el origen abierto a `*`.** Cambiarlas y
+  cerrar la lista de orígenes antes de publicar nada (ver defectos).
+- **La bodega de tránsito única de Mepriga con el 49,5 % del inventario** (ver la sección
+  de envases).
+- **Cambiar la clave de los conectores de Velneo en Mepriga.** Está escrita en su sitio de
+  Apache, es muy débil, y esos conectores atacan bases en producción.
 
 ## Resueltas, para que no se vuelvan a preguntar
 
+- 🟢 **La pantalla de acceso por PIN ya tiene puerta**: el botón «Modo vendedor (PIN)»
+  de la pantalla de acceso la abre (`login-pin-mode-button` en `login_screen.dart`).
+  Estaba anotada como inalcanzable.
 - 🟢 **Orbi ya no usa Material: es `fluent_ui` entero** (12-sep-2026), por
   decisión del dueño que revocó mi recomendación contraria. Cero importaciones de
   Material en las 94 fuentes, y el tema viejo borrado en vez de dejado por si
@@ -165,9 +189,17 @@ antes de seguir trabajando en lo que dependa de ella.
 
 ## En construcción ahora mismo
 
-**Nada.** Los seis frentes que estaban abiertos entregaron el 12-sep-2026 y sus
-agentes se cerraron ese mismo día. Se dejan listados con dónde quedó cada uno, para
-que nadie los vuelva a encargar:
+Cuatro agentes abiertos el 12-sep-2026 por la noche, sobre ficheros que no se pisan:
+
+| Frente | Qué hace |
+| --- | --- |
+| Formularios | Ajustes, cobros, editor de venta y alta de PIN pasan al formulario estándar. El acceso queda fuera a propósito: su presupuesto de alto lo fijan pruebas |
+| Acceso, PIN y carga | Quita la franja de 24 px de `ScaffoldPage`, tarjeta opaca de Fluent, pie en `bottomBar`, separa los interruptores y quita el blanco bajo la carga |
+| Gestor de servidores | Pasa a `ContentDialog`, título más pequeño, se ajusta al teclado, botón «Listar bases» y usa `/orbi/database` |
+| Auditoría Fluent | Sólo lectura: todo lo construido a mano que Fluent ya trae |
+
+Los seis frentes que entregaron antes, el mismo 12-sep-2026, quedaron así, para que nadie
+los vuelva a encargar:
 
 | Frente | Dónde quedó |
 | --- | --- |
@@ -180,10 +212,6 @@ que nadie los vuelva a encargar:
 
 ## Defectos conocidos y sin arreglar
 
-- **La pantalla de acceso por PIN de vendedor existe y es inalcanzable.** Tiene
-  código y pruebas propias, y no la invoca nadie: ni el enrutador ni la pantalla
-  de acceso. Ahora es más urgente, porque ya se puede dar de alta un PIN y no
-  hay puerta que lo consuma.
 - **No existe enrolamiento de dispositivo en ningún sitio del monorepo.** El PIN
   identifica una cuenta, no un equipo autorizado. Sin eso, «equipo compartido»
   es una etiqueta de documento y no algo que el sistema aplique o revoque.
@@ -252,28 +280,37 @@ es rápido de arreglar y fácil de olvidar.
 - Colateral: la aplicación vieja **se niega a emitir sin conexión** mientras
   falte esa marca, así que su camino sin conexión ni siquiera arranca en ERP2.
 
-## Orbi en mepriga, y lo que ERP2 debe a cambio
+## Orbi web: un solo dominio para todos los clientes
 
-Desplegada el 12-sep-2026 por orden del dueño, para probar envases:
-`https://mepriga.galapagos.tech/orbi/` responde 200, la ruta de credencial
-existe, el origen cruzado está abierto y la base se llama `envases`. El listado
-de bases está apagado ahí, que es lo correcto: se escribe el nombre a mano.
+Desde el 12-sep-2026 por la noche, `https://orbi.galapagos.tech` sirve la app compilada
+como ficheros estáticos. **Una sola app para todos los clientes**, por orden del dueño: se
+abre ahí y en el acceso se elige a qué Odoo conectarse. Cómo está montado y cómo se
+despliega: memoria `orbi-galapagos-tech-hosting`.
 
-- **Hubo que partir el conector.** El módulo que traía la página de Orbi depende
-  de ventas, contabilidad, inventario y la localización ecuatoriana entera, y esa
-  instancia **sólo lleva envases**: instalarlo habría cambiado lo que es esa
-  instalación. Los tres controladores que hacen falta —página, credencial y
-  cabeceras— **no tocan ni un modelo de negocio**, así que se **movieron** (no se
-  copiaron) a `l10n_ec_orbi_web`, y el conector grande depende de él.
-- 🔴 **ERP2 debe una actualización.** Su conector ya no trae esos controladores,
-  así que hay que instalar `l10n_ec_orbi_web` y actualizar
-  `l10n_ec_collection_box_pos` allí, o dejará de servir Orbi.
-- **Los ganchos del repositorio reescribían el paquete compilado**, quitándole
-  espacios a `main.dart.js` y a los ficheros de dibujo. Eso es editar un
-  binario. Ya están excluidos.
-- **Falta que el usuario de prueba tenga el grupo de envases.** Los dos grupos
-  existen («Envases / Usuario» y «Envases / Gerencia»). Sin él, Orbi **no dice
-  por qué**: se comporta como si el área no existiera.
+- **El origen cruzado lo pone el servidor web de cada cliente, no Odoo.** Decisión del
+  dueño por la regla «no se toca el core». La ruta de datos del núcleo no declara origen
+  cruzado, así que sin eso **se entra pero todo sale vacío**.
+  - **ERP2** funcionaba por la pila del punto de venta: `l10n_ec_collection_box` redeclara
+    las rutas de datos con origen cruzado, y el parche de `l10n_ec_collection_box_pos`
+    añade la cabecera de base. Más un bloque `/json/` en su nginx.
+  - **Mepriga** no lleva esa pila. Su Apache contesta ahora el sondeo de `/json/` y pone la
+    cabecera de origen en todas sus respuestas, también en los 401. Hubo que encender
+    `mod_rewrite`; antes se comprobó que no despertaba reglas dormidas, y después Velneo
+    respondía idéntico a la foto previa. Commit `6f6879c` del repositorio `mepriga`.
+  - **Un cliente nuevo** necesita lo mismo en su servidor web. Qué exactamente: memoria
+    `orbi-web-entre-dominios-por-servidor-web`.
+- **`GET /orbi/database`**, en `l10n_ec_orbi_web` y desplegada en ERP2 y Mepriga, devuelve
+  sólo la base que atiende el dominio, o 404 sin nombres. Existe porque Mepriga niega el
+  listado de bases, que es lo correcto en un servidor público, y la app lo mostraba como
+  «no se pudo conectar». La app todavía no la usa: está en construcción.
+- **ERP2 ya se actualizó** tras partir el conector y sirve Orbi desde `l10n_ec_orbi_web`.
+- **Los grupos de envases de Mepriga sí estaban asignados**: los cinco usuarios activos
+  tienen uno, y Gerencia hereda de Usuario.
+- **Las tres pruebas de las rutas de Orbi se borraron** por decisión del dueño: quedaron
+  rotas en el conector al partir el módulo.
+- **El paquete que sirve cada Odoo en `/orbi/` está atrasado** respecto a
+  orbi.galapagos.tech. Hay que recompilarlo con `--base-href=/orbi/` cuando entren los
+  arreglos de pantalla.
 
 ## Envases: el contrato de Odoo cambió y el mío se quedó corto
 
