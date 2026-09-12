@@ -45,9 +45,14 @@ antes de seguir trabajando en lo que dependa de ella.
   Decisión del dueño, 12-sep-2026. **Escrito el mismo día**, commit `34f03c98e` de
   `dev_odoo20`, rama `master`, sin subir todavía. Índice único parcial sobre
   `(company_id, btrim(l10n_ec_pos_client_op_uuid))`, pre-migración que rechaza la
-  actualización nombrando los conflictos, y cinco pruebas nuevas. **Pendiente la
-  verificación en rojo antes que en verde**, borrando el índice por SQL para comprobar
-  que es Postgres quien rechaza y no una capa de Python.
+  actualización nombrando los conflictos, y cinco pruebas nuevas.
+  🟢 **Verificado en rojo antes que en verde**, en tres pasadas sobre una base
+  desechable: verde con el índice (5 de 5, y la migración corrió sola desde la versión
+  anterior); **rojo al borrar el índice por SQL** —exactamente las dos pruebas que
+  dependen de él, con `UniqueViolation not raised`, y las otras tres verdes porque no
+  dependen de la restricción—; y verde otra vez al recrearlo. El índice existe de verdad
+  en la base, confirmado leyendo `pg_indexes`, con las condiciones parciales declaradas.
+  **Falta subirlo y actualizar el módulo en ERP2**, que no se ha hecho.
   - Las dos cosas que lo hacían viable ya existían: el cliente **ya manda** un
     identificador estable, persistido antes de imprimir, así que no hay que tocar la
     aplicación; y el addon ya tenía el patrón de índice y de pre-migración a copiar.
