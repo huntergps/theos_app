@@ -12,6 +12,7 @@ import '../../../core/services/config_service.dart';
 import 'package:odoo_sdk/odoo_sdk.dart' show logger;
 
 import '../../../core/theme/spacing.dart';
+import '../../../shared/utils/error_utils.dart';
 import '../../../shared/widgets/dialogs/copyable_info_bar.dart';
 import '../datasources/activities_datasource.dart';
 
@@ -103,7 +104,7 @@ class _ActivitiesScreenState extends ConsumerState<ActivitiesScreen> {
         CopyableInfoBar.showError(
           context,
           title: 'No se pudieron actualizar las actividades',
-          message: e.toString(),
+          message: friendlyErrorMessage(e),
         );
       }
     } finally {
@@ -265,7 +266,7 @@ class _ActivitiesScreenState extends ConsumerState<ActivitiesScreen> {
           spacing.vertical.md,
           const Text('Error al cargar actividades'),
           spacing.vertical.sm,
-          Text(error.toString(), style: theme.typography.caption),
+          Text(friendlyErrorMessage(error), style: theme.typography.caption),
           spacing.vertical.md,
           FilledButton(
             onPressed: _loadActivities,

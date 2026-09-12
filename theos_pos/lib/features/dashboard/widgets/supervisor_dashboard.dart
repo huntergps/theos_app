@@ -17,6 +17,7 @@ import '../../../core/theme/spacing.dart';
 import '../../../features/sync/providers/sync_provider.dart';
 import '../providers/dashboard_providers.dart';
 import '../../../shared/providers/menu_provider.dart';
+import '../../../shared/utils/error_utils.dart';
 import '../../../shared/utils/formatting_utils.dart';
 
 // ============================================================================
@@ -194,7 +195,7 @@ class _SalesMetricsSection extends ConsumerWidget {
           const SizedBox(height: 120, child: Center(child: ProgressRing())),
       error: (error, _) => InfoBar(
         title: const Text('Error al cargar metricas de ventas'),
-        content: Text(error.toString()),
+        content: Text(friendlyErrorMessage(error)),
         severity: InfoBarSeverity.error,
       ),
     );
@@ -340,7 +341,7 @@ class _AllSessionsSection extends ConsumerWidget {
           ),
           error: (err, _) => InfoBar(
             title: const Text('Error al cargar sesiones'),
-            content: Text(err.toString()),
+            content: Text(friendlyErrorMessage(err)),
             severity: InfoBarSeverity.error,
           ),
         ),

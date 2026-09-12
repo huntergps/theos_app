@@ -10,6 +10,7 @@ import '../../features/authentication/services/branding_service.dart';
 import '../models/config_profile.dart';
 import '../widgets/form/form_fields.dart';
 import '../../features/sync/widgets/route_mode_indicator.dart';
+import '../utils/settings_enum_labels.dart';
 
 class SettingsScreen extends ConsumerWidget {
   const SettingsScreen({super.key});
@@ -307,10 +308,7 @@ class _SettingsSectionAppearance extends StatelessWidget {
           label: 'Modo de Tema',
           value: config.themeMode,
           items: ThemeMode.values.map((e) {
-            return ComboBoxItem(
-              value: e,
-              child: Text(e.toString().split('.').last),
-            );
+            return ComboBoxItem(value: e, child: Text(themeModeLabel(e)));
           }).toList(),
           onChanged: (mode) {
             if (mode != null) notifier.setThemeMode(mode);
@@ -371,10 +369,7 @@ class _SettingsSectionAppearance extends StatelessWidget {
               label: 'Efecto de Ventana',
               value: config.windowEffect,
               items: WindowEffect.values.map((e) {
-                return ComboBoxItem(
-                  value: e,
-                  child: Text(e.toString().split('.').last),
-                );
+                return ComboBoxItem(value: e, child: Text(windowEffectLabel(e)));
               }).toList(),
               onChanged: (effect) {
                 if (effect != null) notifier.setWindowEffect(effect);
@@ -401,7 +396,7 @@ class _SettingsSectionAppearance extends StatelessWidget {
                   items: PaneDisplayMode.values.map((e) {
                     return ComboBoxItem(
                       value: e,
-                      child: Text(e.toString().split('.').last),
+                      child: Text(paneDisplayModeLabel(e)),
                     );
                   }).toList(),
                   onChanged: (mode) {

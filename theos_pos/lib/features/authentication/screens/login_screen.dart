@@ -24,6 +24,7 @@ import 'package:odoo_sdk/odoo_sdk.dart' show logger;
 
 import '../../../../shared/widgets/dialogs/copyable_info_bar.dart';
 import '../../../../shared/providers/user_provider.dart';
+import '../../../../shared/utils/error_utils.dart';
 
 import 'package:odoo_sdk/odoo_sdk.dart'
     show
@@ -31,7 +32,8 @@ import 'package:odoo_sdk/odoo_sdk.dart'
         NativeAuthBootstrapFailureKind,
         NativeOdooAuthBootstrap,
         OdooAuthenticationException,
-        OdooAccessDeniedException;
+        OdooAccessDeniedException,
+        OdooException;
 import 'package:theos_pos_core/theos_pos_core.dart'
     show userManager, User, UserManagerBusiness;
 
@@ -1052,8 +1054,9 @@ class _LoginScreenState extends ConsumerState<LoginScreen> with WindowListener {
           logger.e('[LOGIN] Session rollback failed: $rollbackError');
         }
       }
+      logger.e('[LOGIN] Unhandled login failure: $e');
       if (mounted) {
-        final message = e.toString().replaceAll('Exception: ', '');
+        final message = e is OdooException ? e.message : friendlyErrorMessage(e);
         CopyableInfoBar.showError(
           context,
           title: 'Error de conexión',

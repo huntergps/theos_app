@@ -4,6 +4,7 @@ import 'package:odoo_sdk/odoo_sdk.dart' show Failure;
 
 import '../../../core/database/repositories/repository_providers.dart';
 import '../../../core/providers/base_notifier.dart';
+import '../../../shared/utils/error_utils.dart';
 import '../repositories/activity_repository.dart';
 import 'activities_state.dart';
 
@@ -176,7 +177,10 @@ class ActivitiesNotifier extends Notifier<ActivitiesState>
       );
       return succeeded;
     } catch (error) {
-      state = state.copyWith(isSaving: false, errorMessage: error.toString());
+      state = state.copyWith(
+        isSaving: false,
+        errorMessage: friendlyErrorMessage(error),
+      );
       return false;
     }
   }

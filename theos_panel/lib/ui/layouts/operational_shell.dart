@@ -184,7 +184,17 @@ final class OperationalShell extends StatelessWidget {
           Expanded(
             child: NavigationView(
               pane: _pane(mode),
-              paneBodyBuilder: (item, _) => child,
+              // En modo estrecho el contenido llega con su propia barra: sin
+              // ella no hay NINGUNA forma de abrir el menú (ver
+              // [_minimalTopBar]).
+              paneBodyBuilder: (item, _) => mode == PaneDisplayMode.minimal
+                  ? Column(
+                      children: [
+                        _minimalTopBar(),
+                        Expanded(child: child),
+                      ],
+                    )
+                  : child,
             ),
           ),
           if (wideFooter)
@@ -243,6 +253,60 @@ final class OperationalShell extends StatelessWidget {
       ],
     );
   }
+
+  /// La única forma de abrir el menú cuando el carril está escondido.
+  ///
+  /// 🔴 Sin esto la aplicación **encierra a la persona en la pantalla en la
+  /// que esté**: en vertical o en teléfono no hay carril, ni hamburguesa, ni
+  /// nada que abra el menú. Medido abriéndola a 500 de ancho.
+  ///
+  /// La causa es de diseño de Fluent: el botón que abre el panel lo dibuja él
+  /// **dentro de su barra de título**, y esa barra —que es la de una ventana
+  /// de escritorio— revienta a ancho de teléfono con una aserción del propio
+  /// marco. Sin barra de título, Fluent coloca ese botón **dentro del panel**,
+  /// que es justo lo que está escondido. El botón queda inalcanzable.
+  ///
+  /// Va dentro del cuerpo, no encima de todo, porque tiene que ser
+  /// descendiente del `NavigationView` para poder abrirlo.
+  Widget _minimalTopBar() => Builder(
+    builder: (context) {
+      final theme = FluentTheme.of(context);
+      return Container(
+        height: 44,
+        padding: const EdgeInsets.only(left: 4, right: 12),
+        decoration: BoxDecoration(
+          color: theme.micaBackgroundColor,
+          border: Border(
+            bottom: BorderSide(
+              color: theme.resources.dividerStrokeColorDefault,
+            ),
+          ),
+        ),
+        child: Row(
+          children: [
+            Tooltip(
+              message: 'Menú',
+              child: IconButton(
+                key: const Key('operational-menu-button'),
+                icon: const Icon(FluentIcons.global_nav_button),
+                onPressed: () =>
+                    NavigationView.of(context).isMinimalPaneOpen = true,
+              ),
+            ),
+            const SizedBox(width: 4),
+            Expanded(
+              child: Text(
+                this.context.companyLabel,
+                overflow: TextOverflow.ellipsis,
+                maxLines: 1,
+                style: theme.typography.bodyStrong,
+              ),
+            ),
+          ],
+        ),
+      );
+    },
+  );
 
   /// La cabecera del panel: la marca y la empresa.
   ///

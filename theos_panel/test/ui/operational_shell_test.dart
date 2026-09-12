@@ -322,4 +322,54 @@ void main() {
       expect(find.text('Servidor: erp.test'), findsOneWidget);
     });
   });
+
+  // 🔴 La prueba que faltaba, y el defecto más grave de la migración: en
+  // vertical y en teléfono **no había forma de abrir el menú**. Ni carril, ni
+  // hamburguesa, ni nada: quien entrara se quedaba encerrado en la pantalla en
+  // la que estuviese. Se vio abriendo la aplicación a 500 de ancho, no aquí.
+  group('en estrecho SIEMPRE hay forma de llegar al menú', () {
+    testWidgets('a 500 en vertical hay un botón de menú y abre el panel', (
+      tester,
+    ) async {
+      const size = Size(500, 613);
+      await _pump(tester, _host(size), size);
+
+      final boton = find.byKey(const Key('operational-menu-button'));
+      expect(
+        boton,
+        findsOneWidget,
+        reason: 'sin esto la persona queda encerrada en la pantalla actual',
+      );
+
+      // Y abre de verdad. Se comprueba contra el estado del propio
+      // `NavigationView` y no contra si el texto está en el árbol: en modo
+      // estrecho el panel se construye igual, sólo que fuera de la vista, así
+      // que buscar el texto daría verde con el menú cerrado.
+      final estado = tester.state<NavigationViewState>(
+        find.byType(NavigationView),
+      );
+      expect(estado.isMinimalPaneOpen, isFalse);
+      await tester.tap(boton);
+      await tester.pumpAndSettle();
+      expect(estado.isMinimalPaneOpen, isTrue);
+    });
+
+    testWidgets('a 390 en teléfono también', (tester) async {
+      const size = Size(390, 844);
+      await _pump(tester, _host(size), size);
+
+      expect(find.byKey(const Key('operational-menu-button')), findsOneWidget);
+    });
+
+    // En ancho el carril ya está a la vista, así que un botón de menú sobraría
+    // y ocuparía sitio.
+    testWidgets('en ancho no aparece, porque el carril ya está', (
+      tester,
+    ) async {
+      const size = Size(1920, 1080);
+      await _pump(tester, _host(size), size);
+
+      expect(find.byKey(const Key('operational-menu-button')), findsNothing);
+    });
+  });
 }

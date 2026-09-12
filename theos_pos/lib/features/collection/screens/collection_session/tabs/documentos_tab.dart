@@ -7,6 +7,7 @@ import 'package:theos_pos_core/theos_pos_core.dart' show CollectionSession;
 import '../../../../../core/managers/manager_providers.dart'
     show appDatabaseProvider;
 import '../../../../../core/theme/spacing.dart';
+import '../../../../../shared/utils/error_utils.dart';
 import '../../../../../shared/widgets/common/theos_info_bars.dart';
 
 /// Documents cached locally for a collection session.
@@ -126,7 +127,7 @@ class DocumentosTab extends ConsumerWidget {
       ),
       error: (error, _) => TheosInfoBars.error(
         title: 'No se pudieron cargar los documentos',
-        message: error.toString(),
+        message: friendlyErrorMessage(error),
       ),
       data: (items) => _DocumentsContent(items: items),
     );

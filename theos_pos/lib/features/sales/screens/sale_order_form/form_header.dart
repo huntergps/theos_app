@@ -1297,7 +1297,7 @@ class _ViewActionButtons extends ConsumerWidget {
         CopyableInfoBar.showError(
           context,
           title: 'Error al confirmar',
-          message: e is OdooException ? e.message : e.toString(),
+          message: e is OdooException ? e.message : friendlyErrorMessage(e),
         );
       }
     }

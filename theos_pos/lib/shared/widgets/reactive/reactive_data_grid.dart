@@ -6,6 +6,7 @@ import 'package:syncfusion_flutter_datagrid/datagrid.dart';
 import '../grid/theos_data_grid.dart';
 import '../grid/theos_data_grid_source.dart';
 import '../../../core/theme/spacing.dart';
+import '../../utils/error_utils.dart';
 
 /// Configuration for a DataGrid column
 ///
@@ -351,7 +352,7 @@ class _ErrorState extends StatelessWidget {
           const Text('Error al cargar datos'),
           spacing.vertical.sm,
           Text(
-            error.toString(),
+            friendlyErrorMessage(error),
             style: theme.typography.caption,
             textAlign: TextAlign.center,
           ),
