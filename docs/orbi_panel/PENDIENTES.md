@@ -230,6 +230,11 @@ los vuelva a encargar:
   preferencias, el identificador de instalación y el registro del trabajador de
   notificaciones, **ninguno con límite de tiempo**. En investigación con medición dentro del
   navegador.
+- 🔴 **La cabecera mostró el nombre de otro usuario.** Visto el 12-sep-2026: con la sesión de
+  carlos.guajala, la cabecera decía «Aldas Romero Erik Andres». Pista sin probar: el perfil
+  guardado se busca por servidor y base (`loadProfileFor(serverUrl, database)` en
+  `bootstrap.dart`), sin el usuario en la llave. En investigación, con una prueba que debe
+  fallar antes de tocar nada.
 - **El comentario del arranque habla de una «recuperación de sesión acotada»** (`bootstrap.dart`,
   `_initializeApplication`), y `restoreOnce` no le pone ningún límite de tiempo. O el
   comentario miente o falta el límite.
