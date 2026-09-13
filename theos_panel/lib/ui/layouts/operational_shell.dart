@@ -225,36 +225,43 @@ class _OperationalShellState extends State<OperationalShell> {
       final wideFooter =
           constraints.maxWidth >= 600 &&
           constraints.maxWidth >= constraints.maxHeight;
-      return Column(
-        children: [
-          _topBar(layoutContext, constraints.maxWidth),
-          Expanded(
-            child: NavigationView(
-              pane: _pane(),
-              // En modo estrecho el contenido llega con su propia barra: sin
-              // ella no hay NINGUNA forma de abrir el menú (ver
-              // [_minimalTopBar]).
-              // El modo lo decide Fluent (`PaneDisplayMode.auto`); aquí sólo se
-              // lee el que eligió.
-              paneBodyBuilder: (item, _) => Builder(
-                builder: (context) =>
-                    NavigationView.of(context).displayMode ==
-                        PaneDisplayMode.minimal
-                    ? Column(
-                        children: [
-                          _minimalTopBar(),
-                          Expanded(child: widget.child),
-                        ],
-                      )
-                    : widget.child,
+      // Base opaca de todo el armazón. Sin esto, cualquier tramo del marco
+      // que ninguna capa interna pinte (medido en el botón compacto de
+      // conexión: un `Align` sin fondo propio) deja ver el lienzo de Flutter
+      // transparente y, debajo, la página HTML (`web/index.html`).
+      return ColoredBox(
+        color: FluentTheme.of(layoutContext).micaBackgroundColor,
+        child: Column(
+          children: [
+            _topBar(layoutContext, constraints.maxWidth),
+            Expanded(
+              child: NavigationView(
+                pane: _pane(),
+                // En modo estrecho el contenido llega con su propia barra: sin
+                // ella no hay NINGUNA forma de abrir el menú (ver
+                // [_minimalTopBar]).
+                // El modo lo decide Fluent (`PaneDisplayMode.auto`); aquí sólo se
+                // lee el que eligió.
+                paneBodyBuilder: (item, _) => Builder(
+                  builder: (context) =>
+                      NavigationView.of(context).displayMode ==
+                          PaneDisplayMode.minimal
+                      ? Column(
+                          children: [
+                            _minimalTopBar(),
+                            Expanded(child: widget.child),
+                          ],
+                        )
+                      : widget.child,
+                ),
               ),
             ),
-          ),
-          if (wideFooter)
-            _contextFooter(layoutContext)
-          else
-            _compactContextButton(layoutContext),
-        ],
+            if (wideFooter)
+              _contextFooter(layoutContext)
+            else
+              _compactContextButton(layoutContext),
+          ],
+        ),
       );
     },
   );
@@ -697,32 +704,41 @@ class _OperationalShellState extends State<OperationalShell> {
     return r.systemFillColorCaution;
   }
 
-  Widget _compactContextButton(BuildContext buildContext) => Align(
-    alignment: AlignmentDirectional.centerEnd,
-    child: Tooltip(
-      message: 'Detalle de conexión',
-      child: IconButton(
-        key: const Key('operational-context-button'),
-        icon: const Icon(FluentIcons.info),
-        // En estrecho el pie no cabe, así que se pide. Un diálogo y no una
-        // hoja inferior porque Fluent no trae hoja inferior y fabricarse una
-        // sería justo el andamiaje propio que esta migración vino a quitar.
-        onPressed: () => showDialog<void>(
-          context: buildContext,
-          builder: (dialogContext) => ContentDialog(
-            title: const Text('Detalle de conexión'),
-            content: _contextFooter(dialogContext),
-            actions: [
-              FilledButton(
-                onPressed: () => Navigator.of(dialogContext).pop(),
-                child: const Text('Cerrar'),
+  Widget _compactContextButton(BuildContext buildContext) {
+    // Mismo fondo que [_contextFooter]: en estrecho esta fila reemplaza al
+    // pie, y sin este color se leía como un hueco vacío en vez de un pie.
+    final r = FluentTheme.of(buildContext).resources;
+    return ColoredBox(
+      color: r.solidBackgroundFillColorTertiary,
+      child: Align(
+        alignment: AlignmentDirectional.centerEnd,
+        child: Tooltip(
+          message: 'Detalle de conexión',
+          child: IconButton(
+            key: const Key('operational-context-button'),
+            icon: const Icon(FluentIcons.info),
+            // En estrecho el pie no cabe, así que se pide. Un diálogo y no
+            // una hoja inferior porque Fluent no trae hoja inferior y
+            // fabricarse una sería justo el andamiaje propio que esta
+            // migración vino a quitar.
+            onPressed: () => showDialog<void>(
+              context: buildContext,
+              builder: (dialogContext) => ContentDialog(
+                title: const Text('Detalle de conexión'),
+                content: _contextFooter(dialogContext),
+                actions: [
+                  FilledButton(
+                    onPressed: () => Navigator.of(dialogContext).pop(),
+                    child: const Text('Cerrar'),
+                  ),
+                ],
               ),
-            ],
+            ),
           ),
         ),
       ),
-    ),
-  );
+    );
+  }
 }
 
 /// La píldora de conectividad de [OperationalShell._topBar], como un
