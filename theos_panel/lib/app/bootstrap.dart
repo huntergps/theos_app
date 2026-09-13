@@ -129,12 +129,21 @@ final class _InMemoryCredentialBackend implements CredentialBackend {
 
 /// Web-only authentication bridge.
 ///
-/// `restore()`/`login()` are unchanged: they only ever consume the existing
-/// Odoo HttpOnly session (the same-origin connector this app will use once
-/// an addon serves `/orbi/bootstrap`) and never accept a password from
-/// browser state. Password login in the browser stays unsupported here on
-/// purpose — that gap is a CORS/same-origin decision another workstream is
-/// resolving, not something this class can paper over.
+/// 🔴 **`restore()` used to try the inherited Odoo HttpOnly session first**,
+/// hitting a same-origin session-bootstrap connector before ever looking at
+/// any stored credential. That connector never shipped as a durable feature,
+/// and the dueño's decision on 12-sep-2026 — Orbi web lives only at
+/// `orbi.galapagos.tech`, never same-origin with an Odoo backend — retired it
+/// for good: the connector and its companion logout route both measure 404 on
+/// ERP2 and Mepriga now. Keeping the cookie attempt around was not inert: it
+/// was the exact mechanism behind a measured cross-identity defect
+/// (`identity_after_user_change_test.dart`) — a browser's leftover Odoo
+/// session cookie for one person outliving `close()` (which only ever
+/// revoked a bearer key, never that cookie) and getting silently re-adopted
+/// on a later `restore()`, stomping whoever had since logged in with their
+/// own API key. `restore()` now goes straight to the stored bearer
+/// credential — see `_restoreFromStoredCredential` — with nothing else to
+/// try first.
 ///
 /// `loginWithApiKey()` forwards to an internal [NativeAuthService] wired to
 /// whatever [CredentialBackend] the composition root supplies.
@@ -230,85 +239,16 @@ final class WebSessionAuthService
   }
 
   @override
-  Future<AuthServiceResult> restore({bool offline = false}) async {
-    // An offline start has no cookie session to probe, so the only thing that
-    // can bring the session back is the stored credential.
-    if (offline) return _restoreFromStoredCredential(offline: true);
-    try {
-      // Built INSIDE the try on purpose: `Uri.base.origin` throws outright for
-      // any scheme that is not http(s), and this method must never throw —
-      // every failure here means "go to the login screen", which is what the
-      // catch below decides. Outside the try it escaped instead, so a host
-      // without an http base took down the restore rather than falling back.
-      final client = OdooClient(
-        config: OdooClientConfig(
-          baseUrl: Uri.base.origin,
-          apiKey: '',
-          transportMode: OdooTransportMode.webSession,
-          allowInsecure: Uri.base.scheme != 'https',
-        ),
-      );
-      final response = await client.http.get('/orbi/bootstrap');
-      final payload = Map<String, dynamic>.from(response.data as Map);
-      final identity = Map<String, dynamic>.from(payload['identity'] as Map);
-      final company = Map<String, dynamic>.from(payload['company'] as Map);
-      final database = payload['database'] as String?;
-      final userId = (identity['uid'] as num?)?.toInt();
-      final csrf = payload['csrf_token'] as String?;
-      if (database == null ||
-          database.isEmpty ||
-          userId == null ||
-          csrf == null) {
-        throw StateError('Invalid /orbi/bootstrap contract');
-      }
-      final installationId = await installationIds.loadOrCreate('theos_panel');
-      final scope = AppScope(
-        appId: 'theos_panel',
-        installationId: installationId,
-        normalizedServerUrl: Uri.base.origin,
-        database: database,
-        userId: userId,
-      );
-      final active = await runtime.activate(
-        scope,
-        webSession: true,
-        csrfToken: csrf,
-      );
-      final effective = await identityReader.read(scope);
-      final profile = AuthProfile(
-        serverUrl: scope.normalizedServerUrl,
-        database: database,
-        login: identity['login'] as String? ?? '',
-        userId: userId,
-        installationId: installationId,
-        credentialReference: 'odoo-http-session',
-        companyId: (company['id'] as num).toInt(),
-        // `/orbi/bootstrap` already returns `{'id', 'name'}` for `company`
-        // (`web_auth.py`'s `bootstrap()`) — this was being fetched and
-        // dropped, same defect as the native path's `res.users.company_id`.
-        companyName: company['name'] as String?,
-        allowedCompanyIds: effective.allowedCompanyIds,
-      );
-      _profile = profile;
-      return AuthServiceResult(
-        status: AuthServiceStatus.restored,
-        scope: active.scope,
-        profile: profile,
-        capabilities: await capabilityPort.refresh(scope, effective.companyId),
-      );
-    } catch (_) {
-      // Keep local durable queues untouched.
-      //
-      // 🔴 This used to end here with `required` and a comment saying it
-      // "never falls back to bearer credentials". That was true and correct
-      // while the browser stored none: there was nothing to fall back TO. Now
-      // that it keeps an encrypted, expiring key (W04), stopping here would
-      // make persisting it pointless — the key would sit in IndexedDB while
-      // the user retyped their password on every reload, which is exactly the
-      // cost the owner asked us to remove.
-      return _restoreFromStoredCredential(offline: false);
-    }
-  }
+  // 🔴 This used to try a same-origin session-bootstrap connector first (the
+  // inherited Odoo HttpOnly session) and only fall back to the stored
+  // bearer credential when that failed. Removed for good on 12-sep-2026:
+  // no server serves that connector any more (measured 404 on ERP2 and
+  // Mepriga, now that Orbi web lives only at `orbi.galapagos.tech`), and
+  // keeping the attempt around was the exact mechanism behind a measured
+  // cross-identity defect — see the class doc above. There is nothing left
+  // to try before the stored credential, offline or not.
+  Future<AuthServiceResult> restore({bool offline = false}) =>
+      _restoreFromStoredCredential(offline: offline);
 
   /// Brings the session back from the API key kept by [_apiKeyBackend].
   ///
@@ -671,46 +611,28 @@ Future<Widget> _initializeApplication({
     preferences: preferences,
   );
   logStep('credenciales configuradas');
-  // One bounded online restore, with one explicit offline fallback.
-  //
-  // This used to force-navigate to `/web/login` whenever the cookie-session
-  // restore above failed on web — a route that only exists once a same-
-  // origin Odoo connector serves `/orbi/bootstrap`. Nothing serves it yet,
-  // so that redirect fired on every real web cold start and sent the tab to
-  // a 404 before the Orbi login screen — with its API key toggle — ever
-  // painted, regardless of which credential mode the user wanted. Falling
-  // through to `required` instead lets the in-app router show /login, the
-  // same as every other unauthenticated status already does.
+  // One bounded online restore, with one explicit offline fallback. On web
+  // this is now only the stored bearer credential (see
+  // `WebSessionAuthService.restore()`); a failed restore falls through to
+  // `required`, which lets the in-app router show /login, the same as every
+  // other unauthenticated status already does.
   final restored = await restoreOnce(
     kIsWeb ? webService : NativeAuthServicePort(service),
   );
   logStep('restauración de sesión resuelta: ${restored.status}');
 
-  // A session inherited from the browser was left by WHOEVER: entering with it
-  // unasked is impersonation by default. On a shared counter the next person
-  // would start selling and collecting under the previous operator's name, and
-  // neither of them would find out — and unlike a wrong screen, a wrong
-  // identity leaves facts signed by someone who did not do them.
-  //
-  // The shortcut is not lost: the login screen offers it by name, one click
-  // (see `login_screen.dart`, `_OfferedSessionCard`), and accepting it simply
-  // calls `restore()` again.
-  //
-  // A credential this person proved is adopted silently, exactly as before —
-  // making someone press a button to enter their own account is friction with
-  // nothing bought. Only the inherited-browser-session case changes.
-  final offered = sessionShouldBeOfferedNotAdopted(restored.profile)
-      ? OfferedSession(restored.profile!)
-      : null;
-  if (offered != null) {
-    // 🔴 Declining to adopt has to mean declining to HOLD it too. `restore()`
-    // already activated the runtime under that stranger's scope, which opens
-    // their database and their offline queue. Leaving it open while the login
-    // screen says "not signed in" would fix the visible half of the problem
-    // and keep the dangerous half. Accepting the offer re-restores, so nothing
-    // is lost by closing it here.
-    await sessionRuntime.close();
-  }
+  // 🔴 There used to be an inherited-browser-session case here: `restore()`
+  // could come back with someone else's cookie-based identity (see
+  // `inheritedSessionReference` in `session_provenance.dart`), left behind by
+  // WHOEVER last used this browser, and the app offered it by name instead of
+  // adopting it silently (see `login_screen.dart`'s `_OfferedSessionCard`).
+  // That producer is gone (see `WebSessionAuthService.restore()`'s doc): no
+  // server serves the session-bootstrap connector any more, so
+  // `restored.profile` can never again carry that reference, and
+  // `sessionShouldBeOfferedNotAdopted` can never be true. `offeredSessionProvider`
+  // stays wired below — `login_screen.dart` still reads it — but nothing here
+  // ever builds an `OfferedSession` for it to show.
+  const OfferedSession? offered = null;
   final effective = effectiveRestoreResult(restored, offered: offered);
   final composition = OrbiSessionComposition(
     authService: kIsWeb ? webService : NativeAuthServicePort(service),

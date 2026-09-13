@@ -1,23 +1,35 @@
 /// De dónde salió la sesión con la que alguien está dentro.
 ///
-/// 🔴 Existe porque hoy la aplicación **cambia de identidad sin decir nada**.
-/// Con una sesión de Odoo abierta en el navegador, Orbi la adopta en silencio:
-/// no dice de quién es, no hay forma de llegar a su pantalla de acceso, y no se
-/// puede entrar como otra persona.
+/// 🔴 Existía porque la aplicación **cambiaba de identidad sin decir nada**.
+/// Con una sesión de Odoo abierta en el navegador, Orbi la adoptaba en
+/// silencio: no decía de quién era, no había forma de llegar a su pantalla de
+/// acceso, y no se podía entrar como otra persona.
 ///
-/// En un equipo de una sola persona eso es una comodidad. **En un mostrador
-/// compartido, quien abra Orbi empieza a vender, cobrar o mover existencias
-/// con el nombre del compañero anterior, y ninguno de los dos se entera.**
+/// En un equipo de una sola persona eso era una comodidad. **En un mostrador
+/// compartido, quien abriera Orbi empezaba a vender, cobrar o mover
+/// existencias con el nombre del compañero anterior, y ninguno de los dos se
+/// enteraba.**
 ///
 /// Es el mismo patrón que el del acceso mudo y el del rechazo de permiso mudo,
-/// y es el peor de los tres: cambiar de pantalla sin avisar molesta; cambiar
+/// y era el peor de los tres: cambiar de pantalla sin avisar molesta; cambiar
 /// de identidad sin avisar deja hechos firmados por quien no los hizo.
 ///
 /// **La distinción no hay que inventarla: ya está en los datos.**
 /// `AuthProfile.credentialReference` vale `'api-key'` cuando la credencial la
 /// probó esta persona con su contraseña (o la pegó), y `'odoo-http-session'`
-/// cuando la sesión venía heredada del navegador. Nadie la leía: cero usos en
-/// todo el árbol antes de este fichero.
+/// cuando la sesión venía heredada del navegador.
+///
+/// 🔴 **12-sep-2026: el productor de `'odoo-http-session'` ya no existe.**
+/// `WebSessionAuthService.restore()` (`bootstrap.dart`) ya no golpea
+/// `/orbi/bootstrap` — ningún servidor sirve esa ruta (404 medido en ERP2 y
+/// Mepriga; Orbi web vive sólo en `orbi.galapagos.tech`) — así que ningún
+/// `AuthProfile` puede volver a traer esa referencia, y
+/// [sessionShouldBeOfferedNotAdopted] nunca vuelve a ser `true` en la
+/// práctica. Este fichero, [OfferedSession] y [offeredSessionProvider] se
+/// quedan intactos porque `login_screen.dart` todavía los consulta (lo está
+/// rehaciendo otro agente); son defensa en profundidad para una situación que
+/// hoy no puede volver a producirse, no código vivo que alguien necesite
+/// borrar con prisa.
 library;
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
