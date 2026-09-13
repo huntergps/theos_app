@@ -491,7 +491,7 @@ final scopeSyncAutoResyncTriggerProvider = Provider<SyncAutoResyncTrigger?>((
 //
 // Modelo de Odoo → `SyncJob` de catálogo. Verificado contra `RuntimeCatalogs` y
 // contra lo que avisa el servidor (`_app_sync_tracked_models` en l10n_ec_app_sync
-// y l10n_ec_collection_box_pos). Fuera a propósito: `product.template` (el
+// y l10n_ec_app_sync). Fuera a propósito: `product.template` (el
 // servidor lo traduce a avisos de `product.product`) y `product.pricelist.item`
 // (el catálogo de tarifas sólo lee cabeceras).
 const _realtimeModelJobIds = <String, Set<String>>{
@@ -1005,7 +1005,7 @@ final _presenceSupportedProvider =
     );
 
 /// Si el servidor tiene `mobile_set_im_status`
-/// (`l10n_ec_collection_box_pos/models/res_users.py:253-283` — falta, por
+/// (`l10n_ec_app_sync/models/res_users.py` — falta, por
 /// ejemplo, en Mepriga). `null` mientras no se sabe todavía: el submenú
 /// «Estado» no se ofrece ni en un sentido ni en el otro hasta tener una
 /// respuesta real — ver el uso de este provider más abajo

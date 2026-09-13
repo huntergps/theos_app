@@ -58,8 +58,8 @@ final class UserPresencePort {
   /// `manual_im_status` (`mail/models/res_users.py:65-68`), que sólo admite
   /// `away`/`busy`/`offline`/`False`. `False` significa "sin estado manual",
   /// y eso es "en línea" — el mismo criterio que usa el propio
-  /// `mobile_set_im_status` al guardar (`l10n_ec_collection_box_pos/models/
-  /// res_users.py:270`: `manual_im_status = False if status == "online" else
+  /// `mobile_set_im_status` al guardar (`l10n_ec_app_sync/models/
+  /// res_users.py`: `manual_im_status = False if status == "online" else
   /// status`). Si el campo no viene en la respuesta, o no es ni `String` ni
   /// `false`, se devuelve `null`.
   Future<OdooPresence?> read(int userId) async {
