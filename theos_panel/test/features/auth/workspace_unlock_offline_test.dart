@@ -5,6 +5,8 @@ import 'package:odoo_sdk/odoo_sdk.dart'
     show OdooAccessDeniedException, OdooAuthenticationException, OdooException,
         OdooOfflineException;
 import 'package:orbi_runtime/orbi_runtime.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:theos_panel/app/preferences/app_preferences.dart';
 import 'package:theos_panel/app/router.dart';
 import 'package:theos_panel/features/auth/auth_controller.dart';
 import 'package:theos_panel/features/auth/workspace_unlock_store.dart';
@@ -55,6 +57,11 @@ void main() {
     bool supplyBackend = true,
   }) async {
     late WidgetRef captured;
+    // `workspaceLockProvider` persiste el bloqueo en `SharedPreferences`
+    // (13-sep-2026, para que sobreviva a un recargo real) — necesita el
+    // override aunque esta prueba nunca lea el valor guardado por sí misma.
+    SharedPreferences.setMockInitialValues({});
+    final preferences = await SharedPreferences.getInstance();
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
@@ -63,6 +70,7 @@ void main() {
           workspaceUnlockBackendProvider.overrideWithValue(
             supplyBackend ? (unlockBackend ?? backend) : null,
           ),
+          sharedPreferencesProvider.overrideWithValue(preferences),
         ],
         child: Consumer(
           builder: (context, ref, _) {

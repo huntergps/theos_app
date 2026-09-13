@@ -23,6 +23,7 @@ final class AuthProfile {
     required this.credentialReference,
     this.companyId,
     this.companyName,
+    this.name,
     this.allowedCompanyIds = const [],
     this.apiKeyIssuedAt,
     this.apiKeyExpiresAt,
@@ -52,6 +53,13 @@ final class AuthProfile {
   /// before this field existed, or a reader that could not resolve it); the
   /// UI falls back to a placeholder itself, this class never invents one.
   final String? companyName;
+
+  /// `res.users.name`, read alongside [companyId] the same way as
+  /// [companyName] (see `OdooActiveIdentityReader.read`). `null` only for a
+  /// profile saved before this field existed, or when the reader genuinely
+  /// could not resolve one — the UI falls back to [login] itself, this class
+  /// never invents a name.
+  final String? name;
   final List<int> allowedCompanyIds;
 
   Map<String, Object> toJson() => {
@@ -63,6 +71,7 @@ final class AuthProfile {
     'credentialReference': credentialReference,
     'companyId': ?companyId,
     'companyName': ?companyName,
+    'name': ?name,
     if (allowedCompanyIds.isNotEmpty) 'allowedCompanyIds': allowedCompanyIds,
     'apiKeyIssuedAt': ?apiKeyIssuedAt?.toIso8601String(),
     'apiKeyExpiresAt': ?apiKeyExpiresAt?.toIso8601String(),
@@ -77,6 +86,7 @@ final class AuthProfile {
     credentialReference: json['credentialReference'] as String,
     companyId: (json['companyId'] as num?)?.toInt(),
     companyName: json['companyName'] as String?,
+    name: json['name'] as String?,
     allowedCompanyIds:
         (json['allowedCompanyIds'] as List?)
             ?.whereType<num>()
@@ -115,7 +125,14 @@ final class AuthServiceResult {
 }
 
 abstract interface class ActiveIdentityReader {
-  Future<({int companyId, String? companyName, List<int> allowedCompanyIds})>
+  Future<
+    ({
+      int companyId,
+      String? companyName,
+      String? name,
+      List<int> allowedCompanyIds,
+    })
+  >
   read(AppScope scope);
 }
 
@@ -459,6 +476,7 @@ final class NativeAuthService {
           credentialReference: profile.credentialReference,
           companyId: identity.companyId,
           companyName: identity.companyName,
+          name: identity.name,
           allowedCompanyIds: identity.allowedCompanyIds,
           apiKeyIssuedAt: profile.apiKeyIssuedAt,
           apiKeyExpiresAt: profile.apiKeyExpiresAt,
@@ -684,6 +702,7 @@ final class NativeAuthService {
       credentialReference: profile.credentialReference,
       companyId: identity.companyId,
       companyName: identity.companyName,
+      name: identity.name,
       allowedCompanyIds: identity.allowedCompanyIds,
       apiKeyIssuedAt: profile.apiKeyIssuedAt,
       apiKeyExpiresAt: profile.apiKeyExpiresAt,
@@ -736,6 +755,7 @@ final class NativeAuthService {
           credentialReference: profile.credentialReference,
           companyId: identity.companyId,
           companyName: identity.companyName,
+          name: identity.name,
           allowedCompanyIds: identity.allowedCompanyIds,
           apiKeyIssuedAt: profile.apiKeyIssuedAt,
           apiKeyExpiresAt: profile.apiKeyExpiresAt,
@@ -871,6 +891,7 @@ final class NativeAuthService {
         credentialReference: profile.credentialReference,
         companyId: profile.companyId,
         companyName: profile.companyName,
+        name: profile.name,
         allowedCompanyIds: profile.allowedCompanyIds,
         apiKeyIssuedAt: issuedAt.toUtc(),
         apiKeyExpiresAt: expiresAt.toUtc(),
@@ -974,6 +995,7 @@ final class NativeAuthService {
         credentialReference: profile.credentialReference,
         companyId: profile.companyId,
         companyName: profile.companyName,
+        name: profile.name,
         allowedCompanyIds: profile.allowedCompanyIds,
         apiKeyIssuedAt: newIssuedAt,
         apiKeyExpiresAt: newExpiresAt,

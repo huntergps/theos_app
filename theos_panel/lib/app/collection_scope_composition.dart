@@ -7,6 +7,8 @@ import 'package:orbi_runtime/orbi_runtime.dart';
 import '../features/auth/auth_controller.dart';
 import '../features/collection/collection_contracts.dart';
 import '../features/collection/collection_composition.dart';
+import '../features/collection/collection_session_hub_screen.dart'
+    show CollectionPointContext, CollectionSessionRecordCounts;
 import '../features/collection/runtime_collection_actions.dart';
 import 'notification_scope_adapter.dart';
 
@@ -379,6 +381,126 @@ List<CollectionWithholdDraft> _cachedWithholds(dynamic raw) {
       .toList(growable: false);
 }
 
+/// A `collection.session` read by id, independent of the viewer's own active
+/// shift — the supervisor-overview counterpart of [_readLocalShift].
+/// Local-only by construction: nothing in this type's construction path
+/// takes an `OdooClient`/RPC port, so it can never ask Odoo for a payments
+/// read the viewer is not authorized for ("un 403 es un defecto", per the
+/// supervisor-overview spec). The local catalog is already scoped by
+/// whatever rule let THIS device sync a given `collection.session` row in
+/// the first place — `collection_session_user_rule` restricts a cashier's
+/// own sync to `config_id.user_ids` containing them,
+/// `collection_session_manager_rule` gives a supervisor every row
+/// (`l10n_ec_collection_box/security/collection_box_rules.xml:17-31`) — so a
+/// plain cashier's device never even receives another cashier's session.
+final class CollectionSessionLookup {
+  const CollectionSessionLookup({
+    required this.shift,
+    required this.point,
+    required this.ownerUserId,
+    required this.rawState,
+    required this.counts,
+  });
+  final CollectionShiftSnapshot shift;
+  final CollectionPointContext point;
+
+  /// `collection.session.user_id` — the cashier who owns this turn, never
+  /// the viewer's own id.
+  final int ownerUserId;
+
+  /// The raw `collection.session.state` value ('opened', 'paused',
+  /// 'closing_control', 'closed', 'opening_control'). [shift]'s
+  /// [CollectionShiftState] deliberately collapses 'opened' and 'paused'
+  /// into the same coarse bucket for display; supervision gating
+  /// (`availableSupervisionActions`) needs the real value to tell a pausable
+  /// turn from a resumable one.
+  final String rawState;
+  final CollectionSessionRecordCounts counts;
+}
+
+/// Defense in depth for [scopeCollectionSessionByIdFutureProvider]: the real
+/// guard belongs here, not only in whether Inicio drew the row as tappable —
+/// same principle Odoo itself applies before letting a supervisor reopen a
+/// closed turn: "la guarda de verdad va aquí, no en el invisible de la
+/// vista: un botón oculto se sigue pudiendo llamar por RPC"
+/// (`l10n_ec_collection_box/models/collection_session.py:2510-2513`,
+/// `action_session_reabrir_cerrada`). A row a plain cashier could reach by
+/// typing the URL directly stays blocked here even though in practice their
+/// local table never holds a foreign session to begin with.
+bool canOpenCollectionSessionById({
+  required int ownerUserId,
+  required int viewerUserId,
+  required Set<String> permissions,
+}) =>
+    ownerUserId == viewerUserId ||
+    permissions.contains('collection_supervisor');
+
+/// Supervisor-overview counterpart of [scopeCollectionShiftFutureProvider]:
+/// reads ONE `collection.session` by id, for a cashier other than the
+/// viewer. Throws (never returns a partial/fabricated view) when the turn is
+/// not in the local catalog or the viewer is neither its owner nor a
+/// supervisor — see [canOpenCollectionSessionById].
+final scopeCollectionSessionByIdFutureProvider = FutureProvider.family<
+    CollectionSessionLookup, int>((ref, sessionId) async {
+  final runtime = ref.watch(runtimeSessionProvider);
+  final active = runtime?.active;
+  if (runtime == null || active == null) {
+    throw StateError('No hay sesión para leer el turno');
+  }
+  final profile = ref.watch(authControllerProvider).profile;
+  final capabilities = ref.watch(capabilitySnapshotProvider);
+  if (profile == null || capabilities == null) {
+    throw StateError('No hay identidad para autorizar el turno');
+  }
+  final view = await _readLocalShiftById(active, sessionId);
+  if (view == null) {
+    throw StateError('Turno $sessionId no encontrado.');
+  }
+  if (!canOpenCollectionSessionById(
+    ownerUserId: view.ownerUserId,
+    viewerUserId: profile.userId,
+    permissions: capabilities.permissions,
+  )) {
+    throw StateError('No tienes autorización para ver este turno.');
+  }
+  return view;
+});
+
+Future<CollectionSessionLookup?> _readLocalShiftById(
+  SessionActivation active,
+  int sessionId,
+) async {
+  final rows =
+      await (active.database.database.select(
+            active.database.database.collectionSession,
+          )..where((table) => table.odooId.equals(sessionId)))
+          .get();
+  if (rows.isEmpty) return null;
+  final row = rows.first;
+  return CollectionSessionLookup(
+    shift: CollectionShiftSnapshot(
+      id: row.odooId.toString(),
+      state: _shiftState(row.state),
+      // Same neutral token as `_readLocalShift`: no remote version field
+      // exists yet for optimistic locking.
+      expectedVersion: 0,
+      expectedBalanceMinor: (row.cashRegisterBalanceEnd * 100).round(),
+      differenceMinor: (row.cashRegisterDifference * 100).round(),
+    ),
+    point: CollectionPointContext(
+      pointLabel: row.configName ?? 'Punto de cobro',
+      cashierLabel: row.userName,
+    ),
+    ownerUserId: row.userId,
+    rawState: row.state,
+    counts: CollectionSessionRecordCounts(
+      orderCount: row.orderCount,
+      invoiceCount: row.invoiceCount,
+      paymentCount: row.paymentCount,
+    ),
+  );
+}
+
 CollectionShiftState _shiftState(String state) => switch (state) {
   'opened' || 'paused' => CollectionShiftState.opened,
   'closing_control' => CollectionShiftState.closing,
@@ -415,6 +537,16 @@ final scopeCollectionCapabilitiesProvider =
       return CollectionCapabilitySnapshot(available: values);
     });
 
+/// Null when offline (`active.client == null`): the supervision screen must
+/// refuse and never queue, not silently degrade — see
+/// `CollectionSessionSupervisionPort`'s docstring.
+final scopeCollectionSessionSupervisionActionsProvider =
+    Provider<CollectionSessionSupervisionPort?>((ref) {
+      final client = ref.watch(runtimeSessionProvider)?.active?.client;
+      if (client == null) return null;
+      return CollectionSessionSupervisionPort(OdooClientSaleActions(client));
+    });
+
 final scopeCollectionActionsProvider = Provider<CollectionActions>((ref) {
   final runtime = ref.watch(runtimeSessionProvider);
   final active = runtime?.active;
@@ -423,6 +555,7 @@ final scopeCollectionActionsProvider = Provider<CollectionActions>((ref) {
       ? null
       : OdooClientSaleActions(active.client!);
   final queue = OfflineQueueDataSource(active.database.database);
+  final capabilities = ref.watch(capabilitySnapshotProvider);
   return RuntimeCollectionActions(
     sales: actions == null ? null : OdooSaleCollectionPort(actions),
     sessions: OdooCollectionSessionStore(
@@ -432,6 +565,8 @@ final scopeCollectionActionsProvider = Provider<CollectionActions>((ref) {
     queue: queue,
     producer: DurableCollectionProducer(active.database.database, queue),
     scopeKey: active.scope.scopeKey,
+    hasCollectionSupervisor:
+        capabilities?.permissions.contains('collection_supervisor') ?? false,
   );
 });
 

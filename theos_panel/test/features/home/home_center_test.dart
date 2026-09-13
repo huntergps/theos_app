@@ -1,8 +1,15 @@
 import 'package:fluent_ui/fluent_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:mocktail/mocktail.dart';
+import 'package:orbi_runtime/orbi_runtime.dart' show AuthProfile, CapabilitySnapshot;
+import 'package:theos_panel/features/auth/auth_controller.dart';
 import 'package:theos_panel/features/home/home_center.dart';
+import 'package:theos_panel/features/home/home_dashboard_contracts.dart';
+import 'package:theos_panel/features/home/home_dashboard_providers.dart';
 import 'package:theos_panel/ui/fluent/orbi_fluent_theme.dart';
+
+class _MockCashReader extends Mock implements HomeCashSessionsReader {}
 
 /// `HomeCenterView` pasó a `ConsumerWidget` para leer capacidades/sesión de
 /// forma ambiental; todo test necesita un `ProviderScope`, aunque sea sin
@@ -122,6 +129,106 @@ void main() {
 
         expect(find.text('No hay trabajo pendiente'), findsOneWidget);
         expect(find.text('Empieza por aquí:'), findsNothing);
+      },
+    );
+  });
+
+  group('HomeCenterView.onOpenCashSessionById supervisor gating', () {
+    CapabilitySnapshot capabilities(Set<String> permissions) =>
+        CapabilitySnapshot(
+          scopeKey: 'test-scope',
+          companyId: 1,
+          revision: 1,
+          fetchedAt: DateTime.utc(2026, 9, 13),
+          permissions: permissions,
+        );
+
+    AuthProfile profile({required int userId}) => AuthProfile(
+      serverUrl: 'https://erp2.test',
+      database: 'erp2_test',
+      login: 'cajero1',
+      userId: userId,
+      installationId: 'install-1',
+      credentialReference: 'ref-1',
+    );
+
+    Future<void> pumpWith(
+      WidgetTester tester, {
+      required Set<String> permissions,
+      required void Function(String) onOpenCashSessionById,
+    }) async {
+      final cashReader = _MockCashReader();
+      when(
+        () => cashReader.loadActive(companyId: any(named: 'companyId')),
+      ).thenAnswer(
+        (_) async => [
+          HomeCashSession(
+            id: '11',
+            name: 'CS/006/2026/0011',
+            cashierUserId: 42,
+            stateCode: 'opened',
+          ),
+        ],
+      );
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            capabilitySnapshotProvider.overrideWithValue(
+              capabilities(permissions),
+            ),
+            authInitialStateProvider.overrideWithValue(
+              AuthViewState(profile: profile(userId: 9)),
+            ),
+            homeCashSessionsReaderProvider.overrideWithValue(cashReader),
+          ],
+          child: FluentApp(
+            theme: OrbiFluentTheme.light,
+            home: ScaffoldPage(
+              content: HomeCenterView(
+                port: _FakePort(const HomeResumeSnapshot(HomeResumeState.empty)),
+                onOpenCashSessionById: onOpenCashSessionById,
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+    }
+
+    testWidgets(
+      'con collection_supervisor, tocar una fila ajena la abre con SU id',
+      (tester) async {
+        final opened = <String>[];
+        await pumpWith(
+          tester,
+          permissions: const {'cashier', 'collection_supervisor'},
+          onOpenCashSessionById: opened.add,
+        );
+
+        await tester.tap(find.text('CS/006/2026/0011'));
+        await tester.pump();
+
+        expect(opened, ['11']);
+        await tester.pump(const Duration(milliseconds: 150));
+      },
+    );
+
+    testWidgets(
+      'sin collection_supervisor, HomeCenterView nunca ofrece el callback '
+      'a la sección: un cajero raso no puede abrir un turno ajeno aunque '
+      'reciba onOpenCashSessionById',
+      (tester) async {
+        final opened = <String>[];
+        await pumpWith(
+          tester,
+          permissions: const {'cashier'},
+          onOpenCashSessionById: opened.add,
+        );
+
+        await tester.tap(find.text('CS/006/2026/0011'), warnIfMissed: false);
+        await tester.pump();
+
+        expect(opened, isEmpty);
       },
     );
   });

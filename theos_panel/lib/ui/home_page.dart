@@ -1,6 +1,7 @@
 import 'package:fluent_ui/fluent_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:orbi_runtime/orbi_runtime.dart' show CapabilitySnapshot;
+import 'package:orbi_runtime/orbi_runtime.dart'
+    show AuthProfile, CapabilitySnapshot;
 
 import '../features/home/home_center.dart';
 import '../features/auth/auth_controller.dart';
@@ -33,8 +34,11 @@ class HomePage extends ConsumerWidget {
     final composition = ref.watch(orbiSessionCompositionProvider);
     final homePort = composition.home ?? ref.watch(scopeHomeResumePortProvider);
     final policy = ref.watch(routeAccessPolicyProvider);
+    final profile = ref.watch(
+      authControllerProvider.select((state) => state.profile),
+    );
     return OrbiPage(
-      title: 'Inicio operativo',
+      title: _greetingTitle(profile),
       subtitle: homeTodayLabel(),
       child: homePort == null
           ? const Card(
@@ -59,6 +63,19 @@ class HomePage extends ConsumerWidget {
                     ) &&
                     context.mounted) {
                   context.go('/collection/hub');
+                }
+              },
+              // Turno de otro cajero: sólo le llega el callback a quien tiene
+              // `collection_supervisor` (lo decide HomeCenterView).
+              onOpenCashSessionById: (sessionId) {
+                final route = '/collection/sessions/$sessionId';
+                if (policy.allows(
+                      route,
+                      authenticated: true,
+                      capabilities: capabilities,
+                    ) &&
+                    context.mounted) {
+                  context.go(route);
                 }
               },
               onResume: (item) async {
@@ -95,4 +112,20 @@ class HomePage extends ConsumerWidget {
           route: candidate.route,
         ),
   ];
+}
+
+/// El ÚNICO encabezado de Inicio: el saludo con el nombre real cuando ya se
+/// conoce (`res.users.name`, vía `AuthProfile.name`), o el login si el
+/// perfil es de antes de ese campo o el lector no pudo resolverlo. Sin
+/// perfil todavía (arranque, sesión no restaurada), «Inicio operativo» —
+/// nunca «Hola, » vacío. Antes de esto, `HomeCenterView` pintaba un segundo
+/// saludo propio debajo de este mismo título (orden del dueño, 13-sep-2026,
+/// visto en la captura del teléfono): con un solo encabezado, esa pintura
+/// duplicada ya no existe.
+String _greetingTitle(AuthProfile? profile) {
+  final name = profile?.name?.trim();
+  if (name != null && name.isNotEmpty) return 'Hola, $name';
+  final login = profile?.login.trim();
+  if (login != null && login.isNotEmpty) return 'Hola, $login';
+  return 'Inicio operativo';
 }

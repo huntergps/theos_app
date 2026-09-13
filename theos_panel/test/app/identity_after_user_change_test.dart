@@ -187,10 +187,18 @@ class _PerUserIdentity implements ActiveIdentityReader {
   final Map<int, String> companyNameByUserId;
   _PerUserIdentity(this.companyNameByUserId);
   @override
-  Future<({int companyId, String? companyName, List<int> allowedCompanyIds})>
+  Future<
+    ({
+      int companyId,
+      String? companyName,
+      String? name,
+      List<int> allowedCompanyIds,
+    })
+  >
   read(AppScope scope) async => (
     companyId: scope.userId,
     companyName: companyNameByUserId[scope.userId],
+    name: null,
     allowedCompanyIds: [scope.userId],
   );
 }

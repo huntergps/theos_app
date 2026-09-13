@@ -12,13 +12,6 @@ Cuando aparezca una nueva se pone aquí antes de seguir trabajando en lo que dep
 ella. Hasta el 12-sep-2026 esta sección decía «ninguna» con cinco abiertas, y una ni
 siquiera estaba anotada.
 
-- **Encender `base.enable_programmatic_api_keys`.** Parámetro de Odoo, apagado por
-  defecto, que deja a quien no es administrador llamar `res.users.apikeys.generate` y
-  `revoke` con su propia llave, sin contraseña. Orbi lo necesita **sólo para cerrar sesión**:
-  `revokeOwnApiKey` (orbi_runtime) llama a `revoke`. Sin él, la llave de un vendedor sigue
-  valiendo hasta que caduca (`orbi.web_auth_key_days`, hoy 1 día). El ingreso no lo
-  necesita, porque `/orbi/auth/token` emite la llave en el servidor. Encenderlo da a
-  cualquier llave del usuario poder de emitir y revocar sus propias llaves.
 - **Las cuatro cuentas de prueba con `12345` y el origen abierto a `*`.** Cambiarlas y
   cerrar la lista de orígenes antes de publicar nada (ver defectos).
 - **La bodega de tránsito única de Mepriga con el 49,5 % del inventario** (ver la sección

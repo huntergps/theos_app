@@ -419,7 +419,14 @@ final class _SessionIdentityReader implements ActiveIdentityReader {
   const _SessionIdentityReader(this.runtime);
   final SessionRuntime runtime;
   @override
-  Future<({int companyId, String? companyName, List<int> allowedCompanyIds})>
+  Future<
+    ({
+      int companyId,
+      String? companyName,
+      String? name,
+      List<int> allowedCompanyIds,
+    })
+  >
   read(AppScope scope) {
     final active = runtime.active;
     if (active == null || active.scope != scope || active.client == null) {

@@ -20,6 +20,33 @@
   <meta content="IE=Edge" http-equiv="X-UA-Compatible">
   <meta name="description" content="Orbi ERP panel for sales, collections, and operations.">
 
+  <!--
+    "viewport-fit=cover" is what tells iOS Safari the page wants to own the
+    full screen, safe-area insets included, instead of leaving the strip
+    behind the home indicator to whatever the browser chrome decides. Without
+    it Safari never reports a stable visual-viewport height to the page, and
+    that is the root cause behind the blank strip fixed below: as the
+    address bar collapses/expands, Flutter's canvas and the plain HTML
+    underneath it briefly disagree on how tall the page is, and whatever is
+    UNDER the canvas — the rule below — shows through the gap.
+  -->
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+
+  <!--
+    Tints Safari's own chrome (status bar / toolbar) to match the app instead
+    of defaulting to a light system color regardless of theme — that
+    mismatch is exactly what made the status bar read light over Orbi's dark
+    theme. The two colors are not invented here: they are Fluent's own dark
+    and light `solidBackgroundFillColorBase`
+    (`fluent_ui/lib/src/styles/color_resources.dart`), the same base every
+    `FluentThemeData` in this app already resolves `scaffoldBackgroundColor`
+    from (`OrbiFluentTheme.fromSeed`) — this file has no Dart theme to read
+    at parse time, so the constants travel here once, not a color invented
+    for HTML alone.
+  -->
+  <meta name="theme-color" content="#f3f3f3" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#202020" media="(prefers-color-scheme: dark)">
+
   <!-- iOS meta tags & icons -->
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black">
@@ -34,18 +61,38 @@
 
   <!--
     Before Flutter's own view settles onto the device's safe area (iOS
-    Safari/Chrome are slow to do this right after load), the bare white
-    <body> shows through underneath it. The approved backdrop photo painted
-    here — same asset as OrbiAuthBackdrop, same fit — closes that gap instead
-    of leaving a white strip. The path is relative (no leading slash) so it
-    resolves the same whether the build is served at "--base-href=/" or at
-    "/orbi/".
+    Safari/Chrome are slow to do this right after load), the bare <body>
+    shows through underneath it. The approved backdrop photo painted here —
+    same asset as OrbiAuthBackdrop, same fit — closes that gap instead of
+    leaving a strip in light theme. The path is relative (no leading slash)
+    so it resolves the same whether the build is served at "--base-href=/"
+    or at "/orbi/".
+
+    🔴 In DARK theme that same light sunrise photo is what a viewer reported
+    as a blank/white strip: at the bottom, whenever iOS Safari's toolbar
+    collapses or expands and grows the visual viewport a beat before
+    Flutter's canvas catches up (a known iOS Safari + Flutter-web gap; see
+    the viewport meta above), it is this rule's background that briefly
+    shows through — and a bright sky-and-lake photo reads as "white" against
+    a dark app. `prefers-color-scheme` swaps it here for Fluent's own dark
+    base fill (same constant as the `theme-color` tag above), so the gap —
+    when it happens — blends with the app instead of flashing light. `100dvh`
+    (the *dynamic* viewport height, which iOS Safari updates live as its
+    toolbar moves) replaces the fixed `100%` so the backdrop itself tracks
+    the real visible height instead of the address bar's still-collapsed
+    height at load; `100%` stays as the fallback for engines without `dvh`.
   -->
   <style>
     html, body {
       margin: 0;
       height: 100%;
+      height: 100dvh;
       background: url('assets/assets/images/orbi_lake_sunrise.png') center / cover no-repeat;
+    }
+    @media (prefers-color-scheme: dark) {
+      html, body {
+        background: #202020;
+      }
     }
   </style>
 </head>

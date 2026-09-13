@@ -3,8 +3,7 @@ import 'dart:async';
 import 'package:fluent_ui/fluent_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../auth/auth_controller.dart'
-    show authControllerProvider, capabilitySnapshotProvider;
+import '../auth/auth_controller.dart' show capabilitySnapshotProvider;
 import 'home_dashboard_view.dart';
 
 enum HomeResumeState { loading, data, empty, error }
@@ -73,6 +72,7 @@ class HomeCenterView extends ConsumerWidget {
     this.onResume,
     this.quickStarts = const [],
     this.onOpenOwnCashSession,
+    this.onOpenCashSessionById,
     super.key,
   });
   final HomeResumePort port;
@@ -85,17 +85,21 @@ class HomeCenterView extends ConsumerWidget {
   final List<HomeResumeItem> quickStarts;
 
   /// Se invoca al tocar la fila del PROPIO turno en «Sesiones de caja
-  /// activas». Sin id: `/collection/hub` (la única ruta que abre el hub)
-  /// sólo muestra el turno de quien tiene la sesión, nunca uno por id, así
-  /// que una fila ajena nunca invoca esto — ver `HomeCashSessionsSection`.
+  /// activas». Sin id: `/collection/hub` (la única ruta que abre el hub del
+  /// turno propio) nunca recibe uno.
   final VoidCallback? onOpenOwnCashSession;
+
+  /// Se invoca al tocar la fila de un turno AJENO, con el id remoto de ESE
+  /// turno. Sólo se ofrece a `HomeCashSessionsSection` cuando la persona
+  /// tiene el permiso `collection_supervisor` (⇐
+  /// `l10n_ec_collection_box.group_collection_manager`, "Supervisor de
+  /// Caja"); sin ese permiso una fila ajena se queda informativa, igual que
+  /// antes de que este permiso existiera.
+  final void Function(String sessionId)? onOpenCashSessionById;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final capabilities = ref.watch(capabilitySnapshotProvider);
-    final login = ref.watch(
-      authControllerProvider.select((state) => state.profile?.login),
-    );
     // Sólo se arma el panel de indicadores cuando hay al menos una capacidad
     // con una fuente de datos real detrás (venta o cobro; bodega no tiene
     // todavía un dato local confiable — ver `home_dashboard_contracts.dart`).
@@ -127,14 +131,18 @@ class HomeCenterView extends ConsumerWidget {
         return ListView(
           padding: const EdgeInsets.only(bottom: 24),
           children: [
-            if (login != null && login.trim().isNotEmpty)
-              _greeting(context, login),
             HomeIndicatorGrid(capabilities: capabilities),
             const SizedBox(height: 16),
             const HomeLastSyncCard(),
             if (capabilities.permissions.contains('cashier')) ...[
               const SizedBox(height: 16),
-              HomeCashSessionsSection(onOpenOwnSession: onOpenOwnCashSession),
+              HomeCashSessionsSection(
+                onOpenOwnSession: onOpenOwnCashSession,
+                onOpenSupervisedSession:
+                    capabilities.permissions.contains('collection_supervisor')
+                    ? onOpenCashSessionById
+                    : null,
+              ),
             ],
             if (quickStarts.isNotEmpty) ...[
               const SizedBox(height: 16),
@@ -155,11 +163,6 @@ class HomeCenterView extends ConsumerWidget {
       },
     );
   }
-
-  Widget _greeting(BuildContext context, String login) => Padding(
-    padding: const EdgeInsets.only(bottom: 12),
-    child: Text('Hola, $login', style: FluentTheme.of(context).typography.title),
-  );
 
   Widget _quickAccessSection(BuildContext context) {
     final typography = FluentTheme.of(context).typography;

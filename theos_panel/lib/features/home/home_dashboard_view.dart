@@ -1,7 +1,8 @@
 import 'package:fluent_ui/fluent_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:orbi_runtime/orbi_runtime.dart' show CapabilitySnapshot;
+import 'package:orbi_runtime/orbi_runtime.dart'
+    show AuthProfile, CapabilitySnapshot;
 import 'package:theos_pos_core/theos_pos_core.dart'
     show SessionState, SessionStateExtension;
 
@@ -257,13 +258,37 @@ class HomeIndicatorGrid extends ConsumerWidget {
 /// compone la pantalla ya comprobó la capacidad `cashier` — este widget no
 /// vuelve a decidir permisos, sólo pinta lo que el lector devuelve.
 class HomeCashSessionsSection extends ConsumerWidget {
-  const HomeCashSessionsSection({this.onOpenOwnSession, super.key});
+  const HomeCashSessionsSection({
+    this.onOpenOwnSession,
+    this.onOpenSupervisedSession,
+    super.key,
+  });
 
   /// Se invoca al tocar la fila del PROPIO turno del cajero autenticado.
-  /// `/collection/hub` (la única ruta que abre el hub de una sesión) sólo
-  /// muestra el turno de quien tiene la sesión, así que una fila ajena queda
-  /// informativa en vez de fingir que navega a algo que no existe.
   final VoidCallback? onOpenOwnSession;
+
+  /// Se invoca al tocar la fila de un turno AJENO, con el id remoto de ESE
+  /// turno (`collection.session` id) — nunca el propio. Quien compone esta
+  /// pantalla sólo debe pasar este callback tras comprobar el permiso de
+  /// supervisor (`collection_supervisor` ⇐
+  /// `l10n_ec_collection_box.group_collection_manager`, "Supervisor de
+  /// Caja"): este widget no vuelve a decidir permisos, sólo pinta lo que le
+  /// pasaron — mismo principio que ya sigue con la capacidad `cashier`.
+  /// Nulo mientras la persona no tenga ese permiso, y entonces una fila
+  /// ajena queda informativa, igual que antes de que este permiso existiera.
+  final void Function(String sessionId)? onOpenSupervisedSession;
+
+  /// La fila propia usa [onOpenOwnSession] (sin id: `/collection/hub` abre
+  /// el turno de quien tiene la sesión). Una fila ajena usa
+  /// [onOpenSupervisedSession] con el id de ESE turno, y sólo cuando quien
+  /// compone la pantalla ya lo ofreció — ver el docstring del campo.
+  VoidCallback? _onPressedFor(HomeCashSession session, AuthProfile? profile) {
+    if (profile == null) return null;
+    if (session.cashierUserId == profile.userId) return onOpenOwnSession;
+    final onOpenSupervised = onOpenSupervisedSession;
+    if (onOpenSupervised == null) return null;
+    return () => onOpenSupervised(session.id);
+  }
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -300,12 +325,7 @@ class HomeCashSessionsSection extends ConsumerWidget {
                     padding: const EdgeInsets.only(bottom: 6),
                     child: Card(
                       child: ListTile(
-                        onPressed:
-                            onOpenOwnSession == null ||
-                                profile == null ||
-                                session.cashierUserId != profile.userId
-                            ? null
-                            : onOpenOwnSession,
+                        onPressed: _onPressedFor(session, profile),
                         leading: Padding(
                           padding: const EdgeInsets.only(top: 6),
                           child: Container(
@@ -342,9 +362,7 @@ class HomeCashSessionsSection extends ConsumerWidget {
                                 ),
                               ),
                             ),
-                            if (onOpenOwnSession != null &&
-                                profile != null &&
-                                session.cashierUserId == profile.userId) ...[
+                            if (_onPressedFor(session, profile) != null) ...[
                               const SizedBox(width: 8),
                               Icon(
                                 FluentIcons.chevron_right,

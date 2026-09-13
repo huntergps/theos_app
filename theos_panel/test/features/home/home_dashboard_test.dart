@@ -317,6 +317,69 @@ void main() {
         await tester.pump(const Duration(milliseconds: 150));
       },
     );
+
+    testWidgets(
+      'un supervisor ve tocable la fila de un turno ajeno y la abre con ESE '
+      'id, nunca con el propio',
+      (tester) async {
+        final cashReader = _MockCashReader();
+        when(
+          () => cashReader.loadActive(companyId: any(named: 'companyId')),
+        ).thenAnswer(
+          (_) async => [
+            HomeCashSession(
+              id: '8',
+              name: 'CS/005/2026/0008',
+              cashierUserId: 9,
+              stateCode: 'opened',
+            ),
+            HomeCashSession(
+              id: '11',
+              name: 'CS/006/2026/0011',
+              cashierUserId: 42,
+              stateCode: 'opened',
+            ),
+          ],
+        );
+        // El permiso de supervisor ya se comprobó antes de llegar aquí (lo
+        // hace `HomeCenterView`); esta sección sólo pinta lo que le pasaron.
+        final capabilities = _capabilities(const {
+          'cashier',
+          'collection_supervisor',
+        });
+        final profile = _profile(userId: 9, login: 'supervisor1');
+        final openedIds = <String>[];
+
+        await tester.pumpWidget(
+          ProviderScope(
+            overrides: [
+              capabilitySnapshotProvider.overrideWithValue(capabilities),
+              authInitialStateProvider.overrideWithValue(
+                AuthViewState(profile: profile),
+              ),
+              homeCashSessionsReaderProvider.overrideWithValue(cashReader),
+            ],
+            child: FluentApp(
+              theme: OrbiFluentTheme.light,
+              home: ScaffoldPage(
+                content: HomeCashSessionsSection(
+                  onOpenOwnSession: () => openedIds.add('own'),
+                  onOpenSupervisedSession: openedIds.add,
+                ),
+              ),
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        await tester.tap(find.text('CS/006/2026/0011'));
+        await tester.pump();
+
+        expect(openedIds, ['11']);
+
+        await tester.pump(const Duration(milliseconds: 150));
+      },
+    );
   });
 
   group('HomeLastSyncCard', () {

@@ -135,10 +135,22 @@ class _Bootstrap implements AuthBootstrapPort {
 class _Identity implements ActiveIdentityReader {
   bool invalid = false;
   @override
-  Future<({int companyId, String? companyName, List<int> allowedCompanyIds})>
+  Future<
+    ({
+      int companyId,
+      String? companyName,
+      String? name,
+      List<int> allowedCompanyIds,
+    })
+  >
   read(AppScope s) async {
     if (invalid) throw const FormatException('bad company');
-    return (companyId: 7, companyName: 'Empresa de prueba', allowedCompanyIds: [7, 8]);
+    return (
+      companyId: 7,
+      companyName: 'Empresa de prueba',
+      name: 'Erik Salazar',
+      allowedCompanyIds: [7, 8],
+    );
   }
 }
 

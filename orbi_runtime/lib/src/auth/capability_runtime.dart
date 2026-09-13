@@ -17,6 +17,23 @@ final class OdooCapabilityReader {
       effectiveExternalIds.contains(envasesUserGroup) ||
       effectiveExternalIds.contains(envasesManagerGroup);
 
+  /// "Supervisor de Caja" — `l10n_ec_collection_box.group_collection_manager`
+  /// (`l10n_ec_collection_box/security/collection_box_groups.xml:96-101`).
+  /// `CapabilityProvisioner.materialize` (theos_pos_core) already folds this
+  /// group into the shared `cashier` permission — it implies
+  /// `group_collection_user`, so a supervisor keeps every cashier screen —
+  /// but that merge loses the distinction a supervisor-only feature needs
+  /// (opening ANOTHER cashier's turn, `collection_session_manager_rule` /
+  /// `collection_session_all_manager_rule`,
+  /// `l10n_ec_collection_box/security/collection_box_rules.xml:24-31,159-165`,
+  /// unrestricted `crud` domain). Materialized here, the same way
+  /// `hasEnvasesRead` is, instead of touching `theos_pos_core` for a flag
+  /// that only this app's supervisor-overview feature reads.
+  static bool hasCollectionSupervisor(Iterable<String> effectiveExternalIds) =>
+      effectiveExternalIds.contains(
+        'l10n_ec_collection_box.group_collection_manager',
+      );
+
   Future<CapabilitySnapshot> read({
     required AppScope scope,
     required int companyId,
@@ -65,14 +82,18 @@ final class OdooCapabilityReader {
       hasGroup: effectiveXmlIds.contains,
       offlineOperations: offlineOperations,
     );
-    if (!hasEnvasesRead(effectiveXmlIds)) return snapshot;
+    final extra = <String>{
+      if (hasEnvasesRead(effectiveXmlIds)) 'envases_read',
+      if (hasCollectionSupervisor(effectiveXmlIds)) 'collection_supervisor',
+    };
+    if (extra.isEmpty) return snapshot;
     return CapabilitySnapshot(
       scopeKey: snapshot.scopeKey,
       companyId: snapshot.companyId,
       pointId: snapshot.pointId,
       revision: snapshot.revision,
       fetchedAt: snapshot.fetchedAt,
-      permissions: {...snapshot.permissions, 'envases_read'},
+      permissions: {...snapshot.permissions, ...extra},
       counterPolicies: snapshot.counterPolicies,
       offlineOperations: snapshot.offlineOperations,
     );
@@ -84,16 +105,25 @@ final class OdooActiveIdentityReader implements ActiveIdentityReader {
   const OdooActiveIdentityReader(this.client);
 
   @override
-  Future<({int companyId, String? companyName, List<int> allowedCompanyIds})>
+  Future<
+    ({
+      int companyId,
+      String? companyName,
+      String? name,
+      List<int> allowedCompanyIds,
+    })
+  >
   read(AppScope scope) async {
     final rows = await client.read(
       model: 'res.users',
       ids: [scope.userId],
-      fields: ['id', 'company_id', 'company_ids'],
+      fields: ['id', 'name', 'company_id', 'company_ids'],
     );
     if (rows.length != 1 || rows.single['id'] != scope.userId) {
       throw StateError('Active identity mismatch');
     }
+    final name = rows.single['name'];
+    final userName = name is String && name.trim().isNotEmpty ? name : null;
     final company = rows.single['company_id'];
     final companyId = company is int
         ? company
@@ -121,6 +151,7 @@ final class OdooActiveIdentityReader implements ActiveIdentityReader {
     return (
       companyId: companyId,
       companyName: companyName,
+      name: userName,
       allowedCompanyIds: allowed,
     );
   }

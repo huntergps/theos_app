@@ -500,10 +500,26 @@ final class DurableCollectionProducer {
   /// session transitions in one transaction. The outbox dependencies enforce
   /// count → closing-control → close on replay; no parallel financial table or
   /// synthetic session state is introduced.
+  ///
+  /// `hasCollectionSupervisor` gates the THIRD step. `action_session_close`
+  /// (`l10n_ec_collection_box/models/collection_session.py:3211-3219`) raises
+  /// `UserError('Solo los supervisores pueden cerrar sesiones.')` for anyone
+  /// outside `group_collection_manager` — even the cashier closing HER OWN
+  /// turn. Before this gate, a plain cashier's device queued `session_close`
+  /// unconditionally with `OfflineReplayPolicy.retrySafe`
+  /// (`_dispatch`, below): it retried against that same rejection on every
+  /// sync pass until `OfflineQueueDataSource.markOperationFailed` exhausted
+  /// its 10 attempts and the operation died in `dead_letter`, never having
+  /// done anything. A cashier without the permission now queues only the
+  /// count and `session_closing_control` — which Odoo lets her run on her
+  /// own turn — and the turn stops there, in `closing_control`, exactly
+  /// where the real workflow expects a supervisor to pick it up (validate it
+  /// from the turn's own screen, `collection.session.py:2613-2658`).
   Future<DurableCollectionShiftResult> closeWithCount({
     required String commandId,
     required int sessionId,
     required DurableCashCount count,
+    required bool hasCollectionSupervisor,
   }) async {
     final uuid = commandId.trim();
     if (uuid.isEmpty || sessionId <= 0 || !count.isValid) {
@@ -524,6 +540,7 @@ final class DurableCollectionProducer {
       return DurableCollectionShiftResult.queued(
         count.cashTotalMinor,
         count.expectedDifferenceMinor,
+        message: _closeQueuedMessage(hasCollectionSupervisor),
       );
     }
     final localCounts =
@@ -539,6 +556,7 @@ final class DurableCollectionProducer {
         return DurableCollectionShiftResult.queued(
           count.cashTotalMinor,
           count.expectedDifferenceMinor,
+          message: _closeQueuedMessage(hasCollectionSupervisor),
         );
       }
       return const DurableCollectionShiftResult.rejected(
@@ -617,19 +635,26 @@ final class DurableCollectionProducer {
         priority: OfflinePriority.critical,
         replayPolicy: OfflineReplayPolicy.retrySafe,
       );
-      await queue.queueOperation(
-        model: 'collection.session',
-        method: 'session_close',
-        recordId: sessionId,
-        values: {
-          'session_id': sessionId,
-          'command_id': uuid,
-          'dependsOn': [closingKey],
-        },
-        operationKey: closeKey,
-        priority: OfflinePriority.critical,
-        replayPolicy: OfflineReplayPolicy.retrySafe,
-      );
+      // Sólo se encola el tercer paso — `action_session_close` — cuando ESTE
+      // dispositivo se autentica como alguien de `group_collection_manager`.
+      // Ver el docstring del método: sin el permiso, Odoo rechaza esta
+      // llamada aunque sea el propio turno de quien la hace, y encolarla
+      // igual sólo fabrica una operación condenada a `dead_letter`.
+      if (hasCollectionSupervisor) {
+        await queue.queueOperation(
+          model: 'collection.session',
+          method: 'session_close',
+          recordId: sessionId,
+          values: {
+            'session_id': sessionId,
+            'command_id': uuid,
+            'dependsOn': [closingKey],
+          },
+          operationKey: closeKey,
+          priority: OfflinePriority.critical,
+          replayPolicy: OfflineReplayPolicy.retrySafe,
+        );
+      }
       await (database.update(
         database.collectionSession,
       )..where((table) => table.odooId.equals(sessionId))).write(
@@ -646,8 +671,15 @@ final class DurableCollectionProducer {
     return DurableCollectionShiftResult.queued(
       count.cashTotalMinor,
       count.expectedDifferenceMinor,
+      message: _closeQueuedMessage(hasCollectionSupervisor),
     );
   }
+
+  static String _closeQueuedMessage(bool hasCollectionSupervisor) =>
+      hasCollectionSupervisor
+      ? 'Conteo guardado; cierre pendiente de sincronización.'
+      : 'Conteo guardado. El turno queda en Control de Cierre: un '
+            'supervisor debe validarlo para cerrarlo.';
 
   Future<int> _nextCashOutId() async {
     final rows = await database.select(database.cashOut).get();
@@ -790,13 +822,9 @@ final class DurableCollectionShiftResult {
   );
   const DurableCollectionShiftResult.queued(
     int cashTotalMinor,
-    int differenceMinor,
-  ) : this._(
-        DurableCollectionState.queued,
-        cashTotalMinor,
-        differenceMinor,
-        'Conteo guardado; cierre pendiente de sincronización.',
-      );
+    int differenceMinor, {
+    String message = 'Conteo guardado; cierre pendiente de sincronización.',
+  }) : this._(DurableCollectionState.queued, cashTotalMinor, differenceMinor, message);
   const DurableCollectionShiftResult.rejected(String message)
     : this._(DurableCollectionState.rejected, null, null, message);
   final DurableCollectionState state;

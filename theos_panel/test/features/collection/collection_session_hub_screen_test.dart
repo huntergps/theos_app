@@ -207,4 +207,12 @@ void main() {
 
     expect(find.textContaining('Órdenes:'), findsNothing);
   });
+
+  // La composición real de un turno ajeno (`/collection/sessions/:id`,
+  // supervisor sobre OTRO cajero) vive en `CollectionSupervisedSessionScreen`
+  // (`collection_supervised_session_screen_test.dart`), que SÍ ofrece las
+  // acciones que Odoo permite — reabrir, validar, cerrar, pausar, reanudar,
+  // en línea — según el estado y el rol de quien mira. Este archivo prueba
+  // sólo la composición GENÉRICA del hub (recibe la lista de acciones ya
+  // resuelta y las pinta), no una versión "sin acciones" hoy obsoleta.
 }

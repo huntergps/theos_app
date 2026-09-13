@@ -501,6 +501,7 @@ void main() {
       commandId: 'close-8',
       sessionId: 8,
       count: count,
+      hasCollectionSupervisor: true,
     );
     expect(first.state, DurableCollectionState.queued);
     expect(first.cashTotalMinor, 12050);
@@ -517,7 +518,12 @@ void main() {
     final retry = await DurableCollectionProducer(
       reopened,
       OfflineQueueDataSource(reopened),
-    ).closeWithCount(commandId: 'close-8', sessionId: 8, count: count);
+    ).closeWithCount(
+      commandId: 'close-8',
+      sessionId: 8,
+      count: count,
+      hasCollectionSupervisor: true,
+    );
     expect(retry.state, DurableCollectionState.queued);
     expect(await reopened.select(reopened.offlineQueue).get(), hasLength(3));
     final session = await (reopened.select(
@@ -533,7 +539,12 @@ void main() {
     final completedRetry = await DurableCollectionProducer(
       reopened,
       reopenedQueue,
-    ).closeWithCount(commandId: 'close-8', sessionId: 8, count: count);
+    ).closeWithCount(
+      commandId: 'close-8',
+      sessionId: 8,
+      count: count,
+      hasCollectionSupervisor: true,
+    );
     expect(completedRetry.state, DurableCollectionState.queued);
     expect(await reopened.select(reopened.offlineQueue).get(), hasLength(0));
     expect(
@@ -552,6 +563,7 @@ void main() {
         commandId: 'close-replay',
         sessionId: 8,
         count: const DurableCashCount(bills1: 10),
+        hasCollectionSupervisor: true,
       );
       final actions = _Actions();
       final adapter = OdooOfflineOperationAdapter(
@@ -595,6 +607,103 @@ void main() {
       expect(await adapter.reconcile(operations.last), isA<OperationApplied>());
     },
   );
+
+  group('closeWithCount respects group_collection_manager for the third step', () {
+    // `action_session_close` (`l10n_ec_collection_box/models/collection_session.py:3211-3219`)
+    // raises `UserError('Solo los supervisores pueden cerrar sesiones.')` for
+    // anyone outside `group_collection_manager`, even on their OWN turn.
+    // Before this gate, `session_close` was queued unconditionally with
+    // `OfflineReplayPolicy.retrySafe` and would retry against that same
+    // rejection forever (until `markOperationFailed` exhausted its 10
+    // attempts and it died in `dead_letter`) — a cajero raso's own close
+    // never actually completed.
+    test(
+      'cajero SIN collection_supervisor: la cola NO contiene session_close',
+      () async {
+        final db = AppDatabase(NativeDatabase.memory());
+        addTearDown(db.close);
+        final queue = OfflineQueueDataSource(db);
+        await db
+            .into(db.collectionSession)
+            .insert(
+              CollectionSessionCompanion.insert(
+                odooId: 9,
+                sessionUuid: 'session-9',
+                name: 'Caja 9',
+                configId: 2,
+                companyId: 1,
+                userId: 7,
+                currencyId: 1,
+                startAt: DateTime.utc(2026, 9, 13),
+              ),
+            );
+        final result = await DurableCollectionProducer(db, queue).closeWithCount(
+          commandId: 'close-9-cajero',
+          sessionId: 9,
+          count: const DurableCashCount(bills1: 10),
+          hasCollectionSupervisor: false,
+        );
+        expect(result.state, DurableCollectionState.queued);
+        expect(
+          result.message,
+          contains('un supervisor debe validarlo'),
+        );
+        final sessionOps = await queue.getOperationsForModel(
+          'collection.session',
+        );
+        expect(
+          sessionOps.map((operation) => operation.method),
+          ['session_closing_control'],
+        );
+        expect(
+          sessionOps.any((operation) => operation.method == 'session_close'),
+          isFalse,
+        );
+        final session = await (db.select(
+          db.collectionSession,
+        )..where((table) => table.odooId.equals(9))).getSingle();
+        expect(session.state, 'closing_control');
+      },
+    );
+
+    test(
+      'supervisor (collection_supervisor): la cola SÍ contiene session_close',
+      () async {
+        final db = AppDatabase(NativeDatabase.memory());
+        addTearDown(db.close);
+        final queue = OfflineQueueDataSource(db);
+        await db
+            .into(db.collectionSession)
+            .insert(
+              CollectionSessionCompanion.insert(
+                odooId: 10,
+                sessionUuid: 'session-10',
+                name: 'Caja 10',
+                configId: 2,
+                companyId: 1,
+                userId: 7,
+                currencyId: 1,
+                startAt: DateTime.utc(2026, 9, 13),
+              ),
+            );
+        final result = await DurableCollectionProducer(db, queue).closeWithCount(
+          commandId: 'close-10-supervisor',
+          sessionId: 10,
+          count: const DurableCashCount(bills1: 10),
+          hasCollectionSupervisor: true,
+        );
+        expect(result.state, DurableCollectionState.queued);
+        expect(result.message, 'Conteo guardado; cierre pendiente de sincronización.');
+        final sessionOps = await queue.getOperationsForModel(
+          'collection.session',
+        );
+        expect(
+          sessionOps.map((operation) => operation.method),
+          ['session_closing_control', 'session_close'],
+        );
+      },
+    );
+  });
 
   test(
     'rejects invalid cheque deposit without queuing a remote-invalid row',

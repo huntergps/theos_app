@@ -25,6 +25,7 @@ export 'src/warehouse/stock_move_line_quantity_port.dart';
 export 'src/storage/runtime_database_owner.dart';
 export 'src/sales/sale_runtime_adapters.dart';
 export 'src/sales/collection_operation_port.dart';
+export 'src/sales/collection_session_supervision_port.dart';
 export 'src/sales/durable_collection_producers.dart';
 export 'src/sales/payment_transaction_collection_port.dart';
 export 'src/sales/sale_command_port.dart';

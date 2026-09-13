@@ -100,8 +100,9 @@ Widget _host(
   String selectedPath = '/sales',
   PaneDisplayMode navigationDisplayMode = PaneDisplayMode.auto,
   Widget navigationIndicator = const StickyNavigationIndicator(),
+  FluentThemeData? theme,
 }) => FluentApp(
-  theme: OrbiFluentTheme.light,
+  theme: theme ?? OrbiFluentTheme.light,
   home: MediaQuery(
     data: MediaQueryData(size: size),
     child: OperationalShell(
@@ -196,6 +197,52 @@ void main() {
         PaneDisplayMode.minimal,
       );
     });
+  });
+
+  group('la barra superior en teléfono', () {
+    // Reporte del dueño (captura de iPhone, Safari, tema oscuro,
+    // 13-sep-2026): a este ancho sólo se veía una franja oscura vacía,
+    // sin botón de menú ni avatar. Fijado el ancho a 390×844 —el mismo de
+    // la captura— y el tema oscuro para reproducirlo.
+    testWidgets(
+      'a 390×844 en tema oscuro muestra el botón de menú y el avatar',
+      (tester) async {
+        const size = Size(390, 844);
+        await _pump(
+          tester,
+          _host(size, theme: OrbiFluentTheme.dark),
+          size,
+        );
+        expect(tester.takeException(), isNull);
+
+        final menuButton = find.byKey(
+          const Key('operational-menu-button'),
+        );
+        final avatar = find.byKey(const Key('shell-avatar-button'));
+        expect(menuButton, findsOneWidget);
+        expect(avatar, findsOneWidget);
+
+        // No basta con que existan en el árbol: tienen que caer dentro del
+        // rectángulo visible (390×844), nunca en tamaño cero ni fuera de
+        // pantalla.
+        final menuSize = tester.getSize(menuButton);
+        final avatarSize = tester.getSize(avatar);
+        expect(menuSize.width, greaterThan(0));
+        expect(menuSize.height, greaterThan(0));
+        expect(avatarSize.width, greaterThan(0));
+        expect(avatarSize.height, greaterThan(0));
+
+        final menuTopLeft = tester.getTopLeft(menuButton);
+        final avatarTopLeft = tester.getTopLeft(avatar);
+        expect(menuTopLeft.dx, greaterThanOrEqualTo(0));
+        expect(menuTopLeft.dy, greaterThanOrEqualTo(0));
+        expect(menuTopLeft.dy, lessThan(size.height));
+        expect(avatarTopLeft.dx, greaterThanOrEqualTo(0));
+        expect(avatarTopLeft.dx, lessThan(size.width));
+        expect(avatarTopLeft.dy, greaterThanOrEqualTo(0));
+        expect(avatarTopLeft.dy, lessThan(size.height));
+      },
+    );
   });
 
   // Orden del dueño, 13-sep-2026: el modo del carril y su indicador ahora se

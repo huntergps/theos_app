@@ -15,6 +15,7 @@ import '../features/auth/workspace_unlock_store.dart';
 import '../features/collection/collection_screen.dart';
 import '../features/collection/collection_contracts.dart';
 import '../features/collection/collection_session_hub_screen.dart';
+import '../features/collection/collection_supervised_session_screen.dart';
 import '../features/approvals/approval_contracts.dart';
 import '../features/approvals/approvals_screen.dart';
 import '../features/notifications/notification_inbox.dart';
@@ -72,13 +73,31 @@ final workspaceLockProvider = NotifierProvider<WorkspaceLockNotifier, bool>(
   WorkspaceLockNotifier.new,
 );
 
+/// Where the workspace lock lives across reloads. Reported by the owner
+/// (13-sep-2026): locking and then reloading the browser showed Home again
+/// without asking for the password, because the lock only lived in process
+/// memory and a real reload wipes it.
+const _kWorkspaceLockedKey = 'orbi/workspace/locked';
+
 class WorkspaceLockNotifier extends Notifier<bool> {
   @override
-  bool build() => false;
+  bool build() =>
+      ref.watch(sharedPreferencesProvider).getBool(_kWorkspaceLockedKey) ??
+      false;
 
-  void lock() => state = true;
+  void lock() {
+    state = true;
+    unawaited(
+      ref.read(sharedPreferencesProvider).setBool(_kWorkspaceLockedKey, true),
+    );
+  }
 
-  void unlock() => state = false;
+  void unlock() {
+    state = false;
+    unawaited(
+      ref.read(sharedPreferencesProvider).setBool(_kWorkspaceLockedKey, false),
+    );
+  }
 }
 
 /// Revalidates the currently authenticated identity for
@@ -831,6 +850,15 @@ String _syncStatusLabel(SyncCoordinatorImpl? coordinator, SyncSnapshot? raw) {
 /// `operational_shell.dart`: el marco recibe tipos de Fluent por constructor
 /// (orden del dueño, 13-sep-2026), sin conocer el modelo de preferencias —
 /// igual que ya no conoce los colores, sólo los recibe compuestos.
+/// El nombre real (`res.users.name`) cuando se conoce; si no, el login. «Usuario
+/// no disponible» sólo cuando no hay perfil. Un perfil guardado antes de que
+/// existiera `AuthProfile.name` llega sin nombre.
+String _userLabelFor(AuthProfile? profile) {
+  final name = profile?.name?.trim();
+  if (name != null && name.isNotEmpty) return name;
+  return profile?.login ?? 'Usuario no disponible';
+}
+
 PaneDisplayMode _paneDisplayModeFor(PreferenceNavigationDisplayMode mode) =>
     switch (mode) {
       PreferenceNavigationDisplayMode.auto => PaneDisplayMode.auto,
@@ -1095,7 +1123,7 @@ final orbiRouterProvider = Provider<GoRouter>((ref) {
                     context: OperationalContext(
                       server: profile?.serverUrl ?? 'No disponible',
                       database: profile?.database ?? 'No disponible',
-                      userLabel: profile?.login ?? 'Usuario no disponible',
+                      userLabel: _userLabelFor(profile),
                       // The real name travels in the very same response that
                       // already carries `companyId` (`res.users.company_id`,
                       // read via `OdooActiveIdentityReader.read` — see
@@ -1429,6 +1457,41 @@ final orbiRouterProvider = Provider<GoRouter>((ref) {
                       icon: FluentIcons.date_time,
                       onOpen: () => context.go('/collection'),
                     ),
+                  ),
+                );
+              },
+            ),
+          ),
+          // Turno de caja por id: el supervisor abre el de cualquier cajero de
+          // su empresa. La compuerta real (dueño o `collection_supervisor`) vive
+          // en `scopeCollectionSessionByIdFutureProvider`; la política de rutas
+          // sólo exige `cashier` por estar bajo /collection/.
+          GoRoute(
+            path: '/collection/sessions/:id',
+            builder: (context, state) => Consumer(
+              builder: (context, ref, _) {
+                final sessionId = int.tryParse(
+                  state.pathParameters['id'] ?? '',
+                );
+                if (sessionId == null || sessionId <= 0) {
+                  return const NotConfiguredPage(
+                    title: 'Caja',
+                    detail: 'Turno inválido.',
+                  );
+                }
+                final lookup = ref.watch(
+                  scopeCollectionSessionByIdFutureProvider(sessionId),
+                );
+                return lookup.when(
+                  loading: () => const NotConfiguredPage(
+                    title: 'Caja',
+                    detail: 'Cargando el turno…',
+                  ),
+                  error: (error, stack) =>
+                      NotConfiguredPage(title: 'Caja', detail: '$error'),
+                  data: (view) => CollectionSupervisedSessionScreen(
+                    sessionId: sessionId,
+                    view: view,
                   ),
                 );
               },

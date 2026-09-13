@@ -10,12 +10,19 @@ final class RuntimeCollectionActions
   final OfflineQueueStore? queue;
   final DurableCollectionProducer? producer;
   final String scopeKey;
+
+  /// `l10n_ec_collection_box.group_collection_manager` ("Supervisor de
+  /// Caja") en el dispositivo autenticado — ver el docstring de
+  /// `DurableCollectionProducer.closeWithCount` para por qué el cierre
+  /// necesita saberlo antes de encolar nada.
+  final bool hasCollectionSupervisor;
   const RuntimeCollectionActions({
     required this.sales,
     required this.sessions,
     required this.scopeKey,
     this.queue,
     this.producer,
+    this.hasCollectionSupervisor = false,
   });
 
   @override
@@ -49,6 +56,7 @@ final class RuntimeCollectionActions
     final result = await durable.closeWithCount(
       commandId: 'shift-close-$scopeKey-$sessionId',
       sessionId: sessionId,
+      hasCollectionSupervisor: hasCollectionSupervisor,
       count: DurableCashCount(
         bills100: count.bills100,
         bills50: count.bills50,
