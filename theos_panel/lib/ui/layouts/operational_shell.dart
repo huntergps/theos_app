@@ -112,13 +112,11 @@ final class OperationalShell extends StatelessWidget {
   /// una acción distinta de bloquear y de cerrar sesión.
   final VoidCallback? onSwitchUser;
 
-  /// El ancho a partir del cual el carril enseña etiquetas.
-  ///
-  /// Entre 1366 (sólo iconos, confirmado en la lámina) y 1920 (con etiquetas,
-  /// confirmado) la lámina no da ningún punto, así que 1440 es una
-  /// interpolación deliberada, no una medida. Si alguna lámina lo fija, se
-  /// cambia por el valor real.
-  static const double _expandedBreakpoint = 1440;
+  /// El ancho a partir del cual el carril enseña etiquetas: 1008, el mismo
+  /// corte que usa Fluent en su modo automático. Decisión del dueño del
+  /// 13-sep-2026, que prefirió el valor de Fluent a los 1440 interpolados de
+  /// la lámina.
+  static const double _expandedBreakpoint = 1008;
 
   /// 🔴 Aquí había seis colores escritos a mano: tres para el pie y tres para
   /// el estado. Ninguno se decide ya en este fichero. Orden del dueño del

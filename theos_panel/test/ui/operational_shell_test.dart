@@ -78,9 +78,9 @@ Future<void> _pump(WidgetTester tester, Widget host, Size size) async {
 }
 
 void main() {
-  group('dónde están los cortes, que son nuestros y no los de Fluent', () {
-    // Fluent abriría su carril a partir de 1008. La lámina aprobada enseña
-    // sólo iconos a 1366, así que el corte es nuestro y hay que sostenerlo.
+  group('dónde están los cortes: los de Fluent', () {
+    // Decisión del dueño del 13-sep-2026: el carril abre con etiquetas desde
+    // 1008, como Fluent, en vez de los 1440 interpolados de la lámina.
     testWidgets('a 1920 en horizontal el carril lleva etiquetas', (
       tester,
     ) async {
@@ -92,14 +92,24 @@ void main() {
       expect(find.text('Órdenes'), findsWidgets);
     });
 
-    testWidgets('a 1366 en horizontal el carril es de sólo iconos', (
+    testWidgets('a 1366 en horizontal el carril ya lleva etiquetas', (
       tester,
     ) async {
       const size = Size(1366, 1024);
       await _pump(tester, _host(size), size);
 
       final view = tester.widget<NavigationView>(find.byType(NavigationView));
-      expect(view.pane!.displayMode, PaneDisplayMode.compact);
+      expect(view.pane!.displayMode, PaneDisplayMode.expanded);
+    });
+
+    testWidgets('justo por debajo de 1008 en horizontal no lleva etiquetas', (
+      tester,
+    ) async {
+      const size = Size(1000, 700);
+      await _pump(tester, _host(size), size);
+
+      final view = tester.widget<NavigationView>(find.byType(NavigationView));
+      expect(view.pane!.displayMode, isNot(PaneDisplayMode.expanded));
     });
 
     // Un iPad vertical de 1024 de ancho no lleva carril, igual que el
@@ -314,7 +324,8 @@ void main() {
     testWidgets('en el carril de iconos Fluent la esconde, y está bien', (
       tester,
     ) async {
-      const size = Size(1366, 1024);
+      // 1000 px horizontal: por debajo del corte de 1008, el carril es de iconos.
+      const size = Size(1000, 700);
       await _pump(tester, _host(size), size);
 
       expect(find.text('Empresa Demo'), findsNothing);
