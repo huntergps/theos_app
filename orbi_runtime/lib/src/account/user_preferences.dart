@@ -32,6 +32,8 @@ final class UserPreferences {
     this.notificationType,
     this.warehouseId,
     this.mobilePhone,
+    this.workEmail,
+    this.workPhone,
     this.avatar128,
     this.email,
     this.phone,
@@ -72,6 +74,12 @@ final class UserPreferences {
   final int? warehouseId;
   // `dev_odoo20/odoo/addons/hr/models/res_users.py:103`.
   final String? mobilePhone;
+  // `addons/hr/models/res_users.py:102,104` — `related_employee_field`, igual
+  // origen que `mobile_phone`. Sólo lectura en el diálogo: theos_pos los
+  // muestra editables pero nunca los guarda (ver la nota de la clase), así
+  // que replicar eso habría sido inventar una función que ni theos_pos tiene.
+  final String? workEmail;
+  final String? workPhone;
   // Sólo lectura: `avatar_mixin.py:47`, campo `compute`. La escritura real de
   // foto va a `image_1920` (`image_mixin.py:12`), nunca a este campo.
   final String? avatar128;
@@ -237,6 +245,8 @@ final class LocalUserPreferencesPort implements UserPreferencesPort {
         mobilePhone: availableUserFields.contains('mobile_phone')
             ? userRow.mobilePhone
             : null,
+        workEmail: userRow.workEmail,
+        workPhone: userRow.workPhone,
         avatar128: userRow.avatar128,
         email: partnerRow?.email,
         phone: partnerRow?.phone,

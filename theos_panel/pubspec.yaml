@@ -71,6 +71,14 @@ dependencies:
   # Confirmar cierre en escritorio (armazón operativo, 13-sep-2026). Misma
   # versión que theos_pos, que ya la trae probada en macOS/Windows/Linux.
   window_manager: ^0.5.2
+  # Elegir una foto nueva para "Mis preferencias" (avatar). Misma versión que
+  # theos_pos, que ya la usa para lo mismo (`_pickImage`/`_optimizeImage` en
+  # `shared/widgets/user_preferences_dialog.dart`) y funciona en web con
+  # `withData: true`.
+  file_picker: ^12.1.0
+  # Redimensionar/comprimir la foto antes de guardarla (1920px, JPEG 85) —
+  # misma versión que theos_pos, mismo `_optimizeImage`.
+  image: ^4.9.2
 
 dev_dependencies:
   flutter_test:
