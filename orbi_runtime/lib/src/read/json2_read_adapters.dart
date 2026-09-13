@@ -1,3 +1,11 @@
+import 'dart:convert';
+
+import 'package:odoo_sdk/odoo_sdk.dart'
+    show
+        OdooException,
+        OdooNotFoundException,
+        OdooMethodNotFoundException,
+        OdooAccessDeniedException;
 import 'package:theos_pos_core/theos_pos_core.dart';
 
 import '../contracts.dart';
@@ -27,7 +35,23 @@ abstract interface class Json2FieldsGetPort {
   });
 }
 
-final class OdooJson2ReadPort implements Json2ReadPort, Json2FieldsGetPort {
+/// Optional generic-call surface used by the catalog loader to ask
+/// `sync.deleted.record.get_deleted_since`. Kept separate from
+/// [Json2ReadPort] for the same reason as [Json2FieldsGetPort]: small
+/// in-memory readers used by tests need not implement it, and a loader that
+/// only has [Json2ReadPort] simply falls back to id reconciliation (see
+/// [RuntimeCatalogLoader]).
+abstract interface class Json2CallPort {
+  Future<dynamic> call({
+    required String model,
+    required String method,
+    Map<String, dynamic>? kwargs,
+    Map<String, dynamic>? context,
+  });
+}
+
+final class OdooJson2ReadPort
+    implements Json2ReadPort, Json2FieldsGetPort, Json2CallPort {
   final OdooClient client;
   const OdooJson2ReadPort(this.client);
 
@@ -53,6 +77,19 @@ final class OdooJson2ReadPort implements Json2ReadPort, Json2FieldsGetPort {
     required String model,
     required List<String> fields,
   }) => client.fieldsGet(model: model, fields: fields);
+
+  @override
+  Future<dynamic> call({
+    required String model,
+    required String method,
+    Map<String, dynamic>? kwargs,
+    Map<String, dynamic>? context,
+  }) => client.call(
+    model: model,
+    method: method,
+    kwargs: kwargs,
+    context: context,
+  );
 }
 
 /// Binds reads to the currently activated scope/epoch. A stale lease cannot
@@ -136,7 +173,18 @@ abstract final class RuntimeCatalogs {
   static const customers = RuntimeCatalogDescriptor(
     key: 'customers',
     model: 'res.partner',
-    fields: ['id', 'name', 'vat', 'email', 'phone', 'company_id', 'active'],
+    // `write_date` habilita el cursor incremental (`RuntimeCatalogLoader`):
+    // sin él este catálogo vuelve a recargar todo cada ciclo.
+    fields: [
+      'id',
+      'name',
+      'vat',
+      'email',
+      'phone',
+      'company_id',
+      'active',
+      'write_date',
+    ],
     domain: [
       ['customer_rank', '>', 0],
       ['active', '=', true],
@@ -146,6 +194,7 @@ abstract final class RuntimeCatalogs {
   static const products = RuntimeCatalogDescriptor(
     key: 'products',
     model: 'product.product',
+    // `write_date` habilita el cursor incremental; ver la nota en `customers`.
     fields: [
       'id',
       'name',
@@ -155,6 +204,7 @@ abstract final class RuntimeCatalogs {
       'uom_id',
       'taxes_id',
       'active',
+      'write_date',
     ],
     domain: [
       ['sale_ok', '=', true],
@@ -165,7 +215,7 @@ abstract final class RuntimeCatalogs {
   static const paymentTerms = RuntimeCatalogDescriptor(
     key: 'payment_terms',
     model: 'account.payment.term',
-    fields: ['id', 'name', 'line_ids', 'active'],
+    fields: ['id', 'name', 'line_ids', 'active', 'write_date'],
     order: 'name asc,id asc',
   );
   static const uoms = RuntimeCatalogDescriptor(
@@ -248,6 +298,7 @@ abstract final class RuntimeCatalogs {
       'price_include',
       'company_id',
       'active',
+      'write_date',
     ],
     domain: [
       ['active', '=', true],
@@ -257,19 +308,19 @@ abstract final class RuntimeCatalogs {
   static const pricelists = RuntimeCatalogDescriptor(
     key: 'pricelists',
     model: 'product.pricelist',
-    fields: ['id', 'name', 'currency_id', 'company_id', 'active'],
+    fields: ['id', 'name', 'currency_id', 'company_id', 'active', 'write_date'],
     order: 'name asc,id asc',
   );
   static const warehouses = RuntimeCatalogDescriptor(
     key: 'warehouses',
     model: 'stock.warehouse',
-    fields: ['id', 'name', 'code', 'company_id', 'active'],
+    fields: ['id', 'name', 'code', 'company_id', 'active', 'write_date'],
     order: 'name asc,id asc',
   );
   static const journals = RuntimeCatalogDescriptor(
     key: 'journals',
     model: 'account.journal',
-    fields: ['id', 'name', 'type', 'company_id', 'active'],
+    fields: ['id', 'name', 'type', 'company_id', 'active', 'write_date'],
     domain: [
       [
         'type',
@@ -306,39 +357,518 @@ abstract final class RuntimeCatalogs {
   ];
 }
 
+enum _CatalogMode { full, since }
+
+/// Opaque cursor persisted through [CatalogBatch.cursor]/`sync_metadata`.
+///
+/// Two shapes coexist on purpose:
+/// - A bare integer string is the LEGACY cursor (full paginated load only,
+///   offset-based, restarting from scratch — `null` — once it reaches the
+///   last page). Decoding still accepts it so a device upgrading mid-full-load
+///   does not lose its offset.
+/// - The JSON shape below is what every catalog uses from here on: it keeps
+///   full-load's own offset while it runs, then switches to incremental
+///   (`since`) once the table has been read in full.
+final class _CatalogCursor {
+  const _CatalogCursor({
+    required this.mode,
+    required this.offset,
+    this.since,
+    this.pendingWatermark,
+    this.cycle = 0,
+  });
+
+  final _CatalogMode mode;
+  final int offset;
+
+  /// Fixed lower bound (`write_date >=`) used by every page of the CURRENT
+  /// incremental pass. Only set once [mode] is [_CatalogMode.since].
+  final DateTime? since;
+
+  /// Captured at the moment the current pass's FIRST page was requested.
+  /// Persisted across pages of the same pass so a multi-page pass does not
+  /// lose it; becomes the next pass's [since] (minus the overlap) once this
+  /// pass reaches its last page.
+  final DateTime? pendingWatermark;
+
+  /// How many incremental passes have completed. Only meaningful without
+  /// `sync.deleted.record`: it paces the expensive full id reconciliation
+  /// (see [RuntimeCatalogLoader._resolveDeletions]).
+  final int cycle;
+
+  static const _CatalogCursor initial = _CatalogCursor(
+    mode: _CatalogMode.full,
+    offset: 0,
+  );
+
+  static _CatalogCursor decode(String? raw) {
+    if (raw == null || raw.isEmpty) return initial;
+    final legacyOffset = int.tryParse(raw);
+    if (legacyOffset != null) {
+      return _CatalogCursor(
+        mode: _CatalogMode.full,
+        offset: legacyOffset < 0 ? 0 : legacyOffset,
+      );
+    }
+    try {
+      final decoded = jsonDecode(raw);
+      if (decoded is! Map) return initial;
+      final mode = decoded['mode'] == 'since'
+          ? _CatalogMode.since
+          : _CatalogMode.full;
+      final offset = decoded['offset'] is int ? decoded['offset'] as int : 0;
+      final since = _parseDate(decoded['since']);
+      if (mode == _CatalogMode.since && since == null) {
+        // Cursor corrupto o de una versión anterior: no hay forma segura de
+        // saber desde cuándo faltan cambios. Se documenta reiniciando la
+        // carga completa en vez de arriesgar un hueco silencioso.
+        return initial;
+      }
+      final cycle = decoded['cycle'] is int ? decoded['cycle'] as int : 0;
+      return _CatalogCursor(
+        mode: mode,
+        offset: offset < 0 ? 0 : offset,
+        since: since,
+        pendingWatermark: _parseDate(decoded['pendingWatermark']),
+        cycle: cycle < 0 ? 0 : cycle,
+      );
+    } catch (_) {
+      return initial;
+    }
+  }
+
+  String encode() => jsonEncode({
+    'mode': mode == _CatalogMode.since ? 'since' : 'full',
+    'offset': offset,
+    if (since != null) 'since': since!.toIso8601String(),
+    if (pendingWatermark != null)
+      'pendingWatermark': pendingWatermark!.toIso8601String(),
+    'cycle': cycle,
+  });
+
+  static DateTime? _parseDate(Object? value) =>
+      value is String ? DateTime.tryParse(value) : null;
+}
+
+final class _CatalogDeletionOutcome {
+  const _CatalogDeletionOutcome({
+    this.deletedIds = const <int>[],
+    this.remoteActiveIds,
+  });
+  final List<int> deletedIds;
+  final Set<int>? remoteActiveIds;
+}
+
+/// Loads one page per call, exactly like `CatalogSyncJob.run()` expects (one
+/// `SyncCoordinatorImpl` drain cycle runs every job once — see
+/// `sync_coordinator_impl.dart:159`). A catalog's full table can therefore
+/// take several sync cycles to finish loading; once it does, this switches to
+/// asking Odoo only for what changed since the last pass — see
+/// `docs/orbi_panel/reports/TIEMPO_REAL_Y_GLOBAL_REFERENCIA_2026_09_13.md`
+/// («Recuperar lo perdido al reconectar»), which measured that this loader
+/// used to always reload everything and never reflected server-side
+/// deletions.
+///
+/// Known gap, intentionally NOT covered here (documented instead of
+/// papered over): a record that stops matching [RuntimeCatalogDescriptor]'s
+/// own `domain` (e.g. a product turning `active=false`) is a "domain exit",
+/// not an unlink — `sync.deleted.record` never reports it, and the
+/// incremental `write_date` scan re-applies the SAME domain, so it will not
+/// be re-fetched either. theos_pos solves this with a dedicated reverse-domain
+/// scan (`catalog_sync_repository.dart:_syncRecordsLeavingDomain`); porting
+/// that is future work, not part of this change.
 final class RuntimeCatalogLoader {
+  RuntimeCatalogLoader(
+    this.reader, {
+    this.pageSize = 100,
+    this.incrementalOverlap = const Duration(minutes: 10),
+    this.reconcileEveryNCycles = 20,
+    DateTime Function()? clock,
+  }) : _now = clock ?? _defaultClock;
+
   final Json2ReadPort reader;
   final int pageSize;
-  const RuntimeCatalogLoader(this.reader, {this.pageSize = 100});
+
+  /// Clock seam, only for tests: production always uses the real wall clock
+  /// (`_defaultClock`). Letting a test inject its own clock is what makes
+  /// [incrementalOverlap] actually verifiable — the scenario it exists for
+  /// needs minutes of separation between two passes, and a test cannot
+  /// afford to `sleep()` for real minutes.
+  final DateTime Function() _now;
+  static DateTime _defaultClock() => DateTime.now().toUtc();
+
+  /// Safety margin subtracted from the watermark of a finished pass before it
+  /// becomes the next pass's `since`, so a record written while the pass was
+  /// in flight cannot be missed.
+  ///
+  /// 🔴 Sized for a specific, confirmed Odoo behavior, not an arbitrary
+  /// round number: `write_date` is stamped from `cr.now()`, the time the
+  /// DATABASE TRANSACTION STARTED — not when it commits
+  /// (`odoo/odoo/sql_db.py:339`, `odoo/orm/models.py:3841,3984,4268` in
+  /// Odoo 20). A transaction that opens at T0 and commits at T10 writes
+  /// `write_date = T0`. If some other, faster transaction commits in
+  /// between and this loader advances its cursor past T0 before T10, the
+  /// T0 row's `write_date` falls BEHIND the cursor and is never fetched
+  /// again — the old 60s value only protected against a transaction that
+  /// finishes within 60s of starting. 10 minutes is chosen to comfortably
+  /// cover ordinary Odoo crons/batch writes; it is a judgment call, not a
+  /// proven bound — no finite margin is safe against an arbitrarily long
+  /// transaction, and this deployment's actual longest write transaction
+  /// has not been measured. The cost of a wider margin is bounded: every
+  /// pass re-reads up to [incrementalOverlap] worth of already-seen rows,
+  /// which the id-keyed upsert absorbs without duplicating anything.
+  final Duration incrementalOverlap;
+
+  /// Only used when the server has no `sync.deleted.record` (Mepriga): full
+  /// id reconciliation reads every id in the table (no other fields), so
+  /// running it every cycle would multiply traffic per catalog. Paying that
+  /// cost once every N cycles keeps deletions bounded-stale instead of never
+  /// reflected at all.
+  final int reconcileEveryNCycles;
+
+  /// Cached for the lifetime of this loader (effectively "once per active
+  /// scope": composition builds one loader per [SessionActivation]), and
+  /// shared by every catalog on it — `sync.deleted.record` support is a
+  /// server-wide fact, never per-catalog.
+  ///
+  /// `null`: not determined yet. `true`/`false`: outcome of the last actual
+  /// `get_deleted_since` attempt — NOT a separate `ir.model` metadata probe.
+  /// Measured against ERP2 on 13-sep-2026: a plain vendedor gets `403 POST
+  /// /json/2/ir.model/search_read` (`ir.model` needs `base.group_no_one`),
+  /// while the SAME vendedor can call `sync.deleted.record.get_deleted_since`
+  /// directly and successfully. So the only reliable probe is the real call.
+  bool? _deletedRecordSupported;
 
   CatalogLoader<Map<String, dynamic>> loader(
     RuntimeCatalogDescriptor descriptor,
-  ) => (scope, cursor) async {
-    final offset = int.tryParse(cursor ?? '0') ?? 0;
+  ) =>
+      (scope, cursorRaw) => _run(descriptor, scope, cursorRaw);
+
+  Future<CatalogBatch<Map<String, dynamic>>> _run(
+    RuntimeCatalogDescriptor descriptor,
+    AppScope scope,
+    String? cursorRaw,
+  ) {
+    final cursor = _CatalogCursor.decode(cursorRaw);
+    return cursor.mode == _CatalogMode.since
+        ? _runSincePage(descriptor, scope, cursor)
+        : _runFullPage(descriptor, scope, cursor);
+  }
+
+  Future<CatalogBatch<Map<String, dynamic>>> _runFullPage(
+    RuntimeCatalogDescriptor descriptor,
+    AppScope scope,
+    _CatalogCursor cursor,
+  ) async {
+    final attemptStart = _now();
     final rows = await reader.searchRead(
       model: descriptor.model,
       fields: descriptor.fields,
       domain: descriptor.domain,
       limit: pageSize,
-      offset: offset,
+      offset: cursor.offset,
       order: descriptor.order,
     );
-    return CatalogBatch(
-      records: rows
-          .map((row) {
-            final id = row['id'];
-            if (id is! int || id <= 0) {
-              throw FormatException('Invalid ${descriptor.key} id');
-            }
-            return CatalogRecord(
-              uuid: '${scope.scopeKey}:${descriptor.key}:$id',
-              value: row,
-            );
-          })
-          .toList(growable: false),
-      cursor: rows.length < pageSize ? null : '${offset + rows.length}',
+    final records = _toRecords(scope, descriptor, rows);
+    if (rows.length >= pageSize) {
+      final next = _CatalogCursor(
+        mode: _CatalogMode.full,
+        offset: cursor.offset + rows.length,
+      );
+      return CatalogBatch(records: records, cursor: next.encode());
+    }
+    if (!descriptor.fields.contains('write_date')) {
+      // El descriptor no pide `write_date`: no hay forma de saber qué cambió
+      // después sin releer todo. Se documenta aquí (ver la nota de la clase)
+      // en vez de fingir un cursor incremental que no puede sostenerse; la
+      // próxima sincronización repite la carga completa, igual que hoy.
+      return CatalogBatch(records: records, cursor: null);
+    }
+    final since = _CatalogCursor(
+      mode: _CatalogMode.since,
+      offset: 0,
+      since: attemptStart.subtract(incrementalOverlap),
+      pendingWatermark: attemptStart,
     );
-  };
+    return CatalogBatch(records: records, cursor: since.encode());
+  }
+
+  Future<CatalogBatch<Map<String, dynamic>>> _runSincePage(
+    RuntimeCatalogDescriptor descriptor,
+    AppScope scope,
+    _CatalogCursor cursor,
+  ) async {
+    final since = cursor.since!;
+    final startOfPass = cursor.pendingWatermark ?? _now();
+    final domain = [
+      ...descriptor.domain,
+      ['write_date', '>=', _formatOdooDateTime(since)],
+    ];
+    final rows = await reader.searchRead(
+      model: descriptor.model,
+      fields: descriptor.fields,
+      domain: domain,
+      limit: pageSize,
+      offset: cursor.offset,
+      order: 'write_date asc,id asc',
+    );
+    final records = _toRecords(scope, descriptor, rows);
+    if (rows.length >= pageSize) {
+      final next = _CatalogCursor(
+        mode: _CatalogMode.since,
+        offset: cursor.offset + rows.length,
+        since: since,
+        pendingWatermark: startOfPass,
+        cycle: cursor.cycle,
+      );
+      return CatalogBatch(records: records, cursor: next.encode());
+    }
+
+    // Última página de esta pasada: aquí, y sólo aquí, se resuelven las
+    // bajas — una vez por pasada, no una vez por página.
+    final deletion = await _resolveDeletions(descriptor, since, cursor.cycle);
+    final next = _CatalogCursor(
+      mode: _CatalogMode.since,
+      offset: 0,
+      since: startOfPass.subtract(incrementalOverlap),
+      cycle: cursor.cycle + 1,
+    );
+    return CatalogBatch(
+      records: records,
+      cursor: next.encode(),
+      deletedIds: deletion.deletedIds,
+      remoteActiveIds: deletion.remoteActiveIds,
+    );
+  }
+
+  Future<_CatalogDeletionOutcome> _resolveDeletions(
+    RuntimeCatalogDescriptor descriptor,
+    DateTime since,
+    int cycle,
+  ) async {
+    final deletedIds = <int>{};
+    Set<int>? remoteActiveIds;
+
+    if (reader is Json2CallPort && _deletedRecordSupported != false) {
+      try {
+        final outcome = await _fetchDeletedSince(
+          reader as Json2CallPort,
+          descriptor,
+          since,
+        );
+        _deletedRecordSupported = true;
+        deletedIds.addAll(outcome.deletedIds);
+      } on OdooException catch (error) {
+        if (!_meansDeletedRecordUnsupported(error)) rethrow;
+        // El modelo no existe en este servidor (sin actualizar, o sin el
+        // módulo todavía), o existe pero esta sesión no tiene permiso para
+        // leerlo — en ambos casos se cachea para no reintentar cada pasada,
+        // y se cae a la reconciliación por ids de abajo.
+        _deletedRecordSupported = false;
+      }
+    }
+
+    if (_deletedRecordSupported != true) {
+      // Sin `sync.deleted.record` usable (p. ej. Mepriga antes del
+      // despliegue, o un servidor viejo): sólo cada [reconcileEveryNCycles]
+      // pasadas se reconstruye el conjunto COMPLETO de ids activos remotos
+      // — ver la nota de costo en el campo. El resto de las pasadas no hace
+      // ninguna llamada extra. Esto TAMBIÉN cubre, de rebote, los registros
+      // que salieron del dominio (ver más abajo), porque un id que dejó de
+      // cumplir el dominio simplemente no aparece en el conjunto fresco.
+      if (cycle % reconcileEveryNCycles == 0) {
+        remoteActiveIds = await _fetchAllActiveIds(descriptor);
+      }
+    }
+
+    // Registros que SALIERON del dominio del catálogo (p. ej. `active=false`
+    // al archivar, o `sale_ok=false`) sin que nadie los borre: un `write()`
+    // no es un `unlink()`, así que `sync.deleted.record` nunca los reporta,
+    // y el propio scan incremental de arriba sigue exigiendo el MISMO
+    // dominio, así que tampoco los vuelve a traer. Este escaneo aparte pide
+    // el dominio NEGADO del catálogo (con `active_test: false` para que
+    // Odoo no vuelva a filtrar por `active` por su cuenta) y trata sus ids
+    // igual que una baja — pasan por la misma guarda de `offline_queue`.
+    // Corre en TODAS las pasadas (está acotado por `write_date`, no es un
+    // barrido completo) sin importar si `sync.deleted.record` existe.
+    //
+    // Límite conocido, sin resolver aquí: un registro que pasó a una
+    // empresa/regla de registro que esta sesión no puede leer no aparece en
+    // NINGUNO de los dos escaneos (las reglas de registro lo ocultan por
+    // completo, incluso del dominio negado) — lo recoge, con el retraso de
+    // [reconcileEveryNCycles], la reconciliación completa de arriba.
+    if (reader is Json2CallPort) {
+      final exitIds = await _fetchDomainExitIds(
+        reader as Json2CallPort,
+        descriptor,
+        since,
+      );
+      deletedIds.addAll(exitIds);
+    }
+
+    return _CatalogDeletionOutcome(
+      deletedIds: deletedIds.toList(growable: false),
+      remoteActiveIds: remoteActiveIds,
+    );
+  }
+
+  /// `sync.deleted.record`/`get_deleted_since` no es usable en este servidor
+  /// para esta sesión: el modelo o el método no existen (servidor sin el
+  /// módulo, o una versión vieja sin `get_deleted_since`), o existen pero el
+  /// usuario no tiene permiso de lectura sobre `sync.deleted.record`. Otra
+  /// excepción (red, timeout, 500, sesión caducada) NO se interpreta como
+  /// "no soportado" — se propaga como el fallo real que es.
+  static bool _meansDeletedRecordUnsupported(OdooException error) =>
+      error is OdooNotFoundException ||
+      error is OdooMethodNotFoundException ||
+      error is OdooAccessDeniedException;
+
+  Future<_CatalogDeletionOutcome> _fetchDeletedSince(
+    Json2CallPort callPort,
+    RuntimeCatalogDescriptor descriptor,
+    DateTime since,
+  ) async {
+    final response = await callPort.call(
+      model: 'sync.deleted.record',
+      method: 'get_deleted_since',
+      kwargs: {
+        'model_name': descriptor.model,
+        'since_date': _formatOdooDateTime(since),
+      },
+    );
+    if (response is! List) {
+      throw FormatException(
+        'sync.deleted.record returned ${response.runtimeType} '
+        'for ${descriptor.model}',
+      );
+    }
+    final ids = response
+        .whereType<Map>()
+        .map((row) => row['record_id'])
+        .whereType<int>()
+        .toList(growable: false);
+    return _CatalogDeletionOutcome(deletedIds: ids);
+  }
+
+  Future<Set<int>> _fetchAllActiveIds(
+    RuntimeCatalogDescriptor descriptor,
+  ) async {
+    const idPageSize = 500;
+    final ids = <int>{};
+    var offset = 0;
+    while (true) {
+      final rows = await reader.searchRead(
+        model: descriptor.model,
+        fields: const ['id'],
+        domain: descriptor.domain,
+        limit: idPageSize,
+        offset: offset,
+        order: 'id asc',
+      );
+      if (rows.isEmpty) break;
+      for (final row in rows) {
+        final id = row['id'];
+        if (id is int) ids.add(id);
+      }
+      if (rows.length < idPageSize) break;
+      offset += rows.length;
+    }
+    return ids;
+  }
+
+  /// Ids que hoy DEJARON de cumplir [RuntimeCatalogDescriptor.domain] (p. ej.
+  /// `active=false` al archivar) desde [since]. Usa `active_test: false`
+  /// (contexto, no dominio) para que Odoo no filtre `active` por su cuenta
+  /// sobre el resultado — igual que ya valida
+  /// `theos_pos/sync_counts_repository.dart:_syncRecordsLeavingDomain`, y
+  /// confirmado contra el propio ORM: `search()` sólo añade el `active=true`
+  /// implícito cuando NINGUNA condición del dominio menciona ya ese campo
+  /// (`odoo/orm/models.py:_search`, líneas ~4855-4863 en Odoo 20).
+  ///
+  /// Un dominio vacío no tiene de qué "salir": devuelve `[]` sin llamar al
+  /// servidor.
+  Future<List<int>> _fetchDomainExitIds(
+    Json2CallPort callPort,
+    RuntimeCatalogDescriptor descriptor,
+    DateTime since,
+  ) async {
+    final negatedDomain = _negateDomain(descriptor.domain);
+    if (negatedDomain == null) return const [];
+
+    const idPageSize = 500;
+    final ids = <int>{};
+    var offset = 0;
+    while (true) {
+      final response = await callPort.call(
+        model: descriptor.model,
+        method: 'search_read',
+        kwargs: {
+          'domain': [
+            '&',
+            ['write_date', '>=', _formatOdooDateTime(since)],
+            ...negatedDomain,
+          ],
+          'fields': const ['id'],
+          'limit': idPageSize,
+          'offset': offset,
+          'order': 'id asc',
+        },
+        context: const {'active_test': false},
+      );
+      if (response is! List) {
+        throw FormatException(
+          '${descriptor.model}.search_read (domain exit) returned '
+          '${response.runtimeType}',
+        );
+      }
+      if (response.isEmpty) break;
+      for (final row in response) {
+        if (row is Map) {
+          final id = row['id'];
+          if (id is int) ids.add(id);
+        }
+      }
+      if (response.length < idPageSize) break;
+      offset += response.length;
+    }
+    return ids.toList(growable: false);
+  }
+
+  /// Niega un dominio de Odoo escrito como una lista PLANA de condiciones en
+  /// AND implícito (la forma que usan todos los [RuntimeCatalogDescriptor] de
+  /// hoy: nunca traen su propio `'&'`/`'|'` al nivel superior). Hace el AND
+  /// explícito antes de negar — `['!', A, B]` NO es `NOT(A AND B)`, es
+  /// `(NOT A) AND B`, porque `'!'` sólo consume el término que le sigue
+  /// (`odoo/orm/domains.py`, docstring del módulo: "'!' is a unary 'not'").
+  /// `null` para un dominio vacío (nada que negar).
+  static List<dynamic>? _negateDomain(List<dynamic> domain) {
+    if (domain.isEmpty) return null;
+    final explicitAnd = [
+      for (var i = 0; i < domain.length - 1; i++) '&',
+      ...domain,
+    ];
+    return ['!', ...explicitAnd];
+  }
+
+  static List<CatalogRecord<Map<String, dynamic>>> _toRecords(
+    AppScope scope,
+    RuntimeCatalogDescriptor descriptor,
+    List<Map<String, dynamic>> rows,
+  ) => rows
+      .map((row) {
+        final id = row['id'];
+        if (id is! int || id <= 0) {
+          throw FormatException('Invalid ${descriptor.key} id');
+        }
+        return CatalogRecord(
+          uuid: '${scope.scopeKey}:${descriptor.key}:$id',
+          value: row,
+        );
+      })
+      .toList(growable: false);
+
+  static String _formatOdooDateTime(DateTime value) =>
+      value.toUtc().toIso8601String().replaceFirst('T', ' ').substring(0, 19);
 }
 
 /// Fields that are real on the deployed sale/order and accounting models.
@@ -357,6 +887,8 @@ abstract final class RuntimeOrderRemoteFields {
     'user_id',
     'partner_id',
     'amount_total',
+    'amount_untaxed',
+    'amount_tax',
     'invoice_status',
     'amount_to_invoice',
     'invoice_ids',

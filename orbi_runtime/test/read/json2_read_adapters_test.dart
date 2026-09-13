@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:orbi_runtime/orbi_runtime.dart';
 
@@ -133,7 +135,14 @@ void main() {
       expect(reader.model, 'product.product');
       expect(reader.offset, 10);
       expect(batch.records.single.uuid, contains(':products:7'));
-      expect(batch.cursor, isNull);
+      // La carga completa terminó (la página vino corta): en vez de volver a
+      // `null` — lo que forzaría recargar todo el catálogo otra vez — el
+      // cursor pasa a modo incremental (`since`). Ver
+      // `catalog_incremental_sync_test.dart` para el ciclo completo.
+      expect(batch.cursor, isNotNull);
+      final decoded = jsonDecode(batch.cursor!) as Map<String, dynamic>;
+      expect(decoded['mode'], 'since');
+      expect(decoded['since'], isNotNull);
     },
   );
 

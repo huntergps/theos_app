@@ -70,7 +70,14 @@ void main() {
           .name,
       'Cliente',
     );
-    expect((await composition.store('product').read(scope)).cursor, isNull);
+    // El cursor YA NO vuelve a `null` al terminar la carga completa: pasa a
+    // modo incremental (`since`) para que la próxima sincronización pida sólo
+    // lo que cambió, en vez de recargar todo el catálogo otra vez (ver
+    // `RuntimeCatalogLoader` en json2_read_adapters.dart).
+    expect(
+      (await composition.store('product').read(scope)).cursor,
+      contains('"mode":"since"'),
+    );
   });
 
   test('401 leaves prior rows and cursor unchanged', () async {

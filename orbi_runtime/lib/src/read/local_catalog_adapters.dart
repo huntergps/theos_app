@@ -36,6 +36,13 @@ typedef CatalogRowsReader<T> = Future<List<CatalogRecord<T>>> Function(
   AppDatabase database,
 );
 
+/// Removes local rows by Odoo id. Symmetric counterpart of
+/// [CatalogRowsWriter]; concrete stores decide which Drift table to hit.
+typedef CatalogRowsDeleter<T> = Future<void> Function(
+  AppDatabase database,
+  List<int> odooIds,
+);
+
 /// Production product mapper used by the runtime composition.
 Future<void> writeProductRecords(
   AppDatabase database,
@@ -312,6 +319,150 @@ Future<List<CatalogRecord<Map<String, dynamic>>>> readJournalRecords(
         .map((row) => CatalogRecord(uuid: 'journal:${row['id']}', value: row))
         .toList(growable: false);
 
+// ============================================================================
+// Deletion by Odoo id, one per catalog. Symmetric with the writers above:
+// each function knows only its own Drift table, never another catalog's.
+// ============================================================================
+
+Future<void> deletePartnerRecords(AppDatabase db, List<int> ids) async {
+  if (ids.isEmpty) return;
+  await (db.delete(db.resPartner)..where((t) => t.odooId.isIn(ids))).go();
+}
+
+Future<void> deleteProductRecords(AppDatabase db, List<int> ids) async {
+  if (ids.isEmpty) return;
+  await (db.delete(db.productProduct)..where((t) => t.odooId.isIn(ids))).go();
+}
+
+Future<void> deleteWarehouseRecords(AppDatabase db, List<int> ids) async {
+  if (ids.isEmpty) return;
+  await (db.delete(db.stockWarehouse)..where((t) => t.odooId.isIn(ids))).go();
+}
+
+Future<void> deletePricelistRecords(AppDatabase db, List<int> ids) async {
+  if (ids.isEmpty) return;
+  await (db.delete(
+    db.productPricelist,
+  )..where((t) => t.odooId.isIn(ids))).go();
+}
+
+Future<void> deletePaymentTermRecords(AppDatabase db, List<int> ids) async {
+  if (ids.isEmpty) return;
+  await (db.delete(
+    db.accountPaymentTerm,
+  )..where((t) => t.odooId.isIn(ids))).go();
+}
+
+Future<void> deleteTaxRecords(AppDatabase db, List<int> ids) async {
+  if (ids.isEmpty) return;
+  await (db.delete(db.accountTax)..where((t) => t.odooId.isIn(ids))).go();
+}
+
+Future<void> deleteUomRecords(AppDatabase db, List<int> ids) async {
+  if (ids.isEmpty) return;
+  await (db.delete(db.uomUom)..where((t) => t.odooId.isIn(ids))).go();
+}
+
+Future<void> deleteJournalRecords(AppDatabase db, List<int> ids) async {
+  if (ids.isEmpty) return;
+  await (db.delete(db.accountJournal)..where((t) => t.odooId.isIn(ids))).go();
+}
+
+Future<void> deleteCollectionConfigRecords(
+  AppDatabase db,
+  List<int> ids,
+) async {
+  if (ids.isEmpty) return;
+  await (db.delete(
+    db.collectionConfig,
+  )..where((t) => t.odooId.isIn(ids))).go();
+}
+
+Future<void> deleteCollectionSessionRecords(
+  AppDatabase db,
+  List<int> ids,
+) async {
+  if (ids.isEmpty) return;
+  await (db.delete(
+    db.collectionSession,
+  )..where((t) => t.odooId.isIn(ids))).go();
+}
+
+Future<void> deleteCardBrandRecords(AppDatabase db, List<int> ids) async {
+  if (ids.isEmpty) return;
+  await (db.delete(
+    db.accountCreditCardBrand,
+  )..where((t) => t.odooId.isIn(ids))).go();
+}
+
+Future<void> deleteCardDeadlineRecords(AppDatabase db, List<int> ids) async {
+  if (ids.isEmpty) return;
+  await (db.delete(
+    db.accountCreditCardDeadline,
+  )..where((t) => t.odooId.isIn(ids))).go();
+}
+
+Future<void> deleteCardLoteRecords(AppDatabase db, List<int> ids) async {
+  if (ids.isEmpty) return;
+  await (db.delete(db.accountCardLote)..where((t) => t.odooId.isIn(ids))).go();
+}
+
+Future<void> deletePaymentMethodLineRecords(
+  AppDatabase db,
+  List<int> ids,
+) async {
+  if (ids.isEmpty) return;
+  await (db.delete(
+    db.accountPaymentMethodLine,
+  )..where((t) => t.odooId.isIn(ids))).go();
+}
+
+/// Catalog name → Odoo model. Necessarily duplicates
+/// `RuntimeCatalogComposition`'s own `specs` map (composition owns the
+/// wiring and is out of scope for this change — see the audit's phased plan
+/// in `docs/orbi_panel/reports/TIEMPO_REAL_Y_GLOBAL_REFERENCIA_2026_09_13.md`).
+/// Used only to make the pending-offline-queue guard work without touching
+/// `runtime_catalog_composition.dart`; if a catalog key changes there, it
+/// must change here too.
+const Map<String, String> _catalogOdooModels = {
+  'partner': 'res.partner',
+  'product': 'product.product',
+  'paymentTerm': 'account.payment.term',
+  'uom': 'uom.uom',
+  'collectionConfig': 'collection.config',
+  'collectionSession': 'collection.session',
+  'tax': 'account.tax',
+  'pricelist': 'product.pricelist',
+  'warehouse': 'stock.warehouse',
+  'journal': 'account.journal',
+  'cardBrand': 'account.credit.card.brand',
+  'cardDeadline': 'account.credit.card.deadline',
+  'cardLote': 'account.card.lote',
+  'paymentMethodLine': 'account.payment.method.line',
+};
+
+/// Catalog name → its deleter. Same rationale/coupling as
+/// [_catalogOdooModels]: it lets deletions and the pending-queue guard work
+/// for the fourteen real catalogs today, by name convention, without editing
+/// `runtime_catalog_composition.dart`.
+final Map<String, CatalogRowsDeleter<Map<String, dynamic>>>
+_defaultCatalogDeleters = {
+  'partner': deletePartnerRecords,
+  'product': deleteProductRecords,
+  'paymentTerm': deletePaymentTermRecords,
+  'uom': deleteUomRecords,
+  'collectionConfig': deleteCollectionConfigRecords,
+  'collectionSession': deleteCollectionSessionRecords,
+  'tax': deleteTaxRecords,
+  'pricelist': deletePricelistRecords,
+  'warehouse': deleteWarehouseRecords,
+  'journal': deleteJournalRecords,
+  'cardBrand': deleteCardBrandRecords,
+  'cardDeadline': deleteCardDeadlineRecords,
+  'cardLote': deleteCardLoteRecords,
+  'paymentMethodLine': deletePaymentMethodLineRecords,
+};
+
 final class DriftCatalogStore<T> implements LocalCatalogStore<T> {
   final RuntimeDatabaseOwner owner;
   final CatalogRowsWriter<T> writeRows;
@@ -325,12 +476,36 @@ final class DriftCatalogStore<T> implements LocalCatalogStore<T> {
   /// siguiente sincronización.
   final String name;
 
+  /// Borra filas por id de Odoo. Opcional y con valor por defecto: si quien
+  /// construye este store no lo pasa (como hace hoy
+  /// `RuntimeCatalogComposition`, que este cambio no toca), se usa
+  /// [_defaultCatalogDeleters] indexado por [name] — así las bajas funcionan
+  /// para los catorce catálogos reales sin tocar la composición.
+  final CatalogRowsDeleter<T>? deleteRows;
+
+  /// Modelo de Odoo de este catálogo, sólo para mirar `offline_queue` antes
+  /// de borrar o sobrescribir una fila. Igual que [deleteRows]: si no se
+  /// pasa, se resuelve por [name] contra [_catalogOdooModels].
+  final String? pendingOperationModel;
+
   DriftCatalogStore({
     required this.owner,
     required this.name,
     required this.writeRows,
     this.readRows,
+    this.deleteRows,
+    this.pendingOperationModel,
   });
+
+  CatalogRowsDeleter<T>? get _effectiveDeleteRows {
+    final own = deleteRows;
+    if (own != null) return own;
+    final fallback = _defaultCatalogDeleters[name];
+    return fallback is CatalogRowsDeleter<T> ? fallback : null;
+  }
+
+  String? get _effectivePendingModel =>
+      pendingOperationModel ?? _catalogOdooModels[name];
 
   @override
   Future<CatalogState<T>> read(AppScope scope) async {
@@ -372,7 +547,41 @@ final class DriftCatalogStore<T> implements LocalCatalogStore<T> {
       throw StateError('Catalog commit requires the active scope');
     }
     await runtime.database.transaction(() async {
-      await writeRows(runtime.database, batch.records, batch.cursor);
+      final pendingModel = _effectivePendingModel;
+      final pendingIds = pendingModel == null
+          ? const <int>{}
+          : await _pendingRecordIds(runtime.database, pendingModel);
+
+      // Nunca se pisa una fila con una operación sin resolver en
+      // `offline_queue`: se salta el upsert y queda para el próximo ciclo,
+      // como conflicto implícito (ver el contrato en `LocalCatalogStore`).
+      final recordsToWrite = pendingIds.isEmpty
+          ? batch.records
+          : batch.records
+                .where((record) => !pendingIds.contains(_idOf(record.value)))
+                .toList(growable: false);
+      await writeRows(runtime.database, recordsToWrite, batch.cursor);
+
+      final deleter = _effectiveDeleteRows;
+      if (deleter != null) {
+        final toDelete = <int>{...batch.deletedIds};
+        final activeIds = batch.remoteActiveIds;
+        if (activeIds != null && readRows != null) {
+          final localIds = (await readRows!(runtime.database))
+              .map((record) => _idOf(record.value))
+              .whereType<int>()
+              .toSet();
+          toDelete.addAll(localIds.difference(activeIds));
+        }
+        toDelete.removeAll(pendingIds);
+        if (toDelete.isNotEmpty) {
+          await deleter(
+            runtime.database,
+            toDelete.toList(growable: false),
+          );
+        }
+      }
+
       await runtime.database.customStatement(
         'INSERT OR REPLACE INTO sync_metadata (key, value) VALUES (?, ?)',
         [
@@ -382,6 +591,35 @@ final class DriftCatalogStore<T> implements LocalCatalogStore<T> {
       );
     });
     _controllers[scope.scopeKey]?.add(await read(scope));
+  }
+
+  /// Ids con una operación en `offline_queue` que todavía no terminó
+  /// (cualquier estado salvo `completed`: `pending`, `processing`,
+  /// `recovery_pending`, `conflict`, `dead_letter` — todos representan una
+  /// escritura local que un servidor remoto no puede pisar en silencio).
+  static Future<Set<int>> _pendingRecordIds(
+    AppDatabase database,
+    String model,
+  ) async {
+    final rows = await database
+        .customSelect(
+          'SELECT record_id FROM offline_queue '
+          'WHERE model = ? AND status != ? AND record_id IS NOT NULL',
+          variables: [Variable<String>(model), Variable<String>('completed')],
+        )
+        .get();
+    return rows
+        .map((row) => row.data['record_id'])
+        .whereType<int>()
+        .toSet();
+  }
+
+  static int? _idOf(Object? value) {
+    if (value is Map) {
+      final id = value['id'];
+      if (id is int) return id;
+    }
+    return null;
   }
 
   @override

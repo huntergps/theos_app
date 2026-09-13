@@ -19,10 +19,30 @@ final class CatalogRecord<T> {
 }
 
 final class CatalogBatch<T> {
-  const CatalogBatch({required this.records, required this.cursor});
+  const CatalogBatch({
+    required this.records,
+    required this.cursor,
+    this.deletedIds = const <int>[],
+    this.remoteActiveIds,
+  });
 
   final List<CatalogRecord<T>> records;
   final String? cursor;
+
+  /// Ids explicitly reported as removed upstream (Odoo `sync.deleted.record`,
+  /// when that module is installed). The store must remove them locally,
+  /// unless a pending offline-queue operation still targets that id — see
+  /// [LocalCatalogStore.commit].
+  final List<int> deletedIds;
+
+  /// The COMPLETE set of ids currently active on the server for this
+  /// catalog's domain. Populated only during a periodic reconciliation pass
+  /// (used when the server has no `sync.deleted.record`, e.g. Mepriga): the
+  /// store diffs it against its own local ids and removes whatever is local
+  /// but no longer in this set. `null` means "this batch is not a
+  /// reconciliation pass" — the store must not delete anything beyond
+  /// [deletedIds] in that case.
+  final Set<int>? remoteActiveIds;
 }
 
 /// A committed local catalog projection. Implementations must publish this
@@ -44,6 +64,12 @@ abstract interface class LocalCatalogStore<T> {
   Future<CatalogState<T>> read(AppScope scope);
 
   /// Must atomically persist records and cursor, then publish the new state.
+  ///
+  /// Implementations that support deletions must honor
+  /// [CatalogBatch.deletedIds] and [CatalogBatch.remoteActiveIds], and must
+  /// never delete or overwrite a local row that still has an unresolved
+  /// offline-queue operation against it (status other than `completed`) —
+  /// that row is left untouched as a conflict for a later cycle instead.
   Future<void> commit(AppScope scope, CatalogBatch<T> batch);
 
   /// Publishes an observable error while leaving records and cursor unchanged.

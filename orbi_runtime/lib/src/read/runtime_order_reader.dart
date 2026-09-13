@@ -70,8 +70,9 @@ final class RuntimeLocalOrderReader {
     final predicate = where.join(' AND ');
     final rows = await active.database.database
         .customSelect(
-          'SELECT id, name, client_order_ref, state, user_id, company_id, '
-          'partner_name, amount_total, date_order, currency_symbol, currency_id, invoice_status, '
+          'SELECT id, name, client_order_ref, state, user_id, user_name, company_id, '
+          'partner_name, amount_total, amount_untaxed, amount_tax, date_order, '
+          'currency_symbol, currency_id, invoice_status, '
           'payment_state, amount_unpaid, amount_to_invoice, has_queued_invoice, '
           'picking_ids, '
           'is_synced '
@@ -152,8 +153,9 @@ final class RuntimeLocalOrderReader {
     final database = active.database.database;
     return database
         .customSelect(
-          'SELECT id, name, client_order_ref, state, user_id, company_id, '
-          'partner_name, amount_total, date_order, currency_symbol, currency_id, '
+          'SELECT id, name, client_order_ref, state, user_id, user_name, company_id, '
+          'partner_name, amount_total, amount_untaxed, amount_tax, date_order, '
+          'currency_symbol, currency_id, '
           'invoice_status, payment_state, amount_unpaid, amount_to_invoice, '
           'has_queued_invoice, picking_ids, is_synced '
           'FROM sale_order WHERE $predicate '
@@ -193,68 +195,114 @@ final class RuntimeLocalOrderReader {
     // Odoo already answers a plain seller's request with a 403, and this
     // reader must not ask for what the session cannot read.
     bool canReadCollectionPayments = false,
+    // Sólo para pruebas: sustituye la lectura remota real (que exige un
+    // `OdooClient` autenticado y hace una llamada JSON-2 de verdad) por un
+    // `Json2ReadPort` de prueba, el mismo patrón que ya usan
+    // `runtime_catalog_composition_test.dart` y `json2_read_adapters_test.dart`
+    // para `Json2ReadPort`. Se salta las comprobaciones de contrato (no tienen
+    // sentido contra un lector fabricado a mano) pero corre exactamente la
+    // misma guarda y el mismo INSERT que la ruta real.
+    Json2ReadPort? testReader,
   }) async {
     final active = sessions.active;
-    if (active == null || active.client == null) {
-      throw StateError('online order refresh requires an active client');
-    }
+    if (active == null) throw StateError('order scope is inactive');
     final lease = active.lease;
-    final client = active.client!;
-    final cachedProbe = _remoteContractProbes[client];
-    if (cachedProbe != null) {
-      await cachedProbe;
+    final List<Map<String, dynamic>> rows;
+    if (testReader != null) {
+      rows = await RuntimeOrderReader(testReader).read(
+        _withLimit(query, limit),
+        canReadCollectionPayments: canReadCollectionPayments,
+      );
     } else {
-      final probe = RuntimeOrderReader(
-        OdooJson2ReadPort(client),
-      ).validateRemoteContract();
-      _remoteContractProbes[client] = probe;
-      try {
-        await probe;
-      } catch (_) {
-        // A failed contract probe must not poison future retries.
-        _remoteContractProbes[client] = null;
-        rethrow;
+      if (active.client == null) {
+        throw StateError('online order refresh requires an active client');
       }
-    }
-    if (canReadCollectionPayments) {
-      final cachedPaymentProbe = _collectionPaymentContractProbes[client];
-      if (cachedPaymentProbe != null) {
-        await cachedPaymentProbe;
+      final client = active.client!;
+      final cachedProbe = _remoteContractProbes[client];
+      if (cachedProbe != null) {
+        await cachedProbe;
       } else {
-        final probe = RuntimeOrderReader(
-          OdooJson2ReadPort(client),
-        ).validateCollectionPaymentContract();
-        _collectionPaymentContractProbes[client] = probe;
+        final probe = RuntimeOrderReader(OdooJson2ReadPort(client))
+            .validateRemoteContract();
+        _remoteContractProbes[client] = probe;
         try {
           await probe;
         } catch (_) {
-          _collectionPaymentContractProbes[client] = null;
+          // A failed contract probe must not poison future retries.
+          _remoteContractProbes[client] = null;
           rethrow;
         }
       }
+      if (canReadCollectionPayments) {
+        final cachedPaymentProbe = _collectionPaymentContractProbes[client];
+        if (cachedPaymentProbe != null) {
+          await cachedPaymentProbe;
+        } else {
+          final probe = RuntimeOrderReader(OdooJson2ReadPort(client))
+              .validateCollectionPaymentContract();
+          _collectionPaymentContractProbes[client] = probe;
+          try {
+            await probe;
+          } catch (_) {
+            _collectionPaymentContractProbes[client] = null;
+            rethrow;
+          }
+        }
+      }
+      rows = await RuntimeOrderReader(OdooJson2ReadPort(client)).read(
+        _withLimit(query, limit),
+        canReadCollectionPayments: canReadCollectionPayments,
+      );
     }
-    final effectiveQuery = _withLimit(query, limit);
-    final rows = await RuntimeOrderReader(OdooJson2ReadPort(client)).read(
-      effectiveQuery,
-      canReadCollectionPayments: canReadCollectionPayments,
-    );
     if (!sessions.accepts(lease)) throw StateError('order scope changed');
-    await active.database.database.transaction(() async {
+    final db = active.database.database;
+    await db.transaction(() async {
+      // 🔴 Causa raíz de que un `refreshOnline` pudiera revertir en pantalla
+      // una confirmación que el usuario ya hizo sin conexión: la única
+      // guarda que había (`is_synced = 1`, más abajo) sólo protege el tramo
+      // entre crear localmente y que `_persistCreate` conozca el id remoto —
+      // nunca se toca al encolar `action_pos_confirm` sobre una orden que YA
+      // estaba sincronizada (`DriftSaleCommandStore.commitAndEnqueueIfAbsent`,
+      // sale_runtime_adapters.dart:56-58), así que esa orden seguía con
+      // `is_synced=1` mientras la confirmación esperaba en la cola. Aquí se
+      // añade la misma guarda que ya usan los catálogos
+      // (`local_catalog_adapters.dart:_pendingRecordIds`): mirar
+      // `offline_queue` por el id LOCAL de la fila antes de escribir, dentro
+      // de la MISMA transacción para que no quede hueco entre comprobar y
+      // escribir.
+      final pendingLocalIds = await _pendingLocalOrderIds(db);
       for (final row in rows) {
         final id = row['id'];
         final company = _many2oneId(row['company_id']);
         final user = _many2oneId(row['user_id']);
         if (id is! int || id <= 0 || company != query.companyId) continue;
-        await active.database.database.customStatement(
+        if (pendingLocalIds.isNotEmpty) {
+          final existing = await db
+              .customSelect(
+                'SELECT id FROM sale_order WHERE odoo_id = ?',
+                variables: [Variable<int>(id)],
+              )
+              .getSingleOrNull();
+          final localId = existing?.data['id'] as int?;
+          if (localId != null && pendingLocalIds.contains(localId)) {
+            // Operación sin resolver en `offline_queue` para esta fila: se
+            // salta este ciclo, igual que un conflicto implícito. El próximo
+            // refresco (cuando la operación termine o se descarte) sí escribe.
+            continue;
+          }
+        }
+        await db.customStatement(
           'INSERT INTO sale_order '
-          '(odoo_id,name,client_order_ref,state,user_id,company_id,partner_id,partner_name, '
-          'amount_total,date_order,currency_id,invoice_status,payment_state,amount_unpaid, '
-          'amount_to_invoice,has_queued_invoice,picking_ids,is_synced) '
-          'VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,1) '
+          '(odoo_id,name,client_order_ref,state,user_id,user_name,company_id,partner_id,partner_name, '
+          'amount_total,amount_untaxed,amount_tax,date_order,currency_id,invoice_status,payment_state,'
+          'amount_unpaid,amount_to_invoice,has_queued_invoice,picking_ids,is_synced) '
+          'VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,1) '
           'ON CONFLICT(odoo_id) DO UPDATE SET name=excluded.name, '
           'state=excluded.state, client_order_ref=excluded.client_order_ref, user_id=excluded.user_id, '
+          'user_name=excluded.user_name, '
           'company_id=excluded.company_id, partner_id=excluded.partner_id, '
           'partner_name=excluded.partner_name, amount_total=excluded.amount_total, '
+          'amount_untaxed=excluded.amount_untaxed, amount_tax=excluded.amount_tax, '
           'date_order=excluded.date_order, currency_id=excluded.currency_id, '
           'invoice_status=excluded.invoice_status, '
           'payment_state=excluded.payment_state, amount_unpaid=excluded.amount_unpaid, '
@@ -269,10 +317,18 @@ final class RuntimeLocalOrderReader {
             row['client_order_ref'] as String?,
             row['state'] as String? ?? 'draft',
             user,
+            _many2oneName(row['user_id']),
             company,
             _many2oneId(row['partner_id']),
             _many2oneName(row['partner_id']),
             (row['amount_total'] as num?)?.toDouble(),
+            // `amountUntaxed`/`amountTax` en la tabla Drift no son nullable
+            // (`.withDefault(Constant(0.0))`, sale_order_table.dart:32-33):
+            // una orden que Odoo aún no ha totalizado guarda 0.0 real, no
+            // NULL. No se migra la columna — la fila se corrige sola en el
+            // siguiente refresco en cuanto Odoo devuelva el importe real.
+            (row['amount_untaxed'] as num?)?.toDouble() ?? 0,
+            (row['amount_tax'] as num?)?.toDouble() ?? 0,
             row['date_order'],
             _many2oneId(row['currency_id']),
             row['invoice_status'] as String? ?? 'no',
@@ -285,6 +341,25 @@ final class RuntimeLocalOrderReader {
         );
       }
     });
+  }
+
+  /// Ids LOCALES (`sale_order.id`, no `odoo_id`) con una operación de
+  /// `sale.order` en `offline_queue` que todavía no terminó ni se descartó.
+  /// `DriftSaleCommandStore.commitAndEnqueueIfAbsent`
+  /// (sale_runtime_adapters.dart) siempre encola con `record_id` = el id
+  /// local, nunca el remoto — así identifica la fila la propia cola.
+  static Future<Set<int>> _pendingLocalOrderIds(
+    core.AppDatabase database,
+  ) async {
+    final rows = await database
+        .customSelect(
+          'SELECT DISTINCT record_id FROM offline_queue '
+          "WHERE model = ? AND status NOT IN ('completed', 'dead_letter') "
+          'AND record_id IS NOT NULL',
+          variables: [Variable<String>('sale.order')],
+        )
+        .get();
+    return rows.map((row) => row.data['record_id']).whereType<int>().toSet();
   }
 
   static int? _many2oneId(Object? value) => switch (value) {
