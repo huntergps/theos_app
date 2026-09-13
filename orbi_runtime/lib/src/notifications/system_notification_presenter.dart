@@ -177,15 +177,63 @@ final class SystemNotificationPresenter {
   SystemNotificationPresenter(
     this._plugin,
     this._systemIds, {
-    required this.activeScopeKey,
+    required String activeScopeKey,
     NotificationPlatform? platform,
-  }) : capabilities = _capabilities(platform ?? _platform());
+  }) : _activeScopeKey = activeScopeKey,
+       capabilities = _capabilities(platform ?? _platform());
+
+  /// Sentinel used before any session is active and after one closes. No real
+  /// session scope is ever literally this string, so it denies everything by
+  /// construction — see [activateScope]/[deactivateScope].
+  static const String unconfiguredScopeKey = 'unconfigured';
 
   final NotificationPluginPort _plugin;
   final SystemIdPort _systemIds;
-  final String activeScopeKey;
+  String _activeScopeKey;
   final NotificationCapabilities capabilities;
   bool _initialized = false;
+
+  /// System ids this presenter has shown, grouped by the scope they were
+  /// shown under. Used only to cancel them when that scope stops being
+  /// active — see [activateScope]. Never persisted: a fresh process starts
+  /// empty, which is correct because [_activeScopeKey] also starts at
+  /// [unconfiguredScopeKey] and nothing could have been shown yet.
+  final _shownByScope = <String, Set<int>>{};
+
+  /// The scope currently allowed to show/cancel notifications through this
+  /// presenter. Follows the real session — see [activateScope].
+  String get activeScopeKey => _activeScopeKey;
+
+  /// Moves the active scope to [scopeKey], following the real session (login,
+  /// restore, or switching user). Whatever was left shown under the previous
+  /// scope is cancelled first, so a notification never survives past the
+  /// session it belonged to. A no-op when [scopeKey] is already active.
+  Future<void> activateScope(String scopeKey) async {
+    if (scopeKey == _activeScopeKey) return;
+    final previousScopeKey = _activeScopeKey;
+    _activeScopeKey = scopeKey;
+    await _cancelAllShownUnder(previousScopeKey);
+  }
+
+  /// Returns the active scope to [unconfiguredScopeKey], e.g. when the
+  /// session closes. Equivalent to `activateScope(unconfiguredScopeKey)`.
+  Future<void> deactivateScope() => activateScope(unconfiguredScopeKey);
+
+  Future<void> _cancelAllShownUnder(String scopeKey) async {
+    final ids = _shownByScope.remove(scopeKey);
+    if (ids == null || ids.isEmpty) return;
+    if (!_initialized || !capabilities.supports(NotificationCapability.cancel)) {
+      return;
+    }
+    for (final id in ids) {
+      try {
+        await _plugin.cancel(id);
+      } catch (_) {
+        // Best effort: a scope switch must not fail because one system
+        // notification could not be cancelled.
+      }
+    }
+  }
 
   Future<bool> initialize() async {
     _initialized = await _plugin.initialize();
@@ -221,6 +269,7 @@ final class SystemNotificationPresenter {
         body: request.body,
         payload: request.payload,
       );
+      _shownByScope.putIfAbsent(request.scope.scopeKey, () => {}).add(id);
       return SystemDeliveryState.shown;
     } catch (_) {
       return SystemDeliveryState.failed;
@@ -245,6 +294,7 @@ final class SystemNotificationPresenter {
     if (id == null) return SystemDeliveryState.unsupported;
     try {
       await _plugin.cancel(id);
+      _shownByScope[scopeKey]?.remove(id);
       return SystemDeliveryState.shown;
     } catch (_) {
       return SystemDeliveryState.failed;
