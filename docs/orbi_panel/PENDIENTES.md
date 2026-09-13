@@ -209,8 +209,9 @@ siquiera estaba anotada.
 
 ## En construcción ahora mismo
 
-Nada abierto al 13-sep-2026, 02:45 (Ecuador), salvo una prueba intermitente de envases
-(`envases_dashboard_live_refresh_test.dart`, falla sólo bajo la carga de la suite completa).
+Nada abierto al 13-sep-2026, 03:00 (Ecuador). Publicado en orbi.galapagos.tech: 29f36c6. La prueba
+intermitente de envases quedó arreglada en origen (57fb0ed: un solo `pump()` tras una escritura
+asíncrona del caché no garantiza el frame).
 
 Entregado la noche del 12 al 13-sep-2026:
 
