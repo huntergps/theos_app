@@ -246,7 +246,7 @@ void main() {
     );
 
     expect(find.text('Restaurando sesión'), findsOneWidget);
-    expect(find.byType(ProgressRing), findsOneWidget);
+    expect(find.byType(ProgressBar), findsOneWidget);
     expect(find.bySemanticsLabel('Marca Orbi ERP'), findsOneWidget);
     expect(find.byKey(const Key('orbi-splash')), findsOneWidget);
   });
