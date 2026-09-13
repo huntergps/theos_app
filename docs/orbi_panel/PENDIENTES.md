@@ -196,26 +196,23 @@ siquiera estaba anotada.
 
 ## En construcción ahora mismo
 
-Cuatro agentes abiertos el 12-sep-2026 por la noche, sobre ficheros que no se pisan:
+Al 13-sep-2026, 21:15:
 
 | Frente | Qué hace |
 | --- | --- |
-| Formularios | Ajustes, cobros, editor de venta y alta de PIN pasan al formulario estándar. El acceso queda fuera a propósito: su presupuesto de alto lo fijan pruebas |
-| Acceso, PIN y carga | Quita la franja de 24 px de `ScaffoldPage`, tarjeta opaca de Fluent, pie en `bottomBar`, separa los interruptores y quita el blanco bajo la carga |
-| Gestor de servidores | Pasa a `ContentDialog`, título más pequeño, se ajusta al teclado, botón «Listar bases» y usa `/orbi/database` |
-| Auditoría Fluent | Sólo lectura: todo lo construido a mano que Fluent ya trae |
+| Acceso en teléfono | Con el teclado en pantalla, la cabecera encoge con una transición, el pie se oculta y los campos se ven. Botón para mostrar u ocultar la clave en todos los equipos. Quita el título «Credenciales». En computadora no cambia nada |
+| Parámetros de Fluent | Modo del menú (auto, abierto, compacto, mínimo, arriba) e indicador en Ajustes, como la app de ejemplo de fluent_ui |
+| Inventario | Sólo lectura: pantallas aprobadas contra código, flujos contra ERP2 y tareas abiertas del plan |
 
-Los seis frentes que entregaron antes, el mismo 12-sep-2026, quedaron así, para que nadie
-los vuelva a encargar:
+Entregado y en commit el 12 y 13-sep-2026, publicado en orbi.galapagos.tech (d3bef9a) salvo lo marcado:
 
 | Frente | Dónde quedó |
 | --- | --- |
-| Desbloqueo sin conexión | Funciona y sobrevive a cerrar y reabrir, medido con dos procesos |
-| Ruta de acceso en el conector | Construida, desplegada y medida desde un dominio ajeno |
-| Mensajes de acceso | Dieciséis causas distinguidas, copiables y con duración elegible |
-| Credencial portable | `decisions/C01-credencial-en-archivo-cifrado.md` |
-| Guardado en navegador | `decisions/W04-el-navegador-tambien-guarda.md`, implementado y medido en Chrome |
-| Despliegue en navegador | Se entra desde el navegador; falta sólo la comprobación visual en pantalla |
+| Acceso, PIN y carga | Sin franja de 24 px, tarjeta opaca, pie en `bottomBar` a todo el ancho, formulario estándar, carga con logo que gira y línea |
+| Gestor de servidores | `ContentDialog` en computadora; en teléfono, página de dos pasos que no pierde el foco con el teclado. Usa `/orbi/database` y tiene «Listar bases» |
+| Arranque | No espera a las notificaciones; registra cuánto tarda cada paso. Sin puente por cookie ni «Continuar como…» |
+| Componentes Fluent | `TextFormBox`, `HoverButton`, `ListTile`, buscador `AutoSuggestBox` con Enter sin flechas |
+| Sin publicar todavía | Ícono de empresa en la cabecera (f72389d), menú resuelto por Fluent (e2108c7), pagos de venta sólo para cajeros (7acf837) |
 
 ## Defectos conocidos y sin arreglar
 
@@ -241,9 +238,8 @@ los vuelva a encargar:
   para probar, localhost). El 13-sep-2026 se retiraron de `l10n_ec_orbi_web` la página `/orbi/`,
   su paquete compilado y el puente de sesión por cookie (`/orbi/bootstrap`,
   `/orbi/session/logout`). Ya responden 404 en ERP2 y en Mepriga. Siguen vivas la ruta de llave,
-  `/orbi/database` y el listado con origen cruzado (dev_odoo20 `c6d1c7400`). **Pendiente en la
-  app:** el arranque web todavía pide `/orbi/bootstrap` y ofrece «Continuar como…». Es código
-  muerto y hay que retirarlo.
+  `/orbi/database` y el listado con origen cruzado (dev_odoo20 `c6d1c7400`). La app también
+  lo retiró (fb4326f, 1391805, d3bef9a).
 - ✅ **«La cabecera mostró el nombre de otro usuario» NO era un defecto** (aclarado por el dueño,
   13-sep-2026). La cabecera muestra la **empresa** (`profile.companyName`), y en ERP2 la empresa se
   llama «Aldas Romero Erik Andres». Aparte existe el usuario `erik.aldas`, y de ahí vino la
@@ -338,15 +334,14 @@ despliega: memoria `orbi-galapagos-tech-hosting`.
 - **`GET /orbi/database`**, en `l10n_ec_orbi_web` y desplegada en ERP2 y Mepriga, devuelve
   sólo la base que atiende el dominio, o 404 sin nombres. Existe porque Mepriga niega el
   listado de bases, que es lo correcto en un servidor público, y la app lo mostraba como
-  «no se pudo conectar». La app todavía no la usa: está en construcción.
+  «no se pudo conectar». El gestor de servidores la usa desde a9d3643.
 - **ERP2 ya se actualizó** tras partir el conector y sirve Orbi desde `l10n_ec_orbi_web`.
 - **Los grupos de envases de Mepriga sí estaban asignados**: los cinco usuarios activos
   tienen uno, y Gerencia hereda de Usuario.
 - **Las tres pruebas de las rutas de Orbi se borraron** por decisión del dueño: quedaron
   rotas en el conector al partir el módulo.
-- **El paquete que sirve cada Odoo en `/orbi/` está atrasado** respecto a
-  orbi.galapagos.tech. Hay que recompilarlo con `--base-href=/orbi/` cuando entren los
-  arreglos de pantalla.
+- ~~El paquete que sirve cada Odoo en `/orbi/` está atrasado~~: **ya no existe**. Retirado el
+  13-sep-2026, porque Orbi web se sirve sólo desde orbi.galapagos.tech.
 - **La guía de Mepriga decía que su carpeta de módulos es un clon, y no lo es**: `git pull`
   fallaba. Corregida el 12-sep-2026 (commit `37b3c1e` del repositorio `mepriga`, copiada al
   servidor) junto con la trampa de `docker compose run` por SSH. `COMMIT_DE_ORIGEN.txt`
