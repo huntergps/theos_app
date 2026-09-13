@@ -209,7 +209,7 @@ siquiera estaba anotada.
 
 ## En construcción ahora mismo
 
-Nada abierto al 13-sep-2026, 02:45 (Ecuador), salve una prueba intermitente de envases
+Nada abierto al 13-sep-2026, 02:45 (Ecuador), salvo una prueba intermitente de envases
 (`envases_dashboard_live_refresh_test.dart`, falla sólo bajo la carga de la suite completa).
 
 Entregado la noche del 12 al 13-sep-2026:
