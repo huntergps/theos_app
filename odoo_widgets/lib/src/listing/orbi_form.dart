@@ -30,9 +30,13 @@ class OrbiField {
 
 /// Un grupo de campos con su título.
 class OrbiFormSection {
-  const OrbiFormSection({required this.title, required this.fields});
+  const OrbiFormSection({this.title, required this.fields});
 
-  final String title;
+  /// Nulo cuando la sección no necesita nombrarse — por ejemplo, un
+  /// formulario de una sola sección donde el título repetiría lo que ya dice
+  /// la pantalla (orden del dueño, 12-sep-2026: quitar «Credenciales» del
+  /// acceso a Orbi). Sin título no se reserva su alto ni su espaciado.
+  final String? title;
   final List<OrbiField> fields;
 }
 
@@ -140,8 +144,10 @@ class _Section extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(section.title, style: typography.subtitle),
-          const SizedBox(height: 12),
+          if (section.title case final title?) ...[
+            Text(title, style: typography.subtitle),
+            const SizedBox(height: 12),
+          ],
           LayoutBuilder(
             builder: (context, constraints) {
               const gap = 16.0;

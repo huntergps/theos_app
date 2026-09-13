@@ -248,6 +248,32 @@ void main() {
   // de cobros a 360 px y 2x, y quedaba latente en el alta de PIN y el editor
   // de venta. Tiene que partir en líneas, NO recortarse: una etiqueta cortada
   // esconde de qué es el campo.
+  // Una sección puede no necesitar nombrarse — un formulario de una sola
+  // sección donde el título repetiría lo que ya dice la pantalla (orden del
+  // dueño, 12-sep-2026: quitar «Credenciales» del acceso a Orbi).
+  testWidgets('una sección sin título no pinta nada en su lugar', (
+    tester,
+  ) async {
+    await pump(
+      tester,
+      OrbiForm(
+        sections: [
+          OrbiFormSection(
+            fields: [OrbiField(label: 'Usuario', child: const TextBox())],
+          ),
+        ],
+      ),
+      const Size(1440, 900),
+    );
+
+    expect(find.text('Usuario'), findsOneWidget);
+    expect(
+      find.byType(Text),
+      findsOneWidget,
+      reason: 'sólo la etiqueta del campo, sin título de sección',
+    );
+  });
+
   testWidgets(
     'una etiqueta larga con letra grande parte en líneas, no desborda',
     (tester) async {

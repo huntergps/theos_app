@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:fluent_ui/fluent_ui.dart';
+import 'package:flutter/scheduler.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -39,7 +40,10 @@ String? _tooltipMessage(WidgetTester tester, Finder iconButtonFinder) {
 /// nudged by a transient viewInsets change — see login_screen.dart), so
 /// tests that exercise it must set both, or they'd be asking the layout to
 /// resize while MediaQuery keeps reporting the 800x600 test default.
-Future<void> setLoginTestWindowSize(WidgetTester tester, Size logicalSize) async {
+Future<void> setLoginTestWindowSize(
+  WidgetTester tester,
+  Size logicalSize,
+) async {
   tester.view.physicalSize = logicalSize;
   tester.view.devicePixelRatio = 1.0;
   await tester.binding.setSurfaceSize(logicalSize);
@@ -181,8 +185,10 @@ final class _ThrowingLoginService
   @override
   Future<AuthProfile?> loadProfile() async => null;
   @override
-  Future<AuthProfile?> loadProfileFor(String serverUrl, String database) async =>
-      null;
+  Future<AuthProfile?> loadProfileFor(
+    String serverUrl,
+    String database,
+  ) async => null;
   @override
   Future<void> close() async {}
 }
@@ -228,7 +234,10 @@ void main() {
             authServiceProvider.overrideWithValue(_ProfileService()),
             sharedPreferencesProvider.overrideWithValue(preferences!),
           ],
-          child: FluentApp(theme: OrbiFluentTheme.light, home: const LoginScreen()),
+          child: FluentApp(
+            theme: OrbiFluentTheme.light,
+            home: const LoginScreen(),
+          ),
         ),
       );
       await tester.pumpAndSettle();
@@ -264,7 +273,10 @@ void main() {
             authServiceProvider.overrideWithValue(_ProfileService()),
             sharedPreferencesProvider.overrideWithValue(preferences),
           ],
-          child: FluentApp(theme: OrbiFluentTheme.light, home: const LoginScreen()),
+          child: FluentApp(
+            theme: OrbiFluentTheme.light,
+            home: const LoginScreen(),
+          ),
         ),
       );
       await tester.pumpAndSettle();
@@ -301,48 +313,50 @@ void main() {
     },
   );
 
-  testWidgets(
-    'the database never appears anywhere in the normal login form',
-    (tester) async {
-      SharedPreferences.setMockInitialValues({});
-      final preferences = await tester.runAsync(
-        () => SharedPreferences.getInstance(),
-      );
-      await tester.runAsync(
-        () => _seedServer(
-          preferences!,
-          SavedServer(
-            id: 'x',
-            name: 'Entorno',
-            url: 'https://env.test',
-            database: 'super_secret_db',
-          ),
+  testWidgets('the database never appears anywhere in the normal login form', (
+    tester,
+  ) async {
+    SharedPreferences.setMockInitialValues({});
+    final preferences = await tester.runAsync(
+      () => SharedPreferences.getInstance(),
+    );
+    await tester.runAsync(
+      () => _seedServer(
+        preferences!,
+        SavedServer(
+          id: 'x',
+          name: 'Entorno',
+          url: 'https://env.test',
+          database: 'super_secret_db',
         ),
-      );
-      await setLoginTestWindowSize(tester, const Size(1200, 1000));
-      addTearDown(() => resetLoginTestWindowSize(tester));
-      await tester.pumpWidget(
-        ProviderScope(
-          overrides: [
-            authServiceProvider.overrideWithValue(_ProfileService()),
-            sharedPreferencesProvider.overrideWithValue(preferences!),
-          ],
-          child: FluentApp(theme: OrbiFluentTheme.light, home: const LoginScreen()),
+      ),
+    );
+    await setLoginTestWindowSize(tester, const Size(1200, 1000));
+    addTearDown(() => resetLoginTestWindowSize(tester));
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          authServiceProvider.overrideWithValue(_ProfileService()),
+          sharedPreferencesProvider.overrideWithValue(preferences!),
+        ],
+        child: FluentApp(
+          theme: OrbiFluentTheme.light,
+          home: const LoginScreen(),
         ),
-      );
-      await tester.pumpAndSettle();
-      expect(find.text('Base de datos'), findsNothing);
-      expect(find.textContaining('super_secret_db'), findsNothing);
-      expect(find.byType(TextBox), findsNWidgets(2));
-      await tester.tap(find.byType(ComboBox<String>));
-      await tester.pumpAndSettle();
-      await tester.tap(find.text('Entorno'));
-      await tester.pumpAndSettle();
-      expect(find.text('Base de datos'), findsNothing);
-      expect(find.textContaining('super_secret_db'), findsNothing);
-      expect(tester.takeException(), isNull);
-    },
-  );
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(find.text('Base de datos'), findsNothing);
+    expect(find.textContaining('super_secret_db'), findsNothing);
+    expect(find.byType(TextBox), findsNWidgets(2));
+    await tester.tap(find.byType(ComboBox<String>));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Entorno'));
+    await tester.pumpAndSettle();
+    expect(find.text('Base de datos'), findsNothing);
+    expect(find.textContaining('super_secret_db'), findsNothing);
+    expect(tester.takeException(), isNull);
+  });
 
   testWidgets(
     'server switch ignores late profile and precaches selected server',
@@ -354,10 +368,20 @@ void main() {
       await tester.runAsync(() async {
         final store = SavedServersStore(preferences!);
         await store.upsert(
-          SavedServer(id: 'one', name: 'Uno', url: 'https://one.test', database: 'db'),
+          SavedServer(
+            id: 'one',
+            name: 'Uno',
+            url: 'https://one.test',
+            database: 'db',
+          ),
         );
         await store.upsert(
-          SavedServer(id: 'two', name: 'Dos', url: 'https://two.test', database: 'db'),
+          SavedServer(
+            id: 'two',
+            name: 'Dos',
+            url: 'https://two.test',
+            database: 'db',
+          ),
         );
       });
       await tester.pumpWidget(
@@ -403,7 +427,12 @@ void main() {
     await tester.runAsync(
       () => _seedServer(
         preferences!,
-        SavedServer(id: 'erp', name: 'ERP de prueba', url: 'https://erp.test', database: 'db'),
+        SavedServer(
+          id: 'erp',
+          name: 'ERP de prueba',
+          url: 'https://erp.test',
+          database: 'db',
+        ),
       ),
     );
     await tester.pumpWidget(
@@ -443,7 +472,12 @@ void main() {
     await tester.runAsync(
       () => _seedServer(
         preferences!,
-        SavedServer(id: 'erp', name: 'ERP', url: 'https://erp.test', database: 'db'),
+        SavedServer(
+          id: 'erp',
+          name: 'ERP',
+          url: 'https://erp.test',
+          database: 'db',
+        ),
       ),
     );
     final service = _SlowLoginService();
@@ -541,7 +575,10 @@ void main() {
     await tester.pumpWidget(
       ProviderScope(
         overrides: [authServiceProvider.overrideWithValue(_ProfileService())],
-        child: FluentApp(theme: OrbiFluentTheme.dark, home: const LoginScreen()),
+        child: FluentApp(
+          theme: OrbiFluentTheme.dark,
+          home: const LoginScreen(),
+        ),
       ),
     );
     await tester.pump();
@@ -561,7 +598,8 @@ void main() {
     expect(
       buttonBottom,
       lessThanOrEqualTo(screenHeight),
-      reason: 'El botón de iniciar sesión debe estar dentro de la zona visible.',
+      reason:
+          'El botón de iniciar sesión debe estar dentro de la zona visible.',
     );
     expect(
       buttonBottom,
@@ -571,6 +609,53 @@ void main() {
           '"Desarrollado por GalapagosTech · 2026" (footerTop=$footerTop, '
           'buttonBottom=$buttonBottom, windowSize=$windowSize).',
     );
+    expect(tester.takeException(), isNull);
+  }
+
+  /// Igual que [expectSubmitButtonReachable], pero para el teléfono: ya no
+  /// exige que el botón se vea SIN desplazar (con la tarjeta entera dentro
+  /// de un único scroll, en una pantalla angosta el botón queda naturalmente
+  /// bajo el borde inferior hasta que se desplaza) — sólo que exista, que
+  /// `ensureVisible` lo traiga a la vista sin lanzar excepciones y que, ya
+  /// visible, no quede tapado por el pie.
+  Future<void> expectSubmitButtonReachableViaScroll(
+    WidgetTester tester,
+    Size windowSize,
+  ) async {
+    await setLoginTestWindowSize(tester, windowSize);
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [authServiceProvider.overrideWithValue(_ProfileService())],
+        child: FluentApp(
+          theme: OrbiFluentTheme.dark,
+          home: const LoginScreen(),
+        ),
+      ),
+    );
+    await tester.pump();
+
+    final buttonFinder = find.ancestor(
+      of: find.text('Iniciar sesión'),
+      matching: find.byType(FilledButton),
+    );
+    expect(buttonFinder, findsOneWidget);
+
+    await tester.ensureVisible(buttonFinder);
+    await tester.pump();
+
+    final buttonBottom = tester.getBottomLeft(buttonFinder).dy;
+    final footerTop = tester
+        .getTopLeft(find.byKey(const Key('login-credit-footer')))
+        .dy;
+    expect(
+      buttonBottom,
+      lessThanOrEqualTo(footerTop),
+      reason:
+          'Ya desplazado a la vista, el botón queda tapado por el pie '
+          '(footerTop=$footerTop, buttonBottom=$buttonBottom, '
+          'windowSize=$windowSize).',
+    );
+    await tester.tap(buttonFinder);
     expect(tester.takeException(), isNull);
   }
 
@@ -674,20 +759,26 @@ void main() {
   // B: sin estimador de alto ni corte compacto/normal, "Iniciar sesión" debe
   // seguir entero en pantalla y por encima del pie en las cuatro pantallas
   // aprobadas — desde el escritorio grande hasta el teléfono más angosto.
-  for (final size in const [
-    Size(1880, 925),
-    Size(1280, 600),
-    Size(390, 844),
-    Size(390, 600),
-  ]) {
-    testWidgets(
-      'B: "Iniciar sesión" cabe entero y sobre el pie en '
-      '${size.width.toInt()}x${size.height.toInt()}',
-      (tester) async {
-        await expectSubmitButtonReachable(tester, size);
-        addTearDown(() => resetLoginTestWindowSize(tester));
-      },
-    );
+  //
+  // 🔴 Cambió el 12-sep-2026: ahora la tarjeta ENTERA (encabezado incluido)
+  // comparte un solo scroll, así que ya nada obliga al botón a quedar
+  // visible SIN desplazar en un teléfono angosto — sólo en escritorio, donde
+  // sigue sobrando alto y la tarjeta se ve igual que siempre. En teléfono
+  // basta con que se alcance desplazando (ver expectSubmitButtonReachableViaScroll).
+  for (final size in const [Size(1880, 925), Size(1280, 600)]) {
+    testWidgets('B: "Iniciar sesión" cabe entero y sobre el pie en '
+        '${size.width.toInt()}x${size.height.toInt()}', (tester) async {
+      await expectSubmitButtonReachable(tester, size);
+      addTearDown(() => resetLoginTestWindowSize(tester));
+    });
+  }
+
+  for (final size in const [Size(390, 844), Size(390, 600)]) {
+    testWidgets('B: "Iniciar sesión" se alcanza desplazando en '
+        '${size.width.toInt()}x${size.height.toInt()}', (tester) async {
+      await expectSubmitButtonReachableViaScroll(tester, size);
+      addTearDown(() => resetLoginTestWindowSize(tester));
+    });
   }
 
   // C: el pie ocupa todo el ancho de la pantalla, no una cajita centrada
@@ -697,19 +788,18 @@ void main() {
   // fuerza su propio ancho se encoge a su contenido (aquí, el texto) y queda
   // como una isla angosta centrada — el SizedBox(width: double.infinity) de
   // login_screen.dart es lo que realmente lo evita.
-  testWidgets(
-    'C: el pie mide el ancho completo de la pantalla',
-    (tester) async {
-      const windowSize = Size(1880, 925);
-      await pumpLoginScreen(tester, windowSize);
-      addTearDown(() => resetLoginTestWindowSize(tester));
-      expect(
-        tester.getSize(find.byKey(const Key('login-credit-footer'))).width,
-        windowSize.width,
-      );
-      expect(tester.takeException(), isNull);
-    },
-  );
+  testWidgets('C: el pie mide el ancho completo de la pantalla', (
+    tester,
+  ) async {
+    const windowSize = Size(1880, 925);
+    await pumpLoginScreen(tester, windowSize);
+    addTearDown(() => resetLoginTestWindowSize(tester));
+    expect(
+      tester.getSize(find.byKey(const Key('login-credit-footer'))).width,
+      windowSize.width,
+    );
+    expect(tester.takeException(), isNull);
+  });
 
   testWidgets(
     'the approved photo starts at the very top of the screen, no scaffold '
@@ -766,64 +856,68 @@ void main() {
     },
   );
 
-  testWidgets(
-    'focusing each field does not make content appear or disappear',
-    (tester) async {
-      // The owner's report, verbatim: "cada vez que hago click en un
-      // textedit se oculta y muestra el resto del formulario, se reconstruye
-      // toda la pantalla". The old compact/normal decision read
-      // LayoutBuilder's body constraints, which shrink whenever
-      // Scaffold.resizeToAvoidBottomInset reacts to MediaQuery.viewInsets,
-      // and used that to decide whether to DROP content (the toggle
-      // subtitles) — so a stray inset change made things appear/disappear.
-      // 🔴 That decision (and the "compact" styling it chose between) is
-      // gone — the form has one styling now, always showing every subtitle —
-      // so the metric this test guards changed from "did compact/normal
-      // flip" (isCompactModeIn, removed with it) to "did anything appear or
-      // disappear": ScaffoldPage's own resizeToAvoidBottomInset still
-      // legitimately shrinks and repositions the card when the inset grows
-      // (real keyboard avoidance, e.g. on a phone, still works and is
-      // allowed to move things), but it must never make a field or a
-      // subtitle blink in or out of the tree.
-      //
-      // Only the two remaining TextFields (Usuario, Contraseña) are looped
-      // over: the server selector is a dropdown now, and tapping it opens an
-      // overlay rather than just taking focus, which is a different — and
-      // separately covered — interaction.
-      await pumpLoginScreen(tester, const Size(700, 800));
-      addTearDown(() => resetLoginTestWindowSize(tester));
-      addTearDown(() => tester.view.resetViewInsets());
+  testWidgets('no lleva el título de sección "Credenciales" — el título de la '
+      'pantalla ya lo dice', (tester) async {
+    await pumpLoginScreen(tester, const Size(1200, 1000));
+    addTearDown(() => resetLoginTestWindowSize(tester));
+    expect(find.text('Credenciales'), findsNothing);
+    expect(tester.takeException(), isNull);
+  });
 
-      void expectNothingAppearedOrDisappeared() {
-        expect(find.byType(ComboBox<String>), findsOneWidget);
-        expect(find.byType(TextBox), findsNWidgets(2));
-        expect(find.text(_kApiKeySubtitleText), findsOneWidget);
-        expect(find.byKey(const Key('api-key-mode-toggle')), findsOneWidget);
-        expect(
-          find.byKey(const Key('save-credential-toggle')),
-          findsOneWidget,
-        );
-      }
+  testWidgets('focusing each field does not make content appear or disappear', (
+    tester,
+  ) async {
+    // The owner's report, verbatim: "cada vez que hago click en un
+    // textedit se oculta y muestra el resto del formulario, se reconstruye
+    // toda la pantalla". The old compact/normal decision read
+    // LayoutBuilder's body constraints, which shrink whenever
+    // Scaffold.resizeToAvoidBottomInset reacts to MediaQuery.viewInsets,
+    // and used that to decide whether to DROP content (the toggle
+    // subtitles) — so a stray inset change made things appear/disappear.
+    // 🔴 That decision (and the "compact" styling it chose between) is
+    // gone — the form has one styling now, always showing every subtitle —
+    // so the metric this test guards changed from "did compact/normal
+    // flip" (isCompactModeIn, removed with it) to "did anything appear or
+    // disappear": ScaffoldPage's own resizeToAvoidBottomInset still
+    // legitimately shrinks and repositions the card when the inset grows
+    // (real keyboard avoidance, e.g. on a phone, still works and is
+    // allowed to move things), but it must never make a field or a
+    // subtitle blink in or out of the tree.
+    //
+    // Only the two remaining TextFields (Usuario, Contraseña) are looped
+    // over: the server selector is a dropdown now, and tapping it opens an
+    // overlay rather than just taking focus, which is a different — and
+    // separately covered — interaction.
+    await pumpLoginScreen(tester, const Size(700, 800));
+    addTearDown(() => resetLoginTestWindowSize(tester));
+    addTearDown(() => tester.view.resetViewInsets());
 
-      expectNothingAppearedOrDisappeared();
+    void expectNothingAppearedOrDisappeared() {
+      expect(find.byType(ComboBox<String>), findsOneWidget);
+      expect(find.byType(TextBox), findsNWidgets(2));
+      expect(find.text(_kApiKeySubtitleText), findsOneWidget);
+      expect(find.byKey(const Key('api-key-mode-toggle')), findsOneWidget);
+      expect(find.byKey(const Key('save-credential-toggle')), findsOneWidget);
+    }
 
-      final fields = find.byType(TextBox);
-      for (var i = 0; i < 2; i++) {
-        await tester.tap(fields.at(i));
-        await tester.pump();
-        expectNothingAppearedOrDisappeared();
-        expect(tester.takeException(), isNull);
-      }
+    expectNothingAppearedOrDisappeared();
 
-      // Directly simulate whatever might be nudging the inset on focus.
-      tester.view.viewInsets = FakeViewPadding.zero;
-      await tester.pump();
-      tester.view.viewInsets = const FakeViewPadding(bottom: 300);
+    final fields = find.byType(TextBox);
+    for (var i = 0; i < 2; i++) {
+      await tester.tap(fields.at(i));
       await tester.pump();
       expectNothingAppearedOrDisappeared();
       expect(tester.takeException(), isNull);
-    },
-  );
+    }
+
+    // Directly simulate whatever might be nudging the inset on focus.
+    tester.view.viewInsets = FakeViewPadding.zero;
+    await tester.pump();
+    tester.view.viewInsets = const FakeViewPadding(bottom: 300);
+    await tester.pump();
+    expectNothingAppearedOrDisappeared();
+    expect(tester.takeException(), isNull);
+  });
 
   testWidgets(
     'the teclado does not steal focus from the field it just opened for '
@@ -886,7 +980,10 @@ void main() {
               'síntoma reportado desde el iPhone.',
         );
         expect(
-          tester.widget<TextBox>(find.byType(TextBox).at(index)).controller?.text,
+          tester
+              .widget<TextBox>(find.byType(TextBox).at(index))
+              .controller
+              ?.text,
           text,
           reason: 'El campo #$index perdió su texto al aparecer el teclado.',
         );
@@ -894,6 +991,364 @@ void main() {
 
       await expectFieldKeepsFocusThroughKeyboard(0, 'ana');
       await expectFieldKeepsFocusThroughKeyboard(1, 'ana');
+      expect(tester.takeException(), isNull);
+    },
+  );
+
+  // ==========================================================================
+  // Reporte del dueño, iPhone, 12-sep-2026, contra d3bef9a: al tocar
+  // "Usuario" se abre el teclado y en la tarjeta se quedan fijos el botón de
+  // PIN, el de tema, el logo, "Acceso a Orbi", el subtítulo y "Iniciar
+  // sesión"; entre medio, el área desplazable de los campos queda aplastada
+  // a unos pocos píxeles — sólo se lee la etiqueta "Usuario" cortada y una
+  // raya donde debería estar el campo. Contraseña no se ve. El pie
+  // "Desarrollado por…" sigue ocupando una franja encima del teclado.
+  //
+  // Causa: _buildLoginForm fijaba arriba el encabezado y abajo el botón, y
+  // sólo dejaba desplazar los campos en un Flexible; con el teclado abierto
+  // ScaffoldPage le quita al contenido el alto del teclado, encabezado y
+  // botón se quedan todo lo que piden, y a los campos no les queda nada.
+  // ==========================================================================
+  Future<FocusNode?> pumpLoginWithKeyboardOpenOn(
+    WidgetTester tester,
+    int fieldIndex,
+  ) async {
+    await pumpLoginScreen(tester, const Size(390, 844));
+    tester.view.padding = FakeViewPadding(
+      top: 59 * tester.view.devicePixelRatio,
+      bottom: 34 * tester.view.devicePixelRatio,
+    );
+    await tester.pump();
+    final field = find.byType(TextBox).at(fieldIndex);
+    await tester.tap(field);
+    await tester.pump();
+    final focusNode = tester.widget<TextBox>(field).focusNode;
+    // El propio teclado: crece viewInsets.bottom, tal como hace un teclado
+    // real de iOS (mismo valor que ya usa la prueba de foco de arriba).
+    tester.view.viewInsets = FakeViewPadding(
+      bottom: 336 * tester.view.devicePixelRatio,
+    );
+    await tester.pump();
+    // EditableText trae su propio caret a la vista en un postFrameCallback
+    // (ver didChangeMetrics/_scheduleShowCaretOnScreen en el SDK): el pump
+    // de arriba ejecuta ese callback (jumpTo + showOnScreen), pero el
+    // relayout/repintado que resulta de ese scroll recién se refleja en un
+    // segundo frame.
+    await tester.pump();
+    return focusNode;
+  }
+
+  testWidgets(
+    'A: con el teclado abierto a 390x844, el campo Usuario se ve entero, no '
+    'aplastado',
+    (tester) async {
+      await pumpLoginWithKeyboardOpenOn(tester, 0);
+      addTearDown(() => resetLoginTestWindowSize(tester));
+      addTearDown(() => tester.view.resetViewInsets());
+
+      final rect = tester.getRect(find.byType(TextBox).at(0));
+      const visibleBottom = 844 - 336;
+      expect(
+        rect.top,
+        greaterThanOrEqualTo(0),
+        reason: 'El campo Usuario quedó por encima de la pantalla visible.',
+      );
+      expect(
+        rect.bottom,
+        lessThanOrEqualTo(visibleBottom.toDouble()),
+        reason: 'El campo Usuario invade el área que ocupa el teclado.',
+      );
+      expect(
+        rect.height,
+        greaterThanOrEqualTo(30),
+        reason:
+            'El campo Usuario mide ${rect.height}px de alto: está aplastado, '
+            'no se lee el contenido, sólo una raya.',
+      );
+      expect(tester.takeException(), isNull);
+    },
+  );
+
+  testWidgets('B: con el teclado abierto a 390x844, el campo Contraseña se ve entero, '
+      'no aplastado', (tester) async {
+    await pumpLoginWithKeyboardOpenOn(tester, 1);
+    addTearDown(() => resetLoginTestWindowSize(tester));
+    addTearDown(() => tester.view.resetViewInsets());
+
+    final rect = tester.getRect(find.byType(TextBox).at(1));
+    const visibleBottom = 844 - 336;
+    expect(rect.top, greaterThanOrEqualTo(0));
+    expect(
+      rect.bottom,
+      lessThanOrEqualTo(visibleBottom.toDouble()),
+      reason: 'El campo Contraseña invade el área que ocupa el teclado.',
+    );
+    expect(
+      rect.height,
+      greaterThanOrEqualTo(30),
+      reason:
+          'El campo Contraseña mide ${rect.height}px de alto: está aplastado.',
+    );
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets(
+    'C: el pie desaparece con el teclado abierto y vuelve al cerrarse',
+    (tester) async {
+      await pumpLoginScreen(tester, const Size(390, 844));
+      addTearDown(() => resetLoginTestWindowSize(tester));
+      addTearDown(() => tester.view.resetViewInsets());
+
+      expect(find.byKey(const Key('login-credit-footer')), findsOneWidget);
+
+      final field = find.byType(TextBox).at(0);
+      await tester.tap(field);
+      await tester.pump();
+      tester.view.viewInsets = FakeViewPadding(
+        bottom: 336 * tester.view.devicePixelRatio,
+      );
+      await tester.pump();
+      expect(
+        find.byKey(const Key('login-credit-footer')),
+        findsNothing,
+        reason:
+            'Con el teclado abierto el pie sigue ocupando una franja encima '
+            'de él — reporte textual del dueño.',
+      );
+
+      tester.view.viewInsets = FakeViewPadding.zero;
+      await tester.pump();
+      expect(
+        find.byKey(const Key('login-credit-footer')),
+        findsOneWidget,
+        reason: 'Al cerrarse el teclado el pie debe volver.',
+      );
+      expect(tester.takeException(), isNull);
+    },
+  );
+
+  testWidgets(
+    'D: con el teclado abierto, "Iniciar sesión" se alcanza desplazando y '
+    'queda tocable',
+    (tester) async {
+      await pumpLoginScreen(tester, const Size(390, 844));
+      addTearDown(() => resetLoginTestWindowSize(tester));
+      addTearDown(() => tester.view.resetViewInsets());
+
+      final field = find.byType(TextBox).at(0);
+      await tester.tap(field);
+      await tester.pump();
+      tester.view.viewInsets = FakeViewPadding(
+        bottom: 336 * tester.view.devicePixelRatio,
+      );
+      await tester.pump();
+
+      final buttonFinder = find.ancestor(
+        of: find.text('Iniciar sesión'),
+        matching: find.byType(FilledButton),
+      );
+      await tester.ensureVisible(buttonFinder);
+      await tester.pump();
+      expect(buttonFinder, findsOneWidget);
+
+      final visibleBottom = 844 - 336 * tester.view.devicePixelRatio;
+      expect(
+        tester.getBottomLeft(buttonFinder).dy,
+        lessThanOrEqualTo(visibleBottom),
+        reason: 'El botón quedó bajo el área que tapa el teclado.',
+      );
+      await tester.tap(buttonFinder);
+      expect(tester.takeException(), isNull);
+    },
+  );
+
+  // ==========================================================================
+  // Cambio de diseño pedido por el dueño, 12-sep-2026, que reemplaza «toda
+  // la tarjeta en un solo desplazamiento» de la ronda anterior: «¿No se
+  // debería reducir el tamaño de la cabecera y subirla en transición hasta
+  // que se vean los TextEdit? Además se debe poder ocultar/mostrar la
+  // clave.»
+  // ==========================================================================
+  testWidgets('E: con el teclado abierto el logo se reduce (o desaparece) y el '
+      'subtítulo se oculta; al cerrarse, vuelven', (tester) async {
+    await pumpLoginScreen(tester, const Size(390, 844));
+    addTearDown(() => resetLoginTestWindowSize(tester));
+    addTearDown(() => tester.view.resetViewInsets());
+
+    final field = find.byType(TextBox).at(0);
+    await tester.tap(field);
+    await tester.pump();
+    tester.view.viewInsets = FakeViewPadding(
+      bottom: 336 * tester.view.devicePixelRatio,
+    );
+    await tester.pumpAndSettle();
+
+    final logoFinder = find.byType(OrbiBrand);
+    if (logoFinder.evaluate().isNotEmpty) {
+      expect(
+        tester.getSize(logoFinder).height,
+        lessThanOrEqualTo(32.0),
+        reason:
+            'Con el teclado abierto el logo debe medir 32px o menos, o no '
+            'estar.',
+      );
+    }
+    expect(
+      find.text('Conéctate a tu entorno de trabajo'),
+      findsNothing,
+      reason: 'El subtítulo debe ocultarse con el teclado abierto.',
+    );
+
+    tester.view.viewInsets = FakeViewPadding.zero;
+    await tester.pumpAndSettle();
+    expect(
+      tester.getSize(find.byType(OrbiBrand)).height,
+      84.0,
+      reason: 'El logo debe volver a su tamaño normal al cerrarse el teclado.',
+    );
+    expect(find.text('Conéctate a tu entorno de trabajo'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets(
+    'F: el botón de mostrar/ocultar clave alterna obscureText y conserva '
+    'el texto escrito',
+    (tester) async {
+      SharedPreferences.setMockInitialValues({});
+      final preferences = await tester.runAsync(
+        () => SharedPreferences.getInstance(),
+      );
+      await tester.runAsync(
+        () => _seedServer(
+          preferences!,
+          SavedServer(
+            id: 'reveal',
+            name: 'Entorno',
+            url: 'https://reveal.test',
+            database: 'db',
+          ),
+        ),
+      );
+      await setLoginTestWindowSize(tester, const Size(1200, 1000));
+      addTearDown(() => resetLoginTestWindowSize(tester));
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            authServiceProvider.overrideWithValue(_ProfileService()),
+            sharedPreferencesProvider.overrideWithValue(preferences!),
+          ],
+          child: FluentApp(
+            theme: OrbiFluentTheme.light,
+            home: const LoginScreen(),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      await tester.tap(find.byType(ComboBox<String>));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Entorno'));
+      await tester.pumpAndSettle();
+      await tester.enterText(find.byType(TextBox).at(1), 'mi-clave-secreta');
+      await tester.pump();
+
+      TextBox passwordBox() =>
+          tester.widget<TextBox>(find.byType(TextBox).at(1));
+      expect(passwordBox().obscureText, isTrue);
+
+      final revealButton = find.byKey(const Key('login-password-reveal'));
+      expect(revealButton, findsOneWidget);
+
+      await tester.tap(revealButton);
+      await tester.pump();
+      expect(passwordBox().obscureText, isFalse);
+      expect(passwordBox().controller?.text, 'mi-clave-secreta');
+
+      await tester.tap(revealButton);
+      await tester.pump();
+      expect(passwordBox().obscureText, isTrue);
+      expect(passwordBox().controller?.text, 'mi-clave-secreta');
+      // Fluent's Button/HoverButton machinery schedules a 100ms Timer on
+      // tap-up to reset its own pressed visual state; flush it (both taps'
+      // worth) so the test does not end with a pending Timer.
+      await tester.pump(const Duration(milliseconds: 100));
+      expect(tester.takeException(), isNull);
+    },
+  );
+
+  testWidgets('G: con las animaciones desactivadas, el cambio de cabecera es '
+      'inmediato — sin animación pendiente tras un solo pump', (tester) async {
+    await setLoginTestWindowSize(tester, const Size(390, 844));
+    addTearDown(() => resetLoginTestWindowSize(tester));
+    addTearDown(() => tester.view.resetViewInsets());
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [authServiceProvider.overrideWithValue(_ProfileService())],
+        child: Builder(
+          builder: (context) => MediaQuery(
+            data: MediaQuery.of(context).copyWith(disableAnimations: true),
+            child: const FluentApp(home: LoginScreen()),
+          ),
+        ),
+      ),
+    );
+    await tester.pump();
+
+    final field = find.byType(TextBox).at(0);
+    await tester.tap(field);
+    await tester.pump();
+    tester.view.viewInsets = FakeViewPadding(
+      bottom: 336 * tester.view.devicePixelRatio,
+    );
+    // Un solo pump, sin avanzar el reloj: si la duración es cero (por
+    // `disableAnimations`), el tamaño final ya debe estar aplicado.
+    await tester.pump();
+
+    expect(
+      tester.getSize(find.byType(OrbiBrand)).height,
+      32.0,
+      reason:
+          'Con animaciones desactivadas el logo debe llegar a su tamaño '
+          'final en el mismo pump, sin transición.',
+    );
+    expect(
+      SchedulerBinding.instance.transientCallbackCount,
+      0,
+      reason: 'No debe quedar ninguna animación (Ticker) pendiente.',
+    );
+    expect(tester.takeException(), isNull);
+  });
+
+  // Aclaración del dueño, 12-sep-2026: todo lo del teclado (cabecera
+  // compacta, pie oculto, tarjeta desplazándose) es SÓLO para teléfonos —
+  // el disparador es el teclado en pantalla
+  // (`MediaQuery.viewInsetsOf(context).bottom > 0`), que en escritorio no
+  // ocurre; nada de un corte de ancho propio. En escritorio, sin teclado,
+  // la cabecera se queda exactamente como en d3bef9a.
+  testWidgets(
+    'en escritorio (1880x925), sin teclado, la cabecera se queda normal: '
+    'logo a 84px, subtítulo y pie presentes',
+    (tester) async {
+      await pumpLoginScreen(tester, const Size(1880, 925));
+      addTearDown(() => resetLoginTestWindowSize(tester));
+
+      // A este ancho la rama de dos columnas también pinta su propio
+      // OrbiBrand de 220px en _BrandingPane — se filtra por tamaño en vez
+      // de asumir un único match.
+      final logos = find.byType(OrbiBrand);
+      expect(logos, findsNWidgets(2));
+      final heights = logos
+          .evaluate()
+          .map((element) => (element.widget as OrbiBrand).height)
+          .toList();
+      expect(
+        heights,
+        containsAll(<double>[84.0, 220.0]),
+        reason:
+            'El logo del formulario debe seguir midiendo 84px sin teclado '
+            '(el de 220 es el de la foto lateral, sin relación).',
+      );
+      expect(find.text('Conéctate a tu entorno de trabajo'), findsOneWidget);
+      expect(find.byKey(const Key('login-credit-footer')), findsOneWidget);
       expect(tester.takeException(), isNull);
     },
   );
@@ -1050,7 +1505,10 @@ void main() {
           if (networkProbe != null)
             networkPresenceProbeProvider.overrideWithValue(networkProbe),
         ],
-        child: FluentApp(theme: OrbiFluentTheme.light, home: const LoginScreen()),
+        child: FluentApp(
+          theme: OrbiFluentTheme.light,
+          home: const LoginScreen(),
+        ),
       ),
     );
     await tester.pumpAndSettle();
@@ -1204,43 +1662,44 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets(
-    'no failure ever shows the raw exception to the person',
-    (tester) async {
-      // A server payload, a model name and a status code, all in one object.
-      await pumpFailingLogin(
-        tester,
-        error: OdooException(
-          message: 'AccessError: user 42 cannot write res.users.apikeys',
-          statusCode: 403,
-          model: 'res.users.apikeys.description',
-          method: 'make_key',
-          technicalDetails: 'Traceback (most recent call last): ...',
-        ),
+  testWidgets('no failure ever shows the raw exception to the person', (
+    tester,
+  ) async {
+    // A server payload, a model name and a status code, all in one object.
+    await pumpFailingLogin(
+      tester,
+      error: OdooException(
+        message: 'AccessError: user 42 cannot write res.users.apikeys',
+        statusCode: 403,
+        model: 'res.users.apikeys.description',
+        method: 'make_key',
+        technicalDetails: 'Traceback (most recent call last): ...',
+      ),
+    );
+    for (final leak in [
+      'AccessError',
+      'res.users.apikeys',
+      'Traceback',
+      '403',
+      'user 42',
+    ]) {
+      expect(
+        find.textContaining(leak),
+        findsNothing,
+        reason: 'The screen is showing "$leak" to someone at a counter.',
       );
-      for (final leak in [
-        'AccessError',
-        'res.users.apikeys',
-        'Traceback',
-        '403',
-        'user 42',
-      ]) {
-        expect(
-          find.textContaining(leak),
-          findsNothing,
-          reason: 'The screen is showing "$leak" to someone at a counter.',
-        );
-      }
-      expect(tester.takeException(), isNull);
-    },
-  );
+    }
+    expect(tester.takeException(), isNull);
+  });
 
   group('connectivity separates "no hay red" from "el servidor no responde"', () {
     const connectionFailed = NativeAuthBootstrapException(
       NativeAuthBootstrapFailureKind.connection,
     );
 
-    testWidgets('with no transport at all, the device is named', (tester) async {
+    testWidgets('with no transport at all, the device is named', (
+      tester,
+    ) async {
       await pumpFailingLogin(
         tester,
         error: connectionFailed,
@@ -1323,7 +1782,6 @@ void main() {
       expect(tester.takeException(), isNull);
     });
   });
-
 
   group('a failed sign-in can be taken away, not just read', () {
     // The owner's second ask: "deben permitir copiar el contenido de los
@@ -1463,48 +1921,51 @@ void main() {
       expectFailureShown(tester, LoginFailureCause.credentialIssueFailed);
     });
 
-    testWidgets('at phone width the copy button does not squeeze the headline', (
-      tester,
-    ) async {
-      // theos_pos keeps the copy button on the title row, beside the close
-      // button. Checked here on the narrowest supported screen, with the
-      // longest headline the mapping can produce.
-      SharedPreferences.setMockInitialValues({});
-      final preferences = await tester.runAsync(
-        () => SharedPreferences.getInstance(),
-      );
-      await setLoginTestWindowSize(tester, const Size(390, 844));
-      addTearDown(() => resetLoginTestWindowSize(tester));
-      final failure = loginFailureMessageFor(
-        LoginFailureCause.credentialIssueFailed,
-      );
-      await tester.pumpWidget(
-        ProviderScope(
-          overrides: [
-            authServiceProvider.overrideWithValue(_ProfileService()),
-            sharedPreferencesProvider.overrideWithValue(preferences!),
-            authInitialStateProvider.overrideWithValue(
-              AuthViewState(
-                status: AuthControllerStatus.error,
-                message: failure.flatten(),
+    testWidgets(
+      'at phone width the copy button does not squeeze the headline',
+      (tester) async {
+        // theos_pos keeps the copy button on the title row, beside the close
+        // button. Checked here on the narrowest supported screen, with the
+        // longest headline the mapping can produce.
+        SharedPreferences.setMockInitialValues({});
+        final preferences = await tester.runAsync(
+          () => SharedPreferences.getInstance(),
+        );
+        await setLoginTestWindowSize(tester, const Size(390, 844));
+        addTearDown(() => resetLoginTestWindowSize(tester));
+        final failure = loginFailureMessageFor(
+          LoginFailureCause.credentialIssueFailed,
+        );
+        await tester.pumpWidget(
+          ProviderScope(
+            overrides: [
+              authServiceProvider.overrideWithValue(_ProfileService()),
+              sharedPreferencesProvider.overrideWithValue(preferences!),
+              authInitialStateProvider.overrideWithValue(
+                AuthViewState(
+                  status: AuthControllerStatus.error,
+                  message: failure.flatten(),
+                ),
               ),
+            ],
+            child: FluentApp(
+              theme: OrbiFluentTheme.light,
+              home: const LoginScreen(),
             ),
-          ],
-          child: FluentApp(theme: OrbiFluentTheme.light, home: const LoginScreen()),
-        ),
-      );
-      await tester.pumpAndSettle();
-      final title = find.text(failure.title);
-      expect(title, findsOneWidget);
-      expect(
-        tester.getTopLeft(find.byKey(const Key('copy-message-button'))).dy,
-        greaterThanOrEqualTo(tester.getBottomLeft(title).dy),
-        reason: 'The copy button is level with the headline, crowding it.',
-      );
-      expect(tester.takeException(), isNull);
-    });
+          ),
+        );
+        await tester.pumpAndSettle();
+        final title = find.text(failure.title);
+        expect(title, findsOneWidget);
+        expect(
+          tester.getTopLeft(find.byKey(const Key('copy-message-button'))).dy,
+          greaterThanOrEqualTo(tester.getBottomLeft(title).dy),
+          reason: 'The copy button is level with the headline, crowding it.',
+        );
+        expect(tester.takeException(), isNull);
+      },
+    );
   });
-
 
   testWidgets(
     'the failure panel is announced to screen readers with both halves',
@@ -1550,7 +2011,10 @@ void main() {
               ),
             ),
           ],
-          child: FluentApp(theme: OrbiFluentTheme.light, home: const LoginScreen()),
+          child: FluentApp(
+            theme: OrbiFluentTheme.light,
+            home: const LoginScreen(),
+          ),
         ),
       );
       await tester.pumpAndSettle();

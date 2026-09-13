@@ -146,10 +146,27 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   final _password = TextEditingController();
   final _loginFocus = FocusNode();
   final _passwordFocus = FocusNode();
+  // Identidad estable del bloque de campos/interruptores a través de las dos
+  // arquitecturas que _buildLoginForm alterna según el teclado (ver ahí). Sin
+  // esta GlobalKey, alternar envoltorios reconstruiría el subárbol entero —
+  // Usuario y Contraseña incluidos — cada vez que abre o cierra el teclado:
+  // EditableText perdería el `_lastBottomViewInset` con el que detecta la
+  // apertura del teclado y JAMÁS se traería solo a la vista (el mecanismo
+  // que hace que "el campo con foco se lleva a la vista solo" deje de
+  // funcionar). Con la key, Flutter REPARENTA el mismo Element/State al
+  // cambiar de envoltorio en vez de destruirlo y crear uno nuevo.
+  final _fieldsColumnKey = GlobalKey();
+  // Misma razón que _fieldsColumnKey, pero para la cabecera: sin esta key,
+  // alternar de arquitectura al abrir/cerrar el teclado destruiría y
+  // recrearía el AnimatedSize de la cabecera, perdiendo su animación en
+  // curso — el logo/título saltarían de tamaño de golpe en vez de subir en
+  // transición (orden del dueño, 12-sep-2026).
+  final _headerKey = GlobalKey();
   int _profileLookupEpoch = 0;
   Timer? _loginPreferencesDebounce;
   bool _apiKeyMode = false;
   bool _saveCredential = false;
+  bool _passwordVisible = false;
 
   /// ACC-02's door, opened from here. Toggled purely by local widget state —
   /// deliberately NOT a GoRoute: `/login` is the one pre-authentication path
@@ -452,6 +469,13 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     // (orden del dueño, 12-sep-2026: «el pie no está en todo el formulario,
     // se ve mal»). The SizedBox below is what actually fixes that; the
     // SafeArea/Padding/Text inside it never would have on their own.
+    // With the software keyboard open there is no room left for the credit
+    // line, and phones don't have one to spare (orden del dueño, 12-sep-2026:
+    // el pie sigue ocupando una franja encima del teclado). This only decides
+    // WHETHER the footer paints — it changes no height math, so the field
+    // that has focus is never rebuilt by this branch (the pending-focus test
+    // above stays green).
+    final keyboardOpen = MediaQuery.viewInsetsOf(context).bottom > 0;
     final footer = SizedBox(
       key: const Key('login-credit-footer'),
       width: double.infinity,
@@ -475,7 +499,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       // that shows as a solid strip above it. The photo must start at the
       // very top of the screen instead.
       padding: EdgeInsets.zero,
-      bottomBar: footer,
+      bottomBar: keyboardOpen ? null : footer,
       content: isWideLandscape
           ? Stack(
               fit: StackFit.expand,
@@ -601,6 +625,14 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
 
   Widget _buildLoginForm(BuildContext context, AuthViewState state) {
     final theme = FluentTheme.of(context);
+    final keyboardOpen = MediaQuery.viewInsetsOf(context).bottom > 0;
+    // Duración/curva del tema de Fluent, no números inventados — y cero
+    // cuando el sistema pide menos movimiento (orden del dueño, 12-sep-2026:
+    // usar la duración y curva del tema; `disableAnimationsOf` en cero).
+    final animationDuration = MediaQuery.disableAnimationsOf(context)
+        ? Duration.zero
+        : theme.fastAnimationDuration;
+    final animationCurve = theme.animationCurve;
     final themeToggle = Tooltip(
       message: theme.brightness == Brightness.dark
           ? 'Cambiar a modo claro'
@@ -648,41 +680,95 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
         onPressed: () => setState(() => _pinMode = true),
       ),
     );
-    // The submit button (and the header above it) must never end up behind
-    // the translucent credit footer, no matter how short the window is. Only
-    // the fields+toggles in between are allowed to scroll: they sit in a
-    // Flexible+shrinkWrap section that keeps its natural height while there
-    // is room, and only turns scrollable once the window is too short — the
-    // header and the button stay pinned and fully visible either way.
-    final header = <Widget>[
-      // Use the app preference rather than a login-only Theme override.
-      // This preserves one source of truth and the existing scope boundary.
-      // Choosing an environment used to need a second, separate header row
-      // ("Gestionar servidores"). That control now lives inside the server
-      // selector itself (see _buildServerSelectorField), so this row only
-      // ever holds the theme toggle.
-      Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [pinModeButton, themeToggle],
-      ),
-      const SizedBox(height: OrbiTheme.space12),
-      OrbiBrand(height: 84.0, color: theme.accentColor),
-      const SizedBox(height: OrbiTheme.space16),
-      Text(
-        'Acceso a Orbi',
-        style: theme.typography.title,
-        textAlign: TextAlign.center,
-      ),
-      const SizedBox(height: OrbiTheme.space8),
-      Text(
-        'Conéctate a tu entorno de trabajo',
-        style: theme.typography.body?.copyWith(
-          color: theme.resources.textFillColorSecondary,
+    // Con el teclado abierto la cabecera se encoge en vez de quedarse fija a
+    // su tamaño de siempre (orden del dueño, 12-sep-2026: «¿No se debería
+    // reducir el tamaño de la cabecera y subirla en transición hasta que se
+    // vean los TextEdit?»): el logo baja de 84 a 32px, el subtítulo se
+    // oculta y el título pasa a `typography.subtitle`. El AnimatedSize
+    // exterior interpola el alto TOTAL resultante (logo+título+subtítulo)
+    // entre un build y el siguiente; adentro cada pieza cambia de golpe a su
+    // valor final, pero como el contenedor todavía se está expandiendo o
+    // encogiendo, el efecto visible es el logo/título subiendo o bajando
+    // junto con el resto de la tarjeta — no un salto.
+    //
+    // 🔴 Esto NO desmonta el subárbol de los campos: header es un widget
+    // aparte, nunca envuelve a fieldsColumn (ver _fieldsColumnKey), así que
+    // animar la cabecera no puede robarle el foco a Usuario/Contraseña.
+    final headerChild = Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        // Use the app preference rather than a login-only Theme override.
+        // This preserves one source of truth and the existing scope
+        // boundary. Choosing an environment used to need a second,
+        // separate header row ("Gestionar servidores"). That control now
+        // lives inside the server selector itself (see
+        // _buildServerSelectorField), so this row only ever holds the
+        // theme toggle.
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [pinModeButton, themeToggle],
         ),
-        textAlign: TextAlign.center,
-      ),
-      const SizedBox(height: OrbiTheme.space24),
-    ];
+        SizedBox(height: keyboardOpen ? OrbiTheme.space8 : OrbiTheme.space12),
+        // 🔴 NO envolver esto en su propio AnimatedSize: un AnimatedSize
+        // anidado DENTRO de otro (el exterior) se reinicia a mitad del
+        // layout del padre y Flutter lo rechaza con «A RenderAnimatedSize
+        // was mutated in its own performLayout implementation» — se
+        // reprodujo justo con `disableAnimations` (duración cero fuerza
+        // los dos layouts al mismo frame). El AnimatedSize EXTERIOR ya
+        // interpola el alto total; el logo cambia de tamaño de golpe pero
+        // el efecto visible sigue siendo el logo "entrando/saliendo" del
+        // recorte mientras el contenedor crece o encoge.
+        OrbiBrand(height: keyboardOpen ? 32.0 : 84.0, color: theme.accentColor),
+        SizedBox(height: keyboardOpen ? OrbiTheme.space8 : OrbiTheme.space16),
+        AnimatedDefaultTextStyle(
+          duration: animationDuration,
+          curve: animationCurve,
+          textAlign: TextAlign.center,
+          style:
+              (keyboardOpen
+                  ? theme.typography.subtitle
+                  : theme.typography.title) ??
+              const TextStyle(),
+          child: const Text('Acceso a Orbi'),
+        ),
+        // Mismo motivo que el logo: sin AnimatedSize propio, el colapso lo
+        // hace el exterior.
+        if (!keyboardOpen)
+          Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const SizedBox(height: OrbiTheme.space8),
+              Text(
+                'Conéctate a tu entorno de trabajo',
+                style: theme.typography.body?.copyWith(
+                  color: theme.resources.textFillColorSecondary,
+                ),
+                textAlign: TextAlign.center,
+              ),
+            ],
+          ),
+        SizedBox(height: keyboardOpen ? OrbiTheme.space12 : OrbiTheme.space24),
+      ],
+    );
+    // 🔴 Con duración cero, NO usar AnimatedSize: `RenderAnimatedSize`
+    // reinicia su animación DENTRO de su propio `performLayout`, y con
+    // duración cero `AnimationController.forward()` se completa de forma
+    // SÍNCRONA en el mismo layout pass — Flutter lo rechaza con «A
+    // RenderAnimatedSize was mutated in its own performLayout
+    // implementation». Se reprodujo justo cuando el teclado abre y
+    // `header` se reparenta (ver `_headerKey`) EN EL MISMO frame en que
+    // también cambia de tamaño. Sin nada que animar (duración cero), un
+    // `KeyedSubtree` cambia de tamaño igual de instantáneo, sin el
+    // controlador de animación de por medio.
+    final header = animationDuration == Duration.zero
+        ? KeyedSubtree(key: _headerKey, child: headerChild)
+        : AnimatedSize(
+            key: _headerKey,
+            duration: animationDuration,
+            curve: animationCurve,
+            alignment: Alignment.topCenter,
+            child: headerChild,
+          );
     // Servidor, Usuario y Contraseña/API key son el formulario estándar del
     // proyecto (orden del dueño, 12-sep-2026: «los formularios también de
     // manera similar») — la misma pareja OrbiForm/OrbiField que ya usa
@@ -697,7 +783,10 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       OrbiForm(
         sections: [
           OrbiFormSection(
-            title: 'Credenciales',
+            // Sin título de sección: el acceso a Orbi es una sola sección y
+            // "Acceso a Orbi" ya está en el título de la pantalla — repetir
+            // el nombre de la sección no aportaba nada (orden del dueño,
+            // 12-sep-2026).
             fields: [
               OrbiField(
                 label: 'Servidor',
@@ -721,18 +810,38 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
               OrbiField(
                 label: _apiKeyMode ? 'API key' : 'Contraseña',
                 // TextBox+obscureText rather than PasswordBox: PasswordBox
-                // has no `autofillHints`, and keeping password managers
-                // working matters more here than PasswordBox's reveal-button
-                // affordance.
+                // has no `autofillHints` (comprobado en
+                // fluent_ui-4.16.1/lib/src/controls/form/password_box.dart),
+                // and keeping the platform's password manager (el del
+                // iPhone del dueño) working matters more here than
+                // PasswordBox's own reveal-button affordance — la
+                // reponemos a mano abajo, con `suffix`, sin perder
+                // autofillHints.
                 child: TextBox(
                   controller: _password,
                   focusNode: _passwordFocus,
                   textInputAction: TextInputAction.done,
                   onSubmitted: (_) => _submit(),
-                  obscureText: true,
+                  obscureText: !_passwordVisible,
                   prefix: const Padding(
                     padding: EdgeInsets.symmetric(horizontal: OrbiTheme.space8),
                     child: Icon(FluentIcons.lock, size: 16),
+                  ),
+                  suffix: Tooltip(
+                    message: _passwordVisible
+                        ? 'Ocultar clave'
+                        : 'Mostrar clave',
+                    child: IconButton(
+                      key: const Key('login-password-reveal'),
+                      icon: Icon(
+                        _passwordVisible
+                            ? FluentIcons.hide3
+                            : FluentIcons.red_eye,
+                        size: 16,
+                      ),
+                      onPressed: () =>
+                          setState(() => _passwordVisible = !_passwordVisible),
+                    ),
                   ),
                   autofillHints: const [AutofillHints.password],
                 ),
@@ -808,49 +917,89 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
           ),
       ],
     ];
+    final submitButton = FilledButton(
+      onPressed: (state.isBusy || _selectedServer == null) ? null : _submit,
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.center,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          state.isBusy
+              ? const SizedBox(
+                  width: 18,
+                  height: 18,
+                  child: ProgressRing(strokeWidth: 2),
+                )
+              : const Icon(FluentIcons.signin, size: 16),
+          const SizedBox(width: 8),
+          Text(state.isBusy ? 'Conectando…' : 'Iniciar sesión'),
+        ],
+      ),
+    );
+    // El mismo widget (misma GlobalKey) en las dos arquitecturas de abajo:
+    // sin ella, Flutter destruiría y recrearía TextBox/EditableText —
+    // perdiendo el estado con el que EditableText detecta que abrió el
+    // teclado — cada vez que _buildLoginForm cambia de envoltorio (ver el
+    // comentario de _fieldsColumnKey).
+    final fieldsColumn = Column(
+      key: _fieldsColumnKey,
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      mainAxisSize: MainAxisSize.min,
+      children: fieldsAndToggles,
+    );
+    // Con el teclado del sistema abierto, ScaffoldPage le resta al contenido
+    // el alto del teclado. La arquitectura de abajo (encabezado y botón
+    // FIJOS, sólo el bloque de campos en un Flexible+SingleChildScrollView)
+    // entonces le quita casi todo el alto al Flexible de en medio —
+    // "Usuario" y "Contraseña" quedaban aplastados a unos pocos píxeles
+    // (reporte del dueño, iPhone, 12-sep-2026). Con el teclado abierto la
+    // tarjeta ENTERA (encabezado, campos, interruptores, mensajes y botón)
+    // pasa a ser un solo Column dentro de un único SingleChildScrollView,
+    // sin nada fijo — así el campo con foco se trae solo a la vista
+    // (EditableText hace su propio scrollIntoView dentro de un Scrollable
+    // ancestro) y el botón se alcanza desplazando.
+    //
+    // Sin teclado (el caso de escritorio, y el de un teléfono antes de tocar
+    // un campo) se mantiene la arquitectura de siempre: header y botón
+    // pinneados, sólo el medio se ajusta. Un solo Column-scroll también ahí
+    // rompería el contrato ya probado de "el botón siempre visible sin
+    // desplazar" en ventanas de escritorio bajas (800x600, 900x670,
+    // 1280x600): sin la merma REAL de un teclado, esas ventanas no tienen
+    // margen para que la tarjeta entera quepa sin desplazar, y antes de
+    // ahora nunca hacía falta — es exactamente lo que
+    // "en pantallas anchas horizontales... se ve igual que hoy" pide
+    // conservar.
+    if (keyboardOpen) {
+      return AutofillGroup(
+        child: SingleChildScrollView(
+          keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              header,
+              fieldsColumn,
+              const SizedBox(height: OrbiTheme.space24),
+              submitButton,
+            ],
+          ),
+        ),
+      );
+    }
     return AutofillGroup(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         mainAxisSize: MainAxisSize.min,
         children: [
-          ...header,
-          // El botón "Iniciar sesión" (más abajo) es la acción fija del
-          // formulario: siempre visible. Lo que no quepa entre el
-          // encabezado y ese botón se desplaza aquí dentro — sin
-          // presupuesto de alto calculado a mano, con el alto REAL que
-          // Flutter mide en cada build.
+          header,
           Flexible(
             fit: FlexFit.loose,
             child: SingleChildScrollView(
               keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                mainAxisSize: MainAxisSize.min,
-                children: fieldsAndToggles,
-              ),
+              child: fieldsColumn,
             ),
           ),
           const SizedBox(height: OrbiTheme.space24),
-          FilledButton(
-            onPressed: (state.isBusy || _selectedServer == null)
-                ? null
-                : _submit,
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                state.isBusy
-                    ? const SizedBox(
-                        width: 18,
-                        height: 18,
-                        child: ProgressRing(strokeWidth: 2),
-                      )
-                    : const Icon(FluentIcons.signin, size: 16),
-                const SizedBox(width: 8),
-                Text(state.isBusy ? 'Conectando…' : 'Iniciar sesión'),
-              ],
-            ),
-          ),
+          submitButton,
         ],
       ),
     );
