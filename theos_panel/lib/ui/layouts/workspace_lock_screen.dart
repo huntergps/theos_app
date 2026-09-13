@@ -115,7 +115,7 @@ class _WorkspaceLockScreenState extends State<WorkspaceLockScreen> {
   Widget build(BuildContext context) {
     final theme = FluentTheme.of(context);
     return ColoredBox(
-      color: theme.scaffoldBackgroundColor,
+      color: theme.micaBackgroundColor,
       child: SafeArea(
         child: Center(
           child: ConstrainedBox(
