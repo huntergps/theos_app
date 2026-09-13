@@ -259,11 +259,20 @@ Ninguno de estos está encargado a nadie. Están aquí para que no se pierdan.
 - **Cada acceso fallido deja una credencial huérfana en el servidor.** El
   retroceso borra la copia local y nunca revoca la remota. Hay cuatro de `admin`
   en ERP2 de esta madrugada, sin revocar.
-- **Un fallo de conexión se interpreta como falta de red** sin comprobarlo. El
-  paquete de conectividad ya está declarado y sin usar.
-- **Los conflictos de sincronización llegan vacíos.** El trabajo que los calcula
-  solo guarda cuántos hay y descarta el detalle, así que la pantalla nunca los
-  puede mostrar.
+- ✅ ~~Un fallo de conexión se interpreta como falta de red~~ y ✅ ~~los conflictos llegan
+  vacíos~~: ya no aplican en el código. `ConnectivityMonitor` distingue sin red, servidor
+  caído y 401 (`connectivity_monitor.dart:95-155`, `json2_backend_probe.dart:26-49`), y
+  `sync_coordinator_impl.dart:113-121` guarda el detalle de los conflictos. Auditoría del
+  13-sep-2026.
+- 🔴 **La sincronización no vuelve sola** (auditoría del 13-sep-2026, con prueba). Corre una
+  vez al entrar y cuando se pulsa «Reintentar». Al volver la red o la app a primer plano no
+  pasa nada, así que lo encolado sin conexión espera a que alguien abra `/sync`. En arreglo.
+- 🔴 **La cola se drena DESPUÉS de los catálogos**, al revés de lo que exige el diseño
+  (`runtime_catalog_composition.dart:90-107`: `operations` se inserta al final). En arreglo.
+- **No hay estado «lento»:** un servidor que tarda se ve igual que uno caído.
+- **Varias pestañas en web con la misma base local:** sin verificar en un navegador.
+- Medido en ERP2 con un vendedor real: un ciclo de sincronización hace 14 llamadas en
+  3,5 s, y ninguno de los 14 catálogos le está negado. El 403 de pagos era el único.
 
 - **El certificado de erp1 no se puede renovar.** Vence el 2026-11-04. La
   renovación falla porque el servicio de esa instancia está apagado, y sin
