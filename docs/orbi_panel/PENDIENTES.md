@@ -4,7 +4,11 @@ Este archivo existe porque las cosas se estaban perdiendo en la conversación. L
 que no está aquí, no está comprometido con nadie. Se actualiza en cuanto algo
 entra o sale, no al final de la sesión.
 
-Última actualización: 2026-09-13, madrugada. Tiempo real de extremo a extremo en ERP2, `l10n_ec_app_sync` desplegado en ERP2 y Mepriga, pantallas de Orbi al nivel de theos_pos.
+Última actualización: 2026-09-13. Supervisión de turnos ajenos, bloqueo persistente y opaco,
+panel de diagnóstico `?diag=1`, franja blanca del teléfono corregida, logo del splash y
+barra superior/pie igualados a theos_pos, estado del usuario en el avatar, «Mis
+preferencias» de Odoo sin conexión y sincronización de cuenta. Publicado en
+orbi.galapagos.tech: `05640af`.
 
 ## Esperan una decisión del dueño
 
@@ -18,11 +22,10 @@ siquiera estaba anotada.
   de envases).
 - **Cambiar la clave de los conectores de Velneo en Mepriga.** Está escrita en su sitio de
   Apache, es muy débil, y esos conectores atacan bases en producción.
-- **Mudar los canales de texto de caja a canales autorizados.** 71 llamadas `_sendone` en
-  los módulos de caja, unos 30 canales `{db}.*` adivinables, varios con importes. Consumidores
-  web: `l10n_ec_collection_panel/static/src/panel/panel.js:358` y
-  `l10n_ec_hotel/static/src/js/hotel_stay_dashboard_bus.js:76`. Información entregada al dueño
-  el 13-sep-2026; espera su decisión.
+- **Mudar a newerp los canales de texto de caja a canales autorizados.** Ya se mudaron y se
+  desplegaron en ERP2 (dev_odoo20 `3cb8983b7`, procedimiento y sonda antes/después en
+  `dev_odoo20/docs/MUDAR_CANALES_BUS.md`); newerp sigue con los canales de texto viejos. Ver
+  el defecto de seguridad más abajo.
 
 ## Resueltas, para que no se vuelvan a preguntar
 
@@ -32,8 +35,58 @@ siquiera estaba anotada.
 - **Sincronización para todos** (13-sep-2026): «todos los usuarios deben poder ver la
   información de sincronización, offline y poder cambiar su configuración». `/sync` y
   `/sync/queue` abiertas a todo usuario autenticado, también sin permisos cargados.
-- **Vista de supervisor de turnos ajenos** (13-sep-2026): «hay que dejar implementado todo». En
-  construcción.
+- 🟢 **Vista de supervisor de turnos ajenos, entregada** (13-sep-2026): «hay que dejar
+  implementado todo». `CollectionSessionSupervisionPort` pausa, reanuda, valida, cierra y
+  reabre la sesión de otro cajero, sólo en línea, según el rol y el estado real, con
+  confirmación y el texto de error de Odoo. De paso: un cajero sin `collection_supervisor`
+  ya no encola `session_close` para que Odoo lo rechace y muera en `dead_letter`; el turno
+  queda en `closing_control` esperando a un supervisor (7247cc2).
+- 🟢 **El bloqueo del puesto de trabajo sobrevive a recargar la página, y ya no deja ver las
+  ventas detrás** (13-sep-2026). Antes, pulsar «Bloquear» y recargar mostraba Inicio;
+  ahora persiste y se ve la pantalla de bloqueo (7247cc2). Esa pantalla pintaba el fondo
+  translúcido de Fluent (`layerOnAcrylicFillColorDefault`, 0x09/0x40) en vez de uno opaco,
+  así que las cifras de ventas se transparentaban detrás; ahora usa el fondo sólido de
+  Fluent (334e914).
+- 🟢 **La franja blanca del pie en el teléfono, explicada y arreglada** (13-sep-2026,
+  2c1ae0e). La última fila del armazón no pintaba nada y dejaba ver la foto clara de
+  `index.html` por detrás; ahora el armazón y esa fila pintan el mismo fondo sólido que el
+  pie ancho. **Falta la confirmación del dueño en un iPhone real.**
+- 🟢 **Barra superior y pie del armazón, igualados a theos_pos** (13-sep-2026, 8bf6991): la
+  barra se vuelve compacta en pantalla angosta, Modo Ruta y «N pendientes» aparecen cuando
+  aplican, la empresa va sobre el nombre de usuario, y el pie ancho muestra versión de
+  Odoo, URL y base con íconos y un reloj local; la versión de Odoo queda en caché por
+  servidor y base para sobrevivir a un arranque sin conexión.
+- 🟢 **El logo del splash gira igual que en theos_pos: sólo el símbolo, no el texto**
+  (13-sep-2026). `orbi_logo.svg` era un solo trazo con el símbolo y las letras juntos; se
+  separó en `orbi_symbol.svg` y `orbi_wordmark.svg` sin tocar el original, y el símbolo
+  gira cada 20 s mientras el texto queda quieto debajo (8b5dd67). Se le devolvió la
+  etiqueta de accesibilidad «Marca Orbi ERP» que se había perdido al partirlo (8f8a5a6).
+- **Panel de diagnóstico `?diag=1` en la web** (13-sep-2026, 9e23497): overlay opcional que
+  reporta `innerHeight`, `visualViewport`, los rectángulos de `html`/`body`/`flutter-view`,
+  las cuatro unidades de alto de viewport y los márgenes seguros, con historial de cambios.
+  Se activa por la URL y persiste en `localStorage`; sin la bandera no crea ningún nodo. Es
+  la herramienta para medir el defecto de «Preparando Orbi ERP…» de más abajo, no lo cierra.
+- 🟢 **Estado del usuario (En línea/Ausente/No molestar/Desconectado) en el avatar**
+  (13-sep-2026, d2138f9 y 65c4701). El punto se ve al momento y el submenú «Estado» sólo
+  aparece si el servidor tiene `mobile_set_im_status`; sin conexión la elección queda
+  encolada bajo `presence:<uid>` y el punto muestra la elección pendiente hasta confirmar.
+  Cierra el defecto de más abajo: `res.users.manual_im_status` no era escribible por el
+  propio usuario con llave, pero `l10n_ec_collection_box_pos` sí expone
+  `mobile_set_im_status`.
+- 🟢 **«Mis preferencias» de Odoo, funcionando sin conexión** (13-sep-2026; 17e4883,
+  8300f30, 65c4701). Mismo diálogo que theos_pos: avatar con elegir y quitar (redimensionado
+  a 1920px JPEG 85, como theos_pos), correo y teléfono de trabajo de solo lectura, móvil y
+  bodega cuando el servidor los tiene, idioma, firma, tipo de notificación, huso horario,
+  dirección privada, país y provincia, grupos y la pestaña de seguridad. Todo sale de la
+  base local y guarda encolando `res.users`/`res.partner` en la misma transacción. **A
+  propósito quedan fuera** los controles de adorno de theos_pos (posición del chatter,
+  ubicación y horario de trabajo, contacto de emergencia); cambiar la clave y cerrar
+  dispositivos siguen siendo sólo en línea, por seguridad.
+- **Sincronización de cuenta** (13-sep-2026, 17e4883). El catálogo local suma `res.lang`,
+  `res.country`, `res.country.state`, `res.groups` y el propio usuario y su contacto, con
+  los campos opcionales detectados por `fields_get`, y nunca borra el contacto del usuario
+  de la sesión aunque salga del dominio de clientes. Los avisos de `app_sync` para
+  `res.users`/`res.partner` refrescan al usuario actual.
 
 - 🟢 **La conexión en vivo con la sesión en la dirección SE QUEDA** (13-sep-2026). Es la
   mitad `/websocket` del parche del despachador (`l10n_ec_collection_box_pos/models/ir_http.py`),
@@ -203,9 +256,24 @@ siquiera estaba anotada.
 
 ## En construcción ahora mismo
 
-Nada abierto al 13-sep-2026, 03:00 (Ecuador). Publicado en orbi.galapagos.tech: 29f36c6. La prueba
+Nada abierto al 13-sep-2026. Publicado en orbi.galapagos.tech: `05640af`, con todo lo entregado
+hoy (presencia, «Mis preferencias», sincronización de cuenta y el registro de `file_picker` en
+macOS). La prueba
 intermitente de envases quedó arreglada en origen (57fb0ed: un solo `pump()` tras una escritura
 asíncrona del caché no garantiza el frame).
+
+🔴 **Los commits de hoy en theos_app y en dev_odoo20 están en local, sin subir a GitHub.** La
+rama `orbi/trabajo-pausado-2026-09-11` de theos_app no existe todavía en `origin`, y
+`master` de dev_odoo20 está 15 commits adelante de `origin/master`.
+
+Entregado durante el día del 13-sep-2026 (después de la tanda de la madrugada; detalle de
+cada punto en «Resueltas», arriba): supervisión de turnos ajenos (7247cc2), persistencia y
+opacidad del bloqueo (7247cc2, 334e914), franja blanca del pie (2c1ae0e), panel de
+diagnóstico `?diag=1` (9e23497), logo del splash (8b5dd67, 8f8a5a6), barra superior y pie
+como theos_pos (8bf6991), estado del usuario en el avatar (d2138f9, 65c4701), «Mis
+preferencias» de Odoo sin conexión (17e4883, 8300f30, 65c4701), sincronización de cuenta
+(17e4883), y de paso se corrigió el checkout limpio que fallaba por el PDF.js autohospedado
+sin trackear (6eae5f2).
 
 Entregado la noche del 12 al 13-sep-2026:
 
@@ -219,16 +287,16 @@ Entregado la noche del 12 al 13-sep-2026:
 
 ## Defectos conocidos y sin arreglar
 
-- 🔴🔴 **SEGURIDAD: los avisos de tiempo real de caja se pueden escuchar sin iniciar sesión.**
-  `l10n_ec_collection_box*` publica por `bus.bus._sendone` en canales de texto fijos y adivinables:
-  `{db}.collection_session` (`collection_session.py:2070`), `{db}.sale_order_updated` con importes y
-  nombres, y otros `*_updated`. El bus de Odoo 19.5 no filtra los canales de texto que pide el
-  cliente (`bus/models/ir_websocket.py:21-35,45-83`), y el propio núcleo advierte que no deben ser
-  adivinables (`bus/models/bus.py:92-100`). Medido en ERP2 el 13-sep-2026: una sesión pública,
-  sin login, se suscribió a `erp2_tecnosmart_com_ec.collection_session` sin rechazo. No se
-  observó entrega real porque no hubo actividad de caja en la ventana y no se escribieron datos.
-  El aviso genérico de `l10n_ec_app_sync` ya usa canales autorizados (desplegado el 13-sep-2026);
-  los de caja siguen en texto hasta que el dueño apruebe mudarlos.
+- 🟡 **SEGURIDAD: los avisos de tiempo real de caja ya van por canales autorizados en ERP2;
+  falta newerp.** El defecto medido el 13-sep-2026 —`l10n_ec_collection_box*` publicando por
+  `bus.bus._sendone` en canales de texto fijos y adivinables, con importes, que el bus de Odoo
+  19.5 no filtra— se corrigió en dev_odoo20 `3cb8983b7`: `collection.bus._collection_bus_send`
+  publica ahora por `(empresa, collection_box)` o `(tercero, collection_box)`, y
+  `ir.websocket` exige `group_collection_user` para esos canales. Desplegado en ERP2 el
+  13-sep-2026 (evidencia y sonda antes/después en `dev_odoo20/docs/MUDAR_CANALES_BUS.md`,
+  commit `49ec81101`). El aviso genérico de `l10n_ec_app_sync` también usa canales autorizados.
+  **newerp sigue con los canales de texto viejos**; mudarlo es cambiar un módulo de Odoo en
+  producción y necesita autorización aparte del dueño (ver la sección de decisiones).
 - ✅ **Las notificaciones del sistema no podían mostrarse nunca**: el presentador quedaba con el
   alcance fijo «unconfigured». Arreglado en de14f3a.
 
@@ -240,8 +308,6 @@ Entregado la noche del 12 al 13-sep-2026:
 - **Clientes sin ciudad, dirección ni límite de crédito.** El catálogo `res.partner` sólo
   trae nombre, identificación, correo, teléfono y empresa; `SaleCatalogPartner` es
   compartido con theos_pos.
-- **Presencia (En línea/Ausente) no implementada.** `res.users.manual_im_status` no es
-  escribible por el propio usuario con llave; sólo por la ruta de sesión web de `mail`.
 - **La píldora de conectividad no muestra latencia.** `Json2BackendProbe` sólo confirma
   que el servidor contestó, no mide cuánto tardó.
 - **Lo que Odoo recalcula no avisa en tiempo real.** Un campo almacenado recalculado
