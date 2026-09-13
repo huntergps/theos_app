@@ -88,6 +88,16 @@ final class RuntimeCatalogComposition {
     };
     final stores = <String, DriftCatalogStore<Map<String, dynamic>>>{};
     final jobs = <String, SyncJob>{};
+    // La cola de operaciones offline (ventas, cobros pendientes) va PRIMERO
+    // en el grafo. `SyncCoordinatorImpl` ejecuta `_jobs` en el orden de
+    // inserción de este mapa (sync_coordinator_impl.dart:120), así que
+    // insertarla antes que los catálogos es lo que hace que drene antes de
+    // sincronizar catálogos — el contrato documentado en CLAUDE.md. Medido
+    // el 13-sep-2026: antes de este cambio, "operations" se insertaba al
+    // final y corría DESPUÉS de los 14 catálogos.
+    if (operationsJob != null) {
+      jobs[operationsJob.id] = operationsJob;
+    }
     for (final entry in specs.entries) {
       final store = DriftCatalogStore<Map<String, dynamic>>(
         owner: owner,
@@ -101,9 +111,6 @@ final class RuntimeCatalogComposition {
         store: store,
         load: loader.loader(entry.value),
       );
-    }
-    if (operationsJob != null) {
-      jobs[operationsJob.id] = operationsJob;
     }
     return RuntimeCatalogComposition._(
       activation: activation,
