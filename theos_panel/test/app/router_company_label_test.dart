@@ -44,6 +44,11 @@ void main() {
   );
 
   Future<void> pump(WidgetTester tester, AuthProfile profile) async {
+    // Ancho de escritorio: desde e2108c7 el menú lo resuelve Fluent en
+    // automático, y a los 800 px por omisión de flutter_test cae en el carril
+    // de iconos, donde Fluent esconde la cabecera con la empresa.
+    await tester.binding.setSurfaceSize(const Size(1920, 1080));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
     SharedPreferences.setMockInitialValues({});
     final preferences = await SharedPreferences.getInstance();
     final container = ProviderContainer(
