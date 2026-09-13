@@ -10,7 +10,6 @@ import 'auth_controller.dart';
 import 'login_failure_messages.dart';
 import 'login_preferences.dart';
 import 'pin_login_screen.dart';
-import 'session_provenance.dart';
 import 'saved_servers.dart';
 import 'server_manager_dialog.dart';
 import '../../app/theme/orbi_theme.dart';
@@ -585,9 +584,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
           // "Gestionar servidores…" hint) is long enough for a narrow card.
           isExpanded: true,
           placeholder: Text(
-            hasServers
-                ? 'Selecciona un servidor'
-                : 'Ningún servidor guardado',
+            hasServers ? 'Selecciona un servidor' : 'Ningún servidor guardado',
             overflow: TextOverflow.ellipsis,
           ),
         ),
@@ -602,10 +599,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     );
   }
 
-  Widget _buildLoginForm(
-    BuildContext context,
-    AuthViewState state,
-  ) {
+  Widget _buildLoginForm(BuildContext context, AuthViewState state) {
     final theme = FluentTheme.of(context);
     final themeToggle = Tooltip(
       message: theme.brightness == Brightness.dark
@@ -717,9 +711,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                   textInputAction: TextInputAction.next,
                   onSubmitted: (_) => _passwordFocus.requestFocus(),
                   prefix: const Padding(
-                    padding: EdgeInsets.symmetric(
-                      horizontal: OrbiTheme.space8,
-                    ),
+                    padding: EdgeInsets.symmetric(horizontal: OrbiTheme.space8),
                     child: Icon(FluentIcons.contact, size: 16),
                   ),
                   onChanged: (_) => _scheduleLoginPreferencesSave(),
@@ -739,9 +731,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                   onSubmitted: (_) => _submit(),
                   obscureText: true,
                   prefix: const Padding(
-                    padding: EdgeInsets.symmetric(
-                      horizontal: OrbiTheme.space8,
-                    ),
+                    padding: EdgeInsets.symmetric(horizontal: OrbiTheme.space8),
                     child: Icon(FluentIcons.lock, size: 16),
                   ),
                   autofillHints: const [AutofillHints.password],
@@ -795,19 +785,6 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
           ),
         ],
       ),
-      // La sesión que el arranque encontró y decidió NO adoptar. Va ARRIBA
-      // del mensaje de error y ABAJO de los campos: es una salida rápida, no
-      // el camino principal — quien no sea esa persona tiene el formulario
-      // justo encima, ya relleno y listo.
-      if (ref.watch(offeredSessionProvider) case final OfferedSession offer)
-        ...[
-          const SizedBox(height: OrbiTheme.space12),
-          _OfferedSessionCard(
-            key: const Key('offered-session-card'),
-            offer: offer,
-            onContinue: _continueWithOfferedSession,
-          ),
-        ],
       if (state.message != null) ...[
         const SizedBox(height: OrbiTheme.space12),
         // A message the mapping recognises is drawn as a real panel; anything
@@ -826,9 +803,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
             label: state.message,
             child: Text(
               state.message!,
-              style: TextStyle(
-                color: theme.resources.systemFillColorCritical,
-              ),
+              style: TextStyle(color: theme.resources.systemFillColorCritical),
             ),
           ),
       ],
@@ -944,12 +919,6 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     });
   }
 
-  /// Acepta la sesión que ya estaba abierta. El atajo del dueño, intacto:
-  /// sigue siendo un clic. Lo único que cambió es que lo da una persona.
-  Future<void> _continueWithOfferedSession() async {
-    await ref.read(authControllerProvider.notifier).restore();
-  }
-
   Future<void> _submit() async {
     final selected = _selectedServer;
     if (selected == null) return;
@@ -1000,56 +969,5 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     }
     _password.clear();
     TextInput.finishAutofillContext(shouldSave: succeeded);
-  }
-}
-
-/// La oferta de una sesión ajena, en la propia pantalla de acceso.
-///
-/// Deliberadamente NO es un botón suelto: nombra a la persona y dice la
-/// consecuencia. «Continuar con la sesión abierta» no deja ver a quién estás a
-/// punto de suplantar; «Continuar como jacqueline.rizo» sí.
-class _OfferedSessionCard extends StatelessWidget {
-  const _OfferedSessionCard({
-    super.key,
-    required this.offer,
-    required this.onContinue,
-  });
-
-  final OfferedSession offer;
-  final Future<void> Function() onContinue;
-
-  @override
-  Widget build(BuildContext context) {
-    // Un aviso con color por significado se hace con InfoBar y su
-    // InfoBarSeverity, nunca pintado a mano: aquí es "info" porque es un
-    // hecho que conviene notar, no una advertencia ni un error. Nada de
-    // color, borde o relleno propio — todo lo resuelve el tema.
-    return Semantics(
-      container: true,
-      label: '${offer.actionLabel}. ${offer.explanation}',
-      child: ExcludeSemantics(
-        child: InfoBar(
-          title: Text(offer.explanation),
-          isLong: true,
-          action: OutlinedButton(
-            key: const Key('continue-offered-session'),
-            onPressed: () => onContinue(),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                const Icon(FluentIcons.contact, size: 18),
-                const SizedBox(width: 8),
-                Flexible(
-                  child: Text(
-                    offer.actionLabel,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
   }
 }
