@@ -70,10 +70,13 @@ class OdooMultilineField extends OdooFieldBase<String> {
                   Icon(config.prefixIcon, size: 14),
                   const SizedBox(width: 4),
                 ],
-                Text(
-                  config.label,
-                  style: theme.typography.body?.copyWith(
-                    fontWeight: FontWeight.w500,
+                Flexible(
+                  child: Text(
+                    config.label,
+                    style: theme.typography.body?.copyWith(
+                      fontWeight: FontWeight.w500,
+                    ),
+                    overflow: TextOverflow.ellipsis,
                   ),
                 ),
               ],

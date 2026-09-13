@@ -5,6 +5,48 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:syncfusion_flutter_datagrid/datagrid.dart';
 import 'package:theos_panel/features/clients/catalog_contracts.dart';
 import 'package:theos_panel/features/clients/clients_screen.dart';
+import 'package:theos_pos_core/theos_pos_core.dart' show SaleCatalogPartner;
+
+/// El mismo doble, pero para el catálogo real: `router.dart` cablea
+/// `ClientsScreen<SaleCatalogPartner>`, no `<String>` — ese genérico sólo
+/// sirve arriba para probar el listado sin depender de theos_pos_core.
+final class _FakePartnerRepository
+    implements CatalogRepository<SaleCatalogPartner> {
+  _FakePartnerRepository(this.items);
+  final List<CatalogEntity<SaleCatalogPartner>> items;
+  final _controller =
+      StreamController<CatalogSnapshot<SaleCatalogPartner>>.broadcast();
+
+  @override
+  Stream<CatalogSnapshot<SaleCatalogPartner>> watch(CatalogQuery query) {
+    Future<void>.microtask(() => _emit(query));
+    return _controller.stream;
+  }
+
+  @override
+  Future<void> refresh(CatalogQuery query) async => _emit(query);
+
+  @override
+  Future<void> loadNext(CatalogQuery query) async => _emit(query);
+
+  void _emit(CatalogQuery query) {
+    final search = query.search.toLowerCase();
+    final filtered = items
+        .where((e) => search.isEmpty || e.title.toLowerCase().contains(search))
+        .toList(growable: false);
+    _controller.add(
+      CatalogSnapshot<SaleCatalogPartner>(
+        status: filtered.isEmpty
+            ? CatalogLoadStatus.empty
+            : CatalogLoadStatus.data,
+        items: filtered,
+        totalCount: filtered.length,
+      ),
+    );
+  }
+
+  Future<void> dispose() => _controller.close();
+}
 
 /// Local catalog fake: watches never touch Odoo/ERP2, they only replay an
 /// in-memory list filtered by the current query, as [CatalogRepository]
@@ -146,15 +188,79 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    expect(find.text('Selecciona un cliente para ver su contexto'), findsOneWidget);
+    expect(
+      find.text('Selecciona un cliente para ver su contexto'),
+      findsOneWidget,
+    );
 
     await tester.tap(find.text('Ferretería Industrial El Constructor'));
     await tester.pumpAndSettle();
 
     expect(controller.selected?.uuid, 'c-3');
-    expect(find.text('Identidad local: c-3'), findsOneWidget);
+    // 🔴 El panel mostraba antes «Identidad local: c-3» — un id interno
+    // delante de quien atiende al cliente. Ahora, para el catálogo genérico
+    // (sin `SaleCatalogPartner`), cae al detalle que ya trae la fila.
+    expect(find.textContaining('Identidad local'), findsNothing);
+    expect(find.textContaining('partner:'), findsNothing);
+    // Aparece dos veces: una en la columna «Detalle» de la fila y otra en el
+    // panel — las dos leen el mismo dato, ninguna el id interno.
+    expect(find.text('RUC 1791111111001 · Cuenca'), findsNWidgets(2));
     expect(tester.takeException(), isNull);
 
     await tester.binding.setSurfaceSize(null);
   });
+
+  testWidgets(
+    'para el catálogo real de socios muestra identificación y correo, '
+    'nunca el id interno',
+    (tester) async {
+      final repository = _FakePartnerRepository(const [
+        CatalogEntity(
+          uuid: 'partner:28701',
+          title: 'Salazar Arias Elmer Steven',
+          value: SaleCatalogPartner(
+            remoteId: 28701,
+            name: 'Salazar Arias Elmer Steven',
+            vat: '0999999999001',
+            email: 'elmer@example.com',
+          ),
+        ),
+      ]);
+      addTearDown(repository.dispose);
+      final controller = CatalogController<SaleCatalogPartner>(
+        repository: repository,
+      );
+      addTearDown(controller.dispose);
+
+      await tester.binding.setSurfaceSize(const Size(1440, 900));
+      await tester.pumpWidget(
+        FluentApp(
+          home: MediaQuery(
+            data: const MediaQueryData(size: Size(1440, 900)),
+            child: ClientsScreen<SaleCatalogPartner>(controller: controller),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      // Columnas reales, no el «Detalle» genérico.
+      expect(find.text('Identificación'), findsOneWidget);
+      expect(find.text('Correo'), findsOneWidget);
+      expect(find.text('0999999999001'), findsOneWidget);
+      expect(find.text('elmer@example.com'), findsOneWidget);
+
+      await tester.tap(find.text('Salazar Arias Elmer Steven'));
+      await tester.pumpAndSettle();
+
+      // El panel de detalle repite los mismos datos, nunca «partner:28701»
+      // ni «Identidad local».
+      expect(find.text('Identificación: 0999999999001'), findsOneWidget);
+      expect(find.text('Correo: elmer@example.com'), findsOneWidget);
+      expect(find.textContaining('partner:'), findsNothing);
+      expect(find.textContaining('Identidad local'), findsNothing);
+      expect(tester.takeException(), isNull);
+
+      await tester.binding.setSurfaceSize(null);
+    },
+  );
 }

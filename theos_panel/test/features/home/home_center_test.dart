@@ -1,7 +1,19 @@
 import 'package:fluent_ui/fluent_ui.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:theos_panel/features/home/home_center.dart';
 import 'package:theos_panel/ui/fluent/orbi_fluent_theme.dart';
+
+/// `HomeCenterView` pasó a `ConsumerWidget` para leer capacidades/sesión de
+/// forma ambiental; todo test necesita un `ProviderScope`, aunque sea sin
+/// overrides (capacidades nulas ⇒ panel de indicadores apagado, mismo
+/// comportamiento de antes).
+Widget _wrap(Widget child) => ProviderScope(
+  child: FluentApp(
+    theme: OrbiFluentTheme.light,
+    home: ScaffoldPage(content: child),
+  ),
+);
 
 void main() {
   group('homeTodayLabel', () {
@@ -36,15 +48,12 @@ void main() {
           actionLabel: 'Abrir',
         );
         await tester.pumpWidget(
-          FluentApp(
-            theme: OrbiFluentTheme.light,
-            home: ScaffoldPage(
-              content: HomeCenterView(
-                port: _FakePort(
-                  const HomeResumeSnapshot(
-                    HomeResumeState.data,
-                    items: [withCount, withoutCount],
-                  ),
+          _wrap(
+            HomeCenterView(
+              port: _FakePort(
+                const HomeResumeSnapshot(
+                  HomeResumeState.data,
+                  items: [withCount, withoutCount],
                 ),
               ),
             ),
@@ -75,16 +84,11 @@ void main() {
         );
         String? resumedRoute;
         await tester.pumpWidget(
-          FluentApp(
-            theme: OrbiFluentTheme.light,
-            home: ScaffoldPage(
-              content: HomeCenterView(
-                port: _FakePort(
-                  const HomeResumeSnapshot(HomeResumeState.empty),
-                ),
-                quickStarts: const [sales],
-                onResume: (item) async => resumedRoute = item.route,
-              ),
+          _wrap(
+            HomeCenterView(
+              port: _FakePort(const HomeResumeSnapshot(HomeResumeState.empty)),
+              quickStarts: const [sales],
+              onResume: (item) async => resumedRoute = item.route,
             ),
           ),
         );
@@ -108,14 +112,9 @@ void main() {
       'empty state without quick starts stays silent about where to go',
       (tester) async {
         await tester.pumpWidget(
-          FluentApp(
-            theme: OrbiFluentTheme.light,
-            home: ScaffoldPage(
-              content: HomeCenterView(
-                port: _FakePort(
-                  const HomeResumeSnapshot(HomeResumeState.empty),
-                ),
-              ),
+          _wrap(
+            HomeCenterView(
+              port: _FakePort(const HomeResumeSnapshot(HomeResumeState.empty)),
             ),
           ),
         );

@@ -122,6 +122,16 @@ void main() {
         ),
       );
       await tester.pumpAndSettle();
+
+      // "Cambiar de usuario" vive ahora en el menú del avatar de la barra
+      // superior (orden del dueño, 13-sep-2026), no suelto en el pie del
+      // panel — hay que abrirlo primero.
+      Future<void> openAvatarMenu() async {
+        await tester.tap(find.byKey(const Key('shell-avatar-button')));
+        await tester.pumpAndSettle();
+      }
+
+      await openAvatarMenu();
       expect(find.byKey(const Key('switch-user-button')), findsOneWidget);
 
       // Cancelling the confirmation must not touch anything.
@@ -139,6 +149,7 @@ void main() {
       expect(container.read(authControllerProvider).profile?.login, 'erik');
 
       // Confirming does close A's identity before showing the login screen.
+      await openAvatarMenu();
       await tester.tap(find.byKey(const Key('switch-user-button')));
       await tester.pumpAndSettle();
       await tester.tap(find.byKey(const Key('confirm-switch-user-button')));

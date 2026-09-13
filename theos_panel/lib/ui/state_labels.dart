@@ -32,6 +32,8 @@ import 'package:orbi_runtime/orbi_runtime.dart'
         OperationSyncState,
         SaleApprovalState,
         SaleTermsClassification;
+import 'package:theos_pos_core/theos_pos_core.dart'
+    show SaleOrderState, SaleOrderStateExtension;
 
 import '../features/approvals/approval_contracts.dart' show ApprovalTerms;
 import '../features/collection/collection_contracts.dart'
@@ -102,6 +104,14 @@ String termsClassificationLabel(SaleTermsClassification terms) =>
       SaleTermsClassification.credit => 'crédito',
       SaleTermsClassification.mixed => 'mixto',
     };
+
+/// Estado del ciclo de vida completo de una orden de venta (la cadena
+/// Cotización → Enviado → ... → Completado/Cancelado de la pantalla de
+/// venta). Reexporta `SaleOrderStateExtension.label`, que ya usa
+/// theos_pos_core con este mismo texto en español — no se duplica la lista
+/// aquí, sólo se consulta desde este único archivo, como el resto de
+/// etiquetas de este módulo.
+String saleOrderStateLabel(SaleOrderState state) => state.label;
 
 /// Estado de una aprobación comercial.
 String approvalStateLabel(SaleApprovalState state) => switch (state) {

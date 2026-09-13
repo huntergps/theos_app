@@ -1,7 +1,10 @@
+import 'dart:math';
+
 import 'package:fluent_ui/fluent_ui.dart';
 import 'package:orbi_runtime/orbi_runtime.dart'
     show ConnectionStatus, connectionStatusLabel;
 
+import '../../app/theme/orbi_theme.dart';
 import '../components/orbi_brand.dart';
 import 'workspace_lock_screen.dart';
 
@@ -30,6 +33,8 @@ final class OperationalContext {
     this.serverTime,
     required this.connectionLabel,
     this.connectionStatus,
+    this.connectionLatency,
+    this.noticesUnreadCount = 0,
     required this.syncLabel,
   });
 
@@ -48,8 +53,46 @@ final class OperationalContext {
   /// los dos no puedan decir cosas distintas.
   final ConnectionStatus? connectionStatus;
 
+  /// Ida y vuelta del último sondeo al servidor. Ausente hasta que
+  /// `orbi_runtime` mida algo real: hoy `Json2BackendProbe.probe`
+  /// (`orbi_runtime/lib/src/connectivity/json2_backend_probe.dart`) sólo
+  /// devuelve si el servidor contestó, nunca cuánto tardó, así que este
+  /// campo se queda en `null` — nunca un número inventado aquí.
+  final Duration? connectionLatency;
+
+  /// Avisos sin leer, para la campanita de la barra superior. 0 por defecto:
+  /// nunca un contador rojo cuando no hay con qué respaldarlo.
+  final int noticesUnreadCount;
+
   final String syncLabel;
 }
+
+/// El grupo bajo el que `router.dart` publica «Inicio»: un único destino que
+/// no debe verse como un desplegable de un solo hijo (orden del dueño,
+/// 13-sep-2026, comparando con `theos_pos`, donde Inicio es de primer nivel).
+const _kHomeGroup = 'Workspace';
+
+/// Rutas que ya no se pintan en el menú lateral porque ahora viven en la
+/// barra superior: el indicador de avisos y el botón de actividades. Se
+/// identifican por ruta y no por grupo porque las cuatro comparten el mismo
+/// grupo «Sistema» en `router.dart`.
+const _kActivitiesPath = '/activities';
+const _kNoticesPath = '/notifications';
+
+/// Rutas que se mudan al pie del panel (patrón `footerItems` de Fluent), en
+/// vez de al grupo «Sistema» del menú principal.
+const _kSyncPath = '/sync';
+const _kQueuePath = '/sync/queue';
+const _kSettingsPath = '/settings';
+
+bool _isTopBarDestination(OperationalDestination d) =>
+    d.path == _kActivitiesPath || d.path == _kNoticesPath;
+
+bool _isFooterDestination(OperationalDestination d) =>
+    d.path == _kSyncPath || d.path == _kQueuePath || d.path == _kSettingsPath;
+
+bool _isGroupedNavDestination(OperationalDestination d) =>
+    !_isTopBarDestination(d) && !_isFooterDestination(d);
 
 /// El marco sobre el que se muestra toda la aplicación.
 ///
@@ -69,7 +112,7 @@ final class OperationalContext {
 ///
 /// La orientación cuenta tanto como el ancho: un iPad vertical de 1024 de
 /// ancho **no** lleva carril, igual que el teléfono.
-final class OperationalShell extends StatelessWidget {
+final class OperationalShell extends StatefulWidget {
   const OperationalShell({
     super.key,
     required this.child,
@@ -82,6 +125,7 @@ final class OperationalShell extends StatelessWidget {
     this.onLock,
     this.onUnlock,
     this.onSwitchUser,
+    this.onToggleTheme,
     this.navigationDisplayMode = PaneDisplayMode.auto,
     this.navigationIndicator = const StickyNavigationIndicator(),
   }) : assert(
@@ -113,13 +157,18 @@ final class OperationalShell extends StatelessWidget {
   /// una acción distinta de bloquear y de cerrar sesión.
   final VoidCallback? onSwitchUser;
 
+  /// Alterna claro/oscuro desde la barra superior. Ausente esconde el botón
+  /// —nunca uno que no responda—: se queda en `null` hasta que quien
+  /// instancie este marco (`router.dart`) lo conecte a su propio `ThemeMode`.
+  final VoidCallback? onToggleTheme;
+
   /// El modo del carril, elegido en Ajustes (orden del dueño, 13-sep-2026:
   /// fluent_ui se puede parametrizar, como hace su propia app de ejemplo en
   /// `example/lib/screens/settings.dart`). Este marco no traduce nombres de
   /// preferencia: quien lo instancia (`router.dart`) ya entrega el
   /// `PaneDisplayMode` de Fluent. Por defecto `auto`, que es lo que este
   /// marco usaba antes de ser parametrizable — Fluent sigue resolviendo ese
-  /// modo por el ancho, tal como documenta [_pane].
+  /// modo por el ancho, tal como documenta [_OperationalShellState._pane].
   final PaneDisplayMode navigationDisplayMode;
 
   /// El indicador de selección del carril, también elegido en Ajustes. Por
@@ -138,6 +187,11 @@ final class OperationalShell extends StatelessWidget {
   /// perdía en oscuro.
 
   @override
+  State<OperationalShell> createState() => _OperationalShellState();
+}
+
+class _OperationalShellState extends State<OperationalShell> {
+  @override
   Widget build(BuildContext buildContext) => Stack(
     children: [
       // El marco sigue montado aunque esté bloqueado: un borrador a medio
@@ -147,20 +201,20 @@ final class OperationalShell extends StatelessWidget {
       // siempre puestos, aunque no hicieran nada, mete un nodo de semántica
       // por encima de la navegación de Fluent y el marco lanza una aserción
       // propia al recorrer el árbol de accesibilidad en anchos de teléfono.
-      if (locked)
+      if (widget.locked)
         IgnorePointer(
           key: const Key('operational-shell-interactivity'),
           child: ExcludeSemantics(child: _scaffold(buildContext)),
         )
       else
         _scaffold(buildContext),
-      if (locked)
+      if (widget.locked)
         Positioned.fill(
           child: WorkspaceLockScreen(
-            userLabel: context.userLabel,
-            pendingSummary: context.syncLabel,
-            onUnlock: onUnlock!,
-            onSwitchUser: onSwitchUser,
+            userLabel: widget.context.userLabel,
+            pendingSummary: widget.context.syncLabel,
+            onUnlock: widget.onUnlock!,
+            onSwitchUser: widget.onSwitchUser,
           ),
         ),
     ],
@@ -173,6 +227,7 @@ final class OperationalShell extends StatelessWidget {
           constraints.maxWidth >= constraints.maxHeight;
       return Column(
         children: [
+          _topBar(layoutContext, constraints.maxWidth),
           Expanded(
             child: NavigationView(
               pane: _pane(),
@@ -188,10 +243,10 @@ final class OperationalShell extends StatelessWidget {
                     ? Column(
                         children: [
                           _minimalTopBar(),
-                          Expanded(child: child),
+                          Expanded(child: widget.child),
                         ],
                       )
-                    : child,
+                    : widget.child,
               ),
             ),
           ),
@@ -204,56 +259,144 @@ final class OperationalShell extends StatelessWidget {
     },
   );
 
-  /// El menú, con sus grupos.
+  /// La barra superior, siempre visible sea cual sea el modo del carril.
   ///
-  /// Cada área es un `PaneItemExpander` **sin cuerpo propio**: pulsarlo abre y
-  /// cierra el grupo, no navega a ningún sitio, porque un área no es una
-  /// pantalla. Fluent excluye de la cuenta de selección los que no tienen
-  /// cuerpo, así que el índice del destino elegido coincide con su posición
-  /// en la lista de destinos y no hay que llevar dos numeraciones en paralelo.
+  /// Va como HERMANA de `NavigationView`, no como su `titleBar`: Fluent
+  /// dibuja el botón que abre el panel mínimo DENTRO de su propia
+  /// `TitleBar`, y esa barra revienta a ancho de teléfono (ver la nota de
+  /// [_minimalTopBar]). Quedando fuera, esta barra nunca toca ese camino y
+  /// puede mostrarse siempre, incluso en teléfono — que es justo lo que pide
+  /// la lámina de referencia (`14.png`: la barra corre por encima del carril
+  /// y del contenido, en todos los anchos).
   ///
-  /// En el carril de sólo iconos, Fluent enseña los hijos en un desplegable
-  /// por sí solo. Eso es exactamente lo que dibuja la lámina, y no hay que
-  /// escribirlo: era una de las cuatrocientas líneas que esta migración quitó.
-  NavigationPane _pane() {
-    final grouped = _groupedDestinations();
-    final ordered = [for (final entry in grouped.entries) ...entry.value];
-    final selected = ordered.indexWhere((d) => d.path == selectedPath);
-    final activeGroup = selected < 0 ? null : ordered[selected].group;
+  /// Las acciones van en un `CommandBar` con `dynamicOverflow`: en angosto,
+  /// Fluent mueve solo las que no caben a un menú «…», nunca las recorta
+  /// (orden del dueño, 13-sep-2026). El bloque de usuario/avatar queda fuera
+  /// del `CommandBar` a propósito — es la acción más importante y no debe
+  /// competir por espacio con el resto.
+  ///
+  /// [availableWidth] llega medido por el `LayoutBuilder` de [_scaffold], no
+  /// se relee con `MediaQuery.sizeOf`. Medido el 13-sep-2026 contra el
+  /// router real (`router_company_label_test.dart`): `tester.binding.
+  /// setSurfaceSize`, que ya usan las pruebas de nivel de router de este
+  /// paquete, mueve las restricciones de diseño —por eso `NavigationPane`
+  /// resuelve bien su propio modo— pero NO actualiza `MediaQuery.sizeOf`,
+  /// que se quedaba en los 800×600 por omisión de `flutter_test` y escondía
+  /// la empresa siempre. El ancho de layout es además la medida correcta:
+  /// importa cuánto sitio tiene el marco, no el de la ventana entera.
+  Widget _topBar(BuildContext context, double availableWidth) {
+    final theme = FluentTheme.of(context);
+    final ctx = widget.context;
+    final hasActivities = widget.destinations.any(
+      (d) => d.path == _kActivitiesPath,
+    );
+    final hasNotices = widget.destinations.any((d) => d.path == _kNoticesPath);
 
-    return NavigationPane(
-      // Sin cortes propios: en modo `auto` el ancho en que el menú se oculta,
-      // se vuelve de iconos o se abre lo decide Fluent (orden del dueño,
-      // 13-sep-2026). El modo en sí ya es parametrizable desde Ajustes —quien
-      // instancia este marco decide si en vez de `auto` se fija `expanded`,
-      // `compact`, `minimal` o `top`.
-      displayMode: navigationDisplayMode,
-      indicator: navigationIndicator,
-      selected: selected < 0 ? null : selected,
-      header: _paneHeader(),
-      footerItems: _sessionActions(),
-      items: [
-        for (final entry in grouped.entries)
-          PaneItemExpander(
-            key: ValueKey('grupo-${entry.key}'),
-            // El icono del grupo es el de su primer destino: sin icono, en el
-            // carril estrecho el área se vuelve invisible.
-            icon: Icon(entry.value.first.icon),
-            title: Text(entry.key),
-            // El grupo de la pantalla que se está viendo nace abierto: cerrado
-            // obligaría a abrirlo para saber dónde se está.
-            initiallyExpanded: entry.key == activeGroup,
-            items: [
-              for (final destination in entry.value)
-                PaneItem(
-                  key: ValueKey(destination.path),
-                  icon: Icon(destination.icon),
-                  title: Text(destination.label),
-                  body: const SizedBox.shrink(),
-                  onTap: () => onNavigate(destination.path),
+    return Container(
+      height: 48,
+      padding: const EdgeInsetsDirectional.only(start: 8, end: 8),
+      decoration: BoxDecoration(
+        color: theme.micaBackgroundColor,
+        border: Border(
+          bottom: BorderSide(color: theme.resources.dividerStrokeColorDefault),
+        ),
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            child: CommandBar(
+              overflowBehavior: CommandBarOverflowBehavior.dynamicOverflow,
+              overflowItemBuilder: (onPressed) => CommandBarButton(
+                key: const Key('shell-topbar-overflow'),
+                icon: const Icon(FluentIcons.more),
+                tooltip: 'Más acciones',
+                onPressed: onPressed,
+              ),
+              primaryItems: [
+                if (hasNotices)
+                  CommandBarButton(
+                    key: const Key('shell-notices-button'),
+                    icon: _badgedIcon(
+                      FluentIcons.ringer,
+                      ctx.noticesUnreadCount,
+                    ),
+                    label: const Text('Avisos'),
+                    tooltip: 'Avisos',
+                    onPressed: () => widget.onNavigate(_kNoticesPath),
+                  ),
+                if (hasActivities)
+                  CommandBarButton(
+                    key: const Key('shell-activities-button'),
+                    icon: const Icon(FluentIcons.clock),
+                    label: const Text('Actividades'),
+                    tooltip: 'Actividades pendientes',
+                    onPressed: () => widget.onNavigate(_kActivitiesPath),
+                  ),
+                _ConnectivityCommandBarItem(
+                  key: const Key('shell-connectivity-pill'),
+                  context: ctx,
                 ),
-            ],
+                if (widget.onToggleTheme != null)
+                  CommandBarButton(
+                    key: const Key('shell-theme-toggle'),
+                    icon: Icon(
+                      theme.brightness == Brightness.dark
+                          ? FluentIcons.sunny
+                          : FluentIcons.clear_night,
+                    ),
+                    label: Text(
+                      theme.brightness == Brightness.dark ? 'Claro' : 'Oscuro',
+                    ),
+                    tooltip: 'Cambiar tema',
+                    onPressed: widget.onToggleTheme,
+                  ),
+              ],
+            ),
           ),
+          const SizedBox(width: 8),
+          _UserAvatarMenu(
+            userLabel: ctx.userLabel,
+            companyLabel: ctx.companyLabel,
+            wide: availableWidth >= OrbiTheme.mediumBreakpoint,
+            onOpenPreferences: () => widget.onNavigate(_kSettingsPath),
+            onLock: widget.onLock,
+            onSwitchUser: widget.onSwitchUser,
+            onLogout: widget.onLogout,
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// Un icono con una insignia numérica arriba a la derecha, sólo cuando
+  /// [count] es positivo — nunca un círculo rojo vacío de adorno.
+  Widget _badgedIcon(IconData icon, int count) {
+    if (count <= 0) return Icon(icon);
+    return Stack(
+      clipBehavior: Clip.none,
+      children: [
+        Icon(icon),
+        Positioned(
+          top: -4,
+          right: -4,
+          child: Container(
+            padding: const EdgeInsets.all(2),
+            decoration: BoxDecoration(
+              color: Colors.red,
+              shape: BoxShape.circle,
+            ),
+            constraints: const BoxConstraints(minWidth: 14, minHeight: 14),
+            child: Text(
+              count > 99 ? '99+' : '$count',
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 9,
+                fontWeight: FontWeight.bold,
+              ),
+              textAlign: TextAlign.center,
+            ),
+          ),
+        ),
       ],
     );
   }
@@ -271,7 +414,9 @@ final class OperationalShell extends StatelessWidget {
   /// que es justo lo que está escondido. El botón queda inalcanzable.
   ///
   /// Va dentro del cuerpo, no encima de todo, porque tiene que ser
-  /// descendiente del `NavigationView` para poder abrirlo.
+  /// descendiente del `NavigationView` para poder abrirlo. Ya no lleva el
+  /// nombre de la empresa: eso lo dice ahora [_topBar], que está siempre
+  /// visible, y repetirlo aquí lo duplicaba en pantalla.
   Widget _minimalTopBar() => Builder(
     builder: (context) {
       final theme = FluentTheme.of(context);
@@ -297,143 +442,123 @@ final class OperationalShell extends StatelessWidget {
                     NavigationView.of(context).isMinimalPaneOpen = true,
               ),
             ),
-            const SizedBox(width: 4),
-            // La empresa se marca con el mismo ícono que usa theos_pos
-            // (FluentIcons.org), para no confundirla con un usuario.
-            Tooltip(
-              message: 'Empresa',
-              child: Icon(
-                FluentIcons.org,
-                key: const Key('shell-company-icon'),
-                size: 14,
-                color: theme.accentColor,
-              ),
-            ),
-            const SizedBox(width: 6),
-            Expanded(
-              child: Text(
-                this.context.companyLabel,
-                overflow: TextOverflow.ellipsis,
-                maxLines: 1,
-                style: theme.typography.bodyStrong,
-              ),
-            ),
           ],
         ),
       );
     },
   );
 
-  /// La cabecera del panel: la marca y la empresa.
+  /// La cabecera del panel: sólo la marca.
   ///
   /// Va en `NavigationPane.header` y no en una fila propia por encima de todo.
-  /// Antes era una fila escrita a mano, que es exactamente lo que esta
-  /// migración vino a quitar. Fluent la coloca, la alinea y la esconde en el
-  /// carril estrecho por sí solo, donde de todas formas no cabría un nombre
-  /// de empresa.
-  ///
-  /// 🔴 En `top` la cabecera se mide con ancho SIN LÍMITE (Fluent la coloca
-  /// dentro de una `Row` de `_TopNavigationPane` con restricciones
-  /// `0<=w<=Infinity`, para saber cuánto sitio necesita antes de decidir el
-  /// recorte). Un `Expanded` ahí revienta con «RenderFlex children have
-  /// non-zero flex but incoming width constraints are unbounded» — no es un
-  /// límite de `Expanded` en particular: CUALQUIER hijo con `flex` distinto
-  /// de cero rompe igual (`Flexible` incluido), porque Flutter no puede
-  /// repartir un espacio infinito en proporciones. Medido añadiendo la
-  /// prueba que pidió el dueño para `top`. Por eso el nombre de empresa se
-  /// trata aquí igual que en el carril mínimo: sin flex, nunca oculto a
-  /// medias con un ancho inventado.
+  /// La empresa ya NO se repite aquí (orden del dueño, 13-sep-2026, comparando
+  /// con `theos_pos`, donde el panel sólo lleva el logo): ahora vive siempre
+  /// en [_topBar], y enseñarla en los dos sitios la duplicaba en pantalla —el
+  /// mismo motivo por el que antes ya se ocultaba en el carril mínimo.
   Widget _paneHeader() => Builder(
     builder: (context) => Padding(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-      child: Row(
-        children: [
-          OrbiBrand(
-            height: 24,
-            color: FluentTheme.of(context).typography.body?.color,
-          ),
-          // La empresa NO se repite en estrecho: ahí ya la lleva la barra del
-          // contenido, que es la que se ve sin abrir el menú. Enseñarla en los
-          // dos sitios la duplicaba en pantalla. En `top` no es que sobre
-          // espacio (ver la nota de arriba): un `Expanded`/`Flexible` ahí
-          // directamente revienta el layout.
-          if (NavigationView.of(context).displayMode !=
-                  PaneDisplayMode.minimal &&
-              NavigationView.of(context).displayMode !=
-                  PaneDisplayMode.top) ...[
-            const SizedBox(width: 10),
-            Tooltip(
-              message: 'Empresa',
-              child: Icon(
-                FluentIcons.org,
-                key: const Key('pane-company-icon'),
-                size: 14,
-                color: FluentTheme.of(context).accentColor,
-              ),
-            ),
-            const SizedBox(width: 6),
-            Expanded(
-              child: Text(
-                this.context.companyLabel,
-                overflow: TextOverflow.ellipsis,
-                maxLines: 1,
-                style: FluentTheme.of(context).typography.bodyStrong,
-              ),
-            ),
-          ],
-        ],
+      child: OrbiBrand(
+        height: 24,
+        color: FluentTheme.of(context).typography.body?.color,
       ),
     ),
   );
 
-  /// Las acciones de sesión, en el pie del panel.
+  /// El menú, con sus grupos.
   ///
-  /// Son `PaneItemAction`, que es lo que Fluent ofrece para una acción que no
-  /// navega a ninguna parte. Así se ven como iconos en el carril estrecho y
-  /// con su nombre cuando el carril está abierto, sin que nadie decida cómo.
+  /// Cada área es un `PaneItemExpander` **sin cuerpo propio**: pulsarlo abre y
+  /// cierra el grupo, no navega a ningún sitio, porque un área no es una
+  /// pantalla. Fluent excluye de la cuenta de selección los que no tienen
+  /// cuerpo, así que el índice del destino elegido coincide con su posición
+  /// en la lista de destinos y no hay que llevar dos numeraciones en paralelo.
   ///
-  /// Quién aparece sigue dependiendo de si hay con qué hacerlo: nunca un botón
-  /// que la persona no pueda usar.
-  List<NavigationPaneItem> _sessionActions() => [
-    PaneItemWidgetAdapter(
-      key: const Key('operational-user-label'),
-      child: Builder(
-        builder: (context) => Text(
-          this.context.userLabel,
-          overflow: TextOverflow.ellipsis,
-          maxLines: 1,
-          style: FluentTheme.of(context).typography.caption,
-        ),
-      ),
-    ),
-    if (onLock != null)
-      PaneItemAction(
-        key: const Key('lock-button'),
-        icon: const Icon(FluentIcons.lock),
-        title: const Text('Bloquear'),
-        onTap: onLock!,
-      ),
-    if (onSwitchUser != null)
-      PaneItemAction(
-        key: const Key('switch-user-button'),
-        icon: const Icon(FluentIcons.switch_user),
-        title: const Text('Cambiar de usuario'),
-        onTap: onSwitchUser!,
-      ),
-    PaneItemAction(
-      key: const Key('logout-button'),
-      icon: const Icon(FluentIcons.sign_out),
-      title: const Text('Cerrar sesión'),
-      onTap: onLogout,
-    ),
-  ];
+  /// En el carril de sólo iconos, Fluent enseña los hijos en un desplegable
+  /// por sí solo. Eso es exactamente lo que dibuja la lámina, y no hay que
+  /// escribirlo: era una de las cuatrocientas líneas que esta migración quitó.
+  ///
+  /// Tres rutas ya no pasan por aquí como el resto: «Actividades» y «Avisos»
+  /// viven ahora en [_topBar] (mismo grupo «Sistema» en `router.dart`, pero
+  /// duplicarlas en el menú lateral las mostraba dos veces); «Sincronización»
+  /// y «Configuración» se pintan en el pie del panel, con el patrón
+  /// `footerItems` de Fluent (orden del dueño, 13-sep-2026). Y el grupo
+  /// «Workspace» —hoy sólo «Inicio»— se pinta de primer nivel, sin el
+  /// desplegable de un solo hijo que tenía antes.
+  NavigationPane _pane() {
+    final navDestinations = widget.destinations
+        .where(_isGroupedNavDestination)
+        .toList(growable: false);
+    final footerDestinations = widget.destinations
+        .where(_isFooterDestination)
+        .toList(growable: false);
+    final grouped = _groupedDestinations(navDestinations);
+    final ordered = [
+      for (final entry in grouped.entries) ...entry.value,
+      ...footerDestinations,
+    ];
+    final selectedIndex = ordered.indexWhere(
+      (d) => d.path == widget.selectedPath,
+    );
+    final activeGroup = selectedIndex < 0 ? null : ordered[selectedIndex].group;
+
+    final items = <NavigationPaneItem>[];
+    for (final entry in grouped.entries) {
+      if (entry.key == _kHomeGroup) {
+        for (final destination in entry.value) {
+          items.add(_navPaneItem(destination));
+        }
+      } else {
+        items.add(
+          PaneItemExpander(
+            key: ValueKey('grupo-${entry.key}'),
+            // El icono del grupo es el de su primer destino: sin icono, en el
+            // carril estrecho el área se vuelve invisible.
+            icon: Icon(entry.value.first.icon),
+            title: Text(entry.key),
+            // El grupo de la pantalla que se está viendo nace abierto: cerrado
+            // obligaría a abrirlo para saber dónde se está.
+            initiallyExpanded: entry.key == activeGroup,
+            items: [
+              for (final destination in entry.value) _navPaneItem(destination),
+            ],
+          ),
+        );
+      }
+    }
+
+    return NavigationPane(
+      // Sin cortes propios: en modo `auto` el ancho en que el menú se oculta,
+      // se vuelve de iconos o se abre lo decide Fluent (orden del dueño,
+      // 13-sep-2026). El modo en sí ya es parametrizable desde Ajustes —quien
+      // instancia este marco decide si en vez de `auto` se fija `expanded`,
+      // `compact`, `minimal` o `top`.
+      displayMode: widget.navigationDisplayMode,
+      indicator: widget.navigationIndicator,
+      selected: selectedIndex < 0 ? null : selectedIndex,
+      header: _paneHeader(),
+      footerItems: [
+        for (final destination in footerDestinations) _navPaneItem(destination),
+      ],
+      items: items,
+    );
+  }
+
+  PaneItem _navPaneItem(OperationalDestination destination) => PaneItem(
+    key: ValueKey(destination.path),
+    icon: Icon(destination.icon),
+    title: Text(destination.label),
+    body: const SizedBox.shrink(),
+    onTap: () => widget.onNavigate(destination.path),
+  );
 
   /// Los destinos agrupados, conservando el orden en que llegan dentro de cada
   /// grupo y el orden de aparición de los grupos. No se ordena
   /// alfabéticamente: el orden de las áreas lo fija el contrato del marco.
-  Map<String, List<OperationalDestination>> _groupedDestinations() {
+  Map<String, List<OperationalDestination>> _groupedDestinations(
+    List<OperationalDestination> source,
+  ) {
     final groups = <String, List<OperationalDestination>>{};
-    for (final destination in destinations) {
+    for (final destination in source) {
       groups.putIfAbsent(destination.group, () => []).add(destination);
     }
     return groups;
@@ -448,6 +573,7 @@ final class OperationalShell extends StatelessWidget {
     // que se veía bien en tema claro y se perdía en oscuro.
     final theme = FluentTheme.of(buildContext);
     final r = theme.resources;
+    final ctx = widget.context;
     return ColoredBox(
       color: r.solidBackgroundFillColorTertiary,
       child: SizedBox(
@@ -462,16 +588,27 @@ final class OperationalShell extends StatelessWidget {
               child: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  _contextItem('Servidor', context.server),
+                  _contextItem('Servidor', ctx.server),
                   _footerGap(r),
-                  _contextItem('BD', context.database),
+                  _contextItem('BD', ctx.database),
                   _footerGap(r),
-                  // El valor NO repite la etiqueta: «Hora del servidor: Hora
-                  // del servidor no disponible» es lo que llegó a leerse.
-                  _contextItem(
-                    'Hora servidor',
-                    context.serverTime ?? 'sin dato',
-                  ),
+                  // Causa raíz de «Hora servidor: sin dato» (medido
+                  // 13-sep-2026): `router.dart` nunca llenó `serverTime` —el
+                  // campo existía pero nadie lo llenaba. Y no hay de dónde
+                  // sacar la hora real del servidor: `Json2BackendProbe`
+                  // (`orbi_runtime/lib/src/connectivity/json2_backend_probe.dart:26-49`)
+                  // sólo confirma que el servidor contestó, nunca trae su
+                  // reloj, y `theos_pos` tampoco lo tiene —su
+                  // `_syncServerTime` fija el desfase en CERO siempre
+                  // (`theos_pos/lib/shared/providers/server_info_provider.dart:161`),
+                  // así que su «hora servidor» YA ES la hora local, sólo que
+                  // mal etiquetada. Aquí se opta por lo honesto: si no llega
+                  // una hora real, se enseña la del dispositivo, con una
+                  // etiqueta que no finge ser la del servidor.
+                  if (ctx.serverTime != null)
+                    _contextItem('Hora servidor', ctx.serverTime!)
+                  else
+                    _contextItem('Hora', _formatLocalClock(DateTime.now())),
                   _footerGap(r),
                   _statusDot(_connectionColor(r)),
                   const SizedBox(width: 6),
@@ -483,7 +620,7 @@ final class OperationalShell extends StatelessWidget {
                     color: r.textFillColorSecondary,
                   ),
                   const SizedBox(width: 4),
-                  Text(context.syncLabel),
+                  Text(ctx.syncLabel),
                 ],
               ),
             ),
@@ -491,6 +628,19 @@ final class OperationalShell extends StatelessWidget {
         ),
       ),
     );
+  }
+
+  /// Sin `intl` y sin `Timer.periodic` a propósito: un reloj que tiquetea
+  /// solo mantiene el pie reconstruyéndose cada segundo, y
+  /// `tester.pumpAndSettle()` —que usa toda la batería de pruebas de este
+  /// marco— nunca termina mientras haya un temporizador periódico vivo
+  /// (vuelve a programar un fotograma en cada disparo). Se muestra la hora
+  /// del dispositivo en el momento en que se pinta el pie, que ya se
+  /// refresca solo cada vez que algo más en el marco cambia.
+  String _formatLocalClock(DateTime t) {
+    String two(int n) => n.toString().padLeft(2, '0');
+    return '${two(t.day)}/${two(t.month)}/${t.year} '
+        '${two(t.hour)}:${two(t.minute)}:${two(t.second)}';
   }
 
   Widget _footerGap(ResourceDictionary r) => Padding(
@@ -510,9 +660,9 @@ final class OperationalShell extends StatelessWidget {
   /// redacción fija de cada caso, y nunca la cadena de quien nos usa una vez
   /// existe una medida, para que las dos no puedan decir cosas distintas.
   String _connectionText() {
-    final status = context.connectionStatus;
+    final status = widget.context.connectionStatus;
     return status == null
-        ? context.connectionLabel
+        ? widget.context.connectionLabel
         : connectionStatusLabel(status);
   }
 
@@ -520,9 +670,9 @@ final class OperationalShell extends StatelessWidget {
   /// los tres casos en que algo está roto de verdad, y ámbar sólo mientras no
   /// se haya medido nada.
   Color _connectionColor(ResourceDictionary r) {
-    final status = context.connectionStatus;
+    final status = widget.context.connectionStatus;
     if (status != null) return _statusColorForStatus(r, status);
-    return _statusColorFor(r, context.connectionLabel);
+    return _statusColorFor(r, widget.context.connectionLabel);
   }
 
   Color _statusColorForStatus(ResourceDictionary r, ConnectionStatus status) =>
@@ -574,3 +724,315 @@ final class OperationalShell extends StatelessWidget {
     ),
   );
 }
+
+/// La píldora de conectividad de [OperationalShell._topBar], como un
+/// `CommandBarItem` propio: en primario se ve como una píldora de color, y en
+/// el desbordamiento («…») se ve igual pero con el espaciado de un renglón de
+/// menú. Subclasificar `CommandBarItem` es el propio mecanismo de extensión
+/// de Fluent (ver la documentación de la clase en `fluent_ui`), no un
+/// andamiaje inventado aquí.
+class _ConnectivityCommandBarItem extends CommandBarItem {
+  const _ConnectivityCommandBarItem({super.key, required this.context});
+
+  final OperationalContext context;
+
+  @override
+  Widget build(BuildContext buildContext, CommandBarItemDisplayMode mode) {
+    final pill = _ConnectivityPill(key: key, context: context);
+    switch (mode) {
+      case CommandBarItemDisplayMode.inPrimary:
+      case CommandBarItemDisplayMode.inPrimaryCompact:
+        return CommandBarItemInPrimary(child: pill);
+      case CommandBarItemDisplayMode.inSecondary:
+        return Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 6),
+          child: pill,
+        );
+    }
+  }
+}
+
+/// El texto exacto lo pidió el dueño (13-sep-2026): «En línea 349 ms», «Sin
+/// conexión», «Servidor no responde». No es el mismo vocabulario que
+/// [connectionStatusLabel] —el del pie de abajo, más formal («Conectado»,
+/// «Red sin servidor»)— porque la píldora de la barra superior es la lectura
+/// rápida de un vistazo, y el pie es el detalle. Los dos estados que el dueño
+/// no nombró (sin verificar, servidor sin autorizar) sí reutilizan
+/// [connectionStatusLabel], para no inventar un vocabulario paralelo donde no
+/// hizo falta.
+class _ConnectivityPill extends StatelessWidget {
+  const _ConnectivityPill({super.key, required this.context});
+
+  final OperationalContext context;
+
+  @override
+  Widget build(BuildContext buildContext) {
+    final theme = FluentTheme.of(buildContext);
+    final color = _color(theme.resources);
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.15),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: color),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            width: 8,
+            height: 8,
+            decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+          ),
+          const SizedBox(width: 6),
+          Text(
+            _label(),
+            style: TextStyle(color: color, fontWeight: FontWeight.w600),
+          ),
+        ],
+      ),
+    );
+  }
+
+  String _label() {
+    final status = context.connectionStatus;
+    if (status == null) return context.connectionLabel;
+    switch (status) {
+      case ConnectionStatus.online:
+        final latency = context.connectionLatency;
+        return latency == null
+            ? 'En línea'
+            : 'En línea ${latency.inMilliseconds} ms';
+      case ConnectionStatus.offline:
+        return 'Sin conexión';
+      case ConnectionStatus.backendUnreachable:
+        return 'Servidor no responde';
+      case ConnectionStatus.backendUnauthorized:
+      case ConnectionStatus.unknown:
+        return connectionStatusLabel(status);
+    }
+  }
+
+  Color _color(ResourceDictionary r) {
+    final status = context.connectionStatus;
+    if (status == null) return r.systemFillColorCaution;
+    switch (status) {
+      case ConnectionStatus.online:
+        return r.systemFillColorSuccess;
+      case ConnectionStatus.offline:
+      case ConnectionStatus.backendUnreachable:
+      case ConnectionStatus.backendUnauthorized:
+        return r.systemFillColorCritical;
+      case ConnectionStatus.unknown:
+        return r.systemFillColorCaution;
+    }
+  }
+}
+
+/// El avatar y su menú, en la barra superior.
+///
+/// Junta lo que antes estaba repartido: el rótulo de usuario que vivía suelto
+/// en el pie del panel, y Bloquear/Cambiar de usuario/Cerrar sesión que eran
+/// `PaneItemAction` del mismo pie (orden del dueño, 13-sep-2026, comparando
+/// con `theos_pos`: ver `theos_pos/lib/shared/screens/main_screen.dart`,
+/// `_UserAvatarMenu`). No hay foto ni estado de presencia: `OperationalContext`
+/// no trae ninguno de los dos, y no se inventa ninguno aquí.
+///
+/// La presencia (En línea/Ausente/No molestar) que sí tiene `theos_pos` NO se
+/// replica: `res.users.manual_im_status` no es un campo `user_writeable` en
+/// Odoo 20 (`dev_odoo20/odoo/addons/mail/models/res_users.py:66-69`), y
+/// `res.users._has_field_access` exige sudo o el grupo «Access Rights» para
+/// escribir cualquier campo del propio usuario que no lleve esa marca
+/// (`dev_odoo20/odoo/odoo/addons/base/models/res_users.py:588-598`). El único
+/// camino que Odoo ofrece para cambiarla es el controlador de sesión web
+/// `/mail/set_manual_im_status` (`dev_odoo20/odoo/addons/mail/controllers/im_status.py:9-13`,
+/// `auth="user"`, cookie de sesión) — no el `/json/2/<modelo>/<método>` con
+/// Bearer que usa todo este cliente. Ponerla aquí sería un menú de adorno
+/// para cualquier vendedor que no sea administrador.
+class _UserAvatarMenu extends StatefulWidget {
+  const _UserAvatarMenu({
+    required this.userLabel,
+    required this.companyLabel,
+    required this.wide,
+    required this.onOpenPreferences,
+    required this.onLogout,
+    this.onLock,
+    this.onSwitchUser,
+  });
+
+  final String userLabel;
+  final String companyLabel;
+
+  /// Si hay sitio para el nombre y la empresa junto al avatar. Llega ya
+  /// calculado por [OperationalShell._topBar] a partir del ancho de layout
+  /// (ver la nota allí sobre por qué no se usa `MediaQuery.sizeOf` aquí).
+  final bool wide;
+  final VoidCallback onOpenPreferences;
+  final VoidCallback onLogout;
+  final VoidCallback? onLock;
+  final VoidCallback? onSwitchUser;
+
+  @override
+  State<_UserAvatarMenu> createState() => _UserAvatarMenuState();
+}
+
+class _UserAvatarMenuState extends State<_UserAvatarMenu> {
+  final _controller = FlyoutController();
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  Color _initialsColor(String seed) {
+    if (seed.isEmpty) return Colors.grey;
+    final random = Random(seed.hashCode);
+    return Color.fromARGB(
+      255,
+      30 + random.nextInt(200),
+      30 + random.nextInt(200),
+      30 + random.nextInt(200),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final initial = widget.userLabel.isNotEmpty
+        ? widget.userLabel[0].toUpperCase()
+        : 'U';
+
+    return FlyoutTarget(
+      controller: _controller,
+      child: GestureDetector(
+        key: const Key('shell-avatar-button'),
+        // Sin esto, tocar el hueco entre el nombre (corto, "erik") y la
+        // empresa (más larga, alineados ambos a la derecha con
+        // `CrossAxisAlignment.end`) no llega a ningún párrafo pintado, y
+        // `deferToChild` (el comportamiento por omisión de `GestureDetector`)
+        // no cuenta eso como un toque. Medido el 13-sep-2026 con el router
+        // real (`workspace_switch_user_router_test.dart`): `tester.tap`
+        // apunta al CENTRO de todo el renglón —texto más avatar—, y ese
+        // centro cae justo en ese hueco cuando los dos textos no miden lo
+        // mismo. `opaque` hace que toda la fila responda, no sólo el texto o
+        // el cuadro del avatar.
+        behavior: HitTestBehavior.opaque,
+        onTap: _openMenu,
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (widget.wide) ...[
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    widget.userLabel,
+                    overflow: TextOverflow.ellipsis,
+                    maxLines: 1,
+                    style: const TextStyle(fontWeight: FontWeight.w600),
+                  ),
+                  Text(
+                    widget.companyLabel,
+                    overflow: TextOverflow.ellipsis,
+                    maxLines: 1,
+                    style: const TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w300,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(width: 8),
+            ],
+            Container(
+              width: 32,
+              height: 32,
+              decoration: BoxDecoration(
+                color: _initialsColor(widget.userLabel),
+                borderRadius: BorderRadius.circular(4),
+              ),
+              alignment: Alignment.center,
+              child: Text(
+                initial,
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// 🔴 `MenuFlyoutItem.closeAfterClick` (el valor por omisión de Fluent)
+  /// cierra el menú con `Navigator.of(context).maybePop()`. Eso funciona
+  /// para una acción simple, pero «Cambiar de usuario» abre OTRO diálogo de
+  /// confirmación desde la misma pulsada, y ahí `maybePop()` deja el
+  /// renglón del menú vivo en el árbol —`isOpen` del controlador ya dice
+  /// `false`, pero el widget sigue montado— probablemente porque una nueva
+  /// ruta empuja al navegador antes de que la transición de salida del
+  /// `maybePop` termine de resolverse. El síntoma, aislado el 13-sep-2026
+  /// contra el propio `_UserAvatarMenu` sin `router.dart` de por medio: al
+  /// cancelar el diálogo, la siguiente pulsada sobre el avatar cae en la
+  /// cortina del menú viejo (que se cierra sola) en vez de abrir uno nuevo.
+  /// `FlyoutController.forceClose()` saca la ruta del navegador al
+  /// instante, sin esperar una transición — es lo correcto aquí: el renglón
+  /// que se pulsó ya va a desaparecer de todas formas tras la acción.
+  VoidCallback? _closeThenRun(VoidCallback? action) {
+    if (action == null) return null;
+    return () {
+      _controller.forceClose();
+      action();
+    };
+  }
+
+  void _openMenu() {
+    _controller.showFlyout(
+      autoModeConfiguration: FlyoutAutoConfiguration(
+        preferredMode: FlyoutPlacementMode.bottomRight,
+      ),
+      barrierDismissible: true,
+      dismissOnPointerMoveAway: false,
+      builder: (context) => MenuFlyout(
+        items: [
+          MenuFlyoutItem(
+            key: const Key('shell-preferences-item'),
+            leading: const Icon(FluentIcons.settings),
+            text: const Text('Mis preferencias'),
+            closeAfterClick: false,
+            onPressed: _closeThenRun(widget.onOpenPreferences),
+          ),
+          if (widget.onLock != null)
+            MenuFlyoutItem(
+              key: const Key('lock-button'),
+              leading: const Icon(FluentIcons.lock),
+              text: const Text('Bloquear'),
+              closeAfterClick: false,
+              onPressed: _closeThenRun(widget.onLock),
+            ),
+          if (widget.onSwitchUser != null)
+            MenuFlyoutItem(
+              key: const Key('switch-user-button'),
+              leading: const Icon(FluentIcons.switch_user),
+              text: const Text('Cambiar de usuario'),
+              closeAfterClick: false,
+              onPressed: _closeThenRun(widget.onSwitchUser),
+            ),
+          const MenuFlyoutSeparator(),
+          MenuFlyoutItem(
+            key: const Key('logout-button'),
+            leading: const Icon(FluentIcons.sign_out),
+            text: const Text('Cerrar sesión'),
+            closeAfterClick: false,
+            onPressed: _closeThenRun(widget.onLogout),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+const appShellHeaderHeight = 50.0;

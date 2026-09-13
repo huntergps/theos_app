@@ -77,20 +77,28 @@ NotificationEvent event(String source, {int revision = 1}) => NotificationEvent(
   occurredAt: DateTime.utc(2026),
 );
 
-NotificationEntry entry({NotificationTarget? target}) => NotificationEntry(
-  id: 'entry',
+NotificationEntry entry({
+  String id = 'entry',
+  NotificationTarget? target,
+  NotificationSeverity severity = NotificationSeverity.info,
+  NotificationKind kind = NotificationKind.activity,
+  DateTime? readAt,
+  DateTime? occurredAt,
+}) => NotificationEntry(
+  id: id,
   scope: NotificationScope(scopeKey: 'scope', partitionKey: 'global'),
-  sourceKey: 'source',
+  sourceKey: 'source-$id',
   revision: 1,
-  kind: NotificationKind.activity,
-  severity: NotificationSeverity.info,
+  kind: kind,
+  severity: severity,
   titleKey: 'Aviso',
   bodyKey: 'Detalle',
-  occurredAt: DateTime.utc(2026),
+  occurredAt: occurredAt ?? DateTime.utc(2026),
   createdAt: DateTime.utc(2026),
   updatedAt: DateTime.utc(2026),
   origin: NotificationOrigin.local,
   target: target,
+  readAt: readAt,
 );
 
 void main() {
@@ -359,6 +367,102 @@ void main() {
     await tester.pump();
     expect(find.byTooltip('Acciones del aviso'), findsOneWidget);
     expect(tester.takeException(), isNull);
+    await inbox.controller.close();
+  });
+
+  test(
+    'an error notification counts while unread and stops counting once read',
+    () async {
+      final inbox = _Inbox();
+      final container = ProviderContainer(
+        overrides: [notificationInboxPortProvider.overrideWithValue(inbox)],
+      );
+      addTearDown(container.dispose);
+      const key = NotificationQueryKey(scopeKey: 'scope', partitionKey: 'global');
+      final sub = container.listen(
+        notificationErrorCountProvider(key),
+        (previous, next) {},
+      );
+      addTearDown(sub.close);
+
+      inbox.publish(
+        NotificationInboxSnapshot(
+          entries: [entry(id: 'err', severity: NotificationSeverity.error)],
+          unreadCount: 1,
+        ),
+      );
+      await Future<void>.delayed(Duration.zero);
+      expect(container.read(notificationErrorCountProvider(key)), 1);
+      expect(container.read(notificationUnreadCountProvider(key)), 1);
+
+      inbox.publish(
+        NotificationInboxSnapshot(
+          entries: [
+            entry(
+              id: 'err',
+              severity: NotificationSeverity.error,
+              readAt: DateTime.utc(2026, 1, 2),
+            ),
+          ],
+          unreadCount: 0,
+        ),
+      );
+      await Future<void>.delayed(Duration.zero);
+      expect(container.read(notificationErrorCountProvider(key)), 0);
+      expect(container.read(notificationUnreadCountProvider(key)), 0);
+
+      await inbox.controller.close();
+    },
+  );
+
+  testWidgets('the inbox does not overflow at 400, 800 and 1280 px', (
+    tester,
+  ) async {
+    final inbox = _Inbox();
+    final navigator = NotificationNavigator(
+      validation: _Validation(<String>[]),
+      allowedTargetTypes: {'activity'},
+      opener: (target, scope) async {},
+    );
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+
+    for (final width in [400.0, 800.0, 1280.0]) {
+      await tester.binding.setSurfaceSize(Size(width, 800));
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [notificationInboxPortProvider.overrideWithValue(inbox)],
+          child: FluentApp(
+            theme: OrbiFluentTheme.light,
+            home: NotificationInboxView(
+              query: const NotificationQueryKey(
+                scopeKey: 'scope',
+                partitionKey: 'global',
+              ),
+              navigator: navigator,
+            ),
+          ),
+        ),
+      );
+      inbox.publish(
+        NotificationInboxSnapshot(
+          entries: [
+            entry(
+              id: 'long',
+              severity: NotificationSeverity.error,
+              target: NotificationTarget(type: 'activity', reference: '42'),
+            ),
+            entry(id: 'other', kind: NotificationKind.sync),
+          ],
+          unreadCount: 2,
+        ),
+      );
+      await tester.pump();
+      expect(
+        tester.takeException(),
+        isNull,
+        reason: 'overflow at width $width',
+      );
+    }
     await inbox.controller.close();
   });
 }

@@ -447,4 +447,117 @@ void main() {
 
     expect(find.textContaining('propios'), findsNothing);
   });
+
+  // La insignia de color y el icono de aviso son del listado, no de cada
+  // pantalla: el color y el icono los decide quien conoce el significado del
+  // estado (aquí, la propia prueba); la tabla sólo sabe pintarlos igual en
+  // rejilla y en ficha.
+  testWidgets(
+    'una columna con color de insignia se pinta como insignia, en rejilla y en ficha',
+    (tester) async {
+      final columnasConEstado = <OrbiColumn<_Fila>>[
+        OrbiColumn(
+          key: 'nombre',
+          label: 'Cliente',
+          value: (f) => f.nombre,
+          alwaysVisible: true,
+          leadingIcon: (f) => f.total > 100
+              ? (icon: FluentIcons.cloud_upload, color: Colors.orange)
+              : null,
+        ),
+        OrbiColumn(
+          key: 'estado',
+          label: 'Estado',
+          value: (f) => f.total > 100 ? 'Pendiente' : 'Al día',
+          badgeColor: (f) => f.total > 100 ? Colors.orange : Colors.green,
+        ),
+      ];
+      final filasEstado = [
+        const _Fila('Con pendiente', 200),
+        const _Fila('Sin pendiente', 10),
+      ];
+
+      // Rejilla (ancho de escritorio).
+      await pump(
+        tester,
+        OrbiListing<_Fila>(
+          rows: filasEstado,
+          columns: columnasConEstado,
+          storageKey: 'prueba-estado',
+        ),
+      );
+      expect(find.text('Pendiente'), findsOneWidget);
+      expect(find.text('Al día'), findsOneWidget);
+      expect(find.byIcon(FluentIcons.cloud_upload), findsOneWidget);
+      expect(tester.takeException(), isNull);
+
+      // Ficha (teléfono): la misma información, el mismo aspecto.
+      await pumpTelefono(
+        tester,
+        OrbiListing<_Fila>(
+          rows: filasEstado,
+          columns: columnasConEstado,
+          storageKey: 'prueba-estado',
+        ),
+      );
+      expect(find.text('Pendiente'), findsOneWidget);
+      expect(find.text('Al día'), findsOneWidget);
+      expect(find.byIcon(FluentIcons.cloud_upload), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    },
+  );
+
+  testWidgets(
+    'la paginación numerada salta de página al tocar un número',
+    (tester) async {
+      var pagina = 0;
+      await pump(
+        tester,
+        OrbiListing<_Fila>(
+          rows: filas.take(50).toList(),
+          columns: columnas,
+          storageKey: 'prueba',
+          totalCount: 500,
+          rowsPerPage: 50,
+          pageIndex: 0,
+          onPageChanged: (p) => pagina = p,
+        ),
+      );
+
+      // Cinco números visibles, empezando por la página actual.
+      expect(find.byKey(const Key('orbi-listing-page-1')), findsOneWidget);
+      expect(find.byKey(const Key('orbi-listing-page-5')), findsOneWidget);
+
+      await tester.tap(find.byKey(const Key('orbi-listing-page-3')));
+      await tester.pumpAndSettle();
+      expect(pagina, 2);
+
+      await tester.tap(find.byKey(const Key('orbi-listing-last')));
+      await tester.pumpAndSettle();
+      expect(pagina, 9);
+    },
+  );
+
+  // A 400 px, con muchas páginas, la barra de paginación tiene que envolver
+  // en vez de desbordar hacia los lados.
+  testWidgets(
+    'la paginación numerada no desborda en un teléfono',
+    (tester) async {
+      await pumpTelefono(
+        tester,
+        OrbiListing<_Fila>(
+          rows: filas.take(50).toList(),
+          columns: columnas,
+          storageKey: 'prueba',
+          totalCount: 800,
+          rowsPerPage: 50,
+          pageIndex: 5,
+          onPageChanged: (_) {},
+        ),
+      );
+
+      expect(tester.takeException(), isNull);
+      expect(find.byKey(const Key('orbi-listing-page-6')), findsOneWidget);
+    },
+  );
 }

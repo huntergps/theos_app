@@ -5,6 +5,7 @@ import 'dart:math';
 import 'package:fluent_ui/fluent_ui.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:window_manager/window_manager.dart';
 import 'package:odoo_sdk/odoo_sdk.dart' show logger;
 import 'package:orbi_runtime/orbi_runtime.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -445,8 +446,17 @@ final class _SessionCapabilityReader implements CapabilityReader {
   }
 }
 
-void bootstrap() {
+Future<void> bootstrap() async {
   WidgetsFlutterBinding.ensureInitialized();
+  if (!kIsWeb &&
+      const [
+        TargetPlatform.macOS,
+        TargetPlatform.windows,
+        TargetPlatform.linux,
+      ].contains(defaultTargetPlatform)) {
+    // Lo usa `DesktopCloseGuard` para confirmar el cierre de la ventana.
+    await windowManager.ensureInitialized();
+  }
   runApp(const _BootstrapHost());
 }
 

@@ -1,4 +1,5 @@
 import 'package:fluent_ui/fluent_ui.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:theos_panel/features/home/home_center.dart';
 import 'package:theos_panel/features/activities/activity_center.dart';
@@ -38,12 +39,14 @@ void main() {
     );
     var resumed = false;
     await tester.pumpWidget(
-      FluentApp(
-        theme: OrbiFluentTheme.light,
-        home: ScaffoldPage(
-          content: HomeCenterView(
-            port: _HomePort(item),
-            onResume: (value) async => resumed = value.route == '/sales',
+      ProviderScope(
+        child: FluentApp(
+          theme: OrbiFluentTheme.light,
+          home: ScaffoldPage(
+            content: HomeCenterView(
+              port: _HomePort(item),
+              onResume: (value) async => resumed = value.route == '/sales',
+            ),
           ),
         ),
       ),

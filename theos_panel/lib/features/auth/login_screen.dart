@@ -21,6 +21,19 @@ const String _kApiKeySubtitle =
     'La clave se guarda sólo en el almacén seguro del dispositivo.';
 const String _kFooterText = 'Desarrollado por GalapagosTech · 2026';
 
+/// El corte que decide panel de marca + formulario lado a lado, en vez de la
+/// tarjeta apilada de siempre.
+///
+/// A propósito NO es `OrbiTheme.mediumBreakpoint` (840px): ese es el corte
+/// para que un formulario interno pase a dos columnas
+/// (`odoo_widgets/lib/src/listing/orbi_form.dart`), un criterio distinto de
+/// partir la pantalla ENTERA en dos. Éste es el ancho "expandido" que
+/// `NavigationView` de fluent_ui ya usa para su propio modo abierto (orden
+/// del dueño, 13-sep-2026: «a partir del ancho expandido de Fluent»; ver
+/// `fluent_ui-4.16.1/lib/src/controls/navigation/navigation_view/view.dart`,
+/// «Width >= 1008px: Open mode»).
+const double _kExpandedPaneBreakpoint = 1008.0;
+
 /// Shown when the saved-servers store cannot be read at all.
 ///
 /// The FormatException's own text used to be interpolated into this line.
@@ -441,7 +454,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     // An iPad in portrait can exceed 840px: it still uses the approved
     // stacked composition, not the horizontal two-column arrangement.
     final isWideLandscape =
-        screenSize.width >= OrbiTheme.mediumBreakpoint &&
+        screenSize.width >= _kExpandedPaneBreakpoint &&
         screenSize.width > screenSize.height;
     // No hand-picked height budget decides a "compact" styling anymore
     // (orden del dueño, 12-sep-2026: «el estilo lo determina fluent_ui»).

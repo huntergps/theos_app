@@ -96,6 +96,35 @@ void main() {
         expect(find.byIcon(FluentIcons.edit_note), findsOneWidget);
       });
 
+      testWidgets(
+        'does not overflow at 400px with a long label and a prefix icon',
+        (tester) async {
+          // Ancho medido de una tarjeta de venta real a 400px (Card +
+          // OrbiPage anidados le dejan ~310px al campo) — se fija aquí en
+          // vez de depender del padding de cualquier shell ambiental, para
+          // que la prueba reproduzca el desborde sin importar dónde viva.
+          await tester.pumpWidget(
+            buildTestApp(
+              const SizedBox(
+                width: 310,
+                child: OdooMultilineField(
+                  config: OdooFieldConfig(
+                    label: 'Términos y condiciones',
+                    isEditing: false,
+                    prefixIcon: FluentIcons.quick_note,
+                  ),
+                  value: 'Texto de prueba',
+                ),
+              ),
+            ),
+          );
+          await tester.pumpAndSettle();
+
+          expect(tester.takeException(), isNull);
+          expect(find.text('Términos y condiciones'), findsOneWidget);
+        },
+      );
+
       testWidgets('hides label in compact mode', (tester) async {
         await tester.pumpWidget(buildTestApp(
           OdooMultilineField(

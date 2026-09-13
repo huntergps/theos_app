@@ -42,6 +42,50 @@ const _destinations = [
   ),
 ];
 
+/// Un catálogo más completo, con las cuatro rutas que el armazón ya no
+/// pinta como el resto: «Inicio» (grupo «Workspace», de un solo hijo) y las
+/// cuatro del viejo grupo «Sistema» que ahora se reparten entre la barra
+/// superior (Actividades, Avisos) y el pie del panel (Sincronización,
+/// Configuración).
+const _richDestinations = [
+  OperationalDestination(
+    label: 'Inicio',
+    path: '/',
+    icon: FluentIcons.home,
+    group: 'Workspace',
+  ),
+  OperationalDestination(
+    label: 'Órdenes',
+    path: '/sales',
+    icon: FluentIcons.shopping_cart,
+    group: 'Ventas',
+  ),
+  OperationalDestination(
+    label: 'Actividades',
+    path: '/activities',
+    icon: FluentIcons.calendar,
+    group: 'Sistema',
+  ),
+  OperationalDestination(
+    label: 'Avisos',
+    path: '/notifications',
+    icon: FluentIcons.ringer,
+    group: 'Sistema',
+  ),
+  OperationalDestination(
+    label: 'Sincronización',
+    path: '/sync',
+    icon: FluentIcons.sync,
+    group: 'Sistema',
+  ),
+  OperationalDestination(
+    label: 'Configuración',
+    path: '/settings',
+    icon: FluentIcons.settings,
+    group: 'Sistema',
+  ),
+];
+
 Widget _host(
   Size size, {
   ValueChanged<String>? onNavigate,
@@ -49,8 +93,11 @@ Widget _host(
   VoidCallback? onLock,
   Future<bool> Function(String password)? onUnlock,
   VoidCallback? onSwitchUser,
+  VoidCallback? onToggleTheme,
   Widget? child,
   OperationalContext context = _context,
+  List<OperationalDestination> destinations = _destinations,
+  String selectedPath = '/sales',
   PaneDisplayMode navigationDisplayMode = PaneDisplayMode.auto,
   Widget navigationIndicator = const StickyNavigationIndicator(),
 }) => FluentApp(
@@ -58,8 +105,8 @@ Widget _host(
   home: MediaQuery(
     data: MediaQueryData(size: size),
     child: OperationalShell(
-      destinations: _destinations,
-      selectedPath: '/sales',
+      destinations: destinations,
+      selectedPath: selectedPath,
       onNavigate: onNavigate ?? (_) {},
       context: context,
       onLogout: () {},
@@ -67,6 +114,7 @@ Widget _host(
       onLock: onLock,
       onUnlock: onUnlock,
       onSwitchUser: onSwitchUser,
+      onToggleTheme: onToggleTheme,
       navigationDisplayMode: navigationDisplayMode,
       navigationIndicator: navigationIndicator,
       child: child ?? const Center(child: Text('Contenido operativo')),
@@ -210,10 +258,11 @@ void main() {
     // 🔴 Sí rompía: Fluent mide la cabecera de `top` con ancho SIN LÍMITE, y
     // el `Expanded` que llevaba el nombre de empresa reventaba con «RenderFlex
     // children have non-zero flex but incoming width constraints are
-    // unbounded» — ver la nota en `_paneHeader`. La cabecera trata `top`
-    // igual que el carril mínimo (sin el nombre de empresa, que de todas
-    // formas ya lo dice el pie), así que aquí sólo queda comprobar que no
-    // truena y que el resto de la pantalla (menú, pie) sigue en pantalla.
+    // unbounded» — ver la nota en `_paneHeader`. La cabecera del panel ya no
+    // lleva el nombre de empresa (vive siempre en la barra superior, ver el
+    // grupo «la barra superior» más abajo), así que ahora ni siquiera hay
+    // ese `Expanded` que vigilar; esta prueba se queda para que nadie lo
+    // vuelva a añadir sin pensar en `top`.
     testWidgets('con "top" no rompe la barra ni la cabecera', (tester) async {
       const size = Size(1920, 1080);
       await _pump(
@@ -259,20 +308,131 @@ void main() {
       await tester.pumpAndSettle();
       expect(navegado, '/clients');
     });
+
+    // Orden del dueño, 13-sep-2026, comparando con `theos_pos`: «Inicio» es
+    // hoy un grupo «Workspace» con un único hijo, que Fluent pintaría como un
+    // desplegable de una sola fila. Se pide de primer nivel.
+    group('«Inicio» ya no va en un desplegable de un solo hijo', () {
+      testWidgets('se pinta como PaneItem de primer nivel', (tester) async {
+        const size = Size(1920, 1080);
+        await _pump(
+          tester,
+          _host(size, destinations: _richDestinations, selectedPath: '/'),
+          size,
+        );
+        expect(find.text('Inicio'), findsOneWidget);
+        // `PaneItem`/`PaneItemExpander` son datos, no widgets montados —
+        // Fluent nunca los deja buscables por tipo. Lo comprobable es que ya
+        // no exista el título de grupo «Workspace»: si Inicio siguiera
+        // agrupado, Fluent lo pintaría igual que pinta «Ventas»/«Envases»
+        // en las otras pruebas de este archivo.
+        expect(find.text('Workspace'), findsNothing);
+        expect(
+          tester
+              .widget<NavigationView>(find.byType(NavigationView))
+              .pane!
+              .selected,
+          0,
+          reason: 'Inicio sigue siendo el primer destino del índice plano',
+        );
+      });
+    });
+
+    // Actividades y Avisos se mudan a la barra superior (mismo grupo
+    // «Sistema» que trae `router.dart`, pero repetirlos en el menú lateral
+    // los mostraba dos veces); Sincronización y Configuración, al pie.
+    group('«Sistema» se reparte entre la barra superior y el pie', () {
+      testWidgets('ya no queda un desplegable "Sistema" en el menú', (
+        tester,
+      ) async {
+        const size = Size(1920, 1080);
+        await _pump(tester, _host(size, destinations: _richDestinations), size);
+        expect(find.widgetWithText(PaneItemExpander, 'Sistema'), findsNothing);
+      });
+
+      testWidgets('Actividades y Avisos están en la barra superior', (
+        tester,
+      ) async {
+        const size = Size(1920, 1080);
+        await _pump(tester, _host(size, destinations: _richDestinations), size);
+        expect(find.byKey(const Key('shell-activities-button')), findsOneWidget);
+        expect(find.byKey(const Key('shell-notices-button')), findsOneWidget);
+      });
+
+      testWidgets(
+        'Sincronización y Configuración están en el pie del panel',
+        (tester) async {
+          const size = Size(1920, 1080);
+          await _pump(
+            tester,
+            _host(size, destinations: _richDestinations),
+            size,
+          );
+          final pane = tester
+              .widget<NavigationView>(find.byType(NavigationView))
+              .pane!;
+          final footerPaths = pane.footerItems
+              .whereType<PaneItem>()
+              .map((item) => (item.key! as ValueKey<String>).value)
+              .toSet();
+          expect(footerPaths, {'/sync', '/settings'});
+        },
+      );
+    });
   });
 
   group('el pie', () {
-    testWidgets('en ancho dice servidor, base, hora y estado', (tester) async {
+    testWidgets('en ancho dice servidor, base y estado', (tester) async {
       const size = Size(1920, 1080);
       await _pump(tester, _host(size), size);
 
       expect(find.text('Servidor: erp.test'), findsOneWidget);
       expect(find.text('BD: orbi_test'), findsOneWidget);
-      // El valor no repite la etiqueta: «Hora del servidor: Hora del servidor
-      // no disponible» es lo que llegó a leerse en pantalla.
-      expect(find.text('Hora servidor: sin dato'), findsOneWidget);
-      expect(find.textContaining('Hora del servidor'), findsNothing);
       expect(find.text('3 pendientes'), findsOneWidget);
+    });
+
+    // Causa raíz medida el 13-sep-2026: `router.dart` nunca llenaba
+    // `serverTime` (ver la nota en `operational_shell.dart:_contextFooter`),
+    // y no hay de dónde sacar la hora real del servidor — ni `orbi_runtime`
+    // la mide, ni `theos_pos` la tiene de verdad (su desfase es cero
+    // siempre). Se opta por mostrar la hora del dispositivo, con una
+    // etiqueta que no finge ser la del servidor.
+    testWidgets('nunca dice "sin dato": sin hora de servidor, muestra la '
+        'del dispositivo', (tester) async {
+      const size = Size(1920, 1080);
+      await _pump(tester, _host(size), size);
+
+      expect(find.textContaining('sin dato'), findsNothing);
+      expect(
+        find.byWidgetPredicate(
+          (widget) => widget is Text && (widget.data ?? '').startsWith('Hora: '),
+        ),
+        findsOneWidget,
+      );
+    });
+
+    testWidgets('con hora de servidor, la usa y la etiqueta como tal', (
+      tester,
+    ) async {
+      const size = Size(1920, 1080);
+      await _pump(
+        tester,
+        _host(
+          size,
+          context: const OperationalContext(
+            server: 'erp.test',
+            database: 'orbi_test',
+            userLabel: 'Erik',
+            companyLabel: 'Empresa Demo',
+            serverTime: '13/09/2026 10:00:00',
+            connectionLabel: 'Conectado',
+            syncLabel: 'al día',
+          ),
+        ),
+        size,
+      );
+
+      expect(find.text('Hora servidor: 13/09/2026 10:00:00'), findsOneWidget);
     });
 
     testWidgets(
@@ -296,7 +456,10 @@ void main() {
           size,
         );
 
-        expect(find.text('Red sin verificar'), findsOneWidget);
+        // Dos veces a propósito: la píldora de la barra superior reusa este
+        // mismo texto para "unknown" (no tiene una redacción propia para un
+        // estado que el dueño no nombró), y el pie de abajo también lo dice.
+        expect(find.text('Red sin verificar'), findsNWidgets(2));
         expect(find.text('Conectado'), findsNothing);
       },
     );
@@ -340,6 +503,168 @@ void main() {
     });
   });
 
+  group('la barra superior', () {
+    testWidgets('la empresa se ve, siempre, junto al usuario', (
+      tester,
+    ) async {
+      const size = Size(1920, 1080);
+      await _pump(tester, _host(size), size);
+      expect(find.text('Empresa Demo'), findsOneWidget);
+      expect(find.text('Erik'), findsOneWidget);
+    });
+
+    // El bloque de usuario/avatar decide por su propio ancho (840, el mismo
+    // corte de `OrbiTheme.mediumBreakpoint`), no por el modo del carril: en
+    // angosto sólo el avatar es alcanzable, sin que el nombre se corte a la
+    // mitad.
+    testWidgets('bajo 840 de ancho el texto se esconde y sólo queda el avatar', (
+      tester,
+    ) async {
+      const size = Size(800, 900);
+      await _pump(tester, _host(size), size);
+      expect(find.text('Empresa Demo'), findsNothing);
+      expect(find.byKey(const Key('shell-avatar-button')), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets(
+      'sin red la píldora dice «Sin conexión», sin latencia inventada',
+      (tester) async {
+        const size = Size(1920, 1080);
+        await _pump(
+          tester,
+          _host(
+            size,
+            context: const OperationalContext(
+              server: 'erp.test',
+              database: 'orbi_test',
+              userLabel: 'Erik',
+              companyLabel: 'Empresa Demo',
+              connectionLabel: 'da igual, manda el estado medido',
+              connectionStatus: ConnectionStatus.offline,
+              syncLabel: 'al día',
+            ),
+          ),
+          size,
+        );
+
+        expect(find.text('Sin conexión'), findsOneWidget);
+        expect(find.textContaining(' ms'), findsNothing);
+      },
+    );
+
+    testWidgets('en línea, sin una medida de ida y vuelta, no inventa milisegundos', (
+      tester,
+    ) async {
+      const size = Size(1920, 1080);
+      await _pump(
+        tester,
+        _host(
+          size,
+          context: const OperationalContext(
+            server: 'erp.test',
+            database: 'orbi_test',
+            userLabel: 'Erik',
+            companyLabel: 'Empresa Demo',
+            connectionLabel: 'Conectado',
+            connectionStatus: ConnectionStatus.online,
+            syncLabel: 'al día',
+          ),
+        ),
+        size,
+      );
+
+      expect(find.text('En línea'), findsOneWidget);
+      expect(find.textContaining(' ms'), findsNothing);
+    });
+
+    testWidgets(
+      'en línea y con latencia medida, la muestra tal cual llega',
+      (tester) async {
+        const size = Size(1920, 1080);
+        await _pump(
+          tester,
+          _host(
+            size,
+            context: const OperationalContext(
+              server: 'erp.test',
+              database: 'orbi_test',
+              userLabel: 'Erik',
+              companyLabel: 'Empresa Demo',
+              connectionLabel: 'Conectado',
+              connectionStatus: ConnectionStatus.online,
+              connectionLatency: Duration(milliseconds: 349),
+              syncLabel: 'al día',
+            ),
+          ),
+          size,
+        );
+
+        expect(find.text('En línea 349 ms'), findsOneWidget);
+      },
+    );
+
+    testWidgets('sin onToggleTheme no se ofrece el botón de tema', (
+      tester,
+    ) async {
+      const size = Size(1920, 1080);
+      await _pump(tester, _host(size), size);
+      expect(find.byKey(const Key('shell-theme-toggle')), findsNothing);
+    });
+
+    testWidgets('con onToggleTheme, tocarlo lo llama', (tester) async {
+      const size = Size(1920, 1080);
+      var toggled = false;
+      await _pump(
+        tester,
+        _host(size, onToggleTheme: () => toggled = true),
+        size,
+      );
+      await tester.tap(find.byKey(const Key('shell-theme-toggle')));
+      await tester.pumpAndSettle();
+      expect(toggled, isTrue);
+    });
+
+    // Una prueba por ancho, cada una con su propio `tester` limpio: Fluent
+    // ANIMA la apertura/cierre del carril al cambiar de modo, y reusar el
+    // mismo árbol para saltar de 800 (carril de iconos) a 1280 (carril
+    // abierto) atrapa un fotograma intermedio de esa animación —no un
+    // defecto real, sino el mismo tipo de sobresalto transitorio que ya
+    // documenta `pane_items.dart` de Fluent. Medido el 13-sep-2026.
+    for (final width in [400.0, 800.0, 1280.0]) {
+      testWidgets(
+        'a ${width.toInt()} px no desborda: las acciones se ven o están '
+        'en el desbordamiento, nunca se cortan',
+        (tester) async {
+          final size = Size(width, 900);
+          await _pump(
+            tester,
+            _host(size, destinations: _richDestinations, onToggleTheme: () {}),
+            size,
+          );
+          expect(tester.takeException(), isNull);
+
+          final overflow = find.byKey(const Key('shell-topbar-overflow'));
+          if (find.text('Avisos').evaluate().isEmpty &&
+              overflow.evaluate().isNotEmpty) {
+            await tester.tap(overflow);
+            await tester.pumpAndSettle();
+          }
+          expect(
+            find.text('Avisos'),
+            findsWidgets,
+            reason: 'Avisos debe verse o estar en el "…"',
+          );
+          expect(
+            find.text('Actividades'),
+            findsWidgets,
+            reason: 'Actividades debe verse o estar en el "…"',
+          );
+        },
+      );
+    }
+  });
+
   group('sesión', () {
     testWidgets(
       'no ofrece bloquear ni cambiar de usuario si no puede hacerlo',
@@ -347,10 +672,46 @@ void main() {
         const size = Size(1920, 1080);
         await _pump(tester, _host(size), size);
 
+        await tester.tap(find.byKey(const Key('shell-avatar-button')));
+        await tester.pumpAndSettle();
+
         expect(find.byKey(const Key('lock-button')), findsNothing);
         expect(find.byKey(const Key('switch-user-button')), findsNothing);
         // Cerrar sesión siempre se puede.
         expect(find.byKey(const Key('logout-button')), findsOneWidget);
+      },
+    );
+
+    // El pie del panel ya no lleva estas acciones sueltas (orden del dueño,
+    // 13-sep-2026): viven en el menú del avatar de la barra superior.
+    testWidgets(
+      'el menú del avatar trae Bloquear, Cambiar de usuario y Cerrar '
+      'sesión, y el pie del panel ya no',
+      (tester) async {
+        const size = Size(1920, 1080);
+        await _pump(
+          tester,
+          _host(
+            size,
+            onLock: () {},
+            onUnlock: (_) async => true,
+            onSwitchUser: () {},
+          ),
+          size,
+        );
+
+        // Sin abrir el menú, ninguna de las tres está suelta en el pie.
+        expect(find.byKey(const Key('lock-button')), findsNothing);
+        expect(find.byKey(const Key('switch-user-button')), findsNothing);
+        expect(find.byKey(const Key('logout-button')), findsNothing);
+
+        await tester.tap(find.byKey(const Key('shell-avatar-button')));
+        await tester.pumpAndSettle();
+
+        expect(find.byKey(const Key('lock-button')), findsOneWidget);
+        expect(find.byKey(const Key('switch-user-button')), findsOneWidget);
+        expect(find.byKey(const Key('logout-button')), findsOneWidget);
+        expect(find.text('Mis preferencias'), findsOneWidget);
       },
     );
 
@@ -371,14 +732,32 @@ void main() {
         size,
       );
 
+      await tester.tap(find.byKey(const Key('shell-avatar-button')));
+      await tester.pumpAndSettle();
+
       await tester.tap(find.byKey(const Key('lock-button')));
       await tester.pumpAndSettle();
       expect(bloqueado, isTrue);
       expect(cambiado, isFalse);
 
+      await tester.tap(find.byKey(const Key('shell-avatar-button')));
+      await tester.pumpAndSettle();
       await tester.tap(find.byKey(const Key('switch-user-button')));
       await tester.pumpAndSettle();
       expect(cambiado, isTrue);
+    });
+
+    testWidgets('«Mis preferencias» navega a Configuración', (tester) async {
+      const size = Size(1920, 1080);
+      String? navegado;
+      await _pump(tester, _host(size, onNavigate: (p) => navegado = p), size);
+
+      await tester.tap(find.byKey(const Key('shell-avatar-button')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const Key('shell-preferences-item')));
+      await tester.pumpAndSettle();
+
+      expect(navegado, '/settings');
     });
 
     // Un borrador a medio escribir no puede perderse porque alguien pulsara
@@ -409,29 +788,36 @@ void main() {
     });
   });
 
-  group('la cabecera y el pie los pone Fluent, no nosotros', () {
-    // Antes esto era una fila escrita a mano encima de todo. Ahora vive en
-    // `NavigationPane.header`, que Fluent coloca y esconde por su cuenta.
-    testWidgets('la empresa se ve en el carril abierto', (tester) async {
+  group('la cabecera del panel la pone Fluent, no nosotros', () {
+    // La marca vive en `NavigationPane.header`, que Fluent coloca y esconde
+    // por su cuenta. La empresa ya NO se repite aquí (orden del dueño,
+    // 13-sep-2026): vive siempre en la barra superior, así que el panel sólo
+    // lleva el logo.
+    testWidgets('el carril abierto sólo trae la marca, no la empresa', (
+      tester,
+    ) async {
       const size = Size(1920, 1080);
       await _pump(tester, _host(size), size);
 
+      // Un solo "Empresa Demo" en toda la pantalla: si el panel también lo
+      // repitiera, esto encontraría dos.
       expect(find.text('Empresa Demo'), findsOneWidget);
     });
 
-    // Fluent esconde la cabecera del panel en el carril de sólo iconos, donde
-    // un nombre de empresa no cabría de todas formas. Se fija aquí para que
-    // nadie lo tome por un fallo y le construya una fila propia encima.
-    testWidgets('en el carril de iconos Fluent la esconde, y está bien', (
+    // Fluent esconde la cabecera del panel en el carril de sólo iconos. La
+    // barra superior (con el contexto de servidor y la empresa) sigue
+    // viéndose siempre, y con ella el pie.
+    testWidgets('en el carril de iconos, la barra y el pie no dependen de él', (
       tester,
     ) async {
       // 1000 px horizontal: por debajo del corte de 1008, el carril es de iconos.
       const size = Size(1000, 700);
       await _pump(tester, _host(size), size);
 
-      expect(find.text('Empresa Demo'), findsNothing);
-      // Lo que sí se ve siempre es el pie con el contexto del servidor.
       expect(find.text('Servidor: erp.test'), findsOneWidget);
+      // A 1000 ya se pasa del corte de 840 de la barra superior, así que la
+      // empresa se ve ahí — el carril de iconos no la esconde por debajo.
+      expect(find.text('Empresa Demo'), findsOneWidget);
     });
   });
 

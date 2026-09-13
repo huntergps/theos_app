@@ -44,8 +44,8 @@ void main() {
   });
 
   testWidgets(
-    'lo que va después del formulario (tamaño de texto, Modo Ruta, PIN) '
-    'sigue viéndose — el formulario no se come su espacio',
+    'lo que va después del formulario (tamaño de texto, PIN) sigue '
+    'viéndose — el formulario no se come su espacio',
     (tester) async {
       // El formulario ahora trae dos campos más (Menú de navegación,
       // Indicador del menú): con el tamaño de prueba por defecto empujaban
@@ -62,8 +62,10 @@ void main() {
       await tester.pump();
 
       expect(find.textContaining('Tamaño de texto'), findsOneWidget);
-      expect(find.text('Modo Ruta'), findsOneWidget);
       expect(find.text('Categorías de notificaciones'), findsOneWidget);
+      // Modo Ruta se trasladó a la pantalla de Sincronización (orden del
+      // dueño, 13-sep-2026): Configuración ya no lo muestra.
+      expect(find.text('Modo Ruta'), findsNothing);
       // Y en el orden correcto: el formulario queda ARRIBA de lo que sigue,
       // no lo tapa ni lo empuja fuera de la pantalla.
       final temaTop = tester.getTopLeft(find.text('Tema')).dy;
@@ -92,8 +94,17 @@ void main() {
   testWidgets(
     'elegir "Compacto" en Menú de navegación llama al setter y persiste',
     (tester) async {
+      // La sección "Navegación" quedó abajo de "Apariencia" al agrupar la
+      // pantalla en secciones plegables — con el viewport de prueba por
+      // omisión su ComboBox queda fuera de vista y el tap ni acierta. Un
+      // viewport así de alto llega hasta `PinEnrollmentSection`, que exige
+      // su propio `ProviderScope` (lo trae el árbol real vía
+      // `bootstrap.dart`).
+      await tester.binding.setSurfaceSize(const Size(800, 2000));
+      addTearDown(() => tester.binding.setSurfaceSize(null));
+
       final controller = await _controller();
-      await tester.pumpWidget(_host(controller));
+      await tester.pumpWidget(ProviderScope(child: _host(controller)));
       await tester.pump();
 
       expect(
@@ -115,8 +126,15 @@ void main() {
   testWidgets(
     'elegir "Al final" en Indicador del menú llama al setter y persiste',
     (tester) async {
+      // Mismo motivo que la prueba anterior: sin ampliar el viewport, el
+      // ComboBox de "Navegación" queda fuera del área visible de prueba —
+      // y ese viewport llega hasta `PinEnrollmentSection`, que necesita su
+      // propio `ProviderScope`.
+      await tester.binding.setSurfaceSize(const Size(800, 2000));
+      addTearDown(() => tester.binding.setSurfaceSize(null));
+
       final controller = await _controller();
-      await tester.pumpWidget(_host(controller));
+      await tester.pumpWidget(ProviderScope(child: _host(controller)));
       await tester.pump();
 
       expect(
@@ -135,49 +153,19 @@ void main() {
     },
   );
 
-  // `_SwitchRow` ahora es un `ListTile` con `ToggleSwitch` de fábrica (no un
-  // Row+Column+Padding a mano) — ver `settings_screen.dart`. Esta prueba mira
-  // lo que la persona ve: la fila es un ListTile con su interruptor, y
-  // tocarlo sigue cambiando la preferencia real, no sólo un widget interno.
-  testWidgets(
-    '"Modo Ruta" es un ListTile con ToggleSwitch, y tocarlo cambia la '
-    'preferencia',
-    (tester) async {
-      // Igual que arriba: el formulario más largo empuja "Modo Ruta" fuera
-      // del viewport de prueba por defecto, y el tap ni siquiera acierta.
-      // Este viewport llega hasta `PinEnrollmentSection`, que exige su
-      // propio `ProviderScope`.
-      await tester.binding.setSurfaceSize(const Size(800, 2000));
-      addTearDown(() => tester.binding.setSurfaceSize(null));
-
-      final controller = await _controller();
-      await tester.pumpWidget(ProviderScope(child: _host(controller)));
-      await tester.pump();
-
-      expect(controller.snapshot.routeMode, isFalse);
-
-      final tile = find.ancestor(
-        of: find.text('Modo Ruta'),
-        matching: find.byType(ListTile),
-      );
-      expect(tile, findsOneWidget);
-      final toggle = find.descendant(
-        of: tile,
-        matching: find.byType(ToggleSwitch),
-      );
-      expect(toggle, findsOneWidget);
-
-      await tester.tap(toggle);
-      await tester.pumpAndSettle();
-
-      expect(controller.snapshot.routeMode, isTrue);
-    },
-  );
+  // La prueba dedicada de "Modo Ruta" se trasladó a
+  // sync_data_screen_test.dart junto con el propio interruptor (orden del
+  // dueño, 13-sep-2026): Configuración ya no lo conoce.
 
   testWidgets(
-    'las categorías de notificaciones son ListTile con ToggleSwitch',
+    // Las categorías se muestran con su nombre en mayúscula inicial (orden
+    // del dueño, 12-sep-2026: "ventas / caja / sistema" en minúscula parecía
+    // texto de depuración, no producto) — la clave interna que persiste la
+    // preferencia sigue en minúscula, sólo cambia lo que se lee en pantalla.
+    'las categorías de notificaciones son ListTile con ToggleSwitch, con su '
+    'nombre en mayúscula inicial',
     (tester) async {
-      // La pantalla vive en un `ListView`: sin esto, "caja" y "sistema"
+      // La pantalla vive en un `ListView`: sin esto, "Caja" y "Sistema"
       // quedan fuera del viewport de prueba y ni se construyen. Un viewport
       // así de alto llega hasta `PinEnrollmentSection`, que sí necesita un
       // `ProviderScope` (lo trae el árbol real vía `bootstrap.dart`).
@@ -188,17 +176,22 @@ void main() {
       await tester.pumpWidget(ProviderScope(child: _host(controller)));
       await tester.pump();
 
-      for (final category in const ['ventas', 'caja', 'sistema']) {
+      for (final label in const ['Ventas', 'Caja', 'Sistema']) {
         final tile = find.ancestor(
-          of: find.text(category),
+          of: find.text(label),
           matching: find.byType(ListTile),
         );
-        expect(tile, findsOneWidget, reason: 'falta la fila de $category');
+        expect(tile, findsOneWidget, reason: 'falta la fila de $label');
         expect(
           find.descendant(of: tile, matching: find.byType(ToggleSwitch)),
           findsOneWidget,
-          reason: '$category debe traer su interruptor',
+          reason: '$label debe traer su interruptor',
         );
+      }
+      // La forma en minúscula ya no aparece como texto de pantalla — sólo
+      // sobrevive como clave interna de `notificationCategories`.
+      for (final raw in const ['ventas', 'caja', 'sistema']) {
+        expect(find.text(raw), findsNothing);
       }
 
       expect(
@@ -207,7 +200,7 @@ void main() {
       );
       final ventasToggle = find.descendant(
         of: find.ancestor(
-          of: find.text('ventas'),
+          of: find.text('Ventas'),
           matching: find.byType(ListTile),
         ),
         matching: find.byType(ToggleSwitch),
@@ -216,6 +209,55 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(controller.snapshot.notificationCategories['ventas'], isFalse);
+    },
+  );
+
+  testWidgets(
+    'la jerga de permisos ("acción consciente", "no se convierte en éxito") '
+    'ya no aparece en pantalla',
+    (tester) async {
+      await tester.binding.setSurfaceSize(const Size(800, 2000));
+      addTearDown(() => tester.binding.setSurfaceSize(null));
+
+      final controller = await _controller();
+      await tester.pumpWidget(ProviderScope(child: _host(controller)));
+      await tester.pump();
+
+      expect(find.textContaining('acción consciente'), findsNothing);
+      expect(find.textContaining('no se convierte en éxito'), findsNothing);
+      expect(tester.takeException(), isNull);
+    },
+  );
+
+  testWidgets(
+    'tocar una muestra de acento cambia y persiste la preferencia, sin '
+    'tocar el color por omisión',
+    (tester) async {
+      final controller = await _controller();
+      // El valor por omisión no cambia (orden del dueño): sigue siendo el
+      // teal de Orbi antes de tocar nada.
+      expect(controller.snapshot.accentSeed, 0xFF007E82);
+
+      await tester.pumpWidget(_host(controller));
+      await tester.pump();
+
+      await tester.tap(find.byKey(const Key('accent-swatch-azul')));
+      await tester.pump();
+      // Fluent's Button/HoverButton machinery schedules a 100ms Timer on
+      // tap-up to reset its own pressed visual state; flush it so the test
+      // does not end with a pending Timer.
+      await tester.pump(const Duration(milliseconds: 100));
+
+      expect(controller.snapshot.accentSeed, 0xFF1565C0);
+
+      // Persistida de verdad: un store nuevo sobre el mismo
+      // SharedPreferences (no el mismo controller) la lee igual.
+      final reloaded = await AppPreferencesStore(
+        preferences: await SharedPreferences.getInstance(),
+        scope: _scope,
+      ).load();
+      expect(reloaded.accentSeed, 0xFF1565C0);
+      expect(tester.takeException(), isNull);
     },
   );
 }

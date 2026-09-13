@@ -546,7 +546,8 @@ void main() {
             (background.image as AssetImage).assetName,
             orbiAuthBackgroundAsset,
           );
-          final isWideLandscape = size.width >= 840 && size.width > size.height;
+          final isWideLandscape =
+              size.width >= 1008 && size.width > size.height;
           if (isWideLandscape) {
             final brandingCenter = tester.getCenter(
               find.text('Ventas, caja y operaciones'),
@@ -2023,6 +2024,74 @@ void main() {
       expect(tester.takeException(), isNull);
     },
   );
+
+  // ==========================================================================
+  // Encargo del dueño (13-sep-2026): el acceso en escritorio ancho pasa a
+  // panel de marca + formulario lado a lado a partir del ancho "expandido"
+  // de fluent_ui — el mismo corte que NavigationView usa para su propio modo
+  // abierto (1008px, ver pane.dart/view.dart en fluent_ui-4.16.1) — y NO
+  // antes. El corte de 840px que ya usaba esta pantalla es el de
+  // `OrbiTheme.mediumBreakpoint`, pensado para que un formulario pase a dos
+  // columnas — un criterio distinto del de partir la pantalla entera en dos.
+  // En teléfono y tableta el acceso no cambia (orden explícita del dueño):
+  // esas pruebas ya existen arriba y deben seguir en verde tal cual.
+  // ==========================================================================
+  Future<void> pumpLoginAtSize(WidgetTester tester, Size size) async {
+    await setLoginTestWindowSize(tester, size);
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [authServiceProvider.overrideWithValue(_ProfileService())],
+        child: FluentApp(theme: OrbiFluentTheme.light, home: const LoginScreen()),
+      ),
+    );
+    await tester.pump();
+  }
+
+  testWidgets(
+    'a 900x700 — por encima del corte de formulario a dos columnas (840) pero '
+    'por debajo del expandido de fluent_ui (1008) — el acceso sigue apilado',
+    (tester) async {
+      await pumpLoginAtSize(tester, const Size(900, 700));
+      addTearDown(() => resetLoginTestWindowSize(tester));
+      expect(
+        find.text('Ventas, caja y operaciones'),
+        findsNothing,
+        reason:
+            'A 900px de ancho, por debajo de los 1008 "expandidos" de '
+            'fluent_ui, el acceso NO debe partirse en dos.',
+      );
+      expect(tester.takeException(), isNull);
+    },
+  );
+
+  testWidgets(
+    'a 1280px el acceso muestra el panel de marca y el formulario lado a '
+    'lado',
+    (tester) async {
+      await pumpLoginAtSize(tester, const Size(1280, 800));
+      addTearDown(() => resetLoginTestWindowSize(tester));
+      final brandingCenter = tester.getCenter(
+        find.text('Ventas, caja y operaciones'),
+      );
+      final formCenter = tester.getCenter(find.byType(TextBox).first);
+      expect(brandingCenter.dx, lessThan(formCenter.dx));
+      expect(tester.takeException(), isNull);
+    },
+  );
+
+  for (final size in const [Size(400, 844), Size(800, 600)]) {
+    testWidgets(
+      'a ${size.width.toInt()}x${size.height.toInt()} el acceso sigue siendo '
+      'el de hoy — sin panel de marca lateral',
+      (tester) async {
+        await pumpLoginAtSize(tester, size);
+        addTearDown(() => resetLoginTestWindowSize(tester));
+        expect(find.text('Ventas, caja y operaciones'), findsNothing);
+        expect(find.byType(TextBox), findsNWidgets(2));
+        expect(tester.takeException(), isNull);
+      },
+    );
+  }
 }
 
 final class _LoginThemeHarness extends ConsumerWidget {

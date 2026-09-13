@@ -56,10 +56,15 @@ final class RouteAccessPolicy {
       return permissions.contains('approvals') ||
           permissions.contains('approver');
     }
-    if (path == '/sync') {
+    // Toda el área de sincronización (también la cola offline). Vendedores y
+    // cajeros entran: preparan sus datos para trabajar sin conexión y el Modo
+    // Ruta de los vendedores rurales vive aquí (orden del dueño, 13-sep-2026).
+    if (path == '/sync' || path.startsWith('/sync/')) {
       return developerMode ||
           permissions.contains('sync') ||
-          permissions.contains('administrator');
+          permissions.contains('administrator') ||
+          permissions.contains('seller') ||
+          permissions.contains('cashier');
     }
     if (path == '/activities') return permissions.contains('activities');
     if (path == '/notifications') return permissions.contains('notifications');

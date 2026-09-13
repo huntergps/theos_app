@@ -275,54 +275,56 @@ void main() {
     expect(find.text('No hay aprobaciones pendientes'), findsOneWidget);
   });
 
-  testWidgets('sync route requires synchronized administrator capability', (
-    tester,
-  ) async {
-    final container = ProviderContainer(
-      overrides: [
-        authServiceProvider.overrideWithValue(_Auth()),
-        capabilitySnapshotProvider.overrideWithValue(
-          CapabilitySnapshot(
-            scopeKey: 'scope',
-            companyId: 1,
-            revision: 1,
-            fetchedAt: DateTime(2026),
-            permissions: const ['seller'],
+  testWidgets(
+    'sync route stays closed to a user with no sales, cash, sync or administrator capability',
+    (tester) async {
+      final container = ProviderContainer(
+        overrides: [
+          authServiceProvider.overrideWithValue(_Auth()),
+          capabilitySnapshotProvider.overrideWithValue(
+            CapabilitySnapshot(
+              scopeKey: 'scope',
+              companyId: 1,
+              revision: 1,
+              fetchedAt: DateTime(2026),
+              // Sólo bodega: vendedores y cajeros sí entran a /sync desde el 13-sep-2026.
+              permissions: const ['warehouse'],
+            ),
           ),
+          sharedPreferencesProvider.overrideWithValue(
+            await SharedPreferences.getInstance(),
+          ),
+        ],
+      );
+      addTearDown(container.dispose);
+      final router = container.read(orbiRouterProvider);
+      await tester.pumpWidget(
+        UncontrolledProviderScope(
+          container: container,
+          child: FluentApp.router(routerConfig: router),
         ),
-        sharedPreferencesProvider.overrideWithValue(
-          await SharedPreferences.getInstance(),
+      );
+      await container
+          .read(authControllerProvider.notifier)
+          .login(
+            serverUrl: 'https://erp.test',
+            database: 'db',
+            login: 'warehouse',
+            password: 'secret',
+          );
+      final authenticatedRouter = container.read(orbiRouterProvider);
+      await tester.pumpWidget(
+        UncontrolledProviderScope(
+          container: container,
+          child: FluentApp.router(routerConfig: authenticatedRouter),
         ),
-      ],
-    );
-    addTearDown(container.dispose);
-    final router = container.read(orbiRouterProvider);
-    await tester.pumpWidget(
-      UncontrolledProviderScope(
-        container: container,
-        child: FluentApp.router(routerConfig: router),
-      ),
-    );
-    await container
-        .read(authControllerProvider.notifier)
-        .login(
-          serverUrl: 'https://erp.test',
-          database: 'db',
-          login: 'seller',
-          password: 'secret',
-        );
-    final authenticatedRouter = container.read(orbiRouterProvider);
-    await tester.pumpWidget(
-      UncontrolledProviderScope(
-        container: container,
-        child: FluentApp.router(routerConfig: authenticatedRouter),
-      ),
-    );
-    await tester.pumpAndSettle();
-    authenticatedRouter.go('/sync');
-    await tester.pumpAndSettle();
-    expect(authenticatedRouter.state.uri.path, '/');
-  });
+      );
+      await tester.pumpAndSettle();
+      authenticatedRouter.go('/sync');
+      await tester.pumpAndSettle();
+      expect(authenticatedRouter.state.uri.path, '/');
+    },
+  );
 
   testWidgets('synchronized administrator can enter sync route', (
     tester,

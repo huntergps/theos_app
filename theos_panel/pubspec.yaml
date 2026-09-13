@@ -68,6 +68,9 @@ dependencies:
   # la base de datos; se declara porque ahora se usa directamente, y depender
   # de algo sin declararlo es como se rompe una compilación sin avisar.
   path_provider: ^2.1.5
+  # Confirmar cierre en escritorio (armazón operativo, 13-sep-2026). Misma
+  # versión que theos_pos, que ya la trae probada en macOS/Windows/Linux.
+  window_manager: ^0.5.2
 
 dev_dependencies:
   flutter_test:
@@ -75,6 +78,9 @@ dev_dependencies:
   integration_test:
     sdk: flutter
   flutter_launcher_icons: ^0.14.4
+  # Misma versión que odoo_sdk/theos_pos_core/theos_pos, para las pruebas de
+  # widget de las pantallas de sincronización (Sync-01/02).
+  mocktail: ^1.0.5
 
   # The "flutter_lints" package below contains a set of recommended lints to
   # encourage good coding practices. The lint set provided by the package is

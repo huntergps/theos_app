@@ -49,6 +49,18 @@ class HomePage extends ConsumerWidget {
           : HomeCenterView(
               port: homePort,
               quickStarts: _quickStarts(policy, capabilities),
+              // Sólo el turno propio: `/collection/hub` abre el del usuario de la
+              // sesión y no recibe un id, así que un turno ajeno no es tocable.
+              onOpenOwnCashSession: () {
+                if (policy.allows(
+                      '/collection/hub',
+                      authenticated: true,
+                      capabilities: capabilities,
+                    ) &&
+                    context.mounted) {
+                  context.go('/collection/hub');
+                }
+              },
               onResume: (item) async {
                 final route = item.route;
                 if (route == null ||

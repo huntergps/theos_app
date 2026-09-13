@@ -20,6 +20,9 @@ class OrbiColumn<T> {
     this.alwaysVisible = false,
     this.subtitle = false,
     this.metric = false,
+    this.emphasis = false,
+    this.badgeColor,
+    this.leadingIcon,
   });
 
   final String key;
@@ -54,6 +57,54 @@ class OrbiColumn<T> {
   /// función de ficha, que es justo lo que hacía que dos listados no se
   /// parecieran.
   final bool metric;
+
+  /// Resalta el valor (negrita), sin cambiar cómo se alinea. Para el total de
+  /// una fila: la cifra que manda se lee de un vistazo entre las demás.
+  final bool emphasis;
+
+  /// Cuando no es nula, la celda se pinta como una insignia de color en vez
+  /// de texto plano. El color lo decide quien conoce el significado del
+  /// estado — el listado no sabe qué es «aprobado» ni de qué color va.
+  final Color Function(T row)? badgeColor;
+
+  /// Un icono que antecede al valor — por ejemplo, el aviso de que la fila
+  /// todavía no ha subido al servidor. Nulo si esta fila no lo necesita.
+  final ({IconData icon, Color color})? Function(T row)? leadingIcon;
+}
+
+/// Una insignia de color, para la celda que la pida y para su misma columna
+/// en ficha: el mismo aspecto en los dos, porque son la misma información.
+Widget _orbiPill(String text, Color color) => Container(
+  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
+  decoration: BoxDecoration(
+    color: color.withValues(alpha: 0.16),
+    borderRadius: BorderRadius.circular(12),
+  ),
+  child: Text(
+    text,
+    overflow: TextOverflow.ellipsis,
+    style: TextStyle(
+      color: color,
+      fontWeight: FontWeight.w600,
+      fontSize: 12,
+    ),
+  ),
+);
+
+/// Antepone el icono de aviso al valor de la celda, cuando la columna lo pide.
+Widget _orbiWithLeading(
+  Widget child,
+  ({IconData icon, Color color})? leading,
+) {
+  if (leading == null) return child;
+  return Row(
+    mainAxisSize: MainAxisSize.min,
+    children: [
+      Icon(leading.icon, size: 14, color: leading.color),
+      const SizedBox(width: 4),
+      Flexible(child: child),
+    ],
+  );
 }
 
 /// Lo que toda pantalla de listado comparte, por orden del dueño
@@ -197,11 +248,14 @@ class _OrbiListingState<T> extends State<OrbiListing<T>> {
   @override
   Widget build(BuildContext context) {
     final theme = FluentTheme.of(context);
-    // El mismo color de cabecera que ya usa la aplicación madura: el acento de
-    // la marca, no un gris cualquiera.
-    final headerColor = theme.accentColor
-        .defaultBrushFor(theme.brightness)
-        .withValues(alpha: 0.9);
+    // Un tinte suave del acento, no el acento sólido: una cabecera a color
+    // plano se lee pesada (orden del dueño, 13-sep-2026, al ver la de
+    // Clientes). El acento sigue reconociéndose — sólo que como fondo, no
+    // como bloque de color.
+    final headerColor = Color.alphaBlend(
+      theme.accentColor.normal.withValues(alpha: 0.14),
+      theme.resources.layerFillColorDefault,
+    );
 
     final total = widget.totalCount ?? widget.rows.length;
     final pages = total <= 0 ? 1 : ((total - 1) ~/ widget.rowsPerPage) + 1;
@@ -348,6 +402,7 @@ class _OrbiListingState<T> extends State<OrbiListing<T>> {
     Iterable<OrbiColumn<T>> subtitles,
   ) {
     final theme = FluentTheme.of(context);
+    final leading = title.leadingIcon?.call(row);
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -355,10 +410,13 @@ class _OrbiListingState<T> extends State<OrbiListing<T>> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(
-                title.value(row),
-                style: theme.typography.bodyStrong,
-                overflow: TextOverflow.ellipsis,
+              _orbiWithLeading(
+                Text(
+                  title.value(row),
+                  style: theme.typography.bodyStrong,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                leading,
               ),
               for (final column in subtitles)
                 Text(column.value(row), style: theme.typography.caption),
@@ -390,6 +448,15 @@ class _OrbiListingState<T> extends State<OrbiListing<T>> {
 
   Widget _cardLine(BuildContext context, T row, OrbiColumn<T> column) {
     final theme = FluentTheme.of(context);
+    final badge = column.badgeColor?.call(row);
+    final leading = column.leadingIcon?.call(row);
+    final value = badge != null
+        ? _orbiPill(column.value(row), badge)
+        : Text(
+            column.value(row),
+            textAlign: column.numeric ? TextAlign.right : TextAlign.start,
+            style: column.emphasis ? theme.typography.bodyStrong : null,
+          );
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -400,9 +467,11 @@ class _OrbiListingState<T> extends State<OrbiListing<T>> {
         const SizedBox(width: 8),
         Expanded(
           flex: 3,
-          child: Text(
-            column.value(row),
-            textAlign: column.numeric ? TextAlign.right : TextAlign.start,
+          child: Align(
+            alignment: column.numeric
+                ? Alignment.centerRight
+                : Alignment.centerLeft,
+            child: _orbiWithLeading(value, leading),
           ),
         ),
       ],
@@ -577,40 +646,105 @@ class _OrbiListingState<T> extends State<OrbiListing<T>> {
     ],
   );
 
-  Widget _pager(BuildContext context, int pages, int total) => Padding(
-    padding: const EdgeInsets.only(top: 8),
-    child: Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-      children: [
-        // Decir cuántas hay en total, no sólo en qué página se está: sin el
-        // total nadie sabe si merece la pena seguir pasando páginas.
-        Text('$total ${total == 1 ? 'registro' : 'registros'}'),
-        Row(
-          children: [
-            IconButton(
-              key: const Key('orbi-listing-prev'),
-              icon: const Icon(FluentIcons.chevron_left),
-              onPressed: widget.pageIndex <= 0 || widget.onPageChanged == null
-                  ? null
-                  : () => widget.onPageChanged!(widget.pageIndex - 1),
-            ),
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 8),
-              child: Text('${widget.pageIndex + 1} de $pages'),
-            ),
-            IconButton(
-              key: const Key('orbi-listing-next'),
-              icon: const Icon(FluentIcons.chevron_right),
-              onPressed:
-                  widget.pageIndex >= pages - 1 || widget.onPageChanged == null
-                  ? null
-                  : () => widget.onPageChanged!(widget.pageIndex + 1),
-            ),
-          ],
+  /// Hasta cinco números consecutivos alrededor de la página actual (tres en
+  /// estrecho, para no desbordar). Ir al principio o al final se resuelve con
+  /// los botones de doble flecha, no forzando que su número siempre aparezca.
+  List<int> _visiblePageNumbers(int current, int pages, int windowSize) {
+    if (pages <= windowSize) return List.generate(pages, (i) => i);
+    var start = current - windowSize ~/ 2;
+    if (start < 0) start = 0;
+    if (start > pages - windowSize) start = pages - windowSize;
+    return List.generate(windowSize, (i) => start + i);
+  }
+
+  Widget _pageNumberButton(FluentThemeData theme, int page, bool selected) {
+    final background = selected
+        ? theme.accentColor.normal
+        : Colors.transparent;
+    return SizedBox(
+      key: Key('orbi-listing-page-${page + 1}'),
+      width: 30,
+      height: 30,
+      child: Button(
+        style: ButtonStyle(
+          padding: WidgetStateProperty.all(EdgeInsets.zero),
+          backgroundColor: WidgetStateProperty.all(background),
+          shape: WidgetStateProperty.all(
+            RoundedRectangleBorder(borderRadius: BorderRadius.circular(4)),
+          ),
         ),
-      ],
-    ),
-  );
+        onPressed: selected || widget.onPageChanged == null
+            ? null
+            : () => widget.onPageChanged!(page),
+        child: Text(
+          '${page + 1}',
+          style: TextStyle(
+            color: selected ? background.basedOnLuminance() : null,
+            fontWeight: selected ? FontWeight.bold : null,
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _pager(BuildContext context, int pages, int total) {
+    final theme = FluentTheme.of(context);
+    final current = widget.pageIndex;
+    final visible = _visiblePageNumbers(current, pages, _narrow ? 3 : 5);
+    return Padding(
+      padding: const EdgeInsets.only(top: 8),
+      child: Wrap(
+        alignment: WrapAlignment.spaceBetween,
+        crossAxisAlignment: WrapCrossAlignment.center,
+        spacing: 12,
+        runSpacing: 8,
+        children: [
+          // Decir cuántas hay en total, no sólo en qué página se está: sin el
+          // total nadie sabe si merece la pena seguir pasando páginas.
+          Text('$total ${total == 1 ? 'registro' : 'registros'}'),
+          Wrap(
+            crossAxisAlignment: WrapCrossAlignment.center,
+            children: [
+              IconButton(
+                key: const Key('orbi-listing-first'),
+                icon: const Icon(FluentIcons.double_chevron_left8),
+                onPressed: current <= 0 || widget.onPageChanged == null
+                    ? null
+                    : () => widget.onPageChanged!(0),
+              ),
+              IconButton(
+                key: const Key('orbi-listing-prev'),
+                icon: const Icon(FluentIcons.chevron_left),
+                onPressed: current <= 0 || widget.onPageChanged == null
+                    ? null
+                    : () => widget.onPageChanged!(current - 1),
+              ),
+              for (final page in visible)
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 2),
+                  child: _pageNumberButton(theme, page, page == current),
+                ),
+              IconButton(
+                key: const Key('orbi-listing-next'),
+                icon: const Icon(FluentIcons.chevron_right),
+                onPressed: current >= pages - 1 || widget.onPageChanged == null
+                    ? null
+                    : () => widget.onPageChanged!(current + 1),
+              ),
+              IconButton(
+                key: const Key('orbi-listing-last'),
+                icon: const Icon(FluentIcons.double_chevron_right8),
+                onPressed: current >= pages - 1 || widget.onPageChanged == null
+                    ? null
+                    : () => widget.onPageChanged!(pages - 1),
+              ),
+            ],
+          ),
+          Text('${current + 1} de $pages'),
+        ],
+      ),
+    );
+  }
 }
 
 class _OrbiSource<T> extends DataGridSource {
@@ -618,6 +752,13 @@ class _OrbiSource<T> extends DataGridSource {
 
   List<T> items;
   List<OrbiColumn<T>> columns;
+
+  /// De qué fila original viene cada [DataGridRow], para poder pedirle a la
+  /// columna su insignia o su icono — que son funciones de `T`, no del texto
+  /// ya formateado que lleva la celda. Se reconstruye en cada lectura de
+  /// [rows]; la igualdad de `DataGridRow` es por identidad, así que sigue
+  /// sirviendo aunque la rejilla reordene la lista al ordenar por columna.
+  final _rowOwners = <DataGridRow, T>{};
 
   /// Refrescar en vez de reemplazar. `notifyListeners` hace que la rejilla
   /// vuelva a leer `rows`, y la fuente conserva el orden que tenía.
@@ -643,9 +784,11 @@ class _OrbiSource<T> extends DataGridSource {
   // `effectiveRows` sobreescrito, `SfDataGrid` pintaba la cabecera y cero
   // filas de datos, incluso con `rows` no vacío en `OrbiListing`.
   @override
-  List<DataGridRow> get rows => [
-    for (final row in items)
-      DataGridRow(
+  List<DataGridRow> get rows {
+    _rowOwners.clear();
+    final built = <DataGridRow>[];
+    for (final row in items) {
+      final dataRow = DataGridRow(
         cells: [
           for (final column in columns)
             DataGridCell<String>(
@@ -653,23 +796,40 @@ class _OrbiSource<T> extends DataGridSource {
               value: column.value(row),
             ),
         ],
-      ),
-  ];
+      );
+      _rowOwners[dataRow] = row;
+      built.add(dataRow);
+    }
+    return built;
+  }
 
   @override
-  DataGridRowAdapter buildRow(DataGridRow row) => DataGridRowAdapter(
-    cells: [
-      for (var i = 0; i < row.getCells().length; i++)
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 8),
-          alignment: columns[i].numeric
-              ? Alignment.centerRight
-              : Alignment.centerLeft,
-          child: Text(
-            '${row.getCells()[i].value}',
+  DataGridRowAdapter buildRow(DataGridRow row) {
+    final owner = _rowOwners[row];
+    return DataGridRowAdapter(
+      cells: [
+        for (var i = 0; i < row.getCells().length; i++)
+          _buildCell(columns[i], '${row.getCells()[i].value}', owner),
+      ],
+    );
+  }
+
+  Widget _buildCell(OrbiColumn<T> column, String text, T? owner) {
+    final badge = owner == null ? null : column.badgeColor?.call(owner);
+    final leading = owner == null ? null : column.leadingIcon?.call(owner);
+    final content = badge != null
+        ? _orbiPill(text, badge)
+        : Text(
+            text,
             overflow: TextOverflow.ellipsis,
-          ),
-        ),
-    ],
-  );
+            style: column.emphasis
+                ? const TextStyle(fontWeight: FontWeight.w700)
+                : null,
+          );
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8),
+      alignment: column.numeric ? Alignment.centerRight : Alignment.centerLeft,
+      child: _orbiWithLeading(content, leading),
+    );
+  }
 }

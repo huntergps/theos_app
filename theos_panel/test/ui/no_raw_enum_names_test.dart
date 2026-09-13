@@ -40,6 +40,9 @@ void main() {
     'Text(type.name)',
     'Text(line.name,',
     'Text(server.name,',
+    // El nombre de la sesión de caja (p. ej. "CS/005/2026/0008"), no un
+    // enum: es el `name` de `collection.session`, dato real del negocio.
+    'Text(session.name),',
   };
 
   // Contextos donde el nombre del enum ES el valor correcto porque no se

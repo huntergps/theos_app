@@ -1,5 +1,9 @@
 import 'package:fluent_ui/fluent_ui.dart';
 import 'package:odoo_widgets/odoo_widgets.dart';
+// Sólo por el modelo `SaleCatalogPartner`: cuando `T` es ese tipo (el caso
+// real, cableado en `router.dart`) esta pantalla muestra identificación y
+// correo de verdad en vez del «Detalle» genérico.
+import 'package:theos_pos_core/theos_pos_core.dart' show SaleCatalogPartner;
 
 import '../../ui/components/orbi_components.dart';
 import '../../ui/export/export_listing.dart';
@@ -140,6 +144,17 @@ class _ClientsScreenState<T> extends State<ClientsScreen<T>> {
     );
   }
 
+  /// `true` cuando esta pantalla trabaja sobre el catálogo real de clientes
+  /// (`ClientsScreen<SaleCatalogPartner>`, cableado en `router.dart`). `T` es
+  /// un tipo reificado en Dart, así que esta comparación se resuelve en la
+  /// instanciación concreta — no hace falta mirar ninguna fila para saberlo.
+  bool get _isPartnerCatalog => T == SaleCatalogPartner;
+
+  SaleCatalogPartner? _partnerOf(CatalogEntity<T> entity) =>
+      entity.value is SaleCatalogPartner
+      ? entity.value as SaleCatalogPartner
+      : null;
+
   List<OrbiColumn<CatalogEntity<T>>> _columns() => [
     OrbiColumn(
       key: 'title',
@@ -147,30 +162,62 @@ class _ClientsScreenState<T> extends State<ClientsScreen<T>> {
       value: (entity) => entity.title,
       alwaysVisible: true,
     ),
-    OrbiColumn(
-      key: 'subtitle',
-      label: 'Detalle',
-      value: (entity) => entity.subtitle ?? '—',
-    ),
+    if (_isPartnerCatalog) ...[
+      OrbiColumn(
+        key: 'identification',
+        label: 'Identificación',
+        value: (entity) => _partnerOf(entity)?.vat ?? '—',
+      ),
+      OrbiColumn(
+        key: 'email',
+        label: 'Correo',
+        value: (entity) => _partnerOf(entity)?.email ?? '—',
+      ),
+    ] else
+      OrbiColumn(
+        key: 'subtitle',
+        label: 'Detalle',
+        value: (entity) => entity.subtitle ?? '—',
+      ),
   ];
 
   Widget _detail(BuildContext context, CatalogController<T> controller) {
     final typography = FluentTheme.of(context).typography;
     final selected = controller.selected;
+    if (selected == null) {
+      return const Card(
+        child: Padding(
+          padding: EdgeInsets.all(16),
+          child: Text('Selecciona un cliente para ver su contexto'),
+        ),
+      );
+    }
+    // 🔴 Antes esto imprimía `Identidad local: ${selected.uuid}` — un id
+    // interno («partner:28701») delante de quien está atendiendo al cliente.
+    // El panel ahora sólo muestra datos que el cliente reconoce de sí mismo.
+    final partner = _partnerOf(selected);
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(16),
-        child: selected == null
-            ? const Text('Selecciona un cliente para ver su contexto')
-            : Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  Text(selected.title, style: typography.subtitle),
-                  if (selected.subtitle != null) Text(selected.subtitle!),
-                  const SizedBox(height: 12),
-                  Text('Identidad local: ${selected.uuid}'),
-                ],
-              ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Text(selected.title, style: typography.subtitle),
+            if (partner != null) ...[
+              if (partner.vat != null) ...[
+                const SizedBox(height: 12),
+                Text('Identificación: ${partner.vat}'),
+              ],
+              if (partner.email != null) ...[
+                const SizedBox(height: 4),
+                Text('Correo: ${partner.email}'),
+              ],
+            ] else if (selected.subtitle != null) ...[
+              const SizedBox(height: 12),
+              Text(selected.subtitle!),
+            ],
+          ],
+        ),
       ),
     );
   }

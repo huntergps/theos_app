@@ -233,11 +233,14 @@ abstract class OdooFieldBase<T> extends StatelessWidget {
                   Icon(config.prefixIcon, size: responsive.iconSize),
                   SizedBox(width: Spacing.xs),
                 ],
-                Text(
-                  config.label,
-                  style: theme.typography.body?.copyWith(
-                    fontWeight: FontWeight.w500,
-                    fontSize: responsive.labelFontSize,
+                Flexible(
+                  child: Text(
+                    config.label,
+                    style: theme.typography.body?.copyWith(
+                      fontWeight: FontWeight.w500,
+                      fontSize: responsive.labelFontSize,
+                    ),
+                    overflow: TextOverflow.ellipsis,
                   ),
                 ),
                 if (config.isRequired)

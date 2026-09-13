@@ -42,8 +42,11 @@ import '../ui/export/export_listing.dart';
 import '../ui/fluent/orbi_page.dart';
 import '../features/sync/sync_center.dart';
 import '../features/sync/sync_conflict_resolution_screen.dart';
+import '../features/sync/offline_queue_screen.dart';
+import '../features/sync/sync_data_screen.dart';
 import '../ui/home_page.dart';
 import '../ui/layouts/operational_shell.dart';
+import '../ui/shell/desktop_close_guard.dart';
 import 'session_composition.dart';
 import 'notification_scope_adapter.dart';
 import 'u08_scope_adapters.dart';
@@ -396,7 +399,7 @@ final scopeSyncCoordinatorProvider = Provider<SyncCoordinatorImpl?>((ref) {
   final authService = ref.read(authServiceProvider);
   final apiKeyRenewal = authService is RenewableAuthServicePort
       ? (AppScope _) =>
-          (authService as RenewableAuthServicePort).renewApiKeyIfNeeded()
+            (authService as RenewableAuthServicePort).renewApiKeyIfNeeded()
       : null;
   // ----- FIN bloque aislado -----
   final coordinator = SyncCoordinatorImpl(
@@ -424,8 +427,9 @@ final _appForegroundSignalProvider = Provider<AppForegroundSignal>((ref) {
   return signal;
 });
 
-final scopeSyncAutoResyncTriggerProvider =
-    Provider<SyncAutoResyncTrigger?>((ref) {
+final scopeSyncAutoResyncTriggerProvider = Provider<SyncAutoResyncTrigger?>((
+  ref,
+) {
   final coordinator = ref.watch(scopeSyncCoordinatorProvider);
   if (coordinator == null) return null;
   final foreground = ref.watch(_appForegroundSignalProvider);
@@ -453,6 +457,129 @@ final scopeSyncAutoResyncTriggerProvider =
   });
   return trigger;
 });
+// --- Fin del bloque aislado ------------------------------------------------
+
+// --- Bloque aislado: tiempo real (13-sep-2026) ------------------------------
+// Un aviso `app_sync/changed` de Odoo (módulo `l10n_ec_app_sync`) es una PISTA:
+// dispara la sincronización incremental SÓLO del catálogo afectado, por el mismo
+// coordinador, así que se guarda en local y las pantallas se refrescan por sus
+// `watch`. Si el servidor no tiene el módulo (404), queda `disabled` y la app
+// sigue con la sincronización periódica. Ver orbi_runtime/lib/src/realtime/.
+//
+// Modelo de Odoo → `SyncJob` de catálogo. Verificado contra `RuntimeCatalogs` y
+// contra lo que avisa el servidor (`_app_sync_tracked_models` en l10n_ec_app_sync
+// y l10n_ec_collection_box_pos). Fuera a propósito: `product.template` (el
+// servidor lo traduce a avisos de `product.product`) y `product.pricelist.item`
+// (el catálogo de tarifas sólo lee cabeceras).
+const _realtimeModelJobIds = <String, Set<String>>{
+  'res.partner': {'catalog:partner'},
+  'product.product': {'catalog:product'},
+  'account.payment.term': {'catalog:paymentTerm'},
+  'uom.uom': {'catalog:uom'},
+  'account.tax': {'catalog:tax'},
+  'product.pricelist': {'catalog:pricelist'},
+  'stock.warehouse': {'catalog:warehouse'},
+  'account.journal': {'catalog:journal'},
+  'account.credit.card.brand': {'catalog:cardBrand'},
+  'account.credit.card.deadline': {'catalog:cardDeadline'},
+  'account.card.lote': {'catalog:cardLote'},
+  'account.payment.method.line': {'catalog:paymentMethodLine'},
+  'collection.config': {'catalog:collectionConfig'},
+  'collection.session': {'catalog:collectionSession'},
+};
+
+const _realtimeLastKey = 'realtime/last';
+
+// --- Bloque aislado: Modo Ruta (13-sep-2026) --------------------------------
+// La pausa por Modo Ruta la aplicaba sólo el callback de Configuración: con el
+// Modo Ruta guardado como activo, al volver a abrir la app la sincronización NO
+// quedaba en pausa. Ahora la aplica la preferencia persistida, esté abierta la
+// pantalla que sea (el interruptor vive en Sincronización). Sólo actúa cuando el
+// valor CAMBIA: así no reanuda la pausa de mantenimiento de la pantalla de
+// Sincronización cuando cambia otra preferencia, como el tema.
+final scopeRouteModePauseProvider = Provider<void>((ref) {
+  final coordinator = ref.watch(scopeSyncCoordinatorProvider);
+  if (coordinator == null) return;
+  final preferences = ref.watch(
+    appPreferencesProvider(ref.watch(preferencesScopeProvider)),
+  );
+  bool? applied;
+  void apply() {
+    final enabled = preferences.snapshot.routeMode;
+    if (enabled == applied) return;
+    applied = enabled;
+    if (enabled) {
+      unawaited(coordinator.pause(PauseReason('route_mode')));
+    } else if (coordinator.isPaused) {
+      unawaited(coordinator.resume());
+    }
+  }
+
+  apply();
+  preferences.addListener(apply);
+  ref.onDispose(() => preferences.removeListener(apply));
+});
+// --- Fin del bloque aislado ------------------------------------------------
+
+final scopeRealtimeSyncCoordinatorProvider = Provider<RealtimeSyncCoordinator?>(
+  (ref) {
+    final coordinator = ref.watch(scopeSyncCoordinatorProvider);
+    final runtime = ref.watch(runtimeSessionProvider);
+    final active = runtime?.active;
+    if (coordinator == null || runtime == null || active == null) return null;
+    final client = active.client;
+    if (client == null) {
+      // Sesión sin conexión: no hay socket que abrir.
+      return null;
+    }
+
+    final metadata = RuntimeMetadataStore(runtime);
+    final lease = active.lease;
+    final authService = ref.read(authServiceProvider);
+    final apiKeyRenewal = authService is RenewableAuthServicePort
+        ? (AppScope _) =>
+              (authService as RenewableAuthServicePort).renewApiKeyIfNeeded()
+        : null;
+
+    // Mismo puente red → Stream<bool> que el bloque de re-sincronización.
+    final onlineController = StreamController<bool>.broadcast();
+    ref.listen<AsyncValue<NetworkSignal>>(networkSignalProvider, (
+      previous,
+      next,
+    ) {
+      final signal = next.value;
+      if (signal != null && !onlineController.isClosed) {
+        onlineController.add(signal.hasNetwork);
+      }
+    }, fireImmediately: true);
+
+    final realtime = RealtimeSyncCoordinator(
+      syncCoordinator: coordinator,
+      modelJobIds: _realtimeModelJobIds,
+      sessionClientFor: (_) => OdooRealtimeSessionClient(client),
+      readLastNotificationId: (_) async {
+        final raw = await metadata.read(_realtimeLastKey, lease: lease);
+        return raw == null ? null : int.tryParse(raw);
+      },
+      writeLastNotificationId: (_, value) async {
+        // El `last` es del ámbito: si la sesión ya cambió, no se escribe.
+        if (!runtime.accepts(lease)) {
+          return;
+        }
+        await metadata.write(_realtimeLastKey, '$value', lease: lease);
+      },
+      online: onlineController.stream,
+      activeCompanyId: () => ref.read(capabilitySnapshotProvider)?.companyId,
+      apiKeyRenewal: apiKeyRenewal,
+    );
+    unawaited(realtime.start(active.scope));
+    ref.onDispose(() {
+      unawaited(realtime.dispose());
+      unawaited(onlineController.close());
+    });
+    return realtime;
+  },
+);
 // --- Fin del bloque aislado ------------------------------------------------
 
 // --- Bloque aislado: sesión expirada en caliente (auditoría de sesión,
@@ -868,6 +995,12 @@ final orbiRouterProvider = Provider<GoRouter>((ref) {
                         group: 'Sistema',
                       ),
                       const OperationalDestination(
+                        label: 'Cola offline',
+                        path: '/sync/queue',
+                        icon: FluentIcons.cloud_upload,
+                        group: 'Sistema',
+                      ),
+                      const OperationalDestination(
                         label: 'Avisos',
                         path: '/notifications',
                         icon: FluentIcons.ringer,
@@ -904,6 +1037,11 @@ final orbiRouterProvider = Provider<GoRouter>((ref) {
             // aislado más arriba. Nunca se lee su valor aquí: basta con que
             // exista para que escuche red y ciclo de vida.
             ref.watch(scopeSyncAutoResyncTriggerProvider);
+            // Igual que el disparador: basta con que exista para que el tiempo
+            // real abra el socket del ámbito y lo cierre al salir.
+            ref.watch(scopeRealtimeSyncCoordinatorProvider);
+            // El Modo Ruta guardado pausa la sincronización desde que se abre el ámbito.
+            ref.watch(scopeRouteModePauseProvider);
             // Dos medidas, no una suposición: el transporte del aparato y la
             // respuesta del servidor al último sondeo. Si falta cualquiera de
             // las dos, el resultado dice «sin verificar», nunca «conectado».
@@ -913,6 +1051,22 @@ final orbiRouterProvider = Provider<GoRouter>((ref) {
               network: ref.watch(networkSignalProvider).value,
               backendProbe: coordinator?.lastProbe,
             );
+            final noticesScope = ref
+                .watch(runtimeSessionProvider)
+                ?.active
+                ?.scope;
+            final noticesUnreadCount = noticesScope == null
+                ? 0
+                : ref.watch(
+                    notificationUnreadCountProvider(
+                      NotificationQueryKey(
+                        scopeKey: noticesScope.scopeKey,
+                        partitionKey: capabilities?.companyId == null
+                            ? 'global'
+                            : 'company:${capabilities!.companyId}',
+                      ),
+                    ),
+                  );
             // El controlador es el mismo `ChangeNotifier` de arriba: sólo se
             // reconstruye este subárbol, nunca el `GoRouter` entero.
             return AnimatedBuilder(
@@ -922,113 +1076,131 @@ final orbiRouterProvider = Provider<GoRouter>((ref) {
                     coordinator?.snapshots ??
                     const Stream<SyncSnapshot>.empty(),
                 initialData: coordinator?.snapshot ?? SyncSnapshot(),
-                builder: (context, syncSnapshot) => OperationalShell(
-                  destinations: destinations,
-                  selectedPath: state.uri.path,
-                  onNavigate: (path) => context.go(path),
-                  navigationDisplayMode: _paneDisplayModeFor(
-                    preferencesController.snapshot.navigationDisplayMode,
-                  ),
-                  navigationIndicator: _navigationIndicatorFor(
-                    preferencesController.snapshot.navigationIndicator,
-                  ),
-                  context: OperationalContext(
-                    server: profile?.serverUrl ?? 'No disponible',
-                    database: profile?.database ?? 'No disponible',
-                    userLabel: profile?.login ?? 'Usuario no disponible',
-                    // The real name travels in the very same response that
-                    // already carries `companyId` (`res.users.company_id`,
-                    // read via `OdooActiveIdentityReader.read` — see
-                    // `bootstrap.dart`, the same path on native and web). The
-                    // numeric placeholder is now only what shows when a profile
-                    // predates this field or the reader genuinely could not
-                    // resolve one — never the default for an authenticated user.
-                    companyLabel:
-                        profile?.companyName ??
-                        (profile?.companyId == null
-                            ? 'Empresa no disponible'
-                            : 'Empresa #${profile!.companyId}'),
-                    // Ya no es una cadena escrita a mano. El estado sale de
-                    // dos medidas: si el aparato tiene transporte de red, y si
-                    // el Odoo contestó al último sondeo. Cuando falta cualquiera
-                    // de las dos, el resultado es «sin verificar» —que es la
-                    // verdad— y nunca «conectado».
-                    connectionLabel: connectionStatusLabel(connectionStatus),
-                    connectionStatus: connectionStatus,
-                    syncLabel: _syncStatusLabel(coordinator, syncSnapshot.data),
-                  ),
-                  onLogout: () async {
-                    await ref.read(authControllerProvider.notifier).close();
-                    if (context.mounted) context.go('/login');
-                  },
-                  locked: locked,
-                  onLock: () => ref.read(workspaceLockProvider.notifier).lock(),
-                  onUnlock: (password) => attemptWorkspaceUnlock(ref, password),
-                  onSwitchUser: () => confirmSwitchWorkspaceUser(context, ref),
-                  // `Builder` gives the denial toast a BuildContext that is
-                  // actually a descendant of `OperationalShell`'s own
-                  // `Scaffold` — the outer `context` from this route builder
-                  // is not, so `ScaffoldMessenger.maybeOf` would find nothing.
-                  //
-                  // The nested `Consumer` (not a postFrameCallback keyed to
-                  // THIS widget rebuilding) is deliberate: a denial that
-                  // redirects back to the page already on screen — the exact
-                  // shape of "click a link to a forbidden area from Inicio" —
-                  // resolves to the SAME final location, so go_router does not
-                  // rebuild this subtree at all. `ref.listen` fires on the
-                  // provider's own state change, independent of whether
-                  // anything here rebuilds, so that case is not silently
-                  // dropped.
-                  child: Builder(
-                    builder: (innerContext) => Consumer(
-                      builder: (context, ref, _) {
-                        ref.listen<CopyableMessage?>(
-                          routeAccessDenialProvider,
-                          (_, next) {
-                            if (next == null || !innerContext.mounted) return;
-                            ref.read(routeAccessDenialProvider.notifier).take();
-                            final durations = ref
-                                .read(
-                                  appPreferencesProvider(
-                                    ref.read(preferencesScopeProvider),
-                                  ),
-                                )
-                                .snapshot
-                                .messageDurations;
-                            showCopyableMessage(
-                              innerContext,
-                              next,
-                              durations: durations,
-                            );
-                          },
-                        );
-                        // ----- INICIO bloque aislado: sesión expirada en
-                        // caliente (auditoría de sesión, 13-sep-2026) -----
-                        // El 401 del sondeo (o de cualquier trabajo de
-                        // sincronización) llega aquí como
-                        // `SyncSnapshot.sessionExpired`, una señal
-                        // ESTRUCTURADA (`SyncFailure.authStatus`), nunca
-                        // texto libre — ver sync_coordinator_impl.dart.
-                        // `ref.listen` reacciona UNA sola vez en la
-                        // transición false→true: en cuanto se dispare,
-                        // `handleSessionExpired()` cambia `auth.status`, lo
-                        // que hace que `orbiRouterProvider` redirija a
-                        // `/login` y este subárbol completo se desmonte, así
-                        // que no hay riesgo de repetir la llamada mientras
-                        // el snapshot siga en ese estado.
-                        ref.listen<bool>(sessionExpiredSignalProvider, (
-                          previous,
-                          next,
-                        ) {
-                          if (next && previous != true) {
-                            ref
-                                .read(authControllerProvider.notifier)
-                                .handleSessionExpired();
-                          }
-                        });
-                        // ----- FIN bloque aislado -----
-                        return child;
-                      },
+                builder: (context, syncSnapshot) => DesktopCloseGuard(
+                  child: OperationalShell(
+                    destinations: destinations,
+                    selectedPath: state.uri.path,
+                    onNavigate: (path) => context.go(path),
+                    navigationDisplayMode: _paneDisplayModeFor(
+                      preferencesController.snapshot.navigationDisplayMode,
+                    ),
+                    navigationIndicator: _navigationIndicatorFor(
+                      preferencesController.snapshot.navigationIndicator,
+                    ),
+                    onToggleTheme: () => preferencesController.setTheme(
+                      FluentTheme.of(context).brightness == Brightness.dark
+                          ? PreferenceThemeMode.light
+                          : PreferenceThemeMode.dark,
+                    ),
+                    context: OperationalContext(
+                      server: profile?.serverUrl ?? 'No disponible',
+                      database: profile?.database ?? 'No disponible',
+                      userLabel: profile?.login ?? 'Usuario no disponible',
+                      // The real name travels in the very same response that
+                      // already carries `companyId` (`res.users.company_id`,
+                      // read via `OdooActiveIdentityReader.read` — see
+                      // `bootstrap.dart`, the same path on native and web). The
+                      // numeric placeholder is now only what shows when a profile
+                      // predates this field or the reader genuinely could not
+                      // resolve one — never the default for an authenticated user.
+                      companyLabel:
+                          profile?.companyName ??
+                          (profile?.companyId == null
+                              ? 'Empresa no disponible'
+                              : 'Empresa #${profile!.companyId}'),
+                      // Ya no es una cadena escrita a mano. El estado sale de
+                      // dos medidas: si el aparato tiene transporte de red, y si
+                      // el Odoo contestó al último sondeo. Cuando falta cualquiera
+                      // de las dos, el resultado es «sin verificar» —que es la
+                      // verdad— y nunca «conectado».
+                      connectionLabel: connectionStatusLabel(connectionStatus),
+                      connectionStatus: connectionStatus,
+                      syncLabel: _syncStatusLabel(
+                        coordinator,
+                        syncSnapshot.data,
+                      ),
+                      // Misma clave que la ruta /notifications: la campana cuenta
+                      // exactamente lo que la bandeja muestra sin leer.
+                      noticesUnreadCount: noticesUnreadCount,
+                    ),
+                    onLogout: () async {
+                      await ref.read(authControllerProvider.notifier).close();
+                      if (context.mounted) context.go('/login');
+                    },
+                    locked: locked,
+                    onLock: () =>
+                        ref.read(workspaceLockProvider.notifier).lock(),
+                    onUnlock: (password) =>
+                        attemptWorkspaceUnlock(ref, password),
+                    onSwitchUser: () =>
+                        confirmSwitchWorkspaceUser(context, ref),
+                    // `Builder` gives the denial toast a BuildContext that is
+                    // actually a descendant of `OperationalShell`'s own
+                    // `Scaffold` — the outer `context` from this route builder
+                    // is not, so `ScaffoldMessenger.maybeOf` would find nothing.
+                    //
+                    // The nested `Consumer` (not a postFrameCallback keyed to
+                    // THIS widget rebuilding) is deliberate: a denial that
+                    // redirects back to the page already on screen — the exact
+                    // shape of "click a link to a forbidden area from Inicio" —
+                    // resolves to the SAME final location, so go_router does not
+                    // rebuild this subtree at all. `ref.listen` fires on the
+                    // provider's own state change, independent of whether
+                    // anything here rebuilds, so that case is not silently
+                    // dropped.
+                    child: Builder(
+                      builder: (innerContext) => Consumer(
+                        builder: (context, ref, _) {
+                          ref.listen<CopyableMessage?>(
+                            routeAccessDenialProvider,
+                            (_, next) {
+                              if (next == null || !innerContext.mounted) return;
+                              ref
+                                  .read(routeAccessDenialProvider.notifier)
+                                  .take();
+                              final durations = ref
+                                  .read(
+                                    appPreferencesProvider(
+                                      ref.read(preferencesScopeProvider),
+                                    ),
+                                  )
+                                  .snapshot
+                                  .messageDurations;
+                              showCopyableMessage(
+                                innerContext,
+                                next,
+                                durations: durations,
+                              );
+                            },
+                          );
+                          // ----- INICIO bloque aislado: sesión expirada en
+                          // caliente (auditoría de sesión, 13-sep-2026) -----
+                          // El 401 del sondeo (o de cualquier trabajo de
+                          // sincronización) llega aquí como
+                          // `SyncSnapshot.sessionExpired`, una señal
+                          // ESTRUCTURADA (`SyncFailure.authStatus`), nunca
+                          // texto libre — ver sync_coordinator_impl.dart.
+                          // `ref.listen` reacciona UNA sola vez en la
+                          // transición false→true: en cuanto se dispare,
+                          // `handleSessionExpired()` cambia `auth.status`, lo
+                          // que hace que `orbiRouterProvider` redirija a
+                          // `/login` y este subárbol completo se desmonte, así
+                          // que no hay riesgo de repetir la llamada mientras
+                          // el snapshot siga en ese estado.
+                          ref.listen<bool>(sessionExpiredSignalProvider, (
+                            previous,
+                            next,
+                          ) {
+                            if (next && previous != true) {
+                              ref
+                                  .read(authControllerProvider.notifier)
+                                  .handleSessionExpired();
+                            }
+                          });
+                          // ----- FIN bloque aislado -----
+                          return child;
+                        },
+                      ),
                     ),
                   ),
                 ),
@@ -1314,17 +1486,11 @@ final orbiRouterProvider = Provider<GoRouter>((ref) {
                 final scope = ref.watch(preferencesScopeProvider);
                 final preferences = ref.watch(appPreferencesProvider(scope));
                 final presenter = ref.watch(notificationPresenterProvider);
-                final coordinator = composition.syncCoordinator;
                 return SettingsScreen(
                   controller: preferences,
                   permissionAction: presenter == null
                       ? null
                       : NotificationPermissionAction(presenter),
-                  onRouteModeChanged: coordinator == null
-                      ? null
-                      : (enabled) => enabled
-                            ? coordinator.pause(PauseReason('route_mode'))
-                            : coordinator.resume(),
                 );
               },
             ),
@@ -1342,52 +1508,115 @@ final orbiRouterProvider = Provider<GoRouter>((ref) {
                       port:
                           composition.activities ??
                           ref.read(scopeActivityPortProvider)!,
+                      // «Mías/Todas»: hoy el puerto sólo trae las del usuario
+                      // de la sesión, así que el filtro aparece cuando traiga más.
+                      currentUserId: ref
+                          .read(authControllerProvider)
+                          .profile
+                          ?.userId,
                     ),
                   ),
           ),
           GoRoute(
             path: '/sync',
             builder: (context, state) {
-              // Same queue the "Operaciones pendientes" catalog status reads
-              // from (see `CoordinatorSyncCenterPort` below); the conflict
-              // resolution screen (SYN-03) is built on top of the identical
-              // live `OfflineQueueStore`, never a second one.
+              // Los catálogos y el coordinador del ÁMBITO (no
+              // `composition.catalogs`, que sólo existe cuando una prueba lo
+              // inyecta): la misma cola que lee la pantalla de conflictos
+              // (SYN-03), nunca una segunda.
+              final catalogs = ref.read(scopeCatalogCompositionProvider);
+              final runtimeCoordinator = ref.read(scopeSyncCoordinatorProvider);
               final operationsJob =
-                  composition.catalogs?.jobs['operations']
+                  (catalogs ?? composition.catalogs)?.jobs['operations']
                       as OperationsSyncJob?;
+              void openConflicts() {
+                final queue = operationsJob?.queue;
+                Navigator.of(context).push(
+                  FluentPageRoute<void>(
+                    builder: (_) => queue == null
+                        ? const NotConfiguredPage(
+                            title: 'Resolver conflicto',
+                            detail:
+                                'Sin cola de operaciones disponible '
+                                'en este scope.',
+                          )
+                        : SyncConflictResolutionPage(queue: queue),
+                  ),
+                );
+              }
+
+              // Con runtime real: la pantalla de sincronización con el Modo
+              // Ruta. En un `Consumer` para que la red y las preferencias no
+              // reconstruyan el `GoRouter` entero.
               if (composition.sync == null &&
-                  ref.read(scopeSyncCoordinatorProvider) == null) {
+                  catalogs != null &&
+                  runtimeCoordinator != null) {
+                return Consumer(
+                  builder: (context, ref, _) {
+                    final preferences = ref.watch(
+                      appPreferencesProvider(
+                        ref.watch(preferencesScopeProvider),
+                      ),
+                    );
+                    final capabilities = ref.watch(capabilitySnapshotProvider);
+                    return SyncDataScreen(
+                      port: RuntimeSyncDataPort(
+                        coordinator: runtimeCoordinator,
+                        catalogs: catalogs,
+                        preferences: preferences,
+                        operationsJob: operationsJob,
+                        isOnline:
+                            ref
+                                .watch(networkSignalProvider)
+                                .value
+                                ?.hasNetwork ??
+                            false,
+                        userCanCollect:
+                            capabilities?.permissions.contains('cashier') ??
+                            false,
+                      ),
+                      onOpenConflicts: openConflicts,
+                    );
+                  },
+                );
+              }
+              if (composition.sync == null && runtimeCoordinator == null) {
                 return const NotConfiguredPage(title: 'Sincronización');
               }
+              // Puerto inyectado (composición de pruebas o de negocio).
               return ProviderScope(
                 overrides: [
                   syncCenterPortProvider.overrideWithValue(
                     composition.sync ??
                         CoordinatorSyncCenterPort(
-                          ref.read(scopeSyncCoordinatorProvider)!,
+                          runtimeCoordinator!,
                           operations: operationsJob,
                         ),
                   ),
                 ],
                 child: OrbiPage(
                   title: 'Sincronización',
-                  child: SyncCenterView(
-                    onOpenConflicts: () {
-                      final queue = operationsJob?.queue;
-                      Navigator.of(context).push(
-                        FluentPageRoute<void>(
-                          builder: (_) => queue == null
-                              ? const NotConfiguredPage(
-                                  title: 'Resolver conflicto',
-                                  detail:
-                                      'Sin cola de operaciones disponible '
-                                      'en este scope.',
-                                )
-                              : SyncConflictResolutionPage(queue: queue),
-                        ),
-                      );
-                    },
-                  ),
+                  child: SyncCenterView(onOpenConflicts: openConflicts),
+                ),
+              );
+            },
+          ),
+          GoRoute(
+            path: '/sync/queue',
+            builder: (context, state) {
+              final catalogs =
+                  ref.read(scopeCatalogCompositionProvider) ??
+                  composition.catalogs;
+              final queue =
+                  (catalogs?.jobs['operations'] as OperationsSyncJob?)?.queue;
+              if (queue == null) {
+                return const NotConfiguredPage(title: 'Cola offline');
+              }
+              final coordinator = ref.read(scopeSyncCoordinatorProvider);
+              return OfflineQueueScreen(
+                port: RuntimeOfflineQueuePort(
+                  queue: queue,
+                  isSyncing: coordinator?.snapshot.active ?? false,
                 ),
               );
             },

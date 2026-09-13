@@ -220,6 +220,11 @@ void main() {
       await tester.pump();
       expect(find.text('Venta Jacqueline'), findsOneWidget);
       expect(repository.queries.last.authorFilter, isNull);
+      // La ficha ahora trae más líneas (Vendedor/Subtotal/Impuestos), así que
+      // a 600 px de alto la segunda fila ya no cabe sin desplazar: hay que
+      // llevarla a la vista antes de tocarla, en vez de asumir que ya está.
+      await tester.ensureVisible(find.text('Venta Jacqueline'));
+      await tester.pumpAndSettle();
       await tester.tap(find.text('Venta Jacqueline'));
       await tester.pumpAndSettle();
       expect(find.text('Estado comercial: sale'), findsOneWidget);
@@ -342,4 +347,170 @@ void main() {
       expect(controller.snapshot.query?.authorFilter, isNull);
     },
   );
+
+  // 🔴 La prueba que exige el encargo: el contador de cada chip rápido tiene
+  // que salir de contar filas reales de la base local por estado, con el
+  // mismo ámbito (dueño, texto) que la consulta activa — no un número fijo ni
+  // el tamaño de la página cargada.
+  test('las cuentas de los filtros rápidos por estado son las filas reales, no un adorno', () async {
+    final repository = _FakeOrderRepository([
+      for (var i = 0; i < 3; i++)
+        OrderListItem(
+          localId: 'q-$i',
+          title: 'Cotización $i',
+          companyId: 1,
+          authorId: 7,
+          businessState: SaleOrderState.draft,
+          syncState: OperationSyncState.synced,
+        ),
+      for (var i = 0; i < 2; i++)
+        OrderListItem(
+          localId: 's-$i',
+          title: 'Confirmada $i',
+          companyId: 1,
+          authorId: 7,
+          businessState: SaleOrderState.sale,
+          syncState: OperationSyncState.synced,
+        ),
+    ]);
+    addTearDown(repository.dispose);
+    final controller = OrderController(
+      repository: repository,
+      policy: OrderFilterPolicy(
+        userId: 7,
+        capabilities: capabilities(['seller', 'orders.view_all']),
+      ),
+    );
+    addTearDown(controller.dispose);
+    await Future<void>.delayed(Duration.zero);
+    await Future<void>.delayed(Duration.zero);
+
+    expect(controller.statusCounts[SaleOrderState.draft], 3);
+    expect(controller.statusCounts[SaleOrderState.sale], 2);
+    expect(controller.statusCounts[SaleOrderState.waitingApproval], 0);
+
+    // Filtrar por un estado deja el mismo contador (no se recalcula al
+    // filtrar) y acota la lista a ese estado.
+    controller.setSelectedState(SaleOrderState.draft);
+    await Future<void>.delayed(Duration.zero);
+    expect(controller.snapshot.totalCount, 3);
+    expect(controller.query.states, {SaleOrderState.draft});
+
+    // Tocar el mismo estado otra vez lo quita, igual que un `ToggleButton`
+    // que se puede desmarcar.
+    controller.setSelectedState(SaleOrderState.draft);
+    expect(controller.selectedState, isNull);
+  });
+
+  // 🔴 La otra prueba que exige el encargo: el aviso de pendiente de subir es
+  // el mismo `syncState` que ya trae cada fila — una orden encolada lo
+  // muestra, una ya sincronizada no.
+  testWidgets(
+    'una orden con operación pendiente en la cola muestra el icono de pendiente de subir, y la que no, no',
+    (tester) async {
+      final repository = _FakeOrderRepository(orders());
+      addTearDown(repository.dispose);
+      final policy = OrderFilterPolicy(
+        userId: 7,
+        capabilities: capabilities(['seller', 'orders.view_all']),
+      );
+      await tester.pumpWidget(
+        FluentApp(
+          home: OrdersScreen(repository: repository, policy: policy),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      // Filtro inicial del vendedor: «Mis ventas» (autor 7) — sólo o-1, que
+      // está en cola.
+      expect(find.text('Venta Sebastián'), findsOneWidget);
+      expect(find.byIcon(FluentIcons.cloud_upload), findsOneWidget);
+
+      // Con «Todas» entran también o-2 y o-4 (sincronizadas): el icono sigue
+      // apareciendo sólo una vez, la de o-1 — las sincronizadas no lo traen.
+      await tester.tap(find.text('Todas'));
+      await tester.pumpAndSettle();
+      expect(find.text('Venta Sebastián'), findsOneWidget);
+      expect(find.text('Venta Jacqueline'), findsOneWidget);
+      expect(find.byIcon(FluentIcons.cloud_upload), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    },
+  );
+
+  // 🔴 La prueba que pidió el equipo tras autorizar tocar
+  // `runtime_order_reader.dart`: Vendedor, Subtotal e Impuestos ya los
+  // calculó Odoo y viven en la fila — la pantalla los muestra, no los
+  // recalcula.
+  testWidgets(
+    'una orden local con subtotal, impuestos y vendedor conocidos muestra las tres columnas',
+    (tester) async {
+      final repository = _FakeOrderRepository(const [
+        OrderListItem(
+          localId: 'o-amounts',
+          title: 'Venta con importes',
+          companyId: 1,
+          authorId: 7,
+          businessState: SaleOrderState.sale,
+          syncState: OperationSyncState.synced,
+          sellerName: 'Aldas Romero Erik Andres',
+          amountUntaxed: 100,
+          amountTax: 15,
+          amountTotal: 115,
+        ),
+      ]);
+      addTearDown(repository.dispose);
+      final policy = OrderFilterPolicy(
+        userId: 7,
+        capabilities: capabilities(['seller', 'orders.view_all']),
+      );
+      await tester.pumpWidget(
+        FluentApp(
+          home: OrdersScreen(repository: repository, policy: policy),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('Aldas Romero Erik Andres'), findsOneWidget);
+      expect(find.text('100.00'), findsOneWidget);
+      expect(find.text('15.00'), findsOneWidget);
+      expect(find.text('115.00'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    },
+  );
+
+  // 🔴 Mientras la fila no traiga un importe real, la celda dice «—» — nunca
+  // «0.00», que se leería como «esta orden no cobra nada» en vez de «este
+  // dato todavía no llegó».
+  testWidgets('una orden sin subtotal ni impuestos muestra guion, nunca cero', (
+    tester,
+  ) async {
+    final repository = _FakeOrderRepository(const [
+      OrderListItem(
+        localId: 'o-sin-importes',
+        title: 'Venta sin importes',
+        companyId: 1,
+        authorId: 7,
+        businessState: SaleOrderState.sale,
+        syncState: OperationSyncState.synced,
+      ),
+    ]);
+    addTearDown(repository.dispose);
+    final policy = OrderFilterPolicy(
+      userId: 7,
+      capabilities: capabilities(['seller', 'orders.view_all']),
+    );
+    await tester.pumpWidget(
+      FluentApp(
+        home: OrdersScreen(repository: repository, policy: policy),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('Venta sin importes'), findsOneWidget);
+    // Vendedor, Subtotal, Impuestos, Total (y otras columnas sin dato) en
+    // guion — lo que importa es que ninguna caiga en «0.00».
+    expect(find.text('—'), findsWidgets);
+    expect(find.text('0.00'), findsNothing);
+    expect(tester.takeException(), isNull);
+  });
 }

@@ -128,6 +128,40 @@ void main() {
         expect(find.byType(TextBox), findsOneWidget);
       });
 
+      testWidgets(
+        'does not overflow in edit mode at 310px with a long label, a '
+        'prefix icon and a required asterisk',
+        (tester) async {
+          // Mismo ancho medido que reproduce el desborde de
+          // `OdooMultilineField.buildViewMode` (ver `odoo_multiline_field_test.dart`)
+          // — aquí es `OdooFieldBase.buildEditLayout` (`lib/src/base/odoo_field_base.dart:236`)
+          // el que compartían todos los campos en modo edición.
+          await tester.pumpWidget(
+            buildTestApp(
+              const SizedBox(
+                width: 310,
+                child: OdooTextField(
+                  config: OdooFieldConfig(
+                    label: 'Términos y condiciones aceptados',
+                    isEditing: true,
+                    isRequired: true,
+                    prefixIcon: FluentIcons.quick_note,
+                  ),
+                  value: 'Texto de prueba',
+                ),
+              ),
+            ),
+          );
+          await tester.pumpAndSettle();
+
+          expect(tester.takeException(), isNull);
+          expect(
+            find.text('Términos y condiciones aceptados'),
+            findsOneWidget,
+          );
+        },
+      );
+
       testWidgets('shows required asterisk when isRequired is true',
           (tester) async {
         await tester.pumpWidget(buildTestApp(

@@ -385,8 +385,8 @@ void main() {
         expect(find.text('Productos'), findsOneWidget);
         final wide = size.width >= 840 && size.width >= size.height;
         expect(find.byType(SfDataGrid), wide ? findsOneWidget : findsNothing);
-        await tester.ensureVisible(find.text('Continuar'));
-        expect(find.text('Continuar'), findsOneWidget);
+        await tester.ensureVisible(find.text('Confirmar venta'));
+        expect(find.text('Confirmar venta'), findsOneWidget);
         expect(tester.takeException(), isNull);
       }
       await tester.binding.setSurfaceSize(null);

@@ -370,11 +370,36 @@ void main() {
       ),
       isFalse,
     );
+    // El vendedor entra al área de sincronización (Modo Ruta, cola offline);
+    // quien no vende, no cobra ni administra, sigue fuera.
     expect(
       policy.destinationAfterLogin(
         '/sync',
         authenticated: true,
         capabilities: capabilities,
+      ),
+      '/sync',
+    );
+    expect(
+      policy.allows(
+        '/sync/queue',
+        authenticated: true,
+        capabilities: capabilities,
+      ),
+      isTrue,
+    );
+    final warehouseOnly = CapabilitySnapshot(
+      scopeKey: 'scope',
+      companyId: 1,
+      revision: 1,
+      fetchedAt: DateTime(2026),
+      permissions: {'warehouse'},
+    );
+    expect(
+      policy.destinationAfterLogin(
+        '/sync',
+        authenticated: true,
+        capabilities: warehouseOnly,
       ),
       '/',
     );

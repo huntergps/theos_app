@@ -3,6 +3,10 @@ import 'dart:async';
 import 'package:fluent_ui/fluent_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../auth/auth_controller.dart'
+    show authControllerProvider, capabilitySnapshotProvider;
+import 'home_dashboard_view.dart';
+
 enum HomeResumeState { loading, data, empty, error }
 
 final class HomeResumeItem {
@@ -63,11 +67,12 @@ final class _EmptyHomeResumePort implements HomeResumePort {
 /// pone quien compone la pantalla completa, para no fabricar un segundo
 /// esqueleto (`SHELL_AND_INTERACTION_SPEC.md`, «Estándar resuelto del
 /// marco»).
-class HomeCenterView extends StatelessWidget {
+class HomeCenterView extends ConsumerWidget {
   const HomeCenterView({
     required this.port,
     this.onResume,
     this.quickStarts = const [],
+    this.onOpenOwnCashSession,
     super.key,
   });
   final HomeResumePort port;
@@ -79,22 +84,106 @@ class HomeCenterView extends StatelessWidget {
   /// muestra tal cual se los pasaron.
   final List<HomeResumeItem> quickStarts;
 
+  /// Se invoca al tocar la fila del PROPIO turno en «Sesiones de caja
+  /// activas». Sin id: `/collection/hub` (la única ruta que abre el hub)
+  /// sólo muestra el turno de quien tiene la sesión, nunca uno por id, así
+  /// que una fila ajena nunca invoca esto — ver `HomeCashSessionsSection`.
+  final VoidCallback? onOpenOwnCashSession;
+
   @override
-  Widget build(BuildContext context) => StreamBuilder<HomeResumeSnapshot>(
-    stream: port.changes,
-    initialData: port.snapshot,
-    builder: (context, snapshot) {
-      final state = snapshot.data ?? port.snapshot;
-      return switch (state.state) {
-        HomeResumeState.loading => const Center(child: ProgressRing()),
-        HomeResumeState.error => Center(
-          child: Text(state.message ?? 'No se pudo cargar el inicio'),
-        ),
-        HomeResumeState.empty => _empty(context),
-        HomeResumeState.data => _content(context, state.items),
-      };
-    },
+  Widget build(BuildContext context, WidgetRef ref) {
+    final capabilities = ref.watch(capabilitySnapshotProvider);
+    final login = ref.watch(
+      authControllerProvider.select((state) => state.profile?.login),
+    );
+    // Sólo se arma el panel de indicadores cuando hay al menos una capacidad
+    // con una fuente de datos real detrás (venta o cobro; bodega no tiene
+    // todavía un dato local confiable — ver `home_dashboard_contracts.dart`).
+    // El resto de capacidades (aprobador, sync, actividades…) no aportan un
+    // indicador propio todavía, así que no activan el panel por sí solas —
+    // eso sería fabricar una sección vacía.
+    final showDashboard =
+        capabilities != null &&
+        capabilities.permissions.intersection(const {
+          'seller',
+          'cashier',
+        }).isNotEmpty;
+
+    return StreamBuilder<HomeResumeSnapshot>(
+      stream: port.changes,
+      initialData: port.snapshot,
+      builder: (context, snapshot) {
+        final state = snapshot.data ?? port.snapshot;
+        if (!showDashboard) {
+          return switch (state.state) {
+            HomeResumeState.loading => const Center(child: ProgressRing()),
+            HomeResumeState.error => Center(
+              child: Text(state.message ?? 'No se pudo cargar el inicio'),
+            ),
+            HomeResumeState.empty => _empty(context),
+            HomeResumeState.data => _content(context, state.items),
+          };
+        }
+        return ListView(
+          padding: const EdgeInsets.only(bottom: 24),
+          children: [
+            if (login != null && login.trim().isNotEmpty)
+              _greeting(context, login),
+            HomeIndicatorGrid(capabilities: capabilities),
+            const SizedBox(height: 16),
+            const HomeLastSyncCard(),
+            if (capabilities.permissions.contains('cashier')) ...[
+              const SizedBox(height: 16),
+              HomeCashSessionsSection(onOpenOwnSession: onOpenOwnCashSession),
+            ],
+            if (quickStarts.isNotEmpty) ...[
+              const SizedBox(height: 16),
+              _quickAccessSection(context),
+            ],
+            if (state.state == HomeResumeState.data && state.items.isNotEmpty) ...[
+              const SizedBox(height: 16),
+              _resumeSection(context, state.items),
+            ] else if (state.state == HomeResumeState.loading) ...[
+              const SizedBox(height: 16),
+              const Center(child: ProgressRing()),
+            ] else if (state.state == HomeResumeState.error) ...[
+              const SizedBox(height: 16),
+              Text(state.message ?? 'No se pudo cargar el inicio'),
+            ],
+          ],
+        );
+      },
+    );
+  }
+
+  Widget _greeting(BuildContext context, String login) => Padding(
+    padding: const EdgeInsets.only(bottom: 12),
+    child: Text('Hola, $login', style: FluentTheme.of(context).typography.title),
   );
+
+  Widget _quickAccessSection(BuildContext context) {
+    final typography = FluentTheme.of(context).typography;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text('Accesos rápidos', style: typography.bodyStrong),
+        const SizedBox(height: 8),
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          children: quickStarts
+              .map(
+                (item) => Button(
+                  onPressed: () =>
+                      unawaited(onResume?.call(item) ?? port.resume(item)),
+                  child: Text(item.title),
+                ),
+              )
+              .toList(),
+        ),
+      ],
+    );
+  }
 
   Widget _empty(BuildContext context) {
     final typography = FluentTheme.of(context).typography;
@@ -129,6 +218,25 @@ class HomeCenterView extends StatelessWidget {
             ],
           ],
         ),
+      ),
+    );
+  }
+
+  /// Igual que [_content], pero sin envolver en su propio `ListView`: se usa
+  /// dentro del `ListView` general del panel de indicadores, y un
+  /// `ListView` sin altura acotada dentro de otro revienta el layout.
+  Widget _resumeSection(BuildContext context, List<HomeResumeItem> items) {
+    final withCount = items.where((item) => item.count != null).toList();
+    return LayoutBuilder(
+      builder: (context, constraints) => Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          if (withCount.isNotEmpty) ...[
+            _kpiRow(context, withCount),
+            const SizedBox(height: 16),
+          ],
+          _itemsList(context, items, wide: constraints.maxWidth >= 840),
+        ],
       ),
     );
   }

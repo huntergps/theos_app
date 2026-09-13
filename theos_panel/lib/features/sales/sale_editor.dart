@@ -15,6 +15,10 @@ import '../clients/catalog_contracts.dart';
 import '../clients/entity_picker.dart';
 import '../approvals/approval_contracts.dart';
 import 'sale_lines_editor.dart';
+import 'widgets/sale_client_summary_card.dart';
+import 'widgets/sale_order_status_chain.dart';
+import 'widgets/sale_order_totals_panel.dart';
+import 'widgets/sale_terms_card.dart';
 import '../../ui/state_labels.dart';
 
 enum SalePresentation { counter, consultive }
@@ -77,6 +81,8 @@ final class SaleDraftSnapshot {
     this.scopeKey = 'default',
     this.clientName = '',
     this.partnerId,
+    this.clientVat,
+    this.clientEmail,
     this.note = '',
     this.lines = const [],
     List<PaymentTermInstallment>? installments,
@@ -88,6 +94,7 @@ final class SaleDraftSnapshot {
     this.orderLocalId = 'draft',
     this.orderRemoteId,
     this.expectedVersion = 0,
+    this.businessState,
   }) : installments = List.unmodifiable(
          installments ?? [PaymentTermInstallment(dueDays: 0)],
        ) {
@@ -98,6 +105,12 @@ final class SaleDraftSnapshot {
   final String scopeKey;
   final String clientName;
   final int? partnerId;
+
+  /// RUC/cédula y correo del cliente elegido en el buscador
+  /// (`SaleCatalogPartner.vat`/`.email`). Sólo para mostrar en la tarjeta del
+  /// cliente — no hay dirección ni teléfono en ningún punto de este borrador.
+  final String? clientVat;
+  final String? clientEmail;
   final String note;
   final List<SaleDraftLine> lines;
   final List<PaymentTermInstallment> installments;
@@ -109,6 +122,12 @@ final class SaleDraftSnapshot {
   final String orderLocalId;
   final int? orderRemoteId;
   final int expectedVersion;
+
+  /// Estado real de la orden tal como lo devolvió la última confirmación
+  /// (`SaleEditorResult.businessState`). Nulo mientras no se haya confirmado
+  /// todavía: la cadena de estados de la pantalla cae entonces en lo que ya
+  /// dice [approval] (ver `_chainState` en `SaleEditorScreen`).
+  final SaleOrderState? businessState;
   SaleTermsClassification get classification => SaleDraftPayload(
     order: EntityReference(localId: 'draft'),
     installments: installments,
@@ -117,16 +136,21 @@ final class SaleDraftSnapshot {
   SaleDraftSnapshot copyWith({
     String? clientName,
     int? partnerId,
+    String? clientVat,
+    String? clientEmail,
     String? note,
     List<SaleDraftLine>? lines,
     List<PaymentTermInstallment>? installments,
     int? paymentTermId,
     SaleApprovalState? approval,
     bool? pendingAction,
+    SaleOrderState? businessState,
   }) => SaleDraftSnapshot(
     scopeKey: scopeKey,
     clientName: clientName ?? this.clientName,
     partnerId: partnerId ?? this.partnerId,
+    clientVat: clientVat ?? this.clientVat,
+    clientEmail: clientEmail ?? this.clientEmail,
     note: note ?? this.note,
     lines: List.unmodifiable(lines ?? this.lines),
     installments: installments ?? this.installments,
@@ -138,6 +162,7 @@ final class SaleDraftSnapshot {
     orderLocalId: orderLocalId,
     orderRemoteId: orderRemoteId,
     expectedVersion: expectedVersion,
+    businessState: businessState ?? this.businessState,
   );
 }
 
@@ -273,6 +298,8 @@ final class SharedPreferencesSaleDraftStore implements SaleDraftStore {
       scopeKey: scopeKey,
       clientName: map['clientName'] as String? ?? '',
       partnerId: (map['partnerId'] as num?)?.toInt(),
+      clientVat: map['clientVat'] as String?,
+      clientEmail: map['clientEmail'] as String?,
       note: map['note'] as String? ?? '',
       paymentTermId: (map['paymentTermId'] as num?)?.toInt(),
       installments: ((map['installments'] as List<dynamic>?) ?? const [])
@@ -302,6 +329,9 @@ final class SharedPreferencesSaleDraftStore implements SaleDraftStore {
       orderLocalId: map['orderLocalId'] as String? ?? 'draft',
       orderRemoteId: (map['orderRemoteId'] as num?)?.toInt(),
       expectedVersion: (map['expectedVersion'] as num?)?.toInt() ?? 0,
+      businessState: (map['businessState'] as String?) == null
+          ? null
+          : SaleOrderState.values.byName(map['businessState'] as String),
     );
   }
 
@@ -311,6 +341,8 @@ final class SharedPreferencesSaleDraftStore implements SaleDraftStore {
     jsonEncode({
       'clientName': draft.clientName,
       'partnerId': draft.partnerId,
+      'clientVat': draft.clientVat,
+      'clientEmail': draft.clientEmail,
       'note': draft.note,
       'paymentTermId': draft.paymentTermId,
       'installments': draft.installments.map((i) => i.dueDays).toList(),
@@ -334,6 +366,7 @@ final class SharedPreferencesSaleDraftStore implements SaleDraftStore {
       'orderLocalId': draft.orderLocalId,
       'orderRemoteId': draft.orderRemoteId,
       'expectedVersion': draft.expectedVersion,
+      'businessState': draft.businessState?.name,
     }),
   );
 }
@@ -423,6 +456,8 @@ final class SaleDraftController {
   void update({
     String? clientName,
     int? partnerId,
+    String? clientVat,
+    String? clientEmail,
     String? note,
     List<SaleDraftLine>? lines,
     List<PaymentTermInstallment>? installments,
@@ -444,6 +479,8 @@ final class SaleDraftController {
     _draft = _draft.copyWith(
       clientName: clientName,
       partnerId: partnerId,
+      clientVat: clientVat,
+      clientEmail: clientEmail,
       note: note,
       lines: nextLines,
       installments: installments,
@@ -564,6 +601,7 @@ final class SaleDraftController {
       _draft = _draft.copyWith(
         approval: result.approval,
         pendingAction: result.pendingAction,
+        businessState: result.businessState,
       );
       _queueSave(_draft);
       try {
@@ -698,6 +736,8 @@ class SaleEditorScreen extends StatefulWidget {
     this.clients,
     this.products,
     this.canSelectWarehouse = false,
+    this.totalsPort = const DraftLineTotalsPort(),
+    this.termsAndConditionsHtml,
   });
   final SaleDraftController controller;
   final SalePresentation presentation;
@@ -705,6 +745,18 @@ class SaleEditorScreen extends StatefulWidget {
   final CatalogController<SaleCatalogPartner>? clients;
   final CatalogController<SaleCatalogProduct>? products;
   final bool canSelectWarehouse;
+
+  /// De dónde sale el total mostrado abajo a la derecha. Por defecto
+  /// (`DraftLineTotalsPort`) delega en los calculadores reales de
+  /// `theos_pos_core` (`order_totals_calculator.dart`, `line_calculator.dart`)
+  /// — esta pantalla nunca suma ni redondea impuestos por su cuenta.
+  final SaleOrderTotalsPort totalsPort;
+
+  /// HTML crudo de "Términos y condiciones" (campo `note`/`note_type` de
+  /// Odoo), tal como llega del servidor. Nulo oculta la tarjeta: hoy ningún
+  /// llamador de esta pantalla lo provee todavía — ver el informe de este
+  /// encargo.
+  final String? termsAndConditionsHtml;
   @override
   State<SaleEditorScreen> createState() => _SaleEditorScreenState();
 }
@@ -801,10 +853,30 @@ class _SaleEditorScreenState extends State<SaleEditorScreen> {
     );
   }
 
+  /// Qué paso resalta la cadena de estados. Mientras la venta no se haya
+  /// confirmado todavía, se deriva de [SaleDraftSnapshot.approval] (lo único
+  /// que hay); una vez confirmada, `businessState` (lo que devolvió
+  /// `SaleEditorResult`) manda, porque ya es el estado real de la orden y
+  /// puede ser "Orden de venta" o más adelante — algo que `approval` solo
+  /// (required/pending/approved/rejected) no distingue.
+  SaleOrderState _chainState(SaleDraftSnapshot draft) =>
+      draft.businessState ??
+      switch (draft.approval) {
+        SaleApprovalState.required => SaleOrderState.draft,
+        SaleApprovalState.pending => SaleOrderState.waitingApproval,
+        SaleApprovalState.approved => SaleOrderState.approved,
+        SaleApprovalState.rejected => SaleOrderState.rejected,
+      };
+
   Widget _layout(BuildContext context, double width, SaleDraftSnapshot draft) {
     final form = _form(context, draft);
-    final summary = _summary(context, draft);
+    final summary = _summaryColumn(context, draft);
     final scale = MediaQuery.textScalerOf(context).scale(1);
+    final statusChain = SaleOrderStatusChain(state: _chainState(draft));
+    final terms = widget.termsAndConditionsHtml;
+    final termsCard = terms == null || terms.isEmpty
+        ? null
+        : SaleTermsCard(html: terms);
     final banner = widget.controller.saveError == null
         ? null
         : const Padding(
@@ -822,11 +894,15 @@ class _SaleEditorScreenState extends State<SaleEditorScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
+            statusChain,
+            const SizedBox(height: 16),
             ?banner,
             _form(context, draft, includeLines: false),
             const SizedBox(height: 16),
             _linesEditor(context, draft, constrainGrid: true),
             const SizedBox(height: 16),
+            ?termsCard,
+            if (termsCard != null) const SizedBox(height: 16),
             Align(
               alignment: AlignmentDirectional.centerEnd,
               child: ConstrainedBox(
@@ -841,9 +917,28 @@ class _SaleEditorScreenState extends State<SaleEditorScreen> {
       );
     }
     return ListView(
-      children: [?banner, form, const SizedBox(height: 16), summary],
+      children: [
+        statusChain,
+        const SizedBox(height: 16),
+        ?banner,
+        form,
+        const SizedBox(height: 16),
+        ?termsCard,
+        if (termsCard != null) const SizedBox(height: 16),
+        summary,
+      ],
     );
   }
+
+  Widget _summaryColumn(BuildContext context, SaleDraftSnapshot draft) =>
+      Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          SaleOrderTotalsPanel(totals: widget.totalsPort.totals(draft.lines)),
+          const SizedBox(height: 16),
+          _summary(context, draft),
+        ],
+      );
 
   Widget _form(
     BuildContext context,
@@ -854,6 +949,12 @@ class _SaleEditorScreenState extends State<SaleEditorScreen> {
     child: Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
+        SaleClientSummaryCard(
+          name: draft.clientName,
+          vat: draft.clientVat,
+          email: draft.clientEmail,
+        ),
+        const SizedBox(height: 16),
         LayoutBuilder(
           builder: (context, constraints) {
             final fields = <Widget>[
@@ -1035,6 +1136,8 @@ class _SaleEditorScreenState extends State<SaleEditorScreen> {
               widget.controller.update(
                 clientName: entity.title,
                 partnerId: entity.value?.remoteId,
+                clientVat: entity.value?.vat,
+                clientEmail: entity.value?.email,
               );
               Navigator.of(dialogContext).pop();
             },
@@ -1157,7 +1260,7 @@ class _SaleEditorScreenState extends State<SaleEditorScreen> {
                 const SizedBox(width: 6),
                 Flexible(
                   child: Text(
-                    widget.controller.busy ? 'Guardando…' : 'Continuar',
+                    widget.controller.busy ? 'Guardando…' : 'Confirmar venta',
                     overflow: TextOverflow.ellipsis,
                   ),
                 ),

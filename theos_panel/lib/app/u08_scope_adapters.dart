@@ -352,11 +352,22 @@ final class ScopeActivityPort implements ActivityPort {
     if (id == null || id.isEmpty || title == null || title.isEmpty) return null;
     final name = value['status']?.toString();
     final match = ActivityStatus.values.where((item) => item.name == name);
+    final documentId = value['documentId'];
     return ActivityItem(
       id: id,
       title: title,
       status: match.isEmpty ? ActivityStatus.planned : match.first,
       canComplete: value['canComplete'] == true,
+      note: value['note'] as String?,
+      activityType: value['activityType'] as String?,
+      documentModel: value['documentModel'] as String?,
+      documentId: documentId is num ? documentId.toInt() : null,
+      documentLabel: value['documentLabel'] as String?,
+      responsibleId: value['responsibleId'] is num
+          ? (value['responsibleId'] as num).toInt()
+          : null,
+      responsibleName: value['responsibleName'] as String?,
+      deadline: DateTime.tryParse(value['deadline']?.toString() ?? ''),
     );
   }
 }
@@ -381,10 +392,15 @@ final class ScopeU08SyncProducer {
       fields: const [
         'id',
         'summary',
+        'note',
         'date_deadline',
         'state',
         'active',
         'user_id',
+        'activity_type_id',
+        'res_model',
+        'res_id',
+        'res_name',
       ],
       domain: [
         ['user_id', '=', active.scope.userId],
@@ -402,6 +418,14 @@ final class ScopeU08SyncProducer {
           'title': row['summary'] as String? ?? 'Actividad',
           'status': _activityStatus(row['date_deadline'], row['state']),
           'canComplete': true,
+          'note': row['note'] as String?,
+          'activityType': _many2oneName(row['activity_type_id']),
+          'documentModel': row['res_model'] as String?,
+          'documentId': row['res_id'],
+          'documentLabel': row['res_name'] as String?,
+          'responsibleId': _many2oneId(row['user_id']),
+          'responsibleName': _many2oneName(row['user_id']),
+          'deadline': row['date_deadline']?.toString(),
         },
     ];
     await RuntimeMetadataStore(sessions).write(
@@ -486,6 +510,24 @@ final class ScopeU08SyncProducer {
       CachedDocumentCodec.encode(document),
       lease: lease,
     );
+  }
+
+  /// JSON-2 representa un many2one como `[id, "Nombre"]` (ver
+  /// `odoo_sdk/lib/src/api/odoo_response_parser.dart`); `false` cuando el
+  /// campo está vacío.
+  static String? _many2oneName(Object? value) {
+    if (value is List && value.length > 1 && value[1] is String) {
+      final name = value[1] as String;
+      return name.isEmpty ? null : name;
+    }
+    return null;
+  }
+
+  static int? _many2oneId(Object? value) {
+    if (value is List && value.isNotEmpty && value.first is num) {
+      return (value.first as num).toInt();
+    }
+    return null;
   }
 
   String _activityStatus(dynamic deadline, dynamic state) {
