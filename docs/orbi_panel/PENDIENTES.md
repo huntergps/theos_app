@@ -12,19 +12,13 @@ Cuando aparezca una nueva se pone aquí antes de seguir trabajando en lo que dep
 ella. Hasta el 12-sep-2026 esta sección decía «ninguna» con cinco abiertas, y una ni
 siquiera estaba anotada.
 
-- **¿Hay otro cliente que use la conexión en vivo con la sesión en la dirección?** Es la
-  mitad del parche del despachador de `l10n_ec_collection_box_pos` (`models/ir_http.py`),
-  que **pidió el dueño** en nov-2025 y que no se toca sin él. Revisado el 12-sep-2026: la
-  parte de cabeceras es fiel al núcleo que corre en ERP2. La de la conexión en vivo acepta
-  el identificador de sesión en la URL, que acaba en los registros, y el propio parche
-  escribe parte en el log. Además se salta comprobaciones que el núcleo sí hace al elegir
-  sesión y base, y fabrica con el superusuario el token de una sesión que no lo tiene.
-  **Ninguna de las dos apps de este repositorio la usa.** Si nadie más la usa, se puede
-  quitar.
-- **Encender `base.enable_programmatic_api_keys`.** Sin él, cerrar sesión no puede revocar
-  en el servidor la clave de quien no es administrador, y cada acceso deja la suya viva
-  hasta que caduca. Encenderlo da a cualquier clave del usuario poder de emitir y revocar
-  sus propias claves.
+- **Encender `base.enable_programmatic_api_keys`.** Parámetro de Odoo, apagado por
+  defecto, que deja a quien no es administrador llamar `res.users.apikeys.generate` y
+  `revoke` con su propia llave, sin contraseña. Orbi lo necesita **sólo para cerrar sesión**:
+  `revokeOwnApiKey` (orbi_runtime) llama a `revoke`. Sin él, la llave de un vendedor sigue
+  valiendo hasta que caduca (`orbi.web_auth_key_days`, hoy 1 día). El ingreso no lo
+  necesita, porque `/orbi/auth/token` emite la llave en el servidor. Encenderlo da a
+  cualquier llave del usuario poder de emitir y revocar sus propias llaves.
 - **Las cuatro cuentas de prueba con `12345` y el origen abierto a `*`.** Cambiarlas y
   cerrar la lista de orígenes antes de publicar nada (ver defectos).
 - **La bodega de tránsito única de Mepriga con el 49,5 % del inventario** (ver la sección
@@ -33,6 +27,19 @@ siquiera estaba anotada.
   Apache, es muy débil, y esos conectores atacan bases en producción.
 
 ## Resueltas, para que no se vuelvan a preguntar
+
+- 🟢 **La conexión en vivo con la sesión en la dirección SE QUEDA** (13-sep-2026). Es la
+  mitad `/websocket` del parche del despachador (`l10n_ec_collection_box_pos/models/ir_http.py`),
+  que pidió el dueño, y sirve para el **tiempo real**. `l10n_ec_collection_box` avisa por
+  `bus.bus._sendone` de pagos, cheques, anticipos, egresos y facturas, y
+  `odoo_sdk/lib/src/websocket/` es el cliente. En nativo se autentica con
+  `Authorization: Bearer`, pero un navegador no puede poner cabeceras en un WebSocket: en web
+  sólo cabe la sesión en la dirección. La entrada anterior proponía quitarla sin haber leído
+  quién la consume. Notas de seguridad que siguen en pie, para cuando se toque: el
+  identificador acaba en los registros de acceso, el parche escribe su prefijo en el log, y
+  se salta comprobaciones que el núcleo hace al elegir sesión y base. Hoy ninguna pantalla
+  de theos_pos ni de Orbi abre ese WebSocket: el cliente existe en el SDK, pero nadie lo
+  arranca todavía.
 
 - 🟢 **La pantalla de acceso por PIN ya tiene puerta**: el botón «Modo vendedor (PIN)»
   de la pantalla de acceso la abre (`login-pin-mode-button` en `login_screen.dart`).
