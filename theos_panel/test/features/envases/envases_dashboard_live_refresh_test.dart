@@ -94,7 +94,19 @@ void main() {
       expect(find.text('Sin datos descargados'), findsOneWidget);
 
       await controller.refresh();
-      await tester.pump();
+      // pumpAndSettle, no pump: la fila llega por notifyUpdates() -> varios
+      // Stream.multi encadenados -> una lectura async a SQLite -> setState.
+      // `WidgetTester.pump()` sólo dibuja un frame si `hasScheduledFrame` ya
+      // era verdadero ANTES de vaciar la cola de microtasks; si el cambio de
+      // estado llega por esa cola (nunca de forma síncrona, como aquí), un
+      // único pump() puede terminar antes de que `setState` alcance a pedir
+      // el frame, y la actualización queda para un pump siguiente que nunca
+      // se da. Normalmente esa cadena se resuelve mientras el propio `await`
+      // de arriba cede el control, por eso pasaba casi siempre; bajo la carga
+      // de la suite completa el orden se invierte y un solo pump() no basta
+      // (comprobado con una prueba mínima aislada: un pump() no ve una
+      // actualización que llega sólo por una cadena async).
+      await tester.pumpAndSettle();
       expect(find.text('Jaba'), findsOneWidget);
       expect(ownReaderCalls, 1);
 
@@ -120,7 +132,9 @@ void main() {
       );
       await backgroundCache.refresh(backgroundReader);
 
-      await tester.pump();
+      // Mismo motivo que arriba: la fila de `backgroundCache` llega al
+      // widget por la misma cadena async, nunca de forma síncrona.
+      await tester.pumpAndSettle();
 
       expect(find.text('Cerveza'), findsOneWidget);
       expect(find.text('Jaba'), findsNothing);
