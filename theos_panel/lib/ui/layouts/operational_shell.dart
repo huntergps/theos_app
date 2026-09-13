@@ -294,6 +294,18 @@ final class OperationalShell extends StatelessWidget {
               ),
             ),
             const SizedBox(width: 4),
+            // La empresa se marca con el mismo ícono que usa theos_pos
+            // (FluentIcons.org), para no confundirla con un usuario.
+            Tooltip(
+              message: 'Empresa',
+              child: Icon(
+                FluentIcons.org,
+                key: const Key('shell-company-icon'),
+                size: 14,
+                color: theme.accentColor,
+              ),
+            ),
+            const SizedBox(width: 6),
             Expanded(
               child: Text(
                 this.context.companyLabel,
@@ -329,6 +341,16 @@ final class OperationalShell extends StatelessWidget {
           // dos sitios la duplicaba en pantalla.
           if (mode != PaneDisplayMode.minimal) ...[
             const SizedBox(width: 10),
+            Tooltip(
+              message: 'Empresa',
+              child: Icon(
+                FluentIcons.org,
+                key: const Key('pane-company-icon'),
+                size: 14,
+                color: FluentTheme.of(context).accentColor,
+              ),
+            ),
+            const SizedBox(width: 6),
             Expanded(
               child: Text(
                 this.context.companyLabel,
