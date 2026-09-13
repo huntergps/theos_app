@@ -1,4 +1,5 @@
 import 'package:fluent_ui/fluent_ui.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:theos_panel/app/preferences/app_preferences.dart';
@@ -79,4 +80,81 @@ void main() {
 
     expect(controller.snapshot.themeMode, PreferenceThemeMode.dark);
   });
+
+  // `_SwitchRow` ahora es un `ListTile` con `ToggleSwitch` de fábrica (no un
+  // Row+Column+Padding a mano) — ver `settings_screen.dart`. Esta prueba mira
+  // lo que la persona ve: la fila es un ListTile con su interruptor, y
+  // tocarlo sigue cambiando la preferencia real, no sólo un widget interno.
+  testWidgets(
+    '"Modo Ruta" es un ListTile con ToggleSwitch, y tocarlo cambia la '
+    'preferencia',
+    (tester) async {
+      final controller = await _controller();
+      await tester.pumpWidget(_host(controller));
+      await tester.pump();
+
+      expect(controller.snapshot.routeMode, isFalse);
+
+      final tile = find.ancestor(
+        of: find.text('Modo Ruta'),
+        matching: find.byType(ListTile),
+      );
+      expect(tile, findsOneWidget);
+      final toggle = find.descendant(
+        of: tile,
+        matching: find.byType(ToggleSwitch),
+      );
+      expect(toggle, findsOneWidget);
+
+      await tester.tap(toggle);
+      await tester.pumpAndSettle();
+
+      expect(controller.snapshot.routeMode, isTrue);
+    },
+  );
+
+  testWidgets(
+    'las categorías de notificaciones son ListTile con ToggleSwitch',
+    (tester) async {
+      // La pantalla vive en un `ListView`: sin esto, "caja" y "sistema"
+      // quedan fuera del viewport de prueba y ni se construyen. Un viewport
+      // así de alto llega hasta `PinEnrollmentSection`, que sí necesita un
+      // `ProviderScope` (lo trae el árbol real vía `bootstrap.dart`).
+      await tester.binding.setSurfaceSize(const Size(800, 2000));
+      addTearDown(() => tester.binding.setSurfaceSize(null));
+
+      final controller = await _controller();
+      await tester.pumpWidget(ProviderScope(child: _host(controller)));
+      await tester.pump();
+
+      for (final category in const ['ventas', 'caja', 'sistema']) {
+        final tile = find.ancestor(
+          of: find.text(category),
+          matching: find.byType(ListTile),
+        );
+        expect(tile, findsOneWidget, reason: 'falta la fila de $category');
+        expect(
+          find.descendant(of: tile, matching: find.byType(ToggleSwitch)),
+          findsOneWidget,
+          reason: '$category debe traer su interruptor',
+        );
+      }
+
+      expect(
+        controller.snapshot.notificationCategories['ventas'] ?? true,
+        isTrue,
+      );
+      final ventasToggle = find.descendant(
+        of: find.ancestor(
+          of: find.text('ventas'),
+          matching: find.byType(ListTile),
+        ),
+        matching: find.byType(ToggleSwitch),
+      );
+      await tester.tap(ventasToggle);
+      await tester.pumpAndSettle();
+
+      expect(controller.snapshot.notificationCategories['ventas'], isFalse);
+    },
+  );
 }

@@ -214,34 +214,6 @@ class OrbiErrorState extends StatelessWidget {
   }
 }
 
-class OrbiField extends StatelessWidget {
-  const OrbiField({
-    super.key,
-    required this.label,
-    this.hintText,
-    this.controller,
-    this.onChanged,
-  });
-
-  final String label;
-  final String? hintText;
-  final TextEditingController? controller;
-  final ValueChanged<String>? onChanged;
-
-  @override
-  Widget build(BuildContext context) {
-    return InfoLabel(
-      label: label,
-      child: TextBox(
-        controller: controller,
-        onChanged: onChanged,
-        minLines: 1,
-        placeholder: hintText,
-      ),
-    );
-  }
-}
-
 /// Adapter for a reactive form control owned by the screen/controller.
 /// The control is deliberately injected, so rebuilding or resizing the widget
 /// never recreates the form state.
@@ -312,32 +284,23 @@ class _ReactiveTextBoxBodyState extends State<_ReactiveTextBoxBody> {
 
   @override
   Widget build(BuildContext context) {
-    final errorText = widget.field.errorText;
-    final theme = FluentTheme.of(context);
+    // `TextFormBox` (no un `TextBox` + `Text` rojo a mano): mete el error en
+    // un `FormRow` y, cuando hay error, pinta el borde en rojo con
+    // `highlightColor` crítico (ver `TextFormBox` en fluent_ui). El
+    // `validator` sólo reexpone `field.errorText` — la validación en sí sigue
+    // viviendo en el `FormControl` de `reactive_forms` — y
+    // `AutovalidateMode.always` hace que `TextFormBox` vuelva a leerlo en
+    // cada build de este widget, que es lo que dispara cuando el control
+    // cambia.
     return InfoLabel(
       label: widget.label,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          TextBox(
-            controller: _controller,
-            placeholder: widget.hintText,
-            enabled: widget.field.control.enabled,
-            onChanged: widget.field.didChange,
-          ),
-          if (errorText != null)
-            Padding(
-              padding: const EdgeInsets.only(top: 4),
-              child: Text(
-                errorText,
-                style: TextStyle(
-                  color: theme.resources.systemFillColorCritical,
-                  fontSize: 12,
-                ),
-              ),
-            ),
-        ],
+      child: TextFormBox(
+        controller: _controller,
+        placeholder: widget.hintText,
+        enabled: widget.field.control.enabled,
+        onChanged: widget.field.didChange,
+        autovalidateMode: AutovalidateMode.always,
+        validator: (_) => widget.field.errorText,
       ),
     );
   }
@@ -359,18 +322,35 @@ class OrbiActionCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final typography = FluentTheme.of(context).typography;
+    final theme = FluentTheme.of(context);
+    final typography = theme.typography;
+    // `HoverButton` (no `GestureDetector` + `MouseRegion` a mano): trae hover,
+    // pulsación, foco y activación por teclado (Enter/Espacio) de fábrica —
+    // `Card` no es interactivo por sí solo. El tinte de fondo en hover/pulsado
+    // sale de `ButtonThemeData.uncheckedInputColor`, el mismo helper que usa
+    // `ListTile`/`Expander` en fluent_ui; en reposo es transparente y el
+    // `Card` se ve exactamente igual que antes.
     return Semantics(
       button: true,
       excludeSemantics: true,
       label: '$title. $subtitle',
-      child: MouseRegion(
+      child: HoverButton(
+        onPressed: onPressed,
         cursor: SystemMouseCursors.click,
-        child: GestureDetector(
-          onTap: onPressed,
+        builder: (context, states) => FocusBorder(
+          focused: states.isFocused,
+          renderOutside: false,
           child: Card(
             borderRadius: const BorderRadius.all(Radius.circular(12)),
             padding: const EdgeInsets.all(OrbiTheme.space16),
+            backgroundColor: Color.alphaBlend(
+              ButtonThemeData.uncheckedInputColor(
+                theme,
+                states,
+                transparentWhenNone: true,
+              ),
+              theme.cardColor,
+            ),
             child: Row(
               children: [
                 Expanded(

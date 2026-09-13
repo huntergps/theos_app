@@ -3,8 +3,7 @@ import 'dart:convert';
 import 'dart:math';
 
 import 'package:fluent_ui/fluent_ui.dart';
-import 'package:odoo_widgets/odoo_widgets.dart' hide OrbiField;
-import 'package:odoo_widgets/odoo_widgets.dart' as orbi_widgets show OrbiField;
+import 'package:odoo_widgets/odoo_widgets.dart';
 import 'package:orbi_runtime/orbi_runtime.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:reactive_forms/reactive_forms.dart';
@@ -900,7 +899,7 @@ class _SaleEditorScreenState extends State<SaleEditorScreen> {
                         OrbiFormSection(
                           title: 'Condiciones de pago',
                           fields: [
-                            orbi_widgets.OrbiField(
+                            OrbiField(
                               label: 'Término de pago',
                               child: ComboBox<int>(
                                 // Sin esto, el `ComboBox` se dimensiona a su
@@ -950,7 +949,7 @@ class _SaleEditorScreenState extends State<SaleEditorScreen> {
                       OrbiFormSection(
                         title: 'Inventario',
                         fields: [
-                          orbi_widgets.OrbiField(
+                          OrbiField(
                             label: 'Almacén',
                             child: const TextBox(
                               key: Key('sale-warehouse-field'),

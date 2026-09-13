@@ -178,7 +178,9 @@ class SettingsScreen extends StatelessWidget {
 
 /// El equivalente propio de un `SwitchListTile`: título (y subtítulo
 /// opcional) a la izquierda, el interruptor a la derecha. Fluent no trae ese
-/// widget compuesto.
+/// widget compuesto, pero sí trae `ListTile`, que ya sabe poner un `trailing`
+/// junto a un título/subtítulo con el espaciado y la tipografía del tema —
+/// no hace falta armar el `Row`+`Column`+`Padding` a mano.
 class _SwitchRow extends StatelessWidget {
   const _SwitchRow({
     required this.title,
@@ -194,25 +196,10 @@ class _SwitchRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final theme = FluentTheme.of(context);
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 4),
-      child: Row(
-        children: [
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text(title, style: theme.typography.body),
-                if (subtitle != null)
-                  Text(subtitle!, style: theme.typography.caption),
-              ],
-            ),
-          ),
-          ToggleSwitch(checked: value, onChanged: onChanged),
-        ],
-      ),
+    return ListTile(
+      title: Text(title),
+      subtitle: subtitle == null ? null : Text(subtitle!),
+      trailing: ToggleSwitch(checked: value, onChanged: onChanged),
     );
   }
 }

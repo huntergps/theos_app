@@ -130,6 +130,10 @@ void main() {
       await tester.tap(find.byKey(const Key('sale-inline-product-search')));
       await tester.pump();
       await tester.tap(find.text('Broca'));
+      // Drains Fluent's HoverButton press-feedback timer (100ms, see
+      // fluent_ui-4.16.1/lib/src/controls/utils/hover_button.dart:319) so it
+      // doesn't leak past this test.
+      await tester.pump(const Duration(milliseconds: 100));
       expect(added?.title, 'Broca');
       final quantity = find.byKey(const ValueKey('sale-quantity-line-a'));
       await tester.enterText(quantity, '2.5');

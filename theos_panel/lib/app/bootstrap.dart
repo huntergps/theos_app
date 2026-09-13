@@ -5,6 +5,7 @@ import 'dart:math';
 import 'package:fluent_ui/fluent_ui.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:odoo_sdk/odoo_sdk.dart' show logger;
 import 'package:orbi_runtime/orbi_runtime.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -579,12 +580,23 @@ AuthServiceResult effectiveRestoreResult(
     ? restored
     : const AuthServiceResult(status: AuthServiceStatus.required);
 
-Future<Widget> _initializeApplication() async {
+Future<Widget> _initializeApplication({
+  NotificationPluginPort? notificationPlugin,
+}) async {
   // Keep a real Flutter surface visible while plugins, secure storage and the
   // bounded session restore initialize. The stopwatch makes the splash budget
-  // a minimum total duration, so a slow restore is never delayed twice.
+  // a minimum total duration, so a slow restore is never delayed twice. It
+  // also times every step below: measured 12-sep-2026, the web build got
+  // stuck on "Preparando Orbi ERP…" for minutes with several Orbi tabs open,
+  // and there was nothing in the log saying which step was the slow one.
   final startupStopwatch = Stopwatch()..start();
+  void logStep(String step) => logger.i(
+    '[Bootstrap]',
+    '$step (${startupStopwatch.elapsedMilliseconds} ms)',
+  );
+
   final preferences = await SharedPreferences.getInstance();
+  logStep('preferencias listas');
   final random = Random.secure();
   final sessionRuntime = SessionRuntime();
   final installationIds = InstallationIdStore(
@@ -594,17 +606,36 @@ Future<Widget> _initializeApplication() async {
             .replaceAll('=', ''),
   );
   final installationId = await installationIds.loadOrCreate('theos_panel');
+  logStep('id de instalación listo');
   final notificationIds = NotificationSystemIdRegistry(
     preferences: preferences,
     appId: 'theos_panel',
     installationId: installationId,
   );
   final notificationPresenter = SystemNotificationPresenter(
-    FlutterLocalNotificationPlugin(),
+    notificationPlugin ?? FlutterLocalNotificationPlugin(),
     notificationIds,
     activeScopeKey: 'unconfigured',
   );
-  await notificationPresenter.initialize();
+  // 🔴 Notifications are optional; the login screen and session restore are
+  // not hostage to them. `initialize()` reaches
+  // `serviceWorker.getRegistration()`/`.register()` on the web with no
+  // timeout of its own — that is what got stuck for minutes on 12-sep-2026.
+  // So this is fired and forgotten, not awaited: every consumer
+  // (`showOrReplace`/`cancel` in `SystemNotificationPresenter`) already
+  // tolerates `_initialized == false` by answering `unsupported` instead of
+  // assuming readiness, so nothing here needs to wait for it either.
+  unawaited(
+    notificationPresenter
+        .initialize()
+        .then((ready) => logStep('notificaciones listas=$ready'))
+        .catchError((Object error, StackTrace stackTrace) {
+          logger.w(
+            '[Bootstrap]',
+            'no se pudieron inicializar las notificaciones: $error',
+          );
+        }),
+  );
   final service = NativeAuthService(
     credentialStore: CredentialStore(
       FlutterSecureCredentialBackend(),
@@ -639,6 +670,7 @@ Future<Widget> _initializeApplication() async {
     ),
     preferences: preferences,
   );
+  logStep('credenciales configuradas');
   // One bounded online restore, with one explicit offline fallback.
   //
   // This used to force-navigate to `/web/login` whenever the cookie-session
@@ -652,6 +684,7 @@ Future<Widget> _initializeApplication() async {
   final restored = await restoreOnce(
     kIsWeb ? webService : NativeAuthServicePort(service),
   );
+  logStep('restauración de sesión resuelta: ${restored.status}');
 
   // A session inherited from the browser was left by WHOEVER: entering with it
   // unasked is impersonation by default. On a shared counter the next person
@@ -686,6 +719,7 @@ Future<Widget> _initializeApplication() async {
     notificationIds: notificationIds,
   );
   await ensureMinimumSplashDuration(elapsed: startupStopwatch.elapsed);
+  logStep('arranque completo');
   return ProviderScope(
     overrides: [
       sharedPreferencesProvider.overrideWithValue(preferences),
@@ -719,3 +753,14 @@ Future<Widget> _initializeApplication() async {
     child: const OrbiApp(),
   );
 }
+
+/// Test-only seam into [_initializeApplication]. Lets a test inject a
+/// [NotificationPluginPort] whose `initialize()` never completes, or throws,
+/// and prove startup still reaches a restored session or the login screen
+/// instead of waiting on it — the defect measured 12-sep-2026 (minutes stuck
+/// on "Preparando Orbi ERP…"). Production ([bootstrap]) never passes this;
+/// the real app always gets the platform's [FlutterLocalNotificationPlugin].
+@visibleForTesting
+Future<Widget> buildInitializedApplication({
+  NotificationPluginPort? notificationPlugin,
+}) => _initializeApplication(notificationPlugin: notificationPlugin);
