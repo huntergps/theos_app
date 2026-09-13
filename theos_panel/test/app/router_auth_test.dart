@@ -276,7 +276,7 @@ void main() {
   });
 
   testWidgets(
-    'sync route stays closed to a user with no sales, cash, sync or administrator capability',
+    'any authenticated user enters the sync area, even without sales or cash capabilities',
     (tester) async {
       final container = ProviderContainer(
         overrides: [
@@ -287,7 +287,7 @@ void main() {
               companyId: 1,
               revision: 1,
               fetchedAt: DateTime(2026),
-              // Sólo bodega: vendedores y cajeros sí entran a /sync desde el 13-sep-2026.
+              // Sólo bodega: aun así ve su sincronización y su Modo Ruta.
               permissions: const ['warehouse'],
             ),
           ),
@@ -322,7 +322,7 @@ void main() {
       await tester.pumpAndSettle();
       authenticatedRouter.go('/sync');
       await tester.pumpAndSettle();
-      expect(authenticatedRouter.state.uri.path, '/');
+      expect(authenticatedRouter.state.uri.path, '/sync');
     },
   );
 

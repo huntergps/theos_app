@@ -370,8 +370,8 @@ void main() {
       ),
       isFalse,
     );
-    // El vendedor entra al área de sincronización (Modo Ruta, cola offline);
-    // quien no vende, no cobra ni administra, sigue fuera.
+    // Todo usuario autenticado entra al área de sincronización (Modo Ruta,
+    // cola offline); sin sesión, no.
     expect(
       policy.destinationAfterLogin(
         '/sync',
@@ -401,7 +401,17 @@ void main() {
         authenticated: true,
         capabilities: warehouseOnly,
       ),
-      '/',
+      '/sync',
+    );
+    // Sin permisos cargados todavía (o sin conexión) también se ve la
+    // sincronización; sin sesión, no.
+    expect(
+      policy.allows('/sync/queue', authenticated: true, capabilities: null),
+      isTrue,
+    );
+    expect(
+      policy.allows('/sync', authenticated: false, capabilities: warehouseOnly),
+      isFalse,
     );
   });
 

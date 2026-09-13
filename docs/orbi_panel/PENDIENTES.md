@@ -25,21 +25,22 @@ siquiera estaba anotada.
   de envases).
 - **Cambiar la clave de los conectores de Velneo en Mepriga.** Está escrita en su sitio de
   Apache, es muy débil, y esos conectores atacan bases en producción.
-- **Quién oye los avisos de pedidos y facturas.** `l10n_ec_app_sync` avisa `sale.order` y
-  `account.move` al canal de la EMPRESA: todo usuario interno de esa empresa recibe los ids
-  (no los datos) de todos los pedidos y facturas, aunque sus reglas sólo le dejen leer los
-  suyos. La app relee con sus permisos, así que no ve datos ajenos. Opciones: dejarlo así,
-  o avisar por usuario/grupo según las reglas de cada modelo.
-- **Mudar los ~55 canales de texto de caja a canales autorizados** (ver el defecto de
-  seguridad de abajo). `l10n_ec_hotel` tiene el mismo defecto.
-- **Vendedores y cajeros entran a Sincronización.** Lo decidí el 13-sep-2026 para que el
-  Modo Ruta, que pediste en esa pantalla, llegue a los vendedores rurales: antes `/sync`
-  era sólo para administradores o permiso `sync`. Confírmalo o dime quién no debe entrar.
-- **Vista de supervisor de turnos ajenos.** Inicio sólo abre el turno propio del cajero:
-  `/collection/hub` no recibe un id de sesión. Ver el de otro cajero necesita ruta y
-  permisos nuevos.
+- **Mudar los canales de texto de caja a canales autorizados.** 71 llamadas `_sendone` en
+  los módulos de caja, unos 30 canales `{db}.*` adivinables, varios con importes. Consumidores
+  web: `l10n_ec_collection_panel/static/src/panel/panel.js:358` y
+  `l10n_ec_hotel/static/src/js/hotel_stay_dashboard_bus.js:76`. Información entregada al dueño
+  el 13-sep-2026; espera su decisión.
 
 ## Resueltas, para que no se vuelvan a preguntar
+
+- **Avisos de cambios a toda la empresa** (13-sep-2026): «la idea es que los registros se
+  actualicen de manera automática en todos los dispositivos». Se queda el aviso por empresa
+  (sólo ids; la app relee con los permisos de cada usuario).
+- **Sincronización para todos** (13-sep-2026): «todos los usuarios deben poder ver la
+  información de sincronización, offline y poder cambiar su configuración». `/sync` y
+  `/sync/queue` abiertas a todo usuario autenticado, también sin permisos cargados.
+- **Vista de supervisor de turnos ajenos** (13-sep-2026): «hay que dejar implementado todo». En
+  construcción.
 
 - 🟢 **La conexión en vivo con la sesión en la dirección SE QUEDA** (13-sep-2026). Es la
   mitad `/websocket` del parche del despachador (`l10n_ec_collection_box_pos/models/ir_http.py`),

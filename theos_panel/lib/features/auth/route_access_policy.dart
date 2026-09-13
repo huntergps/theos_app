@@ -16,6 +16,12 @@ final class RouteAccessPolicy {
   }) {
     if (path == '/login' || path == '/splash') return true;
     if (!authenticated) return false;
+    // Sincronización y cola offline son de TODOS los usuarios autenticados,
+    // también mientras los permisos cargan o sin conexión: cada quien ve el
+    // estado de sus datos locales y cambia su Modo Ruta (orden del dueño,
+    // 13-sep-2026: «todos los usuarios deben poder ver la información de
+    // sincronización, offline y poder cambiar su configuración»).
+    if (path == '/sync' || path.startsWith('/sync/')) return true;
     // The authenticated shell remains usable while capability retrieval is
     // pending or unavailable; gated business routes stay closed.
     if (capabilities == null) return path == '/' || path == '/settings';
@@ -55,16 +61,6 @@ final class RouteAccessPolicy {
     if (path == '/approvals') {
       return permissions.contains('approvals') ||
           permissions.contains('approver');
-    }
-    // Toda el área de sincronización (también la cola offline). Vendedores y
-    // cajeros entran: preparan sus datos para trabajar sin conexión y el Modo
-    // Ruta de los vendedores rurales vive aquí (orden del dueño, 13-sep-2026).
-    if (path == '/sync' || path.startsWith('/sync/')) {
-      return developerMode ||
-          permissions.contains('sync') ||
-          permissions.contains('administrator') ||
-          permissions.contains('seller') ||
-          permissions.contains('cashier');
     }
     if (path == '/activities') return permissions.contains('activities');
     if (path == '/notifications') return permissions.contains('notifications');
