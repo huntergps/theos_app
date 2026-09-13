@@ -222,6 +222,21 @@ los vuelva a encargar:
   ruta de acceso es pública. **Cambiarlas y cerrar la lista de orígenes antes de
   publicar nada.**
 
+- 🔴 **Orbi web se quedó más de dos minutos en «Preparando Orbi ERP…»** en el Chrome de
+  escritorio del dueño, el 12-sep-2026, en `orbi.galapagos.tech`. **Causa sin probar.** Lo
+  medido en el registro del proxy: tras cargar la app, 2 min 14 s sin ninguna petición, y
+  luego la consulta de arranque. No llegó ni una llamada a ERP2 ni a Mepriga en ese tramo, y
+  la app no llegó a abrir su base local. Por el código, en ese tramo sólo esperan las
+  preferencias, el identificador de instalación y el registro del trabajador de
+  notificaciones, **ninguno con límite de tiempo**. En investigación con medición dentro del
+  navegador.
+- **El comentario del arranque habla de una «recuperación de sesión acotada»** (`bootstrap.dart`,
+  `_initializeApplication`), y `restoreOnce` no le pone ningún límite de tiempo. O el
+  comentario miente o falta el límite.
+- **Al actualizar `l10n_ec_orbi_web` en ERP2, Odoo avisó** `Failed to render module
+  description … Permission denied: 'html4css1.css'`. No afecta a Orbi: es un fichero de estilo
+  de docutils sin permiso de lectura en el entorno de ERP2.
+
 Ninguno de estos está encargado a nadie. Están aquí para que no se pierdan.
 
 - **Cada acceso fallido deja una credencial huérfana en el servidor.** El
