@@ -1,5 +1,5 @@
 import 'dart:async';
-import 'dart:math';
+import 'dart:math' show Random;
 
 import 'package:fluent_ui/fluent_ui.dart';
 import 'package:odoo_sdk/odoo_sdk.dart';
@@ -57,6 +57,13 @@ Future<SavedServer?> showSavedServerManager(
   ),
 );
 
+/// Los dos pasos del gestor en ancho compacto (orden del dueño, 12-sep-2026:
+/// «el formulario no es práctico para ese tipo de dispositivos»). En teléfono
+/// el gestor deja de ser un `ContentDialog` con lista+editor apilados y pasa
+/// a ser una página con lista y editor en pantallas separadas, cada una con
+/// su propio `PageHeader` — como cualquier otra pantalla de Orbi.
+enum _CompactStep { list, editor }
+
 class _ServerManagerDialog extends StatefulWidget {
   const _ServerManagerDialog({
     required this.store,
@@ -92,6 +99,11 @@ class _ServerManagerDialogState extends State<_ServerManagerDialog> {
   String? _snapshot;
   bool _busy = false;
   bool _creating = true;
+  // En ancho compacto siempre se arranca en la lista (Paso 1); nunca directo
+  // al editor, ni siquiera con la lista vacía — tocar «Nuevo servidor» sigue
+  // siendo el único camino al Paso 2, igual para "no hay nada guardado" que
+  // para "hay diez servidores". En ancho ancho este campo no se usa.
+  _CompactStep _compactStep = _CompactStep.list;
 
   Timer? _discoveryDebounce;
   Object? _activeDiscoveryToken;
@@ -310,13 +322,17 @@ class _ServerManagerDialogState extends State<_ServerManagerDialog> {
         false;
   }
 
-  Future<void> _selectWithGuard(SavedServer server) async {
-    if (_busy || !await _confirmDiscard() || !mounted) return;
+  // Devuelven si de verdad avanzaron (false cuando la persona canceló el
+  // descartar cambios) — la navegación del Paso 1 al Paso 2 en compacto
+  // depende de saberlo; en ancho no le importa a nadie el valor de retorno.
+  Future<bool> _selectWithGuard(SavedServer server) async {
+    if (_busy || !await _confirmDiscard() || !mounted) return false;
     _select(server);
+    return true;
   }
 
-  Future<void> _newServer() async {
-    if (_busy || !await _confirmDiscard() || !mounted) return;
+  Future<bool> _newServer() async {
+    if (_busy || !await _confirmDiscard() || !mounted) return false;
     setState(() {
       _selectedId = null;
       _creating = true;
@@ -326,6 +342,36 @@ class _ServerManagerDialogState extends State<_ServerManagerDialog> {
       _database.text = _servers.isEmpty ? widget.initialDatabase : '';
       _snapshot = _formSnapshot();
     });
+    return true;
+  }
+
+  /// Paso 1 → Paso 2 al tocar «Nuevo servidor» en compacto.
+  Future<void> _newServerCompact() async {
+    if (await _newServer() && mounted) {
+      setState(() => _compactStep = _CompactStep.editor);
+    }
+  }
+
+  /// Paso 1 → Paso 2 al tocar un acceso guardado en compacto.
+  Future<void> _selectCompact(SavedServer server) async {
+    if (await _selectWithGuard(server) && mounted) {
+      setState(() => _compactStep = _CompactStep.editor);
+    }
+  }
+
+  /// El botón «Atrás» del editor en compacto: misma confirmación de
+  /// descartar cambios que ya usan cerrar y cambiar de servidor.
+  Future<void> _backToList() async {
+    if (_busy || !await _confirmDiscard() || !mounted) return;
+    setState(() => _compactStep = _CompactStep.list);
+  }
+
+  /// Cierra el gestor entero devolviendo `null` — compartido por la `X` del
+  /// diálogo ancho y por el botón de la cabecera del Paso 1 en compacto.
+  Future<void> _close() async {
+    final navigator = Navigator.of(context);
+    if (!await _confirmDiscard() || !mounted) return;
+    navigator.pop();
   }
 
   String _id() =>
@@ -416,7 +462,9 @@ class _ServerManagerDialogState extends State<_ServerManagerDialog> {
         _snapshot = _formSnapshot();
       });
     } catch (error) {
-      if (mounted) setState(() => _generalError = 'No se pudo eliminar: $error');
+      if (mounted) {
+        setState(() => _generalError = 'No se pudo eliminar: $error');
+      }
     } finally {
       if (mounted) setState(() => _busy = false);
     }
@@ -436,51 +484,48 @@ class _ServerManagerDialogState extends State<_ServerManagerDialog> {
   }
 
   // El gestor ya no dibuja su propia superficie (orden del dueño,
-  // 12-sep-2026: «todo está ya determinado por fluent_ui»). Es un
-  // `ContentDialog` — el diálogo de Fluent — en vez de un `Card` a mano
-  // dentro de `showDialog`: su fondo sale de `ContentDialogThemeData`
+  // 12-sep-2026: «todo está ya determinado por fluent_ui»). En ancho ancho
+  // es un `ContentDialog` — el diálogo de Fluent — en vez de un `Card` a
+  // mano dentro de `showDialog`: su fondo sale de `ContentDialogThemeData`
   // (`decoration.color = theme.menuColor`, opaco), así que el formulario de
   // acceso ya no se transparenta por detrás sin que tengamos que pintar
   // nada nosotros mismos.
+  //
+  // 🔴 En ancho compacto YA NO es un diálogo (orden del dueño, 12-sep-2026,
+  // visto en su iPhone): un `ContentDialog` casi a pantalla completa que
+  // recalculaba su `constraints.maxHeight` restando
+  // `MediaQuery.viewInsetsOf(context).bottom` cambiaba de altura en cuanto
+  // el teclado EMPEZABA a abrir. Ese cambio de altura hacía que
+  // `_compactLayout` saltara de rama (de la fila con `Expanded` a un
+  // `SingleChildScrollView` con el editor a altura fija) — dos árboles de
+  // widgets distintos por debajo del mismo `TextBox`, así que su
+  // `EditableText` se desmontaba y el navegador cerraba el teclado solo.
+  // Confirmado en rojo contra 7b8a7a2 con foco perdido en "URL de Odoo",
+  // "Nombre del servidor" y "Base de datos" en cuanto el teclado abría.
+  //
+  // El reemplazo es `_compactPage`: una página normal de Fluent
+  // (`ScaffoldPage`/`PageHeader`), sin diálogo y sin restar `viewInsets` a
+  // mano — `ScaffoldPage.resizeToAvoidBottomInset` (activo por defecto) ya
+  // le hace sitio al teclado con un simple `Padding`, sin cambiar de rama de
+  // layout ni desmontar nada.
   @override
   Widget build(BuildContext context) {
-    // `compact` decide tanto las `constraints` de `ContentDialog` como cuál
-    // contenido dibujar, así que hace falta el ancho REAL disponible antes
-    // de construirlo — de ahí el `LayoutBuilder` envolviendo todo, igual que
-    // hacía la versión con `Card`. `MediaQuery.sizeOf(context).width` NO
-    // sirve aquí: en las pruebas que usan `tester.binding.setSurfaceSize`
-    // (en vez de `tester.view.physicalSize`) queda pegado al tamaño de
-    // ventana por omisión y nunca ve el tamaño real, así que "compact"
-    // siempre daba `false` y el editor terminaba exprimido dentro del
-    // layout de dos paneles (medido: overflow de hasta 184 px).
+    // `compact` decide qué construir, así que hace falta el ancho REAL
+    // disponible antes de construir nada — de ahí el `LayoutBuilder`
+    // envolviendo todo. `MediaQuery.sizeOf(context).width` NO sirve aquí: en
+    // las pruebas que usan `tester.binding.setSurfaceSize` (en vez de
+    // `tester.view.physicalSize`) queda pegado al tamaño de ventana por
+    // omisión y nunca ve el tamaño real, así que "compact" siempre daba
+    // `false` y el editor terminaba exprimido dentro del layout de dos
+    // paneles (medido: overflow de hasta 184 px).
     return LayoutBuilder(
       builder: (context, layoutConstraints) {
-        final compact = layoutConstraints.maxWidth < OrbiTheme.compactBreakpoint;
-        // El `showDialog`/`FluentDialogRoute` de Fluent ya envuelve el
-        // diálogo en su propio `SafeArea`, pero eso sólo evita las fajas
-        // físicas del sistema (notch, barra de estado) — no el teclado.
-        // `viewInsets` nunca reduce la ventana en la que `ContentDialog` se
-        // centra, así que en el layout compacto (casi a pantalla completa)
-        // hay que restar aquí lo que tapa el teclado o "Servidores Odoo"
-        // termina bajo la barra del navegador (visto por el dueño a 390 px,
-        // 12-sep-2026). En pantallas anchas se deja el ancho de dos paneles
-        // de siempre (900); en teléfono no se toca nada más que esto — el
-        // resto es el tamaño por omisión de `ContentDialog`.
-        final compactMaxHeight = min(
-          kDefaultContentDialogConstraints.maxHeight,
-          max(
-            0.0,
-            layoutConstraints.maxHeight -
-                MediaQuery.viewInsetsOf(context).bottom,
-          ),
-        );
+        final compact =
+            layoutConstraints.maxWidth < OrbiTheme.compactBreakpoint;
+        if (compact) return _compactPage();
 
         return ContentDialog(
-          constraints: compact
-              ? kDefaultContentDialogConstraints.copyWith(
-                  maxHeight: compactMaxHeight,
-                )
-              : const BoxConstraints(maxWidth: 900, maxHeight: 720),
+          constraints: const BoxConstraints(maxWidth: 900, maxHeight: 720),
           title: Row(
             children: [
               Expanded(
@@ -493,15 +538,7 @@ class _ServerManagerDialogState extends State<_ServerManagerDialog> {
                 message: 'Cerrar',
                 child: IconButton(
                   key: const ValueKey('server_manager_close'),
-                  onPressed: _busy
-                      ? null
-                      : () async {
-                          final navigator = Navigator.of(context);
-                          if (!await _confirmDiscard() || !mounted) {
-                            return;
-                          }
-                          navigator.pop();
-                        },
+                  onPressed: _busy ? null : _close,
                   icon: const Icon(FluentIcons.chrome_close),
                 ),
               ),
@@ -514,11 +551,76 @@ class _ServerManagerDialogState extends State<_ServerManagerDialog> {
                 _message(_loadError!, true),
                 const SizedBox(height: OrbiTheme.space12),
               ],
-              Expanded(child: compact ? _compactLayout() : _wideLayout()),
+              Expanded(child: _wideLayout()),
             ],
           ),
         );
       },
+    );
+  }
+
+  /// El gestor en ancho compacto: una página a pantalla completa (no un
+  /// diálogo), empujada por el mismo `Navigator` que abrió `showDialog` —
+  /// `showDialog`/`FluentDialogRoute` ya la envuelve en su propio
+  /// `SafeArea`, así que aquí no hace falta nada de eso, y con ella
+  /// ocupando toda la ventana se lee como una pantalla más de Orbi, no como
+  /// un recuadro flotante.
+  ///
+  /// Paso 1 (`_CompactStep.list`): la lista de accesos guardados con el
+  /// buscador y «Nuevo servidor», con un botón para cerrar el gestor entero.
+  /// Paso 2 (`_CompactStep.editor`): el editor en su propia página, con un
+  /// botón «Atrás» que vuelve al Paso 1 (misma confirmación de descartar
+  /// cambios que ya usa cerrar).
+  Widget _compactPage() {
+    final onList = _compactStep == _CompactStep.list;
+    return ScaffoldPage(
+      header: PageHeader(
+        leading: onList
+            ? null
+            : Tooltip(
+                message: 'Atrás',
+                child: IconButton(
+                  key: const ValueKey('server_manager_back_to_list'),
+                  onPressed: _busy ? null : _backToList,
+                  icon: const Icon(FluentIcons.back),
+                ),
+              ),
+        title: Text(
+          onList
+              ? 'Servidores Odoo'
+              : (_creating ? 'Nuevo servidor' : 'Editar servidor'),
+        ),
+        commandBar: onList
+            ? Tooltip(
+                message: 'Cerrar',
+                child: IconButton(
+                  key: const ValueKey('server_manager_close'),
+                  onPressed: _busy ? null : _close,
+                  icon: const Icon(FluentIcons.chrome_close),
+                ),
+              )
+            : null,
+      ),
+      content: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: OrbiTheme.space16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            if (_loadError != null) ...[
+              _message(_loadError!, true),
+              const SizedBox(height: OrbiTheme.space12),
+            ],
+            Expanded(
+              child: onList
+                  ? _serverList(
+                      onNewServer: _newServerCompact,
+                      onSelect: _selectCompact,
+                    )
+                  : _editor(showHeading: false),
+            ),
+          ],
+        ),
+      ),
     );
   }
 
@@ -546,112 +648,85 @@ class _ServerManagerDialogState extends State<_ServerManagerDialog> {
     ],
   );
 
-  // Ya no envuelve todo en un SingleChildScrollView propio: OrbiForm.filling
-  // trae su
-  // propio scroll interno (ver odoo_widgets/orbi_form.dart) y necesita que su
-  // ancestro le dé una altura acotada — un SingleChildScrollView por fuera se
-  // la da infinita y el Expanded de OrbiForm revienta con "RenderFlex
-  // children have non-zero flex but incoming height constraints are
-  // unbounded". La lista mantiene su alto fijo de siempre; el editor recibe
-  // el resto del alto disponible (que sigue siendo acotado, porque esta
-  // función corre dentro de un Expanded del Card — ver build()) y desplaza
-  // sólo por dentro si su contenido no cabe.
+  // `OrbiForm.filling` trae su propio scroll interno (ver
+  // odoo_widgets/orbi_form.dart) y necesita que su ancestro le dé una altura
+  // acotada — un `SingleChildScrollView` por fuera se la da infinita y el
+  // `Expanded` de `OrbiForm` revienta con "RenderFlex children have
+  // non-zero flex but incoming height constraints are unbounded". Tanto
+  // `_wideLayout` (dentro del `ContentDialog`) como `_compactPage` (dentro
+  // de `ScaffoldPage`) ya le dan esa altura acotada desde un `Expanded`
+  // propio — ver `build()`.
   //
-  // Por debajo de [_editorFloor] ni siquiera la fila de acciones (Guardar /
-  // Usar servidor / Borrar, que OrbiForm deja siempre visible, nunca
-  // scrolleable) entra en el espacio restante — medido con la ventana
-  // 390x400 que ya cubría "renders legibly in compact and phone viewports".
-  // Ahí se vuelve al scroll único de toda la sección (lista + editor), tal
-  // como se comportaba antes de esta conversión, en vez de pedirle a un
-  // formulario más alto que su presupuesto que quepa donde no cabe.
-  //
-  // "Esta función corre dentro de un Expanded" sigue siendo cierto con
-  // `ContentDialog`: su `content` recibe la misma altura acotada que antes
-  // daba el `Card` — ver build().
-  static const _editorFloor = 420.0;
-
-  Widget _compactLayout() => LayoutBuilder(
-    builder: (context, constraints) {
-      const listHeight = 190.0;
-      const gap = OrbiTheme.space16;
-      if (constraints.maxHeight >= listHeight + gap + _editorFloor) {
-        return Column(
+  // La lista de accesos guardados en ambos anchos: en ancho ancho es el
+  // panel izquierdo del `ContentDialog`; en ancho compacto, el Paso 1 entero
+  // de `_compactPage`. [onNewServer]/[onSelect] son los únicos puntos donde
+  // se diferencian — en compacto avanzan al Paso 2 además de mutar el
+  // estado del formulario; en ancho ancho sólo mutan el estado, porque el
+  // editor ya está visible al lado.
+  Widget _serverList({
+    VoidCallback? onNewServer,
+    void Function(SavedServer)? onSelect,
+  }) {
+    final newServer = onNewServer ?? _newServer;
+    final select = onSelect ?? _selectWithGuard;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
           children: [
-            SizedBox(height: listHeight, child: _serverList()),
-            const SizedBox(height: gap),
-            Expanded(child: _editor()),
-          ],
-        );
-      }
-      return SingleChildScrollView(
-        child: Column(
-          children: [
-            SizedBox(height: listHeight, child: _serverList()),
-            const SizedBox(height: gap),
-            SizedBox(height: _editorFloor, child: _editor()),
-          ],
-        ),
-      );
-    },
-  );
-
-  Widget _serverList() => Column(
-    crossAxisAlignment: CrossAxisAlignment.start,
-    children: [
-      Row(
-        children: [
-          Expanded(
-            child: Text(
-              'Accesos guardados (${_servers.length})',
-              style: FluentTheme.of(context).typography.subtitle,
-            ),
-          ),
-          Tooltip(
-            message: 'Nuevo servidor',
-            child: IconButton(
-              key: const ValueKey('new_server'),
-              onPressed: _busy ? null : _newServer,
-              icon: const Icon(FluentIcons.add),
-            ),
-          ),
-        ],
-      ),
-      TextBox(
-        key: const ValueKey('server_search'),
-        controller: _search,
-        placeholder: 'Buscar',
-        prefix: const Padding(
-          padding: EdgeInsets.symmetric(horizontal: OrbiTheme.space8),
-          child: Icon(FluentIcons.search, size: 16),
-        ),
-      ),
-      const SizedBox(height: OrbiTheme.space8),
-      Expanded(
-        child: _filtered.isEmpty
-            ? const Center(child: Text('No hay coincidencias.'))
-            : ListView.builder(
-                itemCount: _filtered.length,
-                itemBuilder: (context, index) {
-                  final server = _filtered[index];
-                  return ListTile.selectable(
-                    selected: server.id == _selectedId,
-                    onPressed: _busy ? null : () => _selectWithGuard(server),
-                    title: Text(
-                      server.name,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                    subtitle: Text(
-                      '${server.url}\n${server.database}',
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  );
-                },
+            Expanded(
+              child: Text(
+                'Accesos guardados (${_servers.length})',
+                style: FluentTheme.of(context).typography.subtitle,
               ),
-      ),
-    ],
-  );
+            ),
+            Tooltip(
+              message: 'Nuevo servidor',
+              child: IconButton(
+                key: const ValueKey('new_server'),
+                onPressed: _busy ? null : newServer,
+                icon: const Icon(FluentIcons.add),
+              ),
+            ),
+          ],
+        ),
+        TextBox(
+          key: const ValueKey('server_search'),
+          controller: _search,
+          placeholder: 'Buscar',
+          prefix: const Padding(
+            padding: EdgeInsets.symmetric(horizontal: OrbiTheme.space8),
+            child: Icon(FluentIcons.search, size: 16),
+          ),
+        ),
+        const SizedBox(height: OrbiTheme.space8),
+        Expanded(
+          child: _filtered.isEmpty
+              ? const Center(child: Text('No hay coincidencias.'))
+              : ListView.builder(
+                  itemCount: _filtered.length,
+                  itemBuilder: (context, index) {
+                    final server = _filtered[index];
+                    return ListTile.selectable(
+                      selected: server.id == _selectedId,
+                      onPressed: _busy ? null : () => select(server),
+                      title: Text(
+                        server.name,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      subtitle: Text(
+                        '${server.url}\n${server.database}',
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    );
+                  },
+                ),
+        ),
+      ],
+    );
+  }
 
   /// Base de datos: dropdown cuando el servidor ofreció varias, texto libre
   /// en cualquier otro caso (aún consultando, sin datos todavía, o el
@@ -749,9 +824,7 @@ class _ServerManagerDialogState extends State<_ServerManagerDialog> {
                 style: caption,
               ),
             )
-          else if (!showDropdown &&
-              databases != null &&
-              databases.length == 1)
+          else if (!showDropdown && databases != null && databases.length == 1)
             Padding(
               padding: const EdgeInsets.only(top: OrbiTheme.space4),
               child: Text(
@@ -770,9 +843,8 @@ class _ServerManagerDialogState extends State<_ServerManagerDialog> {
   /// antes. `OrbiForm.filling` necesita que quien lo envuelve le dé una
   /// altura acotada (scrollea por dentro y deja las acciones fijas) — aquí se
   /// la da el `Expanded` de este mismo método, que a su vez sólo funciona
-  /// porque
-  /// `_wideLayout`/`_compactLayout` ya acotan su propia altura desde
-  /// `build()`. Ver la nota en `_compactLayout`.
+  /// porque `_wideLayout`/`_compactPage` ya acotan su propia altura desde
+  /// `build()`. Ver la nota en `_serverList`.
   ///
   /// La fila de Guardar/Usar servidor/Borrar NO pasa por `OrbiActionBar`:
   /// ese widget está pensado para el par confirmar/cancelar (dos botones,
@@ -780,14 +852,22 @@ class _ServerManagerDialogState extends State<_ServerManagerDialog> {
   /// "Usar servidor" debe seguir viéndose DESHABILITADA cuando no hay
   /// selección, no desaparecer — así que forzarla ahí habría cambiado el
   /// comportamiento en vez de sólo estandarizar dónde se dibuja.
-  Widget _editor() => Column(
+  ///
+  /// [showHeading] apaga el título propio ("Nuevo servidor"/"Editar
+  /// servidor") cuando quien envuelve este método ya lo puso en su propia
+  /// cabecera — el `PageHeader` del Paso 2 en `_compactPage`. En ancho ancho
+  /// el título del `ContentDialog` es el genérico "Servidores Odoo", así que
+  /// ahí el editor sigue poniendo el suyo.
+  Widget _editor({bool showHeading = true}) => Column(
     crossAxisAlignment: CrossAxisAlignment.start,
     children: [
-      Text(
-        _creating ? 'Nuevo servidor' : 'Editar servidor',
-        style: FluentTheme.of(context).typography.subtitle,
-      ),
-      const SizedBox(height: OrbiTheme.space8),
+      if (showHeading) ...[
+        Text(
+          _creating ? 'Nuevo servidor' : 'Editar servidor',
+          style: FluentTheme.of(context).typography.subtitle,
+        ),
+        const SizedBox(height: OrbiTheme.space8),
+      ],
       Text(
         _creating
             ? 'Guarda sólo los datos de conexión. Las credenciales se solicitan al iniciar sesión.'
@@ -825,6 +905,7 @@ class _ServerManagerDialogState extends State<_ServerManagerDialog> {
                     controller: _url,
                     enabled: !_busy,
                     keyboardType: TextInputType.url,
+                    autofillHints: const [AutofillHints.url],
                     placeholder: 'https://odoo.ejemplo.com',
                   ),
                 ),

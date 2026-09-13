@@ -14,8 +14,10 @@ import 'package:theos_panel/ui/fluent/orbi_fluent_theme.dart';
 /// falls straight through to [listDatabases] — the behaviour every existing
 /// test already expected before `servedDatabase` existed.
 class _ScriptedDiscovery implements ServerDatabaseDiscovery {
-  _ScriptedDiscovery(this._script, {Future<String?> Function(String)? servedDatabaseScript})
-    : _servedDatabaseScript = servedDatabaseScript ?? ((_) async => null);
+  _ScriptedDiscovery(
+    this._script, {
+    Future<String?> Function(String)? servedDatabaseScript,
+  }) : _servedDatabaseScript = servedDatabaseScript ?? ((_) async => null);
   final Future<List<String>> Function(String baseUrl) _script;
   final Future<String?> Function(String baseUrl) _servedDatabaseScript;
   final calls = <String>[];
@@ -148,19 +150,294 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets('renders legibly in compact and phone viewports', (tester) async {
-    await open(tester, width: 560, height: 760);
-    expect(find.text('Nuevo servidor'), findsOneWidget);
-    expect(find.byKey(const ValueKey('server_url')), findsOneWidget);
-    await tester.binding.setSurfaceSize(const Size(390, 700));
-    await tester.pump(const Duration(milliseconds: 100));
-    expect(find.byKey(const ValueKey('server_database')), findsOneWidget);
-    await tester.binding.setSurfaceSize(const Size(390, 400));
-    await tester.pumpAndSettle();
-    expect(tester.takeException(), isNull);
-    await tester.ensureVisible(find.byKey(const ValueKey('save_server')));
-    await tester.pumpAndSettle();
-    expect(tester.takeException(), isNull);
+  // ==========================================================================
+  // El gestor en ancho compacto (orden del dueño, 12-sep-2026, visto en su
+  // iPhone): ya no es un `ContentDialog` casi a pantalla completa — es una
+  // página de dos pasos («Servidores Odoo» con la lista, y el editor en su
+  // propia página), como cualquier otra pantalla de Orbi.
+  // ==========================================================================
+  group('en ancho compacto el gestor es una página, no un diálogo', () {
+    testWidgets('renders legibly in compact and phone viewports', (
+      tester,
+    ) async {
+      await open(tester, width: 560, height: 760);
+      // Paso 1: la lista, sin ningún ContentDialog de por medio.
+      expect(find.byType(ContentDialog), findsNothing);
+      expect(find.text('Servidores Odoo'), findsOneWidget);
+      expect(find.text('Nuevo servidor'), findsNothing);
+      expect(find.byKey(const ValueKey('server_url')), findsNothing);
+
+      await tester.tap(find.byKey(const ValueKey('new_server')));
+      await tester.pumpAndSettle();
+
+      // Paso 2: el editor, en su propia página.
+      expect(find.text('Nuevo servidor'), findsOneWidget);
+      expect(find.byKey(const ValueKey('server_url')), findsOneWidget);
+
+      await tester.binding.setSurfaceSize(const Size(390, 700));
+      await tester.pump(const Duration(milliseconds: 100));
+      expect(find.byKey(const ValueKey('server_database')), findsOneWidget);
+      await tester.binding.setSurfaceSize(const Size(390, 400));
+      await tester.pumpAndSettle();
+      expect(tester.takeException(), isNull);
+      await tester.ensureVisible(find.byKey(const ValueKey('save_server')));
+      await tester.pumpAndSettle();
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets(
+      'tocar «Nuevo servidor» o un acceso guardado abre el editor en su '
+      'propia página, con un botón para volver a la lista',
+      (tester) async {
+        await tester.runAsync(
+          () => store.upsert(
+            SavedServer(
+              id: '1',
+              name: 'Existente',
+              url: 'https://existente.example.com',
+              database: 'existente',
+            ),
+          ),
+        );
+        await open(tester, width: 390, height: 760);
+
+        expect(find.text('Servidores Odoo'), findsOneWidget);
+        expect(find.text('Existente'), findsOneWidget);
+        // En el Paso 1 no hay botón de "Atrás", sólo el de cerrar el gestor.
+        expect(
+          find.byKey(const ValueKey('server_manager_back_to_list')),
+          findsNothing,
+        );
+        expect(
+          find.byKey(const ValueKey('server_manager_close')),
+          findsOneWidget,
+        );
+
+        await tester.tap(find.text('Existente'));
+        await tester.pumpAndSettle();
+
+        expect(find.text('Editar servidor'), findsOneWidget);
+        expect(
+          tester
+              .widget<TextBox>(find.byKey(const ValueKey('server_name')))
+              .controller!
+              .text,
+          'Existente',
+        );
+        // En el Paso 2 el botón es "Atrás", no el de cerrar el gestor entero.
+        expect(
+          find.byKey(const ValueKey('server_manager_back_to_list')),
+          findsOneWidget,
+        );
+        expect(
+          find.byKey(const ValueKey('server_manager_close')),
+          findsNothing,
+        );
+
+        await tester.tap(
+          find.byKey(const ValueKey('server_manager_back_to_list')),
+        );
+        await tester.pumpAndSettle();
+
+        expect(find.text('Servidores Odoo'), findsOneWidget);
+        expect(find.text('Existente'), findsOneWidget);
+      },
+    );
+
+    testWidgets(
+      'volver a la lista con cambios sin guardar pide confirmación, igual '
+      'que cerrar',
+      (tester) async {
+        await open(tester, width: 390, height: 760);
+        await tester.tap(find.byKey(const ValueKey('new_server')));
+        await tester.pumpAndSettle();
+        await tester.enterText(
+          find.byKey(const ValueKey('server_name')),
+          'Borrador',
+        );
+
+        await tester.tap(
+          find.byKey(const ValueKey('server_manager_back_to_list')),
+        );
+        await tester.pumpAndSettle();
+
+        expect(find.text('¿Descartar cambios?'), findsOneWidget);
+        // "Seguir editando" deja el borrador intacto, en el editor.
+        await tester.tap(find.text('Seguir editando'));
+        await tester.pumpAndSettle();
+        expect(
+          tester
+              .widget<TextBox>(find.byKey(const ValueKey('server_name')))
+              .controller!
+              .text,
+          'Borrador',
+        );
+
+        await tester.tap(
+          find.byKey(const ValueKey('server_manager_back_to_list')),
+        );
+        await tester.pumpAndSettle();
+        await tester.tap(find.text('Descartar'));
+        await tester.pumpAndSettle();
+
+        expect(find.text('Servidores Odoo'), findsOneWidget);
+      },
+    );
+
+    testWidgets(
+      'cerrar el gestor desde la lista funciona igual que en el diálogo '
+      'ancho',
+      (tester) async {
+        await open(tester, width: 390, height: 760);
+        await tester.tap(find.byKey(const ValueKey('server_manager_close')));
+        await tester.pumpAndSettle();
+        expect(find.text('Servidores Odoo'), findsNothing);
+        expect(selected, isNull);
+      },
+    );
+  });
+
+  // ==========================================================================
+  // La sospecha de causa (equipo, 12-sep-2026): un `ContentDialog` que
+  // restaba `viewInsets` de su `constraints.maxHeight` cambiaba de altura en
+  // cuanto el teclado EMPEZABA a abrir, lo que hacía saltar de rama a
+  // `_compactLayout` (de fila con Expanded a SingleChildScrollView con altura
+  // fija) — un árbol de widgets distinto bajo el mismo `TextBox`, así que su
+  // `EditableText` se desmontaba y el navegador cerraba el teclado solo.
+  // Confirmado en rojo contra 7b8a7a2: estas dos pruebas fallaban con el foco
+  // perdido apenas `viewInsets` cambiaba. Con la página nueva
+  // (`ScaffoldPage.resizeToAvoidBottomInset`, sin recalcular `maxHeight` a
+  // mano) el árbol no cambia de forma y el foco se conserva.
+  // ==========================================================================
+  group('el teclado no le hace perder el foco a los campos', () {
+    testWidgets(
+      '"URL de Odoo" conserva el foco y el texto cuando el teclado abre',
+      (tester) async {
+        tester.view.physicalSize = const Size(390, 844);
+        tester.view.devicePixelRatio = 1;
+        addTearDown(tester.view.resetPhysicalSize);
+        addTearDown(tester.view.resetDevicePixelRatio);
+        addTearDown(tester.view.resetViewInsets);
+
+        await tester.pumpWidget(
+          FluentApp(
+            theme: OrbiFluentTheme.light,
+            home: ScaffoldPage(
+              content: Builder(
+                builder: (context) => HyperlinkButton(
+                  onPressed: () => showSavedServerManager(
+                    context,
+                    store: store,
+                    discovery: const _UnavailableDiscovery(),
+                  ),
+                  child: const Text('open'),
+                ),
+              ),
+            ),
+          ),
+        );
+        await tester.tap(find.text('open'));
+        await tester.pumpAndSettle();
+        await tester.tap(find.byKey(const ValueKey('new_server')));
+        await tester.pumpAndSettle();
+
+        final urlField = find.byKey(const ValueKey('server_url'));
+        await tester.tap(urlField);
+        await tester.enterText(urlField, 'https://foco.example.com');
+        await tester.pump();
+
+        final editableTextFinder = find.descendant(
+          of: urlField,
+          matching: find.byType(EditableText),
+        );
+        expect(
+          tester.widget<EditableText>(editableTextFinder).focusNode.hasFocus,
+          isTrue,
+          reason: 'El campo URL debe tener el foco antes de abrir el teclado.',
+        );
+
+        // El teclado abre DESPUÉS, como en la app real.
+        tester.view.viewInsets = const FakeViewPadding(bottom: 336);
+        await tester.pump();
+        await tester.pump(const Duration(milliseconds: 350));
+
+        expect(
+          tester.widget<TextBox>(urlField).controller!.text,
+          'https://foco.example.com',
+          reason: 'El texto no debe perderse cuando el teclado abre.',
+        );
+        expect(
+          tester.widget<EditableText>(editableTextFinder).focusNode.hasFocus,
+          isTrue,
+          reason:
+              'El campo URL debe SEGUIR con el foco cuando el teclado abre.',
+        );
+      },
+    );
+
+    testWidgets(
+      '"Nombre del servidor" y "Base de datos" conservan el foco cuando el '
+      'teclado abre',
+      (tester) async {
+        tester.view.physicalSize = const Size(390, 844);
+        tester.view.devicePixelRatio = 1;
+        addTearDown(tester.view.resetPhysicalSize);
+        addTearDown(tester.view.resetDevicePixelRatio);
+        addTearDown(tester.view.resetViewInsets);
+
+        await tester.pumpWidget(
+          FluentApp(
+            theme: OrbiFluentTheme.light,
+            home: ScaffoldPage(
+              content: Builder(
+                builder: (context) => HyperlinkButton(
+                  onPressed: () => showSavedServerManager(
+                    context,
+                    store: store,
+                    discovery: const _UnavailableDiscovery(),
+                  ),
+                  child: const Text('open'),
+                ),
+              ),
+            ),
+          ),
+        );
+        await tester.tap(find.text('open'));
+        await tester.pumpAndSettle();
+        await tester.tap(find.byKey(const ValueKey('new_server')));
+        await tester.pumpAndSettle();
+
+        for (final key in ['server_name', 'server_database']) {
+          final field = find.byKey(ValueKey(key));
+          await tester.tap(field);
+          await tester.enterText(field, 'valor-$key');
+          await tester.pump();
+
+          final editableTextFinder = find.descendant(
+            of: field,
+            matching: find.byType(EditableText),
+          );
+          expect(
+            tester.widget<EditableText>(editableTextFinder).focusNode.hasFocus,
+            isTrue,
+            reason: '$key debe tener el foco antes de abrir el teclado.',
+          );
+
+          tester.view.viewInsets = const FakeViewPadding(bottom: 336);
+          await tester.pump();
+          await tester.pump(const Duration(milliseconds: 350));
+
+          expect(
+            tester.widget<EditableText>(editableTextFinder).focusNode.hasFocus,
+            isTrue,
+            reason: '$key debe SEGUIR con el foco cuando el teclado abre.',
+          );
+
+          tester.view.resetViewInsets();
+          await tester.pump();
+        }
+      },
+    );
   });
 
   testWidgets('closing an edited connection asks before discarding', (
@@ -239,7 +516,10 @@ void main() {
     await tester.pump(const Duration(milliseconds: 600));
     await tester.pump();
 
-    expect(find.byKey(const ValueKey('server_database_dropdown')), findsOneWidget);
+    expect(
+      find.byKey(const ValueKey('server_database_dropdown')),
+      findsOneWidget,
+    );
     expect(find.byKey(const ValueKey('server_database')), findsNothing);
 
     await tester.tap(find.byKey(const ValueKey('server_database_dropdown')));
@@ -266,7 +546,10 @@ void main() {
     );
     await tester.pump(const Duration(milliseconds: 600));
     await tester.pump();
-    expect(find.byKey(const ValueKey('server_database_dropdown')), findsOneWidget);
+    expect(
+      find.byKey(const ValueKey('server_database_dropdown')),
+      findsOneWidget,
+    );
 
     await tester.tap(find.byKey(const ValueKey('database_manual_entry')));
     await tester.pump();
@@ -276,7 +559,10 @@ void main() {
     await tester.pump(const Duration(milliseconds: 100));
 
     expect(find.byKey(const ValueKey('server_database')), findsOneWidget);
-    expect(find.byKey(const ValueKey('server_database_dropdown')), findsNothing);
+    expect(
+      find.byKey(const ValueKey('server_database_dropdown')),
+      findsNothing,
+    );
   });
 
   testWidgets(
@@ -306,10 +592,7 @@ void main() {
         find.byKey(const ValueKey('database_discovery_notice')),
         findsOneWidget,
       );
-      expect(
-        find.textContaining('deshabilitado el listado'),
-        findsOneWidget,
-      );
+      expect(find.textContaining('deshabilitado el listado'), findsOneWidget);
       expect(find.byKey(const ValueKey('server_database')), findsOneWidget);
 
       await tester.enterText(
@@ -326,9 +609,7 @@ void main() {
     },
   );
 
-  testWidgets('rapid edits cancel the previous pending lookup', (
-    tester,
-  ) async {
+  testWidgets('rapid edits cancel the previous pending lookup', (tester) async {
     final discovery = _ScriptedDiscovery((_) async => ['db']);
     await open(tester, discovery: discovery);
     final field = find.byKey(const ValueKey('server_url'));
@@ -375,7 +656,10 @@ void main() {
           'envases',
         );
         expect(find.textContaining('No se pudo conectar'), findsNothing);
-        expect(find.textContaining('atiende la base «envases»'), findsOneWidget);
+        expect(
+          find.textContaining('atiende la base «envases»'),
+          findsOneWidget,
+        );
         // La caída a listDatabases nunca ocurre: servedDatabase ya resolvió.
         expect(discovery.calls, isEmpty);
       },
@@ -498,7 +782,11 @@ void main() {
             )
             .first;
         final color = (container.decoration as BoxDecoration?)?.color;
-        expect(color, isNotNull, reason: 'El ContentDialog debe traer color de fondo.');
+        expect(
+          color,
+          isNotNull,
+          reason: 'El ContentDialog debe traer color de fondo.',
+        );
         expect(
           color!.a,
           1.0,
@@ -596,9 +884,7 @@ void main() {
         expect(find.text(message), findsOneWidget);
         expect(
           tester.getCenter(find.text(message)).dy,
-          greaterThan(
-            tester.getCenter(find.text('Nombre del servidor')).dy,
-          ),
+          greaterThan(tester.getCenter(find.text('Nombre del servidor')).dy),
           reason: 'El error debe quedar debajo de la etiqueta de su campo.',
         );
         // Y no bajo la etiqueta de otro campo: nada de un aviso a mitad de
