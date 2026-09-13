@@ -73,8 +73,10 @@ if [ "$PUBLICADO" != "$SHA" ]; then
   echo "❌ El sitio dice $PUBLICADO y se esperaba $SHA." >&2
   exit 1
 fi
+# `main.dart.js` pesa más de 6 MB y se descarga entero: con 20 s de tope el chequeo
+# se cortó (curl 28) con el sitio sirviendo bien. 120 s mide lo mismo sin falso rojo.
 for RUTA in / /main.dart.js /flutter_bootstrap.js /envases; do
-  CODIGO="$(curl -s -o /dev/null -w '%{http_code}' --max-time 20 "$URL$RUTA")"
+  CODIGO="$(curl -s -o /dev/null -w '%{http_code}' --max-time 120 "$URL$RUTA" || true)"
   printf '    %-24s %s\n' "$RUTA" "$CODIGO"
   [ "$CODIGO" = 200 ] || { echo "❌ $RUTA respondió $CODIGO." >&2; exit 1; }
 done
