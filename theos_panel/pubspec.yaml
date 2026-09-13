@@ -101,6 +101,8 @@ flutter:
   uses-material-design: true
   assets:
     - assets/images/orbi_logo.svg
+    - assets/images/orbi_symbol.svg
+    - assets/images/orbi_wordmark.svg
     - assets/images/login_bg.jpg
     - assets/images/orbi_lake_sunrise.png
 

@@ -40,8 +40,13 @@ final class OrbiSplashScreen extends StatelessWidget {
                       child: Column(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
-                          _AnimatedSplashLogo(
+                          _AnimatedSplashSymbol(
                             height: logoHeight,
+                            color: orbiPhotoInk,
+                          ),
+                          const SizedBox(height: OrbiTheme.space16),
+                          OrbiWordmark(
+                            height: logoHeight * 0.35,
                             color: orbiPhotoInk,
                           ),
                           const SizedBox(height: OrbiTheme.space32),
@@ -87,25 +92,32 @@ final class OrbiSplashScreen extends StatelessWidget {
 /// estaba animado en el splash». A slow, continuous rotation of the approved
 /// mark while the app boots.
 ///
+/// Spins [OrbiSymbol] only, never the "ORBI ERP" lettering — orden del
+/// dueño, 13-sep-2026: en theos_pos sólo el símbolo gira, nunca el texto
+/// (`TheosLogo` vs. the separate, static `TheosNameSvg`). `OrbiBrand`'s
+/// single combined SVG made that impossible before [OrbiSymbol] was split
+/// out of it; wrapping the whole mark (as this used to do) rotated the
+/// wordmark too.
+///
 /// Built from the same core Flutter animation primitives theos_pos's
 /// `TheosLogo` uses (`AnimationController` + `Transform.rotate`): those are
 /// framework mechanics, not a fluent_ui surface/color/shape decision, so
 /// they sit outside "el estilo lo determina fluent_ui" — nothing here
 /// invents a color, a shape or a shadow, it only spins the already-approved
-/// [OrbiBrand] asset (which still carries the caller's own tint). Unlike
+/// [OrbiSymbol] asset (which still carries the caller's own tint). Unlike
 /// theos_pos's version, this one respects the platform's reduce-motion
 /// setting: theos_pos's `TheosLogo` has no such check.
-class _AnimatedSplashLogo extends StatefulWidget {
-  const _AnimatedSplashLogo({required this.height, required this.color});
+class _AnimatedSplashSymbol extends StatefulWidget {
+  const _AnimatedSplashSymbol({required this.height, required this.color});
 
   final double height;
   final Color color;
 
   @override
-  State<_AnimatedSplashLogo> createState() => _AnimatedSplashLogoState();
+  State<_AnimatedSplashSymbol> createState() => _AnimatedSplashSymbolState();
 }
 
-class _AnimatedSplashLogoState extends State<_AnimatedSplashLogo>
+class _AnimatedSplashSymbolState extends State<_AnimatedSplashSymbol>
     with SingleTickerProviderStateMixin {
   late final AnimationController _controller;
   bool? _lastDisableAnimations;
@@ -155,7 +167,7 @@ class _AnimatedSplashLogoState extends State<_AnimatedSplashLogo>
         angle: _controller.value * 2 * math.pi,
         child: child,
       ),
-      child: OrbiBrand(height: widget.height, color: widget.color),
+      child: OrbiSymbol(height: widget.height, color: widget.color),
     );
   }
 }

@@ -46,3 +46,58 @@ class OrbiBrand extends StatelessWidget {
     );
   }
 }
+
+/// Only the orbit ring + center dot, split out of the same artwork
+/// [OrbiBrand] draws whole. `orbi_logo.svg`'s single path combines the ring
+/// and the "ORBI ERP" letters, so a caller that animates the whole mark (as
+/// the startup screen used to) ends up spinning the wordmark too — orden del
+/// dueño, 13-sep-2026: en theos_pos sólo gira el símbolo
+/// (`theos_pos/lib/shared/widgets/theos_logo.dart`'s `TheosLogo`), nunca el
+/// texto. `orbi_symbol.svg` and [OrbiWordmark]'s `orbi_wordmark.svg` were cut
+/// from `orbi_logo.svg`'s original path data by subpath (no new geometry),
+/// and verified pixel-identical to the source when rendered together.
+class OrbiSymbol extends StatelessWidget {
+  const OrbiSymbol({super.key, this.height = 84, this.color});
+
+  final double height;
+  final Color? color;
+
+  @override
+  Widget build(BuildContext context) {
+    final tint = color ?? FluentTheme.of(context).accentColor;
+    return Semantics(
+      label: 'Símbolo Orbi ERP',
+      image: true,
+      child: SvgPicture.asset(
+        'assets/images/orbi_symbol.svg',
+        height: height,
+        colorFilter: ColorFilter.mode(tint, BlendMode.srcIn),
+        excludeFromSemantics: true,
+      ),
+    );
+  }
+}
+
+/// The "ORBI ERP" lettering only, split out of the same artwork [OrbiBrand]
+/// draws whole. See [OrbiSymbol] for why this split exists.
+class OrbiWordmark extends StatelessWidget {
+  const OrbiWordmark({super.key, this.height = 40, this.color});
+
+  final double height;
+  final Color? color;
+
+  @override
+  Widget build(BuildContext context) {
+    final tint = color ?? FluentTheme.of(context).accentColor;
+    return Semantics(
+      label: 'Orbi ERP',
+      image: true,
+      child: SvgPicture.asset(
+        'assets/images/orbi_wordmark.svg',
+        height: height,
+        colorFilter: ColorFilter.mode(tint, BlendMode.srcIn),
+        excludeFromSemantics: true,
+      ),
+    );
+  }
+}
