@@ -216,6 +216,19 @@ Entregado y en commit el 12 y 13-sep-2026, publicado en orbi.galapagos.tech (d3b
 
 ## Defectos conocidos y sin arreglar
 
+- 🔴🔴 **SEGURIDAD: los avisos de tiempo real de caja se pueden escuchar sin iniciar sesión.**
+  `l10n_ec_collection_box*` publica por `bus.bus._sendone` en canales de texto fijos y adivinables:
+  `{db}.collection_session` (`collection_session.py:2070`), `{db}.sale_order_updated` con importes y
+  nombres, y otros `*_updated`. El bus de Odoo 19.5 no filtra los canales de texto que pide el
+  cliente (`bus/models/ir_websocket.py:21-35,45-83`), y el propio núcleo advierte que no deben ser
+  adivinables (`bus/models/bus.py:92-100`). Medido en ERP2 el 13-sep-2026: una sesión pública,
+  sin login, se suscribió a `erp2_tecnosmart_com_ec.collection_session` sin rechazo. No se
+  observó entrega real porque no hubo actividad de caja en la ventana y no se escribieron datos.
+  La propuesta de canales autorizados va con el aviso genérico de `l10n_ec_app_sync` y necesita
+  la aprobación del dueño.
+- ✅ **Las notificaciones del sistema no podían mostrarse nunca**: el presentador quedaba con el
+  alcance fijo «unconfigured». Arreglado en de14f3a.
+
 - **No existe enrolamiento de dispositivo en ningún sitio del monorepo.** El PIN
   identifica una cuenta, no un equipo autorizado. Sin eso, «equipo compartido»
   es una etiqueta de documento y no algo que el sistema aplique o revoque.
