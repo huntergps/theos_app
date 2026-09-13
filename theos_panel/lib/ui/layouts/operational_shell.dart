@@ -156,6 +156,7 @@ final class OperationalShell extends StatefulWidget {
     this.now = DateTime.now,
     this.presence,
     this.onPresenceChanged,
+    this.onOpenPreferences,
   }) : assert(
          onLock == null || onUnlock != null,
          'onUnlock is required whenever onLock is provided: a shell that '
@@ -233,6 +234,23 @@ final class OperationalShell extends StatefulWidget {
   /// (`l10n_ec_collection_box_pos/models/res_users.py:253-283`), donde
   /// ofrecerlo sería un control que nunca responde.
   final ValueChanged<OdooPresence>? onPresenceChanged;
+
+  /// Abre las preferencias PERSONALES del usuario de Odoo desde «Mis
+  /// preferencias» del menú del avatar — no la configuración de la app
+  /// (`SettingsScreen`, que sigue viviendo en `/settings`, alcanzable desde
+  /// «Configuración» del carril o del pie, con `onNavigate`). `null` cuando
+  /// quien instancia este marco no tiene con qué construir el diálogo
+  /// (por ejemplo, sin sesión con base local): en ese caso «Mis
+  /// preferencias» cae de vuelta a `onNavigate('/settings')`, el
+  /// comportamiento de antes de que existiera este parámetro — nunca un
+  /// botón que no responda.
+  ///
+  /// 🔴 Antes «Mis preferencias» y «Configuración» llamaban las dos a
+  /// `onNavigate('/settings')` — la MISMA cadena, indistinguible en
+  /// `router.dart`. Interceptar esa cadena para abrir el diálogo apagaba
+  /// TAMBIÉN «Configuración» (medido el 13-sep-2026). Este parámetro es la
+  /// separación real: dos disparadores, dos caminos.
+  final VoidCallback? onOpenPreferences;
 
   /// 🔴 Aquí había seis colores escritos a mano: tres para el pie y tres para
   /// el estado. Ninguno se decide ya en este fichero. Orden del dueño del
@@ -470,7 +488,9 @@ class _OperationalShellState extends State<OperationalShell> {
             userLabel: ctx.userLabel,
             companyLabel: ctx.companyLabel,
             wide: availableWidth >= OrbiTheme.mediumBreakpoint,
-            onOpenPreferences: () => widget.onNavigate(_kSettingsPath),
+            onOpenPreferences:
+                widget.onOpenPreferences ??
+                () => widget.onNavigate(_kSettingsPath),
             onLock: widget.onLock,
             onSwitchUser: widget.onSwitchUser,
             onLogout: widget.onLogout,

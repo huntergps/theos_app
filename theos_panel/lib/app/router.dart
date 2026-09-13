@@ -3,9 +3,12 @@ import 'dart:async';
 import 'package:fluent_ui/fluent_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:odoo_sdk/odoo_sdk.dart'
+    show OdooMethodNotFoundException, OdooNotFoundException;
 import 'package:orbi_runtime/orbi_runtime.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../features/account/user_preferences_dialog.dart';
 import '../features/auth/auth_controller.dart';
 import '../features/auth/login_screen.dart';
 import '../features/auth/login_failure_messages.dart';
@@ -492,7 +495,18 @@ final scopeSyncAutoResyncTriggerProvider = Provider<SyncAutoResyncTrigger?>((
 // servidor lo traduce a avisos de `product.product`) y `product.pricelist.item`
 // (el catálogo de tarifas sólo lee cabeceras).
 const _realtimeModelJobIds = <String, Set<String>>{
-  'res.partner': {'catalog:partner'},
+  // Bloque de sync-cuenta (13-sep-2026): un aviso de `res.partner` también
+  // dispara el catálogo del PROPIO usuario (su `res.partner`, el que lee
+  // «Mis preferencias»), y uno de `res.users` dispara el catálogo del
+  // usuario mismo — ninguno de los dos existía antes de la presencia y las
+  // preferencias personales.
+  // Bloque de sync-cuenta (13-sep-2026): un aviso de `res.partner` también
+  // dispara el catálogo del PROPIO usuario (su `res.partner`, el que lee
+  // «Mis preferencias»), y uno de `res.users` dispara el catálogo del
+  // usuario mismo — ninguno de los dos existía antes de la presencia y las
+  // preferencias personales.
+  'res.partner': {'catalog:partner', 'catalog:currentUserPartner'},
+  'res.users': {'catalog:currentUser'},
   'product.product': {'catalog:product'},
   'account.payment.term': {'catalog:paymentTerm'},
   'uom.uom': {'catalog:uom'},
@@ -509,6 +523,11 @@ const _realtimeModelJobIds = <String, Set<String>>{
 };
 
 const _realtimeLastKey = 'realtime/last';
+
+/// Sólo para pruebas: `_realtimeModelJobIds` es privado, y no hay otra forma
+/// de comprobar el mapa sin montar un `RealtimeSyncCoordinator` completo.
+@visibleForTesting
+const realtimeModelJobIdsForTesting = _realtimeModelJobIds;
 
 // --- Bloque aislado: Modo Ruta (13-sep-2026) --------------------------------
 // La pausa por Modo Ruta la aplicaba sólo el callback de Configuración: con el
@@ -901,6 +920,215 @@ class _OdooVersionNotifier extends Notifier<String?> {
   }
 }
 
+// --- Bloque aislado: presencia y preferencias personales (13-sep-2026) -----
+// Los puertos de `orbi_runtime/lib/src/account/` armados con lo mismo que ya
+// usa el resto del router para construir puertos de sesión — mismo patrón
+// que `scopeCollectionSessionSupervisionActionsProvider` en
+// `collection_scope_composition.dart`: `SaleOdooActions` del cliente activo
+// (`null` sin cliente), `OfflineQueueDataSource`/`AppDatabase` de la base
+// activa.
+
+final _sessionActionsProvider = Provider<SaleOdooActions?>((ref) {
+  final client = ref.watch(runtimeSessionProvider)?.active?.client;
+  return client == null ? null : OdooClientSaleActions(client);
+});
+
+final _sessionDatabaseProvider = Provider<AppDatabase?>(
+  (ref) => ref.watch(runtimeSessionProvider)?.active?.database.database,
+);
+
+final _sessionQueueProvider = Provider<OfflineQueueDataSource?>((ref) {
+  final database = ref.watch(_sessionDatabaseProvider);
+  return database == null ? null : OfflineQueueDataSource(database);
+});
+
+/// Espejo de `_UnavailableSaleActions` en `collection_scope_composition.dart`
+/// (privada allí, no se puede reusar desde este archivo): un `call` que
+/// siempre falla, para que `OdooUserSecurityActionsPort`/`UserPresencePort`
+/// tengan algo que sostener sin sesión en línea sin volverse `null` — ya
+/// gastan `isOnline`/el propio `null` del puerto para decidir si de verdad
+/// intentan hablar con el servidor.
+final class _UnavailableSaleActions implements SaleOdooActions {
+  const _UnavailableSaleActions();
+  @override
+  Future<dynamic> call({
+    required String model,
+    required String method,
+    List<int>? ids,
+    Map<String, dynamic>? kwargs,
+  }) => Future.error(StateError('Sin sesión en línea'));
+}
+
+/// 100% local — `LocalUserPreferencesPort` nunca necesita el cliente.
+/// `null` sólo sin sesión activa (ni base ni cola que ofrecer).
+final _userPreferencesPortProvider = Provider<UserPreferencesPort?>((ref) {
+  final database = ref.watch(_sessionDatabaseProvider);
+  final queue = ref.watch(_sessionQueueProvider);
+  if (database == null || queue == null) return null;
+  return LocalUserPreferencesPort(database: database, queue: queue);
+});
+
+final _userSecurityActionsPortProvider = Provider<UserSecurityActionsPort>((
+  ref,
+) {
+  final actions = ref.watch(_sessionActionsProvider);
+  return OdooUserSecurityActionsPort(
+    actions: actions ?? const _UnavailableSaleActions(),
+    isOnline: actions != null,
+  );
+});
+
+/// `null` sólo sin sesión activa — a diferencia de `UserSecurityActionsPort`,
+/// que sigue existiendo (`isOnline: false`) porque `changePassword`/etc.
+/// necesitan devolver `.offline()`, `UserPresencePort` no distingue online
+/// de offline por dentro (`set`/`readPending` son sólo cola local); sin
+/// sesión activa no hay ni base para esa cola.
+final _userPresencePortProvider = Provider<UserPresencePort?>((ref) {
+  final queue = ref.watch(_sessionQueueProvider);
+  if (queue == null) return null;
+  final actions = ref.watch(_sessionActionsProvider);
+  return UserPresencePort(
+    actions: actions ?? const _UnavailableSaleActions(),
+    queue: queue,
+  );
+});
+
+String _presencePrefsKey(String serverUrl, String database, int userId) =>
+    'orbi/presence/$serverUrl|$database|$userId';
+
+String _presenceSupportedPrefsKey(String serverUrl, String database) =>
+    'orbi/presence_supported/$serverUrl|$database';
+
+final _presenceSupportedProvider =
+    NotifierProvider<_PresenceSupportedNotifier, bool?>(
+      _PresenceSupportedNotifier.new,
+    );
+
+/// Si el servidor tiene `mobile_set_im_status`
+/// (`l10n_ec_collection_box_pos/models/res_users.py:253-283` — falta, por
+/// ejemplo, en Mepriga). `null` mientras no se sabe todavía: el submenú
+/// «Estado» no se ofrece ni en un sentido ni en el otro hasta tener una
+/// respuesta real — ver el uso de este provider más abajo
+/// (`onPresenceChanged` sólo existe con `true`).
+class _PresenceSupportedNotifier extends Notifier<bool?> {
+  @override
+  bool? build() {
+    final profile = ref.watch(authControllerProvider).profile;
+    if (profile == null) return null;
+    final prefs = ref.watch(sharedPreferencesProvider);
+    final key = _presenceSupportedPrefsKey(
+      profile.serverUrl,
+      profile.database,
+    );
+    final cached = prefs.getBool(key);
+    if (cached != null) return cached;
+
+    final actions = ref.watch(_sessionActionsProvider);
+    final port = ref.watch(_userPresencePortProvider);
+    if (actions != null && port != null) {
+      unawaited(_probe(actions, port, profile.userId, prefs, key));
+    }
+    return null;
+  }
+
+  /// Sonda de una sola vez, sólo mientras no se sepa todavía. Lee el estado
+  /// actual y lo reescribe TAL CUAL — idempotente, ningún estado distinto
+  /// queda escrito — llamando al método real DIRECTO, no por
+  /// `UserPresencePort.set` (que sólo encola: el fallo de
+  /// `mobile_set_im_status`, si lo hay, tiene que llegar aquí mismo, no
+  /// perderse en la cola durable).
+  Future<void> _probe(
+    SaleOdooActions actions,
+    UserPresencePort port,
+    int userId,
+    SharedPreferences prefs,
+    String key,
+  ) async {
+    try {
+      final current = await port.read(userId);
+      if (current == null) return; // Forma inesperada: se reintenta luego.
+      await actions.call(
+        model: 'res.users',
+        method: 'mobile_set_im_status',
+        kwargs: {'status': current.odooValue},
+      );
+      await prefs.setBool(key, true);
+      if (ref.mounted) state = true;
+    } on OdooMethodNotFoundException {
+      await prefs.setBool(key, false);
+      if (ref.mounted) state = false;
+    } on OdooNotFoundException {
+      await prefs.setBool(key, false);
+      if (ref.mounted) state = false;
+    } catch (_) {
+      // Red o permisos: no decide disponibilidad, se reintenta con la
+      // próxima sesión con red.
+    }
+  }
+}
+
+final _presenceProvider = NotifierProvider<_PresenceNotifier, OdooPresence?>(
+  _PresenceNotifier.new,
+);
+
+/// `readPending` ?? la última guardada en preferencias ?? `read` en línea
+/// (que luego se guarda). `readPending`/`read` son async y `build()` no
+/// puede esperarlos, así que la guardada es lo que se muestra AL INSTANTE
+/// (síncrona, de `SharedPreferences`) y las otras dos corrigen el estado en
+/// cuanto resuelven — típicamente milisegundos después, nunca «sin dato»
+/// mientras tanto.
+class _PresenceNotifier extends Notifier<OdooPresence?> {
+  @override
+  OdooPresence? build() {
+    final profile = ref.watch(authControllerProvider).profile;
+    if (profile == null) return null;
+    final prefs = ref.watch(sharedPreferencesProvider);
+    final key = _presencePrefsKey(
+      profile.serverUrl,
+      profile.database,
+      profile.userId,
+    );
+    final cached = OdooPresence.fromOdoo(prefs.getString(key));
+
+    final port = ref.watch(_userPresencePortProvider);
+    if (port != null) {
+      final online = ref.watch(runtimeSessionProvider)?.active?.client != null;
+      unawaited(_resolve(port, profile.userId, online, prefs, key));
+    }
+    return cached;
+  }
+
+  Future<void> _resolve(
+    UserPresencePort port,
+    int userId,
+    bool online,
+    SharedPreferences prefs,
+    String key,
+  ) async {
+    // Gana la ÚLTIMA elección propia, todavía sin drenar — por delante de
+    // lo guardado y de lo que diga el servidor.
+    final pending = await port.readPending(userId);
+    if (pending != null) {
+      if (ref.mounted) state = pending;
+      return;
+    }
+    if (!online) return;
+    final remote = await port.read(userId);
+    if (remote == null) return;
+    await prefs.setString(key, remote.odooValue);
+    if (ref.mounted) state = remote;
+  }
+
+  /// Cambio optimista: quien construye [OperationalShell] llama esto ANTES
+  /// de que `UserPresencePort.set` termine de encolar, para que una
+  /// reconstrucción de este subárbol por otro motivo no muestre el estado
+  /// viejo mientras la cola drena.
+  void applyOptimistic(OdooPresence status) {
+    state = status;
+  }
+}
+// --- Fin del bloque aislado -------------------------------------------------
+
 /// Traduce la preferencia guardada al tipo real de Fluent. Vive aquí, no en
 /// `operational_shell.dart`: el marco recibe tipos de Fluent por constructor
 /// (orden del dueño, 13-sep-2026), sin conocer el modelo de preferencias —
@@ -1157,6 +1385,8 @@ final orbiRouterProvider = Provider<GoRouter>((ref) {
             // Actividades de la barra superior.
             final activityPort =
                 composition.activities ?? ref.watch(scopeActivityPortProvider);
+            final presence = ref.watch(_presenceProvider);
+            final presenceSupported = ref.watch(_presenceSupportedProvider);
             // El controlador es el mismo `ChangeNotifier` de arriba: sólo se
             // reconstruye este subárbol, nunca el `GoRouter` entero.
             return AnimatedBuilder(
@@ -1174,7 +1404,57 @@ final orbiRouterProvider = Provider<GoRouter>((ref) {
                   child: OperationalShell(
                     destinations: destinations,
                     selectedPath: state.uri.path,
+                    // «Configuración» (carril o pie) sigue navegando: es
+                    // `SettingsScreen`, no las preferencias personales.
                     onNavigate: (path) => context.go(path),
+                    // «Mis preferencias» del menú del avatar: un disparador
+                    // PROPIO, separado de `onNavigate` — antes las dos
+                    // llamaban a `onNavigate('/settings')` con la MISMA
+                    // cadena, y no había forma de distinguirlas en
+                    // `router.dart` (medido el 13-sep-2026, interceptar
+                    // `/settings` apagaba también «Configuración»).
+                    onOpenPreferences: () {
+                      final currentProfile = ref
+                          .read(authControllerProvider)
+                          .profile;
+                      final userPreferences = ref.read(
+                        _userPreferencesPortProvider,
+                      );
+                      if (currentProfile == null || userPreferences == null) {
+                        context.go('/settings');
+                        return;
+                      }
+                      final security = ref.read(
+                        _userSecurityActionsPortProvider,
+                      );
+                      unawaited(
+                        showUserPreferencesDialog(
+                          context,
+                          userId: currentProfile.userId,
+                          preferences: userPreferences,
+                          security: security,
+                        ).then((message) {
+                          if (message == null || !context.mounted) return;
+                          final durations = ref
+                              .read(
+                                appPreferencesProvider(
+                                  ref.read(preferencesScopeProvider),
+                                ),
+                              )
+                              .snapshot
+                              .messageDurations;
+                          showCopyableMessage(
+                            context,
+                            CopyableMessage(
+                              title: 'Preferencias',
+                              body: message,
+                              severity: OrbiMessageSeverity.success,
+                            ),
+                            durations: durations,
+                          );
+                        }),
+                      );
+                    },
                     navigationDisplayMode: _paneDisplayModeFor(
                       preferencesController.snapshot.navigationDisplayMode,
                     ),
@@ -1186,6 +1466,39 @@ final orbiRouterProvider = Provider<GoRouter>((ref) {
                           ? PreferenceThemeMode.light
                           : PreferenceThemeMode.dark,
                     ),
+                    presence: presence,
+                    // `null` mientras no se sepa si el servidor soporta
+                    // `mobile_set_im_status`, o si de plano no lo soporta:
+                    // en los dos casos el submenú «Estado» no se ofrece
+                    // (`presenceSupported != true`, no sólo `== false`, para
+                    // cubrir también el `null` de "todavía no se sabe").
+                    onPresenceChanged: presenceSupported != true
+                        ? null
+                        : (status) {
+                            final currentProfile = ref
+                                .read(authControllerProvider)
+                                .profile;
+                            final port = ref.read(_userPresencePortProvider);
+                            if (currentProfile == null || port == null) {
+                              return;
+                            }
+                            ref
+                                .read(_presenceProvider.notifier)
+                                .applyOptimistic(status);
+                            unawaited(port.set(currentProfile.userId, status));
+                            unawaited(
+                              ref
+                                  .read(sharedPreferencesProvider)
+                                  .setString(
+                                    _presencePrefsKey(
+                                      currentProfile.serverUrl,
+                                      currentProfile.database,
+                                      currentProfile.userId,
+                                    ),
+                                    status.odooValue,
+                                  ),
+                            );
+                          },
                     context: OperationalContext(
                       server: profile?.serverUrl ?? 'No disponible',
                       database: profile?.database ?? 'No disponible',
