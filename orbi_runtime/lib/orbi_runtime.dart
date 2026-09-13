@@ -1,4 +1,6 @@
 export 'src/contracts.dart';
+export 'src/account/user_presence.dart';
+export 'src/account/user_preferences.dart';
 export 'src/sales/editable_draft_store.dart';
 export 'src/envases/envases_dashboard_reader.dart';
 export 'src/envases/envases_dashboard_cache.dart';

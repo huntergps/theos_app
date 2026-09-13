@@ -3,6 +3,7 @@ import 'dart:async';
 
 import 'package:drift/drift.dart';
 
+import 'package:odoo_sdk/odoo_sdk.dart' as odoo;
 import 'package:theos_pos_core/theos_pos_core.dart'
     show
         AppDatabase,
@@ -16,10 +17,20 @@ import 'package:theos_pos_core/theos_pos_core.dart'
         UomRecordMapper,
         CollectionConfigRecordMapper,
         CollectionSessionRecordMapper,
-        PaymentConfigRecordMapper;
+        PaymentConfigRecordMapper,
+        FieldSelectionDatasource,
+        ResLangCompanion,
+        ResCountryCompanion,
+        ResCountryStateCompanion,
+        ResGroupsCompanion,
+        ResUsersCompanion;
 
 // PartnerRecordMapper is also a concrete core mapper.
 
+// De preferencias-odoo (`orbi_runtime/lib/src/account/`): sólo se USA su
+// clase pública, este archivo no la edita. Ver la nota en
+// writeCurrentUserRecords.
+import '../account/user_preferences.dart' show FieldAvailabilityCache;
 import '../contracts.dart';
 import '../storage/runtime_database_owner.dart';
 import '../sync/catalog_sync.dart';
@@ -320,6 +331,363 @@ Future<List<CatalogRecord<Map<String, dynamic>>>> readJournalRecords(
         .toList(growable: false);
 
 // ============================================================================
+// res.lang / res.country / res.country.state / res.groups — catálogos de
+// referencia que necesita "Mis preferencias" (theos_panel/lib/features/account).
+// Mismo patrón exists-then-update-or-insert que PartnerRecordMapper.upsert,
+// usando los helpers ya probados de odoo_sdk (extractMany2oneId,
+// toStringOrNull, parseOdooDateTime, parseOdooBool, parseOdooStringRequired)
+// en vez de repetir su parseo a mano.
+// ============================================================================
+
+Future<void> writeLanguageRecords(
+  AppDatabase db,
+  List<CatalogRecord<Map<String, dynamic>>> records,
+  String? cursor,
+) async {
+  for (final record in records) {
+    final d = record.value;
+    final id = d['id'];
+    if (id is! int || id <= 0) throw const FormatException('res.lang id');
+    // `insertOnConflictUpdate` a secas conflicta por la PK autoincremental
+    // (`id`), NUNCA por `odoo_id` — lo dice su propia doc ("By default, only
+    // the primary key is used"). Sin `target` explícito, cada pasada de sync
+    // insertaría una fila NUEVA con el mismo `odoo_id` y violaría su UNIQUE,
+    // en vez de actualizar la existente. Medido con la prueba (h) del
+    // encargo de sync-cuenta el 13-sep-2026.
+    final companion = ResLangCompanion.insert(
+      odooId: id,
+      name: odoo.parseOdooStringRequired(d['name']),
+      code: odoo.parseOdooStringRequired(d['code']),
+      active: Value(odoo.parseOdooBool(d['active'], defaultValue: true)),
+      writeDate: Value(odoo.parseOdooDateTime(d['write_date'])),
+    );
+    await db
+        .into(db.resLang)
+        .insert(
+          companion,
+          onConflict: DoUpdate(
+            (_) => companion,
+            target: [db.resLang.odooId],
+          ),
+        );
+  }
+}
+
+Future<List<CatalogRecord<Map<String, dynamic>>>> readLanguageRecords(
+  AppDatabase db,
+) async => (await db.select(db.resLang).get())
+    .map(
+      (r) => CatalogRecord(
+        uuid: 'language:${r.odooId}',
+        value: {'id': r.odooId, 'name': r.name, 'code': r.code},
+      ),
+    )
+    .toList(growable: false);
+
+Future<void> deleteLanguageRecords(AppDatabase db, List<int> ids) async {
+  if (ids.isEmpty) return;
+  await (db.delete(db.resLang)..where((t) => t.odooId.isIn(ids))).go();
+}
+
+Future<void> writeCountryRecords(
+  AppDatabase db,
+  List<CatalogRecord<Map<String, dynamic>>> records,
+  String? cursor,
+) async {
+  for (final record in records) {
+    final d = record.value;
+    final id = d['id'];
+    if (id is! int || id <= 0) throw const FormatException('res.country id');
+    // Ver la nota en writeLanguageRecords: el target explícito es lo que
+    // hace que esto conflicte por `odoo_id`, no por la PK autoincremental.
+    final companion = ResCountryCompanion.insert(
+      odooId: id,
+      name: odoo.parseOdooStringRequired(d['name']),
+      code: Value(odoo.toStringOrNull(d['code'])),
+      writeDate: Value(odoo.parseOdooDateTime(d['write_date'])),
+    );
+    await db
+        .into(db.resCountry)
+        .insert(
+          companion,
+          onConflict: DoUpdate(
+            (_) => companion,
+            target: [db.resCountry.odooId],
+          ),
+        );
+  }
+}
+
+Future<List<CatalogRecord<Map<String, dynamic>>>> readCountryRecords(
+  AppDatabase db,
+) async => (await db.select(db.resCountry).get())
+    .map(
+      (r) => CatalogRecord(
+        uuid: 'country:${r.odooId}',
+        value: {'id': r.odooId, 'name': r.name, 'code': r.code},
+      ),
+    )
+    .toList(growable: false);
+
+Future<void> deleteCountryRecords(AppDatabase db, List<int> ids) async {
+  if (ids.isEmpty) return;
+  await (db.delete(db.resCountry)..where((t) => t.odooId.isIn(ids))).go();
+}
+
+Future<void> writeCountryStateRecords(
+  AppDatabase db,
+  List<CatalogRecord<Map<String, dynamic>>> records,
+  String? cursor,
+) async {
+  for (final record in records) {
+    final d = record.value;
+    final id = d['id'];
+    if (id is! int || id <= 0) {
+      throw const FormatException('res.country.state id');
+    }
+    // Ver la nota en writeLanguageRecords: el target explícito es lo que
+    // hace que esto conflicte por `odoo_id`, no por la PK autoincremental.
+    final companion = ResCountryStateCompanion.insert(
+      odooId: id,
+      name: odoo.parseOdooStringRequired(d['name']),
+      code: Value(odoo.toStringOrNull(d['code'])),
+      countryId: Value(odoo.extractMany2oneId(d['country_id'])),
+      countryName: Value(odoo.extractMany2oneName(d['country_id'])),
+      writeDate: Value(odoo.parseOdooDateTime(d['write_date'])),
+    );
+    await db
+        .into(db.resCountryState)
+        .insert(
+          companion,
+          onConflict: DoUpdate(
+            (_) => companion,
+            target: [db.resCountryState.odooId],
+          ),
+        );
+  }
+}
+
+Future<List<CatalogRecord<Map<String, dynamic>>>> readCountryStateRecords(
+  AppDatabase db,
+) async => (await db.select(db.resCountryState).get())
+    .map(
+      (r) => CatalogRecord(
+        uuid: 'country-state:${r.odooId}',
+        value: {
+          'id': r.odooId,
+          'name': r.name,
+          'code': r.code,
+          'country_id': r.countryId,
+        },
+      ),
+    )
+    .toList(growable: false);
+
+Future<void> deleteCountryStateRecords(AppDatabase db, List<int> ids) async {
+  if (ids.isEmpty) return;
+  await (db.delete(db.resCountryState)..where((t) => t.odooId.isIn(ids))).go();
+}
+
+Future<void> writeGroupRecords(
+  AppDatabase db,
+  List<CatalogRecord<Map<String, dynamic>>> records,
+  String? cursor,
+) async {
+  for (final record in records) {
+    final d = record.value;
+    final id = d['id'];
+    if (id is! int || id <= 0) throw const FormatException('res.groups id');
+    // `category_id` no existe en Odoo 19/20 (reemplazado por `privilege_id`,
+    // ver res_groups.py en dev_odoo20) pero sí en versiones anteriores —
+    // `selfDescribingLoader` sólo lo pide si `fields_get` lo confirma, así
+    // que aquí puede o no venir. `xml_id` nunca llega (no es un campo real,
+    // ver la nota en `selfDescribingLoader`): esa columna se queda `null`.
+    //
+    // Target explícito: ver la nota en writeLanguageRecords — conflicta por
+    // `odoo_id`, no por la PK autoincremental.
+    final companion = ResGroupsCompanion.insert(
+      odooId: id,
+      name: odoo.parseOdooStringRequired(d['name']),
+      fullName: Value(odoo.toStringOrNull(d['full_name'])),
+      categoryId: Value(odoo.extractMany2oneId(d['category_id'])),
+      categoryName: Value(odoo.extractMany2oneName(d['category_id'])),
+      writeDate: Value(odoo.parseOdooDateTime(d['write_date'])),
+    );
+    await db
+        .into(db.resGroups)
+        .insert(
+          companion,
+          onConflict: DoUpdate(
+            (_) => companion,
+            target: [db.resGroups.odooId],
+          ),
+        );
+  }
+}
+
+Future<List<CatalogRecord<Map<String, dynamic>>>> readGroupRecords(
+  AppDatabase db,
+) async => (await db.select(db.resGroups).get())
+    .map(
+      (r) => CatalogRecord(
+        uuid: 'group:${r.odooId}',
+        value: {'id': r.odooId, 'name': r.name, 'full_name': r.fullName},
+      ),
+    )
+    .toList(growable: false);
+
+Future<void> deleteGroupRecords(AppDatabase db, List<int> ids) async {
+  if (ids.isEmpty) return;
+  await (db.delete(db.resGroups)..where((t) => t.odooId.isIn(ids))).go();
+}
+
+// ============================================================================
+// Usuario y partner de la sesión activa — "Mis preferencias"
+// (theos_panel/lib/features/account). Ver RuntimeAccountLoader en
+// json2_read_adapters.dart para cómo se resuelven los campos.
+// ============================================================================
+
+Future<void> writeCurrentUserRecords(
+  AppDatabase db,
+  List<CatalogRecord<Map<String, dynamic>>> records,
+  String? cursor,
+) async {
+  for (final record in records) {
+    final d = record.value;
+    final id = d['id'];
+    if (id is! int || id <= 0) throw const FormatException('res.users id');
+
+    final selections = d['_field_selections'];
+    if (selections is Map) {
+      final datasource = FieldSelectionDatasource(db);
+      for (final entry in selections.entries) {
+        final field = entry.key;
+        final value = entry.value;
+        if (field is String && value is List) {
+          await datasource.upsertFieldSelection('res.users', field, value);
+        }
+      }
+    }
+
+    // `FieldAvailabilityCache` (orbi_runtime/lib/src/account/user_preferences.dart):
+    // "Mis preferencias" la lee sin red para decidir si mostrar el campo
+    // `mobile_phone`/`property_warehouse_id`. `markUnavailable` es lo que
+    // hace que un módulo desinstalado (p. ej. `sale_stock`) no deje un
+    // marcador viejo diciendo "disponible" para siempre — sin esto, una
+    // segunda pasada donde el campo ya no viene en `fields_get` no bastaba
+    // para que el marcador de una pasada ANTERIOR desapareciera.
+    final availability = d['_field_availability'];
+    if (availability is Map) {
+      final availabilityCache = FieldAvailabilityCache(db);
+      for (final entry in availability.entries) {
+        final field = entry.key;
+        if (field is! String) continue;
+        if (entry.value == true) {
+          await availabilityCache.markAvailable(field);
+        } else {
+          await availabilityCache.markUnavailable(field);
+        }
+      }
+    }
+
+    final groupIds = d['group_ids'];
+    final groupIdsJson = groupIds is List
+        ? jsonEncode(
+            groupIds.whereType<num>().map((v) => v.toInt()).toList(),
+          )
+        : null;
+
+    // Sólo puede haber UN usuario "actual" a la vez: si la sesión cambió de
+    // uid entre un ciclo y otro (relogin en la misma base local), la fila
+    // vieja se queda huérfana con la marca puesta si no se limpia antes.
+    await (db.update(
+      db.resUsers,
+    )..where((t) => t.odooId.equals(id).not())).write(
+      const ResUsersCompanion(isCurrentUser: Value(false)),
+    );
+
+    // Target explícito: ver la nota en writeLanguageRecords — conflicta por
+    // `odoo_id`, no por la PK autoincremental. Aquí importa doble: sin esto,
+    // cada ciclo de sync duplicaba también la fila del usuario actual.
+    final companion = ResUsersCompanion.insert(
+      odooId: id,
+      name: odoo.parseOdooStringRequired(d['name']),
+      login: odoo.parseOdooStringRequired(d['login']),
+      lang: Value(odoo.toStringOrNull(d['lang'])),
+      tz: Value(odoo.toStringOrNull(d['tz'])),
+      signature: Value(odoo.toStringOrNull(d['signature'])),
+      partnerId: Value(odoo.extractMany2oneId(d['partner_id'])),
+      companyId: Value(odoo.extractMany2oneId(d['company_id'])),
+      propertyWarehouseId: Value(
+        odoo.extractMany2oneId(d['property_warehouse_id']),
+      ),
+      avatar128: Value(odoo.toStringOrNull(d['avatar_128'])),
+      notificationType: Value(odoo.toStringOrNull(d['notification_type'])),
+      workEmail: Value(odoo.toStringOrNull(d['work_email'])),
+      workPhone: Value(odoo.toStringOrNull(d['work_phone'])),
+      mobilePhone: Value(odoo.toStringOrNull(d['mobile_phone'])),
+      groupIds: Value(groupIdsJson),
+      isCurrentUser: const Value(true),
+      writeDate: Value(odoo.parseOdooDateTime(d['write_date'])),
+    );
+    await db
+        .into(db.resUsers)
+        .insert(
+          companion,
+          onConflict: DoUpdate(
+            (_) => companion,
+            target: [db.resUsers.odooId],
+          ),
+        );
+  }
+}
+
+/// Protege el partner de la sesión actual de las bajas del catálogo
+/// `customers` (`res.partner` con `customer_rank > 0`). Sin esto, el barrido
+/// de "salida de dominio" de `RuntimeCatalogLoader._fetchDomainExitIds`
+/// —pensado para productos/clientes que se archivan— también atrapa al
+/// propio usuario cuando su partner NO es cliente (`customer_rank == 0`, el
+/// caso normal de un vendedor): su `write_date` cambia por cualquier motivo,
+/// el escaneo negado de `customers.domain` lo encuentra, y
+/// `DriftCatalogStore.commit` lo borra de `res_partner` aunque lo acabe de
+/// escribir esta misma sincronización. Confirmado con una prueba en
+/// `test/read/current_account_test.dart` (mutando `neverDeleteIds` a `null`
+/// para ver el borrado ocurrir).
+///
+/// Instancia única por `RuntimeCatalogComposition` (una por activación,
+/// igual que `RuntimeCatalogLoader`) — nunca un singleton global: ver
+/// ADR-03 en `docs/orbi_panel/ARCHITECTURE.md`.
+final class CurrentAccountPartnerGuard {
+  int? _partnerId;
+
+  void update(int? partnerId) => _partnerId = partnerId;
+
+  Set<int> get protectedIds =>
+      _partnerId == null ? const <int>{} : {_partnerId!};
+}
+
+/// Fábrica, no una función suelta: captura [guard] para que la protección de
+/// [CurrentAccountPartnerGuard] se actualice en cada ciclo. Reutiliza
+/// [PartnerRecordMapper.upsert] — la misma escritura que ya usa el catálogo
+/// `customers` — así que un usuario que SÍ es cliente (`customer_rank > 0`)
+/// no arrastra dos representaciones de su fila.
+CatalogRowsWriter<Map<String, dynamic>> writeCurrentUserPartnerRecords(
+  CurrentAccountPartnerGuard guard,
+) {
+  return (db, records, cursor) async {
+    if (records.isEmpty) {
+      guard.update(null);
+      return;
+    }
+    for (final record in records) {
+      final id = record.value['id'];
+      await PartnerRecordMapper.upsert(db, record.value);
+      guard.update(id is int ? id : null);
+    }
+  };
+}
+
+// ============================================================================
 // Deletion by Odoo id, one per catalog. Symmetric with the writers above:
 // each function knows only its own Drift table, never another catalog's.
 // ============================================================================
@@ -439,6 +807,17 @@ const Map<String, String> _catalogOdooModels = {
   'cardDeadline': 'account.credit.card.deadline',
   'cardLote': 'account.card.lote',
   'paymentMethodLine': 'account.payment.method.line',
+  'lang': 'res.lang',
+  'country': 'res.country',
+  'countryState': 'res.country.state',
+  'groups': 'res.groups',
+  // Sin deleter (single record, ver writeCurrentUserRecords/
+  // writeCurrentUserPartnerRecords) pero SÍ necesitan la guarda de
+  // `offline_queue`: si "Mis preferencias" encoló un cambio de `res.users`/
+  // `res.partner` que todavía no sincronizó, este catálogo no debe pisarlo
+  // con la versión vieja del servidor en el próximo ciclo.
+  'currentUser': 'res.users',
+  'currentUserPartner': 'res.partner',
 };
 
 /// Catalog name → its deleter. Same rationale/coupling as
@@ -461,6 +840,10 @@ _defaultCatalogDeleters = {
   'cardDeadline': deleteCardDeadlineRecords,
   'cardLote': deleteCardLoteRecords,
   'paymentMethodLine': deletePaymentMethodLineRecords,
+  'lang': deleteLanguageRecords,
+  'country': deleteCountryRecords,
+  'countryState': deleteCountryStateRecords,
+  'groups': deleteGroupRecords,
 };
 
 final class DriftCatalogStore<T> implements LocalCatalogStore<T> {
@@ -488,6 +871,17 @@ final class DriftCatalogStore<T> implements LocalCatalogStore<T> {
   /// pasa, se resuelve por [name] contra [_catalogOdooModels].
   final String? pendingOperationModel;
 
+  /// Ids que este catálogo NUNCA debe borrar, sin importar lo que traiga
+  /// [CatalogBatch.deletedIds] o la diferencia contra
+  /// [CatalogBatch.remoteActiveIds]. Existe para el catálogo `partner`
+  /// (clientes, `customer_rank > 0`): su barrido de "salida de dominio"
+  /// atrapa al partner del usuario de la sesión cuando éste NO es cliente —
+  /// ver [CurrentAccountPartnerGuard] en este mismo archivo, que es quien
+  /// arma el `Set` que se pasa aquí. `null` (el valor de todos los catálogos
+  /// de siempre) es "no proteger nada", igual que antes de que este campo
+  /// existiera.
+  final Set<int> Function()? neverDeleteIds;
+
   DriftCatalogStore({
     required this.owner,
     required this.name,
@@ -495,6 +889,7 @@ final class DriftCatalogStore<T> implements LocalCatalogStore<T> {
     this.readRows,
     this.deleteRows,
     this.pendingOperationModel,
+    this.neverDeleteIds,
   });
 
   CatalogRowsDeleter<T>? get _effectiveDeleteRows {
@@ -574,6 +969,7 @@ final class DriftCatalogStore<T> implements LocalCatalogStore<T> {
           toDelete.addAll(localIds.difference(activeIds));
         }
         toDelete.removeAll(pendingIds);
+        toDelete.removeAll(neverDeleteIds?.call() ?? const <int>{});
         if (toDelete.isNotEmpty) {
           await deleter(
             runtime.database,

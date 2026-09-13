@@ -38,6 +38,12 @@ final class RuntimeCatalogComposition {
     }
     final effectiveReader = reader ?? OdooJson2ReadPort(client!);
     final loader = RuntimeCatalogLoader(effectiveReader);
+    // "Mis preferencias" (theos_panel/lib/features/account): usuario y
+    // partner de la sesión activa. Una instancia por composición — nunca un
+    // singleton global (ADR-03, docs/orbi_panel/ARCHITECTURE.md) — porque el
+    // guard sólo tiene sentido atado al scope de ESTA activación.
+    final accountLoader = RuntimeAccountLoader(effectiveReader);
+    final partnerGuard = CurrentAccountPartnerGuard();
     final specs = <String, RuntimeCatalogDescriptor>{
       'partner': RuntimeCatalogs.customers,
       'product': RuntimeCatalogs.products,
@@ -53,6 +59,9 @@ final class RuntimeCatalogComposition {
       'cardDeadline': RuntimeCatalogs.cardDeadlines,
       'cardLote': RuntimeCatalogs.cardLotes,
       'paymentMethodLine': RuntimeCatalogs.paymentMethodLines,
+      'lang': RuntimeCatalogs.languages,
+      'country': RuntimeCatalogs.countries,
+      'countryState': RuntimeCatalogs.countryStates,
     };
     final writers = <String, CatalogRowsWriter<Map<String, dynamic>>>{
       'partner': writePartnerRecords,
@@ -69,6 +78,9 @@ final class RuntimeCatalogComposition {
       'cardDeadline': writeCardDeadlineRecords,
       'cardLote': writeCardLoteRecords,
       'paymentMethodLine': writePaymentMethodLineRecords,
+      'lang': writeLanguageRecords,
+      'country': writeCountryRecords,
+      'countryState': writeCountryStateRecords,
     };
     final readers = <String, CatalogRowsReader<Map<String, dynamic>>>{
       'partner': readPartnerRecords,
@@ -85,6 +97,9 @@ final class RuntimeCatalogComposition {
       'cardDeadline': readCardDeadlineRecords,
       'cardLote': readCardLoteRecords,
       'paymentMethodLine': readPaymentMethodLineRecords,
+      'lang': readLanguageRecords,
+      'country': readCountryRecords,
+      'countryState': readCountryStateRecords,
     };
     final stores = <String, DriftCatalogStore<Map<String, dynamic>>>{};
     final jobs = <String, SyncJob>{};
@@ -104,6 +119,13 @@ final class RuntimeCatalogComposition {
         name: entry.key,
         writeRows: writers[entry.key]!,
         readRows: readers[entry.key],
+        // Sólo 'partner' (customers) puede alcanzar al partner de la sesión
+        // activa por su barrido de salida de dominio (`customer_rank > 0`
+        // negado) — ver CurrentAccountPartnerGuard en
+        // local_catalog_adapters.dart y la prueba que reprodujo el borrado.
+        neverDeleteIds: entry.key == 'partner'
+            ? () => partnerGuard.protectedIds
+            : null,
       );
       stores[entry.key] = store;
       jobs[entry.key] = CatalogSyncJob(
@@ -112,6 +134,59 @@ final class RuntimeCatalogComposition {
         load: loader.loader(entry.value),
       );
     }
+
+    // 'groups' no tiene RuntimeCatalogDescriptor estático: sus campos se
+    // resuelven con `fields_get` en tiempo de ejecución — `category_id` ya
+    // no existe en Odoo 19/20 (reemplazado por `privilege_id`, ver la nota
+    // en RuntimeCatalogLoader.selfDescribingLoader).
+    final groupsStore = DriftCatalogStore<Map<String, dynamic>>(
+      owner: owner,
+      name: 'groups',
+      writeRows: writeGroupRecords,
+      readRows: readGroupRecords,
+    );
+    stores['groups'] = groupsStore;
+    jobs['groups'] = CatalogSyncJob(
+      id: 'catalog:groups',
+      store: groupsStore,
+      load: loader.selfDescribingLoader(
+        key: 'groups',
+        model: 'res.groups',
+        candidateFields: const [
+          'name',
+          'full_name',
+          'category_id',
+          'write_date',
+        ],
+      ),
+    );
+
+    // Usuario y partner de la sesión activa. Un solo registro cada uno, sin
+    // paginación (ver RuntimeAccountLoader) — por eso no pasan por `specs`.
+    final currentUserStore = DriftCatalogStore<Map<String, dynamic>>(
+      owner: owner,
+      name: 'currentUser',
+      writeRows: writeCurrentUserRecords,
+    );
+    stores['currentUser'] = currentUserStore;
+    jobs['currentUser'] = CatalogSyncJob(
+      id: 'catalog:currentUser',
+      store: currentUserStore,
+      load: accountLoader.userLoader,
+    );
+
+    final currentUserPartnerStore = DriftCatalogStore<Map<String, dynamic>>(
+      owner: owner,
+      name: 'currentUserPartner',
+      writeRows: writeCurrentUserPartnerRecords(partnerGuard),
+    );
+    stores['currentUserPartner'] = currentUserPartnerStore;
+    jobs['currentUserPartner'] = CatalogSyncJob(
+      id: 'catalog:currentUserPartner',
+      store: currentUserPartnerStore,
+      load: accountLoader.partnerLoader,
+    );
+
     return RuntimeCatalogComposition._(
       activation: activation,
       owner: owner,

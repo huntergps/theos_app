@@ -684,6 +684,20 @@ final class OdooOfflineOperationAdapter implements OfflineOperationAdapter {
   @override
   Future<OperationReconciliation> reconcile(OfflineOperation operation) async {
     _checkScope(operation);
+    // `res.users`/`res.partner` `write` (preferencias personales del
+    // usuario) y `res.users.mobile_set_im_status` (presencia) son
+    // idempotentes: repetir la misma escritura de campos, o el mismo
+    // estado manual, es inofensivo. No hay un marcador de servidor que
+    // consultar antes de reintentar, a diferencia de un pago o el cierre de
+    // una sesión de caja.
+    if ((operation.model == 'res.users' || operation.model == 'res.partner') &&
+        operation.method == 'write') {
+      return const OperationNotApplied();
+    }
+    if (operation.model == 'res.users' &&
+        operation.method == 'mobile_set_im_status') {
+      return const OperationNotApplied();
+    }
     if (operation.model == 'account.advance' && operation.method == 'create') {
       final id = await _findAdvanceCreatedId(operation);
       if (id == null) return const OperationNotApplied();
@@ -832,6 +846,49 @@ final class OdooOfflineOperationAdapter implements OfflineOperationAdapter {
   Future<ConflictInfo?> dispatch(OfflineOperation operation) async {
     _checkScope(operation);
     final values = operation.values;
+    // Preferencias personales (`res.users`/`res.partner` `write`): el diff
+    // ya viene limpio de marcadores internos (`user_preferences.dart` nunca
+    // los mete en `values`), así que se manda tal cual como `vals`.
+    if ((operation.model == 'res.users' || operation.model == 'res.partner') &&
+        operation.method == 'write') {
+      final recordId = operation.recordId;
+      if (recordId == null) {
+        throw StateError('${operation.model}.write requiere recordId');
+      }
+      final result = await actions.call(
+        model: operation.model,
+        method: 'write',
+        ids: [recordId],
+        kwargs: {'vals': values},
+      );
+      if (_rejected(result)) {
+        return ConflictInfo(
+          operationId: operation.id,
+          model: operation.model,
+          recordId: operation.recordId,
+          localWriteDate: operation.createdAt,
+          serverWriteDate: DateTime.now().toUtc(),
+          localValues: Map<String, dynamic>.from(values),
+        );
+      }
+      return null;
+    }
+    // Presencia (`mobile_set_im_status`): sin `ids` — es `@api.model`,
+    // opera sobre `self.env.user` (igual que en `UserPresencePort` antes de
+    // que este cambio la moviera a la cola).
+    if (operation.model == 'res.users' &&
+        operation.method == 'mobile_set_im_status') {
+      final status = values['status'];
+      if (status is! String) {
+        throw StateError('mobile_set_im_status requiere un status string');
+      }
+      await actions.call(
+        model: 'res.users',
+        method: 'mobile_set_im_status',
+        kwargs: {'status': status},
+      );
+      return null;
+    }
     if (operation.model == 'account.advance' && operation.method == 'create') {
       return _dispatchAdvanceCreate(operation);
     }

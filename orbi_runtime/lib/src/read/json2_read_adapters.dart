@@ -5,7 +5,8 @@ import 'package:odoo_sdk/odoo_sdk.dart'
         OdooException,
         OdooNotFoundException,
         OdooMethodNotFoundException,
-        OdooAccessDeniedException;
+        OdooAccessDeniedException,
+        extractMany2oneId;
 import 'package:theos_pos_core/theos_pos_core.dart';
 
 import '../contracts.dart';
@@ -332,13 +333,51 @@ abstract final class RuntimeCatalogs {
     order: 'name asc,id asc',
   );
 
-  /// Los catorce, para poder recorrerlos.
+  /// `res.lang`/`res.country`/`res.country.state` son campos base garantizados
+  /// (verificado contra `odoo/odoo/addons/base/models/res_lang.py` y
+  /// `res_country.py` en `dev_odoo20`): sin módulo que los quite ni versión
+  /// que los renombre, así que van con lista de campos fija — a diferencia de
+  /// `res.groups`/`res.users`/`res.partner` (ver [RuntimeCatalogLoader] y
+  /// [RuntimeAccountLoader]), que SÍ dependen de qué módulos están instalados
+  /// y por eso se resuelven con `fields_get`.
+  static const languages = RuntimeCatalogDescriptor(
+    key: 'languages',
+    model: 'res.lang',
+    fields: ['id', 'name', 'code', 'active', 'write_date'],
+    domain: [
+      ['active', '=', true],
+    ],
+    order: 'name asc,id asc',
+  );
+
+  /// `res.country` no tiene campo `active` (confirmado en el modelo base): a
+  /// diferencia de la mayoría de catálogos, aquí no hay dominio que filtrar.
+  static const countries = RuntimeCatalogDescriptor(
+    key: 'countries',
+    model: 'res.country',
+    fields: ['id', 'name', 'code', 'write_date'],
+    order: 'name asc,id asc',
+  );
+
+  /// Igual que `countries`: `res.country.state` tampoco tiene `active`.
+  static const countryStates = RuntimeCatalogDescriptor(
+    key: 'countryStates',
+    model: 'res.country.state',
+    fields: ['id', 'name', 'code', 'country_id', 'write_date'],
+    order: 'name asc,id asc',
+  );
+
+  /// Los diecisiete estáticos, para poder recorrerlos.
   ///
   /// Existe porque los descriptores se escribieron todos de una vez y **nadie
   /// los comprobó contra un servidor real**: cuatro pedían modelos o campos
   /// que no existen, y el fallo no se vio hasta once meses después. Una lista
   /// enumerable permite que una prueba los recorra y los valide de golpe, en
   /// vez de descubrirlos de uno en uno cuando la sincronización falla.
+  ///
+  /// `res.groups` NO está aquí: sus campos se resuelven con `fields_get` en
+  /// tiempo de ejecución (ver [RuntimeCatalogLoader.selfDescribingLoader]),
+  /// así que no tiene un [RuntimeCatalogDescriptor] estático que enumerar.
   static const all = <RuntimeCatalogDescriptor>[
     cardBrands,
     cardDeadlines,
@@ -354,6 +393,9 @@ abstract final class RuntimeCatalogs {
     pricelists,
     warehouses,
     journals,
+    languages,
+    countries,
+    countryStates,
   ];
 }
 
@@ -543,6 +585,67 @@ final class RuntimeCatalogLoader {
     RuntimeCatalogDescriptor descriptor,
   ) =>
       (scope, cursorRaw) => _run(descriptor, scope, cursorRaw);
+
+  /// Descriptores resueltos por `fields_get`, memoizados por [key] — una
+  /// llamada por catálogo durante toda la vida de este loader (uno por
+  /// activación, igual que [_deletedRecordSupported]).
+  final Map<String, Future<RuntimeCatalogDescriptor>> _resolvedDescriptors =
+      {};
+
+  /// Loader para un catálogo cuyos campos NO se pueden fijar en tiempo de
+  /// compilación porque dependen de qué módulos de Odoo están instalados
+  /// (p. ej. `res.groups.category_id`, que en Odoo 19/20 fue reemplazado por
+  /// `privilege_id` — confirmado contra `res_groups.py` en `dev_odoo20`).
+  /// Pide `fields_get` UNA sola vez con [candidateFields], se queda solo con
+  /// los que el servidor confirma que existen, y reutiliza el mismo camino de
+  /// paginación/cursor/borrado que [loader] mediante [_run].
+  ///
+  /// `xml_id` deliberadamente NUNCA se pide aquí: no es un campo de ningún
+  /// modelo de Odoo (se resuelve vía `ir.model.data`, no por `search_read`),
+  /// así que ni `fields_get` lo va a confirmar — pedirlo tumbaría la lectura.
+  CatalogLoader<Map<String, dynamic>> selfDescribingLoader({
+    required String key,
+    required String model,
+    required List<String> candidateFields,
+    List<dynamic> domain = const [],
+    String order = 'id asc',
+  }) {
+    Future<RuntimeCatalogDescriptor> resolve() =>
+        _resolvedDescriptors.putIfAbsent(key, () async {
+          final present = await _resolvePresentFields(model, candidateFields);
+          return RuntimeCatalogDescriptor(
+            key: key,
+            model: model,
+            fields: ['id', ...present],
+            domain: domain,
+            order: order,
+          );
+        });
+    return (scope, cursorRaw) async {
+      final descriptor = await resolve();
+      return _run(descriptor, scope, cursorRaw);
+    };
+  }
+
+  /// Filtra [candidateFields] a los que el servidor confirma vía `fields_get`.
+  /// Requiere que [reader] también sea [Json2FieldsGetPort] — igual que
+  /// [RuntimeOrderReader.validateRemoteContract], que ya exige lo mismo para
+  /// probar el contrato de lectura antes de activar un scope nuevo.
+  Future<List<String>> _resolvePresentFields(
+    String model,
+    List<String> candidateFields,
+  ) async {
+    if (reader is! Json2FieldsGetPort) {
+      throw StateError('Odoo reader does not expose fields_get');
+    }
+    final metadata = await (reader as Json2FieldsGetPort).fieldsGet(
+      model: model,
+      fields: candidateFields,
+    );
+    return candidateFields.where(metadata.containsKey).toList(
+      growable: false,
+    );
+  }
 
   Future<CatalogBatch<Map<String, dynamic>>> _run(
     RuntimeCatalogDescriptor descriptor,
@@ -869,6 +972,205 @@ final class RuntimeCatalogLoader {
 
   static String _formatOdooDateTime(DateTime value) =>
       value.toUtc().toIso8601String().replaceFirst('T', ' ').substring(0, 19);
+}
+
+/// Campos candidatos de `res.users` para "Mis preferencias". Varios dependen
+/// de qué módulos están instalados — confirmado contra el código fuente de
+/// Odoo 19/20 en `dev_odoo20`, no supuesto: `mobile_phone`/`work_email`/
+/// `work_phone` los trae el módulo `hr` (no están en `base`/`mail`),
+/// `property_warehouse_id` lo trae `sale_stock` (no está en `res.users` sin
+/// él, ver `dev_odoo20/odoo/addons/sale_stock/models/res_users.py`). El resto
+/// (`lang`, `tz`, `signature`, `name`, `login`, `partner_id`, `company_id`,
+/// `group_ids`, `write_date`) es de `base` y siempre está, pero pasa por el
+/// mismo `fields_get` que los demás: un solo mecanismo, sin casos especiales
+/// que mantener.
+const _currentUserCandidateFields = <String>[
+  'name',
+  'login',
+  'lang',
+  'tz',
+  'signature',
+  'notification_type',
+  'property_warehouse_id',
+  'mobile_phone',
+  'work_email',
+  'work_phone',
+  'avatar_128',
+  'group_ids',
+  'partner_id',
+  'company_id',
+  'write_date',
+];
+
+/// Lee el usuario y el partner de la sesión activa (`AppScope.userId`) para
+/// que "Mis preferencias" tenga de dónde leer en Drift sin conexión.
+///
+/// A diferencia de [RuntimeCatalogLoader]: cada catálogo es UN solo registro,
+/// así que no pagina y siempre vuelve a pedirlo entero (`cursor` siempre
+/// `null`) — el costo de releer una fila en cada ciclo de sync es
+/// despreciable frente a la complejidad de un cursor para un id fijo.
+final class RuntimeAccountLoader {
+  RuntimeAccountLoader(this.reader);
+
+  final Json2ReadPort reader;
+
+  Future<(List<String>, Map<String, dynamic>)>? _userFieldsAndMetadataFuture;
+  Future<List<String>>? _partnerFieldsFuture;
+
+  /// Carga el usuario actual. El registro trae, además de los campos de
+  /// `res.users` que el servidor confirmó tener, `is_current_user: true` y,
+  /// bajo la clave reservada `_field_selections`, las opciones vivas de los
+  /// campos `Selection` que interesan a la UI (`tz`, `notification_type`) —
+  /// extraídas de la MISMA respuesta de `fields_get` que ya resolvió los
+  /// campos, sin una llamada aparte. El escritor (`writeCurrentUserRecords`
+  /// en `local_catalog_adapters.dart`) separa esa clave antes de armar la
+  /// fila de `res_users` y la vuelca en la caché de selecciones.
+  CatalogLoader<Map<String, dynamic>> get userLoader =>
+      (scope, cursorRaw) => _runUser(scope);
+
+  /// Carga el partner del usuario actual. Resuelve su id con una lectura
+  /// propia y mínima de `res.users` (`id`, `partner_id`) en vez de depender
+  /// de que [userLoader] haya corrido antes en el mismo ciclo: el orden de
+  /// los `SyncJob` en `RuntimeCatalogComposition` no está garantizado por
+  /// catálogo.
+  CatalogLoader<Map<String, dynamic>> get partnerLoader =>
+      (scope, cursorRaw) => _runPartner(scope);
+
+  Future<CatalogBatch<Map<String, dynamic>>> _runUser(AppScope scope) async {
+    final (present, metadata) = await _resolveUserFieldsAndMetadata();
+    final rows = await reader.searchRead(
+      model: 'res.users',
+      fields: ['id', ...present],
+      domain: [
+        ['id', '=', scope.userId],
+      ],
+      limit: 1,
+    );
+    if (rows.isEmpty) return const CatalogBatch(records: [], cursor: null);
+    final selections = <String, dynamic>{};
+    for (final field in const ['tz', 'notification_type']) {
+      final selection = _extractSelection(metadata, field);
+      if (selection != null) selections[field] = selection;
+    }
+    // `mobile_phone` (`hr`) y `property_warehouse_id` (`sale_stock`): los dos
+    // campos de `res.users` que `FieldAvailabilityCache`
+    // (`orbi_runtime/lib/src/account/user_preferences.dart`) necesita saber
+    // si existen, sin red, para no ofrecer en el formulario un campo que el
+    // servidor no tiene. El escritor (`writeCurrentUserRecords` en
+    // `local_catalog_adapters.dart`) es quien conoce esa clase; aquí sólo se
+    // reporta el hecho (presente o no en `fields_get`).
+    final availability = <String, bool>{
+      for (final field in const ['mobile_phone', 'property_warehouse_id'])
+        field: present.contains(field),
+    };
+    final row = rows.first;
+    final record = CatalogRecord<Map<String, dynamic>>(
+      uuid: '${scope.scopeKey}:currentUser:${row['id']}',
+      value: {
+        ...row,
+        'is_current_user': true,
+        '_field_selections': selections,
+        '_field_availability': availability,
+      },
+    );
+    return CatalogBatch(records: [record], cursor: null);
+  }
+
+  Future<CatalogBatch<Map<String, dynamic>>> _runPartner(
+    AppScope scope,
+  ) async {
+    final partnerId = await _resolveCurrentPartnerId(scope);
+    if (partnerId == null) {
+      return const CatalogBatch(records: [], cursor: null);
+    }
+    final present = await _resolvePartnerFields();
+    final rows = await reader.searchRead(
+      model: 'res.partner',
+      fields: ['id', ...present],
+      domain: [
+        ['id', '=', partnerId],
+      ],
+      limit: 1,
+    );
+    final records = rows
+        .map(
+          (row) => CatalogRecord<Map<String, dynamic>>(
+            uuid: '${scope.scopeKey}:currentUserPartner:${row['id']}',
+            value: row,
+          ),
+        )
+        .toList(growable: false);
+    return CatalogBatch(records: records, cursor: null);
+  }
+
+  Future<int?> _resolveCurrentPartnerId(AppScope scope) async {
+    final rows = await reader.searchRead(
+      model: 'res.users',
+      fields: const ['id', 'partner_id'],
+      domain: [
+        ['id', '=', scope.userId],
+      ],
+      limit: 1,
+    );
+    if (rows.isEmpty) return null;
+    return extractMany2oneId(rows.first['partner_id']);
+  }
+
+  Future<(List<String>, Map<String, dynamic>)>
+  _resolveUserFieldsAndMetadata() =>
+      _userFieldsAndMetadataFuture ??= _fetchUserFieldsAndMetadata();
+
+  Future<(List<String>, Map<String, dynamic>)>
+  _fetchUserFieldsAndMetadata() async {
+    if (reader is! Json2FieldsGetPort) {
+      throw StateError('Odoo reader does not expose fields_get');
+    }
+    final metadata = await (reader as Json2FieldsGetPort).fieldsGet(
+      model: 'res.users',
+      fields: _currentUserCandidateFields,
+    );
+    final present = _currentUserCandidateFields
+        .where(metadata.containsKey)
+        .toList(growable: false);
+    return (present, metadata);
+  }
+
+  Future<List<String>> _resolvePartnerFields() =>
+      _partnerFieldsFuture ??= _fetchPartnerFields();
+
+  /// Reutiliza [PartnerRecordMapper.fields] — el mismo contrato que ya usa el
+  /// catálogo `customers` — en vez de mantener una segunda lista de campos de
+  /// `res.partner` con el riesgo de que diverjan.
+  Future<List<String>> _fetchPartnerFields() async {
+    if (reader is! Json2FieldsGetPort) {
+      throw StateError('Odoo reader does not expose fields_get');
+    }
+    final candidates = PartnerRecordMapper.fields
+        .where((field) => field != 'id')
+        .toList(growable: false);
+    final metadata = await (reader as Json2FieldsGetPort).fieldsGet(
+      model: 'res.partner',
+      fields: candidates,
+    );
+    return candidates.where(metadata.containsKey).toList(growable: false);
+  }
+
+  static List<List<String>>? _extractSelection(
+    Map<String, dynamic> metadata,
+    String field,
+  ) {
+    final fieldMeta = metadata[field];
+    if (fieldMeta is! Map) return null;
+    final selection = fieldMeta['selection'];
+    if (selection is! List) return null;
+    final pairs = <List<String>>[];
+    for (final entry in selection) {
+      if (entry is List && entry.length >= 2) {
+        pairs.add([entry[0].toString(), entry[1].toString()]);
+      }
+    }
+    return pairs.isEmpty ? null : pairs;
+  }
 }
 
 /// Fields that are real on the deployed sale/order and accounting models.
