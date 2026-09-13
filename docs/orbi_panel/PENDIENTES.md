@@ -4,7 +4,7 @@ Este archivo existe porque las cosas se estaban perdiendo en la conversación. L
 que no está aquí, no está comprometido con nadie. Se actualiza en cuanto algo
 entra o sale, no al final de la sesión.
 
-Última actualización: 2026-09-12, noche. Orbi web en su propio dominio para todos los clientes; arreglos de pantalla en curso.
+Última actualización: 2026-09-13, madrugada. Tiempo real de extremo a extremo en ERP2, `l10n_ec_app_sync` desplegado en ERP2 y Mepriga, pantallas de Orbi al nivel de theos_pos.
 
 ## Esperan una decisión del dueño
 
@@ -25,6 +25,19 @@ siquiera estaba anotada.
   de envases).
 - **Cambiar la clave de los conectores de Velneo en Mepriga.** Está escrita en su sitio de
   Apache, es muy débil, y esos conectores atacan bases en producción.
+- **Quién oye los avisos de pedidos y facturas.** `l10n_ec_app_sync` avisa `sale.order` y
+  `account.move` al canal de la EMPRESA: todo usuario interno de esa empresa recibe los ids
+  (no los datos) de todos los pedidos y facturas, aunque sus reglas sólo le dejen leer los
+  suyos. La app relee con sus permisos, así que no ve datos ajenos. Opciones: dejarlo así,
+  o avisar por usuario/grupo según las reglas de cada modelo.
+- **Mudar los ~55 canales de texto de caja a canales autorizados** (ver el defecto de
+  seguridad de abajo). `l10n_ec_hotel` tiene el mismo defecto.
+- **Vendedores y cajeros entran a Sincronización.** Lo decidí el 13-sep-2026 para que el
+  Modo Ruta, que pediste en esa pantalla, llegue a los vendedores rurales: antes `/sync`
+  era sólo para administradores o permiso `sync`. Confírmalo o dime quién no debe entrar.
+- **Vista de supervisor de turnos ajenos.** Inicio sólo abre el turno propio del cajero:
+  `/collection/hub` no recibe un id de sesión. Ver el de otro cajero necesita ruta y
+  permisos nuevos.
 
 ## Resueltas, para que no se vuelvan a preguntar
 
@@ -196,23 +209,18 @@ siquiera estaba anotada.
 
 ## En construcción ahora mismo
 
-Al 13-sep-2026, 21:15:
+Nada abierto al 13-sep-2026, 02:45 (Ecuador), salve una prueba intermitente de envases
+(`envases_dashboard_live_refresh_test.dart`, falla sólo bajo la carga de la suite completa).
 
-| Frente | Qué hace |
-| --- | --- |
-| Acceso en teléfono | Con el teclado en pantalla, la cabecera encoge con una transición, el pie se oculta y los campos se ven. Botón para mostrar u ocultar la clave en todos los equipos. Quita el título «Credenciales». En computadora no cambia nada |
-| Parámetros de Fluent | Modo del menú (auto, abierto, compacto, mínimo, arriba) e indicador en Ajustes, como la app de ejemplo de fluent_ui |
-| Inventario | Sólo lectura: pantallas aprobadas contra código, flujos contra ERP2 y tareas abiertas del plan |
-
-Entregado y en commit el 12 y 13-sep-2026, publicado en orbi.galapagos.tech (d3bef9a) salvo lo marcado:
+Entregado la noche del 12 al 13-sep-2026:
 
 | Frente | Dónde quedó |
 | --- | --- |
-| Acceso, PIN y carga | Sin franja de 24 px, tarjeta opaca, pie en `bottomBar` a todo el ancho, formulario estándar, carga con logo que gira y línea |
-| Gestor de servidores | `ContentDialog` en computadora; en teléfono, página de dos pasos que no pierde el foco con el teclado. Usa `/orbi/database` y tiene «Listar bases» |
-| Arranque | No espera a las notificaciones; registra cuánto tarda cada paso. Sin puente por cookie ni «Continuar como…» |
-| Componentes Fluent | `TextFormBox`, `HoverButton`, `ListTile`, buscador `AutoSuggestBox` con Enter sin flechas |
-| Sin publicar todavía | Ícono de empresa en la cabecera (f72389d), menú resuelto por Fluent (e2108c7), pagos de venta sólo para cajeros (7acf837) |
+| Odoo: `l10n_ec_app_sync` | Renombrado desde `l10n_ec_orbi_web` y desplegado en ERP2 (con `tools/renombrar_modulo.sh`) y en Mepriga, dev_odoo20 `8a5538590`, `609d2bee3`, `7388c11d7`. Aviso `app_sync/changed` por canal de empresa, bajas, pase de un solo uso para el socket, versión del bus en la respuesta |
+| Tiempo real en la app | El aviso refresca sólo el catálogo afectado, guardando en local. Medido en ERP2 con un vendedor: 635 ms (4bfbcb2) |
+| Sincronización incremental | Bajas sin `ir.model`, salida de dominio, margen de 10 min, y un refresco de órdenes que ya no pisa una venta confirmada sin conexión (40eae9e) |
+| Sesión | Renovación de la llave antes de caducar y cierre ante 401 sin borrar datos (33f5c87) |
+| Pantallas | Armazón, Inicio, Sincronización y Cola offline, Modo Ruta, listados, venta, Configuración, acceso partido en escritorio, actividades y avisos (29f36c6) |
 
 ## Defectos conocidos y sin arreglar
 
@@ -224,11 +232,30 @@ Entregado y en commit el 12 y 13-sep-2026, publicado en orbi.galapagos.tech (d3b
   adivinables (`bus/models/bus.py:92-100`). Medido en ERP2 el 13-sep-2026: una sesión pública,
   sin login, se suscribió a `erp2_tecnosmart_com_ec.collection_session` sin rechazo. No se
   observó entrega real porque no hubo actividad de caja en la ventana y no se escribieron datos.
-  La propuesta de canales autorizados va con el aviso genérico de `l10n_ec_app_sync` y necesita
-  la aprobación del dueño.
+  El aviso genérico de `l10n_ec_app_sync` ya usa canales autorizados (desplegado el 13-sep-2026);
+  los de caja siguen en texto hasta que el dueño apruebe mudarlos.
 - ✅ **Las notificaciones del sistema no podían mostrarse nunca**: el presentador quedaba con el
   alcance fijo «unconfigured». Arreglado en de14f3a.
 
+- **Una venta de Orbi todavía no se confirma de punta a punta.** Nada en producción marca
+  una línea del borrador como calculada (`amountsCalculated` sólo es verdadero en pruebas),
+  así que el panel de totales y `submit()` no reciben líneas reales. Frente de ventas.
+- **Inicio sin indicador de bodega.** No se sincroniza `sale_order.delivery_status` ni hay
+  tabla local de `stock.picking`; contar pedidos con albarán mezclaba los ya entregados.
+- **Clientes sin ciudad, dirección ni límite de crédito.** El catálogo `res.partner` sólo
+  trae nombre, identificación, correo, teléfono y empresa; `SaleCatalogPartner` es
+  compartido con theos_pos.
+- **Presencia (En línea/Ausente) no implementada.** `res.users.manual_im_status` no es
+  escribible por el propio usuario con llave; sólo por la ruta de sesión web de `mail`.
+- **La píldora de conectividad no muestra latencia.** `Json2BackendProbe` sólo confirma
+  que el servidor contestó, no mide cuánto tardó.
+- **Lo que Odoo recalcula no avisa en tiempo real.** Un campo almacenado recalculado
+  (p. ej. el estado de pago de una factura al conciliar) no pasa por `write()`; lo recoge
+  la sincronización incremental, no el aviso.
+- **`sync_deleted_record` crece sin límite.** No hay cron de limpieza y ahora registra
+  también las bajas de `account.move.line`.
+- **Un cambio de precio en una línea de tarifa no refresca nada en tiempo real.** El
+  catálogo de tarifas sólo lee cabeceras.
 - **No existe enrolamiento de dispositivo en ningún sitio del monorepo.** El PIN
   identifica una cuenta, no un equipo autorizado. Sin eso, «equipo compartido»
   es una etiqueta de documento y no algo que el sistema aplique o revoque.
