@@ -126,7 +126,7 @@ void main() {
       );
       expect(capabilities.reports.state, OdooCapabilityState.supported);
       expect(capabilities.webSocket.state, OdooCapabilityState.supported);
-      expect(capabilities.webSocket.detail, OdooWebSocketMode.mobileSession);
+      expect(capabilities.webSocket.detail, OdooWebSocketMode.standardSession);
       expect(
         capabilities.matrix,
         everyCapabilityArea(OdooCapabilityState.supported),
@@ -253,7 +253,6 @@ const _odoo20Fixture = OdooCapabilityEvidence(
     'l10n_ec_collection_box.sale.order.payment.wizard': {
       'action_apply_and_create_invoice',
     },
-    'res.users': {'mobile_get_websocket_session'},
   },
   endpoints: {'/json/2/product.template/get_stock_by_warehouse', '/websocket'},
 );

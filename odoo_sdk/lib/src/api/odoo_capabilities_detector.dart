@@ -255,19 +255,15 @@ final class OdooCapabilitiesDetector {
   OdooCapability<OdooWebSocketMode> _detectWebSocket(
     OdooCapabilityEvidence evidence,
   ) {
+    // El método de `res.users` que entregaba la sesión del socket se retiró del
+    // servidor; la sesión sale de `POST /app_sync/realtime/session`. Ya no se detecta.
     final hasEndpoint = evidence.hasEndpoint(webSocketEndpoint);
-    final hasMobileSession = evidence.hasMethod(
-      'res.users',
-      'mobile_get_websocket_session',
-    );
     final state = _stateOf(hasEndpoint);
     return OdooCapability(
       state: state,
-      source: _source([hasEndpoint, hasMobileSession]),
+      source: _source([hasEndpoint]),
       detail: state == OdooCapabilityState.supported
-          ? hasMobileSession == true
-                ? OdooWebSocketMode.mobileSession
-                : OdooWebSocketMode.standardSession
+          ? OdooWebSocketMode.standardSession
           : null,
     );
   }
