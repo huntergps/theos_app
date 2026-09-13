@@ -47,3 +47,7 @@ coverage/
 
 # Old app directory
 app_old/
+
+# PDF.js autoalojado y parchado: build/ lo excluye la regla general, pero
+# platform_security_config_test lo exige y SHA256SUMS lo verifica.
+!theos_pos/web/pdfjs/*/build/
