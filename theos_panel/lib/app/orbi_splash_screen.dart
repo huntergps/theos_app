@@ -40,14 +40,33 @@ final class OrbiSplashScreen extends StatelessWidget {
                       child: Column(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
-                          _AnimatedSplashSymbol(
-                            height: logoHeight,
-                            color: orbiPhotoInk,
-                          ),
-                          const SizedBox(height: OrbiTheme.space16),
-                          OrbiWordmark(
-                            height: logoHeight * 0.35,
-                            color: orbiPhotoInk,
+                          // El símbolo gira y el texto no (ver
+                          // `_AnimatedSplashSymbol`), así que el par ya no
+                          // puede ser el `OrbiBrand` de una sola pieza. Pero
+                          // sigue siendo UNA marca para quien usa lector de
+                          // pantalla: envueltos en `Semantics` con
+                          // `ExcludeSemantics` por dentro, se anuncia
+                          // «Marca Orbi ERP» una sola vez, en vez de que
+                          // `OrbiSymbol` y `OrbiWordmark` anuncien cada uno
+                          // el suyo por separado.
+                          Semantics(
+                            label: 'Marca Orbi ERP',
+                            image: true,
+                            child: ExcludeSemantics(
+                              child: Column(
+                                children: [
+                                  _AnimatedSplashSymbol(
+                                    height: logoHeight,
+                                    color: orbiPhotoInk,
+                                  ),
+                                  const SizedBox(height: OrbiTheme.space16),
+                                  OrbiWordmark(
+                                    height: logoHeight * 0.35,
+                                    color: orbiPhotoInk,
+                                  ),
+                                ],
+                              ),
+                            ),
                           ),
                           const SizedBox(height: OrbiTheme.space32),
                           Semantics(
