@@ -12,7 +12,6 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../features/auth/login_failure_messages.dart';
 import '../features/sync/network_signal_provider.dart';
 import '../features/auth/auth_controller.dart';
-import '../features/auth/session_provenance.dart';
 import '../features/auth/unlock_backend_factory.dart';
 import '../features/auth/web_token_auth.dart';
 import '../features/auth/workspace_unlock_store.dart';
@@ -135,15 +134,17 @@ final class _InMemoryCredentialBackend implements CredentialBackend {
 /// and the dueño's decision on 12-sep-2026 — Orbi web lives only at
 /// `orbi.galapagos.tech`, never same-origin with an Odoo backend — retired it
 /// for good: the connector and its companion logout route both measure 404 on
-/// ERP2 and Mepriga now. Keeping the cookie attempt around was not inert: it
-/// was the exact mechanism behind a measured cross-identity defect
-/// (`identity_after_user_change_test.dart`) — a browser's leftover Odoo
-/// session cookie for one person outliving `close()` (which only ever
-/// revoked a bearer key, never that cookie) and getting silently re-adopted
-/// on a later `restore()`, stomping whoever had since logged in with their
-/// own API key. `restore()` now goes straight to the stored bearer
-/// credential — see `_restoreFromStoredCredential` — with nothing else to
-/// try first.
+/// ERP2 and Mepriga now. This is dead code against a server that no longer
+/// serves it: nothing here reproduces a defect anyone actually saw on
+/// screen. It is removed anyway because it was a latent risk regardless — a
+/// browser's leftover Odoo session cookie for one person outliving `close()`
+/// (which only ever revoked a bearer key, never that cookie) could in
+/// principle get silently re-adopted on a later `restore()` and disagree with
+/// whoever had since logged in with their own API key (see
+/// `identity_after_user_change_test.dart`, which models that risk without
+/// claiming it was ever observed). `restore()` now goes straight to the
+/// stored bearer credential — see `_restoreFromStoredCredential` — with
+/// nothing else to try first.
 ///
 /// `loginWithApiKey()` forwards to an internal [NativeAuthService] wired to
 /// whatever [CredentialBackend] the composition root supplies.
@@ -243,10 +244,10 @@ final class WebSessionAuthService
   // inherited Odoo HttpOnly session) and only fall back to the stored
   // bearer credential when that failed. Removed for good on 12-sep-2026:
   // no server serves that connector any more (measured 404 on ERP2 and
-  // Mepriga, now that Orbi web lives only at `orbi.galapagos.tech`), and
-  // keeping the attempt around was the exact mechanism behind a measured
-  // cross-identity defect — see the class doc above. There is nothing left
-  // to try before the stored credential, offline or not.
+  // Mepriga, now that Orbi web lives only at `orbi.galapagos.tech`), which
+  // makes this dead code, not a fix for anything witnessed on screen — see
+  // the class doc above for the latent risk it removes anyway. There is
+  // nothing left to try before the stored credential, offline or not.
   Future<AuthServiceResult> restore({bool offline = false}) =>
       _restoreFromStoredCredential(offline: offline);
 
@@ -506,20 +507,6 @@ final class _BootstrapHostState extends State<_BootstrapHost> {
   );
 }
 
-/// The auth state the app starts in, once an inherited browser session has
-/// been set aside to be offered rather than adopted.
-///
-/// Split out of `_initializeApplication` on purpose: that function builds
-/// plugins, databases and a session runtime, so no test can reach it. This is
-/// the part with a decision in it, and it is pure.
-@visibleForTesting
-AuthServiceResult effectiveRestoreResult(
-  AuthServiceResult restored, {
-  required OfferedSession? offered,
-}) => offered == null
-    ? restored
-    : const AuthServiceResult(status: AuthServiceStatus.required);
-
 Future<Widget> _initializeApplication({
   NotificationPluginPort? notificationPlugin,
 }) async {
@@ -620,20 +607,6 @@ Future<Widget> _initializeApplication({
     kIsWeb ? webService : NativeAuthServicePort(service),
   );
   logStep('restauración de sesión resuelta: ${restored.status}');
-
-  // 🔴 There used to be an inherited-browser-session case here: `restore()`
-  // could come back with someone else's cookie-based identity (see
-  // `inheritedSessionReference` in `session_provenance.dart`), left behind by
-  // WHOEVER last used this browser, and the app offered it by name instead of
-  // adopting it silently (see `login_screen.dart`'s `_OfferedSessionCard`).
-  // That producer is gone (see `WebSessionAuthService.restore()`'s doc): no
-  // server serves the session-bootstrap connector any more, so
-  // `restored.profile` can never again carry that reference, and
-  // `sessionShouldBeOfferedNotAdopted` can never be true. `offeredSessionProvider`
-  // stays wired below — `login_screen.dart` still reads it — but nothing here
-  // ever builds an `OfferedSession` for it to show.
-  const OfferedSession? offered = null;
-  final effective = effectiveRestoreResult(restored, offered: offered);
   final composition = OrbiSessionComposition(
     authService: kIsWeb ? webService : NativeAuthServicePort(service),
     runtime: sessionRuntime,
@@ -667,9 +640,8 @@ Future<Widget> _initializeApplication({
       // verificar», que es preferible a inventarlo.
       networkSignalOverride,
       ...composition.overrides,
-      if (offered != null) offeredSessionProvider.overrideWithValue(offered),
       authInitialStateProvider.overrideWithValue(
-        authViewStateFromResult(effective),
+        authViewStateFromResult(restored),
       ),
     ],
     child: const OrbiApp(),

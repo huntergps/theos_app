@@ -10,7 +10,6 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:theos_panel/features/auth/auth_controller.dart';
 import 'package:theos_panel/features/auth/login_failure_messages.dart';
 import 'package:theos_panel/features/auth/login_screen.dart';
-import 'package:theos_panel/features/auth/session_provenance.dart';
 import 'package:theos_panel/features/auth/saved_servers.dart';
 import 'package:theos_panel/app/preferences/app_preferences.dart';
 import 'package:theos_panel/ui/fluent/orbi_fluent_theme.dart';
@@ -827,65 +826,74 @@ void main() {
   );
 
   testWidgets(
-    'the keyboard does not steal focus from a field it just opened for '
+    'the teclado does not steal focus from the field it just opened for '
     '(iPhone del dueño: al tocar un campo no aparecía el teclado)',
     (tester) async {
       // Sospecha del dueño, confirmada como el mecanismo correcto: si algo
       // del formulario calcula una altura RESTANDO viewInsets, el árbol se
       // reconstruye distinto en cuanto el teclado abre, el campo enfocado
-      // cambia de identidad, pierde el foco, y el sistema — al ya no ver
-      // nada enfocado — cierra el teclado que él mismo acababa de abrir.
-      // Nada en este archivo puede volver a depender de esa resta (por eso
-      // se prueba tocando el campo primero y sólo DESPUÉS simulando el
-      // teclado, no al revés).
+      // cambia de identidad (su Focus/Element se desmonta), pierde el foco
+      // real del sistema, y el sistema — al ya no ver nada enfocado — cierra
+      // el teclado que él mismo acababa de abrir. Nada en este archivo puede
+      // volver a depender de esa resta (por eso se prueba tocando el campo
+      // primero y sólo DESPUÉS simulando el teclado, no al revés). Se mide
+      // contra `FocusManager.instance.primaryFocus` — el foco real que ve el
+      // sistema — y no sólo `TextBox.focusNode?.hasFocus`, porque ese último
+      // seguiría siendo cierto aunque el widget entero se hubiera
+      // reconstruido, mientras el objeto FocusNode (del State, no del
+      // widget) sobreviviera; `primaryFocus` en cambio SÍ cambia (a null o a
+      // otro nodo) en cuanto el `Focus` que lo sostiene se desmonta.
       await pumpLoginScreen(tester, const Size(390, 844));
       addTearDown(() => resetLoginTestWindowSize(tester));
       addTearDown(() => tester.view.resetViewInsets());
 
-      final keyboardInset = 336 * tester.view.devicePixelRatio;
-
-      Future<void> expectFieldSurvivesKeyboard(int index, String text) async {
+      Future<void> expectFieldKeepsFocusThroughKeyboard(
+        int index,
+        String text,
+      ) async {
+        // Empieza cada campo con el teclado cerrado: si el anterior lo
+        // dejó abierto, el layout que ScaffoldPage recorta para el teclado
+        // puede tapar el siguiente campo y el tap ni siquiera le llega —
+        // un problema de la prueba, no del formulario, que enmascararía el
+        // síntoma real en vez de aislarlo por campo.
+        tester.view.viewInsets = FakeViewPadding.zero;
+        await tester.pump();
         final field = find.byType(TextBox).at(index);
         await tester.tap(field);
         await tester.pump();
-        expect(
-          tester.widget<TextBox>(field).focusNode?.hasFocus,
-          isTrue,
-          reason: 'El campo #$index no tomó el foco al tocarlo.',
-        );
         await tester.enterText(field, text);
         await tester.pump();
+        final focusNode = tester.widget<TextBox>(field).focusNode;
+        expect(
+          FocusManager.instance.primaryFocus,
+          same(focusNode),
+          reason: 'El campo #$index no tomó el foco al tocarlo.',
+        );
 
         // El propio teclado: crece viewInsets.bottom, tal como hace un
         // teclado real de iOS/Android.
-        tester.view.viewInsets = FakeViewPadding(bottom: keyboardInset);
+        tester.view.viewInsets = FakeViewPadding(
+          bottom: 336 * tester.view.devicePixelRatio,
+        );
         await tester.pump();
 
-        // Se vuelve a buscar el campo por si el árbol lo recreó en otra
-        // posición: en ese caso este finder seguiría encontrando UN
-        // TextBox aquí, pero ligado a un FocusNode/controller distintos —
-        // sin foco y sin el texto que se acababa de escribir.
-        final fieldAfterKeyboard = find.byType(TextBox).at(index);
         expect(
-          tester.widget<TextBox>(fieldAfterKeyboard).focusNode?.hasFocus,
-          isTrue,
+          FocusManager.instance.primaryFocus,
+          same(focusNode),
           reason:
               'El campo #$index perdió el foco al aparecer el teclado — '
               'el formulario se reconstruyó bajo el dedo, exactamente el '
               'síntoma reportado desde el iPhone.',
         );
         expect(
-          tester.widget<TextBox>(fieldAfterKeyboard).controller?.text,
+          tester.widget<TextBox>(find.byType(TextBox).at(index)).controller?.text,
           text,
           reason: 'El campo #$index perdió su texto al aparecer el teclado.',
         );
-
-        tester.view.viewInsets = FakeViewPadding.zero;
-        await tester.pump();
       }
 
-      await expectFieldSurvivesKeyboard(0, 'usuario-prueba');
-      await expectFieldSurvivesKeyboard(1, 'clave-prueba');
+      await expectFieldKeepsFocusThroughKeyboard(0, 'ana');
+      await expectFieldKeepsFocusThroughKeyboard(1, 'ana');
       expect(tester.takeException(), isNull);
     },
   );
@@ -1497,111 +1505,6 @@ void main() {
     });
   });
 
-
-  group('una sesión ajena se OFRECE, no se adopta', () {
-    // El tercer caso del mismo silencio: la aplicación cambiaba de identidad
-    // sin decir nada. En un mostrador compartido eso es que alguien venda y
-    // cobre con el nombre de un compañero sin que ninguno se entere.
-    const inherited = AuthProfile(
-      serverUrl: 'https://erp2.tecnosmart.com.ec',
-      database: 'erp2_tecnosmart_com_ec',
-      login: 'jacqueline.rizo',
-      userId: 23,
-      installationId: 'i',
-      credentialReference: 'odoo-http-session',
-    );
-
-    Future<void> pumpWithOffer(
-      WidgetTester tester, {
-      OfferedSession? offer,
-    }) async {
-      SharedPreferences.setMockInitialValues({});
-      final preferences = await tester.runAsync(
-        () => SharedPreferences.getInstance(),
-      );
-      await setLoginTestWindowSize(tester, const Size(1200, 1100));
-      addTearDown(() => resetLoginTestWindowSize(tester));
-      await tester.pumpWidget(
-        ProviderScope(
-          overrides: [
-            authServiceProvider.overrideWithValue(_ProfileService()),
-            sharedPreferencesProvider.overrideWithValue(preferences!),
-            if (offer != null)
-              offeredSessionProvider.overrideWithValue(offer),
-          ],
-          child: FluentApp(theme: OrbiFluentTheme.light, home: const LoginScreen()),
-        ),
-      );
-      await tester.pumpAndSettle();
-    }
-
-    testWidgets('sin oferta, la pantalla de acceso es la de siempre', (
-      tester,
-    ) async {
-      await pumpWithOffer(tester);
-      expect(find.byKey(const Key('offered-session-card')), findsNothing);
-      expect(tester.takeException(), isNull);
-    });
-
-    testWidgets('con oferta, NOMBRA a la persona en el botón', (tester) async {
-      // «Continuar con la sesión abierta» no deja ver a quién vas a
-      // suplantar. «Continuar como jacqueline.rizo» sí.
-      await pumpWithOffer(tester, offer: const OfferedSession(inherited));
-      expect(find.byKey(const Key('offered-session-card')), findsOneWidget);
-      expect(find.text('Continuar como jacqueline.rizo'), findsOneWidget);
-    });
-
-    testWidgets('y dice la consecuencia, no sólo el hecho', (tester) async {
-      await pumpWithOffer(tester, offer: const OfferedSession(inherited));
-      expect(
-        find.textContaining('lo que hagas quedará a su nombre'),
-        findsOneWidget,
-      );
-    });
-
-    testWidgets('el formulario sigue estando, y por encima de la oferta', (
-      tester,
-    ) async {
-      // La oferta es una salida rápida, no el camino principal: quien NO sea
-      // esa persona tiene el formulario delante, no escondido detrás de un
-      // botón.
-      await pumpWithOffer(tester, offer: const OfferedSession(inherited));
-      final fields = find.byType(TextBox);
-      expect(fields, findsWidgets);
-      expect(
-        tester.getTopLeft(fields.last).dy,
-        lessThan(
-          tester.getTopLeft(find.byKey(const Key('offered-session-card'))).dy,
-        ),
-        reason: 'La oferta tapó el formulario en vez de acompañarlo.',
-      );
-    });
-
-    testWidgets('el atajo sigue siendo UN clic', (tester) async {
-      // Ofrecer no mata el atajo que pidió el dueño: sólo cambia de mano
-      // quién lo da.
-      await pumpWithOffer(tester, offer: const OfferedSession(inherited));
-      await tester.tap(find.byKey(const Key('continue-offered-session')));
-      await tester.pump();
-      await tester.pump(const Duration(milliseconds: 100));
-      expect(tester.takeException(), isNull);
-    });
-
-    test('una credencial propia NO se ofrece: se adopta en silencio', () {
-      // Hacer pulsar un botón para entrar en tu propia cuenta es fricción sin
-      // ganancia. El corte es por origen, no por entorno.
-      const own = AuthProfile(
-        serverUrl: 'https://erp2.tecnosmart.com.ec',
-        database: 'erp2_tecnosmart_com_ec',
-        login: 'carlos.guajala',
-        userId: 9,
-        installationId: 'i',
-        credentialReference: 'api-key',
-      );
-      expect(sessionShouldBeOfferedNotAdopted(own), isFalse);
-      expect(sessionShouldBeOfferedNotAdopted(inherited), isTrue);
-    });
-  });
 
   testWidgets(
     'the failure panel is announced to screen readers with both halves',

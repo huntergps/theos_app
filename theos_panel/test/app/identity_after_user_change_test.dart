@@ -4,32 +4,23 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:theos_panel/app/bootstrap.dart';
 import 'package:theos_panel/features/auth/auth_controller.dart';
 
-/// Historia del defecto medido a mano el 12-sep-2026 contra ERP2 (Orbi web,
-/// otro origen): el dueño había entrado antes por el conector de sesión web
-/// (cookie, `erik.aldas`) y luego entró como `carlos.guajala`. La cabecera del
-/// panel (`profile.companyName`) se quedó enseñando la compañía de la persona
-/// anterior mientras el pie (`profile.login`) sí mostró `carlos.guajala`.
+/// Este fichero retira el puente de sesión web por cookie de
+/// `WebSessionAuthService` (`bootstrap.dart`). No reproduce un defecto que el
+/// dueño haya visto en pantalla: aclarado por él el 12-sep-2026, «Aldas Romero
+/// Erik Andres» es el nombre de la EMPRESA en ERP2 (existe además el usuario
+/// `erik.aldas`), y la cabecera mostró siempre, correctamente, la compañía de
+/// `carlos.guajala` — no hubo identidad cruzada en pantalla.
 ///
-/// La causa, aislada en dos rondas de esta misma prueba:
-/// - `A` estaba autenticado por la **cookie HttpOnly** de la sesión web de
-///   Odoo, resuelta por un conector same-origin. `B` entraba por **una API
-///   key propia**. Son dos mecanismos de transporte distintos, y
-///   `WebSessionAuthService.close()` (código real) sólo revocaba la API key
-///   en memoria/almacén — nunca tocaba esa cookie.
-/// - Por tanto, cualquier `restore()` posterior al login de B (la oferta
-///   "Continuar como...", o cualquier otro disparador) volvía a resolver
-///   identidad por esa cookie, es decir, como A — pisando la sesión ya activa
-///   de B. Esa ronda de la prueba (un `AuthServicePort` falso cuyo
-///   `restore()` devolvía SIEMPRE la cookie de A) quedó en rojo, confirmando
-///   el mecanismo.
-///
-/// **12-sep-2026, cambio de raíz:** por decisión del dueño, Orbi web vive
-/// sólo en `orbi.galapagos.tech`. El conector de sesión web se retiró de
-/// ERP2 y de Mepriga (404 medido en los dos) y, con él,
-/// `WebSessionAuthService.restore()` dejó de intentarlo — ver el docstring de
-/// esa clase en `bootstrap.dart`. El camino que producía la cookie de A ya no
-/// existe: la ronda que lo modelaba se retiró de este fichero porque ya no
-/// modela nada que la aplicación real pueda hacer. Lo que queda son las dos
+/// Lo que sí motiva el cambio: el conector de sesión web por cookie
+/// es **código muerto contra un servidor que ya no lo sirve** — retirado de
+/// ERP2 y de Mepriga por decisión del dueño (Orbi web vive sólo en
+/// `orbi.galapagos.tech`; 404 medido en los dos). Mantenerlo no era inerte:
+/// era un segundo canal de credencial (la cookie HttpOnly, junto a la API key
+/// propia) que `close()` nunca invalidaba, y que en principio podía discrepar
+/// de una sesión ya activa si algo volvía a llamar `restore()` — un riesgo
+/// latente, nunca observado, que ya no puede materializarse sin servidor que
+/// lo alimente. `WebSessionAuthService.restore()` ya no lo intenta — ver el
+/// docstring de esa clase en `bootstrap.dart`. Lo que queda son las dos
 /// pruebas de abajo, sobre el camino que sí sigue vivo: la credencial propia
 /// guardada.
 void main() {
@@ -124,11 +115,9 @@ void main() {
   // 🔴 Contrato, no observación directa de red: este arnés no puede probar
   // que `restore()` en línea deja de INTENTAR una petición de cookie —
   // no hay forma de inyectar esa llamada (ver el docstring de la prueba de
-  // arriba). Lo que sí verifiqué, estáticamente, es que el código fuente ya
-  // no menciona ese camino en absoluto:
-  //     grep -c "orbi/bootstrap\|odoo-http-session"
-  //       theos_panel/lib/app/bootstrap.dart
-  //     -> 0
+  // arriba). Lo que sí verifiqué, estáticamente, es que el código fuente de
+  // `bootstrap.dart` ya no menciona ni la ruta retirada ni la referencia de
+  // credencial que usaba (cero coincidencias buscando esas dos cadenas).
   // Lo que esta prueba demuestra en cambio es la consecuencia observable de
   // haberlo quitado: `restore()` en línea y `restore(offline: true)` ya no
   // pueden divergir, porque los dos terminan en la misma llamada a

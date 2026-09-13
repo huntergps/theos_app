@@ -812,9 +812,9 @@ final orbiRouterProvider = Provider<GoRouter>((ref) {
                   database: profile?.database ?? 'No disponible',
                   userLabel: profile?.login ?? 'Usuario no disponible',
                   // The real name travels in the very same response that
-                  // already carries `companyId` (`res.users.company_id` on
-                  // native, `/orbi/bootstrap`'s `company` on web — see
-                  // `OdooActiveIdentityReader.read` and `bootstrap.dart`). The
+                  // already carries `companyId` (`res.users.company_id`,
+                  // read via `OdooActiveIdentityReader.read` — see
+                  // `bootstrap.dart`, the same path on native and web). The
                   // numeric placeholder is now only what shows when a profile
                   // predates this field or the reader genuinely could not
                   // resolve one — never the default for an authenticated user.

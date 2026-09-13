@@ -8,10 +8,11 @@ import 'package:theos_panel/app/router.dart';
 import 'package:theos_panel/features/auth/auth_controller.dart';
 
 /// Regression guard for the "Empresa #1" placeholder the dueño saw
-/// (2026-09-12): `res.users.company_id` on native and `/orbi/bootstrap`'s
-/// `company` on web both already return the real name alongside the id —
-/// `AuthProfile.companyName` now carries it end to end, and the shell's
-/// header must actually show it instead of falling back to the number.
+/// (2026-09-12): `res.users.company_id`, read the same way on native and web
+/// (`OdooActiveIdentityReader.read`), already returns the real name
+/// alongside the id — `AuthProfile.companyName` now carries it end to end,
+/// and the shell's header must actually show it instead of falling back to
+/// the number.
 void main() {
   const profileWithName = AuthProfile(
     serverUrl: 'https://erp.test',

@@ -96,13 +96,18 @@ void main() {
         );
         await tester.pumpAndSettle();
 
-        // `OrbiListing` always renders its table (no adaptive card fallback):
-        // the dueño's order was to use the shared component everywhere, not
-        // to keep the old grid/list split.
+        // Mismo criterio que la pantalla de clientes (dc9d939): rejilla sólo
+        // en ancho; estrecho o tableta en vertical, las mismas filas en fichas.
+        final ancho = size.width >= 840 && size.width >= size.height;
         expect(
           find.byType(SfDataGrid),
-          findsOneWidget,
-          reason: 'the standard listing table is expected at size=$size',
+          ancho ? findsOneWidget : findsNothing,
+          reason: 'rejilla sólo en ancho; size=$size',
+        );
+        expect(
+          find.byKey(const Key('orbi-listing-cards')),
+          ancho ? findsNothing : findsOneWidget,
+          reason: 'fichas en estrecho y en vertical; size=$size',
         );
         expect(find.byKey(const Key('orbi-listing-filter')), findsOneWidget);
         expect(find.byKey(const Key('orbi-listing-columns')), findsOneWidget);

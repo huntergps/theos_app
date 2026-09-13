@@ -429,12 +429,11 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
         screenSize.width > screenSize.height;
     // No hand-picked height budget decides a "compact" styling anymore
     // (orden del dueño, 12-sep-2026: «el estilo lo determina fluent_ui»).
-    // The form always
-    // renders at its one spacious styling — OrbiForm/OrbiField, the
-    // project's standard form — and the middle section (fields, toggles,
-    // messages) scrolls internally via a LayoutBuilder-driven
-    // SingleChildScrollView whenever the real, measured content does not
-    // fit; the header and the submit button never move.
+    // The form always renders at its one spacious styling — OrbiForm/
+    // OrbiField, the project's standard form — and the middle section
+    // (fields, toggles, messages) scrolls internally via a LayoutBuilder-
+    // driven SingleChildScrollView whenever the real, measured content does
+    // not fit; the header and the submit button never move.
     final form = _buildLoginForm(context, state);
     // 🔴 REVOCADO 12-sep-2026 (orden del dueño: «fluent_ui no tiene pie
     // translúcido, todo está ya determinado por fluent_ui», «fluent_ui tiene
