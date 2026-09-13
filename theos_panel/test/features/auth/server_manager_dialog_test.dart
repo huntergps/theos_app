@@ -9,15 +9,28 @@ import 'package:theos_panel/ui/fluent/orbi_fluent_theme.dart';
 /// Never reaches the network: every test must inject one of these instead of
 /// the real [OdooServerDatabaseDiscovery], which would otherwise hit a real
 /// socket the moment a valid URL is typed.
+///
+/// [servedDatabaseScript] defaults to "no single database" (`null`), which
+/// falls straight through to [listDatabases] — the behaviour every existing
+/// test already expected before `servedDatabase` existed.
 class _ScriptedDiscovery implements ServerDatabaseDiscovery {
-  _ScriptedDiscovery(this._script);
+  _ScriptedDiscovery(this._script, {Future<String?> Function(String)? servedDatabaseScript})
+    : _servedDatabaseScript = servedDatabaseScript ?? ((_) async => null);
   final Future<List<String>> Function(String baseUrl) _script;
+  final Future<String?> Function(String baseUrl) _servedDatabaseScript;
   final calls = <String>[];
+  final servedDatabaseCalls = <String>[];
 
   @override
   Future<List<String>> listDatabases(String baseUrl) {
     calls.add(baseUrl);
     return _script(baseUrl);
+  }
+
+  @override
+  Future<String?> servedDatabase(String baseUrl) {
+    servedDatabaseCalls.add(baseUrl);
+    return _servedDatabaseScript(baseUrl);
   }
 }
 
@@ -32,6 +45,9 @@ class _UnavailableDiscovery implements ServerDatabaseDiscovery {
       throw const DatabaseDiscoveryException(
         DatabaseDiscoveryFailureKind.unsupportedPlatform,
       );
+
+  @override
+  Future<String?> servedDatabase(String baseUrl) async => null;
 }
 
 void main() {
@@ -325,6 +341,214 @@ void main() {
 
     expect(discovery.calls, ['https://b.example.com']);
   });
+
+  // ==========================================================================
+  // Ruta nueva `/orbi/database` (orden del dueño, 12-sep-2026): un servidor
+  // público con `list_db = False` niega el listado a propósito, sin cabecera
+  // de origen cruzado — el navegador lo oculta y la app creía que no había
+  // red. Caso medido con mepriga.galapagos.tech.
+  // ==========================================================================
+  group('la base que atiende el dominio (`/orbi/database`)', () {
+    testWidgets(
+      'un servidor que niega el listado pero atiende una sola base rellena '
+      'el campo, sin mostrar el aviso de fallo de conexión',
+      (tester) async {
+        final discovery = _ScriptedDiscovery(
+          (_) async => throw const DatabaseDiscoveryException(
+            DatabaseDiscoveryFailureKind.connection,
+          ),
+          servedDatabaseScript: (_) async => 'envases',
+        );
+        await open(tester, discovery: discovery);
+        await tester.enterText(
+          find.byKey(const ValueKey('server_url')),
+          'https://mepriga.galapagos.tech',
+        );
+        await tester.pump(const Duration(milliseconds: 600));
+        await tester.pump();
+
+        expect(
+          tester
+              .widget<TextBox>(find.byKey(const ValueKey('server_database')))
+              .controller!
+              .text,
+          'envases',
+        );
+        expect(find.textContaining('No se pudo conectar'), findsNothing);
+        expect(find.textContaining('atiende la base «envases»'), findsOneWidget);
+        // La caída a listDatabases nunca ocurre: servedDatabase ya resolvió.
+        expect(discovery.calls, isEmpty);
+      },
+    );
+
+    testWidgets(
+      'cuando el dominio no atiende una sola base, se cae a listDatabases '
+      'como antes',
+      (tester) async {
+        final discovery = _ScriptedDiscovery((_) async => ['unica_bd']);
+        await open(tester, discovery: discovery);
+        await tester.enterText(
+          find.byKey(const ValueKey('server_url')),
+          'https://seis.example.com',
+        );
+        await tester.pump(const Duration(milliseconds: 600));
+        await tester.pump();
+
+        expect(discovery.servedDatabaseCalls, ['https://seis.example.com']);
+        expect(discovery.calls, ['https://seis.example.com']);
+        expect(
+          tester
+              .widget<TextBox>(find.byKey(const ValueKey('server_database')))
+              .controller!
+              .text,
+          'unica_bd',
+        );
+      },
+    );
+
+    testWidgets('el botón "Listar bases" relanza el descubrimiento', (
+      tester,
+    ) async {
+      final discovery = _ScriptedDiscovery((_) async => ['unica_bd']);
+      await open(tester, discovery: discovery);
+      await tester.enterText(
+        find.byKey(const ValueKey('server_url')),
+        'https://siete.example.com',
+      );
+      await tester.pump(const Duration(milliseconds: 600));
+      await tester.pump();
+      expect(discovery.calls, ['https://siete.example.com']);
+
+      await tester.tap(
+        find.byKey(const ValueKey('server_manager_list_databases')),
+      );
+      await tester.pump();
+      await tester.pump();
+      // Fluent's Button (HoverButton) schedules a 100ms Timer on tap-up to
+      // reset its own pressed visual state; flush it so the test does not
+      // end with a pending Timer.
+      await tester.pump(const Duration(milliseconds: 100));
+
+      expect(discovery.calls, [
+        'https://siete.example.com',
+        'https://siete.example.com',
+      ]);
+    });
+
+    testWidgets(
+      'el botón "Listar bases" está deshabilitado con una URL inválida',
+      (tester) async {
+        await open(tester);
+        expect(
+          tester
+              .widget<Button>(
+                find.byKey(const ValueKey('server_manager_list_databases')),
+              )
+              .onPressed,
+          isNull,
+        );
+      },
+    );
+  });
+
+  // Orden del dueño, 12-sep-2026: «todo está ya determinado por fluent_ui» —
+  // el gestor deja de ser un `Card` propio dentro de `showDialog` y pasa a
+  // ser el `ContentDialog` de Fluent, cuya superficie ya sale opaca del
+  // tema (`ContentDialogThemeData.decoration.color = theme.menuColor`).
+  group('el gestor es un ContentDialog con superficie opaca', () {
+    for (final entry in {
+      'claro': OrbiFluentTheme.light,
+      'oscuro': OrbiFluentTheme.dark,
+    }.entries) {
+      testWidgets('en modo ${entry.key}', (tester) async {
+        await tester.pumpWidget(
+          FluentApp(
+            theme: entry.value,
+            home: ScaffoldPage(
+              content: Builder(
+                builder: (context) => HyperlinkButton(
+                  onPressed: () => showSavedServerManager(
+                    context,
+                    store: store,
+                    discovery: const _UnavailableDiscovery(),
+                  ),
+                  child: const Text('open'),
+                ),
+              ),
+            ),
+          ),
+        );
+        await tester.tap(find.text('open'));
+        await tester.pumpAndSettle();
+
+        expect(find.byType(ContentDialog), findsOneWidget);
+        // Ya no hay un Card propio envolviendo el gestor entero.
+        expect(find.byType(Card), findsNothing);
+
+        // La superficie del propio ContentDialog: el primer Container
+        // descendiente es el que trae `decoration` desde
+        // ContentDialogThemeData — la prueba que habría cazado el defecto
+        // de transparencia original.
+        final container = tester
+            .widgetList<Container>(
+              find.descendant(
+                of: find.byType(ContentDialog),
+                matching: find.byType(Container),
+              ),
+            )
+            .first;
+        final color = (container.decoration as BoxDecoration?)?.color;
+        expect(color, isNotNull, reason: 'El ContentDialog debe traer color de fondo.');
+        expect(
+          color!.a,
+          1.0,
+          reason: 'La superficie del diálogo no debe ser transparente.',
+        );
+      });
+    }
+  });
+
+  testWidgets(
+    'con el teclado abierto a 390x700, "Servidores Odoo" queda dentro de '
+    'pantalla',
+    (tester) async {
+      tester.view.physicalSize = const Size(390, 700);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      addTearDown(tester.view.resetViewInsets);
+
+      await tester.pumpWidget(
+        FluentApp(
+          theme: OrbiFluentTheme.light,
+          home: ScaffoldPage(
+            content: Builder(
+              builder: (context) => HyperlinkButton(
+                onPressed: () => showSavedServerManager(
+                  context,
+                  store: store,
+                  discovery: const _UnavailableDiscovery(),
+                ),
+                child: const Text('open'),
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.tap(find.text('open'));
+      await tester.pumpAndSettle();
+
+      // El teclado abre DESPUÉS del diálogo, como en la app real.
+      tester.view.viewInsets = const FakeViewPadding(bottom: 300);
+      await tester.pumpAndSettle();
+
+      expect(
+        tester.getTopLeft(find.text('Servidores Odoo')).dy,
+        greaterThanOrEqualTo(0),
+      );
+      expect(tester.takeException(), isNull);
+    },
+  );
 
   // ==========================================================================
   // El formulario estándar (orden del dueño, 12-sep-2026): estos casos no

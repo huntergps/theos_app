@@ -311,60 +311,72 @@ class _PinLoginScreenState extends ConsumerState<PinLoginScreen> {
         OrbiTheme.space16 * 2 -
         OrbiTheme.space24 * 2;
     final compact = normalHeight > availableForNormalMode;
-    // Extend the photograph behind the credit strip. Unlike Material's
-    // Scaffold(extendBody: true), ScaffoldPage.bottomBar sits in its own row
-    // ABOVE the content, not overlapping it — so the footer is its own Stack
-    // layer, pinned to the bottom, rather than a separate scaffold slot.
-    // Acrylic — Fluent's own translucent-surface material — is what lets the
-    // photo show through legibly, with no tint/tintAlpha of our own: both
-    // default to the theme (orden del dueño, 12-sep-2026).
-    final footer = Align(
-      alignment: Alignment.bottomCenter,
-      child: Acrylic(
-        key: const Key('pin-login-credit-footer'),
-        child: SafeArea(
-          top: false,
-          child: Padding(
-            padding: const EdgeInsets.all(OrbiTheme.space12),
-            child: Text(
-              _kFooterText,
-              textAlign: TextAlign.center,
-              style: typography.caption?.copyWith(
-                color: theme.resources.textFillColorSecondary,
-              ),
-            ),
+    // 🔴 REVOCADO 12-sep-2026 (orden del dueño: «fluent_ui no tiene pie
+    // translúcido, todo está ya determinado por fluent_ui», «fluent_ui tiene
+    // sus widgets, los cuales se heredan para tener widgets reactivos»). The
+    // footer used to be a Stack layer overlapping the photo so the photo
+    // would continue behind it (docs/orbi_panel/COORDINATOR_HANDOFF_2026_09_11.md,
+    // commit b45483e). That requirement is revoked: the footer now goes in
+    // ScaffoldPage's own `bottomBar` slot, its own row BELOW the content —
+    // no Acrylic, no text over the photo, no hand-rolled translucency. Style
+    // is the plain caption/secondary-text combo already used everywhere
+    // else off the photo.
+    final footer = SafeArea(
+      key: const Key('pin-login-credit-footer'),
+      top: false,
+      child: Padding(
+        padding: const EdgeInsets.all(OrbiTheme.space12),
+        child: Text(
+          _kFooterText,
+          textAlign: TextAlign.center,
+          style: typography.caption?.copyWith(
+            color: theme.resources.textFillColorSecondary,
           ),
         ),
       ),
     );
     return ScaffoldPage(
+      // ScaffoldPage's own default padding is 24px top, painted with
+      // scaffoldBackgroundColor UNDER the content — with a photo backdrop
+      // that shows as a solid strip above it. The photo must start at the
+      // very top of the screen instead.
+      padding: EdgeInsets.zero,
+      bottomBar: footer,
       content: Stack(
         fit: StackFit.expand,
         children: [
           const OrbiAuthBackdrop(),
+          // bottom: false — bottomBar now sits in its own row BELOW this
+          // content area and already reserves the device's bottom inset via
+          // its own SafeArea (see `footer` above). Reserving it again here
+          // would shrink the card for no reason.
           SafeArea(
+            bottom: false,
             child: Center(
               child: Padding(
                 padding: const EdgeInsets.all(OrbiTheme.space16),
                 child: ConstrainedBox(
                   constraints: BoxConstraints(maxWidth: cardWidth),
-                  child: Acrylic(
-                    child: Padding(
-                      padding: EdgeInsets.all(
-                        compact ? OrbiTheme.space12 : OrbiTheme.space24,
-                      ),
-                      child: _buildBody(
-                        context,
-                        isWideLandscape: isWideLandscape,
-                        compact: compact,
-                      ),
+                  // Card, not Acrylic: the same opaque surface ContentDialog
+                  // itself paints with (theme.menuColor) — see
+                  // orbi-fluent-ui-ya-decide-el-estilo. Acrylic is
+                  // translucent by design, which is exactly what made the
+                  // card unreadable over the photo.
+                  child: Card(
+                    backgroundColor: theme.menuColor,
+                    padding: EdgeInsets.all(
+                      compact ? OrbiTheme.space12 : OrbiTheme.space24,
+                    ),
+                    child: _buildBody(
+                      context,
+                      isWideLandscape: isWideLandscape,
+                      compact: compact,
                     ),
                   ),
                 ),
               ),
             ),
           ),
-          footer,
         ],
       ),
     );

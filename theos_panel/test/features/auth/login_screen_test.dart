@@ -701,6 +701,61 @@ void main() {
   );
 
   testWidgets(
+    'the approved photo starts at the very top of the screen, no scaffold '
+    'padding strip above it',
+    (tester) async {
+      // ScaffoldPage's own default padding is 24px top, painted with
+      // scaffoldBackgroundColor UNDER the content — a solid strip showing
+      // above the photo. login_screen.dart sets `padding: EdgeInsets.zero`
+      // precisely so the photo starts at y=0 instead.
+      await pumpLoginScreen(tester, const Size(390, 844));
+      addTearDown(() => resetLoginTestWindowSize(tester));
+      expect(tester.getTopLeft(find.byType(OrbiAuthBackdrop)).dy, 0.0);
+    },
+  );
+
+  testWidgets(
+    'the login card paints with theme.menuColor, the same opaque surface '
+    'ContentDialog uses — light and dark',
+    (tester) async {
+      for (final theme in [OrbiFluentTheme.light, OrbiFluentTheme.dark]) {
+        await pumpLoginScreen(tester, const Size(1200, 1000), theme: theme);
+        // FluentApp wraps its content in an AnimatedTheme: a single pump()
+        // catches it mid-transition from whatever theme the PREVIOUS
+        // iteration left behind, not yet settled on this one.
+        await tester.pumpAndSettle();
+        final card = tester.widget<Card>(find.byType(Card).first);
+        expect(
+          card.backgroundColor,
+          theme.menuColor,
+          reason:
+              'The card must use theme.menuColor, not a hardcoded color or '
+              'the translucent Acrylic default.',
+        );
+      }
+      resetLoginTestWindowSize(tester);
+    },
+  );
+
+  testWidgets(
+    'there is visible separation between the password field and the first '
+    'toggle',
+    (tester) async {
+      await pumpLoginScreen(tester, const Size(1200, 1000));
+      addTearDown(() => resetLoginTestWindowSize(tester));
+      final passwordField = find.byType(TextBox).at(1);
+      final firstToggle = find.byKey(const Key('api-key-mode-toggle'));
+      expect(
+        tester.getTopLeft(firstToggle).dy,
+        greaterThan(tester.getBottomLeft(passwordField).dy),
+        reason:
+            'The "Usar API key" toggle sat flush against the password '
+            'field with no gap.',
+      );
+    },
+  );
+
+  testWidgets(
     'focusing each field does not change the compact/normal layout decision',
     (tester) async {
       // The owner's report, verbatim: "cada vez que hago click en un
@@ -802,29 +857,47 @@ void main() {
     expect(toggle, findsOneWidget);
     expect(_tooltipMessage(tester, toggle), 'Cambiar a modo oscuro');
     expect(find.text('Desarrollado por GalapagosTech · 2026'), findsOneWidget);
-    // Fluent's ScaffoldPage has no Material Scaffold.extendBody flag: the
-    // "photo behind the translucent footer" effect is now structural (the
-    // footer is a Stack layer, not a separate bottomBar row) — see
-    // login_screen.dart's own comment on `footer`. Guarded here by asserting
-    // the backdrop extends the full screen underneath the footer's position.
+    // 🔴 REVOCADO 12-sep-2026 (orden del dueño: «fluent_ui no tiene pie
+    // translúcido, todo está ya determinado por fluent_ui»): the footer used
+    // to be a Stack layer overlapping the photo so the photo would continue
+    // behind it (docs/orbi_panel/COORDINATOR_HANDOFF_2026_09_11.md, commit
+    // b45483e). That requirement is revoked. The footer now lives in
+    // ScaffoldPage's own `bottomBar` slot — its own row BELOW the content,
+    // not overlapping it — so the photo ends exactly where the footer
+    // begins instead of continuing behind it.
     final backdropBottom = tester.getBottomLeft(find.byType(Image)).dy;
     final footerTop = tester
         .getTopLeft(find.byKey(const Key('login-credit-footer')))
         .dy;
     expect(
       backdropBottom,
-      greaterThan(footerTop),
-      reason: 'The backdrop must extend behind the translucent footer.',
+      moreOrLessEquals(footerTop, epsilon: 0.5),
+      reason: 'The photo must end exactly where the bottomBar footer begins.',
     );
-    // The footer is Fluent's own Acrylic — the translucent-surface material
-    // that lets the photo show through legibly — with no tint/tintAlpha of
-    // our own (orden del dueño, 12-sep-2026: el color sale del tema, no se
-    // ajusta a mano).
-    final footer = tester.widget<Acrylic>(
-      find.byKey(const Key('login-credit-footer')),
+    // No Acrylic (or any other hand-rolled surface) anywhere near the
+    // footer: it is Fluent's own bottomBar slot (orden del dueño,
+    // 12-sep-2026: «fluent_ui tiene sus widgets, los cuales se heredan para
+    // tener widgets reactivos»).
+    expect(
+      find.descendant(
+        of: find.byKey(const Key('login-credit-footer')),
+        matching: find.byType(Acrylic),
+      ),
+      findsNothing,
     );
-    expect(footer.tint, isNull);
-    expect(footer.tintAlpha, isNull);
+    final footerText = tester.widget<Text>(
+      find.text('Desarrollado por GalapagosTech · 2026'),
+    );
+    final ambientTheme = FluentTheme.of(
+      tester.element(find.byKey(const Key('login-credit-footer'))),
+    );
+    expect(
+      footerText.style?.color,
+      ambientTheme.resources.textFillColorSecondary,
+      reason:
+          'Off the photo now (opaque bottomBar), the caption goes back to '
+          'the normal secondary text color instead of orbiPhotoInk.',
+    );
     await tester.tap(toggle);
     await tester.pumpAndSettle();
     expect(_tooltipMessage(tester, toggle), 'Cambiar a modo claro');

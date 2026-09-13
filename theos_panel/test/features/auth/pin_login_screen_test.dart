@@ -7,6 +7,7 @@ import 'package:theos_panel/app/preferences/app_preferences.dart';
 import 'package:theos_panel/features/auth/auth_controller.dart';
 import 'package:theos_panel/features/auth/pin_credential_store.dart';
 import 'package:theos_panel/features/auth/pin_login_screen.dart';
+import 'package:theos_panel/ui/components/orbi_brand.dart';
 import 'package:theos_panel/ui/fluent/orbi_fluent_theme.dart';
 
 /// Mirrors login_screen_test.dart's own window-size helper: MediaQuery.sizeOf
@@ -385,6 +386,76 @@ void main() {
     // "blocked" state, so this genuinely tests the overflow guard.
     expect(find.byKey(const Key('pin-key-1')), findsOneWidget);
   });
+
+  testWidgets(
+    'the approved photo starts at the very top of the screen, no scaffold '
+    'padding strip above it',
+    (tester) async {
+      final preferences = await _preferencesWithPin('1234');
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            authServiceProvider.overrideWithValue(
+              _FakeAuthService(
+                const AuthServiceResult(
+                  status: AuthServiceStatus.required,
+                  profile: _profile,
+                ),
+              ),
+            ),
+            sharedPreferencesProvider.overrideWithValue(preferences),
+          ],
+          child: FluentApp(
+            theme: OrbiFluentTheme.light,
+            home: const PinLoginScreen(),
+          ),
+        ),
+      );
+      await tester.pump();
+      await tester.pump();
+      expect(tester.getTopLeft(find.byType(OrbiAuthBackdrop)).dy, 0.0);
+    },
+  );
+
+  testWidgets(
+    'the PIN card paints with theme.menuColor, the same opaque surface '
+    'ContentDialog uses — light and dark',
+    (tester) async {
+      for (final theme in [OrbiFluentTheme.light, OrbiFluentTheme.dark]) {
+        final preferences = await _preferencesWithPin('1234');
+        await tester.pumpWidget(
+          ProviderScope(
+            overrides: [
+              authServiceProvider.overrideWithValue(
+                _FakeAuthService(
+                  const AuthServiceResult(
+                    status: AuthServiceStatus.required,
+                    profile: _profile,
+                  ),
+                ),
+              ),
+              sharedPreferencesProvider.overrideWithValue(preferences),
+            ],
+            child: FluentApp(theme: theme, home: const PinLoginScreen()),
+          ),
+        );
+        await tester.pump();
+        await tester.pump();
+        // FluentApp wraps its content in an AnimatedTheme: this settles it,
+        // so the second iteration isn't caught mid-transition from the
+        // first iteration's theme.
+        await tester.pumpAndSettle();
+        final card = tester.widget<Card>(find.byType(Card).first);
+        expect(
+          card.backgroundColor,
+          theme.menuColor,
+          reason:
+              'The card must use theme.menuColor, not a hardcoded color or '
+              'the translucent Acrylic default.',
+        );
+      }
+    },
+  );
 
   testWidgets('a phone-sized window fits without overflowing', (tester) async {
     final preferences = await _preferencesWithPin('1234');

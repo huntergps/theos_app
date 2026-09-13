@@ -188,6 +188,7 @@ double _estimateNormalModeContentHeight({
       OrbiTheme.space24 + // headerGap (normal), before the fields
       3 * (_kFieldHeight + OrbiTheme.space12) + // server selector + usuario + contraseña, each + its gap
       apiKeySubtitleHeight +
+      OrbiTheme.space12 + // gap between the "Usar API key" and "Guardar clave" toggle blocks (see fieldsAndToggles)
       saveCredentialSubtitleHeight +
       OrbiTheme.space24 + // headerGap (normal), before the submit button
       _kControlMinHeight; // submit button
@@ -713,40 +714,49 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
         OrbiTheme.space24 * 2;
     final compactHeight = normalModeHeight > availableForNormalMode;
     final form = _buildLoginForm(context, state, compactHeight: compactHeight);
-    // Extend the photograph behind the credit strip. Unlike Material's
-    // Scaffold(extendBody: true), ScaffoldPage.bottomBar sits in its own row
-    // ABOVE the content, not overlapping it — so the footer is its own Stack
-    // layer, pinned to the bottom, rather than a separate scaffold slot.
-    // SafeArea keeps the form clear of the footer and the device's bottom
-    // inset. Acrylic — Fluent's own translucent-surface material — is what
-    // lets the photo show through legibly, with no tint/tintAlpha of our
-    // own: both default to the theme (orden del dueño, 12-sep-2026).
-    final footer = Align(
-      alignment: Alignment.bottomCenter,
-      child: Acrylic(
-        key: const Key('login-credit-footer'),
-        child: SafeArea(
-          top: false,
-          child: Padding(
-            padding: const EdgeInsets.all(OrbiTheme.space12),
-            child: Text(
-              _kFooterText,
-              textAlign: TextAlign.center,
-              style: theme.typography.caption?.copyWith(
-                color: theme.resources.textFillColorSecondary,
-              ),
-            ),
+    // 🔴 REVOCADO 12-sep-2026 (orden del dueño: «fluent_ui no tiene pie
+    // translúcido, todo está ya determinado por fluent_ui», «fluent_ui tiene
+    // sus widgets, los cuales se heredan para tener widgets reactivos»). The
+    // footer used to be a Stack layer overlapping the photo so the photo
+    // would continue behind it (docs/orbi_panel/COORDINATOR_HANDOFF_2026_09_11.md,
+    // commit b45483e). That requirement is revoked: the footer now goes in
+    // ScaffoldPage's own `bottomBar` slot, its own row BELOW the content —
+    // no Acrylic, no text over the photo, no hand-rolled translucency. Style
+    // is the plain caption/secondary-text combo already used everywhere
+    // else off the photo.
+    final footer = SafeArea(
+      key: const Key('login-credit-footer'),
+      top: false,
+      child: Padding(
+        padding: const EdgeInsets.all(OrbiTheme.space12),
+        child: Text(
+          _kFooterText,
+          textAlign: TextAlign.center,
+          style: theme.typography.caption?.copyWith(
+            color: theme.resources.textFillColorSecondary,
           ),
         ),
       ),
     );
     return ScaffoldPage(
+      // ScaffoldPage's own default padding is 24px top, painted with
+      // scaffoldBackgroundColor UNDER the content — with a photo backdrop
+      // that shows as a solid strip above it. The photo must start at the
+      // very top of the screen instead.
+      padding: EdgeInsets.zero,
+      bottomBar: footer,
       content: isWideLandscape
           ? Stack(
               fit: StackFit.expand,
               children: [
                 const OrbiAuthBackdrop(),
+                // bottom: false — bottomBar now sits in its own row BELOW
+                // this content area and already reserves the device's
+                // bottom inset via its own SafeArea (see `footer` above).
+                // Reserving it again here would shrink the card for no
+                // reason: this content area no longer touches that inset.
                 SafeArea(
+                  bottom: false,
                   child: Center(
                     child: ConstrainedBox(
                       constraints: const BoxConstraints(maxWidth: 1200),
@@ -757,7 +767,14 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                             width: 440,
                             child: Padding(
                               padding: const EdgeInsets.all(OrbiTheme.space16),
-                              child: Acrylic(
+                              // Card, not Acrylic: the same opaque surface
+                              // ContentDialog itself paints with
+                              // (theme.menuColor) — see
+                              // orbi-fluent-ui-ya-decide-el-estilo. Acrylic is
+                              // translucent by design, which is exactly what
+                              // made the card unreadable over the photo.
+                              child: Card(
+                                backgroundColor: theme.menuColor,
                                 // Was hardcoded to space24 regardless of
                                 // compactHeight, unlike the narrow branch
                                 // below. That mismatch alone both starved
@@ -765,14 +782,12 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                                 // of width (a RenderFlex overflow) and ate
                                 // vertical budget the submit button needed
                                 // on a short-but-wide desktop window.
-                                child: Padding(
-                                  padding: EdgeInsets.all(
-                                    compactHeight
-                                        ? OrbiTheme.space12
-                                        : OrbiTheme.space24,
-                                  ),
-                                  child: form,
+                                padding: EdgeInsets.all(
+                                  compactHeight
+                                      ? OrbiTheme.space12
+                                      : OrbiTheme.space24,
                                 ),
+                                child: form,
                               ),
                             ),
                           ),
@@ -781,34 +796,35 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                     ),
                   ),
                 ),
-                footer,
               ],
             )
           : Stack(
               fit: StackFit.expand,
               children: [
                 const OrbiAuthBackdrop(key: Key('compact-login-background')),
+                // See the wide-landscape branch's own comment: bottom:false
+                // because bottomBar already reserves the device's bottom
+                // inset in its own row, below this content area.
                 SafeArea(
+                  bottom: false,
                   child: Center(
                     child: Padding(
                       padding: const EdgeInsets.all(OrbiTheme.space16),
                       child: ConstrainedBox(
                         constraints: const BoxConstraints(maxWidth: 520),
-                        child: Acrylic(
-                          child: Padding(
-                            padding: EdgeInsets.all(
-                              compactHeight
-                                  ? OrbiTheme.space12
-                                  : OrbiTheme.space24,
-                            ),
-                            child: form,
+                        child: Card(
+                          backgroundColor: theme.menuColor,
+                          padding: EdgeInsets.all(
+                            compactHeight
+                                ? OrbiTheme.space12
+                                : OrbiTheme.space24,
                           ),
+                          child: form,
                         ),
                       ),
                     ),
                   ),
                 ),
-                footer,
               ],
             ),
     );
@@ -1004,6 +1020,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
           autofillHints: const [AutofillHints.password],
         ),
       ),
+      SizedBox(height: fieldGap),
       Column(
         key: const Key('api-key-toggle-block'),
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -1029,6 +1046,10 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
             ),
         ],
       ),
+      // Was missing entirely: the two toggle blocks sat flush against each
+      // other. See _estimateNormalModeContentHeight for the matching budget
+      // term this gap adds.
+      SizedBox(height: fieldGap),
       Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         mainAxisSize: MainAxisSize.min,

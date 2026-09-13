@@ -18,6 +18,11 @@ import 'saved_servers.dart';
 /// that and fall back to manual entry, never treat it as a dead end.
 abstract class ServerDatabaseDiscovery {
   Future<List<String>> listDatabases(String baseUrl);
+
+  /// Asks which single database the domain at [baseUrl] serves, without
+  /// enumerating any others. Returns `null` when the server does not single
+  /// out one database — including one that has not deployed the route yet.
+  Future<String?> servedDatabase(String baseUrl);
 }
 
 class OdooServerDatabaseDiscovery implements ServerDatabaseDiscovery {
@@ -29,6 +34,10 @@ class OdooServerDatabaseDiscovery implements ServerDatabaseDiscovery {
   @override
   Future<List<String>> listDatabases(String baseUrl) =>
       _client.listDatabases(baseUrl);
+
+  @override
+  Future<String?> servedDatabase(String baseUrl) =>
+      _client.servedDatabase(baseUrl);
 }
 
 Future<SavedServer?> showSavedServerManager(
@@ -157,14 +166,51 @@ class _ServerManagerDialogState extends State<_ServerManagerDialog> {
     );
   }
 
+  /// Reenvía el descubrimiento para la URL actual — usado por el botón
+  /// «Listar bases» del dueño. Cancela cualquier debounce pendiente para que
+  /// una pulsación manual no se solape con una automática.
+  void _relaunchDiscovery() {
+    final urlText = _url.text;
+    if (SavedServersStore.validateUrl(urlText) != null) return;
+    _discoveryDebounce?.cancel();
+    _discoverDatabases(urlText);
+  }
+
   Future<void> _discoverDatabases(String url) async {
     final token = Object();
     _activeDiscoveryToken = token;
     setState(() => _discovering = true);
+    final trimmedUrl = url.trim();
+
+    // Primero se pregunta si el dominio atiende una sola base
+    // (`/orbi/database`, sin enumerar nada) — el caso de un servidor
+    // público con `list_db = False` que niega el listado a propósito y por
+    // eso `listDatabases` abajo lo ve indistinguible de "no hay red"
+    // (orden del dueño, 12-sep-2026, caso mepriga.galapagos.tech).
+    String? servedName;
+    try {
+      servedName = await widget.discovery.servedDatabase(trimmedUrl);
+    } catch (_) {
+      servedName = null;
+    }
+    if (!mounted || _activeDiscoveryToken != token) return;
+    if (servedName != null) {
+      setState(() {
+        _discovering = false;
+        _discoveredDatabases = null;
+        _manualDatabaseEntry = false;
+        if (_database.text.trim().isEmpty) {
+          _database.text = servedName!;
+        }
+        _discoveryNotice = 'Este servidor atiende la base «$servedName».';
+      });
+      return;
+    }
+
     List<String>? databases;
     String? notice;
     try {
-      databases = await widget.discovery.listDatabases(url.trim());
+      databases = await widget.discovery.listDatabases(trimmedUrl);
     } on DatabaseDiscoveryException catch (e) {
       notice = _noticeFor(e.kind);
     } catch (_) {
@@ -389,63 +435,92 @@ class _ServerManagerDialogState extends State<_ServerManagerDialog> {
         .toList();
   }
 
+  // El gestor ya no dibuja su propia superficie (orden del dueño,
+  // 12-sep-2026: «todo está ya determinado por fluent_ui»). Es un
+  // `ContentDialog` — el diálogo de Fluent — en vez de un `Card` a mano
+  // dentro de `showDialog`: su fondo sale de `ContentDialogThemeData`
+  // (`decoration.color = theme.menuColor`, opaco), así que el formulario de
+  // acceso ya no se transparenta por detrás sin que tengamos que pintar
+  // nada nosotros mismos.
   @override
-  Widget build(BuildContext context) => Align(
-    alignment: Alignment.center,
-    child: Padding(
-      padding: MediaQuery.sizeOf(context).width < OrbiTheme.compactBreakpoint
-          ? EdgeInsets.zero
-          : const EdgeInsets.all(OrbiTheme.space16),
-      child: LayoutBuilder(
-        builder: (context, constraints) {
-          final compact = constraints.maxWidth < OrbiTheme.compactBreakpoint;
-          return ConstrainedBox(
-            constraints: BoxConstraints(
-              maxWidth: 900,
-              maxHeight: compact ? MediaQuery.sizeOf(context).height : 720,
-            ),
-            child: Card(
-              padding: const EdgeInsets.all(OrbiTheme.space24),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      Expanded(
-                        child: Text(
-                          'Servidores Odoo',
-                          style: FluentTheme.of(context).typography.title,
-                        ),
-                      ),
-                      Tooltip(
-                        message: 'Cerrar',
-                        child: IconButton(
-                          key: const ValueKey('server_manager_close'),
-                          onPressed: _busy
-                              ? null
-                              : () async {
-                                  final navigator = Navigator.of(context);
-                                  if (!await _confirmDiscard() || !mounted) {
-                                    return;
-                                  }
-                                  navigator.pop();
-                                },
-                          icon: const Icon(FluentIcons.chrome_close),
-                        ),
-                      ),
-                    ],
-                  ),
-                  if (_loadError != null) _message(_loadError!, true),
-                  const SizedBox(height: OrbiTheme.space12),
-                  Expanded(child: compact ? _compactLayout() : _wideLayout()),
-                ],
+  Widget build(BuildContext context) {
+    // `compact` decide tanto las `constraints` de `ContentDialog` como cuál
+    // contenido dibujar, así que hace falta el ancho REAL disponible antes
+    // de construirlo — de ahí el `LayoutBuilder` envolviendo todo, igual que
+    // hacía la versión con `Card`. `MediaQuery.sizeOf(context).width` NO
+    // sirve aquí: en las pruebas que usan `tester.binding.setSurfaceSize`
+    // (en vez de `tester.view.physicalSize`) queda pegado al tamaño de
+    // ventana por omisión y nunca ve el tamaño real, así que "compact"
+    // siempre daba `false` y el editor terminaba exprimido dentro del
+    // layout de dos paneles (medido: overflow de hasta 184 px).
+    return LayoutBuilder(
+      builder: (context, layoutConstraints) {
+        final compact = layoutConstraints.maxWidth < OrbiTheme.compactBreakpoint;
+        // El `showDialog`/`FluentDialogRoute` de Fluent ya envuelve el
+        // diálogo en su propio `SafeArea`, pero eso sólo evita las fajas
+        // físicas del sistema (notch, barra de estado) — no el teclado.
+        // `viewInsets` nunca reduce la ventana en la que `ContentDialog` se
+        // centra, así que en el layout compacto (casi a pantalla completa)
+        // hay que restar aquí lo que tapa el teclado o "Servidores Odoo"
+        // termina bajo la barra del navegador (visto por el dueño a 390 px,
+        // 12-sep-2026). En pantallas anchas se deja el ancho de dos paneles
+        // de siempre (900); en teléfono no se toca nada más que esto — el
+        // resto es el tamaño por omisión de `ContentDialog`.
+        final compactMaxHeight = min(
+          kDefaultContentDialogConstraints.maxHeight,
+          max(
+            0.0,
+            layoutConstraints.maxHeight -
+                MediaQuery.viewInsetsOf(context).bottom,
+          ),
+        );
+
+        return ContentDialog(
+          constraints: compact
+              ? kDefaultContentDialogConstraints.copyWith(
+                  maxHeight: compactMaxHeight,
+                )
+              : const BoxConstraints(maxWidth: 900, maxHeight: 720),
+          title: Row(
+            children: [
+              Expanded(
+                child: Text(
+                  'Servidores Odoo',
+                  style: FluentTheme.of(context).typography.title,
+                ),
               ),
-            ),
-          );
-        },
-      ),
-    ),
-  );
+              Tooltip(
+                message: 'Cerrar',
+                child: IconButton(
+                  key: const ValueKey('server_manager_close'),
+                  onPressed: _busy
+                      ? null
+                      : () async {
+                          final navigator = Navigator.of(context);
+                          if (!await _confirmDiscard() || !mounted) {
+                            return;
+                          }
+                          navigator.pop();
+                        },
+                  icon: const Icon(FluentIcons.chrome_close),
+                ),
+              ),
+            ],
+          ),
+          content: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              if (_loadError != null) ...[
+                _message(_loadError!, true),
+                const SizedBox(height: OrbiTheme.space12),
+              ],
+              Expanded(child: compact ? _compactLayout() : _wideLayout()),
+            ],
+          ),
+        );
+      },
+    );
+  }
 
   Widget _message(String message, bool error) {
     final resources = FluentTheme.of(context).resources;
@@ -489,6 +564,10 @@ class _ServerManagerDialogState extends State<_ServerManagerDialog> {
   // Ahí se vuelve al scroll único de toda la sección (lista + editor), tal
   // como se comportaba antes de esta conversión, en vez de pedirle a un
   // formulario más alto que su presupuesto que quepa donde no cabe.
+  //
+  // "Esta función corre dentro de un Expanded" sigue siendo cierto con
+  // `ContentDialog`: su `content` recibe la misma altura acotada que antes
+  // daba el `Card` — ver build().
   static const _editorFloor = 420.0;
 
   Widget _compactLayout() => LayoutBuilder(
@@ -600,6 +679,10 @@ class _ServerManagerDialogState extends State<_ServerManagerDialog> {
     final showDropdown =
         databases != null && databases.length > 1 && !_manualDatabaseEntry;
     final caption = FluentTheme.of(context).typography.caption;
+    final canRelaunch =
+        !_busy &&
+        !_discovering &&
+        SavedServersStore.validateUrl(_url.text) == null;
 
     return OrbiField(
       label: 'Base de datos',
@@ -609,28 +692,43 @@ class _ServerManagerDialogState extends State<_ServerManagerDialog> {
         crossAxisAlignment: CrossAxisAlignment.start,
         mainAxisSize: MainAxisSize.min,
         children: [
-          showDropdown
-              ? ComboBox<String>(
-                  key: const ValueKey('server_database_dropdown'),
-                  value: databases.contains(_database.text)
-                      ? _database.text
-                      : null,
-                  isExpanded: true,
-                  items: [
-                    for (final db in databases)
-                      ComboBoxItem(value: db, child: Text(db)),
-                  ],
-                  onChanged: _busy
-                      ? null
-                      : (value) =>
-                            setState(() => _database.text = value ?? ''),
-                )
-              : TextBox(
-                  key: const ValueKey('server_database'),
-                  controller: _database,
-                  enabled: !_busy,
-                  suffix: suffix,
-                ),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(
+                child: showDropdown
+                    ? ComboBox<String>(
+                        key: const ValueKey('server_database_dropdown'),
+                        value: databases.contains(_database.text)
+                            ? _database.text
+                            : null,
+                        isExpanded: true,
+                        items: [
+                          for (final db in databases)
+                            ComboBoxItem(value: db, child: Text(db)),
+                        ],
+                        onChanged: _busy
+                            ? null
+                            : (value) =>
+                                  setState(() => _database.text = value ?? ''),
+                      )
+                    : TextBox(
+                        key: const ValueKey('server_database'),
+                        controller: _database,
+                        enabled: !_busy,
+                        suffix: suffix,
+                      ),
+              ),
+              const SizedBox(width: OrbiTheme.space8),
+              // Pedido del dueño (12-sep-2026): relanza el mismo
+              // descubrimiento para la URL actual, sin esperar el debounce.
+              Button(
+                key: const ValueKey('server_manager_list_databases'),
+                onPressed: canRelaunch ? _relaunchDiscovery : null,
+                child: const Text('Listar bases'),
+              ),
+            ],
+          ),
           if (showDropdown)
             Align(
               alignment: Alignment.centerRight,
@@ -687,7 +785,7 @@ class _ServerManagerDialogState extends State<_ServerManagerDialog> {
     children: [
       Text(
         _creating ? 'Nuevo servidor' : 'Editar servidor',
-        style: FluentTheme.of(context).typography.titleLarge,
+        style: FluentTheme.of(context).typography.subtitle,
       ),
       const SizedBox(height: OrbiTheme.space8),
       Text(

@@ -31,6 +31,23 @@
 
   <title>Orbi ERP</title>
   <link rel="manifest" href="manifest.json">
+
+  <!--
+    Before Flutter's own view settles onto the device's safe area (iOS
+    Safari/Chrome are slow to do this right after load), the bare white
+    <body> shows through underneath it. The approved backdrop photo painted
+    here — same asset as OrbiAuthBackdrop, same fit — closes that gap instead
+    of leaving a white strip. The path is relative (no leading slash) so it
+    resolves the same whether the build is served at "--base-href=/" or at
+    "/orbi/".
+  -->
+  <style>
+    html, body {
+      margin: 0;
+      height: 100%;
+      background: url('assets/assets/images/orbi_lake_sunrise.png') center / cover no-repeat;
+    }
+  </style>
 </head>
 <body>
   <!--

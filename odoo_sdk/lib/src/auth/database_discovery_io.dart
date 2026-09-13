@@ -84,6 +84,70 @@ class OdooDatabaseDiscovery {
     }
   }
 
+  /// Asks a server which single database serves its own domain, without
+  /// enumerating anything.
+  ///
+  /// Hits `GET {baseUrl}/orbi/database` — a route this project adds to Odoo
+  /// deployments that run with `list_db = False` (the correct setting for a
+  /// public server), precisely so [listDatabases] cannot be used: that
+  /// endpoint returns a 200 carrying an `AccessDenied` JSON-RPC error with no
+  /// CORS header, which a browser hides from the caller entirely, making a
+  /// server that is reachable and simply refusing to enumerate look
+  /// indistinguishable from an unreachable one. `/orbi/database` sidesteps
+  /// that: it answers `{"database": "<name>"}` with
+  /// `Access-Control-Allow-Origin: *` when the domain maps to exactly one
+  /// database, or a bare 404 (`{"error": "no_single_database"}`) when it
+  /// does not — never a list of names.
+  ///
+  /// A plain GET with no request headers of its own, on purpose: any custom
+  /// header (a `Content-Type`, an auth header) turns this into a request
+  /// that needs a CORS preflight, and the preflight is exactly what a server
+  /// without this route yet cannot answer usefully.
+  ///
+  /// Returns the database name on success, `null` when the server answered
+  /// but does not single out one database (its own 404), and throws
+  /// [DatabaseDiscoveryException] for every other outcome: `connection` for
+  /// a request that could not complete at all (including a server that has
+  /// not deployed this route yet and whose resulting 404 a browser strips of
+  /// its body/headers on a cross-origin call — that is measured as a Dio
+  /// connection error, not a clean 404), `protocol` for a 200 that does not
+  /// carry a usable `database` string, or any other HTTP status.
+  Future<String?> servedDatabase(
+    String baseUrl, {
+    Duration timeout = const Duration(seconds: 8),
+  }) async {
+    final normalized = _validatedBaseUrl(baseUrl);
+    try {
+      final response = await _http.get<dynamic>(
+        '$normalized/orbi/database',
+        options: Options(
+          sendTimeout: timeout,
+          receiveTimeout: timeout,
+          followRedirects: false,
+          // Branch on every status ourselves below — a 404 here is the
+          // expected "not a single database" answer, not a failure to
+          // surface as a connection error.
+          validateStatus: (_) => true,
+        ),
+      );
+      if (response.statusCode == 404) return null;
+      if (response.statusCode == 200) {
+        final body = response.data;
+        final database = body is Map ? body['database'] : null;
+        if (database is String && database.isNotEmpty) return database;
+      }
+      throw const DatabaseDiscoveryException(
+        DatabaseDiscoveryFailureKind.protocol,
+      );
+    } on DatabaseDiscoveryException {
+      rethrow;
+    } on DioException {
+      throw const DatabaseDiscoveryException(
+        DatabaseDiscoveryFailureKind.connection,
+      );
+    }
+  }
+
   String _validatedBaseUrl(String value) {
     final trimmed = value.trim();
     final uri = Uri.tryParse(trimmed);

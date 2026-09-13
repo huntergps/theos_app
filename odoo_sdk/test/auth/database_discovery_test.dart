@@ -138,4 +138,92 @@ void main() {
       ),
     );
   });
+
+  group('servedDatabase', () {
+    test('returns the single database a domain maps to', () async {
+      adapter.onGet(
+        '$baseUrl/orbi/database',
+        (server) => server.reply(200, {'database': 'envases'}),
+      );
+
+      final result = await discovery.servedDatabase(baseUrl);
+
+      expect(result, 'envases');
+    });
+
+    test(
+      'a 404 means the domain does not serve exactly one database',
+      () async {
+        adapter.onGet(
+          '$baseUrl/orbi/database',
+          (server) =>
+              server.reply(404, {'error': 'no_single_database'}),
+        );
+
+        final result = await discovery.servedDatabase(baseUrl);
+
+        expect(result, isNull);
+      },
+    );
+
+    test('a 200 without a usable database name raises protocol', () async {
+      adapter.onGet(
+        '$baseUrl/orbi/database',
+        (server) => server.reply(200, {'database': ''}),
+      );
+
+      await expectLater(
+        discovery.servedDatabase(baseUrl),
+        throwsA(
+          isA<DatabaseDiscoveryException>().having(
+            (e) => e.kind,
+            'kind',
+            DatabaseDiscoveryFailureKind.protocol,
+          ),
+        ),
+      );
+    });
+
+    test('an unexpected HTTP status raises protocol', () async {
+      adapter.onGet(
+        '$baseUrl/orbi/database',
+        (server) => server.reply(500, {'error': 'boom'}),
+      );
+
+      await expectLater(
+        discovery.servedDatabase(baseUrl),
+        throwsA(
+          isA<DatabaseDiscoveryException>().having(
+            (e) => e.kind,
+            'kind',
+            DatabaseDiscoveryFailureKind.protocol,
+          ),
+        ),
+      );
+    });
+
+    test('a connection error raises connection, not protocol', () async {
+      adapter.onGet(
+        '$baseUrl/orbi/database',
+        (server) => server.throws(
+          0,
+          DioException.connectionError(
+            requestOptions: RequestOptions(path: '/orbi/database'),
+            reason: 'Failed host lookup',
+          ),
+        ),
+      );
+
+      await expectLater(
+        discovery.servedDatabase(baseUrl),
+        throwsA(
+          isA<DatabaseDiscoveryException>().having(
+            (e) => e.kind,
+            'kind',
+            DatabaseDiscoveryFailureKind.connection,
+          ),
+        ),
+      );
+    });
+  });
 }
