@@ -56,20 +56,11 @@ void main() {
     expect(html, contains('100dvh'));
   });
 
-  test(
-    'el panel de diagnóstico está detrás de la marca orbi.diag y no bloquea toques',
-    () {
-      expect(
-        html,
-        contains('orbi.diag'),
-        reason: 'el panel debe activarse/leerse por la marca orbi.diag en localStorage',
-      );
-      expect(
-        html.contains('pointer-events:none') ||
-            html.contains('pointer-events: none'),
-        isTrue,
-        reason: 'el panel no debe interceptar toques sobre la app',
-      );
-    },
-  );
+  test('la web publicada no trae el panel de diagnóstico de viewport', () {
+    // Sirvió para medir la franja blanca del iPhone (13-sep-2026) y el dueño
+    // no lograba apagarlo con ?diag=0: una herramienta de depuración no se
+    // queda en producción.
+    expect(html, isNot(contains('orbi-diag-panel')));
+    expect(html, isNot(contains('orbi.diag')));
+  });
 }
