@@ -230,11 +230,20 @@ los vuelva a encargar:
   preferencias, el identificador de instalación y el registro del trabajador de
   notificaciones, **ninguno con límite de tiempo**. En investigación con medición dentro del
   navegador.
+- **Orbi web se sirve SÓLO desde `https://orbi.galapagos.tech`** (orden del dueño, 13-sep-2026;
+  para probar, localhost). El 13-sep-2026 se retiraron de `l10n_ec_orbi_web` la página `/orbi/`,
+  su paquete compilado y el puente de sesión por cookie (`/orbi/bootstrap`,
+  `/orbi/session/logout`). Ya responden 404 en ERP2 y en Mepriga. Siguen vivas la ruta de llave,
+  `/orbi/database` y el listado con origen cruzado (dev_odoo20 `c6d1c7400`). **Pendiente en la
+  app:** el arranque web todavía pide `/orbi/bootstrap` y ofrece «Continuar como…». Es código
+  muerto y hay que retirarlo.
 - 🔴 **La cabecera mostró el nombre de otro usuario.** Visto el 12-sep-2026: con la sesión de
-  carlos.guajala, la cabecera decía «Aldas Romero Erik Andres». Pista sin probar: el perfil
-  guardado se busca por servidor y base (`loadProfileFor(serverUrl, database)` en
-  `bootstrap.dart`), sin el usuario en la llave. En investigación, con una prueba que debe
-  fallar antes de tocar nada.
+  carlos.guajala, la cabecera decía «Aldas Romero Erik Andres». Hay una prueba que falla hoy
+  (`theos_panel/test/app/identity_after_user_change_test.dart`): la cookie de Odoo de erik.aldas
+  seguía viva, y una recuperación posterior por `/orbi/bootstrap` pisaba la sesión por llave de
+  carlos.guajala. `AuthNotifier.restore()` (`auth_controller.dart:315`) reemplaza la sesión sin
+  mirar su procedencia. Esa cookie sólo existía con Orbi servido desde el propio Odoo, que ya se
+  retiró.
 - **El comentario del arranque habla de una «recuperación de sesión acotada»** (`bootstrap.dart`,
   `_initializeApplication`), y `restoreOnce` no le pone ningún límite de tiempo. O el
   comentario miente o falta el límite.
