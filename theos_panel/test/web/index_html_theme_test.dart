@@ -55,4 +55,21 @@ void main() {
   test('el alto del respaldo sigue la altura dinámica real del navegador', () {
     expect(html, contains('100dvh'));
   });
+
+  test(
+    'el panel de diagnóstico está detrás de la marca orbi.diag y no bloquea toques',
+    () {
+      expect(
+        html,
+        contains('orbi.diag'),
+        reason: 'el panel debe activarse/leerse por la marca orbi.diag en localStorage',
+      );
+      expect(
+        html.contains('pointer-events:none') ||
+            html.contains('pointer-events: none'),
+        isTrue,
+        reason: 'el panel no debe interceptar toques sobre la app',
+      );
+    },
+  );
 }
