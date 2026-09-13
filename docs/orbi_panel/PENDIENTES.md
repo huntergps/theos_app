@@ -237,13 +237,13 @@ los vuelva a encargar:
   `/orbi/database` y el listado con origen cruzado (dev_odoo20 `c6d1c7400`). **Pendiente en la
   app:** el arranque web todavía pide `/orbi/bootstrap` y ofrece «Continuar como…». Es código
   muerto y hay que retirarlo.
-- 🔴 **La cabecera mostró el nombre de otro usuario.** Visto el 12-sep-2026: con la sesión de
-  carlos.guajala, la cabecera decía «Aldas Romero Erik Andres». Hay una prueba que falla hoy
-  (`theos_panel/test/app/identity_after_user_change_test.dart`): la cookie de Odoo de erik.aldas
-  seguía viva, y una recuperación posterior por `/orbi/bootstrap` pisaba la sesión por llave de
-  carlos.guajala. `AuthNotifier.restore()` (`auth_controller.dart:315`) reemplaza la sesión sin
-  mirar su procedencia. Esa cookie sólo existía con Orbi servido desde el propio Odoo, que ya se
-  retiró.
+- ✅ **«La cabecera mostró el nombre de otro usuario» NO era un defecto** (aclarado por el dueño,
+  13-sep-2026). La cabecera muestra la **empresa** (`profile.companyName`), y en ERP2 la empresa se
+  llama «Aldas Romero Erik Andres». Aparte existe el usuario `erik.aldas`, y de ahí vino la
+  confusión. Con carlos.guajala la cabecera mostraba bien su empresa, y el pie su login. Sí quedó a
+  la vista un hueco real, que ya no tiene disparador: con el puente por cookie (`/orbi/bootstrap`,
+  retirado del servidor), una recuperación posterior podía pisar una sesión por llave
+  (`auth_controller.dart:315`). Se retira también de la app.
 - **El comentario del arranque habla de una «recuperación de sesión acotada»** (`bootstrap.dart`,
   `_initializeApplication`), y `restoreOnce` no le pone ningún límite de tiempo. O el
   comentario miente o falta el límite.
