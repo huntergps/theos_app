@@ -79,16 +79,19 @@ Future<void> _pump(WidgetTester tester, Widget host, Size size) async {
 
 void main() {
   group('dónde están los cortes: los de Fluent', () {
-    // Decisión del dueño del 13-sep-2026: el carril abre con etiquetas desde
-    // 1008, como Fluent, en vez de los 1440 interpolados de la lámina.
+    // Decisión del dueño del 13-sep-2026: sin cortes propios; el menú usa
+    // PaneDisplayMode.auto (≤640 oculto, 641–1007 iconos, ≥1008 abierto).
     testWidgets('a 1920 en horizontal el carril lleva etiquetas', (
       tester,
     ) async {
       const size = Size(1920, 1080);
       await _pump(tester, _host(size), size);
-
-      final pane = tester.widget<NavigationView>(find.byType(NavigationView));
-      expect(pane.pane!.displayMode, PaneDisplayMode.expanded);
+      expect(
+        tester
+            .state<NavigationViewState>(find.byType(NavigationView))
+            .displayMode,
+        PaneDisplayMode.expanded,
+      );
       expect(find.text('Órdenes'), findsWidgets);
     });
 
@@ -97,9 +100,12 @@ void main() {
     ) async {
       const size = Size(1366, 1024);
       await _pump(tester, _host(size), size);
-
-      final view = tester.widget<NavigationView>(find.byType(NavigationView));
-      expect(view.pane!.displayMode, PaneDisplayMode.expanded);
+      expect(
+        tester
+            .state<NavigationViewState>(find.byType(NavigationView))
+            .displayMode,
+        PaneDisplayMode.expanded,
+      );
     });
 
     testWidgets('justo por debajo de 1008 en horizontal no lleva etiquetas', (
@@ -107,29 +113,36 @@ void main() {
     ) async {
       const size = Size(1000, 700);
       await _pump(tester, _host(size), size);
-
-      final view = tester.widget<NavigationView>(find.byType(NavigationView));
-      expect(view.pane!.displayMode, isNot(PaneDisplayMode.expanded));
+      expect(
+        tester
+            .state<NavigationViewState>(find.byType(NavigationView))
+            .displayMode,
+        isNot(PaneDisplayMode.expanded),
+      );
     });
 
-    // Un iPad vertical de 1024 de ancho no lleva carril, igual que el
-    // teléfono: la orientación cuenta tanto como el ancho.
-    testWidgets('en vertical no hay carril permanente, por ancho que sea', (
-      tester,
-    ) async {
+    // Fluent decide sólo por el ancho: un iPad vertical de 1024 ya pasa de
+    // 1008 y abre el menú, como en cualquier otra app de Fluent.
+    testWidgets('en vertical manda el ancho, como en Fluent', (tester) async {
       const size = Size(1024, 1366);
       await _pump(tester, _host(size), size);
-
-      final view = tester.widget<NavigationView>(find.byType(NavigationView));
-      expect(view.pane!.displayMode, PaneDisplayMode.minimal);
+      expect(
+        tester
+            .state<NavigationViewState>(find.byType(NavigationView))
+            .displayMode,
+        PaneDisplayMode.expanded,
+      );
     });
 
     testWidgets('en teléfono tampoco', (tester) async {
       const size = Size(390, 844);
       await _pump(tester, _host(size), size);
-
-      final view = tester.widget<NavigationView>(find.byType(NavigationView));
-      expect(view.pane!.displayMode, PaneDisplayMode.minimal);
+      expect(
+        tester
+            .state<NavigationViewState>(find.byType(NavigationView))
+            .displayMode,
+        PaneDisplayMode.minimal,
+      );
     });
   });
 
@@ -139,12 +152,16 @@ void main() {
     ) async {
       const size = Size(1920, 1080);
       await _pump(tester, _host(size), size);
-
-      final view = tester.widget<NavigationView>(find.byType(NavigationView));
       // La selección se cuenta sobre las entradas navegables, no sobre las
       // filas del menú: si se desplaza, se marca en azul una pantalla
       // distinta de la que se está viendo.
-      expect(view.pane!.selected, 0);
+      expect(
+        tester
+            .widget<NavigationView>(find.byType(NavigationView))
+            .pane!
+            .selected,
+        0,
+      );
       expect(find.text('Ventas'), findsWidgets);
       expect(find.text('Envases'), findsWidgets);
     });

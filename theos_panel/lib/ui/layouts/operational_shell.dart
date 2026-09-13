@@ -2,7 +2,6 @@ import 'package:fluent_ui/fluent_ui.dart';
 import 'package:orbi_runtime/orbi_runtime.dart'
     show ConnectionStatus, connectionStatusLabel;
 
-import '../../app/theme/orbi_theme.dart';
 import '../components/orbi_brand.dart';
 import 'workspace_lock_screen.dart';
 
@@ -112,12 +111,6 @@ final class OperationalShell extends StatelessWidget {
   /// una acción distinta de bloquear y de cerrar sesión.
   final VoidCallback? onSwitchUser;
 
-  /// El ancho a partir del cual el carril enseña etiquetas: 1008, el mismo
-  /// corte que usa Fluent en su modo automático. Decisión del dueño del
-  /// 13-sep-2026, que prefirió el valor de Fluent a los 1440 interpolados de
-  /// la lámina.
-  static const double _expandedBreakpoint = 1008;
-
   /// 🔴 Aquí había seis colores escritos a mano: tres para el pie y tres para
   /// el estado. Ninguno se decide ya en este fichero. Orden del dueño del
   /// 12-sep-2026: *«no tocar nada del estilo de fluent_ui, sólo escoger los
@@ -127,20 +120,6 @@ final class OperationalShell extends StatelessWidget {
   /// además los cambia solos entre tema claro y oscuro, cosa que un número
   /// escrito a mano no hace: el pie oscuro fijo se veía bien en claro y se
   /// perdía en oscuro.
-
-  PaneDisplayMode _displayMode(BoxConstraints constraints) {
-    // En vertical nunca hay carril permanente, a ningún ancho.
-    if (constraints.maxWidth < constraints.maxHeight) {
-      return PaneDisplayMode.minimal;
-    }
-    if (constraints.maxWidth >= _expandedBreakpoint) {
-      return PaneDisplayMode.expanded;
-    }
-    if (constraints.maxWidth >= OrbiTheme.mediumBreakpoint) {
-      return PaneDisplayMode.compact;
-    }
-    return PaneDisplayMode.minimal;
-  }
 
   @override
   Widget build(BuildContext buildContext) => Stack(
@@ -173,7 +152,6 @@ final class OperationalShell extends StatelessWidget {
 
   Widget _scaffold(BuildContext buildContext) => LayoutBuilder(
     builder: (layoutContext, constraints) {
-      final mode = _displayMode(constraints);
       final wideFooter =
           constraints.maxWidth >= 600 &&
           constraints.maxWidth >= constraints.maxHeight;
@@ -181,18 +159,24 @@ final class OperationalShell extends StatelessWidget {
         children: [
           Expanded(
             child: NavigationView(
-              pane: _pane(mode),
+              pane: _pane(),
               // En modo estrecho el contenido llega con su propia barra: sin
               // ella no hay NINGUNA forma de abrir el menú (ver
               // [_minimalTopBar]).
-              paneBodyBuilder: (item, _) => mode == PaneDisplayMode.minimal
-                  ? Column(
-                      children: [
-                        _minimalTopBar(),
-                        Expanded(child: child),
-                      ],
-                    )
-                  : child,
+              // El modo lo decide Fluent (`PaneDisplayMode.auto`); aquí sólo se
+              // lee el que eligió.
+              paneBodyBuilder: (item, _) => Builder(
+                builder: (context) =>
+                    NavigationView.of(context).displayMode ==
+                        PaneDisplayMode.minimal
+                    ? Column(
+                        children: [
+                          _minimalTopBar(),
+                          Expanded(child: child),
+                        ],
+                      )
+                    : child,
+              ),
             ),
           ),
           if (wideFooter)
@@ -215,16 +199,18 @@ final class OperationalShell extends StatelessWidget {
   /// En el carril de sólo iconos, Fluent enseña los hijos en un desplegable
   /// por sí solo. Eso es exactamente lo que dibuja la lámina, y no hay que
   /// escribirlo: era una de las cuatrocientas líneas que esta migración quitó.
-  NavigationPane _pane(PaneDisplayMode mode) {
+  NavigationPane _pane() {
     final grouped = _groupedDestinations();
     final ordered = [for (final entry in grouped.entries) ...entry.value];
     final selected = ordered.indexWhere((d) => d.path == selectedPath);
     final activeGroup = selected < 0 ? null : ordered[selected].group;
 
     return NavigationPane(
-      displayMode: mode,
+      // Sin cortes propios: el ancho en que el menú se oculta, se vuelve de
+      // iconos o se abre lo decide Fluent (orden del dueño, 13-sep-2026).
+      displayMode: PaneDisplayMode.auto,
       selected: selected < 0 ? null : selected,
-      header: _paneHeader(mode),
+      header: _paneHeader(),
       footerItems: _sessionActions(),
       items: [
         for (final entry in grouped.entries)
@@ -325,7 +311,7 @@ final class OperationalShell extends StatelessWidget {
   /// migración vino a quitar. Fluent la coloca, la alinea y la esconde en el
   /// carril estrecho por sí solo, donde de todas formas no cabría un nombre
   /// de empresa.
-  Widget _paneHeader(PaneDisplayMode mode) => Builder(
+  Widget _paneHeader() => Builder(
     builder: (context) => Padding(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       child: Row(
@@ -337,7 +323,8 @@ final class OperationalShell extends StatelessWidget {
           // La empresa NO se repite en estrecho: ahí ya la lleva la barra del
           // contenido, que es la que se ve sin abrir el menú. Enseñarla en los
           // dos sitios la duplicaba en pantalla.
-          if (mode != PaneDisplayMode.minimal) ...[
+          if (NavigationView.of(context).displayMode !=
+              PaneDisplayMode.minimal) ...[
             const SizedBox(width: 10),
             Tooltip(
               message: 'Empresa',
