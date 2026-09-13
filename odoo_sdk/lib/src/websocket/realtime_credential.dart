@@ -15,41 +15,77 @@ library;
 
 import '../utils/security_utils.dart';
 
-/// A short-lived session used to authenticate the real-time bus connection.
+/// A single-use ticket used to open the real-time bus session.
 ///
-/// Sent as the `session_id` query parameter on the WebSocket URL — the
-/// project module `l10n_ec_collection_box_pos` accepts `session_id` by
-/// query on its `/websocket` override.
+/// `POST /app_sync/realtime/session` (project module `l10n_ec_app_sync`)
+/// exchanges the JSON-2 API key for this ticket instead of handing back a
+/// long-lived session id directly: a 1-hour session id sent as
+/// `?session_id=` would sit in cleartext in every access log and proxy log
+/// line for the handshake (`"GET /websocket?..." `). [ticket] is only good
+/// for [expiresAt] (a handful of seconds) and exactly one handshake — the
+/// server exchanges it for the real, longer-lived session and discards it,
+/// so nothing long-lived is ever written to a log.
+///
+/// Sent as the `ticket` query parameter on the WebSocket URL, once, on
+/// every connection attempt (see [RealtimeCredentialProvider] — a ticket is
+/// never stored or reused). A used or expired ticket makes the handshake
+/// fail with HTTP 403; that is a retry-with-backoff case, never
+/// `disabled` — only a 404 on the session route means that.
 class RealtimeCredential {
-  /// Real-time session id.
-  final String sessionId;
+  /// Single-use ticket for the next WebSocket handshake.
+  final String ticket;
 
-  /// When the server stops honoring [sessionId].
+  /// When the server stops honoring [ticket] itself (a short, fixed TTL —
+  /// informational only: callers always send [ticket] immediately on the
+  /// next connection attempt and never check this before doing so).
   final DateTime expiresAt;
 
-  const RealtimeCredential({required this.sessionId, required this.expiresAt});
+  /// When the SESSION the server opens by redeeming [ticket] will expire
+  /// (≤ 1 h, never longer than the API key). This — not [expiresAt] — is
+  /// what schedules the proactive reconnect: see
+  /// [WebSocketConnectionManager]'s credential-expiry timer.
+  final DateTime sessionExpiresAt;
 
-  /// Whether [expiresAt] is already in the past.
-  bool get isExpired => DateTime.now().isAfter(expiresAt);
+  /// The bus protocol version this SPECIFIC server expects on `?version=`
+  /// (Odoo's `WebsocketConnectionHandler._VERSION`, e.g. `saas-19.5-1`) —
+  /// it changes with every Odoo series, so the SDK cannot hardcode it. A
+  /// mismatch gets the socket closed CLEANLY with reason `OUTDATED_VERSION`
+  /// (measured against ERP2 19.5, 13-sep-2026: the SDK's own hardcoded
+  /// `19.0-2` default never matched).
+  ///
+  /// `null` when the session route does not report it yet (an older server
+  /// module) — [WebSocketConnectionManager] then falls back to
+  /// [WebSocketModelRegistry.wsVersion].
+  final String? websocketVersion;
 
-  /// SEC-01: never expose [sessionId] in logs, error messages or crash
+  const RealtimeCredential({
+    required this.ticket,
+    required this.expiresAt,
+    required this.sessionExpiresAt,
+    this.websocketVersion,
+  });
+
+  /// Whether [sessionExpiresAt] is already in the past.
+  bool get isExpired => DateTime.now().isAfter(sessionExpiresAt);
+
+  /// SEC-01: never expose [ticket] in logs, error messages or crash
   /// reports.
   @override
   String toString() =>
-      'RealtimeCredential(sessionId: ${CredentialMasker.hide(sessionId)}, '
-      'expiresAt: $expiresAt)';
+      'RealtimeCredential(ticket: ${CredentialMasker.hide(ticket)}, '
+      'expiresAt: $expiresAt, sessionExpiresAt: $sessionExpiresAt)';
 }
 
 /// Fetches a fresh [RealtimeCredential].
 ///
-/// Called:
+/// Called on EVERY connection attempt — never cached, never reused:
 /// - once, right before the first connection attempt;
 /// - again on every reconnection (network drop, server error, manual
-///   reconnect after a server switch);
+///   reconnect after a server switch, a 403 from a used/expired ticket);
 /// - again proactively when the previously-issued credential's
-///   [RealtimeCredential.expiresAt] is reached, so the socket renews itself
-///   before the server drops it.
+///   [RealtimeCredential.sessionExpiresAt] is reached, so the socket renews
+///   itself before the server drops it.
 ///
 /// Consumers (orbi_runtime) implement this against the project route that
-/// mints a real-time-only session from a JSON-2 API key.
+/// mints a real-time-only ticket from a JSON-2 API key.
 typedef RealtimeCredentialProvider = Future<RealtimeCredential> Function();

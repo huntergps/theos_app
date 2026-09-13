@@ -55,6 +55,20 @@ class WebSocketChannelManager {
   }
 
   /// Sends a subscription message for the given channels.
+  ///
+  /// `check_outdated` is a REQUIRED key for the server's `ir.websocket.
+  /// _subscribe` (Odoo 19.5: `KeyError: 'check_outdated'` without it, on
+  /// every single subscribe — measured against ERP2, 13-sep-2026). Set only
+  /// when [lastNotificationId] is a genuinely known cursor (never `0`, the
+  /// codebase's existing "never synced" sentinel — see
+  /// `OdooWebSocketConnectionInfo.initialLast`) AND this is the first
+  /// subscribe of this connection (`subscribedChannels` still empty) —
+  /// replicates the official worker's `minId !== null &&
+  /// !this.lastChannelSubscription`
+  /// (`bus/static/src/workers/websocket_worker.js`). Only then does it make
+  /// sense to ask the server "does my last id still exist" — a later
+  /// subscribe on the same connection, or one with no prior cursor at all,
+  /// has nothing meaningful to check.
   Future<void> subscribeToChannels(
     List<String> channels,
     WebSocketConnectionManager connection, {
@@ -62,11 +76,16 @@ class WebSocketChannelManager {
   }) async {
     if (!connection.isConnected || connection.channel == null) return;
 
+    final checkOutdated = lastNotificationId != 0 && subscribedChannels.isEmpty;
     subscribedChannels.addAll(channels);
 
     final message = {
       'event_name': 'subscribe',
-      'data': {'channels': channels, 'last': lastNotificationId},
+      'data': {
+        'channels': channels,
+        'check_outdated': checkOutdated,
+        'last': lastNotificationId,
+      },
     };
 
     try {

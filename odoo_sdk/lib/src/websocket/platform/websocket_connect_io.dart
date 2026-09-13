@@ -5,7 +5,7 @@ import 'package:web_socket_channel/io.dart';
 ///
 /// No `Authorization` header: Odoo's `/websocket` bus route does not accept
 /// a JSON-2 Bearer token (measured against ERP2, it closes with 4001) — the
-/// caller is identified by the `session_id` query parameter that
+/// caller is identified by the single-use `ticket` query parameter that
 /// [WebSocketConnectionManager] puts on the URL instead. Extracted as a
 /// pure function so it can be unit-tested without opening a real socket.
 Map<String, String> buildRealtimeSocketHeaders(String baseUrl, {String? database}) {

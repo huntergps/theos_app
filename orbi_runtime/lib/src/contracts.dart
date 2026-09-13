@@ -265,8 +265,18 @@ final class SyncSnapshot {
 }
 
 final class SyncReason {
-  SyncReason(String code) : code = _required(code, 'code');
+  SyncReason(String code, {Set<String>? onlyJobIds})
+    : code = _required(code, 'code'),
+      onlyJobIds = onlyJobIds == null ? null : Set.unmodifiable(onlyJobIds);
   final String code;
+
+  /// Cuando no es `null`, sólo los `SyncJob` con estos ids deben correr en el
+  /// próximo drenaje que atienda esta razón — lo usa el puente de tiempo real
+  /// (`RealtimeSyncCoordinator`) para refrescar sólo el catálogo que avisó un
+  /// cambio, sin arrastrar a los demás. `null` (el caso de siempre, y el de
+  /// cualquier llamador anterior a esto) sigue significando «todos los
+  /// trabajos» — ver `SyncCoordinatorImpl._mergePendingJobIds`.
+  final Set<String>? onlyJobIds;
 }
 
 final class PauseReason {

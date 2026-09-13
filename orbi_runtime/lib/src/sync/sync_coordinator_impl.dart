@@ -39,6 +39,13 @@ final class SyncCoordinatorImpl implements SyncCoordinator {
   Future<void>? _drain;
   BackendProbeResult? lastProbe;
 
+  /// Restricción de ids acumulada para el próximo drenaje que atienda una
+  /// petición pendiente. `null` significa «todos los trabajos» (el
+  /// comportamiento de siempre); un conjunto no vacío restringe ese drenaje a
+  /// justo esos ids — ver [SyncReason.onlyJobIds]. Sólo tiene sentido
+  /// mientras [_pending] es `true`; se descarta al arrancar cada drenaje.
+  Set<String>? _pendingJobIds;
+
   SyncSnapshot get snapshot => _snapshot;
   Stream<SyncSnapshot> get snapshots => _snapshots.stream;
   bool get isPaused => _paused;
@@ -56,12 +63,31 @@ final class SyncCoordinatorImpl implements SyncCoordinator {
   @override
   Future<void> requestSync(SyncReason reason) async {
     if (_scope == null) return;
+    _mergePendingJobIds(reason.onlyJobIds);
     if (_paused || _drain != null) {
       _pending = true;
       return;
     }
     _pending = true;
     await _drainUntilIdle();
+  }
+
+  /// Acumula la restricción de ids de la petición entrante sobre la que ya
+  /// estuviera pendiente. Si no había ninguna pendiente, la petición entrante
+  /// define la restricción desde cero. `null` (sin restricción, «todos los
+  /// trabajos») absorbe cualquier restricción previa: una vez que un drenaje
+  /// pendiente pide «todos», sigue pidiendo «todos» aunque llegue después
+  /// una petición más angosta.
+  void _mergePendingJobIds(Set<String>? ids) {
+    if (!_pending) {
+      _pendingJobIds = ids == null ? null : {...ids};
+      return;
+    }
+    if (ids == null || _pendingJobIds == null) {
+      _pendingJobIds = null;
+    } else {
+      _pendingJobIds = {..._pendingJobIds!, ...ids};
+    }
   }
 
   @override
@@ -104,6 +130,8 @@ final class SyncCoordinatorImpl implements SyncCoordinator {
   Future<void> _drainOnce() async {
     if (_paused || !_pending || _scope == null) return;
     _pending = false;
+    final jobIds = _pendingJobIds;
+    _pendingJobIds = null;
     final scope = _scope!;
     final epoch = _epoch;
     _publish(_snapshotFor(active: true));
@@ -156,7 +184,10 @@ final class SyncCoordinatorImpl implements SyncCoordinator {
     // `SyncSnapshot.conflictCount` nunca se movía del cero inicial.
     final conflicts = <SyncConflict>[];
     _publish(_snapshotFor(active: true));
-    for (final job in _jobs) {
+    final jobsToRun = jobIds == null
+        ? _jobs
+        : _jobs.where((job) => jobIds.contains(job.id)).toList(growable: false);
+    for (final job in jobsToRun) {
       if (!_isCurrent(scope, epoch)) return;
       try {
         final result = await job.run(scope);

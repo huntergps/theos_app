@@ -89,7 +89,7 @@ class OdooWebSocketConnectionInfo {
 
   /// The WebSocket URL derived from baseUrl (scheme/host/port only — the
   /// real connect flow in [WebSocketConnectionManager] appends `?version=`
-  /// and `&session_id=` on top of this).
+  /// and `&ticket=` on top of this).
   String get websocketUrl {
     final uri = Uri.parse(baseUrl);
     final wsScheme = uri.scheme == 'https' ? 'wss' : 'ws';
@@ -127,7 +127,7 @@ class OdooWebSocketConnectionInfo {
   ///
   /// [realtimeCredentialProvider] is a function reference, never a raw
   /// credential value, so there is nothing here to mask: the actual
-  /// [RealtimeCredential] it returns masks its own `sessionId` in its
+  /// [RealtimeCredential] it returns masks its own `ticket` in its
   /// `toString()`.
   @override
   String toString() {
@@ -445,6 +445,21 @@ class OdooWebSocketService {
 
   /// Handle disconnection
   void _onDisconnected() {
+    // Un cierre LIMPIO con esta razón significa que el `?version=` que
+    // mandamos no coincide con el de este servidor — medido contra ERP2
+    // 19.5. El estado sigue el camino genérico de abajo (retrying, con
+    // reintento normal, nunca `disabled`: la próxima credencial puede traer
+    // la versión corregida, ver `RealtimeCredential.websocketVersion`);
+    // esto sólo lo hace diagnosticable en el log en vez de verse como un
+    // corte de red cualquiera.
+    if (_connection.channel?.closeReason == 'OUTDATED_VERSION') {
+      logger.w(
+        '[OdooWebSocket]',
+        'Socket cerrado por el servidor: versión de protocolo del bus '
+            'desactualizada (OUTDATED_VERSION). Reintentando con la versión '
+            'que traiga la próxima credencial.',
+      );
+    }
     _connection.isConnected = false;
     _emitEvent(OdooConnectionEvent(isConnected: false));
     _heartbeat.stop();

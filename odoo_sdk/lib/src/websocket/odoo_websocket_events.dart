@@ -224,6 +224,42 @@ final class OdooCatalogEvent extends OdooWebSocketEvent {
 }
 
 // ============================================================================
+// INTERNAL WORKER MESSAGES (server → client, `subscribe` bookkeeping)
+// ============================================================================
+//
+// Odoo's bus dispatches these as a distinct wire shape — a top-level item
+// with `internal: true`, never wrapped in `message`/`id` like a real
+// notification (see `bus/websocket.py:send_worker_internal_message` and the
+// official worker's `_onWebsocketMessage`, which branches on
+// `message.internal` BEFORE treating anything as a notification). They only
+// ever follow a `subscribe` the client just sent.
+
+/// The `last` id the client sent on `subscribe` no longer exists in
+/// `bus.bus` (`ir_websocket.py: _subscribe`, `check_outdated`): notifications
+/// may have been missed while disconnected or between subscriptions. The
+/// only correct recovery is a full incremental pass of everything this
+/// client tracks, exactly as after a reconnection — see
+/// `RealtimeSyncCoordinator`.
+final class OdooSubscriptionOutdatedEvent extends OdooWebSocketEvent {
+  @override
+  String toString() => 'OdooSubscriptionOutdatedEvent()';
+}
+
+/// The server corrected the `last` the client sent on `subscribe` (missing,
+/// invalid, or ahead of the server's own last id — `ir_websocket.py:
+/// _prepare_subscribe_data`) to [lastNotificationId]. The client's cursor
+/// must adopt this value so the next `subscribe` carries the value the
+/// server actually agreed on, not a stale one.
+final class OdooLastIdResetEvent extends OdooWebSocketEvent {
+  final int lastNotificationId;
+
+  OdooLastIdResetEvent(this.lastNotificationId);
+
+  @override
+  String toString() => 'OdooLastIdResetEvent(lastNotificationId: $lastNotificationId)';
+}
+
+// ============================================================================
 // RAW NOTIFICATION EVENT (for unhandled types)
 // ============================================================================
 

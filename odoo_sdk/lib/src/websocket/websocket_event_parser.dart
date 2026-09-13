@@ -47,6 +47,10 @@ class WebSocketEventParser {
       if (data is List) {
         for (final item in data) {
           if (item is Map<String, dynamic>) {
+            if (item['internal'] == true) {
+              _processInternalMessage(item, onEvent: onEvent);
+              continue;
+            }
             final notification = _processNotificationItem(
               item,
               onEvent: onEvent,
@@ -55,14 +59,39 @@ class WebSocketEventParser {
           }
         }
       } else if (data is Map<String, dynamic>) {
-        final notification = _processNotificationItem(data, onEvent: onEvent);
-        if (notification != null) notifications.add(notification);
+        if (data['internal'] == true) {
+          _processInternalMessage(data, onEvent: onEvent);
+        } else {
+          final notification = _processNotificationItem(data, onEvent: onEvent);
+          if (notification != null) notifications.add(notification);
+        }
       }
     } catch (e) {
       logger.e('[OdooWebSocket]', 'Error parsing message: $e');
     }
 
     return notifications;
+  }
+
+  /// Handles a `subscribe`-bookkeeping message from the server (`internal:
+  /// true` — never a real notification, so it never touches
+  /// [lastNotification] and is never counted towards [parseMessage]'s
+  /// returned list). See `odoo_websocket_events.dart` for the wire shape and
+  /// where each type comes from server-side.
+  void _processInternalMessage(
+    Map<String, dynamic> item, {
+    required void Function(OdooWebSocketEvent) onEvent,
+  }) {
+    switch (item['type']) {
+      case 'bus/subscription_outdated':
+        onEvent(OdooSubscriptionOutdatedEvent());
+      case 'bus/last_id_reset':
+        final newId = item['payload'];
+        if (newId is int) {
+          _lastNotificationId = newId;
+          onEvent(OdooLastIdResetEvent(newId));
+        }
+    }
   }
 
   /// Process a single notification item from the WebSocket message.

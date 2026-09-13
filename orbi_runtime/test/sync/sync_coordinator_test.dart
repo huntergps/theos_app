@@ -198,6 +198,73 @@ void main() {
     await coordinator.dispose();
   });
 
+  // Soporte para el puente de tiempo real (RealtimeSyncCoordinator): un
+  // aviso `app_sync/changed` de un solo modelo debe poder pedir SÓLO el
+  // catálogo afectado, sin arrastrar a los demás — ver SyncReason.onlyJobIds.
+  test('requestSync con onlyJobIds sólo corre esos trabajos', () async {
+    final ranJobs = <String>[];
+    final coordinator = SyncCoordinatorImpl(
+      jobs: [
+        _Job('catalog', (_) async {
+          ranJobs.add('catalog');
+          return const SyncJobResult.committed();
+        }),
+        _Job('operations', (_) async {
+          ranJobs.add('operations');
+          return const SyncJobResult.committed();
+        }),
+      ],
+    );
+    await coordinator.start(scope(1));
+    ranJobs.clear();
+    await coordinator.requestSync(
+      SyncReason('realtime:changed', onlyJobIds: {'catalog'}),
+    );
+    expect(ranJobs, ['catalog']);
+    await coordinator.dispose();
+  });
+
+  test(
+    'una petición sin restricción ensancha una restricción ya pendiente a todos los trabajos',
+    () async {
+      final ranJobs = <String>[];
+      final release = Completer<void>();
+      var firstCatalogRun = true;
+      final coordinator = SyncCoordinatorImpl(
+        jobs: [
+          _Job('catalog', (_) async {
+            if (firstCatalogRun) {
+              firstCatalogRun = false;
+              await release.future;
+            }
+            ranJobs.add('catalog');
+            return const SyncJobResult.committed();
+          }),
+          _Job('operations', (_) async {
+            ranJobs.add('operations');
+            return const SyncJobResult.committed();
+          }),
+        ],
+      );
+      final initial = coordinator.start(scope(1));
+      await Future<void>.delayed(Duration.zero);
+      // El drenaje de start() está bloqueado dentro de 'catalog'. Mientras
+      // tanto llegan dos peticiones: una restringida y luego una sin
+      // restricción — la segunda debe ensanchar a "todos" el drenaje que
+      // ambas coalescen.
+      final restricted = coordinator.requestSync(
+        SyncReason('r1', onlyJobIds: {'catalog'}),
+      );
+      final full = coordinator.requestSync(SyncReason('r2'));
+      release.complete();
+      await Future.wait([initial, restricted, full]);
+
+      expect(ranJobs.where((j) => j == 'catalog').length, 2);
+      expect(ranJobs.where((j) => j == 'operations').length, 2);
+      await coordinator.dispose();
+    },
+  );
+
   test('job IDs must be non-empty and unique', () {
     expect(
       () => SyncCoordinatorImpl(

@@ -51,6 +51,11 @@ export 'src/sync/sync_job.dart';
 export 'src/sync/operations_sync_job.dart';
 export 'src/sync/sync_auto_resync_trigger.dart';
 
+export 'src/realtime/realtime_status.dart';
+export 'src/realtime/realtime_session_client.dart';
+export 'src/realtime/realtime_change_debouncer.dart';
+export 'src/realtime/realtime_sync_coordinator.dart';
+
 export 'package:odoo_sdk/odoo_sdk.dart'
     show
         OdooClient,

@@ -4,7 +4,7 @@ import 'package:web_socket_channel/web_socket_channel.dart';
 ///
 /// The browser controls the `Origin` header and does not let us set custom
 /// ones on a WebSocket handshake, so authentication travels entirely in the
-/// URL's `session_id` query parameter that [WebSocketConnectionManager]
+/// URL's single-use `ticket` query parameter that [WebSocketConnectionManager]
 /// already built into [uri] — there is no `Authorization` header to send
 /// here either way.
 Future<WebSocketChannel> createWebSocketChannel(

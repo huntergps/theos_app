@@ -175,6 +175,51 @@ void main() {
     });
   });
 
+  group('D — internal worker messages (subscribe bookkeeping)', () {
+    test(
+      'bus/subscription_outdated emits OdooSubscriptionOutdatedEvent, never a notification',
+      () {
+        final events = <OdooWebSocketEvent>[];
+        final notifications = parser.parseMessage(
+          jsonEncode([
+            {'type': 'bus/subscription_outdated', 'internal': true, 'payload': null},
+          ]),
+          onEvent: events.add,
+        );
+
+        expect(events.whereType<OdooSubscriptionOutdatedEvent>(), hasLength(1));
+        expect(
+          notifications,
+          isEmpty,
+          reason: 'un mensaje interno no es una notificación real',
+        );
+      },
+    );
+
+    test(
+      'bus/last_id_reset emits OdooLastIdResetEvent and adopts the corrected id',
+      () {
+        final events = <OdooWebSocketEvent>[];
+        parser.seedLastNotificationId(5);
+
+        parser.parseMessage(
+          jsonEncode([
+            {'type': 'bus/last_id_reset', 'internal': true, 'payload': 99},
+          ]),
+          onEvent: events.add,
+        );
+
+        final resetEvent = events.whereType<OdooLastIdResetEvent>().single;
+        expect(resetEvent.lastNotificationId, equals(99));
+        expect(
+          parser.lastNotificationId,
+          equals(99),
+          reason: 'el cursor local debe adoptar el id que el servidor corrigió',
+        );
+      },
+    );
+  });
+
   group('seedLastNotificationId', () {
     test('seeds the initial last, then live messages advance it', () {
       expect(parser.lastNotificationId, equals(0));

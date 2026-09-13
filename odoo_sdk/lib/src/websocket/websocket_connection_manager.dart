@@ -63,9 +63,11 @@ class WebSocketConnectionManager {
   /// Fetches a fresh [RealtimeCredential] from
   /// [OdooWebSocketConnectionInfo.realtimeCredentialProvider] on every call
   /// — first connect, every reconnection, and every credential renewal all
-  /// go through here — and authenticates the bus with `?session_id=`
-  /// instead of a JSON-2 Bearer token (Odoo's bus route does not accept
-  /// one; it identifies the caller by session).
+  /// go through here, and the ticket it returns is used exactly once — and
+  /// authenticates the bus with `?ticket=` instead of a JSON-2 Bearer token
+  /// (Odoo's bus route does not accept one; it identifies the caller by
+  /// session, and the server exchanges this single-use ticket for that
+  /// session during the handshake).
   ///
   /// Returns the created [WebSocketChannel] on success.
   /// Throws on connection failure.
@@ -99,7 +101,14 @@ class WebSocketConnectionManager {
     final shouldIncludePort =
         baseUri.hasPort && port != (wsScheme == 'wss' ? 443 : 80);
 
-    final wsVersion = WebSocketModelRegistry.instance.wsVersion;
+    // El protocolo del bus cambia con cada serie de Odoo (medido contra
+    // ERP2 19.5: el valor fijo de la librería nunca coincidía, y el
+    // servidor cierra LIMPIO con `OUTDATED_VERSION` cuando no coincide).
+    // El servidor lo informa junto al ticket cuando ya lo sabe; si no
+    // (módulo de servidor más viejo, sin ese campo), se usa el valor por
+    // omisión de la librería.
+    final wsVersion =
+        credential.websocketVersion ?? WebSocketModelRegistry.instance.wsVersion;
     final host = shouldIncludePort
         ? '${baseUri.host}:$port'
         : baseUri.host;
@@ -111,14 +120,14 @@ class WebSocketConnectionManager {
       path: '/websocket',
       queryParameters: {
         'version': wsVersion,
-        'session_id': credential.sessionId,
+        'ticket': credential.ticket,
       },
     );
     connectionUrl = '$wsScheme://$host/websocket?version=$wsVersion';
 
     // Create WebSocket connection using platform-specific implementation.
     // No Authorization header is sent: the bus identifies the caller by
-    // the `session_id` query parameter above.
+    // the single-use `ticket` query parameter above.
     channel = await _channelFactory(uri, baseUrl, database: database);
 
     // Listen to messages
@@ -138,14 +147,15 @@ class WebSocketConnectionManager {
   }
 
   /// Schedules [onExpired] to run when [credential] reaches its
-  /// `expiresAt`, so the caller can reconnect and fetch a fresh one before
-  /// the server drops the socket.
+  /// `sessionExpiresAt` — the SESSION opened by redeeming the ticket, not
+  /// the ticket's own short TTL — so the caller can reconnect and fetch a
+  /// fresh ticket before the server drops the socket.
   void _scheduleCredentialExpiry(
     RealtimeCredential credential,
     void Function() onExpired,
   ) {
     _credentialExpiryTimer?.cancel();
-    final remaining = credential.expiresAt.difference(DateTime.now());
+    final remaining = credential.sessionExpiresAt.difference(DateTime.now());
     _credentialExpiryTimer = Timer(
       remaining.isNegative ? Duration.zero : remaining,
       onExpired,

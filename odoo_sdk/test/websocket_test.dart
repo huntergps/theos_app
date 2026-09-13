@@ -10,8 +10,9 @@ import 'package:odoo_sdk/odoo_sdk.dart';
 /// [OdooWebSocketConnectionInfo] built in this file. A plain top-level
 /// function reference so it stays usable inside `const` constructors.
 Future<RealtimeCredential> _fakeRealtimeCredential() async => RealtimeCredential(
-  sessionId: 'test-session-id',
-  expiresAt: DateTime.now().add(const Duration(minutes: 5)),
+  ticket: 'test-ticket',
+  expiresAt: DateTime.now().add(const Duration(seconds: 30)),
+  sessionExpiresAt: DateTime.now().add(const Duration(minutes: 5)),
 );
 
 // =============================================================================
@@ -625,6 +626,10 @@ void main() {
             events.add('withhold:${e.orderId}');
           case OdooRawNotificationEvent e:
             events.add('raw:${e.type}');
+          case OdooSubscriptionOutdatedEvent _:
+            events.add('subscription_outdated');
+          case OdooLastIdResetEvent e:
+            events.add('last_id_reset:${e.lastNotificationId}');
         }
       }
 
