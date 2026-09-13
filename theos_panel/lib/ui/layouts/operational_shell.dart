@@ -3,7 +3,7 @@ import 'dart:math';
 
 import 'package:fluent_ui/fluent_ui.dart';
 import 'package:orbi_runtime/orbi_runtime.dart'
-    show ConnectionStatus, connectionStatusLabel;
+    show ConnectionStatus, OdooPresence, connectionStatusLabel;
 
 import '../../app/theme/orbi_theme.dart';
 import '../components/orbi_brand.dart';
@@ -154,6 +154,8 @@ final class OperationalShell extends StatefulWidget {
     this.navigationIndicator = const StickyNavigationIndicator(),
     this.clockTickInterval = const Duration(seconds: 1),
     this.now = DateTime.now,
+    this.presence,
+    this.onPresenceChanged,
   }) : assert(
          onLock == null || onUnlock != null,
          'onUnlock is required whenever onLock is provided: a shell that '
@@ -219,6 +221,18 @@ final class OperationalShell extends StatefulWidget {
   /// depender de que pase un segundo de verdad.
   @visibleForTesting
   final DateTime Function() now;
+
+  /// El estado de presencia del usuario (`res.users.manual_im_status`,
+  /// `False`→`OdooPresence.online`). `null` cuando no se conoce todavía —
+  /// nunca se pinta un punto adivinado. Quien instancie este marco
+  /// (`router.dart`) es responsable de leerlo; este widget sólo lo muestra.
+  final OdooPresence? presence;
+
+  /// Cambia la presencia. `null` esconde el submenú «Estado» por completo
+  /// — es el caso de un servidor sin `mobile_set_im_status`
+  /// (`l10n_ec_collection_box_pos/models/res_users.py:253-283`), donde
+  /// ofrecerlo sería un control que nunca responde.
+  final ValueChanged<OdooPresence>? onPresenceChanged;
 
   /// 🔴 Aquí había seis colores escritos a mano: tres para el pie y tres para
   /// el estado. Ninguno se decide ya en este fichero. Orden del dueño del
@@ -460,6 +474,8 @@ class _OperationalShellState extends State<OperationalShell> {
             onLock: widget.onLock,
             onSwitchUser: widget.onSwitchUser,
             onLogout: widget.onLogout,
+            presence: widget.presence,
+            onPresenceChanged: widget.onPresenceChanged,
           ),
         ],
       ),
@@ -955,20 +971,14 @@ class _ConnectivityPill extends StatelessWidget {
 /// en el pie del panel, y Bloquear/Cambiar de usuario/Cerrar sesión que eran
 /// `PaneItemAction` del mismo pie (orden del dueño, 13-sep-2026, comparando
 /// con `theos_pos`: ver `theos_pos/lib/shared/screens/main_screen.dart`,
-/// `_UserAvatarMenu`). No hay foto ni estado de presencia: `OperationalContext`
-/// no trae ninguno de los dos, y no se inventa ninguno aquí.
+/// `_UserAvatarMenu`). Sin foto de perfil todavía: `OperationalContext` no
+/// trae ninguna, y no se inventa una aquí.
 ///
-/// La presencia (En línea/Ausente/No molestar) que sí tiene `theos_pos` NO se
-/// replica: `res.users.manual_im_status` no es un campo `user_writeable` en
-/// Odoo 20 (`dev_odoo20/odoo/addons/mail/models/res_users.py:66-69`), y
-/// `res.users._has_field_access` exige sudo o el grupo «Access Rights» para
-/// escribir cualquier campo del propio usuario que no lleve esa marca
-/// (`dev_odoo20/odoo/odoo/addons/base/models/res_users.py:588-598`). El único
-/// camino que Odoo ofrece para cambiarla es el controlador de sesión web
-/// `/mail/set_manual_im_status` (`dev_odoo20/odoo/addons/mail/controllers/im_status.py:9-13`,
-/// `auth="user"`, cookie de sesión) — no el `/json/2/<modelo>/<método>` con
-/// Bearer que usa todo este cliente. Ponerla aquí sería un menú de adorno
-/// para cualquier vendedor que no sea administrador.
+/// La presencia (En línea/Ausente/No molestar/Desconectado) sí se replica,
+/// igual que en `theos_pos`: `mobile_set_im_status`
+/// (`l10n_ec_collection_box_pos/models/res_users.py:253-283`) es un método
+/// custom del proyecto, accesible por JSON-2 con Bearer — el camino web con
+/// cookie de sesión no es el único, sólo el que trae el core de Odoo.
 class _UserAvatarMenu extends StatefulWidget {
   const _UserAvatarMenu({
     required this.userLabel,
@@ -978,6 +988,8 @@ class _UserAvatarMenu extends StatefulWidget {
     required this.onLogout,
     this.onLock,
     this.onSwitchUser,
+    this.presence,
+    this.onPresenceChanged,
   });
 
   final String userLabel;
@@ -991,6 +1003,8 @@ class _UserAvatarMenu extends StatefulWidget {
   final VoidCallback onLogout;
   final VoidCallback? onLock;
   final VoidCallback? onSwitchUser;
+  final OdooPresence? presence;
+  final ValueChanged<OdooPresence>? onPresenceChanged;
 
   @override
   State<_UserAvatarMenu> createState() => _UserAvatarMenuState();
@@ -998,6 +1012,28 @@ class _UserAvatarMenu extends StatefulWidget {
 
 class _UserAvatarMenuState extends State<_UserAvatarMenu> {
   final _controller = FlyoutController();
+
+  /// Copia local para el cambio optimista: al elegir un estado en el
+  /// submenú, el punto del avatar cambia en el acto, sin esperar a que
+  /// `router.dart` reciba la confirmación del servidor y reconstruya este
+  /// widget con la presencia real. [didUpdateWidget] la resincroniza cuando
+  /// [OperationalShell.presence] sí cambia por fuera (la respuesta llegó,
+  /// u otra pestaña/dispositivo cambió el estado).
+  OdooPresence? _optimisticPresence;
+
+  @override
+  void initState() {
+    super.initState();
+    _optimisticPresence = widget.presence;
+  }
+
+  @override
+  void didUpdateWidget(_UserAvatarMenu oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.presence != widget.presence) {
+      _optimisticPresence = widget.presence;
+    }
+  }
 
   @override
   void dispose() {
@@ -1068,21 +1104,47 @@ class _UserAvatarMenuState extends State<_UserAvatarMenu> {
               ),
               const SizedBox(width: 8),
             ],
-            Container(
-              width: 32,
-              height: 32,
-              decoration: BoxDecoration(
-                color: _initialsColor(widget.userLabel),
-                borderRadius: BorderRadius.circular(4),
-              ),
-              alignment: Alignment.center,
-              child: Text(
-                initial,
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontWeight: FontWeight.bold,
+            Stack(
+              clipBehavior: Clip.none,
+              children: [
+                Container(
+                  width: 32,
+                  height: 32,
+                  decoration: BoxDecoration(
+                    color: _initialsColor(widget.userLabel),
+                    borderRadius: BorderRadius.circular(4),
+                  ),
+                  alignment: Alignment.center,
+                  child: Text(
+                    initial,
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
                 ),
-              ),
+                // Sin punto cuando la presencia no se conoce todavía — nunca
+                // uno adivinado (mismo criterio que `_badgedIcon`: nada de
+                // adorno sin un dato real detrás).
+                if (_optimisticPresence != null)
+                  Positioned(
+                    bottom: -2,
+                    right: -2,
+                    child: Container(
+                      key: const Key('shell-presence-dot'),
+                      width: 12,
+                      height: 12,
+                      decoration: BoxDecoration(
+                        color: _presenceColor(context, _optimisticPresence!),
+                        shape: BoxShape.circle,
+                        border: Border.all(
+                          color: FluentTheme.of(context).scaffoldBackgroundColor,
+                          width: 2,
+                        ),
+                      ),
+                    ),
+                  ),
+              ],
             ),
           ],
         ),
@@ -1121,6 +1183,53 @@ class _UserAvatarMenuState extends State<_UserAvatarMenu> {
       dismissOnPointerMoveAway: false,
       builder: (context) => MenuFlyout(
         items: [
+          // Ausente si `onPresenceChanged` es nulo: un servidor sin
+          // `mobile_set_im_status` (falta, por ejemplo, en Mepriga) no debe
+          // ofrecer un control que nunca va a responder.
+          if (widget.onPresenceChanged != null)
+            MenuFlyoutSubItem(
+              key: const Key('shell-presence-submenu'),
+              text: const Text('Estado'),
+              leading: Icon(
+                FluentIcons.status_circle_outer,
+                color: _optimisticPresence == null
+                    ? FluentTheme.of(context).inactiveColor
+                    : _presenceColor(context, _optimisticPresence!),
+                size: 14,
+              ),
+              items: (context) => OdooPresence.values.map((status) {
+                final isSelected = _optimisticPresence == status;
+                return MenuFlyoutItem(
+                  key: Key('shell-presence-option-${status.name}'),
+                  leading: Icon(
+                    FluentIcons.status_circle_outer,
+                    color: _presenceColor(context, status),
+                    size: 14,
+                  ),
+                  text: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      if (isSelected)
+                        const Padding(
+                          padding: EdgeInsets.only(right: 4),
+                          child: Icon(FluentIcons.check_mark, size: 12),
+                        )
+                      else
+                        const SizedBox(width: 16),
+                      Text(_presenceLabel(status)),
+                    ],
+                  ),
+                  closeAfterClick: false,
+                  onPressed: _closeThenRun(() {
+                    // Cambio optimista: el punto del avatar responde ya,
+                    // sin esperar la vuelta del servidor. El guardado y la
+                    // cola son responsabilidad de quien nos instancie.
+                    setState(() => _optimisticPresence = status);
+                    widget.onPresenceChanged!(status);
+                  }),
+                );
+              }).toList(),
+            ),
           MenuFlyoutItem(
             key: const Key('shell-preferences-item'),
             leading: const Icon(FluentIcons.settings),
@@ -1236,6 +1345,36 @@ String _formatLocalClock(DateTime t) {
   String two(int n) => n.toString().padLeft(2, '0');
   return '${two(t.day)}/${two(t.month)}/${t.year} '
       '${two(t.hour)}:${two(t.minute)}:${two(t.second)}';
+}
+
+/// Etiquetas del submenú «Estado» y del punto del avatar. Las mismas cuatro
+/// de `theos_pos` (`theos_pos/lib/shared/models/im_status.dart:17,19,21,23`)
+/// y de Odoo web — no un nombre propio de Orbi: es la palabra que el usuario
+/// ya reconoce de ahí.
+String _presenceLabel(OdooPresence presence) => switch (presence) {
+  OdooPresence.online => 'En línea',
+  OdooPresence.away => 'Ausente',
+  OdooPresence.busy => 'No molestar',
+  OdooPresence.offline => 'Desconectado',
+};
+
+/// Tokens de Fluent, nunca hex literales — a diferencia de `theos_pos`
+/// (`shared/models/im_status.dart`), que fija `AppColors.success`
+/// (`0xFF28A745`), `.warning` (`0xFFFFC800`) y `.danger` (`0xFFDC3545`) a
+/// mano, más un gris (`0xFF6C757D`, alfa .75) para desconectado. Mapeo al
+/// token más cercano: los tres primeros son exactamente los mismos
+/// `resources` de significado que ya usa el pie
+/// (`_OperationalShellState._statusColorForStatus`); `Colors.grey` es el
+/// nombrado de `fluent_ui` para el cuarto — `ResourceDictionary` no trae un
+/// tono semántico de "desconectado".
+Color _presenceColor(BuildContext context, OdooPresence presence) {
+  final r = FluentTheme.of(context).resources;
+  return switch (presence) {
+    OdooPresence.online => r.systemFillColorSuccess,
+    OdooPresence.away => r.systemFillColorCaution,
+    OdooPresence.busy => r.systemFillColorCritical,
+    OdooPresence.offline => Colors.grey,
+  };
 }
 
 const appShellHeaderHeight = 50.0;
