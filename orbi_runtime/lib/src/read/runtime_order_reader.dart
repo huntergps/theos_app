@@ -8,6 +8,12 @@ import '../session/session_runtime.dart';
 final class RuntimeLocalOrderReader {
   static final Expando<Future<void>> _remoteContractProbes =
       Expando<Future<void>>('orbi_runtime_order_contract_probes');
+  // Cached independently from the base probe above: it must only ever run
+  // for a client whose session actually holds the `cashier` capability, and
+  // a client that started without it must still probe it the first time a
+  // caller later passes `canReadCollectionPayments: true`.
+  static final Expando<Future<void>> _collectionPaymentContractProbes =
+      Expando<Future<void>>('orbi_runtime_collection_payment_contract_probes');
 
   RuntimeLocalOrderReader(this.sessions);
   final SessionRuntime sessions;
@@ -178,7 +184,16 @@ final class RuntimeLocalOrderReader {
 
   /// Pulls the remote query pages and commits only canonical summary fields.
   /// Unsynced local work is never overwritten by this refresh.
-  Future<void> refreshOnline(core.OrderQuery query, {int limit = 50}) async {
+  Future<void> refreshOnline(
+    core.OrderQuery query, {
+    int limit = 50,
+    // `l10n_ec_collection_box.sale.order.payment` is only readable by the
+    // Cajero/Supervisor de Caja groups. Callers must pass the session's own
+    // `cashier` capability here; the default is "no", never "try and see" —
+    // Odoo already answers a plain seller's request with a 403, and this
+    // reader must not ask for what the session cannot read.
+    bool canReadCollectionPayments = false,
+  }) async {
     final active = sessions.active;
     if (active == null || active.client == null) {
       throw StateError('online order refresh requires an active client');
@@ -189,8 +204,9 @@ final class RuntimeLocalOrderReader {
     if (cachedProbe != null) {
       await cachedProbe;
     } else {
-      final probe = RuntimeOrderReader(OdooJson2ReadPort(client))
-          .validateRemoteContract();
+      final probe = RuntimeOrderReader(
+        OdooJson2ReadPort(client),
+      ).validateRemoteContract();
       _remoteContractProbes[client] = probe;
       try {
         await probe;
@@ -200,9 +216,28 @@ final class RuntimeLocalOrderReader {
         rethrow;
       }
     }
+    if (canReadCollectionPayments) {
+      final cachedPaymentProbe = _collectionPaymentContractProbes[client];
+      if (cachedPaymentProbe != null) {
+        await cachedPaymentProbe;
+      } else {
+        final probe = RuntimeOrderReader(
+          OdooJson2ReadPort(client),
+        ).validateCollectionPaymentContract();
+        _collectionPaymentContractProbes[client] = probe;
+        try {
+          await probe;
+        } catch (_) {
+          _collectionPaymentContractProbes[client] = null;
+          rethrow;
+        }
+      }
+    }
     final effectiveQuery = _withLimit(query, limit);
-    final rows = await RuntimeOrderReader(OdooJson2ReadPort(client))
-        .read(effectiveQuery);
+    final rows = await RuntimeOrderReader(OdooJson2ReadPort(client)).read(
+      effectiveQuery,
+      canReadCollectionPayments: canReadCollectionPayments,
+    );
     if (!sessions.accepts(lease)) throw StateError('order scope changed');
     await active.database.database.transaction(() async {
       for (final row in rows) {

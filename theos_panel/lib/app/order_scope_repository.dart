@@ -4,18 +4,29 @@ import 'dart:convert';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:orbi_runtime/orbi_runtime.dart';
 
+import '../features/auth/auth_controller.dart';
 import '../features/orders/orders_contracts.dart';
 import 'notification_scope_adapter.dart';
 
 final scopeOrderRepositoryProvider = Provider<OrderRepository?>((ref) {
   final sessions = ref.watch(runtimeSessionProvider);
   if (sessions == null) return null;
-  return ScopeOrderRepository(sessions);
+  // `l10n_ec_collection_box.sale.order.payment` is only readable by the
+  // Cajero/Supervisor de Caja groups in Odoo. A plain seller must never have
+  // this model requested on their behalf — Odoo answers with a 403 today.
+  final capabilities = ref.watch(capabilitySnapshotProvider);
+  final canReadCollectionPayments =
+      capabilities?.permissions.contains('cashier') ?? false;
+  return ScopeOrderRepository(
+    sessions,
+    canReadCollectionPayments: canReadCollectionPayments,
+  );
 });
 
 final class ScopeOrderRepository implements OrderRepository {
-  ScopeOrderRepository(this.sessions);
+  ScopeOrderRepository(this.sessions, {this.canReadCollectionPayments = false});
   final SessionRuntime sessions;
+  final bool canReadCollectionPayments;
   final _streams = <String, StreamController<OrderSnapshot>>{};
 
   @override
@@ -34,7 +45,10 @@ final class ScopeOrderRepository implements OrderRepository {
     final active = sessions.active;
     if (active?.client != null) {
       try {
-        await RuntimeLocalOrderReader(sessions).refreshOnline(query);
+        await RuntimeLocalOrderReader(sessions).refreshOnline(
+          query,
+          canReadCollectionPayments: canReadCollectionPayments,
+        );
       } catch (_) {
         // Offline refresh continues from the durable local table.
       }

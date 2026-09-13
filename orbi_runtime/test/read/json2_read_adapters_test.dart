@@ -147,6 +147,7 @@ void main() {
           authorFilter: 99,
           workQueue: OrderWorkQueue.cashierPending,
         ),
+        canReadCollectionPayments: true,
       );
       expect(reader.calls.any((call) => call.model == 'sale.order'), isTrue);
       final saleCall = reader.calls.singleWhere(
@@ -182,6 +183,42 @@ void main() {
       expect(rows, hasLength(1));
       expect(rows.single['payment_state'], 'not_paid');
       expect(rows.single['amount_unpaid'], 5.0);
+    },
+  );
+
+  test(
+    'a seller session never requests the cajero-only payment model; a '
+    'cashier session does',
+    () async {
+      // `l10n_ec_collection_box.sale.order.payment` is only readable by the
+      // Cajero/Supervisor de Caja groups in Odoo (ir.model.access). A plain
+      // seller session must not even ask for it — asking gets a 403 today.
+      final sellerReader = _Reader();
+      await RuntimeOrderReader(
+        sellerReader,
+      ).read(OrderQuery(companyId: 4, authorFilter: 7));
+      expect(
+        sellerReader.calls.any(
+          (call) => call.model == 'l10n_ec_collection_box.sale.order.payment',
+        ),
+        isFalse,
+        reason: 'a seller without the cashier capability must not be asked '
+            'about the collection-payment model',
+      );
+
+      final cashierReader = _Reader();
+      await RuntimeOrderReader(cashierReader).read(
+        OrderQuery(companyId: 4, workQueue: OrderWorkQueue.cashierPending),
+        canReadCollectionPayments: true,
+      );
+      expect(
+        cashierReader.calls.any(
+          (call) => call.model == 'l10n_ec_collection_box.sale.order.payment',
+        ),
+        isTrue,
+        reason: 'a cashier session must still get the collection-payment '
+            'data it is entitled to read',
+      );
     },
   );
 
@@ -241,6 +278,7 @@ void main() {
         };
       final rows = await RuntimeOrderReader(reader).read(
         OrderQuery(companyId: 4, workQueue: OrderWorkQueue.cashierPending),
+        canReadCollectionPayments: true,
       );
       expect(rows.map((row) => row['id']), [1]);
       expect(rows.single['amount_unpaid'], 3.0);
@@ -269,17 +307,21 @@ void main() {
         ],
       };
 
-    final rows = await RuntimeOrderReader(
-      reader,
-    ).read(OrderQuery(companyId: 4, workQueue: OrderWorkQueue.cashierPending));
+    final rows = await RuntimeOrderReader(reader).read(
+      OrderQuery(companyId: 4, workQueue: OrderWorkQueue.cashierPending),
+      canReadCollectionPayments: true,
+    );
 
     expect(rows, isEmpty);
-    final enriched = await RuntimeOrderRemoteState(reader).enrich([
-      {
-        ..._order(9, invoices: [19]),
-        'has_queued_invoice': true,
-      },
-    ]);
+    final enriched = await RuntimeOrderRemoteState(reader).enrich(
+      [
+        {
+          ..._order(9, invoices: [19]),
+          'has_queued_invoice': true,
+        },
+      ],
+      canReadCollectionPayments: true,
+    );
     expect(enriched.single['has_queued_invoice'], isTrue);
     expect(enriched.single['_runtime_pending_collection'], isFalse);
   });
@@ -294,9 +336,10 @@ void main() {
         'account.move': [_invoice(202, paymentState: 'not_paid', residual: 1)],
         'l10n_ec_collection_box.sale.order.payment': const [],
       };
-    final rows = await RuntimeOrderReader(
-      reader,
-    ).read(OrderQuery(companyId: 4, workQueue: OrderWorkQueue.cashierPending));
+    final rows = await RuntimeOrderReader(reader).read(
+      OrderQuery(companyId: 4, workQueue: OrderWorkQueue.cashierPending),
+      canReadCollectionPayments: true,
+    );
     expect(rows, hasLength(1));
     expect(rows.single['id'], 202);
     final saleOffsets = reader.calls
@@ -327,9 +370,10 @@ void main() {
           },
         ],
       };
-    final rows = await RuntimeOrderReader(
-      reader,
-    ).read(OrderQuery(companyId: 4, workQueue: OrderWorkQueue.cashierPending));
+    final rows = await RuntimeOrderReader(reader).read(
+      OrderQuery(companyId: 4, workQueue: OrderWorkQueue.cashierPending),
+      canReadCollectionPayments: true,
+    );
     expect(rows.map((row) => row['id']), [1]);
     final paymentOffsets = reader.calls
         .where(

@@ -406,8 +406,15 @@ final class RuntimeOrderRemoteState {
   final Json2ReadPort reader;
 
   Future<List<Map<String, dynamic>>> enrich(
-    List<Map<String, dynamic>> orders,
-  ) async {
+    List<Map<String, dynamic>> orders, {
+    // `l10n_ec_collection_box.sale.order.payment` is only readable by the
+    // Cajero/Supervisor de Caja groups (`ir.model.access`); a plain seller's
+    // session gets a 403 from Odoo when this is requested for them. The
+    // caller must state whether the active session actually carries that
+    // capability — defaulting to false means "do not ask" rather than
+    // guessing and catching the resulting error.
+    bool canReadCollectionPayments = false,
+  }) async {
     if (orders.isEmpty) return const [];
     final orderIds = <int>{};
     for (final order in orders) {
@@ -427,7 +434,7 @@ final class RuntimeOrderRemoteState {
               ['id', 'in', invoiceIds.toList()..sort()],
             ],
           );
-    final paymentLines = orderIds.isEmpty
+    final paymentLines = orderIds.isEmpty || !canReadCollectionPayments
         ? const <Map<String, dynamic>>[]
         : await _readAll(
             model: 'l10n_ec_collection_box.sale.order.payment',
@@ -583,17 +590,29 @@ final class RuntimeOrderReader {
   /// Performs the read-only JSON-2 contract probe used when activating a new
   /// Odoo scope. This is intentionally explicit (rather than on every page)
   /// because `fields_get` is metadata I/O and the SDK/client owns its cache.
-  Future<void> validateRemoteContract() async {
+  ///
+  /// Deliberately excludes `l10n_ec_collection_box.sale.order.payment`: that
+  /// model is only readable by the Cajero/Supervisor de Caja groups, so
+  /// probing it here would ask Odoo about a model most sessions can never
+  /// touch. See [validateCollectionPaymentContract] for that gated probe.
+  Future<void> validateRemoteContract() => _validateContracts(const {
+    'sale.order': RuntimeOrderRemoteFields.saleOrder,
+    'account.move': RuntimeOrderRemoteFields.invoice,
+  });
+
+  /// Same probe as [validateRemoteContract], but for the collection-payment
+  /// model. Callers must only invoke this for a session that actually holds
+  /// the `cashier` capability — Odoo answers everyone else with a 403.
+  Future<void> validateCollectionPaymentContract() => _validateContracts(const {
+    'l10n_ec_collection_box.sale.order.payment':
+        RuntimeOrderRemoteFields.paymentLine,
+  });
+
+  Future<void> _validateContracts(Map<String, List<String>> contracts) async {
     if (reader is! Json2FieldsGetPort) {
       throw StateError('Odoo reader does not expose fields_get');
     }
     final metadataReader = reader as Json2FieldsGetPort;
-    final contracts = <String, List<String>>{
-      'sale.order': RuntimeOrderRemoteFields.saleOrder,
-      'account.move': RuntimeOrderRemoteFields.invoice,
-      'l10n_ec_collection_box.sale.order.payment':
-          RuntimeOrderRemoteFields.paymentLine,
-    };
     for (final entry in contracts.entries) {
       final metadata = await metadataReader.fieldsGet(
         model: entry.key,
@@ -603,7 +622,10 @@ final class RuntimeOrderReader {
     }
   }
 
-  Future<List<Map<String, dynamic>>> read(OrderQuery query) async {
+  Future<List<Map<String, dynamic>>> read(
+    OrderQuery query, {
+    bool canReadCollectionPayments = false,
+  }) async {
     final domain = _domain(query);
     final state = RuntimeOrderRemoteState(reader);
     if (query.workQueue != OrderWorkQueue.cashierPending) {
@@ -614,7 +636,10 @@ final class RuntimeOrderReader {
         limit: query.limit,
         order: query.stableOrder,
       );
-      return state.enrich(rows);
+      return state.enrich(
+        rows,
+        canReadCollectionPayments: canReadCollectionPayments,
+      );
     }
 
     // Cashier state is derived from native account.move/payment rows. Keep
@@ -633,7 +658,10 @@ final class RuntimeOrderReader {
         order: query.stableOrder,
       );
       if (page.isEmpty) break;
-      final enriched = await state.enrich(page);
+      final enriched = await state.enrich(
+        page,
+        canReadCollectionPayments: canReadCollectionPayments,
+      );
       pending.addAll(enriched.where(RuntimeOrderRemoteState.isCashierPending));
       if (page.length < pageSize) break;
       offset += page.length;
