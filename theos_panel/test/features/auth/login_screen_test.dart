@@ -575,12 +575,6 @@ void main() {
     expect(tester.takeException(), isNull);
   }
 
-  // Compact mode is recognized the same way the owner described the
-  // screenshots: the "API key" switch's descriptive subtitle is gone (it is
-  // the first thing compact styling drops).
-  bool isCompactModeIn(WidgetTester tester) =>
-      !tester.any(find.text(_kApiKeySubtitleText));
-
   Future<void> pumpLoginScreen(
     WidgetTester tester,
     Size windowSize, {
@@ -599,104 +593,122 @@ void main() {
     await tester.pump();
   }
 
-  // The three cases below are the owner's own three screenshots — a short
-  // window (compact, fine), a medium one (right at the boundary) and a tall
-  // one (normal, fine). See the "estimated layout-budget metrics" test below
-  // for exactly how the budget is measured, and login_screen.dart's
-  // _estimateNormalModeContentHeight for the formula itself.
-  //
-  // 🔴 Recalibrated 12-sep-2026 for the Fluent port. Every control this
-  // budget accounts for got noticeably shorter than its Material
-  // counterpart — a Fluent TextBox/ComboBox's own minimum height is 32
-  // against Material's 52, and a ToggleSwitch row is a fraction of a
-  // SwitchListTile's. That drops the real normal-mode budget at this card
-  // width (472px) from ~684px to ~588px, which moves the real compact/normal
-  // boundary at 700px window width down to ~708px of window height (there is
-  // a constant ~72px of footer+padding taken off the window height before
-  // comparing against that budget — see `availableForNormalMode`). This is a
-  // real improvement (more content fits without falling back to compact),
-  // not a regression, so CASE 2 moves from 700x780 (which now genuinely fits
-  // normal styling) to 700x690 — comfortably below the new ~708px boundary —
-  // to keep proving the same thing: that compact is chosen exactly when
-  // normal actually would not fit, not according to a guess.
+  // 🔴 Reemplaza las viejas CASE 1-3 (12-sep-2026): fijaban el estimador de
+  // alto hecho a mano `_estimateNormalModeContentHeight` y el corte
+  // "compacto"/"normal" que decidía. Ese estimador se eliminó por completo
+  // (orden del dueño: «el estilo lo determina fluent_ui», nada de sumas de
+  // constantes) y con él el propio concepto de "compacto" — el formulario
+  // ahora tiene una sola presentación, siempre con las ayudas visibles, y lo
+  // que no cabe se desplaza dentro de su propio scroll interno. Lo que las
+  // CASE 1-3 SÍ protegían — que el botón "Iniciar sesión" nunca queda tapado
+  // ni fuera de pantalla — se mantiene íntegro en la prueba B de abajo, ahora
+  // sobre las cuatro pantallas aprobadas en vez de tres alturas ad-hoc de un
+  // único ancho.
+
+  // A: el hueco entre Contraseña y el primer interruptor, y el hueco entre
+  // la ayuda del primer interruptor y el segundo, deben igualar o superar el
+  // hueco que ya separa a un campo del siguiente (Usuario→Contraseña) — el
+  // reporte del dueño, textual: los interruptores "quedan pegados" a la
+  // contraseña y a su propia ayuda. El hueco de referencia se MIDE contra el
+  // formulario real (OrbiForm decide su propio espaciado interno), nunca se
+  // hardcodea un número que OrbiForm sea libre de cambiar.
+  Future<void> expectToggleRhythmMatchesFieldGap(
+    WidgetTester tester,
+    Size windowSize,
+  ) async {
+    await pumpLoginScreen(tester, windowSize, theme: OrbiFluentTheme.light);
+
+    final usuarioBottom = tester.getBottomLeft(find.byType(TextBox).at(0)).dy;
+    final passwordLabelTop = tester.getTopLeft(find.text('Contraseña')).dy;
+    final fieldGap = passwordLabelTop - usuarioBottom;
+    expect(
+      fieldGap,
+      greaterThan(0),
+      reason: 'No se pudo medir el hueco de referencia Usuario→Contraseña.',
+    );
+
+    final passwordBottom = tester.getBottomLeft(find.byType(TextBox).at(1)).dy;
+    final apiKeyToggleTop = tester
+        .getTopLeft(find.byKey(const Key('api-key-mode-toggle')))
+        .dy;
+    expect(
+      apiKeyToggleTop - passwordBottom,
+      greaterThanOrEqualTo(fieldGap),
+      reason:
+          'El interruptor "Usar API key" quedó más pegado a Contraseña que '
+          'un campo del siguiente, en $windowSize.',
+    );
+
+    final apiKeySubtitleBottom = tester
+        .getBottomLeft(find.text(_kApiKeySubtitleText))
+        .dy;
+    final saveToggleTop = tester
+        .getTopLeft(find.byKey(const Key('save-credential-toggle')))
+        .dy;
+    expect(
+      saveToggleTop - apiKeySubtitleBottom,
+      greaterThanOrEqualTo(fieldGap),
+      reason:
+          'El interruptor "Guardar clave" quedó más pegado a la ayuda de '
+          '"Usar API key" que un campo del siguiente, en $windowSize.',
+    );
+    expect(tester.takeException(), isNull);
+  }
+
   testWidgets(
-    'CASE 1 (short window): compact styling is chosen and fits without overlap',
+    'A: el ritmo Contraseña→interruptores iguala o supera el de los campos, '
+    'en escritorio grande y en claro',
     (tester) async {
-      await pumpLoginScreen(tester, const Size(700, 650));
+      await expectToggleRhythmMatchesFieldGap(tester, const Size(1880, 925));
       addTearDown(() => resetLoginTestWindowSize(tester));
-      expect(
-        isCompactModeIn(tester),
-        isTrue,
-        reason: 'A short window must pick the compact styling.',
-      );
-      await expectSubmitButtonReachable(tester, const Size(700, 650));
     },
   );
 
   testWidgets(
-    'CASE 2 (medium window): right at the boundary, compact is chosen and '
-    'it fits',
+    'A: el mismo ritmo se sostiene en un teléfono angosto y en claro',
     (tester) async {
-      await pumpLoginScreen(tester, const Size(700, 690));
+      await expectToggleRhythmMatchesFieldGap(tester, const Size(390, 844));
       addTearDown(() => resetLoginTestWindowSize(tester));
-      expect(
-        isCompactModeIn(tester),
-        isTrue,
-        reason:
-            'At 700x690 the normal styling\'s own budget (~588px for this '
-            'card width, now that every Fluent control is shorter than its '
-            'Material counterpart) still does not fit once the ~72px of '
-            'footer/padding is taken off — the boundary sits at ~708px of '
-            'window height. Compact must be chosen instead, and it does fit.',
-      );
-      await expectSubmitButtonReachable(tester, const Size(700, 690));
     },
   );
 
+  // B: sin estimador de alto ni corte compacto/normal, "Iniciar sesión" debe
+  // seguir entero en pantalla y por encima del pie en las cuatro pantallas
+  // aprobadas — desde el escritorio grande hasta el teléfono más angosto.
+  for (final size in const [
+    Size(1880, 925),
+    Size(1280, 600),
+    Size(390, 844),
+    Size(390, 600),
+  ]) {
+    testWidgets(
+      'B: "Iniciar sesión" cabe entero y sobre el pie en '
+      '${size.width.toInt()}x${size.height.toInt()}',
+      (tester) async {
+        await expectSubmitButtonReachable(tester, size);
+        addTearDown(() => resetLoginTestWindowSize(tester));
+      },
+    );
+  }
+
+  // C: el pie ocupa todo el ancho de la pantalla, no una cajita centrada
+  // (orden del dueño, 12-sep-2026: «el pie no está en todo el formulario, se
+  // ve mal»). ScaffoldPage envuelve su `bottomBar` en un Column cuyo
+  // crossAxisAlignment por omisión es `center`, así que una barra que no
+  // fuerza su propio ancho se encoge a su contenido (aquí, el texto) y queda
+  // como una isla angosta centrada — el SizedBox(width: double.infinity) de
+  // login_screen.dart es lo que realmente lo evita.
   testWidgets(
-    'CASE 3 (tall window): normal styling is chosen and fits without overlap',
+    'C: el pie mide el ancho completo de la pantalla',
     (tester) async {
-      await pumpLoginScreen(tester, const Size(700, 1000));
+      const windowSize = Size(1880, 925);
+      await pumpLoginScreen(tester, windowSize);
       addTearDown(() => resetLoginTestWindowSize(tester));
       expect(
-        isCompactModeIn(tester),
-        isFalse,
-        reason: 'A tall window has room for the spacious normal styling.',
+        tester.getSize(find.byKey(const Key('login-credit-footer'))).width,
+        windowSize.width,
       );
-      await expectSubmitButtonReachable(tester, const Size(700, 1000));
-    },
-  );
-
-  testWidgets(
-    'estimated layout-budget metrics keep matching the real widgets',
-    (tester) async {
-      // Guards the handful of named constants _estimateNormalModeContentHeight
-      // relies on for the parts TextPainter cannot see (a Fluent
-      // TextBox/ComboBox's own minimum height, a ToggleSwitch row). If the
-      // Fluent theme ever changes these, this test fails loudly instead of
-      // the fits-or-not budget silently drifting out from under the real
-      // widgets. Calibrated against Fluent's defaults, 12-sep-2026.
-      await pumpLoginScreen(tester, const Size(700, 1400));
-      expect(
-        tester.getSize(find.byType(TextBox).first).height,
-        32.0,
-        reason: 'TextBox min height moved — update _kControlMinHeight.',
-      );
-      final apiKeyBlockSize = tester.getSize(
-        find.byKey(const Key('api-key-toggle-block')),
-      );
-      final apiKeySubtitleSize = tester.getSize(
-        find.text(_kApiKeySubtitleText),
-      );
-      expect(
-        apiKeyBlockSize.height,
-        20.0 + 4.0 + apiKeySubtitleSize.height,
-        reason:
-            'The api-key toggle block\'s height moved away from '
-            '_kToggleRowHeight + _kToggleSubtitleGap + subtitleHeight — '
-            'update the constant that drifted.',
-      );
-      resetLoginTestWindowSize(tester);
+      expect(tester.takeException(), isNull);
     },
   );
 
@@ -756,19 +768,24 @@ void main() {
   );
 
   testWidgets(
-    'focusing each field does not change the compact/normal layout decision',
+    'focusing each field does not make content appear or disappear',
     (tester) async {
       // The owner's report, verbatim: "cada vez que hago click en un
       // textedit se oculta y muestra el resto del formulario, se reconstruye
-      // toda la pantalla". Before this fix, the compact/normal decision read
+      // toda la pantalla". The old compact/normal decision read
       // LayoutBuilder's body constraints, which shrink whenever
-      // Scaffold.resizeToAvoidBottomInset reacts to MediaQuery.viewInsets —
-      // and this window is deliberately picked right at the compact/normal
-      // boundary so even a few stray pixels of inset would have flipped it.
-      // The fix reads MediaQuery.sizeOf instead, which does not move when
-      // viewInsets does — proven directly below by forcing a viewInsets
-      // change and confirming nothing about the layout reacts to it,
-      // regardless of what was really nudging it on the reporter's machine.
+      // Scaffold.resizeToAvoidBottomInset reacts to MediaQuery.viewInsets,
+      // and used that to decide whether to DROP content (the toggle
+      // subtitles) — so a stray inset change made things appear/disappear.
+      // 🔴 That decision (and the "compact" styling it chose between) is
+      // gone — the form has one styling now, always showing every subtitle —
+      // so the metric this test guards changed from "did compact/normal
+      // flip" (isCompactModeIn, removed with it) to "did anything appear or
+      // disappear": ScaffoldPage's own resizeToAvoidBottomInset still
+      // legitimately shrinks and repositions the card when the inset grows
+      // (real keyboard avoidance, e.g. on a phone, still works and is
+      // allowed to move things), but it must never make a field or a
+      // subtitle blink in or out of the tree.
       //
       // Only the two remaining TextFields (Usuario, Contraseña) are looped
       // over: the server selector is a dropdown now, and tapping it opens an
@@ -778,19 +795,24 @@ void main() {
       addTearDown(() => resetLoginTestWindowSize(tester));
       addTearDown(() => tester.view.resetViewInsets());
 
-      final baselineCompact = isCompactModeIn(tester);
+      void expectNothingAppearedOrDisappeared() {
+        expect(find.byType(ComboBox<String>), findsOneWidget);
+        expect(find.byType(TextBox), findsNWidgets(2));
+        expect(find.text(_kApiKeySubtitleText), findsOneWidget);
+        expect(find.byKey(const Key('api-key-mode-toggle')), findsOneWidget);
+        expect(
+          find.byKey(const Key('save-credential-toggle')),
+          findsOneWidget,
+        );
+      }
+
+      expectNothingAppearedOrDisappeared();
 
       final fields = find.byType(TextBox);
       for (var i = 0; i < 2; i++) {
         await tester.tap(fields.at(i));
         await tester.pump();
-        expect(
-          isCompactModeIn(tester),
-          baselineCompact,
-          reason:
-              'Focusing field #$i changed compact-vs-normal — the form '
-              'reflowed under the user, exactly the reported symptom.',
-        );
+        expectNothingAppearedOrDisappeared();
         expect(tester.takeException(), isNull);
       }
 
@@ -799,13 +821,72 @@ void main() {
       await tester.pump();
       tester.view.viewInsets = const FakeViewPadding(bottom: 300);
       await tester.pump();
-      expect(
-        isCompactModeIn(tester),
-        baselineCompact,
-        reason:
-            'A transient viewInsets change (simulating whatever a real '
-            'keyboard-like overlay does) must not flip the layout mode.',
-      );
+      expectNothingAppearedOrDisappeared();
+      expect(tester.takeException(), isNull);
+    },
+  );
+
+  testWidgets(
+    'the keyboard does not steal focus from a field it just opened for '
+    '(iPhone del dueño: al tocar un campo no aparecía el teclado)',
+    (tester) async {
+      // Sospecha del dueño, confirmada como el mecanismo correcto: si algo
+      // del formulario calcula una altura RESTANDO viewInsets, el árbol se
+      // reconstruye distinto en cuanto el teclado abre, el campo enfocado
+      // cambia de identidad, pierde el foco, y el sistema — al ya no ver
+      // nada enfocado — cierra el teclado que él mismo acababa de abrir.
+      // Nada en este archivo puede volver a depender de esa resta (por eso
+      // se prueba tocando el campo primero y sólo DESPUÉS simulando el
+      // teclado, no al revés).
+      await pumpLoginScreen(tester, const Size(390, 844));
+      addTearDown(() => resetLoginTestWindowSize(tester));
+      addTearDown(() => tester.view.resetViewInsets());
+
+      final keyboardInset = 336 * tester.view.devicePixelRatio;
+
+      Future<void> expectFieldSurvivesKeyboard(int index, String text) async {
+        final field = find.byType(TextBox).at(index);
+        await tester.tap(field);
+        await tester.pump();
+        expect(
+          tester.widget<TextBox>(field).focusNode?.hasFocus,
+          isTrue,
+          reason: 'El campo #$index no tomó el foco al tocarlo.',
+        );
+        await tester.enterText(field, text);
+        await tester.pump();
+
+        // El propio teclado: crece viewInsets.bottom, tal como hace un
+        // teclado real de iOS/Android.
+        tester.view.viewInsets = FakeViewPadding(bottom: keyboardInset);
+        await tester.pump();
+
+        // Se vuelve a buscar el campo por si el árbol lo recreó en otra
+        // posición: en ese caso este finder seguiría encontrando UN
+        // TextBox aquí, pero ligado a un FocusNode/controller distintos —
+        // sin foco y sin el texto que se acababa de escribir.
+        final fieldAfterKeyboard = find.byType(TextBox).at(index);
+        expect(
+          tester.widget<TextBox>(fieldAfterKeyboard).focusNode?.hasFocus,
+          isTrue,
+          reason:
+              'El campo #$index perdió el foco al aparecer el teclado — '
+              'el formulario se reconstruyó bajo el dedo, exactamente el '
+              'síntoma reportado desde el iPhone.',
+        );
+        expect(
+          tester.widget<TextBox>(fieldAfterKeyboard).controller?.text,
+          text,
+          reason: 'El campo #$index perdió su texto al aparecer el teclado.',
+        );
+
+        tester.view.viewInsets = FakeViewPadding.zero;
+        await tester.pump();
+      }
+
+      await expectFieldSurvivesKeyboard(0, 'usuario-prueba');
+      await expectFieldSurvivesKeyboard(1, 'clave-prueba');
+      expect(tester.takeException(), isNull);
     },
   );
 
@@ -1286,6 +1367,10 @@ void main() {
           NativeAuthBootstrapFailureKind.protocol,
         ),
       );
+      // The form now scrolls its middle section instead of guessing a
+      // "compact" styling that always fits — a real, wide failure panel can
+      // land past the fold, exactly like any other field would.
+      await tester.ensureVisible(find.byKey(const Key('copy-message-button')));
       await tester.tap(find.byKey(const Key('copy-message-button')));
       await tester.pump();
       // Fluent's Button (HoverButton) schedules a 100ms Timer on tap-up to
@@ -1320,6 +1405,7 @@ void main() {
           technicalDetails: 'Traceback (most recent call last): ...',
         ),
       );
+      await tester.ensureVisible(find.byKey(const Key('copy-message-button')));
       await tester.tap(find.byKey(const Key('copy-message-button')));
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 100));
@@ -1345,6 +1431,7 @@ void main() {
           NativeAuthBootstrapFailureKind.invalidCredentials,
         ),
       );
+      await tester.ensureVisible(find.byKey(const Key('copy-message-button')));
       await tester.tap(find.byKey(const Key('copy-message-button')));
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 100));

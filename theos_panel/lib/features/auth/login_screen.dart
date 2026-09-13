@@ -1,9 +1,9 @@
 import 'dart:async';
-import 'dart:math' as math;
 
 import 'package:fluent_ui/fluent_ui.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:odoo_widgets/odoo_widgets.dart';
 import 'package:orbi_runtime/orbi_runtime.dart' show AuthProfile;
 
 import 'auth_controller.dart';
@@ -47,257 +47,6 @@ const String _kManageServersLabel = 'Gestionar servidores…';
 String _saveCredentialSubtitleFor(bool apiKeyMode) => apiKeyMode
     ? 'Guarda la API key sólo en el almacén seguro.'
     : 'Guarda la contraseña sólo en el almacén seguro.';
-
-/// The metrics below decide whether the login form's spacious ("normal")
-/// styling actually FITS the available height, or whether it must fall back
-/// to the tighter ("compact") one instead. They replace a single hand-picked
-/// pixel threshold (a flat 720, which lined up with nothing real and left a
-/// window between ~720 and ~850 where "normal" was chosen but did not
-/// actually fit — see docs/orbi_panel/COORDINATOR_HANDOFF_2026_09_11.md) with
-/// a budget built from the same theme/text/spacing values the form actually
-/// renders with, so the decision tracks reality instead of a guess.
-///
-/// Two kinds of numbers feed that budget:
-///  - Text heights are measured fresh, every build, with [TextPainter]
-///    against the REAL string and the REAL available width. This is what
-///    makes the decision genuinely content-driven: a longer translation, a
-///    narrower card, or a larger accessibility text scale all change the
-///    budget with no code change, because they change how many lines the
-///    subtitle/switch descriptions actually wrap to.
-///  - The few constants below cover the parts of a Fluent [TextBox]/
-///    [PasswordBox]/[ComboBox] or [ToggleSwitch] row that [TextPainter]
-///    cannot see (the control's own minimum height, its knob, the
-///    [InfoLabel] gap). They replace the Material-3 constants this file used
-///    before the Fluent port (12-sep-2026) — see the "estimated layout-budget
-///    metrics keep matching the real widgets" test, which fails immediately
-///    if the theme ever changes one of these instead of letting the budget
-///    silently drift out from under it.
-///  - [_kMinInteractiveDimension] (48.0) covers every other fixed-height row
-///    here: an [IconButton], a [HyperlinkButton], or a [FilledButton] — a
-///    reasonable touch-target size, not tied to any framework constant now
-///    that Material's `kMinInteractiveDimension` is gone.
-const double _kMinInteractiveDimension = 48.0;
-// A field built from InfoLabel (its own body-text label line, plus a 4px
-// gap) over a Fluent TextBox/PasswordBox/ComboBox, whose own minimum height
-// is 32 at standard density. None of "Servidor"/"Usuario"/"Contraseña"/"API
-// key"/"Base de datos" ever wrap, so the label line is a fixed one-line
-// height rather than measured per-build.
-const double _kFieldLabelLineHeight = 20.0; // typography.body, one line.
-const double _kFieldLabelGap = 4.0; // InfoLabel's own spacing under the label.
-const double _kControlMinHeight = 32.0; // TextBox/PasswordBox/ComboBox at standard density.
-const double _kFieldHeight =
-    _kFieldLabelLineHeight + _kFieldLabelGap + _kControlMinHeight;
-// A ToggleSwitch row: its own 20px knob sits beside a body-text label of the
-// same one-line height, so the row itself never exceeds one text line.
-const double _kToggleRowHeight = 20.0;
-// Matches the real `Padding(top: OrbiTheme.space4)` between the ToggleSwitch
-// row and its subtitle — kept as its own named constant (rather than
-// OrbiTheme.space4 inline) so this budget documents every number it depends
-// on in one place, the same way the rest of this file does.
-const double _kToggleSubtitleGap = OrbiTheme.space4;
-
-double _measureTextHeight(
-  String text,
-  TextStyle? style,
-  double maxWidth,
-  TextDirection direction,
-  double textScaleFactor,
-) {
-  final painter = TextPainter(
-    text: TextSpan(text: text, style: style),
-    textDirection: direction,
-    textScaler: TextScaler.linear(textScaleFactor),
-  )..layout(maxWidth: maxWidth > 0 ? maxWidth : 0);
-  return painter.height;
-}
-
-double _estimateSwitchTileHeight({
-  required String subtitle,
-  required double tileWidth,
-  required TextStyle? subtitleStyle,
-  required TextDirection direction,
-  required double textScaleFactor,
-}) {
-  final subtitleHeight = _measureTextHeight(
-    subtitle,
-    subtitleStyle,
-    tileWidth,
-    direction,
-    textScaleFactor,
-  );
-  return _kToggleRowHeight + _kToggleSubtitleGap + subtitleHeight;
-}
-
-/// The height the NORMAL (non-compact) styling needs for the whole card
-/// content — header through the submit button — at [contentWidth]. Compared
-/// against the height actually available; see [_LoginScreenState.build].
-///
-/// The form now has THREE field-shaped rows, not four: the database field is
-/// gone (it travels with the chosen saved server instead of being typed), and
-/// the "Gestionar servidores" link no longer gets its own header row — it is
-/// a menu entry inside the server selector itself. Both of those used to add
-/// their own term to this budget; dropping either without dropping the term
-/// here is exactly the kind of drift the "estimated layout-budget metrics
-/// keep matching the real widgets" test exists to catch.
-double _estimateNormalModeContentHeight({
-  required double contentWidth,
-  required FluentThemeData theme,
-  required TextDirection direction,
-  required double textScaleFactor,
-  required bool apiKeyMode,
-  required String? errorMessage,
-  bool serversUnreadable = false,
-}) {
-  final typography = theme.typography;
-  final titleHeight = _measureTextHeight(
-    'Acceso a Orbi',
-    typography.title,
-    contentWidth,
-    direction,
-    textScaleFactor,
-  );
-  final subtitleHeight = _measureTextHeight(
-    'Conéctate a tu entorno de trabajo',
-    typography.body,
-    contentWidth,
-    direction,
-    textScaleFactor,
-  );
-  final apiKeySubtitleHeight = _estimateSwitchTileHeight(
-    subtitle: _kApiKeySubtitle,
-    tileWidth: contentWidth,
-    subtitleStyle: typography.caption,
-    direction: direction,
-    textScaleFactor: textScaleFactor,
-  );
-  final saveCredentialSubtitleHeight = _estimateSwitchTileHeight(
-    subtitle: _saveCredentialSubtitleFor(apiKeyMode),
-    tileWidth: contentWidth,
-    subtitleStyle: typography.caption,
-    direction: direction,
-    textScaleFactor: textScaleFactor,
-  );
-  var total =
-      _kMinInteractiveDimension + // top-right theme-toggle row
-      OrbiTheme.space12 + // gap under that row
-      84.0 + // logo height (normal)
-      OrbiTheme.space16 +
-      titleHeight +
-      OrbiTheme.space8 +
-      subtitleHeight +
-      OrbiTheme.space24 + // headerGap (normal), before the fields
-      3 * (_kFieldHeight + OrbiTheme.space12) + // server selector + usuario + contraseña, each + its gap
-      apiKeySubtitleHeight +
-      OrbiTheme.space12 + // gap between the "Usar API key" and "Guardar clave" toggle blocks (see fieldsAndToggles)
-      saveCredentialSubtitleHeight +
-      OrbiTheme.space24 + // headerGap (normal), before the submit button
-      _kControlMinHeight; // submit button
-  if (serversUnreadable) {
-    // It renders as the same panel the sign-in failures use, so it costs the
-    // same chrome — not one wrapped line.
-    total +=
-        OrbiTheme.space8 +
-        _failurePanelHeight(
-          title: _kServersUnreadableMessage.title,
-          body: _kServersUnreadableMessage.body,
-          theme: theme,
-          contentWidth: contentWidth,
-          direction: direction,
-          textScaleFactor: textScaleFactor,
-        );
-  }
-  if (errorMessage != null) {
-    total +=
-        OrbiTheme.space12 +
-        estimateLoginFailurePanelHeight(
-          message: errorMessage,
-          theme: theme,
-          contentWidth: contentWidth,
-          direction: direction,
-          textScaleFactor: textScaleFactor,
-        );
-  }
-  return total;
-}
-
-/// Chrome [LoginFailurePanel] adds around its two text blocks: the padding on
-/// both sides, its one-pixel border, the leading icon and the gap after it.
-/// Measured against the widget itself by the "estimated layout-budget metrics"
-/// test, same as every other constant in this budget.
-// The gap plus the action row. The button is a Fluent [Button], whose own
-// minimum height clusters around [_kControlMinHeight] the same as every
-// other single-row Fluent control in this file's budget (TextBox, PasswordBox,
-// ComboBox, ToggleSwitch). Pinned by "the action row is the height the
-// layout budget assumes" in test/ui/copyable_message_test.dart.
-const double _kFailurePanelActionRowHeight =
-    OrbiTheme.space4 + _kControlMinHeight;
-const double _kFailurePanelVerticalChrome =
-    OrbiTheme.space12 * 2 + 2 + // padding top+bottom + 1px border each side
-    _kFailurePanelActionRowHeight;
-const double _kFailurePanelTextInset =
-    OrbiTheme.space12 * 2 + 2 + 20 + OrbiTheme.space12; // padding + border + icon + gap
-
-/// The height the rendered error costs the form.
-///
-/// A failure that carries guidance is TWO text blocks inside a padded panel,
-/// not the single wrapped line the old flat `Text` was — so the budget has to
-/// ask [decodeLoginFailureMessage] what it is actually about to draw, or the
-/// compact/normal decision starts under-counting exactly when something has
-/// gone wrong and the form is at its tallest.
-double estimateLoginFailurePanelHeight({
-  required String message,
-  required FluentThemeData theme,
-  required double contentWidth,
-  required TextDirection direction,
-  required double textScaleFactor,
-}) {
-  final failure = decodeLoginFailureMessage(message);
-  if (failure == null) {
-    return _measureTextHeight(
-      message,
-      theme.typography.body,
-      contentWidth,
-      direction,
-      textScaleFactor,
-    );
-  }
-  return _failurePanelHeight(
-    title: failure.title,
-    body: failure.guidance,
-    theme: theme,
-    contentWidth: contentWidth,
-    direction: direction,
-    textScaleFactor: textScaleFactor,
-  );
-}
-
-/// What one [CopyableMessagePanel] costs at [contentWidth].
-double _failurePanelHeight({
-  required String title,
-  required String body,
-  required FluentThemeData theme,
-  required double contentWidth,
-  required TextDirection direction,
-  required double textScaleFactor,
-}) {
-  final textWidth = contentWidth - _kFailurePanelTextInset;
-  return _kFailurePanelVerticalChrome +
-      _measureTextHeight(
-        title,
-        theme.typography.bodyStrong,
-        textWidth,
-        direction,
-        textScaleFactor,
-      ) +
-      OrbiTheme.space4 +
-      _measureTextHeight(
-        body,
-        theme.typography.caption,
-        textWidth,
-        direction,
-        textScaleFactor,
-      );
-}
 
 /// Presents a login failure the way a failed sign-in deserves: a bordered,
 /// tinted block with an icon, a headline saying WHAT happened, a second line
@@ -660,60 +409,33 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     }
     final state = ref.watch(authControllerProvider);
     final theme = FluentTheme.of(context);
-    final direction = Directionality.of(context);
-    // Decide compact-vs-normal (and the two-column-vs-stacked branch below)
-    // from the STABLE window/screen size, never from the body's LayoutBuilder
-    // constraints. Those constraints shrink whenever
-    // Scaffold.resizeToAvoidBottomInset reacts to MediaQuery.viewInsets, and
-    // on a fixed-size desktop/web window there is no software keyboard to
-    // explain a change there — yet focusing a field was reported to reflow
-    // the whole form (subtitles and the "manage servers" row jumping). Using
-    // MediaQuery.sizeOf makes that decision immune to whatever nudges the
-    // inset, by construction, regardless of the exact platform cause. Real
-    // keyboard avoidance (when it legitimately applies, e.g. on a phone)
-    // still works: the scrollable middle section reacts to the live body
-    // constraints in _buildLoginForm, independently of this decision.
+    // Decide the two-column-vs-stacked branch below from the STABLE
+    // window/screen size, never from the body's LayoutBuilder constraints.
+    // Those constraints shrink whenever Scaffold.resizeToAvoidBottomInset
+    // reacts to MediaQuery.viewInsets, and on a fixed-size desktop/web window
+    // there is no software keyboard to explain a change there — yet focusing
+    // a field was reported to reflow the whole form (subtitles and the
+    // "manage servers" row jumping). Using MediaQuery.sizeOf makes that
+    // decision immune to whatever nudges the inset, by construction,
+    // regardless of the exact platform cause. Real keyboard avoidance (when
+    // it legitimately applies, e.g. on a phone) still works: the scrollable
+    // middle section reacts to the live body constraints in
+    // _buildLoginForm, independently of this decision.
     final screenSize = MediaQuery.sizeOf(context);
-    final devicePadding = MediaQuery.paddingOf(context);
-    // TextPainter wants a scale factor, not the TextScaler object.
-    final textScaleFactor = MediaQuery.textScalerOf(context).scale(14) / 14;
-    final footerTextHeight = _measureTextHeight(
-      _kFooterText,
-      theme.typography.caption,
-      math.max(screenSize.width - OrbiTheme.space12 * 2, 0),
-      direction,
-      textScaleFactor,
-    );
-    final footerHeight =
-        footerTextHeight + OrbiTheme.space12 * 2 + devicePadding.bottom;
     // An iPad in portrait can exceed 840px: it still uses the approved
     // stacked composition, not the horizontal two-column arrangement.
     final isWideLandscape =
         screenSize.width >= OrbiTheme.mediumBreakpoint &&
         screenSize.width > screenSize.height;
-    // Both branches wrap the card in the same space16 outer padding and, for
-    // this fits-or-not check, the same space24 "normal" card padding.
-    final contentWidth = isWideLandscape
-        ? 440.0 - OrbiTheme.space16 * 2 - OrbiTheme.space24 * 2
-        : math.min(screenSize.width - OrbiTheme.space16 * 2, 520.0) -
-              OrbiTheme.space24 * 2;
-    final normalModeHeight = _estimateNormalModeContentHeight(
-      contentWidth: contentWidth,
-      theme: theme,
-      direction: direction,
-      textScaleFactor: textScaleFactor,
-      apiKeyMode: _apiKeyMode,
-      errorMessage: state.message,
-      serversUnreadable: _serversUnreadable,
-    );
-    final availableForNormalMode =
-        screenSize.height -
-        footerHeight -
-        devicePadding.top -
-        OrbiTheme.space16 * 2 -
-        OrbiTheme.space24 * 2;
-    final compactHeight = normalModeHeight > availableForNormalMode;
-    final form = _buildLoginForm(context, state, compactHeight: compactHeight);
+    // No hand-picked height budget decides a "compact" styling anymore
+    // (orden del dueño, 12-sep-2026: «el estilo lo determina fluent_ui»).
+    // The form always
+    // renders at its one spacious styling — OrbiForm/OrbiField, the
+    // project's standard form — and the middle section (fields, toggles,
+    // messages) scrolls internally via a LayoutBuilder-driven
+    // SingleChildScrollView whenever the real, measured content does not
+    // fit; the header and the submit button never move.
+    final form = _buildLoginForm(context, state);
     // 🔴 REVOCADO 12-sep-2026 (orden del dueño: «fluent_ui no tiene pie
     // translúcido, todo está ya determinado por fluent_ui», «fluent_ui tiene
     // sus widgets, los cuales se heredan para tener widgets reactivos»). The
@@ -724,16 +446,27 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     // no Acrylic, no text over the photo, no hand-rolled translucency. Style
     // is the plain caption/secondary-text combo already used everywhere
     // else off the photo.
-    final footer = SafeArea(
+    //
+    // ScaffoldPage lays its `bottomBar` out inside a plain Column whose
+    // default crossAxisAlignment is `center` — so a bar that does not force
+    // its own width shrinks to its content (here, the caption text) and
+    // ends up centered as a narrow island instead of spanning the screen
+    // (orden del dueño, 12-sep-2026: «el pie no está en todo el formulario,
+    // se ve mal»). The SizedBox below is what actually fixes that; the
+    // SafeArea/Padding/Text inside it never would have on their own.
+    final footer = SizedBox(
       key: const Key('login-credit-footer'),
-      top: false,
-      child: Padding(
-        padding: const EdgeInsets.all(OrbiTheme.space12),
-        child: Text(
-          _kFooterText,
-          textAlign: TextAlign.center,
-          style: theme.typography.caption?.copyWith(
-            color: theme.resources.textFillColorSecondary,
+      width: double.infinity,
+      child: SafeArea(
+        top: false,
+        child: Padding(
+          padding: const EdgeInsets.all(OrbiTheme.space12),
+          child: Text(
+            _kFooterText,
+            textAlign: TextAlign.center,
+            style: theme.typography.caption?.copyWith(
+              color: theme.resources.textFillColorSecondary,
+            ),
           ),
         ),
       ),
@@ -775,17 +508,8 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                               // made the card unreadable over the photo.
                               child: Card(
                                 backgroundColor: theme.menuColor,
-                                // Was hardcoded to space24 regardless of
-                                // compactHeight, unlike the narrow branch
-                                // below. That mismatch alone both starved
-                                // the "manage servers" + theme-toggle row
-                                // of width (a RenderFlex overflow) and ate
-                                // vertical budget the submit button needed
-                                // on a short-but-wide desktop window.
-                                padding: EdgeInsets.all(
-                                  compactHeight
-                                      ? OrbiTheme.space12
-                                      : OrbiTheme.space24,
+                                padding: const EdgeInsets.all(
+                                  OrbiTheme.space24,
                                 ),
                                 child: form,
                               ),
@@ -814,11 +538,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                         constraints: const BoxConstraints(maxWidth: 520),
                         child: Card(
                           backgroundColor: theme.menuColor,
-                          padding: EdgeInsets.all(
-                            compactHeight
-                                ? OrbiTheme.space12
-                                : OrbiTheme.space24,
-                          ),
+                          padding: const EdgeInsets.all(OrbiTheme.space24),
                           child: form,
                         ),
                       ),
@@ -830,10 +550,10 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     );
   }
 
-  Widget _buildServerSelector({
-    required bool compactHeight,
-    required bool busy,
-  }) {
+  /// El contenido del campo "Servidor" — sin su etiqueta: la pone
+  /// [OrbiField] desde donde se usa (ver `_buildLoginForm`), como cualquier
+  /// otro campo del formulario estándar.
+  Widget _buildServerSelectorField({required bool busy}) {
     final hasServers = _servers.isNotEmpty;
     // ComboBox is a CONTROLLED widget (driven by `value`, unlike
     // DropdownButtonFormField's FormField-only `initialValue`), so the
@@ -854,24 +574,22 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     ];
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
+      mainAxisSize: MainAxisSize.min,
       children: [
-        InfoLabel(
-          label: 'Servidor',
-          child: ComboBox<String>(
-            value: _selectedServer?.id,
-            items: items,
-            onChanged: busy ? null : _handleServerSelectionChanged,
-            // Without this, the field's internal Row sizes itself to the
-            // intrinsic width of the selected item/hint text and overflows
-            // against the dropdown arrow the moment a server name (or the
-            // "Gestionar servidores…" hint) is long enough for a narrow card.
-            isExpanded: true,
-            placeholder: Text(
-              hasServers
-                  ? 'Selecciona un servidor'
-                  : 'Ningún servidor guardado',
-              overflow: TextOverflow.ellipsis,
-            ),
+        ComboBox<String>(
+          value: _selectedServer?.id,
+          items: items,
+          onChanged: busy ? null : _handleServerSelectionChanged,
+          // Without this, the field's internal Row sizes itself to the
+          // intrinsic width of the selected item/hint text and overflows
+          // against the dropdown arrow the moment a server name (or the
+          // "Gestionar servidores…" hint) is long enough for a narrow card.
+          isExpanded: true,
+          placeholder: Text(
+            hasServers
+                ? 'Selecciona un servidor'
+                : 'Ningún servidor guardado',
+            overflow: TextOverflow.ellipsis,
           ),
         ),
         if (_serversUnreadable) ...[
@@ -887,13 +605,9 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
 
   Widget _buildLoginForm(
     BuildContext context,
-    AuthViewState state, {
-    required bool compactHeight,
-  }) {
+    AuthViewState state,
+  ) {
     final theme = FluentTheme.of(context);
-    final fieldGap = compactHeight ? OrbiTheme.space8 : OrbiTheme.space12;
-    final headerGap = compactHeight ? OrbiTheme.space12 : OrbiTheme.space24;
-    final logoHeight = compactHeight ? 56.0 : 84.0;
     final themeToggle = Tooltip(
       message: theme.brightness == Brightness.dark
           ? 'Cambiar a modo claro'
@@ -932,12 +646,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       ),
     );
     // ACC-02's way in. Placed in the SAME row as the theme toggle, not as a
-    // row of its own: this row's height (_kMinInteractiveDimension) is
-    // already part of _estimateNormalModeContentHeight's fixed budget, and a
-    // second affordance stacked below it would grow the real form without
-    // growing that estimate, silently drifting the compact/normal boundary
-    // the CASE 1-3 tests below pin down. Sharing the row keeps that budget
-    // true with no new term to add or forget.
+    // row of its own, to keep the header compact.
     final pinModeButton = Tooltip(
       message: 'Modo vendedor (PIN)',
       child: IconButton(
@@ -950,23 +659,21 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     // the translucent credit footer, no matter how short the window is. Only
     // the fields+toggles in between are allowed to scroll: they sit in a
     // Flexible+shrinkWrap section that keeps its natural height while there
-    // is room, and only clamps (turning scrollable) once the window is too
-    // short — the header and the button stay pinned and fully visible either
-    // way. See docs/orbi_panel/COORDINATOR_HANDOFF_2026_09_11.md for why the
-    // footer itself must stay translucent/extendBody rather than be removed.
+    // is room, and only turns scrollable once the window is too short — the
+    // header and the button stay pinned and fully visible either way.
     final header = <Widget>[
       // Use the app preference rather than a login-only Theme override.
       // This preserves one source of truth and the existing scope boundary.
       // Choosing an environment used to need a second, separate header row
       // ("Gestionar servidores"). That control now lives inside the server
-      // selector itself (see _buildServerSelector), so this row only ever
-      // holds the theme toggle, in both compact and normal styling.
+      // selector itself (see _buildServerSelectorField), so this row only
+      // ever holds the theme toggle.
       Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [pinModeButton, themeToggle],
       ),
-      SizedBox(height: compactHeight ? OrbiTheme.space8 : OrbiTheme.space12),
-      OrbiBrand(height: logoHeight, color: theme.accentColor),
+      const SizedBox(height: OrbiTheme.space12),
+      OrbiBrand(height: 84.0, color: theme.accentColor),
       const SizedBox(height: OrbiTheme.space16),
       Text(
         'Acceso a Orbi',
@@ -981,46 +688,70 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
         ),
         textAlign: TextAlign.center,
       ),
-      SizedBox(height: headerGap),
+      const SizedBox(height: OrbiTheme.space24),
     ];
+    // Servidor, Usuario y Contraseña/API key son el formulario estándar del
+    // proyecto (orden del dueño, 12-sep-2026: «los formularios también de
+    // manera similar») — la misma pareja OrbiForm/OrbiField que ya usa
+    // server_manager_dialog.dart, no un layout hecho a mano campo por campo.
+    // Los dos ToggleSwitch quedan fuera de la sección porque OrbiField exige
+    // una etiqueta encima de cada campo y ninguno de los dos la necesita (su
+    // propio `content` ya nombra la opción); van justo debajo, con el mismo
+    // ritmo vertical que separa a los campos entre sí (ver los SizedBox de
+    // abajo y OrbiTheme.space16, que iguala el runSpacing interno de
+    // OrbiForm).
     final fieldsAndToggles = <Widget>[
-      _buildServerSelector(compactHeight: compactHeight, busy: state.isBusy),
-      SizedBox(height: fieldGap),
-      InfoLabel(
-        label: 'Usuario',
-        child: TextBox(
-          controller: _login,
-          focusNode: _loginFocus,
-          textInputAction: TextInputAction.next,
-          onSubmitted: (_) => _passwordFocus.requestFocus(),
-          prefix: const Padding(
-            padding: EdgeInsets.symmetric(horizontal: OrbiTheme.space8),
-            child: Icon(FluentIcons.contact, size: 16),
+      OrbiForm(
+        sections: [
+          OrbiFormSection(
+            title: 'Credenciales',
+            fields: [
+              OrbiField(
+                label: 'Servidor',
+                child: _buildServerSelectorField(busy: state.isBusy),
+              ),
+              OrbiField(
+                label: 'Usuario',
+                child: TextBox(
+                  controller: _login,
+                  focusNode: _loginFocus,
+                  textInputAction: TextInputAction.next,
+                  onSubmitted: (_) => _passwordFocus.requestFocus(),
+                  prefix: const Padding(
+                    padding: EdgeInsets.symmetric(
+                      horizontal: OrbiTheme.space8,
+                    ),
+                    child: Icon(FluentIcons.contact, size: 16),
+                  ),
+                  onChanged: (_) => _scheduleLoginPreferencesSave(),
+                  autofillHints: const [AutofillHints.username],
+                ),
+              ),
+              OrbiField(
+                label: _apiKeyMode ? 'API key' : 'Contraseña',
+                // TextBox+obscureText rather than PasswordBox: PasswordBox
+                // has no `autofillHints`, and keeping password managers
+                // working matters more here than PasswordBox's reveal-button
+                // affordance.
+                child: TextBox(
+                  controller: _password,
+                  focusNode: _passwordFocus,
+                  textInputAction: TextInputAction.done,
+                  onSubmitted: (_) => _submit(),
+                  obscureText: true,
+                  prefix: const Padding(
+                    padding: EdgeInsets.symmetric(
+                      horizontal: OrbiTheme.space8,
+                    ),
+                    child: Icon(FluentIcons.lock, size: 16),
+                  ),
+                  autofillHints: const [AutofillHints.password],
+                ),
+              ),
+            ],
           ),
-          onChanged: (_) => _scheduleLoginPreferencesSave(),
-          autofillHints: const [AutofillHints.username],
-        ),
+        ],
       ),
-      SizedBox(height: fieldGap),
-      InfoLabel(
-        label: _apiKeyMode ? 'API key' : 'Contraseña',
-        // TextBox+obscureText rather than PasswordBox: PasswordBox has no
-        // `autofillHints`, and keeping password managers working matters
-        // more here than PasswordBox's reveal-button affordance.
-        child: TextBox(
-          controller: _password,
-          focusNode: _passwordFocus,
-          textInputAction: TextInputAction.done,
-          onSubmitted: (_) => _submit(),
-          obscureText: true,
-          prefix: const Padding(
-            padding: EdgeInsets.symmetric(horizontal: OrbiTheme.space8),
-            child: Icon(FluentIcons.lock, size: 16),
-          ),
-          autofillHints: const [AutofillHints.password],
-        ),
-      ),
-      SizedBox(height: fieldGap),
       Column(
         key: const Key('api-key-toggle-block'),
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -1032,24 +763,18 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
             onChanged: (value) => setState(() => _apiKeyMode = value),
             content: const Text('Usar API key'),
           ),
-          // Secondary help is omitted only in a tight window; the switch
-          // label remains visible and keeps the compact form readable.
-          if (!compactHeight)
-            Padding(
-              padding: const EdgeInsets.only(top: OrbiTheme.space4),
-              child: Text(
-                _kApiKeySubtitle,
-                style: theme.typography.caption?.copyWith(
-                  color: theme.resources.textFillColorSecondary,
-                ),
+          Padding(
+            padding: const EdgeInsets.only(top: OrbiTheme.space4),
+            child: Text(
+              _kApiKeySubtitle,
+              style: theme.typography.caption?.copyWith(
+                color: theme.resources.textFillColorSecondary,
               ),
             ),
+          ),
         ],
       ),
-      // Was missing entirely: the two toggle blocks sat flush against each
-      // other. See _estimateNormalModeContentHeight for the matching budget
-      // term this gap adds.
-      SizedBox(height: fieldGap),
+      const SizedBox(height: OrbiTheme.space16),
       Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         mainAxisSize: MainAxisSize.min,
@@ -1060,16 +785,15 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
             onChanged: (value) => setState(() => _saveCredential = value),
             content: const Text('Guardar clave'),
           ),
-          if (!compactHeight)
-            Padding(
-              padding: const EdgeInsets.only(top: OrbiTheme.space4),
-              child: Text(
-                _saveCredentialSubtitleFor(_apiKeyMode),
-                style: theme.typography.caption?.copyWith(
-                  color: theme.resources.textFillColorSecondary,
-                ),
+          Padding(
+            padding: const EdgeInsets.only(top: OrbiTheme.space4),
+            child: Text(
+              _saveCredentialSubtitleFor(_apiKeyMode),
+              style: theme.typography.caption?.copyWith(
+                color: theme.resources.textFillColorSecondary,
               ),
             ),
+          ),
         ],
       ),
       // La sesión que el arranque encontró y decidió NO adoptar. Va ARRIBA
@@ -1116,6 +840,11 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
         mainAxisSize: MainAxisSize.min,
         children: [
           ...header,
+          // El botón "Iniciar sesión" (más abajo) es la acción fija del
+          // formulario: siempre visible. Lo que no quepa entre el
+          // encabezado y ese botón se desplaza aquí dentro — sin
+          // presupuesto de alto calculado a mano, con el alto REAL que
+          // Flutter mide en cada build.
           Flexible(
             fit: FlexFit.loose,
             child: SingleChildScrollView(
@@ -1127,7 +856,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
               ),
             ),
           ),
-          SizedBox(height: headerGap),
+          const SizedBox(height: OrbiTheme.space24),
           FilledButton(
             onPressed: (state.isBusy || _selectedServer == null)
                 ? null
