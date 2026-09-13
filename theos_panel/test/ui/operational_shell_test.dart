@@ -101,6 +101,13 @@ Widget _host(
   PaneDisplayMode navigationDisplayMode = PaneDisplayMode.auto,
   Widget navigationIndicator = const StickyNavigationIndicator(),
   FluentThemeData? theme,
+  // `null` por omisión en las pruebas: un `Timer.periodic` vivo (el valor de
+  // producción, 1 segundo) nunca deja terminar a `tester.pumpAndSettle()`,
+  // que es lo que usa casi toda esta batería. Las pruebas del reloj
+  // sobreescriben esto con el intervalo real y usan `tester.pump()` en su
+  // lugar (ver el grupo «el reloj del pie»).
+  Duration? clockTickInterval,
+  DateTime Function()? now,
 }) => FluentApp(
   theme: theme ?? OrbiFluentTheme.light,
   home: MediaQuery(
@@ -118,6 +125,8 @@ Widget _host(
       onToggleTheme: onToggleTheme,
       navigationDisplayMode: navigationDisplayMode,
       navigationIndicator: navigationIndicator,
+      clockTickInterval: clockTickInterval,
+      now: now ?? DateTime.now,
       child: child ?? const Center(child: Text('Contenido operativo')),
     ),
   ),
@@ -322,7 +331,7 @@ void main() {
       // que el texto de la hoja ("Órdenes") no está en pantalla sin abrirlo
       // — lo que sí está siempre es el título del grupo y el pie.
       expect(find.text('Ventas'), findsWidgets);
-      expect(find.text('Servidor: erp.test'), findsOneWidget);
+      expect(find.text('erp.test'), findsOneWidget);
     });
   });
 
@@ -429,36 +438,37 @@ void main() {
   });
 
   group('el pie', () {
-    testWidgets('en ancho dice servidor, base y estado', (tester) async {
+    // Íconos en vez de «Servidor:»/«BD:» (orden del dueño, 13-sep-2026,
+    // comparando con `theos_pos`, `server_info_bar.dart`): el valor solo,
+    // con su ícono al lado.
+    testWidgets('en ancho dice servidor, base y estado con íconos, sin '
+        'etiquetas', (tester) async {
       const size = Size(1920, 1080);
       await _pump(tester, _host(size), size);
 
-      expect(find.text('Servidor: erp.test'), findsOneWidget);
-      expect(find.text('BD: orbi_test'), findsOneWidget);
+      expect(find.text('Servidor: erp.test'), findsNothing);
+      expect(find.text('BD: orbi_test'), findsNothing);
+      expect(find.text('erp.test'), findsOneWidget);
+      expect(find.text('orbi_test'), findsOneWidget);
+      expect(find.byIcon(FluentIcons.globe), findsOneWidget);
+      expect(find.byIcon(FluentIcons.database), findsOneWidget);
       expect(find.text('3 pendientes'), findsOneWidget);
     });
 
-    // Causa raíz medida el 13-sep-2026: `router.dart` nunca llenaba
-    // `serverTime` (ver la nota en `operational_shell.dart:_contextFooter`),
-    // y no hay de dónde sacar la hora real del servidor — ni `orbi_runtime`
-    // la mide, ni `theos_pos` la tiene de verdad (su desfase es cero
-    // siempre). Se opta por mostrar la hora del dispositivo, con una
-    // etiqueta que no finge ser la del servidor.
-    testWidgets('nunca dice "sin dato": sin hora de servidor, muestra la '
-        'del dispositivo', (tester) async {
+    // Sin `odooVersion` en el contexto (el caso de `_context`, arriba): no
+    // se inventa un «Odoo: sin dato», el segmento entero se omite.
+    testWidgets('sin versión de Odoo, no muestra ese segmento', (
+      tester,
+    ) async {
       const size = Size(1920, 1080);
       await _pump(tester, _host(size), size);
 
       expect(find.textContaining('sin dato'), findsNothing);
-      expect(
-        find.byWidgetPredicate(
-          (widget) => widget is Text && (widget.data ?? '').startsWith('Hora: '),
-        ),
-        findsOneWidget,
-      );
+      expect(find.textContaining('Odoo'), findsNothing);
+      expect(find.byIcon(FluentIcons.server_enviroment), findsNothing);
     });
 
-    testWidgets('con hora de servidor, la usa y la etiqueta como tal', (
+    testWidgets('con versión de Odoo, la muestra con su ícono', (
       tester,
     ) async {
       const size = Size(1920, 1080);
@@ -471,7 +481,7 @@ void main() {
             database: 'orbi_test',
             userLabel: 'Erik',
             companyLabel: 'Empresa Demo',
-            serverTime: '13/09/2026 10:00:00',
+            odooVersion: '20.0',
             connectionLabel: 'Conectado',
             syncLabel: 'al día',
           ),
@@ -479,7 +489,44 @@ void main() {
         size,
       );
 
-      expect(find.text('Hora servidor: 13/09/2026 10:00:00'), findsOneWidget);
+      expect(find.text('Odoo 20.0'), findsOneWidget);
+      expect(find.byIcon(FluentIcons.server_enviroment), findsOneWidget);
+    });
+
+    // La hora es SIEMPRE la local del dispositivo: ni Orbi ni `theos_pos`
+    // miden un desfase real de servidor hoy (`theos_pos` fija
+    // `serverTimeOffset` en cero siempre,
+    // `theos_pos/lib/shared/providers/server_info_provider.dart:161`), así
+    // que llamarla «hora del servidor» sería una etiqueta falsa. Nunca
+    // lleva el prefijo «Hora:» — sólo el ícono del reloj y el valor.
+    testWidgets('el reloj es la hora local, sin etiqueta "Hora:"', (
+      tester,
+    ) async {
+      const size = Size(1920, 1080);
+      await _pump(tester, _host(size), size);
+
+      expect(find.textContaining('Hora'), findsNothing);
+      expect(find.textContaining('servidor'), findsNothing);
+      expect(find.byIcon(FluentIcons.date_time), findsOneWidget);
+    });
+
+    // Empuja el reloj al borde derecho del pie con un `Row` externo al
+    // scroll (ver la nota en `_contextFooter`): su `dx` debe quedar más a
+    // la derecha que el de la base de datos.
+    testWidgets('el reloj queda a la derecha, después de la base de datos', (
+      tester,
+    ) async {
+      const size = Size(1920, 1080);
+      await _pump(tester, _host(size), size);
+
+      final clockIcon = find.byIcon(FluentIcons.date_time);
+      final databaseValue = find.text('orbi_test');
+      expect(clockIcon, findsOneWidget);
+      expect(databaseValue, findsOneWidget);
+      expect(
+        tester.getTopLeft(clockIcon).dx,
+        greaterThan(tester.getTopLeft(databaseValue).dx),
+      );
     });
 
     testWidgets(
@@ -540,13 +587,67 @@ void main() {
       const size = Size(390, 844);
       await _pump(tester, _host(size), size);
 
-      expect(find.text('Servidor: erp.test'), findsNothing);
+      expect(find.text('erp.test'), findsNothing);
       final boton = find.byKey(const Key('operational-context-button'));
       expect(boton, findsOneWidget);
 
       await tester.tap(boton);
       await tester.pumpAndSettle();
-      expect(find.text('Servidor: erp.test'), findsOneWidget);
+      expect(find.text('erp.test'), findsOneWidget);
+    });
+  });
+
+  group('el reloj del pie', () {
+    // Dedicada, y sin `pumpAndSettle`: un `Timer.periodic` vivo nunca deja
+    // que `pumpAndSettle` termine (ver la nota en `_FooterClock`).
+    //
+    // `tester.pump(duration)` SÍ adelanta el `Timer.periodic` de producción
+    // (`AutomatedTestWidgetsFlutterBinding` corre cada prueba dentro de un
+    // `FakeAsync`, y `pump` llama a `elapse(duration)`), pero NO adelanta
+    // `DateTime.now()` — eso sigue siendo el reloj real del sistema, así que
+    // dos llamadas a milisegundos de diferencia real caen casi siempre en el
+    // mismo segundo y el texto no cambiaría por pura coincidencia de
+    // temporización, no porque el `Timer` no haya disparado. Por eso
+    // `OperationalShell.now` es inyectable: aquí se fija a un reloj de
+    // mentira que sólo avanza cuando la prueba lo decide.
+    testWidgets('con el latido de producción, avanza con cada segundo', (
+      tester,
+    ) async {
+      const size = Size(1920, 1080);
+      var fakeNow = DateTime(2026, 9, 13, 10, 0, 0);
+      await tester.binding.setSurfaceSize(size);
+      addTearDown(() => tester.binding.setSurfaceSize(null));
+      await tester.pumpWidget(
+        _host(
+          size,
+          clockTickInterval: const Duration(seconds: 1),
+          now: () => fakeNow,
+        ),
+      );
+      await tester.pump();
+
+      expect(find.text('13/09/2026 10:00:00'), findsOneWidget);
+
+      fakeNow = fakeNow.add(const Duration(seconds: 1));
+      await tester.pump(const Duration(seconds: 1, milliseconds: 100));
+
+      expect(find.text('13/09/2026 10:00:01'), findsOneWidget);
+      expect(find.text('13/09/2026 10:00:00'), findsNothing);
+    });
+
+    testWidgets('con el latido apagado (el de las pruebas), no avanza', (
+      tester,
+    ) async {
+      const size = Size(1920, 1080);
+      var fakeNow = DateTime(2026, 9, 13, 10, 0, 0);
+      await _pump(tester, _host(size, now: () => fakeNow), size);
+
+      expect(find.text('13/09/2026 10:00:00'), findsOneWidget);
+
+      fakeNow = fakeNow.add(const Duration(seconds: 5));
+      await tester.pump(const Duration(seconds: 5));
+
+      expect(find.text('13/09/2026 10:00:00'), findsOneWidget);
     });
   });
 
@@ -672,6 +773,152 @@ void main() {
       expect(toggled, isTrue);
     });
 
+    // Corte único: el mismo `OrbiTheme.mediumBreakpoint` (840) que ya usa
+    // `_UserAvatarMenu.wide`. Por debajo, `CommandBar(isCompact: true)`
+    // esconde la etiqueta de cada botón y deja sólo el ícono — el modo
+    // nativo de Fluent para esto, no un `if (screenWidth >= ...)` por
+    // botón como hacía `theos_pos`.
+    testWidgets(
+      'a 390 (bajo el corte) los textos se esconden, pero los íconos '
+      'siguen ahí',
+      (tester) async {
+        const size = Size(390, 900);
+        await _pump(
+          tester,
+          _host(size, destinations: _richDestinations, onToggleTheme: () {}),
+          size,
+        );
+        expect(find.text('Actividades'), findsNothing);
+        expect(find.text('Avisos'), findsNothing);
+        expect(find.text('Oscuro'), findsNothing);
+        expect(find.byIcon(FluentIcons.clock), findsWidgets);
+        expect(find.byIcon(FluentIcons.ringer), findsWidgets);
+        expect(find.byIcon(FluentIcons.clear_night), findsWidgets);
+      },
+    );
+
+    testWidgets(
+      'a 1280 (sobre el corte) los textos se ven junto a sus íconos',
+      (tester) async {
+        const size = Size(1280, 900);
+        await _pump(
+          tester,
+          _host(size, destinations: _richDestinations, onToggleTheme: () {}),
+          size,
+        );
+        expect(find.text('Actividades'), findsOneWidget);
+        expect(find.text('Avisos'), findsOneWidget);
+        // `_host` usa `OrbiFluentTheme.light`: en claro el botón ofrece
+        // pasar a oscuro, así que dice «Oscuro».
+        expect(find.text('Oscuro'), findsOneWidget);
+      },
+    );
+
+    testWidgets(
+      'Actividades muestra su contador cuando hay actividades abiertas',
+      (tester) async {
+        const size = Size(1920, 1080);
+        await _pump(
+          tester,
+          _host(
+            size,
+            destinations: _richDestinations,
+            context: const OperationalContext(
+              server: 'erp.test',
+              database: 'orbi_test',
+              userLabel: 'Erik',
+              companyLabel: 'Empresa Demo',
+              connectionLabel: 'Conectado',
+              syncLabel: 'al día',
+              activitiesPendingCount: 4,
+            ),
+          ),
+          size,
+        );
+
+        expect(find.text('4'), findsOneWidget);
+      },
+    );
+
+    group('Modo Ruta', () {
+      testWidgets('inactivo, no aparece', (tester) async {
+        const size = Size(1920, 1080);
+        await _pump(tester, _host(size, destinations: _richDestinations), size);
+        expect(find.text('Modo Ruta'), findsNothing);
+      });
+
+      testWidgets('activo, aparece y lleva a Sincronización', (tester) async {
+        const size = Size(1920, 1080);
+        String? navegado;
+        await _pump(
+          tester,
+          _host(
+            size,
+            destinations: _richDestinations,
+            onNavigate: (p) => navegado = p,
+            context: const OperationalContext(
+              server: 'erp.test',
+              database: 'orbi_test',
+              userLabel: 'Erik',
+              companyLabel: 'Empresa Demo',
+              connectionLabel: 'Conectado',
+              syncLabel: 'al día',
+              routeModeActive: true,
+            ),
+          ),
+          size,
+        );
+
+        expect(find.text('Modo Ruta'), findsOneWidget);
+        await tester.tap(find.byKey(const Key('shell-route-mode-button')));
+        await tester.pumpAndSettle();
+        expect(navegado, '/sync');
+      });
+    });
+
+    group('pendientes', () {
+      testWidgets('sin operaciones pendientes, no aparece el botón', (
+        tester,
+      ) async {
+        const size = Size(1920, 1080);
+        await _pump(tester, _host(size, destinations: _richDestinations), size);
+        expect(
+          find.byKey(const Key('shell-pending-ops-button')),
+          findsNothing,
+        );
+      });
+
+      testWidgets('con N pendientes, aparece y lleva a la cola', (
+        tester,
+      ) async {
+        const size = Size(1920, 1080);
+        String? navegado;
+        await _pump(
+          tester,
+          _host(
+            size,
+            destinations: _richDestinations,
+            onNavigate: (p) => navegado = p,
+            context: const OperationalContext(
+              server: 'erp.test',
+              database: 'orbi_test',
+              userLabel: 'Erik',
+              companyLabel: 'Empresa Demo',
+              connectionLabel: 'Conectado',
+              syncLabel: 'al día',
+              pendingOperationsCount: 5,
+            ),
+          ),
+          size,
+        );
+
+        expect(find.text('5 pendientes'), findsOneWidget);
+        await tester.tap(find.byKey(const Key('shell-pending-ops-button')));
+        await tester.pumpAndSettle();
+        expect(navegado, '/sync/queue');
+      });
+    });
+
     // Una prueba por ancho, cada una con su propio `tester` limpio: Fluent
     // ANIMA la apertura/cierre del carril al cambiar de modo, y reusar el
     // mismo árbol para saltar de 800 (carril de iconos) a 1280 (carril
@@ -692,18 +939,23 @@ void main() {
           expect(tester.takeException(), isNull);
 
           final overflow = find.byKey(const Key('shell-topbar-overflow'));
-          if (find.text('Avisos').evaluate().isEmpty &&
+          final noticesKey = find.byKey(const Key('shell-notices-button'));
+          final activitiesKey = find.byKey(
+            const Key('shell-activities-button'),
+          );
+          if ((noticesKey.evaluate().isEmpty ||
+                  activitiesKey.evaluate().isEmpty) &&
               overflow.evaluate().isNotEmpty) {
             await tester.tap(overflow);
             await tester.pumpAndSettle();
           }
           expect(
-            find.text('Avisos'),
+            find.byKey(const Key('shell-notices-button')),
             findsWidgets,
             reason: 'Avisos debe verse o estar en el "…"',
           );
           expect(
-            find.text('Actividades'),
+            find.byKey(const Key('shell-activities-button')),
             findsWidgets,
             reason: 'Actividades debe verse o estar en el "…"',
           );
@@ -861,7 +1113,7 @@ void main() {
       const size = Size(1000, 700);
       await _pump(tester, _host(size), size);
 
-      expect(find.text('Servidor: erp.test'), findsOneWidget);
+      expect(find.text('erp.test'), findsOneWidget);
       // A 1000 ya se pasa del corte de 840 de la barra superior, así que la
       // empresa se ve ahí — el carril de iconos no la esconde por debajo.
       expect(find.text('Empresa Demo'), findsOneWidget);

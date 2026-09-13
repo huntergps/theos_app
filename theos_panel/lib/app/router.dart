@@ -4,6 +4,7 @@ import 'package:fluent_ui/fluent_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:orbi_runtime/orbi_runtime.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../features/auth/auth_controller.dart';
 import '../features/auth/login_screen.dart';
@@ -846,6 +847,60 @@ String _syncStatusLabel(SyncCoordinatorImpl? coordinator, SyncSnapshot? raw) {
   return snapshot.lastCompletedAt == null ? 'Sin sincronizar aún' : 'Al día';
 }
 
+/// Clave de `SharedPreferences` para la última versión de Odoo conocida de
+/// UN servidor+base — dos instancias no deben pisarse la versión guardada.
+String _odooVersionPrefsKey(String serverUrl, String database) =>
+    'orbi/server_version/$serverUrl|$database';
+
+/// La versión de Odoo para el pie del armazón (`OperationalContext.odooVersion`).
+///
+/// Orden del dueño (13-sep-2026): «todo debe ser offline». `fetchVersion()`
+/// necesita red; devolver `null` mientras no responde haría desaparecer el
+/// segmento del pie cada vez que Orbi arranca sin conexión, aunque ya se
+/// conociera la versión de una sesión anterior. Por eso este provider es un
+/// `Notifier`, no un `FutureProvider`: `build()` devuelve enseguida la
+/// última versión guardada en `SharedPreferences`
+/// (`sharedPreferencesProvider`, la misma instancia que ya usa el router)
+/// bajo `orbi/server_version/<url>|<db>`, y dispara `fetchVersion()` en
+/// segundo plano — si responde, actualiza el estado y la guarda; si no
+/// (sin red, o una sesión restaurada sin cliente), la guardada se queda tal
+/// cual. La detección en sí ya existe en `odoo_sdk`
+/// (`OdooClient.fetchVersion`/`.version`, el mismo mecanismo que usa
+/// `theos_pos`,
+/// `theos_pos/lib/shared/providers/server_info_provider.dart:108,164`).
+final _odooVersionProvider = NotifierProvider<_OdooVersionNotifier, String?>(
+  _OdooVersionNotifier.new,
+);
+
+class _OdooVersionNotifier extends Notifier<String?> {
+  @override
+  String? build() {
+    final profile = ref.watch(authControllerProvider).profile;
+    if (profile == null) return null;
+    final prefs = ref.watch(sharedPreferencesProvider);
+    final key = _odooVersionPrefsKey(profile.serverUrl, profile.database);
+    final cached = prefs.getString(key);
+
+    final client = ref.watch(runtimeSessionProvider)?.active?.client;
+    if (client != null) {
+      unawaited(_refresh(client, prefs, key));
+    }
+    return cached;
+  }
+
+  Future<void> _refresh(
+    OdooClient client,
+    SharedPreferences prefs,
+    String key,
+  ) async {
+    final version = await client.fetchVersion();
+    if (version.isUnknown) return;
+    final resolved = version.toString();
+    await prefs.setString(key, resolved);
+    if (ref.mounted) state = resolved;
+  }
+}
+
 /// Traduce la preferencia guardada al tipo real de Fluent. Vive aquí, no en
 /// `operational_shell.dart`: el marco recibe tipos de Fluent por constructor
 /// (orden del dueño, 13-sep-2026), sin conocer el modelo de preferencias —
@@ -1095,6 +1150,13 @@ final orbiRouterProvider = Provider<GoRouter>((ref) {
                       ),
                     ),
                   );
+            // Mismo puerto que lee la ruta `/activities` más abajo
+            // (`composition.activities ?? ref.read(scopeActivityPortProvider)`):
+            // se reutiliza la instancia, `ref.watch` no dispara una segunda
+            // carga. Sirve sólo para el contador de la campana de
+            // Actividades de la barra superior.
+            final activityPort =
+                composition.activities ?? ref.watch(scopeActivityPortProvider);
             // El controlador es el mismo `ChangeNotifier` de arriba: sólo se
             // reconstruye este subárbol, nunca el `GoRouter` entero.
             return AnimatedBuilder(
@@ -1104,7 +1166,11 @@ final orbiRouterProvider = Provider<GoRouter>((ref) {
                     coordinator?.snapshots ??
                     const Stream<SyncSnapshot>.empty(),
                 initialData: coordinator?.snapshot ?? SyncSnapshot(),
-                builder: (context, syncSnapshot) => DesktopCloseGuard(
+                builder: (context, syncSnapshot) =>
+                    StreamBuilder<List<ActivityItem>>(
+                  stream: activityPort?.changes ?? const Stream.empty(),
+                  initialData: activityPort?.snapshot ?? const [],
+                  builder: (context, activitySnapshot) => DesktopCloseGuard(
                   child: OperationalShell(
                     destinations: destinations,
                     selectedPath: state.uri.path,
@@ -1150,6 +1216,17 @@ final orbiRouterProvider = Provider<GoRouter>((ref) {
                       // Misma clave que la ruta /notifications: la campana cuenta
                       // exactamente lo que la bandeja muestra sin leer.
                       noticesUnreadCount: noticesUnreadCount,
+                      odooVersion: ref.watch(_odooVersionProvider),
+                      // Misma cifra que ya lee /sync/queue: no se inventa un
+                      // segundo conteo.
+                      pendingOperationsCount:
+                          syncSnapshot.data?.queuedCount ??
+                          coordinator?.snapshot.queuedCount ??
+                          0,
+                      routeModeActive: preferencesController.snapshot.routeMode,
+                      activitiesPendingCount: (activitySnapshot.data ?? const [])
+                          .where((item) => item.status != ActivityStatus.done)
+                          .length,
                     ),
                     onLogout: () async {
                       await ref.read(authControllerProvider.notifier).close();
@@ -1231,6 +1308,7 @@ final orbiRouterProvider = Provider<GoRouter>((ref) {
                       ),
                     ),
                   ),
+                ),
                 ),
               ),
             );

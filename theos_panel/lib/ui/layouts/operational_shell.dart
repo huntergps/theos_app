@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:math';
 
 import 'package:fluent_ui/fluent_ui.dart';
@@ -30,11 +31,14 @@ final class OperationalContext {
     required this.database,
     required this.userLabel,
     required this.companyLabel,
-    this.serverTime,
+    this.odooVersion,
     required this.connectionLabel,
     this.connectionStatus,
     this.connectionLatency,
     this.noticesUnreadCount = 0,
+    this.activitiesPendingCount = 0,
+    this.routeModeActive = false,
+    this.pendingOperationsCount = 0,
     required this.syncLabel,
   });
 
@@ -42,7 +46,11 @@ final class OperationalContext {
   final String database;
   final String userLabel;
   final String companyLabel;
-  final String? serverTime;
+
+  /// `Odoo <mayor>.<menor>` (`OdooClient.version`, tras `fetchVersion()`).
+  /// `null` mientras no se conozca — nunca se inventa una versión ni se
+  /// muestra un «sin dato»: el pie simplemente omite el segmento.
+  final String? odooVersion;
 
   /// Texto de conexión heredado, sólo de cadena. Se pinta únicamente cuando
   /// [connectionStatus] es nulo: se conserva para que quien todavía no esté
@@ -63,6 +71,22 @@ final class OperationalContext {
   /// Avisos sin leer, para la campanita de la barra superior. 0 por defecto:
   /// nunca un contador rojo cuando no hay con qué respaldarlo.
   final int noticesUnreadCount;
+
+  /// Actividades abiertas (no `ActivityStatus.done`), para el contador de la
+  /// campana de Actividades — mismo patrón que [noticesUnreadCount].
+  final int activitiesPendingCount;
+
+  /// Si la preferencia «Modo Ruta» (Ajustes → Sincronización) está activa.
+  /// Cuando lo está, la sincronización remota está en pausa
+  /// (`scopeRouteModePauseProvider`, `router.dart`), y la barra superior lo
+  /// dice — comparando con `theos_pos`, que ya trae este indicador
+  /// (`RouteModeIndicatorBadge`, `main_screen.dart`).
+  final bool routeModeActive;
+
+  /// Operaciones en la cola offline (`SyncSnapshot.queuedCount`, la misma
+  /// cifra que ya lee `/sync/queue`). 0 por defecto: nunca un badge cuando no
+  /// hay nada pendiente.
+  final int pendingOperationsCount;
 
   final String syncLabel;
 }
@@ -128,6 +152,8 @@ final class OperationalShell extends StatefulWidget {
     this.onToggleTheme,
     this.navigationDisplayMode = PaneDisplayMode.auto,
     this.navigationIndicator = const StickyNavigationIndicator(),
+    this.clockTickInterval = const Duration(seconds: 1),
+    this.now = DateTime.now,
   }) : assert(
          onLock == null || onUnlock != null,
          'onUnlock is required whenever onLock is provided: a shell that '
@@ -175,6 +201,24 @@ final class OperationalShell extends StatefulWidget {
   /// defecto `StickyNavigationIndicator`, el mismo que trae `NavigationPane`
   /// cuando no se especifica ninguno.
   final Widget navigationIndicator;
+
+  /// Cada cuánto avanza el reloj del pie ancho ([_FooterClock]). `null`
+  /// apaga el temporizador y deja el reloj fijo en la hora en que se pintó
+  /// — lo que usan las pruebas de este marco, porque un `Timer.periodic`
+  /// vivo nunca deja terminar a `tester.pumpAndSettle()` (ver la nota en
+  /// [_FooterClock]). El valor de producción, 1 segundo, es el por omisión:
+  /// `router.dart` no lo sobreescribe.
+  final Duration? clockTickInterval;
+
+  /// De dónde saca la hora el reloj del pie ([_FooterClock]). `DateTime.now`
+  /// por omisión — el único motivo para inyectar otra cosa es una prueba:
+  /// `pump(duration)` sólo adelanta el reloj falso de `Timer`
+  /// (`AutomatedTestWidgetsFlutterBinding`, vía `FakeAsync`), nunca
+  /// `DateTime.now()`, que sigue leyendo el reloj real del sistema. Sin este
+  /// gancho, ninguna prueba podría comprobar que el reloj avanza sin
+  /// depender de que pase un segundo de verdad.
+  @visibleForTesting
+  final DateTime Function() now;
 
   /// 🔴 Aquí había seis colores escritos a mano: tres para el pie y tres para
   /// el estado. Ninguno se decide ya en este fichero. Orden del dueño del
@@ -312,6 +356,14 @@ class _OperationalShellState extends State<OperationalShell> {
         children: [
           Expanded(
             child: CommandBar(
+              // Textos sólo con sitio: por debajo del mismo corte que ya usa
+              // `_UserAvatarMenu.wide` (`OrbiTheme.mediumBreakpoint`, 840),
+              // Fluent oculta la etiqueta de cada botón y deja sólo el ícono
+              // — el modo nativo de `CommandBarButton` para esto
+              // (`showLabel` en `commandbar.dart`, sólo `true` en modo
+              // `inPrimary`, nunca en `inPrimaryCompact`). Antes theos_pos
+              // condicionaba cada `Text` a mano; aquí basta un booleano.
+              isCompact: availableWidth < OrbiTheme.mediumBreakpoint,
               overflowBehavior: CommandBarOverflowBehavior.dynamicOverflow,
               overflowItemBuilder: (onPressed) => CommandBarButton(
                 key: const Key('shell-topbar-overflow'),
@@ -320,6 +372,39 @@ class _OperationalShellState extends State<OperationalShell> {
                 onPressed: onPressed,
               ),
               primaryItems: [
+                // Comparando con `theos_pos` (`RouteModeIndicatorBadge`,
+                // `main_screen.dart`): mientras el Modo Ruta está activo, la
+                // sincronización remota está en pausa y conviene que se note
+                // de un vistazo. Lleva a Sincronización, donde está el
+                // interruptor.
+                if (ctx.routeModeActive)
+                  CommandBarButton(
+                    key: const Key('shell-route-mode-button'),
+                    icon: const Icon(FluentIcons.car),
+                    label: const Text('Modo Ruta'),
+                    tooltip:
+                        'Modo Ruta activo. La sincronización remota está '
+                        'suspendida.',
+                    onPressed: () => widget.onNavigate(_kSyncPath),
+                  ),
+                // Comparando con `theos_pos` (el badge naranja de
+                // «N pendientes», `main_screen.dart`): cuántas operaciones
+                // esperan enviarse al servidor. Lleva a la cola offline.
+                if (ctx.pendingOperationsCount > 0)
+                  CommandBarButton(
+                    key: const Key('shell-pending-ops-button'),
+                    icon: const Icon(FluentIcons.cloud_upload),
+                    label: Text(
+                      ctx.pendingOperationsCount == 1
+                          ? '1 pendiente'
+                          : '${ctx.pendingOperationsCount} pendientes',
+                    ),
+                    tooltip:
+                        '${ctx.pendingOperationsCount} '
+                        '${ctx.pendingOperationsCount == 1 ? 'operación' : 'operaciones'} '
+                        'pendientes de enviar al servidor',
+                    onPressed: () => widget.onNavigate(_kQueuePath),
+                  ),
                 if (hasNotices)
                   CommandBarButton(
                     key: const Key('shell-notices-button'),
@@ -334,7 +419,13 @@ class _OperationalShellState extends State<OperationalShell> {
                 if (hasActivities)
                   CommandBarButton(
                     key: const Key('shell-activities-button'),
-                    icon: const Icon(FluentIcons.clock),
+                    // Contador rojo, mismo patrón que Avisos — antes
+                    // Actividades no tenía forma de anunciar cuántas había
+                    // sin entrar.
+                    icon: _badgedIcon(
+                      FluentIcons.clock,
+                      ctx.activitiesPendingCount,
+                    ),
                     label: const Text('Actividades'),
                     tooltip: 'Actividades pendientes',
                     onPressed: () => widget.onNavigate(_kActivitiesPath),
@@ -575,6 +666,14 @@ class _OperationalShellState extends State<OperationalShell> {
   // un scroll horizontal con un contenedor semántico, el árbol de
   // accesibilidad se recorre antes de que termine la disposición y el marco
   // lanza una aserción propia. Se ve sólo en anchos de teléfono.
+  //
+  // Íconos en vez de «Servidor:»/«BD:», como en el pie de `theos_pos`
+  // (`server_info_bar.dart`): el contenido de la izquierda va en su propio
+  // scroll horizontal, y el reloj queda FUERA de ese scroll, en un `Row`
+  // exterior — un `Spacer` dentro de un `SingleChildScrollView` revienta
+  // (ancho sin límite), así que empujar el reloj a la derecha exige que el
+  // contenido desplazable y el reloj sean dos hijos distintos del mismo
+  // `Row`, no todo dentro del scroll.
   Widget _contextFooter(BuildContext buildContext) {
     // Todo el color sale del tema: el pie ya no lleva un fondo oscuro fijo,
     // que se veía bien en tema claro y se perdía en oscuro.
@@ -585,51 +684,59 @@ class _OperationalShellState extends State<OperationalShell> {
       color: r.solidBackgroundFillColorTertiary,
       child: SizedBox(
         width: double.infinity,
-        child: SingleChildScrollView(
-          scrollDirection: Axis.horizontal,
+        child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
-          child: Semantics(
-            label: 'Información de conexión',
-            child: DefaultTextStyle(
-              style: theme.typography.caption ?? const TextStyle(),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  _contextItem('Servidor', ctx.server),
-                  _footerGap(r),
-                  _contextItem('BD', ctx.database),
-                  _footerGap(r),
-                  // Causa raíz de «Hora servidor: sin dato» (medido
-                  // 13-sep-2026): `router.dart` nunca llenó `serverTime` —el
-                  // campo existía pero nadie lo llenaba. Y no hay de dónde
-                  // sacar la hora real del servidor: `Json2BackendProbe`
-                  // (`orbi_runtime/lib/src/connectivity/json2_backend_probe.dart:26-49`)
-                  // sólo confirma que el servidor contestó, nunca trae su
-                  // reloj, y `theos_pos` tampoco lo tiene —su
-                  // `_syncServerTime` fija el desfase en CERO siempre
-                  // (`theos_pos/lib/shared/providers/server_info_provider.dart:161`),
-                  // así que su «hora servidor» YA ES la hora local, sólo que
-                  // mal etiquetada. Aquí se opta por lo honesto: si no llega
-                  // una hora real, se enseña la del dispositivo, con una
-                  // etiqueta que no finge ser la del servidor.
-                  if (ctx.serverTime != null)
-                    _contextItem('Hora servidor', ctx.serverTime!)
-                  else
-                    _contextItem('Hora', _formatLocalClock(DateTime.now())),
-                  _footerGap(r),
-                  _statusDot(_connectionColor(r)),
-                  const SizedBox(width: 6),
-                  Text(_connectionText()),
-                  _footerGap(r),
-                  Icon(
-                    FluentIcons.ringer,
-                    size: 14,
-                    color: r.textFillColorSecondary,
+          child: DefaultTextStyle(
+            style: theme.typography.caption ?? const TextStyle(),
+            child: Row(
+              children: [
+                Expanded(
+                  child: SingleChildScrollView(
+                    scrollDirection: Axis.horizontal,
+                    child: Semantics(
+                      label: 'Información de conexión',
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          // Sin dato no se muestra: nunca un «Odoo: sin
+                          // dato» inventado mientras `fetchVersion()` no
+                          // haya resuelto o el servidor no responda.
+                          if (ctx.odooVersion != null &&
+                              ctx.odooVersion!.isNotEmpty) ...[
+                            _iconValue(
+                              FluentIcons.server_enviroment,
+                              'Odoo ${ctx.odooVersion}',
+                              r,
+                            ),
+                            _footerGap(r),
+                          ],
+                          _iconValue(FluentIcons.globe, ctx.server, r),
+                          _footerGap(r),
+                          _iconValue(FluentIcons.database, ctx.database, r),
+                          _footerGap(r),
+                          _statusDot(_connectionColor(r)),
+                          const SizedBox(width: 6),
+                          Text(_connectionText()),
+                          _footerGap(r),
+                          Icon(
+                            FluentIcons.ringer,
+                            size: 14,
+                            color: r.textFillColorSecondary,
+                          ),
+                          const SizedBox(width: 4),
+                          Text(ctx.syncLabel),
+                        ],
+                      ),
+                    ),
                   ),
-                  const SizedBox(width: 4),
-                  Text(ctx.syncLabel),
-                ],
-              ),
+                ),
+                const SizedBox(width: 12),
+                _FooterClock(
+                  tickInterval: widget.clockTickInterval,
+                  iconColor: r.textFillColorSecondary,
+                  now: widget.now,
+                ),
+              ],
             ),
           ),
         ),
@@ -637,18 +744,17 @@ class _OperationalShellState extends State<OperationalShell> {
     );
   }
 
-  /// Sin `intl` y sin `Timer.periodic` a propósito: un reloj que tiquetea
-  /// solo mantiene el pie reconstruyéndose cada segundo, y
-  /// `tester.pumpAndSettle()` —que usa toda la batería de pruebas de este
-  /// marco— nunca termina mientras haya un temporizador periódico vivo
-  /// (vuelve a programar un fotograma en cada disparo). Se muestra la hora
-  /// del dispositivo en el momento en que se pinta el pie, que ya se
-  /// refresca solo cada vez que algo más en el marco cambia.
-  String _formatLocalClock(DateTime t) {
-    String two(int n) => n.toString().padLeft(2, '0');
-    return '${two(t.day)}/${two(t.month)}/${t.year} '
-        '${two(t.hour)}:${two(t.minute)}:${two(t.second)}';
-  }
+  Widget _iconValue(IconData icon, String value, ResourceDictionary r) => Row(
+    mainAxisSize: MainAxisSize.min,
+    children: [
+      Icon(icon, size: 14, color: r.textFillColorSecondary),
+      const SizedBox(width: 5),
+      ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 280),
+        child: Text(value, maxLines: 1, overflow: TextOverflow.ellipsis),
+      ),
+    ],
+  );
 
   Widget _footerGap(ResourceDictionary r) => Padding(
     padding: const EdgeInsets.symmetric(horizontal: 10),
@@ -660,8 +766,6 @@ class _OperationalShellState extends State<OperationalShell> {
     height: 8,
     decoration: BoxDecoration(color: color, shape: BoxShape.circle),
   );
-
-  Widget _contextItem(String label, String value) => Text('$label: $value');
 
   /// Lo que el pie enseña de verdad: el estado medido cuando lo hay, con la
   /// redacción fija de cada caso, y nunca la cadena de quien nos usa una vez
@@ -938,18 +1042,21 @@ class _UserAvatarMenuState extends State<_UserAvatarMenu> {
           mainAxisSize: MainAxisSize.min,
           children: [
             if (widget.wide) ...[
+              // Orden de theos_pos (`UserProfileBar`,
+              // `main_screen.dart:829-867`): la empresa arriba en negrita, el
+              // nombre debajo — antes iba al revés.
               Column(
                 crossAxisAlignment: CrossAxisAlignment.end,
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   Text(
-                    widget.userLabel,
+                    widget.companyLabel,
                     overflow: TextOverflow.ellipsis,
                     maxLines: 1,
                     style: const TextStyle(fontWeight: FontWeight.w600),
                   ),
                   Text(
-                    widget.companyLabel,
+                    widget.userLabel,
                     overflow: TextOverflow.ellipsis,
                     maxLines: 1,
                     style: const TextStyle(
@@ -1049,6 +1156,86 @@ class _UserAvatarMenuState extends State<_UserAvatarMenu> {
       ),
     );
   }
+}
+
+/// El reloj del pie ancho: hora LOCAL del dispositivo, nunca «hora del
+/// servidor» — ni Orbi ni `theos_pos` miden un desfase real hoy (`theos_pos`
+/// fija `serverTimeOffset` en cero siempre,
+/// `theos_pos/lib/shared/providers/server_info_provider.dart:161`), así que
+/// llamarla «del servidor» sería una etiqueta falsa sobre el mismo dato.
+///
+/// El latido es un parámetro, no una constante: en producción
+/// [OperationalShell.clockTickInterval] vale 1 segundo por omisión, y las
+/// pruebas de este marco lo apagan pasando `null`, porque un
+/// `Timer.periodic` vivo nunca deja terminar a `tester.pumpAndSettle()`
+/// (mismo defecto medido el 13-sep-2026 que ya evitaba este archivo antes de
+/// que este widget existiera). Con `null` el reloj se queda fijo en la hora
+/// en que se montó — no tiquetea, pero tampoco dejar de responder es un
+/// requisito de una etiqueta que sólo se ve en el pie.
+class _FooterClock extends StatefulWidget {
+  const _FooterClock({
+    required this.tickInterval,
+    required this.iconColor,
+    required this.now,
+  });
+
+  final Duration? tickInterval;
+  final Color iconColor;
+  final DateTime Function() now;
+
+  @override
+  State<_FooterClock> createState() => _FooterClockState();
+}
+
+class _FooterClockState extends State<_FooterClock> {
+  late DateTime _time;
+  Timer? _timer;
+
+  @override
+  void initState() {
+    super.initState();
+    _time = widget.now();
+    _schedule();
+  }
+
+  @override
+  void didUpdateWidget(_FooterClock oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.tickInterval != widget.tickInterval) {
+      _timer?.cancel();
+      _schedule();
+    }
+  }
+
+  void _schedule() {
+    final interval = widget.tickInterval;
+    if (interval == null) return;
+    _timer = Timer.periodic(interval, (_) {
+      if (mounted) setState(() => _time = widget.now());
+    });
+  }
+
+  @override
+  void dispose() {
+    _timer?.cancel();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => Row(
+    mainAxisSize: MainAxisSize.min,
+    children: [
+      Icon(FluentIcons.date_time, size: 14, color: widget.iconColor),
+      const SizedBox(width: 5),
+      Text(_formatLocalClock(_time)),
+    ],
+  );
+}
+
+String _formatLocalClock(DateTime t) {
+  String two(int n) => n.toString().padLeft(2, '0');
+  return '${two(t.day)}/${two(t.month)}/${t.year} '
+      '${two(t.hour)}:${two(t.minute)}:${two(t.second)}';
 }
 
 const appShellHeaderHeight = 50.0;

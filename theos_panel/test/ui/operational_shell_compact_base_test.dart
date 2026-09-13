@@ -48,6 +48,10 @@ Widget _host(Size size) => FluentApp(
       onNavigate: (_) {},
       context: _context,
       onLogout: () {},
+      // `null`: el valor de producción (1 segundo) es un `Timer.periodic`
+      // vivo, y esta prueba usa `pumpAndSettle`, que nunca termina con uno
+      // corriendo (ver la nota en `_FooterClock`).
+      clockTickInterval: null,
       child: const Center(child: Text('Contenido operativo')),
     ),
   ),
