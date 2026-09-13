@@ -65,6 +65,39 @@ abstract interface class CredentialPolicyAuthServicePort {
   });
 }
 
+/// «Recordar la llave tras salir» (decisión del dueño, 13-sep-2026, ver
+/// `docs/orbi_panel/decisions/W04-el-navegador-tambien-guarda.md`): lo que la
+/// pantalla de acceso necesita para ofrecer «Clave guardada en este equipo» y
+/// entrar sin volver a escribir la contraseña. Extensión opcional, igual que
+/// [CredentialPolicyAuthServicePort]: un servicio de prueba/embebido que no
+/// la implementa simplemente nunca ofrece la opción — no es un error.
+abstract interface class StoredCredentialAuthServicePort {
+  /// El perfil guardado para (server, database, login) SÓLO si su llave
+  /// sigue en el almacén — `null` en cualquier otro caso, incluyendo un login
+  /// que nunca se guardó o cuya llave ya se olvidó explícitamente.
+  Future<AuthProfile?> findRememberedCredential(
+    String serverUrl,
+    String database,
+    String login,
+  );
+
+  /// Entra con la llave ya guardada de [profile], sin contraseña. Un rechazo
+  /// EXPLÍCITO del servidor (`OdooAuthenticationException`: la llave venció o
+  /// fue revocada allá) borra esa llave por su cuenta antes de relanzar —
+  /// nunca hace falta que el llamador se acuerde de limpiarla. Cualquier otro
+  /// error (sin red, servidor caído) conserva la llave intacta.
+  Future<AuthServiceResult> loginWithStoredCredential(AuthProfile profile);
+
+  /// «Olvidar la clave guardada»: revoca en el servidor si hay red (best
+  /// effort) y siempre borra la llave local. Nunca lanza.
+  Future<void> forgetStoredCredential(AuthProfile profile);
+
+  /// Si el almacén todavía tiene una llave utilizable para [profile]. La usa
+  /// [AuthNotifier.close] para decidir si esta salida debe o no olvidar el
+  /// derivado de [WorkspaceUnlockStore] — misma regla que la llave misma.
+  Future<bool> hasStoredCredential(AuthProfile profile);
+}
+
 /// Performs exactly one online restore and, only when that attempt fails, one
 /// explicit offline restore. Callers own when this is invoked (normally cold
 /// start); it never schedules a retry loop.
@@ -112,13 +145,29 @@ class NativeAuthServicePort
         ApiKeyAuthServicePort,
         CredentialPolicyAuthServicePort,
         ExpirableAuthServicePort,
-        RenewableAuthServicePort {
+        RenewableAuthServicePort,
+        StoredCredentialAuthServicePort {
   NativeAuthServicePort(this.service);
   final NativeAuthService service;
   @override
   Future<void> closeExpired() => service.closeExpired();
   @override
   Future<void> renewApiKeyIfNeeded() => service.renewApiKeyIfNeeded();
+  @override
+  Future<AuthProfile?> findRememberedCredential(
+    String serverUrl,
+    String database,
+    String login,
+  ) => service.findRememberedCredential(serverUrl, database, login);
+  @override
+  Future<AuthServiceResult> loginWithStoredCredential(AuthProfile profile) =>
+      service.loginWithStoredCredential(profile);
+  @override
+  Future<void> forgetStoredCredential(AuthProfile profile) =>
+      service.forgetStoredCredential(profile);
+  @override
+  Future<bool> hasStoredCredential(AuthProfile profile) =>
+      service.hasStoredCredential(profile);
   @override
   Future<AuthServiceResult> login({
     required String serverUrl,
@@ -425,23 +474,97 @@ class AuthNotifier extends Notifier<AuthViewState> {
   }
 
   /// Ends the session. This is the single path behind both "Cerrar sesión" and
-  /// "Cambiar de usuario" (see `confirmSwitchWorkspaceUser`), which is exactly
-  /// why the workspace unlock derivation is erased here: whichever of the two
-  /// the operator chose, leaving a derivation of the previous identity's
-  /// password behind would be an orphan credential for someone who is no
-  /// longer on this device. Neither exit needs the network, and erasing a
-  /// local entry does not change that.
+  /// "Cambiar de usuario" (see `confirmSwitchWorkspaceUser`).
+  ///
+  /// 🔴 Revocado en parte el 13-sep-2026 (decisión del dueño, «Recordar la
+  /// llave tras salir», `W04-el-navegador-tambien-guarda.md`): esto solía
+  /// borrar SIEMPRE la derivación de [WorkspaceUnlockStore], sin importar si
+  /// el operador había activado «Guardar clave». Ahora sigue la MISMA regla
+  /// que la propia llave API (que `NativeAuthService.close()` ya dejó de
+  /// tocar): si todavía hay una llave guardada para este perfil, esta salida
+  /// tampoco olvida su derivado de desbloqueo sin conexión — las dos cosas
+  /// sobreviven juntas, porque las dos existen por la misma promesa de
+  /// «recuérdame en este equipo». Si NO hay llave guardada (el operador
+  /// nunca activó el interruptor), se borra exactamente como antes: no hay
+  /// nada nuevo que preservar ahí.
   Future<void> close() async {
     final profile = state.profile;
     final unlockStore = ref.read(workspaceUnlockStoreProvider);
     if (profile != null) {
-      await unlockStore.forget(workspaceUnlockScopeKeyFor(profile));
+      var keepsCredential = false;
+      if (_service case final StoredCredentialAuthServicePort port) {
+        keepsCredential = await port.hasStoredCredential(profile);
+      }
+      if (!keepsCredential) {
+        await unlockStore.forget(workspaceUnlockScopeKeyFor(profile));
+      }
     }
     await _service.close();
     if (!ref.mounted) return;
     // Drop profile/capabilities immediately so providers cannot retain the
     // previous user's company scope after teardown.
     state = const AuthViewState();
+  }
+
+  /// Lo que la pantalla de acceso necesita para mostrar «Clave guardada en
+  /// este equipo» para el servidor/base/usuario elegidos ahora mismo. `null`
+  /// en cualquier plataforma que no implemente
+  /// [StoredCredentialAuthServicePort] (ningún interruptor que ofrecer,
+  /// nunca un error) y en cualquier combinación sin llave guardada.
+  Future<AuthProfile?> findRememberedCredential(
+    String serverUrl,
+    String database,
+    String login,
+  ) async {
+    if (_service case final StoredCredentialAuthServicePort port) {
+      return port.findRememberedCredential(serverUrl, database, login);
+    }
+    return null;
+  }
+
+  /// Entra con la llave guardada de [profile], sin que el operador haya
+  /// escrito nada. Un rechazo explícito del servidor (la llave venció o fue
+  /// revocada) se traduce en [LoginFailureCause.storedCredentialExpired] —
+  /// nunca en «el usuario o la contraseña no coinciden», que sería mentira
+  /// aquí: nadie tecleó una contraseña equivocada. La llave ya quedó borrada
+  /// por el propio servicio antes de que este catch se ejecute.
+  Future<void> loginWithStoredCredential(AuthProfile profile) async {
+    state = const AuthViewState(status: AuthControllerStatus.loading);
+    if (_service case final StoredCredentialAuthServicePort port) {
+      try {
+        final result = await port.loginWithStoredCredential(profile);
+        if (!ref.mounted) return;
+        state = _fromAttempt(result);
+      } on OdooAuthenticationException {
+        if (!ref.mounted) return;
+        state = AuthViewState(
+          status: AuthControllerStatus.error,
+          message: loginFailureMessageFor(
+            LoginFailureCause.storedCredentialExpired,
+          ).flatten(),
+        );
+      } catch (error) {
+        if (!ref.mounted) return;
+        state = AuthViewState(
+          status: AuthControllerStatus.error,
+          message: describeLoginFailure(error).flatten(),
+        );
+      }
+      return;
+    }
+    state = const AuthViewState(
+      status: AuthControllerStatus.error,
+      message: 'Esta plataforma no puede reutilizar una llave guardada.',
+    );
+  }
+
+  /// «Olvidar la clave guardada»: nunca lanza, y no cambia el estado de
+  /// autenticación — se llama tanto desde la pantalla de acceso (sin sesión)
+  /// como, potencialmente, con una sesión ya abierta.
+  Future<void> forgetStoredCredential(AuthProfile profile) async {
+    if (_service case final StoredCredentialAuthServicePort port) {
+      await port.forgetStoredCredential(profile);
+    }
   }
 
   /// Cierra la sesión en memoria porque el propio SERVIDOR rechazó la clave

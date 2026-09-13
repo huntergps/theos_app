@@ -171,7 +171,8 @@ final class WebSessionAuthService
         ApiKeyAuthServicePort,
         CredentialPolicyAuthServicePort,
         ExpirableAuthServicePort,
-        RenewableAuthServicePort {
+        RenewableAuthServicePort,
+        StoredCredentialAuthServicePort {
   WebSessionAuthService({
     required this.runtime,
     required this.installationIds,
@@ -318,7 +319,7 @@ final class WebSessionAuthService
       password: password,
       database: database,
     );
-    final result = await _apiKeyPort.loginWithApiKey(
+    final result = await _apiKeyPort.service.loginWithApiKey(
       serverUrl: serverUrl,
       // The database the SERVER says it served, never the one that was typed:
       // the route refuses a mismatch rather than entering another database, so
@@ -327,6 +328,10 @@ final class WebSessionAuthService
       login: login,
       apiKey: token.apiKey,
       persistCredential: persistCredential,
+      // Esta llave vino de una contraseña (`/orbi/auth/token`), no de que el
+      // operador la pegara a mano: sin «Guardar clave», `close()` debe
+      // revocarla al cerrar sesión, igual que en escritorio.
+      passwordDerived: true,
     );
     // A diferencia del bootstrap nativo (que calcula la expiración desde su
     // propio wizard), esta ruta la RECIBE explícita en la respuesta de
@@ -379,16 +384,21 @@ final class WebSessionAuthService
   ) async => _profile ?? await _apiKeyPort.loadProfileFor(serverUrl, database);
   @override
   Future<void> close() async {
-    // 🔴 This used to just empty an in-memory map, which was enough only while
-    // the key died with the tab. The moment the browser started persisting
-    // (W04), clearing a map stopped deleting anything durable — a logout would
-    // have left a live, replayable API key in IndexedDB. Delegating to the
-    // inner service is what actually removes it: `NativeAuthService.close()`
-    // rebuilds the scope from the saved profile and deletes the namespaced
-    // credential, then ends the runtime session in its own `finally`.
+    // 🔴 Hasta el 13-sep-2026 esto delegaba en un `NativeAuthService.close()`
+    // que SIEMPRE revocaba y borraba la llave de este dispositivo — antes de
+    // W04, ni eso: sólo vaciaba un mapa en memoria, que ya no bastaba en
+    // cuanto el navegador empezó a persistir (una llave viva se habría
+    // quedado en IndexedDB sin que este `close()` se enterara). Ahora, por
+    // decisión del dueño («Recordar la llave tras salir»,
+    // `W04-el-navegador-tambien-guarda.md`), `NativeAuthService.close()`
+    // tampoco toca la llave: sólo termina la sesión en memoria. Con eso, si
+    // el operador entró con «Guardar clave», su llave sigue en el almacén
+    // cifrado del navegador después de esto — igual que en escritorio — y
+    // `forgetStoredCredential`/`closeExpired` son los únicos caminos que
+    // todavía la borran.
     //
-    // This is the single path behind both "Cerrar sesión" and "Cambiar de
-    // usuario", so it is the one place that has to be right.
+    // Esto es el único camino detrás de "Cerrar sesión" y "Cambiar de
+    // usuario", así que es el único sitio que tiene que estar bien.
     await _apiKeyPort.close();
     // Belt and braces for the tab-lifetime backend, whose entries are not
     // namespaced by a profile that may never have been written.
@@ -413,6 +423,36 @@ final class WebSessionAuthService
   // sesión, 13-sep-2026.
   @override
   Future<void> renewApiKeyIfNeeded() => _apiKeyPort.renewApiKeyIfNeeded();
+
+  // «Recordar la llave tras salir» (decisión del dueño, 13-sep-2026): el
+  // mismo mecanismo que en escritorio, compartido vía `NativeAuthService` —
+  // aquí sólo delega, salvo `loginWithStoredCredential`, que además tiene
+  // que actualizar `_profile` como ya hace `loginWithApiKey` arriba.
+  @override
+  Future<AuthProfile?> findRememberedCredential(
+    String serverUrl,
+    String database,
+    String login,
+  ) => _apiKeyPort.findRememberedCredential(serverUrl, database, login);
+
+  @override
+  Future<AuthServiceResult> loginWithStoredCredential(
+    AuthProfile profile,
+  ) async {
+    final result = await _apiKeyPort.loginWithStoredCredential(profile);
+    if (result.status == AuthServiceStatus.authenticated) {
+      _profile = result.profile;
+    }
+    return result;
+  }
+
+  @override
+  Future<void> forgetStoredCredential(AuthProfile profile) =>
+      _apiKeyPort.forgetStoredCredential(profile);
+
+  @override
+  Future<bool> hasStoredCredential(AuthProfile profile) =>
+      _apiKeyPort.hasStoredCredential(profile);
 }
 
 final class _SessionIdentityReader implements ActiveIdentityReader {

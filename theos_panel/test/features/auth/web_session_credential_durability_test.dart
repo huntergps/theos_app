@@ -10,8 +10,12 @@ import 'workspace_unlock_test_doubles.dart';
 /// `WebSessionAuthService.close()` used to empty an in-memory map, which
 /// deleted everything only because the browser stored nothing. Now that the
 /// browser persists, the same code would have left a **live, replayable API
-/// key** behind after a logout. These fail on that version and pass on the one
-/// that delegates to the inner service.
+/// key** behind after a logout — which was a bug when the credential wasn't
+/// meant to be kept. Since the 13-sep-2026 decision ("Recordar la llave tras
+/// salir"), keeping that key on close is exactly the point when the session
+/// logged in with "Guardar clave" (`persistCredential: true`, the default):
+/// it's what lets a later login skip the password. Without that flag, close
+/// still has to delete it, same as before.
 void main() {
   late SharedPreferences preferences;
 
@@ -67,8 +71,9 @@ void main() {
     );
   });
 
-  test('CERRAR SESIÓN borra la credencial durable: ningún acceso puede dejar '
-      'una clave replicable viva detrás', () async {
+  test('CERRAR SESIÓN con "Guardar clave" (persistencia por defecto) '
+      'conserva la credencial durable: es lo que permite volver a entrar sin '
+      'escribir la clave, por decisión del 13-sep-2026', () async {
     final backend = FakeCredentialBackend();
     final service = build(backend: backend);
     await service.loginWithApiKey(
@@ -78,6 +83,29 @@ void main() {
       apiKey: 'clave-emitida',
     );
     expect(backend.entries, isNotEmpty);
+
+    await service.close();
+
+    expect(
+      backend.entries.values.any((value) => value == 'clave-emitida'),
+      isTrue,
+      reason: '«Recordar la llave tras salir»: cerrar sesión sólo termina la '
+          'sesión en memoria, no borra una credencial que sí se pidió guardar',
+    );
+  });
+
+  test('CERRAR SESIÓN sin persistir la credencial (persistCredential: '
+      'false) sigue borrándola: ningún acceso que no pidió «Guardar clave» '
+      'puede dejar una clave replicable viva detrás', () async {
+    final backend = FakeCredentialBackend();
+    final service = build(backend: backend);
+    await service.loginWithApiKey(
+      serverUrl: 'https://erp2.test',
+      database: 'orbi',
+      login: 'vendedor',
+      apiKey: 'clave-emitida',
+      persistCredential: false,
+    );
 
     await service.close();
 

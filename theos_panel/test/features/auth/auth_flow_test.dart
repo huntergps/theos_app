@@ -416,7 +416,9 @@ void main() {
   });
 
   test(
-    'native service stores metadata but logout prevents credential restore',
+    'native service stores metadata, and with "Guardar clave" (default) logout '
+    'preserves the credential: a later offline restore succeeds without the '
+    'password',
     () async {
       SharedPreferences.setMockInitialValues({});
       final preferences = await SharedPreferences.getInstance();
@@ -448,13 +450,50 @@ void main() {
         isNotNull,
       );
       await service.close();
-      final restored = await service.restore(offline: true);
-      expect(restored.status, AuthServiceStatus.required);
       expect(runtime.active, isNull);
+      final restored = await service.restore(offline: true);
+      expect(restored.status, AuthServiceStatus.restored);
       expect(
         (await service.loadProfileFor('https://erp.test', 'demo'))?.login,
         'seller',
       );
+    },
+  );
+
+  test(
+    'without "Guardar clave" (persistCredential: false), logout still deletes '
+    'the credential: a later offline restore asks to log in again, unchanged',
+    () async {
+      SharedPreferences.setMockInitialValues({});
+      final preferences = await SharedPreferences.getInstance();
+      final backend = FakeBackend();
+      final runtime = FakeRuntime();
+      final service = NativeAuthService(
+        bootstrapPort: FakeBootstrap(),
+        credentialStore: CredentialStore(
+          backend,
+          durability: CredentialDurability.secureStore,
+        ),
+        preferences: preferences,
+        runtimePort: runtime,
+        installationIds: InstallationIdStore(
+          backend,
+          generator: () => 'install-1',
+        ),
+      );
+
+      final loggedIn = await service.login(
+        serverUrl: 'https://erp.test',
+        database: 'demo',
+        login: 'seller',
+        password: 'secret',
+        persistCredential: false,
+      );
+      expect(loggedIn.profile?.userId, 7);
+      await service.close();
+      expect(runtime.active, isNull);
+      final restored = await service.restore(offline: true);
+      expect(restored.status, AuthServiceStatus.required);
     },
   );
 

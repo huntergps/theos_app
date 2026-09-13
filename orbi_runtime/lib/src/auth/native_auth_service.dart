@@ -414,6 +414,17 @@ final class NativeAuthService {
   final CapabilitySnapshotPort? capabilityPort;
   final ApiKeyIdentityProbe _apiKeyIdentityProbe;
 
+  /// La llave de la sesión activa, sólo cuando [close] tiene que revocarla:
+  /// vino de una contraseña — por [login], o por [loginWithApiKey] con
+  /// `passwordDerived: true`, el camino de la web — Y sin «Guardar clave».
+  /// `null` en cualquier otro caso: con «Guardar clave» puesta, o cuando la
+  /// llave es del operador ([loginWithApiKey] con `passwordDerived: false`,
+  /// su valor por omisión — incluida la que reenvía
+  /// [loginWithStoredCredential], que siempre persiste). Se fija al final de
+  /// [login] y [loginWithApiKey], se limpia en [close] y [closeExpired].
+  ({String baseUrl, String database, String apiKey})?
+  _passwordSessionKeyPendingRevoke;
+
   Future<AuthServiceResult> login({
     required String serverUrl,
     required String database,
@@ -487,6 +498,16 @@ final class NativeAuthService {
       if (!persistCredential) {
         await _credentialStore.delete(scope, reference);
       }
+      // Sin «Guardar clave» no queda nada en el almacén para que `close()`
+      // lo lea y revoque, así que la única copia que sobrevive hasta el
+      // cierre es esta, en memoria — nunca en preferencias ni en disco.
+      _passwordSessionKeyPendingRevoke = persistCredential
+          ? null
+          : (
+              baseUrl: scope.normalizedServerUrl,
+              database: database,
+              apiKey: result.apiKey,
+            );
       return AuthServiceResult(
         status: AuthServiceStatus.authenticated,
         scope: scope,
@@ -577,12 +598,21 @@ final class NativeAuthService {
   /// Activates a session with an already-issued API key. The key is accepted
   /// only by native clients and is immediately moved into CredentialStore;
   /// it never becomes profile metadata or a widget-owned session token.
+  ///
+  /// [passwordDerived] distingue de dónde vino la llave, para lo único que
+  /// [close] necesita saberlo: si el operador la pegó a mano (`false`, el
+  /// valor por omisión — su llave, `close()` nunca la revoca), o si el
+  /// servidor la emitió a cambio de una contraseña, como hace la web al
+  /// pedirla a `/orbi/auth/token` antes de llamar aquí (`true` — sin
+  /// «Guardar clave», es exactamente la misma llave que en escritorio emite
+  /// `login()`, y debe correr la misma suerte al cerrar sesión).
   Future<AuthServiceResult> loginWithApiKey({
     required String serverUrl,
     required String database,
     required String login,
     required String apiKey,
     bool persistCredential = true,
+    bool passwordDerived = false,
   }) async {
     if (serverUrl.trim().isEmpty ||
         database.trim().isEmpty ||
@@ -638,6 +668,18 @@ final class NativeAuthService {
       if (!persistCredential) {
         await _credentialStore.delete(scope, reference);
       }
+      // Sólo una llave que el servidor emitió a cambio de una contraseña
+      // (`passwordDerived`) y que además no se pidió guardar deja algo
+      // pendiente de revocar en `close()` — una pegada a mano por el
+      // operador (incluida la que reenvía `loginWithStoredCredential`,
+      // que siempre persiste) nunca lo deja, con o sin «Guardar clave».
+      _passwordSessionKeyPendingRevoke = (passwordDerived && !persistCredential)
+          ? (
+              baseUrl: scope.normalizedServerUrl,
+              database: database,
+              apiKey: apiKey,
+            )
+          : null;
       return AuthServiceResult(
         status: AuthServiceStatus.authenticated,
         scope: scope,
@@ -782,53 +824,58 @@ final class NativeAuthService {
     );
   }
 
+  /// 🔴 Revisado el 13-sep-2026 (decisión del dueño, «Recordar la llave tras
+  /// salir», documentada en `W04-el-navegador-tambien-guarda.md`): hasta ese
+  /// día, `close()` revocaba y borraba SIEMPRE la llave de este dispositivo
+  /// cuando quedaba una copia en el almacén — que sólo ocurría con «Guardar
+  /// clave» activo, porque sin el interruptor `login()`/`loginWithApiKey()`
+  /// ya la borraban del almacén nada más emitirla. Es decir: la revocación
+  /// de `close()` sólo se disparaba con «Guardar clave» puesto — justo el
+  /// caso que el interruptor promete conservar — y sin el interruptor la
+  /// llave NUNCA se revocaba, sólo quedaba huérfana en el servidor hasta
+  /// vencer por su cuenta (`orbi.web_auth_key_days`). Ese era el bug real,
+  /// anterior a esta decisión, no algo que ella introdujera.
+  ///
+  /// Ahora `close()` **nunca toca la llave guardada ni el perfil**: si el
+  /// operador entró con «Guardar clave», [hasStoredCredential] sigue
+  /// devolviendo `true` después de esto, y la pantalla de acceso puede
+  /// ofrecer entrar de nuevo sin pedirla. Pero sí revoca, best effort, la
+  /// llave EN MEMORIA de una sesión que entró con contraseña y SIN «Guardar
+  /// clave» ([_passwordSessionKeyPendingRevoke], la única copia que le queda
+  /// a esa sesión, porque el almacén ya la había borrado) — así el
+  /// interruptor apagado sigue significando lo mismo que siempre significó:
+  /// nada sobrevive al cierre, ni local ni en el servidor. Una llave pegada a
+  /// mano (`loginWithApiKey`, incluida la que reenvía
+  /// [loginWithStoredCredential]) nunca se revoca aquí: es del operador, no
+  /// una que este servicio haya emitido.
+  ///
+  /// El único camino que borra o revoca una llave GUARDADA (persistida) es
+  /// [forgetStoredCredential] («Olvidar la clave guardada», una decisión
+  /// explícita del operador) o [closeExpired] (el propio servidor la
+  /// rechazó).
   Future<void> close() async {
-    // Keep non-secret identity metadata so the next actor can reuse the
-    // endpoint/database/login, but revoke this device's bearer credential
-    // before ending the runtime session. A subsequent restore must therefore
-    // require an explicit login again.
+    final pending = _passwordSessionKeyPendingRevoke;
+    _passwordSessionKeyPendingRevoke = null;
     try {
-      final profile = await loadProfile();
-      if (profile != null) {
-        final scope = AppScope(
-          appId: appId,
-          installationId: profile.installationId,
-          normalizedServerUrl: profile.serverUrl,
-          database: profile.database,
-          userId: profile.userId,
-        );
-        // Order matters: read and attempt to revoke the secret *before*
-        // deleting it locally. Once the local copy is gone there is nothing
-        // left to authenticate a revoke with — no password is ever retained
-        // (see class doc) — so this is the only point where revocation is
-        // still possible at all.
-        final secret = await _credentialStore.read(
-          scope,
-          profile.credentialReference,
-        );
-        if (secret != null && secret.isNotEmpty) {
-          try {
-            await _bootstrap.revokeOwnApiKey(
-              baseUrl: profile.serverUrl,
-              database: profile.database,
-              apiKey: secret,
-            );
-          } catch (error) {
-            // Best-effort: offline, the server not opting into
-            // `base.enable_programmatic_api_keys`, or any other failure must
-            // never block logout, and is never treated as if it succeeded —
-            // the key stays orphaned on the server, same as before this
-            // call existed, but now with a trace an administrator can act
-            // on. Never the key itself.
-            logger.w(
-              '[NativeAuthService]',
-              'Could not revoke this device\'s API key on logout for '
-                  'login=${profile.login} db=${profile.database} '
-                  'server=${profile.serverUrl}: $error',
-            );
-          }
+      if (pending != null) {
+        try {
+          await _bootstrap.revokeOwnApiKey(
+            baseUrl: pending.baseUrl,
+            database: pending.database,
+            apiKey: pending.apiKey,
+          );
+        } catch (error) {
+          // Best-effort, igual que el resto de revocaciones de esta clase:
+          // sin red, o sin `base.enable_programmatic_api_keys`, la llave
+          // queda huérfana hasta vencer por su cuenta, pero con constancia
+          // en el registro. Nunca la llave misma.
+          logger.w(
+            '[NativeAuthService]',
+            'No se pudo revocar al cerrar sesión la llave de una sesión sin '
+                '"Guardar clave" (db=${pending.database} '
+                'server=${pending.baseUrl}): $error',
+          );
         }
-        await _credentialStore.delete(scope, profile.credentialReference);
       }
     } finally {
       await _sessionRuntime.close();
@@ -851,6 +898,9 @@ final class NativeAuthService {
   ///   preferencias — igual que [close] — para que la pantalla de acceso lo
   ///   precargue sin que el operador tenga que volver a escribirlo.
   Future<void> closeExpired() async {
+    // El servidor ya rechazó esta llave: no hay nada que revocar, en el
+    // almacén o en memoria — sólo dejar de acordarse de ella.
+    _passwordSessionKeyPendingRevoke = null;
     try {
       final profile = await loadProfile();
       if (profile != null) {
@@ -1041,10 +1091,21 @@ final class NativeAuthService {
     }
   }
 
+  /// Además del perfil "último por servidor+base" de siempre, guarda una
+  /// copia indexada por servidor+base+**login** (decisión del dueño,
+  /// 13-sep-2026: «Recordar la llave tras salir»). Con eso conviven las
+  /// llaves de varios usuarios en el mismo equipo — elegir a Carlos en el
+  /// desplegable nunca lee ni usa la llave de Erik, aunque los dos hayan
+  /// entrado alguna vez al mismo servidor+base desde este dispositivo.
   Future<void> _saveProfile(AuthProfile profile) async {
+    final encoded = jsonEncode(profile.toJson());
     await _preferences.setString(
       _profileKeyFor(profile.serverUrl, profile.database),
-      jsonEncode(profile.toJson()),
+      encoded,
+    );
+    await _preferences.setString(
+      _profileKeyForLogin(profile.serverUrl, profile.database, profile.login),
+      encoded,
     );
     await _preferences.setString(
       _lastProfileKey,
@@ -1066,6 +1127,158 @@ final class NativeAuthService {
         .encode(utf8.encode('${normalized.normalizedServerUrl}|$database'))
         .replaceAll('=', '');
     return 'orbi/auth/profile/$appId/$encoded';
+  }
+
+  /// Igual que [_profileKeyFor] pero además del login, para que dos usuarios
+  /// del mismo servidor+base tengan cada uno su propio registro — nunca se
+  /// pisan entre sí como sí lo hacía (y lo sigue haciendo, a propósito, para
+  /// el precargado "último usuario") la clave de sólo servidor+base.
+  String _profileKeyForLogin(String serverUrl, String database, String login) {
+    final normalized = AppScope(
+      appId: appId,
+      installationId: 'profile',
+      normalizedServerUrl: serverUrl,
+      database: database,
+      userId: 1,
+    );
+    final encoded = base64Url
+        .encode(
+          utf8.encode(
+            '${normalized.normalizedServerUrl}|$database|${login.trim()}',
+          ),
+        )
+        .replaceAll('=', '');
+    return 'orbi/auth/profile/$appId/by-login/$encoded';
+  }
+
+  /// El perfil guardado para este login EXACTO en este servidor+base, o
+  /// `null` si nunca se entró así desde este dispositivo. A diferencia de
+  /// [loadProfileFor], no se ve afectado por cuál fue el ÚLTIMO usuario en
+  /// entrar — cada login tiene su propio registro.
+  Future<AuthProfile?> loadProfileForLogin(
+    String serverUrl,
+    String database,
+    String login,
+  ) => loadProfileForKey(_profileKeyForLogin(serverUrl, database, login));
+
+  /// Si el almacén seguro todavía tiene una llave utilizable para [profile].
+  /// Nunca lanza: un almacén que no responde se lee como "no hay llave", no
+  /// como un error de login.
+  Future<bool> hasStoredCredential(AuthProfile profile) async {
+    final scope = AppScope(
+      appId: appId,
+      installationId: profile.installationId,
+      normalizedServerUrl: profile.serverUrl,
+      database: profile.database,
+      userId: profile.userId,
+    );
+    try {
+      final secret = await _credentialStore.read(
+        scope,
+        profile.credentialReference,
+      );
+      return secret != null && secret.isNotEmpty;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  /// Lo que la pantalla de acceso necesita para mostrar «Clave guardada en
+  /// este equipo»: el perfil de este login exacto, sólo si además su llave
+  /// SIGUE en el almacén (un perfil puede sobrevivir a que su llave se haya
+  /// olvidado explícitamente — [forgetStoredCredential] no borra el
+  /// perfil, sólo la llave).
+  Future<AuthProfile?> findRememberedCredential(
+    String serverUrl,
+    String database,
+    String login,
+  ) async {
+    final profile = await loadProfileForLogin(serverUrl, database, login);
+    if (profile == null) return null;
+    return (await hasStoredCredential(profile)) ? profile : null;
+  }
+
+  /// Entra con la llave que ya está guardada para [profile], sin pedir
+  /// contraseña. Delega en [loginWithApiKey] — mismo camino de activación,
+  /// mismo respaldo ante un fallo.
+  ///
+  /// Decisión del dueño (`W04-el-navegador-tambien-guarda.md`, 13-sep-2026):
+  /// un rechazo EXPLÍCITO del servidor (`OdooAuthenticationException`, la
+  /// llave venció o fue revocada allá) borra esa llave aquí mismo — antes de
+  /// relanzar la excepción, para que ningún llamador tenga que acordarse de
+  /// hacerlo por su cuenta — y dejar así de ofrecerla la próxima vez. Sin
+  /// conexión, o ante cualquier OTRO error, la llave se conserva intacta:
+  /// un fallo de red nunca debe costar la llave guardada.
+  ///
+  /// `AuthServiceStatus.required` sin lanzar cuando, por una carrera, la
+  /// llave desapareció entre que la pantalla la vio y que el operador tocó
+  /// «Iniciar sesión» — nunca debería pasar en la práctica (nada más borra la
+  /// llave salvo un «Olvidar» explícito), pero no hay nada que intentar.
+  Future<AuthServiceResult> loginWithStoredCredential(
+    AuthProfile profile,
+  ) async {
+    final scope = AppScope(
+      appId: appId,
+      installationId: profile.installationId,
+      normalizedServerUrl: profile.serverUrl,
+      database: profile.database,
+      userId: profile.userId,
+    );
+    final secret = await _credentialStore.read(
+      scope,
+      profile.credentialReference,
+    );
+    if (secret == null || secret.isEmpty) {
+      return const AuthServiceResult(status: AuthServiceStatus.required);
+    }
+    try {
+      return await loginWithApiKey(
+        serverUrl: profile.serverUrl,
+        database: profile.database,
+        login: profile.login,
+        apiKey: secret,
+        persistCredential: true,
+      );
+    } on OdooAuthenticationException {
+      await _credentialStore.delete(scope, profile.credentialReference);
+      rethrow;
+    }
+  }
+
+  /// «Olvidar la clave guardada»: intenta revocarla en el servidor (best
+  /// effort — sin red o sin `base.enable_programmatic_api_keys` simplemente
+  /// no revoca nada allá, igual que el resto de revocaciones de esta clase)
+  /// y SIEMPRE la borra del almacén local, para que [hasStoredCredential]
+  /// vuelva a responder que no hay ninguna. El perfil (servidor/base/login)
+  /// no se toca: sigue precargando el campo Usuario la próxima vez.
+  Future<void> forgetStoredCredential(AuthProfile profile) async {
+    final scope = AppScope(
+      appId: appId,
+      installationId: profile.installationId,
+      normalizedServerUrl: profile.serverUrl,
+      database: profile.database,
+      userId: profile.userId,
+    );
+    final secret = await _credentialStore.read(
+      scope,
+      profile.credentialReference,
+    );
+    if (secret != null && secret.isNotEmpty) {
+      try {
+        await _bootstrap.revokeOwnApiKey(
+          baseUrl: profile.serverUrl,
+          database: profile.database,
+          apiKey: secret,
+        );
+      } catch (error) {
+        logger.w(
+          '[NativeAuthService]',
+          'No se pudo revocar la llave olvidada de login=${profile.login} '
+              'db=${profile.database} server=${profile.serverUrl}: $error',
+        );
+      }
+    }
+    await _credentialStore.delete(scope, profile.credentialReference);
   }
 }
 

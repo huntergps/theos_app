@@ -98,6 +98,16 @@ enum LoginFailureCause {
 
   /// Nothing above matched. Never dressed up as something more specific.
   unknown,
+
+  /// «Recordar la llave tras salir» (decisión del dueño, 13-sep-2026): el
+  /// operador tocó «Iniciar sesión» sin escribir nada, confiando en la llave
+  /// guardada, y el servidor la rechazó (`OdooAuthenticationException`) — la
+  /// llave venció o fue revocada allá. Distinto de [invalidCredentials]:
+  /// nadie tecleó una contraseña equivocada, así que decirlo así mandaría a
+  /// alguien a revisar mayúsculas que no escribió. La llave ya se borró sola
+  /// (`NativeAuthService.loginWithStoredCredential`) antes de que este
+  /// mensaje se muestre.
+  storedCredentialExpired,
 }
 
 /// What the person reads: what happened, and what to do about it.
@@ -297,6 +307,12 @@ const Map<LoginFailureCause, LoginFailureMessage> _messages = {
         'Vuelve a intentarlo. Si el problema continúa, avisa a tu '
         'administrador e indícale la hora exacta en que ocurrió.',
     severity: NotificationSeverity.error,
+  ),
+  LoginFailureCause.storedCredentialExpired: LoginFailureMessage(
+    cause: LoginFailureCause.storedCredentialExpired,
+    title: 'La clave guardada venció',
+    guidance: 'Escribe tu contraseña para entrar de nuevo.',
+    severity: NotificationSeverity.attention,
   ),
 };
 

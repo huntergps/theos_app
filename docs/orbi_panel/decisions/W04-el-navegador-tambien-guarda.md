@@ -167,3 +167,96 @@ hacer nada con un problema de permisos de firma, y un diálogo sería ruido.
 `test/web/` llevan `@TestOn('browser')`: **ahí se saltan**. Hay que añadir un objetivo que
 las corra con `--platform chrome` o esta garantía no la vigila nadie. El `Makefile` no es
 mío; lo dejo pedido.
+
+## 8. 13-sep-2026 — el dueño decidió: «Recordar la llave tras salir»
+
+Se le presentaron tres opciones para lo que pasa con la llave cifrada al cerrar sesión,
+avisándole del riesgo de cada una. La opción que revoca todo al salir es la más segura
+pero obliga a escribir la clave en cada acceso; la intermedia distingue por caso de uso.
+El dueño eligió la que recuerda siempre:
+
+> «Recordar la llave tras salir»: con «Guardar clave» activo, cerrar sesión NO borra la
+> llave cifrada, y se vuelve a entrar sin escribir la clave.
+
+**El riesgo, tal como se le planteó y que acepta con esta elección:**
+
+> «Cualquiera con el equipo podría entrar con tu usuario después de que salgas.»
+
+Es decir: en un equipo compartido, «Cerrar sesión» deja de ser una barrera de acceso para
+el siguiente que se siente — sólo termina la sesión en memoria de quien salió. La barrera
+real, ahora, es «Olvidar la clave guardada» (borra la llave, local y en el servidor si hay
+red) o no activar «Guardar clave» desde el principio.
+
+**Qué cambia exactamente:**
+
+- Al entrar con «Guardar clave» activo, la llave emitida se guarda cifrada, asociada a
+  servidor + base + usuario, de modo que varias personas puedan tener cada una la suya
+  guardada en el mismo equipo sin pisarse
+  (`orbi_runtime/lib/src/auth/native_auth_service.dart:1191` `findRememberedCredential`,
+  namespacing existente de `AppScope.scopeKey`).
+- «Cerrar sesión» y «Cambiar de usuario» — ambos caminos terminan en el mismo
+  `AuthNotifier.close()`, que llama a
+  `orbi_runtime/lib/src/auth/native_auth_service.dart:856` `NativeAuthService.close()` —
+  ya **no** revocan en el servidor ni borran la llave cuando esa sesión entró con «Guardar
+  clave»; sólo cierran la sesión en memoria.
+
+  🔴 **Corrección, 13-sep-2026 (segunda pasada, tras revisión):** lo que sigue dice «igual
+  que antes» de forma inexacta en un borrador anterior de esta sección. Sin «Guardar
+  clave», `login()`/`loginWithApiKey()` ya borraban la llave del almacén nada más
+  emitirla, así que el `close()` de ANTES de esta decisión — que sólo sabía leerla del
+  almacén — nunca llegaba a revocarla: quedaba huérfana en el servidor hasta vencer por su
+  cuenta (`orbi.web_auth_key_days`). Ese era un bug real, anterior e independiente de
+  «Recordar la llave tras salir». Se corrigió de una: ahora `close()` se acuerda EN
+  MEMORIA de la llave de una sesión que entró con contraseña y sin «Guardar clave» (la
+  única copia que le queda, porque el almacén ya la había borrado) y la revoca al cerrar,
+  best effort, igual que el resto de revocaciones de esta clase. Una llave pegada a mano
+  por el operador (`loginWithApiKey` sin marcar que viene de una contraseña) nunca se
+  revoca aquí, con o sin «Guardar clave»: es suya, no una que este servicio haya emitido.
+- La pantalla de acceso ofrece entrar sin escribir clave cuando hay una guardada para el
+  servidor + base + usuario elegidos
+  (`theos_panel/lib/features/auth/login_screen.dart`, indicador «Clave guardada en este
+  equipo» y botón «Olvidar la clave guardada» →
+  `orbi_runtime/lib/src/auth/native_auth_service.dart:1254` `forgetStoredCredential`, que
+  sí revoca en el servidor si hay red y siempre borra localmente).
+- Si el servidor rechaza esa llave guardada (401 u otro rechazo de credencial), se borra y
+  se pide la contraseña con el mensaje «La clave guardada venció. Escribe tu contraseña.»
+  (`theos_panel/lib/features/auth/login_failure_messages.dart`,
+  `LoginFailureCause.storedCredentialExpired`). Sin conexión, el arranque en frío sigue
+  abriendo con los datos locales, sin tocar ese camino.
+
+**«Cambiar de usuario», con fichero:línea:** tanto el menú del avatar
+(`theos_panel/lib/app/router.dart:1554`) como la pantalla de bloqueo
+(`theos_panel/lib/ui/layouts/operational_shell.dart:287-294`, que reenvía el mismo
+`widget.onSwitchUser`) llaman a `confirmSwitchWorkspaceUser`
+(`theos_panel/lib/app/router.dart:229-260`), y ésta llama al mismo
+`AuthNotifier.close()` que «Cerrar sesión». No hay un segundo camino de borrado: el
+cambio de regla de arriba aplica igual a los dos.
+
+`WorkspaceUnlockStore` (desbloqueo sin conexión) sigue la misma regla: si la sesión que
+cierra entró con «Guardar clave», su derivado tampoco se borra en `close()`.
+
+La web entra con contraseña por un camino distinto al de escritorio — pide la llave a
+`/orbi/auth/token` y la activa con `loginWithApiKey`, no con `login()` — así que ese
+método necesitó una forma de decir «esta llave vino de una contraseña, no la pegó el
+operador a mano»: el parámetro `passwordDerived`
+(`orbi_runtime/lib/src/auth/native_auth_service.dart:599`), que
+`WebSessionAuthService.login` fija en `true`
+(`theos_panel/lib/app/bootstrap.dart:334`). Sin él, la revocación sin «Guardar clave» de
+arriba sólo habría cubierto escritorio y habría dejado la web con el mismo bug de
+siempre.
+
+### «Cuándo se borra» — corregida
+
+La tabla de la sección 5 quedó desactualizada por esta decisión: la fila «Al cerrar sesión
+y al cambiar de usuario» ya no describe un borrado incondicional. Tabla corregida:
+
+| Cuándo | Quién lo hace |
+|---|---|
+| Al cerrar sesión o cambiar de usuario, **con «Guardar clave» activo** | Nadie — `AuthNotifier.close()` sólo termina la sesión en memoria; la llave y el derivado de desbloqueo quedan intactos a propósito |
+| Al cerrar sesión o cambiar de usuario, **sin «Guardar clave»**, entrando con contraseña | `AuthNotifier.close()` revoca en el servidor la llave que queda en memoria — best effort. Local ya no hay nada que borrar: `login()` la borró del almacén nada más emitirla. **Antes de esta decisión esa revocación NO ocurría** (bug real, independiente de «Recordar la llave»): `close()` sólo sabía leer del almacén, y ahí ya no quedaba nada que leer |
+| Al cerrar sesión o cambiar de usuario, **sin «Guardar clave»**, entrando con una llave pegada a mano | Nadie revoca nada — esa llave es del operador, no una que este servicio haya emitido |
+| Al pulsar «Olvidar la clave guardada» en la pantalla de acceso | `forgetStoredCredential`: revoca en el servidor si hay red, y siempre borra localmente |
+| Cuando la llave guardada es rechazada por el servidor (401 u otro rechazo de credencial) | Se borra esa llave; la pantalla de acceso pide la contraseña con el mensaje de clave vencida |
+| Cuando el servidor acepta **otra** contraseña | `attemptWorkspaceUnlock` reemplaza el derivado en el acto |
+| Cuando el registro no se puede descifrar — manipulado, o escrito bajo una llave anterior | El propio respaldo lo descarta al leerlo |
+| Cuando el usuario borra los datos del sitio | El navegador se lleva la llave; todo registro queda ilegible y se trata como «no hay nada» |

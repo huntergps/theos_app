@@ -56,9 +56,9 @@ const CopyableMessage _kServersUnreadableMessage = CopyableMessage(
 const String _kManageServersOptionValue = '__manage_servers__';
 const String _kManageServersLabel = 'Gestionar servidores…';
 
-String _saveCredentialSubtitleFor(bool apiKeyMode) => apiKeyMode
-    ? 'Guarda la API key sólo en el almacén seguro.'
-    : 'Guarda la contraseña sólo en el almacén seguro.';
+const String _kSaveCredentialSubtitle =
+    'Recuerda el acceso en este equipo, también después de cerrar sesión. '
+    'Quien use este equipo podrá entrar con tu usuario.';
 
 /// Presents a login failure the way a failed sign-in deserves: a bordered,
 /// tinted block with an icon, a headline saying WHAT happened, a second line
@@ -176,10 +176,23 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   // transición (orden del dueño, 12-sep-2026).
   final _headerKey = GlobalKey();
   int _profileLookupEpoch = 0;
+  // Aparte de `_profileLookupEpoch` (que sólo guarda contra el precargado del
+  // nombre de usuario): «Recordar la llave tras salir» hace su propia
+  // consulta asíncrona por servidor+base+login, y necesita su propio guardián
+  // para no aplicar una respuesta tardía tras haber cambiado de servidor o
+  // de usuario mientras tanto.
+  int _credentialLookupEpoch = 0;
   Timer? _loginPreferencesDebounce;
   bool _apiKeyMode = false;
   bool _saveCredential = false;
   bool _passwordVisible = false;
+
+  /// El perfil de (servidor, base, usuario) elegidos AHORA MISMO, sólo si su
+  /// llave sigue en el almacén — decisión del dueño, 13-sep-2026: «Recordar
+  /// la llave tras salir» (`W04-el-navegador-tambien-guarda.md`). `null` en
+  /// cualquier otra combinación, incluida una plataforma que no ofrezca el
+  /// concepto en absoluto.
+  AuthProfile? _rememberedCredential;
 
   /// ACC-02's door, opened from here. Toggled purely by local widget state —
   /// deliberately NOT a GoRoute: `/login` is the one pre-authentication path
@@ -220,7 +233,53 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     _loginPreferencesDebounce?.cancel();
     _loginPreferencesDebounce = Timer(const Duration(milliseconds: 400), () {
       unawaited(_saveLoginPreferences());
+      unawaited(_lookupStoredCredential());
     });
+  }
+
+  /// Busca si (servidor, base, usuario elegidos AHORA) tiene una llave
+  /// guardada — «Recordar la llave tras salir», decisión del dueño,
+  /// 13-sep-2026. Se dispara desde el mismo debounce que ya guarda la
+  /// preferencia de usuario, así que corre con el mismo ritmo (cada 400 ms
+  /// de inactividad al teclear, o al elegir servidor).
+  Future<void> _lookupStoredCredential() async {
+    final server = _selectedServer;
+    final login = _login.text.trim();
+    if (server == null || login.isEmpty) {
+      if (_rememberedCredential != null) {
+        setState(() => _rememberedCredential = null);
+      }
+      return;
+    }
+    final epoch = ++_credentialLookupEpoch;
+    AuthProfile? remembered;
+    try {
+      remembered = await ref
+          .read(authControllerProvider.notifier)
+          .findRememberedCredential(server.url, server.database, login);
+    } catch (_) {
+      remembered = null;
+    }
+    if (!mounted ||
+        epoch != _credentialLookupEpoch ||
+        _selectedServer?.id != server.id ||
+        _login.text.trim() != login) {
+      return;
+    }
+    setState(() => _rememberedCredential = remembered);
+  }
+
+  /// «Olvidar la clave guardada»: revoca en el servidor si hay red y borra
+  /// siempre la copia local. Tras esto, la pantalla vuelve a pedir la
+  /// contraseña para este usuario, como si nunca se hubiera guardado nada.
+  Future<void> _forgetStoredCredential() async {
+    final remembered = _rememberedCredential;
+    if (remembered == null) return;
+    await ref
+        .read(authControllerProvider.notifier)
+        .forgetStoredCredential(remembered);
+    if (!mounted) return;
+    setState(() => _rememberedCredential = null);
   }
 
   /// Reads the saved-servers store into [_servers]/[_selectedServer]. Pure
@@ -275,11 +334,13 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     // Invalidate an older server lookup before applying the new selection.
     // No password/API key may cross to another server or database.
     ++_profileLookupEpoch;
+    ++_credentialLookupEpoch;
     _loginPreferencesDebounce?.cancel();
     setState(() {
       _selectedServer = server;
       _login.clear();
       _password.clear();
+      _rememberedCredential = null;
     });
     _lookupRememberedProfile();
     _scheduleLoginPreferencesSave();
@@ -410,6 +471,11 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
           _login.text.trim().isEmpty) {
         setState(() => _login.text = profile.login);
       }
+      // El servidor y el usuario ya quedaron precargados arriba (si los
+      // había); ahora sí se puede saber si además hay una llave guardada
+      // para mostrar «Clave guardada en este equipo» desde el primer frame,
+      // sin esperar a que el operador toque algo.
+      unawaited(_lookupStoredCredential());
     });
   }
 
@@ -822,6 +888,14 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
               ),
               OrbiField(
                 label: _apiKeyMode ? 'API key' : 'Contraseña',
+                // «Recordar la llave tras salir» (decisión del dueño,
+                // 13-sep-2026): con una llave guardada para este
+                // servidor+base+usuario, el propio `hint` de OrbiField —la
+                // ranura que el formulario estándar ya trae para esto,
+                // ninguna nueva— dice que no hace falta escribir nada.
+                hint: _rememberedCredential != null
+                    ? 'Clave guardada en este equipo.'
+                    : null,
                 // TextBox+obscureText rather than PasswordBox: PasswordBox
                 // has no `autofillHints` (comprobado en
                 // fluent_ui-4.16.1/lib/src/controls/form/password_box.dart),
@@ -863,6 +937,15 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
           ),
         ],
       ),
+      if (_rememberedCredential != null)
+        Align(
+          alignment: Alignment.centerRight,
+          child: HyperlinkButton(
+            key: const Key('forget-stored-credential-button'),
+            onPressed: state.isBusy ? null : _forgetStoredCredential,
+            child: const Text('Olvidar la clave guardada'),
+          ),
+        ),
       Column(
         key: const Key('api-key-toggle-block'),
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -899,7 +982,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
           Padding(
             padding: const EdgeInsets.only(top: OrbiTheme.space4),
             child: Text(
-              _saveCredentialSubtitleFor(_apiKeyMode),
+              _kSaveCredentialSubtitle,
               style: theme.typography.caption?.copyWith(
                 color: theme.resources.textFillColorSecondary,
               ),
@@ -1097,7 +1180,17 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     final database = selected.database;
     final login = _login.text.trim();
     final secret = _password.text;
-    if (apiKeyMode) {
+    // «Recordar la llave tras salir» (decisión del dueño, 13-sep-2026): con
+    // el campo Contraseña vacío y una llave guardada para este servidor,
+    // base y usuario, entra con ELLA — nunca hace falta escribir nada. En
+    // cuanto el operador teclea algo, manda lo que escribió (decisión
+    // explícita del dueño: «si el usuario escribe una contraseña, manda la
+    // contraseña»), sin importar que hubiera una llave guardada.
+    final remembered = _rememberedCredential;
+    final usingStoredCredential = secret.isEmpty && remembered != null;
+    if (usingStoredCredential) {
+      await auth.loginWithStoredCredential(remembered);
+    } else if (apiKeyMode) {
       await auth.loginWithApiKey(
         serverUrl: serverUrl,
         database: database,
@@ -1122,6 +1215,12 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     if (!succeeded) {
       await _refineLastFailure(auth.currentState.message);
       if (!mounted) return;
+      if (usingStoredCredential) {
+        // La llave pudo haber vencido y ya se borró sola
+        // (`loginWithStoredCredential`) — se refresca para que el aviso y
+        // el enlace «Olvidar» desaparezcan si ya no queda nada que ofrecer.
+        unawaited(_lookupStoredCredential());
+      }
     }
     if (succeeded) {
       if (loginPreferences != null) {

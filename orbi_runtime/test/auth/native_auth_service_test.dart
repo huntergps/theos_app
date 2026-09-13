@@ -491,8 +491,20 @@ void main() {
     expect(result.status, AuthServiceStatus.authenticated);
   });
 
+  // --- «Recordar la llave tras salir» (decisión del dueño, 13-sep-2026,
+  // ver W04-el-navegador-tambien-guarda.md): `close()` dejó de revocar y
+  // borrar la llave — con «Guardar clave» activo (el caso por omisión de
+  // `login()`/`loginWithApiKey()` en estos tests), cerrar sesión sólo
+  // termina el runtime en memoria. Las dos pruebas que antes afirmaban lo
+  // contrario ("close revokes...", "close never blocks logout when the
+  // server refuses to revoke...") describían exactamente el comportamiento
+  // que la decisión revocó; su garantía real — que un fallo de red al
+  // revocar nunca bloquea la operación — sigue viva, sólo que ahora es
+  // responsabilidad de `forgetStoredCredential` ("Olvidar la clave
+  // guardada"), no de `close()`. Ver el grupo `forgetStoredCredential`. -----
   test(
-    'close deletes the bearer but preserves non-secret profile metadata',
+    'close preserves both the profile and the bearer credential: a '
+    'subsequent restore succeeds without asking for the password again',
     () async {
       final b = _Backend(), r = _Runtime(), i = _Identity();
       final s = await service(b, r, i);
@@ -505,8 +517,9 @@ void main() {
       expect(result.profile, isNotNull);
       await s.close();
 
+      expect(b.values.values, contains('secret'));
       final restored = await s.restore();
-      expect(restored.status, AuthServiceStatus.required);
+      expect(restored.status, AuthServiceStatus.restored);
       final profile = await s.loadProfile();
       expect(profile?.serverUrl, 'https://erp.test');
       expect(profile?.database, 'db');
@@ -515,33 +528,8 @@ void main() {
   );
 
   test(
-    'close revokes this device\'s own key on the server before deleting '
-    'the local copy',
-    () async {
-      final b = _Backend(), r = _Runtime(), i = _Identity();
-      final bootstrap = _Bootstrap();
-      final s = await service(b, r, i, null, null, bootstrap);
-      await s.login(
-        serverUrl: 'https://erp.test',
-        database: 'db',
-        login: 'u',
-        password: 'p',
-      );
-      expect(bootstrap.revokedOwnApiKeys, isEmpty);
-
-      await s.close();
-
-      // The exact bearer secret that was in local storage is the one
-      // handed to the server-side self-revoke call — never a different key,
-      // never every key the user owns.
-      expect(bootstrap.revokedOwnApiKeys, ['secret']);
-      expect(b.values.values, isNot(contains('secret')));
-    },
-  );
-
-  test(
-    'close never blocks logout when the server refuses to revoke the key '
-    '(e.g. programmatic API keys disabled, or offline)',
+    'close never revokes nor deletes the credential, even when the server '
+    'would have refused a revoke attempt (there is none to make)',
     () async {
       final b = _Backend(), r = _Runtime(), i = _Identity();
       final bootstrap = _Bootstrap()..failOwnRevoke = true;
@@ -553,25 +541,373 @@ void main() {
         password: 'p',
       );
 
-      final logs = <String>[];
-      final previousOutput = logger.logOutput;
-      logger.logOutput = (message) => logs.add(message.toString());
-      addTearDown(() => logger.logOutput = previousOutput);
-
-      // Must not throw: a cleanup failure must never prevent logout.
       await s.close();
 
       expect(r.active, isNull);
-      expect(b.values.values, isNot(contains('secret')));
-      expect(
-        logs.any(
-          (line) => line.contains('revoke') && line.contains('login=u'),
-        ),
-        isTrue,
-        reason: 'expected a revoke-failure log line, got: $logs',
-      );
+      expect(bootstrap.revokedOwnApiKeys, isEmpty);
+      expect(b.values.values, contains('secret'));
     },
   );
+
+  test(
+    'close on a password session that logged in WITHOUT "Guardar clave" '
+    'revokes the in-memory key on the server: nothing survives, unlike a '
+    'stored one, which close() must never touch',
+    () async {
+      // 🔴 Corregido el 13-sep-2026: sin «Guardar clave», `login()` ya
+      // borraba la llave del almacén nada más emitirla, así que el `close()`
+      // anterior — que sólo sabía leerla del almacén — nunca llegaba a
+      // revocarla: quedaba huérfana en el servidor hasta vencer por su
+      // cuenta. Este era el bug real, anterior a «Recordar la llave tras
+      // salir» y no introducido por ella. `close()` ahora se acuerda en
+      // memoria de esa llave (la única copia que le queda a esta sesión) y
+      // la revoca al cerrar.
+      final b = _Backend(), r = _Runtime(), i = _Identity();
+      final bootstrap = _Bootstrap();
+      final s = await service(b, r, i, null, null, bootstrap);
+      await s.login(
+        serverUrl: 'https://erp.test',
+        database: 'db',
+        login: 'u',
+        password: 'p',
+        persistCredential: false,
+      );
+      expect(b.values.values, isNot(contains('secret')));
+
+      await s.close();
+
+      expect(bootstrap.revokedOwnApiKeys, ['secret']);
+      expect(b.values.values, isNot(contains('secret')));
+      expect((await s.restore()).status, AuthServiceStatus.required);
+    },
+  );
+
+  test(
+    'close on a password session that logged in WITH "Guardar clave" never '
+    'revokes: the whole point of the decision is that the key survives',
+    () async {
+      final b = _Backend(), r = _Runtime(), i = _Identity();
+      final bootstrap = _Bootstrap();
+      final s = await service(b, r, i, null, null, bootstrap);
+      await s.login(
+        serverUrl: 'https://erp.test',
+        database: 'db',
+        login: 'u',
+        password: 'p',
+      );
+
+      await s.close();
+
+      expect(bootstrap.revokedOwnApiKeys, isEmpty);
+      expect(b.values.values, contains('secret'));
+    },
+  );
+
+  test(
+    'close on a session that logged in with a pasted API key (not a '
+    'password) never revokes it, even without "Guardar clave": that key is '
+    'the operator\'s own, not one this service issued',
+    () async {
+      final b = _Backend(), r = _Runtime(), i = _Identity();
+      final bootstrap = _Bootstrap();
+      final s = await service(
+        b,
+        r,
+        i,
+        (_) async => (userId: 7, login: 'u'),
+        null,
+        bootstrap,
+      );
+      await s.loginWithApiKey(
+        serverUrl: 'https://erp.test',
+        database: 'db',
+        login: 'u',
+        apiKey: 'pasted-by-operator',
+        persistCredential: false,
+      );
+
+      await s.close();
+
+      expect(bootstrap.revokedOwnApiKeys, isEmpty);
+    },
+  );
+
+  test(
+    'close on a loginWithApiKey(passwordDerived: true) session — the web '
+    'path, which fetches the key from /orbi/auth/token before calling '
+    'loginWithApiKey — revokes it too when it wasn\'t persisted, same as a '
+    'native password login',
+    () async {
+      final b = _Backend(), r = _Runtime(), i = _Identity();
+      final bootstrap = _Bootstrap();
+      final s = await service(
+        b,
+        r,
+        i,
+        (_) async => (userId: 7, login: 'u'),
+        null,
+        bootstrap,
+      );
+      await s.loginWithApiKey(
+        serverUrl: 'https://erp.test',
+        database: 'db',
+        login: 'u',
+        apiKey: 'token-issued-secret',
+        persistCredential: false,
+        passwordDerived: true,
+      );
+
+      await s.close();
+
+      expect(bootstrap.revokedOwnApiKeys, ['token-issued-secret']);
+    },
+  );
+
+  // --- forgetStoredCredential («Olvidar la clave guardada»): el único
+  // camino que revoca y borra una llave guardada ahora que `close()` ya no
+  // lo hace. -----------------------------------------------------------
+  group('forgetStoredCredential', () {
+    test(
+      'revokes this device\'s own key on the server before deleting the '
+      'local copy',
+      () async {
+        final b = _Backend(), r = _Runtime(), i = _Identity();
+        final bootstrap = _Bootstrap();
+        final s = await service(b, r, i, null, null, bootstrap);
+        final result = await s.login(
+          serverUrl: 'https://erp.test',
+          database: 'db',
+          login: 'u',
+          password: 'p',
+        );
+        expect(bootstrap.revokedOwnApiKeys, isEmpty);
+
+        await s.forgetStoredCredential(result.profile!);
+
+        // The exact bearer secret that was in local storage is the one
+        // handed to the server-side self-revoke call — never a different
+        // key, never every key the user owns.
+        expect(bootstrap.revokedOwnApiKeys, ['secret']);
+        expect(b.values.values, isNot(contains('secret')));
+        expect(await s.hasStoredCredential(result.profile!), isFalse);
+      },
+    );
+
+    test(
+      'never blocks — and still deletes locally — when the server refuses '
+      'to revoke the key (e.g. programmatic API keys disabled, or offline)',
+      () async {
+        final b = _Backend(), r = _Runtime(), i = _Identity();
+        final bootstrap = _Bootstrap()..failOwnRevoke = true;
+        final s = await service(b, r, i, null, null, bootstrap);
+        final result = await s.login(
+          serverUrl: 'https://erp.test',
+          database: 'db',
+          login: 'u',
+          password: 'p',
+        );
+
+        final logs = <String>[];
+        final previousOutput = logger.logOutput;
+        logger.logOutput = (message) => logs.add(message.toString());
+        addTearDown(() => logger.logOutput = previousOutput);
+
+        // Must not throw: a cleanup failure must never prevent forgetting.
+        await s.forgetStoredCredential(result.profile!);
+
+        expect(b.values.values, isNot(contains('secret')));
+        expect(
+          logs.any(
+            (line) => line.contains('revoc') && line.contains('login=u'),
+          ),
+          isTrue,
+          reason: 'expected a revoke-failure log line, got: $logs',
+        );
+      },
+    );
+  });
+
+  // --- Entrar de nuevo sin escribir la clave, y que convivan varios
+  // usuarios en el mismo equipo (decisión del dueño, 13-sep-2026). --------
+  group('findRememberedCredential / loginWithStoredCredential', () {
+    test('no hay nada recordado antes de un primer login', () async {
+      final b = _Backend(), r = _Runtime(), i = _Identity();
+      final s = await service(b, r, i);
+      expect(
+        await s.findRememberedCredential('https://erp.test', 'db', 'u'),
+        isNull,
+      );
+    });
+
+    test(
+      'tras un login con Guardar clave, findRememberedCredential encuentra '
+      'la llave, y loginWithStoredCredential entra sin contraseña',
+      () async {
+        final b = _Backend(), r = _Runtime(), i = _Identity();
+        final s = await service(
+          b,
+          r,
+          i,
+          (_) async => (userId: 7, login: 'u'),
+        );
+        await s.login(
+          serverUrl: 'https://erp.test',
+          database: 'db',
+          login: 'u',
+          password: 'p',
+        );
+        await s.close();
+        expect(r.active, isNull, reason: 'close() terminó el runtime');
+
+        final remembered = await s.findRememberedCredential(
+          'https://erp.test',
+          'db',
+          'u',
+        );
+        expect(remembered, isNotNull);
+        expect(remembered!.login, 'u');
+
+        final result = await s.loginWithStoredCredential(remembered);
+
+        expect(result.status, AuthServiceStatus.authenticated);
+        expect(r.active, isNotNull);
+      },
+    );
+
+    test(
+      'dos usuarios del mismo servidor+base: elegir a uno usa SU llave, '
+      'nunca la del otro',
+      () async {
+        final b = _Backend(), r = _Runtime(), i = _Identity();
+        final s = await service(b, r, i, (client) async {
+          // El identity probe distingue por la llave que el propio
+          // OdooClient lleva configurada — cada usuario "trae" la suya, y
+          // esto sigue siendo correcto en el RE-login vía
+          // loginWithStoredCredential (misma llave, misma identidad).
+          return client.apiKey == 'secret-erik'
+              ? (userId: 11, login: 'erik')
+              : (userId: 22, login: 'carlos');
+        });
+
+        // erik entra y guarda su llave.
+        await s.loginWithApiKey(
+          serverUrl: 'https://erp.test',
+          database: 'db',
+          login: 'erik',
+          apiKey: 'secret-erik',
+        );
+        await s.close();
+
+        // carlos entra después, en el MISMO servidor+base, y también guarda.
+        await s.loginWithApiKey(
+          serverUrl: 'https://erp.test',
+          database: 'db',
+          login: 'carlos',
+          apiKey: 'secret-carlos',
+        );
+        await s.close();
+
+        final erikRemembered = await s.findRememberedCredential(
+          'https://erp.test',
+          'db',
+          'erik',
+        );
+        final carlosRemembered = await s.findRememberedCredential(
+          'https://erp.test',
+          'db',
+          'carlos',
+        );
+        expect(erikRemembered, isNotNull);
+        expect(carlosRemembered, isNotNull);
+        expect(erikRemembered!.userId, 11);
+        expect(carlosRemembered!.userId, 22);
+
+        // Elegir a erik activa el runtime con SU scope (userId 11), nunca
+        // con el de carlos.
+        final result = await s.loginWithStoredCredential(erikRemembered);
+        expect(result.status, AuthServiceStatus.authenticated);
+        expect(r.active?.userId, 11);
+
+        // Olvidar la llave de erik no toca la de carlos.
+        await s.forgetStoredCredential(erikRemembered);
+        expect(await s.hasStoredCredential(erikRemembered), isFalse);
+        expect(await s.hasStoredCredential(carlosRemembered), isTrue);
+      },
+    );
+
+    test(
+      'una llave vencida/revocada (401 del servidor) se borra sola y ya no '
+      'se vuelve a ofrecer',
+      () async {
+        final b = _Backend(), r = _Runtime(), i = _Identity();
+        var rejectNext = false;
+        final s = await service(b, r, i, (client) async {
+          if (rejectNext) {
+            throw const OdooAuthenticationException('llave vencida');
+          }
+          return (userId: 7, login: 'u');
+        });
+        await s.loginWithApiKey(
+          serverUrl: 'https://erp.test',
+          database: 'db',
+          login: 'u',
+          apiKey: 'secret',
+        );
+        await s.close();
+        final remembered = await s.findRememberedCredential(
+          'https://erp.test',
+          'db',
+          'u',
+        );
+        expect(remembered, isNotNull);
+
+        rejectNext = true;
+        await expectLater(
+          s.loginWithStoredCredential(remembered!),
+          throwsA(isA<OdooAuthenticationException>()),
+        );
+
+        expect(await s.hasStoredCredential(remembered), isFalse);
+        expect(
+          await s.findRememberedCredential('https://erp.test', 'db', 'u'),
+          isNull,
+        );
+      },
+    );
+
+    test(
+      'un fallo que NO es un rechazo del servidor (p. ej. sin red) '
+      'conserva la llave intacta',
+      () async {
+        final b = _Backend(), r = _Runtime(), i = _Identity();
+        var fail = false;
+        final s = await service(b, r, i, (client) async {
+          if (fail) throw const OdooConnectionException('sin red');
+          return (userId: 7, login: 'u');
+        });
+        await s.loginWithApiKey(
+          serverUrl: 'https://erp.test',
+          database: 'db',
+          login: 'u',
+          apiKey: 'secret',
+        );
+        await s.close();
+        final remembered = await s.findRememberedCredential(
+          'https://erp.test',
+          'db',
+          'u',
+        );
+
+        fail = true;
+        await expectLater(
+          s.loginWithStoredCredential(remembered!),
+          throwsA(isA<OdooConnectionException>()),
+        );
+
+        expect(await s.hasStoredCredential(remembered), isTrue);
+      },
+    );
+  });
 
   // --- Renovación proactiva de la clave API (diseño del dueño,
   // 13-sep-2026): con la clave a menos del 25 % de su vida restante (o
