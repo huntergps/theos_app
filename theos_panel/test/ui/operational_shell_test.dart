@@ -51,6 +51,8 @@ Widget _host(
   VoidCallback? onSwitchUser,
   Widget? child,
   OperationalContext context = _context,
+  PaneDisplayMode navigationDisplayMode = PaneDisplayMode.auto,
+  Widget navigationIndicator = const StickyNavigationIndicator(),
 }) => FluentApp(
   theme: OrbiFluentTheme.light,
   home: MediaQuery(
@@ -65,6 +67,8 @@ Widget _host(
       onLock: onLock,
       onUnlock: onUnlock,
       onSwitchUser: onSwitchUser,
+      navigationDisplayMode: navigationDisplayMode,
+      navigationIndicator: navigationIndicator,
       child: child ?? const Center(child: Text('Contenido operativo')),
     ),
   ),
@@ -143,6 +147,86 @@ void main() {
             .displayMode,
         PaneDisplayMode.minimal,
       );
+    });
+  });
+
+  // Orden del dueño, 13-sep-2026: el modo del carril y su indicador ahora se
+  // eligen desde Ajustes; el marco sólo recibe y aplica lo que llega, sin
+  // saber de preferencias (ver `router.dart`, que hace la traducción).
+  group('el modo y el indicador del carril, parametrizados', () {
+    testWidgets(
+      'con la preferencia "compact" el marco usa compact incluso a 1920×1080',
+      (tester) async {
+        const size = Size(1920, 1080);
+        await _pump(
+          tester,
+          _host(size, navigationDisplayMode: PaneDisplayMode.compact),
+          size,
+        );
+        expect(
+          tester
+              .state<NavigationViewState>(find.byType(NavigationView))
+              .displayMode,
+          PaneDisplayMode.compact,
+        );
+      },
+    );
+
+    testWidgets('con "auto" (el valor por defecto) sigue resolviendo Fluent', (
+      tester,
+    ) async {
+      const size = Size(1920, 1080);
+      await _pump(tester, _host(size), size);
+      expect(
+        tester
+            .state<NavigationViewState>(find.byType(NavigationView))
+            .displayMode,
+        PaneDisplayMode.expanded,
+      );
+    });
+
+    testWidgets(
+      'con el indicador "end", NavigationPane.indicator es EndNavigationIndicator',
+      (tester) async {
+        const size = Size(1920, 1080);
+        await _pump(
+          tester,
+          _host(size, navigationIndicator: const EndNavigationIndicator()),
+          size,
+        );
+        expect(
+          tester
+              .widget<NavigationView>(find.byType(NavigationView))
+              .pane!
+              .indicator,
+          isA<EndNavigationIndicator>(),
+        );
+      },
+    );
+
+    // El dueño pidió comprobar explícitamente que "top" no rompe la barra
+    // mínima ni la cabecera de empresa.
+    //
+    // 🔴 Sí rompía: Fluent mide la cabecera de `top` con ancho SIN LÍMITE, y
+    // el `Expanded` que llevaba el nombre de empresa reventaba con «RenderFlex
+    // children have non-zero flex but incoming width constraints are
+    // unbounded» — ver la nota en `_paneHeader`. La cabecera trata `top`
+    // igual que el carril mínimo (sin el nombre de empresa, que de todas
+    // formas ya lo dice el pie), así que aquí sólo queda comprobar que no
+    // truena y que el resto de la pantalla (menú, pie) sigue en pantalla.
+    testWidgets('con "top" no rompe la barra ni la cabecera', (tester) async {
+      const size = Size(1920, 1080);
+      await _pump(
+        tester,
+        _host(size, navigationDisplayMode: PaneDisplayMode.top),
+        size,
+      );
+      expect(tester.takeException(), isNull);
+      // En `top` los destinos de un grupo van dentro de su desplegable, así
+      // que el texto de la hoja ("Órdenes") no está en pantalla sin abrirlo
+      // — lo que sí está siempre es el título del grupo y el pie.
+      expect(find.text('Ventas'), findsWidgets);
+      expect(find.text('Servidor: erp.test'), findsOneWidget);
     });
   });
 

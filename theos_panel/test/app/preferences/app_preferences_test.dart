@@ -93,6 +93,49 @@ void main() {
     expect((await userStore.load()).themeMode, PreferenceThemeMode.light);
   });
 
+  // Orden del dueño, 13-sep-2026: el menú de navegación y su indicador se
+  // parametrizan igual que tema/densidad, con el mismo patrón de lectura
+  // tolerante (ver `messageDurations`): un valor desconocido cae al valor
+  // por defecto sin tirar el resto de la preferencia guardada.
+  test('navigation display mode and indicator survive recreation; unknown '
+      'values fall back to default', () async {
+    SharedPreferences.setMockInitialValues({});
+    final preferences = await SharedPreferences.getInstance();
+    const scope = PreferencesScope(appId: 'panel', scopeKey: 'nav-user');
+    final controller = AppPreferencesController(
+      AppPreferencesStore(preferences: preferences, scope: scope),
+    );
+    await controller.load();
+    await controller.setNavigationDisplayMode(
+      PreferenceNavigationDisplayMode.compact,
+    );
+    await controller.setNavigationIndicator(PreferenceNavigationIndicator.end);
+
+    final recreated = AppPreferencesController(
+      AppPreferencesStore(preferences: preferences, scope: scope),
+    );
+    await recreated.load();
+    expect(
+      recreated.snapshot.navigationDisplayMode,
+      PreferenceNavigationDisplayMode.compact,
+    );
+    expect(
+      recreated.snapshot.navigationIndicator,
+      PreferenceNavigationIndicator.end,
+    );
+
+    final corrupted = AppPreferencesSnapshot.fromJson({
+      ...const AppPreferencesSnapshot().toJson(),
+      'navigationDisplayMode': 'no-existe',
+      'navigationIndicator': 'no-existe',
+    });
+    expect(
+      corrupted.navigationDisplayMode,
+      PreferenceNavigationDisplayMode.auto,
+    );
+    expect(corrupted.navigationIndicator, PreferenceNavigationIndicator.sticky);
+  });
+
   test('permission denial is returned only through explicit action', () async {
     final plugin = _Plugin()..permission = PermissionState.denied;
     final presenter = SystemNotificationPresenter(

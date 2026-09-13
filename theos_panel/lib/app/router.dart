@@ -620,6 +620,25 @@ String _syncStatusLabel(SyncCoordinatorImpl? coordinator, SyncSnapshot? raw) {
   return snapshot.lastCompletedAt == null ? 'Sin sincronizar aún' : 'Al día';
 }
 
+/// Traduce la preferencia guardada al tipo real de Fluent. Vive aquí, no en
+/// `operational_shell.dart`: el marco recibe tipos de Fluent por constructor
+/// (orden del dueño, 13-sep-2026), sin conocer el modelo de preferencias —
+/// igual que ya no conoce los colores, sólo los recibe compuestos.
+PaneDisplayMode _paneDisplayModeFor(PreferenceNavigationDisplayMode mode) =>
+    switch (mode) {
+      PreferenceNavigationDisplayMode.auto => PaneDisplayMode.auto,
+      PreferenceNavigationDisplayMode.expanded => PaneDisplayMode.expanded,
+      PreferenceNavigationDisplayMode.compact => PaneDisplayMode.compact,
+      PreferenceNavigationDisplayMode.minimal => PaneDisplayMode.minimal,
+      PreferenceNavigationDisplayMode.top => PaneDisplayMode.top,
+    };
+
+Widget _navigationIndicatorFor(PreferenceNavigationIndicator indicator) =>
+    switch (indicator) {
+      PreferenceNavigationIndicator.sticky => const StickyNavigationIndicator(),
+      PreferenceNavigationIndicator.end => const EndNavigationIndicator(),
+    };
+
 final orbiRouterProvider = Provider<GoRouter>((ref) {
   final auth = ref.watch(authControllerProvider);
   final capabilities = ref.watch(capabilitySnapshotProvider);
@@ -664,6 +683,16 @@ final orbiRouterProvider = Provider<GoRouter>((ref) {
         builder: (context, state, child) => Consumer(
           builder: (context, ref, _) {
             final profile = auth.profile;
+            // El menú y su indicador son preferencia (Ajustes), no estado de
+            // sesión, así que se leen igual que el resto de preferencias:
+            // `AppPreferencesController` es un `ChangeNotifier`, no algo que
+            // Riverpod reconstruya solo con `ref.watch` (ver `OrbiApp`, que
+            // usa el mismo patrón un nivel más arriba). El `AnimatedBuilder`
+            // de más abajo es lo que hace que elegir "Compacto" en Ajustes
+            // se vea en el marco sin recargar la aplicación.
+            final preferencesController = ref.watch(
+              appPreferencesProvider(ref.watch(preferencesScopeProvider)),
+            );
             // Locking lives in its own small `Consumer`, not in this
             // provider's outer scope: watching it up there would make every
             // lock/unlock rebuild the whole `GoRouter` (see
@@ -799,86 +828,98 @@ final orbiRouterProvider = Provider<GoRouter>((ref) {
               network: ref.watch(networkSignalProvider).value,
               backendProbe: coordinator?.lastProbe,
             );
-            return StreamBuilder<SyncSnapshot>(
-              stream:
-                  coordinator?.snapshots ?? const Stream<SyncSnapshot>.empty(),
-              initialData: coordinator?.snapshot ?? SyncSnapshot(),
-              builder: (context, syncSnapshot) => OperationalShell(
-                destinations: destinations,
-                selectedPath: state.uri.path,
-                onNavigate: (path) => context.go(path),
-                context: OperationalContext(
-                  server: profile?.serverUrl ?? 'No disponible',
-                  database: profile?.database ?? 'No disponible',
-                  userLabel: profile?.login ?? 'Usuario no disponible',
-                  // The real name travels in the very same response that
-                  // already carries `companyId` (`res.users.company_id`,
-                  // read via `OdooActiveIdentityReader.read` — see
-                  // `bootstrap.dart`, the same path on native and web). The
-                  // numeric placeholder is now only what shows when a profile
-                  // predates this field or the reader genuinely could not
-                  // resolve one — never the default for an authenticated user.
-                  companyLabel:
-                      profile?.companyName ??
-                      (profile?.companyId == null
-                          ? 'Empresa no disponible'
-                          : 'Empresa #${profile!.companyId}'),
-                  // Ya no es una cadena escrita a mano. El estado sale de
-                  // dos medidas: si el aparato tiene transporte de red, y si
-                  // el Odoo contestó al último sondeo. Cuando falta cualquiera
-                  // de las dos, el resultado es «sin verificar» —que es la
-                  // verdad— y nunca «conectado».
-                  connectionLabel: connectionStatusLabel(connectionStatus),
-                  connectionStatus: connectionStatus,
-                  syncLabel: _syncStatusLabel(coordinator, syncSnapshot.data),
-                ),
-                onLogout: () async {
-                  await ref.read(authControllerProvider.notifier).close();
-                  if (context.mounted) context.go('/login');
-                },
-                locked: locked,
-                onLock: () => ref.read(workspaceLockProvider.notifier).lock(),
-                onUnlock: (password) => attemptWorkspaceUnlock(ref, password),
-                onSwitchUser: () => confirmSwitchWorkspaceUser(context, ref),
-                // `Builder` gives the denial toast a BuildContext that is
-                // actually a descendant of `OperationalShell`'s own
-                // `Scaffold` — the outer `context` from this route builder
-                // is not, so `ScaffoldMessenger.maybeOf` would find nothing.
-                //
-                // The nested `Consumer` (not a postFrameCallback keyed to
-                // THIS widget rebuilding) is deliberate: a denial that
-                // redirects back to the page already on screen — the exact
-                // shape of "click a link to a forbidden area from Inicio" —
-                // resolves to the SAME final location, so go_router does not
-                // rebuild this subtree at all. `ref.listen` fires on the
-                // provider's own state change, independent of whether
-                // anything here rebuilds, so that case is not silently
-                // dropped.
-                child: Builder(
-                  builder: (innerContext) => Consumer(
-                    builder: (context, ref, _) {
-                      ref.listen<CopyableMessage?>(routeAccessDenialProvider, (
-                        _,
-                        next,
-                      ) {
-                        if (next == null || !innerContext.mounted) return;
-                        ref.read(routeAccessDenialProvider.notifier).take();
-                        final durations = ref
-                            .read(
-                              appPreferencesProvider(
-                                ref.read(preferencesScopeProvider),
-                              ),
-                            )
-                            .snapshot
-                            .messageDurations;
-                        showCopyableMessage(
-                          innerContext,
-                          next,
-                          durations: durations,
+            // El controlador es el mismo `ChangeNotifier` de arriba: sólo se
+            // reconstruye este subárbol, nunca el `GoRouter` entero.
+            return AnimatedBuilder(
+              animation: preferencesController,
+              builder: (context, _) => StreamBuilder<SyncSnapshot>(
+                stream:
+                    coordinator?.snapshots ??
+                    const Stream<SyncSnapshot>.empty(),
+                initialData: coordinator?.snapshot ?? SyncSnapshot(),
+                builder: (context, syncSnapshot) => OperationalShell(
+                  destinations: destinations,
+                  selectedPath: state.uri.path,
+                  onNavigate: (path) => context.go(path),
+                  navigationDisplayMode: _paneDisplayModeFor(
+                    preferencesController.snapshot.navigationDisplayMode,
+                  ),
+                  navigationIndicator: _navigationIndicatorFor(
+                    preferencesController.snapshot.navigationIndicator,
+                  ),
+                  context: OperationalContext(
+                    server: profile?.serverUrl ?? 'No disponible',
+                    database: profile?.database ?? 'No disponible',
+                    userLabel: profile?.login ?? 'Usuario no disponible',
+                    // The real name travels in the very same response that
+                    // already carries `companyId` (`res.users.company_id`,
+                    // read via `OdooActiveIdentityReader.read` — see
+                    // `bootstrap.dart`, the same path on native and web). The
+                    // numeric placeholder is now only what shows when a profile
+                    // predates this field or the reader genuinely could not
+                    // resolve one — never the default for an authenticated user.
+                    companyLabel:
+                        profile?.companyName ??
+                        (profile?.companyId == null
+                            ? 'Empresa no disponible'
+                            : 'Empresa #${profile!.companyId}'),
+                    // Ya no es una cadena escrita a mano. El estado sale de
+                    // dos medidas: si el aparato tiene transporte de red, y si
+                    // el Odoo contestó al último sondeo. Cuando falta cualquiera
+                    // de las dos, el resultado es «sin verificar» —que es la
+                    // verdad— y nunca «conectado».
+                    connectionLabel: connectionStatusLabel(connectionStatus),
+                    connectionStatus: connectionStatus,
+                    syncLabel: _syncStatusLabel(coordinator, syncSnapshot.data),
+                  ),
+                  onLogout: () async {
+                    await ref.read(authControllerProvider.notifier).close();
+                    if (context.mounted) context.go('/login');
+                  },
+                  locked: locked,
+                  onLock: () => ref.read(workspaceLockProvider.notifier).lock(),
+                  onUnlock: (password) => attemptWorkspaceUnlock(ref, password),
+                  onSwitchUser: () => confirmSwitchWorkspaceUser(context, ref),
+                  // `Builder` gives the denial toast a BuildContext that is
+                  // actually a descendant of `OperationalShell`'s own
+                  // `Scaffold` — the outer `context` from this route builder
+                  // is not, so `ScaffoldMessenger.maybeOf` would find nothing.
+                  //
+                  // The nested `Consumer` (not a postFrameCallback keyed to
+                  // THIS widget rebuilding) is deliberate: a denial that
+                  // redirects back to the page already on screen — the exact
+                  // shape of "click a link to a forbidden area from Inicio" —
+                  // resolves to the SAME final location, so go_router does not
+                  // rebuild this subtree at all. `ref.listen` fires on the
+                  // provider's own state change, independent of whether
+                  // anything here rebuilds, so that case is not silently
+                  // dropped.
+                  child: Builder(
+                    builder: (innerContext) => Consumer(
+                      builder: (context, ref, _) {
+                        ref.listen<CopyableMessage?>(
+                          routeAccessDenialProvider,
+                          (_, next) {
+                            if (next == null || !innerContext.mounted) return;
+                            ref.read(routeAccessDenialProvider.notifier).take();
+                            final durations = ref
+                                .read(
+                                  appPreferencesProvider(
+                                    ref.read(preferencesScopeProvider),
+                                  ),
+                                )
+                                .snapshot
+                                .messageDurations;
+                            showCopyableMessage(
+                              innerContext,
+                              next,
+                              durations: durations,
+                            );
+                          },
                         );
-                      });
-                      return child;
-                    },
+                        return child;
+                      },
+                    ),
                   ),
                 ),
               ),

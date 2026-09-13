@@ -82,6 +82,8 @@ final class OperationalShell extends StatelessWidget {
     this.onLock,
     this.onUnlock,
     this.onSwitchUser,
+    this.navigationDisplayMode = PaneDisplayMode.auto,
+    this.navigationIndicator = const StickyNavigationIndicator(),
   }) : assert(
          onLock == null || onUnlock != null,
          'onUnlock is required whenever onLock is provided: a shell that '
@@ -110,6 +112,20 @@ final class OperationalShell extends StatelessWidget {
   /// Cierra el acceso de la identidad actual para que entre otra persona. Es
   /// una acción distinta de bloquear y de cerrar sesión.
   final VoidCallback? onSwitchUser;
+
+  /// El modo del carril, elegido en Ajustes (orden del dueño, 13-sep-2026:
+  /// fluent_ui se puede parametrizar, como hace su propia app de ejemplo en
+  /// `example/lib/screens/settings.dart`). Este marco no traduce nombres de
+  /// preferencia: quien lo instancia (`router.dart`) ya entrega el
+  /// `PaneDisplayMode` de Fluent. Por defecto `auto`, que es lo que este
+  /// marco usaba antes de ser parametrizable — Fluent sigue resolviendo ese
+  /// modo por el ancho, tal como documenta [_pane].
+  final PaneDisplayMode navigationDisplayMode;
+
+  /// El indicador de selección del carril, también elegido en Ajustes. Por
+  /// defecto `StickyNavigationIndicator`, el mismo que trae `NavigationPane`
+  /// cuando no se especifica ninguno.
+  final Widget navigationIndicator;
 
   /// 🔴 Aquí había seis colores escritos a mano: tres para el pie y tres para
   /// el estado. Ninguno se decide ya en este fichero. Orden del dueño del
@@ -206,9 +222,13 @@ final class OperationalShell extends StatelessWidget {
     final activeGroup = selected < 0 ? null : ordered[selected].group;
 
     return NavigationPane(
-      // Sin cortes propios: el ancho en que el menú se oculta, se vuelve de
-      // iconos o se abre lo decide Fluent (orden del dueño, 13-sep-2026).
-      displayMode: PaneDisplayMode.auto,
+      // Sin cortes propios: en modo `auto` el ancho en que el menú se oculta,
+      // se vuelve de iconos o se abre lo decide Fluent (orden del dueño,
+      // 13-sep-2026). El modo en sí ya es parametrizable desde Ajustes —quien
+      // instancia este marco decide si en vez de `auto` se fija `expanded`,
+      // `compact`, `minimal` o `top`.
+      displayMode: navigationDisplayMode,
+      indicator: navigationIndicator,
       selected: selected < 0 ? null : selected,
       header: _paneHeader(),
       footerItems: _sessionActions(),
@@ -311,6 +331,18 @@ final class OperationalShell extends StatelessWidget {
   /// migración vino a quitar. Fluent la coloca, la alinea y la esconde en el
   /// carril estrecho por sí solo, donde de todas formas no cabría un nombre
   /// de empresa.
+  ///
+  /// 🔴 En `top` la cabecera se mide con ancho SIN LÍMITE (Fluent la coloca
+  /// dentro de una `Row` de `_TopNavigationPane` con restricciones
+  /// `0<=w<=Infinity`, para saber cuánto sitio necesita antes de decidir el
+  /// recorte). Un `Expanded` ahí revienta con «RenderFlex children have
+  /// non-zero flex but incoming width constraints are unbounded» — no es un
+  /// límite de `Expanded` en particular: CUALQUIER hijo con `flex` distinto
+  /// de cero rompe igual (`Flexible` incluido), porque Flutter no puede
+  /// repartir un espacio infinito en proporciones. Medido añadiendo la
+  /// prueba que pidió el dueño para `top`. Por eso el nombre de empresa se
+  /// trata aquí igual que en el carril mínimo: sin flex, nunca oculto a
+  /// medias con un ancho inventado.
   Widget _paneHeader() => Builder(
     builder: (context) => Padding(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
@@ -322,9 +354,13 @@ final class OperationalShell extends StatelessWidget {
           ),
           // La empresa NO se repite en estrecho: ahí ya la lleva la barra del
           // contenido, que es la que se ve sin abrir el menú. Enseñarla en los
-          // dos sitios la duplicaba en pantalla.
+          // dos sitios la duplicaba en pantalla. En `top` no es que sobre
+          // espacio (ver la nota de arriba): un `Expanded`/`Flexible` ahí
+          // directamente revienta el layout.
           if (NavigationView.of(context).displayMode !=
-              PaneDisplayMode.minimal) ...[
+                  PaneDisplayMode.minimal &&
+              NavigationView.of(context).displayMode !=
+                  PaneDisplayMode.top) ...[
             const SizedBox(width: 10),
             Tooltip(
               message: 'Empresa',

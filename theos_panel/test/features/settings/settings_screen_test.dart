@@ -47,8 +47,18 @@ void main() {
     'lo que va después del formulario (tamaño de texto, Modo Ruta, PIN) '
     'sigue viéndose — el formulario no se come su espacio',
     (tester) async {
+      // El formulario ahora trae dos campos más (Menú de navegación,
+      // Indicador del menú): con el tamaño de prueba por defecto empujaban
+      // "Categorías de notificaciones" fuera del viewport y ni se
+      // construía dentro del `ListView`. Mismo viewport que ya usa la
+      // prueba de las categorías, más abajo en este archivo — y por la
+      // misma razón, ese viewport llega hasta `PinEnrollmentSection`, que
+      // exige su propio `ProviderScope`.
+      await tester.binding.setSurfaceSize(const Size(800, 2000));
+      addTearDown(() => tester.binding.setSurfaceSize(null));
+
       final controller = await _controller();
-      await tester.pumpWidget(_host(controller));
+      await tester.pumpWidget(ProviderScope(child: _host(controller)));
       await tester.pump();
 
       expect(find.textContaining('Tamaño de texto'), findsOneWidget);
@@ -65,9 +75,7 @@ void main() {
     },
   );
 
-  testWidgets('elegir un tema distinto lo aplica de inmediato', (
-    tester,
-  ) async {
+  testWidgets('elegir un tema distinto lo aplica de inmediato', (tester) async {
     final controller = await _controller();
     await tester.pumpWidget(_host(controller));
     await tester.pump();
@@ -81,6 +89,52 @@ void main() {
     expect(controller.snapshot.themeMode, PreferenceThemeMode.dark);
   });
 
+  testWidgets(
+    'elegir "Compacto" en Menú de navegación llama al setter y persiste',
+    (tester) async {
+      final controller = await _controller();
+      await tester.pumpWidget(_host(controller));
+      await tester.pump();
+
+      expect(
+        controller.snapshot.navigationDisplayMode,
+        PreferenceNavigationDisplayMode.auto,
+      );
+      await tester.tap(find.byType(ComboBox<PreferenceNavigationDisplayMode>));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Compacto').last);
+      await tester.pumpAndSettle();
+
+      expect(
+        controller.snapshot.navigationDisplayMode,
+        PreferenceNavigationDisplayMode.compact,
+      );
+    },
+  );
+
+  testWidgets(
+    'elegir "Al final" en Indicador del menú llama al setter y persiste',
+    (tester) async {
+      final controller = await _controller();
+      await tester.pumpWidget(_host(controller));
+      await tester.pump();
+
+      expect(
+        controller.snapshot.navigationIndicator,
+        PreferenceNavigationIndicator.sticky,
+      );
+      await tester.tap(find.byType(ComboBox<PreferenceNavigationIndicator>));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Al final').last);
+      await tester.pumpAndSettle();
+
+      expect(
+        controller.snapshot.navigationIndicator,
+        PreferenceNavigationIndicator.end,
+      );
+    },
+  );
+
   // `_SwitchRow` ahora es un `ListTile` con `ToggleSwitch` de fábrica (no un
   // Row+Column+Padding a mano) — ver `settings_screen.dart`. Esta prueba mira
   // lo que la persona ve: la fila es un ListTile con su interruptor, y
@@ -89,8 +143,15 @@ void main() {
     '"Modo Ruta" es un ListTile con ToggleSwitch, y tocarlo cambia la '
     'preferencia',
     (tester) async {
+      // Igual que arriba: el formulario más largo empuja "Modo Ruta" fuera
+      // del viewport de prueba por defecto, y el tap ni siquiera acierta.
+      // Este viewport llega hasta `PinEnrollmentSection`, que exige su
+      // propio `ProviderScope`.
+      await tester.binding.setSurfaceSize(const Size(800, 2000));
+      addTearDown(() => tester.binding.setSurfaceSize(null));
+
       final controller = await _controller();
-      await tester.pumpWidget(_host(controller));
+      await tester.pumpWidget(ProviderScope(child: _host(controller)));
       await tester.pump();
 
       expect(controller.snapshot.routeMode, isFalse);

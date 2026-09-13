@@ -20,6 +20,21 @@ String _densityLabel(PreferenceDensity density) => switch (density) {
   PreferenceDensity.compact => 'Compacta',
 };
 
+String _navigationDisplayModeLabel(PreferenceNavigationDisplayMode mode) =>
+    switch (mode) {
+      PreferenceNavigationDisplayMode.auto => 'Automático',
+      PreferenceNavigationDisplayMode.expanded => 'Abierto',
+      PreferenceNavigationDisplayMode.compact => 'Compacto',
+      PreferenceNavigationDisplayMode.minimal => 'Mínimo',
+      PreferenceNavigationDisplayMode.top => 'Arriba',
+    };
+
+String _navigationIndicatorLabel(PreferenceNavigationIndicator indicator) =>
+    switch (indicator) {
+      PreferenceNavigationIndicator.sticky => 'Fijo',
+      PreferenceNavigationIndicator.end => 'Al final',
+    };
+
 class SettingsScreen extends StatelessWidget {
   const SettingsScreen({
     super.key,
@@ -88,6 +103,46 @@ class SettingsScreen extends StatelessWidget {
                       ),
                     ),
                     OrbiField(
+                      label: 'Menú de navegación',
+                      child: ComboBox<PreferenceNavigationDisplayMode>(
+                        isExpanded: true,
+                        value: controller.snapshot.navigationDisplayMode,
+                        items: [
+                          for (final mode
+                              in PreferenceNavigationDisplayMode.values)
+                            ComboBoxItem(
+                              value: mode,
+                              child: Text(_navigationDisplayModeLabel(mode)),
+                            ),
+                        ],
+                        onChanged: (value) {
+                          if (value != null) {
+                            controller.setNavigationDisplayMode(value);
+                          }
+                        },
+                      ),
+                    ),
+                    OrbiField(
+                      label: 'Indicador del menú',
+                      child: ComboBox<PreferenceNavigationIndicator>(
+                        isExpanded: true,
+                        value: controller.snapshot.navigationIndicator,
+                        items: [
+                          for (final indicator
+                              in PreferenceNavigationIndicator.values)
+                            ComboBoxItem(
+                              value: indicator,
+                              child: Text(_navigationIndicatorLabel(indicator)),
+                            ),
+                        ],
+                        onChanged: (value) {
+                          if (value != null) {
+                            controller.setNavigationIndicator(value);
+                          }
+                        },
+                      ),
+                    ),
+                    OrbiField(
                       label: 'Acento',
                       child: ComboBox<int>(
                         isExpanded: true,
@@ -98,10 +153,7 @@ class SettingsScreen extends StatelessWidget {
                             child: Text('Orbi teal'),
                           ),
                           ComboBoxItem(value: 0xFF1565C0, child: Text('Azul')),
-                          ComboBoxItem(
-                            value: 0xFF8D4E00,
-                            child: Text('Ámbar'),
-                          ),
+                          ComboBoxItem(value: 0xFF8D4E00, child: Text('Ámbar')),
                         ],
                         onChanged: (value) {
                           if (value != null) controller.setAccentSeed(value);
@@ -229,7 +281,8 @@ class _PermissionButtonState extends State<_PermissionButton> {
               Text(switch (_state) {
                 PermissionState.granted => 'Concedido',
                 PermissionState.denied => 'Denegado',
-                PermissionState.unsupported => 'No compatible en esta plataforma',
+                PermissionState.unsupported =>
+                  'No compatible en esta plataforma',
                 null => 'No solicitado',
               }),
             ],

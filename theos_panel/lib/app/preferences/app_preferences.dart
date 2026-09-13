@@ -32,11 +32,24 @@ enum PreferenceThemeMode { system, light, dark }
 
 enum PreferenceDensity { standard, compact }
 
+/// Espejo propio de `PaneDisplayMode` de fluent_ui (ver el ejemplo oficial,
+/// `example/lib/screens/settings.dart`). Un `enum` propio y no el de Fluent
+/// directamente, igual que `PreferenceThemeMode` no es `ThemeMode`: así una
+/// preferencia guardada nunca se rompe si Fluent renombra o reordena el suyo.
+enum PreferenceNavigationDisplayMode { auto, expanded, compact, minimal, top }
+
+/// Espejo propio de `NavigationIndicators` del ejemplo de fluent_ui, que
+/// decide entre `StickyNavigationIndicator` y `EndNavigationIndicator` en
+/// `NavigationPane.indicator`.
+enum PreferenceNavigationIndicator { sticky, end }
+
 final class AppPreferencesSnapshot {
   const AppPreferencesSnapshot({
     this.themeMode = PreferenceThemeMode.system,
     this.accentSeed = 0xFF007E82,
     this.density = PreferenceDensity.standard,
+    this.navigationDisplayMode = PreferenceNavigationDisplayMode.auto,
+    this.navigationIndicator = PreferenceNavigationIndicator.sticky,
     this.textScale = 1,
     this.routeMode = false,
     this.syncRetries = 3,
@@ -47,6 +60,8 @@ final class AppPreferencesSnapshot {
   final PreferenceThemeMode themeMode;
   final int accentSeed;
   final PreferenceDensity density;
+  final PreferenceNavigationDisplayMode navigationDisplayMode;
+  final PreferenceNavigationIndicator navigationIndicator;
   final double textScale;
   final bool routeMode;
   final int syncRetries;
@@ -60,6 +75,8 @@ final class AppPreferencesSnapshot {
     PreferenceThemeMode? themeMode,
     int? accentSeed,
     PreferenceDensity? density,
+    PreferenceNavigationDisplayMode? navigationDisplayMode,
+    PreferenceNavigationIndicator? navigationIndicator,
     double? textScale,
     bool? routeMode,
     int? syncRetries,
@@ -69,6 +86,8 @@ final class AppPreferencesSnapshot {
     themeMode: themeMode ?? this.themeMode,
     accentSeed: accentSeed ?? this.accentSeed,
     density: density ?? this.density,
+    navigationDisplayMode: navigationDisplayMode ?? this.navigationDisplayMode,
+    navigationIndicator: navigationIndicator ?? this.navigationIndicator,
     textScale: _scale(textScale ?? this.textScale),
     routeMode: routeMode ?? this.routeMode,
     syncRetries: _retries(syncRetries ?? this.syncRetries),
@@ -92,6 +111,8 @@ final class AppPreferencesSnapshot {
     'theme': themeMode.name,
     'accentSeed': accentSeed,
     'density': density.name,
+    'navigationDisplayMode': navigationDisplayMode.name,
+    'navigationIndicator': navigationIndicator.name,
     'textScale': textScale,
     'routeMode': routeMode,
     'syncRetries': syncRetries,
@@ -138,7 +159,39 @@ final class AppPreferencesSnapshot {
       // installation throw FormatException and silently lose its theme,
       // accent and text scale on the next start.
       messageDurations: MessageDurations.fromJson(json['messageDurations']),
+      // Igual de leniente y por el mismo motivo: preferencias guardadas antes
+      // de que existiera este par de campos, o un valor que quedó de un
+      // `enum` que luego cambió de nombre, caen al valor por defecto en vez
+      // de tirar toda la preferencia guardada por la borda.
+      navigationDisplayMode: _navigationDisplayModeFrom(
+        json['navigationDisplayMode'],
+      ),
+      navigationIndicator: _navigationIndicatorFrom(
+        json['navigationIndicator'],
+      ),
     );
+  }
+
+  static PreferenceNavigationDisplayMode _navigationDisplayModeFrom(
+    Object? value,
+  ) {
+    if (value is! String) return PreferenceNavigationDisplayMode.auto;
+    final matches = PreferenceNavigationDisplayMode.values.where(
+      (item) => item.name == value,
+    );
+    return matches.isEmpty
+        ? PreferenceNavigationDisplayMode.auto
+        : matches.first;
+  }
+
+  static PreferenceNavigationIndicator _navigationIndicatorFrom(Object? value) {
+    if (value is! String) return PreferenceNavigationIndicator.sticky;
+    final matches = PreferenceNavigationIndicator.values.where(
+      (item) => item.name == value,
+    );
+    return matches.isEmpty
+        ? PreferenceNavigationIndicator.sticky
+        : matches.first;
   }
 
   // Keep the user-selected scale usable for low-vision and magnification
@@ -228,6 +281,13 @@ final class AppPreferencesController extends ChangeNotifier {
   Future<void> setDensity(PreferenceDensity density) =>
       update(_snapshot.copyWith(density: density));
 
+  Future<void> setNavigationDisplayMode(PreferenceNavigationDisplayMode mode) =>
+      update(_snapshot.copyWith(navigationDisplayMode: mode));
+
+  Future<void> setNavigationIndicator(
+    PreferenceNavigationIndicator indicator,
+  ) => update(_snapshot.copyWith(navigationIndicator: indicator));
+
   Future<void> setRouteMode(bool enabled) =>
       update(_snapshot.copyWith(routeMode: enabled));
 
@@ -237,12 +297,10 @@ final class AppPreferencesController extends ChangeNotifier {
   Future<void> setMessageDurations(MessageDurations durations) =>
       update(_snapshot.copyWith(messageDurations: durations));
 
-  Future<void> setMessageDuration(
-    OrbiMessageSeverity severity,
-    int seconds,
-  ) => setMessageDurations(
-    _snapshot.messageDurations.copyWithSeverity(severity, seconds),
-  );
+  Future<void> setMessageDuration(OrbiMessageSeverity severity, int seconds) =>
+      setMessageDurations(
+        _snapshot.messageDurations.copyWithSeverity(severity, seconds),
+      );
 
   Future<void> setNotificationCategory(String category, bool enabled) => update(
     _snapshot.copyWith(
