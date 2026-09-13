@@ -54,6 +54,47 @@ class _Bootstrap implements AuthBootstrapPort {
   bool failOwnRevoke = false;
   final revokedOwnApiKeys = <String>[];
 
+  /// Renovación proactiva (auditoría de sesión, 13-sep-2026). `null` ⇒
+  /// `generateApiKey` responde normalmente con [renewedApiKey]/
+  /// [renewedExpiresAt]; seteado ⇒ simula al servidor contestando que las
+  /// claves programáticas están desactivadas.
+  String? generateUnsupportedMessage;
+  String renewedApiKey = 'renewed-secret';
+  DateTime? renewedExpiresAt;
+  Object? generateError;
+
+  /// Registra, en orden, cada `currentApiKey` con la que se llamó
+  /// `generateApiKey` — permite a un test comprobar que `generate` ocurrió
+  /// ANTES que `revokeOwnApiKey` para esa misma clave.
+  final generateCalls = <String>[];
+
+  /// Orden real de las dos llamadas ("generate:" y "revoke:" seguido del
+  /// secreto), para comprobar la secuencia exacta sin depender de comparar
+  /// dos listas independientes.
+  final callOrder = <String>[];
+
+  @override
+  Future<ApiKeyRenewalResult> generateApiKey({
+    required String baseUrl,
+    required String database,
+    required String currentApiKey,
+    required String name,
+    required DateTime expirationDate,
+  }) async {
+    generateCalls.add(currentApiKey);
+    callOrder.add('generate:$currentApiKey');
+    final unsupported = generateUnsupportedMessage;
+    if (unsupported != null) {
+      throw ApiKeyRenewalUnsupportedException(unsupported);
+    }
+    final error = generateError;
+    if (error != null) throw error;
+    return ApiKeyRenewalResult(
+      apiKey: renewedApiKey,
+      expiresAt: renewedExpiresAt,
+    );
+  }
+
   @override
   Future<NativeAuthBootstrapResult> authenticateAndCreateApiKey({
     required String baseUrl,
@@ -83,6 +124,7 @@ class _Bootstrap implements AuthBootstrapPort {
     required String database,
     required String apiKey,
   }) async {
+    callOrder.add('revoke:$apiKey');
     if (failOwnRevoke) {
       throw StateError('Programmatic API keys are not enabled');
     }
@@ -518,4 +560,162 @@ void main() {
       );
     },
   );
+
+  // --- Renovación proactiva de la clave API (diseño del dueño,
+  // 13-sep-2026): con la clave a menos del 25 % de su vida restante (o
+  // menos de 6 horas, lo que ocurra primero), la app en línea pide una
+  // clave nueva ANTES de que caduque la actual. ---------------------------
+  group('renewApiKeyIfNeeded', () {
+    test(
+      'con la clave por debajo del umbral, genera la clave nueva y SÓLO '
+      'DESPUÉS revoca la vieja, en ese orden',
+      () async {
+        final b = _Backend(), r = _Runtime(), i = _Identity();
+        final bootstrap = _Bootstrap()
+          ..renewedApiKey = 'fresh-secret'
+          ..renewedExpiresAt = DateTime.utc(2026, 9, 14, 12);
+        final s = await service(b, r, i, null, null, bootstrap);
+        await s.login(
+          serverUrl: 'https://erp.test',
+          database: 'db',
+          login: 'u',
+          password: 'p',
+        );
+        // Vida total de 24 horas; a las 19h ya quedan sólo 5h — por debajo
+        // de los dos umbrales (6h absolutas y 25 % = 6h para esta vida
+        // total), así que debe renovar.
+        final issuedAt = DateTime.utc(2026, 9, 13, 0);
+        final expiresAt = DateTime.utc(2026, 9, 14, 0);
+        await s.recordApiKeyLifetime(issuedAt: issuedAt, expiresAt: expiresAt);
+
+        await s.renewApiKeyIfNeeded(now: DateTime.utc(2026, 9, 13, 19));
+
+        expect(
+          bootstrap.callOrder,
+          ['generate:secret', 'revoke:secret'],
+          reason: 'generate debe ocurrir ANTES que revoke, sobre la MISMA '
+              'clave vieja',
+        );
+        // El runtime sigue activo — nunca se cerró la sesión por renovar.
+        expect(r.active, isNotNull);
+        // La clave NUEVA quedó guardada; la vieja ya no está en el almacén.
+        expect(b.values.values, contains('fresh-secret'));
+        expect(b.values.values, isNot(contains('secret')));
+        final profile = await s.loadProfile();
+        expect(profile?.apiKeyExpiresAt, DateTime.utc(2026, 9, 14, 12));
+      },
+    );
+
+    test(
+      'si falla la revocación de la clave vieja tras renovar, la sesión '
+      'sigue funcionando con la clave NUEVA',
+      () async {
+        final b = _Backend(), r = _Runtime(), i = _Identity();
+        final bootstrap = _Bootstrap()
+          ..renewedApiKey = 'fresh-secret'
+          ..failOwnRevoke = true;
+        final s = await service(b, r, i, null, null, bootstrap);
+        await s.login(
+          serverUrl: 'https://erp.test',
+          database: 'db',
+          login: 'u',
+          password: 'p',
+        );
+        await s.recordApiKeyLifetime(
+          issuedAt: DateTime.utc(2026, 9, 13, 0),
+          expiresAt: DateTime.utc(2026, 9, 14, 0),
+        );
+
+        // No debe lanzar: un `revoke` fallido tras un `generate` exitoso es
+        // best-effort, nunca una razón para tumbar la sesión ya renovada.
+        await s.renewApiKeyIfNeeded(now: DateTime.utc(2026, 9, 13, 19));
+
+        expect(r.active, isNotNull);
+        expect(b.values.values, contains('fresh-secret'));
+        final profile = await s.loadProfile();
+        expect(profile?.apiKeyIssuedAt, DateTime.utc(2026, 9, 13, 19));
+      },
+    );
+
+    test(
+      'si el servidor contesta que las claves programáticas están '
+      'desactivadas, no se cierra la sesión: sigue con la clave actual',
+      () async {
+        final b = _Backend(), r = _Runtime(), i = _Identity();
+        final bootstrap = _Bootstrap()
+          ..generateUnsupportedMessage =
+              'Programmatic API keys are not enabled';
+        final s = await service(b, r, i, null, null, bootstrap);
+        await s.login(
+          serverUrl: 'https://erp.test',
+          database: 'db',
+          login: 'u',
+          password: 'p',
+        );
+        await s.recordApiKeyLifetime(
+          issuedAt: DateTime.utc(2026, 9, 13, 0),
+          expiresAt: DateTime.utc(2026, 9, 14, 0),
+        );
+
+        await s.renewApiKeyIfNeeded(now: DateTime.utc(2026, 9, 13, 19));
+
+        // Nunca se intentó revocar nada, y la clave ACTUAL sigue siendo la
+        // única en el almacén: esto es informativo, no un fallo de sesión.
+        expect(bootstrap.revokedOwnApiKeys, isEmpty);
+        expect(r.active, isNotNull);
+        expect(b.values.values, contains('secret'));
+        final profile = await s.loadProfile();
+        expect(profile?.apiKeyExpiresAt, DateTime.utc(2026, 9, 14, 0));
+      },
+    );
+
+    test(
+      'por encima del umbral todavía no renueva: ni generate ni revoke se '
+      'llaman',
+      () async {
+        final b = _Backend(), r = _Runtime(), i = _Identity();
+        final bootstrap = _Bootstrap();
+        final s = await service(b, r, i, null, null, bootstrap);
+        await s.login(
+          serverUrl: 'https://erp.test',
+          database: 'db',
+          login: 'u',
+          password: 'p',
+        );
+        await s.recordApiKeyLifetime(
+          issuedAt: DateTime.utc(2026, 9, 13, 0),
+          expiresAt: DateTime.utc(2026, 9, 14, 0),
+        );
+
+        // A las 10h de 24h de vida total quedan 14h restantes: muy por
+        // encima de los 6h/25 % — no debe tocar nada todavía.
+        await s.renewApiKeyIfNeeded(now: DateTime.utc(2026, 9, 13, 10));
+
+        expect(bootstrap.generateCalls, isEmpty);
+        expect(bootstrap.revokedOwnApiKeys, isEmpty);
+        expect(b.values.values, contains('secret'));
+      },
+    );
+
+    test(
+      'sin vida de clave conocida (login con API key pegada), no evalúa '
+      'nada: el respaldo reactivo ante un 401 sigue siendo el único camino',
+      () async {
+        final b = _Backend(), r = _Runtime(), i = _Identity();
+        final bootstrap = _Bootstrap();
+        final s = await service(b, r, i, null, null, bootstrap);
+        await s.login(
+          serverUrl: 'https://erp.test',
+          database: 'db',
+          login: 'u',
+          password: 'p',
+        );
+        // Nunca se llamó recordApiKeyLifetime/apiKeyIssuedAt/apiKeyExpiresAt
+        // quedan en null para este perfil.
+        await s.renewApiKeyIfNeeded(now: DateTime.utc(2026, 9, 13, 19));
+
+        expect(bootstrap.generateCalls, isEmpty);
+      },
+    );
+  });
 }

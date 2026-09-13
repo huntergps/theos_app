@@ -74,10 +74,19 @@ class NativeOdooAuthBootstrap {
         userId: userId,
         name: apiKeyName,
       );
+      // El wizard nativo (`make_key`) nunca devuelve una fecha de caducidad:
+      // sólo el secreto. `duration` (en días) es lo único que el propio
+      // wizard aceptó como parámetro, así que la expiración se calcula desde
+      // el mismo instante en que el servidor acaba de emitir la clave.
+      final durationDays = int.tryParse(duration);
+      final expiresAt = durationDays == null
+          ? null
+          : DateTime.now().toUtc().add(Duration(days: durationDays));
       return NativeAuthBootstrapResult(
         userId: userId,
         apiKey: apiKey,
         apiKeyId: apiKeyId,
+        expiresAt: expiresAt,
       );
     } on NativeAuthBootstrapException {
       rethrow;

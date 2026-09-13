@@ -168,7 +168,9 @@ final class WebSessionAuthService
     implements
         AuthServicePort,
         ApiKeyAuthServicePort,
-        CredentialPolicyAuthServicePort {
+        CredentialPolicyAuthServicePort,
+        ExpirableAuthServicePort,
+        RenewableAuthServicePort {
   WebSessionAuthService({
     required this.runtime,
     required this.installationIds,
@@ -315,7 +317,7 @@ final class WebSessionAuthService
       password: password,
       database: database,
     );
-    return _apiKeyPort.loginWithApiKey(
+    final result = await _apiKeyPort.loginWithApiKey(
       serverUrl: serverUrl,
       // The database the SERVER says it served, never the one that was typed:
       // the route refuses a mismatch rather than entering another database, so
@@ -325,6 +327,20 @@ final class WebSessionAuthService
       apiKey: token.apiKey,
       persistCredential: persistCredential,
     );
+    // A diferencia del bootstrap nativo (que calcula la expiración desde su
+    // propio wizard), esta ruta la RECIBE explícita en la respuesta de
+    // `/orbi/auth/token` — grabarla es lo que permite renovar proactivamente
+    // antes de que caduque (auditoría de sesión, 13-sep-2026). Best-effort:
+    // nunca debe convertir un login ya exitoso en un fallo.
+    if (result.status == AuthServiceStatus.authenticated) {
+      try {
+        await _apiKeyPort.service.recordApiKeyLifetime(
+          issuedAt: DateTime.now().toUtc(),
+          expiresAt: token.expiresAt,
+        );
+      } catch (_) {}
+    }
+    return result;
   }
 
   /// Activates a session from an already-issued Odoo API key, the same
@@ -379,6 +395,23 @@ final class WebSessionAuthService
     if (backend is _InMemoryCredentialBackend) backend.clear();
     _profile = null;
   }
+
+  // Variante para cuando el SERVIDOR ya rechazó la clave — ver
+  // `NativeAuthService.closeExpired`: nunca intenta revocarla, sólo borra la
+  // copia local y cierra el runtime. Auditoría de sesión, 13-sep-2026.
+  @override
+  Future<void> closeExpired() async {
+    await _apiKeyPort.closeExpired();
+    final backend = _apiKeyBackend;
+    if (backend is _InMemoryCredentialBackend) backend.clear();
+    _profile = null;
+  }
+
+  // Igual que en native: el ciclo de renovación proactiva vive entero en
+  // `NativeAuthService`, compartido por los dos caminos. Auditoría de
+  // sesión, 13-sep-2026.
+  @override
+  Future<void> renewApiKeyIfNeeded() => _apiKeyPort.renewApiKeyIfNeeded();
 }
 
 final class _SessionIdentityReader implements ActiveIdentityReader {

@@ -5,6 +5,7 @@
 /// import 'mocks/mocks.dart';
 /// ```
 
+export 'fake_websocket_channel.dart';
 export 'mock_odoo_client.dart';
 export 'mock_offline_queue.dart';
 export 'test_model_manager.dart';

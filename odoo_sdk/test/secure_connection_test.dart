@@ -1,6 +1,14 @@
 import 'package:test/test.dart';
 import 'package:odoo_sdk/odoo_sdk.dart';
 
+/// Fake real-time credential provider shared by every
+/// [OdooWebSocketConnectionInfo] built in this file. A plain top-level
+/// function reference so it stays usable inside `const` constructors.
+Future<RealtimeCredential> _fakeRealtimeCredential() async => RealtimeCredential(
+  sessionId: 'test-session-id',
+  expiresAt: DateTime.now().add(const Duration(minutes: 5)),
+);
+
 void main() {
   group('SEC-04: Secure Connection Enforcement', () {
     group('OdooClientConfig', () {
@@ -152,6 +160,7 @@ void main() {
         const info = OdooWebSocketConnectionInfo(
           baseUrl: 'https://example.com',
           database: 'test_db',
+          realtimeCredentialProvider: _fakeRealtimeCredential,
         );
 
         expect(info.allowInsecure, false);
@@ -161,6 +170,7 @@ void main() {
         const info = OdooWebSocketConnectionInfo(
           baseUrl: 'https://example.com',
           database: 'test_db',
+          realtimeCredentialProvider: _fakeRealtimeCredential,
         );
 
         expect(info.isSecure, true);
@@ -170,6 +180,7 @@ void main() {
         const info = OdooWebSocketConnectionInfo(
           baseUrl: 'http://example.com',
           database: 'test_db',
+          realtimeCredentialProvider: _fakeRealtimeCredential,
           allowInsecure: true,
         );
 
@@ -180,6 +191,7 @@ void main() {
         const info = OdooWebSocketConnectionInfo(
           baseUrl: 'https://example.com',
           database: 'test_db',
+          realtimeCredentialProvider: _fakeRealtimeCredential,
         );
 
         expect(info.websocketUrl, startsWith('wss://'));
@@ -190,6 +202,7 @@ void main() {
         const info = OdooWebSocketConnectionInfo(
           baseUrl: 'http://localhost:8069',
           database: 'test_db',
+          realtimeCredentialProvider: _fakeRealtimeCredential,
           allowInsecure: true,
         );
 
@@ -202,6 +215,7 @@ void main() {
         const info = OdooWebSocketConnectionInfo(
           baseUrl: 'https://example.com',
           database: 'test_db',
+          realtimeCredentialProvider: _fakeRealtimeCredential,
         );
 
         expect(() => info.validateSecureConnection(), returnsNormally);
@@ -211,6 +225,7 @@ void main() {
         const info = OdooWebSocketConnectionInfo(
           baseUrl: 'http://example.com',
           database: 'test_db',
+          realtimeCredentialProvider: _fakeRealtimeCredential,
           allowInsecure: false,
         );
 
@@ -224,6 +239,7 @@ void main() {
         const info = OdooWebSocketConnectionInfo(
           baseUrl: 'http://localhost:8069',
           database: 'test_db',
+          realtimeCredentialProvider: _fakeRealtimeCredential,
           allowInsecure: true,
         );
 
@@ -234,6 +250,7 @@ void main() {
         const info = OdooWebSocketConnectionInfo(
           baseUrl: 'http://example.com',
           database: 'test_db',
+          realtimeCredentialProvider: _fakeRealtimeCredential,
           allowInsecure: false,
         );
 
@@ -255,6 +272,7 @@ void main() {
         const info = OdooWebSocketConnectionInfo(
           baseUrl: 'ftp://example.com',
           database: 'test_db',
+          realtimeCredentialProvider: _fakeRealtimeCredential,
           allowInsecure: false,
         );
 
@@ -272,6 +290,7 @@ void main() {
         const info = OdooWebSocketConnectionInfo(
           baseUrl: 'https://example.com',
           database: 'test_db',
+          realtimeCredentialProvider: _fakeRealtimeCredential,
           allowInsecure: false,
         );
 
@@ -282,6 +301,7 @@ void main() {
         const info = OdooWebSocketConnectionInfo(
           baseUrl: 'http://localhost',
           database: 'test_db',
+          realtimeCredentialProvider: _fakeRealtimeCredential,
           allowInsecure: true,
         );
 

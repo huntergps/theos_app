@@ -8,6 +8,7 @@ export 'src/auth/encrypted_credential_envelope.dart' show Argon2Cost;
 export 'src/auth/encrypted_file_credential_backend.dart';
 export 'src/auth/linux_secret_service_fallback_credential_backend.dart';
 export 'src/auth/native_auth_service.dart';
+export 'src/auth/api_key_renewal.dart';
 export 'src/auth/capability_runtime.dart';
 export 'src/auth/runtime_capability_service.dart';
 export 'src/connectivity/connectivity_monitor.dart';
@@ -48,6 +49,7 @@ export 'src/read/runtime_order_reader.dart';
 export 'src/sync/sync_coordinator_impl.dart';
 export 'src/sync/sync_job.dart';
 export 'src/sync/operations_sync_job.dart';
+export 'src/sync/sync_auto_resync_trigger.dart';
 
 export 'package:odoo_sdk/odoo_sdk.dart'
     show

@@ -19,6 +19,15 @@ class WebSocketEventParser {
   /// Last notification ID from the server.
   int get lastNotificationId => _lastNotificationId;
 
+  /// Seeds [lastNotificationId] with a value persisted from a previous
+  /// session (see [OdooWebSocketConnectionInfo.initialLast] in
+  /// `odoo_websocket_service.dart`), so the next `subscribe` message resumes
+  /// from there instead of starting at 0. Only meant to be called once,
+  /// before any live message has moved the id forward.
+  void seedLastNotificationId(int value) {
+    _lastNotificationId = value;
+  }
+
   /// Last raw notification for monitoring.
   Map<String, dynamic>? lastNotification;
 
@@ -107,16 +116,22 @@ class WebSocketEventParser {
     if (type != null) {
       final mapping = WebSocketModelRegistry.instance.getMapping(type);
       if (mapping != null) {
+        final action = _resolveAction(type, payload);
         if (mapping.isOrderLineEvent) {
-          final action = _parseActionFromType(type);
           _handleOrderLineEvent(payload, action, onEvent: onEvent);
         } else if (mapping.isCatalogEvent && mapping.catalogType != null) {
-          _handleCatalogEvent(mapping.catalogType!, payload, onEvent: onEvent);
+          _handleCatalogEvent(
+            mapping.catalogType!,
+            action,
+            payload,
+            onEvent: onEvent,
+          );
         } else {
           _handleRecordEvent(
             mapping.model,
             mapping.idField,
             mapping.nameField,
+            action,
             payload,
             onEvent: onEvent,
           );
@@ -128,6 +143,18 @@ class WebSocketEventParser {
     // OdooRawNotificationEvent receive ALL notifications regardless of
     // whether a typed handler or registry mapping exists.
     onEvent(OdooRawNotificationEvent(type: type, payload: payload));
+  }
+
+  /// Resolves the record action for a notification.
+  ///
+  /// POS-style types (e.g. `sale_order_updated`) always carry the type
+  /// `_updated` and put the real action inside `payload.action`
+  /// (`created`/`updated`/`deleted`), so that takes priority. Base types
+  /// that don't carry `payload.action` fall back to the `_created`/
+  /// `_deleted` suffix on the type itself, defaulting to `updated`.
+  OdooRecordAction _resolveAction(String type, Map<String, dynamic> payload) {
+    return parseRecordAction(payload['action'] as String?) ??
+        _parseActionFromType(type);
   }
 
   OdooRecordAction _parseActionFromType(String type) {
@@ -182,6 +209,7 @@ class WebSocketEventParser {
 
   void _handleCatalogEvent(
     String catalogType,
+    OdooRecordAction action,
     Map<String, dynamic> payload, {
     required void Function(OdooWebSocketEvent) onEvent,
   }) {
@@ -192,9 +220,7 @@ class WebSocketEventParser {
       OdooCatalogEvent(
         catalogType: catalogType,
         recordId: payload[idField] as int? ?? 0,
-        action:
-            parseRecordAction(payload['action'] as String?) ??
-            OdooRecordAction.updated,
+        action: action,
         values: payload,
       ),
     );
@@ -204,23 +230,20 @@ class WebSocketEventParser {
     String model,
     String idField,
     String nameField,
+    OdooRecordAction action,
     Map<String, dynamic> payload, {
     required void Function(OdooWebSocketEvent) onEvent,
   }) {
-    final action = payload['action'] as String?;
-    final recordAction = parseRecordAction(action);
-    if (recordAction != null) {
-      onEvent(
-        OdooRecordEvent(
-          model: model,
-          recordId: payload[idField] as int? ?? 0,
-          recordName: payload[nameField] as String?,
-          action: recordAction,
-          values: payload['values'] as Map<String, dynamic>? ?? payload,
-          changedFields:
-              (payload['changed_fields'] as List?)?.cast<String>() ?? [],
-        ),
-      );
-    }
+    onEvent(
+      OdooRecordEvent(
+        model: model,
+        recordId: payload[idField] as int? ?? 0,
+        recordName: payload[nameField] as String?,
+        action: action,
+        values: payload['values'] as Map<String, dynamic>? ?? payload,
+        changedFields:
+            (payload['changed_fields'] as List?)?.cast<String>() ?? [],
+      ),
+    );
   }
 }

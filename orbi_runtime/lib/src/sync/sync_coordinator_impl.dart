@@ -1,15 +1,34 @@
 import 'dart:async';
 
+import 'package:odoo_sdk/odoo_sdk.dart' show OdooAuthenticationException;
+
 import '../connectivity/connectivity_monitor.dart';
 import '../contracts.dart';
 import 'sync_job.dart';
 
+/// «La app en línea» para efectos de la renovación proactiva de la clave API
+/// (auditoría de sesión, 13-sep-2026): se invoca al principio de cada ciclo
+/// de sincronización, antes del sondeo del backend. Cualquier excepción se
+/// traga en silencio aquí mismo — ver `NativeAuthService.renewApiKeyIfNeeded`,
+/// que ya es tolerante a fallos por su cuenta; este tipo sólo define el punto
+/// de enganche para que `SyncCoordinatorImpl` no tenga que conocer
+/// `NativeAuthService` ni ningún otro detalle de autenticación.
+typedef ApiKeyRenewalTrigger = Future<void> Function(AppScope scope);
+
 final class SyncCoordinatorImpl implements SyncCoordinator {
-  SyncCoordinatorImpl({required Iterable<SyncJob> jobs, this.backendProbe})
-    : _jobs = _validateJobs(jobs);
+  SyncCoordinatorImpl({
+    required Iterable<SyncJob> jobs,
+    this.backendProbe,
+    this.apiKeyRenewal,
+  }) : _jobs = _validateJobs(jobs);
 
   final List<SyncJob> _jobs;
   final BackendProbe? backendProbe;
+
+  /// Ver [ApiKeyRenewalTrigger]. `null` cuando este runtime no compone
+  /// autenticación nativa (p. ej. un arnés de pruebas) — en ese caso
+  /// simplemente no hay renovación proactiva, igual que hoy.
+  final ApiKeyRenewalTrigger? apiKeyRenewal;
   final StreamController<SyncSnapshot> _snapshots =
       StreamController<SyncSnapshot>.broadcast();
   SyncSnapshot _snapshot = SyncSnapshot();
@@ -89,10 +108,27 @@ final class SyncCoordinatorImpl implements SyncCoordinator {
     final epoch = _epoch;
     _publish(_snapshotFor(active: true));
 
+    // «La app en línea» — el momento de intentar renovar la clave ANTES de
+    // que el sondeo pueda encontrarla ya vencida. Cualquier fallo aquí es
+    // silencioso a propósito (ver ApiKeyRenewalTrigger): nunca debe impedir
+    // que el resto de este ciclo corra con normalidad.
+    final renew = apiKeyRenewal;
+    if (renew != null) {
+      try {
+        await renew(scope);
+      } catch (_) {
+        // NativeAuthService.renewApiKeyIfNeeded ya es tolerante a fallos por
+        // su cuenta; esto es sólo un cinturón adicional para un trigger que
+        // no lo sea.
+      }
+      if (!_isCurrent(scope, epoch)) return;
+    }
+
     if (backendProbe != null) {
       lastProbe = await backendProbe!.probe(scope);
       if (!_isCurrent(scope, epoch)) return;
       if (lastProbe!.state != BackendProbeState.reachable) {
+        final expired = lastProbe!.state == BackendProbeState.unauthorized;
         _publish(
           _snapshotFor(
             active: false,
@@ -100,7 +136,10 @@ final class SyncCoordinatorImpl implements SyncCoordinator {
             failures: [
               SyncFailure(
                 jobId: 'backend-probe',
-                message: 'El servidor no respondió a la comprobación previa.',
+                message: expired
+                    ? 'La sesión caducó: vuelve a ingresar.'
+                    : 'El servidor no respondió a la comprobación previa.',
+                authStatus: expired ? AuthStatus.expired : null,
               ),
             ],
           ),
@@ -124,16 +163,28 @@ final class SyncCoordinatorImpl implements SyncCoordinator {
         if (!_isCurrent(scope, epoch)) return;
         conflicts.addAll(result.conflicts);
         if (!result.cursorConfirmed) {
+          final error = result.error;
           failures.add(
             SyncFailure(
               jobId: job.id,
-              message: '${result.error ?? 'No se pudo confirmar el avance.'}',
+              message: '${error ?? 'No se pudo confirmar el avance.'}',
+              authStatus: error is OdooAuthenticationException
+                  ? AuthStatus.expired
+                  : null,
             ),
           );
         }
       } catch (error) {
         if (!_isCurrent(scope, epoch)) return;
-        failures.add(SyncFailure(jobId: job.id, message: '$error'));
+        failures.add(
+          SyncFailure(
+            jobId: job.id,
+            message: '$error',
+            authStatus: error is OdooAuthenticationException
+                ? AuthStatus.expired
+                : null,
+          ),
+        );
       }
     }
     if (_isCurrent(scope, epoch)) {

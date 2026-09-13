@@ -177,10 +177,9 @@ final class SystemNotificationPresenter {
   SystemNotificationPresenter(
     this._plugin,
     this._systemIds, {
-    required String activeScopeKey,
+    required this._activeScopeKey,
     NotificationPlatform? platform,
-  }) : _activeScopeKey = activeScopeKey,
-       capabilities = _capabilities(platform ?? _platform());
+  }) : capabilities = _capabilities(platform ?? _platform());
 
   /// Sentinel used before any session is active and after one closes. No real
   /// session scope is ever literally this string, so it denies everything by

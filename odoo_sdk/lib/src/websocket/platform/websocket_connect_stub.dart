@@ -4,7 +4,6 @@ import 'package:web_socket_channel/web_socket_channel.dart';
 Future<WebSocketChannel> createWebSocketChannel(
   Uri uri,
   String baseUrl, {
-  String? apiKey,
   String? database,
 }) async {
   throw UnimplementedError('WebSocket creation not supported on this platform');

@@ -77,6 +77,7 @@ export 'src/database/tables/system_tables.dart';
 
 export 'src/websocket/odoo_websocket_events.dart';
 export 'src/websocket/odoo_websocket_service.dart';
+export 'src/websocket/realtime_credential.dart';
 export 'src/websocket/websocket_channel_manager.dart';
 export 'src/websocket/websocket_connection_manager.dart';
 export 'src/websocket/websocket_event_parser.dart';

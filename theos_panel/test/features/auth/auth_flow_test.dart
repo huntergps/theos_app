@@ -128,6 +128,18 @@ class FakeBootstrap implements AuthBootstrapPort {
     required String database,
     required String apiKey,
   }) async {}
+
+  // Deliberately inert: nothing in this file exercises the proactive
+  // renewal cycle — see orbi_runtime/test/auth/native_auth_service_test.dart
+  // for the fake that actually drives it.
+  @override
+  Future<ApiKeyRenewalResult> generateApiKey({
+    required String baseUrl,
+    required String database,
+    required String currentApiKey,
+    required String name,
+    required DateTime expirationDate,
+  }) async => throw UnimplementedError();
 }
 
 class FakeRuntime implements SessionRuntimePort {

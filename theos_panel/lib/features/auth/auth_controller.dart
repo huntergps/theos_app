@@ -27,6 +27,23 @@ abstract interface class ApiKeyAuthServicePort {
   });
 }
 
+/// Optional extension for services that can close a session the SERVER
+/// already rejected (401/caducidad) without attempting to revoke it — ver
+/// `NativeAuthService.closeExpired`. Auditoría de sesión, 13-sep-2026.
+/// Legacy test/embedded services keep the original `AuthServicePort.close`.
+abstract interface class ExpirableAuthServicePort {
+  Future<void> closeExpired();
+}
+
+/// Optional extension for services that can run the proactive API-key
+/// renewal cycle — ver `NativeAuthService.renewApiKeyIfNeeded`. Auditoría de
+/// sesión, 13-sep-2026. `scopeSyncCoordinatorProvider` (router.dart) lo
+/// conecta como el disparador «la app en línea» de cada ciclo de
+/// sincronización.
+abstract interface class RenewableAuthServicePort {
+  Future<void> renewApiKeyIfNeeded();
+}
+
 /// Optional extension for services that can enforce the UI's explicit
 /// credential-retention choice. Legacy test/embedded services keep the
 /// original AuthServicePort contract.
@@ -51,10 +68,30 @@ abstract interface class CredentialPolicyAuthServicePort {
 /// Performs exactly one online restore and, only when that attempt fails, one
 /// explicit offline restore. Callers own when this is invoked (normally cold
 /// start); it never schedules a retry loop.
+///
+/// 🔴 El `catch` del intento en línea usado a distinguir dos causas muy
+/// distintas: sin red, y clave rechazada por el servidor (401/
+/// `OdooAuthenticationException`, la misma excepción que
+/// `odoo_error_mapper.dart` lanza para ese caso real). Medido el
+/// 13-sep-2026 (`restore_rejects_expired_key_test.dart`): con la clave ya
+/// vencida (p. ej. `orbi.web_auth_key_days` cumplido), caer sin distinguir al
+/// fallback offline devolvía `restored` con lo que ya había en disco — el
+/// operador veía "sesión restaurada" con una clave que el propio servidor ya
+/// había invalidado, indistinguible de una caída de wifi cualquiera.
+///
+/// La regla ahora: un rechazo EXPLÍCITO del servidor (el servidor respondió,
+/// y la respuesta fue "esta credencial no vale") nunca cae al respaldo
+/// offline — se resuelve en `required` directo, para que el router lleve al
+/// acceso. Cualquier OTRO error (sin red, timeout, DNS, servidor caído) sigue
+/// cayendo al respaldo offline exactamente como antes: ahí SÍ tiene sentido
+/// seguir trabajando sin conexión hasta que vuelva la red.
 Future<AuthServiceResult> restoreOnce(AuthServicePort service) async {
   try {
     return await service.restore();
-  } catch (_) {
+  } catch (error) {
+    if (_isExplicitCredentialRejection(error)) {
+      return const AuthServiceResult(status: AuthServiceStatus.required);
+    }
     try {
       return await service.restore(offline: true);
     } catch (_) {
@@ -63,13 +100,25 @@ Future<AuthServiceResult> restoreOnce(AuthServicePort service) async {
   }
 }
 
+/// El servidor respondió y dijo explícitamente que esta credencial no vale —
+/// nunca una inferencia sobre un error de transporte/red, que debe seguir
+/// cayendo al respaldo offline.
+bool _isExplicitCredentialRejection(Object error) =>
+    error is OdooAuthenticationException;
+
 class NativeAuthServicePort
     implements
         AuthServicePort,
         ApiKeyAuthServicePort,
-        CredentialPolicyAuthServicePort {
+        CredentialPolicyAuthServicePort,
+        ExpirableAuthServicePort,
+        RenewableAuthServicePort {
   NativeAuthServicePort(this.service);
   final NativeAuthService service;
+  @override
+  Future<void> closeExpired() => service.closeExpired();
+  @override
+  Future<void> renewApiKeyIfNeeded() => service.renewApiKeyIfNeeded();
   @override
   Future<AuthServiceResult> login({
     required String serverUrl,
@@ -393,6 +442,54 @@ class AuthNotifier extends Notifier<AuthViewState> {
     // Drop profile/capabilities immediately so providers cannot retain the
     // previous user's company scope after teardown.
     state = const AuthViewState();
+  }
+
+  /// Cierra la sesión en memoria porque el propio SERVIDOR rechazó la clave
+  /// (401 del sondeo, o de cualquier RPC que el runtime haya corrido) —
+  /// nunca porque el operador decidió salir. Auditoría de sesión,
+  /// 13-sep-2026.
+  ///
+  /// Tres diferencias deliberadas con [close]/"Cambiar de usuario":
+  ///
+  /// * nunca intenta revocar la clave — ya no es válida, revocarla sólo
+  ///   repetiría el mismo rechazo sin lograr nada (ver
+  ///   `NativeAuthService.closeExpired`);
+  /// * nunca toca la base local, los borradores ni la cola offline — sólo
+  ///   cierra la conexión del runtime, igual que [close] ya hacía; medido con
+  ///   `session_expiry_preserves_local_data_test.dart`;
+  /// * NO borra la derivación de desbloqueo sin conexión
+  ///   ([WorkspaceUnlockStore]): a diferencia de un logout deliberado, aquí
+  ///   el MISMO operador sigue siendo el dueño legítimo de este dispositivo —
+  ///   sólo el servidor dejó de reconocer la credencial. Borrarla le
+  ///   costaría el desbloqueo sin red la próxima vez, por algo que no eligió.
+  ///
+  /// El perfil no-secreto (servidor, base, usuario) queda intacto en
+  /// preferencias — `LoginScreen` ya lo precarga por su cuenta
+  /// (`loadProfile`/`loadProfileFor`), así que no hace falta llevarlo en
+  /// [AuthViewState.profile] para que la pantalla de acceso lo recupere.
+  Future<void> handleSessionExpired() async {
+    if (state.status != AuthControllerStatus.authenticated &&
+        state.status != AuthControllerStatus.restored) {
+      return; // ya no hay una sesión activa que cerrar
+    }
+    final service = _service;
+    try {
+      if (service case final ExpirableAuthServicePort expirable) {
+        await expirable.closeExpired();
+      } else {
+        // Respaldo: mejor intentar revocar que dejar una sesión abierta sin
+        // ninguna forma de cerrarla.
+        await service.close();
+      }
+    } catch (_) {
+      // Best-effort — nunca debe impedir volver a la pantalla de acceso.
+    }
+    if (!ref.mounted) return;
+    state = AuthViewState(
+      status: AuthControllerStatus.error,
+      message: loginFailureMessageFor(LoginFailureCause.sessionExpired)
+          .flatten(),
+    );
   }
 
   Future<AuthProfile?> loadProfile() async {

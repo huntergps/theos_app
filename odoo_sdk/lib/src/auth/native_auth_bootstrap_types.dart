@@ -4,6 +4,7 @@ final class NativeAuthBootstrapResult {
     required this.userId,
     required this.apiKey,
     this.apiKeyId,
+    this.expiresAt,
   });
 
   final int userId;
@@ -17,6 +18,13 @@ final class NativeAuthBootstrapResult {
   /// and is never rolled back because of it, but revocation is then not
   /// possible and the caller must decide how to surface that.
   final int? apiKeyId;
+
+  /// When [apiKey] stops working, computed from the wizard's own `duration`
+  /// selection (in days) at the moment it was minted — the native wizard
+  /// never returns an expiry timestamp directly. `null` only if that
+  /// computation could not be made; a caller that cannot learn this never
+  /// renews the key proactively, it only relies on the reactive 401 path.
+  final DateTime? expiresAt;
 }
 
 enum NativeAuthBootstrapFailureKind {

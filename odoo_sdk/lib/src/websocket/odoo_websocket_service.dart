@@ -2,6 +2,7 @@ import 'dart:async';
 
 import '../services/logger_service.dart';
 import 'odoo_websocket_events.dart';
+import 'realtime_credential.dart';
 import 'websocket_channel_manager.dart';
 import 'websocket_connection_manager.dart';
 import 'websocket_event_parser.dart';
@@ -11,6 +12,7 @@ import 'websocket_reconnection_manager.dart';
 
 // Re-export events for consumers
 export 'odoo_websocket_events.dart';
+export 'realtime_credential.dart';
 
 /// SEC-04: Exception thrown when insecure WebSocket connection is attempted.
 class InsecureWebSocketException implements Exception {
@@ -27,7 +29,16 @@ class InsecureWebSocketException implements Exception {
 class OdooWebSocketConnectionInfo {
   final String baseUrl;
   final String database;
-  final String? apiKey;
+
+  /// Fetches the [RealtimeCredential] used to authenticate the bus
+  /// connection. Called before the first connect, on every reconnection,
+  /// and again when the current credential expires — see
+  /// [RealtimeCredentialProvider] for the full contract.
+  ///
+  /// Odoo's bus does not accept the JSON-2 Bearer API key, so this replaces
+  /// the old `apiKey` field entirely.
+  final RealtimeCredentialProvider realtimeCredentialProvider;
+
   final int? partnerId;
 
   /// Heartbeat interval to keep connection alive.
@@ -45,14 +56,25 @@ class OdooWebSocketConnectionInfo {
   /// Set to `true` only for local development (e.g., localhost).
   final bool allowInsecure;
 
+  /// Notification id to seed the parser with before the very first
+  /// `subscribe` message of this service's lifetime.
+  ///
+  /// Lets the runtime persist `last` per scope (e.g. in Drift) and resume
+  /// from where it left off instead of always starting at 0. Ignored on
+  /// later reconnections within the same [OdooWebSocketService] instance,
+  /// which instead carry forward whatever `last` the service already
+  /// tracked live — see [OdooWebSocketService.lastNotificationIdStream].
+  final int initialLast;
+
   const OdooWebSocketConnectionInfo({
     required this.baseUrl,
     required this.database,
-    this.apiKey,
+    required this.realtimeCredentialProvider,
     this.partnerId,
     this.heartbeatInterval = const Duration(seconds: 30),
     this.defaultChannels,
     this.allowInsecure = false,
+    this.initialLast = 0,
   });
 
   /// Whether this connection uses a secure HTTPS base URL.
@@ -65,7 +87,9 @@ class OdooWebSocketConnectionInfo {
     }
   }
 
-  /// The WebSocket URL derived from baseUrl.
+  /// The WebSocket URL derived from baseUrl (scheme/host/port only — the
+  /// real connect flow in [WebSocketConnectionManager] appends `?version=`
+  /// and `&session_id=` on top of this).
   String get websocketUrl {
     final uri = Uri.parse(baseUrl);
     final wsScheme = uri.scheme == 'https' ? 'wss' : 'ws';
@@ -99,26 +123,19 @@ class OdooWebSocketConnectionInfo {
     }
   }
 
-  /// SEC-01: Secure string representation that masks sensitive credentials.
+  /// SEC-01: Secure string representation.
   ///
-  /// API keys are masked to prevent accidental exposure in logs, error
-  /// messages, or stack traces.
+  /// [realtimeCredentialProvider] is a function reference, never a raw
+  /// credential value, so there is nothing here to mask: the actual
+  /// [RealtimeCredential] it returns masks its own `sessionId` in its
+  /// `toString()`.
   @override
   String toString() {
     return 'OdooWebSocketConnectionInfo('
         'baseUrl: $baseUrl, '
         'database: $database, '
-        'apiKey: ${_maskCredential(apiKey)}, '
         'partnerId: $partnerId, '
         'secure: ${!allowInsecure})';
-  }
-
-  /// Masks a credential showing only first and last 2 characters.
-  static String _maskCredential(String? value) {
-    if (value == null) return 'null';
-    if (value.isEmpty) return '';
-    if (value.length <= 4) return '*' * value.length;
-    return '${value.substring(0, 2)}${'*' * (value.length - 4)}${value.substring(value.length - 2)}';
   }
 }
 
@@ -134,7 +151,7 @@ class OdooWebSocketConnectionInfo {
 /// await wsService.connect(OdooWebSocketConnectionInfo(
 ///   baseUrl: 'https://odoo.example.com',
 ///   database: 'mydb',
-///   apiKey: 'api-key',
+///   realtimeCredentialProvider: fetchRealtimeSession,
 /// ));
 ///
 /// // Listen to typed events with pattern matching
@@ -150,8 +167,15 @@ class OdooWebSocketConnectionInfo {
 /// });
 /// ```
 class OdooWebSocketService {
+  /// [connectionManager] is injectable so tests can supply a
+  /// [WebSocketConnectionManager] built with a fake `channelFactory`
+  /// instead of opening a real socket. Production code never needs to pass
+  /// it.
+  OdooWebSocketService({WebSocketConnectionManager? connectionManager})
+    : _connection = connectionManager ?? WebSocketConnectionManager();
+
   // Internal managers
-  final WebSocketConnectionManager _connection = WebSocketConnectionManager();
+  final WebSocketConnectionManager _connection;
   final WebSocketHeartbeatManager _heartbeat = WebSocketHeartbeatManager();
   final WebSocketReconnectionManager _reconnection =
       WebSocketReconnectionManager();
@@ -159,6 +183,12 @@ class OdooWebSocketService {
       WebSocketMessageDeduplicator();
   final WebSocketEventParser _parser = WebSocketEventParser();
   final WebSocketChannelManager _channels = WebSocketChannelManager();
+
+  /// Whether [OdooWebSocketConnectionInfo.initialLast] has already been
+  /// applied. Seeded only once per service lifetime — later reconnections
+  /// must keep whatever `last` the parser tracked live, never reset back to
+  /// the original seed.
+  bool _hasSeededInitialLast = false;
 
   // ============================================================================
   // TYPED EVENT STREAM (Primary API)
@@ -170,6 +200,17 @@ class OdooWebSocketService {
 
   /// Stream of typed WebSocket events.
   Stream<OdooWebSocketEvent> get eventStream => _eventController.stream;
+
+  /// StreamController that reports every new `lastNotificationId` seen from
+  /// the server, so a consumer (orbi_runtime) can persist it per scope and
+  /// pass it back as [OdooWebSocketConnectionInfo.initialLast] on the next
+  /// cold start.
+  final StreamController<int> _lastNotificationIdController =
+      StreamController<int>.broadcast();
+
+  /// Stream of `lastNotificationId` updates. Emits once per notification
+  /// batch that advances the id, not once per raw message.
+  Stream<int> get lastNotificationIdStream => _lastNotificationIdController.stream;
 
   /// Subscribes to typed WebSocket events with automatic cleanup.
   ///
@@ -275,7 +316,7 @@ class OdooWebSocketService {
   /// await wsService.connect(OdooWebSocketConnectionInfo(
   ///   baseUrl: 'https://odoo.example.com',
   ///   database: 'production',
-  ///   apiKey: 'your-api-key',
+  ///   realtimeCredentialProvider: fetchRealtimeSession,
   /// ));
   ///
   /// if (wsService.isConnected) {
@@ -285,6 +326,11 @@ class OdooWebSocketService {
   Future<void> connect(OdooWebSocketConnectionInfo connectionInfo) async {
     if (_connection.isConnected || _connection.isConnecting) {
       return;
+    }
+
+    if (!_hasSeededInitialLast) {
+      _hasSeededInitialLast = true;
+      _parser.seedLastNotificationId(connectionInfo.initialLast);
     }
 
     // FIX 4: If the server URL or database changed, clear additionalChannels so
@@ -311,6 +357,7 @@ class OdooWebSocketService {
         onMessage: _onMessage,
         onError: _onError,
         onDone: _onDisconnected,
+        onCredentialExpired: _onCredentialExpired,
       );
 
       _reconnection.reset();
@@ -357,7 +404,32 @@ class OdooWebSocketService {
     // Check for duplicate messages first
     if (_deduplicator.isDuplicate(message)) return;
 
+    final previousLast = _parser.lastNotificationId;
     _parser.parseMessage(message, onEvent: _emitEvent);
+    if (_parser.lastNotificationId != previousLast) {
+      _lastNotificationIdController.add(_parser.lastNotificationId);
+    }
+  }
+
+  /// Called when the real-time session's `expiresAt` is reached while still
+  /// connected.
+  ///
+  /// This is a planned renewal, not a failure: it reconnects immediately
+  /// (fetching a fresh [RealtimeCredential] from
+  /// [OdooWebSocketConnectionInfo.realtimeCredentialProvider] as part of the
+  /// normal [connect] flow) instead of going through
+  /// [WebSocketReconnectionManager]'s exponential backoff, and it never logs
+  /// the credential itself.
+  void _onCredentialExpired() {
+    logger.i(
+      '[OdooWebSocket]',
+      'Real-time session expired: reconnecting to request a fresh one',
+    );
+    final info = _connection.connectionInfo;
+    disconnect();
+    if (info != null) {
+      connect(info);
+    }
   }
 
   /// Handle errors
@@ -452,6 +524,7 @@ class OdooWebSocketService {
   void dispose() {
     disconnect();
     _eventController.close();
+    _lastNotificationIdController.close();
     _connection.connectionInfo = null;
   }
 }

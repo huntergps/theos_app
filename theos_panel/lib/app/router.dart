@@ -36,6 +36,7 @@ import '../features/products/products_screen.dart';
 import 'preferences/app_preferences.dart';
 import '../features/activities/activity_center.dart';
 import '../features/reports/document_view.dart';
+import '../features/sync/app_foreground_signal.dart';
 import '../features/sync/network_signal_provider.dart';
 import '../ui/export/export_listing.dart';
 import '../ui/fluent/orbi_page.dart';
@@ -387,14 +388,93 @@ final scopeSyncCoordinatorProvider = Provider<SyncCoordinatorImpl?>((ref) {
   // El sondeo del servidor ya no es nulo. Mientras lo fue, `BackendProbe` era
   // una interfaz que nadie implementaba y el pie sólo podía decir «sin
   // verificar», con el Odoo respondiendo perfectamente.
+  // ----- INICIO bloque aislado: renovación de clave (auditoría de sesión,
+  // 13-sep-2026) — «la app en línea» de `ApiKeyRenewalDecision` es, en la
+  // práctica, cada ciclo de este coordinador. `ref.read`, no `watch`: el
+  // servicio de auth no cambia mientras la sesión está activa, y este
+  // provider no debe reconstruirse por algo ajeno al scope/composición.
+  final authService = ref.read(authServiceProvider);
+  final apiKeyRenewal = authService is RenewableAuthServicePort
+      ? (AppScope _) =>
+          (authService as RenewableAuthServicePort).renewApiKeyIfNeeded()
+      : null;
+  // ----- FIN bloque aislado -----
   final coordinator = SyncCoordinatorImpl(
     jobs: composition.jobs.values,
     backendProbe: Json2BackendProbe(composition.reader),
+    apiKeyRenewal: apiKeyRenewal,
   );
   unawaited(coordinator.start(active.scope));
   ref.onDispose(coordinator.dispose);
   return coordinator;
 });
+
+// --- Bloque aislado: re-sincronización automática (13-sep-2026) ----------
+// Antes de esto, `requestSync` sólo corría una vez al abrir el scope y bajo
+// el botón manual "Reintentar sincronización" de /sync — recuperar la red
+// o volver a la app no revivía nada (auditoría de conectividad/sync del
+// 13-sep-2026). `SyncAutoResyncTrigger` vive en `orbi_runtime` y es
+// agnóstico de Flutter; aquí sólo se le conectan las dos señales reales que
+// router.dart ya observa para el pie de página. Deliberadamente en su
+// propio bloque, sin tocar nada más de este archivo, mientras otras
+// auditorías siguen trabajando en el resto de router.dart.
+final _appForegroundSignalProvider = Provider<AppForegroundSignal>((ref) {
+  final signal = AppForegroundSignal();
+  ref.onDispose(signal.dispose);
+  return signal;
+});
+
+final scopeSyncAutoResyncTriggerProvider =
+    Provider<SyncAutoResyncTrigger?>((ref) {
+  final coordinator = ref.watch(scopeSyncCoordinatorProvider);
+  if (coordinator == null) return null;
+  final foreground = ref.watch(_appForegroundSignalProvider);
+  // `StreamProvider` no expone su `Stream` crudo en esta versión de
+  // Riverpod; `ref.listen` es el puente hacia el `Stream<bool>` que
+  // `SyncAutoResyncTrigger` necesita, sin envolver nada en `AsyncValue`.
+  final onlineController = StreamController<bool>.broadcast();
+  ref.listen<AsyncValue<NetworkSignal>>(networkSignalProvider, (
+    previous,
+    next,
+  ) {
+    final signal = next.value;
+    if (signal != null && !onlineController.isClosed) {
+      onlineController.add(signal.hasNetwork);
+    }
+  }, fireImmediately: true);
+  final trigger = SyncAutoResyncTrigger(
+    coordinator: coordinator,
+    online: onlineController.stream,
+    foreground: foreground.stream,
+  );
+  ref.onDispose(() {
+    trigger.dispose();
+    unawaited(onlineController.close());
+  });
+  return trigger;
+});
+// --- Fin del bloque aislado ------------------------------------------------
+
+// --- Bloque aislado: sesión expirada en caliente (auditoría de sesión,
+// 13-sep-2026) ---------------------------------------------------------------
+// El coordinador ya publica `SyncSnapshot.sessionExpired` (derivado de
+// `SyncFailure.authStatus == AuthStatus.expired`) cada vez que el sondeo o un
+// trabajo de sincronización se topan con un 401. Estos dos providers sólo le
+// dan forma reactiva a Riverpod a ese stream que `SyncCoordinatorImpl` ya
+// expone — el `ref.listen` que realmente actúa sobre la señal vive dentro del
+// `Consumer` de más abajo, donde ya se construye `OperationalShell`.
+final scopeSyncSnapshotStreamProvider = StreamProvider<SyncSnapshot>((ref) {
+  final coordinator = ref.watch(scopeSyncCoordinatorProvider);
+  if (coordinator == null) return const Stream<SyncSnapshot>.empty();
+  return coordinator.snapshots;
+});
+
+final sessionExpiredSignalProvider = Provider<bool>((ref) {
+  final snapshot = ref.watch(scopeSyncSnapshotStreamProvider).value;
+  return snapshot?.sessionExpired ?? false;
+});
+// --- Fin del bloque aislado ------------------------------------------------
+
 final scopeClientsCatalogProvider =
     Provider<CatalogController<SaleCatalogPartner>?>((ref) {
       final composition = ref.watch(scopeCatalogCompositionProvider);
@@ -819,6 +899,11 @@ final orbiRouterProvider = Provider<GoRouter>((ref) {
             // this same inner `Consumer`: it must never force the whole
             // `GoRouter` to rebuild.
             final coordinator = ref.watch(scopeSyncCoordinatorProvider);
+            // Instancia (y mantiene vivo) el disparador de re-sincronización
+            // automática mientras este subárbol exista; ver el bloque
+            // aislado más arriba. Nunca se lee su valor aquí: basta con que
+            // exista para que escuche red y ciclo de vida.
+            ref.watch(scopeSyncAutoResyncTriggerProvider);
             // Dos medidas, no una suposición: el transporte del aparato y la
             // respuesta del servidor al último sondeo. Si falta cualquiera de
             // las dos, el resultado dice «sin verificar», nunca «conectado».
@@ -917,6 +1002,31 @@ final orbiRouterProvider = Provider<GoRouter>((ref) {
                             );
                           },
                         );
+                        // ----- INICIO bloque aislado: sesión expirada en
+                        // caliente (auditoría de sesión, 13-sep-2026) -----
+                        // El 401 del sondeo (o de cualquier trabajo de
+                        // sincronización) llega aquí como
+                        // `SyncSnapshot.sessionExpired`, una señal
+                        // ESTRUCTURADA (`SyncFailure.authStatus`), nunca
+                        // texto libre — ver sync_coordinator_impl.dart.
+                        // `ref.listen` reacciona UNA sola vez en la
+                        // transición false→true: en cuanto se dispare,
+                        // `handleSessionExpired()` cambia `auth.status`, lo
+                        // que hace que `orbiRouterProvider` redirija a
+                        // `/login` y este subárbol completo se desmonte, así
+                        // que no hay riesgo de repetir la llamada mientras
+                        // el snapshot siga en ese estado.
+                        ref.listen<bool>(sessionExpiredSignalProvider, (
+                          previous,
+                          next,
+                        ) {
+                          if (next && previous != true) {
+                            ref
+                                .read(authControllerProvider.notifier)
+                                .handleSessionExpired();
+                          }
+                        });
+                        // ----- FIN bloque aislado -----
                         return child;
                       },
                     ),

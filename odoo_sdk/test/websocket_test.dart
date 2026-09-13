@@ -6,6 +6,14 @@ import 'package:web_socket_channel/web_socket_channel.dart';
 
 import 'package:odoo_sdk/odoo_sdk.dart';
 
+/// Fake real-time credential provider shared by every
+/// [OdooWebSocketConnectionInfo] built in this file. A plain top-level
+/// function reference so it stays usable inside `const` constructors.
+Future<RealtimeCredential> _fakeRealtimeCredential() async => RealtimeCredential(
+  sessionId: 'test-session-id',
+  expiresAt: DateTime.now().add(const Duration(minutes: 5)),
+);
+
 // =============================================================================
 // MOCK WEBSOCKET CHANNEL
 // =============================================================================
@@ -150,6 +158,7 @@ void main() {
       const info = OdooWebSocketConnectionInfo(
         baseUrl: 'https://odoo.example.com',
         database: 'mydb',
+        realtimeCredentialProvider: _fakeRealtimeCredential,
       );
 
       expect(info.heartbeatInterval, equals(const Duration(seconds: 30)));
@@ -159,6 +168,7 @@ void main() {
       const info = OdooWebSocketConnectionInfo(
         baseUrl: 'https://odoo.example.com',
         database: 'mydb',
+        realtimeCredentialProvider: _fakeRealtimeCredential,
         heartbeatInterval: Duration(seconds: 60),
       );
 
@@ -169,6 +179,7 @@ void main() {
       const info = OdooWebSocketConnectionInfo(
         baseUrl: 'https://odoo.example.com',
         database: 'mydb',
+        realtimeCredentialProvider: _fakeRealtimeCredential,
         defaultChannels: ['sale_order', 'res_partner'],
       );
 
@@ -179,14 +190,16 @@ void main() {
       const info = OdooWebSocketConnectionInfo(
         baseUrl: 'https://odoo.example.com',
         database: 'mydb',
-        apiKey: 'test-key',
+        realtimeCredentialProvider: _fakeRealtimeCredential,
         partnerId: 42,
+        initialLast: 7,
       );
 
       expect(info.baseUrl, equals('https://odoo.example.com'));
       expect(info.database, equals('mydb'));
-      expect(info.apiKey, equals('test-key'));
+      expect(info.realtimeCredentialProvider, equals(_fakeRealtimeCredential));
       expect(info.partnerId, equals(42));
+      expect(info.initialLast, equals(7));
     });
   });
 
@@ -687,7 +700,7 @@ void main() {
       const info = OdooWebSocketConnectionInfo(
         baseUrl: 'https://odoo.example.com',
         database: 'mydb',
-        apiKey: 'test-key',
+        realtimeCredentialProvider: _fakeRealtimeCredential,
       );
 
       // Simulating storing connection info
@@ -735,6 +748,7 @@ void main() {
       const info = OdooWebSocketConnectionInfo(
         baseUrl: 'https://odoo.example.com',
         database: 'mydb',
+        realtimeCredentialProvider: _fakeRealtimeCredential,
       );
 
       expect(info.heartbeatInterval, equals(const Duration(seconds: 30)));
@@ -744,6 +758,7 @@ void main() {
       const info = OdooWebSocketConnectionInfo(
         baseUrl: 'https://odoo.example.com',
         database: 'mydb',
+        realtimeCredentialProvider: _fakeRealtimeCredential,
         heartbeatInterval: Duration(seconds: 60),
       );
 
@@ -1057,6 +1072,7 @@ void main() {
       const info = OdooWebSocketConnectionInfo(
         baseUrl: 'https://odoo.example.com',
         database: 'mydb',
+        realtimeCredentialProvider: _fakeRealtimeCredential,
         defaultChannels: ['custom_channel', 'another_channel'],
       );
 
@@ -1143,6 +1159,7 @@ void main() {
           const OdooWebSocketConnectionInfo(
             baseUrl: 'https://test.com',
             database: 'test',
+            realtimeCredentialProvider: _fakeRealtimeCredential,
           );
 
       void dispose() {
@@ -1194,6 +1211,7 @@ void main() {
       const info = OdooWebSocketConnectionInfo(
         baseUrl: 'http://insecure.com',
         database: 'test',
+        realtimeCredentialProvider: _fakeRealtimeCredential,
         allowInsecure: false,
       );
 
@@ -1207,6 +1225,7 @@ void main() {
       const info = OdooWebSocketConnectionInfo(
         baseUrl: 'http://localhost',
         database: 'test',
+        realtimeCredentialProvider: _fakeRealtimeCredential,
         allowInsecure: true,
       );
 
@@ -1218,6 +1237,7 @@ void main() {
       const info = OdooWebSocketConnectionInfo(
         baseUrl: 'https://secure.com',
         database: 'test',
+        realtimeCredentialProvider: _fakeRealtimeCredential,
         allowInsecure: false,
       );
 
@@ -1229,6 +1249,7 @@ void main() {
       const info = OdooWebSocketConnectionInfo(
         baseUrl: 'https://odoo.example.com',
         database: 'test',
+        realtimeCredentialProvider: _fakeRealtimeCredential,
       );
 
       expect(info.websocketUrl, startsWith('wss://'));
@@ -1238,26 +1259,30 @@ void main() {
       const info = OdooWebSocketConnectionInfo(
         baseUrl: 'http://localhost',
         database: 'test',
+        realtimeCredentialProvider: _fakeRealtimeCredential,
         allowInsecure: true,
       );
 
       expect(info.websocketUrl, startsWith('ws://'));
     });
 
-    test('masks credentials in toString', () {
+    test('toString never contains the credential — there is none to hold', () {
+      // SEC-01: OdooWebSocketConnectionInfo no longer stores a credential at
+      // all (it was `apiKey`, sent as an Authorization Bearer the bus never
+      // accepted). It now only holds a `realtimeCredentialProvider`
+      // function reference, so there is nothing for toString() to leak.
       const info = OdooWebSocketConnectionInfo(
         baseUrl: 'https://odoo.example.com',
         database: 'mydb',
-        apiKey: 'supersecretapikey123',
+        realtimeCredentialProvider: _fakeRealtimeCredential,
       );
 
       final str = info.toString();
 
-      expect(str, isNot(contains('supersecretapikey123')));
-      // Masked: first 2 chars + asterisks + last 2 chars
-      expect(str, contains('su')); // First 2 chars of API key
-      expect(str, contains('23')); // Last 2 chars of API key
-      expect(str, contains('*')); // Contains masked characters
+      expect(str, isNot(contains('Bearer')));
+      expect(str, isNot(contains('apiKey')));
+      expect(str, contains('baseUrl: https://odoo.example.com'));
+      expect(str, contains('database: mydb'));
     });
   });
 

@@ -169,7 +169,7 @@ enum AuthStatus { authenticated, expired, required, unknown }
 /// trabajo ya devolvía el error tipado —modelo y campo incluidos— y se
 /// descartaba al convertirlo en un entero.
 final class SyncFailure {
-  SyncFailure({required String jobId, required String message})
+  SyncFailure({required String jobId, required String message, this.authStatus})
     : jobId = _required(jobId, 'jobId'),
       message = _required(message, 'message');
 
@@ -179,6 +179,15 @@ final class SyncFailure {
   /// Lo que dijo el servidor, sin interpretar. La traducción a algo legible es
   /// de la capa de presentación, no de aquí.
   final String message;
+
+  /// Señal ESTRUCTURADA, no texto libre (auditoría de sesión, 13-sep-2026):
+  /// `AuthStatus.expired` cuando este fallo concreto viene de que el servidor
+  /// rechazó la clave (401 del sondeo, o `OdooAuthenticationException` de
+  /// cualquier trabajo) — nunca inferido del [message], que sigue siendo
+  /// texto libre sin contrato. `null` para cualquier otro fallo (red, timeout,
+  /// error de negocio) — así quien reaccione a esto (p. ej. el router) nunca
+  /// tiene que adivinar la causa parseando una frase.
+  final AuthStatus? authStatus;
 }
 
 /// Un conflicto de sincronización detectado hoy, con lo suficiente para
@@ -245,6 +254,14 @@ final class SyncSnapshot {
   /// Igual de derivado, y por la misma razón: separado del detalle, era un
   /// contador que nadie asignaba y que se quedó siempre en cero.
   int get conflictCount => conflicts.length;
+
+  /// Si ALGUNO de los fallos de este ciclo viene de una clave que el servidor
+  /// ya rechazó (`AuthStatus.expired`, ver [SyncFailure.authStatus]). Derivado
+  /// a propósito, igual que [failedCount]/[conflictCount]: quien reaccione a
+  /// esto (el router, el pie de la aplicación) lee un booleano estructurado,
+  /// nunca tiene que adivinarlo de un mensaje de texto libre.
+  bool get sessionExpired =>
+      failures.any((failure) => failure.authStatus == AuthStatus.expired);
 }
 
 final class SyncReason {
