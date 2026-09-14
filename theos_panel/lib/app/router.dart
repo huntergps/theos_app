@@ -34,6 +34,7 @@ import '../features/orders/orders_screen.dart';
 import '../features/orders/orders_contracts.dart';
 import '../features/warehouse/warehouse_screen.dart';
 import '../features/warehouse/warehouse_existences_screen.dart';
+import 'last_location_store.dart';
 import 'warehouse_existences_composition.dart';
 import '../features/clients/catalog_contracts.dart';
 import '../features/clients/clients_screen.dart';
@@ -1261,6 +1262,10 @@ final orbiRouterProvider = Provider<GoRouter>((ref) {
   // se lee fresco en cada evaluación de `redirect`, nunca capturado aquí.
   final policy = ref.read(routeAccessPolicyProvider);
   final composition = ref.read(orbiSessionCompositionProvider);
+  // Misma regla de lectura única que `policy`/`composition`:
+  // `sharedPreferencesProvider` no cambia durante una sesión (ver su propia
+  // declaración en `app_preferences.dart`).
+  final lastLocationStore = LastLocationStore(ref.read(sharedPreferencesProvider));
 
   final refresh = _AuthRouterRefresh();
   final authSubscription = ref.listen<AuthViewState>(
@@ -1272,7 +1277,7 @@ final orbiRouterProvider = Provider<GoRouter>((ref) {
     refresh.dispose();
   });
 
-  return GoRouter(
+  final router = GoRouter(
     initialLocation: '/login',
     refreshListenable: refresh,
     redirect: (context, state) {
@@ -1288,8 +1293,20 @@ final orbiRouterProvider = Provider<GoRouter>((ref) {
         return '/login?returnTo=${Uri.encodeComponent(state.uri.toString())}';
       }
       if (location == '/login') {
+        // Sin `returnTo` explícito (reabrir el dominio a secas, un acceso
+        // directo, una pestaña anclada) la última pantalla de ESTA identidad
+        // es el candidato — `returnTo` sigue ganando cuando existe, porque
+        // representa una intención más reciente y más específica (alguien
+        // pulsó un enlace concreto). `destinationAfterLogin` ya valida
+        // permisos sobre cualquiera de los dos: una última ubicación que ya
+        // no está permitida cae a `/` igual que un `returnTo` rechazado.
+        final returnTo = state.uri.queryParameters['returnTo'];
+        final profile = auth.profile;
+        final lastLocation = returnTo == null && profile != null
+            ? lastLocationStore.read(profile)
+            : null;
         return policy.destinationAfterLogin(
-          state.uri.queryParameters['returnTo'],
+          returnTo ?? lastLocation,
           authenticated: true,
           capabilities: capabilities,
         );
@@ -2359,4 +2376,29 @@ final orbiRouterProvider = Provider<GoRouter>((ref) {
       ),
     ],
   );
+
+  // Guarda la ubicación actual (path + query) cada vez que cambia y hay
+  // sesión autenticada — el listener del `routerDelegate`, NO un segundo
+  // `GoRouter` ni un `ref.watch` que reconstruya éste: el router de la
+  // sesión es deliberadamente estable (ver el comentario de `refresh` más
+  // arriba y `router_login_stability_test.dart`). `currentConfiguration.uri`
+  // es la ubicación YA resuelta (después de cualquier redirect), la misma
+  // que pintan el carril y el pie.
+  void persistCurrentLocation() {
+    final auth = ref.read(authControllerProvider);
+    if (!_isAuthenticated(auth)) return;
+    final profile = auth.profile;
+    if (profile == null) return;
+    final uri = router.routerDelegate.currentConfiguration.uri;
+    // Nunca se guarda una ruta pública (hoy sólo `/login`, más `/splash` que
+    // la política ya trata como pública): son pantallas de tránsito, no
+    // "donde estaba trabajando".
+    if (policy.allows(uri.path, authenticated: false)) return;
+    lastLocationStore.save(profile, uri.toString());
+  }
+
+  router.routerDelegate.addListener(persistCurrentLocation);
+  ref.onDispose(() => router.routerDelegate.removeListener(persistCurrentLocation));
+
+  return router;
 });
