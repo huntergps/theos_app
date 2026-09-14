@@ -277,7 +277,24 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
         _login.text.trim() != login) {
       return;
     }
-    setState(() => _rememberedCredential = remembered);
+    setState(() {
+      final wasRemembered = _rememberedCredential != null;
+      _rememberedCredential = remembered;
+      // Hallazgo visual (14-sep-2026): tras cerrar sesión con «Guardar
+      // clave» puesta, esta pantalla mostraba «Clave guardada en este
+      // equipo.» con el interruptor «Guardar clave» APAGADO — sugería
+      // falsamente que había que volver a activarlo para que la próxima
+      // salida la recordara. En cuanto se detecta una credencial recordada
+      // para el servidor/base/usuario elegidos, el interruptor se enciende
+      // solo. Sólo en la transición "no había" → "hay": si la persona lo
+      // apaga a mano después (sin cambiar de usuario), un login posterior
+      // con contraseña la des-recuerda (`NativeAuthService.login`,
+      // `persistCredential: false`) y no se vuelve a encender solo mientras
+      // el debounce de teclear siga viendo la misma credencial recordada.
+      if (remembered != null && !wasRemembered) {
+        _saveCredential = true;
+      }
+    });
   }
 
   /// «Olvidar la clave guardada»: revoca en el servidor si hay red y borra
