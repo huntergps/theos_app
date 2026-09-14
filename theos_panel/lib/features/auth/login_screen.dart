@@ -182,7 +182,13 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   // para no aplicar una respuesta tardía tras haber cambiado de servidor o
   // de usuario mientras tanto.
   int _credentialLookupEpoch = 0;
-  Timer? _loginPreferencesDebounce;
+  // Sólo dispara la BÚSQUEDA de una llave guardada mientras se teclea — ya
+  // NO guarda preferencias (bug B, auditoría de router+login, 14-sep-2026):
+  // guardar a cada tecla dejaba grabado un usuario a medio escribir
+  // («soleda.jinez») si el operador pulsaba «Iniciar sesión» antes de que el
+  // siguiente carácter llegara a disparar este temporizador. Buscar SÍ puede
+  // seguir siendo de lectura continua: nunca escribe nada.
+  Timer? _credentialLookupDebounce;
   bool _apiKeyMode = false;
   bool _saveCredential = false;
   bool _passwordVisible = false;
@@ -225,23 +231,28 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     _password.dispose();
     _loginFocus.dispose();
     _passwordFocus.dispose();
-    _loginPreferencesDebounce?.cancel();
+    _credentialLookupDebounce?.cancel();
     super.dispose();
   }
 
-  void _scheduleLoginPreferencesSave() {
-    _loginPreferencesDebounce?.cancel();
-    _loginPreferencesDebounce = Timer(const Duration(milliseconds: 400), () {
-      unawaited(_saveLoginPreferences());
+  /// Sólo BUSCA si ya hay una llave guardada para lo que se lleva tecleado —
+  /// nunca guarda nada (ver el comentario de `_credentialLookupDebounce`).
+  /// Guardar la preferencia de usuario/servidor pasó a ser una acción
+  /// explícita: al elegir servidor, al autocompletar un login recordado, y
+  /// al pulsar «Iniciar sesión» (`_saveLoginPreferences` desde `_selectServer`,
+  /// `_lookupRememberedProfile` y `_submit`).
+  void _scheduleCredentialLookup() {
+    _credentialLookupDebounce?.cancel();
+    _credentialLookupDebounce = Timer(const Duration(milliseconds: 400), () {
       unawaited(_lookupStoredCredential());
     });
   }
 
   /// Busca si (servidor, base, usuario elegidos AHORA) tiene una llave
   /// guardada — «Recordar la llave tras salir», decisión del dueño,
-  /// 13-sep-2026. Se dispara desde el mismo debounce que ya guarda la
-  /// preferencia de usuario, así que corre con el mismo ritmo (cada 400 ms
-  /// de inactividad al teclear, o al elegir servidor).
+  /// 13-sep-2026. Sólo LEE, nunca escribe preferencias: por eso puede seguir
+  /// corriendo en cada tecla (vía `_scheduleCredentialLookup`, cada 400 ms de
+  /// inactividad al teclear) sin arriesgarse a grabar un usuario a medias.
   Future<void> _lookupStoredCredential() async {
     final server = _selectedServer;
     final login = _login.text.trim();
@@ -335,7 +346,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     // No password/API key may cross to another server or database.
     ++_profileLookupEpoch;
     ++_credentialLookupEpoch;
-    _loginPreferencesDebounce?.cancel();
+    _credentialLookupDebounce?.cancel();
     setState(() {
       _selectedServer = server;
       _login.clear();
@@ -343,7 +354,10 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       _rememberedCredential = null;
     });
     _lookupRememberedProfile();
-    _scheduleLoginPreferencesSave();
+    // Elegir servidor es una acción explícita del operador, no algo tecleado
+    // a medias: se guarda de inmediato, sin esperar el debounce de escritura.
+    unawaited(_saveLoginPreferences());
+    _scheduleCredentialLookup();
     _loginFocus.requestFocus();
   }
 
@@ -428,7 +442,10 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       }
       if (profile != null) {
         _login.text = profile.login;
-        _scheduleLoginPreferencesSave();
+        // Un login restaurado COMPLETO, no algo a medio teclear: se guarda
+        // de inmediato, igual que la elección de servidor que lo disparó.
+        unawaited(_saveLoginPreferences());
+        unawaited(_lookupStoredCredential());
       }
     }());
   }
@@ -882,7 +899,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                     padding: EdgeInsets.symmetric(horizontal: OrbiTheme.space8),
                     child: Icon(FluentIcons.contact, size: 16),
                   ),
-                  onChanged: (_) => _scheduleLoginPreferencesSave(),
+                  onChanged: (_) => _scheduleCredentialLookup(),
                   autofillHints: const [AutofillHints.username],
                 ),
               ),
@@ -1180,6 +1197,18 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     final database = selected.database;
     final login = _login.text.trim();
     final secret = _password.text;
+    // Bug B (auditoría de router+login, 14-sep-2026): el usuario que se
+    // recuerda tiene que ser EXACTAMENTE el que se manda a entrar, tecleado
+    // hasta este instante — nunca uno a medias que el debounce de teclear
+    // dejó pendiente. Se cancela ese debounce y se guarda ANTES del intento,
+    // así el guardado no depende de que esta pantalla siga viva después: con
+    // el router ya arreglado (bug A) sigue viva, pero este guardado no debe
+    // volver a depender de ese hecho.
+    _credentialLookupDebounce?.cancel();
+    if (loginPreferences != null) {
+      await _saveLoginPreferences(store: loginPreferences);
+      if (!mounted) return;
+    }
     // «Recordar la llave tras salir» (decisión del dueño, 13-sep-2026): con
     // el campo Contraseña vacío y una llave guardada para este servidor,
     // base y usuario, entra con ELLA — nunca hace falta escribir nada. En
@@ -1222,12 +1251,9 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
         unawaited(_lookupStoredCredential());
       }
     }
-    if (succeeded) {
-      if (loginPreferences != null) {
-        await _saveLoginPreferences(store: loginPreferences);
-      }
-      if (!mounted) return;
-    }
+    // El usuario/servidor ya quedó guardado ANTES del intento, arriba —
+    // tanto si entró como si no (ver el comentario de ahí): nada que
+    // guardar aquí de nuevo.
     _password.clear();
     TextInput.finishAutofillContext(shouldSave: succeeded);
   }
