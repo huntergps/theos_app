@@ -86,6 +86,21 @@ class UserNotifier extends Notifier<User?> {
   /// Get UserRepository if available
   UserRepository? get _repository => ref.read(userRepositoryProvider);
 
+  /// Applies the current user's own `lang`/`tz` (`res.users.lang`/`tz`,
+  /// synced by `UserSyncRepository` — see `theos_pos_core`'s `User` model)
+  /// to the active Odoo client, so every JSON-2 call after this point uses
+  /// the operator's own language/timezone instead of the SDK's `en_US`
+  /// default. This is the single point where theos_pos does this — called
+  /// from every path that publishes an authenticated user ([setUser],
+  /// [restoreCachedUser], [fetchUser]), never from a screen.
+  ///
+  /// A `null`/empty [User.lang]/[User.tz] (Odoo returned `false`, or a
+  /// profile synced before either field existed) is never overridden with a
+  /// hardcoded value — see `OdooClient.updateLocale`.
+  void _applyUserLocale(User user) {
+    _odooService.client?.updateLocale(language: user.lang, timezone: user.tz);
+  }
+
   Future<List<String>> _loadPermissionSnapshot(
     UserRepository repository,
     int generation,
@@ -124,6 +139,7 @@ class UserNotifier extends Notifier<User?> {
       if (generation != _permissionSnapshotGeneration) return state;
 
       state = user.copyWith(permissions: permissions);
+      _applyUserLocale(user);
       ref.read(isOfflineModeProvider.notifier).setOffline(isOffline);
       return state;
     } catch (error) {
@@ -154,6 +170,7 @@ class UserNotifier extends Notifier<User?> {
           );
           if (generation != _permissionSnapshotGeneration) return;
           state = user.copyWith(permissions: permissions);
+          _applyUserLocale(user);
           return;
         }
       } catch (e) {
@@ -187,6 +204,7 @@ class UserNotifier extends Notifier<User?> {
           );
           if (generation != _permissionSnapshotGeneration) return;
           state = user.copyWith(permissions: permissions);
+          _applyUserLocale(user);
         } else {
           if (generation != _permissionSnapshotGeneration) return;
           state = null;
@@ -235,6 +253,7 @@ class UserNotifier extends Notifier<User?> {
 
     // Set the user state with permissions
     state = user.copyWith(permissions: permissions);
+    _applyUserLocale(user);
 
     // Set offline mode flag
     ref.read(isOfflineModeProvider.notifier).setOffline(isOffline);
