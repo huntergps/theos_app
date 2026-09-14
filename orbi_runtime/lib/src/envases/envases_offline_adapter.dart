@@ -27,19 +27,16 @@ import 'envases_operations_durable.dart';
 /// quien integra, no de este adaptador.
 final class EnvasesOfflineOperationAdapter implements OfflineOperationAdapter {
   const EnvasesOfflineOperationAdapter({
-    required SaleOdooActions actions,
-    required AppDatabase database,
-    required AppScope scope,
-    EnvasesOperationsStore store = const EnvasesOperationsStore(),
-  }) : _actions = actions,
-       _database = database,
-       _scope = scope,
-       _store = store;
+    required this.actions,
+    required this.database,
+    required this.scope,
+    this.store = const EnvasesOperationsStore(),
+  });
 
-  final SaleOdooActions _actions;
-  final AppDatabase _database;
-  final AppScope _scope;
-  final EnvasesOperationsStore _store;
+  final SaleOdooActions actions;
+  final AppDatabase database;
+  final AppScope scope;
+  final EnvasesOperationsStore store;
 
   @override
   Future<OperationReconciliation> reconcile(OfflineOperation operation) async {
@@ -94,7 +91,7 @@ final class EnvasesOfflineOperationAdapter implements OfflineOperationAdapter {
     required String uuid,
     required bool preferPending,
   }) async {
-    final result = await _actions.call(
+    final result = await actions.call(
       model: 'stock.picking',
       method: 'search_read',
       kwargs: {
@@ -114,9 +111,9 @@ final class EnvasesOfflineOperationAdapter implements OfflineOperationAdapter {
           )
         : rows.first;
     final pickingId = (chosen['id'] as num).toInt();
-    await _store.markEnviada(
-      _database,
-      scopeKey: _scope.scopeKey,
+    await store.markEnviada(
+      database,
+      scopeKey: scope.scopeKey,
       operationUuid: uuid,
       pickingId: pickingId,
     );
@@ -129,7 +126,7 @@ final class EnvasesOfflineOperationAdapter implements OfflineOperationAdapter {
     required String uuid,
     required int pickingId,
   }) async {
-    final result = await _actions.call(
+    final result = await actions.call(
       model: 'stock.picking',
       method: 'search_read',
       kwargs: {
@@ -143,9 +140,9 @@ final class EnvasesOfflineOperationAdapter implements OfflineOperationAdapter {
     );
     final rows = result is List ? result : const [];
     if (rows.isEmpty) return const OperationNotApplied();
-    await _store.markEnviada(
-      _database,
-      scopeKey: _scope.scopeKey,
+    await store.markEnviada(
+      database,
+      scopeKey: scope.scopeKey,
       operationUuid: uuid,
       pickingId: pickingId,
     );
@@ -161,7 +158,7 @@ final class EnvasesOfflineOperationAdapter implements OfflineOperationAdapter {
     required String uuid,
     required int pickingId,
   }) async {
-    final result = await _actions.call(
+    final result = await actions.call(
       model: 'stock.picking',
       method: 'read',
       ids: [pickingId],
@@ -174,9 +171,9 @@ final class EnvasesOfflineOperationAdapter implements OfflineOperationAdapter {
     final state = (rows.first as Map)['state'] as String?;
     const pendientes = {'confirmed', 'waiting', 'assigned'};
     if (state != null && !pendientes.contains(state)) {
-      await _store.markEnviada(
-        _database,
-        scopeKey: _scope.scopeKey,
+      await store.markEnviada(
+        database,
+        scopeKey: scope.scopeKey,
         operationUuid: uuid,
         pickingId: pickingId,
       );
@@ -198,7 +195,7 @@ final class EnvasesOfflineOperationAdapter implements OfflineOperationAdapter {
       action: () async {
         final fechaSalida = DateTime.parse(values['fecha_salida'] as String);
         final lineas = (values['lineas'] as List).cast<Map>();
-        final created = await _actions.call(
+        final created = await actions.call(
           model: envasesEnvioModel,
           method: 'create',
           kwargs: {
@@ -230,14 +227,14 @@ final class EnvasesOfflineOperationAdapter implements OfflineOperationAdapter {
             'envases wizard.envio create returned no id',
           );
         }
-        await _actions.call(
+        await actions.call(
           model: envasesEnvioModel,
           method: 'action_enviar',
           ids: [wizardId],
         );
         int? pickingId;
         if (operation.replayPolicy == OfflineReplayPolicy.retrySafe) {
-          final found = await _actions.call(
+          final found = await actions.call(
             model: 'stock.picking',
             method: 'search_read',
             kwargs: {
@@ -257,9 +254,9 @@ final class EnvasesOfflineOperationAdapter implements OfflineOperationAdapter {
             pickingId = ((found.first as Map)['id'] as num).toInt();
           }
         }
-        await _store.markEnviada(
-          _database,
-          scopeKey: _scope.scopeKey,
+        await store.markEnviada(
+          database,
+          scopeKey: scope.scopeKey,
           operationUuid: uuid,
           pickingId: pickingId,
         );
@@ -283,7 +280,7 @@ final class EnvasesOfflineOperationAdapter implements OfflineOperationAdapter {
         // 78-106), con `pendientes = llegaron = move.product_uom_qty`. Esa
         // es la única fuente fiable de `move_id`/`pendientes`: no se arma a
         // mano aquí para no duplicar ese dominio.
-        final created = await _actions.call(
+        final created = await actions.call(
           model: envasesRecepcionModel,
           method: 'create',
           kwargs: {
@@ -302,7 +299,7 @@ final class EnvasesOfflineOperationAdapter implements OfflineOperationAdapter {
             'envases wizard.recepcion create returned no id',
           );
         }
-        final existingLines = await _actions.call(
+        final existingLines = await actions.call(
           model: '$envasesRecepcionModel.line',
           method: 'search_read',
           kwargs: {
@@ -330,7 +327,7 @@ final class EnvasesOfflineOperationAdapter implements OfflineOperationAdapter {
               '$productId en el picking $pickingId',
             );
           }
-          await _actions.call(
+          await actions.call(
             model: '$envasesRecepcionModel.line',
             method: 'write',
             ids: [(match['id'] as num).toInt()],
@@ -342,14 +339,14 @@ final class EnvasesOfflineOperationAdapter implements OfflineOperationAdapter {
             },
           );
         }
-        await _actions.call(
+        await actions.call(
           model: envasesRecepcionModel,
           method: 'action_recibir',
           ids: [wizardId],
         );
-        await _store.markEnviada(
-          _database,
-          scopeKey: _scope.scopeKey,
+        await store.markEnviada(
+          database,
+          scopeKey: scope.scopeKey,
           operationUuid: uuid,
           pickingId: pickingId,
         );
@@ -365,14 +362,14 @@ final class EnvasesOfflineOperationAdapter implements OfflineOperationAdapter {
       operation: operation,
       uuid: uuid,
       action: () async {
-        await _actions.call(
+        await actions.call(
           model: envasesPerdidoModel,
           method: envasesPerdidoMethod,
           ids: [pickingId],
         );
-        await _store.markEnviada(
-          _database,
-          scopeKey: _scope.scopeKey,
+        await store.markEnviada(
+          database,
+          scopeKey: scope.scopeKey,
           operationUuid: uuid,
           pickingId: pickingId,
         );
@@ -405,9 +402,9 @@ final class EnvasesOfflineOperationAdapter implements OfflineOperationAdapter {
       await action();
       return null;
     } on OdooValidationException catch (error) {
-      await _store.markRechazada(
-        _database,
-        scopeKey: _scope.scopeKey,
+      await store.markRechazada(
+        database,
+        scopeKey: scope.scopeKey,
         operationUuid: uuid,
         mensaje: error.message,
       );
@@ -416,9 +413,9 @@ final class EnvasesOfflineOperationAdapter implements OfflineOperationAdapter {
       rethrow;
     } catch (error) {
       if (operation.replayPolicy == OfflineReplayPolicy.manualAfterAmbiguous) {
-        await _store.markRevisarAMano(
-          _database,
-          scopeKey: _scope.scopeKey,
+        await store.markRevisarAMano(
+          database,
+          scopeKey: scope.scopeKey,
           operationUuid: uuid,
           mensaje: error.toString(),
         );

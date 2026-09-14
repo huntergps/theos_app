@@ -132,4 +132,152 @@ void main() {
       expect(() => repository.refresh(), throwsStateError);
     },
   );
+
+  group('envasesCanManageProvider', () {
+    CapabilitySnapshot snapshot(List<String> permissions) => CapabilitySnapshot(
+      scopeKey: 'scope',
+      companyId: 1,
+      revision: 1,
+      fetchedAt: DateTime.utc(2026, 9, 13),
+      permissions: permissions,
+    );
+
+    test('true only with envases_manage', () {
+      final container = ProviderContainer(
+        overrides: [
+          capabilitySnapshotProvider.overrideWithValue(
+            snapshot(const ['envases_read', 'envases_manage']),
+          ),
+        ],
+      );
+      addTearDown(container.dispose);
+      expect(container.read(envasesCanManageProvider), isTrue);
+    });
+
+    test('false with only envases_read', () {
+      final container = ProviderContainer(
+        overrides: [
+          capabilitySnapshotProvider.overrideWithValue(
+            snapshot(const ['envases_read']),
+          ),
+        ],
+      );
+      addTearDown(container.dispose);
+      expect(container.read(envasesCanManageProvider), isFalse);
+    });
+
+    test('false without any capabilities snapshot yet', () {
+      final container = ProviderContainer(
+        overrides: [capabilitySnapshotProvider.overrideWithValue(null)],
+      );
+      addTearDown(container.dispose);
+      expect(container.read(envasesCanManageProvider), isFalse);
+    });
+  });
+
+  group('envasesOperationsProvider', () {
+    test('missing permission produces no port', () {
+      final container = ProviderContainer(
+        overrides: [
+          runtimeSessionProvider.overrideWithValue(null),
+          capabilitySnapshotProvider.overrideWithValue(null),
+        ],
+      );
+      addTearDown(container.dispose);
+      expect(container.read(envasesOperationsProvider), isNull);
+    });
+
+    test(
+      'enviar() still saves locally and queues without a client — decision '
+      'E01 "todo debe funcionar offline"',
+      () async {
+        final owner = RuntimeDatabaseOwner(
+          factory: (_) => AppDatabase(NativeDatabase.memory()),
+        );
+        final s = scope();
+        final db = await owner.open(s);
+        addTearDown(owner.close);
+        final company = CompanyContext.forScope(
+          scope: s,
+          companyId: 4,
+          allowedCompanyIds: [4],
+          capabilityRevision: 1,
+        );
+        final operations = DurableEnvasesOperations(
+          owner: owner,
+          lease: db.lease,
+          company: company,
+          actions: const _AlwaysFailingActions(),
+        );
+        final resultado = await operations.enviar(
+          EnvasesEnviarCommand(
+            operacionUuid: 'uuid-offline-1',
+            origenId: 1,
+            destinoId: 2,
+            fechaSalida: DateTime.utc(2026, 9, 13),
+            lineas: const [EnvasesEnvioLinea(productId: 10, cantidad: 5)],
+          ),
+        );
+        expect(resultado.estado, EnvasesOperacionEstado.pendienteDeEnviar);
+      },
+    );
+  });
+
+  group('per-screen controller providers require envases_read', () {
+    test('por recibir', () {
+      final container = ProviderContainer(
+        overrides: [
+          runtimeSessionProvider.overrideWithValue(null),
+          capabilitySnapshotProvider.overrideWithValue(null),
+        ],
+      );
+      addTearDown(container.dispose);
+      expect(container.read(envasesPorRecibirControllerProvider), isNull);
+    });
+
+    test('movimientos', () {
+      final container = ProviderContainer(
+        overrides: [
+          runtimeSessionProvider.overrideWithValue(null),
+          capabilitySnapshotProvider.overrideWithValue(null),
+        ],
+      );
+      addTearDown(container.dispose);
+      expect(container.read(envasesMovimientosControllerProvider), isNull);
+    });
+
+    test('sedes', () {
+      final container = ProviderContainer(
+        overrides: [
+          runtimeSessionProvider.overrideWithValue(null),
+          capabilitySnapshotProvider.overrideWithValue(null),
+        ],
+      );
+      addTearDown(container.dispose);
+      expect(container.read(envasesSedesControllerProvider), isNull);
+    });
+
+    test('productos', () {
+      final container = ProviderContainer(
+        overrides: [
+          runtimeSessionProvider.overrideWithValue(null),
+          capabilitySnapshotProvider.overrideWithValue(null),
+        ],
+      );
+      addTearDown(container.dispose);
+      expect(container.read(envasesProductosControllerProvider), isNull);
+    });
+  });
+}
+
+final class _AlwaysFailingActions implements SaleOdooActions {
+  const _AlwaysFailingActions();
+
+  @override
+  Future<dynamic> call({
+    required String model,
+    required String method,
+    List<int>? ids,
+    Map<String, dynamic>? kwargs,
+  }) => Future.error(StateError('sin conexión'));
 }

@@ -1288,6 +1288,24 @@ final orbiRouterProvider = Provider<GoRouter>((ref) {
                         group: 'Envases',
                       ),
                       const OperationalDestination(
+                        label: 'Por recibir',
+                        path: '/envases/por-recibir',
+                        icon: FluentIcons.inbox,
+                        group: 'Envases',
+                      ),
+                      const OperationalDestination(
+                        label: 'Enviar',
+                        path: '/envases/enviar',
+                        icon: FluentIcons.send,
+                        group: 'Envases',
+                      ),
+                      const OperationalDestination(
+                        label: 'Movimientos',
+                        path: '/envases/movimientos',
+                        icon: FluentIcons.history,
+                        group: 'Envases',
+                      ),
+                      const OperationalDestination(
                         label: 'Solicitudes',
                         path: '/approvals',
                         icon: FluentIcons.check_list,
@@ -1891,6 +1909,54 @@ final orbiRouterProvider = Provider<GoRouter>((ref) {
           GoRoute(
             path: '/envases',
             builder: (context, state) => const EnvasesExistenciasRoute(),
+          ),
+          GoRoute(
+            path: '/envases/por-recibir',
+            builder: (context, state) => const EnvasesPorRecibirRoute(),
+          ),
+          GoRoute(
+            path: '/envases/por-recibir/:pickingId',
+            builder: (context, state) {
+              final pickingId = int.tryParse(
+                state.pathParameters['pickingId'] ?? '',
+              );
+              if (pickingId == null || pickingId <= 0) {
+                return const NotConfiguredPage(
+                  title: 'Envases',
+                  detail: 'Traslado inválido.',
+                );
+              }
+              return EnvasesTrasladoDetalleRoute(
+                pickingId: pickingId,
+                extra: state.extra as EnvasesPorRecibirRow?,
+              );
+            },
+          ),
+          GoRoute(
+            path: '/envases/por-recibir/:pickingId/recibir',
+            builder: (context, state) {
+              final pickingId = int.tryParse(
+                state.pathParameters['pickingId'] ?? '',
+              );
+              if (pickingId == null || pickingId <= 0) {
+                return const NotConfiguredPage(
+                  title: 'Envases',
+                  detail: 'Traslado inválido.',
+                );
+              }
+              return EnvasesRecibirRoute(
+                pickingId: pickingId,
+                extra: state.extra as EnvasesPorRecibirRow?,
+              );
+            },
+          ),
+          GoRoute(
+            path: '/envases/enviar',
+            builder: (context, state) => const EnvasesEnviarRoute(),
+          ),
+          GoRoute(
+            path: '/envases/movimientos',
+            builder: (context, state) => const EnvasesMovimientosRoute(),
           ),
           GoRoute(
             path: '/warehouse',

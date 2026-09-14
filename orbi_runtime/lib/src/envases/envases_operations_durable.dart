@@ -284,26 +284,22 @@ EnvasesOperacionEstado _estadoFromStorage(String value) => switch (value) {
 /// compañía activas igual que `EnvasesDashboardCache`.
 final class DurableEnvasesOperations implements EnvasesOperations {
   DurableEnvasesOperations({
-    required RuntimeDatabaseOwner owner,
-    required SessionLease lease,
-    required CompanyContext company,
-    required SaleOdooActions actions,
-    EnvasesOperationsStore store = const EnvasesOperationsStore(),
-  }) : _owner = owner,
-       _lease = lease,
-       _company = company,
-       _actions = actions,
-       _store = store {
-    if (_company.scopeKey != _lease.scope.scopeKey) {
+    required this.owner,
+    required this.lease,
+    required this.company,
+    required this.actions,
+    this.store = const EnvasesOperationsStore(),
+  }) {
+    if (company.scopeKey != lease.scope.scopeKey) {
       throw ArgumentError('Company context does not belong to the lease scope');
     }
   }
 
-  final RuntimeDatabaseOwner _owner;
-  final SessionLease _lease;
-  final CompanyContext _company;
-  final SaleOdooActions _actions;
-  final EnvasesOperationsStore _store;
+  final RuntimeDatabaseOwner owner;
+  final SessionLease lease;
+  final CompanyContext company;
+  final SaleOdooActions actions;
+  final EnvasesOperationsStore store;
 
   /// Se sondea una sola vez por instancia y se memoriza — sólo si el sondeo
   /// respondió. Un fallo de red no se memoriza, para poder reintentarlo en
@@ -311,11 +307,11 @@ final class DurableEnvasesOperations implements EnvasesOperations {
   OfflineReplayPolicy? _cachedEnvioRecepcionPolicy;
 
   RuntimeDatabase _active() {
-    final active = _owner.active;
-    if (active == null || !_owner.accepts(_lease)) {
+    final active = owner.active;
+    if (active == null || !owner.accepts(lease)) {
       throw StateError('Session lease is no longer active');
     }
-    if (active.scope.scopeKey != _company.scopeKey) {
+    if (active.scope.scopeKey != company.scopeKey) {
       throw StateError('Envases operations scope is no longer active');
     }
     return active;
@@ -342,9 +338,9 @@ final class DurableEnvasesOperations implements EnvasesOperations {
     final active = _active();
     late EnvasesOperacionLocal result;
     await active.database.transaction(() async {
-      final existing = await _store.getByUuid(
+      final existing = await store.getByUuid(
         active.database,
-        scopeKey: _company.scopeKey,
+        scopeKey: company.scopeKey,
         operationUuid: uuid,
       );
       if (existing != null) {
@@ -352,10 +348,10 @@ final class DurableEnvasesOperations implements EnvasesOperations {
         return;
       }
       final creadaEn = DateTime.now().toUtc();
-      await _store.insert(
+      await store.insert(
         active.database,
-        scopeKey: _company.scopeKey,
-        companyId: _company.companyId,
+        scopeKey: company.scopeKey,
+        companyId: company.companyId,
         operationUuid: uuid,
         tipo: 'envio',
         creadaEn: creadaEn,
@@ -369,7 +365,7 @@ final class DurableEnvasesOperations implements EnvasesOperations {
           'origen_id': command.origenId,
           'destino_id': command.destinoId,
           'fecha_salida': command.fechaSalida.toUtc().toIso8601String(),
-          'responsable_id': _lease.scope.userId,
+          'responsable_id': lease.scope.userId,
           'lineas': [
             for (final linea in command.lineas)
               {'product_id': linea.productId, 'cantidad': linea.cantidad},
@@ -413,9 +409,9 @@ final class DurableEnvasesOperations implements EnvasesOperations {
     final active = _active();
     late EnvasesOperacionLocal result;
     await active.database.transaction(() async {
-      final existing = await _store.getByUuid(
+      final existing = await store.getByUuid(
         active.database,
-        scopeKey: _company.scopeKey,
+        scopeKey: company.scopeKey,
         operationUuid: uuid,
       );
       if (existing != null) {
@@ -423,10 +419,10 @@ final class DurableEnvasesOperations implements EnvasesOperations {
         return;
       }
       final creadaEn = DateTime.now().toUtc();
-      await _store.insert(
+      await store.insert(
         active.database,
-        scopeKey: _company.scopeKey,
-        companyId: _company.companyId,
+        scopeKey: company.scopeKey,
+        companyId: company.companyId,
         operationUuid: uuid,
         tipo: 'recepcion',
         creadaEn: creadaEn,
@@ -440,7 +436,7 @@ final class DurableEnvasesOperations implements EnvasesOperations {
         values: {
           'operacion_uuid': uuid,
           'picking_id': command.pickingId,
-          'responsable_id': _lease.scope.userId,
+          'responsable_id': lease.scope.userId,
           'lineas': [
             for (final linea in command.lineas)
               {
@@ -480,9 +476,9 @@ final class DurableEnvasesOperations implements EnvasesOperations {
     final active = _active();
     late EnvasesOperacionLocal result;
     await active.database.transaction(() async {
-      final existing = await _store.getByUuid(
+      final existing = await store.getByUuid(
         active.database,
-        scopeKey: _company.scopeKey,
+        scopeKey: company.scopeKey,
         operationUuid: uuid,
       );
       if (existing != null) {
@@ -490,10 +486,10 @@ final class DurableEnvasesOperations implements EnvasesOperations {
         return;
       }
       final creadaEn = DateTime.now().toUtc();
-      await _store.insert(
+      await store.insert(
         active.database,
-        scopeKey: _company.scopeKey,
-        companyId: _company.companyId,
+        scopeKey: company.scopeKey,
+        companyId: company.companyId,
         operationUuid: uuid,
         tipo: 'perdido',
         creadaEn: creadaEn,
@@ -525,7 +521,7 @@ final class DurableEnvasesOperations implements EnvasesOperations {
 
   @override
   Stream<List<EnvasesOperacionLocal>> watchOperaciones() =>
-      _store.watch(_owner, _lease, _company);
+      store.watch(owner, lease, company);
 
   /// D del encargo: comprueba una sola vez (memorizado) si `stock.picking`
   /// ya tiene `envases_operacion_uuid` — 13-sep-2026, confirmado ausente hoy
@@ -538,7 +534,7 @@ final class DurableEnvasesOperations implements EnvasesOperations {
     final cached = _cachedEnvioRecepcionPolicy;
     if (cached != null) return cached;
     try {
-      final metadata = await _actions.call(
+      final metadata = await actions.call(
         model: 'stock.picking',
         method: 'fields_get',
         kwargs: const {

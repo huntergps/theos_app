@@ -5,6 +5,7 @@ import 'package:drift_flutter/drift_flutter.dart';
 import 'package:theos_pos_core/theos_pos_core.dart' show AppDatabase;
 
 import '../contracts.dart';
+import '../envases/envases_operations_durable.dart' show ensureEnvasesOperationsSchema;
 
 typedef AppDatabaseFactory = AppDatabase Function(String databaseName);
 
@@ -71,6 +72,9 @@ final class RuntimeDatabaseOwner {
           PRIMARY KEY (scope_key, company_id)
         )
       ''');
+      // Envases offline writer schema (`orbi_envases_operations`): same point
+      // where every other Orbi-owned table above is created.
+      await ensureEnvasesOperationsSchema(database);
       // Read cache only: Odoo remains the authority for envases in transit.
       // Same shape and reasoning as orbi_envases_dashboard_cache above.
       await database.customStatement('''
@@ -102,6 +106,31 @@ final class RuntimeDatabaseOwner {
       // `l10n_ec.envases.panel` model no longer exists in Odoo.
       await database.customStatement('''
         CREATE TABLE IF NOT EXISTS orbi_envases_existencias_cache (
+          scope_key TEXT NOT NULL,
+          company_id INTEGER NOT NULL CHECK (company_id > 0),
+          payload TEXT NOT NULL,
+          cached_at TEXT NOT NULL,
+          PRIMARY KEY (scope_key, company_id)
+        )
+      ''');
+      // Read cache only: Odoo remains the authority for envases sedes
+      // (`res.users.envases_warehouse_ids` / `stock.warehouse` con
+      // `controla_envases`). Same shape and reasoning as
+      // orbi_envases_dashboard_cache above.
+      await database.customStatement('''
+        CREATE TABLE IF NOT EXISTS orbi_envases_sedes_cache (
+          scope_key TEXT NOT NULL,
+          company_id INTEGER NOT NULL CHECK (company_id > 0),
+          payload TEXT NOT NULL,
+          cached_at TEXT NOT NULL,
+          PRIMARY KEY (scope_key, company_id)
+        )
+      ''');
+      // Read cache only: Odoo remains the authority for the envase product
+      // catalog offered by the "Enviar" form. Same shape and reasoning as
+      // orbi_envases_dashboard_cache above.
+      await database.customStatement('''
+        CREATE TABLE IF NOT EXISTS orbi_envases_productos_cache (
           scope_key TEXT NOT NULL,
           company_id INTEGER NOT NULL CHECK (company_id > 0),
           payload TEXT NOT NULL,

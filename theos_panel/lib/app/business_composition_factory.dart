@@ -164,13 +164,26 @@ final class OrbiBusinessCompositionFactory {
   ) {
     if (activation.client == null) return null;
     final queue = OfflineQueueDataSource(activation.database.database);
+    final actions = OdooClientSaleActions(activation.client!);
     final operationsJob = OperationsSyncJob(
       queue: queue,
-      adapter: OdooOfflineOperationAdapter(
-        actions: OdooClientSaleActions(activation.client!),
-        database: activation.database.database,
-        scope: activation.scope,
-        queue: queue,
+      // Envases (envío/recepción/dar por perdido) and every other durable
+      // command share one queue but not one dispatcher: `OperationsSyncJob`
+      // only accepts a single `OfflineOperationAdapter`, so this router
+      // decides by (model, method) which of the two real adapters actually
+      // handles each operation — see `EnvasesRoutingOfflineOperationAdapter`.
+      adapter: EnvasesRoutingOfflineOperationAdapter(
+        envases: EnvasesOfflineOperationAdapter(
+          actions: actions,
+          database: activation.database.database,
+          scope: activation.scope,
+        ),
+        general: OdooOfflineOperationAdapter(
+          actions: actions,
+          database: activation.database.database,
+          scope: activation.scope,
+          queue: queue,
+        ),
       ),
       sessions: runtime,
     );
