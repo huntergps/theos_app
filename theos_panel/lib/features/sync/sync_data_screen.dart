@@ -39,6 +39,7 @@ final class SyncCatalogCardData {
     required this.freshness,
     this.error,
     this.lastSyncedThisSession,
+    this.unsupported = false,
   });
 
   final String key;
@@ -48,6 +49,12 @@ final class SyncCatalogCardData {
   final CatalogFreshness freshness;
   final Object? error;
   final DateTime? lastSyncedThisSession;
+
+  /// El servidor activo no tiene el modelo o un campo obligatorio de este
+  /// catálogo (`RuntimeCatalogAvailability`, E02) — no es un error: no se
+  /// intentó sincronizar, y no cuenta para el contador de fallos del pie.
+  /// La tarjeta se pinta aparte y atenuada, sin botones de acción.
+  final bool unsupported;
 }
 
 /// Una fila de la lista "Preparar datos para trabajar". [detail] siempre
@@ -279,6 +286,10 @@ final class RuntimeSyncDataPort implements SyncDataPort {
       final store = catalogs.stores[key];
       if (store == null) continue;
       final state = await store.read(scope);
+      // No sondea de más: `RuntimeCatalogAvailability.resolve` ya memoiza el
+      // sondeo real (una sola `ir.model` para todos) — este `await` sólo
+      // paga esa red la primera vez que la pantalla (o un job) lo pide.
+      final resolved = await catalogs.availability.resolve(key);
       cards.add(
         SyncCatalogCardData(
           key: key,
@@ -290,6 +301,7 @@ final class RuntimeSyncDataPort implements SyncDataPort {
               : CatalogFreshness.pendingFullLoad,
           error: state.error,
           lastSyncedThisSession: _lastSyncedThisSession[key],
+          unsupported: !resolved.canRun,
         ),
       );
     }
@@ -345,6 +357,10 @@ final class RuntimeSyncDataPort implements SyncDataPort {
   @override
   Future<void> forceFullReloadAll() async {
     final actuallyDrained = await _maintenance.run(() async {
+      // E02, punto 5: "Forzar Sync Completo" vuelve a preguntarle al
+      // servidor qué catálogos existen — un módulo instalado después de la
+      // última vez vuelve a habilitar su catálogo sin reinstalar la app.
+      catalogs.availability.invalidate();
       for (final key in orbiCatalogKeys) {
         final store = catalogs.stores[key];
         if (store == null) continue;
@@ -784,6 +800,15 @@ class _SyncDataScreenState extends State<SyncDataScreen> {
                   Text('Catálogos', style: FluentTheme.of(context).typography.subtitle),
                   const SizedBox(height: 8),
                   _catalogGrid(context, disabled: disabled),
+                  if (_cards.any((card) => card.unsupported)) ...[
+                    const SizedBox(height: 16),
+                    Text(
+                      'No disponibles en este servidor',
+                      style: FluentTheme.of(context).typography.subtitle,
+                    ),
+                    const SizedBox(height: 8),
+                    _unsupportedCatalogGrid(context),
+                  ],
                 ],
               ),
             ),
@@ -996,6 +1021,7 @@ class _SyncDataScreenState extends State<SyncDataScreen> {
   }
 
   Widget _catalogGrid(BuildContext context, {required bool disabled}) {
+    final supported = _cards.where((card) => !card.unsupported).toList();
     return LayoutBuilder(
       builder: (context, constraints) {
         final columns = constraints.maxWidth >= 1280
@@ -1009,7 +1035,7 @@ class _SyncDataScreenState extends State<SyncDataScreen> {
           spacing: spacing,
           runSpacing: spacing,
           children: [
-            for (final data in _cards)
+            for (final data in supported)
               SizedBox(
                 width: cardWidth,
                 child: _catalogCard(context, data, disabled: disabled),
@@ -1017,6 +1043,73 @@ class _SyncDataScreenState extends State<SyncDataScreen> {
           ],
         );
       },
+    );
+  }
+
+  /// E02, punto G: separados, atenuados, sin botón de sincronizar ni texto
+  /// de error — un catálogo `unsupported` no es un fallo, es un catálogo que
+  /// este servidor no tiene.
+  Widget _unsupportedCatalogGrid(BuildContext context) {
+    final unsupported = _cards.where((card) => card.unsupported).toList();
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final columns = constraints.maxWidth >= 1280
+            ? 4
+            : constraints.maxWidth >= 800
+                ? 2
+                : 1;
+        const spacing = 12.0;
+        final cardWidth = (constraints.maxWidth - (columns - 1) * spacing) / columns;
+        return Wrap(
+          spacing: spacing,
+          runSpacing: spacing,
+          children: [
+            for (final data in unsupported)
+              SizedBox(
+                width: cardWidth,
+                child: _unsupportedCatalogCard(context, data),
+              ),
+          ],
+        );
+      },
+    );
+  }
+
+  Widget _unsupportedCatalogCard(BuildContext context, SyncCatalogCardData data) {
+    final theme = FluentTheme.of(context);
+    final mutedColor = theme.resources.textFillColorDisabled;
+    return Opacity(
+      opacity: 0.6,
+      child: Card(
+        key: Key('catalog-card-${data.key}'),
+        child: Padding(
+          padding: const EdgeInsets.all(12),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Row(
+                children: [
+                  Icon(data.icon, size: 18, color: mutedColor),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      data.label,
+                      style: theme.typography.bodyStrong?.copyWith(color: mutedColor),
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 8),
+              Text(
+                'No disponible en este servidor',
+                style: theme.typography.caption?.copyWith(color: mutedColor),
+              ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 

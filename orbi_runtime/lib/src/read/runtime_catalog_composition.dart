@@ -5,6 +5,7 @@ import '../sync/operations_sync_job.dart';
 import '../sync/sync_job.dart';
 import 'json2_read_adapters.dart';
 import 'local_catalog_adapters.dart';
+import 'runtime_catalog_availability.dart';
 
 /// Runtime-owned catalog synchronization graph. UI layers consume the stores
 /// and jobs; they do not receive credentials or construct a second client.
@@ -18,12 +19,19 @@ final class RuntimeCatalogComposition {
   /// sondeo del servidor lo reutilice en vez de fabricarse otro cliente.
   final Json2ReadPort reader;
 
+  /// Qué catálogos puede correr esta instancia de Odoo, según evidencia real
+  /// (E02). Expuesto para que `/sync` pinte los `unsupported` aparte y para
+  /// que "Forzar Sync Completo" pueda pedir un sondeo nuevo con
+  /// [RuntimeCatalogAvailability.invalidate].
+  final RuntimeCatalogAvailability availability;
+
   RuntimeCatalogComposition._({
     required this.activation,
     required this.owner,
     required this.jobs,
     required this.stores,
     required this.reader,
+    required this.availability,
   });
 
   factory RuntimeCatalogComposition({
@@ -63,6 +71,12 @@ final class RuntimeCatalogComposition {
       'country': RuntimeCatalogs.countries,
       'countryState': RuntimeCatalogs.countryStates,
     };
+    // Ver E02: qué de estos 17 corre de verdad lo decide el servidor, no
+    // esta lista. `groups`/`currentUser`/`currentUserPartner` quedan fuera a
+    // propósito — sus modelos (`res.groups`, `res.users`, `res.partner`)
+    // siempre existen; sólo estos 17 catálogos "de más" son los que un
+    // servidor recortado (Mepriga) puede no tener.
+    final availability = RuntimeCatalogAvailability(effectiveReader, specs: specs);
     final writers = <String, CatalogRowsWriter<Map<String, dynamic>>>{
       'partner': writePartnerRecords,
       'product': writeProductRecords,
@@ -131,7 +145,11 @@ final class RuntimeCatalogComposition {
       jobs[entry.key] = CatalogSyncJob(
         id: 'catalog:${entry.key}',
         store: store,
-        load: loader.loader(entry.value),
+        load: catalogAvailabilityLoader(
+          availability: availability,
+          key: entry.key,
+          loader: loader,
+        ),
       );
     }
 
@@ -193,6 +211,7 @@ final class RuntimeCatalogComposition {
       jobs: jobs,
       stores: stores,
       reader: effectiveReader,
+      availability: availability,
     );
   }
 

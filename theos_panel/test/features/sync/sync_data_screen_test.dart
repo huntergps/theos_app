@@ -209,4 +209,53 @@ void main() {
       );
     },
   );
+
+  testWidgets(
+    'E02, punto G: 9 catálogos unsupported van en su propia sección, '
+    'atenuados, sin botones de acción, y no cuentan como error en el pie',
+    (tester) async {
+      final port = _MockSyncDataPort();
+      final unsupportedKeys = orbiCatalogKeys.take(9).toList();
+      final supportedKeys = orbiCatalogKeys.skip(9).toList();
+      final cards = [
+        for (final key in supportedKeys)
+          SyncCatalogCardData(
+            key: key,
+            label: key,
+            icon: catalogIconFor(key),
+            localCount: 3,
+            freshness: CatalogFreshness.readyIncremental,
+          ),
+        for (final key in unsupportedKeys)
+          SyncCatalogCardData(
+            key: key,
+            label: key,
+            icon: catalogIconFor(key),
+            localCount: 0,
+            freshness: CatalogFreshness.pendingFullLoad,
+            unsupported: true,
+          ),
+      ];
+      _stubBaseline(port, cards: cards);
+      // `RuntimeCatalogAvailability` nunca reporta un `unsupported` como
+      // fallo (`catalogAvailabilityLoader` los confirma como lote vacío) —
+      // el snapshot real que llega a esta pantalla no trae ninguna falla
+      // por ellos.
+      when(() => port.syncSnapshot).thenReturn(SyncSnapshot());
+
+      await _pumpAt(tester, SyncDataScreen(port: port), width: 1400, height: 2400);
+
+      expect(find.text('No disponibles en este servidor'), findsOneWidget);
+      for (final key in unsupportedKeys) {
+        expect(find.text('No disponible en este servidor'), findsWidgets);
+        expect(find.byKey(Key('sync-catalog-$key-button')), findsNothing);
+        expect(find.byKey(Key('reload-catalog-$key-button')), findsNothing);
+      }
+      for (final key in supportedKeys) {
+        expect(find.byKey(Key('sync-catalog-$key-button')), findsOneWidget);
+      }
+      // Ni el aviso de fallos ni el contador de errores del pie los cuenta.
+      expect(find.text('Algunos catálogos no se pudieron sincronizar'), findsNothing);
+    },
+  );
 }

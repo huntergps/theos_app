@@ -132,12 +132,32 @@ final class RuntimeCatalogDescriptor {
     required this.fields,
     this.domain = const [],
     this.order = 'id asc',
+    this.optionalFields = const [],
+    this.optionalFilterFields = const [],
   });
   final String key;
   final String model;
   final List<String> fields;
   final List<dynamic> domain;
   final String order;
+
+  /// Subconjunto de [fields] que, si el servidor no lo tiene, no impide que
+  /// el catálogo corra: `RuntimeCatalogAvailability` lo sincroniza sin ese
+  /// campo (decisión E02, punto 2 — ej. `taxes_id` en `products`). Todo lo
+  /// demás en [fields] se trata como obligatorio: su ausencia deja el
+  /// catálogo en `unsupported`. Vacío por defecto — no cambia el
+  /// comportamiento de un descriptor usado directo contra
+  /// [RuntimeCatalogLoader], sin pasar por la disponibilidad (`fields`/
+  /// `domain` siguen siendo exactamente lo que se pide).
+  final List<String> optionalFields;
+
+  /// Nombres de campo cuya cláusula en [domain] (con forma `[campo,
+  /// operador, valor]`) se omite si el servidor no tiene ese campo, en vez
+  /// de tumbar el catálogo entero (E02, punto 2 — ej. `customer_rank` en
+  /// `customers`). Igual que [optionalFields]: vacío por defecto, y
+  /// [RuntimeCatalogLoader] nunca lo lee — sólo lo usa
+  /// `RuntimeCatalogAvailability` para construir el descriptor efectivo.
+  final List<String> optionalFilterFields;
 }
 
 /// Essential catalog reads. The local store decides which generated model to
@@ -190,6 +210,11 @@ abstract final class RuntimeCatalogs {
       ['customer_rank', '>', 0],
       ['active', '=', true],
     ],
+    // Mepriga (`stock` + `l10n_ec_stock_envases`, sin `sale`) no tiene
+    // `customer_rank` en `res.partner` — ver E02. Sin este campo el filtro
+    // se omite (todos los partners activos cuentan como "clientes" en ese
+    // servidor) en vez de tumbar el catálogo entero con un 500.
+    optionalFilterFields: ['customer_rank'],
     order: 'name asc,id asc',
   );
   static const products = RuntimeCatalogDescriptor(
@@ -211,6 +236,9 @@ abstract final class RuntimeCatalogs {
       ['sale_ok', '=', true],
       ['active', '=', true],
     ],
+    // `taxes_id` viene de `account`; Mepriga (`stock`-only) no lo tiene —
+    // ver E02. Sin él, productos se sincroniza igual, sin ese campo.
+    optionalFields: ['taxes_id'],
     order: 'name asc,id asc',
   );
   static const paymentTerms = RuntimeCatalogDescriptor(
