@@ -711,6 +711,76 @@ void main() {
     });
   });
 
+  group('dispatch — permiso denegado (AccessError de Odoo)', () {
+    test('perdido sin group_envases_manager: rechazada con mensaje de permiso, sin relanzar', () async {
+      await seedLocalRow('uuid-perdido-acceso', tipo: 'perdido', pickingId: 14);
+      final operation = OfflineOperation(
+        id: 1,
+        model: envasesPerdidoModel,
+        method: envasesPerdidoMethod,
+        recordId: 14,
+        values: {'operacion_uuid': 'uuid-perdido-acceso', 'picking_id': 14},
+        createdAt: DateTime.utc(2026, 9, 13),
+        replayPolicy: OfflineReplayPolicy.retrySafe,
+      );
+      when(anyCallStub).thenThrow(
+        const OdooAccessDeniedException(
+          'No tienes acceso a dar por perdido este picking.',
+        ),
+      );
+
+      final conflict = await adapter.dispatch(operation);
+
+      expect(conflict, isNull);
+      final local = await store.getByUuid(
+        db,
+        scopeKey: scope.scopeKey,
+        operationUuid: 'uuid-perdido-acceso',
+      );
+      expect(local!.estado, EnvasesOperacionEstado.rechazada);
+      expect(local.mensajeOdoo, contains('permiso'));
+    });
+
+    test('envío sin permiso en action_enviar: rechazada con mensaje de permiso, sin relanzar', () async {
+      await seedLocalRow('uuid-envio-acceso');
+      final operation = OfflineOperation(
+        id: 1,
+        model: envasesEnvioModel,
+        method: envasesEnvioMethod,
+        values: {
+          'operacion_uuid': 'uuid-envio-acceso',
+          'origen_id': 10,
+          'destino_id': 20,
+          'fecha_salida': DateTime.utc(2026, 9, 13, 8).toIso8601String(),
+          'responsable_id': 7,
+          'lineas': [
+            {'product_id': 5, 'cantidad': 3.0},
+          ],
+        },
+        createdAt: DateTime.utc(2026, 9, 13),
+        replayPolicy: OfflineReplayPolicy.manualAfterAmbiguous,
+      );
+      when(anyCallStub).thenAnswer((invocation) async {
+        final method = invocation.namedArguments[#method];
+        if (method == 'create') return 42;
+        throw const OdooAccessDeniedException(
+          'No tienes acceso a enviar envases.',
+        );
+      });
+
+      final conflict = await adapter.dispatch(operation);
+
+      expect(conflict, isNull);
+      final local = await store.getByUuid(
+        db,
+        scopeKey: scope.scopeKey,
+        operationUuid: 'uuid-envio-acceso',
+      );
+      expect(local!.estado, EnvasesOperacionEstado.rechazada);
+      expect(local.mensajeOdoo, contains('permiso'));
+    });
+  });
+
   group('reconcile — perdido', () {
     test('picking ya no pendiente se trata como aplicada', () async {
       await seedLocalRow('uuid-perdido-1', tipo: 'perdido', pickingId: 12);

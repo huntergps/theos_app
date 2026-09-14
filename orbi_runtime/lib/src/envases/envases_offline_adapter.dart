@@ -12,7 +12,13 @@
 library;
 
 import 'package:odoo_sdk/odoo_sdk.dart'
-    show ConflictInfo, OdooValidationException, OfflineOperation, OfflineReplayPolicy, formatOdooDateTime;
+    show
+        ConflictInfo,
+        OdooAccessDeniedException,
+        OdooValidationException,
+        OfflineOperation,
+        OfflineReplayPolicy,
+        formatOdooDateTime;
 import 'package:theos_pos_core/theos_pos_core.dart';
 
 import '../contracts.dart' show AppScope;
@@ -433,6 +439,16 @@ final class EnvasesOfflineOperationAdapter implements OfflineOperationAdapter {
   /// para la cola, que la remueve) porque el estado local ya cuenta la
   /// historia real.
   ///
+  /// Un `AccessError` (permisos de Odoo, ej. `action_envases_dar_por_perdido`
+  /// exige `group_envases_manager` —
+  /// `l10n_ec_stock_envases/models/stock_picking.py:171-181`) termina IGUAL
+  /// de terminal: el SDK lo mapea a `OdooAccessDeniedException`, NO a
+  /// `OdooValidationException` (`odoo_error_mapper.dart:84-86`), así que sin
+  /// esta rama caía en el `catch` genérico de abajo y, siendo casi siempre
+  /// `retry_safe`, la cola lo reintentaba para siempre — un permiso no se
+  /// arregla reintentando. Se anota `rechazada` con un mensaje en español
+  /// que diga que es un problema de permiso, más el detalle del servidor.
+  ///
   /// Cualquier otro error bajo `manual_after_ambiguous` (sin evidencia
   /// durable con la que reconciliar — servidor sin
   /// `envases_operacion_uuid`) se anota como `revisarAMano` ANTES de dejar
@@ -455,6 +471,14 @@ final class EnvasesOfflineOperationAdapter implements OfflineOperationAdapter {
         scopeKey: scope.scopeKey,
         operationUuid: uuid,
         mensaje: error.message,
+      );
+      return null;
+    } on OdooAccessDeniedException catch (error) {
+      await store.markRechazada(
+        database,
+        scopeKey: scope.scopeKey,
+        operationUuid: uuid,
+        mensaje: 'No tienes permiso en Odoo para esta operación: ${error.message}',
       );
       return null;
     } on AmbiguousOperationException {
