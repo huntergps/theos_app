@@ -621,6 +621,65 @@ final scopeRealtimeSyncCoordinatorProvider = Provider<RealtimeSyncCoordinator?>(
 );
 // --- Fin del bloque aislado ------------------------------------------------
 
+// --- Bloque aislado: respaldo periódico de sincronización (14-sep-2026,
+// hueco 2 de la auditoría de tiempo real) -----------------------------------
+// `SyncAutoResyncTrigger` sólo reacciona a FILOS (red que vuelve, app que
+// vuelve al frente): si el socket de tiempo real se cae sin que ninguna de
+// esas dos señales cambie, nada volvía a sincronizar solo hasta que la
+// persona abriera «Sincronización» a mano. `SyncPeriodicBackupTrigger`
+// (`orbi_runtime`) cubre ese hueco con un sondeo cada 5 minutos, pero SÓLO
+// mientras el tiempo real no esté conectado — se arma y desarma solo según
+// el estado que ya publica `scopeRealtimeSyncCoordinatorProvider`.
+final scopeSyncPeriodicBackupTriggerProvider =
+    Provider<SyncPeriodicBackupTrigger?>((ref) {
+  final coordinator = ref.watch(scopeSyncCoordinatorProvider);
+  if (coordinator == null) return null;
+  final foreground = ref.watch(_appForegroundSignalProvider);
+  final realtime = ref.watch(scopeRealtimeSyncCoordinatorProvider);
+
+  // Mismo puente red → Stream<bool> que los otros dos bloques aislados de
+  // este archivo (auto-resync y tiempo real): `ref.listen` es el único modo
+  // de leer el `Stream<bool>` crudo de un `StreamProvider` en esta versión
+  // de Riverpod.
+  final onlineController = StreamController<bool>.broadcast();
+  ref.listen<AsyncValue<NetworkSignal>>(networkSignalProvider, (
+    previous,
+    next,
+  ) {
+    final signal = next.value;
+    if (signal != null && !onlineController.isClosed) {
+      onlineController.add(signal.hasNetwork);
+    }
+  }, fireImmediately: true);
+
+  // Sin coordinador de tiempo real (sesión sin conexión) el respaldo debe
+  // poder armarse igual — se alimenta con un estado fijo de "no conectado",
+  // nunca `live`, para que el temporizador nunca quede desarmado por falta
+  // de señal.
+  final realtimeStatusController = StreamController<RealtimeStatus>.broadcast();
+  if (realtime != null) {
+    final subscription = realtime.status.listen(realtimeStatusController.add);
+    ref.onDispose(() => unawaited(subscription.cancel()));
+    realtimeStatusController.add(realtime.currentStatus);
+  } else {
+    realtimeStatusController.add(RealtimeStatus.offline);
+  }
+
+  final trigger = SyncPeriodicBackupTrigger(
+    coordinator: coordinator,
+    online: onlineController.stream,
+    foreground: foreground.stream,
+    realtimeStatus: realtimeStatusController.stream,
+  );
+  ref.onDispose(() {
+    unawaited(trigger.dispose());
+    unawaited(onlineController.close());
+    unawaited(realtimeStatusController.close());
+  });
+  return trigger;
+});
+// --- Fin del bloque aislado ------------------------------------------------
+
 // --- Bloque aislado: sesión expirada en caliente (auditoría de sesión,
 // 13-sep-2026) ---------------------------------------------------------------
 // El coordinador ya publica `SyncSnapshot.sessionExpired` (derivado de
@@ -638,6 +697,23 @@ final scopeSyncSnapshotStreamProvider = StreamProvider<SyncSnapshot>((ref) {
 final sessionExpiredSignalProvider = Provider<bool>((ref) {
   final snapshot = ref.watch(scopeSyncSnapshotStreamProvider).value;
   return snapshot?.sessionExpired ?? false;
+});
+// --- Fin del bloque aislado ------------------------------------------------
+
+// --- Bloque aislado: estado del tiempo real visible (14-sep-2026, hueco 1
+// de la auditoría de tiempo real) --------------------------------------------
+// Mismo patrón que `scopeSyncSnapshotStreamProvider` justo arriba: le da
+// forma reactiva de Riverpod al `Stream<RealtimeStatus>` que
+// `RealtimeSyncCoordinator` ya expone, para que la píldora de la barra
+// superior (`OperationalContext.realtimeStatus`) se repinte sola. Antes de
+// esto, el único `ref.watch(scopeRealtimeSyncCoordinatorProvider)` del
+// archivo sólo mantenía vivo al coordinador — nada leía su estado.
+final scopeRealtimeStatusStreamProvider = StreamProvider<RealtimeStatus>((
+  ref,
+) {
+  final realtime = ref.watch(scopeRealtimeSyncCoordinatorProvider);
+  if (realtime == null) return const Stream<RealtimeStatus>.empty();
+  return realtime.status;
 });
 // --- Fin del bloque aislado ------------------------------------------------
 
@@ -1373,8 +1449,15 @@ final orbiRouterProvider = Provider<GoRouter>((ref) {
             // exista para que escuche red y ciclo de vida.
             ref.watch(scopeSyncAutoResyncTriggerProvider);
             // Igual que el disparador: basta con que exista para que el tiempo
-            // real abra el socket del ámbito y lo cierre al salir.
-            ref.watch(scopeRealtimeSyncCoordinatorProvider);
+            // real abra el socket del ámbito y lo cierre al salir. Se captura
+            // el valor (a diferencia del resto de este bloque) porque su
+            // `.status` alimenta la píldora de tiempo real de la barra
+            // superior, más abajo.
+            final realtime = ref.watch(scopeRealtimeSyncCoordinatorProvider);
+            // Respaldo periódico (hueco 2, 14-sep-2026): basta con que exista
+            // para que sondee cada 5 minutos mientras el tiempo real no esté
+            // conectado. Nunca se lee su valor aquí.
+            ref.watch(scopeSyncPeriodicBackupTriggerProvider);
             // El Modo Ruta guardado pausa la sincronización desde que se abre el ámbito.
             ref.watch(scopeRouteModePauseProvider);
             // Dos medidas, no una suposición: el transporte del aparato y la
@@ -1386,6 +1469,16 @@ final orbiRouterProvider = Provider<GoRouter>((ref) {
               network: ref.watch(networkSignalProvider).value,
               backendProbe: coordinator?.lastProbe,
             );
+            // El estado del tiempo real, para la píldora de la barra
+            // superior. `.value` viene del stream (cambia cuando el socket
+            // conecta/reintenta/se cae); `realtime?.currentStatus` es el
+            // valor sincrónico ya conocido antes de que el `StreamProvider`
+            // reciba su primer evento — sin este resguardo, el primer frame
+            // pintaría `null` (sin píldora) aunque el coordinador ya tuviera
+            // un estado real.
+            final realtimeStatus =
+                ref.watch(scopeRealtimeStatusStreamProvider).value ??
+                realtime?.currentStatus;
             final noticesScope = ref
                 .watch(runtimeSessionProvider)
                 ?.active
@@ -1546,6 +1639,7 @@ final orbiRouterProvider = Provider<GoRouter>((ref) {
                       // verdad— y nunca «conectado».
                       connectionLabel: connectionStatusLabel(connectionStatus),
                       connectionStatus: connectionStatus,
+                      realtimeStatus: realtimeStatus,
                       syncLabel: _syncStatusLabel(
                         coordinator,
                         syncSnapshot.data,

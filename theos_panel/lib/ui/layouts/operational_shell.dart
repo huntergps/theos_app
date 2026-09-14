@@ -3,7 +3,12 @@ import 'dart:math';
 
 import 'package:fluent_ui/fluent_ui.dart';
 import 'package:orbi_runtime/orbi_runtime.dart'
-    show ConnectionStatus, OdooPresence, connectionStatusLabel;
+    show
+        ConnectionStatus,
+        OdooPresence,
+        RealtimeStatus,
+        connectionStatusLabel,
+        realtimeStatusLabel;
 
 import '../../app/theme/orbi_theme.dart';
 import '../components/orbi_brand.dart';
@@ -35,6 +40,7 @@ final class OperationalContext {
     required this.connectionLabel,
     this.connectionStatus,
     this.connectionLatency,
+    this.realtimeStatus,
     this.noticesUnreadCount = 0,
     this.activitiesPendingCount = 0,
     this.routeModeActive = false,
@@ -67,6 +73,15 @@ final class OperationalContext {
   /// devuelve si el servidor contestó, nunca cuánto tardó, así que este
   /// campo se queda en `null` — nunca un número inventado aquí.
   final Duration? connectionLatency;
+
+  /// Estado del socket de tiempo real (`app_sync/changed`), pintado como una
+  /// segunda píldora junto a [connectionStatus] — hueco 1 de la auditoría de
+  /// tiempo real del 14-sep-2026: `RealtimeStatus` (`orbi_runtime`) ya
+  /// existía, pero nada en la UI lo leía. `null` cuando no hay coordinador
+  /// de tiempo real activo (sesión sin conexión, o composición de pruebas
+  /// que no lo compone): en ese caso no se pinta ninguna píldora, nunca un
+  /// estado inventado.
+  final RealtimeStatus? realtimeStatus;
 
   /// Avisos sin leer, para la campanita de la barra superior. 0 por defecto:
   /// nunca un contador rojo cuando no hay con qué respaldarlo.
@@ -466,6 +481,11 @@ class _OperationalShellState extends State<OperationalShell> {
                   key: const Key('shell-connectivity-pill'),
                   context: ctx,
                 ),
+                if (ctx.realtimeStatus != null)
+                  _RealtimeStatusCommandBarItem(
+                    key: const Key('shell-realtime-pill'),
+                    status: ctx.realtimeStatus!,
+                  ),
                 if (widget.onToggleTheme != null)
                   CommandBarButton(
                     key: const Key('shell-theme-toggle'),
@@ -983,6 +1003,82 @@ class _ConnectivityPill extends StatelessWidget {
         return r.systemFillColorCaution;
     }
   }
+}
+
+/// Misma mecánica que [_ConnectivityCommandBarItem] (subclasificar
+/// `CommandBarItem` es el propio mecanismo de extensión de Fluent), pero
+/// para el estado del socket de tiempo real — hueco 1 de la auditoría de
+/// tiempo real del 14-sep-2026.
+class _RealtimeStatusCommandBarItem extends CommandBarItem {
+  const _RealtimeStatusCommandBarItem({super.key, required this.status});
+
+  final RealtimeStatus status;
+
+  @override
+  Widget build(BuildContext buildContext, CommandBarItemDisplayMode mode) {
+    final pill = _RealtimeStatusPill(key: key, status: status);
+    switch (mode) {
+      case CommandBarItemDisplayMode.inPrimary:
+      case CommandBarItemDisplayMode.inPrimaryCompact:
+        return CommandBarItemInPrimary(child: pill);
+      case CommandBarItemDisplayMode.inSecondary:
+        return Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 6),
+          child: pill,
+        );
+    }
+  }
+}
+
+/// Cuatro lecturas, ni una más (texto fijado en [realtimeStatusLabel],
+/// `orbi_runtime`): "conectado" (verde), "reconectando" (ámbar, cubre tanto
+/// la primera conexión como un reintento tras caerse), "caído" (rojo, el
+/// aparato no tiene red) y "no disponible en este servidor" (ámbar, NUNCA
+/// rojo — orden del dueño, 14-sep-2026: un servidor sin el módulo de tiempo
+/// real no es un error, la app sigue funcionando sólo con sincronización
+/// periódica).
+class _RealtimeStatusPill extends StatelessWidget {
+  const _RealtimeStatusPill({super.key, required this.status});
+
+  final RealtimeStatus status;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = FluentTheme.of(context);
+    final color = _color(theme.resources);
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.15),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: color),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            width: 8,
+            height: 8,
+            decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+          ),
+          const SizedBox(width: 6),
+          Text(
+            realtimeStatusLabel(status),
+            style: TextStyle(color: color, fontWeight: FontWeight.w600),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Color _color(ResourceDictionary r) => switch (status) {
+    RealtimeStatus.live => r.systemFillColorSuccess,
+    RealtimeStatus.connecting => r.systemFillColorCaution,
+    RealtimeStatus.retrying => r.systemFillColorCaution,
+    RealtimeStatus.offline => r.systemFillColorCritical,
+    // Nunca rojo: no es un error, es un servidor sin el módulo.
+    RealtimeStatus.disabled => r.systemFillColorCaution,
+  };
 }
 
 /// El avatar y su menú, en la barra superior.

@@ -68,6 +68,7 @@ export 'src/sync/sync_coordinator_impl.dart';
 export 'src/sync/sync_job.dart';
 export 'src/sync/operations_sync_job.dart';
 export 'src/sync/sync_auto_resync_trigger.dart';
+export 'src/sync/sync_periodic_backup_trigger.dart';
 
 export 'src/realtime/realtime_status.dart';
 export 'src/realtime/realtime_session_client.dart';

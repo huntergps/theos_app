@@ -9,11 +9,19 @@ import '../contracts.dart';
 /// esto, `requestSync` sólo corría una vez al abrir el scope y bajo ese
 /// botón manual — recuperar la red o volver a la app no revivía nada.
 ///
-/// Reacciona a filos de falso a verdadero de las señales que le pasen.
-/// Nunca sondea por su cuenta: sin `Timer.periodic` propio, sin sondeo de
-/// servidor periódico (eso es tiempo real y se diseña aparte). Un filo
-/// inicial (la señal ya nace en verdadero) nunca cuenta — describe el
-/// estado de arranque, no una recuperación.
+/// Reacciona a filos de falso a verdadero de las señales que le pasen. Esta
+/// clase en sí NUNCA sondea por su cuenta: sin `Timer.periodic` propio —el
+/// único `Timer` que usa es el `debounce` para fundir filos pegados, y se
+/// cancela sin disparar nada si no vuelve a hacer falta.
+///
+/// 🔴 Actualizado 14-sep-2026: "sin sondeo de servidor periódico" ya NO es
+/// cierto para Orbi en conjunto — `SyncPeriodicBackupTrigger`
+/// (`sync_periodic_backup_trigger.dart`) sí sondea cada 5 minutos, pero
+/// SÓLO mientras el tiempo real no esté conectado, y es una clase aparte con
+/// su propio temporizador: esta clase sigue sin tener ninguno.
+///
+/// Un filo inicial (la señal ya nace en verdadero) nunca cuenta — describe
+/// el estado de arranque, no una recuperación.
 ///
 /// Tres señales, sólo `online` obligatoria:
 ///  - `online`: el aparato pasó de sin red a con red
