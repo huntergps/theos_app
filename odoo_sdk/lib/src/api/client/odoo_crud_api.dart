@@ -20,13 +20,22 @@ class OdooCrudApi {
 
   OdooCrudApi({required OdooHttpClient httpClient}) : _httpClient = httpClient;
 
-  /// Default context to include in all API calls (e.g., language).
+  /// Default context to include in all API calls (language and timezone).
   ///
-  /// This is merged with any context provided in individual calls.
-  /// The language is taken from `OdooClientConfig.defaultLanguage`.
-  Map<String, dynamic> get _defaultContext => {
-    'lang': _httpClient.config.defaultLanguage,
-  };
+  /// This is merged with any context provided in individual calls (which
+  /// wins on key collision — see [call]). `lang` always comes from
+  /// `OdooClientConfig.defaultLanguage`. `tz` is included ONLY when
+  /// `OdooClientConfig.defaultTimezone` is actually configured: Odoo's
+  /// `with_context` REPLACES the whole context per request, so omitting the
+  /// key here means the call genuinely has no `tz`, not a server-side
+  /// fallback to some default.
+  Map<String, dynamic> get _defaultContext {
+    final tz = _httpClient.config.defaultTimezone;
+    return {
+      'lang': _httpClient.config.defaultLanguage,
+      if (tz != null && tz.isNotEmpty) 'tz': tz,
+    };
+  }
 
   /// Generic Odoo method call
   ///

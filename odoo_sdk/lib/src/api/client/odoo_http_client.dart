@@ -77,6 +77,15 @@ class OdooClientConfig {
   /// Uses Odoo locale format: `{language}_{COUNTRY}`.
   final String defaultLanguage;
 
+  /// Default timezone for API calls (e.g., 'America/Guayaquil'), IANA name.
+  ///
+  /// `null` (the default) means the request's `context` carries no `tz` key
+  /// at all — Odoo's `with_context` REPLACES the whole context per call, so
+  /// there is no server-side fallback to rely on here. Only set this once
+  /// the authenticated user's own `res.users.tz` is known (see
+  /// `OdooClient.updateLocale`); never hardcode a timezone.
+  final String? defaultTimezone;
+
   /// SEC-02: Optional handler for automatic token refresh on 401 responses.
   ///
   /// When provided, the client will automatically attempt to refresh the token
@@ -132,6 +141,7 @@ class OdooClientConfig {
     this.enableRetry = true,
     this.retryConfig = const RetryConfig(),
     this.defaultLanguage = 'en_US',
+    this.defaultTimezone,
     this.tokenRefreshHandler,
     this.onApiKeyRefreshed,
     this.allowInsecure = false,
@@ -196,6 +206,7 @@ class OdooClientConfig {
     bool? enableRetry,
     RetryConfig? retryConfig,
     String? defaultLanguage,
+    String? defaultTimezone,
     TokenRefreshHandler? tokenRefreshHandler,
     void Function(String newApiKey)? onApiKeyRefreshed,
     bool? allowInsecure,
@@ -214,6 +225,7 @@ class OdooClientConfig {
       enableRetry: enableRetry ?? this.enableRetry,
       retryConfig: retryConfig ?? this.retryConfig,
       defaultLanguage: defaultLanguage ?? this.defaultLanguage,
+      defaultTimezone: defaultTimezone ?? this.defaultTimezone,
       tokenRefreshHandler: tokenRefreshHandler ?? this.tokenRefreshHandler,
       onApiKeyRefreshed: onApiKeyRefreshed ?? this.onApiKeyRefreshed,
       allowInsecure: allowInsecure ?? this.allowInsecure,

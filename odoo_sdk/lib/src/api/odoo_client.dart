@@ -244,6 +244,29 @@ class OdooClient {
     _modelFieldsCache.clear();
   }
 
+  /// Applies the authenticated user's own language/timezone
+  /// (`res.users.lang`/`res.users.tz`) to every subsequent call, preserving
+  /// everything else already configured (base URL, api key, database,
+  /// transport mode, etc.) — unlike [setCredentials], which replaces the
+  /// whole configuration.
+  ///
+  /// [language]/[timezone] are applied only when non-null and non-empty;
+  /// otherwise that field is left exactly as it was. This method never
+  /// clears an already-configured value on its own — callers that read
+  /// `false`/empty from Odoo simply omit that argument, which is also why
+  /// this never invents a language or timezone of its own.
+  void updateLocale({String? language, String? timezone}) {
+    final hasLanguage = language != null && language.isNotEmpty;
+    final hasTimezone = timezone != null && timezone.isNotEmpty;
+    if (!hasLanguage && !hasTimezone) return;
+    _httpClient.updateConfig(
+      _httpClient.config.copyWith(
+        defaultLanguage: hasLanguage ? language : null,
+        defaultTimezone: hasTimezone ? timezone : null,
+      ),
+    );
+  }
+
   // ============================================================
   // Convenience methods that delegate to components
   // These maintain API compatibility with the original OdooProvider
