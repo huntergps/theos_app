@@ -1,7 +1,7 @@
 # Auditoría técnica del núcleo offline Orbi
 
-Fecha: 2026-09-10  
-Alcance: `orbi_runtime/lib/src/**` y adaptadores de `theos_panel/lib/app/**`.  
+Fecha: 2026-09-10\
+Alcance: `orbi_runtime/lib/src/**` y adaptadores de `theos_panel/lib/app/**`.\
 Método: inspección estática de firmas, consultas, transacciones, ciclo de vida y
 puentes Riverpod. No se ejecutaron servidores, ERP2 ni suites pesadas.
 

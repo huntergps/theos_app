@@ -24,6 +24,11 @@ jobs:
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
+        with:
+          # Needed so the base commit used by "Check patch formatting" below
+          # (the PR base, or github.event.before / origin/main) is present
+          # locally — the default shallow checkout would not have it.
+          fetch-depth: 0
 
       - uses: subosito/flutter-action@v2
         with:
@@ -41,7 +46,9 @@ jobs:
         run: make generated-check
 
       - name: Check patch formatting
-        run: git diff --check
+        env:
+          BASE_SHA: ${{ github.event_name == 'pull_request' && github.event.pull_request.base.sha || github.event.before }}
+        run: scripts/check_patch_whitespace.sh "$BASE_SHA"
 
       - name: Analyze all packages
         run: make analyze

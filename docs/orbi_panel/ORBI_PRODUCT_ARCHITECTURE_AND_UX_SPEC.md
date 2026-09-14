@@ -1,8 +1,8 @@
 # Orbi ERP — arquitectura de producto, acceso compartido y experiencia operativa
 
-Estado: **borrador para aprobación del dueño antes de implementar**  
-Fecha: 2026-09-09  
-Aplicación: `theos_panel`  
+Estado: **borrador para aprobación del dueño antes de implementar**\
+Fecha: 2026-09-09\
+Aplicación: `theos_panel`\
 Backend de integración: `l10n_ec_collection_box_pos`
 
 ## 1. Motivo de este documento
