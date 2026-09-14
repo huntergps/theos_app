@@ -27,9 +27,11 @@ enum CatalogFreshness { readyIncremental, pendingFullLoad }
 
 /// Datos reales de un catálogo para su tarjeta en la rejilla. Nada aquí se
 /// inventa: [localCount] es `records.length` de lo que ya hay en Drift,
-/// [freshness] viene de si hay cursor guardado, y [lastSyncedThisSession] es
-/// exactamente eso — nunca "la última vez que se sincronizó alguna vez",
-/// porque el runtime no guarda esa marca de tiempo por catálogo hoy.
+/// [freshness] viene de si hay cursor guardado, y [lastSyncedAt] es la marca
+/// PERSISTENTE que guarda `DriftCatalogStore` en `sync_metadata`
+/// (`CatalogState.lastSyncedAt`) — sobrevive a cerrar y reabrir la app, a
+/// diferencia de la vieja `_lastSyncedThisSession` (corregido 14-sep-2026,
+/// hueco 3 de la auditoría de tiempo real).
 final class SyncCatalogCardData {
   const SyncCatalogCardData({
     required this.key,
@@ -38,8 +40,9 @@ final class SyncCatalogCardData {
     required this.localCount,
     required this.freshness,
     this.error,
-    this.lastSyncedThisSession,
+    this.lastSyncedAt,
     this.unsupported = false,
+    this.unauthorized = false,
   });
 
   final String key;
@@ -48,13 +51,20 @@ final class SyncCatalogCardData {
   final int localCount;
   final CatalogFreshness freshness;
   final Object? error;
-  final DateTime? lastSyncedThisSession;
+  final DateTime? lastSyncedAt;
 
   /// El servidor activo no tiene el modelo o un campo obligatorio de este
   /// catálogo (`RuntimeCatalogAvailability`, E02) — no es un error: no se
   /// intentó sincronizar, y no cuenta para el contador de fallos del pie.
   /// La tarjeta se pinta aparte y atenuada, sin botones de acción.
   final bool unsupported;
+
+  /// El sondeo de disponibilidad de este catálogo recibió un 401/403 —
+  /// distinto de [unsupported]: el modelo probablemente SÍ existe, esta
+  /// sesión concreta no tiene permiso para preguntarlo. Hueco 5 de la
+  /// auditoría de tiempo real (14-sep-2026); ver
+  /// `ResolvedCatalogDescriptor.unauthorized` en `orbi_runtime`.
+  final bool unauthorized;
 }
 
 /// Una fila de la lista "Preparar datos para trabajar". [detail] siempre
@@ -266,12 +276,6 @@ final class RuntimeSyncDataPort implements SyncDataPort {
   @override
   Future<void> setRouteMode(bool enabled) => preferences.setRouteMode(enabled);
 
-  /// Cuándo se completó, en esta sesión, la última pasada sin error para
-  /// cada catálogo. Se pierde al cerrar la app a propósito: el runtime no
-  /// guarda hoy una marca de tiempo por catálogo (sólo el cursor), así que
-  /// esto es lo único honesto que se puede mostrar sin inventar un dato.
-  final Map<String, DateTime> _lastSyncedThisSession = {};
-
   @override
   SyncSnapshot get syncSnapshot => coordinator.snapshot;
 
@@ -300,8 +304,11 @@ final class RuntimeSyncDataPort implements SyncDataPort {
               ? CatalogFreshness.readyIncremental
               : CatalogFreshness.pendingFullLoad,
           error: state.error,
-          lastSyncedThisSession: _lastSyncedThisSession[key],
-          unsupported: !resolved.canRun,
+          // Persistente (`sync_metadata`, `DriftCatalogStore`), no un mapa en
+          // memoria de esta pantalla — sobrevive a reabrir la app.
+          lastSyncedAt: state.lastSyncedAt,
+          unsupported: resolved.state == OdooCapabilityState.unsupported,
+          unauthorized: resolved.unauthorized,
         ),
       );
     }
@@ -318,31 +325,31 @@ final class RuntimeSyncDataPort implements SyncDataPort {
 
   @override
   Future<void> syncAll() async {
-    // Si el coordinador ya está pausado (Modo Ruta), `requestSync` sólo
-    // ACUMULA la restricción y vuelve de inmediato — no hay drenaje del que
-    // hablar todavía, así que no se marca nada como sincronizado.
-    final queuedOnly = coordinator.isPaused;
     await coordinator.requestSync(SyncReason('sync_screen_all'));
-    if (!queuedOnly) _markSyncedIfNoFailure(null);
   }
 
   @override
   Future<void> syncCatalog(String key) async {
-    final queuedOnly = coordinator.isPaused;
     await coordinator.requestSync(
       SyncReason('sync_screen_catalog', onlyJobIds: {'catalog:$key'}),
     );
-    if (!queuedOnly) _markSyncedIfNoFailure(key);
   }
 
   @override
   Future<void> forceFullReloadCatalog(String key) async {
-    final actuallyDrained = await _maintenance.run(() async {
+    await _maintenance.run(() async {
       final store = catalogs.stores[key];
       if (store == null) return;
+      // `markSynced: false`: este `commit()` sólo resetea el cursor a
+      // "carga completa desde cero" — no confirma ningún dato nuevo, así
+      // que no debe tocar "última sincronización". El `requestSync` de
+      // abajo, si de verdad drena, hace su PROPIO `commit()` con el
+      // resultado real (`markSynced: true` por defecto) y esa sí es la
+      // marca que cuenta.
       await store.commit(
         catalogs.activation.scope,
         const CatalogBatch<Map<String, dynamic>>(records: [], cursor: null),
+        markSynced: false,
       );
       // Si `_maintenance` no tomó la pausa ella misma (ya estaba pausado por
       // Modo Ruta), esto sólo ACUMULA la restricción; el drenaje de verdad
@@ -351,12 +358,11 @@ final class RuntimeSyncDataPort implements SyncDataPort {
         SyncReason('sync_screen_catalog', onlyJobIds: {'catalog:$key'}),
       );
     });
-    if (actuallyDrained) _markSyncedIfNoFailure(key);
   }
 
   @override
   Future<void> forceFullReloadAll() async {
-    final actuallyDrained = await _maintenance.run(() async {
+    await _maintenance.run(() async {
       // E02, punto 5: "Forzar Sync Completo" vuelve a preguntarle al
       // servidor qué catálogos existen — un módulo instalado después de la
       // última vez vuelve a habilitar su catálogo sin reinstalar la app.
@@ -367,11 +373,11 @@ final class RuntimeSyncDataPort implements SyncDataPort {
         await store.commit(
           catalogs.activation.scope,
           const CatalogBatch<Map<String, dynamic>>(records: [], cursor: null),
+          markSynced: false,
         );
       }
       await coordinator.requestSync(SyncReason('sync_screen_all'));
     });
-    if (actuallyDrained) _markSyncedIfNoFailure(null);
   }
 
   @override
@@ -391,6 +397,9 @@ final class RuntimeSyncDataPort implements SyncDataPort {
   Future<void> _clearCatalogRows(String key) async {
     final store = catalogs.stores[key];
     if (store == null) return;
+    // `markSynced: false`: vaciar tablas no es sincronizar, es borrar — la
+    // marca de "última sincronización" debe seguir contando la última vez
+    // que de verdad se trajo algo del servidor, no este vaciado.
     await store.commit(
       catalogs.activation.scope,
       const CatalogBatch<Map<String, dynamic>>(
@@ -398,21 +407,10 @@ final class RuntimeSyncDataPort implements SyncDataPort {
         cursor: null,
         remoteActiveIds: <int>{},
       ),
+      markSynced: false,
     );
   }
 
-  void _markSyncedIfNoFailure(String? onlyKey) {
-    final failedJobIds = coordinator.snapshot.failures
-        .map((failure) => failure.jobId)
-        .toSet();
-    final now = DateTime.now();
-    final keys = onlyKey == null ? orbiCatalogKeys : [onlyKey];
-    for (final key in keys) {
-      if (!failedJobIds.contains('catalog:$key')) {
-        _lastSyncedThisSession[key] = now;
-      }
-    }
-  }
 }
 
 class SyncDataScreen extends StatefulWidget {
@@ -1145,11 +1143,22 @@ class _SyncDataScreenState extends State<SyncDataScreen> {
               style: theme.typography.caption,
             ),
             Text(
-              data.lastSyncedThisSession != null
-                  ? 'Última sync en esta sesión: ${_formatTime(data.lastSyncedThisSession!)}'
-                  : 'Aún no sincronizado en esta sesión',
+              data.lastSyncedAt != null
+                  ? 'Última sincronización: ${_formatDateTime(data.lastSyncedAt!)}'
+                  : 'Última sincronización: Nunca',
               style: theme.typography.caption,
             ),
+            if (data.unauthorized)
+              Padding(
+                padding: const EdgeInsets.only(top: 4),
+                child: Text(
+                  'Sin permiso',
+                  style: theme.typography.caption?.copyWith(
+                    color: theme.resources.systemFillColorCaution,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
             if (data.error != null)
               Padding(
                 padding: const EdgeInsets.only(top: 4),
@@ -1224,8 +1233,14 @@ class _BusyCommandBarItem extends CommandBarItem {
   );
 }
 
-String _formatTime(DateTime value) {
+/// Fecha y hora LOCAL, sin depender de `intl` (no está entre las
+/// dependencias de `theos_panel`). Se usa para "última sincronización"
+/// persistente (hueco 3, 14-sep-2026): a diferencia del reloj de la vieja
+/// marca "en esta sesión", esta puede ser de días atrás, así que sólo la
+/// hora ya no basta.
+String _formatDateTime(DateTime value) {
   final local = value.toLocal();
   String two(int n) => n.toString().padLeft(2, '0');
-  return '${two(local.hour)}:${two(local.minute)}';
+  return '${two(local.day)}/${two(local.month)}/${local.year} '
+      '${two(local.hour)}:${two(local.minute)}';
 }

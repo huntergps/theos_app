@@ -732,7 +732,15 @@ final class RuntimeCatalogLoader {
         mode: _CatalogMode.full,
         offset: cursor.offset + rows.length,
       );
-      return CatalogBatch(records: records, cursor: next.encode());
+      // La carga inicial sigue incompleta: `CatalogSyncJob` pedirá la
+      // siguiente página DENTRO del mismo ciclo (con tope), en vez de
+      // esperar al próximo drenaje del coordinador — ver
+      // `CatalogBatch.moreInInitialLoad`.
+      return CatalogBatch(
+        records: records,
+        cursor: next.encode(),
+        moreInInitialLoad: true,
+      );
     }
     if (!descriptor.fields.contains('write_date')) {
       // El descriptor no pide `write_date`: no hay forma de saber qué cambió

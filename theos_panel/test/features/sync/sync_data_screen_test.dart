@@ -258,4 +258,44 @@ void main() {
       expect(find.text('Algunos catálogos no se pudieron sincronizar'), findsNothing);
     },
   );
+
+  testWidgets(
+    'Hueco 3 (14-sep-2026): la tarjeta muestra la última sincronización '
+    'PERSISTIDA (fecha y hora local) y "Nunca" cuando no hay marca — antes '
+    'esto salía de un mapa en memoria que se perdía al reabrir la app',
+    (tester) async {
+      final port = _MockSyncDataPort();
+      // UTC 2026-09-10 14:05 -> se pinta en hora LOCAL de la prueba.
+      final syncedAtUtc = DateTime.utc(2026, 9, 10, 14, 5);
+      final expectedLocal = syncedAtUtc.toLocal();
+      String two(int n) => n.toString().padLeft(2, '0');
+      final expectedText =
+          '${two(expectedLocal.day)}/${two(expectedLocal.month)}/'
+          '${expectedLocal.year} ${two(expectedLocal.hour)}:'
+          '${two(expectedLocal.minute)}';
+      final cards = [
+        SyncCatalogCardData(
+          key: 'partner',
+          label: 'Clientes',
+          icon: FluentIcons.people,
+          localCount: 3,
+          freshness: CatalogFreshness.readyIncremental,
+          lastSyncedAt: syncedAtUtc,
+        ),
+        const SyncCatalogCardData(
+          key: 'product',
+          label: 'Productos',
+          icon: FluentIcons.product,
+          localCount: 0,
+          freshness: CatalogFreshness.pendingFullLoad,
+        ),
+      ];
+      _stubBaseline(port, cards: cards);
+
+      await _pumpAt(tester, SyncDataScreen(port: port), width: 1400);
+
+      expect(find.textContaining(expectedText), findsOneWidget);
+      expect(find.textContaining('Nunca'), findsOneWidget);
+    },
+  );
 }

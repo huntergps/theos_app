@@ -882,6 +882,11 @@ final class DriftCatalogStore<T> implements LocalCatalogStore<T> {
   /// existiera.
   final Set<int> Function()? neverDeleteIds;
 
+  /// Reloj inyectable, sólo para pruebas: producción siempre usa el reloj de
+  /// verdad (`DateTime.now`). Mismo patrón que `RuntimeCatalogLoader.clock` —
+  /// ver `CatalogState.lastSyncedAt`.
+  final DateTime Function() _now;
+
   DriftCatalogStore({
     required this.owner,
     required this.name,
@@ -890,7 +895,8 @@ final class DriftCatalogStore<T> implements LocalCatalogStore<T> {
     this.deleteRows,
     this.pendingOperationModel,
     this.neverDeleteIds,
-  });
+    DateTime Function()? clock,
+  }) : _now = clock ?? DateTime.now;
 
   CatalogRowsDeleter<T>? get _effectiveDeleteRows {
     final own = deleteRows;
@@ -922,8 +928,14 @@ final class DriftCatalogStore<T> implements LocalCatalogStore<T> {
       records: records,
       cursor: value is Map ? value['cursor'] as String? : null,
       error: value is Map ? value['error'] : null,
+      lastSyncedAt: value is Map
+          ? _parseUtc(value['lastSyncedAt'] as String?)
+          : null,
     );
   }
+
+  static DateTime? _parseUtc(String? value) =>
+      value == null ? null : DateTime.tryParse(value);
 
   @override
   Stream<CatalogState<T>> watch(AppScope scope) async* {
@@ -935,8 +947,22 @@ final class DriftCatalogStore<T> implements LocalCatalogStore<T> {
     yield* controller.stream;
   }
 
+  /// [markSynced] es un parámetro EXTRA sobre lo que exige
+  /// `LocalCatalogStore.commit` (Dart permite que un override acepte más
+  /// opcionales que la interfaz) — `true` por defecto, que es el
+  /// comportamiento real de un lote confirmado por un `CatalogSyncJob`.
+  /// `false` lo usan las acciones manuales de `/sync` que reutilizan
+  /// `commit()` para RESETEAR el cursor sin haber sincronizado nada todavía
+  /// ("Vaciar Tablas", el reseteo previo de "Recargar desde cero"): sin este
+  /// resguardo, esas acciones dejarían la marca de "última sincronización"
+  /// en "ahora mismo" pese a que la tabla quedó vacía, no recién traída del
+  /// servidor.
   @override
-  Future<void> commit(AppScope scope, CatalogBatch<T> batch) async {
+  Future<void> commit(
+    AppScope scope,
+    CatalogBatch<T> batch, {
+    bool markSynced = true,
+  }) async {
     final runtime = owner.active;
     if (runtime == null || runtime.scope != scope) {
       throw StateError('Catalog commit requires the active scope');
@@ -978,11 +1004,30 @@ final class DriftCatalogStore<T> implements LocalCatalogStore<T> {
         }
       }
 
+      // `markSynced: false` (reseteos manuales, ver el doc del parámetro)
+      // conserva la marca previa tal cual estaba, en vez de re-marcarla con
+      // la hora de un reseteo que no trajo nada del servidor.
+      final lastSyncedAt = markSynced
+          ? _now().toUtc()
+          : (await read(scope)).lastSyncedAt;
       await runtime.database.customStatement(
         'INSERT OR REPLACE INTO sync_metadata (key, value) VALUES (?, ?)',
         [
           _key(scope),
-          jsonEncode({'cursor': batch.cursor}),
+          jsonEncode({
+            'cursor': batch.cursor,
+            // Confirmar un lote — con datos reales o "no soportado en este
+            // servidor" (records vacíos, cursor null, ver
+            // `catalogAvailabilityLoader`) — marca esta fecha por defecto. Es
+            // la única marca de tiempo persistente por catálogo (hueco 3 de
+            // la auditoría del 14-sep-2026): antes de esto, "última
+            // sincronización" vivía en un `Map` en memoria de la pantalla
+            // (`RuntimeSyncDataPort._lastSyncedThisSession`) y se perdía al
+            // reabrir la app, aunque el cursor de esta misma fila sí
+            // sobrevivía.
+            if (lastSyncedAt != null)
+              'lastSyncedAt': lastSyncedAt.toIso8601String(),
+          }),
         ],
       );
     });
@@ -1027,7 +1072,14 @@ final class DriftCatalogStore<T> implements LocalCatalogStore<T> {
       'INSERT OR REPLACE INTO sync_metadata (key, value) VALUES (?, ?)',
       [
         _key(scope),
-        jsonEncode({'cursor': prior.cursor, 'error': '$error'}),
+        jsonEncode({
+          'cursor': prior.cursor,
+          'error': '$error',
+          // Un fallo no borra la última vez que SÍ funcionó — se conserva
+          // tal cual venía, nunca se re-marca con la hora de este error.
+          if (prior.lastSyncedAt != null)
+            'lastSyncedAt': prior.lastSyncedAt!.toIso8601String(),
+        }),
       ],
     );
     _controllers[scope.scopeKey]?.add(await read(scope));
