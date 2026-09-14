@@ -247,6 +247,225 @@ void main() {
     );
   }
 
+  // --- Helpers para T1-T6 (auditoría de sesión, 14-sep-2026): a diferencia
+  // de `service()`, que siempre arranca de preferencias vacías, estos dos
+  // simulan "cerrar la pestaña y volver a entrar" — una SEGUNDA instancia de
+  // `NativeAuthService` sobre el MISMO `_Backend` (el almacén de llaves) y
+  // las MISMAS `SharedPreferences` (donde vive el perfil y la marca de
+  // sesión abierta), con un `_Runtime` nuevo — igual que un proceso nuevo,
+  // que no hereda nada del anterior salvo lo que quedó persistido.
+  Future<(NativeAuthService, SharedPreferences)> openSession(
+    _Backend backend,
+    _Identity identity,
+    _Runtime runtime, [
+    ApiKeyIdentityProbe? apiKeyIdentityProbe,
+    _Bootstrap? bootstrap,
+  ]) async {
+    SharedPreferences.setMockInitialValues({});
+    final prefs = await SharedPreferences.getInstance();
+    final svc = NativeAuthService(
+      bootstrapPort: bootstrap ?? _Bootstrap(),
+      credentialStore: CredentialStore(
+        backend,
+        durability: CredentialDurability.secureStore,
+      ),
+      preferences: prefs,
+      runtimePort: runtime,
+      installationIds: InstallationIdStore(backend, generator: () => 'install'),
+      identityReader: identity,
+      capabilityPort: _Capabilities(),
+      apiKeyIdentityProbe: apiKeyIdentityProbe,
+    );
+    return (svc, prefs);
+  }
+
+  NativeAuthService reopen(
+    _Backend backend,
+    SharedPreferences prefs,
+    _Identity identity,
+    _Runtime runtime, [
+    ApiKeyIdentityProbe? apiKeyIdentityProbe,
+    _Bootstrap? bootstrap,
+  ]) {
+    return NativeAuthService(
+      bootstrapPort: bootstrap ?? _Bootstrap(),
+      credentialStore: CredentialStore(
+        backend,
+        durability: CredentialDurability.secureStore,
+      ),
+      preferences: prefs,
+      runtimePort: runtime,
+      installationIds: InstallationIdStore(backend, generator: () => 'install'),
+      identityReader: identity,
+      capabilityPort: _Capabilities(),
+      apiKeyIdentityProbe: apiKeyIdentityProbe,
+    );
+  }
+
+  // --- Causa raíz corregida el 14-sep-2026: «si cierro la ventana o
+  // pestaña de Orbi y vuelvo a entrar pide hacer login y se pierde todo»
+  // (reporte del dueño). Decisión: la sesión sobrevive a cerrar la pestaña,
+  // el navegador o la app, CON O SIN «Guardar clave», hasta que la persona
+  // cierre sesión, el servidor rechace la llave o venza. «Guardar clave»
+  // pasa a servir sólo para volver a entrar sin escribir la clave DESPUÉS
+  // de cerrar sesión. -------------------------------------------------------
+  group('session survives closing the tab/app (14-sep-2026)', () {
+    test(
+      'T1: session survives reopening without "Guardar clave" — the old '
+      'service deleted the key right after login and this would come back '
+      '"required"',
+      () async {
+        final b = _Backend();
+        final i = _Identity();
+        final (s1, prefs) = await openSession(b, i, _Runtime());
+        final result = await s1.login(
+          serverUrl: 'https://erp.test',
+          database: 'db',
+          login: 'u',
+          password: 'p',
+          persistCredential: false,
+        );
+        expect(result.status, AuthServiceStatus.authenticated);
+
+        // "Cerrar la pestaña" = nada más que un proceso nuevo leyendo lo
+        // mismo que quedó persistido — nunca se llama a `s1.close()`.
+        final s2 = reopen(b, prefs, i, _Runtime());
+        final restored = await s2.restore();
+
+        expect(restored.status, AuthServiceStatus.restored);
+      },
+    );
+
+    test(
+      'T2: closing a remembered session does not auto-restore — "Guardar '
+      'clave" only skips typing the password again, it is not a standing '
+      'silent session',
+      () async {
+        final b = _Backend();
+        final i = _Identity();
+        final (s1, prefs) = await openSession(b, i, _Runtime());
+        final result = await s1.login(
+          serverUrl: 'https://erp.test',
+          database: 'db',
+          login: 'u',
+          password: 'p',
+        ); // persistCredential: true por omisión.
+        await s1.close();
+
+        final s2 = reopen(b, prefs, i, _Runtime());
+        final restored = await s2.restore();
+
+        expect(restored.status, AuthServiceStatus.required);
+        expect(await s2.hasStoredCredential(result.profile!), isTrue);
+      },
+    );
+
+    test(
+      'T3: closing a reopened non-remembered session still revokes the key '
+      'exactly once — the in-memory bookkeeping the old fix relied on does '
+      'not survive reopening the tab, reading it from storage does',
+      () async {
+        final b = _Backend();
+        final i = _Identity();
+        final bootstrap = _Bootstrap();
+        final (s1, prefs) = await openSession(b, i, _Runtime(), null, bootstrap);
+        await s1.login(
+          serverUrl: 'https://erp.test',
+          database: 'db',
+          login: 'u',
+          password: 'p',
+          persistCredential: false,
+        );
+
+        final s2 = reopen(b, prefs, i, _Runtime(), null, bootstrap);
+        final restored = await s2.restore();
+        expect(restored.status, AuthServiceStatus.restored);
+
+        await s2.close();
+
+        expect(bootstrap.revokedOwnApiKeys, ['secret']);
+        expect(b.values.values, isNot(contains('secret')));
+      },
+    );
+
+    test(
+      'T4: an open non-remembered session is never offered as a remembered '
+      'login, before or after closing it',
+      () async {
+        final b = _Backend();
+        final i = _Identity();
+        final (s, _) = await openSession(b, i, _Runtime());
+        final result = await s.login(
+          serverUrl: 'https://erp.test',
+          database: 'db',
+          login: 'u',
+          password: 'p',
+          persistCredential: false,
+        );
+        expect(result.profile, isNotNull);
+
+        expect(
+          await s.findRememberedCredential('https://erp.test', 'db', 'u'),
+          isNull,
+        );
+
+        await s.close();
+
+        expect(
+          await s.findRememberedCredential('https://erp.test', 'db', 'u'),
+          isNull,
+        );
+      },
+    );
+
+    test(
+      'T5: an expired key clears the open session too — a later restore '
+      'from a reopened tab must not resurrect it',
+      () async {
+        final b = _Backend();
+        final i = _Identity();
+        final (s1, prefs) = await openSession(b, i, _Runtime());
+        await s1.login(
+          serverUrl: 'https://erp.test',
+          database: 'db',
+          login: 'u',
+          password: 'p',
+        );
+
+        await s1.closeExpired();
+
+        final s2 = reopen(b, prefs, i, _Runtime());
+        expect((await s2.restore()).status, AuthServiceStatus.required);
+      },
+    );
+
+    test(
+      'T6: reopening an open session offline activates without ever '
+      'building an online client',
+      () async {
+        final b = _Backend();
+        final i = _Identity();
+        final (s1, prefs) = await openSession(b, i, _Runtime());
+        await s1.login(
+          serverUrl: 'https://erp.test',
+          database: 'db',
+          login: 'u',
+          password: 'p',
+        );
+
+        final r2 = _Runtime()..lastActivateApiKey = 'sentinel-not-cleared';
+        final s2 = reopen(b, prefs, i, r2);
+
+        final restored = await s2.restore(offline: true);
+
+        expect(restored.status, AuthServiceStatus.restored);
+        // El fake SÍ registra el `apiKey` recibido — la prueba comprueba
+        // que sigue `null`, nunca que el fake lo ignoró.
+        expect(r2.lastActivateApiKey, isNull);
+      },
+    );
+  });
+
   test('login persists company IDs and capabilities', () async {
     final b = _Backend(), r = _Runtime(), i = _Identity();
     final s = await service(b, r, i);
@@ -350,20 +569,36 @@ void main() {
     },
   );
 
-  test('non-persistent login keeps the secret out of storage', () async {
-    final b = _Backend(), r = _Runtime(), i = _Identity();
-    final s = await service(b, r, i);
-    final result = await s.login(
-      serverUrl: 'https://erp.test',
-      database: 'db',
-      login: 'u',
-      password: 'p',
-      persistCredential: false,
-    );
-    expect(result.status, AuthServiceStatus.authenticated);
-    expect(b.values.values, isNot(contains('secret')));
-    expect((await s.restore()).status, AuthServiceStatus.required);
-  });
+  // 🔴 Renombrada y reescrita el 14-sep-2026: esta prueba se llamaba
+  // "non-persistent login keeps the secret out of storage" y afirmaba
+  // justo el bug de causa raíz que este commit corrige — sin «Guardar
+  // clave», la llave se borraba del almacén nada más emitirse, y por eso
+  // `restore()` daba `required` incluso SIN cerrar la pestaña. Ahora la
+  // llave se queda en el almacén mientras la sesión sigue abierta (así
+  // sobrevive a cerrar la pestaña/app), y sólo `close()` la revoca y borra.
+  test(
+    'non-persistent login keeps the session open (and the secret in '
+    'storage) until it is explicitly closed',
+    () async {
+      final b = _Backend(), r = _Runtime(), i = _Identity();
+      final s = await service(b, r, i);
+      final result = await s.login(
+        serverUrl: 'https://erp.test',
+        database: 'db',
+        login: 'u',
+        password: 'p',
+        persistCredential: false,
+      );
+      expect(result.status, AuthServiceStatus.authenticated);
+      expect(b.values.values, contains('secret'));
+      expect((await s.restore()).status, AuthServiceStatus.restored);
+
+      await s.close();
+
+      expect(b.values.values, isNot(contains('secret')));
+      expect((await s.restore()).status, AuthServiceStatus.required);
+    },
+  );
 
   test('API key for another user is rejected before activation', () async {
     final b = _Backend(), r = _Runtime(), i = _Identity();
@@ -544,9 +779,20 @@ void main() {
   // revocar nunca bloquea la operación — sigue viva, sólo que ahora es
   // responsabilidad de `forgetStoredCredential` ("Olvidar la clave
   // guardada"), no de `close()`. Ver el grupo `forgetStoredCredential`. -----
+  // 🔴 Renombrada y corregida el 14-sep-2026: hasta entonces afirmaba que
+  // `restore()` volvía a autenticar SOLO por haber cerrado sesión con
+  // «Guardar clave» activo, sin que el operador pidiera entrar de nuevo —
+  // eso confundía «recordar la llave» con «seguir con la sesión abierta».
+  // La decisión del dueño (14-sep-2026) es explícita: «Guardar clave» sólo
+  // sirve para volver a entrar SIN escribir la contraseña DESPUÉS de cerrar
+  // sesión — una acción explícita del operador
+  // ([loginWithStoredCredential]) — nunca un restore silencioso. Un
+  // `close()` explícito SIEMPRE borra la marca de sesión abierta, con o sin
+  // «Guardar clave»; ver T2 más abajo, que cubre exactamente este contrato.
   test(
-    'close preserves both the profile and the bearer credential: a '
-    'subsequent restore succeeds without asking for the password again',
+    'close preserves the profile and the bearer credential, but a '
+    'subsequent silent restore still asks to log in again — only an '
+    'explicit loginWithStoredCredential skips the password',
     () async {
       final b = _Backend(), r = _Runtime(), i = _Identity();
       final s = await service(b, r, i);
@@ -561,11 +807,12 @@ void main() {
 
       expect(b.values.values, contains('secret'));
       final restored = await s.restore();
-      expect(restored.status, AuthServiceStatus.restored);
+      expect(restored.status, AuthServiceStatus.required);
       final profile = await s.loadProfile();
       expect(profile?.serverUrl, 'https://erp.test');
       expect(profile?.database, 'db');
       expect(profile?.login, 'u');
+      expect(await s.hasStoredCredential(profile!), isTrue);
     },
   );
 
@@ -593,17 +840,21 @@ void main() {
 
   test(
     'close on a password session that logged in WITHOUT "Guardar clave" '
-    'revokes the in-memory key on the server: nothing survives, unlike a '
-    'stored one, which close() must never touch',
+    'revokes the key on the server: nothing survives, unlike a stored one, '
+    'which close() must never touch',
     () async {
-      // 🔴 Corregido el 13-sep-2026: sin «Guardar clave», `login()` ya
-      // borraba la llave del almacén nada más emitirla, así que el `close()`
-      // anterior — que sólo sabía leerla del almacén — nunca llegaba a
-      // revocarla: quedaba huérfana en el servidor hasta vencer por su
-      // cuenta. Este era el bug real, anterior a «Recordar la llave tras
-      // salir» y no introducido por ella. `close()` ahora se acuerda en
-      // memoria de esa llave (la única copia que le queda a esta sesión) y
-      // la revoca al cerrar.
+      // 🔴 Corregido el 13-sep-2026, y otra vez el 14-sep-2026: la primera
+      // vez, sin «Guardar clave», `login()` borraba la llave del almacén
+      // nada más emitirla, así que `close()` — que sólo sabía leerla del
+      // almacén — nunca llegaba a revocarla: quedaba huérfana en el
+      // servidor hasta vencer por su cuenta. Eso se arregló acordándose de
+      // la llave EN MEMORIA — pero eso reintrodujo el bug de causa raíz que
+      // este commit corrige: la memoria se pierde al cerrar la pestaña, así
+      // que una sesión sin «Guardar clave» no sobrevivía ni un F5. Ahora la
+      // llave se queda en el almacén mientras la sesión sigue abierta (por
+      // eso YA NO desaparece nada más loguearse, a diferencia de la
+      // aserción que tenía esta prueba antes de esta reescritura) y
+      // `close()` la lee de ahí para revocarla y borrarla.
       final b = _Backend(), r = _Runtime(), i = _Identity();
       final bootstrap = _Bootstrap();
       final s = await service(b, r, i, null, null, bootstrap);
@@ -614,7 +865,9 @@ void main() {
         password: 'p',
         persistCredential: false,
       );
-      expect(b.values.values, isNot(contains('secret')));
+      // La llave sigue en el almacén MIENTRAS la sesión está abierta — es
+      // justo lo que hace posible reabrir la pestaña sin perder la sesión.
+      expect(b.values.values, contains('secret'));
 
       await s.close();
 
@@ -1182,9 +1435,11 @@ void main() {
           login: 'u',
           password: 'p',
         );
-        await s.close();
-        // Prove the next assertion comes from restore(), not a leftover from
-        // login() above.
+        // No se cierra sesión: la sesión sigue ABIERTA (la marca que
+        // permite a `restore()` reactivar sola, auditoría de sesión,
+        // 14-sep-2026) — sólo se limpian los valores aplicados por el
+        // propio `login()` para probar que la siguiente aserción viene de
+        // `restore()`, no de un resto de arriba.
         r.appliedLanguage = null;
         r.appliedTimezone = null;
 
@@ -1221,7 +1476,10 @@ void main() {
           login: 'u',
           password: 'p',
         );
-        await s.close();
+        // La sesión sigue ABIERTA (no se llama a `close()`): un restore sin
+        // conexión de una sesión abierta es justo el caso real que arregla
+        // la auditoría del 14-sep-2026 (arrancar sin red mientras la sesión
+        // sigue abierta), y el que aquí interesa probar.
         r.appliedLanguage = null;
         r.appliedTimezone = null;
         r.lastActivateApiKey = 'sentinel-not-cleared';
@@ -1270,7 +1528,9 @@ void main() {
           login: 'u',
           password: 'p',
         );
-        await s.close();
+        // La sesión sigue ABIERTA: sin marca (borrada por un `close()`) este
+        // restore ni siquiera llegaría a activar nada, así que dejarla
+        // abierta es lo que hace que esta prueba examine lo que dice probar.
         r.lastActivateApiKey = 'sentinel-not-cleared';
 
         await s.restore(offline: true);

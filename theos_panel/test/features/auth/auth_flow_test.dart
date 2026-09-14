@@ -418,10 +418,21 @@ void main() {
     );
   });
 
+  // 🔴 Reescrita el 14-sep-2026 (causa raíz de «si cierro la pestaña de Orbi
+  // y vuelvo a entrar pide login y se pierde todo»): esta prueba afirmaba
+  // que un `restore()` SILENCIOSO volvía a autenticar sólo por haber
+  // entrado con «Guardar clave», sin que el operador pidiera entrar de
+  // nuevo — eso confundía «recordar la llave» con «la sesión sigue
+  // abierta». La decisión del dueño es explícita: «Guardar clave» sólo
+  // sirve para volver a entrar SIN escribir la contraseña DESPUÉS de cerrar
+  // sesión — una acción explícita ([loginWithStoredCredential]), nunca un
+  // restore silencioso. Un `close()` explícito SIEMPRE cierra la sesión
+  // abierta, con o sin «Guardar clave»; lo que el interruptor conserva es
+  // la CREDENCIAL (perfil + llave), no la sesión.
   test(
-    'native service stores metadata, and with "Guardar clave" (default) logout '
-    'preserves the credential: a later offline restore succeeds without the '
-    'password',
+    'native service stores metadata, and with "Guardar clave" (default) '
+    'logout preserves the credential — but a later silent restore still '
+    'asks to log in again, offline or not',
     () async {
       SharedPreferences.setMockInitialValues({});
       final preferences = await SharedPreferences.getInstance();
@@ -448,18 +459,19 @@ void main() {
         password: 'secret',
       );
       expect(loggedIn.profile?.userId, 7);
-      expect(
-        await service.loadProfileFor('https://erp.test', 'demo'),
-        isNotNull,
-      );
+      final profile = await service.loadProfileFor('https://erp.test', 'demo');
+      expect(profile, isNotNull);
       await service.close();
       expect(runtime.active, isNull);
       final restored = await service.restore(offline: true);
-      expect(restored.status, AuthServiceStatus.restored);
+      expect(restored.status, AuthServiceStatus.required);
+      // La credencial (perfil + llave) sobrevive al cierre — eso es lo que
+      // «Guardar clave» promete — aunque el restore silencioso no la use.
       expect(
         (await service.loadProfileFor('https://erp.test', 'demo'))?.login,
         'seller',
       );
+      expect(await service.hasStoredCredential(profile!), isTrue);
     },
   );
 
@@ -500,33 +512,50 @@ void main() {
     },
   );
 
-  test('credential retention flag controls secure backend storage', () async {
-    SharedPreferences.setMockInitialValues({});
-    final preferences = await SharedPreferences.getInstance();
-    final backend = FakeBackend();
-    final service = NativeAuthService(
-      bootstrapPort: FakeBootstrap(),
-      credentialStore: CredentialStore(
-        backend,
-        durability: CredentialDurability.secureStore,
-      ),
-      preferences: preferences,
-      runtimePort: FakeRuntime(),
-      installationIds: InstallationIdStore(
-        backend,
-        generator: () => 'install-no-retain',
-      ),
-    );
+  // 🔴 Reescrita el 14-sep-2026: esta prueba afirmaba que sin «Guardar
+  // clave» la llave nunca tocaba el almacén — justo la causa raíz de «si
+  // cierro la pestaña de Orbi se pierde la sesión» (la llave se borraba
+  // nada más emitirse, así que reabrir la pestaña sin cerrar sesión no
+  // encontraba nada que restaurar). Ahora la llave se queda en el almacén
+  // MIENTRAS la sesión sigue abierta — el interruptor decide si `close()`
+  // la conserva o la revoca al cerrar sesión, no si se guarda.
+  test(
+    'credential retention flag controls what close() does with the '
+    'secure backend entry, not whether it gets written in the first place',
+    () async {
+      SharedPreferences.setMockInitialValues({});
+      final preferences = await SharedPreferences.getInstance();
+      final backend = FakeBackend();
+      final service = NativeAuthService(
+        bootstrapPort: FakeBootstrap(),
+        credentialStore: CredentialStore(
+          backend,
+          durability: CredentialDurability.secureStore,
+        ),
+        preferences: preferences,
+        runtimePort: FakeRuntime(),
+        installationIds: InstallationIdStore(
+          backend,
+          generator: () => 'install-no-retain',
+        ),
+      );
 
-    await service.login(
-      serverUrl: 'https://erp.test',
-      database: 'demo',
-      login: 'seller',
-      password: 'secret',
-      persistCredential: false,
-    );
-    expect(backend.values.values, isNot(contains('secret-key')));
-  });
+      await service.login(
+        serverUrl: 'https://erp.test',
+        database: 'demo',
+        login: 'seller',
+        password: 'secret',
+        persistCredential: false,
+      );
+      // Sigue en el almacén mientras la sesión está abierta.
+      expect(backend.values.values, contains('secret-key'));
+
+      await service.close();
+
+      // `persistCredential: false` decide esto: close() la revoca y borra.
+      expect(backend.values.values, isNot(contains('secret-key')));
+    },
+  );
 
   test('profiles are selected by server and database without mixing', () async {
     SharedPreferences.setMockInitialValues({});

@@ -171,24 +171,45 @@ void main() {
     );
   });
 
-  test('quien pide no persistir la credencial no deja nada, ni siquiera con '
-      'respaldo durable', () async {
-    final backend = FakeCredentialBackend();
-    final service = build(backend: backend);
+  // 🔴 Reescrita el 14-sep-2026 (causa raíz de «si cierro la pestaña de Orbi
+  // y vuelvo a entrar pide login y se pierde todo»): esta prueba se llamaba
+  // «quien pide no persistir la credencial no deja nada, ni siquiera con
+  // respaldo durable» y afirmaba justo el bug que este commit corrige — sin
+  // «Guardar clave», la credencial se borraba del respaldo nada más
+  // emitirse, así que reabrir la pestaña sin haber cerrado sesión perdía la
+  // sesión igual. Ahora la credencial se queda en el respaldo MIENTRAS la
+  // sesión sigue abierta (es lo que permite recuperarla al recargar la
+  // página), y sólo `close()` la borra.
+  test(
+    'quien pide no persistir la credencial la deja en el respaldo mientras '
+    'la sesión sigue abierta, y close() la borra al cerrar sesión',
+    () async {
+      final backend = FakeCredentialBackend();
+      final service = build(backend: backend);
 
-    await service.loginWithApiKey(
-      serverUrl: 'https://erp2.test',
-      database: 'orbi',
-      login: 'vendedor',
-      apiKey: 'clave-emitida',
-      persistCredential: false,
-    );
+      await service.loginWithApiKey(
+        serverUrl: 'https://erp2.test',
+        database: 'orbi',
+        login: 'vendedor',
+        apiKey: 'clave-emitida',
+        persistCredential: false,
+      );
 
-    expect(
-      backend.entries.values.any((value) => value == 'clave-emitida'),
-      isFalse,
-    );
-  });
+      expect(
+        backend.entries.values.any((value) => value == 'clave-emitida'),
+        isTrue,
+        reason: 'la sesión sigue abierta: la credencial tiene que sobrevivir '
+            'a recargar la página sin haber cerrado sesión',
+      );
+
+      await service.close();
+
+      expect(
+        backend.entries.values.any((value) => value == 'clave-emitida'),
+        isFalse,
+      );
+    },
+  );
 
   test('un respaldo que falla no rompe el cierre de sesión', () async {
     final service = build(backend: ThrowingCredentialBackend());
