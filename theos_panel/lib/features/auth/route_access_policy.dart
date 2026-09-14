@@ -37,6 +37,15 @@ final class RouteAccessPolicy {
     if (path == '/warehouse' || path.startsWith('/warehouse/')) {
       return permissions.contains('warehouse');
     }
+    // Saldo por tercero needs its own rule, ABOVE the generic '/envases/'
+    // prefix below: it is gated by `envases_custodia`
+    // (`l10n_ec_stock_envases.group_envases_custodia`), a group that does
+    // NOT imply and is NOT implied by `group_envases_user` — a custodian
+    // without the basic Envases group must still reach this screen, and a
+    // plain Envases user must not.
+    if (path == '/envases/saldo-terceros') {
+      return permissions.contains('envases_custodia');
+    }
     if (path == '/envases' || path.startsWith('/envases/')) {
       return permissions.contains('envases_read');
     }

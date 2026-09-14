@@ -153,3 +153,15 @@ String syncJobLabel(String jobId) {
   }
   return jobId;
 }
+
+/// Rol de custodia de envases
+/// (`l10n_ec.envases.saldo.tercero.envases_rol`, un `Selection` de Odoo).
+/// `EnvasesPartnerBalanceReader` ya rechaza cualquier otro valor al leerlo
+/// (`FormatException`), así que las dos ramas de este `switch` son
+/// exhaustivas para cualquier fila que de verdad llegue a esta pantalla —
+/// nunca se enseña `custodia_cliente`/`custodia_proveedor` en crudo.
+String envasesCustodyRoleLabel(String role) => switch (role) {
+  'custodia_cliente' => 'Cliente',
+  'custodia_proveedor' => 'Proveedor',
+  _ => throw ArgumentError.value(role, 'role', 'Rol de custodia desconocido'),
+};

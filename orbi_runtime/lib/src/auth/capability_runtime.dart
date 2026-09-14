@@ -13,6 +13,14 @@ final class OdooCapabilityReader {
   static const envasesManagerGroup =
       'l10n_ec_stock_envases.group_envases_manager';
 
+  /// `l10n_ec_stock_envases/security/envases_security.xml`: a group of its
+  /// own, NOT implied by and NOT implying `group_envases_user` — the read
+  /// access to `l10n_ec.envases.saldo.tercero` (Saldo por tercero) lives
+  /// only here (`security/ir.access.csv`). A custodian without the basic
+  /// Envases group must still reach that screen.
+  static const envasesCustodiaGroup =
+      'l10n_ec_stock_envases.group_envases_custodia';
+
   static bool hasEnvasesRead(Iterable<String> effectiveExternalIds) =>
       effectiveExternalIds.contains(envasesUserGroup) ||
       effectiveExternalIds.contains(envasesManagerGroup);
@@ -22,6 +30,13 @@ final class OdooCapabilityReader {
   /// this, unlike `hasEnvasesRead` which accepts either group.
   static bool hasEnvasesManage(Iterable<String> effectiveExternalIds) =>
       effectiveExternalIds.contains(envasesManagerGroup);
+
+  /// Read access to the derived per-third-party custody balance
+  /// (`l10n_ec.envases.saldo.tercero`). Deliberately independent of
+  /// [hasEnvasesRead]/[hasEnvasesManage]: neither the plain user group nor
+  /// the manager group implies `group_envases_custodia`.
+  static bool hasEnvasesCustodia(Iterable<String> effectiveExternalIds) =>
+      effectiveExternalIds.contains(envasesCustodiaGroup);
 
   /// "Supervisor de Caja" — `l10n_ec_collection_box.group_collection_manager`
   /// (`l10n_ec_collection_box/security/collection_box_groups.xml:96-101`).
@@ -91,6 +106,7 @@ final class OdooCapabilityReader {
     final extra = <String>{
       if (hasEnvasesRead(effectiveXmlIds)) 'envases_read',
       if (hasEnvasesManage(effectiveXmlIds)) 'envases_manage',
+      if (hasEnvasesCustodia(effectiveXmlIds)) 'envases_custodia',
       if (hasCollectionSupervisor(effectiveXmlIds)) 'collection_supervisor',
     };
     if (extra.isEmpty) return snapshot;

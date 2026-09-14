@@ -12,6 +12,7 @@ import '../features/envases/envases_existencias_screen.dart';
 import '../features/envases/envases_movimientos_screen.dart';
 import '../features/envases/envases_por_recibir_screen.dart';
 import '../features/envases/envases_recibir_form.dart';
+import '../features/envases/envases_saldo_terceros_screen.dart';
 import '../features/envases/envases_traslado_detalle.dart';
 import 'notification_scope_adapter.dart';
 import 'session_composition.dart';
@@ -476,6 +477,86 @@ final class EnvasesMovimientosRoute extends ConsumerWidget {
       );
     }
     return EnvasesMovimientosScreen(
+      snapshots: controller.snapshots,
+      onRefresh: controller.refresh,
+    );
+  }
+}
+
+// ---------------------------------------------------------------------
+// Saldo por tercero
+// ---------------------------------------------------------------------
+
+/// Gated by `envases_custodia`, NOT `envases_read` — see
+/// `RouteAccessPolicy` and `OdooCapabilityReader.hasEnvasesCustodia`. A
+/// custodian without the plain Envases group must still reach this
+/// controller.
+final class _EnvasesSaldoTercerosController {
+  const _EnvasesSaldoTercerosController({
+    required this.cache,
+    required this.readerFactory,
+  });
+
+  final EnvasesSaldoTercerosCache cache;
+  final EnvasesPartnerBalanceReader Function() readerFactory;
+
+  Stream<EnvasesSaldoTercerosSnapshot?> get snapshots => cache.watch();
+  Future<void> refresh() => cache.refresh(readerFactory());
+}
+
+final envasesSaldoTercerosControllerProvider =
+    Provider.autoDispose<_EnvasesSaldoTercerosController?>((ref) {
+      final runtime = ref.watch(runtimeSessionProvider);
+      final capabilities = ref.watch(capabilitySnapshotProvider);
+      final active = runtime?.active;
+      if (runtime == null ||
+          active == null ||
+          capabilities == null ||
+          capabilities.scopeKey != active.scope.scopeKey ||
+          capabilities.companyId <= 0 ||
+          !capabilities.permissions.contains('envases_custodia')) {
+        return null;
+      }
+      final company = CompanyContext.forScope(
+        scope: active.scope,
+        companyId: capabilities.companyId,
+        allowedCompanyIds: [capabilities.companyId],
+        capabilityRevision: capabilities.revision,
+      );
+      return _EnvasesSaldoTercerosController(
+        cache: EnvasesSaldoTercerosCache(
+          owner: runtime.databaseOwner,
+          lease: active.lease,
+          company: company,
+        ),
+        readerFactory: () {
+          final client = runtime.active?.client;
+          if (client == null) {
+            throw StateError(
+              'No hay conexión activa para actualizar el saldo por tercero',
+            );
+          }
+          return EnvasesPartnerBalanceReader.fromClient(
+            client: client,
+            company: company,
+          );
+        },
+      );
+    });
+
+final class EnvasesSaldoTercerosRoute extends ConsumerWidget {
+  const EnvasesSaldoTercerosRoute({super.key});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final controller = ref.watch(envasesSaldoTercerosControllerProvider);
+    if (controller == null) {
+      return const NotConfiguredPage(
+        title: 'Envases',
+        detail: 'No tienes permiso para consultar el saldo por tercero.',
+      );
+    }
+    return EnvasesSaldoTercerosScreen(
       snapshots: controller.snapshots,
       onRefresh: controller.refresh,
     );

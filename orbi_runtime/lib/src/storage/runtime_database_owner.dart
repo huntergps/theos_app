@@ -138,6 +138,19 @@ final class RuntimeDatabaseOwner {
           PRIMARY KEY (scope_key, company_id)
         )
       ''');
+      // Read cache only: Odoo remains the authority for the derived
+      // per-third-party custody balance (`l10n_ec.envases.saldo.tercero`, a
+      // SQL view over `stock.move.line` — never a value this app can write).
+      // Same shape and reasoning as orbi_envases_dashboard_cache above.
+      await database.customStatement('''
+        CREATE TABLE IF NOT EXISTS orbi_envases_saldo_terceros_cache (
+          scope_key TEXT NOT NULL,
+          company_id INTEGER NOT NULL CHECK (company_id > 0),
+          payload TEXT NOT NULL,
+          cached_at TEXT NOT NULL,
+          PRIMARY KEY (scope_key, company_id)
+        )
+      ''');
     } catch (_) {
       await database.close();
       rethrow;

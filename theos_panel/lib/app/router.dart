@@ -1306,6 +1306,12 @@ final orbiRouterProvider = Provider<GoRouter>((ref) {
                         group: 'Envases',
                       ),
                       const OperationalDestination(
+                        label: 'Saldo por tercero',
+                        path: '/envases/saldo-terceros',
+                        icon: FluentIcons.contact,
+                        group: 'Envases',
+                      ),
+                      const OperationalDestination(
                         label: 'Solicitudes',
                         path: '/approvals',
                         icon: FluentIcons.check_list,
@@ -1957,6 +1963,10 @@ final orbiRouterProvider = Provider<GoRouter>((ref) {
           GoRoute(
             path: '/envases/movimientos',
             builder: (context, state) => const EnvasesMovimientosRoute(),
+          ),
+          GoRoute(
+            path: '/envases/saldo-terceros',
+            builder: (context, state) => const EnvasesSaldoTercerosRoute(),
           ),
           GoRoute(
             path: '/warehouse',

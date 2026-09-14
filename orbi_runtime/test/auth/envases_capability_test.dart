@@ -56,4 +56,27 @@ void main() {
     );
     expect(OdooCapabilityReader.hasEnvasesManage(const []), isFalse);
   });
+
+  // `group_envases_custodia` (Saldo por tercero) is a group of its own: it
+  // does NOT imply, and is not implied by, `group_envases_user` (see
+  // `l10n_ec_stock_envases/security/envases_security.xml`). A custodian
+  // without the basic Envases group must still reach the balance screen.
+  test('grants Envases custodia only for the custody group', () {
+    expect(
+      OdooCapabilityReader.hasEnvasesCustodia(const [
+        OdooCapabilityReader.envasesCustodiaGroup,
+      ]),
+      isTrue,
+    );
+  });
+
+  test('does not grant Envases custodia to the plain user group', () {
+    expect(
+      OdooCapabilityReader.hasEnvasesCustodia(const [
+        OdooCapabilityReader.envasesUserGroup,
+      ]),
+      isFalse,
+    );
+    expect(OdooCapabilityReader.hasEnvasesCustodia(const []), isFalse);
+  });
 }
