@@ -32,6 +32,7 @@ const envasesRecepcionModel = 'l10n_ec.stock.envases.wizard.recepcion';
 const envasesRecepcionMethod = 'action_recibir';
 const envasesPerdidoModel = 'stock.picking';
 const envasesPerdidoMethod = 'action_envases_dar_por_perdido';
+const envasesOperacionModel = 'l10n_ec.envases.operacion';
 
 const _tableName = 'orbi_envases_operations';
 
@@ -301,10 +302,12 @@ final class DurableEnvasesOperations implements EnvasesOperations {
   final SaleOdooActions actions;
   final EnvasesOperationsStore store;
 
-  /// Se sondea una sola vez por instancia y se memoriza — sólo si el sondeo
-  /// respondió. Un fallo de red no se memoriza, para poder reintentarlo en
-  /// una llamada posterior con conexión.
-  OfflineReplayPolicy? _cachedEnvioRecepcionPolicy;
+  /// Se sondea una sola vez por instancia Y POR MODELO DE ASISTENTE (envío
+  /// y recepción pueden estar en versiones distintas del módulo, así que no
+  /// comparten política) y se memoriza — sólo si el sondeo respondió. Un
+  /// fallo de red no se memoriza, para poder reintentarlo en una llamada
+  /// posterior con conexión.
+  final Map<String, OfflineReplayPolicy> _cachedWizardReplayPolicy = {};
 
   RuntimeDatabase _active() {
     final active = owner.active;
@@ -334,7 +337,7 @@ final class DurableEnvasesOperations implements EnvasesOperations {
         'un envío necesita al menos una línea',
       );
     }
-    final replayPolicy = await _resolveEnvioRecepcionReplayPolicy();
+    final replayPolicy = await _resolveWizardReplayPolicy(envasesEnvioModel);
     final active = _active();
     late EnvasesOperacionLocal result;
     await active.database.transaction(() async {
@@ -405,7 +408,9 @@ final class DurableEnvasesOperations implements EnvasesOperations {
         'una recepción necesita al menos una línea',
       );
     }
-    final replayPolicy = await _resolveEnvioRecepcionReplayPolicy();
+    final replayPolicy = await _resolveWizardReplayPolicy(
+      envasesRecepcionModel,
+    );
     final active = _active();
     late EnvasesOperacionLocal result;
     await active.database.transaction(() async {
@@ -523,34 +528,61 @@ final class DurableEnvasesOperations implements EnvasesOperations {
   Stream<List<EnvasesOperacionLocal>> watchOperaciones() =>
       store.watch(owner, lease, company);
 
-  /// D del encargo: comprueba una sola vez (memorizado) si `stock.picking`
-  /// ya tiene `envases_operacion_uuid` — 13-sep-2026, confirmado ausente hoy
-  /// en `dev_odoo20/addons/l10n_ec_stock_envases` (ni en `wizard_envio.py`,
-  /// ni en `wizard_recepcion.py`, ni en `models/stock_picking.py`; llega en
-  /// la versión de manifiesto 19.5.1.3.0, que ya está en el manifest local
-  /// pero sin el campo implementado todavía). Sin red, no se memoriza el
-  /// fallo — la próxima operación puede volver a sondear.
-  Future<OfflineReplayPolicy> _resolveEnvioRecepcionReplayPolicy() async {
-    final cached = _cachedEnvioRecepcionPolicy;
+  /// Ajuste del 14-sep-2026 sobre el D original: la sesión de Odoo confirmó
+  /// el contrato final de `l10n_ec_stock_envases` 19.5.1.3.0 — la
+  /// protección contra duplicados vive en `envases_operacion_uuid` DE CADA
+  /// ASISTENTE (`l10n_ec.stock.envases.wizard.envio`/`.wizard.recepcion`/
+  /// `.wizard.custodia`); escribirlo ahí es lo que activa la protección. La
+  /// reconciliación, en cambio, va a apoyarse en el modelo nuevo
+  /// `l10n_ec.envases.operacion` (campo `uuid`, UNIQUE): esa fila existe
+  /// sólo si la operación se confirmó — `stock.picking` ya no es la fuente
+  /// de verdad para reconciliar (eso lo cambia un encargo aparte, todavía
+  /// sin diseñar; acá sólo cambia el SONDEO). Por eso `retry_safe` exige
+  /// que las DOS sondas confirmen el campo: confiar sólo en el asistente
+  /// dejaría de encontrar con qué reconciliar, y confiar sólo en
+  /// `l10n_ec.envases.operacion` dejaría mandar un `create` que el
+  /// asistente rechaza con `Invalid field`. Se memoriza por MODELO DE
+  /// ASISTENTE (envío y recepción pueden estar en versiones distintas del
+  /// módulo, comprobado: nada obliga a que las dos migraciones lleguen
+  /// juntas). Sin red — o si `l10n_ec.envases.operacion` todavía no existe,
+  /// que Odoo reporta lanzando en el `fields_get`—, no se memoriza el
+  /// fallo: la próxima operación puede volver a sondear.
+  Future<OfflineReplayPolicy> _resolveWizardReplayPolicy(
+    String wizardModel,
+  ) async {
+    final cached = _cachedWizardReplayPolicy[wizardModel];
     if (cached != null) return cached;
     try {
-      final metadata = await actions.call(
-        model: 'stock.picking',
-        method: 'fields_get',
-        kwargs: const {
-          'allfields': ['envases_operacion_uuid'],
-          'attributes': <String>[],
-        },
+      final wizardHasField = await _probeHasField(
+        model: wizardModel,
+        field: 'envases_operacion_uuid',
       );
-      final present =
-          metadata is Map && metadata.containsKey('envases_operacion_uuid');
-      final resolved = present
+      final operacionHasField = await _probeHasField(
+        model: envasesOperacionModel,
+        field: 'uuid',
+      );
+      final resolved = (wizardHasField && operacionHasField)
           ? OfflineReplayPolicy.retrySafe
           : OfflineReplayPolicy.manualAfterAmbiguous;
-      _cachedEnvioRecepcionPolicy = resolved;
+      _cachedWizardReplayPolicy[wizardModel] = resolved;
       return resolved;
     } catch (_) {
       return OfflineReplayPolicy.manualAfterAmbiguous;
     }
+  }
+
+  Future<bool> _probeHasField({
+    required String model,
+    required String field,
+  }) async {
+    final metadata = await actions.call(
+      model: model,
+      method: 'fields_get',
+      kwargs: {
+        'allfields': [field],
+        'attributes': <String>[],
+      },
+    );
+    return metadata is Map && metadata.containsKey(field);
   }
 }

@@ -42,18 +42,36 @@ void main() {
 
   tearDown(() => owner.close());
 
-  void stubFieldsGet({required bool present}) {
+  void stubFieldsGetFor(
+    String model, {
+    required bool present,
+    String probedField = 'envases_operacion_uuid',
+  }) {
     when(
       () => actions.call(
-        model: 'stock.picking',
+        model: model,
         method: 'fields_get',
         ids: any(named: 'ids'),
         kwargs: any(named: 'kwargs'),
       ),
     ).thenAnswer(
-      (_) async => present ? {'envases_operacion_uuid': {'type': 'char'}} : {'id': {'type': 'integer'}},
+      (_) async =>
+          present ? {probedField: {'type': 'char'}} : {'id': {'type': 'integer'}},
     );
   }
+
+  /// Deja las tres sondas (envío, recepción y `l10n_ec.envases.operacion`)
+  /// respondiendo lo mismo — sirve para las pruebas que no comprueban el
+  /// valor exacto de la política, sólo que la operación se encola.
+  void stubAllFieldsGet({required bool present}) {
+    stubFieldsGetFor(envasesEnvioModel, present: present);
+    stubFieldsGetFor(envasesRecepcionModel, present: present);
+    stubFieldsGetFor(envasesOperacionModel, present: present, probedField: 'uuid');
+  }
+
+  // Alias retrocompatible con el nombre viejo, usado por las pruebas ya
+  // existentes que no distinguían por modelo.
+  void stubFieldsGet({required bool present}) => stubAllFieldsGet(present: present);
 
   DurableEnvasesOperations producer() => DurableEnvasesOperations(
     owner: owner,
@@ -174,5 +192,147 @@ void main() {
     final otherRows = await durableOther.watchOperaciones().first;
     expect(ownRows, hasLength(1));
     expect(otherRows, isEmpty);
+  });
+
+  group('sondeo por asistente (14-sep-2026)', () {
+    test(
+      'A: wizard.envio tiene el campo y l10n_ec.envases.operacion NO -> envío manualAfterAmbiguous',
+      () async {
+        stubFieldsGetFor(envasesEnvioModel, present: true);
+        stubFieldsGetFor(envasesOperacionModel, present: false, probedField: 'uuid');
+        final durable = producer();
+        await durable.enviar(envio(uuid: 'uuid-a'));
+
+        final queue = OfflineQueueDataSource(db.database);
+        final ops = await queue.getOperationsForModel(envasesEnvioModel);
+        expect(ops.single.replayPolicy, OfflineReplayPolicy.manualAfterAmbiguous);
+      },
+    );
+
+    test(
+      'B: l10n_ec.envases.operacion tiene uuid (y stock.picking también, cebo del sondeo viejo) pero wizard.envio NO tiene envases_operacion_uuid -> envío manualAfterAmbiguous',
+      () async {
+        stubFieldsGetFor(envasesEnvioModel, present: false);
+        // Cebo: el sondeo viejo miraba stock.picking y con esto solo
+        // devolvería retrySafe — la prueba exige que el nuevo sondeo NO
+        // caiga en esa trampa.
+        stubFieldsGetFor('stock.picking', present: true);
+        stubFieldsGetFor(envasesOperacionModel, present: true, probedField: 'uuid');
+        final durable = producer();
+        await durable.enviar(envio(uuid: 'uuid-b'));
+
+        final queue = OfflineQueueDataSource(db.database);
+        final ops = await queue.getOperationsForModel(envasesEnvioModel);
+        expect(ops.single.replayPolicy, OfflineReplayPolicy.manualAfterAmbiguous);
+      },
+    );
+
+    test(
+      'B2: stock.picking y wizard.envio tienen el campo pero l10n_ec.envases.operacion no existe (lanza) -> envío manualAfterAmbiguous',
+      () async {
+        stubFieldsGetFor(envasesEnvioModel, present: true);
+        stubFieldsGetFor('stock.picking', present: true);
+        when(
+          () => actions.call(
+            model: envasesOperacionModel,
+            method: 'fields_get',
+            ids: any(named: 'ids'),
+            kwargs: any(named: 'kwargs'),
+          ),
+        ).thenThrow(const OdooTimeoutException());
+        final durable = producer();
+        await durable.enviar(envio(uuid: 'uuid-b2'));
+
+        final queue = OfflineQueueDataSource(db.database);
+        final ops = await queue.getOperationsForModel(envasesEnvioModel);
+        expect(ops.single.replayPolicy, OfflineReplayPolicy.manualAfterAmbiguous);
+      },
+    );
+
+    test(
+      'C: wizard.envio y l10n_ec.envases.operacion tienen el campo -> envío retrySafe',
+      () async {
+        stubFieldsGetFor(envasesEnvioModel, present: true);
+        stubFieldsGetFor(envasesOperacionModel, present: true, probedField: 'uuid');
+        final durable = producer();
+        await durable.enviar(envio(uuid: 'uuid-c'));
+
+        final queue = OfflineQueueDataSource(db.database);
+        final ops = await queue.getOperationsForModel(envasesEnvioModel);
+        expect(ops.single.replayPolicy, OfflineReplayPolicy.retrySafe);
+      },
+    );
+
+    test(
+      'D: wizard.recepcion NO tiene el campo aunque envío, stock.picking y l10n_ec.envases.operacion sí -> recepción manualAfterAmbiguous, envío retrySafe',
+      () async {
+        stubFieldsGetFor(envasesEnvioModel, present: true);
+        stubFieldsGetFor(envasesRecepcionModel, present: false);
+        // Cebo: si la política siguiera memorizada en un solo campo
+        // compartido (el bug de hoy), el retrySafe del envío se le
+        // pegaría a la recepción sin volver a sondear su asistente.
+        stubFieldsGetFor('stock.picking', present: true);
+        stubFieldsGetFor(envasesOperacionModel, present: true, probedField: 'uuid');
+        final durable = producer();
+        await durable.enviar(envio(uuid: 'uuid-d1'));
+        await durable.recibir(
+          EnvasesRecibirCommand(
+            operacionUuid: 'uuid-d2',
+            pickingId: 55,
+            lineas: const [
+              EnvasesRecepcionLinea(productId: 5, llegaron: 3, danadas: 0),
+            ],
+          ),
+        );
+
+        final queue = OfflineQueueDataSource(db.database);
+        final opsEnvio = await queue.getOperationsForModel(envasesEnvioModel);
+        expect(opsEnvio.single.replayPolicy, OfflineReplayPolicy.retrySafe);
+        final opsRecepcion = await queue.getOperationsForModel(
+          envasesRecepcionModel,
+        );
+        expect(
+          opsRecepcion.single.replayPolicy,
+          OfflineReplayPolicy.manualAfterAmbiguous,
+        );
+      },
+    );
+
+    test(
+      'E: el sondeo lanza la primera vez y responde bien la segunda -> no se memoriza el fallo',
+      () async {
+        var callCount = 0;
+        when(
+          () => actions.call(
+            model: envasesEnvioModel,
+            method: 'fields_get',
+            ids: any(named: 'ids'),
+            kwargs: any(named: 'kwargs'),
+          ),
+        ).thenAnswer((_) async {
+          callCount++;
+          if (callCount == 1) {
+            throw const OdooTimeoutException();
+          }
+          return {'envases_operacion_uuid': {'type': 'char'}};
+        });
+        stubFieldsGetFor(envasesOperacionModel, present: true, probedField: 'uuid');
+        final durable = producer();
+
+        await durable.enviar(envio(uuid: 'uuid-e1'));
+        await durable.enviar(envio(uuid: 'uuid-e2'));
+
+        final queue = OfflineQueueDataSource(db.database);
+        final ops = await queue.getOperationsForModel(envasesEnvioModel);
+        final opE1 = ops.firstWhere(
+          (o) => o.operationKey == 'envases.envio:uuid-e1',
+        );
+        final opE2 = ops.firstWhere(
+          (o) => o.operationKey == 'envases.envio:uuid-e2',
+        );
+        expect(opE1.replayPolicy, OfflineReplayPolicy.manualAfterAmbiguous);
+        expect(opE2.replayPolicy, OfflineReplayPolicy.retrySafe);
+      },
+    );
   });
 }
