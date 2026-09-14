@@ -43,7 +43,7 @@ final class EnvasesOfflineOperationAdapter implements OfflineOperationAdapter {
     final uuid = operation.values['operacion_uuid'] as String;
     if (operation.model == envasesEnvioModel &&
         operation.method == envasesEnvioMethod) {
-      return _reconcileByUuid(uuid: uuid, preferPending: true);
+      return _reconcileByUuid(uuid: uuid);
     }
     if (operation.model == envasesRecepcionModel &&
         operation.method == envasesRecepcionMethod) {
@@ -83,70 +83,122 @@ final class EnvasesOfflineOperationAdapter implements OfflineOperationAdapter {
   // reconcile()
   // --------------------------------------------------------------------
 
-  /// Busca un `stock.picking` con este `envases_operacion_uuid`. Sólo se
-  /// alcanza cuando `replayPolicy == retrySafe`, es decir cuando el
-  /// productor ya confirmó (vía `fields_get`) que el campo existe — nunca
-  /// se arma un domain con un campo que el servidor no tiene.
-  Future<OperationReconciliation> _reconcileByUuid({
+  /// Fuente atómica de reconciliación (contrato confirmado 14-sep-2026, en
+  /// sesión con Odoo): la fila de `l10n_ec.envases.operacion` con este
+  /// `uuid` existe SI Y SOLO SI la operación se confirmó. Ya no se infiere
+  /// por el estado de un `stock.picking` — ese picking de salida queda
+  /// `done` al validarse (el envío es instantáneo), así que su estado no
+  /// dice nada sobre si la operación se aplicó.
+  ///
+  /// Si la fila existe con OTRO `tipo` del esperado, el mismo uuid lo usó
+  /// una operación distinta — Odoo ya la rechaza con un `UserError` al
+  /// `create`, así que esto sólo debería poder pasar por una carrera
+  /// rarísima o un bug de generación de uuid. `OperationReconciliation`
+  /// (`../sync/operations_sync_job.dart`) no tiene una variante pensada
+  /// para esto: la única de conflicto es `OperationConflict`, que exige un
+  /// `ConflictInfo` con fechas de escritura local/servidor — pensado para
+  /// el choque por `write_date` que resuelve la pantalla SYN-03 — y
+  /// forzarlo aquí dispararía el mensaje «el servidor cambió este
+  /// registro...», que es falso para este caso. Se deja como no aplicada,
+  /// con aviso a mano.
+  Future<OperationReconciliation> _reconcileEnvasesOperacion({
     required String uuid,
-    required bool preferPending,
+    required String tipoEsperado,
+    required Future<int?> Function() pickingId,
   }) async {
     final result = await actions.call(
-      model: 'stock.picking',
+      model: envasesOperacionModel,
       method: 'search_read',
       kwargs: {
         'domain': [
-          ['envases_operacion_uuid', '=', uuid],
+          ['uuid', '=', uuid],
         ],
-        'fields': ['id', 'state'],
-        'limit': 10,
+        'fields': ['tipo', 'picking_ids'],
+        'limit': 1,
       },
     );
     final rows = result is List ? result.whereType<Map>().toList() : const <Map>[];
     if (rows.isEmpty) return const OperationNotApplied();
-    final chosen = preferPending
-        ? rows.firstWhere(
-            (row) => row['state'] != 'done' && row['state'] != 'cancel',
-            orElse: () => rows.first,
-          )
-        : rows.first;
-    final pickingId = (chosen['id'] as num).toInt();
+    final tipo = rows.first['tipo'] as String?;
+    if (tipo != tipoEsperado) {
+      await store.markRevisarAMano(
+        database,
+        scopeKey: scope.scopeKey,
+        operationUuid: uuid,
+        mensaje:
+            'El identificador de esta operación ya lo usó otra operación '
+            'de tipo $tipo en Odoo.',
+      );
+      return const OperationNotApplied();
+    }
     await store.markEnviada(
       database,
       scopeKey: scope.scopeKey,
       operationUuid: uuid,
-      pickingId: pickingId,
+      pickingId: await pickingId(),
     );
     return const OperationApplied();
   }
 
-  /// La recepción ya conoce su `pickingId` de entrada (es «el recibido»):
-  /// sólo confirma que ESE picking quedó marcado con el uuid.
+  /// El `pickingId` de un envío aplicado es la RECEPCIÓN PENDIENTE que
+  /// generó, nunca el picking de salida (ese queda `done`). Se apoya en
+  /// `stock.picking.envases_envio_operacion_uuid` (el uuid del envío,
+  /// distinto de `envases_operacion_uuid` que llevaría una recepción
+  /// propia) — dominio confirmado por la sesión de Odoo del 14-sep-2026.
+  Future<OperationReconciliation> _reconcileByUuid({required String uuid}) {
+    return _reconcileEnvasesOperacion(
+      uuid: uuid,
+      tipoEsperado: 'envio',
+      pickingId: () => _buscarRecepcionPendiente(uuid),
+    );
+  }
+
+  /// El `pickingId` de una recepción ya se conoce de entrada (es «el
+  /// recibido»): a diferencia del envío, no hace falta ir a buscarlo. Y a
+  /// propósito ya NO se exige que ESE picking lleve el uuid — con
+  /// recepciones parciales/backorder ese picking concreto puede no
+  /// tenerlo aunque la operación sí se haya aplicado; la fuente de verdad
+  /// es la fila de `l10n_ec.envases.operacion`.
   Future<OperationReconciliation> _reconcileRecepcion({
     required String uuid,
     required int pickingId,
-  }) async {
-    final result = await actions.call(
-      model: 'stock.picking',
-      method: 'search_read',
-      kwargs: {
-        'domain': [
-          ['id', '=', pickingId],
-          ['envases_operacion_uuid', '=', uuid],
-        ],
-        'fields': ['id'],
-        'limit': 1,
-      },
+  }) {
+    return _reconcileEnvasesOperacion(
+      uuid: uuid,
+      tipoEsperado: 'recepcion',
+      pickingId: () async => pickingId,
     );
-    final rows = result is List ? result : const [];
-    if (rows.isEmpty) return const OperationNotApplied();
-    await store.markEnviada(
-      database,
-      scopeKey: scope.scopeKey,
-      operationUuid: uuid,
-      pickingId: pickingId,
-    );
-    return const OperationApplied();
+  }
+
+  /// Sólo informativo — nunca puede convertir un envío YA APLICADO en
+  /// fallido: si el sondeo lanza (red, timeout, lo que sea), se traga el
+  /// error y devuelve `null`. El próximo `reconcile()` con conexión ya
+  /// encontrará la recepción pendiente.
+  Future<int?> _buscarRecepcionPendiente(String uuid) async {
+    try {
+      final found = await actions.call(
+        model: 'stock.picking',
+        method: 'search_read',
+        kwargs: {
+          'domain': [
+            ['envases_envio_operacion_uuid', '=', uuid],
+            [
+              'state',
+              'in',
+              ['confirmed', 'waiting', 'assigned'],
+            ],
+          ],
+          'fields': ['id'],
+          'limit': 1,
+        },
+      );
+      if (found is List && found.isNotEmpty) {
+        return ((found.first as Map)['id'] as num).toInt();
+      }
+      return null;
+    } catch (_) {
+      return null;
+    }
   }
 
   /// «Dar por perdido» se reconcilia por ESTADO del picking, nunca por
@@ -238,28 +290,15 @@ final class EnvasesOfflineOperationAdapter implements OfflineOperationAdapter {
           method: 'action_enviar',
           ids: [wizardId],
         );
-        int? pickingId;
-        if (operation.replayPolicy == OfflineReplayPolicy.retrySafe) {
-          final found = await actions.call(
-            model: 'stock.picking',
-            method: 'search_read',
-            kwargs: {
-              'domain': [
-                ['envases_operacion_uuid', '=', uuid],
-                [
-                  'state',
-                  'in',
-                  ['confirmed', 'waiting', 'assigned'],
-                ],
-              ],
-              'fields': ['id'],
-              'limit': 1,
-            },
-          );
-          if (found is List && found.isNotEmpty) {
-            pickingId = ((found.first as Map)['id'] as num).toInt();
-          }
-        }
+        // Informativa y sólo con `retry_safe` (con `manual_after_ambiguous`
+        // el servidor puede ni tener `envases_envio_operacion_uuid`): busca
+        // la recepción pendiente que este envío generó. `_buscarRecepcionPendiente`
+        // nunca lanza — si falla, el envío se marca enviado igual, con
+        // `pickingId` null, porque `action_enviar` YA se aplicó y no hay
+        // vuelta atrás.
+        final pickingId = operation.replayPolicy == OfflineReplayPolicy.retrySafe
+            ? await _buscarRecepcionPendiente(uuid)
+            : null;
         await store.markEnviada(
           database,
           scopeKey: scope.scopeKey,

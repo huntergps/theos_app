@@ -258,8 +258,8 @@ void main() {
     });
   });
 
-  group('reconcile — envío', () {
-    test('encuentra el picking por uuid y no llama a create', () async {
+  group('reconcile — envío (14-sep-2026, contra l10n_ec.envases.operacion)', () {
+    test('R1: fila tipo=envio con recepción pendiente -> OperationApplied y markEnviada con esa recepción', () async {
       await seedLocalRow('uuid-envio-4');
       final operation = OfflineOperation(
         id: 1,
@@ -269,15 +269,41 @@ void main() {
         createdAt: DateTime.utc(2026, 9, 13),
         replayPolicy: OfflineReplayPolicy.retrySafe,
       );
-      when(anyCallStub).thenAnswer(
-        (_) async => [
-          {'id': 77, 'state': 'assigned'},
-        ],
-      );
+      when(anyCallStub).thenAnswer((invocation) async {
+        final model = invocation.namedArguments[#model];
+        if (model == envasesOperacionModel) {
+          return [
+            {
+              'tipo': 'envio',
+              'picking_ids': [200],
+            },
+          ];
+        }
+        if (model == 'stock.picking') {
+          return [
+            {'id': 77},
+          ];
+        }
+        return <Map<String, dynamic>>[];
+      });
 
       final result = await adapter.reconcile(operation);
 
       expect(result, isA<OperationApplied>());
+      verify(
+        () => actions.call(
+          model: envasesOperacionModel,
+          method: 'search_read',
+          ids: any(named: 'ids'),
+          kwargs: {
+            'domain': [
+              ['uuid', '=', 'uuid-envio-4'],
+            ],
+            'fields': ['tipo', 'picking_ids'],
+            'limit': 1,
+          },
+        ),
+      ).called(1);
       verifyNever(
         () => actions.call(
           model: any(named: 'model'),
@@ -295,7 +321,41 @@ void main() {
       expect(local.pickingId, 77);
     });
 
-    test('sin picking encontrado devuelve OperationNotApplied', () async {
+    test('R3: fila tipo=recepcion al reconciliar un envío -> NO aplicada, revisar a mano', () async {
+      await seedLocalRow('uuid-envio-conflicto');
+      final operation = OfflineOperation(
+        id: 1,
+        model: envasesEnvioModel,
+        method: envasesEnvioMethod,
+        values: {'operacion_uuid': 'uuid-envio-conflicto'},
+        createdAt: DateTime.utc(2026, 9, 13),
+        replayPolicy: OfflineReplayPolicy.retrySafe,
+      );
+      when(anyCallStub).thenAnswer(
+        (_) async => [
+          {
+            'tipo': 'recepcion',
+            'picking_ids': [55],
+          },
+        ],
+      );
+
+      final result = await adapter.reconcile(operation);
+
+      expect(result, isA<OperationNotApplied>());
+      final local = await store.getByUuid(
+        db,
+        scopeKey: scope.scopeKey,
+        operationUuid: 'uuid-envio-conflicto',
+      );
+      expect(local!.estado, EnvasesOperacionEstado.revisarAMano);
+      expect(
+        local.mensajeOdoo,
+        'El identificador de esta operación ya lo usó otra operación de tipo recepcion en Odoo.',
+      );
+    });
+
+    test('R4: sin fila en l10n_ec.envases.operacion -> OperationNotApplied', () async {
       await seedLocalRow('uuid-envio-5');
       final operation = OfflineOperation(
         id: 1,
@@ -310,6 +370,165 @@ void main() {
       final result = await adapter.reconcile(operation);
 
       expect(result, isA<OperationNotApplied>());
+    });
+
+    test('R5: retry_safe guarda la recepción pendiente (envases_envio_operacion_uuid) como pickingId', () async {
+      await seedLocalRow('uuid-envio-r5');
+      final operation = OfflineOperation(
+        id: 1,
+        model: envasesEnvioModel,
+        method: envasesEnvioMethod,
+        values: {
+          'operacion_uuid': 'uuid-envio-r5',
+          'origen_id': 10,
+          'destino_id': 20,
+          'fecha_salida': DateTime.utc(2026, 9, 13, 8).toIso8601String(),
+          'responsable_id': 7,
+          'lineas': [
+            {'product_id': 5, 'cantidad': 3.0},
+          ],
+        },
+        createdAt: DateTime.utc(2026, 9, 13),
+        replayPolicy: OfflineReplayPolicy.retrySafe,
+      );
+      when(anyCallStub).thenAnswer((invocation) async {
+        final method = invocation.namedArguments[#method];
+        if (method == 'create') return 44;
+        if (method == 'search_read') {
+          return [
+            {'id': 77},
+          ];
+        }
+        return {'type': 'ir.actions.act_window_close'};
+      });
+
+      final conflict = await adapter.dispatch(operation);
+
+      expect(conflict, isNull);
+      verify(
+        () => actions.call(
+          model: 'stock.picking',
+          method: 'search_read',
+          ids: any(named: 'ids'),
+          kwargs: {
+            'domain': [
+              ['envases_envio_operacion_uuid', '=', 'uuid-envio-r5'],
+              [
+                'state',
+                'in',
+                ['confirmed', 'waiting', 'assigned'],
+              ],
+            ],
+            'fields': ['id'],
+            'limit': 1,
+          },
+        ),
+      ).called(1);
+      final local = await store.getByUuid(
+        db,
+        scopeKey: scope.scopeKey,
+        operationUuid: 'uuid-envio-r5',
+      );
+      expect(local!.estado, EnvasesOperacionEstado.enviada);
+      expect(local.pickingId, 77);
+    });
+
+    test('R6: si la búsqueda de recepción pendiente lanza, el envío igual se marca enviado con pickingId null', () async {
+      await seedLocalRow('uuid-envio-r6');
+      final operation = OfflineOperation(
+        id: 1,
+        model: envasesEnvioModel,
+        method: envasesEnvioMethod,
+        values: {
+          'operacion_uuid': 'uuid-envio-r6',
+          'origen_id': 10,
+          'destino_id': 20,
+          'fecha_salida': DateTime.utc(2026, 9, 13, 8).toIso8601String(),
+          'responsable_id': 7,
+          'lineas': [
+            {'product_id': 5, 'cantidad': 3.0},
+          ],
+        },
+        createdAt: DateTime.utc(2026, 9, 13),
+        replayPolicy: OfflineReplayPolicy.retrySafe,
+      );
+      when(anyCallStub).thenAnswer((invocation) async {
+        final method = invocation.namedArguments[#method];
+        if (method == 'create') return 45;
+        if (method == 'search_read') {
+          throw const OdooTimeoutException();
+        }
+        return {'type': 'ir.actions.act_window_close'};
+      });
+
+      final conflict = await adapter.dispatch(operation);
+
+      expect(conflict, isNull);
+      final local = await store.getByUuid(
+        db,
+        scopeKey: scope.scopeKey,
+        operationUuid: 'uuid-envio-r6',
+      );
+      expect(local!.estado, EnvasesOperacionEstado.enviada);
+      expect(local.pickingId, isNull);
+    });
+  });
+
+  group('reconcile — recepción (14-sep-2026, contra l10n_ec.envases.operacion)', () {
+    test('R2: fila tipo=recepcion aplica aunque el picking de entrada no tenga el uuid (backorder)', () async {
+      await seedLocalRow('uuid-recepcion-r2', tipo: 'recepcion', pickingId: 88);
+      final operation = OfflineOperation(
+        id: 1,
+        model: envasesRecepcionModel,
+        method: envasesRecepcionMethod,
+        recordId: 88,
+        values: {'operacion_uuid': 'uuid-recepcion-r2', 'picking_id': 88},
+        createdAt: DateTime.utc(2026, 9, 13),
+        replayPolicy: OfflineReplayPolicy.retrySafe,
+      );
+      when(anyCallStub).thenAnswer(
+        (_) async => [
+          {
+            'tipo': 'recepcion',
+            'picking_ids': [88],
+          },
+        ],
+      );
+
+      final result = await adapter.reconcile(operation);
+
+      expect(result, isA<OperationApplied>());
+      verify(
+        () => actions.call(
+          model: envasesOperacionModel,
+          method: 'search_read',
+          ids: any(named: 'ids'),
+          kwargs: {
+            'domain': [
+              ['uuid', '=', 'uuid-recepcion-r2'],
+            ],
+            'fields': ['tipo', 'picking_ids'],
+            'limit': 1,
+          },
+        ),
+      ).called(1);
+      // El pickingId de una recepción ya se conoce de entrada: no hace
+      // falta ir a buscarlo a stock.picking.
+      verifyNever(
+        () => actions.call(
+          model: 'stock.picking',
+          method: any(named: 'method'),
+          ids: any(named: 'ids'),
+          kwargs: any(named: 'kwargs'),
+        ),
+      );
+      final local = await store.getByUuid(
+        db,
+        scopeKey: scope.scopeKey,
+        operationUuid: 'uuid-recepcion-r2',
+      );
+      expect(local!.estado, EnvasesOperacionEstado.enviada);
+      expect(local.pickingId, 88);
     });
   });
 
