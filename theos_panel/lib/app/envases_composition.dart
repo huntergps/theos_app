@@ -1,16 +1,33 @@
-import 'dart:async';
-
 import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:orbi_runtime/orbi_runtime.dart';
 
 import '../features/auth/auth_controller.dart';
-import '../features/envases/envases_dashboard_screen.dart';
+import '../features/envases/envases_existencias_contracts.dart';
+import '../features/envases/envases_existencias_screen.dart';
 import 'notification_scope_adapter.dart';
 import 'session_composition.dart';
 
-final envasesDashboardControllerProvider =
-    Provider.autoDispose<EnvasesDashboardController?>((ref) {
+/// ENV-01 (Existencias de envases) composition: the screen never touches
+/// `RuntimeDatabaseOwner`, `EnvasesExistenciasCache` or an `OdooClient`
+/// itself, same boundary discipline as every other scoped screen wired
+/// through this package (see `warehouse_existences_composition.dart`, the
+/// closest sibling — the cache backing this provider is deliberately shaped
+/// like `StockQuantCache`).
+///
+/// `readerFactory` is a factory, not a stored reader: a fresh reader must be
+/// built for every refresh, so the cache always rejects one captured before
+/// a session/company change, and the client can legitimately be absent
+/// (offline) at refresh time — `refresh()` then fails explicitly and the
+/// screen surfaces that as its own retryable error state, never a silent
+/// `reader = null`.
+///
+/// A `null` result means "nothing to show yet" (no active session, no
+/// resolved company, or the `envases_read` permission is absent) — the
+/// route renders [NotConfiguredPage] in that case rather than a broken
+/// screen.
+final envasesExistenciasRepositoryProvider =
+    Provider.autoDispose<EnvasesExistenciasRepository?>((ref) {
       final runtime = ref.watch(runtimeSessionProvider);
       final capabilities = ref.watch(capabilitySnapshotProvider);
       final active = runtime?.active;
@@ -28,99 +45,47 @@ final envasesDashboardControllerProvider =
         allowedCompanyIds: [capabilities.companyId],
         capabilityRevision: capabilities.revision,
       );
-      final client = active.client;
-      final reader = client == null
-          ? null
-          : EnvasesDashboardReader.fromClient(client: client, company: company);
-      final controller = EnvasesDashboardController(
-        cache: EnvasesDashboardCache(
+      return RuntimeEnvasesExistenciasRepository(
+        cache: EnvasesExistenciasCache(
           owner: runtime.databaseOwner,
           lease: active.lease,
           company: company,
         ),
-        reader: reader,
+        readerFactory: () {
+          final client = runtime.active?.client;
+          if (client == null) {
+            throw StateError(
+              'No hay conexión activa para actualizar existencias de envases',
+            );
+          }
+          return EnvasesExistenciasReader.fromClient(
+            client: client,
+            company: company,
+          );
+        },
       );
-      ref.onDispose(controller.dispose);
-      return controller;
     });
 
-final class EnvasesDashboardController {
-  EnvasesDashboardController({required this.cache, required this.reader});
-
-  final EnvasesDashboardCache cache;
-  final EnvasesDashboardReader? reader;
-  final _refreshErrors = StreamController<(Object, StackTrace)>.broadcast();
-  late final Stream<EnvasesDashboardSnapshot?> _snapshots = Stream.multi((
-    controller,
-  ) {
-    if (_disposed) {
-      controller.close();
-      return;
-    }
-    final cacheSubscription = cache.watch().listen(
-      controller.add,
-      onError: controller.addError,
-      onDone: controller.close,
-    );
-    final errorSubscription = _refreshErrors.stream.listen(
-      (error) => controller.addError(error.$1, error.$2),
-    );
-    controller.onCancel = () async {
-      await cacheSubscription.cancel();
-      await errorSubscription.cancel();
-    };
-  });
-  bool _disposed = false;
-  bool _refreshing = false;
-
-  Stream<EnvasesDashboardSnapshot?> get snapshots => _snapshots;
-  bool get canRefresh => !_disposed && reader != null;
-  bool get refreshing => _refreshing;
-
-  Future<void> refresh() async {
-    if (!canRefresh || _refreshing) return;
-    _refreshing = true;
-    try {
-      await cache.refresh(reader!);
-    } catch (error, stack) {
-      if (!_disposed) {
-        // The error itself is retained for each active subscriber; cache.watch
-        // remains authoritative for the last good snapshot.
-        _refreshErrors.add((error, stack));
-      }
-    } finally {
-      _refreshing = false;
-    }
-  }
-
-  Future<void> dispose() async {
-    if (_disposed) return;
-    _disposed = true;
-    await _refreshErrors.close();
-  }
-}
-
 /// Composition route: capability/session absence is explicit, while the
-/// dashboard itself remains a read-only cached screen.
-final class EnvasesDashboardRoute extends ConsumerWidget {
-  const EnvasesDashboardRoute({super.key});
+/// screen itself remains a read-only cached surface.
+final class EnvasesExistenciasRoute extends ConsumerWidget {
+  const EnvasesExistenciasRoute({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final controller = ref.watch(envasesDashboardControllerProvider);
-    if (controller == null) {
+    final repository = ref.watch(envasesExistenciasRepositoryProvider);
+    if (repository == null) {
       return const NotConfiguredPage(
         title: 'Envases',
-        detail: 'No tienes permiso para consultar el dashboard de envases.',
+        detail: 'No tienes permiso para consultar existencias de envases.',
       );
     }
     final active = ref.watch(runtimeSessionProvider)?.active;
-    return EnvasesDashboardScreen(
+    return EnvasesExistenciasScreen(
       key: ValueKey(
         '${active?.scope.scopeKey}:${active?.lease.generation}:${ref.read(capabilitySnapshotProvider)?.companyId}',
       ),
-      snapshots: controller.snapshots,
-      onRefresh: controller.canRefresh ? controller.refresh : null,
+      repository: repository,
     );
   }
 }

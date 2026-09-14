@@ -98,7 +98,7 @@ final class _LocalWorkflowAuth implements AuthServicePort {
       userId: 7,
     );
     final active = await runtime.activate(scope);
-    await seedLocalEnvasesDashboard(runtime: runtime, scope: scope);
+    await seedLocalEnvasesExistencias(runtime: runtime, scope: scope);
     final catalogs = await seedLocalSaleCatalogs(
       runtime: runtime,
       scope: scope,

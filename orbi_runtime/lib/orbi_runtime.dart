@@ -3,8 +3,14 @@ export 'src/account/user_presence.dart';
 export 'src/account/user_preferences.dart';
 export 'src/sales/editable_draft_store.dart';
 export 'src/envases/envases_dashboard_reader.dart';
-export 'src/envases/envases_dashboard_cache.dart';
+export 'src/envases/envases_existencias_reader.dart';
+export 'src/envases/envases_existencias_cache.dart';
+export 'src/envases/envases_operations.dart';
 export 'src/envases/envases_partner_balance_reader.dart';
+export 'src/envases/envases_por_recibir_reader.dart';
+export 'src/envases/envases_por_recibir_cache.dart';
+export 'src/envases/envases_movimientos_reader.dart';
+export 'src/envases/envases_movimientos_cache.dart';
 export 'src/auth/credential_store.dart';
 export 'src/auth/encrypted_credential_envelope.dart' show Argon2Cost;
 export 'src/auth/encrypted_file_credential_backend.dart';
@@ -46,6 +52,7 @@ export 'package:theos_pos_core/theos_pos_core.dart'
 export 'src/sync/catalog_sync.dart';
 export 'src/read/json2_read_adapters.dart';
 export 'src/read/local_catalog_adapters.dart';
+export 'src/read/runtime_catalog_availability.dart';
 export 'src/read/runtime_catalog_composition.dart';
 export 'src/read/runtime_metadata_store.dart';
 export 'src/read/runtime_order_reader.dart';
@@ -69,7 +76,12 @@ export 'package:odoo_sdk/odoo_sdk.dart'
         OfflineQueueStore,
         OfflineReplayPolicy,
         OdooAuthenticationException,
-        OdooAccessDeniedException;
+        OdooAccessDeniedException,
+        OdooCapabilityState,
+        OdooConnectionException,
+        OdooFieldNotFoundException,
+        OdooNotFoundException,
+        OdooServerException;
 export 'package:drift/drift.dart' show Value;
 
 // Domain capability type intentionally crosses the runtime boundary so UI

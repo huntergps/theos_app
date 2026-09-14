@@ -163,10 +163,12 @@ final class _LocalCatalogReader implements Json2ReadPort {
   }) async => const [];
 }
 
-/// Seeds the real Envases cache with deterministic, clearly fictitious data.
-/// The reader still exercises the runtime's DTO validation and atomic cache
-/// write path; its transport is completed locally and never contacts Odoo.
-Future<void> seedLocalEnvasesDashboard({
+/// Seeds the real Existencias cache with deterministic, clearly fictitious
+/// data — generic site labels, never a real place name, since this shape
+/// mirrors what `datos()` decides in production. The reader still exercises
+/// the runtime's DTO validation and atomic cache write path; its transport
+/// is completed locally and never contacts Odoo.
+Future<void> seedLocalEnvasesExistencias({
   required SessionRuntime runtime,
   required AppScope scope,
 }) async {
@@ -180,48 +182,57 @@ Future<void> seedLocalEnvasesDashboard({
     allowedCompanyIds: const [1],
     capabilityRevision: 1,
   );
-  final reader = EnvasesDashboardReader(
+  final reader = EnvasesExistenciasReader(
     company: company,
-    pageSize: 100,
     transport:
         ({
           required String model,
-          required List<dynamic> domain,
-          required List<String> fields,
+          required String method,
+          required Map<String, dynamic> kwargs,
           required Map<String, dynamic> context,
-          required int limit,
-          required int offset,
-          required String order,
-        }) async => [
-          {
-            'id': 1001,
-            'product_id': [501, 'Botella retornable 600 ml demo'],
-            'uom_id': [1, 'Unidad'],
-            'company_id': [1, 'Empresa local'],
-            'total_propio': 480.0,
-            // The panel renders danados as a separate role; total_propio
-            // already includes it and must not be recomputed by the UI.
-            'en_sede': 320.0,
-            'danados': 4.0,
-            'en_custodia_cliente': 120.0,
-            'en_custodia_proveedor': 12.0,
-            'en_transito': 24.0,
-          },
-          {
-            'id': 1002,
-            'product_id': [502, 'Botella retornable 330 ml demo'],
-            'uom_id': [2, 'Unidad'],
-            'company_id': [1, 'Empresa local'],
-            'total_propio': 240.0,
-            'en_sede': 178.0,
-            'danados': 2.0,
-            'en_custodia_cliente': 36.0,
-            'en_custodia_proveedor': 12.0,
-            'en_transito': 12.0,
-          },
-        ],
+        }) async => {
+          'columnas': [
+            {
+              'id': 'sede-1',
+              'nombre': 'Sede A demo',
+              'location_id': 101,
+              'tipo': 'sede',
+            },
+            {
+              'id': 'sede-2',
+              'nombre': 'Sede B demo',
+              'location_id': 102,
+              'tipo': 'sede',
+            },
+            {
+              'id': 'transito-1-2',
+              'nombre': 'Sede A demo → Sede B demo',
+              'location_id': 103,
+              'tipo': 'transito',
+            },
+          ],
+          'filas': [
+            {
+              'id': 501,
+              'nombre': 'Botella retornable 600 ml demo',
+              'uom': 'Unidad',
+              'celdas': {'sede-1': 320.0, 'sede-2': 136.0, 'transito-1-2': 24.0},
+              'total': 480.0,
+            },
+            {
+              'id': 502,
+              'nombre': 'Botella retornable 330 ml demo',
+              'uom': 'Unidad',
+              'celdas': {'sede-1': 178.0, 'sede-2': 50.0, 'transito-1-2': 12.0},
+              'total': 240.0,
+            },
+          ],
+          'totales_columna': {'sede-1': 498.0, 'sede-2': 186.0, 'transito-1-2': 36.0},
+          'total_general': 720.0,
+          'pendientes': 2,
+        },
   );
-  final cache = EnvasesDashboardCache(
+  final cache = EnvasesExistenciasCache(
     owner: runtime.databaseOwner,
     lease: active.lease,
     company: company,

@@ -37,4 +37,23 @@ void main() {
       isFalse,
     );
   });
+
+  test('grants Envases manage only to the manager group', () {
+    expect(
+      OdooCapabilityReader.hasEnvasesManage(const [
+        OdooCapabilityReader.envasesManagerGroup,
+      ]),
+      isTrue,
+    );
+  });
+
+  test('does not grant Envases manage to the plain user group', () {
+    expect(
+      OdooCapabilityReader.hasEnvasesManage(const [
+        OdooCapabilityReader.envasesUserGroup,
+      ]),
+      isFalse,
+    );
+    expect(OdooCapabilityReader.hasEnvasesManage(const []), isFalse);
+  });
 }

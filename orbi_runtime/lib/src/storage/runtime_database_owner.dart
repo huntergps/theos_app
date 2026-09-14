@@ -71,6 +71,44 @@ final class RuntimeDatabaseOwner {
           PRIMARY KEY (scope_key, company_id)
         )
       ''');
+      // Read cache only: Odoo remains the authority for envases in transit.
+      // Same shape and reasoning as orbi_envases_dashboard_cache above.
+      await database.customStatement('''
+        CREATE TABLE IF NOT EXISTS orbi_envases_por_recibir_cache (
+          scope_key TEXT NOT NULL,
+          company_id INTEGER NOT NULL CHECK (company_id > 0),
+          payload TEXT NOT NULL,
+          cached_at TEXT NOT NULL,
+          PRIMARY KEY (scope_key, company_id)
+        )
+      ''');
+      // Read cache only: Odoo remains the authority for envases movement
+      // history. Same shape and reasoning as orbi_envases_dashboard_cache
+      // above; caches the default (no desde/hasta) window — the screen's
+      // date filter narrows these rows client-side while offline.
+      await database.customStatement('''
+        CREATE TABLE IF NOT EXISTS orbi_envases_movimientos_cache (
+          scope_key TEXT NOT NULL,
+          company_id INTEGER NOT NULL CHECK (company_id > 0),
+          payload TEXT NOT NULL,
+          cached_at TEXT NOT NULL,
+          PRIMARY KEY (scope_key, company_id)
+        )
+      ''');
+      // Read cache only: Odoo remains the authority for the Existencias
+      // grid (`l10n_ec.envases.existencias.datos()`). Same shape and
+      // reasoning as orbi_envases_dashboard_cache above; replaces it as the
+      // Existencias screen's backing table since the retired
+      // `l10n_ec.envases.panel` model no longer exists in Odoo.
+      await database.customStatement('''
+        CREATE TABLE IF NOT EXISTS orbi_envases_existencias_cache (
+          scope_key TEXT NOT NULL,
+          company_id INTEGER NOT NULL CHECK (company_id > 0),
+          payload TEXT NOT NULL,
+          cached_at TEXT NOT NULL,
+          PRIMARY KEY (scope_key, company_id)
+        )
+      ''');
     } catch (_) {
       await database.close();
       rethrow;

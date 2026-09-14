@@ -17,6 +17,12 @@ final class OdooCapabilityReader {
       effectiveExternalIds.contains(envasesUserGroup) ||
       effectiveExternalIds.contains(envasesManagerGroup);
 
+  /// Management-only Envases actions (e.g. "dar por perdido") require the
+  /// manager group specifically — `group_envases_user` alone must not grant
+  /// this, unlike `hasEnvasesRead` which accepts either group.
+  static bool hasEnvasesManage(Iterable<String> effectiveExternalIds) =>
+      effectiveExternalIds.contains(envasesManagerGroup);
+
   /// "Supervisor de Caja" — `l10n_ec_collection_box.group_collection_manager`
   /// (`l10n_ec_collection_box/security/collection_box_groups.xml:96-101`).
   /// `CapabilityProvisioner.materialize` (theos_pos_core) already folds this
@@ -84,6 +90,7 @@ final class OdooCapabilityReader {
     );
     final extra = <String>{
       if (hasEnvasesRead(effectiveXmlIds)) 'envases_read',
+      if (hasEnvasesManage(effectiveXmlIds)) 'envases_manage',
       if (hasCollectionSupervisor(effectiveXmlIds)) 'collection_supervisor',
     };
     if (extra.isEmpty) return snapshot;

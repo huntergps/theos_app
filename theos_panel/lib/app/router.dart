@@ -1282,7 +1282,7 @@ final orbiRouterProvider = Provider<GoRouter>((ref) {
                         group: 'Bodega',
                       ),
                       const OperationalDestination(
-                        label: 'Dashboard',
+                        label: 'Existencias',
                         path: '/envases',
                         icon: FluentIcons.delivery_truck,
                         group: 'Envases',
@@ -1890,7 +1890,7 @@ final orbiRouterProvider = Provider<GoRouter>((ref) {
           ),
           GoRoute(
             path: '/envases',
-            builder: (context, state) => const EnvasesDashboardRoute(),
+            builder: (context, state) => const EnvasesExistenciasRoute(),
           ),
           GoRoute(
             path: '/warehouse',
