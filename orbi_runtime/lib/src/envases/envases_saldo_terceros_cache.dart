@@ -245,7 +245,10 @@ final class EnvasesSaldoTercerosCache {
     'location_id': [row.locationId, row.locationName],
     'warehouse_id': [row.warehouseId, row.warehouseName],
     'envases_rol': row.role,
-    'partner_id': [row.partnerId, row.partnerName],
+    // `false`, no `null`: mismo cableado que Odoo manda por el JSON-2, así
+    // `EnvasesPartnerBalanceRow.fromJson` lo decodifica con la misma regla
+    // que un `partner_id` vacío recién llegado del servidor.
+    'partner_id': row.partnerId == null ? false : [row.partnerId, row.partnerName],
     'product_id': [row.productId, row.productName],
     'company_id': [row.companyId, ''],
     'cantidad': row.quantity,

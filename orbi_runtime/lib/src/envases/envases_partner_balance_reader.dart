@@ -153,7 +153,10 @@ final class EnvasesPartnerBalanceRow {
   factory EnvasesPartnerBalanceRow.fromJson(Map<String, dynamic> json) {
     final location = _many2one(json, 'location_id');
     final warehouse = _many2one(json, 'warehouse_id');
-    final partner = _many2one(json, 'partner_id');
+    // `partner_id` PUEDE llegar en `false` (`CONTRATO_PARA_ORBI.md`, sección
+    // 3): no es un error del contrato, así que no se descarta la fila — se
+    // conserva con tercero nulo y la pantalla la agrupa aparte.
+    final partner = _many2oneOrNull(json, 'partner_id');
     final product = _many2one(json, 'product_id');
     return EnvasesPartnerBalanceRow(
       id: _positive(json, 'id'),
@@ -162,8 +165,8 @@ final class EnvasesPartnerBalanceRow {
       warehouseId: warehouse.$1,
       warehouseName: warehouse.$2,
       role: _role(json['envases_rol']),
-      partnerId: partner.$1,
-      partnerName: partner.$2,
+      partnerId: partner?.$1,
+      partnerName: partner?.$2,
       productId: product.$1,
       productName: product.$2,
       companyId: _many2oneId(json, 'company_id'),
@@ -177,12 +180,20 @@ final class EnvasesPartnerBalanceRow {
   final int warehouseId;
   final String warehouseName;
   final String role;
-  final int partnerId;
-  final String partnerName;
+  final int? partnerId;
+  final String? partnerName;
   final int productId;
   final String productName;
   final int companyId;
   final double quantity;
+
+  /// Etiqueta para agrupar/mostrar en pantalla cuando Odoo no asignó
+  /// tercero a esta fila (`partner_id` en `false`). Se centraliza aquí para
+  /// que el filtro, la agrupación y la tabla usen exactamente el mismo
+  /// texto.
+  static const sinTercero = 'Sin tercero identificado';
+
+  String get partnerLabel => partnerId == null ? sinTercero : (partnerName ?? '');
 }
 
 /// Odoo's JSON-2 wire format for a many2one is `[id, display_name]` — the
@@ -197,6 +208,15 @@ final class EnvasesPartnerBalanceRow {
     return (value[0] as int, value[1] is String ? value[1] as String : '');
   }
   throw FormatException('Invalid many2one field: $key');
+}
+
+/// Mismo patrón que `_many2oneOrNull` en `envases_movimientos_reader.dart`:
+/// `false` o `null` en el JSON de Odoo significa «sin valor», no un error de
+/// formato.
+(int, String)? _many2oneOrNull(Map<String, dynamic> json, String key) {
+  final value = json[key];
+  if (value == null || value == false) return null;
+  return _many2one(json, key);
 }
 
 int _many2oneId(Map<String, dynamic> json, String key) {

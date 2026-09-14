@@ -97,7 +97,7 @@ class _EnvasesSaldoTercerosScreenState
     return rows
         .where(
           (row) =>
-              row.partnerName.toLowerCase().contains(_query) ||
+              row.partnerLabel.toLowerCase().contains(_query) ||
               row.productName.toLowerCase().contains(_query) ||
               row.warehouseName.toLowerCase().contains(_query),
         )
@@ -205,7 +205,7 @@ class _EnvasesSaldoTercerosScreenState
           OrbiColumn(
             key: 'tercero',
             label: 'Tercero',
-            value: (row) => row.partnerName,
+            value: (row) => row.partnerLabel,
             alwaysVisible: true,
           ),
           OrbiColumn(
@@ -241,7 +241,7 @@ class _EnvasesSaldoTercerosScreenState
   ) {
     final grouped = <String, List<EnvasesPartnerBalanceRow>>{};
     for (final row in rows) {
-      grouped.putIfAbsent(row.partnerName, () => []).add(row);
+      grouped.putIfAbsent(row.partnerLabel, () => []).add(row);
     }
     final terceros = grouped.keys.toList()..sort();
     final theme = FluentTheme.of(context);

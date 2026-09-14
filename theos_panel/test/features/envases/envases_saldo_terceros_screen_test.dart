@@ -83,6 +83,40 @@ void main() {
     expect(find.textContaining('custodia_proveedor'), findsNothing);
   });
 
+  testWidgets(
+    'groups a row with no partner under "Sin tercero identificado" instead of hiding it',
+    (tester) async {
+      final controller = StreamController<EnvasesSaldoTercerosSnapshot?>();
+      addTearDown(controller.close);
+      await tester.pumpWidget(_host(controller.stream));
+      controller.add(
+        EnvasesSaldoTercerosSnapshot(
+          rows: [
+            EnvasesPartnerBalanceRow(
+              id: 3,
+              locationId: 8,
+              locationName: 'Custodia clientes',
+              warehouseId: 3,
+              warehouseName: 'Guayaquil',
+              role: 'custodia_cliente',
+              partnerId: null,
+              partnerName: null,
+              productId: 10,
+              productName: 'Jaba 12',
+              companyId: 1,
+              quantity: 2,
+            ),
+          ],
+          cachedAt: DateTime.utc(2026, 9, 14),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('Sin tercero identificado'), findsOneWidget);
+      expect(find.text('Jaba 12'), findsOneWidget);
+    },
+  );
+
   testWidgets('shows a clear empty state with zero rows', (tester) async {
     final controller = StreamController<EnvasesSaldoTercerosSnapshot?>();
     addTearDown(controller.close);

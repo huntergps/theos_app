@@ -118,6 +118,35 @@ void main() {
     );
     expect(reader.readPage, throwsFormatException);
   });
+  test(
+    'partner_id en false no descarta la fila: llega con tercero nulo, junto a las demás',
+    () async {
+      final reader = EnvasesPartnerBalanceReader(
+        company: company(4),
+        transport:
+            ({
+              required model,
+              required domain,
+              required fields,
+              required context,
+              required limit,
+              required offset,
+              required order,
+            }) async => [
+              {...row(), 'id': 1, 'partner_id': false},
+              {...row(), 'id': 2},
+            ],
+      );
+
+      final result = await reader.readPage();
+
+      expect(result, hasLength(2));
+      expect(result[0].partnerId, isNull);
+      expect(result[0].partnerName, isNull);
+      expect(result[1].partnerId, 20);
+      expect(result[1].partnerName, 'Cliente');
+    },
+  );
   test('does not use quant partner grouping', () {
     expect(
       EnvasesPartnerBalanceReader.fields,
