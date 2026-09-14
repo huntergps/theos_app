@@ -12,6 +12,12 @@ class _Backend implements CredentialBackend, InstallationIdBackend {
   /// bookkeeping — the same backend, a different key — keeps working.
   bool failCredentialWrite = false;
 
+  /// Simulates a delete that never reaches the backend (offline, disk full,
+  /// permission revoked mid-session) — used to prove an orphaned key is
+  /// never offered as "remembered" just because `close()` could not scrub
+  /// it (security review, 14-sep-2026).
+  bool failCredentialDelete = false;
+
   @override
   Future<void> write(String key, String value) async {
     if (failCredentialWrite && !key.startsWith('orbi/installation/')) {
@@ -23,7 +29,10 @@ class _Backend implements CredentialBackend, InstallationIdBackend {
   @override
   Future<String?> read(String key) async => values[key];
   @override
-  Future<void> delete(String key) async => values.remove(key);
+  Future<void> delete(String key) async {
+    if (failCredentialDelete) throw StateError('delete failed');
+    values.remove(key);
+  }
 }
 
 class _Runtime implements SessionRuntimePort {
@@ -464,6 +473,135 @@ void main() {
         expect(r2.lastActivateApiKey, isNull);
       },
     );
+  });
+
+  // --- Segunda revisión (14-sep-2026, dos huecos de seguridad hallados
+  // sobre 2a5c3f6): «recordada» dejó de deducirse de la marca de sesión
+  // abierta — que sólo identifica UNA sesión por instalación y que `close()`
+  // podía borrar antes que la llave, dejando una llave huérfana sin marca
+  // que se ofrecía como si estuviera guardada — y pasó a vivir en una
+  // bandera persistente POR CREDENCIAL (servidor+base+userId), separada de
+  // la marca. La marca también pasó a identificar la sesión por sus tres
+  // campos explícitos, nunca por un `profileKey` de sólo servidor+base, para
+  // que la sesión abierta de un usuario nunca opine sobre la credencial
+  // guardada de otro en la misma base. -----------------------------------
+  group('recorded credential is independent from the open session '
+      '(security review, 14-sep-2026)', () {
+    test(
+      'orphan non-remembered key is never offered, even when close() '
+      'cannot scrub it from the backend',
+      () async {
+        final b = _Backend()..failCredentialDelete = true;
+        final r = _Runtime();
+        final i = _Identity();
+        final s = await service(b, r, i);
+        final result = await s.login(
+          serverUrl: 'https://erp.test',
+          database: 'db',
+          login: 'u',
+          password: 'p',
+          persistCredential: false,
+        );
+
+        // close() tries to delete the orphaned key and fails — the secret
+        // is still physically in the backend afterwards.
+        await s.close();
+        expect(b.values.values, contains('secret'));
+
+        // It must still never be offered: the "remembered" flag was never
+        // set for this login in the first place, independent of whatever
+        // physically survives in the backend.
+        expect(await s.hasStoredCredential(result.profile!), isFalse);
+      },
+    );
+
+    test(
+      "another user's open session does not hide a remembered key on the "
+      'same database',
+      () async {
+        final b = _Backend(), r = _Runtime();
+        final i = _Identity();
+        final s = await service(b, r, i, (client) async {
+          return client.apiKey == 'secret-b'
+              ? (userId: 22, login: 'userB')
+              : (userId: 11, login: 'userA');
+        });
+
+        final resultB = await s.loginWithApiKey(
+          serverUrl: 'https://erp.test',
+          database: 'db',
+          login: 'userB',
+          apiKey: 'secret-b',
+        );
+        await s.close();
+
+        // userA logs in without "Guardar clave" on the SAME server+database
+        // and leaves the session open (never closes it).
+        await s.loginWithApiKey(
+          serverUrl: 'https://erp.test',
+          database: 'db',
+          login: 'userA',
+          apiKey: 'secret-a',
+          persistCredential: false,
+        );
+
+        expect(await s.hasStoredCredential(resultB.profile!), isTrue);
+      },
+    );
+
+    test('legacy remembered key survives the upgrade', () async {
+      final b = _Backend();
+      final i = _Identity();
+      final (legacy, prefs) = await openSession(b, i, _Runtime());
+      final loggedIn = await legacy.login(
+        serverUrl: 'https://erp.test',
+        database: 'db',
+        login: 'u',
+        password: 'p',
+      );
+      final profile = loggedIn.profile!;
+
+      // Strip everything this security review adds, to reproduce exactly
+      // what an installation upgrading from the previously published
+      // version has: a profile and its secret, no "remembered" flag, no
+      // open-session marker, no migration guard.
+      for (final key in Set<String>.from(prefs.getKeys())) {
+        if (key.startsWith('orbi/auth/remembered/') ||
+            key.startsWith('orbi/auth/open_session/') ||
+            key.startsWith('orbi/auth/remembered_migration/')) {
+          await prefs.remove(key);
+        }
+      }
+
+      // A fresh service instance = the app reopening after the upgrade.
+      final reopened = reopen(b, prefs, i, _Runtime());
+      expect(await reopened.hasStoredCredential(profile), isTrue);
+    });
+
+    test('login without remember un-remembers a previous key', () async {
+      final b = _Backend(), r = _Runtime(), i = _Identity();
+      final s = await service(b, r, i);
+      final first = await s.login(
+        serverUrl: 'https://erp.test',
+        database: 'db',
+        login: 'u',
+        password: 'p',
+      );
+      expect(await s.hasStoredCredential(first.profile!), isTrue);
+      await s.close();
+
+      // The same person logs in again, this time WITHOUT "Guardar clave" —
+      // their new choice must win over the old one.
+      final second = await s.login(
+        serverUrl: 'https://erp.test',
+        database: 'db',
+        login: 'u',
+        password: 'p',
+        persistCredential: false,
+      );
+
+      expect(await s.hasStoredCredential(second.profile!), isFalse);
+    });
   });
 
   test('login persists company IDs and capabilities', () async {

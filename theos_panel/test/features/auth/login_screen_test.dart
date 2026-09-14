@@ -155,6 +155,61 @@ final class _SlowLoginService
   Future<void> close() async {}
 }
 
+/// Reports [remembered] as a remembered credential for its exact
+/// server+database+login, and nothing for anything else. Used to prove the
+/// "Guardar clave" toggle reflects a remembered credential the moment the
+/// screen finds one (security review, 14-sep-2026) — see
+/// `login_screen.dart`'s `_lookupStoredCredential`.
+final class _RememberedCredentialService
+    implements AuthServicePort, StoredCredentialAuthServicePort {
+  _RememberedCredentialService(this.remembered);
+  final AuthProfile? remembered;
+
+  @override
+  Future<AuthServiceResult> login({
+    required String serverUrl,
+    required String database,
+    required String login,
+    required String password,
+  }) async => const AuthServiceResult(status: AuthServiceStatus.required);
+  @override
+  Future<AuthServiceResult> restore({bool offline = false}) async =>
+      const AuthServiceResult(status: AuthServiceStatus.required);
+  @override
+  Future<AuthProfile?> loadProfile() async => null;
+  @override
+  Future<AuthProfile?> loadProfileFor(
+    String serverUrl,
+    String database,
+  ) async => null;
+  @override
+  Future<void> close() async {}
+
+  @override
+  Future<AuthProfile?> findRememberedCredential(
+    String serverUrl,
+    String database,
+    String login,
+  ) async {
+    final credential = remembered;
+    if (credential == null) return null;
+    return credential.serverUrl == serverUrl &&
+            credential.database == database &&
+            credential.login == login
+        ? credential
+        : null;
+  }
+
+  @override
+  Future<AuthServiceResult> loginWithStoredCredential(
+    AuthProfile profile,
+  ) async => const AuthServiceResult(status: AuthServiceStatus.required);
+  @override
+  Future<void> forgetStoredCredential(AuthProfile profile) async {}
+  @override
+  Future<bool> hasStoredCredential(AuthProfile profile) async => true;
+}
+
 /// Fails every sign-in with [error], exactly as `NativeAuthService` does:
 /// that class rolls back its own side effects and then RETHROWS the original
 /// exception, so what the controller catches is the kit's own typed failure.
@@ -256,6 +311,87 @@ void main() {
       expect(tester.widget<TextBox>(fields.at(1)).controller!.text, isEmpty);
       expect(tester.takeException(), isNull);
       await tester.pump(const Duration(seconds: 1));
+    },
+  );
+
+  // Hallazgo visual (14-sep-2026), comprobado contra un Chrome real: tras
+  // cerrar sesión con «Guardar clave» puesta, esta pantalla mostraba «Clave
+  // guardada en este equipo.» con el interruptor «Guardar clave» APAGADO —
+  // sugería falsamente que la próxima salida no la recordaría.
+  testWidgets(
+    'login screen shows Guardar clave on when a remembered credential '
+    'exists',
+    (tester) async {
+      SharedPreferences.setMockInitialValues({});
+      final preferences = await tester.runAsync(
+        () => SharedPreferences.getInstance(),
+      );
+      const remembered = AuthProfile(
+        serverUrl: 'https://erp.test',
+        database: 'db',
+        login: 'erik',
+        userId: 7,
+        installationId: 'i',
+        credentialReference: 'api-key',
+      );
+      await tester.runAsync(
+        () => _seedServer(
+          preferences!,
+          SavedServer(
+            id: 'one',
+            name: 'Entorno',
+            url: 'https://erp.test',
+            database: 'db',
+          ),
+        ),
+      );
+      await setLoginTestWindowSize(tester, const Size(1200, 1000));
+      addTearDown(() => resetLoginTestWindowSize(tester));
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            authServiceProvider.overrideWithValue(
+              _RememberedCredentialService(remembered),
+            ),
+            sharedPreferencesProvider.overrideWithValue(preferences!),
+          ],
+          child: FluentApp(
+            theme: OrbiFluentTheme.light,
+            home: const LoginScreen(),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.byType(ComboBox<String>));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Entorno'));
+      await tester.pumpAndSettle();
+
+      // Antes de escribir el usuario recordado, el interruptor sigue
+      // apagado por omisión: nada que recordar todavía.
+      expect(
+        tester
+            .widget<ToggleSwitch>(
+              find.byKey(const Key('save-credential-toggle')),
+            )
+            .checked,
+        isFalse,
+      );
+
+      await tester.enterText(find.byType(TextBox).at(0), 'erik');
+      await tester.pump(const Duration(milliseconds: 500));
+      await tester.pumpAndSettle();
+
+      expect(
+        tester
+            .widget<ToggleSwitch>(
+              find.byKey(const Key('save-credential-toggle')),
+            )
+            .checked,
+        isTrue,
+      );
+      expect(tester.takeException(), isNull);
     },
   );
 
