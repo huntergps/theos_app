@@ -2,7 +2,8 @@ import 'dart:convert';
 import 'dart:math' as math;
 
 import 'package:drift/drift.dart' as drift;
-import 'package:odoo_sdk/odoo_sdk.dart' show ConflictInfo;
+import 'package:odoo_sdk/odoo_sdk.dart'
+    show ConflictInfo, OdooMethodNotFoundException, RetryableOfflineOperationException;
 import 'package:theos_pos_core/theos_pos_core.dart';
 
 import '../contracts.dart';
@@ -665,6 +666,61 @@ final class OdooClientSaleActions implements ContextualSaleOdooActions {
   );
 }
 
+/// Perfil de ventas del servidor Odoo conectado: si trae o no
+/// `l10n_ec_collection_box_pos` (el módulo propio de POS). Decisión del
+/// dueño (14-sep-2026): sin ese módulo, Orbi ofrece ventas estándar —
+/// `create` sin `x_uuid` y confirmación con `action_confirm`; con el
+/// módulo, el camino de siempre.
+final class SaleServerProfile {
+  const SaleServerProfile({required this.hasPosExtension});
+
+  /// `true` sólo cuando TANTO `sale.order` COMO `sale.order.line` exponen
+  /// `x_uuid`. Un servidor a medio migrar (uno de los dos modelos sin el
+  /// campo) no cuenta como servidor con la extensión: mandar `x_uuid` sólo
+  /// a uno de los dos `create` dejaría el pedido y sus líneas en contratos
+  /// distintos.
+  final bool hasPosExtension;
+}
+
+/// Sondea, con evidencia (`fields_get`), si el servidor tiene la extensión
+/// de POS de ventas — nunca lo asume de un hint de versión, igual que
+/// `odoo_capabilities_detector.dart` para capacidades por versión. Memoriza
+/// el resultado en memoria mientras esta instancia viva (una por
+/// cliente/sesión en la composición real); un fallo de red NUNCA se
+/// memoriza, así que la siguiente operación vuelve a sondear — mismo
+/// principio que `EnvasesOperationsDurable._resolveWizardReplayPolicy` en
+/// `envases_operations_durable.dart`, sólo que aquí un sondeo fallido no
+/// tiene un valor por omisión seguro: mientras no se sepa, no se manda
+/// nada.
+final class SaleServerProfileResolver {
+  SaleServerProfileResolver(this._actions);
+  final SaleOdooActions _actions;
+  SaleServerProfile? _cached;
+
+  Future<SaleServerProfile> resolve() async {
+    final cached = _cached;
+    if (cached != null) return cached;
+    final orderHasUuid = await _probeHasUuid('sale.order');
+    final lineHasUuid = await _probeHasUuid('sale.order.line');
+    final profile = SaleServerProfile(
+      hasPosExtension: orderHasUuid && lineHasUuid,
+    );
+    _cached = profile;
+    return profile;
+  }
+
+  Future<bool> _probeHasUuid(String model) async {
+    final metadata = await _actions.call(
+      model: model,
+      method: 'fields_get',
+      kwargs: const {
+        'attributes': ['type'],
+      },
+    );
+    return metadata is Map && metadata.containsKey('x_uuid');
+  }
+}
+
 /// Production bridge for the durable commands currently emitted by the panel
 /// and core. It deliberately rejects incomplete legacy approval payloads
 /// instead of guessing the business action.
@@ -674,12 +730,29 @@ final class OdooOfflineOperationAdapter implements OfflineOperationAdapter {
     required this.database,
     required this.scope,
     required this.queue,
-  });
+    SaleServerProfileResolver? profileResolver,
+  }) : _profile = profileResolver ?? SaleServerProfileResolver(actions);
 
   final SaleOdooActions actions;
   final AppDatabase database;
   final AppScope scope;
   final OfflineQueueDataSource queue;
+  final SaleServerProfileResolver _profile;
+
+  /// Sondea el perfil del servidor y, si el sondeo mismo falla (sin red),
+  /// lo trata exactamente como cualquier otra falla transitoria de la cola:
+  /// la operación queda pendiente de reintento sin haberse enviado, nunca
+  /// en revisión manual por una ambigüedad que no ocurrió.
+  Future<SaleServerProfile> _resolveProfile() async {
+    try {
+      return await _profile.resolve();
+    } catch (error) {
+      throw RetryableOfflineOperationException(
+        'No se pudo determinar si el servidor tiene la extensión de POS '
+        'de ventas: $error',
+      );
+    }
+  }
 
   @override
   Future<OperationReconciliation> reconcile(OfflineOperation operation) async {
@@ -1088,9 +1161,14 @@ final class OdooOfflineOperationAdapter implements OfflineOperationAdapter {
     } else if (operation.model == 'sale.order' &&
         operation.method == 'action_pos_confirm') {
       if (id == null) throw StateError('sale.order remote id unavailable');
+      final profile = await _resolveProfile();
       result = await actions.call(
         model: 'sale.order',
-        method: 'action_pos_confirm',
+        // La cola siempre guarda 'action_pos_confirm' como marcador de
+        // intención de confirmar (ver `DriftSaleCommandStore`); el método
+        // real que viaja a Odoo lo decide el perfil del servidor, no el
+        // texto guardado.
+        method: profile.hasPosExtension ? 'action_pos_confirm' : 'action_confirm',
         ids: [id],
       );
     } else if (operation.model == 'l10n_ec.cash.out' &&
@@ -1964,9 +2042,15 @@ final class OdooOfflineOperationAdapter implements OfflineOperationAdapter {
       database.saleOrder,
     )..where((table) => table.id.equals(localId))).getSingleOrNull();
     if (row == null) throw StateError('local sale order not found');
+    final profile = await _resolveProfile();
     final fields = <String, dynamic>{
       'name': row.name,
-      'x_uuid': row.xUuid ?? row.orderUuid,
+      // Decisión del dueño (14-sep-2026): sin `l10n_ec_collection_box_pos`
+      // el modelo no tiene `x_uuid` y Odoo rechaza el `create` entero con
+      // «Invalid field» si se manda. Sin esa clave idempotente, un create
+      // ambiguo en un servidor estándar queda para revisión manual — ver
+      // `_findCreatedId`, que no sondea `x_uuid` cuando falta la extensión.
+      if (profile.hasPosExtension) 'x_uuid': row.xUuid ?? row.orderUuid,
       if (row.partnerId != null && row.partnerId! > 0)
         'partner_id': row.partnerId,
       if (row.paymentTermId != null && row.paymentTermId! > 0)
@@ -2005,9 +2089,10 @@ final class OdooOfflineOperationAdapter implements OfflineOperationAdapter {
     // estimó el equipo, y el descuento sólo si el vendedor puso uno.
     // Los nombres son los de 19.5: `product_uom` y `tax_id` ya no existen, y
     // Odoo rechaza la línea entera con «Invalid field» si llegan.
+    final profile = await _resolveProfile();
     return {
       'order_id': orderId,
-      'x_uuid': line.xUuid ?? line.lineUuid,
+      if (profile.hasPosExtension) 'x_uuid': line.xUuid ?? line.lineUuid,
       'name': line.name,
       if (line.productId != null && line.productId! > 0)
         'product_id': line.productId,
@@ -2021,6 +2106,12 @@ final class OdooOfflineOperationAdapter implements OfflineOperationAdapter {
   Future<int?> _findCreatedId(OfflineOperation operation) async {
     final marked = _positiveInt(operation.values['_remote_create_id']);
     if (marked != null) return marked;
+    final profile = await _resolveProfile();
+    // Sin `l10n_ec_collection_box_pos` no hay `x_uuid` que sondear: un
+    // create ambiguo en un servidor estándar no tiene clave idempotente
+    // verificable, así que se declara no aplicada y la ambigüedad queda
+    // para revisión manual en vez de reintentarse sola.
+    if (!profile.hasPosExtension) return null;
     final uuid = operation.model == 'sale.order'
         ? operation.values['orderUuid']
         : operation.values['lineUuid'];
@@ -2392,10 +2483,17 @@ Map<String, dynamic>? _present(String key, dynamic value) =>
 /// Maps the existing POS facade response without claiming that the remote
 /// transaction is complete when the server asks for approval or is ambiguous.
 final class OdooSaleConfirmationAdapter {
+  OdooSaleConfirmationAdapter(
+    this.actions,
+    this.versions, {
+    this.states,
+    SaleServerProfileResolver? profileResolver,
+  }) : _profile = profileResolver ?? SaleServerProfileResolver(actions);
+
   final SaleOdooActions actions;
   final SaleRemoteVersionReader versions;
   final SaleRemoteConfirmationReader? states;
-  const OdooSaleConfirmationAdapter(this.actions, this.versions, {this.states});
+  final SaleServerProfileResolver _profile;
 
   Future<OperationOutcome<SaleOrderState>> confirm({
     required EntityReference order,
@@ -2420,36 +2518,44 @@ final class OdooSaleConfirmationAdapter {
         ],
       );
     }
+    // Un fallo de red en el sondeo mismo (perfil todavía desconocido) entra
+    // al mismo `catch` de abajo que un fallo de la confirmación real: sin
+    // saber si el pedido llegó a mutar, la única salida honesta es la
+    // misma que ya existía para cualquier corte de transporte — mirar el
+    // estado remoto antes de decidir.
+    SaleServerProfile? profile;
     dynamic result;
     try {
+      profile = await _profile.resolve();
       result = await actions.call(
         model: 'sale.order',
-        method: 'action_pos_confirm',
+        method: profile.hasPosExtension ? 'action_pos_confirm' : 'action_confirm',
         ids: [remoteId],
       );
-    } catch (_) {
-      final observed = states == null ? null : await states!.read(order);
-      if (observed == SaleOrderState.sale || observed == SaleOrderState.done) {
+    } on OdooMethodNotFoundException {
+      if (profile != null && profile.hasPosExtension) {
+        // La extensión dijo estar (el sondeo encontró `x_uuid` en los dos
+        // modelos) pero el método propio de POS no existe: es una
+        // inconsistencia permanente del servidor, no una confirmación
+        // ambigua — no se reintenta sola ni se cae en silencio a
+        // `action_confirm`.
         return OperationOutcome(
           commandId: commandId,
           entity: order,
-          businessState: observed!,
-          syncState: OperationSyncState.synced,
+          businessState: SaleOrderState.approved,
+          syncState: OperationSyncState.failed,
+          issues: [
+            OperationIssue(
+              code: 'pos_confirmation_unsupported',
+              messageKey: 'sale.pos_confirmation_unsupported',
+              retryable: false,
+            ),
+          ],
         );
       }
-      return OperationOutcome(
-        commandId: commandId,
-        entity: order,
-        businessState: SaleOrderState.approved,
-        syncState: OperationSyncState.conflict,
-        issues: [
-          OperationIssue(
-            code: 'confirmation_ambiguous',
-            messageKey: 'sale.confirmation_ambiguous',
-            retryable: true,
-          ),
-        ],
-      );
+      return _ambiguousConfirmation(order: order, commandId: commandId);
+    } catch (_) {
+      return _ambiguousConfirmation(order: order, commandId: commandId);
     }
     if (_rejected(result)) {
       final approval = _approvalPending(result);
@@ -2476,6 +2582,34 @@ final class OdooSaleConfirmationAdapter {
       entity: order,
       businessState: SaleOrderState.sale,
       syncState: OperationSyncState.synced,
+    );
+  }
+
+  Future<OperationOutcome<SaleOrderState>> _ambiguousConfirmation({
+    required EntityReference order,
+    required String commandId,
+  }) async {
+    final observed = states == null ? null : await states!.read(order);
+    if (observed == SaleOrderState.sale || observed == SaleOrderState.done) {
+      return OperationOutcome(
+        commandId: commandId,
+        entity: order,
+        businessState: observed!,
+        syncState: OperationSyncState.synced,
+      );
+    }
+    return OperationOutcome(
+      commandId: commandId,
+      entity: order,
+      businessState: SaleOrderState.approved,
+      syncState: OperationSyncState.conflict,
+      issues: [
+        OperationIssue(
+          code: 'confirmation_ambiguous',
+          messageKey: 'sale.confirmation_ambiguous',
+          retryable: true,
+        ),
+      ],
     );
   }
 }

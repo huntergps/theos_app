@@ -4,8 +4,18 @@ import 'dart:io';
 import 'package:drift/drift.dart' as drift;
 import 'package:drift/native.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:odoo_sdk/odoo_sdk.dart'
+    show OdooMethodNotFoundException, RetryableOfflineOperationException;
 import 'package:orbi_runtime/orbi_runtime.dart';
 import 'package:theos_pos_core/theos_pos_core.dart';
+
+/// Metadata de `fields_get` que un servidor CON `l10n_ec_collection_box_pos`
+/// devolvería para el campo propio `x_uuid`. Es la respuesta por omisión de
+/// los dos fakes de abajo para no cambiar el comportamiento de ninguna
+/// prueba existente: todas asumían implícitamente esta extensión.
+const _posExtensionFieldsGet = {
+  'x_uuid': {'type': 'char'},
+};
 
 class FakeActions implements SaleOdooActions {
   final List<String> calls = [];
@@ -14,6 +24,15 @@ class FakeActions implements SaleOdooActions {
   dynamic response = true;
   dynamic accountMoveResponse = const <Map<String, dynamic>>[];
   dynamic salePaymentResponse = const <Map<String, dynamic>>[];
+
+  /// Respuesta a CUALQUIER `fields_get` (sale.order y sale.order.line). Se
+  /// registra aparte en [fieldsGetCalls]/[fieldsGetKwargs], nunca en
+  /// [calls]/[kwargsHistory]: es un sondeo nuevo del perfil del servidor,
+  /// no una acción de negocio, y no debe romper ningún `expect(calls, [...])`
+  /// exacto que ya existía antes de ese sondeo.
+  dynamic fieldsGetResponse = _posExtensionFieldsGet;
+  final List<String> fieldsGetCalls = [];
+
   @override
   Future<dynamic> call({
     required String model,
@@ -21,6 +40,12 @@ class FakeActions implements SaleOdooActions {
     List<int>? ids,
     Map<String, dynamic>? kwargs,
   }) async {
+    if (method == 'fields_get') {
+      fieldsGetCalls.add(model);
+      final response = fieldsGetResponse;
+      if (response is Function) return response(model);
+      return response;
+    }
     calls.add('$model.$method');
     lastKwargs = kwargs;
     kwargsHistory.add(kwargs);
@@ -41,6 +66,10 @@ class QueueActions implements SaleOdooActions {
   bool failFirstOrderCreate = false;
   bool _failedOrderCreate = false;
 
+  /// Igual que en [FakeActions]: separado de [calls] a propósito.
+  dynamic fieldsGetResponse = _posExtensionFieldsGet;
+  final List<String> fieldsGetCalls = [];
+
   @override
   Future<dynamic> call({
     required String model,
@@ -48,6 +77,12 @@ class QueueActions implements SaleOdooActions {
     List<int>? ids,
     Map<String, dynamic>? kwargs,
   }) async {
+    if (method == 'fields_get') {
+      fieldsGetCalls.add(model);
+      final response = fieldsGetResponse;
+      if (response is Function) return response(model);
+      return response;
+    }
     calls.add('$model.$method');
     lastKwargsByCall['$model.$method'] = kwargs;
     if (model == 'sale.order' && method == 'create') {
@@ -65,6 +100,57 @@ class QueueActions implements SaleOdooActions {
     if (model == 'sale.order.line' && method == 'create') return 801;
     return true;
   }
+}
+
+/// Como [QueueActions], pero el `create` de `sale.order` SIEMPRE es
+/// ambiguo (nunca resuelve un id definitivo), para probar el camino de
+/// revisión manual de un servidor estándar sin reintento automático.
+class AlwaysAmbiguousCreateActions extends QueueActions {
+  @override
+  Future<dynamic> call({
+    required String model,
+    required String method,
+    List<int>? ids,
+    Map<String, dynamic>? kwargs,
+  }) async {
+    if (method == 'fields_get') {
+      fieldsGetCalls.add(model);
+      return fieldsGetResponse;
+    }
+    calls.add('$model.$method');
+    lastKwargsByCall['$model.$method'] = kwargs;
+    if (model == 'sale.order' && method == 'create') {
+      throw const AmbiguousOperationException('create timeout');
+    }
+    return true;
+  }
+}
+
+/// Falla el sondeo `fields_get` como si fuera un corte de red: nunca
+/// responde, y por lo tanto ninguna otra llamada debería ocurrir.
+class NetworkDownForProbeActions implements SaleOdooActions {
+  final List<String> calls = [];
+  @override
+  Future<dynamic> call({
+    required String model,
+    required String method,
+    List<int>? ids,
+    Map<String, dynamic>? kwargs,
+  }) async {
+    if (method == 'fields_get') {
+      throw const SocketFailure('network down');
+    }
+    calls.add('$model.$method');
+    return true;
+  }
+}
+
+/// Marcador simple de fallo de red, sin depender de `dart:io`.
+class SocketFailure implements Exception {
+  const SocketFailure(this.message);
+  final String message;
+  @override
+  String toString() => message;
 }
 
 class FakeResolver implements SaleLocalOrderResolver {
@@ -1169,4 +1255,326 @@ void main() {
       isNull,
     );
   });
+
+  // --- Decisión del dueño (14-sep-2026): ventas estándar sin
+  // `l10n_ec_collection_box_pos`. Ver `SaleServerProfileResolver` en
+  // `sale_runtime_adapters.dart`. ---
+
+  test(
+    'standard server creates order and lines without x_uuid and confirms '
+    'with action_confirm through the queue',
+    () async {
+      final db = AppDatabase(NativeDatabase.memory());
+      addTearDown(db.close);
+      final draft = DriftSaleDraftRepository(db);
+      final localId = await draft.save(
+        const SaleDraftRecord(
+          commandId: 'standard-order-uuid',
+          name: 'S-STANDARD',
+          lines: [
+            SaleDraftLineRecord(
+              lineUuid: 'standard-line-uuid',
+              product: SaleCatalogProduct(
+                localId: 'product-local',
+                remoteId: 9,
+                name: 'Coffee',
+                uomId: 1,
+                price: 2.5,
+                taxIds: [5],
+              ),
+              quantity: 2,
+            ),
+          ],
+        ),
+      );
+      final resolver = FakeResolver(localId: localId);
+      await DriftSaleCommandStore(db, resolver).commitAndEnqueueIfAbsent(
+        commandId: 'confirm-standard-order',
+        entity: EntityReference(localId: 'standard-order-uuid'),
+        expectedVersion: 1,
+        outcome: OperationOutcome(
+          commandId: 'confirm-standard-order',
+          entity: EntityReference(localId: 'standard-order-uuid'),
+          businessState: SaleOrderState.sale,
+          syncState: OperationSyncState.queued,
+        ),
+      );
+      final actions = QueueActions()
+        ..fieldsGetResponse = const <String, dynamic>{};
+      final scope = AppScope(
+        appId: 'test',
+        installationId: 'installation',
+        normalizedServerUrl: 'https://example.test',
+        database: 'db',
+        userId: 1,
+      );
+      final queue = OfflineQueueDataSource(db);
+      final job = OperationsSyncJob(
+        queue: queue,
+        adapter: OdooOfflineOperationAdapter(
+          actions: actions,
+          database: db,
+          scope: scope,
+          queue: queue,
+        ),
+      );
+      expect((await job.run(scope)).cursorConfirmed, isTrue);
+      expect(actions.calls, [
+        'sale.order.create',
+        'sale.order.line.create',
+        'sale.order.action_confirm',
+      ]);
+      expect(
+        actions.fieldsGetCalls,
+        containsAll(['sale.order', 'sale.order.line']),
+      );
+      final orderValues = actions.lastKwargsByCall['sale.order.create']!;
+      expect(orderValues.containsKey('x_uuid'), isFalse);
+      final lineValues = actions.lastKwargsByCall['sale.order.line.create']!;
+      expect(lineValues.containsKey('x_uuid'), isFalse);
+      await job.dispose();
+    },
+  );
+
+  test('standard server confirms with action_confirm online', () async {
+    final fake = FakeActions()..fieldsGetResponse = const <String, dynamic>{};
+    final adapter = OdooSaleConfirmationAdapter(
+      fake,
+      const FakeRemoteVersions(),
+    );
+    final result = await adapter.confirm(
+      order: EntityReference(localId: 'uuid', remoteId: 41),
+      commandId: 'confirm-standard-online',
+      expectedVersion: 2,
+    );
+    expect(fake.calls, ['sale.order.action_confirm']);
+    expect(result.syncState, OperationSyncState.synced);
+    expect(result.businessState, SaleOrderState.sale);
+  });
+
+  test(
+    'pos extension path is unchanged: x_uuid travels and confirmation uses '
+    'action_pos_confirm',
+    () async {
+      final db = AppDatabase(NativeDatabase.memory());
+      addTearDown(db.close);
+      final draft = DriftSaleDraftRepository(db);
+      final localId = await draft.save(
+        const SaleDraftRecord(
+          commandId: 'pos-order-uuid',
+          name: 'S-POS',
+          lines: [
+            SaleDraftLineRecord(
+              lineUuid: 'pos-line-uuid',
+              product: SaleCatalogProduct(
+                localId: 'product-local',
+                remoteId: 9,
+                name: 'Coffee',
+                uomId: 1,
+                price: 2.5,
+                taxIds: [5],
+              ),
+              quantity: 2,
+            ),
+          ],
+        ),
+      );
+      final resolver = FakeResolver(localId: localId);
+      await DriftSaleCommandStore(db, resolver).commitAndEnqueueIfAbsent(
+        commandId: 'confirm-pos-order',
+        entity: EntityReference(localId: 'pos-order-uuid'),
+        expectedVersion: 1,
+        outcome: OperationOutcome(
+          commandId: 'confirm-pos-order',
+          entity: EntityReference(localId: 'pos-order-uuid'),
+          businessState: SaleOrderState.sale,
+          syncState: OperationSyncState.queued,
+        ),
+      );
+      // Fake por omisión: reporta la extensión (ver `_posExtensionFieldsGet`).
+      final actions = QueueActions();
+      final scope = AppScope(
+        appId: 'test',
+        installationId: 'installation',
+        normalizedServerUrl: 'https://example.test',
+        database: 'db',
+        userId: 1,
+      );
+      final queue = OfflineQueueDataSource(db);
+      final job = OperationsSyncJob(
+        queue: queue,
+        adapter: OdooOfflineOperationAdapter(
+          actions: actions,
+          database: db,
+          scope: scope,
+          queue: queue,
+        ),
+      );
+      expect((await job.run(scope)).cursorConfirmed, isTrue);
+      expect(actions.calls, [
+        'sale.order.create',
+        'sale.order.line.create',
+        'sale.order.action_pos_confirm',
+      ]);
+      final orderValues = actions.lastKwargsByCall['sale.order.create']!;
+      expect(orderValues['x_uuid'], 'pos-order-uuid');
+      final lineValues = actions.lastKwargsByCall['sale.order.line.create']!;
+      expect(lineValues['x_uuid'], 'pos-line-uuid');
+      await job.dispose();
+    },
+  );
+
+  test(
+    'standard ambiguous create goes to manual review, never retry_safe',
+    () async {
+      final db = AppDatabase(NativeDatabase.memory());
+      addTearDown(db.close);
+      await DriftSaleDraftRepository(db).save(
+        const SaleDraftRecord(
+          commandId: 'standard-ambiguous-order',
+          name: 'S-STD-AMBIGUOUS',
+          lines: [
+            SaleDraftLineRecord(
+              lineUuid: 'standard-ambiguous-line',
+              product: SaleCatalogProduct(
+                localId: 'product-local',
+                remoteId: 9,
+                name: 'Coffee',
+              ),
+              quantity: 1,
+            ),
+          ],
+        ),
+      );
+      final actions = AlwaysAmbiguousCreateActions()
+        ..fieldsGetResponse = const <String, dynamic>{};
+      final scope = AppScope(
+        appId: 'test',
+        installationId: 'installation',
+        normalizedServerUrl: 'https://example.test',
+        database: 'db',
+        userId: 1,
+      );
+      final queue = OfflineQueueDataSource(db);
+      final job = OperationsSyncJob(
+        queue: queue,
+        adapter: OdooOfflineOperationAdapter(
+          actions: actions,
+          database: db,
+          scope: scope,
+          queue: queue,
+        ),
+      );
+      expect((await job.run(scope)).cursorConfirmed, isFalse);
+      // Sin la extensión no hay `x_uuid` que sondear: nunca se intenta el
+      // `search_read` que reconciliaría un create ambiguo.
+      expect(actions.calls, isNot(contains('sale.order.search_read')));
+      final deadLetters = await queue.getDeadLetterOperations();
+      final createOp = deadLetters.singleWhere(
+        (operation) =>
+            operation.model == 'sale.order' && operation.method == 'create',
+      );
+      expect(createOp.replayPolicy, OfflineReplayPolicy.manualAfterAmbiguous);
+      await job.dispose();
+    },
+  );
+
+  test(
+    'unknown profile keeps the operation pending without sending',
+    () async {
+      final db = AppDatabase(NativeDatabase.memory());
+      addTearDown(db.close);
+      await DriftSaleDraftRepository(db).save(
+        const SaleDraftRecord(
+          commandId: 'unknown-profile-order',
+          name: 'S-UNKNOWN',
+          lines: [
+            SaleDraftLineRecord(
+              lineUuid: 'unknown-profile-line',
+              product: SaleCatalogProduct(
+                localId: 'product-local',
+                remoteId: 9,
+                name: 'Coffee',
+              ),
+              quantity: 1,
+            ),
+          ],
+        ),
+      );
+      final actions = NetworkDownForProbeActions();
+      final scope = AppScope(
+        appId: 'test',
+        installationId: 'installation',
+        normalizedServerUrl: 'https://example.test',
+        database: 'db',
+        userId: 1,
+      );
+      final queue = OfflineQueueDataSource(db);
+      final adapter = OdooOfflineOperationAdapter(
+        actions: actions,
+        database: db,
+        scope: scope,
+        queue: queue,
+      );
+      final operation = (await queue.getPendingOperations()).firstWhere(
+        (op) => op.model == 'sale.order' && op.method == 'create',
+      );
+      await expectLater(
+        adapter.dispatch(operation),
+        throwsA(isA<RetryableOfflineOperationException>()),
+      );
+      // Nada se mandó a Odoo: el sondeo falló antes del `create` real.
+      expect(actions.calls, isEmpty);
+    },
+  );
+
+  test(
+    'missing action_pos_confirm is a clear rejection, not ambiguous',
+    () async {
+      // `FakeActions` sólo sabe devolver valores, no lanzar; se envuelve en
+      // `_ThrowingMethodNotFound` para simular el método inexistente sin
+      // perder su respuesta por omisión de `fields_get` (reporta la
+      // extensión: el caso que exige distinguir esto de una ambigüedad).
+      final fake = FakeActions();
+      final adapter = OdooSaleConfirmationAdapter(
+        _ThrowingMethodNotFound(fake),
+        const FakeRemoteVersions(),
+        states: const FakeStates(SaleOrderState.draft),
+      );
+      final result = await adapter.confirm(
+        order: EntityReference(localId: 'uuid', remoteId: 41),
+        commandId: 'confirm-method-missing',
+        expectedVersion: 2,
+      );
+      expect(result.syncState, OperationSyncState.failed);
+      expect(result.issues.single.code, 'pos_confirmation_unsupported');
+      expect(result.issues.single.retryable, isFalse);
+    },
+  );
+}
+
+/// Envuelve un [SaleOdooActions] real (para conservar su `fields_get`) y
+/// hace que la LLAMADA de confirmación lance `OdooMethodNotFoundException`
+/// en vez de devolver un valor — así se distingue "el método no existe" de
+/// "el método devolvió un rechazo".
+class _ThrowingMethodNotFound implements SaleOdooActions {
+  _ThrowingMethodNotFound(this._inner);
+  final SaleOdooActions _inner;
+
+  @override
+  Future<dynamic> call({
+    required String model,
+    required String method,
+    List<int>? ids,
+    Map<String, dynamic>? kwargs,
+  }) {
+    if (method == 'action_pos_confirm') {
+      throw const OdooMethodNotFoundException(
+        targetModel: 'sale.order',
+        methodName: 'action_pos_confirm',
+        message: 'method not found',
+      );
+    }
+    return _inner.call(model: model, method: method, ids: ids, kwargs: kwargs);
+  }
 }
