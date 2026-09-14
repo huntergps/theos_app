@@ -45,6 +45,14 @@ final class ClientPolicySyncTrigger {
         if (rising) _runNow();
       }),
     );
+    // 🔴 Corrección del dueño, 14-sep-2026: sin esta llamada el
+    // `Timer.periodic` sólo nacía cuando llegaba un primer evento de red o
+    // de primer plano. Con las dos señales optimistas por omisión
+    // (`_online`/`_foreground` en `true`) y ningún evento real todavía —el
+    // caso normal de un arranque sin parpadeos de red—, la sincronización
+    // de 15 minutos JAMÁS arrancaba. `_reconcile()` aquí arma el temporizador
+    // de una vez con el estado inicial, sin esperar a que algo cambie.
+    _reconcile();
   }
 
   final Future<void> Function() _sync;

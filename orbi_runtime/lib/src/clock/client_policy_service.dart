@@ -2,6 +2,7 @@
 // mejor la intención en el sitio de la llamada que el nombre privado del
 // campo (`_readState`, `_writeState`) — mismo patrón que `SessionRuntime`.
 // ignore_for_file: prefer_initializing_formals
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:odoo_sdk/odoo_sdk.dart';
@@ -23,6 +24,9 @@ const clientPolicyMethod = 'client_policy';
 /// método Python (`DEFAULT_OFFLINE_MAX_DAYS`, `DEFAULT_INACTIVITY_LOCK_MINUTES`).
 const kDefaultOfflineMaxDays = 3;
 const kDefaultInactivityLockMinutes = 15;
+
+/// Etiqueta de log compartida por todos los avisos de este archivo.
+const _logTag = '[ClientPolicyService]';
 
 /// De dónde sale el desfase que usa [ClientPolicyService.nowServer].
 enum ClientPolicyTimeSource {
@@ -94,6 +98,13 @@ typedef ClientPolicyRpc = Future<Map<String, dynamic>> Function();
 /// esta clase, en `ClientPolicySyncTrigger` y en quien componga la sesión
 /// (`theos_panel/lib/app/router.dart`). Esta clase sólo sabe sincronizar UNA
 /// vez quien se lo pida, y leer localmente lo último que sincronizó.
+///
+/// 🔴 `sync()` NUNCA lanza — ni por el RPC (ver el `catch` de abajo) ni por
+/// la propia persistencia (`restore()`/`_persist()` capturan lo suyo y lo
+/// dejan en el registro con `logger.w`). Revisión del dueño, 14-sep-2026:
+/// un `metadata.read`/`write` puede lanzar `StateError` si la sesión ya
+/// cerró (lease vencido) mientras un `sync()` seguía en vuelo, y eso NO
+/// debe tumbar el `unawaited(service.sync())` de quien lo dispara.
 final class ClientPolicyService {
   ClientPolicyService({
     required ClientPolicyRpc? Function() rpc,
@@ -168,17 +179,37 @@ final class ClientPolicyService {
   /// de una sesión anterior.
   bool _syncedServerThisSession = false;
 
+  /// Última hora del equipo vista, EN MEMORIA — se actualiza en cada
+  /// [nowServer]/`sync()` y decide [_clockRollbackSuspected] dentro de la
+  /// misma sesión.
   DateTime? _lastSeenDeviceUtc;
   bool _clockRollbackSuspected = false;
+
+  /// Última vez que [_lastSeenDeviceUtc] se escribió a disco — para no
+  /// perseguir el reloj en cada tic de [nowServer]: sólo se repite la
+  /// escritura si pasó al menos un minuto desde la anterior. `sync()`
+  /// siempre persiste (es un evento raro: login, primer plano, 15 min), así
+  /// que esta marca también se actualiza ahí.
+  DateTime? _lastPersistedDeviceClockAt;
 
   /// Carga lo último persistido, sin llamar al RPC. Idempotente — una
   /// segunda llamada no vuelve a leer. `sync()` ya la invoca por su cuenta,
   /// así que sólo hace falta llamarla a mano cuando se necesita leer
   /// [nowServer] SIN sincronizar (la estimación sin conexión).
+  ///
+  /// Nunca lanza: un `readState` que falle (por ejemplo, la sesión ya cerró
+  /// y el lease del scope ya no es válido) se registra con `logger.w` y se
+  /// trata como "nada que restaurar".
   Future<void> restore() async {
     if (_restored) return;
     _restored = true;
-    final raw = await _readState();
+    String? raw;
+    try {
+      raw = await _readState();
+    } catch (error) {
+      logger.w(_logTag, 'No se pudo leer el estado guardado: $error');
+      return;
+    }
     if (raw == null) return;
     try {
       final decoded = jsonDecode(raw);
@@ -193,22 +224,28 @@ final class ClientPolicyService {
           : ClientPolicyTimeSource.device;
       _lastSyncAt = _parseIsoUtc(map['last_sync_at']);
       _lastOnlineAt = _parseIsoUtc(map['last_online_at']);
+      _lastSeenDeviceUtc = _parseIsoUtc(map['last_seen_device_utc']);
+      _lastPersistedDeviceClockAt = _lastSeenDeviceUtc;
       final maxDays = map['offline_max_days'];
       if (maxDays is int && maxDays >= 1) _offlineMaxDays = maxDays;
       final lockMinutes = map['inactivity_lock_minutes'];
       if (lockMinutes is int && lockMinutes >= 1) {
         _inactivityLockMinutes = lockMinutes;
       }
-    } on FormatException {
-      // Estado corrupto o de un formato viejo: se ignora. Nunca revienta el
-      // arranque por un JSON inválido — el servicio sigue con los valores
-      // por omisión.
+    } catch (error) {
+      // Estado corrupto o de un formato viejo (no sólo `FormatException`:
+      // un valor con el tipo equivocado puede lanzar al hacer cast). Se
+      // registra y se ignora — nunca revienta el arranque por un JSON
+      // inválido, el servicio sigue con los valores por omisión.
+      logger.w(_logTag, 'Estado de hora del servidor inválido: $error');
     }
   }
 
-  /// Un ciclo de sincronización. Nunca lanza: cualquier fallo que no sea
-  /// "el modelo no existe" deja el estado tal cual estaba, para que el
-  /// próximo disparador lo vuelva a intentar.
+  /// Un ciclo de sincronización. Nunca lanza: cualquier fallo — del RPC, o
+  /// de leer/guardar el estado local — deja el servicio en un estado
+  /// consistente y lo registra con `logger.w` en vez de propagarlo, para
+  /// que quien lo dispare con `unawaited(...)` nunca reciba un error sin
+  /// manejar.
   Future<void> sync() async {
     await restore();
     final rpc = _rpcOf();
@@ -237,13 +274,11 @@ final class ClientPolicyService {
       _lastSyncAt = sentAtDevice;
       _lastOnlineAt = sentAtDevice;
       _syncedServerThisSession = true;
-      await _persist();
+      await _persistAndTrackClock(sentAtDevice);
     } on OdooNotFoundException {
-      _fallBackToDeviceForMissingModel(sentAtDevice);
-      await _persist();
+      await _fallBackToDeviceForMissingModel(sentAtDevice);
     } on OdooMethodNotFoundException {
-      _fallBackToDeviceForMissingModel(sentAtDevice);
-      await _persist();
+      await _fallBackToDeviceForMissingModel(sentAtDevice);
     } catch (_) {
       // Cualquier otro fallo (401, sin red, timeout, 500 del servidor): NO
       // es ausencia del modelo — orden del dueño: "un 401 o un error de red
@@ -253,7 +288,7 @@ final class ClientPolicyService {
     }
   }
 
-  void _fallBackToDeviceForMissingModel(DateTime sentAtDevice) {
+  Future<void> _fallBackToDeviceForMissingModel(DateTime sentAtDevice) async {
     _modelKnownMissingThisSession = true;
     _source = ClientPolicyTimeSource.device;
     _offset = Duration.zero;
@@ -262,8 +297,18 @@ final class ClientPolicyService {
     // `_offlineMaxDays`/`_inactivityLockMinutes` se quedan en lo último que
     // ya tenían (persistido o el valor por omisión con el que arrancó el
     // servicio) — nunca se pisan con otra cosa en esta rama.
+    await _persistAndTrackClock(sentAtDevice);
   }
 
+  Future<void> _persistAndTrackClock(DateTime sentAtDevice) async {
+    await _persist();
+    _lastPersistedDeviceClockAt = sentAtDevice;
+  }
+
+  /// Nunca lanza: un `writeState` que falle (lease vencido al cerrar
+  /// sesión, disco lleno, lo que sea) se registra con `logger.w` en vez de
+  /// propagarse — de lo contrario `sync()` heredaría esa excepción y
+  /// terminaría rompiendo un `unawaited(...)` que nadie espera.
   Future<void> _persist() async {
     final json = jsonEncode({
       'offset_ms': _offset.inMilliseconds,
@@ -271,10 +316,18 @@ final class ClientPolicyService {
       'source': _source == ClientPolicyTimeSource.server ? 'server' : 'device',
       'last_sync_at': _lastSyncAt?.toIso8601String(),
       'last_online_at': _lastOnlineAt?.toIso8601String(),
+      'last_seen_device_utc': _lastSeenDeviceUtc?.toIso8601String(),
       'offline_max_days': _offlineMaxDays,
       'inactivity_lock_minutes': _inactivityLockMinutes,
     });
-    await _writeState(json);
+    try {
+      await _writeState(json);
+    } catch (error) {
+      logger.w(
+        _logTag,
+        'No se pudo guardar el estado de hora del servidor: $error',
+      );
+    }
   }
 
   /// Hora estimada del servidor: la del equipo más el desfase guardado.
@@ -283,14 +336,15 @@ final class ClientPolicyService {
   DateTime nowServer() {
     final now = _deviceNow().toUtc();
     _observeDeviceClock(now);
+    _maybePersistDeviceClockMarker(now);
     return now.add(_offset);
   }
 
   /// Guarda la última hora del equipo vista y, si la lectura actual queda
   /// más de 5 minutos POR DETRÁS de la última vista, sospecha un retroceso
-  /// del reloj. Se llama en cada `sync()` y en cada [nowServer] — que en
-  /// producción se lee al menos cada segundo desde el pie de la aplicación,
-  /// así que en la práctica cumple "cada minuto" sin un temporizador propio.
+  /// del reloj. Compara contra lo que haya en memoria — que en el primer
+  /// tic de una sesión nueva viene de [restore] si había algo persistido,
+  /// así que cerrar la app, atrasar el reloj y reabrir SÍ se detecta.
   void _observeDeviceClock(DateTime current) {
     final last = _lastSeenDeviceUtc;
     if (last != null && last.difference(current) > const Duration(minutes: 5)) {
@@ -299,6 +353,22 @@ final class ClientPolicyService {
     if (last == null || current.isAfter(last)) {
       _lastSeenDeviceUtc = current;
     }
+  }
+
+  /// Escribe [_lastSeenDeviceUtc] a disco cuando pasó al menos un minuto
+  /// desde la última escritura — nunca en cada tic. Se queda callado
+  /// mientras [restore] no haya corrido todavía: el resto del estado en
+  /// memoria (offset, límites) aún no es de fiar, y escribir ahora pisaría
+  /// un estado persistido más completo con los valores por omisión.
+  void _maybePersistDeviceClockMarker(DateTime current) {
+    if (!_restored) return;
+    final lastPersisted = _lastPersistedDeviceClockAt;
+    if (lastPersisted != null &&
+        current.difference(lastPersisted) < const Duration(minutes: 1)) {
+      return;
+    }
+    _lastPersistedDeviceClockAt = current;
+    unawaited(_persist());
   }
 
   /// Sin conexión, o sin haber sincronizado todavía en ESTA sesión.

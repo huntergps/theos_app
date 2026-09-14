@@ -214,4 +214,95 @@ void main() {
 
     expect(service.snapshot.clockRollbackSuspected, isTrue);
   });
+
+  // Corrección del dueño, 14-sep-2026: el caso que importa es cerrar la
+  // app, atrasar el reloj del equipo y reabrir — `_lastSeenDeviceUtc` vivía
+  // sólo en memoria y ese caso nunca se detectaba. Ahora se persiste igual
+  // que el resto del estado, y una instancia NUEVA (que simula reabrir la
+  // app) lo restaura antes de su primera lectura.
+  test('persists the device clock marker across sessions', () async {
+    final state = _FakeState();
+    var deviceNow = DateTime.utc(2026, 1, 1, 12, 0, 0);
+    final first = ClientPolicyService(
+      rpc: () => null,
+      readState: state.read,
+      writeState: state.write,
+      deviceNow: () => deviceNow,
+    );
+    // `nowServer()` no persiste hasta que `restore()` corrió una vez.
+    await first.restore();
+    first.nowServer();
+    expect(state.value, isNotNull);
+
+    // "Reabrir la app": una instancia nueva, mismo estado persistido, con
+    // el reloj del equipo ya atrasado 10 minutos respecto al cierre.
+    final rolledBackNow = deviceNow.subtract(const Duration(minutes: 10));
+    final second = ClientPolicyService(
+      rpc: () => null,
+      readState: state.read,
+      writeState: state.write,
+      deviceNow: () => rolledBackNow,
+    );
+    await second.restore();
+
+    second.nowServer();
+
+    expect(second.snapshot.clockRollbackSuspected, isTrue);
+  });
+
+  test(
+    'does not persist the device clock marker again inside one minute',
+    () async {
+      final state = _FakeState();
+      var deviceNow = DateTime.utc(2026, 1, 1, 12, 0, 0);
+      var writes = 0;
+      final service = ClientPolicyService(
+        rpc: () => null,
+        readState: state.read,
+        writeState: (json) async {
+          writes++;
+          await state.write(json);
+        },
+        deviceNow: () => deviceNow,
+      );
+      await service.restore();
+
+      service.nowServer();
+      expect(writes, 1);
+
+      deviceNow = deviceNow.add(const Duration(seconds: 30));
+      service.nowServer();
+      expect(writes, 1, reason: 'menos de un minuto desde la última escritura');
+
+      deviceNow = deviceNow.add(const Duration(seconds: 31));
+      service.nowServer();
+      expect(writes, 2, reason: 'ya pasó un minuto desde la última escritura');
+    },
+  );
+
+  // Corrección del dueño, 14-sep-2026: un `readState`/`writeState` que
+  // lance (lease vencido al cerrar sesión, por ejemplo) no debe escapar de
+  // `sync()` — quien lo dispara lo hace con `unawaited(...)`, y una
+  // excepción sin manejar ahí es un crash silencioso. Contra el commit
+  // 823a2b9 esta prueba falla: `restore()`/`_persist()` llamaban a
+  // `_readState`/`_writeState` fuera de cualquier `try`.
+  test('sync never throws when state storage fails', () async {
+    final service = ClientPolicyService(
+      rpc: () => () async => {
+        'server_time_utc': '2026-01-01T00:00:10.000Z',
+        'offline_max_days': 3,
+        'inactivity_lock_minutes': 15,
+      },
+      readState: () async => throw StateError('Session lease is no longer active'),
+      writeState: (_) async => throw StateError('Session lease is no longer active'),
+      deviceNow: () => DateTime.utc(2026, 1, 1),
+      monotonicElapsed: () => Duration.zero,
+    );
+
+    await expectLater(service.sync(), completes);
+
+    // Con el estado inaccesible, el servicio sigue funcionando con lo que
+    // pudo calcular en memoria durante ESTE `sync()` — nunca revienta.
+    expect(service.snapshot.source, ClientPolicyTimeSource.server);
+  });
 }

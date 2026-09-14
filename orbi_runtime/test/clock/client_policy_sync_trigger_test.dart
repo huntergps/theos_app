@@ -84,4 +84,31 @@ void main() {
       unawaited(foreground.close());
     });
   });
+
+  // Corrección del dueño, 14-sep-2026: antes de esto el `Timer.periodic`
+  // sólo nacía cuando llegaba un primer evento de red o de primer plano —
+  // con las dos señales optimistas por omisión y SIN ningún evento (el caso
+  // normal de un arranque sin parpadeos), la sincronización de 15 minutos
+  // no arrancaba nunca. Contra el commit 823a2b9 esta prueba falla.
+  test('periodic timer starts without any stream event', () {
+    fakeAsync((async) {
+      var runs = 0;
+      final online = StreamController<bool>();
+      final foreground = StreamController<bool>();
+      final trigger = ClientPolicySyncTrigger(
+        sync: () async => runs++,
+        online: online.stream,
+        foreground: foreground.stream,
+      );
+      addTearDown(trigger.dispose);
+
+      // Sin emitir NADA en ninguno de los dos streams.
+      async.elapse(clientPolicySyncInterval);
+
+      expect(runs, 1);
+
+      unawaited(online.close());
+      unawaited(foreground.close());
+    });
+  });
 }
