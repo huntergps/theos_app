@@ -49,6 +49,7 @@ final class OperationalContext {
     required this.syncLabel,
     this.storageIsVolatile = false,
     this.serverClock,
+    this.offlineBlockedMessage,
   });
 
   final String server;
@@ -123,6 +124,16 @@ final class OperationalContext {
   /// antes de que existiera esta clase, para cualquier composición que
   /// todavía no tenga sesión de la que sincronizar nada.
   final ServerClockStatus? serverClock;
+
+  /// Límite de sesión sin conexión (decisión del dueño, 14-sep-2026):
+  /// no nulo cuando `OfflineAllowanceStore.evaluate` (`orbi_runtime`) dejó
+  /// de decir `allowed` MIENTRAS la app seguía abierta sin conexión —
+  /// `router.dart` lo revisa cada minuto
+  /// (`_OfflineAllowanceBlockNotifier`). El armazón se bloquea con este
+  /// mensaje, sin cerrar sesión ni tocar datos locales; vuelve a `null`
+  /// solo cuando la próxima sincronización buena lo confirma. `null` es el
+  /// caso normal — nunca un bloqueo inventado por este marco.
+  final String? offlineBlockedMessage;
 }
 
 /// Lo que necesita el reloj del pie para pintar la hora del servidor en vez
@@ -361,33 +372,46 @@ final class OperationalShell extends StatefulWidget {
 
 class _OperationalShellState extends State<OperationalShell> {
   @override
-  Widget build(BuildContext buildContext) => Stack(
-    children: [
-      // El marco sigue montado aunque esté bloqueado: un borrador a medio
-      // escribir no puede perderse porque alguien pulsara «Bloquear». Sólo se
-      // suprime su interactividad; nada de debajo se reconstruye ni se tira.
-      // Los envoltorios de bloqueo se ponen SÓLO al bloquear. Dejarlos
-      // siempre puestos, aunque no hicieran nada, mete un nodo de semántica
-      // por encima de la navegación de Fluent y el marco lanza una aserción
-      // propia al recorrer el árbol de accesibilidad en anchos de teléfono.
-      if (widget.locked)
-        IgnorePointer(
-          key: const Key('operational-shell-interactivity'),
-          child: ExcludeSemantics(child: _scaffold(buildContext)),
-        )
-      else
-        _scaffold(buildContext),
-      if (widget.locked)
-        Positioned.fill(
-          child: WorkspaceLockScreen(
-            userLabel: widget.context.userLabel,
-            pendingSummary: widget.context.syncLabel,
-            onUnlock: widget.onUnlock!,
-            onSwitchUser: widget.onSwitchUser,
+  Widget build(BuildContext buildContext) {
+    // El bloqueo local (`locked`, una decisión del operador) manda sobre el
+    // bloqueo por límite de sesión sin conexión: son mutuamente excluyentes
+    // en la práctica y, si coincidieran alguna vez, seguir pidiendo la
+    // contraseña del puesto es lo más seguro.
+    final offlineBlockedMessage = widget.context.offlineBlockedMessage;
+    final blocked = widget.locked || offlineBlockedMessage != null;
+    return Stack(
+      children: [
+        // El marco sigue montado aunque esté bloqueado: un borrador a medio
+        // escribir no puede perderse porque alguien pulsara «Bloquear». Sólo
+        // se suprime su interactividad; nada de debajo se reconstruye ni se
+        // tira. Los envoltorios de bloqueo se ponen SÓLO al bloquear.
+        // Dejarlos siempre puestos, aunque no hicieran nada, mete un nodo de
+        // semántica por encima de la navegación de Fluent y el marco lanza
+        // una aserción propia al recorrer el árbol de accesibilidad en
+        // anchos de teléfono.
+        if (blocked)
+          IgnorePointer(
+            key: const Key('operational-shell-interactivity'),
+            child: ExcludeSemantics(child: _scaffold(buildContext)),
+          )
+        else
+          _scaffold(buildContext),
+        if (widget.locked)
+          Positioned.fill(
+            child: WorkspaceLockScreen(
+              userLabel: widget.context.userLabel,
+              pendingSummary: widget.context.syncLabel,
+              onUnlock: widget.onUnlock!,
+              onSwitchUser: widget.onSwitchUser,
+            ),
+          )
+        else if (offlineBlockedMessage != null)
+          Positioned.fill(
+            child: _OfflineAllowanceOverlay(message: offlineBlockedMessage),
           ),
-        ),
-    ],
-  );
+      ],
+    );
+  }
 
   Widget _scaffold(BuildContext buildContext) => LayoutBuilder(
     builder: (layoutContext, constraints) {
@@ -993,6 +1017,51 @@ class _OperationalShellState extends State<OperationalShell> {
                   ),
                 ],
               ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// El bloqueo por límite de sesión sin conexión (decisión del dueño,
+/// 14-sep-2026) — ver [OperationalContext.offlineBlockedMessage]. A
+/// diferencia de [WorkspaceLockScreen], no pide ninguna contraseña: se quita
+/// sola en cuanto vuelve la conexión y la próxima sincronización confirma
+/// que el plazo ya no está vencido. «Cerrar sesión» sigue disponible porque
+/// es la única acción de [OperationalShell] que no depende de la red.
+class _OfflineAllowanceOverlay extends StatelessWidget {
+  const _OfflineAllowanceOverlay({required this.message});
+
+  final String message;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = FluentTheme.of(context);
+    return ColoredBox(
+      color: theme.micaBackgroundColor,
+      child: Center(
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 420),
+          child: Padding(
+            padding: const EdgeInsets.all(24),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(
+                  FluentIcons.plug_disconnected,
+                  size: 40,
+                  color: theme.resources.textFillColorPrimary,
+                ),
+                const SizedBox(height: 16),
+                Text(
+                  message,
+                  key: const Key('shell-offline-allowance-message'),
+                  textAlign: TextAlign.center,
+                  style: theme.typography.body,
+                ),
+              ],
             ),
           ),
         ),

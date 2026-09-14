@@ -11,6 +11,7 @@ import '../contracts.dart';
 import '../session/session_runtime.dart';
 import 'api_key_renewal.dart';
 import 'credential_store.dart';
+import 'offline_allowance.dart';
 
 /// Non-secret identity metadata retained for restore and offline start.
 final class AuthProfile {
@@ -125,7 +126,20 @@ final class AuthProfile {
   }
 }
 
-enum AuthServiceStatus { authenticated, restored, unsupportedWeb, required }
+enum AuthServiceStatus {
+  authenticated,
+  restored,
+  unsupportedWeb,
+  required,
+
+  /// Decisión del dueño, 14-sep-2026: `restore(offline: true)` lo devuelve
+  /// cuando [OfflineAllowanceStore.evaluate] dice que esta sesión sin
+  /// conexión ya pasó su plazo (o el reloj del equipo retrocedió) — NUNCA
+  /// se activa la sesión, y NADA se borra: la llave, la marca de sesión
+  /// abierta, la base local y la cola offline quedan intactas. El detalle
+  /// de por qué viaja en [AuthServiceResult.offlineAllowance].
+  offlineExpired,
+}
 
 final class AuthServiceResult {
   const AuthServiceResult({
@@ -133,12 +147,18 @@ final class AuthServiceResult {
     this.scope,
     this.profile,
     this.capabilities,
+    this.offlineAllowance,
   });
 
   final AuthServiceStatus status;
   final AppScope? scope;
   final AuthProfile? profile;
   final CapabilitySnapshot? capabilities;
+
+  /// Sólo presente cuando [status] es [AuthServiceStatus.offlineExpired] —
+  /// el motivo exacto (vencido vs. reloj atrasado) y, si vencido, cuántos
+  /// días lleva sin conexión.
+  final OfflineAllowance? offlineAllowance;
 }
 
 abstract interface class ActiveIdentityReader {
@@ -428,6 +448,8 @@ final class NativeAuthService {
     this.identityReader,
     this.capabilityPort,
     ApiKeyIdentityProbe? apiKeyIdentityProbe,
+    OfflineAllowanceStore? offlineAllowance,
+    DateTime Function()? deviceNow,
   }) : _bootstrap = bootstrapPort ?? NativeAuthBootstrapAdapter(bootstrap),
        _credentialStore = credentialStore,
        _preferences = preferences,
@@ -437,7 +459,9 @@ final class NativeAuthService {
                ? _MissingRuntime()
                : SessionRuntimeAdapter(sessionRuntime)),
        _installationIds = installationIds,
-       _apiKeyIdentityProbe = apiKeyIdentityProbe ?? _probeApiKeyIdentity;
+       _apiKeyIdentityProbe = apiKeyIdentityProbe ?? _probeApiKeyIdentity,
+       _offlineAllowance = offlineAllowance ?? OfflineAllowanceStore(preferences),
+       _deviceNow = deviceNow ?? DateTime.now;
 
   final AuthBootstrapPort _bootstrap;
   final CredentialStore _credentialStore;
@@ -448,6 +472,19 @@ final class NativeAuthService {
   final ActiveIdentityReader? identityReader;
   final CapabilitySnapshotPort? capabilityPort;
   final ApiKeyIdentityProbe _apiKeyIdentityProbe;
+
+  /// Límite de sesión sin conexión (decisión del dueño, 14-sep-2026): quien
+  /// construye este servicio puede inyectar su propio
+  /// [OfflineAllowanceStore] (las pruebas lo hacen, para controlar
+  /// `lastOnlineAtUtc` sin esperar días de verdad); por omisión se arma uno
+  /// sobre las mismas [SharedPreferences] del perfil — ver esa clase para
+  /// por qué NUNCA vive en la base del scope.
+  final OfflineAllowanceStore _offlineAllowance;
+
+  /// De dónde sale "ahora" para evaluar el plazo sin conexión —
+  /// `DateTime.now` por omisión; una prueba inyecta un reloj fijo para
+  /// simular "hace 4 días" sin depender de que pase tiempo de verdad.
+  final DateTime Function() _deviceNow;
 
   /// Marca, NO secreta, de que hay una sesión ABIERTA en este dispositivo,
   /// para ESTE servidor+base+usuario exactos — distinta de «esta credencial
@@ -714,6 +751,15 @@ final class NativeAuthService {
         // revocable por close() cuando no se pidió «Guardar clave».
         passwordDerived: true,
       );
+      // Límite de sesión sin conexión (14-sep-2026): un login que llegó
+      // hasta aquí SÍ habló con Odoo de verdad — es el punto de partida del
+      // plazo de días sin conexión para esta credencial exacta.
+      await _offlineAllowance.recordOnline(
+        serverUrl: scope.normalizedServerUrl,
+        database: database,
+        userId: scope.userId,
+        nowUtc: _deviceNow().toUtc(),
+      );
       return AuthServiceResult(
         status: AuthServiceStatus.authenticated,
         scope: scope,
@@ -890,6 +936,15 @@ final class NativeAuthService {
         userId: scope.userId,
         passwordDerived: passwordDerived,
       );
+      // Límite de sesión sin conexión (14-sep-2026): mismo punto de partida
+      // que en `login()` — este camino también acaba de hablar con Odoo de
+      // verdad (el sondeo de identidad de arriba).
+      await _offlineAllowance.recordOnline(
+        serverUrl: scope.normalizedServerUrl,
+        database: database,
+        userId: scope.userId,
+        nowUtc: _deviceNow().toUtc(),
+      );
       return AuthServiceResult(
         status: AuthServiceStatus.authenticated,
         scope: scope,
@@ -1019,6 +1074,24 @@ final class NativeAuthService {
     // The bearer credential is intentionally only read to prove the vault
     // reference is available.
     if (offline) {
+      // Límite de sesión sin conexión (decisión del dueño, 14-sep-2026):
+      // ANTES de activar nada se evalúa si esta credencial sigue dentro de
+      // su plazo sin conexión — nunca se activa la sesión, ni se toca la
+      // llave, la marca de sesión abierta, la base local o la cola offline
+      // cuando no lo está. Al volver la red, el intento en línea normal
+      // (arriba, antes de este `if`) entra como siempre.
+      final allowance = await _offlineAllowance.evaluate(
+        serverUrl: scope.normalizedServerUrl,
+        database: profile.database,
+        userId: scope.userId,
+        deviceNowUtc: _deviceNow().toUtc(),
+      );
+      if (!allowance.isAllowed) {
+        return AuthServiceResult(
+          status: AuthServiceStatus.offlineExpired,
+          offlineAllowance: allowance,
+        );
+      }
       // Sin conexión no se crea cliente: `client == null` es la señal de
       // sin sesión en línea que usan los puertos de bodega, lectura y
       // catálogos (`warehouse_operation_port.dart`, `json2_read_adapters.dart`,
@@ -1027,49 +1100,66 @@ final class NativeAuthService {
       // en la siguiente activación en línea (login, restore en línea o
       // renovación de la llave), nunca aquí.
       await _sessionRuntime.activate(scope);
-    } else {
-      await _sessionRuntime.activate(scope, apiKey: secret);
-      if (identityReader != null) {
-        final identity = await identityReader!.read(scope);
-        final refreshed = AuthProfile(
-          serverUrl: profile.serverUrl,
-          database: profile.database,
-          login: profile.login,
-          userId: profile.userId,
-          installationId: profile.installationId,
-          credentialReference: profile.credentialReference,
-          companyId: identity.companyId,
-          companyName: identity.companyName,
-          name: identity.name,
-          allowedCompanyIds: identity.allowedCompanyIds,
-          apiKeyIssuedAt: profile.apiKeyIssuedAt,
-          apiKeyExpiresAt: profile.apiKeyExpiresAt,
-          lang: identity.lang,
-          tz: identity.tz,
-        );
-        await _saveProfile(refreshed);
-        _sessionRuntime.applyUserLocale(
-          language: identity.lang,
-          timezone: identity.tz,
-        );
-        return AuthServiceResult(
-          status: AuthServiceStatus.restored,
-          scope: scope,
-          profile: refreshed,
-          capabilities: await capabilityPort?.refresh(
-            scope,
-            identity.companyId,
-          ),
-        );
-      }
+      return AuthServiceResult(
+        status: AuthServiceStatus.restored,
+        scope: scope,
+        profile: profile,
+        capabilities: profile.companyId != null
+            ? await capabilityPort?.offline(scope, profile.companyId!)
+            : null,
+      );
     }
+    await _sessionRuntime.activate(scope, apiKey: secret);
+    if (identityReader != null) {
+      final identity = await identityReader!.read(scope);
+      final refreshed = AuthProfile(
+        serverUrl: profile.serverUrl,
+        database: profile.database,
+        login: profile.login,
+        userId: profile.userId,
+        installationId: profile.installationId,
+        credentialReference: profile.credentialReference,
+        companyId: identity.companyId,
+        companyName: identity.companyName,
+        name: identity.name,
+        allowedCompanyIds: identity.allowedCompanyIds,
+        apiKeyIssuedAt: profile.apiKeyIssuedAt,
+        apiKeyExpiresAt: profile.apiKeyExpiresAt,
+        lang: identity.lang,
+        tz: identity.tz,
+      );
+      await _saveProfile(refreshed);
+      _sessionRuntime.applyUserLocale(
+        language: identity.lang,
+        timezone: identity.tz,
+      );
+      // Límite de sesión sin conexión (14-sep-2026): recién se confirmó una
+      // conexión buena de verdad (la lectura de identidad de arriba es un
+      // RPC real) — se registra como el nuevo punto de partida del plazo.
+      await _offlineAllowance.recordOnline(
+        serverUrl: scope.normalizedServerUrl,
+        database: profile.database,
+        userId: scope.userId,
+        nowUtc: _deviceNow().toUtc(),
+      );
+      return AuthServiceResult(
+        status: AuthServiceStatus.restored,
+        scope: scope,
+        profile: refreshed,
+        capabilities: await capabilityPort?.refresh(
+          scope,
+          identity.companyId,
+        ),
+      );
+    }
+    // Sin `identityReader` no hay ningún RPC real que confirme la conexión
+    // (`activate` sólo prepara el cliente local) — un perfil/servicio de
+    // prueba sin lector de identidad no debe fingir una conexión que nunca
+    // ocurrió. Los servicios de producción siempre traen `identityReader`.
     return AuthServiceResult(
       status: AuthServiceStatus.restored,
       scope: scope,
       profile: profile,
-      capabilities: offline && profile.companyId != null
-          ? await capabilityPort?.offline(scope, profile.companyId!)
-          : null,
     );
   }
 

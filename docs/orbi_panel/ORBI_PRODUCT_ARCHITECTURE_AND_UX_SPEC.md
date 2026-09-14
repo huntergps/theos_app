@@ -883,8 +883,15 @@ Orbi se considera terminado cuando la fase acordada:
 - La compatibilidad propuesta de `res.users.pin` con `hr` está decidida conceptualmente,
   pero sigue pendiente de la prueba de instalación posterior, migración y autenticación
   descrita en la sección 18.
-- La política de expiración del aprovisionamiento offline debe acordarse con el riesgo
-  operativo; no se fija aquí un plazo arbitrario.
+- ~~La política de expiración del aprovisionamiento offline debe acordarse con el riesgo
+  operativo; no se fija aquí un plazo arbitrario.~~ **Fijado (decisión del dueño,
+  14-sep-2026):** máximo 3 días sin conexión, parametrizable en Odoo
+  (`offline_max_days`, servido por `app.sync.client.policy.client_policy()`). Pasado el
+  plazo hay que entrar en línea una vez; no se borran datos locales ni la cola offline.
+  Implementado en `orbi_runtime/lib/src/auth/offline_allowance.dart`
+  (`OfflineAllowanceStore`), aplicado por `NativeAuthService.restore(offline: true)` y
+  vigilado cada minuto mientras la sesión sigue abierta sin conexión
+  (`theos_panel/lib/app/router.dart`).
 - No se crearán presupuestos por dispositivo para cupo, mora, saldos o stock. Cualquier
   dato local es la última representación provisionada de Odoo y conserva su fecha/estado.
 - Las ampliaciones backend descritas son propuesta de alcance, no autorización para

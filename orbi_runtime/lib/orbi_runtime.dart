@@ -26,6 +26,7 @@ export 'src/auth/encrypted_credential_envelope.dart' show Argon2Cost;
 export 'src/auth/encrypted_file_credential_backend.dart';
 export 'src/auth/linux_secret_service_fallback_credential_backend.dart';
 export 'src/auth/native_auth_service.dart';
+export 'src/auth/offline_allowance.dart';
 export 'src/auth/api_key_renewal.dart';
 export 'src/auth/capability_runtime.dart';
 export 'src/auth/runtime_capability_service.dart';

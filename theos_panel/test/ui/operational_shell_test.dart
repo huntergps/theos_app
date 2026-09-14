@@ -1371,6 +1371,59 @@ void main() {
       );
       expect(ignora.ignoring, isTrue);
     });
+
+    // Límite de sesión sin conexión (decisión del dueño, 14-sep-2026):
+    // `router.dart` revisa cada minuto si la sesión sin conexión sigue
+    // dentro del plazo y, cuando deja de estarlo, pinta este mensaje en
+    // `OperationalContext.offlineBlockedMessage`. El marco debe bloquearse
+    // igual que con `locked`, pero sin pedir contraseña — se destraba solo
+    // cuando el mensaje vuelve a `null`.
+    testWidgets(
+      'shell blocks when offline allowance expires while open',
+      (tester) async {
+        const size = Size(1920, 1080);
+        const message =
+            'Llevas 4 días sin conectarte con Odoo (el máximo es 3). '
+            'Conéctate a internet para seguir; tus datos y lo pendiente se '
+            'conservan.';
+        await _pump(
+          tester,
+          _host(
+            size,
+            context: const OperationalContext(
+              server: 'erp.test',
+              database: 'orbi_test',
+              userLabel: 'Erik',
+              companyLabel: 'Empresa Demo',
+              connectionLabel: 'Conectado',
+              syncLabel: '3 pendientes',
+              offlineBlockedMessage: message,
+            ),
+            child: const Center(child: Text('Borrador a medias')),
+          ),
+          size,
+        );
+
+        // El contenido sigue montado, pero fuera de alcance.
+        expect(
+          find.text('Borrador a medias', skipOffstage: false),
+          findsOneWidget,
+        );
+        final ignora = tester.widget<IgnorePointer>(
+          find.byKey(const Key('operational-shell-interactivity')),
+        );
+        expect(ignora.ignoring, isTrue);
+
+        // Y el mensaje del plazo se ve, sin pedir ninguna contraseña — no
+        // es `WorkspaceLockScreen`.
+        expect(
+          find.byKey(const Key('shell-offline-allowance-message')),
+          findsOneWidget,
+        );
+        expect(find.text(message), findsOneWidget);
+        expect(find.byType(PasswordBox), findsNothing);
+      },
+    );
   });
 
   group('la cabecera del panel la pone Fluent, no nosotros', () {

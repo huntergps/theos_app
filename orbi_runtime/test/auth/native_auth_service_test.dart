@@ -238,6 +238,8 @@ void main() {
     ApiKeyIdentityProbe? apiKeyIdentityProbe,
     _Capabilities? capabilities,
     _Bootstrap? bootstrap,
+    OfflineAllowanceStore? offlineAllowance,
+    DateTime Function()? deviceNow,
   ]) async {
     SharedPreferences.setMockInitialValues({});
     final prefs = await SharedPreferences.getInstance();
@@ -253,6 +255,8 @@ void main() {
       identityReader: identity,
       capabilityPort: capabilities ?? _Capabilities(),
       apiKeyIdentityProbe: apiKeyIdentityProbe,
+      offlineAllowance: offlineAllowance,
+      deviceNow: deviceNow,
     );
   }
 
@@ -269,6 +273,7 @@ void main() {
     _Runtime runtime, [
     ApiKeyIdentityProbe? apiKeyIdentityProbe,
     _Bootstrap? bootstrap,
+    DateTime Function()? deviceNow,
   ]) async {
     SharedPreferences.setMockInitialValues({});
     final prefs = await SharedPreferences.getInstance();
@@ -284,6 +289,7 @@ void main() {
       identityReader: identity,
       capabilityPort: _Capabilities(),
       apiKeyIdentityProbe: apiKeyIdentityProbe,
+      deviceNow: deviceNow,
     );
     return (svc, prefs);
   }
@@ -295,6 +301,7 @@ void main() {
     _Runtime runtime, [
     ApiKeyIdentityProbe? apiKeyIdentityProbe,
     _Bootstrap? bootstrap,
+    DateTime Function()? deviceNow,
   ]) {
     return NativeAuthService(
       bootstrapPort: bootstrap ?? _Bootstrap(),
@@ -308,6 +315,7 @@ void main() {
       identityReader: identity,
       capabilityPort: _Capabilities(),
       apiKeyIdentityProbe: apiKeyIdentityProbe,
+      deviceNow: deviceNow,
     );
   }
 
@@ -1718,5 +1726,208 @@ void main() {
         expect(profile.tz, isNull);
       },
     );
+  });
+
+  // --- Límite de sesión sin conexión (decisión del dueño, 14-sep-2026):
+  // máximo 3 días sin hablar con Odoo, parametrizable en el servidor
+  // (`offline_max_days`). `OfflineAllowanceStore` (unidad, en
+  // `offline_allowance_test.dart`) decide el "sí/no"; este grupo comprueba
+  // cómo `NativeAuthService.restore(offline: true)` lo aplica de verdad,
+  // sin activar la sesión ni tocar nada local cuando se rechaza. --------
+  group('offline session limit (14-sep-2026)', () {
+    const serverUrl = 'https://erp.test';
+    const database = 'db';
+
+    test(
+      'offline restore is refused after max days',
+      () async {
+        final backend = _Backend();
+        final identity = _Identity();
+        final (svc, prefs) = await openSession(backend, identity, _Runtime());
+        final loginResult = await svc.login(
+          serverUrl: serverUrl,
+          database: database,
+          login: 'u',
+          password: 'p',
+        );
+        expect(loginResult.status, AuthServiceStatus.authenticated);
+        final scope = loginResult.scope!;
+
+        // Fuerza "la última conexión buena fue hace 4 días" — pasa el
+        // máximo por omisión de 3.
+        await OfflineAllowanceStore(prefs).recordOnline(
+          serverUrl: scope.normalizedServerUrl,
+          database: scope.database,
+          userId: scope.userId,
+          nowUtc: DateTime.now().toUtc().subtract(const Duration(days: 4)),
+        );
+
+        final readCallsAfterLogin = identity.readCalls;
+        final freshRuntime = _Runtime();
+        final s2 = reopen(backend, prefs, identity, freshRuntime);
+        final restored = await s2.restore(offline: true);
+
+        expect(restored.status, AuthServiceStatus.offlineExpired);
+        expect(
+          restored.offlineAllowance?.status,
+          OfflineAllowanceStatus.expired,
+        );
+        // Nunca se activó el runtime — la sesión sigue sin abrirse.
+        expect(freshRuntime.active, isNull);
+        // Sin ningún RPC de identidad nuevo — nunca se tocó la red.
+        expect(identity.readCalls, readCallsAfterLogin);
+      },
+    );
+
+    test(
+      'offline restore within the limit still works',
+      () async {
+        final backend = _Backend();
+        final identity = _Identity();
+        final (svc, prefs) = await openSession(backend, identity, _Runtime());
+        final loginResult = await svc.login(
+          serverUrl: serverUrl,
+          database: database,
+          login: 'u',
+          password: 'p',
+        );
+        final scope = loginResult.scope!;
+        await OfflineAllowanceStore(prefs).recordOnline(
+          serverUrl: scope.normalizedServerUrl,
+          database: scope.database,
+          userId: scope.userId,
+          nowUtc: DateTime.now().toUtc().subtract(const Duration(days: 2)),
+        );
+
+        final freshRuntime = _Runtime();
+        final s2 = reopen(backend, prefs, identity, freshRuntime);
+        final restored = await s2.restore(offline: true);
+
+        expect(restored.status, AuthServiceStatus.restored);
+        expect(freshRuntime.active, isNotNull);
+        // Activación sin conexión: nunca se manda la llave — el fake
+        // registra `null` cuando `activate` se llamó sin `apiKey`.
+        expect(freshRuntime.lastActivateApiKey, isNull);
+      },
+    );
+
+    test('device clock rollback refuses offline restore', () async {
+      final backend = _Backend();
+      final identity = _Identity();
+      final (svc, prefs) = await openSession(backend, identity, _Runtime());
+      final loginResult = await svc.login(
+        serverUrl: serverUrl,
+        database: database,
+        login: 'u',
+        password: 'p',
+      );
+      final scope = loginResult.scope!;
+      final allowanceStore = OfflineAllowanceStore(prefs);
+      final farFuture = DateTime.now().toUtc().add(const Duration(days: 1));
+      // "Se vio" el reloj del equipo en el futuro (una sesión anterior, sin
+      // retroceder todavía) — evaluar ahora con la hora real (mucho antes)
+      // debe leerse como un retroceso, nunca como un vencimiento normal.
+      await allowanceStore.evaluate(
+        serverUrl: scope.normalizedServerUrl,
+        database: scope.database,
+        userId: scope.userId,
+        deviceNowUtc: farFuture,
+      );
+
+      final freshRuntime = _Runtime();
+      final s2 = reopen(backend, prefs, identity, freshRuntime);
+      final restored = await s2.restore(offline: true);
+
+      expect(restored.status, AuthServiceStatus.offlineExpired);
+      expect(
+        restored.offlineAllowance?.status,
+        OfflineAllowanceStatus.clockRollback,
+      );
+      expect(freshRuntime.active, isNull);
+    });
+
+    test(
+      'online restore records last online and is never blocked',
+      () async {
+        final backend = _Backend();
+        final identity = _Identity();
+        final (svc, prefs) = await openSession(backend, identity, _Runtime());
+        final loginResult = await svc.login(
+          serverUrl: serverUrl,
+          database: database,
+          login: 'u',
+          password: 'p',
+        );
+        final scope = loginResult.scope!;
+        // Se fuerza "hace 10 días" para comprobar que un restore EN LÍNEA
+        // jamás lo mira — sólo lo hace `restore(offline: true)`.
+        await OfflineAllowanceStore(prefs).recordOnline(
+          serverUrl: scope.normalizedServerUrl,
+          database: scope.database,
+          userId: scope.userId,
+          nowUtc: DateTime.now().toUtc().subtract(const Duration(days: 10)),
+        );
+
+        final freshRuntime = _Runtime();
+        final s2 = reopen(backend, prefs, identity, freshRuntime);
+        final restored = await s2.restore();
+
+        expect(restored.status, AuthServiceStatus.restored);
+        expect(freshRuntime.lastActivateApiKey, isNotNull);
+
+        // Y quedó registrada una conexión buena reciente — un futuro
+        // `restore(offline: true)` ya no debe verla vencida.
+        final allowance = await OfflineAllowanceStore(prefs).evaluate(
+          serverUrl: scope.normalizedServerUrl,
+          database: scope.database,
+          userId: scope.userId,
+          deviceNowUtc: DateTime.now().toUtc(),
+        );
+        expect(allowance.isAllowed, isTrue);
+      },
+    );
+
+    test('expired offline keeps key, marker and queue', () async {
+      final backend = _Backend();
+      final identity = _Identity();
+      final (svc, prefs) = await openSession(backend, identity, _Runtime());
+      final loginResult = await svc.login(
+        serverUrl: serverUrl,
+        database: database,
+        login: 'u',
+        password: 'p',
+      );
+      final scope = loginResult.scope!;
+      await OfflineAllowanceStore(prefs).recordOnline(
+        serverUrl: scope.normalizedServerUrl,
+        database: scope.database,
+        userId: scope.userId,
+        nowUtc: DateTime.now().toUtc().subtract(const Duration(days: 4)),
+      );
+      final credentialCountBefore = backend.values.length;
+
+      final freshRuntime = _Runtime();
+      final s2 = reopen(backend, prefs, identity, freshRuntime);
+      final restored = await s2.restore(offline: true);
+      expect(restored.status, AuthServiceStatus.offlineExpired);
+
+      // La llave, el perfil y la marca de sesión abierta siguen intactos —
+      // no se borró nada por vencer el plazo (decisión del dueño: nunca se
+      // borran datos locales ni la cola offline).
+      expect(backend.values.length, credentialCountBefore);
+      final profile = await s2.loadProfile();
+      expect(profile, isNotNull);
+      expect(await s2.hasStoredCredential(profile!), isTrue);
+      // La MARCA de sesión abierta también sigue ahí: un restore EN LÍNEA
+      // posterior (cuando vuelva la red) reactiva la MISMA sesión sin pedir
+      // nada de nuevo — nunca cayó a "required".
+      final onlineRestore = await reopen(
+        backend,
+        prefs,
+        identity,
+        _Runtime(),
+      ).restore();
+      expect(onlineRestore.status, AuthServiceStatus.restored);
+    });
   });
 }

@@ -2161,6 +2161,47 @@ void main() {
     },
   );
 
+  testWidgets(
+    'login shows offline expired message',
+    (tester) async {
+      // Límite de sesión sin conexión (decisión del dueño, 14-sep-2026):
+      // `AuthNotifier` traduce un `restore(offline: true)` vencido a
+      // `AuthControllerStatus.offlineExpired` con este mensaje exacto — la
+      // pantalla de acceso lo pinta igual que cualquier otra frase escrita a
+      // mano por el controlador, sin volver a clasificarlo como una causa
+      // de `LoginFailureMessage` que no es.
+      const offlineExpiredMessage =
+          'Llevas 4 días sin conectarte con Odoo (el máximo es 3). '
+          'Conéctate a internet para seguir; tus datos y lo pendiente se '
+          'conservan.';
+      await setLoginTestWindowSize(tester, const Size(1200, 1000));
+      addTearDown(() => resetLoginTestWindowSize(tester));
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            authServiceProvider.overrideWithValue(_ProfileService()),
+            authInitialStateProvider.overrideWithValue(
+              const AuthViewState(
+                status: AuthControllerStatus.offlineExpired,
+                message: offlineExpiredMessage,
+              ),
+            ),
+          ],
+          child: FluentApp(
+            theme: OrbiFluentTheme.light,
+            home: const LoginScreen(),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(find.text(offlineExpiredMessage), findsOneWidget);
+      // No es una causa clasificada: el tratamiento plano, nunca el panel
+      // con título/orientación de `LoginFailurePanel`.
+      expect(find.byKey(const Key('login-failure-panel')), findsNothing);
+      expect(tester.takeException(), isNull);
+    },
+  );
+
   // ==========================================================================
   // Encargo del dueño (13-sep-2026): el acceso en escritorio ancho pasa a
   // panel de marca + formulario lado a lado a partir del ancho "expandido"

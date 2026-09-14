@@ -713,17 +713,41 @@ class _ClientPolicyRevisionNotifier extends Notifier<int> {
   void bump() => state++;
 }
 
+/// Límite de sesión sin conexión (14-sep-2026): `OfflineAllowanceStore`
+/// (`orbi_runtime`) vive sobre las mismas `SharedPreferences` que el resto de
+/// la sesión — nunca en la base del scope, ver la doc de esa clase.
+final _offlineAllowanceStoreProvider = Provider<OfflineAllowanceStore>(
+  (ref) => OfflineAllowanceStore(ref.watch(sharedPreferencesProvider)),
+);
+
 final _clientPolicyServiceProvider = Provider<ClientPolicyService?>((ref) {
   final runtime = ref.watch(runtimeSessionProvider);
   final active = runtime?.active;
   if (runtime == null || active == null) return null;
   final metadata = RuntimeMetadataStore(runtime);
   final lease = active.lease;
+  final profile = ref.watch(authControllerProvider).profile;
+  final allowanceStore = ref.watch(_offlineAllowanceStoreProvider);
   final service = ClientPolicyService.fromSession(
     sessions: runtime,
     readState: () => metadata.read(_clientPolicyStateKey, lease: lease),
     writeState: (json) =>
         metadata.write(_clientPolicyStateKey, json, lease: lease),
+    // Límite de sesión sin conexión (14-sep-2026): cada sincronización real
+    // trae el `offline_max_days` que de verdad configuró ESTE servidor —
+    // se registra junto con la conexión buena, para que el plazo use ese
+    // valor en vez del por omisión (3) hasta la próxima sincronización.
+    onServerSynced: profile == null
+        ? null
+        : (snapshot) => unawaited(
+            allowanceStore.recordServerSync(
+              serverUrl: profile.serverUrl,
+              database: profile.database,
+              userId: profile.userId,
+              offlineMaxDays: snapshot.offlineMaxDays,
+              nowUtc: DateTime.now().toUtc(),
+            ),
+          ),
   );
 
   // Tras entrar o restaurar SESIÓN EN LÍNEA: una sincronización inmediata,
@@ -835,6 +859,88 @@ final serverClockStatusProvider = Provider<ServerClockStatus?>((ref) {
     clockRollbackSuspected: snapshot.clockRollbackSuspected,
   );
 });
+// --- Fin del bloque aislado ------------------------------------------------
+
+// --- Bloque aislado: límite de sesión sin conexión (14-sep-2026) -----------
+// Decisión del dueño: máximo `offline_max_days` (3 por omisión,
+// parametrizable en Odoo) sin hablar con el servidor. `OfflineAllowanceStore`
+// (`orbi_runtime`) ya lo hace cumplir en el arranque
+// (`NativeAuthService.restore(offline: true)`, que nunca activa la sesión
+// vencida). Este bloque cubre el otro caso: la app se queda abierta SIN
+// conexión hasta pasar el plazo — revisa cada minuto y bloquea el armazón
+// con un mensaje, sin cerrar sesión ni tocar nada local. Se destraba solo en
+// cuanto vuelve a sincronizar (`_offlineAllowanceStoreProvider.evaluate`
+// vuelve a decir `allowed`).
+/// Cada cuánto se repite la revisión — `null` por omisión APAGA el
+/// temporizador (mismo patrón que `OperationalShell.clockTickInterval` para
+/// `_FooterClock`): un `Timer.periodic` vivo nunca deja terminar a
+/// `tester.pumpAndSettle()`, y la inmensa mayoría de las pruebas de este
+/// paquete arman sesiones SIN conexión (`activate(scope)`, sin `apiKey`) a
+/// propósito, para no tocar la red — justo el caso que arma este
+/// temporizador. `bootstrap.dart` lo sobreescribe a un minuto en producción;
+/// ninguna prueba de este paquete necesita tocarlo.
+final offlineAllowanceCheckIntervalProvider = Provider<Duration?>(
+  (ref) => null,
+);
+
+final _offlineAllowanceBlockMessageProvider =
+    NotifierProvider<_OfflineAllowanceBlockNotifier, String?>(
+      _OfflineAllowanceBlockNotifier.new,
+    );
+
+class _OfflineAllowanceBlockNotifier extends Notifier<String?> {
+  Timer? _timer;
+
+  @override
+  String? build() {
+    final runtime = ref.watch(runtimeSessionProvider);
+    final active = runtime?.active;
+    final profile = ref.watch(authControllerProvider).profile;
+    final interval = ref.watch(offlineAllowanceCheckIntervalProvider);
+    ref.onDispose(() => _timer?.cancel());
+    _timer?.cancel();
+    _timer = null;
+    // En línea (hay cliente), o sin sesión activa: nada que vigilar aquí —
+    // el caso "ya estaba vencida al abrir" lo rechaza `restore()` antes de
+    // llegar a pintar este armazón.
+    if (active == null || active.client != null || profile == null) {
+      return null;
+    }
+    if (interval != null) {
+      _timer = Timer.periodic(interval, (_) => unawaited(_check(profile)));
+    }
+    unawaited(_check(profile));
+    return null;
+  }
+
+  Future<void> _check(AuthProfile profile) async {
+    final store = ref.read(_offlineAllowanceStoreProvider);
+    final allowance = await store.evaluate(
+      serverUrl: profile.serverUrl,
+      database: profile.database,
+      userId: profile.userId,
+      deviceNowUtc: DateTime.now().toUtc(),
+    );
+    if (!ref.mounted) return;
+    state = _offlineAllowanceMessageFor(allowance);
+  }
+}
+
+String? _offlineAllowanceMessageFor(OfflineAllowance allowance) {
+  switch (allowance.status) {
+    case OfflineAllowanceStatus.allowed:
+      return null;
+    case OfflineAllowanceStatus.expired:
+      final days = allowance.daysOffline ?? allowance.maxDays ?? kDefaultOfflineAllowanceDays;
+      final max = allowance.maxDays ?? kDefaultOfflineAllowanceDays;
+      return 'Llevas $days días sin conectarte con Odoo (el máximo es $max). '
+          'Conéctate a internet para seguir; tus datos y lo pendiente se '
+          'conservan.';
+    case OfflineAllowanceStatus.clockRollback:
+      return 'La fecha de este equipo está atrasada; corrígela y '
+          'conéctate a internet.';
+  }
+}
 // --- Fin del bloque aislado ------------------------------------------------
 
 // --- Bloque aislado: sesión expirada en caliente (auditoría de sesión,
@@ -1897,6 +2003,9 @@ final orbiRouterProvider = Provider<GoRouter>((ref) {
                       storageIsVolatile:
                           storageMode == RuntimeStorageMode.volatile,
                       serverClock: ref.watch(serverClockStatusProvider),
+                      offlineBlockedMessage: ref.watch(
+                        _offlineAllowanceBlockMessageProvider,
+                      ),
                     ),
                     onLogout: () async {
                       await ref.read(authControllerProvider.notifier).close();

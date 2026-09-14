@@ -20,6 +20,7 @@ import '../ui/fluent/orbi_fluent_theme.dart';
 import 'orbi_splash_screen.dart';
 import 'preferences/app_preferences.dart';
 import 'orbi_app.dart';
+import 'router.dart' show offlineAllowanceCheckIntervalProvider;
 import 'session_composition.dart';
 
 /// The splash is visible for about 1.2 seconds on a fast cold start. This is
@@ -738,6 +739,13 @@ Future<Widget> _initializeApplication({
       // sustitución no llega ninguna señal y el estado queda en «sin
       // verificar», que es preferible a inventarlo.
       networkSignalOverride,
+      // Límite de sesión sin conexión (14-sep-2026): sólo la app real corre
+      // el temporizador de un minuto que revisa el plazo mientras la sesión
+      // sigue abierta sin conexión — ver la doc de
+      // `offlineAllowanceCheckIntervalProvider`.
+      offlineAllowanceCheckIntervalProvider.overrideWithValue(
+        const Duration(minutes: 1),
+      ),
       ...composition.overrides,
       authInitialStateProvider.overrideWithValue(
         authViewStateFromResult(restored),

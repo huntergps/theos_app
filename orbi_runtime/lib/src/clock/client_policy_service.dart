@@ -121,6 +121,7 @@ final class ClientPolicyService {
     required Future<void> Function(String json) writeState,
     DateTime Function()? deviceNow,
     Duration Function()? monotonicElapsed,
+    this.onServerSynced,
   }) : _rpcOf = rpc,
        _readState = readState,
        _writeState = writeState,
@@ -138,6 +139,7 @@ final class ClientPolicyService {
     required Future<void> Function(String json) writeState,
     DateTime Function()? deviceNow,
     Duration Function()? monotonicElapsed,
+    void Function(ClientPolicySnapshot snapshot)? onServerSynced,
   }) => ClientPolicyService(
     rpc: () {
       final client = sessions.active?.client;
@@ -158,6 +160,7 @@ final class ClientPolicyService {
     writeState: writeState,
     deviceNow: deviceNow,
     monotonicElapsed: monotonicElapsed,
+    onServerSynced: onServerSynced,
   );
 
   final ClientPolicyRpc? Function() _rpcOf;
@@ -165,6 +168,15 @@ final class ClientPolicyService {
   final Future<void> Function(String) _writeState;
   final DateTime Function() _deviceNow;
   final Duration Function() _monotonicElapsed;
+
+  /// Límite de sesión sin conexión (14-sep-2026): se llama tras cada
+  /// sincronización real con el servidor (nunca en la rama "el modelo no
+  /// existe" ni en un fallo), con el snapshot recién actualizado — quien
+  /// compone la sesión (`router.dart`) lo cablea a
+  /// `OfflineAllowanceStore.recordServerSync` para que el plazo sin conexión
+  /// use el `offline_max_days` real del servidor en vez del valor por
+  /// omisión. `null` no hace nada — nunca obligatorio.
+  final void Function(ClientPolicySnapshot snapshot)? onServerSynced;
 
   Duration _offset = Duration.zero;
   ClientPolicyTimeSource _source = ClientPolicyTimeSource.device;
@@ -293,6 +305,7 @@ final class ClientPolicyService {
       _lastOnlineAt = sentAtDevice;
       _syncedServerThisSession = true;
       await _persistAndTrackClock(sentAtDevice);
+      onServerSynced?.call(snapshot);
     } on OdooNotFoundException {
       await _fallBackToDeviceForMissingModel(sentAtDevice);
     } on OdooMethodNotFoundException {

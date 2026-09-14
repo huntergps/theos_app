@@ -215,6 +215,30 @@ enum AuthControllerStatus {
   restored,
   unsupportedWeb,
   error,
+
+  /// Límite de sesión sin conexión (decisión del dueño, 14-sep-2026): un
+  /// `restore(offline: true)` que [OfflineAllowanceStore.evaluate]
+  /// (`orbi_runtime`) rechazó — nunca se activó la sesión, y nada se borró
+  /// (llave, marca de sesión abierta, base local, cola offline). Distinto de
+  /// [error]: no es un fallo, es un plazo — [AuthViewState.message] ya trae
+  /// el texto exacto que debe verse ([offlineAllowanceMessageFor]).
+  offlineExpired,
+}
+
+/// El mensaje para la pantalla de acceso cuando `restore(offline: true)`
+/// devolvió [AuthServiceStatus.offlineExpired] — orden del dueño,
+/// 14-sep-2026: distingue el reloj atrasado (nunca sirve para estirar el
+/// plazo) del vencimiento normal, con los días y el máximo reales.
+String offlineAllowanceMessageFor(OfflineAllowance? allowance) {
+  if (allowance?.status == OfflineAllowanceStatus.clockRollback) {
+    return 'La fecha de este equipo está atrasada; corrígela y conéctate a '
+        'internet.';
+  }
+  final days = allowance?.daysOffline ?? allowance?.maxDays ?? kDefaultOfflineAllowanceDays;
+  final max = allowance?.maxDays ?? kDefaultOfflineAllowanceDays;
+  return 'Llevas $days días sin conectarte con Odoo (el máximo es $max). '
+      'Conéctate a internet para seguir; tus datos y lo pendiente se '
+      'conservan.';
 }
 
 final class AuthViewState {
@@ -662,6 +686,10 @@ class AuthNotifier extends Notifier<AuthViewState> {
         AuthServiceStatus.required => const AuthViewState(
           status: AuthControllerStatus.required,
         ),
+        AuthServiceStatus.offlineExpired => AuthViewState(
+          status: AuthControllerStatus.offlineExpired,
+          message: offlineAllowanceMessageFor(result.offlineAllowance),
+        ),
       };
 }
 
@@ -683,5 +711,9 @@ AuthViewState authViewStateFromResult(AuthServiceResult result) =>
       ),
       AuthServiceStatus.required => const AuthViewState(
         status: AuthControllerStatus.required,
+      ),
+      AuthServiceStatus.offlineExpired => AuthViewState(
+        status: AuthControllerStatus.offlineExpired,
+        message: offlineAllowanceMessageFor(result.offlineAllowance),
       ),
     };

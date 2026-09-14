@@ -282,6 +282,81 @@ void main() {
     expect(container.read(authControllerProvider).profile?.userId, 7);
   });
 
+  // Límite de sesión sin conexión (decisión del dueño, 14-sep-2026): un
+  // `restore(offline: true)` que el servicio rechazó por vencido nunca debe
+  // activar nada — el controlador lo traduce a
+  // `AuthControllerStatus.offlineExpired` con un mensaje claro, nunca a
+  // `restored` ni a un `error` genérico.
+  test(
+    'offline restore refused for exceeding the limit surfaces a clear '
+    'message, never a silent restore',
+    () async {
+      final container = ProviderContainer(
+        overrides: [
+          authServiceProvider.overrideWithValue(
+            FakeAuthService(
+              const AuthServiceResult(
+                status: AuthServiceStatus.offlineExpired,
+                offlineAllowance: OfflineAllowance(
+                  status: OfflineAllowanceStatus.expired,
+                  daysOffline: 4,
+                  maxDays: 3,
+                ),
+              ),
+            ),
+          ),
+        ],
+      );
+      addTearDown(container.dispose);
+
+      await container
+          .read(authControllerProvider.notifier)
+          .restore(offline: true);
+
+      final state = container.read(authControllerProvider);
+      expect(state.status, AuthControllerStatus.offlineExpired);
+      expect(state.profile, isNull);
+      expect(
+        state.message,
+        'Llevas 4 días sin conectarte con Odoo (el máximo es 3). Conéctate '
+        'a internet para seguir; tus datos y lo pendiente se conservan.',
+      );
+    },
+  );
+
+  test(
+    'a device clock rollback reports its own message, not the day-count one',
+    () async {
+      final container = ProviderContainer(
+        overrides: [
+          authServiceProvider.overrideWithValue(
+            FakeAuthService(
+              const AuthServiceResult(
+                status: AuthServiceStatus.offlineExpired,
+                offlineAllowance: OfflineAllowance(
+                  status: OfflineAllowanceStatus.clockRollback,
+                ),
+              ),
+            ),
+          ),
+        ],
+      );
+      addTearDown(container.dispose);
+
+      await container
+          .read(authControllerProvider.notifier)
+          .restore(offline: true);
+
+      final state = container.read(authControllerProvider);
+      expect(state.status, AuthControllerStatus.offlineExpired);
+      expect(
+        state.message,
+        'La fecha de este equipo está atrasada; corrígela y conéctate a '
+        'internet.',
+      );
+    },
+  );
+
   test('cold start restore falls back offline once without looping', () async {
     final service = _RestoreSequence();
     final result = await restoreOnce(service);
