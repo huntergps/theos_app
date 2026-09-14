@@ -23,20 +23,21 @@ Contradice la regla del proyecto (CLAUDE.md, «Odoo 19 frente a Odoo 20»): **la
 
 ## La decisión
 
-1. **Existencia de modelos, una sola llamada.** Antes del ciclo se leen de `ir.model` los modelos de todos
-   los catálogos. Si el modelo de un catálogo no existe, ese catálogo queda en `unsupported` para ese
-   servidor+base: no se ejecuta, no cuenta como error y `/sync` lo muestra aparte, atenuado, con el texto
-   «No disponible en este servidor».
-2. **Campos opcionales por `fields_get`.** Cada descriptor distingue campos obligatorios de opcionales. Solo
-   para los modelos que existen, un `fields_get` (reusar el patrón de `FieldAvailabilityCache`):
-   - si falta un opcional, el catálogo se sincroniza sin él (`taxes_id` en productos);
-   - si falta un campo del que depende el filtro (`customer_rank`), el filtro se omite y se dice en el
-     descriptor por qué;
-   - si falta un obligatorio, el catálogo queda en `unsupported`.
+1. **Existencia por modelo con `fields_get`, no con `ir.model`** (corregido el 13-sep-2026, ver abajo).
+   Por cada modelo de los catálogos, un `fields_get(attributes=['type'])` memorizado por servidor+base:
+   404 de modelo inexistente → el catálogo queda `unsupported` (no se ejecuta, no cuenta como error, `/sync`
+   lo muestra aparte, atenuado, «No disponible en este servidor»); respuesta válida → lista de campos
+   disponibles; red, 401 o 403 → `unknown`.
+2. **Campos opcionales y de filtro.** Cada descriptor distingue obligatorios, opcionales y campos de los que
+   depende un filtro. Con la lista de `fields_get`: falta un opcional → se sincroniza sin él (`taxes_id`);
+   falta un campo de filtro → se omite ese filtro (`customer_rank`); falta un obligatorio → `unsupported`.
+   Si aun así el `search_read` real devuelve `OdooFieldNotFoundException` por un opcional o de filtro, se
+   quita ese campo y se reintenta UNA vez; solo un obligatorio deja el catálogo en `unsupported`.
 3. **Clasificación de fallos.** 404 de modelo o campo inexistente = `unsupported`, recordado por
    servidor+base. Red, 401/403 o cualquier 500 de otra causa = fallo que se reintenta, igual que hoy.
-4. **`unknown` no apaga nada.** Si la lectura de `ir.model` o de `fields_get` falla por red, ningún catálogo
-   pasa a `unsupported`: sigue en `unknown` y se reintenta en el siguiente ciclo.
+4. **`unknown` no apaga nada.** Si `fields_get` falla por red o permisos, el catálogo no pasa a
+   `unsupported`: sigue en `unknown`, corre con su descriptor de siempre y se reintenta el sondeo en el
+   siguiente ciclo.
 5. **Se re-evalúa** al entrar, al cambiar de servidor o base, y con «Forzar sync completo». Un módulo
    instalado después vuelve a habilitar su catálogo sin reinstalar la app.
 6. **No se inventa ni se quita nada del código.** Los 17 catálogos siguen declarados; lo único que cambia es
@@ -47,3 +48,13 @@ Contradice la regla del proyecto (CLAUDE.md, «Odoo 19 frente a Odoo 20»): **la
 - Filtrar catálogos por el rol del usuario (bodega frente a caja). Hoy los permisos por área existen para
   las pantallas, no para los catálogos; se decide aparte si con este cambio no basta.
 - Los 9 catálogos sin consumidor en Orbi (mapa, sección 7 d): no se retiran aquí.
+
+## Corrección del 13-sep-2026: por qué no `ir.model`
+
+La primera versión pedía una sola lectura de `ir.model`. El agente que la implementó (commit `3832d36`)
+señaló que en ERP2 un vendedor normal recibe 403 al leer `ir.model`: con ese perfil todo quedaría en
+`unknown` y el defecto de Mepriga no se arreglaría para la usuaria de bodega. `fields_get` sobre el propio
+modelo da la misma evidencia (404 si no existe) sin exigir leer `ir.model`, y además trae los campos.
+El error «Invalid field … (HTTP 500)» llega como `OdooFieldNotFoundException`
+(`odoo_sdk/lib/src/api/odoo_error_mapper.dart:88-93`), así que un campo opcional ausente se puede quitar
+y reintentar en vez de apagar el catálogo entero.
