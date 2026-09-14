@@ -1,7 +1,6 @@
 import 'package:odoo_sdk/odoo_sdk.dart'
     show
         OdooAccessDeniedException,
-        OdooAuthenticationException,
         OdooCapabilityState,
         OdooFieldNotFoundException,
         OdooNotFoundException;
@@ -37,16 +36,25 @@ final class ResolvedCatalogDescriptor {
   /// Texto de diagnóstico, sólo para depuración/`/sync` — nunca se parsea.
   final String? reason;
 
-  /// `true` cuando el sondeo (`fields_get`) recibió un 401/403 — un eje
-  /// ORTOGONAL a [state], no un cuarto valor de [OdooCapabilityState] (esa
-  /// enumeración es de `odoo_sdk` y no se toca aquí). [state] sigue siendo
-  /// `unknown`: no hay evidencia de que el modelo/campo no exista, sólo de
-  /// que ESTA sesión no puede preguntarlo. Corrección del 14-sep-2026 (hueco
-  /// 5 de la auditoría de tiempo real): antes de este campo, un 401/403 caía
-  /// en el mismo `unknown` sin memoria que cualquier fallo de red, así que
-  /// `fields_get` se reintentaba en cada ciclo Y el catálogo igual
-  /// intentaba `search_read` con el descriptor completo — un permiso que no
-  /// va a cambiar de un ciclo a otro se comportaba como si fuera a hacerlo.
+  /// `true` cuando el sondeo (`fields_get`) recibió un 403
+  /// (`OdooAccessDeniedException`) — un eje ORTOGONAL a [state], no un
+  /// cuarto valor de [OdooCapabilityState] (esa enumeración es de
+  /// `odoo_sdk` y no se toca aquí). [state] sigue siendo `unknown`: no hay
+  /// evidencia de que el modelo/campo no exista, sólo de que ESTA sesión no
+  /// puede preguntarlo. Corrección del 14-sep-2026 (hueco 5 de la auditoría
+  /// de tiempo real): antes de este campo, un 403 caía en el mismo
+  /// `unknown` sin memoria que cualquier fallo de red, así que `fields_get`
+  /// se reintentaba en cada ciclo Y el catálogo igual intentaba
+  /// `search_read` con el descriptor completo — un permiso que no va a
+  /// cambiar de un ciclo a otro se comportaba como si fuera a hacerlo.
+  ///
+  /// 🔴 Un 401 (`OdooAuthenticationException`) NO enciende este campo, a
+  /// propósito (corrección posterior, mismo día): un 401 es sesión vencida,
+  /// no un permiso de este modelo — lo resuelve la capa de sesión (renovar
+  /// la llave o pedir volver a entrar), y esa renovación puede pasar dentro
+  /// del mismo ciclo de vida de la app. Memorizarlo dejaría el catálogo
+  /// "sin permiso" hasta un Sync completo incluso después de que la sesión
+  /// ya se hubiera arreglado sola. Ver el `catch` de [_probe].
   final bool unauthorized;
 
   /// `unsupported` (evidencia de que no existe) y `unauthorized` (evidencia
@@ -197,13 +205,13 @@ final class RuntimeCatalogAvailability {
     return future;
   }
 
-  /// Memoriza un 401/403 del sondeo de disponibilidad como "sin permiso":
+  /// Memoriza un 403 del sondeo de disponibilidad como "sin permiso":
   /// [ResolvedCatalogDescriptor.unauthorized] queda `true`, y esta entrada
   /// se cachea igual que `supported`/`unsupported` — a diferencia de un
-  /// fallo de red genérico, que nunca se cachea (ver el `catch(_)` de
-  /// [_probe]). Sigue en pie hasta [invalidate] ("Forzar Sync Completo") o
-  /// hasta que cambie la revisión de permisos, si quien construyó esta
-  /// instancia pasó [capabilityRevision] — ver el campo.
+  /// fallo de red genérico (un 401 incluido, ver el `catch(_)` de [_probe]),
+  /// que nunca se cachea. Sigue en pie hasta [invalidate] ("Forzar Sync
+  /// Completo") o hasta que cambie la revisión de permisos, si quien
+  /// construyó esta instancia pasó [capabilityRevision] — ver el campo.
   ResolvedCatalogDescriptor _cacheUnauthorized(
     String key,
     RuntimeCatalogDescriptor descriptor,
@@ -260,18 +268,23 @@ final class RuntimeCatalogAvailability {
       _resolved[key] = resolved;
       _probedAt = _now();
       return resolved;
-    } on OdooAuthenticationException catch (error) {
-      return _cacheUnauthorized(key, descriptor, error);
     } on OdooAccessDeniedException catch (error) {
       return _cacheUnauthorized(key, descriptor, error);
     } catch (_) {
-      // Un fallo de RED (no 401/403): sin evidencia de nada, ni siquiera de
+      // Un 401 (`OdooAuthenticationException`) cae aquí a propósito, igual
+      // que un fallo de red: es sesión vencida, no permiso — lo resuelve la
+      // capa de sesión (renueva la llave o pide volver a entrar), y esa
+      // renovación puede pasar DENTRO del mismo ciclo de vida de la app.
+      // Corrección del 14-sep-2026 sobre el encargo original de "sin
+      // permiso": memorizarlo dejaría el catálogo marcado hasta un Sync
+      // completo aunque la llave ya se hubiera renovado. Un 403
+      // (`OdooAccessDeniedException`) SÍ es un permiso real de ese modelo y
+      // no cambia solo, por eso ese caso queda arriba, cacheado.
+      //
+      // Cualquier otro fallo de RED: sin evidencia de nada, ni siquiera de
       // permisos. No se cachea — el próximo `resolve()` vuelve a intentar el
       // sondeo desde cero, y el catálogo corre mientras tanto con su
-      // descriptor de siempre (E02, punto 4). Un permiso denegado SÍ se
-      // cachea — ver [_cacheUnauthorized] — porque, a diferencia de un
-      // corte de red, no va a resolverse solo reintentando en el próximo
-      // ciclo.
+      // descriptor de siempre (E02, punto 4).
       return ResolvedCatalogDescriptor(
         state: OdooCapabilityState.unknown,
         descriptor: descriptor,

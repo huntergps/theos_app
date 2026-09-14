@@ -353,20 +353,58 @@ void main() {
   );
 
   test(
-    'fields_get da 401 (sesión caducada): mismo trato que un 403, "sin '
-    'permiso" memorizado',
+    'fields_get da 401 (sesión caducada): NO es "sin permiso" — lo resuelve '
+    'la capa de sesión (renovar la llave o pedir volver a entrar), así que '
+    'queda unknown, SIN memoria, y el próximo sondeo reintenta '
+    '— corrección del 14-sep-2026 sobre el encargo original: memorizar un '
+    '401 dejaría los catálogos "sin permiso" hasta un Sync completo incluso '
+    'DESPUÉS de que la sesión ya renovó la llave dentro del mismo ciclo de '
+    'vida de la app, que es justo lo que sí puede pasar (a diferencia de un '
+    '403, que es un permiso real y no cambia solo).',
     () async {
       final reader = _CatalogReader(
         fieldsGetErrorsByModel: {
           'account.tax': () =>
               const OdooAuthenticationException('401 unauthorized'),
         },
+        recordsByModel: {
+          'account.tax': [
+            {
+              'id': 1,
+              'name': 'IVA 15%',
+              'amount': 15.0,
+              'amount_type': 'percent',
+              'active': true,
+              'write_date': '2026-09-13 10:00:00',
+            },
+          ],
+        },
       );
       final composition = await compose(reader);
 
-      final resolved = await composition.availability.resolve('tax');
-      expect(resolved.state, OdooCapabilityState.unknown);
-      expect(resolved.unauthorized, isTrue);
+      final first = await composition.availability.resolve('tax');
+      expect(first.state, OdooCapabilityState.unknown);
+      expect(first.unauthorized, isFalse);
+      expect(first.canRun, isTrue);
+
+      final result = await composition.sync('tax');
+      expect(result.status, SyncJobStatus.committed);
+      final db = owner.active!.database;
+      expect((await db.select(db.accountTax).get()).single.name, 'IVA 15%');
+
+      // Sin memoria: igual que un fallo de red, `sync('tax')` ya disparó un
+      // SEGUNDO `fields_get` propio (vía `catalogAvailabilityLoader.resolve`,
+      // dentro del ciclo) — dos llamadas van de las dos veces que se
+      // preguntó hasta aquí. Un tercer sondeo reintenta otra vez.
+      expect(
+        reader.fieldsGetCalls.where((m) => m == 'account.tax'),
+        hasLength(2),
+      );
+      await composition.availability.resolve('tax');
+      expect(
+        reader.fieldsGetCalls.where((m) => m == 'account.tax'),
+        hasLength(3),
+      );
     },
   );
 
