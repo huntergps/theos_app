@@ -16,22 +16,6 @@ class _FakeReader implements Json2ReadPort, Json2FieldsGetPort {
   }) async {
     if (fail) throw StateError('401 unauthorized');
     await beforeReturn?.call();
-    // `RuntimeCatalogAvailability` (E02) pregunta primero por `ir.model`
-    // antes de correr cualquier catálogo. Este doble trata todo modelo
-    // preguntado como existente — el comportamiento de siempre para estos
-    // tests, que no ejercitan la ruta `unsupported` (ver
-    // `runtime_catalog_availability_test.dart` para esa cobertura).
-    if (model == 'ir.model') {
-      final clause = (domain ?? const []).whereType<List>().firstWhere(
-        (entry) =>
-            entry.length == 3 && entry[0] == 'model' && entry[1] == 'in',
-        orElse: () => const [],
-      );
-      final models = clause.length == 3
-          ? (clause[2] as List).cast<String>()
-          : const <String>[];
-      return [for (final name in models) {'model': name}];
-    }
     final rows = switch (model) {
       'product.product' => const [
         {'id': 7, 'name': 'Producto', 'list_price': 4.5},

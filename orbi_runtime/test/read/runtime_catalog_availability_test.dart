@@ -2,31 +2,8 @@ import 'package:drift/native.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:orbi_runtime/orbi_runtime.dart';
 
-/// Los 17 modelos que declara `RuntimeCatalogComposition._specs` (ver
-/// `runtime_catalog_composition.dart`). Sirve para simular "el servidor
-/// tiene todo menos X" sin repetir la lista completa en cada test.
-const _allCatalogModels = <String>{
-  'account.credit.card.brand',
-  'account.credit.card.deadline',
-  'account.card.lote',
-  'account.payment.method.line',
-  'res.partner',
-  'product.product',
-  'account.payment.term',
-  'uom.uom',
-  'collection.config',
-  'collection.session',
-  'account.tax',
-  'product.pricelist',
-  'stock.warehouse',
-  'account.journal',
-  'res.lang',
-  'res.country',
-  'res.country.state',
-};
-
-/// Las 17 claves de composición correspondientes, en el mismo orden que
-/// `RuntimeCatalogComposition` las declara.
+/// Las 17 claves de composición que declara `RuntimeCatalogComposition`
+/// (`orbi_runtime/lib/src/read/runtime_catalog_composition.dart`).
 const _specKeys = <String>[
   'partner',
   'product',
@@ -53,39 +30,70 @@ typedef _RecordedCall = ({
   List<dynamic>? domain,
 });
 
-/// Lector falso dedicado a `RuntimeCatalogAvailability`/E02: [existingModels]
-/// simula la respuesta REAL de `ir.model` (nunca una lista fija), y
-/// [fieldsByModel] simula `fields_get` sólo para los modelos que el test
-/// necesita recortar — cualquier otro modelo se asume con todos los campos
-/// pedidos presentes, igual que un servidor completo.
-class _CatalogReader implements Json2ReadPort, Json2FieldsGetPort {
+/// Lector falso dedicado a `RuntimeCatalogAvailability`/E02 (corrección del
+/// 13-sep-2026: sondeo por `fields_get`, sin `ir.model`).
+///
+/// - [missingModels]: `fieldsGet`/`fieldsGetAttributes` de ese modelo lanza
+///   `OdooNotFoundException` — simula que el modelo no existe.
+/// - [fieldsByModel]: qué campos de los pedidos existen; un modelo ausente
+///   de este mapa se asume con TODOS los campos pedidos presentes (servidor
+///   completo).
+/// - [fieldsGetErrorsByModel]: `fieldsGet`/`fieldsGetAttributes` de ese
+///   modelo lanza la excepción dada (red/401/403) en vez de responder.
+/// - [searchReadErrorsByModel]: cola de excepciones que el PRÓXIMO
+///   `search_read` de ese modelo lanza, una por intento — se consume en
+///   orden; agotada la cola, responde normal desde [recordsByModel].
+class _CatalogReader
+    implements Json2ReadPort, Json2FieldsGetPort, Json2FieldsGetAttributesPort {
   _CatalogReader({
-    required this.existingModels,
     this.recordsByModel = const {},
     this.fieldsByModel = const {},
-    this.errorsByModel = const {},
-    this.failIrModel = false,
-  });
+    this.missingModels = const {},
+    this.fieldsGetErrorsByModel = const {},
+    Map<String, List<Exception Function()>> searchReadErrorsByModel = const {},
+  }) : _searchReadErrors = {
+         for (final entry in searchReadErrorsByModel.entries)
+           entry.key: List.of(entry.value),
+       };
 
-  final Set<String> existingModels;
   final Map<String, List<Map<String, dynamic>>> recordsByModel;
   final Map<String, Set<String>> fieldsByModel;
-  final Map<String, Exception Function()> errorsByModel;
-  final bool failIrModel;
+  final Set<String> missingModels;
+  final Map<String, Exception Function()> fieldsGetErrorsByModel;
+  final Map<String, List<Exception Function()>> _searchReadErrors;
 
   final calls = <_RecordedCall>[];
+  final fieldsGetCalls = <String>[];
 
-  @override
-  Future<Map<String, dynamic>> fieldsGet({
-    required String model,
-    required List<String> fields,
-  }) async {
+  Future<Map<String, dynamic>> _fieldsGetImpl(
+    String model,
+    List<String> fields,
+  ) async {
+    fieldsGetCalls.add(model);
+    if (missingModels.contains(model)) {
+      throw const OdooNotFoundException('model does not exist');
+    }
+    final failure = fieldsGetErrorsByModel[model];
+    if (failure != null) throw failure();
     final present = fieldsByModel[model] ?? fields.toSet();
     return {
       for (final field in fields)
         if (present.contains(field)) field: <String, dynamic>{},
     };
   }
+
+  @override
+  Future<Map<String, dynamic>> fieldsGet({
+    required String model,
+    required List<String> fields,
+  }) => _fieldsGetImpl(model, fields);
+
+  @override
+  Future<Map<String, dynamic>> fieldsGetAttributes({
+    required String model,
+    required List<String> fields,
+    required List<String> attributes,
+  }) => _fieldsGetImpl(model, fields);
 
   @override
   Future<List<Map<String, dynamic>>> searchRead({
@@ -97,25 +105,10 @@ class _CatalogReader implements Json2ReadPort, Json2FieldsGetPort {
     String? order,
   }) async {
     calls.add((model: model, fields: fields, domain: domain));
-    if (model == 'ir.model') {
-      if (failIrModel) {
-        throw const OdooConnectionException('Sin conexión al servidor');
-      }
-      final clause = (domain ?? const []).whereType<List>().firstWhere(
-        (entry) =>
-            entry.length == 3 && entry[0] == 'model' && entry[1] == 'in',
-        orElse: () => const [],
-      );
-      final requested = clause.length == 3
-          ? (clause[2] as List).cast<String>()
-          : const <String>[];
-      return [
-        for (final name in requested)
-          if (existingModels.contains(name)) {'model': name},
-      ];
+    final queue = _searchReadErrors[model];
+    if (queue != null && queue.isNotEmpty) {
+      throw queue.removeAt(0)();
     }
-    final failure = errorsByModel[model];
-    if (failure != null) throw failure();
     final rows = recordsByModel[model] ?? const <Map<String, dynamic>>[];
     final start = offset ?? 0;
     if (start >= rows.length) return const [];
@@ -160,12 +153,10 @@ void main() {
   tearDown(() => owner.close());
 
   test(
-    'servidor sin account.tax: el catálogo de impuestos queda unsupported '
-    'y el ciclo termina sin error',
+    'account.tax.fields_get da 404: unsupported, y el ciclo termina sin '
+    'error — sin ninguna llamada a ir.model',
     () async {
-      final reader = _CatalogReader(
-        existingModels: _allCatalogModels.difference({'account.tax'}),
-      );
+      final reader = _CatalogReader(missingModels: {'account.tax'});
       final composition = await compose(reader);
 
       final result = await composition.sync('tax');
@@ -174,12 +165,12 @@ void main() {
         (await composition.availability.resolve('tax')).state,
         OdooCapabilityState.unsupported,
       );
-      // El catálogo NUNCA llegó a pedir `account.tax` de verdad: la única
-      // llamada de por medio fue `ir.model`.
+      // Nunca se pidió leer el modelo real de `account.tax` — sólo el
+      // `fields_get` que lo descubrió inexistente.
       expect(reader.calls.any((call) => call.model == 'account.tax'), isFalse);
+      expect(reader.calls.any((call) => call.model == 'ir.model'), isFalse);
+      expect(reader.fieldsGetCalls, isNot(contains('ir.model')));
 
-      // El resto del ciclo (los otros 16 catálogos, que sí existen) termina
-      // sin ningún fallo — `tax` no cuenta como error.
       final coordinator = SyncCoordinatorImpl(
         jobs: [for (final key in _specKeys) composition.job(key)],
       );
@@ -191,11 +182,10 @@ void main() {
   );
 
   test(
-    'product.product sin taxes_id: productos se sincroniza y el '
-    'search_read no pide taxes_id',
+    'product.product sin taxes_id (fields_get): productos se sincroniza sin '
+    'él, queda supported, y no hay ninguna llamada a ir.model',
     () async {
       final reader = _CatalogReader(
-        existingModels: _allCatalogModels,
         fieldsByModel: {
           'product.product': {
             'id',
@@ -223,11 +213,16 @@ void main() {
 
       final result = await composition.sync('product');
       expect(result.status, SyncJobStatus.committed);
+      expect(
+        (await composition.availability.resolve('product')).state,
+        OdooCapabilityState.supported,
+      );
 
       final productCall = reader.calls.lastWhere(
         (call) => call.model == 'product.product',
       );
       expect(productCall.fields, isNot(contains('taxes_id')));
+      expect(reader.calls.any((call) => call.model == 'ir.model'), isFalse);
 
       final db = owner.active!.database;
       expect((await db.select(db.productProduct).get()).single.name, 'Producto sin impuestos');
@@ -235,22 +230,13 @@ void main() {
   );
 
   test(
-    'res.partner sin customer_rank: clientes se sincroniza sin ese filtro',
+    'res.partner: fields_get dice que customer_rank existe, pero el '
+    'search_read real igual lanza OdooFieldNotFoundException(customer_rank) '
+    '— se quita el filtro y se reintenta una vez, y sincroniza',
     () async {
       final reader = _CatalogReader(
-        existingModels: _allCatalogModels,
-        fieldsByModel: {
-          'res.partner': {
-            'id',
-            'name',
-            'vat',
-            'email',
-            'phone',
-            'company_id',
-            'active',
-            'write_date',
-          },
-        },
+        // `fields_get` no detecta nada raro: customer_rank "existe".
+        fieldsByModel: const {},
         recordsByModel: {
           'res.partner': [
             {
@@ -261,25 +247,35 @@ void main() {
             },
           ],
         },
+        searchReadErrorsByModel: {
+          'res.partner': [
+            () => const OdooFieldNotFoundException(
+              targetModel: 'res.partner',
+              fieldName: 'customer_rank',
+              message: 'Invalid field res.partner.customer_rank',
+            ),
+          ],
+        },
       );
       final composition = await compose(reader);
 
       final result = await composition.sync('partner');
       expect(result.status, SyncJobStatus.committed);
 
-      final partnerCall = reader.calls.lastWhere(
-        (call) => call.model == 'res.partner',
-      );
+      // Dos intentos contra res.partner: el que falló y el reintento sin el
+      // filtro.
+      final partnerCalls = reader.calls
+          .where((call) => call.model == 'res.partner')
+          .toList();
+      expect(partnerCalls, hasLength(2));
       expect(
-        partnerCall.domain!.any(
+        partnerCalls.last.domain!.any(
           (clause) => clause is List && clause.isNotEmpty && clause.first == 'customer_rank',
         ),
         isFalse,
       );
-      // El resto del dominio (que no depende de un campo opcional) se
-      // conserva tal cual.
       expect(
-        partnerCall.domain!.any(
+        partnerCalls.last.domain!.any(
           (clause) => clause is List && clause.length == 3 && clause[0] == 'active',
         ),
         isTrue,
@@ -294,11 +290,14 @@ void main() {
   );
 
   test(
-    'ir.model falla por red: ningún catálogo queda unsupported',
+    'fields_get da 403: el catálogo queda unknown y corre igual, con su '
+    'descriptor de siempre (sin recortar nada)',
     () async {
       final reader = _CatalogReader(
-        existingModels: _allCatalogModels,
-        failIrModel: true,
+        fieldsGetErrorsByModel: {
+          'account.tax': () =>
+              const OdooAccessDeniedException('403 forbidden'),
+        },
         recordsByModel: {
           'account.tax': [
             {
@@ -319,12 +318,17 @@ void main() {
         OdooCapabilityState.unknown,
       );
 
-      // `unknown` no apaga nada: el catálogo sigue corriendo con su
-      // descriptor de siempre, sin esperar a que el sondeo se resuelva.
       final result = await composition.sync('tax');
       expect(result.status, SyncJobStatus.committed);
       final db = owner.active!.database;
       expect((await db.select(db.accountTax).get()).single.name, 'IVA 15%');
+
+      // Sigue `unknown`, no se cachea como definitivo — el próximo sondeo
+      // vuelve a intentar `fields_get`.
+      expect(
+        (await composition.availability.resolve('tax')).state,
+        OdooCapabilityState.unknown,
+      );
     },
   );
 
@@ -332,11 +336,12 @@ void main() {
     'un 500 que no es de campo inexistente sigue siendo fallo',
     () async {
       final reader = _CatalogReader(
-        existingModels: _allCatalogModels,
-        errorsByModel: {
-          'account.tax': () => const OdooServerException(
-            'Error interno no relacionado con campos',
-          ),
+        searchReadErrorsByModel: {
+          'account.tax': [
+            () => const OdooServerException(
+              'Error interno no relacionado con campos',
+            ),
+          ],
         },
       );
       final composition = await compose(reader);

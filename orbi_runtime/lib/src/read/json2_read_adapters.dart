@@ -36,6 +36,21 @@ abstract interface class Json2FieldsGetPort {
   });
 }
 
+/// Extensión opcional de [Json2FieldsGetPort]: pide sólo `attributes` de
+/// cada campo (p. ej. `['type']`) en vez de la metadata completa — ahorra
+/// ancho de banda cuando lo único que hace falta es saber SI el campo
+/// existe (`RuntimeCatalogAvailability`, E02). Separada del puerto base por
+/// el mismo motivo que [Json2CallPort]: los lectores mínimos de prueba no
+/// tienen por qué implementarla, y quien sólo tenga [Json2FieldsGetPort]
+/// simplemente pide la metadata completa, sin cambiar el resultado.
+abstract interface class Json2FieldsGetAttributesPort {
+  Future<Map<String, dynamic>> fieldsGetAttributes({
+    required String model,
+    required List<String> fields,
+    required List<String> attributes,
+  });
+}
+
 /// Optional generic-call surface used by the catalog loader to ask
 /// `sync.deleted.record.get_deleted_since`. Kept separate from
 /// [Json2ReadPort] for the same reason as [Json2FieldsGetPort]: small
@@ -52,7 +67,11 @@ abstract interface class Json2CallPort {
 }
 
 final class OdooJson2ReadPort
-    implements Json2ReadPort, Json2FieldsGetPort, Json2CallPort {
+    implements
+        Json2ReadPort,
+        Json2FieldsGetPort,
+        Json2FieldsGetAttributesPort,
+        Json2CallPort {
   final OdooClient client;
   const OdooJson2ReadPort(this.client);
 
@@ -78,6 +97,13 @@ final class OdooJson2ReadPort
     required String model,
     required List<String> fields,
   }) => client.fieldsGet(model: model, fields: fields);
+
+  @override
+  Future<Map<String, dynamic>> fieldsGetAttributes({
+    required String model,
+    required List<String> fields,
+    required List<String> attributes,
+  }) => client.fieldsGet(model: model, fields: fields, attributes: attributes);
 
   @override
   Future<dynamic> call({
