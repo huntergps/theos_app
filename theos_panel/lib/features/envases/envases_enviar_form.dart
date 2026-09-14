@@ -1,9 +1,17 @@
+import 'dart:async';
+
 import 'package:fluent_ui/fluent_ui.dart';
 import 'package:odoo_widgets/odoo_widgets.dart';
 import 'package:orbi_runtime/orbi_runtime.dart';
 
 import '../../ui/fluent/orbi_page.dart';
+import 'envases_form_draft_port.dart';
 import 'envases_uuid.dart';
+
+/// Id del único borrador durable del formulario de envío. Hay un solo
+/// formulario de envío activo a la vez (a diferencia de la recepción, que
+/// tiene uno por traslado), así que no necesita interpolar nada.
+const String envasesEnvioDraftId = 'envases.envio';
 
 /// Una sede ofrecida en el formulario — nunca cableada, siempre la que trae
 /// el servidor (`res.users.envases_warehouse_ids` para origen,
@@ -49,6 +57,7 @@ class EnvasesEnviarForm extends StatefulWidget {
     required this.productos,
     required this.operations,
     this.onCompleted,
+    this.draftPort,
   });
 
   final List<EnvasesSedeOption> sedesUsuario;
@@ -56,6 +65,10 @@ class EnvasesEnviarForm extends StatefulWidget {
   final List<EnvasesProductoOption> productos;
   final EnvasesOperations operations;
   final VoidCallback? onCompleted;
+
+  /// Persistencia opcional del borrador. Sin él (por ejemplo, en los tests
+  /// existentes) el formulario funciona igual que antes: sólo en memoria.
+  final EnvasesFormDraftPort? draftPort;
 
   @override
   State<EnvasesEnviarForm> createState() => _EnvasesEnviarFormState();
@@ -69,20 +82,102 @@ class _EnvasesEnviarFormState extends State<EnvasesEnviarForm> {
   bool _saving = false;
   String? _saveError;
   String? _saveNotice;
+  bool _recoveredNotice = false;
+  EnvasesFormDraftAutoSave? _autoSave;
 
   @override
   void initState() {
     super.initState();
     if (widget.sedesUsuario.length == 1) _origenId = widget.sedesUsuario.single.id;
+    final port = widget.draftPort;
+    if (port != null) {
+      _autoSave = EnvasesFormDraftAutoSave(port: port, draftId: envasesEnvioDraftId);
+      unawaited(_restoreDraft(port));
+    }
   }
 
   @override
   void dispose() {
+    _autoSave?.dispose();
     for (final linea in _lineas) {
       linea.dispose();
     }
     super.dispose();
   }
+
+  Future<void> _restoreDraft(EnvasesFormDraftPort port) async {
+    Map<String, dynamic>? raw;
+    try {
+      raw = await port.read(envasesEnvioDraftId);
+    } catch (_) {
+      return;
+    }
+    if (raw == null || !mounted) return;
+
+    var recovered = false;
+    int? origenId;
+    final rawOrigen = raw['origenId'];
+    if (rawOrigen is int && widget.sedesUsuario.any((sede) => sede.id == rawOrigen)) {
+      origenId = rawOrigen;
+      recovered = true;
+    }
+    int? destinoId;
+    final rawDestino = raw['destinoId'];
+    if (rawDestino is int &&
+        rawDestino != origenId &&
+        widget.sedesDestinoPosibles.any((sede) => sede.id == rawDestino)) {
+      destinoId = rawDestino;
+      recovered = true;
+    }
+    final restoredLineas = <_LineaEnvio>[];
+    final rawLineas = raw['lineas'];
+    if (rawLineas is List) {
+      for (final item in rawLineas) {
+        if (item is! Map) continue;
+        final productoId = item['productoId'];
+        final cantidad = item['cantidad'];
+        if (productoId is! int || cantidad is! num) continue;
+        EnvasesProductoOption? producto;
+        for (final option in widget.productos) {
+          if (option.id == productoId) {
+            producto = option;
+            break;
+          }
+        }
+        // Producto que ya no está entre las opciones actuales: se descarta
+        // en silencio, la línea entera desaparece.
+        if (producto == null) continue;
+        restoredLineas.add(_LineaEnvio(cantidad: cantidad.toDouble())..producto = producto);
+      }
+    }
+    if (restoredLineas.isNotEmpty) recovered = true;
+    if (!recovered) return;
+
+    setState(() {
+      if (origenId != null) _origenId = origenId;
+      if (destinoId != null) _destinoId = destinoId;
+      if (restoredLineas.isNotEmpty) {
+        for (final linea in _lineas) {
+          linea.dispose();
+        }
+        _lineas
+          ..clear()
+          ..addAll(restoredLineas);
+      }
+      _recoveredNotice = true;
+    });
+  }
+
+  Map<String, dynamic> _draftPayload() => {
+    'v': 1,
+    'origenId': _origenId,
+    'destinoId': _destinoId,
+    'lineas': [
+      for (final linea in _lineas) {'productoId': linea.producto?.id, 'cantidad': linea.cantidad},
+    ],
+  };
+
+  void _scheduleDraftSave() => _autoSave?.schedule(_draftPayload());
 
   List<EnvasesSedeOption> get _destinosDisponibles =>
       widget.sedesDestinoPosibles.where((sede) => sede.id != _origenId).toList(growable: false);
@@ -94,7 +189,10 @@ class _EnvasesEnviarFormState extends State<EnvasesEnviarForm> {
     return lineasValidas.isNotEmpty && lineasValidas.length == _lineas.length;
   }
 
-  void _agregarLinea() => setState(() => _lineas.add(_LineaEnvio()));
+  void _agregarLinea() {
+    setState(() => _lineas.add(_LineaEnvio()));
+    _scheduleDraftSave();
+  }
 
   void _quitarLinea(_LineaEnvio linea) {
     if (_lineas.length <= 1) return;
@@ -102,6 +200,7 @@ class _EnvasesEnviarFormState extends State<EnvasesEnviarForm> {
       _lineas.remove(linea);
       linea.dispose();
     });
+    _scheduleDraftSave();
   }
 
   Future<void> _enviar() async {
@@ -128,6 +227,9 @@ class _EnvasesEnviarFormState extends State<EnvasesEnviarForm> {
       if (resultado.estado == EnvasesOperacionEstado.pendienteDeEnviar) {
         setState(() => _saveNotice = 'Se enviará a Odoo al recuperar conexión.');
       }
+      // Registro aceptado (en línea o encolado sin conexión): el borrador ya
+      // cumplió su propósito.
+      unawaited(_autoSave?.clear());
       widget.onCompleted?.call();
     } catch (error) {
       if (mounted) setState(() => _saveError = 'No se pudo registrar el envío: $error');
@@ -145,6 +247,15 @@ class _EnvasesEnviarFormState extends State<EnvasesEnviarForm> {
         sections: [
           OrbiFormSection(
             fields: [
+              if (_recoveredNotice)
+                OrbiField(
+                  label: '',
+                  span: 2,
+                  child: InfoBar(
+                    title: const Text('Recuperamos lo que estabas registrando.'),
+                    severity: InfoBarSeverity.info,
+                  ),
+                ),
               OrbiField(
                 label: 'Sede de origen',
                 required: true,
@@ -156,10 +267,13 @@ class _EnvasesEnviarFormState extends State<EnvasesEnviarForm> {
                     for (final sede in widget.sedesUsuario)
                       ComboBoxItem(value: sede.id, child: Text(sede.name)),
                   ],
-                  onChanged: (value) => setState(() {
-                    _origenId = value;
-                    if (_destinoId == value) _destinoId = null;
-                  }),
+                  onChanged: (value) {
+                    setState(() {
+                      _origenId = value;
+                      if (_destinoId == value) _destinoId = null;
+                    });
+                    _scheduleDraftSave();
+                  },
                 ),
               ),
               OrbiField(
@@ -173,7 +287,10 @@ class _EnvasesEnviarFormState extends State<EnvasesEnviarForm> {
                     for (final sede in _destinosDisponibles)
                       ComboBoxItem(value: sede.id, child: Text(sede.name)),
                   ],
-                  onChanged: (value) => setState(() => _destinoId = value),
+                  onChanged: (value) {
+                    setState(() => _destinoId = value);
+                    _scheduleDraftSave();
+                  },
                 ),
               ),
               OrbiField(
@@ -214,7 +331,10 @@ class _EnvasesEnviarFormState extends State<EnvasesEnviarForm> {
                             for (final producto in widget.productos)
                               ComboBoxItem(value: producto, child: Text(producto.name)),
                           ],
-                          onChanged: (value) => setState(() => linea.producto = value),
+                          onChanged: (value) {
+                            setState(() => linea.producto = value);
+                            _scheduleDraftSave();
+                          },
                         ),
                       ),
                       const SizedBox(width: 12),
@@ -224,7 +344,10 @@ class _EnvasesEnviarFormState extends State<EnvasesEnviarForm> {
                           controller: linea.cantidadController,
                           placeholder: 'Cantidad',
                           keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                          onChanged: (_) => setState(() {}),
+                          onChanged: (_) {
+                            setState(() {});
+                            _scheduleDraftSave();
+                          },
                         ),
                       ),
                       IconButton(

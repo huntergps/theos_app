@@ -2,7 +2,48 @@ import 'package:fluent_ui/fluent_ui.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:orbi_runtime/orbi_runtime.dart';
 import 'package:theos_panel/features/envases/envases_enviar_form.dart';
+import 'package:theos_panel/features/envases/envases_form_draft_port.dart';
 import 'package:theos_panel/ui/fluent/orbi_fluent_theme.dart';
+
+/// Puerto de borrador en memoria, para no arrastrar Drift a estos tests de
+/// widget: sólo necesitan ver qué se leyó, guardó y borró.
+final class _FakeDraftPort implements EnvasesFormDraftPort {
+  final Map<String, Map<String, dynamic>> stored = {};
+  final List<Map<String, dynamic>> saves = [];
+  final List<String> cleared = [];
+
+  void seed(String draftId, Map<String, dynamic> payload) => stored[draftId] = payload;
+
+  @override
+  Future<Map<String, dynamic>?> read(String draftId) async => stored[draftId];
+
+  @override
+  Future<void> save(String draftId, Map<String, dynamic> payload) async {
+    stored[draftId] = payload;
+    saves.add(payload);
+  }
+
+  @override
+  Future<void> clear(String draftId) async {
+    stored.remove(draftId);
+    cleared.add(draftId);
+  }
+}
+
+final class _ThrowingEnvasesOperations implements EnvasesOperations {
+  @override
+  Future<EnvasesOperacionLocal> darPorPerdido({required String operacionUuid, required int pickingId}) async =>
+      throw UnimplementedError();
+
+  @override
+  Future<EnvasesOperacionLocal> enviar(EnvasesEnviarCommand command) async => throw StateError('sin conexión');
+
+  @override
+  Future<EnvasesOperacionLocal> recibir(EnvasesRecibirCommand command) async => throw UnimplementedError();
+
+  @override
+  Stream<List<EnvasesOperacionLocal>> watchOperaciones() => const Stream.empty();
+}
 
 final class _FakeEnvasesOperations implements EnvasesOperations {
   EnvasesEnviarCommand? enviado;
@@ -29,7 +70,11 @@ final class _FakeEnvasesOperations implements EnvasesOperations {
   Stream<List<EnvasesOperacionLocal>> watchOperaciones() => const Stream.empty();
 }
 
-Widget _host({required EnvasesOperations operations, VoidCallback? onCompleted}) => FluentApp(
+Widget _host({
+  required EnvasesOperations operations,
+  VoidCallback? onCompleted,
+  EnvasesFormDraftPort? draftPort,
+}) => FluentApp(
   theme: OrbiFluentTheme.light,
   home: EnvasesEnviarForm(
     sedesUsuario: const [EnvasesSedeOption(id: 1, name: 'Guayaquil'), EnvasesSedeOption(id: 2, name: 'Manta')],
@@ -41,6 +86,7 @@ Widget _host({required EnvasesOperations operations, VoidCallback? onCompleted})
     productos: const [EnvasesProductoOption(id: 50, name: 'Jaba 12', uomName: 'Unidades')],
     operations: operations,
     onCompleted: onCompleted,
+    draftPort: draftPort,
   ),
 );
 
@@ -119,5 +165,101 @@ void main() {
     expect(operations.enviado!.lineas.single.productId, 50);
     expect(operations.enviado!.lineas.single.cantidad, 3);
     expect(completed, isTrue);
+  });
+
+  testWidgets('restores origin, destination and lines from draft', (tester) async {
+    final port = _FakeDraftPort()
+      ..seed(envasesEnvioDraftId, {
+        'v': 1,
+        'origenId': 2,
+        'destinoId': 3,
+        'lineas': [
+          {'productoId': 50, 'cantidad': 4},
+        ],
+      });
+    await tester.pumpWidget(_host(operations: _FakeEnvasesOperations(), draftPort: port));
+    await tester.pumpAndSettle();
+
+    expect(tester.widget<ComboBox<int>>(find.byKey(const Key('envases-enviar-origen'))).value, 2);
+    expect(tester.widget<ComboBox<int>>(find.byKey(const Key('envases-enviar-destino'))).value, 3);
+    expect(
+      tester.widget<ComboBox<EnvasesProductoOption>>(find.byKey(const Key('envases-enviar-producto-0'))).value?.id,
+      50,
+    );
+    expect(tester.widget<TextBox>(find.byKey(const Key('envases-enviar-cantidad-0'))).controller!.text, '4');
+    expect(find.text('Recuperamos lo que estabas registrando.'), findsOneWidget);
+  });
+
+  testWidgets('envío saves each change', (tester) async {
+    final port = _FakeDraftPort();
+    await tester.pumpWidget(_host(operations: _FakeEnvasesOperations(), draftPort: port));
+    await tester.pumpAndSettle();
+
+    await tester.enterText(find.byKey(const Key('envases-enviar-cantidad-0')), '5');
+    await tester.pump(const Duration(milliseconds: 350));
+
+    expect(port.stored[envasesEnvioDraftId]?['lineas'], [
+      {'productoId': null, 'cantidad': 5.0},
+    ]);
+  });
+
+  testWidgets('envío clears draft only after accepted registration', (tester) async {
+    Future<void> fillForm(WidgetTester tester) async {
+      await tester.tap(find.byKey(const Key('envases-enviar-origen')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Guayaquil').last);
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.byKey(const Key('envases-enviar-destino')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Manta').last);
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.byKey(const Key('envases-enviar-producto-0')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Jaba 12').last);
+      await tester.pumpAndSettle();
+
+      await tester.enterText(find.byKey(const Key('envases-enviar-cantidad-0')), '3');
+      await tester.pumpAndSettle();
+    }
+
+    final acceptedPort = _FakeDraftPort();
+    await tester.pumpWidget(_host(operations: _FakeEnvasesOperations(), draftPort: acceptedPort));
+    await tester.pumpAndSettle();
+    await fillForm(tester);
+    await tester.tap(find.byKey(const Key('envases-enviar-confirmar')));
+    await tester.pumpAndSettle();
+    expect(acceptedPort.cleared, contains(envasesEnvioDraftId));
+
+    final rejectedPort = _FakeDraftPort();
+    await tester.pumpWidget(_host(operations: _ThrowingEnvasesOperations(), draftPort: rejectedPort));
+    await tester.pumpAndSettle();
+    await fillForm(tester);
+    await tester.tap(find.byKey(const Key('envases-enviar-confirmar')));
+    await tester.pumpAndSettle();
+    expect(rejectedPort.cleared, isEmpty);
+  });
+
+  testWidgets('envío drops draft lines whose product no longer exists', (tester) async {
+    final port = _FakeDraftPort()
+      ..seed(envasesEnvioDraftId, {
+        'v': 1,
+        'origenId': null,
+        'destinoId': null,
+        'lineas': [
+          {'productoId': 50, 'cantidad': 2},
+          {'productoId': 999, 'cantidad': 3},
+        ],
+      });
+    await tester.pumpWidget(_host(operations: _FakeEnvasesOperations(), draftPort: port));
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const Key('envases-enviar-producto-1')), findsNothing);
+    expect(
+      tester.widget<ComboBox<EnvasesProductoOption>>(find.byKey(const Key('envases-enviar-producto-0'))).value?.id,
+      50,
+    );
+    expect(tester.widget<TextBox>(find.byKey(const Key('envases-enviar-cantidad-0'))).controller!.text, '2');
   });
 }

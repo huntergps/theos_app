@@ -9,6 +9,7 @@ import '../features/auth/auth_controller.dart';
 import '../features/envases/envases_enviar_form.dart';
 import '../features/envases/envases_existencias_contracts.dart';
 import '../features/envases/envases_existencias_screen.dart';
+import '../features/envases/envases_form_draft_port.dart';
 import '../features/envases/envases_movimientos_screen.dart';
 import '../features/envases/envases_por_recibir_screen.dart';
 import '../features/envases/envases_recibir_form.dart';
@@ -16,6 +17,43 @@ import '../features/envases/envases_saldo_terceros_screen.dart';
 import '../features/envases/envases_traslado_detalle.dart';
 import 'notification_scope_adapter.dart';
 import 'session_composition.dart';
+
+// ---------------------------------------------------------------------
+// Borradores de los formularios de envío y recepción.
+// ---------------------------------------------------------------------
+
+/// `null` sólo por convención con las demás factorías de este archivo: en la
+/// práctica nunca hace falta comprobarlo, porque `UnavailableEnvasesFormDraftPort`
+/// no hace nada y nunca lanza — sin sesión/empresa activa los formularios
+/// simplemente quedan sin persistencia durable, igual que antes de que este
+/// puerto existiera.
+final envasesFormDraftPortProvider = Provider.autoDispose<EnvasesFormDraftPort>(
+  (ref) {
+    final runtime = ref.watch(runtimeSessionProvider);
+    final capabilities = ref.watch(capabilitySnapshotProvider);
+    final active = runtime?.active;
+    if (runtime == null ||
+        active == null ||
+        capabilities == null ||
+        capabilities.scopeKey != active.scope.scopeKey ||
+        capabilities.companyId <= 0) {
+      return const UnavailableEnvasesFormDraftPort();
+    }
+    final company = CompanyContext.forScope(
+      scope: active.scope,
+      companyId: capabilities.companyId,
+      allowedCompanyIds: [capabilities.companyId],
+      capabilityRevision: capabilities.revision,
+    );
+    return DurableEnvasesFormDraftPort(
+      store: EditableDraftStore(
+        owner: runtime.databaseOwner,
+        lease: active.lease,
+        company: company,
+      ),
+    );
+  },
+);
 
 /// ENV-01 (Existencias de envases) composition: the screen never touches
 /// `RuntimeDatabaseOwner`, `EnvasesExistenciasCache` or an `OdooClient`
@@ -401,6 +439,7 @@ final class EnvasesRecibirRoute extends ConsumerWidget {
           ).leer(row.id);
         },
         operations: operations,
+        draftPort: ref.watch(envasesFormDraftPortProvider),
         onCompleted: () => context.pop(),
       ),
     );
@@ -734,6 +773,7 @@ class _EnvasesEnviarRouteState extends ConsumerState<EnvasesEnviarRoute> {
                   ),
               ],
               operations: operations,
+              draftPort: ref.watch(envasesFormDraftPortProvider),
               onCompleted: () => context.pop(),
             );
           },

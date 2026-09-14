@@ -234,6 +234,29 @@ final class EditableDraftStore {
     return result!;
   }
 
+  /// Borra un borrador de forma definitiva. A diferencia de [save], no exige
+  /// una revisión esperada: quien pide borrar ya asumió el registro como
+  /// aceptado, y no hay nada con lo que reconciliar un conflicto. Borrar un
+  /// borrador que no existe es una operación silenciosa, no un error.
+  Future<void> delete(String draftId) async {
+    final key = _key(draftId);
+    final active = _checkedActive(writing: true)!;
+    await active.database.transaction(() async {
+      if (_checkedActive(writing: true) == null) {
+        throw StateError('Session lease is no longer active');
+      }
+      await active.database.customUpdate(
+        'DELETE FROM $_tableName '
+        'WHERE scope_key = ? AND company_id = ? AND draft_id = ?',
+        variables: _variables(key),
+      );
+    });
+    active.database.notifyUpdates({const TableUpdate(_tableName)});
+    if (_checkedActive(writing: false) == null) {
+      throw StateError('Session lease changed while deleting draft');
+    }
+  }
+
   Stream<EditableDraftRecord?> watch(String draftId) {
     final key = _key(draftId);
     return Stream.multi((controller) {

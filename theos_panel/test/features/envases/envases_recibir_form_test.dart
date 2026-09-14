@@ -1,8 +1,30 @@
 import 'package:fluent_ui/fluent_ui.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:orbi_runtime/orbi_runtime.dart';
+import 'package:theos_panel/features/envases/envases_form_draft_port.dart';
 import 'package:theos_panel/features/envases/envases_recibir_form.dart';
 import 'package:theos_panel/ui/fluent/orbi_fluent_theme.dart';
+
+/// Puerto de borrador en memoria, para no arrastrar Drift a estos tests de
+/// widget: sólo necesitan ver qué se leyó, guardó y borró.
+final class _FakeDraftPort implements EnvasesFormDraftPort {
+  final Map<String, Map<String, dynamic>> stored = {};
+  final List<String> cleared = [];
+
+  void seed(String draftId, Map<String, dynamic> payload) => stored[draftId] = payload;
+
+  @override
+  Future<Map<String, dynamic>?> read(String draftId) async => stored[draftId];
+
+  @override
+  Future<void> save(String draftId, Map<String, dynamic> payload) async => stored[draftId] = payload;
+
+  @override
+  Future<void> clear(String draftId) async {
+    stored.remove(draftId);
+    cleared.add(draftId);
+  }
+}
 
 final class _FakeEnvasesOperations implements EnvasesOperations {
   EnvasesRecibirCommand? recibido;
@@ -45,13 +67,18 @@ EnvasesPickingLineaRow _linea({double pendientes = 8}) => EnvasesPickingLineaRow
   pendientes: pendientes,
 );
 
-Widget _host({required EnvasesOperations operations, VoidCallback? onCompleted}) => FluentApp(
+Widget _host({
+  required EnvasesOperations operations,
+  VoidCallback? onCompleted,
+  EnvasesFormDraftPort? draftPort,
+}) => FluentApp(
   theme: OrbiFluentTheme.light,
   home: EnvasesRecibirForm(
     row: _row(),
     lineasLoader: () async => [_linea()],
     operations: operations,
     onCompleted: onCompleted,
+    draftPort: draftPort,
   ),
 );
 
@@ -123,5 +150,38 @@ void main() {
     expect(operations.recibido!.lineas.single.productId, 50);
     expect(completed, isTrue);
     expect(find.text('Se enviará a Odoo al recuperar conexión.'), findsOneWidget);
+  });
+
+  testWidgets('recepción restores arrived and damaged per line after lines load', (tester) async {
+    final port = _FakeDraftPort()
+      ..seed(envasesRecepcionDraftId(11), {
+        'v': 1,
+        'lineas': [
+          {'moveId': 1, 'llegaron': 6, 'danadas': 2},
+        ],
+      });
+    final operations = _FakeEnvasesOperations();
+    await tester.pumpWidget(_host(operations: operations, draftPort: port));
+    await tester.pumpAndSettle();
+
+    expect(tester.widget<TextBox>(find.byKey(const Key('envases-recibir-llegaron-1'))).controller!.text, '6');
+    expect(tester.widget<TextBox>(find.byKey(const Key('envases-recibir-danadas-1'))).controller!.text, '2');
+    expect(find.text('Recuperamos lo que estabas registrando.'), findsOneWidget);
+  });
+
+  testWidgets('recepción clears draft after accepted registration', (tester) async {
+    final port = _FakeDraftPort();
+    final operations = _FakeEnvasesOperations();
+    await tester.pumpWidget(_host(operations: operations, draftPort: port));
+    await tester.pumpAndSettle();
+
+    await tester.enterText(find.byKey(const Key('envases-recibir-llegaron-1')), '6');
+    await tester.enterText(find.byKey(const Key('envases-recibir-danadas-1')), '1');
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byKey(const Key('envases-recibir-guardar')));
+    await tester.pumpAndSettle();
+
+    expect(port.cleared, contains(envasesRecepcionDraftId(11)));
   });
 }

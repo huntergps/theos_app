@@ -1,10 +1,17 @@
+import 'dart:async';
+
 import 'package:fluent_ui/fluent_ui.dart';
 import 'package:odoo_widgets/odoo_widgets.dart';
 import 'package:orbi_runtime/orbi_runtime.dart';
 
 import '../../ui/components/orbi_components.dart';
 import '../../ui/fluent/orbi_page.dart';
+import 'envases_form_draft_port.dart';
 import 'envases_uuid.dart';
+
+/// Id del borrador durable de una recepción: uno por traslado, con el mismo
+/// `pickingId` que ya identifica la fila (`EnvasesPorRecibirRow.id`).
+String envasesRecepcionDraftId(int pickingId) => 'envases.recepcion.$pickingId';
 
 /// Recibir un traslado pendiente (ENV-06, BODEGA-ENVASES teléfono).
 ///
@@ -21,12 +28,17 @@ class EnvasesRecibirForm extends StatefulWidget {
     required this.lineasLoader,
     required this.operations,
     this.onCompleted,
+    this.draftPort,
   });
 
   final EnvasesPorRecibirRow row;
   final Future<List<EnvasesPickingLineaRow>> Function() lineasLoader;
   final EnvasesOperations operations;
   final VoidCallback? onCompleted;
+
+  /// Persistencia opcional del borrador. Sin él (por ejemplo, en los tests
+  /// existentes) el formulario funciona igual que antes: sólo en memoria.
+  final EnvasesFormDraftPort? draftPort;
 
   @override
   State<EnvasesRecibirForm> createState() => _EnvasesRecibirFormState();
@@ -59,10 +71,18 @@ class _EnvasesRecibirFormState extends State<EnvasesRecibirForm> {
   bool _saving = false;
   String? _saveError;
   String? _saveNotice;
+  bool _recoveredNotice = false;
+  EnvasesFormDraftAutoSave? _autoSave;
+
+  String get _draftId => envasesRecepcionDraftId(widget.row.id);
 
   @override
   void initState() {
     super.initState();
+    final port = widget.draftPort;
+    if (port != null) {
+      _autoSave = EnvasesFormDraftAutoSave(port: port, draftId: _draftId);
+    }
     _load();
   }
 
@@ -71,13 +91,67 @@ class _EnvasesRecibirFormState extends State<EnvasesRecibirForm> {
       final lineas = await widget.lineasLoader();
       if (!mounted) return;
       setState(() => _lineas = [for (final linea in lineas) _LineaControllers(linea)]);
+      // La recepción sólo se prellena DESPUÉS de tener las líneas reales:
+      // antes de eso no hay con qué cotejar que un `moveId` restaurado siga
+      // vigente.
+      final port = widget.draftPort;
+      if (port != null) await _restoreDraft(port);
     } catch (error) {
       if (mounted) setState(() => _loadError = error);
     }
   }
 
+  Future<void> _restoreDraft(EnvasesFormDraftPort port) async {
+    Map<String, dynamic>? raw;
+    try {
+      raw = await port.read(_draftId);
+    } catch (_) {
+      return;
+    }
+    final lineas = _lineas;
+    if (raw == null || lineas == null || !mounted) return;
+
+    final rawLineas = raw['lineas'];
+    if (rawLineas is! List) return;
+    var recovered = false;
+    for (final item in rawLineas) {
+      if (item is! Map) continue;
+      final moveId = item['moveId'];
+      final llegaron = item['llegaron'];
+      final danadas = item['danadas'];
+      if (moveId is! int || llegaron is! num || danadas is! num) continue;
+      // Línea que ya no está en el traslado real (recalculada por Odoo entre
+      // sesiones): se descarta en silencio.
+      for (final controller in lineas) {
+        if (controller.linea.moveId == moveId) {
+          controller.llegaron.text = _fmt(llegaron.toDouble());
+          controller.danadas.text = _fmt(danadas.toDouble());
+          recovered = true;
+          break;
+        }
+      }
+    }
+    if (!recovered) return;
+    setState(() => _recoveredNotice = true);
+  }
+
+  Map<String, dynamic> _draftPayload() => {
+    'v': 1,
+    'lineas': [
+      for (final controller in _lineas ?? const <_LineaControllers>[])
+        {
+          'moveId': controller.linea.moveId,
+          'llegaron': controller.llegaronValue,
+          'danadas': controller.danadasValue,
+        },
+    ],
+  };
+
+  void _scheduleDraftSave() => _autoSave?.schedule(_draftPayload());
+
   @override
   void dispose() {
+    _autoSave?.dispose();
     for (final controller in _lineas ?? const <_LineaControllers>[]) {
       controller.dispose();
     }
@@ -127,6 +201,9 @@ class _EnvasesRecibirFormState extends State<EnvasesRecibirForm> {
       if (resultado.estado == EnvasesOperacionEstado.pendienteDeEnviar) {
         setState(() => _saveNotice = 'Se enviará a Odoo al recuperar conexión.');
       }
+      // Registro aceptado (en línea o encolado sin conexión): el borrador ya
+      // cumplió su propósito.
+      unawaited(_autoSave?.clear());
       widget.onCompleted?.call();
     } catch (error) {
       if (mounted) setState(() => _saveError = 'No se pudo registrar la recepción: $error');
@@ -154,6 +231,15 @@ class _EnvasesRecibirFormState extends State<EnvasesRecibirForm> {
       sections: [
         OrbiFormSection(
           fields: [
+            if (_recoveredNotice)
+              OrbiField(
+                label: '',
+                span: 2,
+                child: InfoBar(
+                  title: const Text('Recuperamos lo que estabas registrando.'),
+                  severity: InfoBarSeverity.info,
+                ),
+              ),
             for (final controller in lineas)
               OrbiField(
                 label: controller.linea.productName,
@@ -169,7 +255,10 @@ class _EnvasesRecibirFormState extends State<EnvasesRecibirForm> {
                         controller: controller.llegaron,
                         placeholder: 'Llegaron',
                         keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                        onChanged: (_) => setState(() {}),
+                        onChanged: (_) {
+                          setState(() {});
+                          _scheduleDraftSave();
+                        },
                       ),
                     ),
                     const SizedBox(width: 12),
@@ -179,7 +268,10 @@ class _EnvasesRecibirFormState extends State<EnvasesRecibirForm> {
                         controller: controller.danadas,
                         placeholder: 'Dañadas (incluidas en llegaron)',
                         keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                        onChanged: (_) => setState(() {}),
+                        onChanged: (_) {
+                          setState(() {});
+                          _scheduleDraftSave();
+                        },
                       ),
                     ),
                   ],
