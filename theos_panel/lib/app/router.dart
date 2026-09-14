@@ -685,6 +685,120 @@ final scopeSyncPeriodicBackupTriggerProvider =
 });
 // --- Fin del bloque aislado ------------------------------------------------
 
+// --- Bloque aislado: hora del servidor (14-sep-2026) ------------------------
+// `ClientPolicyService` (`orbi_runtime`) sincroniza la hora del servidor y
+// los dos límites de sesión offline con `app.sync.client.policy.client_policy()`
+// — un método de `l10n_ec_app_sync` 19.1.5 todavía SIN desplegar en ningún
+// servidor: hasta que lo esté, cualquier Odoo responde "el modelo no existe"
+// y el servicio cae solo a la hora del equipo (`ClientPolicyTimeSource.device`).
+// `RuntimeMetadataStore` guarda lo último por scope, igual que ya hace el
+// puente de tiempo real más arriba (`_realtimeLastKey`).
+//
+// `ClientPolicyService.snapshot` no es reactivo por su cuenta (es una clase
+// de `orbi_runtime`, sin Riverpod): `_clientPolicyRevisionProvider` es el
+// puente — cada sincronización real (al entrar, al volver a primer plano, o
+// cada 15 minutos) lo incrementa, y `serverClockStatusProvider` lo observa
+// para volver a leer el snapshot más fresco.
+const _clientPolicyStateKey = 'client_policy/state';
+
+final _clientPolicyRevisionProvider =
+    NotifierProvider<_ClientPolicyRevisionNotifier, int>(
+      _ClientPolicyRevisionNotifier.new,
+    );
+
+class _ClientPolicyRevisionNotifier extends Notifier<int> {
+  @override
+  int build() => 0;
+
+  void bump() => state++;
+}
+
+final _clientPolicyServiceProvider = Provider<ClientPolicyService?>((ref) {
+  final runtime = ref.watch(runtimeSessionProvider);
+  final active = runtime?.active;
+  if (runtime == null || active == null) return null;
+  final metadata = RuntimeMetadataStore(runtime);
+  final lease = active.lease;
+  final service = ClientPolicyService.fromSession(
+    sessions: runtime,
+    readState: () => metadata.read(_clientPolicyStateKey, lease: lease),
+    writeState: (json) =>
+        metadata.write(_clientPolicyStateKey, json, lease: lease),
+  );
+
+  // Tras entrar o restaurar sesión en línea: una sincronización inmediata,
+  // sin esperar al primer tic de 15 minutos del disparador de abajo.
+  unawaited(
+    service.sync().then(
+      (_) => ref.read(_clientPolicyRevisionProvider.notifier).bump(),
+    ),
+  );
+  return service;
+});
+
+final _clientPolicySyncTriggerProvider = Provider<ClientPolicySyncTrigger?>((
+  ref,
+) {
+  final service = ref.watch(_clientPolicyServiceProvider);
+  if (service == null) return null;
+  final foreground = ref.watch(_appForegroundSignalProvider);
+
+  // Mismo puente red → Stream<bool> que los otros bloques aislados de este
+  // archivo: `ref.listen` es el único modo de leer el `Stream<bool>` crudo
+  // de un `StreamProvider` en esta versión de Riverpod.
+  final onlineController = StreamController<bool>.broadcast();
+  ref.listen<AsyncValue<NetworkSignal>>(networkSignalProvider, (
+    previous,
+    next,
+  ) {
+    final signal = next.value;
+    if (signal != null && !onlineController.isClosed) {
+      onlineController.add(signal.hasNetwork);
+    }
+  }, fireImmediately: true);
+
+  Future<void> syncAndBump() async {
+    await service.sync();
+    ref.read(_clientPolicyRevisionProvider.notifier).bump();
+  }
+
+  final trigger = ClientPolicySyncTrigger(
+    sync: syncAndBump,
+    online: onlineController.stream,
+    foreground: foreground.stream,
+  );
+  ref.onDispose(() {
+    unawaited(trigger.dispose());
+    unawaited(onlineController.close());
+  });
+  return trigger;
+});
+
+/// `ServerClockStatus` para el pie del armazón (`OperationalContext.serverClock`)
+/// — `null` sin sesión activa, que deja el pie con la hora local cruda, el
+/// comportamiento de antes de este bloque.
+final serverClockStatusProvider = Provider<ServerClockStatus?>((ref) {
+  final service = ref.watch(_clientPolicyServiceProvider);
+  // Mantiene vivo el disparador periódico mientras haya sesión — su
+  // resultado no se lee directamente, sólo a través de la revisión de abajo.
+  ref.watch(_clientPolicySyncTriggerProvider);
+  ref.watch(_clientPolicyRevisionProvider);
+  if (service == null) return null;
+  final profile = ref.watch(authControllerProvider).profile;
+  final snapshot = service.snapshot;
+  return ServerClockStatus(
+    nowServer: service.nowServer,
+    timeZoneName: profile?.tz ?? 'America/Guayaquil',
+    source: snapshot.source,
+    isEstimated: snapshot.isEstimated,
+    rtt: snapshot.rtt,
+    lastSyncAt: snapshot.lastSyncAt,
+    lastOnlineAt: snapshot.lastOnlineAt,
+    clockRollbackSuspected: snapshot.clockRollbackSuspected,
+  );
+});
+// --- Fin del bloque aislado ------------------------------------------------
+
 // --- Bloque aislado: sesión expirada en caliente (auditoría de sesión,
 // 13-sep-2026) ---------------------------------------------------------------
 // El coordinador ya publica `SyncSnapshot.sessionExpired` (derivado de
@@ -1744,6 +1858,7 @@ final orbiRouterProvider = Provider<GoRouter>((ref) {
                           .length,
                       storageIsVolatile:
                           storageMode == RuntimeStorageMode.volatile,
+                      serverClock: ref.watch(serverClockStatusProvider),
                     ),
                     onLogout: () async {
                       await ref.read(authControllerProvider.notifier).close();

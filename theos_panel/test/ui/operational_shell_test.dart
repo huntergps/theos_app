@@ -651,6 +651,194 @@ void main() {
     });
   });
 
+  group('hora del servidor', () {
+    // Encargo del 14-sep-2026: el pie debe pintar la hora del SERVIDOR (ya
+    // con el desfase de `ClientPolicyService` aplicado) en la zona del
+    // usuario, no la hora cruda del equipo. Con el armazón viejo esta
+    // prueba falla: antes de `OperationalContext.serverClock`, el reloj
+    // sólo sabía leer `widget.now` — el equivalente de un desfase fijo en
+    // cero.
+    testWidgets(
+      'pinta la hora del servidor en la zona del usuario, con su detalle',
+      (tester) async {
+        const size = Size(1920, 1080);
+        // 15:30 UTC del 14-sep-2026. `America/Guayaquil` es UTC-5 todo el
+        // año (sin horario de verano): la hora de pared esperada es 10:30.
+        final serverNow = DateTime.utc(2026, 9, 14, 15, 30, 0);
+        await _pump(
+          tester,
+          _host(
+            size,
+            now: () => serverNow,
+            context: OperationalContext(
+              server: 'erp.test',
+              database: 'orbi_test',
+              userLabel: 'Erik',
+              companyLabel: 'Empresa Demo',
+              connectionLabel: 'Conectado',
+              syncLabel: '3 pendientes',
+              serverClock: ServerClockStatus(
+                nowServer: () => serverNow,
+                timeZoneName: 'America/Guayaquil',
+                source: ClientPolicyTimeSource.server,
+                isEstimated: false,
+                rtt: const Duration(milliseconds: 120),
+                lastSyncAt: serverNow.subtract(const Duration(minutes: 4)),
+                lastOnlineAt: serverNow.subtract(const Duration(minutes: 4)),
+              ),
+            ),
+          ),
+          size,
+        );
+
+        expect(find.text('14/09/2026 10:30:00'), findsOneWidget);
+
+        final tooltip = tester.widget<Tooltip>(
+          find.ancestor(
+            of: find.byIcon(FluentIcons.date_time),
+            matching: find.byType(Tooltip),
+          ),
+        );
+        expect(
+          tooltip.message,
+          'Hora del servidor · sincronizada hace 4 min · latencia 120 ms',
+        );
+      },
+    );
+
+    testWidgets(
+      'sin conexión, dice hora estimada y la última conexión',
+      (tester) async {
+        const size = Size(1920, 1080);
+        final deviceNow = DateTime.utc(2026, 9, 14, 15, 30, 0);
+        final lastOnline = deviceNow.subtract(const Duration(hours: 2));
+        await _pump(
+          tester,
+          _host(
+            size,
+            now: () => deviceNow,
+            context: OperationalContext(
+              server: 'erp.test',
+              database: 'orbi_test',
+              userLabel: 'Erik',
+              companyLabel: 'Empresa Demo',
+              connectionLabel: 'Sin red',
+              syncLabel: 'sin conexión',
+              serverClock: ServerClockStatus(
+                nowServer: () => deviceNow,
+                timeZoneName: 'America/Guayaquil',
+                source: ClientPolicyTimeSource.server,
+                isEstimated: true,
+                lastOnlineAt: lastOnline,
+              ),
+            ),
+          ),
+          size,
+        );
+
+        final tooltip = tester.widget<Tooltip>(
+          find.ancestor(
+            of: find.byIcon(FluentIcons.date_time),
+            matching: find.byType(Tooltip),
+          ),
+        );
+        expect(
+          tooltip.message,
+          'Hora estimada sin conexión · última conexión 14/09/2026 08:30:00',
+        );
+      },
+    );
+
+    testWidgets(
+      'un servidor sin el modelo dice que no informa su hora',
+      (tester) async {
+        const size = Size(1920, 1080);
+        final deviceNow = DateTime.utc(2026, 9, 14, 15, 30, 0);
+        await _pump(
+          tester,
+          _host(
+            size,
+            now: () => deviceNow,
+            context: OperationalContext(
+              server: 'erp.test',
+              database: 'orbi_test',
+              userLabel: 'Erik',
+              companyLabel: 'Empresa Demo',
+              connectionLabel: 'Conectado',
+              syncLabel: 'al día',
+              serverClock: ServerClockStatus(
+                nowServer: () => deviceNow,
+                timeZoneName: 'America/Guayaquil',
+                source: ClientPolicyTimeSource.device,
+                isEstimated: true,
+              ),
+            ),
+          ),
+          size,
+        );
+
+        final tooltip = tester.widget<Tooltip>(
+          find.ancestor(
+            of: find.byIcon(FluentIcons.date_time),
+            matching: find.byType(Tooltip),
+          ),
+        );
+        expect(
+          tooltip.message,
+          'Hora del equipo: este servidor no informa su hora',
+        );
+      },
+    );
+
+    testWidgets(
+      'reloj retrocedido: aparece el aviso, sin tapar el resto del texto',
+      (tester) async {
+        const size = Size(1920, 1080);
+        final deviceNow = DateTime.utc(2026, 9, 14, 15, 30, 0);
+        await _pump(
+          tester,
+          _host(
+            size,
+            now: () => deviceNow,
+            context: OperationalContext(
+              server: 'erp.test',
+              database: 'orbi_test',
+              userLabel: 'Erik',
+              companyLabel: 'Empresa Demo',
+              connectionLabel: 'Conectado',
+              syncLabel: 'al día',
+              serverClock: ServerClockStatus(
+                nowServer: () => deviceNow,
+                timeZoneName: 'America/Guayaquil',
+                source: ClientPolicyTimeSource.server,
+                isEstimated: false,
+                lastSyncAt: deviceNow,
+                lastOnlineAt: deviceNow,
+                clockRollbackSuspected: true,
+              ),
+            ),
+          ),
+          size,
+        );
+
+        expect(find.byIcon(FluentIcons.warning), findsOneWidget);
+        final tooltip = tester.widget<Tooltip>(
+          find.ancestor(
+            of: find.byIcon(FluentIcons.date_time),
+            matching: find.byType(Tooltip),
+          ),
+        );
+        expect(
+          tooltip.message,
+          contains(
+            'La hora de este equipo retrocedió; revisa la fecha y hora del '
+            'sistema.',
+          ),
+        );
+      },
+    );
+  });
+
   group('la barra superior', () {
     testWidgets('la empresa se ve, siempre, junto al usuario', (
       tester,

@@ -1,6 +1,8 @@
 export 'src/contracts.dart';
 export 'src/account/user_presence.dart';
 export 'src/account/user_preferences.dart';
+export 'src/clock/client_policy_service.dart';
+export 'src/clock/client_policy_sync_trigger.dart';
 export 'src/sales/editable_draft_store.dart';
 export 'src/envases/envases_dashboard_reader.dart';
 export 'src/envases/envases_existencias_reader.dart';

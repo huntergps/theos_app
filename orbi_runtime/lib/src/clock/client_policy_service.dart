@@ -1,0 +1,344 @@
+// El nombre público del parámetro (`readState`, `writeState`) documenta
+// mejor la intención en el sitio de la llamada que el nombre privado del
+// campo (`_readState`, `_writeState`) — mismo patrón que `SessionRuntime`.
+// ignore_for_file: prefer_initializing_formals
+import 'dart:convert';
+
+import 'package:odoo_sdk/odoo_sdk.dart';
+
+import '../session/session_runtime.dart';
+
+/// Modelo y método de `l10n_ec_app_sync` 19.1.5 que Orbi lee para saber la
+/// hora del servidor y los dos límites de sesión offline —
+/// `app.sync.client.policy.client_policy()`
+/// (`dev_odoo20_app_sync_policy/addons/l10n_ec_app_sync/models/app_sync_client_policy.py`).
+/// Todavía NO está desplegado en ningún servidor (14-sep-2026): mientras no
+/// exista, cualquier Odoo responde con "el modelo ... no existe" y este
+/// servicio cae a la hora del equipo — ver [ClientPolicyService.sync].
+const clientPolicyModel = 'app.sync.client.policy';
+const clientPolicyMethod = 'client_policy';
+
+/// Valores de respaldo cuando el servidor todavía no tiene el modelo, o
+/// nunca se pudo sincronizar — los mismos por omisión que trae el propio
+/// método Python (`DEFAULT_OFFLINE_MAX_DAYS`, `DEFAULT_INACTIVITY_LOCK_MINUTES`).
+const kDefaultOfflineMaxDays = 3;
+const kDefaultInactivityLockMinutes = 15;
+
+/// De dónde sale el desfase que usa [ClientPolicyService.nowServer].
+enum ClientPolicyTimeSource {
+  /// El desfase viene de una respuesta real de `client_policy()`.
+  server,
+
+  /// El servidor no tiene el modelo todavía, o nunca hubo una sincronización
+  /// que confirmara lo contrario: el reloj del equipo manda, sin desfase.
+  device,
+}
+
+/// Snapshot inmutable de lo último que sabe el servicio — lo que pinta el
+/// armazón (`ServerClockStatus`, `theos_panel/lib/ui/layouts/operational_shell.dart`).
+final class ClientPolicySnapshot {
+  const ClientPolicySnapshot({
+    required this.offset,
+    required this.source,
+    required this.offlineMaxDays,
+    required this.inactivityLockMinutes,
+    required this.isEstimated,
+    this.rtt,
+    this.lastSyncAt,
+    this.lastOnlineAt,
+    this.clockRollbackSuspected = false,
+  });
+
+  /// `serverUtc - deviceUtc`, para sumarlo a la hora del equipo y estimar la
+  /// del servidor. `Duration.zero` mientras no haya ninguna medida real.
+  final Duration offset;
+  final ClientPolicyTimeSource source;
+
+  /// Ida y vuelta de la última sincronización real. `null` cuando nunca
+  /// hubo una.
+  final Duration? rtt;
+
+  /// UTC. Momento del último `sync()` que llegó a una conclusión (real o
+  /// "el modelo no existe") — no se actualiza en un error de red o de
+  /// autenticación, porque esos no son una conclusión, son un reintento
+  /// pendiente.
+  final DateTime? lastSyncAt;
+
+  /// UTC. Último momento en que `source` fue [ClientPolicyTimeSource.server]
+  /// de verdad — `null` si esta instalación nunca lo logró.
+  final DateTime? lastOnlineAt;
+
+  final int offlineMaxDays;
+  final int inactivityLockMinutes;
+
+  /// Sin conexión, o sin haber sincronizado todavía en ESTA sesión — un
+  /// desfase persistido de una sesión anterior sigue siendo una ESTIMACIÓN
+  /// mientras no se confirme de nuevo.
+  final bool isEstimated;
+
+  final bool clockRollbackSuspected;
+}
+
+/// Ya invoca `client_policy()` sobre el cliente activo y decodifica la
+/// respuesta — lo único que varía entre producción (`fromSession`) y las
+/// pruebas (una función de mentira). `null` significa "sin cliente": la
+/// sesión está sin conexión, y [ClientPolicyService.sync] no debe llamar a
+/// nada.
+typedef ClientPolicyRpc = Future<Map<String, dynamic>> Function();
+
+/// Hora del servidor y política de sesión offline, sincronizadas sin pedirle
+/// nada al servidor más de lo necesario.
+///
+/// Disparadores (orden del dueño, 14-sep-2026): al entrar o restaurar sesión
+/// en línea, al volver a primer plano y cada 15 minutos — todos afuera de
+/// esta clase, en `ClientPolicySyncTrigger` y en quien componga la sesión
+/// (`theos_panel/lib/app/router.dart`). Esta clase sólo sabe sincronizar UNA
+/// vez quien se lo pida, y leer localmente lo último que sincronizó.
+final class ClientPolicyService {
+  ClientPolicyService({
+    required ClientPolicyRpc? Function() rpc,
+    required Future<String?> Function() readState,
+    required Future<void> Function(String json) writeState,
+    DateTime Function()? deviceNow,
+    Duration Function()? monotonicElapsed,
+  }) : _rpcOf = rpc,
+       _readState = readState,
+       _writeState = writeState,
+       _deviceNow = deviceNow ?? DateTime.now,
+       _monotonicElapsed = monotonicElapsed ?? _defaultMonotonicElapsed;
+
+  /// Construye el servicio contra una sesión real: `sessions.active?.client`
+  /// decide si hay con qué sincronizar, y el estado pequeño se guarda en la
+  /// base del propio scope (`RuntimeMetadataStore`) — el mismo lugar que ya
+  /// usa el resto del runtime para datos así de chicos por scope (ver
+  /// `read/runtime_metadata_store.dart`).
+  factory ClientPolicyService.fromSession({
+    required SessionRuntime sessions,
+    required Future<String?> Function() readState,
+    required Future<void> Function(String json) writeState,
+    DateTime Function()? deviceNow,
+    Duration Function()? monotonicElapsed,
+  }) => ClientPolicyService(
+    rpc: () {
+      final client = sessions.active?.client;
+      if (client == null) return null;
+      return () async {
+        final result = await client.call(
+          model: clientPolicyModel,
+          method: clientPolicyMethod,
+          kwargs: const {},
+        );
+        if (result is! Map) {
+          throw const FormatException('Invalid client_policy response');
+        }
+        return Map<String, dynamic>.from(result);
+      };
+    },
+    readState: readState,
+    writeState: writeState,
+    deviceNow: deviceNow,
+    monotonicElapsed: monotonicElapsed,
+  );
+
+  final ClientPolicyRpc? Function() _rpcOf;
+  final Future<String?> Function() _readState;
+  final Future<void> Function(String) _writeState;
+  final DateTime Function() _deviceNow;
+  final Duration Function() _monotonicElapsed;
+
+  Duration _offset = Duration.zero;
+  ClientPolicyTimeSource _source = ClientPolicyTimeSource.device;
+  Duration? _rtt;
+  DateTime? _lastSyncAt;
+  DateTime? _lastOnlineAt;
+  int _offlineMaxDays = kDefaultOfflineMaxDays;
+  int _inactivityLockMinutes = kDefaultInactivityLockMinutes;
+
+  bool _restored = false;
+
+  /// Memoria de "este servidor no tiene el modelo" — SÓLO por sesión (vive
+  /// en memoria, nunca se persiste): un servidor puede ganar el módulo entre
+  /// una sesión y la siguiente, y esta app no tiene forma de enterarse si
+  /// nunca vuelve a preguntar.
+  bool _modelKnownMissingThisSession = false;
+
+  /// Si YA hubo una sincronización real con el servidor en esta sesión —
+  /// distinto de [_lastOnlineAt], que sobrevive entre sesiones: esto decide
+  /// [isEstimated] incluso cuando el desfase restaurado dice `source: server`
+  /// de una sesión anterior.
+  bool _syncedServerThisSession = false;
+
+  DateTime? _lastSeenDeviceUtc;
+  bool _clockRollbackSuspected = false;
+
+  /// Carga lo último persistido, sin llamar al RPC. Idempotente — una
+  /// segunda llamada no vuelve a leer. `sync()` ya la invoca por su cuenta,
+  /// así que sólo hace falta llamarla a mano cuando se necesita leer
+  /// [nowServer] SIN sincronizar (la estimación sin conexión).
+  Future<void> restore() async {
+    if (_restored) return;
+    _restored = true;
+    final raw = await _readState();
+    if (raw == null) return;
+    try {
+      final decoded = jsonDecode(raw);
+      if (decoded is! Map) return;
+      final map = Map<String, dynamic>.from(decoded);
+      final offsetMs = map['offset_ms'];
+      if (offsetMs is int) _offset = Duration(milliseconds: offsetMs);
+      final rttMs = map['rtt_ms'];
+      _rtt = rttMs is int ? Duration(milliseconds: rttMs) : null;
+      _source = map['source'] == 'server'
+          ? ClientPolicyTimeSource.server
+          : ClientPolicyTimeSource.device;
+      _lastSyncAt = _parseIsoUtc(map['last_sync_at']);
+      _lastOnlineAt = _parseIsoUtc(map['last_online_at']);
+      final maxDays = map['offline_max_days'];
+      if (maxDays is int && maxDays >= 1) _offlineMaxDays = maxDays;
+      final lockMinutes = map['inactivity_lock_minutes'];
+      if (lockMinutes is int && lockMinutes >= 1) {
+        _inactivityLockMinutes = lockMinutes;
+      }
+    } on FormatException {
+      // Estado corrupto o de un formato viejo: se ignora. Nunca revienta el
+      // arranque por un JSON inválido — el servicio sigue con los valores
+      // por omisión.
+    }
+  }
+
+  /// Un ciclo de sincronización. Nunca lanza: cualquier fallo que no sea
+  /// "el modelo no existe" deja el estado tal cual estaba, para que el
+  /// próximo disparador lo vuelva a intentar.
+  Future<void> sync() async {
+    await restore();
+    final rpc = _rpcOf();
+    if (rpc == null) return; // Sin cliente: sesión sin conexión, sin RPC.
+    if (_modelKnownMissingThisSession) return;
+
+    final sentAtDevice = _deviceNow().toUtc();
+    _observeDeviceClock(sentAtDevice);
+    final startTick = _monotonicElapsed();
+    try {
+      final response = await rpc();
+      final rtt = _monotonicElapsed() - startTick;
+      final serverUtc = _parseServerTimeUtc(response['server_time_utc']);
+      final halfRtt = Duration(microseconds: rtt.inMicroseconds ~/ 2);
+      _offset = serverUtc.difference(sentAtDevice.add(halfRtt));
+      _rtt = rtt;
+      _source = ClientPolicyTimeSource.server;
+      _offlineMaxDays = _positiveIntOr(
+        response['offline_max_days'],
+        _offlineMaxDays,
+      );
+      _inactivityLockMinutes = _positiveIntOr(
+        response['inactivity_lock_minutes'],
+        _inactivityLockMinutes,
+      );
+      _lastSyncAt = sentAtDevice;
+      _lastOnlineAt = sentAtDevice;
+      _syncedServerThisSession = true;
+      await _persist();
+    } on OdooNotFoundException {
+      _fallBackToDeviceForMissingModel(sentAtDevice);
+      await _persist();
+    } on OdooMethodNotFoundException {
+      _fallBackToDeviceForMissingModel(sentAtDevice);
+      await _persist();
+    } catch (_) {
+      // Cualquier otro fallo (401, sin red, timeout, 500 del servidor): NO
+      // es ausencia del modelo — orden del dueño: "un 401 o un error de red
+      // NO es ausencia". Se conserva lo último tal cual, y el próximo
+      // `sync()` vuelve a intentar el RPC porque el memo de "no existe"
+      // nunca se puso.
+    }
+  }
+
+  void _fallBackToDeviceForMissingModel(DateTime sentAtDevice) {
+    _modelKnownMissingThisSession = true;
+    _source = ClientPolicyTimeSource.device;
+    _offset = Duration.zero;
+    _rtt = null;
+    _lastSyncAt = sentAtDevice;
+    // `_offlineMaxDays`/`_inactivityLockMinutes` se quedan en lo último que
+    // ya tenían (persistido o el valor por omisión con el que arrancó el
+    // servicio) — nunca se pisan con otra cosa en esta rama.
+  }
+
+  Future<void> _persist() async {
+    final json = jsonEncode({
+      'offset_ms': _offset.inMilliseconds,
+      'rtt_ms': _rtt?.inMilliseconds,
+      'source': _source == ClientPolicyTimeSource.server ? 'server' : 'device',
+      'last_sync_at': _lastSyncAt?.toIso8601String(),
+      'last_online_at': _lastOnlineAt?.toIso8601String(),
+      'offline_max_days': _offlineMaxDays,
+      'inactivity_lock_minutes': _inactivityLockMinutes,
+    });
+    await _writeState(json);
+  }
+
+  /// Hora estimada del servidor: la del equipo más el desfase guardado.
+  /// Nunca hace RPC — lectura local pura, apta para un tic de UI de 1
+  /// segundo.
+  DateTime nowServer() {
+    final now = _deviceNow().toUtc();
+    _observeDeviceClock(now);
+    return now.add(_offset);
+  }
+
+  /// Guarda la última hora del equipo vista y, si la lectura actual queda
+  /// más de 5 minutos POR DETRÁS de la última vista, sospecha un retroceso
+  /// del reloj. Se llama en cada `sync()` y en cada [nowServer] — que en
+  /// producción se lee al menos cada segundo desde el pie de la aplicación,
+  /// así que en la práctica cumple "cada minuto" sin un temporizador propio.
+  void _observeDeviceClock(DateTime current) {
+    final last = _lastSeenDeviceUtc;
+    if (last != null && last.difference(current) > const Duration(minutes: 5)) {
+      _clockRollbackSuspected = true;
+    }
+    if (last == null || current.isAfter(last)) {
+      _lastSeenDeviceUtc = current;
+    }
+  }
+
+  /// Sin conexión, o sin haber sincronizado todavía en ESTA sesión.
+  bool get isEstimated => _rpcOf() == null || !_syncedServerThisSession;
+
+  ClientPolicySnapshot get snapshot => ClientPolicySnapshot(
+    offset: _offset,
+    source: _source,
+    rtt: _rtt,
+    lastSyncAt: _lastSyncAt,
+    lastOnlineAt: _lastOnlineAt,
+    offlineMaxDays: _offlineMaxDays,
+    inactivityLockMinutes: _inactivityLockMinutes,
+    isEstimated: isEstimated,
+    clockRollbackSuspected: _clockRollbackSuspected,
+  );
+}
+
+DateTime _parseServerTimeUtc(dynamic value) {
+  if (value is! String) {
+    throw const FormatException('Invalid client_policy server_time_utc');
+  }
+  final parsed = DateTime.tryParse(value);
+  if (parsed == null) {
+    throw const FormatException('Invalid client_policy server_time_utc');
+  }
+  return parsed.toUtc();
+}
+
+int _positiveIntOr(dynamic value, int fallback) =>
+    value is int && value >= 1 ? value : fallback;
+
+DateTime? _parseIsoUtc(dynamic value) {
+  if (value is! String) return null;
+  return DateTime.tryParse(value)?.toUtc();
+}
+
+/// Reloj monotónico por omisión: un único `Stopwatch` de vida entera del
+/// proceso, nunca reiniciado — sólo importa la DIFERENCIA entre dos lecturas
+/// que rodean un mismo RPC, nunca su valor absoluto.
+final _sharedStopwatch = Stopwatch()..start();
+
+Duration _defaultMonotonicElapsed() => _sharedStopwatch.elapsed;

@@ -4,6 +4,7 @@ import 'dart:math';
 import 'package:fluent_ui/fluent_ui.dart';
 import 'package:orbi_runtime/orbi_runtime.dart'
     show
+        ClientPolicyTimeSource,
         ConnectionStatus,
         OdooPresence,
         RealtimeStatus,
@@ -47,6 +48,7 @@ final class OperationalContext {
     this.pendingOperationsCount = 0,
     required this.syncLabel,
     this.storageIsVolatile = false,
+    this.serverClock,
   });
 
   final String server;
@@ -114,6 +116,59 @@ final class OperationalContext {
   /// `false`. `router.dart` es quien traduce el `RuntimeStorageMode` real a
   /// este booleano; este marco sólo lo pinta.
   final bool storageIsVolatile;
+  /// Hora del servidor y con qué respaldo, para el reloj del pie
+  /// ([_FooterClock]) — `router.dart` la arma desde `ClientPolicyService`
+  /// (`orbi_runtime/lib/src/clock/client_policy_service.dart`). `null` deja
+  /// el pie con la hora LOCAL cruda, sin etiqueta: el comportamiento de
+  /// antes de que existiera esta clase, para cualquier composición que
+  /// todavía no tenga sesión de la que sincronizar nada.
+  final ServerClockStatus? serverClock;
+}
+
+/// Lo que necesita el reloj del pie para pintar la hora del servidor en vez
+/// de la del equipo: la lectura ya calculada (nunca hace RPC, sólo lee el
+/// desfase que ya sincronizó `ClientPolicyService`), en qué zona pintarla y
+/// con qué respaldo — para el tooltip y el aviso de reloj atrasado.
+final class ServerClockStatus {
+  const ServerClockStatus({
+    required this.nowServer,
+    required this.timeZoneName,
+    required this.source,
+    required this.isEstimated,
+    this.rtt,
+    this.lastSyncAt,
+    this.lastOnlineAt,
+    this.clockRollbackSuspected = false,
+  });
+
+  /// UTC, con el desfase de `ClientPolicyService` ya aplicado. Lectura pura
+  /// —nunca hace red— apta para el tic de 1 segundo del pie.
+  final DateTime Function() nowServer;
+
+  /// `AuthProfile.tz`, o `America/Guayaquil` cuando el usuario no trae uno
+  /// — mismo valor por omisión que `UserPreferencesDialog`.
+  final String timeZoneName;
+
+  final ClientPolicyTimeSource source;
+
+  /// Sin conexión, o sin haber sincronizado todavía en ESTA sesión — ver
+  /// `ClientPolicyService.isEstimated`.
+  final bool isEstimated;
+
+  /// Ida y vuelta de la última sincronización real. `null` cuando nunca
+  /// hubo una (nunca se inventa un número).
+  final Duration? rtt;
+
+  /// UTC. Cuándo se supo por última vez la hora real del servidor —incluida
+  /// la sincronización que confirmó que el servidor no tiene el modelo—.
+  final DateTime? lastSyncAt;
+
+  /// UTC. Cuándo se habló con el servidor por última vez CON ÉXITO
+  /// (`source == server`). `null` si nunca ocurrió en ningún momento de la
+  /// vida de esta instalación.
+  final DateTime? lastOnlineAt;
+
+  final bool clockRollbackSuspected;
 }
 
 /// El grupo bajo el que `router.dart` publica «Inicio»: un único destino que
@@ -822,6 +877,7 @@ class _OperationalShellState extends State<OperationalShell> {
                   tickInterval: widget.clockTickInterval,
                   iconColor: r.textFillColorSecondary,
                   now: widget.now,
+                  serverClock: widget.context.serverClock,
                 ),
               ],
             ),
@@ -1414,11 +1470,16 @@ class _UserAvatarMenuState extends State<_UserAvatarMenu> {
   }
 }
 
-/// El reloj del pie ancho: hora LOCAL del dispositivo, nunca «hora del
-/// servidor» — ni Orbi ni `theos_pos` miden un desfase real hoy (`theos_pos`
-/// fija `serverTimeOffset` en cero siempre,
-/// `theos_pos/lib/shared/providers/server_info_provider.dart:161`), así que
-/// llamarla «del servidor» sería una etiqueta falsa sobre el mismo dato.
+/// El reloj del pie ancho: hora del SERVIDOR cuando `router.dart` compone un
+/// [ServerClockStatus] (`OperationalContext.serverClock`), o la hora LOCAL
+/// cruda del dispositivo cuando no hay ninguno —el comportamiento de este
+/// archivo hasta el 14-sep-2026, cuando ni Orbi ni `theos_pos` medían un
+/// desfase real (`theos_pos` fija `serverTimeOffset` en cero siempre,
+/// `theos_pos/lib/shared/providers/server_info_provider.dart:161`).
+/// [ServerClockStatus.nowServer] nunca hace RPC: es una lectura local del
+/// desfase que ya sincronizó `ClientPolicyService` en otro momento (al
+/// entrar, al volver a primer plano, o cada 15 minutos) — el tic de este
+/// widget sólo la vuelve a leer, nunca la actualiza por su cuenta.
 ///
 /// El latido es un parámetro, no una constante: en producción
 /// [OperationalShell.clockTickInterval] vale 1 segundo por omisión, y las
@@ -1433,11 +1494,13 @@ class _FooterClock extends StatefulWidget {
     required this.tickInterval,
     required this.iconColor,
     required this.now,
+    required this.serverClock,
   });
 
   final Duration? tickInterval;
   final Color iconColor;
   final DateTime Function() now;
+  final ServerClockStatus? serverClock;
 
   @override
   State<_FooterClock> createState() => _FooterClockState();
@@ -1478,20 +1541,95 @@ class _FooterClockState extends State<_FooterClock> {
   }
 
   @override
-  Widget build(BuildContext context) => Row(
-    mainAxisSize: MainAxisSize.min,
-    children: [
-      Icon(FluentIcons.date_time, size: 14, color: widget.iconColor),
-      const SizedBox(width: 5),
-      Text(_formatLocalClock(_time)),
-    ],
-  );
+  Widget build(BuildContext context) {
+    final clock = widget.serverClock;
+    final row = Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Icon(FluentIcons.date_time, size: 14, color: widget.iconColor),
+        const SizedBox(width: 5),
+        Text(clock == null ? _formatLocalClock(_time) : _formatServerClock(clock)),
+        if (clock?.clockRollbackSuspected ?? false) ...[
+          const SizedBox(width: 6),
+          Icon(
+            FluentIcons.warning,
+            size: 14,
+            color: FluentTheme.of(context).resources.systemFillColorCaution,
+          ),
+        ],
+      ],
+    );
+    if (clock == null) return row;
+    return Tooltip(message: _serverClockTooltip(clock, widget.now), child: row);
+  }
 }
 
 String _formatLocalClock(DateTime t) {
   String two(int n) => n.toString().padLeft(2, '0');
   return '${two(t.day)}/${two(t.month)}/${t.year} '
       '${two(t.hour)}:${two(t.minute)}:${two(t.second)}';
+}
+
+String _formatServerClock(ServerClockStatus clock) =>
+    _formatLocalClock(clock.nowServer().add(_resolveTzOffset(clock.timeZoneName)));
+
+/// Compensación de zona horaria SIN el paquete `timezone`: este monorepo no
+/// lo trae (añadirlo regenera lockfiles de los siete paquetes, algo que
+/// CLAUDE.md pide evitar fuera de lo que pide el propio cambio), y hoy los
+/// únicos servidores reales son ecuatorianos — `America/Guayaquil` no
+/// observa horario de verano, así que un desfase fijo es exacto para ellos.
+///
+/// 🔴 Limitación deliberada: cualquier zona con horario de verano
+/// (`America/New_York`, por ejemplo) saldría mal la mitad del año. Si Orbi
+/// necesita alguna vez una zona fuera de esta lista corta, lo correcto es
+/// añadir el paquete `timezone` de verdad — es un cambio que toca el
+/// lockfile de los siete paquetes y merece avisarle al dueño antes, no
+/// crecer esta tabla a mano.
+const _fixedUtcOffsets = <String, Duration>{
+  'America/Guayaquil': Duration(hours: -5),
+  'America/Bogota': Duration(hours: -5),
+  'America/Lima': Duration(hours: -5),
+  'UTC': Duration.zero,
+  'Etc/UTC': Duration.zero,
+};
+
+Duration _resolveTzOffset(String timeZoneName) =>
+    _fixedUtcOffsets[timeZoneName] ?? _fixedUtcOffsets['America/Guayaquil']!;
+
+/// El texto del tooltip/detalle del reloj — las tres redacciones fijas que
+/// pidió el dueño, nunca una interpolación libre sobre lo que diga el
+/// servidor.
+String _serverClockTooltip(ServerClockStatus clock, DateTime Function() deviceNow) {
+  final parts = <String>[];
+  if (clock.source == ClientPolicyTimeSource.device && clock.lastOnlineAt == null) {
+    parts.add('Hora del equipo: este servidor no informa su hora');
+  } else if (clock.isEstimated) {
+    final last = clock.lastOnlineAt;
+    if (last == null) {
+      parts.add('Hora estimada sin conexión');
+    } else {
+      final local = last.add(_resolveTzOffset(clock.timeZoneName));
+      parts.add(
+        'Hora estimada sin conexión · última conexión '
+        '${_formatLocalClock(local)}',
+      );
+    }
+  } else {
+    parts.add('Hora del servidor');
+    final lastSyncAt = clock.lastSyncAt;
+    if (lastSyncAt != null) {
+      final minutes = deviceNow().toUtc().difference(lastSyncAt).inMinutes;
+      parts.add('sincronizada hace $minutes min');
+    }
+    final rtt = clock.rtt;
+    if (rtt != null) parts.add('latencia ${rtt.inMilliseconds} ms');
+  }
+  if (clock.clockRollbackSuspected) {
+    parts.add(
+      'La hora de este equipo retrocedió; revisa la fecha y hora del sistema.',
+    );
+  }
+  return parts.join(' · ');
 }
 
 /// Etiquetas del submenú «Estado» y del punto del avatar. Las mismas cuatro
