@@ -827,18 +827,17 @@ final class NativeAuthService {
     if (secret == null || secret.isEmpty) {
       return const AuthServiceResult(status: AuthServiceStatus.required);
     }
-    // The bearer credential is otherwise only read to prove the vault
-    // reference is available — activating with it here builds the client
-    // object (no network call by itself; see `SessionRuntime.activate`) so
-    // it is already usable, with the user's own locale applied below, the
-    // moment connectivity actually allows a call.
+    // The bearer credential is intentionally only read to prove the vault
+    // reference is available.
     if (offline) {
-      await _sessionRuntime.activate(scope, apiKey: secret);
-      // No identity RPC offline: apply whatever locale this profile already
-      // had persisted from a previous online login/restore. `null` fields
-      // (never fetched, or Odoo answered `false`) are simply not applied —
-      // never a hardcoded fallback.
-      _sessionRuntime.applyUserLocale(language: profile.lang, timezone: profile.tz);
+      // Sin conexión no se crea cliente: `client == null` es la señal de
+      // sin sesión en línea que usan los puertos de bodega, lectura y
+      // catálogos (`warehouse_operation_port.dart`, `json2_read_adapters.dart`,
+      // `runtime_catalog_composition.dart`) para rechazar en local, sin
+      // tocar la red. El idioma y la zona guardados en el perfil se aplican
+      // en la siguiente activación en línea (login, restore en línea o
+      // renovación de la llave), nunca aquí.
+      await _sessionRuntime.activate(scope);
     } else {
       await _sessionRuntime.activate(scope, apiKey: secret);
       if (identityReader != null) {

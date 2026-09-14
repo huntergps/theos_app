@@ -30,6 +30,13 @@ class _Runtime implements SessionRuntimePort {
   bool failActivation = false;
   AppScope? active;
 
+  /// The `apiKey` last handed to [activate] — `null` means the last
+  /// activation was offline (see `SessionRuntime.activate`, whose real
+  /// implementation only builds a client when this is non-null). A test
+  /// resets this before the action under test to tell a fresh call apart
+  /// from one made earlier in the same test.
+  String? lastActivateApiKey;
+
   /// What `NativeAuthService` last handed to [applyUserLocale] — the seam it
   /// uses to push the authenticated user's own `lang`/`tz` onto the active
   /// session's real `OdooClient` (see `SessionRuntimeAdapter` in
@@ -45,6 +52,7 @@ class _Runtime implements SessionRuntimePort {
   Future<void> activate(AppScope s, {String? apiKey}) async {
     if (failActivation) throw StateError('activation failed');
     active = s;
+    lastActivateApiKey = apiKey;
   }
 
   @override
@@ -159,6 +167,10 @@ class _Identity implements ActiveIdentityReader {
   String? lang = 'es_EC';
   String? tz = 'America/Guayaquil';
 
+  /// How many times [read] was called — an offline restore must never call
+  /// it (no identity RPC without connectivity).
+  int readCalls = 0;
+
   @override
   Future<
     ({
@@ -171,6 +183,7 @@ class _Identity implements ActiveIdentityReader {
     })
   >
   read(AppScope s) async {
+    readCalls++;
     if (invalid) throw const FormatException('bad company');
     return (
       companyId: 7,
@@ -1183,9 +1196,19 @@ void main() {
       },
     );
 
+    // Contrato real (revisado el 14-sep-2026, tras comprobar que la primera
+    // versión de esta prueba pasaba con un fake que ignoraba `apiKey` y por
+    // tanto no probaba nada): un restore sin conexión NUNCA activa con una
+    // llave ni llama al lector de identidad — `client == null` es la señal
+    // de "sin sesión en línea" que usan `warehouse_operation_port.dart`,
+    // `json2_read_adapters.dart` y `runtime_catalog_composition.dart` para
+    // rechazar en local sin tocar la red, y crear un cliente aquí rompería
+    // esa señal. El `lang`/`tz` que ya trae el perfil persistido llegan al
+    // cliente en la SIGUIENTE activación en línea (login o restore en
+    // línea), nunca durante el restore sin conexión mismo.
     test(
-      'an offline restore applies lang/tz from the already-persisted '
-      'profile, without calling the identity reader',
+      'an offline restore neither reads identity nor applies any locale — '
+      'lang/tz only reach the client on a later online login/restore',
       () async {
         final b = _Backend(), r = _Runtime();
         final i = _Identity()
@@ -1201,12 +1224,58 @@ void main() {
         await s.close();
         r.appliedLanguage = null;
         r.appliedTimezone = null;
+        r.lastActivateApiKey = 'sentinel-not-cleared';
+        final readCallsBeforeOfflineRestore = i.readCalls;
 
         final restored = await s.restore(offline: true);
 
         expect(restored.status, AuthServiceStatus.restored);
+        // No client, no identity RPC, no locale applied while offline.
+        expect(r.lastActivateApiKey, isNull);
+        expect(i.readCalls, readCallsBeforeOfflineRestore);
+        expect(r.appliedLanguage, isNull);
+        expect(r.appliedTimezone, isNull);
+
+        // The next ONLINE restore is what actually re-applies the user's
+        // lang/tz — already covered by 'an online restore re-reads the
+        // identity and re-applies lang/tz' above, exercised here too so
+        // this test documents the full, real lifecycle in one place.
+        final onlineRestored = await s.restore();
+        expect(onlineRestored.status, AuthServiceStatus.restored);
         expect(r.appliedLanguage, 'es_EC');
         expect(r.appliedTimezone, 'America/Guayaquil');
+      },
+    );
+
+    // Contrato real (revisado tras el hallazgo del 14-sep-2026): `client ==
+    // null` es la señal de "sin sesión en línea" que usan
+    // `warehouse_operation_port.dart:57-62`, `json2_read_adapters.dart:140-141`
+    // y `runtime_catalog_composition.dart:43-45` para rechazar en local, sin
+    // tocar la red. Un restore sin conexión JAMÁS debe activar con una llave
+    // — eso construiría un cliente real y rompería esa señal para esos tres
+    // puertos. Esta prueba corre en ROJO contra 41ee000 (que sí pasaba
+    // `apiKey: secret` ahí) antes de revertir ese código.
+    test(
+      'an offline restore activates the session WITHOUT a key: no online '
+      'client is created',
+      () async {
+        final b = _Backend(), r = _Runtime();
+        final i = _Identity()
+          ..lang = 'es_EC'
+          ..tz = 'America/Guayaquil';
+        final s = await service(b, r, i);
+        await s.login(
+          serverUrl: 'https://erp.test',
+          database: 'db',
+          login: 'u',
+          password: 'p',
+        );
+        await s.close();
+        r.lastActivateApiKey = 'sentinel-not-cleared';
+
+        await s.restore(offline: true);
+
+        expect(r.lastActivateApiKey, isNull);
       },
     );
 
