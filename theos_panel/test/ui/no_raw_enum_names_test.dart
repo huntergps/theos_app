@@ -43,6 +43,17 @@ void main() {
     // El nombre de la sesión de caja (p. ej. "CS/005/2026/0008"), no un
     // enum: es el `name` de `collection.session`, dato real del negocio.
     'Text(session.name),',
+    // El documento del traslado de envases (p. ej. "WH2/IN/00001"): el
+    // `name` real de `stock.picking`, no un enum — `EnvasesPorRecibirRow.name`
+    // en envases_por_recibir_reader.dart.
+    r'${widget.row.name}',
+    'Text(row.name,',
+    // El nombre de la sede que ofrece el formulario de envío: el `name` de
+    // `stock.warehouse`, no un enum — `EnvasesSedeOption.name`.
+    'Text(sede.name)',
+    // El nombre del envase que ofrece el formulario de envío: el `name` de
+    // `product.product`, no un enum — `EnvasesProductoOption.name`.
+    'Text(producto.name)',
   };
 
   // Contextos donde el nombre del enum ES el valor correcto porque no se
