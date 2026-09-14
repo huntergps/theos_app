@@ -174,6 +174,14 @@ class FakeRemoteVersions implements SaleRemoteVersionReader {
   Future<int> read(EntityReference order) async => value;
 }
 
+/// Simula un timeout en la llamada de negocio real, NO en el sondeo del
+/// perfil del servidor: `fields_get` responde con normalidad (extensión
+/// presente) y CUALQUIER OTRA llamada truena. Antes de que existiera el
+/// sondeo, "lanzar siempre" alcanzaba para probar una confirmación
+/// ambigua; ahora hay que dejar pasar el sondeo para seguir probando
+/// exactamente eso, y no un sondeo caído (ver
+/// 'online confirm does not call Odoo when the server profile cannot be
+/// resolved', que sí prueba ese otro caso).
 class ThrowingActions extends FakeActions {
   @override
   Future<dynamic> call({
@@ -181,7 +189,12 @@ class ThrowingActions extends FakeActions {
     required String method,
     List<int>? ids,
     Map<String, dynamic>? kwargs,
-  }) => Future<dynamic>.error(StateError('timeout'));
+  }) {
+    if (method == 'fields_get') {
+      return super.call(model: model, method: method, ids: ids, kwargs: kwargs);
+    }
+    return Future<dynamic>.error(StateError('timeout'));
+  }
 }
 
 class ExpiringWizardActions extends FakeActions {
@@ -273,6 +286,20 @@ class FakeStates implements SaleRemoteConfirmationReader {
   const FakeStates(this.value);
   @override
   Future<SaleOrderState?> read(EntityReference order) async => value;
+}
+
+/// Como [FakeStates], pero registra cada lectura — para probar que un fallo
+/// al sondear el perfil del servidor NUNCA llega a consultar el estado
+/// remoto (nada se mandó, así que no hay nada que verificar).
+class RecordingStates implements SaleRemoteConfirmationReader {
+  RecordingStates(this.value);
+  final SaleOrderState value;
+  final List<EntityReference> reads = [];
+  @override
+  Future<SaleOrderState?> read(EntityReference order) async {
+    reads.add(order);
+    return value;
+  }
 }
 
 void main() {
@@ -1549,6 +1576,43 @@ void main() {
       expect(result.syncState, OperationSyncState.failed);
       expect(result.issues.single.code, 'pos_confirmation_unsupported');
       expect(result.issues.single.retryable, isFalse);
+    },
+  );
+
+  test(
+    'online confirm does not call Odoo when the server profile cannot be '
+    'resolved',
+    () async {
+      final fake = FakeActions()
+        ..fieldsGetResponse = (String model) {
+          throw const SocketFailure('network down');
+        };
+      // Si el código volviera a caer en la ambigüedad genérica, esto lo
+      // delataría dos veces: `states.reads` no estaría vacío, y con
+      // `draft` (ni sale ni done) el resultado sería `confirmation_ambiguous`
+      // en vez de `server_profile_unknown`.
+      final states = RecordingStates(SaleOrderState.draft);
+      final adapter = OdooSaleConfirmationAdapter(
+        fake,
+        const FakeRemoteVersions(),
+        states: states,
+      );
+      final result = await adapter.confirm(
+        order: EntityReference(localId: 'uuid', remoteId: 41),
+        commandId: 'confirm-profile-unknown',
+        expectedVersion: 2,
+      );
+      expect(result.syncState, OperationSyncState.failed);
+      expect(result.issues.single.code, 'server_profile_unknown');
+      expect(result.issues.single.retryable, isTrue);
+      // Nada se mandó a Odoo: ni la confirmación real...
+      expect(fake.calls, isEmpty);
+      // ...ni una lectura de estado para desambiguar algo que no ocurrió.
+      expect(states.reads, isEmpty);
+      expect(
+        result.issues.any((issue) => issue.code == 'confirmation_ambiguous'),
+        isFalse,
+      );
     },
   );
 }

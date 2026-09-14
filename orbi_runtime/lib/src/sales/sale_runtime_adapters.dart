@@ -2518,22 +2518,37 @@ final class OdooSaleConfirmationAdapter {
         ],
       );
     }
-    // Un fallo de red en el sondeo mismo (perfil todavía desconocido) entra
-    // al mismo `catch` de abajo que un fallo de la confirmación real: sin
-    // saber si el pedido llegó a mutar, la única salida honesta es la
-    // misma que ya existía para cualquier corte de transporte — mirar el
-    // estado remoto antes de decidir.
-    SaleServerProfile? profile;
-    dynamic result;
+    // El sondeo del perfil va en SU PROPIO `try`, separado del de la
+    // confirmación real: si `fields_get` falla, no se mandó nada a Odoo —
+    // decir "ambiguo" (que implica "no sabemos si llegó a mutar el pedido")
+    // mandaría a revisión manual algo que ni siquiera salió del equipo.
+    final SaleServerProfile profile;
     try {
       profile = await _profile.resolve();
+    } catch (_) {
+      return OperationOutcome(
+        commandId: commandId,
+        entity: order,
+        businessState: SaleOrderState.approved,
+        syncState: OperationSyncState.failed,
+        issues: [
+          OperationIssue(
+            code: 'server_profile_unknown',
+            messageKey: 'sale.server_profile_unknown',
+            retryable: true,
+          ),
+        ],
+      );
+    }
+    dynamic result;
+    try {
       result = await actions.call(
         model: 'sale.order',
         method: profile.hasPosExtension ? 'action_pos_confirm' : 'action_confirm',
         ids: [remoteId],
       );
     } on OdooMethodNotFoundException {
-      if (profile != null && profile.hasPosExtension) {
+      if (profile.hasPosExtension) {
         // La extensión dijo estar (el sondeo encontró `x_uuid` en los dos
         // modelos) pero el método propio de POS no existe: es una
         // inconsistencia permanente del servidor, no una confirmación
