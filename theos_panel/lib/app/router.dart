@@ -68,11 +68,15 @@ final businessCompositionFactoryProvider =
 
 /// Manual privacy gate for the operational shell (ACC-03, "bloquear").
 /// Deliberately a plain, always-on provider outside [orbiRouterProvider]:
-/// that provider rebuilds the whole [GoRouter] (and therefore resets
-/// navigation) whenever auth/capabilities change, so a lock flag watched
-/// there would risk being silently dropped by an unrelated capability
-/// refresh. It also must never expire on its own — the shell spec is
-/// explicit that no new timeout is invented here.
+/// that provider builds a single, stable [GoRouter] for the whole session
+/// (see its own comment and `_AuthRouterRefresh`) — a lock flag watched at
+/// that level would sit next to state that legitimately triggers a
+/// `redirect` re-evaluation, and a future edit could too easily fold it into
+/// that same refresh. Keeping it in its own always-on provider, read only by
+/// the inner `Consumer` that needs it, means locking/unlocking can never
+/// touch navigation at all — not even a `redirect` re-check. It also must
+/// never expire on its own — the shell spec is explicit that no new timeout
+/// is invented here.
 final workspaceLockProvider = NotifierProvider<WorkspaceLockNotifier, bool>(
   WorkspaceLockNotifier.new,
 );
@@ -1233,17 +1237,51 @@ Widget _navigationIndicatorFor(PreferenceNavigationIndicator indicator) =>
       PreferenceNavigationIndicator.end => const EndNavigationIndicator(),
     };
 
+/// El `Listenable` que hace que `GoRouter.redirect` se vuelva a evaluar
+/// cuando cambia la autenticación o las capacidades (viajan juntas en el
+/// mismo `AuthViewState`) — SIN recrear el `GoRouter`. Antes de esto,
+/// `orbiRouterProvider` hacía `ref.watch(authControllerProvider)` en la raíz
+/// del propio provider, así que CUALQUIER cambio de sesión reconstruía TODO
+/// el `GoRouter` — y con él, el árbol entero bajo `routerConfig` en
+/// `orbi_app.dart`, la pantalla de acceso incluida, en mitad de un envío de
+/// formulario (auditoría de router+login, 14-sep-2026).
+class _AuthRouterRefresh extends ChangeNotifier {
+  void refresh() => notifyListeners();
+}
+
+bool _isAuthenticated(AuthViewState auth) =>
+    auth.status == AuthControllerStatus.authenticated ||
+    auth.status == AuthControllerStatus.restored;
+
 final orbiRouterProvider = Provider<GoRouter>((ref) {
-  final auth = ref.watch(authControllerProvider);
-  final capabilities = ref.watch(capabilitySnapshotProvider);
-  final policy = ref.watch(routeAccessPolicyProvider);
-  final composition = ref.watch(orbiSessionCompositionProvider);
-  final authenticated =
-      auth.status == AuthControllerStatus.authenticated ||
-      auth.status == AuthControllerStatus.restored;
+  // Lecturas de una sola vez: ninguna de las dos cambia durante una sesión
+  // (`policy` es `const RouteAccessPolicy()`; `composition` se fija entera
+  // por `overrideWithValue` al arrancar la app o una prueba, nunca a medio
+  // vuelo). Lo que sí cambia durante la sesión —autenticación, capacidades—
+  // se lee fresco en cada evaluación de `redirect`, nunca capturado aquí.
+  final policy = ref.read(routeAccessPolicyProvider);
+  final composition = ref.read(orbiSessionCompositionProvider);
+
+  final refresh = _AuthRouterRefresh();
+  final authSubscription = ref.listen<AuthViewState>(
+    authControllerProvider,
+    (previous, next) => refresh.refresh(),
+  );
+  ref.onDispose(() {
+    authSubscription.close();
+    refresh.dispose();
+  });
+
   return GoRouter(
-    initialLocation: authenticated ? '/' : '/login',
+    initialLocation: '/login',
+    refreshListenable: refresh,
     redirect: (context, state) {
+      // Lectura fresca en cada evaluación: `redirect` vuelve a correr cada
+      // vez que `refresh` avisa, así que esto ve SIEMPRE el estado actual,
+      // nunca el que tenía la sesión cuando se construyó el GoRouter.
+      final auth = ref.read(authControllerProvider);
+      final capabilities = ref.read(capabilitySnapshotProvider);
+      final authenticated = _isAuthenticated(auth);
       final location = state.uri.path;
       if (!authenticated) {
         if (location == '/login') return null;
@@ -1276,6 +1314,13 @@ final orbiRouterProvider = Provider<GoRouter>((ref) {
       ShellRoute(
         builder: (context, state, child) => Consumer(
           builder: (context, ref, _) {
+            // Leídos aquí, con el `ref` del propio `Consumer`: cambian
+            // durante la sesión y antes forzaban la reconstrucción de TODO
+            // el `GoRouter` por estar en la raíz de `orbiRouterProvider` (ver
+            // su comentario). Ahora sólo reconstruyen este subárbol.
+            final auth = ref.watch(authControllerProvider);
+            final capabilities = ref.watch(capabilitySnapshotProvider);
+            final authenticated = _isAuthenticated(auth);
             final profile = auth.profile;
             // El menú y su indicador son preferencia (Ajustes), no estado de
             // sesión, así que se leen igual que el resto de preferencias:
