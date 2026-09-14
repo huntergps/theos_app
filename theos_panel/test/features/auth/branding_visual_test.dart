@@ -303,44 +303,62 @@ void main() {
     );
   });
 
-  testWidgets('debounced login selection excludes password and API key', (
-    tester,
-  ) async {
-    SharedPreferences.setMockInitialValues({});
-    final preferences = await SharedPreferences.getInstance();
-    await SavedServersStore(preferences).upsert(
-      SavedServer(
-        id: 'saved',
-        name: 'Entorno guardado',
-        url: 'https://saved.test',
-        database: 'saved_db',
-      ),
-    );
-    await tester.pumpWidget(
-      ProviderScope(
-        overrides: [
-          authServiceProvider.overrideWithValue(const _VisualAuthService()),
-          sharedPreferencesProvider.overrideWithValue(preferences),
-        ],
-        child: FluentApp(theme: OrbiFluentTheme.light, home: const LoginScreen()),
-      ),
-    );
-    await tester.pump();
-    await tester.tap(find.byType(ComboBox<String>));
-    await tester.pumpAndSettle();
-    await tester.tap(find.text('Entorno guardado'));
-    await tester.pumpAndSettle();
-    final fields = find.byType(TextBox);
-    await tester.enterText(fields.at(0), 'saved_user');
-    await tester.enterText(fields.at(1), 'do-not-persist');
-    await tester.pump(const Duration(milliseconds: 450));
+  // 🔴 Ajustada 14-sep-2026 (auditoría de router+login): antes exigía que
+  // teclear el usuario y esperar el debounce (400ms) YA dejara "saved_user"
+  // grabado en LoginPreferencesStore — eso era exactamente el bug B
+  // («soleda.jinez» quedaba guardado a medias cuando el operador enviaba
+  // antes de que el debounce corriera de nuevo con la corrección). Ahora el
+  // debounce de `onChanged` sólo BUSCA una llave guardada, nunca escribe
+  // preferencias — ver `_scheduleCredentialLookup` en login_screen.dart — así
+  // que lo que este caso debe comprobar cambió de signo: teclear y esperar
+  // NO debe dejar nada grabado; sólo elegir el servidor (acción explícita en
+  // `_selectServer`) se ve reflejado de inmediato.
+  testWidgets(
+    'esperar el debounce de escritura no graba el usuario ni el secreto — '
+    'sólo la elección explícita de servidor',
+    (tester) async {
+      SharedPreferences.setMockInitialValues({});
+      final preferences = await SharedPreferences.getInstance();
+      await SavedServersStore(preferences).upsert(
+        SavedServer(
+          id: 'saved',
+          name: 'Entorno guardado',
+          url: 'https://saved.test',
+          database: 'saved_db',
+        ),
+      );
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            authServiceProvider.overrideWithValue(const _VisualAuthService()),
+            sharedPreferencesProvider.overrideWithValue(preferences),
+          ],
+          child: FluentApp(
+            theme: OrbiFluentTheme.light,
+            home: const LoginScreen(),
+          ),
+        ),
+      );
+      await tester.pump();
+      await tester.tap(find.byType(ComboBox<String>));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Entorno guardado'));
+      await tester.pumpAndSettle();
+      final fields = find.byType(TextBox);
+      await tester.enterText(fields.at(0), 'saved_user');
+      await tester.enterText(fields.at(1), 'do-not-persist');
+      await tester.pump(const Duration(milliseconds: 450));
 
-    final raw = preferences.getString(LoginPreferencesStore.key);
-    expect(raw, contains('saved_user'));
-    expect(raw, contains('saved.test'));
-    expect(raw, isNot(contains('do-not-persist')));
-    expect(raw, isNot(contains('apiKey')));
-  });
+      final raw = preferences.getString(LoginPreferencesStore.key);
+      // La elección de servidor SÍ quedó grabada — es una acción explícita.
+      expect(raw, contains('saved.test'));
+      // Lo tecleado, sin enviar, no debe aparecer — ni el usuario ni el
+      // secreto.
+      expect(raw, isNot(contains('saved_user')));
+      expect(raw, isNot(contains('do-not-persist')));
+      expect(raw, isNot(contains('apiKey')));
+    },
+  );
 
   testWidgets('successful login saves only the non-secret selection', (
     tester,
