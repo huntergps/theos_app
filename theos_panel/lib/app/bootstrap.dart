@@ -465,6 +465,8 @@ final class _SessionIdentityReader implements ActiveIdentityReader {
       String? companyName,
       String? name,
       List<int> allowedCompanyIds,
+      String? lang,
+      String? tz,
     })
   >
   read(AppScope scope) {

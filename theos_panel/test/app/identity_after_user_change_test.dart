@@ -193,6 +193,8 @@ class _PerUserIdentity implements ActiveIdentityReader {
       String? companyName,
       String? name,
       List<int> allowedCompanyIds,
+      String? lang,
+      String? tz,
     })
   >
   read(AppScope scope) async => (
@@ -200,6 +202,8 @@ class _PerUserIdentity implements ActiveIdentityReader {
     companyName: companyNameByUserId[scope.userId],
     name: null,
     allowedCompanyIds: [scope.userId],
+    lang: null,
+    tz: null,
   );
 }
 
@@ -220,6 +224,8 @@ class _FakeSessionRuntimePort implements SessionRuntimePort {
   Future<void> activate(AppScope scope, {String? apiKey}) async {}
   @override
   Future<void> close() async {}
+  @override
+  void applyUserLocale({String? language, String? timezone}) {}
 }
 
 /// Un backend durable de mentira: un `Map` que SOBREVIVE entre las dos

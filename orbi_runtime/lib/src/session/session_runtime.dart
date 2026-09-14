@@ -58,6 +58,14 @@ final class SessionRuntime {
 
   bool accepts(SessionLease lease) => _active?.database.lease == lease;
 
+  /// Applies the authenticated user's own `lang`/`tz` to the active
+  /// session's client (see `OdooClient.updateLocale`). A no-op when there
+  /// is no active client — nothing activated yet, or the current activation
+  /// has none (offline with no bearer credential passed to [activate]).
+  void applyUserLocale({String? language, String? timezone}) {
+    _active?.client?.updateLocale(language: language, timezone: timezone);
+  }
+
   static OdooClient _defaultClient(AppScope scope, String apiKey) => OdooClient(
     config: OdooClientConfig(
       baseUrl: scope.normalizedServerUrl,

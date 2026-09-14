@@ -27,6 +27,8 @@ final class AuthProfile {
     this.allowedCompanyIds = const [],
     this.apiKeyIssuedAt,
     this.apiKeyExpiresAt,
+    this.lang,
+    this.tz,
   });
 
   final String serverUrl;
@@ -62,6 +64,15 @@ final class AuthProfile {
   final String? name;
   final List<int> allowedCompanyIds;
 
+  /// `res.users.lang`/`res.users.tz`, read alongside [companyId] the same
+  /// way as [companyName] (see `OdooActiveIdentityReader.read`). `null`
+  /// means either a profile saved before these fields existed, or Odoo
+  /// answering `false` — this class never invents `es_EC`/
+  /// `America/Guayaquil` on its own; the caller ([NativeAuthService]) simply
+  /// applies whatever came from the server.
+  final String? lang;
+  final String? tz;
+
   Map<String, Object> toJson() => {
     'serverUrl': serverUrl,
     'database': database,
@@ -75,6 +86,8 @@ final class AuthProfile {
     if (allowedCompanyIds.isNotEmpty) 'allowedCompanyIds': allowedCompanyIds,
     'apiKeyIssuedAt': ?apiKeyIssuedAt?.toIso8601String(),
     'apiKeyExpiresAt': ?apiKeyExpiresAt?.toIso8601String(),
+    'lang': ?lang,
+    'tz': ?tz,
   };
 
   factory AuthProfile.fromJson(Map<String, dynamic> json) => AuthProfile(
@@ -96,6 +109,10 @@ final class AuthProfile {
         const [],
     apiKeyIssuedAt: _parseUtc(json['apiKeyIssuedAt']),
     apiKeyExpiresAt: _parseUtc(json['apiKeyExpiresAt']),
+    // Absent for a profile saved before these fields existed — stays null,
+    // never defaulted to a hardcoded locale.
+    lang: json['lang'] as String?,
+    tz: json['tz'] as String?,
   );
 
   static DateTime? _parseUtc(Object? value) {
@@ -131,6 +148,8 @@ abstract interface class ActiveIdentityReader {
       String? companyName,
       String? name,
       List<int> allowedCompanyIds,
+      String? lang,
+      String? tz,
     })
   >
   read(AppScope scope);
@@ -354,6 +373,15 @@ final class NativeAuthBootstrapAdapter implements AuthBootstrapPort {
 abstract interface class SessionRuntimePort {
   Future<void> activate(AppScope scope, {String? apiKey});
   Future<void> close();
+
+  /// Pushes the authenticated user's own `lang`/`tz`
+  /// (`res.users.lang`/`res.users.tz`) onto the active session's client, so
+  /// every RPC after this point carries them. A no-op when there is no
+  /// active client (nothing activated yet, or the current activation is
+  /// offline and has none — see `SessionRuntime.activate`). Never invents a
+  /// locale of its own: `null`/empty arguments leave the client untouched
+  /// (see `OdooClient.updateLocale`).
+  void applyUserLocale({String? language, String? timezone});
 }
 
 final class SessionRuntimeAdapter implements SessionRuntimePort {
@@ -367,6 +395,10 @@ final class SessionRuntimeAdapter implements SessionRuntimePort {
 
   @override
   Future<void> close() => runtime.close();
+
+  @override
+  void applyUserLocale({String? language, String? timezone}) =>
+      runtime.applyUserLocale(language: language, timezone: timezone);
 }
 
 final class _MissingRuntime implements SessionRuntimePort {
@@ -376,6 +408,9 @@ final class _MissingRuntime implements SessionRuntimePort {
 
   @override
   Future<void> close() async {}
+
+  @override
+  void applyUserLocale({String? language, String? timezone}) {}
 }
 
 /// Coordinates native bootstrap, namespaced credential storage and session
@@ -491,8 +526,14 @@ final class NativeAuthService {
           allowedCompanyIds: identity.allowedCompanyIds,
           apiKeyIssuedAt: profile.apiKeyIssuedAt,
           apiKeyExpiresAt: profile.apiKeyExpiresAt,
+          lang: identity.lang,
+          tz: identity.tz,
         );
         await _saveProfile(effectiveProfile);
+        _sessionRuntime.applyUserLocale(
+          language: identity.lang,
+          timezone: identity.tz,
+        );
         capabilities = await capabilityPort?.refresh(scope, identity.companyId);
       }
       if (!persistCredential) {
@@ -748,8 +789,14 @@ final class NativeAuthService {
       allowedCompanyIds: identity.allowedCompanyIds,
       apiKeyIssuedAt: profile.apiKeyIssuedAt,
       apiKeyExpiresAt: profile.apiKeyExpiresAt,
+      lang: identity.lang,
+      tz: identity.tz,
     );
     await _saveProfile(enriched);
+    _sessionRuntime.applyUserLocale(
+      language: identity.lang,
+      timezone: identity.tz,
+    );
     return enriched;
   }
 
@@ -780,10 +827,18 @@ final class NativeAuthService {
     if (secret == null || secret.isEmpty) {
       return const AuthServiceResult(status: AuthServiceStatus.required);
     }
-    // The bearer credential is intentionally only read to prove the vault
-    // reference is available. Runtime transport composition consumes it later.
+    // The bearer credential is otherwise only read to prove the vault
+    // reference is available — activating with it here builds the client
+    // object (no network call by itself; see `SessionRuntime.activate`) so
+    // it is already usable, with the user's own locale applied below, the
+    // moment connectivity actually allows a call.
     if (offline) {
-      await _sessionRuntime.activate(scope);
+      await _sessionRuntime.activate(scope, apiKey: secret);
+      // No identity RPC offline: apply whatever locale this profile already
+      // had persisted from a previous online login/restore. `null` fields
+      // (never fetched, or Odoo answered `false`) are simply not applied —
+      // never a hardcoded fallback.
+      _sessionRuntime.applyUserLocale(language: profile.lang, timezone: profile.tz);
     } else {
       await _sessionRuntime.activate(scope, apiKey: secret);
       if (identityReader != null) {
@@ -801,8 +856,14 @@ final class NativeAuthService {
           allowedCompanyIds: identity.allowedCompanyIds,
           apiKeyIssuedAt: profile.apiKeyIssuedAt,
           apiKeyExpiresAt: profile.apiKeyExpiresAt,
+          lang: identity.lang,
+          tz: identity.tz,
         );
         await _saveProfile(refreshed);
+        _sessionRuntime.applyUserLocale(
+          language: identity.lang,
+          timezone: identity.tz,
+        );
         return AuthServiceResult(
           status: AuthServiceStatus.restored,
           scope: scope,
@@ -945,6 +1006,8 @@ final class NativeAuthService {
         allowedCompanyIds: profile.allowedCompanyIds,
         apiKeyIssuedAt: issuedAt.toUtc(),
         apiKeyExpiresAt: expiresAt.toUtc(),
+        lang: profile.lang,
+        tz: profile.tz,
       ),
     );
   }
@@ -1049,6 +1112,8 @@ final class NativeAuthService {
         allowedCompanyIds: profile.allowedCompanyIds,
         apiKeyIssuedAt: newIssuedAt,
         apiKeyExpiresAt: newExpiresAt,
+        lang: profile.lang,
+        tz: profile.tz,
       ),
     );
     await _sessionRuntime.activate(scope, apiKey: renewed.apiKey);

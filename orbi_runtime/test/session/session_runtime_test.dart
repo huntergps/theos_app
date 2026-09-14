@@ -163,6 +163,62 @@ void main() {
       await runtime.close();
     },
   );
+
+  // fix/sdk/user-lang-tz: the authenticated user's own `lang`/`tz`
+  // (`res.users.lang`/`res.users.tz`, read by `OdooActiveIdentityReader` and
+  // pushed here by `NativeAuthService` through `SessionRuntimePort`) must
+  // reach the REAL client every later call uses — this is the seam that
+  // proves it, with a real `OdooClient`, no fake/port in between.
+  test(
+    'applyUserLocale updates the active client without any network call',
+    () async {
+      final runtime = SessionRuntime(
+        databaseOwner: RuntimeDatabaseOwner(
+          factory: (_) => AppDatabase(NativeDatabase.memory()),
+        ),
+        clientFactory: (scope, apiKey) => OdooClient(
+          config: OdooClientConfig(
+            baseUrl: scope.normalizedServerUrl,
+            apiKey: apiKey,
+            database: scope.database,
+          ),
+        ),
+      );
+      final activation = await runtime.activate(scope(1), apiKey: 'test-key');
+
+      runtime.applyUserLocale(
+        language: 'es_EC',
+        timezone: 'America/Guayaquil',
+      );
+
+      expect(activation.client!.config.defaultLanguage, 'es_EC');
+      expect(activation.client!.config.defaultTimezone, 'America/Guayaquil');
+      // Never touched.
+      expect(activation.client!.config.apiKey, 'test-key');
+      await runtime.close();
+    },
+  );
+
+  test('applyUserLocale is a no-op without an active client', () async {
+    final runtime = SessionRuntime(
+      databaseOwner: RuntimeDatabaseOwner(
+        factory: (_) => AppDatabase(NativeDatabase.memory()),
+      ),
+    );
+    // No activation at all yet.
+    expect(
+      () => runtime.applyUserLocale(language: 'es_EC', timezone: 'UTC'),
+      returnsNormally,
+    );
+
+    // Activated, but offline (no client — see the test above this one).
+    await runtime.activate(scope(1));
+    expect(
+      () => runtime.applyUserLocale(language: 'es_EC', timezone: 'UTC'),
+      returnsNormally,
+    );
+    await runtime.close();
+  });
 }
 
 final class _MemoryBackend implements CredentialBackend {

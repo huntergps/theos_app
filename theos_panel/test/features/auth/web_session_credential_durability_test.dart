@@ -212,6 +212,8 @@ final class _Identity implements ActiveIdentityReader {
       String? companyName,
       String? name,
       List<int> allowedCompanyIds,
+      String? lang,
+      String? tz,
     })
   >
   read(AppScope scope) async => (
@@ -219,6 +221,8 @@ final class _Identity implements ActiveIdentityReader {
     companyName: null,
     name: null,
     allowedCompanyIds: const [1],
+    lang: null,
+    tz: null,
   );
 }
 
@@ -236,4 +240,6 @@ final class _FakeRuntimePort implements SessionRuntimePort {
   Future<void> activate(AppScope scope, {String? apiKey}) async {}
   @override
   Future<void> close() async {}
+  @override
+  void applyUserLocale({String? language, String? timezone}) {}
 }

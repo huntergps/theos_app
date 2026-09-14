@@ -36,6 +36,8 @@ class _Identity implements ActiveIdentityReader {
       String? companyName,
       String? name,
       List<int> allowedCompanyIds,
+      String? lang,
+      String? tz,
     })
   >
   read(AppScope scope) async => (
@@ -43,6 +45,8 @@ class _Identity implements ActiveIdentityReader {
     companyName: null,
     name: null,
     allowedCompanyIds: const [1],
+    lang: null,
+    tz: null,
   );
 }
 
@@ -67,6 +71,9 @@ class _FakeSessionRuntimePort implements SessionRuntimePort {
 
   @override
   Future<void> close() async => closed = true;
+
+  @override
+  void applyUserLocale({String? language, String? timezone}) {}
 }
 
 WebSessionAuthService _buildService({

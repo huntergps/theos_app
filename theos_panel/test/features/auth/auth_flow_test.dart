@@ -151,6 +151,9 @@ class FakeRuntime implements SessionRuntimePort {
 
   @override
   Future<void> close() async => active = null;
+
+  @override
+  void applyUserLocale({String? language, String? timezone}) {}
 }
 
 class FakeBackend implements CredentialBackend, InstallationIdBackend {

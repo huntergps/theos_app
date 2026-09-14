@@ -134,13 +134,15 @@ final class OdooActiveIdentityReader implements ActiveIdentityReader {
       String? companyName,
       String? name,
       List<int> allowedCompanyIds,
+      String? lang,
+      String? tz,
     })
   >
   read(AppScope scope) async {
     final rows = await client.read(
       model: 'res.users',
       ids: [scope.userId],
-      fields: ['id', 'name', 'company_id', 'company_ids'],
+      fields: ['id', 'name', 'company_id', 'company_ids', 'lang', 'tz'],
     );
     if (rows.length != 1 || rows.single['id'] != scope.userId) {
       throw StateError('Active identity mismatch');
@@ -171,11 +173,22 @@ final class OdooActiveIdentityReader implements ActiveIdentityReader {
     if (!allowed.contains(companyId)) {
       throw FormatException('Selected company is not allowed');
     }
+    // Odoo answers `false` for either field when unset — never a locale
+    // string in that case. Normalizing that to `null` here means every
+    // caller downstream can treat "not configured" as one single value.
+    final rawLang = rows.single['lang'];
+    final lang = rawLang is String && rawLang.trim().isNotEmpty
+        ? rawLang
+        : null;
+    final rawTz = rows.single['tz'];
+    final tz = rawTz is String && rawTz.trim().isNotEmpty ? rawTz : null;
     return (
       companyId: companyId,
       companyName: companyName,
       name: userName,
       allowedCompanyIds: allowed,
+      lang: lang,
+      tz: tz,
     );
   }
 }

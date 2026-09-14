@@ -29,6 +29,18 @@ class _Backend implements CredentialBackend, InstallationIdBackend {
 class _Runtime implements SessionRuntimePort {
   bool failActivation = false;
   AppScope? active;
+
+  /// What `NativeAuthService` last handed to [applyUserLocale] — the seam it
+  /// uses to push the authenticated user's own `lang`/`tz` onto the active
+  /// session's real `OdooClient` (see `SessionRuntimeAdapter` in
+  /// `native_auth_service.dart`, exercised for real in
+  /// `session_runtime_test.dart`). `null` for either field means it was never
+  /// called, or was called without that field — a test resets both before
+  /// the action under test to tell the two apart.
+  String? appliedLanguage;
+  String? appliedTimezone;
+  int applyUserLocaleCalls = 0;
+
   @override
   Future<void> activate(AppScope s, {String? apiKey}) async {
     if (failActivation) throw StateError('activation failed');
@@ -37,6 +49,13 @@ class _Runtime implements SessionRuntimePort {
 
   @override
   Future<void> close() async => active = null;
+
+  @override
+  void applyUserLocale({String? language, String? timezone}) {
+    applyUserLocaleCalls++;
+    appliedLanguage = language;
+    appliedTimezone = timezone;
+  }
 }
 
 class _Bootstrap implements AuthBootstrapPort {
@@ -134,6 +153,12 @@ class _Bootstrap implements AuthBootstrapPort {
 
 class _Identity implements ActiveIdentityReader {
   bool invalid = false;
+
+  /// `res.users.lang`/`res.users.tz` as the fake server would answer.
+  /// `null` mirrors Odoo returning `false` for either field.
+  String? lang = 'es_EC';
+  String? tz = 'America/Guayaquil';
+
   @override
   Future<
     ({
@@ -141,6 +166,8 @@ class _Identity implements ActiveIdentityReader {
       String? companyName,
       String? name,
       List<int> allowedCompanyIds,
+      String? lang,
+      String? tz,
     })
   >
   read(AppScope s) async {
@@ -150,6 +177,8 @@ class _Identity implements ActiveIdentityReader {
       companyName: 'Empresa de prueba',
       name: 'Erik Salazar',
       allowedCompanyIds: [7, 8],
+      lang: lang,
+      tz: tz,
     );
   }
 }
@@ -1063,6 +1092,163 @@ void main() {
         await s.renewApiKeyIfNeeded(now: DateTime.utc(2026, 9, 13, 19));
 
         expect(bootstrap.generateCalls, isEmpty);
+      },
+    );
+  });
+
+  // fix/sdk/user-lang-tz: Odoo works in the operator's own language and
+  // timezone (`res.users.lang`/`res.users.tz`), never a hardcoded
+  // `es_EC`/`America/Guayaquil` and never the SDK's `en_US` default. This
+  // group proves `NativeAuthService` reads both from the identity RPC (or,
+  // offline, from the already-persisted profile) and pushes them onto the
+  // active session's client through `SessionRuntimePort.applyUserLocale` —
+  // never inventing a value of its own.
+  group('user locale (lang/tz)', () {
+    test(
+      'login applies the identity\'s lang/tz to the active session client',
+      () async {
+        final b = _Backend(), r = _Runtime();
+        final i = _Identity()
+          ..lang = 'es_EC'
+          ..tz = 'America/Guayaquil';
+        final s = await service(b, r, i);
+
+        final result = await s.login(
+          serverUrl: 'https://erp.test',
+          database: 'db',
+          login: 'u',
+          password: 'p',
+        );
+
+        expect(result.profile?.lang, 'es_EC');
+        expect(result.profile?.tz, 'America/Guayaquil');
+        expect(r.appliedLanguage, 'es_EC');
+        expect(r.appliedTimezone, 'America/Guayaquil');
+      },
+    );
+
+    test(
+      'loginWithApiKey applies the identity\'s lang/tz the same way',
+      () async {
+        final b = _Backend(), r = _Runtime();
+        final i = _Identity()
+          ..lang = 'es_EC'
+          ..tz = 'America/Guayaquil';
+        final s = await service(
+          b,
+          r,
+          i,
+          (_) async => (userId: 7, login: 'u'),
+        );
+
+        final result = await s.loginWithApiKey(
+          serverUrl: 'https://erp.test',
+          database: 'db',
+          login: 'u',
+          apiKey: 'pasted-key',
+        );
+
+        expect(result.profile?.lang, 'es_EC');
+        expect(result.profile?.tz, 'America/Guayaquil');
+        expect(r.appliedLanguage, 'es_EC');
+        expect(r.appliedTimezone, 'America/Guayaquil');
+      },
+    );
+
+    test(
+      'an online restore re-reads the identity and re-applies lang/tz',
+      () async {
+        final b = _Backend(), r = _Runtime();
+        final i = _Identity()
+          ..lang = 'es_EC'
+          ..tz = 'America/Guayaquil';
+        final s = await service(b, r, i);
+        await s.login(
+          serverUrl: 'https://erp.test',
+          database: 'db',
+          login: 'u',
+          password: 'p',
+        );
+        await s.close();
+        // Prove the next assertion comes from restore(), not a leftover from
+        // login() above.
+        r.appliedLanguage = null;
+        r.appliedTimezone = null;
+
+        final restored = await s.restore();
+
+        expect(restored.status, AuthServiceStatus.restored);
+        expect(r.appliedLanguage, 'es_EC');
+        expect(r.appliedTimezone, 'America/Guayaquil');
+      },
+    );
+
+    test(
+      'an offline restore applies lang/tz from the already-persisted '
+      'profile, without calling the identity reader',
+      () async {
+        final b = _Backend(), r = _Runtime();
+        final i = _Identity()
+          ..lang = 'es_EC'
+          ..tz = 'America/Guayaquil';
+        final s = await service(b, r, i);
+        await s.login(
+          serverUrl: 'https://erp.test',
+          database: 'db',
+          login: 'u',
+          password: 'p',
+        );
+        await s.close();
+        r.appliedLanguage = null;
+        r.appliedTimezone = null;
+
+        final restored = await s.restore(offline: true);
+
+        expect(restored.status, AuthServiceStatus.restored);
+        expect(r.appliedLanguage, 'es_EC');
+        expect(r.appliedTimezone, 'America/Guayaquil');
+      },
+    );
+
+    test(
+      'when res.users has no lang/tz (Odoo returning false), nothing is '
+      'applied and nothing is invented',
+      () async {
+        final b = _Backend(), r = _Runtime();
+        final i = _Identity()
+          ..lang = null
+          ..tz = null;
+        final s = await service(b, r, i);
+
+        await s.login(
+          serverUrl: 'https://erp.test',
+          database: 'db',
+          login: 'u',
+          password: 'p',
+        );
+
+        expect(r.applyUserLocaleCalls, greaterThan(0));
+        expect(r.appliedLanguage, isNull);
+        expect(r.appliedTimezone, isNull);
+      },
+    );
+
+    test(
+      'a profile saved before lang/tz existed loads without error, as null',
+      () {
+        final json = {
+          'serverUrl': 'https://erp.test',
+          'database': 'db',
+          'login': 'u',
+          'userId': 7,
+          'installationId': 'install',
+          'credentialReference': 'api-key',
+        };
+
+        final profile = AuthProfile.fromJson(json);
+
+        expect(profile.lang, isNull);
+        expect(profile.tz, isNull);
       },
     );
   });
