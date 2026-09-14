@@ -116,7 +116,74 @@ void main() {
 
     test('start and stop control periodic checking', () async {
       var callCount = 0;
-      // Replace server handler to count calls
+      // Servidor que RETIENE la respuesta ~300ms antes de contestar, para
+      // exponer si el monitor dispara un sondeo nuevo sin esperar a que
+      // termine el anterior (ese era el defecto de Timer.periodic).
+      await server.close(force: true);
+      server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
+      server.listen((request) async {
+        callCount++;
+        await Future<void>.delayed(const Duration(milliseconds: 300));
+        request.response
+          ..statusCode = HttpStatus.noContent
+          ..close();
+      });
+
+      final periodicMonitor = PollingConnectivityMonitor(
+        checkUrl: 'http://127.0.0.1:${server.port}/',
+        checkInterval: const Duration(milliseconds: 50),
+        timeout: const Duration(seconds: 2),
+      );
+      addTearDown(periodicMonitor.dispose);
+
+      periodicMonitor.start();
+      await Future<void>.delayed(const Duration(milliseconds: 200));
+      periodicMonitor.stop();
+
+      // Espera a que el sondeo en vuelo (si lo hay) hubiera terminado.
+      await Future<void>.delayed(const Duration(milliseconds: 400));
+
+      // Con sondeos en serie, en 200ms sólo alcanza a salir el primero
+      // (el servidor lo retiene 300ms) y stop() no deja que se dispare otro.
+      expect(callCount, 1);
+    });
+
+    test('stop discards in-flight result', () async {
+      // Servidor que retiene la respuesta ~200ms y luego contesta 500
+      // (desconectado). El estado inicial del monitor es "conectado".
+      final requestArrived = Completer<void>();
+      await server.close(force: true);
+      server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
+      server.listen((request) async {
+        if (!requestArrived.isCompleted) requestArrived.complete();
+        await Future<void>.delayed(const Duration(milliseconds: 200));
+        request.response
+          ..statusCode = HttpStatus.internalServerError
+          ..close();
+      });
+
+      final periodicMonitor = PollingConnectivityMonitor(
+        checkUrl: 'http://127.0.0.1:${server.port}/',
+        checkInterval: const Duration(milliseconds: 50),
+        timeout: const Duration(seconds: 2),
+      );
+      addTearDown(periodicMonitor.dispose);
+
+      final states = <bool>[];
+      periodicMonitor.connectivityStream.listen(states.add);
+
+      periodicMonitor.start();
+      await requestArrived.future.timeout(const Duration(seconds: 1));
+      periodicMonitor.stop();
+
+      // Si el sondeo en vuelo no se descarta, llegaría un `false` acá.
+      await Future<void>.delayed(const Duration(milliseconds: 400));
+
+      expect(states, isEmpty);
+    });
+
+    test('probes restart after stop then start', () async {
+      var callCount = 0;
       await server.close(force: true);
       server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
       server.listen((request) {
@@ -134,16 +201,16 @@ void main() {
       addTearDown(periodicMonitor.dispose);
 
       periodicMonitor.start();
-      await Future<void>.delayed(const Duration(milliseconds: 200));
+      await Future<void>.delayed(const Duration(milliseconds: 80));
       periodicMonitor.stop();
-      final countAfterStop = callCount;
+      final countBeforeRestart = callCount;
 
-      // Should have made several calls
-      expect(countAfterStop, greaterThan(0));
+      // Un contador de generación mal hecho podría dejar el monitor
+      // "muerto" tras un stop(): esto comprueba que start() lo revive.
+      periodicMonitor.start();
+      await Future<void>.delayed(const Duration(milliseconds: 300));
 
-      // Wait a bit more and verify no new calls
-      await Future<void>.delayed(const Duration(milliseconds: 150));
-      expect(callCount, countAfterStop);
+      expect(callCount, greaterThan(countBeforeRestart));
     });
   });
 
@@ -243,20 +310,23 @@ void main() {
       expect(service.isManualOffline, isFalse);
     });
 
-    test('setManualOfflineMode(true) sets server unreachable and manual offline', () async {
-      await service.initialize();
+    test(
+      'setManualOfflineMode(true) sets server unreachable and manual offline',
+      () async {
+        await service.initialize();
 
-      final states = <ConnectivityStatus>[];
-      service.statusStream.listen(states.add);
+        final states = <ConnectivityStatus>[];
+        service.statusStream.listen(states.add);
 
-      service.setManualOfflineMode(true);
+        service.setManualOfflineMode(true);
 
-      expect(service.isManualOffline, isTrue);
-      expect(service.status.serverState, ServerConnectionState.unreachable);
-      expect(service.status.isManualOffline, isTrue);
-      expect(service.status.canAttemptRemote, isFalse);
-      expect(service.status.shouldSkipRemote, isTrue);
-    });
+        expect(service.isManualOffline, isTrue);
+        expect(service.status.serverState, ServerConnectionState.unreachable);
+        expect(service.status.isManualOffline, isTrue);
+        expect(service.status.canAttemptRemote, isFalse);
+        expect(service.status.shouldSkipRemote, isTrue);
+      },
+    );
 
     test('setManualOfflineMode(true) emits status update', () async {
       await service.initialize();
@@ -277,21 +347,24 @@ void main() {
       expect(emitted.isManualOffline, isTrue);
     });
 
-    test('setManualOfflineMode(false) resumes and triggers health check', () async {
-      await service.initialize();
-      service.setManualOfflineMode(true);
-      healthCheckCalled = false;
+    test(
+      'setManualOfflineMode(false) resumes and triggers health check',
+      () async {
+        await service.initialize();
+        service.setManualOfflineMode(true);
+        healthCheckCalled = false;
 
-      service.setManualOfflineMode(false);
+        service.setManualOfflineMode(false);
 
-      expect(service.isManualOffline, isFalse);
-      expect(service.status.isManualOffline, isFalse);
+        expect(service.isManualOffline, isFalse);
+        expect(service.status.isManualOffline, isFalse);
 
-      // Health check should have been called
-      // Give it a tick to run
-      await Future<void>.delayed(const Duration(milliseconds: 50));
-      expect(healthCheckCalled, isTrue);
-    });
+        // Health check should have been called
+        // Give it a tick to run
+        await Future<void>.delayed(const Duration(milliseconds: 50));
+        expect(healthCheckCalled, isTrue);
+      },
+    );
 
     test('setManualOfflineMode is idempotent', () async {
       await service.initialize();

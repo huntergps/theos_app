@@ -24,6 +24,14 @@ class PollingConnectivityMonitor implements NetworkConnectivityMonitor {
 
   bool _lastKnownState = true;
   Timer? _timer;
+  CancelToken? _cancelToken;
+
+  /// Contador de generación: cada [start] y cada [stop] lo incrementan, y
+  /// sirve para invalidar un sondeo periódico que sigue en vuelo. Así, si el
+  /// sondeo termina después de un stop()/start() posterior, su resultado se
+  /// descarta en vez de emitirse o reprogramar otro sondeo.
+  int _generation = 0;
+
   final _controller = StreamController<bool>.broadcast();
   final _dio = Dio();
 
@@ -35,28 +43,34 @@ class PollingConnectivityMonitor implements NetworkConnectivityMonitor {
 
   @override
   Future<bool> checkConnectivity() async {
+    final connected = await _probe() ?? false;
+    _emitIfChanged(connected);
+    return connected;
+  }
+
+  /// Ejecuta un único sondeo HTTP HEAD contra [checkUrl].
+  ///
+  /// Devuelve `null` cuando el sondeo fue cancelado (vía [cancelToken], por
+  /// un [stop] en curso) — eso NO es una desconexión real y nunca debe
+  /// interpretarse ni emitirse como tal.
+  Future<bool?> _probe({CancelToken? cancelToken}) async {
     try {
       final response = await _dio.head<void>(
         checkUrl,
-        options: Options(
-          sendTimeout: timeout,
-          receiveTimeout: timeout,
-        ),
+        cancelToken: cancelToken,
+        options: Options(sendTimeout: timeout, receiveTimeout: timeout),
       );
-      final connected =
-          response.statusCode != null &&
+      return response.statusCode != null &&
           response.statusCode! >= 200 &&
           response.statusCode! < 400;
-      _emitIfChanged(connected);
-      return connected;
-    } on DioException {
-      _emitIfChanged(false);
+    } on DioException catch (e) {
+      if (e.type == DioExceptionType.cancel) {
+        return null;
+      }
       return false;
     } on TimeoutException {
-      _emitIfChanged(false);
       return false;
     } catch (_) {
-      _emitIfChanged(false);
       return false;
     }
   }
@@ -64,16 +78,25 @@ class PollingConnectivityMonitor implements NetworkConnectivityMonitor {
   @override
   Stream<bool> get connectivityStream => _controller.stream;
 
-  /// Start periodic connectivity checking.
+  /// Inicia el sondeo periódico.
+  ///
+  /// Los sondeos corren EN SERIE: el siguiente sólo se programa cuando el
+  /// anterior terminó (éxito, error o timeout), nunca solapados. El primer
+  /// sondeo sigue ocurriendo tras [checkInterval], igual que antes.
   void start() {
     stop();
-    _timer = Timer.periodic(checkInterval, (_) => checkConnectivity());
+    _scheduleNextProbe(_generation);
   }
 
-  /// Stop periodic connectivity checking.
+  /// Detiene el sondeo periódico y cancela el sondeo en vuelo, si lo hay.
   void stop() {
     _timer?.cancel();
     _timer = null;
+    _cancelToken?.cancel();
+    _cancelToken = null;
+    // Invalida la generación vigente: un sondeo que ya estaba en vuelo y
+    // termina después de este stop() se descarta en _runPeriodicProbe.
+    _generation++;
   }
 
   /// Release resources. The monitor cannot be reused after this call.
@@ -81,6 +104,28 @@ class PollingConnectivityMonitor implements NetworkConnectivityMonitor {
     stop();
     _controller.close();
     _dio.close();
+  }
+
+  void _scheduleNextProbe(int generation) {
+    _timer = Timer(checkInterval, () => _runPeriodicProbe(generation));
+  }
+
+  Future<void> _runPeriodicProbe(int generation) async {
+    // stop() ya invalidó esta cadena de sondeos antes de que corriera este.
+    if (generation != _generation) return;
+
+    final cancelToken = CancelToken();
+    _cancelToken = cancelToken;
+    final connected = await _probe(cancelToken: cancelToken);
+
+    // Si stop()/start() invalidó esta generación mientras el sondeo estaba
+    // en vuelo, el resultado es viejo: no se emite y no se reprograma.
+    if (generation != _generation) return;
+
+    if (connected != null) {
+      _emitIfChanged(connected);
+    }
+    _scheduleNextProbe(generation);
   }
 
   void _emitIfChanged(bool connected) {
