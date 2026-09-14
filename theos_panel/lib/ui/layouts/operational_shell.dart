@@ -46,6 +46,7 @@ final class OperationalContext {
     this.routeModeActive = false,
     this.pendingOperationsCount = 0,
     required this.syncLabel,
+    this.storageIsVolatile = false,
   });
 
   final String server;
@@ -104,6 +105,15 @@ final class OperationalContext {
   final int pendingOperationsCount;
 
   final String syncLabel;
+
+  /// `true` cuando el navegador cayó a un almacenamiento que NO sobrevive a
+  /// cerrar la pestaña (`RuntimeStorageMode.volatile`,
+  /// `orbi_runtime/lib/src/storage/runtime_database_owner.dart`). `false`
+  /// tanto si es persistente como si todavía no se sabe (`unknown`) — nunca
+  /// se avisa de algo que no se ha medido. En escritorio (nativo) siempre es
+  /// `false`. `router.dart` es quien traduce el `RuntimeStorageMode` real a
+  /// este booleano; este marco sólo lo pinta.
+  final bool storageIsVolatile;
 }
 
 /// El grupo bajo el que `router.dart` publica «Inicio»: un único destino que
@@ -325,6 +335,27 @@ class _OperationalShellState extends State<OperationalShell> {
         child: Column(
           children: [
             _topBar(layoutContext, constraints.maxWidth),
+            // Persistente mientras dure el almacenamiento volátil — no es un
+            // aviso transitorio (`showCopyableMessage`) porque el riesgo no
+            // desaparece a los pocos segundos, sigue mientras la pestaña
+            // siga abierta así. `InfoBar` es el mismo widget que ya usa el
+            // resto de la app para avisos incrustados (por ejemplo
+            // `home_dashboard_view.dart`), nunca una superficie propia.
+            if (widget.context.storageIsVolatile)
+              Padding(
+                padding: const EdgeInsets.fromLTRB(12, 8, 12, 0),
+                child: InfoBar(
+                  key: const Key('shell-volatile-storage-warning'),
+                  title: const Text(
+                    'Este navegador no está guardando datos en el equipo',
+                  ),
+                  content: const Text(
+                    'Lo que no se haya enviado a Odoo se perderá al cerrar '
+                    'la pestaña.',
+                  ),
+                  severity: InfoBarSeverity.warning,
+                ),
+              ),
             Expanded(
               child: NavigationView(
                 pane: _pane(),

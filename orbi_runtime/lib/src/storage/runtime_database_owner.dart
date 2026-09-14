@@ -1,7 +1,10 @@
 import 'dart:convert';
+import 'dart:developer' as developer;
 
 import 'package:crypto/crypto.dart';
 import 'package:drift_flutter/drift_flutter.dart';
+import 'package:flutter/foundation.dart'
+    show ValueListenable, ValueNotifier, kIsWeb, visibleForTesting;
 import 'package:theos_pos_core/theos_pos_core.dart' show AppDatabase;
 
 import '../contracts.dart';
@@ -9,15 +12,54 @@ import '../envases/envases_operations_durable.dart' show ensureEnvasesOperations
 
 typedef AppDatabaseFactory = AppDatabase Function(String databaseName);
 
+/// Si el almacenamiento local del dispositivo sobrevive a cerrar la pestaña
+/// o la app.
+///
+/// `unknown` es el estado inicial en web, antes de que Drift resuelva qué
+/// implementación usar (`WasmDatabase.open`, corrido dentro de
+/// [RuntimeDatabaseOwner.open]) — nunca se pinta un aviso mientras no se
+/// sepa todavía, igual que el resto de "sin dato" de este runtime. En
+/// escritorio (nativo) es siempre `persistent`: Drift usa un archivo real
+/// ahí, sin la jerarquía de implementaciones web que puede caer a memoria.
+enum RuntimeStorageMode { persistent, volatile, unknown }
+
+/// La lectura pura de qué [WasmStorageImplementation] cuenta como volátil.
+/// Separada de [RuntimeDatabaseOwner] para poder probarla sin abrir un
+/// Drift real (`WasmDatabase.open` sólo corre de verdad compilando a web).
+///
+/// Sólo `inMemory` no sobrevive a cerrar la pestaña — el resto (incluida
+/// `unsafeIndexedDb`, menos confiable pero SÍ persistente entre recargas)
+/// cuenta como `persistent` para este aviso.
+@visibleForTesting
+RuntimeStorageMode storageModeForImplementation(
+  WasmStorageImplementation implementation,
+) => implementation == WasmStorageImplementation.inMemory
+    ? RuntimeStorageMode.volatile
+    : RuntimeStorageMode.persistent;
+
 /// Owns exactly one Drift connection for the currently active [AppScope].
 final class RuntimeDatabaseOwner {
-  RuntimeDatabaseOwner({AppDatabaseFactory? factory})
-      : _factory = factory ?? _defaultFactory;
+  RuntimeDatabaseOwner({AppDatabaseFactory? factory}) {
+    _factory = factory ?? _openDefaultDatabase;
+  }
 
-  final AppDatabaseFactory _factory;
+  late final AppDatabaseFactory _factory;
   RuntimeDatabase? _active;
   int _nextGeneration = 0;
   int _openEpoch = 0;
+
+  /// `unknown` sólo en web, hasta que la primera apertura resuelva qué
+  /// implementación usa el navegador. Un `factory` inyectado (pruebas, o
+  /// cualquier apertura que nunca pasa por Drift-en-web) nunca lo cambia —
+  /// que es exactamente lo correcto en escritorio, donde este valor se
+  /// queda en `persistent` para siempre.
+  final ValueNotifier<RuntimeStorageMode> _storageMode = ValueNotifier(
+    kIsWeb ? RuntimeStorageMode.unknown : RuntimeStorageMode.persistent,
+  );
+
+  /// Para quien pinta el aviso (`OperationalShell`, vía `router.dart`):
+  /// nunca expone el `ValueNotifier` mutable, sólo la lectura.
+  ValueListenable<RuntimeStorageMode> get storageMode => _storageMode;
 
   RuntimeDatabase? get active => _active;
 
@@ -192,7 +234,7 @@ final class RuntimeDatabaseOwner {
     return 'orbi_${digest.substring(0, 40)}';
   }
 
-  static AppDatabase _defaultFactory(String name) =>
+  AppDatabase _openDefaultDatabase(String name) =>
       AppDatabase(
         driftDatabase(
           name: name,
@@ -201,9 +243,29 @@ final class RuntimeDatabaseOwner {
             // AssetBundle. Web hosts must publish them beside index.html.
             sqlite3Wasm: Uri.parse('sqlite3.wasm'),
             driftWorker: Uri.parse('drift_worker.dart.js'),
+            // Antes de esto no había `onResult`: si el navegador caía a
+            // `WasmStorageImplementation.inMemory` (todo se pierde al cerrar
+            // la pestaña), el único rastro era un `print` de drift_flutter en
+            // la consola — nadie lo veía. Ahora se guarda en [_storageMode],
+            // que `router.dart` lee para avisar en el armazón.
+            onResult: _recordStorageResult,
           ),
         ),
       );
+
+  void _recordStorageResult(WasmDatabaseResult result) {
+    final mode = storageModeForImplementation(result.chosenImplementation);
+    _storageMode.value = mode;
+    // `INFO` para el caso normal (sirve para diagnosticar un reporte del
+    // dueño sin tener que reproducirlo); `WARNING` sólo cuando de verdad no
+    // hay persistencia — es la señal que de verdad importa revisar.
+    developer.log(
+      'Almacenamiento local: $mode (${result.chosenImplementation}); '
+      'funciones del navegador ausentes: ${result.missingFeatures}',
+      name: 'orbi_runtime.storage',
+      level: mode == RuntimeStorageMode.volatile ? 900 : 800,
+    );
+  }
 }
 
 final class RuntimeDatabase {

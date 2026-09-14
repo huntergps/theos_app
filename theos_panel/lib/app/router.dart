@@ -1254,6 +1254,14 @@ bool _isAuthenticated(AuthViewState auth) =>
     auth.status == AuthControllerStatus.authenticated ||
     auth.status == AuthControllerStatus.restored;
 
+/// Nunca se muta: sólo sirve de valor por omisión mientras todavía no hay
+/// una sesión de runtime (`RuntimeDatabaseOwner.storageMode` real) de la
+/// que leer — para que el aviso de almacenamiento volátil nunca aparezca
+/// antes de tener una medida de verdad.
+final ValueNotifier<RuntimeStorageMode> _unknownStorageMode = ValueNotifier(
+  RuntimeStorageMode.unknown,
+);
+
 final orbiRouterProvider = Provider<GoRouter>((ref) {
   // Lecturas de una sola vez: ninguna de las dos cambia durante una sesión
   // (`policy` es `const RouteAccessPolicy()`; `composition` se fija entera
@@ -1354,6 +1362,16 @@ final orbiRouterProvider = Provider<GoRouter>((ref) {
             // lock/unlock rebuild the whole `GoRouter` (see
             // `workspaceLockProvider`'s doc comment).
             final locked = ref.watch(workspaceLockProvider);
+            // El aviso de almacenamiento volátil (bloque B de la auditoría
+            // de "se pierde todo lo que estaba haciendo", 14-sep-2026): el
+            // `ValueNotifier` vive en `RuntimeDatabaseOwner`, no en
+            // Riverpod, así que se escucha con `ValueListenableBuilder` más
+            // abajo — nunca `null` cuando no hay sesión de runtime todavía,
+            // sino la constante "desconocido" del módulo, que nunca pinta
+            // el aviso.
+            final storageModeListenable =
+                ref.watch(runtimeSessionProvider)?.databaseOwner.storageMode ??
+                _unknownStorageMode;
             // Navigation shares the same gate as direct URLs. Missing context
             // remains explicit; an authenticated client is not proof of network
             // reachability, synchronization, or a fresh server clock.
@@ -1567,8 +1585,12 @@ final orbiRouterProvider = Provider<GoRouter>((ref) {
             final presence = ref.watch(_presenceProvider);
             final presenceSupported = ref.watch(_presenceSupportedProvider);
             // El controlador es el mismo `ChangeNotifier` de arriba: sólo se
-            // reconstruye este subárbol, nunca el `GoRouter` entero.
-            return AnimatedBuilder(
+            // reconstruye este subárbol, nunca el `GoRouter` entero. Mismo
+            // motivo para el `ValueListenableBuilder` del modo de
+            // almacenamiento: envuelve sólo esta rama, jamás el `GoRouter`.
+            return ValueListenableBuilder<RuntimeStorageMode>(
+              valueListenable: storageModeListenable,
+              builder: (context, storageMode, _) => AnimatedBuilder(
               animation: preferencesController,
               builder: (context, _) => StreamBuilder<SyncSnapshot>(
                 stream:
@@ -1720,6 +1742,8 @@ final orbiRouterProvider = Provider<GoRouter>((ref) {
                       activitiesPendingCount: (activitySnapshot.data ?? const [])
                           .where((item) => item.status != ActivityStatus.done)
                           .length,
+                      storageIsVolatile:
+                          storageMode == RuntimeStorageMode.volatile,
                     ),
                     onLogout: () async {
                       await ref.read(authControllerProvider.notifier).close();
@@ -1803,6 +1827,7 @@ final orbiRouterProvider = Provider<GoRouter>((ref) {
                   ),
                 ),
                 ),
+              ),
               ),
             );
           },
