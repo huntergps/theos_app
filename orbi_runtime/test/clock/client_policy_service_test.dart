@@ -305,4 +305,74 @@ void main() {
     // pudo calcular en memoria durante ESTE `sync()` — nunca revienta.
     expect(service.snapshot.source, ClientPolicyTimeSource.server);
   });
+
+  group('user tz offset', () {
+    test('reads and exposes user_tz_offset_minutes from the server', () async {
+      final state = _FakeState();
+      final service = ClientPolicyService(
+        rpc: () => () async => {
+          'server_time_utc': '2026-01-01T00:00:10.000Z',
+          'offline_max_days': 3,
+          'inactivity_lock_minutes': 15,
+          'user_tz_offset_minutes': -240,
+        },
+        readState: state.read,
+        writeState: state.write,
+        deviceNow: () => DateTime.utc(2026, 1, 1),
+        monotonicElapsed: () => Duration.zero,
+      );
+
+      await service.sync();
+
+      expect(service.snapshot.userTzOffset, const Duration(minutes: -240));
+
+      // Se persiste: una instancia nueva con el mismo estado lo restaura.
+      final second = ClientPolicyService(
+        rpc: () => null,
+        readState: state.read,
+        writeState: state.write,
+      );
+      await second.restore();
+      expect(second.snapshot.userTzOffset, const Duration(minutes: -240));
+    });
+
+    test(
+      'is null when the server omits user_tz_offset_minutes (old module)',
+      () async {
+        final state = _FakeState();
+        final service = ClientPolicyService(
+          rpc: () => () async => {
+            'server_time_utc': '2026-01-01T00:00:10.000Z',
+            'offline_max_days': 3,
+            'inactivity_lock_minutes': 15,
+            // Sin `user_tz_offset_minutes`: módulo viejo.
+          },
+          readState: state.read,
+          writeState: state.write,
+          deviceNow: () => DateTime.utc(2026, 1, 1),
+          monotonicElapsed: () => Duration.zero,
+        );
+
+        await service.sync();
+
+        expect(service.snapshot.userTzOffset, isNull);
+      },
+    );
+
+    test('is null when the model does not exist', () async {
+      final state = _FakeState();
+      final service = ClientPolicyService(
+        rpc: () => () async {
+          throw const OdooNotFoundException("the model 'x' does not exist");
+        },
+        readState: state.read,
+        writeState: state.write,
+        deviceNow: () => DateTime.utc(2026, 1, 1),
+      );
+
+      await service.sync();
+
+      expect(service.snapshot.userTzOffset, isNull);
+    });
+  });
 }

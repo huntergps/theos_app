@@ -726,13 +726,24 @@ final _clientPolicyServiceProvider = Provider<ClientPolicyService?>((ref) {
         metadata.write(_clientPolicyStateKey, json, lease: lease),
   );
 
-  // Tras entrar o restaurar sesión en línea: una sincronización inmediata,
-  // sin esperar al primer tic de 15 minutos del disparador de abajo.
-  unawaited(
-    service.sync().then(
-      (_) => ref.read(_clientPolicyRevisionProvider.notifier).bump(),
-    ),
-  );
+  // Tras entrar o restaurar SESIÓN EN LÍNEA: una sincronización inmediata,
+  // sin esperar al primer tic de 15 minutos del disparador de abajo. Sólo
+  // cuando hay cliente — `sync()` ya no hace nada sin uno («no client means
+  // no rpc»), así que dispararlo offline sería un `unawaited` que nunca
+  // sirve de nada. El servicio en sí SÍ se construye sin cliente: la
+  // estimación sin conexión (`isEstimated`/`nowServer()`) necesita poder
+  // leer lo último persistido igual, sesión sin conexión o no.
+  // `ref.mounted` antes de tocar `ref` — revisión del dueño, 14-sep-2026:
+  // `sync()` puede seguir en vuelo cuando la sesión ya cerró (el provider
+  // se desechó), y Riverpod lanza si se usa un `ref` desechado.
+  if (active.client != null) {
+    unawaited(
+      service.sync().then((_) {
+        if (!ref.mounted) return;
+        ref.read(_clientPolicyRevisionProvider.notifier).bump();
+      }),
+    );
+  }
   return service;
 });
 
@@ -740,13 +751,39 @@ final _clientPolicySyncTriggerProvider = Provider<ClientPolicySyncTrigger?>((
   ref,
 ) {
   final service = ref.watch(_clientPolicyServiceProvider);
-  if (service == null) return null;
+  // Sesión sin conexión: no hay con qué sincronizar, así que ni siquiera se
+  // arma el temporizador de 15 minutos — mismo patrón que
+  // `scopeRealtimeSyncCoordinatorProvider` ("Sesión sin conexión: no hay
+  // socket que abrir"). Medido el 14-sep-2026: sin esta comprobación, una
+  // sesión sin `apiKey` (perfectamente válida y offline-first) terminaba
+  // armando un `Timer.periodic` real que nunca hacía nada — y que, tras
+  // corregir que el temporizador arrancara solo, dejaba un
+  // "Timer is still pending" en cualquier prueba que montara el marco así.
+  final client = ref.watch(runtimeSessionProvider)?.active?.client;
+  if (service == null || client == null) return null;
   final foreground = ref.watch(_appForegroundSignalProvider);
 
-  // Mismo puente red → Stream<bool> que los otros bloques aislados de este
-  // archivo: `ref.listen` es el único modo de leer el `Stream<bool>` crudo
-  // de un `StreamProvider` en esta versión de Riverpod.
+  Future<void> syncAndBump() async {
+    await service.sync();
+    if (!ref.mounted) return;
+    ref.read(_clientPolicyRevisionProvider.notifier).bump();
+  }
+
   final onlineController = StreamController<bool>.broadcast();
+  final trigger = ClientPolicySyncTrigger(
+    sync: syncAndBump,
+    online: onlineController.stream,
+    foreground: foreground.stream,
+  );
+
+  // 🔴 El trigger ya está suscrito a `onlineController.stream` ANTES de
+  // este `ref.listen` — revisión del dueño, 14-sep-2026: `fireImmediately:
+  // true` llama al callback de forma SÍNCRONA, así que si el `ref.listen`
+  // fuera antes de construir el trigger, ese primer `add()` se perdería —
+  // un `StreamController.broadcast()` no guarda buffer para quien llegue
+  // tarde a escuchar. `ClientPolicySyncTrigger` igual arranca su propio
+  // temporizador al construirse (ver su constructor), así que este orden
+  // es un refuerzo, no la única red de seguridad.
   ref.listen<AsyncValue<NetworkSignal>>(networkSignalProvider, (
     previous,
     next,
@@ -757,16 +794,6 @@ final _clientPolicySyncTriggerProvider = Provider<ClientPolicySyncTrigger?>((
     }
   }, fireImmediately: true);
 
-  Future<void> syncAndBump() async {
-    await service.sync();
-    ref.read(_clientPolicyRevisionProvider.notifier).bump();
-  }
-
-  final trigger = ClientPolicySyncTrigger(
-    sync: syncAndBump,
-    online: onlineController.stream,
-    foreground: foreground.stream,
-  );
   ref.onDispose(() {
     unawaited(trigger.dispose());
     unawaited(onlineController.close());
@@ -777,6 +804,16 @@ final _clientPolicySyncTriggerProvider = Provider<ClientPolicySyncTrigger?>((
 /// `ServerClockStatus` para el pie del armazón (`OperationalContext.serverClock`)
 /// — `null` sin sesión activa, que deja el pie con la hora local cruda, el
 /// comportamiento de antes de este bloque.
+///
+/// La zona horaria SIEMPRE sale de Odoo (`user_tz_offset_minutes`,
+/// `ClientPolicySnapshot.userTzOffset`) cuando el servidor la trae. Revisión
+/// del dueño, 14-sep-2026: la tabla fija de zonas conocidas que hacía esto
+/// antes sólo servía para Ecuador y zonas sin horario de verano — Orbi debe
+/// funcionar con cualquier Odoo. Cuando el servidor no la trae (módulo
+/// viejo sin este campo, o "el modelo no existe"), se usa el desfase de la
+/// zona DEL EQUIPO (`DateTime.now().timeZoneOffset`) — nunca un desfase
+/// inventado — y `usesDeviceTzFallback` se lo dice al pie para que el
+/// detalle aclare "en la zona de este equipo".
 final serverClockStatusProvider = Provider<ServerClockStatus?>((ref) {
   final service = ref.watch(_clientPolicyServiceProvider);
   // Mantiene vivo el disparador periódico mientras haya sesión — su
@@ -784,11 +821,12 @@ final serverClockStatusProvider = Provider<ServerClockStatus?>((ref) {
   ref.watch(_clientPolicySyncTriggerProvider);
   ref.watch(_clientPolicyRevisionProvider);
   if (service == null) return null;
-  final profile = ref.watch(authControllerProvider).profile;
   final snapshot = service.snapshot;
+  final serverTzOffset = snapshot.userTzOffset;
   return ServerClockStatus(
     nowServer: service.nowServer,
-    timeZoneName: profile?.tz ?? 'America/Guayaquil',
+    userTzOffset: serverTzOffset ?? DateTime.now().timeZoneOffset,
+    usesDeviceTzFallback: serverTzOffset == null,
     source: snapshot.source,
     isEstimated: snapshot.isEstimated,
     rtt: snapshot.rtt,

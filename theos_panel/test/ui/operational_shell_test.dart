@@ -679,7 +679,8 @@ void main() {
               syncLabel: '3 pendientes',
               serverClock: ServerClockStatus(
                 nowServer: () => serverNow,
-                timeZoneName: 'America/Guayaquil',
+                userTzOffset: const Duration(hours: -5),
+                usesDeviceTzFallback: false,
                 source: ClientPolicyTimeSource.server,
                 isEstimated: false,
                 rtt: const Duration(milliseconds: 120),
@@ -726,7 +727,8 @@ void main() {
               syncLabel: 'sin conexión',
               serverClock: ServerClockStatus(
                 nowServer: () => deviceNow,
-                timeZoneName: 'America/Guayaquil',
+                userTzOffset: const Duration(hours: -5),
+                usesDeviceTzFallback: false,
                 source: ClientPolicyTimeSource.server,
                 isEstimated: true,
                 lastOnlineAt: lastOnline,
@@ -768,7 +770,8 @@ void main() {
               syncLabel: 'al día',
               serverClock: ServerClockStatus(
                 nowServer: () => deviceNow,
-                timeZoneName: 'America/Guayaquil',
+                userTzOffset: const Duration(hours: -5),
+                usesDeviceTzFallback: false,
                 source: ClientPolicyTimeSource.device,
                 isEstimated: true,
               ),
@@ -809,7 +812,8 @@ void main() {
               syncLabel: 'al día',
               serverClock: ServerClockStatus(
                 nowServer: () => deviceNow,
-                timeZoneName: 'America/Guayaquil',
+                userTzOffset: const Duration(hours: -5),
+                usesDeviceTzFallback: false,
                 source: ClientPolicyTimeSource.server,
                 isEstimated: false,
                 lastSyncAt: deviceNow,
@@ -837,6 +841,100 @@ void main() {
         );
       },
     );
+
+    // Revisión del dueño, 14-sep-2026: la zona horaria ya NO sale de una
+    // tabla fija de nombres (`_fixedUtcOffsets`, borrada) — Orbi debe
+    // funcionar con cualquier Odoo, no sólo con Ecuador. La fuente es
+    // `user_tz_offset_minutes` de `client_policy()`, que `router.dart` ya
+    // resuelve en un `Duration` antes de llegar aquí.
+    testWidgets('uses server-provided user tz offset', (tester) async {
+      const size = Size(1920, 1080);
+      // -240 minutos (UTC-4): distinto de Guayaquil (-5) a propósito, para
+      // no poder confundirlo con el valor fijo que traía la tabla borrada.
+      final serverNow = DateTime.utc(2026, 9, 14, 15, 30, 0);
+      await _pump(
+        tester,
+        _host(
+          size,
+          now: () => serverNow,
+          context: OperationalContext(
+            server: 'erp.test',
+            database: 'orbi_test',
+            userLabel: 'Erik',
+            companyLabel: 'Empresa Demo',
+            connectionLabel: 'Conectado',
+            syncLabel: 'al día',
+            serverClock: ServerClockStatus(
+              nowServer: () => serverNow,
+              userTzOffset: const Duration(minutes: -240),
+              usesDeviceTzFallback: false,
+              source: ClientPolicyTimeSource.server,
+              isEstimated: false,
+              lastSyncAt: serverNow,
+              lastOnlineAt: serverNow,
+            ),
+          ),
+        ),
+        size,
+      );
+
+      // 15:30 UTC - 4h = 11:30, no 10:30 (lo que daría Guayaquil).
+      expect(find.text('14/09/2026 11:30:00'), findsOneWidget);
+      final tooltip = tester.widget<Tooltip>(
+        find.ancestor(
+          of: find.byIcon(FluentIcons.date_time),
+          matching: find.byType(Tooltip),
+        ),
+      );
+      expect(tooltip.message, isNot(contains('en la zona de este equipo')));
+    });
+
+    testWidgets('falls back to device zone offset when server omits it', (
+      tester,
+    ) async {
+      const size = Size(1920, 1080);
+      final serverNow = DateTime.utc(2026, 9, 14, 15, 30, 0);
+      await _pump(
+        tester,
+        _host(
+          size,
+          now: () => serverNow,
+          context: OperationalContext(
+            server: 'erp.test',
+            database: 'orbi_test',
+            userLabel: 'Erik',
+            companyLabel: 'Empresa Demo',
+            connectionLabel: 'Conectado',
+            syncLabel: 'al día',
+            serverClock: ServerClockStatus(
+              nowServer: () => serverNow,
+              // Lo que `router.dart` arma cuando `client_policy()` no trae
+              // `user_tz_offset_minutes`: la zona del EQUIPO, nunca un
+              // desfase inventado. Un valor arbitrario aquí (+2h) basta
+              // para probar que el pie pinta ESE desfase, cualquiera que
+              // sea — no le corresponde a este widget decidir de dónde
+              // sale.
+              userTzOffset: const Duration(hours: 2),
+              usesDeviceTzFallback: true,
+              source: ClientPolicyTimeSource.server,
+              isEstimated: false,
+              lastSyncAt: serverNow,
+              lastOnlineAt: serverNow,
+            ),
+          ),
+        ),
+        size,
+      );
+
+      expect(find.text('14/09/2026 17:30:00'), findsOneWidget);
+      final tooltip = tester.widget<Tooltip>(
+        find.ancestor(
+          of: find.byIcon(FluentIcons.date_time),
+          matching: find.byType(Tooltip),
+        ),
+      );
+      expect(tooltip.message, contains('en la zona de este equipo'));
+    });
   });
 
   group('la barra superior', () {

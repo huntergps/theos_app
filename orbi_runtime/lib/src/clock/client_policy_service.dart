@@ -51,6 +51,7 @@ final class ClientPolicySnapshot {
     this.lastSyncAt,
     this.lastOnlineAt,
     this.clockRollbackSuspected = false,
+    this.userTzOffset,
   });
 
   /// `serverUtc - deviceUtc`, para sumarlo a la hora del equipo y estimar la
@@ -81,6 +82,14 @@ final class ClientPolicySnapshot {
   final bool isEstimated;
 
   final bool clockRollbackSuspected;
+
+  /// `user_tz_offset_minutes` de la última respuesta real del servidor —
+  /// el desfase de la zona horaria DEL USUARIO respecto a UTC, en el
+  /// instante de `server_time_utc` (con signo: -300 en Guayaquil). `null`
+  /// cuando el servidor nunca lo trajo (módulo viejo sin este campo, o
+  /// "el modelo no existe"): en ese caso quien pinte la hora debe usar la
+  /// zona del EQUIPO, nunca inventar un desfase.
+  final Duration? userTzOffset;
 }
 
 /// Ya invoca `client_policy()` sobre el cliente activo y decodifica la
@@ -164,6 +173,7 @@ final class ClientPolicyService {
   DateTime? _lastOnlineAt;
   int _offlineMaxDays = kDefaultOfflineMaxDays;
   int _inactivityLockMinutes = kDefaultInactivityLockMinutes;
+  Duration? _userTzOffset;
 
   bool _restored = false;
 
@@ -226,6 +236,10 @@ final class ClientPolicyService {
       _lastOnlineAt = _parseIsoUtc(map['last_online_at']);
       _lastSeenDeviceUtc = _parseIsoUtc(map['last_seen_device_utc']);
       _lastPersistedDeviceClockAt = _lastSeenDeviceUtc;
+      final tzOffsetMinutes = map['user_tz_offset_minutes'];
+      _userTzOffset = tzOffsetMinutes is int
+          ? Duration(minutes: tzOffsetMinutes)
+          : null;
       final maxDays = map['offline_max_days'];
       if (maxDays is int && maxDays >= 1) _offlineMaxDays = maxDays;
       final lockMinutes = map['inactivity_lock_minutes'];
@@ -271,6 +285,10 @@ final class ClientPolicyService {
         response['inactivity_lock_minutes'],
         _inactivityLockMinutes,
       );
+      final tzOffsetMinutes = _intOrNull(response['user_tz_offset_minutes']);
+      _userTzOffset = tzOffsetMinutes == null
+          ? null
+          : Duration(minutes: tzOffsetMinutes);
       _lastSyncAt = sentAtDevice;
       _lastOnlineAt = sentAtDevice;
       _syncedServerThisSession = true;
@@ -293,6 +311,7 @@ final class ClientPolicyService {
     _source = ClientPolicyTimeSource.device;
     _offset = Duration.zero;
     _rtt = null;
+    _userTzOffset = null;
     _lastSyncAt = sentAtDevice;
     // `_offlineMaxDays`/`_inactivityLockMinutes` se quedan en lo último que
     // ya tenían (persistido o el valor por omisión con el que arrancó el
@@ -317,6 +336,7 @@ final class ClientPolicyService {
       'last_sync_at': _lastSyncAt?.toIso8601String(),
       'last_online_at': _lastOnlineAt?.toIso8601String(),
       'last_seen_device_utc': _lastSeenDeviceUtc?.toIso8601String(),
+      'user_tz_offset_minutes': _userTzOffset?.inMinutes,
       'offline_max_days': _offlineMaxDays,
       'inactivity_lock_minutes': _inactivityLockMinutes,
     });
@@ -384,6 +404,7 @@ final class ClientPolicyService {
     inactivityLockMinutes: _inactivityLockMinutes,
     isEstimated: isEstimated,
     clockRollbackSuspected: _clockRollbackSuspected,
+    userTzOffset: _userTzOffset,
   );
 }
 
@@ -400,6 +421,12 @@ DateTime _parseServerTimeUtc(dynamic value) {
 
 int _positiveIntOr(dynamic value, int fallback) =>
     value is int && value >= 1 ? value : fallback;
+
+/// `user_tz_offset_minutes` puede venir ausente, `null`, o `false` (el
+/// `False` de Python que Odoo manda para "sin valor") en un módulo viejo
+/// que todavía no tiene este campo — cualquiera de los tres significa
+/// "el servidor no lo trae", nunca un desfase de cero minutos inventado.
+int? _intOrNull(dynamic value) => value is int ? value : null;
 
 DateTime? _parseIsoUtc(dynamic value) {
   if (value is! String) return null;

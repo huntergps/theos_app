@@ -132,7 +132,8 @@ final class OperationalContext {
 final class ServerClockStatus {
   const ServerClockStatus({
     required this.nowServer,
-    required this.timeZoneName,
+    required this.userTzOffset,
+    required this.usesDeviceTzFallback,
     required this.source,
     required this.isEstimated,
     this.rtt,
@@ -145,9 +146,21 @@ final class ServerClockStatus {
   /// —nunca hace red— apta para el tic de 1 segundo del pie.
   final DateTime Function() nowServer;
 
-  /// `AuthProfile.tz`, o `America/Guayaquil` cuando el usuario no trae uno
-  /// — mismo valor por omisión que `UserPreferencesDialog`.
-  final String timeZoneName;
+  /// Desfase de la zona horaria del USUARIO respecto a UTC, para convertir
+  /// [nowServer] a hora de pared. Revisión del dueño, 14-sep-2026: ya no
+  /// sale de una tabla fija de nombres de zona (Orbi debe funcionar con
+  /// cualquier Odoo, no sólo con Ecuador) — `router.dart` lo arma con
+  /// `ClientPolicySnapshot.userTzOffset` (el `user_tz_offset_minutes` de
+  /// `client_policy()`) cuando el servidor lo trae, o con
+  /// `DateTime.now().timeZoneOffset` (la zona del EQUIPO) cuando no —
+  /// ver [usesDeviceTzFallback].
+  final Duration userTzOffset;
+
+  /// `true` cuando [userTzOffset] es la zona del EQUIPO porque el servidor
+  /// no trajo `user_tz_offset_minutes` (módulo viejo sin ese campo, o "el
+  /// modelo no existe") — el detalle del reloj lo aclara con "en la zona de
+  /// este equipo", para no dar a entender que esa hora la confirmó Odoo.
+  final bool usesDeviceTzFallback;
 
   final ClientPolicyTimeSource source;
 
@@ -1571,34 +1584,10 @@ String _formatLocalClock(DateTime t) {
 }
 
 String _formatServerClock(ServerClockStatus clock) =>
-    _formatLocalClock(clock.nowServer().add(_resolveTzOffset(clock.timeZoneName)));
+    _formatLocalClock(clock.nowServer().add(clock.userTzOffset));
 
-/// Compensación de zona horaria SIN el paquete `timezone`: este monorepo no
-/// lo trae (añadirlo regenera lockfiles de los siete paquetes, algo que
-/// CLAUDE.md pide evitar fuera de lo que pide el propio cambio), y hoy los
-/// únicos servidores reales son ecuatorianos — `America/Guayaquil` no
-/// observa horario de verano, así que un desfase fijo es exacto para ellos.
-///
-/// 🔴 Limitación deliberada: cualquier zona con horario de verano
-/// (`America/New_York`, por ejemplo) saldría mal la mitad del año. Si Orbi
-/// necesita alguna vez una zona fuera de esta lista corta, lo correcto es
-/// añadir el paquete `timezone` de verdad — es un cambio que toca el
-/// lockfile de los siete paquetes y merece avisarle al dueño antes, no
-/// crecer esta tabla a mano.
-const _fixedUtcOffsets = <String, Duration>{
-  'America/Guayaquil': Duration(hours: -5),
-  'America/Bogota': Duration(hours: -5),
-  'America/Lima': Duration(hours: -5),
-  'UTC': Duration.zero,
-  'Etc/UTC': Duration.zero,
-};
-
-Duration _resolveTzOffset(String timeZoneName) =>
-    _fixedUtcOffsets[timeZoneName] ?? _fixedUtcOffsets['America/Guayaquil']!;
-
-/// El texto del tooltip/detalle del reloj — las tres redacciones fijas que
-/// pidió el dueño, nunca una interpolación libre sobre lo que diga el
-/// servidor.
+/// El texto del tooltip/detalle del reloj — las redacciones fijas que pidió
+/// el dueño, nunca una interpolación libre sobre lo que diga el servidor.
 String _serverClockTooltip(ServerClockStatus clock, DateTime Function() deviceNow) {
   final parts = <String>[];
   if (clock.source == ClientPolicyTimeSource.device && clock.lastOnlineAt == null) {
@@ -1608,7 +1597,7 @@ String _serverClockTooltip(ServerClockStatus clock, DateTime Function() deviceNo
     if (last == null) {
       parts.add('Hora estimada sin conexión');
     } else {
-      final local = last.add(_resolveTzOffset(clock.timeZoneName));
+      final local = last.add(clock.userTzOffset);
       parts.add(
         'Hora estimada sin conexión · última conexión '
         '${_formatLocalClock(local)}',
@@ -1623,6 +1612,14 @@ String _serverClockTooltip(ServerClockStatus clock, DateTime Function() deviceNo
     }
     final rtt = clock.rtt;
     if (rtt != null) parts.add('latencia ${rtt.inMilliseconds} ms');
+  }
+  // Revisión del dueño, 14-sep-2026: cuando el servidor no trae
+  // `user_tz_offset_minutes` (módulo viejo, o "el modelo no existe"), la
+  // hora que se ve usa la zona del EQUIPO, no una que Odoo haya confirmado
+  // — el detalle lo dice para que nadie lo confunda con un dato del
+  // servidor.
+  if (clock.usesDeviceTzFallback) {
+    parts.add('en la zona de este equipo');
   }
   if (clock.clockRollbackSuspected) {
     parts.add(
