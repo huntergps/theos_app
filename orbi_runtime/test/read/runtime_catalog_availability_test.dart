@@ -290,8 +290,14 @@ void main() {
   );
 
   test(
-    'fields_get da 403: el catálogo queda unknown y corre igual, con su '
-    'descriptor de siempre (sin recortar nada)',
+    'fields_get da 403: el catálogo queda "sin permiso" (unauthorized), se '
+    'memoriza y NO vuelve a sondear ni a intentar leer hasta invalidate() '
+    '— corrección del 14-sep-2026 (hueco 5). Antes de este cambio, un 403 '
+    'caía en el mismo `unknown` sin memoria que un fallo de red cualquiera: '
+    'se reintentaba `fields_get` en CADA ciclo y el catálogo igual '
+    'intentaba `search_read` con el descriptor completo cada vez — ver la '
+    'prueba de más abajo para el caso de fallo de red real, que sigue '
+    'comportándose así a propósito.',
     () async {
       final reader = _CatalogReader(
         fieldsGetErrorsByModel: {
@@ -313,21 +319,105 @@ void main() {
       );
       final composition = await compose(reader);
 
+      final resolved = await composition.availability.resolve('tax');
+      expect(resolved.state, OdooCapabilityState.unknown);
+      expect(resolved.unauthorized, isTrue);
+      expect(resolved.canRun, isFalse);
+
+      final result = await composition.sync('tax');
+      expect(result.status, SyncJobStatus.committed);
+      // Sin permiso: nunca se intentó leer el catálogo real.
+      final db = owner.active!.database;
+      expect(await db.select(db.accountTax).get(), isEmpty);
+      expect(reader.calls.any((call) => call.model == 'account.tax'), isFalse);
+
+      // Memorizado: un segundo sondeo NO vuelve a llamar fields_get.
       expect(
-        (await composition.availability.resolve('tax')).state,
-        OdooCapabilityState.unknown,
+        reader.fieldsGetCalls.where((m) => m == 'account.tax'),
+        hasLength(1),
       );
+      await composition.availability.resolve('tax');
+      expect(
+        reader.fieldsGetCalls.where((m) => m == 'account.tax'),
+        hasLength(1),
+      );
+
+      // invalidate() ("Forzar Sync Completo") sí fuerza un nuevo sondeo.
+      composition.availability.invalidate();
+      await composition.availability.resolve('tax');
+      expect(
+        reader.fieldsGetCalls.where((m) => m == 'account.tax'),
+        hasLength(2),
+      );
+    },
+  );
+
+  test(
+    'fields_get da 401 (sesión caducada): mismo trato que un 403, "sin '
+    'permiso" memorizado',
+    () async {
+      final reader = _CatalogReader(
+        fieldsGetErrorsByModel: {
+          'account.tax': () =>
+              const OdooAuthenticationException('401 unauthorized'),
+        },
+      );
+      final composition = await compose(reader);
+
+      final resolved = await composition.availability.resolve('tax');
+      expect(resolved.state, OdooCapabilityState.unknown);
+      expect(resolved.unauthorized, isTrue);
+    },
+  );
+
+  test(
+    'un fallo de RED (no 401/403) en fields_get sigue siendo unknown, SIN '
+    'memoria: el catálogo corre igual con su descriptor completo, y el '
+    'próximo sondeo reintenta fields_get — este es el comportamiento que '
+    'ya existía y que el nuevo "sin permiso" no debe tocar',
+    () async {
+      final reader = _CatalogReader(
+        fieldsGetErrorsByModel: {
+          'account.tax': () => const OdooConnectionException('sin red'),
+        },
+        recordsByModel: {
+          'account.tax': [
+            {
+              'id': 1,
+              'name': 'IVA 15%',
+              'amount': 15.0,
+              'amount_type': 'percent',
+              'active': true,
+              'write_date': '2026-09-13 10:00:00',
+            },
+          ],
+        },
+      );
+      final composition = await compose(reader);
+
+      final first = await composition.availability.resolve('tax');
+      expect(first.state, OdooCapabilityState.unknown);
+      expect(first.unauthorized, isFalse);
+      expect(first.canRun, isTrue);
 
       final result = await composition.sync('tax');
       expect(result.status, SyncJobStatus.committed);
       final db = owner.active!.database;
       expect((await db.select(db.accountTax).get()).single.name, 'IVA 15%');
 
-      // Sigue `unknown`, no se cachea como definitivo — el próximo sondeo
-      // vuelve a intentar `fields_get`.
+      // Sin memoria: `sync('tax')` ya disparó un SEGUNDO `fields_get` propio
+      // (vía `catalogAvailabilityLoader.resolve`, dentro del ciclo) — dos
+      // llamadas van de las dos veces que se preguntó hasta aquí (el
+      // `resolve` explícito de arriba, y el de `sync`). Un tercer sondeo
+      // reintenta otra vez, porque nada de esto se cachea.
       expect(
-        (await composition.availability.resolve('tax')).state,
-        OdooCapabilityState.unknown,
+        reader.fieldsGetCalls.where((m) => m == 'account.tax'),
+        hasLength(2),
+      );
+      await composition.availability.resolve('tax');
+      expect(
+        reader.fieldsGetCalls.where((m) => m == 'account.tax'),
+        hasLength(3),
       );
     },
   );

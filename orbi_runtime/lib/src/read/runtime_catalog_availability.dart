@@ -1,5 +1,10 @@
 import 'package:odoo_sdk/odoo_sdk.dart'
-    show OdooCapabilityState, OdooFieldNotFoundException, OdooNotFoundException;
+    show
+        OdooAccessDeniedException,
+        OdooAuthenticationException,
+        OdooCapabilityState,
+        OdooFieldNotFoundException,
+        OdooNotFoundException;
 
 import '../contracts.dart';
 import '../sync/catalog_sync.dart';
@@ -12,6 +17,7 @@ final class ResolvedCatalogDescriptor {
     required this.state,
     required this.descriptor,
     this.reason,
+    this.unauthorized = false,
   });
 
   /// [OdooCapabilityState.unknown] es intencionalmente distinto de
@@ -31,7 +37,23 @@ final class ResolvedCatalogDescriptor {
   /// Texto de diagnóstico, sólo para depuración/`/sync` — nunca se parsea.
   final String? reason;
 
-  bool get canRun => state != OdooCapabilityState.unsupported;
+  /// `true` cuando el sondeo (`fields_get`) recibió un 401/403 — un eje
+  /// ORTOGONAL a [state], no un cuarto valor de [OdooCapabilityState] (esa
+  /// enumeración es de `odoo_sdk` y no se toca aquí). [state] sigue siendo
+  /// `unknown`: no hay evidencia de que el modelo/campo no exista, sólo de
+  /// que ESTA sesión no puede preguntarlo. Corrección del 14-sep-2026 (hueco
+  /// 5 de la auditoría de tiempo real): antes de este campo, un 401/403 caía
+  /// en el mismo `unknown` sin memoria que cualquier fallo de red, así que
+  /// `fields_get` se reintentaba en cada ciclo Y el catálogo igual
+  /// intentaba `search_read` con el descriptor completo — un permiso que no
+  /// va a cambiar de un ciclo a otro se comportaba como si fuera a hacerlo.
+  final bool unauthorized;
+
+  /// `unsupported` (evidencia de que no existe) y `unauthorized` (evidencia
+  /// de que esta sesión no puede preguntarlo) llevan al mismo resultado
+  /// práctico — no intentar `search_read` — aunque sean hechos distintos:
+  /// el primero es del SERVIDOR, el segundo es de esta SESIÓN.
+  bool get canRun => state != OdooCapabilityState.unsupported && !unauthorized;
 }
 
 /// Decide, con evidencia real del servidor, cuáles de los 17 catálogos
@@ -62,12 +84,24 @@ final class RuntimeCatalogAvailability {
     this.reader, {
     required Map<String, RuntimeCatalogDescriptor> specs,
     DateTime Function()? clock,
+    this.capabilityRevision,
   }) : _specs = Map.unmodifiable(specs),
        _now = clock ?? DateTime.now;
 
   final Json2ReadPort reader;
   final Map<String, RuntimeCatalogDescriptor> _specs;
   final DateTime Function() _now;
+
+  /// Cuando quien construye esta instancia lo pasa, un cambio de valor entre
+  /// dos [resolve] se trata como "cambió la revisión de permisos" e invalida
+  /// TODO lo cacheado (igual que [invalidate], pero automático) — pensado
+  /// para el estado "sin permiso" de [ResolvedCatalogDescriptor.unauthorized]:
+  /// un permiso que se concedió después de la última sesión no debe quedar
+  /// memorizado como negado para siempre. `null` (el valor de todos los
+  /// llamadores de hoy) desactiva esta comprobación por completo — nada
+  /// cambia respecto al comportamiento anterior a este campo.
+  final int Function()? capabilityRevision;
+  int? _lastSeenRevision;
 
   final Map<String, ResolvedCatalogDescriptor> _resolved = {};
 
@@ -131,10 +165,23 @@ final class RuntimeCatalogAvailability {
     return updated;
   }
 
+  /// Compara [capabilityRevision] contra la última vista y, si cambió,
+  /// invalida todo lo cacheado. Sin costo ni efecto cuando no se pasó
+  /// [capabilityRevision] (el valor de todos los llamadores de hoy).
+  void _reconcileCapabilityRevision() {
+    final getRevision = capabilityRevision;
+    if (getRevision == null) return;
+    final current = getRevision();
+    final previous = _lastSeenRevision;
+    _lastSeenRevision = current;
+    if (previous != null && previous != current) invalidate();
+  }
+
   /// Resuelve [key]. Ya resuelto (`supported`/`unsupported`) → cache
   /// directa, sin red. Un sondeo ya en vuelo para el MISMO catálogo → se
   /// espera ese, nunca se dispara un segundo `fields_get` en paralelo.
   Future<ResolvedCatalogDescriptor> resolve(String key) {
+    _reconcileCapabilityRevision();
     final cached = _resolved[key];
     if (cached != null) return Future.value(cached);
     final descriptor = _specs[key];
@@ -148,6 +195,29 @@ final class RuntimeCatalogAvailability {
     });
     _inFlight[key] = future;
     return future;
+  }
+
+  /// Memoriza un 401/403 del sondeo de disponibilidad como "sin permiso":
+  /// [ResolvedCatalogDescriptor.unauthorized] queda `true`, y esta entrada
+  /// se cachea igual que `supported`/`unsupported` — a diferencia de un
+  /// fallo de red genérico, que nunca se cachea (ver el `catch(_)` de
+  /// [_probe]). Sigue en pie hasta [invalidate] ("Forzar Sync Completo") o
+  /// hasta que cambie la revisión de permisos, si quien construyó esta
+  /// instancia pasó [capabilityRevision] — ver el campo.
+  ResolvedCatalogDescriptor _cacheUnauthorized(
+    String key,
+    RuntimeCatalogDescriptor descriptor,
+    Object error,
+  ) {
+    final resolved = ResolvedCatalogDescriptor(
+      state: OdooCapabilityState.unknown,
+      descriptor: descriptor,
+      unauthorized: true,
+      reason: 'Sin permiso para comprobar ${descriptor.model} ($error)',
+    );
+    _resolved[key] = resolved;
+    _probedAt = _now();
+    return resolved;
   }
 
   /// Un solo `fields_get` por catálogo hace las dos preguntas a la vez: si
@@ -190,11 +260,18 @@ final class RuntimeCatalogAvailability {
       _resolved[key] = resolved;
       _probedAt = _now();
       return resolved;
+    } on OdooAuthenticationException catch (error) {
+      return _cacheUnauthorized(key, descriptor, error);
+    } on OdooAccessDeniedException catch (error) {
+      return _cacheUnauthorized(key, descriptor, error);
     } catch (_) {
-      // Red, 401/403, o cualquier otro fallo: sin evidencia. No se cachea —
-      // el próximo `resolve()` vuelve a intentar el sondeo desde cero, y el
-      // catálogo corre mientras tanto con su descriptor de siempre (E02,
-      // punto 4).
+      // Un fallo de RED (no 401/403): sin evidencia de nada, ni siquiera de
+      // permisos. No se cachea — el próximo `resolve()` vuelve a intentar el
+      // sondeo desde cero, y el catálogo corre mientras tanto con su
+      // descriptor de siempre (E02, punto 4). Un permiso denegado SÍ se
+      // cachea — ver [_cacheUnauthorized] — porque, a diferencia de un
+      // corte de red, no va a resolverse solo reintentando en el próximo
+      // ciclo.
       return ResolvedCatalogDescriptor(
         state: OdooCapabilityState.unknown,
         descriptor: descriptor,
