@@ -59,12 +59,29 @@ final class DurableEnvasesFormDraftPort implements EnvasesFormDraftPort {
   @override
   Future<void> save(String draftId, Map<String, dynamic> payload) async {
     final expected = _revisions[draftId] ?? 0;
-    final saved = await store.save(
-      draftId,
-      payload,
-      expectedRevision: expected,
-    );
-    _revisions[draftId] = saved.revision;
+    try {
+      final saved = await store.save(
+        draftId,
+        payload,
+        expectedRevision: expected,
+      );
+      _revisions[draftId] = saved.revision;
+    } on EditableDraftRevisionConflict {
+      // «El último que escribe gana»: otra pestaña, otra sesión, o esta misma
+      // antes de terminar su `read` ya movió la revisión real. Sin releer y
+      // reintentar, la revisión en caché queda parada para siempre y todo
+      // guardado futuro repite el mismo conflicto — el borrador no se vuelve
+      // a guardar nunca más. Se relee la revisión real y se reintenta UNA
+      // sola vez con el mismo payload.
+      final current = await store.read(draftId);
+      final retryRevision = current?.revision ?? 0;
+      final saved = await store.save(
+        draftId,
+        payload,
+        expectedRevision: retryRevision,
+      );
+      _revisions[draftId] = saved.revision;
+    }
   }
 
   @override
@@ -81,6 +98,19 @@ final class DurableEnvasesFormDraftPort implements EnvasesFormDraftPort {
 /// también. Un fallo al guardar el borrador es silencioso a propósito: es
 /// persistencia de mejor esfuerzo, nunca debe impedir que el usuario siga
 /// escribiendo en el formulario.
+///
+/// `clear()` y `dispose()` respetan ese mismo camino serializado:
+///
+/// - `clear()` espera a que termine cualquier guardado ya en vuelo ANTES de
+///   borrar. Si borrara primero, ese guardado tardío podría terminar
+///   DESPUÉS del borrado y resucitar un borrador que ya se registró — el
+///   caso grave que puede llevar a enviarlo dos veces. Usa una generación:
+///   un payload programado ANTES del `clear()` nunca se guarda después; uno
+///   programado DESPUÉS sí, por si el formulario sigue abierto.
+/// - `dispose()` guarda de inmediato (sin esperar el debounce, sin esperar
+///   el resultado) el último cambio pendiente si lo hay y nadie llamó a
+///   `clear()` después de programarlo — si no, lo tecleado en los últimos
+///   milisegundos del debounce se perdería justo al salir de la pantalla.
 final class EnvasesFormDraftAutoSave {
   EnvasesFormDraftAutoSave({
     required this.port,
@@ -93,8 +123,11 @@ final class EnvasesFormDraftAutoSave {
   final Duration debounce;
 
   Timer? _timer;
-  Map<String, dynamic>? _pending;
-  bool _saving = false;
+  Map<String, dynamic>? _pendingPayload;
+  int _pendingGeneration = 0;
+  Future<void>? _inFlightSave;
+  bool _draining = false;
+  int _generation = 0;
   bool _disposed = false;
 
   /// Programa un guardado del [payload] tras el debounce. Llamar de nuevo
@@ -102,40 +135,64 @@ final class EnvasesFormDraftAutoSave {
   void schedule(Map<String, dynamic> payload) {
     if (_disposed) return;
     _timer?.cancel();
-    _timer = Timer(debounce, () => _enqueue(payload));
+    _pendingPayload = payload;
+    _pendingGeneration = _generation;
+    _timer = Timer(debounce, _fire);
   }
 
-  void _enqueue(Map<String, dynamic> payload) {
-    if (_disposed) return;
-    _pending = payload;
-    if (_saving) return;
-    _saving = true;
+  void _fire() {
+    _timer = null;
+    _kick();
+  }
+
+  void _kick() {
+    if (_draining || _pendingPayload == null) return;
+    _draining = true;
     unawaited(_drain());
   }
 
   Future<void> _drain() async {
     try {
-      while (_pending != null) {
-        final next = _pending!;
-        _pending = null;
+      while (_pendingPayload != null) {
+        final payload = _pendingPayload!;
+        final generation = _pendingGeneration;
+        _pendingPayload = null;
+        // Un `clear()` ocurrido entre que esto se programó y que le tocó su
+        // turno lo invalida: ese payload ya no debe guardarse.
+        if (generation != _generation) continue;
+        final future = port.save(draftId, payload);
+        _inFlightSave = future;
         try {
-          await port.save(draftId, next);
+          await future;
         } catch (_) {
           // Persistencia de mejor esfuerzo: el formulario sigue en memoria.
+        } finally {
+          if (identical(_inFlightSave, future)) _inFlightSave = null;
         }
       }
     } finally {
-      _saving = false;
+      _draining = false;
     }
   }
 
-  /// Cancela cualquier guardado pendiente y borra el borrador durable. Se
-  /// llama sólo cuando el registro ya fue aceptado (en línea o encolado sin
-  /// conexión) — nunca cuando falló.
+  /// Cancela cualquier guardado pendiente que todavía no haya arrancado y
+  /// borra el borrador durable. Se llama sólo cuando el registro ya fue
+  /// aceptado (en línea o encolado sin conexión) — nunca cuando falló.
   Future<void> clear() async {
+    _generation++;
     _timer?.cancel();
     _timer = null;
-    _pending = null;
+    _pendingPayload = null;
+    // Si ya hay un guardado en vuelo (arrancado antes de este `clear()`), se
+    // espera a que termine antes de borrar — ver el docstring de la clase.
+    final inFlight = _inFlightSave;
+    if (inFlight != null) {
+      try {
+        await inFlight;
+      } catch (_) {
+        // Lo que haya fallado al guardar no impide borrar de todos modos.
+      }
+    }
     try {
       await port.clear(draftId);
     } catch (_) {
@@ -143,8 +200,16 @@ final class EnvasesFormDraftAutoSave {
     }
   }
 
+  /// Guarda de inmediato lo tecleado en los últimos milisegundos del
+  /// debounce, si lo hay y nadie llamó a [clear] después de programarlo. No
+  /// se espera aquí (el llamador lo hace `unawaited`): el widget ya se está
+  /// yendo, pero el guardado sigue el mismo camino serializado que cualquier
+  /// otro cambio, así que nunca corre a la vez que uno ya en vuelo.
   void dispose() {
+    if (_disposed) return;
     _disposed = true;
     _timer?.cancel();
+    _timer = null;
+    _kick();
   }
 }

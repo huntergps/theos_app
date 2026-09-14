@@ -21,6 +21,17 @@ Map<String, dynamic> _copyJsonPayload(Map<String, dynamic> payload) {
   }
 }
 
+/// Fallo de concurrencia optimista de [EditableDraftStore.save]: alguien más
+/// (otra pestaña, otra sesión, o la misma antes de terminar su lectura) ya
+/// movió la revisión del borrador. Es un [StateError] a propósito, para no
+/// romper el código que ya lo comprueba con `isA<StateError>()`, pero como
+/// tipo aparte para que quien reintente pueda distinguirlo de cualquier otro
+/// `StateError` de este archivo (por ejemplo, un lease que ya no está
+/// activo) sin atrapar más de lo que debe.
+final class EditableDraftRevisionConflict extends StateError {
+  EditableDraftRevisionConflict() : super('Editable draft revision conflict');
+}
+
 /// The identity of an editable draft.  The company is deliberately part of
 /// the key: a scope can have more than one active company.
 final class EditableDraftKey {
@@ -191,7 +202,7 @@ final class EditableDraftStore {
       final currentRevision = current == null ? 0 : current['revision'] as int;
       if (current != null && currentRevision != expectedRevision ||
           current == null && expectedRevision != 0) {
-        throw StateError('Editable draft revision conflict');
+        throw EditableDraftRevisionConflict();
       }
       final nextRevision = expectedRevision + 1;
       if (current == null) {
@@ -219,7 +230,7 @@ final class EditableDraftStore {
             Variable<int>(expectedRevision),
           ],
         );
-        if (changed != 1) throw StateError('Editable draft revision conflict');
+        if (changed != 1) throw EditableDraftRevisionConflict();
       }
       result = EditableDraftRecord(
         key: key,
