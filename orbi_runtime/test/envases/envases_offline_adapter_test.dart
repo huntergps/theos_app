@@ -58,7 +58,7 @@ void main() {
   );
 
   group('dispatch — envío', () {
-    test('crea el asistente con envases_operacion_uuid y llama action_enviar sobre el id creado', () async {
+    test('con manual_after_ambiguous crea el asistente SIN envases_operacion_uuid y llama action_enviar sobre el id creado', () async {
       await seedLocalRow('uuid-envio-1');
       final operation = OfflineOperation(
         id: 1,
@@ -86,6 +86,9 @@ void main() {
       final conflict = await adapter.dispatch(operation);
 
       expect(conflict, isNull);
+      // Sin sondeo positivo de `fields_get` (manual_after_ambiguous), el
+      // servidor puede no tener el campo todavía: los vals NO deben
+      // llevar `envases_operacion_uuid`, ni con `create` incluida.
       verify(
         () => actions.call(
           model: envasesEnvioModel,
@@ -98,7 +101,6 @@ void main() {
                 'destino_id': 20,
                 'fecha_salida': formatOdooDateTime(DateTime.utc(2026, 9, 13, 8)),
                 'responsable_id': 7,
-                'envases_operacion_uuid': 'uuid-envio-1',
                 'line_ids': [
                   [
                     0,
@@ -126,6 +128,63 @@ void main() {
         operationUuid: 'uuid-envio-1',
       );
       expect(local!.estado, EnvasesOperacionEstado.enviada);
+    });
+
+    test('con retry_safe crea el asistente CON envases_operacion_uuid', () async {
+      await seedLocalRow('uuid-envio-1b');
+      final operation = OfflineOperation(
+        id: 1,
+        model: envasesEnvioModel,
+        method: envasesEnvioMethod,
+        values: {
+          'operacion_uuid': 'uuid-envio-1b',
+          'origen_id': 10,
+          'destino_id': 20,
+          'fecha_salida': DateTime.utc(2026, 9, 13, 8).toIso8601String(),
+          'responsable_id': 7,
+          'lineas': [
+            {'product_id': 5, 'cantidad': 3.0},
+          ],
+        },
+        createdAt: DateTime.utc(2026, 9, 13),
+        replayPolicy: OfflineReplayPolicy.retrySafe,
+      );
+      when(anyCallStub).thenAnswer((invocation) async {
+        final method = invocation.namedArguments[#method];
+        if (method == 'create') return 43;
+        return {'type': 'ir.actions.act_window_close'};
+      });
+
+      final conflict = await adapter.dispatch(operation);
+
+      expect(conflict, isNull);
+      // El sondeo (`fields_get`) ya confirmó que el campo existe: acá sí
+      // se manda, porque el `search_read` de reconciliación lo necesita.
+      verify(
+        () => actions.call(
+          model: envasesEnvioModel,
+          method: 'create',
+          ids: any(named: 'ids'),
+          kwargs: {
+            'vals_list': [
+              {
+                'origen_id': 10,
+                'destino_id': 20,
+                'fecha_salida': formatOdooDateTime(DateTime.utc(2026, 9, 13, 8)),
+                'responsable_id': 7,
+                'envases_operacion_uuid': 'uuid-envio-1b',
+                'line_ids': [
+                  [
+                    0,
+                    0,
+                    {'product_id': 5, 'cantidad': 3.0},
+                  ],
+                ],
+              },
+            ],
+          },
+        ),
+      ).called(1);
     });
 
     test('UserError de Odoo pasa a rechazada con el mensaje, sin reintentar', () async {
@@ -326,6 +385,110 @@ void main() {
       );
       expect(local!.estado, EnvasesOperacionEstado.enviada);
       expect(local.pickingId, 99);
+    });
+
+    test('con manual_after_ambiguous crea el asistente SIN envases_operacion_uuid', () async {
+      await seedLocalRow('uuid-recepcion-2', tipo: 'recepcion', pickingId: 98);
+      final operation = OfflineOperation(
+        id: 1,
+        model: envasesRecepcionModel,
+        method: envasesRecepcionMethod,
+        recordId: 98,
+        values: {
+          'operacion_uuid': 'uuid-recepcion-2',
+          'picking_id': 98,
+          'responsable_id': 7,
+          'lineas': [
+            {'product_id': 5, 'llegaron': 3.0, 'danadas': 0.0},
+          ],
+        },
+        createdAt: DateTime.utc(2026, 9, 13),
+        replayPolicy: OfflineReplayPolicy.manualAfterAmbiguous,
+      );
+      when(anyCallStub).thenAnswer((invocation) async {
+        final model = invocation.namedArguments[#model];
+        final method = invocation.namedArguments[#method];
+        if (model == envasesRecepcionModel && method == 'create') return 56;
+        if (model == '$envasesRecepcionModel.line' && method == 'search_read') {
+          return [
+            {'id': 601, 'product_id': [5, 'Jaba 12']},
+          ];
+        }
+        return {'type': 'ir.actions.act_window_close'};
+      });
+
+      final conflict = await adapter.dispatch(operation);
+
+      expect(conflict, isNull);
+      // Sin sondeo positivo, el `create` de `wizard.recepcion` NO debe
+      // llevar `envases_operacion_uuid` — el servidor puede no tener el
+      // campo todavía.
+      verify(
+        () => actions.call(
+          model: envasesRecepcionModel,
+          method: 'create',
+          ids: any(named: 'ids'),
+          kwargs: {
+            'vals_list': [
+              {
+                'picking_id': 98,
+                'responsable_id': 7,
+              },
+            ],
+          },
+        ),
+      ).called(1);
+    });
+
+    test('con retry_safe crea el asistente CON envases_operacion_uuid', () async {
+      await seedLocalRow('uuid-recepcion-3', tipo: 'recepcion', pickingId: 97);
+      final operation = OfflineOperation(
+        id: 1,
+        model: envasesRecepcionModel,
+        method: envasesRecepcionMethod,
+        recordId: 97,
+        values: {
+          'operacion_uuid': 'uuid-recepcion-3',
+          'picking_id': 97,
+          'responsable_id': 7,
+          'lineas': [
+            {'product_id': 5, 'llegaron': 3.0, 'danadas': 0.0},
+          ],
+        },
+        createdAt: DateTime.utc(2026, 9, 13),
+        replayPolicy: OfflineReplayPolicy.retrySafe,
+      );
+      when(anyCallStub).thenAnswer((invocation) async {
+        final model = invocation.namedArguments[#model];
+        final method = invocation.namedArguments[#method];
+        if (model == envasesRecepcionModel && method == 'create') return 57;
+        if (model == '$envasesRecepcionModel.line' && method == 'search_read') {
+          return [
+            {'id': 701, 'product_id': [5, 'Jaba 12']},
+          ];
+        }
+        return {'type': 'ir.actions.act_window_close'};
+      });
+
+      final conflict = await adapter.dispatch(operation);
+
+      expect(conflict, isNull);
+      verify(
+        () => actions.call(
+          model: envasesRecepcionModel,
+          method: 'create',
+          ids: any(named: 'ids'),
+          kwargs: {
+            'vals_list': [
+              {
+                'picking_id': 97,
+                'responsable_id': 7,
+                'envases_operacion_uuid': 'uuid-recepcion-3',
+              },
+            ],
+          },
+        ),
+      ).called(1);
     });
   });
 

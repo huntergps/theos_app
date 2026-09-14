@@ -205,7 +205,13 @@ final class EnvasesOfflineOperationAdapter implements OfflineOperationAdapter {
                 'destino_id': (values['destino_id'] as num).toInt(),
                 'fecha_salida': formatOdooDateTime(fechaSalida),
                 'responsable_id': (values['responsable_id'] as num).toInt(),
-                'envases_operacion_uuid': uuid,
+                // Sólo se manda si el sondeo (`fields_get`, ver
+                // `_resolveEnvioRecepcionReplayPolicy`) ya confirmó que el
+                // servidor tiene el campo: mandarlo sin esa confirmación
+                // revienta el `create` con `Invalid field` en un servidor
+                // viejo (19.5.1.2.0) y la operación nunca llega a Odoo.
+                if (operation.replayPolicy == OfflineReplayPolicy.retrySafe)
+                  'envases_operacion_uuid': uuid,
                 'line_ids': [
                   for (final linea in lineas)
                     [
@@ -288,7 +294,10 @@ final class EnvasesOfflineOperationAdapter implements OfflineOperationAdapter {
               {
                 'picking_id': pickingId,
                 'responsable_id': (values['responsable_id'] as num).toInt(),
-                'envases_operacion_uuid': uuid,
+                // Misma regla que en `_dispatchEnvio`: sólo con
+                // `retry_safe`, porque ahí el sondeo ya confirmó el campo.
+                if (operation.replayPolicy == OfflineReplayPolicy.retrySafe)
+                  'envases_operacion_uuid': uuid,
               },
             ],
           },
