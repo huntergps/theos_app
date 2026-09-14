@@ -1996,7 +1996,15 @@ final class OdooOfflineOperationAdapter implements OfflineOperationAdapter {
     if (orderId == null || orderId <= 0) {
       throw StateError('sale.order.line create requires synced parent order');
     }
-    final taxIds = _taxIds(line.taxIds);
+    // Decisión del dueño (14-sep-2026): Odoo fija precio e impuestos. En Odoo
+    // 19.5, `price_unit`, `discount`, `product_uom_id` y `tax_ids` de la línea
+    // son campos calculados, guardados y editables (`sale_order_line.py`), así
+    // que lo que no se manda lo calcula Odoo al crear con la tarifa y la
+    // posición fiscal del pedido — incluidas las posiciones automáticas, que
+    // la app no replica. Por eso no viajan ni el precio ni los impuestos que
+    // estimó el equipo, y el descuento sólo si el vendedor puso uno.
+    // Los nombres son los de 19.5: `product_uom` y `tax_id` ya no existen, y
+    // Odoo rechaza la línea entera con «Invalid field» si llegan.
     return {
       'order_id': orderId,
       'x_uuid': line.xUuid ?? line.lineUuid,
@@ -2004,14 +2012,9 @@ final class OdooOfflineOperationAdapter implements OfflineOperationAdapter {
       if (line.productId != null && line.productId! > 0)
         'product_id': line.productId,
       if (line.productUomId != null && line.productUomId! > 0)
-        'product_uom': line.productUomId,
+        'product_uom_id': line.productUomId,
       'product_uom_qty': line.productUomQty,
-      'price_unit': line.priceUnit,
-      'discount': line.discount,
-      if (taxIds.isNotEmpty)
-        'tax_id': [
-          [6, 0, taxIds],
-        ],
+      if (line.discount > 0) 'discount': line.discount,
     };
   }
 
@@ -2242,21 +2245,6 @@ final class OdooOfflineOperationAdapter implements OfflineOperationAdapter {
         lastSyncDate: drift.Value(DateTime.now().toUtc()),
       ),
     );
-  }
-
-  static List<int> _taxIds(String? encoded) {
-    if (encoded == null || encoded.isEmpty) return const [];
-    try {
-      final value = jsonDecode(encoded);
-      if (value is! List) return const [];
-      return value
-          .whereType<num>()
-          .map((id) => id.toInt())
-          .where((id) => id > 0)
-          .toList();
-    } catch (_) {
-      return const [];
-    }
   }
 
   static int? _createdId(dynamic result) {

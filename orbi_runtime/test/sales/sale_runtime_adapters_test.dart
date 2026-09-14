@@ -37,6 +37,7 @@ class FakeActions implements SaleOdooActions {
 
 class QueueActions implements SaleOdooActions {
   final List<String> calls = [];
+  final Map<String, Map<String, dynamic>?> lastKwargsByCall = {};
   bool failFirstOrderCreate = false;
   bool _failedOrderCreate = false;
 
@@ -48,6 +49,7 @@ class QueueActions implements SaleOdooActions {
     Map<String, dynamic>? kwargs,
   }) async {
     calls.add('$model.$method');
+    lastKwargsByCall['$model.$method'] = kwargs;
     if (model == 'sale.order' && method == 'create') {
       if (failFirstOrderCreate && !_failedOrderCreate) {
         _failedOrderCreate = true;
@@ -732,6 +734,7 @@ void main() {
               name: 'Coffee',
               uomId: 1,
               price: 2.5,
+              taxIds: [5],
             ),
             quantity: 2,
           ),
@@ -773,6 +776,20 @@ void main() {
       'sale.order.line.create',
       'sale.order.action_pos_confirm',
     ]);
+    // Decisión del dueño (14-sep-2026): Odoo fija precio e impuestos. La
+    // línea viaja con los nombres de Odoo 19.5 y sin precio ni impuestos
+    // calculados en el equipo: Odoo los calcula con la tarifa y la posición
+    // fiscal del pedido. Un nombre viejo (`product_uom`, `tax_id`) haría que
+    // Odoo rechace la línea entera con «Invalid field».
+    final lineValues = actions.lastKwargsByCall['sale.order.line.create']!;
+    expect(lineValues['product_id'], 9);
+    expect(lineValues['product_uom_id'], 1);
+    expect(lineValues['product_uom_qty'], 2);
+    expect(lineValues.containsKey('product_uom'), isFalse);
+    expect(lineValues.containsKey('tax_id'), isFalse);
+    expect(lineValues.containsKey('tax_ids'), isFalse);
+    expect(lineValues.containsKey('price_unit'), isFalse);
+    expect(lineValues.containsKey('discount'), isFalse);
     expect((await db.select(db.saleOrder).getSingle()).odooId, 701);
     expect((await db.select(db.saleOrderLine).getSingle()).odooId, 801);
     expect(await db.select(db.offlineQueue).get(), isEmpty);
