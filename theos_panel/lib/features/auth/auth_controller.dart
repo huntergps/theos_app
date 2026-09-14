@@ -480,13 +480,14 @@ class AuthNotifier extends Notifier<AuthViewState> {
   /// llave tras salir», `W04-el-navegador-tambien-guarda.md`): esto solía
   /// borrar SIEMPRE la derivación de [WorkspaceUnlockStore], sin importar si
   /// el operador había activado «Guardar clave». Ahora sigue la MISMA regla
-  /// que la propia llave API (que `NativeAuthService.close()` ya dejó de
-  /// tocar): si todavía hay una llave guardada para este perfil, esta salida
-  /// tampoco olvida su derivado de desbloqueo sin conexión — las dos cosas
-  /// sobreviven juntas, porque las dos existen por la misma promesa de
-  /// «recuérdame en este equipo». Si NO hay llave guardada (el operador
-  /// nunca activó el interruptor), se borra exactamente como antes: no hay
-  /// nada nuevo que preservar ahí.
+  /// que la propia llave API (que `NativeAuthService.close()` sólo revoca y
+  /// borra cuando NO se pidió «Guardar clave» — ver el comentario de esa
+  /// clase, auditoría de sesión, 14-sep-2026): si todavía hay una llave
+  /// guardada para este perfil, esta salida tampoco olvida su derivado de
+  /// desbloqueo sin conexión — las dos cosas sobreviven juntas, porque las
+  /// dos existen por la misma promesa de «recuérdame en este equipo». Si NO
+  /// hay llave guardada (el operador nunca activó el interruptor), se borra
+  /// exactamente como antes: no hay nada nuevo que preservar ahí.
   Future<void> close() async {
     final profile = state.profile;
     final unlockStore = ref.read(workspaceUnlockStoreProvider);

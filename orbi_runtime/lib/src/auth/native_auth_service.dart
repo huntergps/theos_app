@@ -449,16 +449,77 @@ final class NativeAuthService {
   final CapabilitySnapshotPort? capabilityPort;
   final ApiKeyIdentityProbe _apiKeyIdentityProbe;
 
-  /// La llave de la sesión activa, sólo cuando [close] tiene que revocarla:
-  /// vino de una contraseña — por [login], o por [loginWithApiKey] con
-  /// `passwordDerived: true`, el camino de la web — Y sin «Guardar clave».
-  /// `null` en cualquier otro caso: con «Guardar clave» puesta, o cuando la
-  /// llave es del operador ([loginWithApiKey] con `passwordDerived: false`,
-  /// su valor por omisión — incluida la que reenvía
-  /// [loginWithStoredCredential], que siempre persiste). Se fija al final de
-  /// [login] y [loginWithApiKey], se limpia en [close] y [closeExpired].
-  ({String baseUrl, String database, String apiKey})?
-  _passwordSessionKeyPendingRevoke;
+  /// Marca, NO secreta, de que hay una sesión ABIERTA en este dispositivo —
+  /// distinta de «hay una llave guardada» (eso lo decide «Guardar clave»,
+  /// ver [hasStoredCredential]). Vive en las mismas [SharedPreferences] que
+  /// el perfil, bajo [_openSessionKey], y sobrevive a cerrar la pestaña, el
+  /// navegador o la app: es lo que permite a [restore] reabrir la sesión
+  /// sola sin volver a pedir la clave (causa raíz corregida el 14-sep-2026 —
+  /// «si cierro la pestaña de Orbi y vuelvo a entrar pide login y se pierde
+  /// todo»).
+  ///
+  /// Se escribe al final de [login] y [loginWithApiKey] con éxito, y se
+  /// borra SIEMPRE en [close] y [closeExpired] — cerrar sesión termina la
+  /// marca de «hay sesión abierta» sin importar si «Guardar clave» estaba
+  /// activo; lo que «Guardar clave» decide es si la LLAVE sobrevive a ese
+  /// cierre, no si la marca lo hace. Contenido del JSON: `profileKey` (la
+  /// misma clave que usa [_saveProfile] para "el último perfil", ver
+  /// [_profileKeyFor] — [restore] compara contra ella para no reabrir una
+  /// sesión que ya no es la actual), `remember` (el `persistCredential` del
+  /// login que la abrió) y `passwordDerived` (si la llave vino de una
+  /// contraseña — la única que [close] puede revocar).
+  String get _openSessionKey => 'orbi/auth/open_session/$appId';
+
+  Future<void> _writeOpenSession({
+    required String profileKey,
+    required bool remember,
+    required bool passwordDerived,
+  }) => _preferences.setString(
+    _openSessionKey,
+    jsonEncode({
+      'profileKey': profileKey,
+      'remember': remember,
+      'passwordDerived': passwordDerived,
+    }),
+  );
+
+  /// Deja la marca EXACTAMENTE como estaba antes de un intento de login que
+  /// falló — leída con `_preferences.getString(_openSessionKey)` al
+  /// principio del método, igual que `previousSecret`.
+  Future<void> _restoreOpenSessionRaw(String? raw) async {
+    if (raw == null) {
+      await _preferences.remove(_openSessionKey);
+    } else {
+      await _preferences.setString(_openSessionKey, raw);
+    }
+  }
+
+  Map<String, dynamic>? _readOpenSession() {
+    final raw = _preferences.getString(_openSessionKey);
+    if (raw == null) return null;
+    try {
+      return jsonDecode(raw) as Map<String, dynamic>;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  /// Si la llave guardada de [profile] es de las que se pueden ofrecer para
+  /// «entrar sin escribir clave»: lo es siempre, salvo que exista una sesión
+  /// ABIERTA ahora mismo para este mismo perfil con «Guardar clave»
+  /// apagado — justo el caso de una sesión abierta sin persistencia, cuya
+  /// llave vive en el almacén sólo mientras dura la sesión (para que
+  /// [restore] la encuentre si se cierra la pestaña), pero que nunca debe
+  /// aparecer como «recordada» en la pantalla de acceso.
+  bool _isRememberable(AuthProfile profile) {
+    final marker = _readOpenSession();
+    if (marker == null) return true;
+    if (marker['profileKey'] !=
+        _profileKeyFor(profile.serverUrl, profile.database)) {
+      return true;
+    }
+    return marker['remember'] == true;
+  }
 
   Future<AuthServiceResult> login({
     required String serverUrl,
@@ -468,6 +529,7 @@ final class NativeAuthService {
     bool persistCredential = true,
   }) async {
     final previousProfile = await loadProfile();
+    final previousMarkerRaw = _preferences.getString(_openSessionKey);
     int? authenticatedUserId;
     int? issuedApiKeyId;
     String? previousSecret;
@@ -494,9 +556,7 @@ final class NativeAuthService {
       );
       const reference = 'api-key';
       previousSecret = await _credentialStore.read(scope, reference);
-      if (persistCredential) {
-        await _credentialStore.write(scope, reference, result.apiKey);
-      }
+      await _credentialStore.write(scope, reference, result.apiKey);
       final profile = AuthProfile(
         serverUrl: scope.normalizedServerUrl,
         database: database,
@@ -536,19 +596,19 @@ final class NativeAuthService {
         );
         capabilities = await capabilityPort?.refresh(scope, identity.companyId);
       }
-      if (!persistCredential) {
-        await _credentialStore.delete(scope, reference);
-      }
-      // Sin «Guardar clave» no queda nada en el almacén para que `close()`
-      // lo lea y revoque, así que la única copia que sobrevive hasta el
-      // cierre es esta, en memoria — nunca en preferencias ni en disco.
-      _passwordSessionKeyPendingRevoke = persistCredential
-          ? null
-          : (
-              baseUrl: scope.normalizedServerUrl,
-              database: database,
-              apiKey: result.apiKey,
-            );
+      // La llave se queda en el almacén durante TODA la sesión, abierta o
+      // recordada da igual, para que sobreviva a cerrar la pestaña, el
+      // navegador o la app (causa raíz corregida el 14-sep-2026).
+      // `persistCredential` ya no decide si se guarda — eso ahora es
+      // siempre — sino si [close] la conserva o la revoca al cerrar sesión;
+      // ver la marca de sesión abierta escrita a continuación.
+      await _writeOpenSession(
+        profileKey: _profileKeyFor(scope.normalizedServerUrl, database),
+        remember: persistCredential,
+        // login() sólo se usa con contraseña: la llave que emite siempre es
+        // revocable por close() cuando no se pidió «Guardar clave».
+        passwordDerived: true,
+      );
       return AuthServiceResult(
         status: AuthServiceStatus.authenticated,
         scope: scope,
@@ -632,6 +692,7 @@ final class NativeAuthService {
       } else {
         await _saveProfile(previousProfile);
       }
+      await _restoreOpenSessionRaw(previousMarkerRaw);
       rethrow;
     }
   }
@@ -663,6 +724,7 @@ final class NativeAuthService {
     }
     final previousProfile = await loadProfile();
     final previousLastProfileKey = _preferences.getString(_lastProfileKey);
+    final previousMarkerRaw = _preferences.getString(_openSessionKey);
     AppScope? scope;
     String? previousSecret;
     bool activated = false;
@@ -699,28 +761,22 @@ final class NativeAuthService {
         installationId: installationId,
         credentialReference: reference,
       );
-      if (persistCredential) {
-        await _credentialStore.write(scope, reference, apiKey);
-      }
+      await _credentialStore.write(scope, reference, apiKey);
       await _saveProfile(profile);
       await _sessionRuntime.activate(scope, apiKey: apiKey);
       activated = true;
       final effectiveProfile = await _enrichProfile(scope, profile);
-      if (!persistCredential) {
-        await _credentialStore.delete(scope, reference);
-      }
-      // Sólo una llave que el servidor emitió a cambio de una contraseña
-      // (`passwordDerived`) y que además no se pidió guardar deja algo
-      // pendiente de revocar en `close()` — una pegada a mano por el
-      // operador (incluida la que reenvía `loginWithStoredCredential`,
-      // que siempre persiste) nunca lo deja, con o sin «Guardar clave».
-      _passwordSessionKeyPendingRevoke = (passwordDerived && !persistCredential)
-          ? (
-              baseUrl: scope.normalizedServerUrl,
-              database: database,
-              apiKey: apiKey,
-            )
-          : null;
+      // Igual que en `login()`: la llave se queda en el almacén durante
+      // toda la sesión, para que sobreviva a cerrar la pestaña o la app.
+      // `close()` sólo la revoca cuando vino de una contraseña
+      // (`passwordDerived`, el camino web) y no se pidió «Guardar clave» —
+      // una llave pegada a mano por el operador nunca se revoca ahí, con o
+      // sin el interruptor.
+      await _writeOpenSession(
+        profileKey: _profileKeyFor(scope.normalizedServerUrl, database),
+        remember: persistCredential,
+        passwordDerived: passwordDerived,
+      );
       return AuthServiceResult(
         status: AuthServiceStatus.authenticated,
         scope: scope,
@@ -758,6 +814,7 @@ final class NativeAuthService {
             );
           }
         }
+        await _restoreOpenSessionRaw(previousMarkerRaw);
       } catch (_) {
         // Rollback is best effort; preserve the original authentication error.
       }
@@ -811,6 +868,20 @@ final class NativeAuthService {
   Future<AuthServiceResult> restore({bool offline = false}) async {
     final profile = await loadProfile();
     if (profile == null) {
+      return const AuthServiceResult(status: AuthServiceStatus.required);
+    }
+    final marker = _readOpenSession();
+    if (marker == null ||
+        marker['profileKey'] !=
+            _profileKeyFor(profile.serverUrl, profile.database)) {
+      // Sin marca de sesión ABIERTA para este perfil no hay nada que
+      // restaurar solo (causa raíz corregida el 14-sep-2026): una llave
+      // "recordada" con «Guardar clave» sigue ofreciéndose en la pantalla de
+      // acceso ([findRememberedCredential]), pero sólo entra cuando el
+      // operador lo pide explícitamente ([loginWithStoredCredential]).
+      // Migración: una instalación con una llave guardada de ANTES de este
+      // mecanismo (sin marca todavía) cae aquí una única vez; la pantalla de
+      // acceso la sigue ofreciendo igual como credencial recordada.
       return const AuthServiceResult(status: AuthServiceStatus.required);
     }
     final scope = AppScope(
@@ -884,45 +955,82 @@ final class NativeAuthService {
     );
   }
 
-  /// 🔴 Revisado el 13-sep-2026 (decisión del dueño, «Recordar la llave tras
-  /// salir», documentada en `W04-el-navegador-tambien-guarda.md`): hasta ese
-  /// día, `close()` revocaba y borraba SIEMPRE la llave de este dispositivo
-  /// cuando quedaba una copia en el almacén — que sólo ocurría con «Guardar
-  /// clave» activo, porque sin el interruptor `login()`/`loginWithApiKey()`
-  /// ya la borraban del almacén nada más emitirla. Es decir: la revocación
-  /// de `close()` sólo se disparaba con «Guardar clave» puesto — justo el
-  /// caso que el interruptor promete conservar — y sin el interruptor la
-  /// llave NUNCA se revocaba, sólo quedaba huérfana en el servidor hasta
-  /// vencer por su cuenta (`orbi.web_auth_key_days`). Ese era el bug real,
-  /// anterior a esta decisión, no algo que ella introdujera.
+  /// 🔴 Revisado el 14-sep-2026 (causa raíz de «si cierro la pestaña o la
+  /// app de Orbi y vuelvo a entrar pide login y se pierde todo», reporte del
+  /// dueño): hasta ese día, [login]/[loginWithApiKey] con
+  /// `persistCredential: false` escribían la llave y la BORRABAN del
+  /// almacén justo después de activar, dejando la única copia viva en
+  /// memoria (`_passwordSessionKeyPendingRevoke`, ya retirado). Cerrar la
+  /// pestaña perdía esa memoria, así que [restore] nunca encontraba nada que
+  /// leer y caía siempre a la pantalla de acceso — el problema era anterior
+  /// a la decisión de «Recordar la llave tras salir» del 13-sep-2026: una
+  /// sesión SIN «Guardar clave» no sobrevivía ni siquiera dentro de la misma
+  /// pestaña, más allá de la memoria del proceso.
   ///
-  /// Ahora `close()` **nunca toca la llave guardada ni el perfil**: si el
-  /// operador entró con «Guardar clave», [hasStoredCredential] sigue
-  /// devolviendo `true` después de esto, y la pantalla de acceso puede
-  /// ofrecer entrar de nuevo sin pedirla. Pero sí revoca, best effort, la
-  /// llave EN MEMORIA de una sesión que entró con contraseña y SIN «Guardar
-  /// clave» ([_passwordSessionKeyPendingRevoke], la única copia que le queda
-  /// a esa sesión, porque el almacén ya la había borrado) — así el
-  /// interruptor apagado sigue significando lo mismo que siempre significó:
-  /// nada sobrevive al cierre, ni local ni en el servidor. Una llave pegada a
-  /// mano (`loginWithApiKey`, incluida la que reenvía
-  /// [loginWithStoredCredential]) nunca se revoca aquí: es del operador, no
-  /// una que este servicio haya emitido.
+  /// Decisión del dueño, 14-sep-2026: **la sesión sobrevive a cerrar la
+  /// pestaña, el navegador o la app, con o sin «Guardar clave», hasta que la
+  /// persona cierre sesión, el servidor rechace la llave o venza.** «Guardar
+  /// clave» deja de decidir si la llave se guarda — ahora SIEMPRE se guarda
+  /// mientras la sesión sigue abierta — y pasa a decidir sólo si esa llave
+  /// SOBREVIVE a un cierre explícito de sesión. El mecanismo es una marca no
+  /// secreta de "sesión abierta" ([_writeOpenSession]/[_readOpenSession], en
+  /// las mismas preferencias que el perfil): [restore] sólo reactiva sola
+  /// cuando esa marca existe y corresponde al perfil cargado.
+  ///
+  /// `close()` sigue distinguiendo, ahora leyendo la marca en vez de un
+  /// campo en memoria:
+  ///
+  /// * `remember == true` (se pidió «Guardar clave»): no revoca ni borra
+  ///   nada — [hasStoredCredential] sigue devolviendo `true` después de
+  ///   esto, y la pantalla de acceso puede ofrecer entrar de nuevo sin
+  ///   pedirla;
+  /// * `remember == false`: revoca, best effort, la llave EN EL ALMACÉN
+  ///   (ya no una copia en memoria — esa es justo la que se perdía al
+  ///   cerrar la pestaña) cuando vino de una contraseña (`passwordDerived`),
+  ///   y siempre la borra localmente. Una llave pegada a mano
+  ///   (`loginWithApiKey` con `passwordDerived: false`, incluida la que
+  ///   reenvía [loginWithStoredCredential]) nunca se revoca aquí: es del
+  ///   operador, no una que este servicio haya emitido.
+  ///
+  /// En ambos casos la MARCA se borra siempre: cerrar sesión termina "hay
+  /// sesión abierta" sin importar «Guardar clave»; lo que el interruptor
+  /// decide es sólo si la llave sobrevive a ese cierre.
   ///
   /// El único camino que borra o revoca una llave GUARDADA (persistida) es
   /// [forgetStoredCredential] («Olvidar la clave guardada», una decisión
   /// explícita del operador) o [closeExpired] (el propio servidor la
   /// rechazó).
   Future<void> close() async {
-    final pending = _passwordSessionKeyPendingRevoke;
-    _passwordSessionKeyPendingRevoke = null;
+    final marker = _readOpenSession();
+    await _preferences.remove(_openSessionKey);
     try {
-      if (pending != null) {
+      if (marker == null) return;
+      final remember = marker['remember'] == true;
+      if (remember) return;
+      final profile = await loadProfile();
+      if (profile == null ||
+          marker['profileKey'] !=
+              _profileKeyFor(profile.serverUrl, profile.database)) {
+        return;
+      }
+      final scope = AppScope(
+        appId: appId,
+        installationId: profile.installationId,
+        normalizedServerUrl: profile.serverUrl,
+        database: profile.database,
+        userId: profile.userId,
+      );
+      final secret = await _credentialStore.read(
+        scope,
+        profile.credentialReference,
+      );
+      if (secret == null || secret.isEmpty) return;
+      if (marker['passwordDerived'] == true) {
         try {
           await _bootstrap.revokeOwnApiKey(
-            baseUrl: pending.baseUrl,
-            database: pending.database,
-            apiKey: pending.apiKey,
+            baseUrl: scope.normalizedServerUrl,
+            database: scope.database,
+            apiKey: secret,
           );
         } catch (error) {
           // Best-effort, igual que el resto de revocaciones de esta clase:
@@ -932,11 +1040,12 @@ final class NativeAuthService {
           logger.w(
             '[NativeAuthService]',
             'No se pudo revocar al cerrar sesión la llave de una sesión sin '
-                '"Guardar clave" (db=${pending.database} '
-                'server=${pending.baseUrl}): $error',
+                '"Guardar clave" (db=${scope.database} '
+                'server=${scope.normalizedServerUrl}): $error',
           );
         }
       }
+      await _credentialStore.delete(scope, profile.credentialReference);
     } finally {
       await _sessionRuntime.close();
     }
@@ -958,9 +1067,11 @@ final class NativeAuthService {
   ///   preferencias — igual que [close] — para que la pantalla de acceso lo
   ///   precargue sin que el operador tenga que volver a escribirlo.
   Future<void> closeExpired() async {
-    // El servidor ya rechazó esta llave: no hay nada que revocar, en el
-    // almacén o en memoria — sólo dejar de acordarse de ella.
-    _passwordSessionKeyPendingRevoke = null;
+    // El servidor ya rechazó esta llave: no hay nada que revocar — sólo
+    // dejar de acordarse de ella, tanto la llave como la marca de sesión
+    // abierta (si no se borrara, un `restore()` posterior la encontraría
+    // apuntando a un perfil cuya llave ya no existe).
+    await _preferences.remove(_openSessionKey);
     try {
       final profile = await loadProfile();
       if (profile != null) {
@@ -1241,7 +1352,12 @@ final class NativeAuthService {
         scope,
         profile.credentialReference,
       );
-      return secret != null && secret.isNotEmpty;
+      if (secret == null || secret.isEmpty) return false;
+      // La llave puede estar físicamente en el almacén sólo porque hay una
+      // sesión ABIERTA sin «Guardar clave» (ver la marca de sesión, más
+      // arriba): eso no la hace "recordada" para ofrecerla en la pantalla de
+      // acceso — auditoría de sesión, 14-sep-2026.
+      return _isRememberable(profile);
     } catch (_) {
       return false;
     }

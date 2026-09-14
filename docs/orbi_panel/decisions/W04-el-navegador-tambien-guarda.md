@@ -260,3 +260,56 @@ y al cambiar de usuario» ya no describe un borrado incondicional. Tabla corregi
 | Cuando el servidor acepta **otra** contraseña | `attemptWorkspaceUnlock` reemplaza el derivado en el acto |
 | Cuando el registro no se puede descifrar — manipulado, o escrito bajo una llave anterior | El propio respaldo lo descarta al leerlo |
 | Cuando el usuario borra los datos del sitio | El navegador se lleva la llave; todo registro queda ilegible y se trata como «no hay nada» |
+
+## 9. 14-sep-2026 — causa raíz: cerrar la pestaña también cerraba la sesión
+
+El dueño reportó: «si cierro la ventana o pestaña de Orbi y vuelvo a entrar pide hacer
+login y se pierde todo». Decidió, sin discusión:
+
+> **La sesión sobrevive a cerrar la pestaña, el navegador o la app, con o sin «Guardar
+> clave», hasta que la persona cierre sesión, el servidor rechace la llave o venza.**
+> «Guardar clave» queda sólo para volver a entrar sin contraseña DESPUÉS de cerrar sesión.
+
+**Causa raíz, verificada en el código:** `login()`/`loginWithApiKey()`, con
+`persistCredential: false` (el interruptor «Guardar clave» apagado), escribían la llave en
+el almacén y la BORRABAN justo después de activar — la única copia que sobrevivía era una
+variable en memoria del proceso (`_passwordSessionKeyPendingRevoke`, retirada en este
+commit), pensada para que `close()` pudiera revocarla al cerrar sesión. Cerrar la pestaña
+mata ese proceso, así que esa memoria desaparecía con ella: `restore()` no encontraba nada
+que leer y caía siempre a la pantalla de acceso. El bug no era de la decisión «Recordar la
+llave tras salir» de la sección 8 — era anterior y más profundo: una sesión SIN «Guardar
+clave» no sobrevivía ni un F5, con o sin esa decisión.
+
+**El arreglo — una marca de sesión abierta, no secreta:**
+
+- La llave se queda SIEMPRE en el almacén mientras la sesión sigue abierta, sin importar
+  «Guardar clave». Lo que el interruptor decide deja de ser «¿se guarda?» y pasa a ser
+  «¿sobrevive esta llave a un cierre de sesión EXPLÍCITO?».
+- Una marca JSON no secreta (`orbi.auth.open_session` en las mismas `SharedPreferences`
+  del perfil — ver `_writeOpenSession`/`_readOpenSession` en
+  `orbi_runtime/lib/src/auth/native_auth_service.dart`) registra `profileKey`, `remember`
+  (el `persistCredential` de ese login) y `passwordDerived`.
+- `restore()` sólo reactiva la sesión SOLA cuando esa marca existe y corresponde al perfil
+  cargado. Sin marca (nunca hubo sesión abierta en este dispositivo, o ya se cerró
+  explícitamente), `restore()` devuelve `required` — aunque la llave siga físicamente en
+  el almacén por «Guardar clave»: eso la deja disponible para `loginWithStoredCredential`
+  («entrar sin escribir clave», una acción explícita del operador en la pantalla de
+  acceso), nunca para un restore silencioso.
+- `close()` SIEMPRE borra la marca — cerrar sesión termina «hay sesión abierta» pase lo
+  que pase con el interruptor. Además, si `remember == false`, revoca (best effort, sólo
+  si la llave vino de una contraseña) y borra la llave del almacén; si `remember == true`,
+  no toca nada más.
+
+**Consecuencia que vale la pena decir en voz alta, porque cambia lo que "Guardar clave"
+promete:** antes de este commit, cerrar sesión con «Guardar clave» activo dejaba la
+sesión lista para que `restore()` la reabriera SOLA en el siguiente arranque — es decir,
+"Cerrar sesión" no cerraba nada de verdad si el interruptor estaba puesto. Ahora un
+`close()` explícito siempre exige volver a pulsar «Entrar» (sin escribir la clave, gracias
+al interruptor) — nunca vuelve a entrar solo. Esta es la lectura correcta de «Guardar
+clave sirve para entrar sin escribir la clave DESPUÉS de cerrar sesión»: una acción, no
+una sesión que se reabre sola.
+
+**Migración:** una instalación con una llave guardada de ANTES de este mecanismo (sin
+marca de sesión todavía) verá la pantalla de acceso una vez, con la opción de entrar con
+la llave recordada — no hay marca que decodificar de una versión anterior, y no hace
+falta: el flujo de "entrar sin escribir clave" sigue intacto.

@@ -388,14 +388,21 @@ final class WebSessionAuthService
     // que SIEMPRE revocaba y borraba la llave de este dispositivo — antes de
     // W04, ni eso: sólo vaciaba un mapa en memoria, que ya no bastaba en
     // cuanto el navegador empezó a persistir (una llave viva se habría
-    // quedado en IndexedDB sin que este `close()` se enterara). Ahora, por
-    // decisión del dueño («Recordar la llave tras salir»,
-    // `W04-el-navegador-tambien-guarda.md`), `NativeAuthService.close()`
-    // tampoco toca la llave: sólo termina la sesión en memoria. Con eso, si
-    // el operador entró con «Guardar clave», su llave sigue en el almacén
-    // cifrado del navegador después de esto — igual que en escritorio — y
-    // `forgetStoredCredential`/`closeExpired` son los únicos caminos que
-    // todavía la borran.
+    // quedado en IndexedDB sin que este `close()` se enterara).
+    //
+    // 🔴 Revisado otra vez el 14-sep-2026 (causa raíz de «si cierro la
+    // pestaña de Orbi y vuelvo a entrar pide login y se pierde todo»): la
+    // versión del 13-sep guardaba en MEMORIA la llave pendiente de revocar
+    // para una sesión sin «Guardar clave», y esa memoria se perdía nada más
+    // cerrar la pestaña — así que una sesión sin el interruptor no
+    // sobrevivía ni un F5. Ahora `NativeAuthService` guarda la llave en el
+    // almacén durante TODA la sesión, y este `close()` sigue delegando en
+    // `NativeAuthService.close()`, que lee de ahí (no de memoria) para
+    // decidir: si el operador entró con «Guardar clave», su llave sigue en
+    // el almacén cifrado del navegador después de esto — igual que en
+    // escritorio —; si no, la revoca y la borra. `forgetStoredCredential` /
+    // `closeExpired` son los únicos caminos que borran una llave GUARDADA
+    // (persistida con «Guardar clave»).
     //
     // Esto es el único camino detrás de "Cerrar sesión" y "Cambiar de
     // usuario", así que es el único sitio que tiene que estar bien.
