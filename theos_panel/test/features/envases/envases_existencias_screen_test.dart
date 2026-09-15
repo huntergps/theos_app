@@ -114,20 +114,32 @@ EnvasesExistenciasSnapshot _snapshot(EnvasesExistenciasData data) =>
 Future<void> _pumpAt(
   WidgetTester tester,
   EnvasesExistenciasRepository repository,
-  Size size,
-) async {
+  Size size, {
+  FluentThemeData? theme,
+}) async {
   await tester.binding.setSurfaceSize(size);
   tester.view.physicalSize = size;
   tester.view.devicePixelRatio = 1.0;
   await tester.pumpWidget(
     FluentApp(
-      theme: OrbiFluentTheme.light,
+      theme: theme ?? OrbiFluentTheme.light,
       home: MediaQuery(
         data: MediaQueryData(size: size),
         child: EnvasesExistenciasScreen(repository: repository),
       ),
     ),
   );
+}
+
+/// Contraste WCAG entre dos colores ya compuestos (sin transparencia entre
+/// sí): `(L1+0.05)/(L2+0.05)` con L1 la luminancia mayor — misma fórmula que
+/// usan los verificadores de accesibilidad.
+double _contrastRatio(Color a, Color b) {
+  final la = a.computeLuminance();
+  final lb = b.computeLuminance();
+  final lighter = la > lb ? la : lb;
+  final darker = la > lb ? lb : la;
+  return (lighter + 0.05) / (darker + 0.05);
 }
 
 const _desktop = Size(1400, 900);
@@ -386,8 +398,57 @@ void main() {
     await tester.pumpAndSettle();
 
     final chipText = tester.widget<Text>(find.text('324 propios'));
-    expect(chipText.style?.color, OrbiFluentTheme.light.accentColor.normal);
+    final chipContainer = tester.widget<Container>(
+      find.byKey(const Key('envases-existencias-chip')),
+    );
+    // Mismo par que `InfoBadge` de fluent_ui: fondo sólido del acento por
+    // brillo, texto «sobre acento» del tema — nunca `.normal` a secas (fix
+    // del 15-sep, puntos 1 y "h": `.normal` es el mismo tono en los dos
+    // temas y, sólo cambiando el texto, tampoco llegaba a 4.5:1 en oscuro).
+    expect(
+      (chipContainer.decoration! as BoxDecoration).color,
+      OrbiFluentTheme.light.accentColor.defaultBrushFor(Brightness.light),
+    );
+    expect(
+      chipText.style?.color,
+      OrbiFluentTheme.light.resources.textOnAccentFillColorPrimary,
+    );
   });
+
+  // (h) Contra db7f163 falla: incluso tras mover el TEXTO a
+  // `defaultBrushFor`, el fondo se quedó como un tinte apenas translúcido
+  // del acento (alpha 0.16) — para esta marca, ya oscura de por sí, ninguna
+  // variante clara del acento llega a 4.5:1 sobre un fondo casi negro.
+  testWidgets(
+    '(h) dark theme: the chip text has proper contrast against its effective background',
+    (tester) async {
+      final repository = _FakeRepository()..onRefresh = _snapshot(_twoSedes());
+      addTearDown(() => tester.binding.setSurfaceSize(null));
+
+      await _pumpAt(tester, repository, _phone, theme: OrbiFluentTheme.dark);
+      await tester.pumpAndSettle();
+
+      final chipText = tester.widget<Text>(find.text('324 propios'));
+      final chipContainer = tester.widget<Container>(
+        find.byKey(const Key('envases-existencias-chip')),
+      );
+      final chipBackground =
+          (chipContainer.decoration! as BoxDecoration).color!;
+      // El chip vive dentro del encabezado del `Expander`, cuyo fondo por
+      // omisión es `cardBackgroundFillColorDefault` — se compone ahí para
+      // no subestimar el contraste real que se ve en pantalla.
+      final effectiveBackground = Color.alphaBlend(
+        chipBackground,
+        OrbiFluentTheme.dark.resources.cardBackgroundFillColorDefault,
+      );
+
+      final contrast = _contrastRatio(
+        chipText.style!.color!,
+        effectiveBackground,
+      );
+      expect(contrast, greaterThanOrEqualTo(4.5));
+    },
+  );
 
   // (e) La flecha (el propio `Expander` de fluent_ui) pliega y despliega el
   // detalle de ubicaciones; desplegada por omisión.

@@ -7,6 +7,7 @@ export 'src/sales/editable_draft_store.dart';
 export 'src/envases/envases_dashboard_reader.dart';
 export 'src/envases/envases_existencias_reader.dart';
 export 'src/envases/envases_existencias_cache.dart';
+export 'src/envases/envases_image_field_cache.dart';
 export 'src/envases/envases_operations.dart';
 export 'src/envases/envases_partner_balance_reader.dart';
 export 'src/envases/envases_saldo_terceros_cache.dart';

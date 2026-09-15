@@ -13,7 +13,17 @@ void main() {
     Size size = const Size(1440, 900),
   }) async {
     await tester.binding.setSurfaceSize(size);
-    addTearDown(() => tester.binding.setSurfaceSize(null));
+    // `setSurfaceSize` por sí solo no mueve `MediaQuery.sizeOf`: hace falta
+    // también `tester.view.physicalSize` (con `devicePixelRatio` fijo en 1)
+    // para que un ancho angosto se note dentro del árbol de widgets —
+    // medido el 15-sep-2026 al escribir la prueba (i) de `OrbiPage`.
+    tester.view.physicalSize = size;
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(() {
+      tester.binding.setSurfaceSize(null);
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+    });
     await tester.pumpWidget(
       FluentApp(theme: OrbiFluentTheme.light, home: page),
     );
@@ -41,6 +51,44 @@ void main() {
     // mete en el título, esto lo caza.
     expect(find.textContaining('VEN-01'), findsNothing);
   });
+
+  // (i) Contra db7f163 falla: el título siempre usaba `typography.title`
+  // (28 px), y «Estado de envases» a 390 px se parte en dos líneas grandes.
+  testWidgets(
+    '(i) a 390 px de ancho el título ocupa una sola línea',
+    (tester) async {
+      await pump(
+        tester,
+        const OrbiPage(title: 'Estado de envases', child: Text('contenido')),
+        size: const Size(390, 844),
+      );
+
+      final titleWidget = tester.widget<Text>(find.text('Estado de envases'));
+      final fontSize = titleWidget.style!.fontSize!;
+      final renderedHeight = tester.getSize(
+        find.text('Estado de envases'),
+      ).height;
+      expect(renderedHeight, lessThanOrEqualTo(fontSize * 1.5));
+    },
+  );
+
+  // En ancho ancho (iPad/escritorio) el título se queda igual que siempre.
+  testWidgets(
+    'en ancho grande el título sigue usando el token `title`',
+    (tester) async {
+      await pump(
+        tester,
+        const OrbiPage(title: 'Estado de envases', child: Text('contenido')),
+        size: const Size(1400, 900),
+      );
+
+      final titleWidget = tester.widget<Text>(find.text('Estado de envases'));
+      expect(
+        titleWidget.style?.fontSize,
+        OrbiFluentTheme.light.typography.title?.fontSize,
+      );
+    },
+  );
 
   testWidgets('sin acciones no dibuja una barra de acciones vacía', (
     tester,

@@ -1,5 +1,7 @@
 import 'package:fluent_ui/fluent_ui.dart';
 
+import '../../app/theme/orbi_theme.dart';
+
 /// El marco obligatorio de toda pantalla de Orbi.
 ///
 /// 🔴 **Por qué es obligatorio y no una ayuda opcional.** La aplicación madura
@@ -46,6 +48,12 @@ class OrbiPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final typography = FluentTheme.of(context).typography;
+    // Título más chico en ancho compacto: a 390 px el token `title` (28 px)
+    // parte «Estado de envases» en dos líneas grandes — medido el 15-sep en
+    // ENV-01. En iPad y escritorio se deja `title`, como siempre.
+    final compact =
+        MediaQuery.sizeOf(context).width < OrbiTheme.compactBreakpoint;
+    final titleStyle = compact ? typography.subtitle : typography.title;
     return Semantics(
       scopesRoute: true,
       namesRoute: true,
@@ -57,7 +65,7 @@ class OrbiPage extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             mainAxisSize: MainAxisSize.min,
             children: [
-              Text(title, style: typography.title),
+              Text(title, style: titleStyle),
               if (subtitle != null)
                 Padding(
                   padding: const EdgeInsets.only(top: 2),

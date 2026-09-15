@@ -512,10 +512,28 @@ class _ProductThumbnail extends StatelessWidget {
   }
 }
 
-/// La insignia «N propios»: fondo claro del acento, texto del acento —
-/// mismo patrón que `ListaEstadoChip`/`_orbiPill` (`orbi_listing.dart`), con
-/// el color del tema en vez de gris. Se ve bien en claro y oscuro porque el
-/// tinte es relativo al propio acento, no un color fijo.
+/// La insignia «N propios»: relleno sólido del acento con el texto «sobre
+/// acento» del propio tema — el mismo par que usa `InfoBadge` de fluent_ui,
+/// no un tinte inventado aquí.
+///
+/// 🔴 Historial del 15-sep-2026, dos vueltas:
+/// 1. `accentColor.normal` a secas se leía mal en tema oscuro (acento oscuro
+///    sobre fondo oscuro, medido en `telefono-oscuro.png`): `.normal` es el
+///    MISMO tono en los dos temas, no el que Fluent elige por brillo.
+/// 2. Cambiar sólo el TEXTO a `defaultBrushFor(brightness)` manteniendo un
+///    fondo apenas teñido (alpha 0.16) tampoco alcanzaba 4.5:1: para esta
+///    marca (`#017E84`, ya oscura de por sí) ninguna variante de acento
+///    "clara" (`lighter`/`lightest`, 30-38% hacia blanco) es lo bastante
+///    clara sobre un fondo prácticamente negro — medido: contraste 1.28.
+///
+/// La solución no es afinar un tinte a mano: es copiar el PAR que usa Fluent
+/// para esta misma forma (una insignia de color) —
+/// `InfoBadge.build` en `fluent_ui-4.16.1/lib/src/controls/utils/info_badge.dart:81-93` —
+/// fondo sólido `accentColor.defaultBrushFor(brightness)` (línea 347-352 de
+/// `styles/color.dart`) más texto `resources.textOnAccentFillColorPrimary`,
+/// que Fluent ya calibró para tener buen contraste contra ESE fondo exacto
+/// en cada tema (blanco en claro, negro en oscuro — `color_resources.dart`
+/// líneas 197 y 284).
 class _AccentChip extends StatelessWidget {
   const _AccentChip({required this.text});
 
@@ -523,18 +541,24 @@ class _AccentChip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final color = FluentTheme.of(context).accentColor.normal;
+    final theme = FluentTheme.of(context);
+    final background = theme.accentColor.defaultBrushFor(theme.brightness);
+    final foreground = theme.resources.textOnAccentFillColorPrimary;
     return Container(
       key: const Key('envases-existencias-chip'),
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
       decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.16),
+        color: background,
         borderRadius: BorderRadius.circular(12),
       ),
       child: Text(
         text,
         overflow: TextOverflow.ellipsis,
-        style: TextStyle(color: color, fontWeight: FontWeight.w600, fontSize: 12),
+        style: TextStyle(
+          color: foreground,
+          fontWeight: FontWeight.w600,
+          fontSize: 12,
+        ),
       ),
     );
   }

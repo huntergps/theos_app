@@ -74,15 +74,18 @@ final class EnvasesExistenciasReader {
   /// método `datos()`.
   ///
   /// Igual que el resto del proyecto (`ServerFeatureStore`,
-  /// `RuntimeCatalogLoader._resolvePresentFields`): primero `fields_get`
-  /// para confirmar que `image_128` existe en ESTE servidor. Si no lo trae,
-  /// devuelve `{}` (vacío de verdad, sin ninguna clave) sin llamar nunca a
-  /// `search_read` — la regla del proyecto de nunca mandar a Odoo un campo
-  /// que no se comprobó (caso `envases_operacion_uuid`). Un mapa NO vacío
-  /// con valores `null` es un resultado válido: "se comprobó y no hay foto".
-  Future<Map<int, String?>> readImages(Iterable<int> productIds) async {
-    final ids = productIds.toSet();
-    if (ids.isEmpty) return const {};
+  /// `RuntimeCatalogLoader._resolvePresentFields`): `fields_get` confirma
+  /// que `image_128` existe en ESTE servidor antes de pedirlo nunca — la
+  /// regla del proyecto de no mandar a Odoo un campo que no se comprobó
+  /// (caso `envases_operacion_uuid`).
+  ///
+  /// 🔴 Esta sonda es cara para hacerla en cada refresco (varias veces por
+  /// minuto): quien llama a este reader (`RuntimeEnvasesExistenciasRepository`)
+  /// la corre UNA sola vez por servidor+base y persiste el resultado en
+  /// `EnvasesImageFieldCache`, igual que `ServerFeatureStore`. Esto sólo
+  /// pregunta; no cachea nada — el reader se reconstruye en cada refresco
+  /// (`readerFactory`) y no tiene dónde persistir de un refresco a otro.
+  Future<bool> probeImageFieldAvailable() async {
     final metadata = await transport(
       model: _imagenModel,
       method: 'fields_get',
@@ -92,9 +95,19 @@ final class EnvasesExistenciasReader {
       },
       context: context,
     );
-    if (metadata is! Map || !metadata.containsKey(_imagenCampo)) {
-      return const {};
-    }
+    return metadata is Map && metadata.containsKey(_imagenCampo);
+  }
+
+  /// Lee las fotos SIN volver a sondear `fields_get` — para cuando quien
+  /// llama ya sabe, por `EnvasesImageFieldCache`, que el campo existe en
+  /// este servidor. Nunca se llama a ciegas: [readImages] es el camino
+  /// seguro por defecto (sonda + lectura), este es el atajo para el
+  /// servidor ya confirmado.
+  Future<Map<int, String?>> readImagesKnownAvailable(
+    Iterable<int> productIds,
+  ) async {
+    final ids = productIds.toSet();
+    if (ids.isEmpty) return const {};
     final response = await transport(
       model: _imagenModel,
       method: 'search_read',
@@ -125,6 +138,33 @@ final class EnvasesExistenciasReader {
       result.putIfAbsent(id, () => null);
     }
     return result;
+  }
+
+  /// Foto de producto, en un segundo viaje SEPARADO de [read] a propósito —
+  /// orden del dueño: «primero se publican las existencias y después se
+  /// completan las fotos», así una foto lenta nunca retrasa las cifras.
+  ///
+  /// `datos()` nunca trae imagen (no hay `image_128` en
+  /// `l10n_ec_stock_envases/models/envases_existencias.py:100-115`): el `id`
+  /// de cada fila es el de `product.product` (confirmado — `celdas`/`id`
+  /// salen de agrupar `stock.quant` por `product_id`, que en
+  /// `dev_odoo20/odoo/addons/stock/models/stock_quant.py:47-50` es
+  /// `Many2one('product.product', ...)`; ver también
+  /// `envases_existencias.py:79-90,101,110`). Por eso esto pide
+  /// `product.product`, con una lectura JSON-2 estándar — nunca se toca el
+  /// método `datos()`.
+  ///
+  /// Camino seguro por defecto: sonda [probeImageFieldAvailable] y sólo si
+  /// confirma el campo hace [readImagesKnownAvailable]. Quien ya tiene la
+  /// respuesta cacheada (`EnvasesImageFieldCache`) debe llamar a esos dos
+  /// métodos por separado en vez de a éste, para no repetir `fields_get` en
+  /// cada refresco.
+  Future<Map<int, String?>> readImages(Iterable<int> productIds) async {
+    final ids = productIds.toSet();
+    if (ids.isEmpty) return const {};
+    final available = await probeImageFieldAvailable();
+    if (!available) return const {};
+    return readImagesKnownAvailable(ids);
   }
 
   static const _imagenModel = 'product.product';

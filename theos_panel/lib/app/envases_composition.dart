@@ -18,6 +18,7 @@ import '../features/envases/envases_traslado_detalle.dart';
 import '../ui/components/orbi_components.dart';
 import '../ui/export/export_listing.dart';
 import 'notification_scope_adapter.dart';
+import 'preferences/app_preferences.dart' show sharedPreferencesProvider;
 import 'session_composition.dart';
 
 // ---------------------------------------------------------------------
@@ -136,6 +137,15 @@ final envasesExistenciasRepositoryProvider =
             company: company,
           );
         },
+        // Por servidor+base, no por compañía: dos compañías del mismo Odoo
+        // comparten el mismo `product.product`, así que sondear `image_128`
+        // una vez por servidor basta — mismo alcance que `ServerFeatureStore`
+        // (`app/router.dart`).
+        imageFieldCache: EnvasesImageFieldCache(
+          preferences: ref.watch(sharedPreferencesProvider),
+          serverUrl: active.scope.normalizedServerUrl,
+          database: active.scope.database,
+        ),
       );
     });
 

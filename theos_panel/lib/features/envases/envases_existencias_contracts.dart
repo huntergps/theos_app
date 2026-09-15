@@ -22,10 +22,17 @@ final class RuntimeEnvasesExistenciasRepository
   const RuntimeEnvasesExistenciasRepository({
     required this.cache,
     required this.readerFactory,
+    this.imageFieldCache,
   });
 
   final EnvasesExistenciasCache cache;
   final EnvasesExistenciasReader Function() readerFactory;
+
+  /// Dónde se recuerda si `product.product.image_128` existe en este
+  /// servidor+base, para sondearlo con `fields_get` UNA sola vez — nunca en
+  /// cada refresco. `null` conserva el camino anterior (sondea siempre);
+  /// la composición real (`envases_composition.dart`) siempre pasa uno.
+  final EnvasesImageFieldCache? imageFieldCache;
 
   @override
   Stream<EnvasesExistenciasSnapshot?> watch() => cache.watch();
@@ -48,12 +55,41 @@ final class RuntimeEnvasesExistenciasRepository
     try {
       final ids = data.filas.map((fila) => fila.id).toSet();
       if (ids.isEmpty) return;
-      final imagenes = await currentReader.readImages(ids);
+      final imagenes = await _resolveImages(currentReader, ids);
       if (imagenes.isEmpty) return;
       await cache.mergeImages(imagenes);
     } catch (_) {
       // Las fotos son una mejora visual: nunca deben romper la pantalla ni
       // dejar el refresco de existencias en un estado de error.
+    }
+  }
+
+  /// Sin caché persistente (compatibilidad): sondea `fields_get` en cada
+  /// refresco, como antes. Con caché: sondea sólo mientras el estado sea
+  /// `unknown`, y a partir de ahí lee (o se abstiene) directo — un "no
+  /// existe" se trata igual que hoy, sin foto y sin romper nada, sólo que
+  /// ahora se recuerda en vez de volver a preguntar.
+  Future<Map<int, String?>> _resolveImages(
+    EnvasesExistenciasReader currentReader,
+    Set<int> ids,
+  ) async {
+    final fieldCache = imageFieldCache;
+    if (fieldCache == null) return currentReader.readImages(ids);
+
+    switch (fieldCache.read()) {
+      case EnvasesImageFieldState.unavailable:
+        return const {};
+      case EnvasesImageFieldState.available:
+        return currentReader.readImagesKnownAvailable(ids);
+      case EnvasesImageFieldState.unknown:
+        final available = await currentReader.probeImageFieldAvailable();
+        await fieldCache.write(
+          available
+              ? EnvasesImageFieldState.available
+              : EnvasesImageFieldState.unavailable,
+        );
+        if (!available) return const {};
+        return currentReader.readImagesKnownAvailable(ids);
     }
   }
 }
