@@ -1,3 +1,7 @@
+import 'dart:convert';
+
+import 'package:odoo_sdk/odoo_sdk.dart' show logger;
+import 'package:orbi_runtime/orbi_runtime.dart' show AppScope;
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'auth_controller.dart';
@@ -14,12 +18,31 @@ import 'pin_credential_store.dart';
 /// para siempre del selector aunque su PIN siga enrolado en
 /// [PinCredentialStore] y su llave siga en el almacén.
 ///
-/// Clave del "una sola vez" — deliberadamente SIN servidor/base/usuario,
-/// igual que `NativeAuthService._rememberedMigrationKey` (la migración
-/// equivalente para «recordada»): un dispositivo Orbi está atado en la
-/// práctica a un único servidor+base durante toda su vida.
-const String kLegacyPinRetentionMigrationKey =
+/// 🔴 Corregido el 14-sep-2026 (revisión del coordinador sobre 52dcb1a): la
+/// primera versión usaba UNA marca global para "ya corrió" — con PINs en dos
+/// servidores (p. ej. ERP2 y Mepriga) en el MISMO dispositivo, migrar el
+/// primero dejaba la marca puesta y el segundo servidor nunca se migraba.
+/// Ahora la marca es POR servidor+base, con el mismo patrón base64url que ya
+/// usan `NativeAuthService._profileKeyFor`/`_pinRetainedKeyFor` para sus
+/// propias claves por credencial — ver [legacyPinRetentionMigrationKeyFor].
+const String kLegacyPinRetentionMigrationKeyPrefix =
     'orbi/auth/pin_retained_migration/theos_panel/v1';
+
+/// La clave de "ya migré [serverUrl]/[database]" — un dispositivo con PINs en
+/// varios servidores necesita una marca por cada uno, nunca una sola global.
+String legacyPinRetentionMigrationKeyFor(String serverUrl, String database) {
+  final normalizedServerUrl = AppScope(
+    appId: 'theos_panel',
+    installationId: 'pin_retained_migration',
+    normalizedServerUrl: serverUrl,
+    database: database,
+    userId: 1,
+  ).normalizedServerUrl;
+  final encoded = base64Url
+      .encode(utf8.encode('$normalizedServerUrl|$database'))
+      .replaceAll('=', '');
+  return '$kLegacyPinRetentionMigrationKeyPrefix/$encoded';
+}
 
 /// Recorre, para [serverUrl]/[database], los perfiles que
 /// [AuthNotifier.profilesWithStoredKeyFor] (el "método de lectura del
@@ -35,14 +58,14 @@ const String kLegacyPinRetentionMigrationKey =
 /// `loginWithApiKey()` la deje ahí de nuevo; no hay nada que retener
 /// todavía.
 ///
-/// Corre como mucho una vez por instalación
-/// ([kLegacyPinRetentionMigrationKey], en las mismas [SharedPreferences]
-/// que [PinCredentialStore]). Nunca lanza: si algo falla a mitad de camino,
-/// la bandera de "ya corrió" igual se deja puesta en el `finally` — un
-/// reintento indefinido de una migración que ya tropezó una vez no vale la
-/// pena frente al costo de quedarse reintentando en cada apertura de la
-/// pantalla de PIN; el peor caso es el mismo de siempre, "vuelve a entrar
-/// con tu clave una vez".
+/// Corre como mucho una vez por servidor+base
+/// ([legacyPinRetentionMigrationKeyFor], en las mismas [SharedPreferences]
+/// que [PinCredentialStore]). Nunca lanza: si la lectura o la retención
+/// fallan a mitad de camino, el error se registra con `logger.w` y la
+/// marca de "ya corrió" NUNCA se pone — un fallo transitorio (almacén
+/// caído, etc.) se reintenta la próxima vez que se abra la pantalla de
+/// PIN para este mismo servidor+base, en vez de quedar huérfano para
+/// siempre.
 Future<void> migrateLegacyPinRetention({
   required SharedPreferences preferences,
   required AuthNotifier notifier,
@@ -50,7 +73,8 @@ Future<void> migrateLegacyPinRetention({
   required String serverUrl,
   required String database,
 }) async {
-  if (preferences.getBool(kLegacyPinRetentionMigrationKey) == true) return;
+  final migrationKey = legacyPinRetentionMigrationKeyFor(serverUrl, database);
+  if (preferences.getBool(migrationKey) == true) return;
   try {
     final profiles = await notifier.profilesWithStoredKeyFor(
       serverUrl,
@@ -65,7 +89,15 @@ Future<void> migrateLegacyPinRetention({
       if (!pinCredentialStore.isEnrolled(scopeKey)) continue;
       await notifier.retainCredentialForPin(profile, true);
     }
-  } finally {
-    await preferences.setBool(kLegacyPinRetentionMigrationKey, true);
+    // La marca de "ya corrió" se pone SÓLO si el recorrido de arriba
+    // terminó sin excepción — ver el `catch` de abajo.
+    await preferences.setBool(migrationKey, true);
+  } catch (error) {
+    logger.w(
+      '[LegacyPinRetentionMigration]',
+      'La migración de retención de PIN para server=$serverUrl '
+          'db=$database falló y se reintentará la próxima vez que se abra '
+          'la pantalla de PIN: $error',
+    );
   }
 }
