@@ -28,6 +28,16 @@ class _LineaControllers {
 
 String _fmt(double value) => value == value.roundToDouble() ? value.toInt().toString() : value.toString();
 
+/// «queda 1 envase pendiente por recibir» / «quedan 3 envases pendientes por
+/// recibir» — la cifra 1 es la única que cambia de verbo y de sustantivo, así
+/// que se resuelve aquí en vez de repetir la frase en cada pantalla.
+String _fraseEnvasesPendientes(double cantidad) {
+  final singular = cantidad == 1;
+  final verbo = singular ? 'queda' : 'quedan';
+  final sustantivo = singular ? 'envase pendiente' : 'envases pendientes';
+  return '$verbo ${_fmt(cantidad)} $sustantivo por recibir.';
+}
+
 String _formatDate(DateTime? value) {
   if (value == null) return '—';
   final local = value.toLocal();
@@ -232,23 +242,17 @@ class _EnvasesRecibirFormState extends State<EnvasesRecibirForm> {
           ? OrbiErrorState(message: 'No se pudieron leer las líneas del traslado.', onRetry: _load)
           : _lineas == null
           ? const Center(child: ProgressRing(key: Key('envases-recibir-loading')))
-          : EnvasesFormWidth(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  Expanded(child: SingleChildScrollView(child: _body(context))),
-                  const SizedBox(height: 16),
-                  EnvasesFormActions(
-                    primaryKey: const Key('envases-recibir-guardar'),
-                    primaryLabel: 'Guardar recepción',
-                    onPrimary: _valido && !_saving ? _guardar : null,
-                    saving: _saving,
-                    onCancel: widget.onCancel,
-                    helpText: _ayuda,
-                    error: _saveError,
-                    notice: _saveNotice,
-                  ),
-                ],
+          : EnvasesFormScaffold(
+              body: _body(context),
+              actions: EnvasesFormActions(
+                primaryKey: const Key('envases-recibir-guardar'),
+                primaryLabel: 'Guardar recepción',
+                onPrimary: _valido && !_saving ? _guardar : null,
+                saving: _saving,
+                onCancel: widget.onCancel,
+                helpText: _ayuda,
+                error: _saveError,
+                notice: _saveNotice,
               ),
             ),
     );
@@ -272,11 +276,14 @@ class _EnvasesRecibirFormState extends State<EnvasesRecibirForm> {
               severity: InfoBarSeverity.info,
             ),
           ),
-        Row(
-          children: [
-            Expanded(child: Text('Traslado ${widget.row.name}', style: typography.subtitle)),
-            const OrbiStatusChip(label: 'En tránsito', icon: FluentIcons.sync_status_solid),
-          ],
+        // 🔴 Antes esto repetía el documento («Traslado WH2/IN/000011») justo
+        // debajo del título «Recibir envases / WH2/IN/000011» de `OrbiPage`
+        // — el mismo dato dos veces, medido el 14-sep-2026. El nombre ya va
+        // en el subtítulo de la página; aquí sólo queda la insignia de
+        // estado, como en ENV-06.
+        Align(
+          alignment: Alignment.centerRight,
+          child: const OrbiStatusChip(label: 'En tránsito', icon: FluentIcons.sync_status_solid),
         ),
         const SizedBox(height: 12),
         EnvasesFieldsRow(
@@ -329,7 +336,7 @@ class _EnvasesRecibirFormState extends State<EnvasesRecibirForm> {
             padding: const EdgeInsets.only(top: 12),
             child: InfoBar(
               key: const Key('envases-recibir-diferencias'),
-              title: Text('Existen diferencias: quedan ${_fmt(totalPendiente)} envases pendientes por recibir.'),
+              title: Text('Existen diferencias: ${_fraseEnvasesPendientes(totalPendiente)}'),
               severity: InfoBarSeverity.info,
             ),
           ),
@@ -345,7 +352,7 @@ class _EnvasesRecibirFormState extends State<EnvasesRecibirForm> {
       padding: const EdgeInsets.only(bottom: 8),
       child: Row(
         children: [
-          const SizedBox(width: 220, child: Text('')),
+          Expanded(child: Text('Envase', style: style)),
           const SizedBox(width: 16),
           columna('Enviados', 80),
           const SizedBox(width: 16),
@@ -373,15 +380,27 @@ class _EnvasesRecibirFormState extends State<EnvasesRecibirForm> {
           Row(
             crossAxisAlignment: CrossAxisAlignment.center,
             children: [
-              SizedBox(
-                width: 220,
-                child: Text(controller.linea.productName, style: theme.typography.body, overflow: TextOverflow.ellipsis),
+              // Ancho flexible para el nombre completo del envase — 🔴 antes
+              // era un `SizedBox(width: 220)` que recortaba nombres largos
+              // («ENVASE PEQUEÑA PILSENER C…», queja del dueño 14-sep-2026)
+              // mientras a la derecha sobraba espacio. Las columnas numéricas
+              // sí necesitan ancho fijo para alinearse entre filas.
+              Expanded(
+                child: Text(
+                  controller.linea.productName,
+                  style: theme.typography.body,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
               ),
               const SizedBox(width: 16),
               SizedBox(
                 width: 80,
                 child: Text(
-                  '${_fmt(controller.linea.pendientes)} ${controller.linea.uomName}',
+                  // Mismo formato que «Llegaron»/«Dañados»/«Aptos»/«Pendiente»
+                  // — sin la unidad pegada al número (antes «24 Unidades»
+                  // rompía la alineación con el resto de la fila).
+                  _fmt(controller.linea.pendientes),
                   textAlign: TextAlign.right,
                   style: theme.typography.caption,
                   overflow: TextOverflow.ellipsis,

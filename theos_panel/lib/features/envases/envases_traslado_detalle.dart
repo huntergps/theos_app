@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:fluent_ui/fluent_ui.dart';
 import 'package:orbi_runtime/orbi_runtime.dart';
 
+import '../../ui/components/orbi_components.dart';
 import '../../ui/fluent/orbi_page.dart';
 import 'envases_uuid.dart';
 import 'widgets/lista_estado_chip.dart';
@@ -49,6 +50,10 @@ class EnvasesTrasladoDetalle extends StatelessWidget {
   Widget build(BuildContext context) => OrbiPage(
     title: row.name,
     subtitle: row.sentido,
+    // `OrbiPage` ya pinta el documento como título de la página — el cuerpo
+    // no repite un segundo encabezado aquí. El panel «al lado» de escritorio
+    // (`EnvasesPorRecibirScreen._tableWithDetail`) no tiene ese título de
+    // página, así que ahí sí lo pide (`showHeader` por omisión).
     child: EnvasesTrasladoDetalleBody(
       row: row,
       operaciones: operaciones,
@@ -56,6 +61,7 @@ class EnvasesTrasladoDetalle extends StatelessWidget {
       canManage: canManage,
       onRegistrarRecepcion: onRegistrarRecepcion,
       onDarPorPerdido: onDarPorPerdido,
+      showHeader: false,
     ),
   );
 }
@@ -72,6 +78,7 @@ class EnvasesTrasladoDetalleBody extends StatefulWidget {
     required this.canManage,
     required this.onRegistrarRecepcion,
     this.onDarPorPerdido,
+    this.showHeader = true,
   });
 
   final EnvasesPorRecibirRow row;
@@ -80,6 +87,15 @@ class EnvasesTrasladoDetalleBody extends StatefulWidget {
   final bool canManage;
   final VoidCallback onRegistrarRecepcion;
   final VoidCallback? onDarPorPerdido;
+
+  /// El documento en negrita y la etiqueta de estado arriba del panel, como
+  /// en ENV-03 y en «Detalle de traslado» de BODEGA-ENVASES — 🔴 el panel
+  /// «al lado» de escritorio (`EnvasesPorRecibirScreen._tableWithDetail`) no
+  /// tenía ningún encabezado (queja del dueño, 14-sep-2026): sin `OrbiPage`
+  /// alrededor, no había ni un solo lugar que dijera de qué traslado se
+  /// trata. Falso sólo cuando quien nos usa YA puso ese título encima
+  /// (`EnvasesTrasladoDetalle`, que lo hace vía `OrbiPage`).
+  final bool showHeader;
 
   @override
   State<EnvasesTrasladoDetalleBody> createState() => _EnvasesTrasladoDetalleBodyState();
@@ -171,6 +187,23 @@ class _EnvasesTrasladoDetalleBodyState extends State<EnvasesTrasladoDetalleBody>
       crossAxisAlignment: CrossAxisAlignment.stretch,
       mainAxisSize: MainAxisSize.min,
       children: [
+        if (widget.showHeader)
+          Padding(
+            padding: const EdgeInsets.only(bottom: 12),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    row.name,
+                    key: const Key('envases-detalle-titulo'),
+                    style: theme.typography.subtitle,
+                  ),
+                ),
+                const SizedBox(width: 12),
+                const OrbiStatusChip(label: 'En tránsito', icon: FluentIcons.sync_status_solid),
+              ],
+            ),
+          ),
         if (_error != null)
           Padding(
             padding: const EdgeInsets.only(bottom: 12),

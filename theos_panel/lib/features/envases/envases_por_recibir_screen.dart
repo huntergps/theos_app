@@ -268,6 +268,11 @@ class _EnvasesPorRecibirScreenState extends State<EnvasesPorRecibirScreen> {
     required ValueChanged<EnvasesPorRecibirRow> onRowTap,
   }) {
     final theme = FluentTheme.of(context);
+    // Sólo se declara la columna «Estado local» cuando de verdad hay algo
+    // que mostrar en ella — 🔴 antes salía siempre, vacía en todas las filas
+    // (queja del dueño, 14-sep-2026): la mayoría de traslados no tiene
+    // ninguna operación local todavía.
+    final hayEstadoLocal = rows.any((row) => _operacionDe(row.id) != null);
     return Card(
       key: const Key('envases-por-recibir-tabla'),
       backgroundColor: theme.scaffoldBackgroundColor,
@@ -277,6 +282,12 @@ class _EnvasesPorRecibirScreenState extends State<EnvasesPorRecibirScreen> {
       child: OrbiListing<EnvasesPorRecibirRow>(
         rows: rows,
         storageKey: 'envases-por-recibir',
+        // La pantalla ya tiene su propia caja «Filtrar por sede o
+        // documento» arriba (`_content`), que filtra `rows` antes de que
+        // lleguen aquí — sin esto, `OrbiListing` pintaba una SEGUNDA caja
+        // («Buscar en la lista») sin ningún `onFilterChanged`, así que
+        // escribir en ella no hacía nada (defecto medido el 14-sep-2026).
+        showFilterBox: false,
         onRowTap: onRowTap,
         onExport: widget.onExport == null
             ? null
@@ -299,22 +310,23 @@ class _EnvasesPorRecibirScreenState extends State<EnvasesPorRecibirScreen> {
             emphasis: true,
             value: (row) => _formatQuantity(row.unidadesPendientes),
           ),
-          OrbiColumn(
-            key: 'estado',
-            label: 'Estado local',
-            value: (row) {
-              final operacion = _operacionDe(row.id);
-              return operacion == null ? '' : envasesEstadoLabel(operacion.estado, mensajeOdoo: operacion.mensajeOdoo);
-            },
-            // `OrbiColumn.badgeColor` pinta SIEMPRE una insignia cuando la
-            // columna la declara — no hay forma de decir "esta fila no
-            // tiene insignia" sin dibujar un recuadro vacío. La mayoría de
-            // filas no tiene operación local todavía (recién sincronizadas o
-            // nunca tocadas desde este equipo), así que aquí se deja texto
-            // plano; la insignia de color sí aparece en la tarjeta angosta y
-            // en el panel de detalle, donde sólo se pinta cuando SÍ hay
-            // operación (`if (operacion != null) ...`).
-          ),
+          if (hayEstadoLocal)
+            OrbiColumn(
+              key: 'estado',
+              label: 'Estado local',
+              value: (row) {
+                final operacion = _operacionDe(row.id);
+                return operacion == null ? '' : envasesEstadoLabel(operacion.estado, mensajeOdoo: operacion.mensajeOdoo);
+              },
+              // `OrbiColumn.badgeColor` pinta SIEMPRE una insignia cuando la
+              // columna la declara — no hay forma de decir "esta fila no
+              // tiene insignia" sin dibujar un recuadro vacío. La mayoría de
+              // filas no tiene operación local todavía (recién sincronizadas o
+              // nunca tocadas desde este equipo), así que aquí se deja texto
+              // plano; la insignia de color sí aparece en la tarjeta angosta y
+              // en el panel de detalle, donde sólo se pinta cuando SÍ hay
+              // operación (`if (operacion != null) ...`).
+            ),
         ],
       ),
     );

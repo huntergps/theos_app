@@ -267,24 +267,18 @@ class _EnvasesEnviarFormState extends State<EnvasesEnviarForm> {
     return OrbiPage(
       title: 'Enviar envases',
       subtitle: 'Traslado entre sedes',
-      child: EnvasesFormWidth(
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Expanded(child: SingleChildScrollView(child: _body(context))),
-            const SizedBox(height: 16),
-            EnvasesFormActions(
-              primaryKey: const Key('envases-enviar-confirmar'),
-              primaryLabel: 'Enviar',
-              onPrimary: _valido && !_saving ? _enviar : null,
-              saving: _saving,
-              onCancel: widget.onCancel,
-              helpText: _ayuda,
-              errorTitle: 'No se pudo enviar',
-              error: _saveError,
-              notice: _saveNotice,
-            ),
-          ],
+      child: EnvasesFormScaffold(
+        body: _body(context),
+        actions: EnvasesFormActions(
+          primaryKey: const Key('envases-enviar-confirmar'),
+          primaryLabel: 'Enviar',
+          onPrimary: _valido && !_saving ? _enviar : null,
+          saving: _saving,
+          onCancel: widget.onCancel,
+          helpText: _ayuda,
+          errorTitle: 'No se pudo enviar',
+          error: _saveError,
+          notice: _saveNotice,
         ),
       ),
     );
@@ -357,8 +351,8 @@ class _EnvasesEnviarFormState extends State<EnvasesEnviarForm> {
               field: EnvasesField(
                 label: 'Fecha de salida',
                 required: true,
-                child: DatePicker(
-                  key: const Key('envases-enviar-fecha'),
+                child: EnvasesDateField(
+                  datePickerKey: const Key('envases-enviar-fecha'),
                   selected: _fechaSalida,
                   onChanged: (value) {
                     setState(
@@ -406,12 +400,20 @@ class _EnvasesEnviarFormState extends State<EnvasesEnviarForm> {
             for (var i = 0; i < _lineas.length; i++)
               isWide ? _lineaFila(context, i) : _lineaTarjeta(context, i),
             const SizedBox(height: 8),
-            Button(
-              key: const Key('envases-enviar-agregar-linea'),
-              onPressed: _agregarLinea,
-              child: const Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [Icon(FluentIcons.add), SizedBox(width: 6), Text('Agregar envase')],
+            // `Align` evita que el `crossAxisAlignment.stretch` de este
+            // `Column` estire el botón al ancho entero de la tabla — 🔴 esa
+            // era la «barra de 1.200 px» de la queja del dueño (14-sep-2026):
+            // un `Button` de Fluent SÍ se estira para llenar el ancho que le
+            // da su padre cuando se lo permiten así, y aquí se lo permitía.
+            Align(
+              alignment: Alignment.centerLeft,
+              child: Button(
+                key: const Key('envases-enviar-agregar-linea'),
+                onPressed: _agregarLinea,
+                child: const Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [Icon(FluentIcons.add), SizedBox(width: 6), Text('Agregar envase')],
+                ),
               ),
             ),
             const SizedBox(height: 8),

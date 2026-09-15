@@ -212,6 +212,37 @@ void main() {
     addTearDown(controller.close);
   });
 
+  testWidgets('por recibir has a single search box and a titled detail panel', (tester) async {
+    final controller = StreamController<EnvasesPorRecibirSnapshot?>();
+    final operations = _FakeEnvasesOperations();
+    addTearDown(operations._controller.close);
+    await _pump(
+      tester,
+      _host(snapshots: controller.stream, operations: operations, canManage: true),
+      size: const Size(1920, 1080),
+    );
+    controller.add(_snapshot([_row(id: 11, origen: 'Guayaquil', destino: 'Manta')]));
+    await tester.pumpAndSettle();
+
+    // 🔴 Antes había DOS cajas de búsqueda: «Filtrar por sede o documento»
+    // arriba de la pantalla y «Buscar en la lista» dentro de `OrbiListing`
+    // — la segunda sin ningún `onFilterChanged` que la conectara (queja del
+    // dueño, 14-sep-2026).
+    expect(find.byKey(const Key('envases-por-recibir-filter')), findsOneWidget);
+    expect(find.byKey(const Key('orbi-listing-filter')), findsNothing);
+
+    await tester.tap(find.text('WH2/IN/000011'));
+    await tester.pumpAndSettle();
+
+    // 🔴 El panel «al lado» no tenía ningún encabezado — ni el documento ni
+    // su estado, así que no decía de qué traslado se trata (queja del
+    // dueño, 14-sep-2026). Como en ENV-03 y en «Detalle de traslado» de
+    // BODEGA-ENVASES: el documento en negrita y la etiqueta de estado.
+    expect(find.byKey(const Key('envases-detalle-titulo')), findsOneWidget);
+    expect(tester.widget<Text>(find.byKey(const Key('envases-detalle-titulo'))).data, 'WH2/IN/000011');
+    expect(find.text('En tránsito'), findsOneWidget);
+  });
+
   testWidgets('lists render as cards on phone', (tester) async {
     final controller = StreamController<EnvasesPorRecibirSnapshot?>();
     await _pump(tester, _host(snapshots: controller.stream), size: const Size(390, 844));

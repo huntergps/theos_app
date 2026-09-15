@@ -226,9 +226,68 @@ void main() {
     expect(pendiente.data, '1');
 
     expect(find.byKey(const Key('envases-recibir-diferencias')), findsOneWidget);
+    // 🔴 Antes decía «quedan 1 envases pendientes por recibir» para
+    // cualquier cifra, singular incluido (queja del dueño, 14-sep-2026).
     expect(
-      find.textContaining('Existen diferencias: quedan 1 envases pendientes por recibir.'),
+      find.textContaining('Existen diferencias: queda 1 envase pendiente por recibir.'),
       findsOneWidget,
     );
+  });
+
+  testWidgets('receive pending text is singular for one', (tester) async {
+    tester.view.physicalSize = const Size(1920, 1080);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    final operations = _FakeEnvasesOperations();
+    await tester.pumpWidget(_host(operations: operations, pendientes: 5));
+    await tester.pumpAndSettle();
+
+    await tester.enterText(find.byKey(const Key('envases-recibir-llegaron-1')), '4');
+    await _commitNumberBox(tester);
+    await tester.pumpAndSettle();
+
+    expect(find.textContaining('queda 1 envase pendiente por recibir.'), findsOneWidget);
+    expect(find.textContaining('quedan 1'), findsNothing);
+    expect(find.textContaining('1 envases'), findsNothing);
+  });
+
+  testWidgets('receive shows the full product name', (tester) async {
+    tester.view.physicalSize = const Size(1920, 1080);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    const nombreLargo = 'Envase pequeña Pilsener cerveza 330 ml retornable x24';
+    final operations = _FakeEnvasesOperations();
+    await tester.pumpWidget(
+      FluentApp(
+        theme: OrbiFluentTheme.light,
+        home: EnvasesRecibirForm(
+          row: _row(),
+          lineasLoader: () async => [
+            EnvasesPickingLineaRow(
+              moveId: 1,
+              productId: 50,
+              productName: nombreLargo,
+              uomId: 1,
+              uomName: 'Unidades',
+              pendientes: 24,
+            ),
+          ],
+          operations: operations,
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    // 🔴 Antes la celda era un `SizedBox(width: 220)` — con «espacio de
+    // sobra» a la derecha, el nombre largo se recortaba ahí sin necesidad
+    // (queja del dueño, 14-sep-2026). Ahora tiene el ancho flexible que le
+    // sobra a la fila, y el texto renderizado se acerca a su ancho natural
+    // en vez de quedar atado a 220px.
+    final width = tester.getSize(find.text(nombreLargo)).width;
+    expect(width, greaterThan(300));
   });
 }

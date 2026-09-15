@@ -124,6 +124,7 @@ class OrbiListing<T> extends StatefulWidget {
     this.filterText = '',
     this.onFilterChanged,
     this.filterPlaceholder = 'Buscar en la lista',
+    this.showFilterBox = true,
     this.pageIndex = 0,
     this.rowsPerPage = 50,
     this.totalCount,
@@ -153,6 +154,14 @@ class OrbiListing<T> extends StatefulWidget {
   final String filterText;
   final ValueChanged<String>? onFilterChanged;
   final String filterPlaceholder;
+
+  /// Falso cuando quien nos usa ya tiene su propia caja de búsqueda arriba
+  /// del listado y filtra `rows` antes de pasárselas — sin esto, `OrbiListing`
+  /// siempre pinta la suya y el resultado son DOS cajas de búsqueda en la
+  /// misma pantalla, una de ellas sin ningún `onFilterChanged` que la
+  /// conecte (defecto medido el 14-sep-2026 en «Envases por recibir»). Las
+  /// demás piezas de la barra (columnas, exportar) se siguen mostrando.
+  final bool showFilterBox;
 
   final int pageIndex;
   final int rowsPerPage;
@@ -542,18 +551,21 @@ class _OrbiListingState<T> extends State<OrbiListing<T>> {
 
   Widget _toolbar(BuildContext context) => Row(
     children: [
-      Expanded(
-        child: TextBox(
-          key: const Key('orbi-listing-filter'),
-          placeholder: widget.filterPlaceholder,
-          controller: _filter,
-          prefix: const Padding(
-            padding: EdgeInsets.only(left: 8),
-            child: Icon(FluentIcons.search),
+      if (widget.showFilterBox)
+        Expanded(
+          child: TextBox(
+            key: const Key('orbi-listing-filter'),
+            placeholder: widget.filterPlaceholder,
+            controller: _filter,
+            prefix: const Padding(
+              padding: EdgeInsets.only(left: 8),
+              child: Icon(FluentIcons.search),
+            ),
+            onChanged: widget.onFilterChanged,
           ),
-          onChanged: widget.onFilterChanged,
-        ),
-      ),
+        )
+      else
+        const Spacer(),
       const SizedBox(width: 8),
       _columnsButton(context),
       if (widget.onExport != null) ...[

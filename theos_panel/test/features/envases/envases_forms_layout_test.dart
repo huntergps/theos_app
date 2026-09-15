@@ -171,6 +171,29 @@ void main() {
       // «Cancelar» a la izquierda de «Enviar», el orden que usa toda la app.
       expect(cancelar.dx, lessThan(confirmar.dx));
     });
+
+    testWidgets('send actions sit right below the content with cancel', (tester) async {
+      setDesktopSize(tester);
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+
+      await tester.pumpWidget(_enviarHost());
+      await tester.pumpAndSettle();
+      await _elegirOrigen(tester, 'Guayaquil');
+
+      // 🔴 Con `b31b3b9` el `Column` envolvía el cuerpo en
+      // `Expanded(child: SingleChildScrollView(...))`: un `Expanded` se
+      // estira para llenar TODO el alto que le sobra a su `Column`, así que
+      // con poco contenido el botón terminaba a los ~1.040 px de una
+      // pantalla de 1.080 — lejísimos del total que lo precede. Ahora
+      // cuerpo y acciones van dentro del MISMO `SingleChildScrollView`
+      // (`EnvasesFormScaffold`), así que el botón queda pegado al total.
+      final total = tester.getBottomLeft(find.byKey(const Key('envases-enviar-total')));
+      final enviar = tester.getTopLeft(find.byKey(const Key('envases-enviar-confirmar')));
+
+      expect(enviar.dy, lessThan(total.dy + 200));
+      expect(find.text('Cancelar'), findsOneWidget);
+    });
   });
 
   group('EnvasesEnviarForm — teléfono', () {
@@ -188,6 +211,26 @@ void main() {
       final buttonSize = tester.getSize(find.byKey(const Key('envases-enviar-confirmar')));
       final screenWidth = tester.view.physicalSize.width / tester.view.devicePixelRatio;
       expect(buttonSize.width, greaterThan(screenWidth - 80));
+    });
+
+    testWidgets('phone bottom button does not cover the add button', (tester) async {
+      setPhoneSize(tester);
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+
+      await tester.pumpWidget(_enviarHost());
+      await tester.pumpAndSettle();
+      await _elegirOrigen(tester, 'Guayaquil');
+
+      // Desplaza el contenido hasta el final — si el margen inferior no
+      // alcanza, «Agregar envase» (o la última tarjeta) queda tapado por el
+      // botón fijo, como en la captura del 14-sep-2026.
+      await tester.drag(find.byType(SingleChildScrollView).first, const Offset(0, -600));
+      await tester.pumpAndSettle();
+
+      final agregar = tester.getRect(find.byKey(const Key('envases-enviar-agregar-linea')));
+      final enviar = tester.getRect(find.byKey(const Key('envases-enviar-confirmar')));
+      expect(agregar.overlaps(enviar), isFalse);
     });
   });
 }

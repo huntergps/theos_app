@@ -7,6 +7,7 @@ import 'package:orbi_runtime/orbi_runtime.dart';
 import '../../ui/components/orbi_components.dart';
 import '../../ui/export/export_listing.dart';
 import '../../ui/fluent/orbi_page.dart';
+import 'widgets/envases_form_layout.dart';
 import 'widgets/lista_actualizado_en.dart';
 
 /// Movimientos de envases (ENV-02): traza cada línea de `stock.move.line`
@@ -185,16 +186,16 @@ class _EnvasesMovimientosScreenState extends State<EnvasesMovimientosScreen> {
       children: [
         InfoLabel(
           label: 'Desde',
-          child: DatePicker(
-            key: const Key('envases-movimientos-desde'),
+          child: EnvasesDateField(
+            datePickerKey: const Key('envases-movimientos-desde'),
             selected: _desde,
             onChanged: (value) => setState(() => _desde = value),
           ),
         ),
         InfoLabel(
           label: 'Hasta',
-          child: DatePicker(
-            key: const Key('envases-movimientos-hasta'),
+          child: EnvasesDateField(
+            datePickerKey: const Key('envases-movimientos-hasta'),
             selected: _hasta,
             onChanged: (value) => setState(() => _hasta = DateTime(value.year, value.month, value.day, 23, 59, 59)),
           ),
