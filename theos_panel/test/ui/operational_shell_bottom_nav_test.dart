@@ -1,8 +1,29 @@
+import 'dart:math' as math;
+
 import 'package:fluent_ui/fluent_ui.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:theos_panel/app/theme/orbi_theme.dart';
+import 'package:theos_panel/ui/components/orbi_brand.dart';
 import 'package:theos_panel/ui/fluent/orbi_fluent_theme.dart';
 import 'package:theos_panel/ui/layouts/operational_shell.dart';
+
+/// Luminancia relativa (WCAG 2.x): <https://www.w3.org/TR/WCAG21/#dfn-relative-luminance>.
+double _relativeLuminance(Color color) {
+  double channel(double value) => value <= 0.03928
+      ? value / 12.92
+      : math.pow((value + 0.055) / 1.055, 2.4).toDouble();
+  return 0.2126 * channel(color.r) +
+      0.7152 * channel(color.g) +
+      0.0722 * channel(color.b);
+}
+
+/// Razón de contraste WCAG entre dos colores —
+/// <https://www.w3.org/TR/WCAG21/#dfn-contrast-ratio>—, siempre ≥ 1.0.
+double _contrastRatio(Color a, Color b) {
+  final la = _relativeLuminance(a) + 0.05;
+  final lb = _relativeLuminance(b) + 0.05;
+  return la > lb ? la / lb : lb / la;
+}
 
 /// El armazón operativo en vertical angosto (teléfono e iPad vertical),
 /// comparado contra las láminas aprobadas
@@ -369,7 +390,13 @@ void main() {
             matching: find.byIcon(FluentIcons.product_variant),
           ),
         );
-        expect(icon.color, theme.accentColor.normal);
+        // El tono de acento usado para la pestaña activa cambia según el
+        // brillo (ver la nota en `_BottomNavTab`); aquí, en tema claro, es
+        // `defaultBrushFor(Brightness.light)` = `dark`.
+        expect(
+          icon.color,
+          theme.accentColor.defaultBrushFor(theme.brightness),
+        );
       },
     );
   });
@@ -490,4 +517,93 @@ void main() {
       expect(OrbiTheme.bottomNavigationMaxPortraitWidth, 1024.0);
     },
   );
+
+  group('legibilidad en tema oscuro', () {
+    // (j) Medido el 15-sep-2026 en `390x844_oscuro.png`: la pestaña activa
+    // («Envases») casi no se veía — `accentColor.normal` es el MISMO tono
+    // en claro y oscuro (los siete tonos del acento no cambian solos con el
+    // brillo), y ese tono no contrasta lo suficiente contra un fondo
+    // oscuro. Contra 075d6e2 falla: ese commit todavía pintaba la pestaña
+    // activa con `accentColor.normal`.
+    testWidgets(
+      'el color de la pestaña activa tiene contraste ≥ 3:1 contra el fondo '
+      'de la barra, en tema oscuro',
+      (tester) async {
+        const size = Size(390, 844);
+        final theme = OrbiFluentTheme.dark;
+        await _pump(tester, _host(size, theme: theme), size);
+
+        final icon = tester.widget<Icon>(
+          find.descendant(
+            of: find.byKey(
+              const Key('shell-bottom-nav-tab-/inventario/envases'),
+            ),
+            matching: find.byIcon(FluentIcons.product),
+          ),
+        );
+        final activeColor = icon.color;
+        expect(
+          activeColor,
+          isNotNull,
+          reason: 'la pestaña activa debe pintar un color explícito',
+        );
+
+        final ratio = _contrastRatio(activeColor!, theme.micaBackgroundColor);
+        expect(
+          ratio,
+          greaterThanOrEqualTo(3.0),
+          reason:
+              'contraste $ratio entre el color de la pestaña activa '
+              '($activeColor) y el fondo de la barra '
+              '(${theme.micaBackgroundColor}) es insuficiente (< 3:1)',
+        );
+      },
+    );
+
+    // (k) Medido el 15-sep-2026 en `390x844_claro_con_mas.png`: a 20px de
+    // alto (≈40px de ancho) «ORBI ERP» no se leía. Contra 075d6e2 falla: ese
+    // commit todavía usaba `OrbiBrand(height: 20)`.
+    //
+    // 32 = `_kCompactTopBarLogoHeight` en `operational_shell.dart` — el
+    // mismo alto que usa `theos_pos` para su logotipo con nombre
+    // (`theos_pos/lib/shared/screens/main_screen.dart:767`,
+    // `TheosLogoName(height: 32)`), orden del dueño. Es privada (no se
+    // importa aquí): se repite el número porque, por sí solo, ya demuestra
+    // el contraste con el valor viejo (20) que dejaba el logo ilegible.
+    testWidgets(
+      'a 390×844 el logo de la barra superior mide al menos 32px de alto',
+      (tester) async {
+        const size = Size(390, 844);
+        await _pump(tester, _host(size), size);
+
+        final logo = find.byKey(const Key('shell-bottom-nav-logo'));
+        expect(logo, findsOneWidget);
+        expect(tester.getSize(logo).height, greaterThanOrEqualTo(32.0));
+      },
+    );
+
+    // (l) El logo es un SVG de un solo color (símbolo + «ORBI ERP» en el
+    // mismo trazo): se tiñe con el color de texto primario del tema, el
+    // mismo patrón de `theos_pos` para su logotipo con nombre
+    // (`theos_pos/lib/shared/widgets/theos_logo.dart:95-104`,
+    // `TheosLogoName`) pero con el recurso semántico de Fluent en vez de
+    // los hexadecimales fijos que usa ese archivo. Contra 075d6e2 falla: ese
+    // commit teñía el logo con el acento
+    // (`theme.accentColor.defaultBrushFor(...)`), que se perdía sobre el
+    // fondo oscuro.
+    testWidgets(
+      'en tema oscuro el logo se tiñe con textFillColorPrimary, no con el '
+      'acento',
+      (tester) async {
+        const size = Size(390, 844);
+        final theme = OrbiFluentTheme.dark;
+        await _pump(tester, _host(size, theme: theme), size);
+
+        final logo = tester.widget<OrbiBrand>(
+          find.byKey(const Key('shell-bottom-nav-logo')),
+        );
+        expect(logo.color, theme.resources.textFillColorPrimary);
+      },
+    );
+  });
 }

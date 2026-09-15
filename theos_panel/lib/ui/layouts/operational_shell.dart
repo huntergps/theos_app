@@ -312,6 +312,21 @@ const _kPrimaryActionSize = 52.0;
 /// local a la barra inferior.
 const _kMinTouchTarget = 44.0;
 
+/// Diámetro del avatar del usuario ([_UserAvatarMenu]), en ambas barras
+/// (ancha y compacta).
+const _kAvatarDiameter = 32.0;
+
+/// Alto del logo de Orbi en la barra superior compacta
+/// ([_bottomNavTopBar]). Corregido dos veces el 15-sep-2026: primero de 20px
+/// («unos 40px de ancho», medido en `390x844_claro_con_mas.png») —«ORBI ERP»
+/// no se leía— a `_kAvatarDiameter - 4`; luego, orden del dueño, al mismo
+/// patrón que ya usa `theos_pos` para su logotipo con nombre en la cabecera
+/// del panel: `theos_pos/lib/shared/screens/main_screen.dart:767`,
+/// `TheosLogoName(height: 32)`. Mismo valor que [_kAvatarDiameter] porque
+/// ambos citan 32 por separado (el avatar porque así lo definió esta barra;
+/// el logo porque así lo mide `theos_pos`), no porque uno derive del otro.
+const _kCompactTopBarLogoHeight = 32.0;
+
 /// El marco sobre el que se muestra toda la aplicación.
 ///
 /// 🔴 **Es `NavigationView` de Fluent, no un andamiaje propio.** Antes esta
@@ -1033,7 +1048,29 @@ class _OperationalShellState extends State<OperationalShell> {
             ),
           ),
           const SizedBox(width: 4),
-          OrbiBrand(height: 20),
+          // Sin variante clara/oscura del logo en `theos_panel/assets`: es
+          // un único SVG de un solo color («ORBI ERP» y el anillo comparten
+          // el mismo trazo — ver la nota de [OrbiBrand]), pensado para
+          // teñirse en tiempo de ejecución (`OrbiBrand.color`,
+          // `ColorFilter.mode(tint, BlendMode.srcIn)`) — no hay ningún
+          // archivo que dibujar aparte, ni falta.
+          //
+          // Mismo patrón que `theos_pos` para su logotipo con nombre
+          // (`theos_pos/lib/shared/widgets/theos_logo.dart:95-104`,
+          // `TheosLogoName`): un SOLO color, ni acento ni dos tonos —
+          // `theos_pos` fija el suyo a mano
+          // (`0xFFE0E0E0`/`0xFF2D2D2D`, líneas 97-98); aquí se usa el
+          // recurso semántico equivalente de Fluent,
+          // `textFillColorPrimary`, que ya adapta claro/oscuro solo. (La
+          // variante de dos tonos de `theos_pos`, `TheosNameSvg`
+          // —líneas 111-157, ORBI en texto y ERP en acento—, no aplica: ese
+          // SVG separa "ORBI" de "ERP" en colores marcadores propios, y
+          // `orbi_logo.svg` no lo hace.)
+          OrbiBrand(
+            key: const Key('shell-bottom-nav-logo'),
+            height: _kCompactTopBarLogoHeight,
+            color: theme.resources.textFillColorPrimary,
+          ),
           const Spacer(),
           if (hasNotices)
             Tooltip(
@@ -1897,8 +1934,29 @@ class _BottomNavTab extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = FluentTheme.of(context);
+    // 🔴 Corregido el 15-sep-2026: `accentColor.normal` es el MISMO tono en
+    // claro y en oscuro (los siete tonos del acento no cambian con el
+    // brillo por sí solos), y sobre el fondo oscuro de la barra
+    // (`390x844_oscuro.png`) casi no se distinguía. `defaultBrushFor` es el
+    // propio mecanismo de Fluent para esto —`AccentColor.defaultBrushFor`
+    // (`fluent_ui-4.16.1/lib/src/styles/color.dart:347`), que devuelve
+    // `dark` en claro y `lighter` en oscuro (líneas 350-353): el mismo tono
+    // más claro que ya usan los controles nativos de Fluent en tema
+    // oscuro para no perder contraste.
+    //
+    // Medido a mano contra la marca de Orbi (`OrbiTheme.brand`,
+    // `#017E84`): `lighter` = mezclar con blanco al 30%
+    // (`ColorExtension.toAccentColor`, `color.dart:404`) da
+    // `#4DA5A9`-ish, y contra `micaBackgroundColor` en oscuro
+    // (`#202020`, `color_resources.dart:253`) la razón WCAG sale
+    // ≈5.6:1 — por encima del 3:1 exigido y también del 4.5:1 de texto
+    // normal. La prueba (j) de `operational_shell_bottom_nav_test.dart`
+    // lo comprueba en tiempo de ejecución con el color y el fondo REALES
+    // del tema, así que no hace falta el resguardo de
+    // `textFillColorPrimary` + indicador que se usó para el logo: aquí el
+    // acento en sí ya cumple.
     final color = selected
-        ? theme.accentColor.normal
+        ? theme.accentColor.defaultBrushFor(theme.brightness)
         : theme.resources.textFillColorSecondary;
     final caption = theme.typography.caption ?? const TextStyle();
     return Semantics(
@@ -2163,8 +2221,8 @@ class _UserAvatarMenuState extends State<_UserAvatarMenu> {
               clipBehavior: Clip.none,
               children: [
                 Container(
-                  width: 32,
-                  height: 32,
+                  width: _kAvatarDiameter,
+                  height: _kAvatarDiameter,
                   decoration: widget.useAccentColor
                       ? BoxDecoration(
                           color: FluentTheme.of(context).accentColor.normal,
