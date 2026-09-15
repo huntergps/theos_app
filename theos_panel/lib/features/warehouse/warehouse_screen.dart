@@ -68,7 +68,7 @@ class _WarehouseScreenState extends State<WarehouseScreen> {
             initialData: _controller.snapshot,
             builder: (context, snapshot) {
               final state = snapshot.data ?? _controller.snapshot;
-              return switch (state.status) {
+              final content = switch (state.status) {
                 OrderLoadStatus.initial || OrderLoadStatus.loading =>
                   const Center(child: ProgressRing()),
                 OrderLoadStatus.empty => const OrbiEmptyState(
@@ -81,6 +81,31 @@ class _WarehouseScreenState extends State<WarehouseScreen> {
                 ),
                 OrderLoadStatus.data => _list(state.items),
               };
+              final refreshError = state.refreshError;
+              // El refresco en línea falló pero la copia local sí se pudo
+              // leer: se sigue mostrando (`content`), y esto SÓLO añade el
+              // aviso. Antes (`ScopeOrderRepository` con `catch (_) {}`) el
+              // fallo se tragaba entero y Bodega quedaba vacía sin decir
+              // por qué — el defecto medido en Mepriga el 14-sep.
+              if (refreshError == null) return content;
+              return Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 8),
+                    child: InfoBar(
+                      key: const Key('warehouse-refresh-error'),
+                      title: const Text('No se pudo actualizar desde Odoo'),
+                      content: Text(
+                        'No se pudo actualizar desde Odoo: $refreshError. '
+                        'Se muestra lo guardado en el equipo.',
+                      ),
+                      severity: InfoBarSeverity.warning,
+                    ),
+                  ),
+                  Expanded(child: content),
+                ],
+              );
             },
           ),
         ),

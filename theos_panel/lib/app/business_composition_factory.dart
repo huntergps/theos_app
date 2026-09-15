@@ -52,11 +52,17 @@ final class OrbiBusinessCompositionFactory {
     this.saleCommandsBuilder,
     this.approvalBuilder,
     this.catalogsBuilder,
+    this.approvalsAvailable,
   });
 
   final SaleCommandsBuilder? saleCommandsBuilder;
   final ApprovalBuilder? approvalBuilder;
   final CatalogsBuilder? catalogsBuilder;
+
+  /// `null` (todas las pruebas y cualquier llamador viejo) preserva el
+  /// comportamiento de siempre. El router real pasa aquí una lectura del
+  /// `ServerFeatureStore` de la sesión — ver `_defaultApprovals`.
+  final bool Function()? approvalsAvailable;
   OrbiBusinessComposition? _current;
 
   OrbiBusinessComposition? get current => _current;
@@ -156,6 +162,7 @@ final class OrbiBusinessCompositionFactory {
     runtime: runtime,
     capabilities: capabilities,
     offlineQueue: DriftApprovalOfflineQueue(activation.database.database),
+    isAvailable: approvalsAvailable,
   );
 
   RuntimeCatalogComposition? _catalogs(

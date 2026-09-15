@@ -58,25 +58,37 @@ final class ScopeOrderRepository implements OrderRepository {
   @override
   Future<void> refresh(OrderQuery query) async {
     final active = sessions.active;
+    // 🔴 Causa raíz de que Bodega quedara vacía SIN explicación en un
+    // servidor que sí tiene datos locales (Mepriga, evidencia del 14-sep):
+    // antes este `catch (_) {}` se tragaba el fallo del refresco en línea
+    // por completo — red caída, permiso insuficiente, o `sale.order`
+    // directamente ausente del servidor — y seguía a `_load` como si nada
+    // hubiera pasado. Ahora el error se guarda y viaja en el snapshot
+    // (`OrderSnapshot.refreshError`) para que la pantalla lo cuente en vez
+    // de quedarse muda.
+    Object? refreshError;
     if (active?.client != null) {
       try {
         await RuntimeLocalOrderReader(sessions).refreshOnline(
           query,
           canReadCollectionPayments: canReadCollectionPayments,
         );
-      } catch (_) {
-        // Offline refresh continues from the durable local table.
+      } catch (error) {
+        refreshError = error;
       }
     }
     final key = _key(query);
     final controller = _streams[key];
-    if (controller != null) await _load(query, controller);
+    if (controller != null) {
+      await _load(query, controller, refreshError: refreshError);
+    }
   }
 
   Future<void> _load(
     OrderQuery query,
-    StreamController<OrderSnapshot> controller,
-  ) async {
+    StreamController<OrderSnapshot> controller, {
+    Object? refreshError,
+  }) async {
     try {
       final result = await RuntimeLocalOrderReader(sessions).read(query);
       final items = result.rows.map(_map).toList(growable: false);
@@ -86,6 +98,7 @@ final class ScopeOrderRepository implements OrderRepository {
           items: items,
           totalCount: result.count,
           query: query,
+          refreshError: refreshError,
         ),
       );
     } catch (error) {

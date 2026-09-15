@@ -534,4 +534,39 @@ void main() {
       expect(refusals.single['ids'], [92]);
     },
   );
+
+  test(
+    'pending() does not call Odoo when approval.request is confirmed '
+    'unavailable — a server without Enterprise approvals should not see a '
+    'raw 404 turn into a generic screen error',
+    () async {
+      final rpc = _Rpc();
+      final port = _runtimePort(rpc, _Queue());
+      final unavailablePort = SessionApprovalPort(
+        runtime: port.runtime,
+        capabilities: port.capabilities,
+        offlineQueue: port.offlineQueue,
+        rpcFactory: (_) => rpc,
+        sessionContext: () =>
+            ApprovalSessionContext(scopeKey: 'scope', userId: 7, client: null),
+        isAvailable: () => false,
+      );
+      final result = await unavailablePort.pending();
+      expect(result, isEmpty);
+      expect(rpc.calls, isEmpty);
+    },
+  );
+
+  test(
+    'pending() keeps calling Odoo when isAvailable is null (every caller '
+    'before this feature, and any test that does not care)',
+    () async {
+      final rpc = _Rpc()..response = <Map<String, dynamic>>[];
+      final port = _runtimePort(rpc, _Queue());
+      final result = await port.pending();
+      expect(result, isEmpty);
+      expect(rpc.calls, hasLength(1));
+      expect(rpc.calls.single['model'], 'approval.request');
+    },
+  );
 }

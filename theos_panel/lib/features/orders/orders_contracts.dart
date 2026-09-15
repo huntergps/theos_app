@@ -83,6 +83,7 @@ final class OrderSnapshot {
     this.totalCount = 0,
     this.query,
     this.error,
+    this.refreshError,
   }) : items = List.unmodifiable(items);
 
   final OrderLoadStatus status;
@@ -90,6 +91,14 @@ final class OrderSnapshot {
   final int totalCount;
   final OrderQuery? query;
   final Object? error;
+
+  /// No fatal: el refresco EN LÍNEA falló (red, permiso, modelo ausente)
+  /// pero la copia local sí se pudo leer, y [items] la sigue mostrando.
+  /// Distinto de [error], que es un fallo DURO de la lectura LOCAL misma
+  /// (`ScopeOrderRepository._load`) y por eso apaga la lista entera. `null`
+  /// cuando el refresco en línea salió bien, o no se intentó (sin conexión:
+  /// no hay nada nuevo que reportar como fallo).
+  final Object? refreshError;
 }
 
 /// Local, already-authorized order query. The implementation owns storage and

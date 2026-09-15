@@ -38,9 +38,10 @@ final class _Operations implements WarehouseOperationPort {
 }
 
 final class _Repository implements OrderRepository {
-  _Repository({this.pending = true});
+  _Repository({this.pending = true, this.refreshError});
 
   final bool pending;
+  final Object? refreshError;
   final _updates = StreamController<OrderSnapshot>.broadcast();
 
   @override
@@ -62,6 +63,7 @@ final class _Repository implements OrderRepository {
               pendingCollection: pending,
             ),
           ],
+          refreshError: refreshError,
         ),
       ),
     );
@@ -177,4 +179,54 @@ void main() {
       findsOneWidget,
     );
   });
+
+  testWidgets(
+    'warehouse shows a refresh-error warning instead of going silently '
+    'empty, and keeps showing the locally cached list underneath',
+    (tester) async {
+      // 🔴 Causa raíz medida en Mepriga (14-sep-2026): antes,
+      // `ScopeOrderRepository.refresh` se tragaba CUALQUIER fallo del
+      // refresco en línea (`catch (_) {}`) y Bodega quedaba vacía sin decir
+      // por qué. Ahora el error viaja en `OrderSnapshot.refreshError` y la
+      // pantalla lo cuenta sin apagar lo que sí hay en el equipo.
+      final repository = _Repository(
+        pending: false,
+        refreshError: Exception('conexión perdida'),
+      );
+      final operations = _Operations();
+      addTearDown(repository.dispose);
+      final capabilities = CapabilitySnapshot(
+        scopeKey: 'scope',
+        companyId: 1,
+        revision: 1,
+        fetchedAt: DateTime(2026),
+        permissions: const ['warehouse'],
+      );
+      await tester.pumpWidget(
+        FluentApp(
+          theme: OrbiFluentTheme.light,
+          home: WarehouseScreen(
+            repository: repository,
+            operations: operations,
+            policy: OrderFilterPolicy(userId: 34, capabilities: capabilities),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.byKey(const Key('warehouse-refresh-error')), findsOneWidget);
+      expect(
+        find.textContaining('No se pudo actualizar desde Odoo'),
+        findsWidgets,
+      );
+      expect(find.textContaining('conexión perdida'), findsOneWidget);
+      expect(
+        find.textContaining('Se muestra lo guardado en el equipo'),
+        findsOneWidget,
+      );
+      // The locally cached order is still there: a refresh error is not a
+      // reason to hide what the device already has.
+      expect(find.text('ORBI-E2E-FSC'), findsOneWidget);
+    },
+  );
 }

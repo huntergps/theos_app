@@ -54,12 +54,22 @@ final class SessionApprovalPort implements ApprovalPort {
     required this.offlineQueue,
     this.rpcFactory = OdooApprovalRpc.new,
     this.sessionContext,
+    this.isAvailable,
   });
   final SessionRuntime runtime;
   final CapabilitySnapshot capabilities;
   final ApprovalOfflineQueue offlineQueue;
   final ApprovalRpc Function(OdooClient) rpcFactory;
   final ApprovalSessionContext Function()? sessionContext;
+
+  /// `null` (todos los llamadores de hoy salvo el real) mantiene el
+  /// comportamiento de siempre: intenta el RPC sin comprobar nada antes.
+  /// Cuando el llamador SÍ lo pasa y devuelve `false` —
+  /// `ServerFeatureStore` confirmó que `approval.request` no existe en este
+  /// servidor (Enterprise, no todo Odoo lo trae) — [pending] devuelve vacío
+  /// sin llamar a Odoo, en vez de dejar que el 404 llegue como error
+  /// genérico a la pantalla.
+  final bool Function()? isAvailable;
   ApprovalSessionContext? get _activeContext =>
       sessionContext?.call() ??
       (runtime.active == null
@@ -121,6 +131,7 @@ final class SessionApprovalPort implements ApprovalPort {
 
   @override
   Future<List<ApprovalRequest>> pending() async {
+    if (isAvailable?.call() == false) return const [];
     final active = _activeContext;
     if (active == null ||
         active.scopeKey != capabilities.scopeKey ||
