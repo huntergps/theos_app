@@ -1930,4 +1930,149 @@ void main() {
       expect(onlineRestore.status, AuthServiceStatus.restored);
     });
   });
+
+  // --- PIN de vendedor: la llave sobrevive a cerrar sesión mientras esté
+  // retenida para el PIN (decisión del dueño, 14-sep-2026: «el PIN mantiene
+  // el tope de vendedor al entrar o cambiar de usuario»; regresión del
+  // commit 6becdca que dejó a `close()` borrando cualquier llave sin
+  // «Guardar clave», incluida la que el PIN necesitaba reutilizar). --------
+  group('PIN de vendedor retiene la llave entre sesiones (14-sep-2026)', () {
+    test(
+      'pin login works after closing the session',
+      () async {
+        final b = _Backend();
+        final i = _Identity();
+        final bootstrap = _Bootstrap();
+        // `loginWithPinCredential` reactiva vía `loginWithApiKey`, que
+        // sondea la identidad de la llave contra el servidor — el mismo
+        // sondeo falso que ya usan las pruebas de `loginWithStoredCredential`
+        // más arriba, para no hacer una llamada de red real en la prueba.
+        Future<({int userId, String login})> probe(OdooClient client) async =>
+            (userId: 7, login: 'u');
+        final (s1, prefs) = await openSession(b, i, _Runtime(), probe, bootstrap);
+        final result = await s1.login(
+          serverUrl: 'https://erp.test',
+          database: 'db',
+          login: 'u',
+          password: 'p',
+          persistCredential: false,
+        );
+        expect(result.status, AuthServiceStatus.authenticated);
+        await s1.retainCredentialForPin(result.profile!, true);
+
+        await s1.close();
+
+        final s2 = reopen(b, prefs, i, _Runtime(), probe, bootstrap);
+        final pinResult = await s2.loginWithPinCredential(result.profile!);
+
+        expect(pinResult.status, AuthServiceStatus.authenticated);
+        expect(bootstrap.revokedOwnApiKeys, isEmpty);
+      },
+    );
+
+    test(
+      'pin-retained key is never offered as remembered',
+      () async {
+        final b = _Backend();
+        final i = _Identity();
+        final bootstrap = _Bootstrap();
+        final (s1, prefs) = await openSession(b, i, _Runtime(), null, bootstrap);
+        final result = await s1.login(
+          serverUrl: 'https://erp.test',
+          database: 'db',
+          login: 'u',
+          password: 'p',
+          persistCredential: false,
+        );
+        await s1.retainCredentialForPin(result.profile!, true);
+        await s1.close();
+
+        final s2 = reopen(b, prefs, i, _Runtime(), null, bootstrap);
+
+        expect(await s2.hasStoredCredential(result.profile!), isFalse);
+        expect(
+          await s2.findRememberedCredential('https://erp.test', 'db', 'u'),
+          isNull,
+        );
+      },
+    );
+
+    test(
+      'removing the pin deletes a non-remembered key',
+      () async {
+        final b = _Backend(), r = _Runtime(), i = _Identity();
+        final bootstrap = _Bootstrap();
+        final s = await service(b, r, i, null, null, bootstrap);
+        final result = await s.login(
+          serverUrl: 'https://erp.test',
+          database: 'db',
+          login: 'u',
+          password: 'p',
+          persistCredential: false,
+        );
+        await s.retainCredentialForPin(result.profile!, true);
+        await s.close();
+        // Retenida por PIN: close() no la tocó, sigue físicamente en el
+        // almacén aunque la marca de sesión abierta ya se borró.
+        expect(b.values.values, contains('secret'));
+
+        await s.retainCredentialForPin(result.profile!, false);
+
+        expect(bootstrap.revokedOwnApiKeys, ['secret']);
+        expect(b.values.values, isNot(contains('secret')));
+        expect(await s.hasStoredCredential(result.profile!), isFalse);
+      },
+    );
+
+    test(
+      'pin login for another user of the same database',
+      () async {
+        final b = _Backend(), r = _Runtime();
+        final i = _Identity();
+        final bootstrap = _Bootstrap();
+        final s = await service(b, r, i, (client) async {
+          return client.apiKey == 'secret-b'
+              ? (userId: 22, login: 'userB')
+              : (userId: 11, login: 'userA');
+        }, null, bootstrap);
+
+        final resultA = await s.loginWithApiKey(
+          serverUrl: 'https://erp.test',
+          database: 'db',
+          login: 'userA',
+          apiKey: 'secret-a',
+          persistCredential: false,
+        );
+        await s.retainCredentialForPin(resultA.profile!, true);
+        await s.close();
+
+        final resultB = await s.loginWithApiKey(
+          serverUrl: 'https://erp.test',
+          database: 'db',
+          login: 'userB',
+          apiKey: 'secret-b',
+          persistCredential: false,
+        );
+        await s.retainCredentialForPin(resultB.profile!, true);
+        await s.close();
+
+        final profiles = await s.pinRetainedProfilesFor(
+          'https://erp.test',
+          'db',
+        );
+        expect(profiles.map((p) => p.userId).toSet(), {11, 22});
+
+        final profileB = await s.loadProfileForLogin(
+          'https://erp.test',
+          'db',
+          'userB',
+        );
+        final loginResult = await s.loginWithPinCredential(profileB!);
+
+        expect(loginResult.status, AuthServiceStatus.authenticated);
+        expect(loginResult.profile!.userId, 22);
+        expect(r.active?.userId, 22);
+      },
+    );
+  });
 }

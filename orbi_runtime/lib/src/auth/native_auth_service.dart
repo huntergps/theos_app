@@ -610,6 +610,111 @@ final class NativeAuthService {
       ) ==
       true;
 
+  /// Bandera persistente, por credencial (servidor + base + userId, mismo
+  /// patrón que [_rememberedKeyFor]), de que esta llave se retiene para el
+  /// PIN de vendedor (diseño del dueño, 14-sep-2026: «el PIN mantiene el tope
+  /// de vendedor al entrar o cambiar de usuario», y sobrevive a cerrar
+  /// sesión). Deliberadamente SEPARADA de [_isRemembered]: una llave puede
+  /// estar retenida por PIN sin estar «recordada» (nunca ofrecida en la
+  /// pantalla de acceso como «Clave guardada» — eso saltaría el tope de
+  /// vendedor), y viceversa.
+  String _pinRetainedKeyFor(String serverUrl, String database, int userId) {
+    final normalized = AppScope(
+      appId: appId,
+      installationId: 'pin_retained',
+      normalizedServerUrl: serverUrl,
+      database: database,
+      userId: userId,
+    );
+    final encoded = base64Url
+        .encode(
+          utf8.encode('${normalized.normalizedServerUrl}|$database|$userId'),
+        )
+        .replaceAll('=', '');
+    return 'orbi/auth/pin_retained/$appId/$encoded';
+  }
+
+  Future<void> _setPinRetained(AppScope scope, bool retained) async {
+    final key = _pinRetainedKeyFor(
+      scope.normalizedServerUrl,
+      scope.database,
+      scope.userId,
+    );
+    if (retained) {
+      await _preferences.setBool(key, true);
+    } else {
+      await _preferences.remove(key);
+    }
+  }
+
+  bool _isPinRetained(AppScope scope) =>
+      _preferences.getBool(
+        _pinRetainedKeyFor(
+          scope.normalizedServerUrl,
+          scope.database,
+          scope.userId,
+        ),
+      ) ==
+      true;
+
+  /// Marca (o desmarca) [profile] como retenido para el PIN de vendedor.
+  ///
+  /// `retained: true` se llama al ENROLAR un PIN — siempre con la sesión de
+  /// ESE MISMO usuario ya abierta, así que su llave ya vive en el almacén y
+  /// aquí sólo se pone la marca que hace que [close] la conserve.
+  ///
+  /// `retained: false` se llama al QUITAR el PIN. Si la credencial sigue
+  /// «recordada» ([_isRemembered]) o hay una sesión ABIERTA de ese mismo
+  /// usuario ahora mismo ([_readOpenSession]/[_openSessionMatches]), la llave
+  /// se conserva intacta — quitar el PIN nunca debe cerrar la sesión de quien
+  /// lo está quitando ni borrar una llave que sigue recordada por otra vía.
+  /// En cualquier otro caso ya no hay ninguna razón para que la llave siga en
+  /// el almacén: se revoca best effort en el servidor y se borra localmente,
+  /// igual que [forgetStoredCredential].
+  Future<void> retainCredentialForPin(AuthProfile profile, bool retained) async {
+    final scope = AppScope(
+      appId: appId,
+      installationId: profile.installationId,
+      normalizedServerUrl: profile.serverUrl,
+      database: profile.database,
+      userId: profile.userId,
+    );
+    await _setPinRetained(scope, retained);
+    if (retained) return;
+    if (_isRemembered(scope)) return;
+    final marker = _readOpenSession();
+    if (marker != null && _openSessionMatches(marker, profile)) return;
+    final secret = await _credentialStore.read(
+      scope,
+      profile.credentialReference,
+    );
+    if (secret == null || secret.isEmpty) return;
+    try {
+      await _bootstrap.revokeOwnApiKey(
+        baseUrl: scope.normalizedServerUrl,
+        database: scope.database,
+        apiKey: secret,
+      );
+    } catch (error) {
+      logger.w(
+        '[NativeAuthService]',
+        'No se pudo revocar la llave al quitar el PIN de '
+            'login=${profile.login} db=${scope.database} '
+            'server=${scope.normalizedServerUrl}: $error',
+      );
+    }
+    try {
+      await _credentialStore.delete(scope, profile.credentialReference);
+    } catch (error) {
+      logger.w(
+        '[NativeAuthService]',
+        'No se pudo borrar la llave al quitar el PIN de '
+            'login=${profile.login} db=${scope.database} '
+            'server=${scope.normalizedServerUrl}: $error',
+      );
+    }
+  }
+
   /// Migración de una sola vez (auditoría de seguridad, 14-sep-2026): antes
   /// de separar «hay sesión abierta» de «está recordada», el código viejo
   /// borraba del almacén cualquier llave que NO se hubiera guardado con
@@ -1218,6 +1323,14 @@ final class NativeAuthService {
   /// [forgetStoredCredential] («Olvidar la clave guardada», una decisión
   /// explícita del operador) o [closeExpired] (el propio servidor la
   /// rechazó).
+  ///
+  /// 🔴 Ampliado el 14-sep-2026 (PIN de vendedor entre sesiones): además de
+  /// [_isRemembered], una llave RETENIDA para el PIN ([_isPinRetained]) —
+  /// aunque nunca se pidió «Guardar clave» — tampoco se revoca ni se borra
+  /// aquí. El PIN reutiliza esa misma llave para volver a entrar sin
+  /// contraseña ([loginWithPinCredential]); si `close()` la borrara, cerrar
+  /// sesión rompería el propio PIN que se acaba de enrolar. Quitar la
+  /// retención es [retainCredentialForPin] con `false`.
   Future<void> close() async {
     await _migrateLegacyRememberedFlags();
     final marker = _readOpenSession();
@@ -1239,7 +1352,7 @@ final class NativeAuthService {
         database: database,
         userId: userId,
       );
-      if (_isRemembered(scope)) return;
+      if (_isRemembered(scope) || _isPinRetained(scope)) return;
       const reference = 'api-key';
       final secret = await _credentialStore.read(scope, reference);
       if (secret == null || secret.isEmpty) return;
@@ -1573,6 +1686,53 @@ final class NativeAuthService {
     String login,
   ) => loadProfileForKey(_profileKeyForLogin(serverUrl, database, login));
 
+  /// Los perfiles de ESTA base (servidor + base exactos) que tienen su
+  /// llave retenida para el PIN de vendedor ([retainCredentialForPin]) —
+  /// lo que la pantalla de PIN necesita para el selector «elegir entre los
+  /// usuarios con PIN de este equipo para esa base» (decisión del dueño,
+  /// 14-sep-2026). Recorre las mismas claves de perfil indexadas por login
+  /// (`orbi/auth/profile/$appId/by-login/...`) que
+  /// [_migrateLegacyRememberedFlags] ya recorre para su propia migración —
+  /// nunca depende de la marca de sesión abierta ni de si el login además
+  /// está «recordada».
+  ///
+  /// NO comprueba que la llave siga físicamente en el almacén — igual que
+  /// [loadProfileForLogin] no lo comprueba: el llamador ([PinLoginScreen])
+  /// cruza esta lista contra `PinCredentialStore.isEnrolled` (que vive fuera
+  /// de este paquete) para decidir a quién ofrecer de verdad.
+  Future<List<AuthProfile>> pinRetainedProfilesFor(
+    String serverUrl,
+    String database,
+  ) async {
+    final normalizedServerUrl = AppScope(
+      appId: appId,
+      installationId: 'profile',
+      normalizedServerUrl: serverUrl,
+      database: database,
+      userId: 1,
+    ).normalizedServerUrl;
+    final prefix = 'orbi/auth/profile/$appId/by-login/';
+    final profiles = <AuthProfile>[];
+    for (final key in _preferences.getKeys()) {
+      if (!key.startsWith(prefix)) continue;
+      final profile = await loadProfileForKey(key);
+      if (profile == null) continue;
+      if (profile.serverUrl != normalizedServerUrl ||
+          profile.database != database) {
+        continue;
+      }
+      final scope = AppScope(
+        appId: appId,
+        installationId: profile.installationId,
+        normalizedServerUrl: profile.serverUrl,
+        database: profile.database,
+        userId: profile.userId,
+      );
+      if (_isPinRetained(scope)) profiles.add(profile);
+    }
+    return profiles;
+  }
+
   /// Si el almacén seguro todavía tiene una llave utilizable para [profile].
   /// Nunca lanza: un almacén que no responde se lee como "no hay llave", no
   /// como un error de login.
@@ -1703,6 +1863,63 @@ final class NativeAuthService {
     // credencial deje de estar recordada — auditoría de seguridad,
     // 14-sep-2026.
     await _setRemembered(scope, false);
+    // La llave ya se borró físicamente: una retención por PIN que siguiera
+    // marcada apuntaría a un secreto que ya no existe — [_isPinRetained]
+    // debe quedar en el mismo estado que [_isRemembered] tras un «Olvidar»
+    // (auditoría de sesión, 14-sep-2026).
+    await _setPinRetained(scope, false);
+  }
+
+  /// Entra con la llave RETENIDA para el PIN de vendedor
+  /// ([retainCredentialForPin]), sin volver a pedir contraseña — la pantalla
+  /// de PIN ya verificó el PIN de cuatro dígitos contra `PinCredentialStore`
+  /// antes de llamar aquí, así que esto sólo reactiva la sesión con la llave
+  /// que ya era legítimamente de [profile].
+  ///
+  /// Exige DOS cosas para [profile] (servidor + base + userId exactos):
+  /// retención por PIN vigente y que la llave siga físicamente en el
+  /// almacén. Si falta cualquiera de las dos, `AuthServiceStatus.required`
+  /// sin lanzar — no debería pasar en la práctica salvo una carrera con
+  /// [forgetStoredCredential] o con quitar el PIN
+  /// ([retainCredentialForPin] con `false`).
+  ///
+  /// Delega en [loginWithApiKey] con `persistCredential: _isRemembered(scope)`
+  /// para dejar la bandera de «recordada» EXACTAMENTE como estaba — esta
+  /// llamada nunca decide por su cuenta si la credencial pasa a estar
+  /// recordada, y `passwordDerived: false` porque la llave no se acaba de
+  /// emitir a cambio de una contraseña, es la que ya tenía este usuario.
+  ///
+  /// 🔴 Sin conexión NO se resuelve aquí: [loginWithApiKey] sondea el
+  /// servidor (`_apiKeyIdentityProbe`) y, sin red, su error se propaga tal
+  /// cual — el llamador (la pantalla de PIN) lo trata como cualquier otro
+  /// fallo de red. El camino de PIN sin conexión, con el límite de días
+  /// parametrizable, lo cablea aparte el trabajo en curso sobre [restore].
+  Future<AuthServiceResult> loginWithPinCredential(AuthProfile profile) async {
+    final scope = AppScope(
+      appId: appId,
+      installationId: profile.installationId,
+      normalizedServerUrl: profile.serverUrl,
+      database: profile.database,
+      userId: profile.userId,
+    );
+    if (!_isPinRetained(scope)) {
+      return const AuthServiceResult(status: AuthServiceStatus.required);
+    }
+    final secret = await _credentialStore.read(
+      scope,
+      profile.credentialReference,
+    );
+    if (secret == null || secret.isEmpty) {
+      return const AuthServiceResult(status: AuthServiceStatus.required);
+    }
+    return loginWithApiKey(
+      serverUrl: profile.serverUrl,
+      database: profile.database,
+      login: profile.login,
+      apiKey: secret,
+      persistCredential: _isRemembered(scope),
+      passwordDerived: false,
+    );
   }
 }
 
