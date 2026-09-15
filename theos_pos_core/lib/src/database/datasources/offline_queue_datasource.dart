@@ -781,6 +781,33 @@ class OfflineQueueDataSource implements core.OfflineQueueStore {
     });
   }
 
+  /// Reactive stream: emite el conteo TOTAL de operaciones pendientes en la
+  /// cola (de cualquier modelo/orden), para que un disparador de sync sepa
+  /// cuándo SUBIÓ sin tener que sondear el servidor ni la cola por su cuenta.
+  ///
+  /// Mismo filtro que [getPendingOperations] (sin exigir que esté "lista
+  /// para reintentar": una operación esperando su backoff sigue en la cola,
+  /// así que sigue contando como pendiente). Por eso un reintento fallido
+  /// que reprograma la misma fila no mueve este conteo — sólo se mueve
+  /// cuando una operación de verdad entra o sale de la cola (se encola, se
+  /// resuelve, cae a dead-letter o se remueve a mano).
+  ///
+  /// Usada por `SyncQueuedOperationTrigger` (`orbi_runtime`) para pedir un
+  /// drenaje apenas se encola algo en línea, sin esperar el próximo filo de
+  /// conectividad/primer plano ni el respaldo periódico de 5 minutos — ver
+  /// la documentación de esa clase para la causa raíz medida el 14-sep-2026.
+  Stream<int> watchPendingOperationCount() {
+    final query = _db.select(_db.offlineQueue)
+      ..where(
+        (table) =>
+            (table.status.equals('pending') |
+                table.status.equals('recovery_pending') |
+                table.status.isNull()) &
+            table.retryCount.isSmallerThanValue(core.RetryBackoff.maxRetries),
+      );
+    return query.watch().map((rows) => rows.length);
+  }
+
   /// Remove all pending WRITE operations for a sale.order
   ///
   /// Called after successful create to avoid duplicate field updates.

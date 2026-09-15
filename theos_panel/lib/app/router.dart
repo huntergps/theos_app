@@ -711,6 +711,53 @@ final scopeSyncAutoResyncTriggerProvider = Provider<SyncAutoResyncTrigger?>((
 });
 // --- Fin del bloque aislado ------------------------------------------------
 
+// --- Bloque aislado: drenar la cola al encolar en línea (14-sep-2026) ------
+// Falla medida contra Odoo real, con "Conectado" y "Tiempo real: conectado"
+// ambos verdes: un envío y una recepción de envases quedaron "En espera,
+// Intentos: 0" en la cola offline hasta que la persona pulsó "Sincronizar
+// todo" a mano. Ninguno de los otros disparadores de este archivo mira el
+// TAMAÑO de la cola — `SyncAutoResyncTrigger` (arriba) sólo reacciona a
+// filos de conectividad/primer plano, y `SyncPeriodicBackupTrigger` (más
+// abajo) se desarma con tiempo real vivo — así que encolar algo nuevo
+// estando ya en línea no disparaba nada. `SyncQueuedOperationTrigger` vive
+// en `orbi_runtime` y es agnóstico de Flutter; aquí sólo se le conecta la
+// cola real del scope activo (`_sessionQueueProvider`, el mismo que ya usan
+// presencia/preferencias más abajo en este archivo) y la misma señal de red
+// que el bloque de arriba.
+final scopeSyncQueuedOperationTriggerProvider =
+    Provider<SyncQueuedOperationTrigger?>((ref) {
+      final coordinator = ref.watch(scopeSyncCoordinatorProvider);
+      final queue = ref.watch(_sessionQueueProvider);
+      if (coordinator == null || queue == null) return null;
+
+      // Mismo puente red → Stream<bool> que los otros bloques aislados de
+      // este archivo: `ref.listen` es el único modo de leer el
+      // `Stream<bool>` crudo de un `StreamProvider` en esta versión de
+      // Riverpod.
+      final onlineController = StreamController<bool>.broadcast();
+      ref.listen<AsyncValue<NetworkSignal>>(networkSignalProvider, (
+        previous,
+        next,
+      ) {
+        final signal = next.value;
+        if (signal != null && !onlineController.isClosed) {
+          onlineController.add(signal.hasNetwork);
+        }
+      }, fireImmediately: true);
+
+      final trigger = SyncQueuedOperationTrigger(
+        coordinator: coordinator,
+        pendingCount: queue.watchPendingOperationCount(),
+        online: onlineController.stream,
+      );
+      ref.onDispose(() {
+        unawaited(trigger.dispose());
+        unawaited(onlineController.close());
+      });
+      return trigger;
+    });
+// --- Fin del bloque aislado ------------------------------------------------
+
 // --- Bloque aislado: tiempo real (13-sep-2026) ------------------------------
 // Un aviso `app_sync/changed` de Odoo (módulo `l10n_ec_app_sync`) es una PISTA:
 // dispara la sincronización incremental SÓLO del catálogo afectado, por el mismo
@@ -2367,6 +2414,11 @@ final orbiRouterProvider = Provider<GoRouter>((ref) {
             // aislado más arriba. Nunca se lee su valor aquí: basta con que
             // exista para que escuche red y ciclo de vida.
             ref.watch(scopeSyncAutoResyncTriggerProvider);
+            // Drenar al encolar en línea (14-sep-2026): basta con que exista
+            // para que escuche el tamaño de la cola offline y pida un
+            // drenaje apenas suba estando en línea, sin esperar el próximo
+            // filo de conectividad/primer plano. Nunca se lee su valor aquí.
+            ref.watch(scopeSyncQueuedOperationTriggerProvider);
             // Igual que el disparador: basta con que exista para que el tiempo
             // real abra el socket del ámbito y lo cierre al salir. Se captura
             // el valor (a diferencia del resto de este bloque) porque su
