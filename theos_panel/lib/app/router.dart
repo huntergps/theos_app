@@ -128,24 +128,92 @@ final workspaceLockProvider = NotifierProvider<WorkspaceLockNotifier, bool>(
 const _kWorkspaceLockedKey = 'orbi/workspace/locked';
 
 class WorkspaceLockNotifier extends Notifier<bool> {
+  /// El scope para el que ya se resolvió la pregunta "¿debe arrancar
+  /// bloqueada esta activación?" — `null` mientras no haya sesión. Corrige
+  /// un defecto medido tras el primer despliegue de esta clase (revisión
+  /// del dueño, 14-sep-2026): `build()` observaba `authControllerProvider`
+  /// directamente, así que CUALQUIER cambio de ese estado — incluido un
+  /// acceso interactivo recién exitoso, o un simple refresco de
+  /// capacidades/perfil en medio de una sesión ya en uso — volvía a hacer la
+  /// cuenta de arriba desde la última interacción PERSISTIDA (que puede
+  /// tener horas), bloqueando a alguien que acababa de demostrar quién es.
+  ///
+  /// La regla correcta: esta pregunta se responde UNA sola vez por
+  /// activación (mismo scope). Mientras `_evaluatedScopeKey` siga igual,
+  /// `build()` ni siquiera mira `authControllerProvider` de nuevo para esto
+  /// — sólo `lock()`/`unlock()` (manual, o el temporizador de inactividad)
+  /// pueden cambiar el estado a partir de ahí.
+  String? _evaluatedScopeKey;
+
   @override
   bool build() {
     final preferences = ref.watch(sharedPreferencesProvider);
-    if (preferences.getBool(_kWorkspaceLockedKey) ?? false) return true;
+    final manuallyLocked = preferences.getBool(_kWorkspaceLockedKey) ?? false;
+
+    final auth = ref.watch(authControllerProvider);
+    final profile = auth.profile;
+    if (profile == null) {
+      _evaluatedScopeKey = null;
+      return manuallyLocked;
+    }
+
+    final scopeKey = workspaceUnlockScopeKeyFor(profile);
+    if (_evaluatedScopeKey == scopeKey) {
+      // Misma activación en uso (refresco de capacidades/perfil, o
+      // cualquier otro motivo por el que `authControllerProvider` haya
+      // vuelto a construirse sin un acceso NUEVO): no se re-evalúa nada.
+      return manuallyLocked;
+    }
+    _evaluatedScopeKey = scopeKey;
+
+    // Si esto es exactamente el valor sin tocar que `bootstrap.dart`
+    // instaló en `authInitialStateProvider` ANTES del primer `build()` de
+    // este notifier — la única forma en que una sesión llega aquí sin
+    // ningún gesto interactivo detrás (reabrir la pestaña o la app).
+    // Cualquier método del notifier que ya haya corrido (`login`,
+    // `loginWithStoredCredential`, `loginWithApiKey`, o el
+    // `restoreForSellerPin` del PIN) reemplaza `state` por un objeto
+    // nuevo, así que esto deja de ser `identical` en cuanto cualquiera de
+    // ellos confirma su resultado — sin importar qué estado reporte.
+    //
+    // Deliberadamente NO es una comprobación de `auth.status`:
+    // `restoreForSellerPin` reutiliza la maquinaria de `restore()` y por
+    // eso reporta el MISMO `AuthControllerStatus.restored` que un reinicio
+    // silencioso de verdad (ver el comentario de ese método) — el estado
+    // solo nunca alcanza para distinguir un PIN recién tecleado de un
+    // simple reabrir la app.
+    final initial = ref.watch(authInitialStateProvider);
+    final isUntouchedColdStart = identical(auth, initial);
+
+    if (!isUntouchedColdStart) {
+      // Un acceso interactivo acaba de pasar — contraseña, una llave
+      // guardada/recordada, una API key, o el PIN de vendedor. Decisión
+      // del dueño, 14-sep-2026: "acaba de demostrar quién es (...) cuenta
+      // como interacción: persiste lastInteraction = ahora (...) y nunca
+      // arranca bloqueada" — por encima incluso de un flag manual que
+      // hubiera quedado de una sesión anterior.
+      unawaited(preferences.setBool(_kWorkspaceLockedKey, false));
+      unawaited(
+        preferences.setString(
+          inactivityLastInteractionKey(scopeKey),
+          DateTime.now().toUtc().toIso8601String(),
+        ),
+      );
+      return false;
+    }
+
+    // El flag manual sigue mandando en un reinicio genuino: "Bloquear" y
+    // cerrar sin desbloquear debe seguir viéndose bloqueado al volver,
+    // exactamente igual que antes de esta corrección.
+    if (manuallyLocked) return true;
 
     // Bloqueo automático por inactividad (decisión del dueño, 14-sep-2026):
     // "la sesión web sobrevive a cerrar la pestaña hasta que salta el
     // bloqueo por inactividad. Así que si reabres pasado el plazo, debe
-    // aparecer bloqueado." El flag de arriba sólo recuerda un "Bloquear"
-    // manual (o uno automático) de ESTA MISMA apertura — reabrir la pestaña
-    // (o la app) después de vencido el plazo necesita esta segunda cuenta,
-    // hecha con lo único disponible de forma SÍNCRONA en este punto:
-    // `SharedPreferences` (`InactivityLockController` persiste ahí la
-    // última interacción y la última cifra de N conocida; ver
-    // `features/security/inactivity_lock_controller.dart`).
-    final profile = ref.watch(authControllerProvider).profile;
-    if (profile == null) return false;
-    final scopeKey = workspaceUnlockScopeKeyFor(profile);
+    // aparecer bloqueado." Hecho con lo único disponible de forma SÍNCRONA
+    // en este punto: `SharedPreferences` (`InactivityLockController`
+    // persiste ahí la última interacción y la última cifra de N conocida;
+    // ver `features/security/inactivity_lock_controller.dart`).
     final rawLastInteraction = preferences.getString(
       inactivityLastInteractionKey(scopeKey),
     );
@@ -162,7 +230,7 @@ class WorkspaceLockNotifier extends Notifier<bool> {
     );
     if (locked) {
       // Deja constancia también en el flag manual: un reload posterior, que
-      // sólo mira ese flag (ver el comentario de arriba), sigue viéndolo
+      // sólo mira ese flag por la vía rápida de arriba, sigue viéndolo
       // bloqueado sin tener que rehacer esta cuenta.
       unawaited(preferences.setBool(_kWorkspaceLockedKey, true));
     }
