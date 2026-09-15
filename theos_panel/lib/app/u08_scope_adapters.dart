@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 
+import 'package:drift/drift.dart';
 import 'package:flutter_qweb/flutter_qweb.dart' show RenderOptions;
 import 'package:orbi_runtime/orbi_runtime.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -8,8 +9,11 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../features/activities/activity_center.dart';
 import '../features/auth/auth_controller.dart';
 import '../features/home/home_center.dart';
+import '../features/home/home_dashboard_view.dart' show homeCurrencyLabel;
+import '../features/home/home_resume_status.dart';
 import '../features/reports/document_view.dart';
 import '../features/reports/offline_qweb_report.dart';
+import 'envases_composition.dart' show envasesPorRecibirControllerProvider;
 import 'notification_scope_adapter.dart';
 
 final scopeHomeResumePortProvider = Provider<HomeResumePort?>((ref) {
@@ -182,11 +186,16 @@ final class ScopeHomeResumePort implements HomeResumePort {
     return decoded;
   }
 
+  /// Una fila por documento real, no un contador — orden del dueño en
+  /// ACC-03: «Documentos a continuar» es una tabla/lista de documentos, cada
+  /// uno con su propia fecha, contraparte y total. Las actividades ya no
+  /// aparecen aquí: tienen su propia pestaña («Actividad reciente»), que lee
+  /// `ActivityPort` directamente en vez de duplicarse en este puerto.
   Future<List<HomeResumeItem>> _localResumeItems(
     SessionActivation active,
     SessionLease lease,
   ) async {
-    final database = active.database.database;
+    final db = active.database.database;
     final result = <HomeResumeItem>[];
     final permissions = capabilities?.permissions ?? const <String>{};
     final companyId = capabilities?.companyId;
@@ -195,107 +204,162 @@ final class ScopeHomeResumePort implements HomeResumePort {
     final canViewAll = permissions.contains('orders.view_all');
 
     if (permissions.contains('seller')) {
-      final author = canViewAll ? '' : ' AND user_id = $userId';
-      final rows = await database.customSelect('''
-        SELECT COUNT(*) AS count FROM sale_order
-        WHERE company_id = $companyId $author
-          AND (state = 'draft' OR pending_confirm = 1)
-      ''').get();
-      final count = _count(rows);
-      if (count > 0) {
+      var predicate =
+          db.saleOrder.companyId.equals(companyId) &
+          (db.saleOrder.state.equals('draft') |
+              db.saleOrder.pendingConfirm.equals(true));
+      if (!canViewAll) predicate = predicate & db.saleOrder.userId.equals(userId);
+      final rows =
+          await (db.select(db.saleOrder)
+                ..where((row) => predicate)
+                ..orderBy([(row) => OrderingTerm.desc(row.dateOrder)])
+                ..limit(50))
+              .get();
+      for (final row in rows) {
         result.add(
           HomeResumeItem(
-            id: 'home:sales:draft',
-            title: 'Ventas por continuar',
-            subtitle:
-                '$count pedido${count == 1 ? '' : 's'} local${count == 1 ? '' : 'es'}',
+            id: 'home:sales:doc:${row.id}',
+            title: row.name,
+            subtitle: row.pendingConfirm
+                ? 'Confirmada localmente, por sincronizar'
+                : 'Borrador sin confirmar',
             actionLabel: 'Ver ventas',
             route: '/sales',
-            count: count,
+            status: row.pendingConfirm
+                ? HomeResumeStatus.enProceso
+                : HomeResumeStatus.pendiente,
+            documentDate: row.dateOrder,
+            counterpart: row.partnerName,
+            moduleLabel: 'Ventas',
+            totalLabel: homeCurrencyLabel(row.amountTotal),
           ),
         );
       }
     }
 
     if (permissions.contains('cashier')) {
-      final rows = await database.customSelect('''
-        SELECT COUNT(*) AS count FROM sale_order
-        WHERE company_id = $companyId AND state = 'sale'
-          AND (COALESCE(amount_unpaid, 0) > 0
-            OR payment_state IN ('not_paid', 'partial', 'in_payment')
-            OR COALESCE(amount_to_invoice, 0) > 0
-            OR has_queued_invoice = 1)
-      ''').get();
-      final count = _count(rows);
-      if (count > 0) {
+      final rows =
+          await (db.select(db.saleOrder)
+                ..where(
+                  (row) =>
+                      row.companyId.equals(companyId) &
+                      row.state.equals('sale') &
+                      (row.amountUnpaid.isBiggerThanValue(0) |
+                          row.paymentState.isIn(const [
+                            'not_paid',
+                            'partial',
+                            'in_payment',
+                          ]) |
+                          row.amountToInvoice.isBiggerThanValue(0) |
+                          row.hasQueuedInvoice.equals(true)),
+                )
+                ..orderBy([(row) => OrderingTerm.desc(row.dateOrder)])
+                ..limit(50))
+              .get();
+      for (final row in rows) {
+        final amount = row.amountUnpaid > 0 ? row.amountUnpaid : row.amountTotal;
         result.add(
           HomeResumeItem(
-            id: 'home:collection:pending',
-            title: 'Cobros pendientes',
-            subtitle: '$count pedido${count == 1 ? '' : 's'} por cobrar',
+            id: 'home:collection:doc:${row.id}',
+            title: row.name,
+            subtitle: 'Por cobrar',
             actionLabel: 'Abrir caja',
             route: '/collection',
-            count: count,
+            status: HomeResumeStatus.pendiente,
+            documentDate: row.dateOrder,
+            counterpart: row.partnerName,
+            moduleLabel: 'Caja',
+            totalLabel: homeCurrencyLabel(amount),
           ),
         );
       }
     }
 
-    if (permissions.contains('activities')) {
-      final raw = await RuntimeMetadataStore(sessions)
-          .read('ui/activities/${active.scope.scopeKey}', lease: lease);
-      if (raw != null) {
-        final decoded = jsonDecode(raw);
-        final rows = decoded is Map ? decoded['items'] : decoded;
-        final count = rows is List
-            ? rows
-                  .whereType<Map>()
-                  .where((row) => row['status'] != 'done')
-                  .length
-            : 0;
-        if (count > 0) {
-          result.add(
-            HomeResumeItem(
-              id: 'home:activities:pending',
-              title: 'Actividades pendientes',
-              subtitle: '$count actividad${count == 1 ? '' : 'es'}',
-              actionLabel: 'Ver actividades',
-              route: '/activities',
-              count: count,
-            ),
-          );
-        }
-      }
-    }
-
-    if (permissions.contains('sync')) {
-      final rows = await database.customSelect('''
-        SELECT COUNT(*) AS count FROM offline_queue
-        WHERE status IN ('pending', 'processing', 'failed')
-      ''').get();
-      final count = _count(rows);
-      if (count > 0) {
-        result.add(
-          HomeResumeItem(
-            id: 'home:sync:pending',
-            title: 'Sincronización pendiente',
-            subtitle: '$count operación${count == 1 ? '' : 'es'} por enviar',
-            actionLabel: 'Revisar',
-            route: '/sync',
-            count: count,
-          ),
-        );
-      }
+    // Sin permiso propio: la cola offline es del DISPOSITIVO, no de un rol
+    // de negocio — la misma razón por la que `/sync` está abierto a
+    // cualquier persona autenticada en `RouteAccessPolicy` (orden del dueño,
+    // 13-sep-2026: «todos los usuarios deben poder ver la información de
+    // sincronización, offline»).
+    final queueRows =
+        await (db.select(db.offlineQueue)
+              ..where(
+                (row) => row.status.isIn(const [
+                  'pending',
+                  'processing',
+                  'failed',
+                ]),
+              )
+              ..orderBy([(row) => OrderingTerm.desc(row.createdAt)])
+              ..limit(50))
+            .get();
+    for (final row in queueRows) {
+      final module = _queueModuleLabel(row.model);
+      result.add(
+        HomeResumeItem(
+          id: 'home:sync:doc:${row.id}',
+          title: row.recordId != null
+              ? '$module local #${row.recordId}'
+              : '$module #${row.id}',
+          subtitle: 'Pendiente de enviar a Odoo',
+          actionLabel: 'Revisar',
+          route: '/sync',
+          status: switch (row.status) {
+            'failed' => HomeResumeStatus.error,
+            'processing' => HomeResumeStatus.enProceso,
+            _ => HomeResumeStatus.pendiente,
+          },
+          documentDate: row.createdAt,
+          moduleLabel: 'Sincronización',
+        ),
+      );
     }
     return result;
   }
 
-  static int _count(List<dynamic> rows) {
-    if (rows.isEmpty) return 0;
-    final value = rows.first.data['count'];
-    return value is num ? value.toInt() : 0;
-  }
+  /// Nombre legible del módulo dueño de una operación de la cola offline,
+  /// para el título de su fila («Venta local #42»). Un modelo que no se
+  /// reconoce se muestra tal cual llega — nunca se inventa una etiqueta.
+  static String _queueModuleLabel(String model) => switch (model) {
+    'sale.order' || 'sale.order.line' => 'Venta',
+    'collection.session' || 'collection.payment' => 'Cobro',
+    'l10n_ec.envases.operacion' => 'Envases',
+    _ => model,
+  };
 }
+
+/// Traslados de envases por recibir, convertidos a filas de «Documentos a
+/// continuar» — reutiliza el mismo controlador que ya usa la pantalla real
+/// de Envases (`envasesPorRecibirControllerProvider` en
+/// `envases_composition.dart`), sin abrir un segundo caché ni repetir su
+/// lectura RPC. Lista vacía (nunca `null`) cuando falta el permiso o el
+/// controlador no está disponible: «no hay dato» se lee como «cero filas»,
+/// no como error.
+final homeEnvasesPorRecibirItemsProvider =
+    StreamProvider.autoDispose<List<HomeResumeItem>>((ref) {
+      final capabilities = ref.watch(capabilitySnapshotProvider);
+      if (capabilities == null ||
+          !capabilities.permissions.contains('envases_read')) {
+        return Stream.value(const []);
+      }
+      final controller = ref.watch(envasesPorRecibirControllerProvider);
+      if (controller == null) return Stream.value(const []);
+      return controller.snapshots.map(
+        (snapshot) => [
+          for (final row in snapshot?.rows ?? const <EnvasesPorRecibirRow>[])
+            HomeResumeItem(
+              id: 'home:envases:por-recibir:${row.id}',
+              title: row.name,
+              subtitle: row.sentido,
+              actionLabel: 'Ver traslado',
+              route: '/envases/por-recibir/${row.id}',
+              status: HomeResumeStatus.porRecibir,
+              documentDate: row.fechaSalida,
+              counterpart: row.sentido,
+              moduleLabel: 'Envases',
+            ),
+        ],
+      );
+    });
 
 final class ScopeActivityPort implements ActivityPort {
   ScopeActivityPort(this.sessions, this.capabilities, {this.producer});

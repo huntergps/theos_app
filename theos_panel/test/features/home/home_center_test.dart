@@ -7,14 +7,23 @@ import 'package:theos_panel/features/auth/auth_controller.dart';
 import 'package:theos_panel/features/home/home_center.dart';
 import 'package:theos_panel/features/home/home_dashboard_contracts.dart';
 import 'package:theos_panel/features/home/home_dashboard_providers.dart';
+import 'package:theos_panel/features/home/home_resume_status.dart';
 import 'package:theos_panel/ui/fluent/orbi_fluent_theme.dart';
 
 class _MockCashReader extends Mock implements HomeCashSessionsReader {}
 
-/// `HomeCenterView` pasó a `ConsumerWidget` para leer capacidades/sesión de
-/// forma ambiental; todo test necesita un `ProviderScope`, aunque sea sin
-/// overrides (capacidades nulas ⇒ panel de indicadores apagado, mismo
-/// comportamiento de antes).
+CapabilitySnapshot _capabilities(Set<String> permissions) => CapabilitySnapshot(
+  scopeKey: 'test-scope',
+  companyId: 1,
+  revision: 1,
+  fetchedAt: DateTime.utc(2026, 9, 15),
+  permissions: permissions,
+);
+
+/// `HomeCenterView` lee capacidades/sesión de forma ambiental; todo test
+/// necesita un `ProviderScope`, aunque sea sin overrides (capacidades nulas
+/// ⇒ ni fila de ventas/caja ni pestaña de actividades, mismo comportamiento
+/// de un usuario cuyo perfil todavía no cargó).
 Widget _wrap(Widget child) => ProviderScope(
   child: FluentApp(
     theme: OrbiFluentTheme.light,
@@ -36,23 +45,21 @@ void main() {
     });
   });
 
-  group('HomeCenterView', () {
+  group('HomeCenterView — Documentos a continuar', () {
     testWidgets(
-      'shows a KPI card only for items that carry a real count',
+      'una fila del puerto aparece en la pestaña y su cifra sale en la fila '
+      'de métricas',
       (tester) async {
-        const withCount = HomeResumeItem(
-          id: 'home:sales:draft',
-          title: 'Ventas por continuar',
-          subtitle: '3 pedidos locales',
+        const item = HomeResumeItem(
+          id: 'home:sales:doc:1',
+          title: 'S-001245',
+          subtitle: 'Borrador sin confirmar',
           actionLabel: 'Ver ventas',
           route: '/sales',
-          count: 3,
-        );
-        const withoutCount = HomeResumeItem(
-          id: 'home:other',
-          title: 'Otro pendiente',
-          subtitle: 'sin cifra',
-          actionLabel: 'Abrir',
+          status: HomeResumeStatus.pendiente,
+          counterpart: 'Cliente Corporativo',
+          moduleLabel: 'Ventas',
+          totalLabel: r'$1,250.00',
         );
         await tester.pumpWidget(
           _wrap(
@@ -60,7 +67,7 @@ void main() {
               port: _FakePort(
                 const HomeResumeSnapshot(
                   HomeResumeState.data,
-                  items: [withCount, withoutCount],
+                  items: [item],
                 ),
               ),
             ),
@@ -68,81 +75,194 @@ void main() {
         );
         await tester.pumpAndSettle();
 
-        // La cifra real aparece una vez como KPI y otra dentro de la tarjeta
-        // del ítem ("3 pedidos locales"); nunca aparece un cero fabricado
-        // para el ítem que no trae cifra.
-        expect(find.text('3'), findsOneWidget);
-        // El título se repite: una vez en la tarjeta KPI, otra en la lista.
-        expect(find.text('Ventas por continuar'), findsNWidgets(2));
-        expect(find.text('Otro pendiente'), findsOneWidget);
-        expect(find.text('0'), findsNothing);
+        expect(find.text('Documentos a continuar (1)'), findsOneWidget);
+        expect(find.text('S-001245'), findsWidgets);
+        expect(find.text('Cliente Corporativo'), findsWidgets);
+        expect(
+          find.descendant(
+            of: find.byKey(
+              const Key('home-metric-card-Documentos a continuar'),
+            ),
+            matching: find.text('1'),
+          ),
+          findsOneWidget,
+        );
+      },
+    );
+
+    testWidgets('sin documentos, la pestaña muestra el estado vacío', (
+      tester,
+    ) async {
+      await tester.pumpWidget(
+        _wrap(
+          HomeCenterView(
+            port: _FakePort(const HomeResumeSnapshot(HomeResumeState.empty)),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('No hay documentos por continuar'), findsOneWidget);
+      expect(find.text('Documentos a continuar (0)'), findsOneWidget);
+    });
+
+    testWidgets(
+      'perfil sólo envases (Mepriga): 2 traslados por recibir salen como '
+      'filas, «Por recibir» = 2, y no aparecen Ventas hoy ni Cobros del '
+      'turno',
+      (tester) async {
+        const envasesItems = [
+          HomeResumeItem(
+            id: 'home:envases:por-recibir:1',
+            title: 'TR-01',
+            subtitle: 'Bodega A → Bodega B',
+            actionLabel: 'Ver traslado',
+            route: '/envases/por-recibir/1',
+            status: HomeResumeStatus.porRecibir,
+            counterpart: 'Bodega A → Bodega B',
+            moduleLabel: 'Envases',
+          ),
+          HomeResumeItem(
+            id: 'home:envases:por-recibir:2',
+            title: 'TR-02',
+            subtitle: 'Bodega C → Bodega A',
+            actionLabel: 'Ver traslado',
+            route: '/envases/por-recibir/2',
+            status: HomeResumeStatus.porRecibir,
+            counterpart: 'Bodega C → Bodega A',
+            moduleLabel: 'Envases',
+          ),
+        ];
+        await tester.pumpWidget(
+          ProviderScope(
+            overrides: [
+              capabilitySnapshotProvider.overrideWithValue(
+                _capabilities({'envases_read'}),
+              ),
+            ],
+            child: FluentApp(
+              theme: OrbiFluentTheme.light,
+              home: ScaffoldPage(
+                content: HomeCenterView(
+                  port: _FakePort(
+                    const HomeResumeSnapshot(HomeResumeState.empty),
+                  ),
+                  envasesPendingItems: envasesItems,
+                ),
+              ),
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        expect(find.text('Documentos a continuar (2)'), findsOneWidget);
+        expect(find.text('TR-01'), findsOneWidget);
+        expect(find.text('TR-02'), findsOneWidget);
+        expect(
+          find.byKey(const Key('home-metric-card-Por recibir')),
+          findsOneWidget,
+        );
+        expect(
+          find.descendant(
+            of: find.byKey(const Key('home-metric-card-Por recibir')),
+            matching: find.text('2'),
+          ),
+          findsOneWidget,
+        );
+        expect(
+          find.byKey(const Key('home-metric-card-Ventas hoy')),
+          findsNothing,
+        );
+        expect(
+          find.byKey(const Key('home-metric-card-Cobros del turno')),
+          findsNothing,
+        );
       },
     );
 
     testWidgets(
-      'empty state offers only the quick starts it was given, and they navigate',
+      'a 1920x1080 ninguna tarjeta de la fila de métricas mide más de 200 '
+      'px de alto (el defecto viejo era un GridView sin childAspectRatio)',
       (tester) async {
-        const sales = HomeResumeItem(
-          id: 'home:quickstart:/sales',
-          title: 'Ventas',
-          subtitle: 'Ir a Ventas',
-          actionLabel: 'Abrir',
+        tester.view.physicalSize = const Size(1920, 1080);
+        tester.view.devicePixelRatio = 1;
+        addTearDown(tester.view.resetPhysicalSize);
+        addTearDown(tester.view.resetDevicePixelRatio);
+
+        await tester.pumpWidget(
+          _wrap(
+            HomeCenterView(
+              port: _FakePort(
+                const HomeResumeSnapshot(HomeResumeState.empty),
+              ),
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        final size = tester.getSize(
+          find.byKey(const Key('home-metric-card-Documentos a continuar')),
+        );
+        expect(size.height, lessThanOrEqualTo(200));
+      },
+    );
+
+    testWidgets(
+      'no existe «Accesos rápidos»: la navegación real ya lleva a cada '
+      'módulo (panel lateral y barra inferior)',
+      (tester) async {
+        await tester.pumpWidget(
+          _wrap(
+            HomeCenterView(
+              port: _FakePort(
+                const HomeResumeSnapshot(HomeResumeState.empty),
+              ),
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        expect(find.text('Accesos rápidos'), findsNothing);
+        expect(find.text('Empieza por aquí:'), findsNothing);
+      },
+    );
+
+    testWidgets(
+      'tocar una fila de «Documentos a continuar» navega a su ruta',
+      (tester) async {
+        const item = HomeResumeItem(
+          id: 'home:sales:doc:1',
+          title: 'S-001245',
+          subtitle: 'Borrador sin confirmar',
+          actionLabel: 'Ver ventas',
           route: '/sales',
+          status: HomeResumeStatus.pendiente,
+          moduleLabel: 'Ventas',
         );
         String? resumedRoute;
         await tester.pumpWidget(
           _wrap(
             HomeCenterView(
-              port: _FakePort(const HomeResumeSnapshot(HomeResumeState.empty)),
-              quickStarts: const [sales],
-              onResume: (item) async => resumedRoute = item.route,
+              port: _FakePort(
+                const HomeResumeSnapshot(
+                  HomeResumeState.data,
+                  items: [item],
+                ),
+              ),
+              onResume: (value) async => resumedRoute = value.route,
             ),
           ),
         );
         await tester.pumpAndSettle();
 
-        expect(find.text('No hay trabajo pendiente'), findsOneWidget);
-        expect(find.text('Ventas'), findsOneWidget);
-        // Sólo la candidata que se le pasó: nunca inventa una propia.
-        expect(find.text('Bodega'), findsNothing);
-
-        await tester.tap(find.text('Ventas'));
-        await tester.pump();
+        await tester.tap(find.text('S-001245').first);
+        await tester.pumpAndSettle();
         expect(resumedRoute, '/sales');
-        // Fluent's `HoverButton` (under `Button`) schedules a 100ms timer on
-        // tap-up to reset its pressed state; flush it before teardown.
-        await tester.pump(const Duration(milliseconds: 150));
-      },
-    );
-
-    testWidgets(
-      'empty state without quick starts stays silent about where to go',
-      (tester) async {
-        await tester.pumpWidget(
-          _wrap(
-            HomeCenterView(
-              port: _FakePort(const HomeResumeSnapshot(HomeResumeState.empty)),
-            ),
-          ),
-        );
-        await tester.pumpAndSettle();
-
-        expect(find.text('No hay trabajo pendiente'), findsOneWidget);
-        expect(find.text('Empieza por aquí:'), findsNothing);
       },
     );
   });
 
   group('HomeCenterView.onOpenCashSessionById supervisor gating', () {
-    CapabilitySnapshot capabilities(Set<String> permissions) =>
-        CapabilitySnapshot(
-          scopeKey: 'test-scope',
-          companyId: 1,
-          revision: 1,
-          fetchedAt: DateTime.utc(2026, 9, 13),
-          permissions: permissions,
-        );
-
     AuthProfile profile({required int userId}) => AuthProfile(
       serverUrl: 'https://erp2.test',
       database: 'erp2_test',
@@ -174,7 +294,7 @@ void main() {
         ProviderScope(
           overrides: [
             capabilitySnapshotProvider.overrideWithValue(
-              capabilities(permissions),
+              _capabilities(permissions),
             ),
             authInitialStateProvider.overrideWithValue(
               AuthViewState(profile: profile(userId: 9)),
@@ -192,6 +312,10 @@ void main() {
           ),
         ),
       );
+      await tester.pumpAndSettle();
+      // «Sesiones de caja activas» vive en la pestaña «Indicadores» — antes
+      // salía siempre visible en el mismo lienzo.
+      await tester.tap(find.text('Indicadores'));
       await tester.pumpAndSettle();
     }
 

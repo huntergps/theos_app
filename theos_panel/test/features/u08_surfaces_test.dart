@@ -51,11 +51,14 @@ void main() {
         ),
       ),
     );
-    await tester.tap(find.text('Continuar'));
+    await tester.pumpAndSettle();
+    // Ya no hay un botón «Continuar» por ítem (ACC-03 rediseñó «Documentos a
+    // continuar» como una fila de `OrbiListing`, con una sola acción de
+    // abrir por fila): tocar la fila entera —identificada por su
+    // título— es lo que ahora dispara `onResume`.
+    await tester.tap(find.text('Ventas pendientes').first);
+    await tester.pump();
     expect(resumed, isTrue);
-    // Fluent's `HoverButton` (under `FilledButton`) schedules a 100ms timer
-    // on tap-up to reset its pressed state; flush it before teardown.
-    await tester.pump(const Duration(milliseconds: 150));
   });
 
   test('activity operation is gated by port permission and status remains explicit', () async {
