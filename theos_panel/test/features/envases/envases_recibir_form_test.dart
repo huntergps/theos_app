@@ -165,7 +165,10 @@ void main() {
     expect(operations.recibido!.lineas.single.danadas, 1);
     expect(operations.recibido!.lineas.single.productId, 50);
     expect(completed, isTrue);
-    expect(find.text('Se enviará a Odoo al recuperar conexión.'), findsOneWidget);
+    expect(
+      find.text('Guardado en este equipo. Se envía a Odoo en cuanto haya conexión.'),
+      findsOneWidget,
+    );
   });
 
   testWidgets('recepción restores arrived and damaged per line after lines load', (tester) async {

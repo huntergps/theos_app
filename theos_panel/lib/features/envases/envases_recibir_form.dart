@@ -203,6 +203,7 @@ class _EnvasesRecibirFormState extends State<EnvasesRecibirForm> {
       _saveError = null;
       _saveNotice = null;
     });
+    var registrado = false;
     try {
       final resultado = await widget.operations.recibir(
         EnvasesRecibirCommand(
@@ -220,16 +221,25 @@ class _EnvasesRecibirFormState extends State<EnvasesRecibirForm> {
       );
       if (!mounted) return;
       if (resultado.estado == EnvasesOperacionEstado.pendienteDeEnviar) {
-        setState(() => _saveNotice = 'Se enviará a Odoo al recuperar conexión.');
+        setState(
+          () => _saveNotice =
+              'Guardado en este equipo. Se envía a Odoo en cuanto haya conexión.',
+        );
       }
       // Registro aceptado (en línea o encolado sin conexión): el borrador ya
       // cumplió su propósito.
       unawaited(_autoSave?.clear());
-      widget.onCompleted?.call();
+      registrado = true;
     } catch (error) {
       if (mounted) setState(() => _saveError = 'No se pudo registrar la recepción: $error');
     } finally {
       if (mounted) setState(() => _saving = false);
+    }
+    // Fuera del try: si `onCompleted` navega y lanza (p. ej. no hay nada que
+    // hacer pop), eso no debe reescribirse como si el registro hubiera
+    // fallado — el registro ya quedó confirmado o encolado arriba.
+    if (registrado) {
+      widget.onCompleted?.call();
     }
   }
 

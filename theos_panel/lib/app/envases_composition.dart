@@ -21,6 +21,30 @@ import 'notification_scope_adapter.dart';
 import 'session_composition.dart';
 
 // ---------------------------------------------------------------------
+// Navegación de retorno de las pantallas de envases.
+// ---------------------------------------------------------------------
+
+/// Vuelve a la pantalla anterior si hay historial de navegación debajo; si
+/// no lo hay, navega al [destino] de respaldo.
+///
+/// `/envases/enviar` y `/envases/por-recibir/...` son entradas del menú
+/// lateral (se abren con `go()`, no con `push()`) y Orbi además restaura la
+/// última ubicación con `go()` al recargar la app. En ambos casos la pila de
+/// `GoRouter` queda sin nada debajo, así que `context.pop()` lanza
+/// `GoError: There is nothing to pop`. Si en cambio la pantalla se abrió
+/// apilada sobre otra (por ejemplo, "Recibir" empujada desde el detalle de
+/// un traslado), sí hay historial y se prefiere `pop()` para no perder esa
+/// ruta anterior.
+@visibleForTesting
+void volverOEnvases(BuildContext context, String destino) {
+  if (context.canPop()) {
+    context.pop();
+  } else {
+    context.go(destino);
+  }
+}
+
+// ---------------------------------------------------------------------
 // Borradores de los formularios de envío y recepción.
 // ---------------------------------------------------------------------
 
@@ -426,7 +450,7 @@ final class EnvasesTrasladoDetalleRoute extends ConsumerWidget {
           '/envases/por-recibir/$pickingId/recibir',
           extra: row,
         ),
-        onDarPorPerdido: () => context.pop(),
+        onDarPorPerdido: () => volverOEnvases(context, '/envases/por-recibir'),
       ),
     );
   }
@@ -483,8 +507,8 @@ final class EnvasesRecibirRoute extends ConsumerWidget {
         },
         operations: operations,
         draftPort: ref.watch(envasesFormDraftPortProvider),
-        onCompleted: () => context.pop(),
-        onCancel: () => context.pop(),
+        onCompleted: () => volverOEnvases(context, '/envases/por-recibir'),
+        onCancel: () => volverOEnvases(context, '/envases/por-recibir'),
       ),
     );
   }
@@ -853,8 +877,8 @@ class _EnvasesEnviarRouteState extends ConsumerState<EnvasesEnviarRoute> {
               ],
               operations: operations,
               draftPort: ref.watch(envasesFormDraftPortProvider),
-              onCompleted: () => context.pop(),
-              onCancel: () => context.pop(),
+              onCompleted: () => volverOEnvases(context, '/envases'),
+              onCancel: () => volverOEnvases(context, '/envases'),
             );
           },
         );

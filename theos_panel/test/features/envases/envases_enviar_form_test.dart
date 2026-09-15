@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:fluent_ui/fluent_ui.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:orbi_runtime/orbi_runtime.dart';
@@ -60,6 +62,35 @@ final class _FakeEnvasesOperations implements EnvasesOperations {
       operacionUuid: command.operacionUuid,
       tipo: 'envio',
       estado: EnvasesOperacionEstado.enviada,
+      creadaEn: DateTime.now(),
+    );
+  }
+
+  @override
+  Future<EnvasesOperacionLocal> recibir(EnvasesRecibirCommand command) async => throw UnimplementedError();
+
+  @override
+  Stream<List<EnvasesOperacionLocal>> watchOperaciones() => const Stream.empty();
+}
+
+/// Como `_FakeEnvasesOperations`, pero simula el resultado que
+/// `DurableEnvasesOperations` da SIEMPRE (haya o no conexión): la operación
+/// queda encolada. Sirve para probar el aviso "Guardado en este equipo..."
+/// sin necesitar una operación que realmente falle.
+final class _QueuedEnvasesOperations implements EnvasesOperations {
+  EnvasesEnviarCommand? enviado;
+
+  @override
+  Future<EnvasesOperacionLocal> darPorPerdido({required String operacionUuid, required int pickingId}) async =>
+      throw UnimplementedError();
+
+  @override
+  Future<EnvasesOperacionLocal> enviar(EnvasesEnviarCommand command) async {
+    enviado = command;
+    return EnvasesOperacionLocal(
+      operacionUuid: command.operacionUuid,
+      tipo: 'envio',
+      estado: EnvasesOperacionEstado.pendienteDeEnviar,
       creadaEn: DateTime.now(),
     );
   }
@@ -285,4 +316,68 @@ void main() {
     );
     expect(tester.widget<NumberBox<double>>(find.byKey(const Key('envases-enviar-cantidad-0'))).value, 2);
   });
+
+  testWidgets(
+    'a throwing onCompleted (navegación sin historial) no reescribe un registro '
+    'aceptado como si hubiera fallado',
+    (tester) async {
+      final operations = _QueuedEnvasesOperations();
+      await tester.pumpWidget(
+        _host(
+          operations: operations,
+          // Simula el `GoError: There is nothing to pop` que lanzaba
+          // `context.pop()` cuando la pantalla se abre sin historial debajo
+          // (menú lateral, o restaurar la última ubicación al recargar).
+          onCompleted: () => throw StateError('There is nothing to pop'),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.byKey(const Key('envases-enviar-origen')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Guayaquil').last);
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.byKey(const Key('envases-enviar-destino')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Manta').last);
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.byKey(const Key('envases-enviar-producto-0')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Jaba 12').last);
+      await tester.pumpAndSettle();
+
+      await tester.enterText(find.byKey(const Key('envases-enviar-cantidad-0')), '3');
+      await _commitNumberBox(tester);
+      await tester.pumpAndSettle();
+
+      // `onCompleted` lanza DESPUÉS de un `await` dentro de `_enviar()`, así
+      // que el error llega como una excepción de Future sin manejar (nadie
+      // espera el `Future<void>` que devuelve el `onPressed`). Se intercepta
+      // aquí mismo con `runZonedGuarded` para comprobar que sigue siendo
+      // real — no se traga en silencio — sin que tumbe el test entero.
+      Object? completionError;
+      await runZonedGuarded(
+        () async {
+          await tester.tap(find.byKey(const Key('envases-enviar-confirmar')));
+          await tester.pumpAndSettle();
+        },
+        (error, stack) => completionError = error,
+      );
+
+      // El registro SÍ ocurrió (quedó encolado) antes de que la navegación
+      // lanzara.
+      expect(operations.enviado, isNotNull);
+      // Y ese registro aceptado no se disfraza de error de registro.
+      expect(find.textContaining('No se pudo registrar el envío'), findsNothing);
+      expect(
+        find.text('Guardado en este equipo. Se envía a Odoo en cuanto haya conexión.'),
+        findsOneWidget,
+      );
+      // El throw de `onCompleted` sigue siendo real, sólo que ya no se
+      // confunde con un fallo de registro.
+      expect(completionError, isA<StateError>());
+    },
+  );
 }
