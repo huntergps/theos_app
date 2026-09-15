@@ -18,19 +18,24 @@ agente en cuanto entregue. Tú resuelves arquitectura, permisos, contratos y rev
 final.
 
 Primero identifica el estado del worktree (`git log --oneline -1` debe dar
-`9b2089f`) y revisa `tasks.json` completo, no sólo
+`05eeb83`) y revisa `tasks.json` completo, no sólo
 `python3 scripts/check_orbi_plan.py --ready`. Contrasta `tasks.json` con código y
 evidencia; no confíes en etiquetas `done` como prueba de calidad. Lee primero este
 documento entero antes de asignar trabajo nuevo.
 
 ## Estado verificable al detener
 
-- Último commit integrado en `orbi/trabajo-pausado-2026-09-11`: `9b2089f`, «stub
-  the database identity reader in the SRI pending test». Verificado con
-  `git log --oneline bdee4f5..9b2089f`: además de `bdee4f5` se integraron, en
-  orden, `d99e818` (conteo SRI cada 5 min), `7907b05` (este traspaso), `f40736b`,
-  `47d5480`, `8733955`, `39ace0f` (detección de base de Odoo reinstalada) y
-  `9b2089f` (prueba de SRI adaptada a esa huella).
+- Último commit integrado en `orbi/trabajo-pausado-2026-09-11`: `05eeb83`, «subscribe
+  sync triggers before replaying the current network signal».
+  Verificado con `git log --oneline bdee4f5..9b2089f`: además de `bdee4f5` se
+  integraron, en orden, `d99e818` (conteo SRI cada 5 min), `7907b05` (este
+  traspaso), `f40736b`, `47d5480`, `8733955`, `39ace0f` (detección de base de
+  Odoo reinstalada) y `9b2089f` (prueba de SRI adaptada a esa huella). Después
+  de `9b2089f`, verificado con `git log --oneline 9b2089f..05eeb83`, se
+  integraron `3015964` (este traspaso), `afc9ae7` (navegación de envases sin
+  historial), `92a8a79` y `6c0ed87` (drenar la cola al encolar en línea; la
+  segunda cambia la señal de conteo a inserciones) y `05eeb83` (los
+  disparadores de sync se suscriben antes de recibir la señal de red actual).
 - **Publicado en `https://orbi.galapagos.tech` durante el día:** se publicaron
   varias versiones a lo largo de la jornada. La que quedó al final de la tarde
   fue `90a37dc` («take the user timezone offset from Odoo», hora del servidor).
@@ -39,12 +44,18 @@ documento entero antes de asignar trabajo nuevo.
   stability and login preference contract»); la sesión que sobrevive a cerrar
   la pestaña es `6becdca` («keep the session open across tab and app
   restarts»). Confirmado con `git cat-file -t` y `git log -1 --format=%s` sobre
-  cada sha. Con este traspaso se publicó `9b2089f`, confirmado en
+  cada sha. Con el traspaso de `9b2089f` se publicó ese commit, confirmado
+  entonces en `orbi.galapagos.tech/orbi-commit.txt`. Con este traspaso se
+  publicó `05eeb83`, confirmado igual con `curl` sobre
   `orbi.galapagos.tech/orbi-commit.txt`.
+- Cifras de la compuerta sobre `05eeb83`: `make verify` en `6c0ed87` «+1155: All
+  tests passed!» (`05eeb83` sólo toca `theos_panel`); `orbi_runtime` «+564: All
+  tests passed!»; `theos_panel` «+1010 ~13: All tests passed!»; `analyze-orbi`
+  «No issues found!».
 - No hay agentes de este encargo trabajando ahora. No reanudar tareas antiguas sin
   nuevo encargo concreto.
 
-## Lo integrado hoy (hasta `9b2089f`)
+## Lo integrado hoy (hasta `05eeb83`)
 
 1. **Acceso y sesión.**
    - Router GoRouter único y estable (`40f47e8`); «Guardar clave» sin guardado a
@@ -127,6 +138,27 @@ documento entero antes de asignar trabajo nuevo.
     rechazo explícito de credencial (ahí sí exige volver a entrar) de
     cualquier otro error — sin red, timeout, DNS — que cae al respaldo offline
     igual que antes.
+12. **Navegación de envases (`afc9ae7`):** `/envases/enviar` se abre desde el
+    menú lateral con `go()` y Orbi restaura la última ubicación con `go()`, así
+    que `context.pop()` lanzaba «There is nothing to pop»; ahora
+    `volverOEnvases` usa `pop()` si hay historial y si no navega a `/envases` o
+    `/envases/por-recibir`. `onCompleted` salió del `try` del registro, así que
+    un fallo de navegación ya no se muestra como «No se pudo registrar…».
+    Texto del aviso: «Guardado en este equipo. Se envía a Odoo en cuanto haya
+    conexión.».
+13. **Cola offline (`92a8a79`, `6c0ed87`):** `DurableEnvasesOperations` siempre
+    encola, y nadie pedía drenar estando en línea (el disparador de reconexión
+    sólo actúa en el paso a conectado, y el respaldo de 5 min se apaga con
+    tiempo real vivo). `SyncQueuedOperationTrigger` escucha
+    `OfflineQueueDataSource.watchQueuedInserts()` (inserciones en
+    `offline_queue`, no el conteo, que se anula si en la misma transacción sale
+    una operación y entra otra) y pide `requestSync` sólo del trabajo
+    `operations` con debounce de 300 ms.
+14. **Orden del puente de red (`05eeb83`):** `StreamController.broadcast()`
+    descarta lo emitido sin oyentes y `ref.listen(..., fireImmediately: true)`
+    emite de forma síncrona; en `router.dart` los disparadores se construían
+    DESPUÉS, así que con la red ya presente arrancaban «sin red». Afectaba al
+    disparador de la cola y al respaldo de 5 min. Ahora se construyen antes.
 
 ## En curso al redactar (queda pendiente, sin commit)
 
@@ -209,11 +241,10 @@ mantenga la pausa. El nuevo coordinador debe recibir el encargo de continuar.
 
 ## En curso al cerrar
 
-Dos arreglos quedan en ramas de agentes, **sin integrar ni publicar**:
-
-- Navegación de envases: al enviar desde el menú lateral, el formulario hace
-  `context.pop()` sin que haya historial que quitar, lo que dispara «There is
-  nothing to pop»; el formulario además mostraba ese error como si el registro
-  hubiera fallado.
-- La cola offline no se drenaba al encolar una operación estando en línea:
-  sólo se vaciaba al pulsar «Sincronizar todo» a mano.
+No queda nada en ramas de agentes. Los dos arreglos que quedaron pendientes en
+el traspaso anterior (navegación de envases sin historial y drenar la cola
+offline al encolar en línea) ya están integrados en `orbi/trabajo-pausado-2026-09-11`
+(`afc9ae7`, `92a8a79`, `6c0ed87`) y publicados en `orbi.galapagos.tech` como
+parte de `05eeb83` (ver «Estado verificable al detener» y el punto 14 de «Lo
+integrado hoy» sobre el orden del puente de red, que también corregía el
+disparador de esta misma cola).
