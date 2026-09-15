@@ -18,32 +18,33 @@ agente en cuanto entregue. Tú resuelves arquitectura, permisos, contratos y rev
 final.
 
 Primero identifica el estado del worktree (`git log --oneline -1` debe dar
-`bdee4f5`) y revisa `tasks.json` completo, no sólo
+`9b2089f`) y revisa `tasks.json` completo, no sólo
 `python3 scripts/check_orbi_plan.py --ready`. Contrasta `tasks.json` con código y
 evidencia; no confíes en etiquetas `done` como prueba de calidad. Lee primero este
 documento entero antes de asignar trabajo nuevo.
 
 ## Estado verificable al detener
 
-- Último commit integrado en `orbi/trabajo-pausado-2026-09-11`: `bdee4f5`, «polish
-  envases forms and lists after visual review». Verificado con
-  `git log --oneline 4482920..bdee4f5`: los 40 commits de la jornada están ahí.
-- **Publicado en `https://orbi.galapagos.tech` durante el día:** los commits
-  `e973311`, `f8d7215` y `90a37dc` existen en ese rango. Sólo `90a37dc` («take the
-  user timezone offset from Odoo») calza con el rótulo que trae este traspaso
-  («hora del servidor»). Los otros dos rótulos **no cuadran con el contenido real
-  del commit** y quedan **(sin verificar)** en vez de inventar la correspondencia:
-  `e973311` es la serialización del sondeo de conectividad del SDK (ver punto 10
-  abajo), no «Guardar clave»; `f8d7215` es una prueba sobre la bandera de
-  credencial recordada, no la persistencia de sesión al cerrar la pestaña — esa
-  pieza es `6becdca` («keep the session open across tab and app restarts»),
-  integrada horas antes en la misma jornada. La publicación final de esta tanda
-  queda como hueco para que el siguiente coordinador la complete tras confirmar
-  con `orbi.galapagos.tech/orbi-commit.txt`: `<COMMIT_PUBLICADO>`.
+- Último commit integrado en `orbi/trabajo-pausado-2026-09-11`: `9b2089f`, «stub
+  the database identity reader in the SRI pending test». Verificado con
+  `git log --oneline bdee4f5..9b2089f`: además de `bdee4f5` se integraron, en
+  orden, `d99e818` (conteo SRI cada 5 min), `7907b05` (este traspaso), `f40736b`,
+  `47d5480`, `8733955`, `39ace0f` (detección de base de Odoo reinstalada) y
+  `9b2089f` (prueba de SRI adaptada a esa huella).
+- **Publicado en `https://orbi.galapagos.tech` durante el día:** se publicaron
+  varias versiones a lo largo de la jornada. La que quedó al final de la tarde
+  fue `90a37dc` («take the user timezone offset from Odoo», hora del servidor).
+  «Guardar clave» corresponde al rango `40f47e8..faa7de8` (`40f47e8` «keep a
+  single stable GoRouter across auth changes», `faa7de8` «cover router
+  stability and login preference contract»); la sesión que sobrevive a cerrar
+  la pestaña es `6becdca` («keep the session open across tab and app
+  restarts»). Confirmado con `git cat-file -t` y `git log -1 --format=%s` sobre
+  cada sha. Con este traspaso se publicó `9b2089f`, confirmado en
+  `orbi.galapagos.tech/orbi-commit.txt`.
 - No hay agentes de este encargo trabajando ahora. No reanudar tareas antiguas sin
   nuevo encargo concreto.
 
-## Lo integrado hoy (hasta `bdee4f5`)
+## Lo integrado hoy (hasta `9b2089f`)
 
 1. **Acceso y sesión.**
    - Router GoRouter único y estable (`40f47e8`); «Guardar clave» sin guardado a
@@ -108,12 +109,27 @@ documento entero antes de asignar trabajo nuevo.
     anterior, cancela con `CancelToken` al detener y descarta resultados tardíos
     con un contador de generación (`e973311`) — corrige un test que fallaba
     siempre en aislamiento y de forma intermitente en `make verify`.
+11. **Detección de base de Odoo reinstalada:** huella de `res.users.create_date`
+    guardada en `sync_metadata` y comprobada en cada activación EN LÍNEA
+    (`SessionRuntime.activate` con cliente). Se trata como base reinstalada
+    cuando la huella guardada no coincide con la del servidor, o, si todavía
+    no había huella guardada, cuando hay datos de escritura local más viejos
+    que el alta de ese usuario en Odoo menos una hora. En ese caso se vacían
+    las tablas locales y se muestra un aviso en el
+    armazón que queda visible hasta que la persona lo cierra, en vez de
+    desaparecer solo (`f40736b` vacía datos locales al detectar el reemplazo,
+    `47d5480` corrige el criterio a «dato local más viejo que el usuario de
+    Odoo», `8733955` mantiene el aviso hasta que se reconoce, `39ace0f` corrige
+    el parseo de fechas de Odoo a UTC al comparar, `9b2089f` adapta la prueba
+    de pendientes del SRI a esta huella). Un fallo de red al leer la huella en
+    el arranque **no cierra la sesión**: `restoreOnce` en
+    `theos_panel/lib/features/auth/auth_controller.dart:166-179` distingue un
+    rechazo explícito de credencial (ahí sí exige volver a entrar) de
+    cualquier otro error — sin red, timeout, DNS — que cae al respaldo offline
+    igual que antes.
 
 ## En curso al redactar (queda pendiente, sin commit)
 
-- Detección de base de Odoo reinstalada: huella con `res.users.create_date`,
-  vaciado local del caso, y aviso al usuario de que no se pierde nada. Bloqueante
-  para volver a abrir Orbi con Soledad en Mepriga (ver riesgos abajo).
 - Refresco del contador de pendientes del SRI cada 5 min (hoy sólo se lee al
   cargar el armazón, según `38cff49`).
 
@@ -190,3 +206,14 @@ aplicable a cada subtarea; no releer todo antes de cada encargo pequeño.
 
 No tomar este traspaso como autorización para lanzar trabajo mientras el dueño
 mantenga la pausa. El nuevo coordinador debe recibir el encargo de continuar.
+
+## En curso al cerrar
+
+Dos arreglos quedan en ramas de agentes, **sin integrar ni publicar**:
+
+- Navegación de envases: al enviar desde el menú lateral, el formulario hace
+  `context.pop()` sin que haya historial que quitar, lo que dispara «There is
+  nothing to pop»; el formulario además mostraba ese error como si el registro
+  hubiera fallado.
+- La cola offline no se drenaba al encolar una operación estando en línea:
+  sólo se vaciaba al pulsar «Sincronizar todo» a mano.
