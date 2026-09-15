@@ -85,7 +85,15 @@ final class _StartInPinMode {
 
 final businessCompositionFactoryProvider =
     Provider<OrbiBusinessCompositionFactory>(
-      (ref) => OrbiBusinessCompositionFactory(),
+      (ref) => OrbiBusinessCompositionFactory(
+        // `ref.read` dentro del closure, no `ref.watch`: se evalúa recién
+        // cuando `SessionApprovalPort.pending()` corre, no cuando se
+        // construye la fábrica (una sola vez por sesión) — mismo motivo por
+        // el que `redirect` en este archivo también usa `ref.read` para leer
+        // estado que cambia durante la sesión.
+        approvalsAvailable: () =>
+            ref.read(serverFeaturesProvider).isAvailable(ServerFeature.approvals),
+      ),
     );
 
 /// Manual privacy gate for the operational shell (ACC-03, "bloquear").
@@ -1525,6 +1533,60 @@ final _presenceSupportedProvider =
       _PresenceSupportedNotifier.new,
     );
 
+/// Qué áreas de negocio (`ServerFeature`) tiene ESTE servidor+base — orden
+/// del dueño, 14-sep-2026: «theos_panel debe ser universal, no sólo
+/// funcionar con los módulos custom que tiene newerp» (Mepriga, por
+/// ejemplo, no tiene ventas). El menú (más abajo) y el `redirect` de este
+/// mismo router son los ÚNICOS llamadores que pasan un `ServerFeatures` real
+/// a `RouteAccessPolicy` — cualquier otro sitio que la use sigue viendo
+/// `null`, que la política trata como "sin evidencia, no restringe nada
+/// nuevo" (ver el comentario de `RouteAccessPolicy.allows`).
+final serverFeaturesProvider =
+    NotifierProvider<_ServerFeaturesNotifier, ServerFeatures>(
+      _ServerFeaturesNotifier.new,
+    );
+
+/// Mismo patrón que [_PresenceSupportedNotifier]: lo guardado en
+/// `SharedPreferences` sirve sin conexión de inmediato (`build()` es
+/// síncrono), y el sondeo real contra Odoo se dispara aparte, como mucho una
+/// vez por `scopeKey` — cambiar de servidor o de usuario cuenta como una
+/// sesión nueva y vuelve a sondear.
+class _ServerFeaturesNotifier extends Notifier<ServerFeatures> {
+  String? _probedScopeKey;
+
+  @override
+  ServerFeatures build() {
+    final profile = ref.watch(authControllerProvider).profile;
+    if (profile == null) return ServerFeatures.empty;
+    final prefs = ref.watch(sharedPreferencesProvider);
+    final store = ServerFeatureStore(
+      preferences: prefs,
+      serverUrl: profile.serverUrl,
+      database: profile.database,
+    );
+    final cached = store.read();
+    // Sólo hay algo que sondear con un cliente en línea: sin él (restore
+    // offline) se sirve lo guardado tal cual, sin tocar la red — igual que
+    // `RuntimeCatalogAvailability` (E02).
+    final client = ref.watch(runtimeSessionProvider)?.active?.client;
+    final scopeKey = ref.watch(capabilitySnapshotProvider)?.scopeKey;
+    if (client != null && scopeKey != null && _probedScopeKey != scopeKey) {
+      _probedScopeKey = scopeKey;
+      unawaited(_probeAll(store, client));
+    }
+    return cached;
+  }
+
+  Future<void> _probeAll(ServerFeatureStore store, OdooClient client) async {
+    final reader = OdooJson2ReadPort(client);
+    var latest = store.read();
+    for (final feature in ServerFeature.values) {
+      latest = await store.probe(feature, reader);
+    }
+    if (ref.mounted) state = latest;
+  }
+}
+
 /// Si el servidor tiene `mobile_set_im_status`
 /// (`l10n_ec_app_sync/models/res_users.py` — falta, por
 /// ejemplo, en Mepriga). `null` mientras no se sabe todavía: el submenú
@@ -1734,6 +1796,7 @@ final orbiRouterProvider = Provider<GoRouter>((ref) {
       // nunca el que tenía la sesión cuando se construyó el GoRouter.
       final auth = ref.read(authControllerProvider);
       final capabilities = ref.read(capabilitySnapshotProvider);
+      final features = ref.read(serverFeaturesProvider);
       final authenticated = _isAuthenticated(auth);
       final location = state.uri.path;
       if (!authenticated) {
@@ -1757,19 +1820,23 @@ final orbiRouterProvider = Provider<GoRouter>((ref) {
           returnTo ?? lastLocation,
           authenticated: true,
           capabilities: capabilities,
+          features: features,
         );
       }
       if (!policy.allows(
         location,
         authenticated: true,
         capabilities: capabilities,
+        features: features,
       )) {
         // El redirect no puede hablar; deja dicho POR QUÉ y la pantalla de
         // destino lo cuenta. Sin esto, el rechazo es indistinguible de que la
-        // aplicación esté rota (ver route_access_messages.dart).
+        // aplicación esté rota (ver route_access_messages.dart). Con
+        // `features`, el aviso también distingue "no es tu permiso" de "este
+        // servidor no tiene ese módulo".
         ref
             .read(routeAccessDenialProvider.notifier)
-            .report(location, capabilities: capabilities);
+            .report(location, capabilities: capabilities, features: features);
         return '/';
       }
       return null;
@@ -1790,6 +1857,7 @@ final orbiRouterProvider = Provider<GoRouter>((ref) {
             // su comentario). Ahora sólo reconstruyen este subárbol.
             final auth = ref.watch(authControllerProvider);
             final capabilities = ref.watch(capabilitySnapshotProvider);
+            final features = ref.watch(serverFeaturesProvider);
             final authenticated = _isAuthenticated(auth);
             final profile = auth.profile;
             // El menú y su indicador son preferencia (Ajustes), no estado de
@@ -1961,6 +2029,7 @@ final orbiRouterProvider = Provider<GoRouter>((ref) {
                         entry.path,
                         authenticated: authenticated,
                         capabilities: capabilities,
+                        features: features,
                       ),
                     )
                     .toList(growable: false);

@@ -1,6 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:orbi_runtime/orbi_runtime.dart' show CapabilitySnapshot;
+import 'package:orbi_runtime/orbi_runtime.dart'
+    show CapabilitySnapshot, ServerFeature, ServerFeatureState, ServerFeatures;
 import 'package:theos_panel/features/auth/route_access_messages.dart';
 import 'package:theos_panel/features/auth/route_access_policy.dart';
 import 'package:theos_panel/ui/components/copyable_message.dart';
@@ -171,6 +172,35 @@ void main() {
           reason: '$path stays reachable even before permissions arrive.',
         );
       }
+    });
+  });
+
+  group('a module the server does not have is not a permission problem', () {
+    test('the message names the module, not a supervisor to ask', () {
+      final features = ServerFeatures.empty.withState(
+        ServerFeature.sales,
+        ServerFeatureState.unavailable,
+        DateTime.utc(2026, 9, 14),
+      );
+      final message = routeAccessDeniedMessage(
+        '/sales',
+        capabilities: _seller,
+        features: features,
+      )!;
+      expect(message.title, 'Este servidor no tiene el módulo de Ventas.');
+      expect(message.body, isNot(contains('supervisor')));
+      expect(message.severity, OrbiMessageSeverity.info);
+    });
+
+    test('unknown (not yet probed) still reports the ordinary permission '
+        'message, never the module one', () {
+      final message = routeAccessDeniedMessage(
+        '/collection',
+        capabilities: _seller,
+        features: ServerFeatures.empty,
+      )!;
+      expect(message.title, contains('Caja'));
+      expect(message.title, isNot(contains('módulo')));
     });
   });
 

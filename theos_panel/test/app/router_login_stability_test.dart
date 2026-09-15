@@ -300,6 +300,19 @@ void main() {
         fetchedAt: DateTime.utc(2026, 9, 14, revision),
         permissions: const ['envases_read'],
       );
+      // `/envases*` now also asks `ServerFeatures` (14-sep-2026, «theos_panel
+      // debe ser universal»); this test is about a capability REFRESH not
+      // resetting the route, not about server evidence.
+      await preferences.setString(
+        serverFeaturesPrefsKey(profile.serverUrl, profile.database),
+        ServerFeatures.empty
+            .withState(
+              ServerFeature.envases,
+              ServerFeatureState.available,
+              DateTime.utc(2026, 9, 14),
+            )
+            .toJson(),
+      );
       final overrides = [
         authInitialStateProvider.overrideWithValue(
           AuthViewState(

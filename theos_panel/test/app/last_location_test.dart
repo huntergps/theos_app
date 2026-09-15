@@ -37,6 +37,26 @@ CapabilitySnapshot _capabilities(List<String> permissions) =>
       permissions: permissions,
     );
 
+/// `RouteAccessPolicy` now also asks `ServerFeatures` for `/sales` and
+/// `/envases` (14-sep-2026, «theos_panel debe ser universal»): with nothing
+/// probed yet everything reads `unknown`, and `unknown` enables nothing.
+/// This whole file is about LAST-LOCATION restoration, not server evidence,
+/// so every profile it uses gets every feature seeded as already confirmed.
+Future<void> _seedAllFeaturesAvailable(
+  SharedPreferences preferences,
+  AuthProfile profile,
+) async {
+  var features = ServerFeatures.empty;
+  final checkedAt = DateTime.utc(2026, 9, 14);
+  for (final feature in ServerFeature.values) {
+    features = features.withState(feature, ServerFeatureState.available, checkedAt);
+  }
+  await preferences.setString(
+    serverFeaturesPrefsKey(profile.serverUrl, profile.database),
+    features.toJson(),
+  );
+}
+
 ProviderContainer _containerFor({
   required AuthProfile profile,
   required List<String> permissions,
@@ -80,6 +100,7 @@ void main() {
       SharedPreferences.setMockInitialValues({});
       final preferences = await SharedPreferences.getInstance();
       final profile = _profile(database: 'db1', userId: 5);
+      await _seedAllFeaturesAvailable(preferences, profile);
 
       final container1 = _containerFor(
         profile: profile,
@@ -121,6 +142,8 @@ void main() {
       final preferences = await SharedPreferences.getInstance();
       final profile1 = _profile(database: 'db1', userId: 5);
       final profile2 = _profile(database: 'db2', userId: 9);
+      await _seedAllFeaturesAvailable(preferences, profile1);
+      await _seedAllFeaturesAvailable(preferences, profile2);
 
       final container1 = _containerFor(
         profile: profile1,
@@ -157,6 +180,7 @@ void main() {
       SharedPreferences.setMockInitialValues({});
       final preferences = await SharedPreferences.getInstance();
       final profile = _profile(database: 'db1', userId: 5);
+      await _seedAllFeaturesAvailable(preferences, profile);
 
       final container = _containerFor(
         profile: profile,
@@ -192,6 +216,7 @@ void main() {
       SharedPreferences.setMockInitialValues({});
       final preferences = await SharedPreferences.getInstance();
       final profile = _profile(database: 'db1', userId: 5);
+      await _seedAllFeaturesAvailable(preferences, profile);
 
       final container1 = _containerFor(
         profile: profile,

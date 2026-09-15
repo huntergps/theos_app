@@ -1,5 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:orbi_runtime/orbi_runtime.dart' show CapabilitySnapshot;
+import 'package:orbi_runtime/orbi_runtime.dart'
+    show CapabilitySnapshot, ServerFeature, ServerFeatures;
 
 final routeAccessPolicyProvider = Provider<RouteAccessPolicy>(
   (ref) => const RouteAccessPolicy(),
@@ -8,11 +9,19 @@ final routeAccessPolicyProvider = Provider<RouteAccessPolicy>(
 final class RouteAccessPolicy {
   const RouteAccessPolicy();
 
+  /// [features] es opcional para no romper llamadores viejos ni pruebas que
+  /// aún no lo pasan: `null` se comporta EXACTAMENTE como antes de este
+  /// parámetro (sólo permisos). Sólo el menú real (`router.dart`) y su
+  /// `redirect` deben pasar el `ServerFeatures` de la sesión — orden del
+  /// dueño, 14-sep-2026: «theos_panel debe ser universal», toda pantalla se
+  /// habilita por evidencia del servidor, y `unknown` no habilita nada (por
+  /// eso [ServerFeatures.isAvailable] exige `available`, nunca `unknown`).
   bool allows(
     String path, {
     required bool authenticated,
     CapabilitySnapshot? capabilities,
     bool developerMode = false,
+    ServerFeatures? features,
   }) {
     if (path == '/login' || path == '/splash') return true;
     if (!authenticated) return false;
@@ -32,10 +41,16 @@ final class RouteAccessPolicy {
     // redirected home. A child route needing a DIFFERENT permission than its
     // area must be declared above this block, or it will inherit this one.
     if (path == '/collection' || path.startsWith('/collection/')) {
-      return permissions.contains('cashier');
+      if (!permissions.contains('cashier')) return false;
+      return _hasFeature(features, ServerFeature.cashbox);
     }
+    // Bodega lee hoy `sale.order` (`ScopeOrderRepository`), no un modelo de
+    // picking propio: en un servidor sin ventas no hay nada que mostrar
+    // aquí tampoco, así que comparte la feature `sales`, no una `stock`
+    // propia todavía.
     if (path == '/warehouse' || path.startsWith('/warehouse/')) {
-      return permissions.contains('warehouse');
+      if (!permissions.contains('warehouse')) return false;
+      return _hasFeature(features, ServerFeature.sales);
     }
     // Saldo por tercero needs its own rule, ABOVE the generic '/envases/'
     // prefix below: it is gated by `envases_custodia`
@@ -44,13 +59,18 @@ final class RouteAccessPolicy {
     // without the basic Envases group must still reach this screen, and a
     // plain Envases user must not.
     if (path == '/envases/saldo-terceros') {
-      return permissions.contains('envases_custodia');
+      if (!permissions.contains('envases_custodia')) return false;
+      return _hasFeature(features, ServerFeature.envases);
     }
     if (path == '/envases' || path.startsWith('/envases/')) {
-      return permissions.contains('envases_read');
+      if (!permissions.contains('envases_read')) return false;
+      return _hasFeature(features, ServerFeature.envases);
     }
     if (path == '/sales' || path.startsWith('/sales/')) {
-      return permissions.contains('seller') || permissions.contains('cashier');
+      if (!(permissions.contains('seller') || permissions.contains('cashier'))) {
+        return false;
+      }
+      return _hasFeature(features, ServerFeature.sales);
     }
     // Clientes y Productos son del mismo área que Órdenes/cotizaciones y
     // Mostrador, no rutas aparte: NAVIGATION_CAPABILITY_MATRIX.md las agrupa
@@ -68,8 +88,11 @@ final class RouteAccessPolicy {
       return permissions.contains('seller') || permissions.contains('cashier');
     }
     if (path == '/approvals') {
-      return permissions.contains('approvals') ||
-          permissions.contains('approver');
+      if (!(permissions.contains('approvals') ||
+          permissions.contains('approver'))) {
+        return false;
+      }
+      return _hasFeature(features, ServerFeature.approvals);
     }
     if (path == '/activities') return permissions.contains('activities');
     if (path == '/notifications') return permissions.contains('notifications');
@@ -82,6 +105,7 @@ final class RouteAccessPolicy {
     required bool authenticated,
     CapabilitySnapshot? capabilities,
     bool developerMode = false,
+    ServerFeatures? features,
   }) {
     if (returnTo == null || !returnTo.startsWith('/')) return '/';
     final path = Uri.tryParse(returnTo)?.path;
@@ -91,9 +115,17 @@ final class RouteAccessPolicy {
           authenticated: authenticated,
           capabilities: capabilities,
           developerMode: developerMode,
+          features: features,
         )) {
       return '/';
     }
     return returnTo;
   }
+
+  /// `features == null` (llamadores viejos o pruebas) se comporta como
+  /// antes de este parámetro: sólo permisos. Con `features` real, exige
+  /// `available` — nunca basta con `unknown`, ver el comentario de
+  /// [ServerFeatureState] en `server_features.dart`.
+  static bool _hasFeature(ServerFeatures? features, ServerFeature feature) =>
+      features == null || features.isAvailable(feature);
 }

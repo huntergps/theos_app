@@ -19,7 +19,22 @@ final class _Auth implements AuthServicePort {
     required String database,
     required String login,
     required String password,
-  }) async => const AuthServiceResult(status: AuthServiceStatus.authenticated);
+  }) async => AuthServiceResult(
+    status: AuthServiceStatus.authenticated,
+    // Carries a real profile matching (serverUrl, database) so anything
+    // that keys off the ACTIVE identity — `serverFeaturesProvider`
+    // included, 14-sep-2026 — has something coherent to read. Before this,
+    // the fake authenticated with `profile: null`, which is not a shape
+    // the real app ever produces (login always returns both together).
+    profile: AuthProfile(
+      serverUrl: serverUrl,
+      database: database,
+      login: login,
+      userId: 1,
+      installationId: 'router-auth-test',
+      credentialReference: 'api-key',
+    ),
+  );
   @override
   Future<AuthServiceResult> restore({bool offline = false}) async =>
       const AuthServiceResult(status: AuthServiceStatus.required);
@@ -182,13 +197,29 @@ void main() {
         fetchedAt: DateTime(2026),
         permissions: const ['seller'],
       );
+      // `RouteAccessPolicy` now also asks `ServerFeatures` for `/sales`
+      // (14-sep-2026, «theos_panel debe ser universal»): with nothing
+      // probed yet it reads `unknown`, and `unknown` enables nothing. This
+      // test is about the SELLER PERMISSION reaching `/sales`, not about
+      // server evidence, so it seeds the cache as if `sale.order` was
+      // already confirmed — the erp.test/db pair the `.login(...)` call
+      // below actually establishes as the active profile.
+      final preferences = await SharedPreferences.getInstance();
+      await preferences.setString(
+        serverFeaturesPrefsKey('https://erp.test', 'db'),
+        ServerFeatures.empty
+            .withState(
+              ServerFeature.sales,
+              ServerFeatureState.available,
+              DateTime.utc(2026),
+            )
+            .toJson(),
+      );
       final container = ProviderContainer(
         overrides: [
           authServiceProvider.overrideWithValue(_Auth()),
           capabilitySnapshotProvider.overrideWithValue(capabilities),
-          sharedPreferencesProvider.overrideWithValue(
-            await SharedPreferences.getInstance(),
-          ),
+          sharedPreferencesProvider.overrideWithValue(preferences),
         ],
       );
       addTearDown(container.dispose);
@@ -235,13 +266,26 @@ void main() {
       fetchedAt: DateTime(2026),
       permissions: const ['approver'],
     );
+    // Same reason as the `/sales` test above: `/approvals` now also asks
+    // `ServerFeatures`, so this seeds `approval.request` as already
+    // confirmed — this test is about the APPROVER capability, not about
+    // whether the server has Enterprise approvals installed.
+    final preferences = await SharedPreferences.getInstance();
+    await preferences.setString(
+      serverFeaturesPrefsKey('https://erp.test', 'db'),
+      ServerFeatures.empty
+          .withState(
+            ServerFeature.approvals,
+            ServerFeatureState.available,
+            DateTime.utc(2026),
+          )
+          .toJson(),
+    );
     final container = ProviderContainer(
       overrides: [
         authServiceProvider.overrideWithValue(_Auth()),
         capabilitySnapshotProvider.overrideWithValue(capabilities),
-        sharedPreferencesProvider.overrideWithValue(
-          await SharedPreferences.getInstance(),
-        ),
+        sharedPreferencesProvider.overrideWithValue(preferences),
       ],
     );
     addTearDown(container.dispose);

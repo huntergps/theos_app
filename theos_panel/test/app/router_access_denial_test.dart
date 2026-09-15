@@ -70,6 +70,20 @@ void main() {
   ) async {
     SharedPreferences.setMockInitialValues({});
     final preferences = await SharedPreferences.getInstance();
+    // `/sales` now also asks `ServerFeatures` (14-sep-2026, «theos_panel
+    // debe ser universal»); this test is about the seller PERMISSION
+    // reaching an allowed route, not about server evidence, so it seeds the
+    // cache as if `sale.order` was already confirmed.
+    await preferences.setString(
+      serverFeaturesPrefsKey(sellerProfile.serverUrl, sellerProfile.database),
+      ServerFeatures.empty
+          .withState(
+            ServerFeature.sales,
+            ServerFeatureState.available,
+            DateTime.utc(2026, 9, 12),
+          )
+          .toJson(),
+    );
     final container = ProviderContainer(
       overrides: [
         authInitialStateProvider.overrideWithValue(

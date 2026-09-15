@@ -64,6 +64,7 @@ export 'src/sync/catalog_sync.dart';
 export 'src/read/json2_read_adapters.dart';
 export 'src/read/local_catalog_adapters.dart';
 export 'src/read/runtime_catalog_availability.dart';
+export 'src/read/server_features.dart';
 export 'src/read/runtime_catalog_composition.dart';
 export 'src/read/runtime_metadata_store.dart';
 export 'src/read/runtime_order_reader.dart';

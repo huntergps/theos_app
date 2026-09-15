@@ -28,7 +28,21 @@ void main() {
     WidgetTester tester,
     List<String> permissions,
   ) async {
-    SharedPreferences.setMockInitialValues({});
+    // `RouteAccessPolicy` now also asks `ServerFeatures` for the Envases
+    // area (14-sep-2026, «theos_panel debe ser universal»): with nothing
+    // probed yet everything reads `unknown`, and `unknown` enables nothing.
+    // This suite is about PERMISSIONS, not module evidence, so it seeds the
+    // cache as if the probe already confirmed the module exists — exactly
+    // what every real ERP2/Mepriga session with Envases looks like.
+    final availableEnvases = ServerFeatures.empty.withState(
+      ServerFeature.envases,
+      ServerFeatureState.available,
+      DateTime.utc(2026, 9, 13),
+    );
+    SharedPreferences.setMockInitialValues({
+      serverFeaturesPrefsKey(bodegaProfile.serverUrl, bodegaProfile.database):
+          availableEnvases.toJson(),
+    });
     final preferences = await SharedPreferences.getInstance();
     final container = ProviderContainer(
       overrides: [

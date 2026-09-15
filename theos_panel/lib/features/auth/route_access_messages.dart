@@ -18,7 +18,8 @@
 library;
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:orbi_runtime/orbi_runtime.dart' show CapabilitySnapshot;
+import 'package:orbi_runtime/orbi_runtime.dart'
+    show CapabilitySnapshot, ServerFeature, ServerFeatureState, ServerFeatures;
 
 import '../../ui/components/copyable_message.dart';
 
@@ -68,18 +69,49 @@ const Map<String, String> _whoToAsk = {
   '/sync': 'La sincronización la maneja quien administra el sistema.',
 };
 
+/// One entry per gated area that ALSO requires server evidence (a module
+/// that may simply not be installed on this Odoo), same keys as
+/// [_areaNames] — Mepriga sin ventas es el caso real que motivó esto
+/// (14-sep-2026: «theos_panel debe ser universal»). An area missing here
+/// (`/clients`, `/products`) needs no server evidence: `res.partner` and
+/// `product.product` exist on every Odoo with stock.
+const Map<String, ServerFeature> _areaFeatures = {
+  '/sales': ServerFeature.sales,
+  '/warehouse': ServerFeature.sales,
+  '/collection': ServerFeature.cashbox,
+  '/approvals': ServerFeature.approvals,
+  '/envases': ServerFeature.envases,
+};
+
 /// The message for [path], or null when the person may actually be there.
 ///
 /// Returns [_loadingPermissions] when [capabilities] has not arrived yet: not
-/// knowing is not the same as being refused.
+/// knowing is not the same as being refused. When [features] says the area's
+/// module is confirmed `unavailable`, the message names the missing MODULE
+/// instead of a missing PERMISSION — a very different thing to hear: no
+/// supervisor can grant a module Odoo does not have installed.
 CopyableMessage? routeAccessDeniedMessage(
   String path, {
   required CapabilitySnapshot? capabilities,
+  ServerFeatures? features,
 }) {
   if (path == '/' || path == '/settings' || path == '/login') return null;
   if (capabilities == null) return _loadingPermissions;
   final area = _areaFor(path);
   if (area == null) return _unknownArea;
+  final feature = _areaFeatures[area];
+  if (feature != null &&
+      features != null &&
+      features.stateOf(feature) == ServerFeatureState.unavailable) {
+    return CopyableMessage(
+      title: 'Este servidor no tiene el módulo de ${_areaNames[area]}.',
+      body:
+          'Esto no es un permiso tuyo: esta instalación de Odoo no tiene ese '
+          'módulo activado, así que nadie puede entrar aquí en este '
+          'servidor.',
+      severity: OrbiMessageSeverity.info,
+    );
+  }
   return CopyableMessage(
     title: '${_areaNames[area]} no está entre tus permisos',
     body:
@@ -129,8 +161,16 @@ final class RouteAccessDenialNotifier extends Notifier<CopyableMessage?> {
 
   /// Records why [path] was refused. Returns whether anything was recorded,
   /// so a caller can tell a real refusal from a path that was always open.
-  bool report(String path, {required CapabilitySnapshot? capabilities}) {
-    final message = routeAccessDeniedMessage(path, capabilities: capabilities);
+  bool report(
+    String path, {
+    required CapabilitySnapshot? capabilities,
+    ServerFeatures? features,
+  }) {
+    final message = routeAccessDeniedMessage(
+      path,
+      capabilities: capabilities,
+      features: features,
+    );
     if (message == null) return false;
     state = message;
     return true;

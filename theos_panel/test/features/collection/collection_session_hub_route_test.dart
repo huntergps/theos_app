@@ -19,7 +19,21 @@ final class _Auth implements AuthServicePort {
     required String database,
     required String login,
     required String password,
-  }) async => const AuthServiceResult(status: AuthServiceStatus.authenticated);
+  }) async => AuthServiceResult(
+    status: AuthServiceStatus.authenticated,
+    // A real profile matching (serverUrl, database), same fix as
+    // `router_auth_test.dart`: `serverFeaturesProvider` (14-sep-2026) keys
+    // its cache off the active profile, and the real app never
+    // authenticates with a null one.
+    profile: AuthProfile(
+      serverUrl: serverUrl,
+      database: database,
+      login: login,
+      userId: 1,
+      installationId: 'collection-hub-route-test',
+      credentialReference: 'api-key',
+    ),
+  );
   @override
   Future<AuthServiceResult> restore({bool offline = false}) async =>
       const AuthServiceResult(status: AuthServiceStatus.required);
@@ -40,6 +54,20 @@ void main() {
     'records stays not-available without a destination',
     (tester) async {
       SharedPreferences.setMockInitialValues({});
+      final preferences = await SharedPreferences.getInstance();
+      // `/collection*` now also asks `ServerFeatures` for `cashbox`
+      // (14-sep-2026, «theos_panel debe ser universal»); this test is about
+      // the CASHIER permission reaching the hub, not about server evidence.
+      await preferences.setString(
+        serverFeaturesPrefsKey('https://erp.test', 'db'),
+        ServerFeatures.empty
+            .withState(
+              ServerFeature.cashbox,
+              ServerFeatureState.available,
+              DateTime.utc(2026),
+            )
+            .toJson(),
+      );
       final container = ProviderContainer(
         overrides: [
           authServiceProvider.overrideWithValue(_Auth()),
@@ -52,9 +80,7 @@ void main() {
               permissions: const ['cashier'],
             ),
           ),
-          sharedPreferencesProvider.overrideWithValue(
-            await SharedPreferences.getInstance(),
-          ),
+          sharedPreferencesProvider.overrideWithValue(preferences),
           // The route composes real providers for shift/capabilities; a
           // fixed shift here stands in for the runtime session so the test
           // exercises routing and screen composition, not Drift/Odoo I/O
