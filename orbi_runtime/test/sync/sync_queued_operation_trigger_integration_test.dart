@@ -15,10 +15,15 @@ import 'package:theos_pos_core/theos_pos_core.dart';
 /// "Sincronizar todo" a mano.
 ///
 /// Contra 39ace0f (antes de `SyncQueuedOperationTrigger`) este archivo
-/// DEBE fallar: nada escucha `watchPendingOperationCount()`, así que el
-/// coordinador falso nunca recibe `requestSync`. Se demuestra comentando el
-/// disparador (ver la nota `SIN DISPARADOR` más abajo) y corriendo el
-/// archivo — pégale la salida a la evidencia del encargo.
+/// DEBE fallar: nada escucha la cola, así que el coordinador falso nunca
+/// recibe `requestSync`. Se demuestra comentando el disparador (ver la nota
+/// `SIN DISPARADOR` más abajo) y corriendo el archivo — pégale la salida a
+/// la evidencia del encargo.
+///
+/// Escucha `watchQueuedInserts()` (eventos por INSERT), no un conteo — ver
+/// `sync_queued_operation_trigger_batched_transaction_test.dart` para el
+/// caso que un conteo deja pasar (borrar una operación resuelta y encolar
+/// una nueva en la misma transacción de Drift).
 class _MockSaleOdooActions extends Mock implements SaleOdooActions {}
 
 final class _CountingCoordinator implements SyncCoordinator {
@@ -94,12 +99,12 @@ void main() {
       // cola.
       final trigger = SyncQueuedOperationTrigger(
         coordinator: coordinator,
-        pendingCount: queue.watchPendingOperationCount(),
+        queuedInserts: queue.watchQueuedInserts(),
         online: Stream<bool>.value(true),
         debounce: const Duration(milliseconds: 20),
       );
 
-      // Deja que la línea base (0 pendientes) se registre antes de encolar.
+      // Deja que la señal de red se asiente antes de encolar.
       await Future<void>.delayed(const Duration(milliseconds: 30));
 
       await durable.enviar(
@@ -121,8 +126,8 @@ void main() {
             'Encolar en línea debe drenar solo, sin esperar "Sincronizar '
             'todo" a mano. Si esto da 0, revisa que '
             'SyncQueuedOperationTrigger esté conectado a '
-            'watchPendingOperationCount() — contra 39ace0f no existía '
-            'ningún disparador escuchando la cola, y esta prueba fallaba '
+            'watchQueuedInserts() — contra 39ace0f no existía ningún '
+            'disparador escuchando la cola, y esta prueba fallaba '
             'exactamente así.',
       );
       expect(coordinator.reasons.single.code, 'queued_operation');

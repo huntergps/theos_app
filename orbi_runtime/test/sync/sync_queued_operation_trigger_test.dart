@@ -11,6 +11,13 @@ import 'package:orbi_runtime/src/sync/sync_queued_operation_trigger.dart';
 /// quedaron "En espera, Intentos: 0" con "Conectado" y "Tiempo real:
 /// conectado" ambos verdes, hasta que la persona pulsó "Sincronizar todo" a
 /// mano — ver `sync_queued_operation_trigger.dart` para la causa raíz.
+///
+/// 🔴 Revisión del 14-sep-2026: la señal pasó de un `Stream<int>` (conteo
+/// de pendientes) a un `Stream<void>` (un evento por INSERT real en la
+/// cola) porque el conteo se cancelaba cuando la misma transacción de
+/// Drift borraba una operación resuelta y encolaba una nueva a la vez
+/// (1→1) — ver `theos_pos_core/.../offline_queue_datasource.dart`,
+/// `watchQueuedInserts`.
 final class _CountingCoordinator implements SyncCoordinator {
   int runs = 0;
   final List<SyncReason> reasons = [];
@@ -33,21 +40,21 @@ final class _CountingCoordinator implements SyncCoordinator {
 
 void main() {
   test(
-    'en línea, la cuenta pasa de 0 a 1 -> exactamente un requestSync con '
-    'razón queued_operation y sólo el trabajo de operaciones',
+    'en línea, una inserción -> exactamente un requestSync con razón '
+    'queued_operation y sólo el trabajo de operaciones',
     () async {
       final coordinator = _CountingCoordinator();
-      final counts = StreamController<int>();
+      final inserts = StreamController<void>();
       final trigger = SyncQueuedOperationTrigger(
         coordinator: coordinator,
-        pendingCount: counts.stream,
+        queuedInserts: inserts.stream,
         online: Stream<bool>.value(true),
         debounce: const Duration(milliseconds: 20),
       );
 
-      counts.add(0); // línea base — no es una subida
+      // Deja que la señal de red se asiente antes de la inserción.
       await Future<void>.delayed(Duration.zero);
-      counts.add(1); // subida real, con conexión
+      inserts.add(null);
       await Future<void>.delayed(const Duration(milliseconds: 60));
 
       expect(coordinator.runs, 1);
@@ -57,105 +64,75 @@ void main() {
       });
 
       await trigger.dispose();
-      await counts.close();
+      await inserts.close();
     },
   );
 
-  test('sin conexión, la cuenta pasa de 0 a 1 -> ninguno', () async {
+  test('sin conexión, una inserción -> ninguno', () async {
     final coordinator = _CountingCoordinator();
-    final counts = StreamController<int>();
+    final inserts = StreamController<void>();
     final trigger = SyncQueuedOperationTrigger(
       coordinator: coordinator,
-      pendingCount: counts.stream,
+      queuedInserts: inserts.stream,
       online: Stream<bool>.value(false),
       debounce: const Duration(milliseconds: 20),
     );
 
-    counts.add(0);
     await Future<void>.delayed(Duration.zero);
-    counts.add(1);
+    inserts.add(null);
     await Future<void>.delayed(const Duration(milliseconds: 60));
 
     expect(coordinator.runs, 0);
 
     await trigger.dispose();
-    await counts.close();
+    await inserts.close();
   });
 
   test(
-    'la cuenta igual o menor nunca dispara (sin bucle cuando un reintento '
-    'falla y la operación sigue pendiente)',
+    'varias inserciones dentro del debounce producen un solo pedido',
     () async {
       final coordinator = _CountingCoordinator();
-      final counts = StreamController<int>();
+      final inserts = StreamController<void>();
       final trigger = SyncQueuedOperationTrigger(
         coordinator: coordinator,
-        pendingCount: counts.stream,
-        online: Stream<bool>.value(true),
-        debounce: const Duration(milliseconds: 20),
-      );
-
-      counts.add(2); // línea base
-      await Future<void>.delayed(Duration.zero);
-      counts.add(1); // 2 -> 1: baja, no dispara
-      await Future<void>.delayed(const Duration(milliseconds: 40));
-      counts.add(1); // 1 -> 1: igual, no dispara
-      await Future<void>.delayed(const Duration(milliseconds: 60));
-
-      expect(coordinator.runs, 0);
-
-      await trigger.dispose();
-      await counts.close();
-    },
-  );
-
-  test(
-    'varias subidas dentro del debounce producen un solo pedido',
-    () async {
-      final coordinator = _CountingCoordinator();
-      final counts = StreamController<int>();
-      final trigger = SyncQueuedOperationTrigger(
-        coordinator: coordinator,
-        pendingCount: counts.stream,
+        queuedInserts: inserts.stream,
         online: Stream<bool>.value(true),
         debounce: const Duration(milliseconds: 50),
       );
 
-      counts.add(0); // línea base
       await Future<void>.delayed(Duration.zero);
-      counts.add(1); // subida 1
+      inserts.add(null); // inserción 1
       await Future<void>.delayed(const Duration(milliseconds: 15));
-      counts.add(2); // subida 2, funde el temporizador anterior
+      inserts.add(null); // inserción 2, funde el temporizador anterior
       await Future<void>.delayed(const Duration(milliseconds: 15));
-      counts.add(3); // subida 3, vuelve a fundir
+      inserts.add(null); // inserción 3, vuelve a fundir
       await Future<void>.delayed(const Duration(milliseconds: 150));
 
       expect(coordinator.runs, 1);
 
       await trigger.dispose();
-      await counts.close();
+      await inserts.close();
     },
   );
 
   test('tras dispose, ninguno', () async {
     final coordinator = _CountingCoordinator();
-    final counts = StreamController<int>();
+    final inserts = StreamController<void>();
     final trigger = SyncQueuedOperationTrigger(
       coordinator: coordinator,
-      pendingCount: counts.stream,
+      queuedInserts: inserts.stream,
       online: Stream<bool>.value(true),
       debounce: const Duration(milliseconds: 20),
     );
 
-    counts.add(0); // línea base
     await Future<void>.delayed(Duration.zero);
     await trigger.dispose();
 
-    counts.add(1); // ya nadie escucha
+    inserts.add(null); // ya nadie escucha
     await Future<void>.delayed(const Duration(milliseconds: 60));
 
     expect(coordinator.runs, 0);
 
-    await counts.close();
+    await inserts.close();
   });
 }

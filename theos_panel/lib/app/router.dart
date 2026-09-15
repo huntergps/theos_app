@@ -715,15 +715,21 @@ final scopeSyncAutoResyncTriggerProvider = Provider<SyncAutoResyncTrigger?>((
 // Falla medida contra Odoo real, con "Conectado" y "Tiempo real: conectado"
 // ambos verdes: un envío y una recepción de envases quedaron "En espera,
 // Intentos: 0" en la cola offline hasta que la persona pulsó "Sincronizar
-// todo" a mano. Ninguno de los otros disparadores de este archivo mira el
-// TAMAÑO de la cola — `SyncAutoResyncTrigger` (arriba) sólo reacciona a
-// filos de conectividad/primer plano, y `SyncPeriodicBackupTrigger` (más
-// abajo) se desarma con tiempo real vivo — así que encolar algo nuevo
-// estando ya en línea no disparaba nada. `SyncQueuedOperationTrigger` vive
-// en `orbi_runtime` y es agnóstico de Flutter; aquí sólo se le conecta la
-// cola real del scope activo (`_sessionQueueProvider`, el mismo que ya usan
+// todo" a mano. Ninguno de los otros disparadores de este archivo mira la
+// cola en sí — `SyncAutoResyncTrigger` (arriba) sólo reacciona a filos de
+// conectividad/primer plano, y `SyncPeriodicBackupTrigger` (más abajo) se
+// desarma con tiempo real vivo — así que encolar algo nuevo estando ya en
+// línea no disparaba nada. `SyncQueuedOperationTrigger` vive en
+// `orbi_runtime` y es agnóstico de Flutter; aquí sólo se le conecta la cola
+// real del scope activo (`_sessionQueueProvider`, el mismo que ya usan
 // presencia/preferencias más abajo en este archivo) y la misma señal de red
 // que el bloque de arriba.
+//
+// 🔴 Revisión del 14-sep-2026: se alimenta de `watchQueuedInserts()`
+// (eventos por INSERT), no de un conteo — un conteo se cancela cuando la
+// misma transacción de Drift borra una operación resuelta y encola una
+// nueva a la vez (1→1), y esa cancelación es exactamente el hueco medido en
+// la primera versión de este bloque. Ver la doc de `SyncQueuedOperationTrigger`.
 final scopeSyncQueuedOperationTriggerProvider =
     Provider<SyncQueuedOperationTrigger?>((ref) {
       final coordinator = ref.watch(scopeSyncCoordinatorProvider);
@@ -747,7 +753,7 @@ final scopeSyncQueuedOperationTriggerProvider =
 
       final trigger = SyncQueuedOperationTrigger(
         coordinator: coordinator,
-        pendingCount: queue.watchPendingOperationCount(),
+        queuedInserts: queue.watchQueuedInserts(),
         online: onlineController.stream,
       );
       ref.onDispose(() {

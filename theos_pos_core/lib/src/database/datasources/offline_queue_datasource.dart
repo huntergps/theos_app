@@ -783,29 +783,46 @@ class OfflineQueueDataSource implements core.OfflineQueueStore {
 
   /// Reactive stream: emite el conteo TOTAL de operaciones pendientes en la
   /// cola (de cualquier modelo/orden), para que un disparador de sync sepa
-  /// cuándo SUBIÓ sin tener que sondear el servidor ni la cola por su cuenta.
+  /// cuándo se encoló algo nuevo sin tener que sondear el servidor ni la
+  /// cola por su cuenta.
   ///
-  /// Mismo filtro que [getPendingOperations] (sin exigir que esté "lista
-  /// para reintentar": una operación esperando su backoff sigue en la cola,
-  /// así que sigue contando como pendiente). Por eso un reintento fallido
-  /// que reprograma la misma fila no mueve este conteo — sólo se mueve
-  /// cuando una operación de verdad entra o sale de la cola (se encola, se
-  /// resuelve, cae a dead-letter o se remueve a mano).
+  /// 🔴 Deliberadamente NO es un conteo. Se probó primero con
+  /// `watchPendingOperationCount()` (un `Stream<int>` del total de
+  /// pendientes) y se descartó el 14-sep-2026 por un hueco medido: Drift
+  /// junta en una sola notificación las actualizaciones de tabla que
+  /// ocurren dentro de la misma transacción, así que si en la misma
+  /// transacción sale una operación (se borra o cambia de estado, por
+  /// ejemplo porque el drenaje la resolvió) y entra una nueva, el conteo
+  /// total emite el MISMO número (1→1) — la subida y la bajada se cancelan
+  /// antes de llegar al stream. Un disparador que sólo reacciona a subidas
+  /// del conteo se queda callado exactamente en ese caso, y la operación
+  /// nueva se queda "En espera, Intentos: 0" — el mismo síntoma que esta
+  /// clase existe para resolver.
   ///
-  /// Usada por `SyncQueuedOperationTrigger` (`orbi_runtime`) para pedir un
+  /// Por eso este stream emite un evento por cada INSERT de verdad en
+  /// `offline_queue` (`table_updates` de Drift filtrado a
+  /// `UpdateKind.insert`), nunca un conteo derivado: un insert dentro de una
+  /// transacción con borrados simultáneos sigue siendo un insert, así que
+  /// nunca se cancela contra las bajadas de esa misma transacción.
+  /// `queueOperation` inserta con `_db.into(_db.offlineQueue).insert(...)`
+  /// (más arriba en este archivo), y Drift marca ese insert con
+  /// `TableUpdate.onTable(table, kind: UpdateKind.insert)`
+  /// (`insert.dart:79` en el paquete `drift`) — por eso basta con escuchar
+  /// inserciones, sin filtrar por estado ni reintentos.
+  ///
+  /// Usado por `SyncQueuedOperationTrigger` (`orbi_runtime`) para pedir un
   /// drenaje apenas se encola algo en línea, sin esperar el próximo filo de
   /// conectividad/primer plano ni el respaldo periódico de 5 minutos — ver
   /// la documentación de esa clase para la causa raíz medida el 14-sep-2026.
-  Stream<int> watchPendingOperationCount() {
-    final query = _db.select(_db.offlineQueue)
-      ..where(
-        (table) =>
-            (table.status.equals('pending') |
-                table.status.equals('recovery_pending') |
-                table.status.isNull()) &
-            table.retryCount.isSmallerThanValue(core.RetryBackoff.maxRetries),
-      );
-    return query.watch().map((rows) => rows.length);
+  Stream<void> watchQueuedInserts() {
+    return _db
+        .tableUpdates(
+          drift.TableUpdateQuery.onTable(
+            _db.offlineQueue,
+            limitUpdateKind: drift.UpdateKind.insert,
+          ),
+        )
+        .map((_) {});
   }
 
   /// Remove all pending WRITE operations for a sale.order
